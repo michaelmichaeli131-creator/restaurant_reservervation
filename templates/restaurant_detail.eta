@@ -1,4 +1,4 @@
-<%~ it.layout = "layout" %>
+<% it.layout = "layout" %>
 <% const r = it.restaurant; %>
 <% let body = `
 <h1>${r.name}</h1>
@@ -7,7 +7,7 @@
 
 <h3>תפריט</h3>
 <ul>
-  ${(r.menu ?? []).map((m:any)=>`<li>${m.name} — ${m.price} ₾</li>`).join("") || "<li>—</li>"}
+  ${ ((r.menu || []).map((m) => `<li>${m.name} — ${m.price} ₾</li>`).join("")) || "<li>—</li>" }
 </ul>
 
 <h3>הזמנת שולחן</h3>
@@ -19,4 +19,4 @@
   <button type="submit">הזמן</button>
 </form>
 ` %>
-<%- includeFile("layout", { ...it, body }) %>
+<%~ includeFile("layout", { ...it, body }) %>

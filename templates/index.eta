@@ -1,14 +1,14 @@
-<%~ it.layout = "layout" %>
+<% it.layout = "layout" %>
 <% let body = `
 <h1>מסעדות זמינות</h1>
 <ul class="cards">
-  ${it.restaurants.map((r:any)=>`
+  ${ (it.restaurants || []).map((r) => `
     <li class="card">
       <h3>${r.name}</h3>
       <p>${r.city} · ${r.address}</p>
       <a class="btn" href="/restaurants/${r.id}">כניסה למסעדה</a>
     </li>
-  `).join("")}
+  `).join("") }
 </ul>
 ` %>
-<%- includeFile("layout", { ...it, body }) %>
+<%~ includeFile("layout", { ...it, body }) %>

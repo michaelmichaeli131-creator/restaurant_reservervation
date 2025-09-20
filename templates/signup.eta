@@ -1,4 +1,4 @@
-<%~ it.layout = "layout" %>
+<% it.layout = "layout" %>
 <% let body = `
 <h1>הרשמה</h1>
 <form method="post" action="/signup" class="form">
@@ -13,4 +13,4 @@
   <button type="submit">צור משתמש</button>
 </form>
 ` %>
-<%- includeFile("layout", { ...it, body }) %>
+<%~ includeFile("layout", { ...it, body }) %>

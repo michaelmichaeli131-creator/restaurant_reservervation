@@ -1,4 +1,4 @@
-<%~ it.layout = "layout" %>
+<% it.layout = "layout" %>
 <% let body = `
 <h1>ניהול מסעדה</h1>
 <form method="post" action="/owner/restaurant/new" class="form">
@@ -14,13 +14,13 @@
 
 <h3>המסעדות שלי</h3>
 <ul class="cards">
-  ${it.myRestaurants.map((r:any)=>`
+  ${ (it.myRestaurants || []).map((r) => `
     <li class="card">
       <h4>${r.name}</h4>
       <p>${r.city} · ${r.address}</p>
       <a class="btn" href="/restaurants/${r.id}">צפייה</a>
     </li>
-  `).join("")}
+  `).join("") }
 </ul>
 ` %>
-<%- includeFile("layout", { ...it, body }) %>
+<%~ includeFile("layout", { ...it, body }) %>
