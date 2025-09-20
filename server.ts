@@ -1,7 +1,8 @@
 import { Application, Router, Context } from "@oak/oak";
+import { send } from "@oak/oak/send";                 // ← חדש: Oak send
 import { renderFile } from "@eta/eta";
 import { oakCors } from "https://deno.land/x/cors@v1.2.2/mod.ts";
-import { StaticContent } from "https://deno.land/x/static_content@v1.0.4/mod.ts";
+// import { StaticContent } from "https://deno.land/x/static_content@v1.0.4/mod.ts";  // ← להסרה
 import { authRouter } from "./routes/auth.ts";
 import { restaurantsRouter } from "./routes/restaurants.ts";
 import { ownerRouter } from "./routes/owner.ts";
@@ -12,8 +13,15 @@ const PORT = Number(Deno.env.get("APP_PORT") ?? 8000);
 
 const app = new Application();
 
-// Static files
-app.use(StaticContent({ root: `${Deno.cwd()}/public`, prefix: "/static" }));
+// Static files (serve /public under /static/)
+app.use(async (ctx, next) => {
+  const p = ctx.request.url.pathname;
+  if (p.startsWith("/static/")) {
+    await send(ctx, p.replace("/static", ""), { root: `${Deno.cwd()}/public` });
+    return;
+  }
+  await next();
+});
 
 // CORS
 app.use(oakCors());
