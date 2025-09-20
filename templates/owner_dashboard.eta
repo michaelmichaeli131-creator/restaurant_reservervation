@@ -1,0 +1,26 @@
+<%~ it.layout = "layout" %>
+<% let body = `
+<h1>ניהול מסעדה</h1>
+<form method="post" action="/owner/restaurant/new" class="form">
+  <h3>מסעדה חדשה</h3>
+  <label>שם <input name="name" required/></label>
+  <label>עיר <input name="city"/></label>
+  <label>כתובת <input name="address"/></label>
+  <label>טלפון <input name="phone"/></label>
+  <label>שעות פתיחה <input name="hours"/></label>
+  <label>תיאור <input name="description"/></label>
+  <button type="submit">הוסף</button>
+</form>
+
+<h3>המסעדות שלי</h3>
+<ul class="cards">
+  ${it.myRestaurants.map((r:any)=>`
+    <li class="card">
+      <h4>${r.name}</h4>
+      <p>${r.city} · ${r.address}</p>
+      <a class="btn" href="/restaurants/${r.id}">צפייה</a>
+    </li>
+  `).join("")}
+</ul>
+` %>
+<%- includeFile("layout", { ...it, body }) %>

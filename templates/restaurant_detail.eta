@@ -1,0 +1,22 @@
+<%~ it.layout = "layout" %>
+<% const r = it.restaurant; %>
+<% let body = `
+<h1>${r.name}</h1>
+<p>${r.city} · ${r.address}</p>
+<p>${r.description ?? ""}</p>
+
+<h3>תפריט</h3>
+<ul>
+  ${(r.menu ?? []).map((m:any)=>`<li>${m.name} — ${m.price} ₾</li>`).join("") || "<li>—</li>"}
+</ul>
+
+<h3>הזמנת שולחן</h3>
+<form method="post" action="/restaurants/${r.id}/reserve" class="form">
+  <label>תאריך <input name="date" type="date" required></label>
+  <label>שעה <input name="time" type="time" required></label>
+  <label>מס׳ סועדים <input name="people" type="number" min="1" value="2"></label>
+  <label>הערה <input name="note" type="text"></label>
+  <button type="submit">הזמן</button>
+</form>
+` %>
+<%- includeFile("layout", { ...it, body }) %>

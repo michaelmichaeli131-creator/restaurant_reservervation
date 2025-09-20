@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title><%= it.title || "GeoTable — הזמנת מסעדות" %></title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">GeoTable</a>
+    <nav>
+      <% if (it.user) { %>
+        <span>שלום, <%= it.user.email %></span>
+        <% if (it.user.role === "owner") { %>
+          <a href="/owner">ניהול מסעדה</a>
+        <% } %>
+        <form method="post" action="/logout" style="display:inline">
+          <button type="submit">התנתק</button>
+        </form>
+      <% } else { %>
+        <a href="/login">התחברות</a>
+        <a href="/signup">הרשמה</a>
+      <% } %>
+    </nav>
+  </header>
+  <main class="container">
+    <%- it.body %>
+  </main>
+  <footer class="footer">© <%= new Date().getFullYear() %> GeoTable</footer>
+</body>
+</html>

@@ -1,0 +1,12 @@
+<%~ it.layout = "layout" %>
+<% let body = `
+<h1>התחברות</h1>
+<form method="post" action="/login" class="form">
+  <label>אימייל <input name="email" type="email" required/></label>
+  <label>סיסמה <input name="password" type="password" required/></label>
+  <button type="submit">התחבר</button>
+</form>
+<div class="sep">או</div>
+<a class="btn outline" href="/oauth/google">התחבר עם Google</a>
+` %>
+<%- includeFile("layout", { ...it, body }) %>

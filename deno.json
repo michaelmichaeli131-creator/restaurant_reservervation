@@ -1,0 +1,14 @@
+{
+  "tasks": {
+    "dev": "deno run --allow-net --allow-env --allow-read --unstable-kv server.ts",
+    "fmt": "deno fmt",
+    "lint": "deno lint"
+  },
+  "imports": {
+    "@oak/oak": "jsr:@oak/oak@^17",
+    "@eta/eta": "npm:eta@^3",
+    "@deno/kv-oauth": "jsr:@deno/kv-oauth@^0.11",
+    "oak_sessions": "https://deno.land/x/oak_sessions@v4.1.0/mod.ts",
+    "bcrypt": "https://deno.land/x/bcrypt@v0.4.1/mod.ts"
+  }
+}
