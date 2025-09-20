@@ -1,20 +1,18 @@
 import { Router } from "@oak/oak";
-import { kv, getRestaurant, createReservation } from "../database.ts";
-import { renderFile } from "@eta/eta";
+import { getRestaurant, createReservation } from "../database.ts";
 import { requireAuth } from "../lib/auth.ts";
+import { render } from "../lib/view.ts";
 
 export const restaurantsRouter = new Router();
-
-async function render(ctx: any, tpl: string, data: Record<string, unknown> = {}) {
-  const html = await renderFile(`${Deno.cwd()}/templates/${tpl}.eta`, { ...data, user: ctx.state.user ?? null });
-  ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-  ctx.response.body = html;
-}
 
 restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const id = ctx.params.id!;
   const restaurant = await getRestaurant(id);
-  if (!restaurant) { ctx.response.status = 404; ctx.response.body = "Not found"; return; }
+  if (!restaurant) {
+    ctx.response.status = 404;
+    ctx.response.body = "Not found";
+    return;
+  }
   await render(ctx, "restaurant_detail", { restaurant });
 });
 
@@ -30,9 +28,12 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   const resv = {
     id: crypto.randomUUID(),
     restaurantId: id,
-    userId: (ctx.state as any).user.id,
-    date, time, people, note,
-    createdAt: Date.now()
+    userId: ctx.state.user.id,
+    date,
+    time,
+    people,
+    note,
+    createdAt: Date.now(),
   };
   await createReservation(resv as any);
   ctx.response.redirect(`/restaurants/${id}`);
