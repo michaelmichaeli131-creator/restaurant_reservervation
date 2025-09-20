@@ -1,14 +1,27 @@
+// routes/auth.ts
 import { Router } from "@oak/oak";
 import { createUser, findUserByEmail } from "../database.ts";
 import { hashPassword, verifyPassword } from "../lib/auth.ts";
-import { createGoogleOAuthConfig, createHelpers } from "@deno/kv-oauth";
 import { render } from "../lib/view.ts";
+
+// ---- בדיקת OAuth מהסביבה ----
+const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
+const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
+const OAUTH_CALLBACK_URL = Deno.env.get("OAUTH_CALLBACK_URL");
+const OAUTH_ENABLED = !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && OAUTH_CALLBACK_URL);
 
 export const authRouter = new Router();
 
-authRouter.get("/login", async (ctx) => await render(ctx, "login"));
-authRouter.get("/signup", async (ctx) => await render(ctx, "signup"));
+// דפים
+authRouter.get("/login", async (ctx) => {
+  await render(ctx, "login", { oauthEnabled: OAUTH_ENABLED });
+});
 
+authRouter.get("/signup", async (ctx) => {
+  await render(ctx, "signup");
+});
+
+// הרשמה בסיסמה
 authRouter.post("/signup", async (ctx) => {
   const body = await ctx.request.body({ type: "form" }).value;
   const email = body.get("email")?.toString().trim().toLowerCase();
@@ -41,6 +54,7 @@ authRouter.post("/signup", async (ctx) => {
   ctx.response.redirect("/");
 });
 
+// התחברות בסיסמה
 authRouter.post("/login", async (ctx) => {
   const body = await ctx.request.body({ type: "form" }).value;
   const email = body.get("email")?.toString().trim().toLowerCase();
@@ -63,39 +77,44 @@ authRouter.post("/login", async (ctx) => {
   ctx.response.redirect("/");
 });
 
+// התנתקות
 authRouter.post("/logout", async (ctx) => {
   await ctx.state.session.set("userId", null);
   ctx.response.redirect("/");
 });
 
-// OAuth (Google) — אופציונלי
-const google = createGoogleOAuthConfig({
-  redirectUri: Deno.env.get("OAUTH_CALLBACK_URL")!,
-  scope: ["openid", "email", "profile"],
-});
-const { signIn, handleCallback, signOut } = createHelpers(google);
+// ---- OAuth (Google) — רק אם מוגדרים משתנים ----
+if (OAUTH_ENABLED) {
+  const { createGoogleOAuthConfig, createHelpers } = await import("@deno/kv-oauth");
 
-authRouter.get("/oauth/google", signIn);
-authRouter.get("/oauth/callback", async (ctx) => {
-  const { response, session, tokens, state } = await handleCallback(ctx.request);
-  const email = (state as any)?.token?.email ?? (tokens as any)?.idToken?.email;
-  if (!email) return response;
+  const google = createGoogleOAuthConfig({
+    redirectUri: OAUTH_CALLBACK_URL!,
+    scope: ["openid", "email", "profile"],
+  });
+  const { signIn, handleCallback, signOut } = createHelpers(google);
 
-  const existing = await findUserByEmail(email.toLowerCase());
-  let userId: string;
-  if (existing) {
-    userId = existing.id;
-  } else {
-    const id = crypto.randomUUID();
-    const user = await createUser({
-      id,
-      email: email.toLowerCase(),
-      role: "user",
-      provider: "google",
-    });
-    userId = user.id;
-  }
-  await session.set("userId", userId);
-  return Response.redirect(new URL("/", ctx.request.url).toString(), 302);
-});
-authRouter.get("/oauth/signout", signOut);
+  authRouter.get("/oauth/google", signIn);
+  authRouter.get("/oauth/callback", async (ctx) => {
+    const { response, session, tokens, state } = await handleCallback(ctx.request);
+    const email = (state as any)?.token?.email ?? (tokens as any)?.idToken?.email;
+    if (!email) return response;
+
+    const existing = await findUserByEmail(email.toLowerCase());
+    let userId: string;
+    if (existing) {
+      userId = existing.id;
+    } else {
+      const id = crypto.randomUUID();
+      const user = await createUser({
+        id,
+        email: email.toLowerCase(),
+        role: "user",
+        provider: "google",
+      });
+      userId = user.id;
+    }
+    await session.set("userId", userId);
+    return Response.redirect(new URL("/", ctx.request.url).toString(), 302);
+  });
+  authRouter.get("/oauth/signout", signOut);
+}
