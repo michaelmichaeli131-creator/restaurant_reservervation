@@ -1,15 +1,14 @@
 // lib/session.ts
-// Session פשוט המבוסס על קוקיז + Deno KV (ללא oak_sessions)
+// Session מבוסס קוקיז + Deno KV, חסין פרוקסי (x-forwarded-proto) ושגיאות secure-cookie
 
-import { Application } from "@oak/oak";
+import { Application, Context } from "@oak/oak";
 import { kv, getUser } from "../database.ts";
 
 const COOKIE_NAME = "sid";
-const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14; // 14 יום
+const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14; // 14 ימים
 
 type SessionRecord = {
   data: Record<string, unknown>;
-  // לשימוש עתידי (ניקוי/תוקף)
   expiresAt: number;
 };
 
@@ -17,22 +16,51 @@ function newSessionId() {
   return crypto.randomUUID().replace(/-/g, "");
 }
 
-export async function initSession(app: Application) {
-  app.use(async (ctx, next) => {
-    // קרא/צור sid מהעוגיה
-    let sid = await ctx.cookies.get(COOKIE_NAME);
-    const isHttps = ctx.request.url.protocol === "https:";
-    if (!sid) {
-      sid = newSessionId();
+/** בדיקת HTTPS אמיתית מאחורי פרוקסי (Deno Deploy וכו') */
+function isHttpsRequest(ctx: Context): boolean {
+  const xfProto = ctx.request.headers.get("x-forwarded-proto");
+  if (xfProto) return xfProto.toLowerCase() === "https";
+  // fallback: url.protocol
+  return ctx.request.url.protocol === "https:";
+}
+
+/** כתיבת קוקי עם נפילה בטוחה (retry ללא secure אם צריך) */
+async function setSessionCookie(ctx: Context, sid: string, secure: boolean) {
+  try {
+    await ctx.cookies.set(COOKIE_NAME, sid, {
+      httpOnly: true,
+      sameSite: "Lax",
+      secure, // ננסה secure אם זמין
+      path: "/",
+    });
+  } catch (err) {
+    // אם קיבלנו "Cannot send secure cookie..." – ננסה בלי secure
+    const msg = String(err?.message || err);
+    if (secure && msg.includes("secure cookie")) {
+      console.warn("[WARN] secure cookie failed; retrying with secure=false");
       await ctx.cookies.set(COOKIE_NAME, sid, {
         httpOnly: true,
         sameSite: "Lax",
-        secure: isHttps, // ב-Deploy זה true; בלוקאלי זה יהיה false (http)
+        secure: false,
         path: "/",
       });
+    } else {
+      throw err;
+    }
+  }
+}
+
+export async function initSession(app: Application) {
+  app.use(async (ctx, next) => {
+    const httpsLike = isHttpsRequest(ctx);
+
+    // קרא/צור sid
+    let sid = await ctx.cookies.get(COOKIE_NAME);
+    if (!sid) {
+      sid = newSessionId();
+      await setSessionCookie(ctx, sid, httpsLike);
     }
 
-    // טען את הרשומה מה-KV (או התחל ריק)
     const key = ["session", sid] as const;
     const stored = (await kv.get<SessionRecord>(key)).value;
     let session: SessionRecord = stored ?? {
@@ -40,7 +68,6 @@ export async function initSession(app: Application) {
       expiresAt: Date.now() + SESSION_TTL_MS,
     };
 
-    // API של session: get/set/destroy
     const api = {
       async get<T = unknown>(name: string): Promise<T | undefined> {
         return session.data[name] as T | undefined;
@@ -49,23 +76,26 @@ export async function initSession(app: Application) {
         session.data[name] = value;
         session.expiresAt = Date.now() + SESSION_TTL_MS;
         await kv.set(key, session);
+        // רענון עוגיה (לגלגול תוקף) – חסין secure
+        await setSessionCookie(ctx, sid!, httpsLike);
       },
       async destroy(): Promise<void> {
         await kv.delete(key);
+        await setSessionCookie(ctx, "", httpsLike); // ינקה עוגיה
+        // מחיקה “אמיתית” עם תוקף עבר
         await ctx.cookies.set(COOKIE_NAME, "", {
           httpOnly: true,
           sameSite: "Lax",
-          secure: isHttps,
+          secure: httpsLike && false, // לא נצריך secure כדי לא לזרוק
           path: "/",
           expires: new Date(0),
         });
       },
     };
 
-    // חשוף ב-ctx.state.session
     (ctx.state as any).session = api;
 
-    // אם יש userId בסשן — טען את המשתמש ושמור ב-ctx.state.user
+    // טעינת user מהסשן אם יש
     try {
       const userId = (await api.get<string>("userId")) ?? null;
       if (userId) {
