@@ -1,5 +1,3 @@
-<% it.layout = "layout" %>
-<% let body = `
 <h1>ניהול מסעדה</h1>
 <form method="post" action="/owner/restaurant/new" class="form">
   <h3>מסעדה חדשה</h3>
@@ -14,13 +12,14 @@
 
 <h3>המסעדות שלי</h3>
 <ul class="cards">
-  ${ (it.myRestaurants || []).map((r) => `
+  <% for (const r of (it.myRestaurants || [])) { %>
     <li class="card">
-      <h4>${r.name}</h4>
-      <p>${r.city} · ${r.address}</p>
-      <a class="btn" href="/restaurants/${r.id}">צפייה</a>
+      <h4><%= r.name %></h4>
+      <p><%= r.city %> · <%= r.address %></p>
+      <a class="btn" href="/restaurants/<%= r.id %>">צפייה</a>
     </li>
-  `).join("") }
+  <% } %>
+  <% if (!it.myRestaurants || it.myRestaurants.length === 0) { %>
+    <li class="card">עוד אין לך מסעדות — מלא את הטופס למעלה</li>
+  <% } %>
 </ul>
-` %>
-<%~ includeFile("layout", { ...it, body }) %>

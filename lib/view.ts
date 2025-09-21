@@ -1,5 +1,5 @@
 // lib/view.ts
-// הגדרת Eta עם תיקיית views כך ש-includeFile יעבוד (layout וכו')
+// רנדר דו-שלבי: קודם את התוכן (body), ואז עוטפים ב-layout. אין includeFile.
 
 import { Eta } from "@eta/eta";
 
@@ -7,26 +7,31 @@ import { Eta } from "@eta/eta";
 const VIEWS_DIR = `${Deno.cwd()}/templates`;
 
 export const eta = new Eta({
-  views: VIEWS_DIR,  // חשוב: מאפשר includeFile("layout")
-  cache: true,       // אפשר cache לקבצים בפרודקשן
+  views: VIEWS_DIR,
+  cache: true,
 });
 
-/**
- * מרנדר תבנית לפי שם קובץ בלי סיומת (למשל "index", "login")
- * מעדכן Content-Type ומדפיס שגיאה מפורטת ללוג במקרה הצורך.
- */
 export async function render(
   ctx: any,
-  template: string,
+  template: string, // שם קובץ בלי סיומת: "index", "login" וכו'
   data: Record<string, unknown> = {},
 ) {
   try {
-    // נרנדר לפי שם קובץ בתוך /templates (index.eta, login.eta, ...)
-    const html = await eta.renderAsync(template, {
+    // שלב 1: רנדר תוכן פנימי
+    const body = await eta.renderAsync(template, {
       ...data,
       user: ctx.state?.user ?? null,
       ctx,
     });
+
+    // שלב 2: עטיפה ב-layout.eta
+    const html = await eta.renderAsync("layout", {
+      ...data,
+      user: ctx.state?.user ?? null,
+      ctx,
+      body,
+    });
+
     ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
     ctx.response.body = html ?? "";
   } catch (err) {

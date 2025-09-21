@@ -1,14 +1,13 @@
-<% it.layout = "layout" %>
-<% let body = `
 <h1>מסעדות זמינות</h1>
 <ul class="cards">
-  ${ (it.restaurants || []).map((r) => `
+  <% for (const r of (it.restaurants || [])) { %>
     <li class="card">
-      <h3>${r.name}</h3>
-      <p>${r.city} · ${r.address}</p>
-      <a class="btn" href="/restaurants/${r.id}">כניסה למסעדה</a>
+      <h3><%= r.name %></h3>
+      <p><%= r.city %> · <%= r.address %></p>
+      <a class="btn" href="/restaurants/<%= r.id %>">כניסה למסעדה</a>
     </li>
-  `).join("") }
+  <% } %>
+  <% if (!it.restaurants || it.restaurants.length === 0) { %>
+    <li class="card">אין מסעדות עדיין — בעל מסעדה? היכנס ל-/owner והוסף.</li>
+  <% } %>
 </ul>
-` %>
-<%~ includeFile("layout", { ...it, body }) %>
