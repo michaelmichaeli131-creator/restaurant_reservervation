@@ -6,21 +6,25 @@
   <title><%= it.title || "GeoTable — הזמנת מסעדות" %></title>
   <link rel="stylesheet" href="/static/styles.css">
   <script src="/static/app.js" defer></script>
+  <!-- מנטרל קאש אגרסיבי של חלק מהפרוקסים/דפדפנים לדף HTML -->
+  <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="pragma" content="no-cache">
+  <meta http-equiv="expires" content="0">
 </head>
 <body>
   <header class="topbar">
-    <a href="/" class="brand">GeoTable</a>
+    <a href="/" class="brand" data-hard-nav="true">GeoTable</a>
     <nav class="nav">
       <% if (it.user) { %>
         <span>שלום, <%= it.user.email %></span>
         <% if (it.user.role === "owner") { %>
-          <a href="/owner" class="btn outline">אזור מנהלים</a>
+          <a href="/owner" class="btn outline" data-hard-nav="true">אזור מנהלים</a>
         <% } %>
         <form method="post" action="/logout" class="inline">
           <button type="submit" class="btn outline">התנתק</button>
         </form>
       <% } else { %>
-        <a href="/login" class="btn outline">התחברות מנהלים</a>
+        <a href="/login" class="btn outline" data-hard-nav="true">התחברות מנהלים</a>
       <% } %>
     </nav>
   </header>

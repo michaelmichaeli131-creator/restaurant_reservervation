@@ -1,4 +1,24 @@
 (() => {
+  // --------- Hard navigation for internal links ---------
+  // כל לינק שיש עליו data-hard-nav יגרום לטעינה מלאה של הדף ב-window.location.assign
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest('a[data-hard-nav="true"]');
+    if (!a) return;
+
+    // רק קליק שמאלי בלי מקשים מיוחדים
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
+    try {
+      // אל תבטל את ברירת המחדל — פשוט תכריח ניווט לפני שכל קוד אחר יתערב
+      // (זה מנצח כמעט כל preventDefault צד שלישי)
+      window.location.assign(a.href);
+    } catch (_) {
+      // fallback
+      window.location.href = a.getAttribute("href");
+    }
+  }, { capture: true });
+
+  // --------- Autocomplete (כמו שהיה) ---------
   const input = document.getElementById("searchInput");
   const box = document.getElementById("suggestions");
   if (!input || !box) return;
@@ -7,7 +27,7 @@
   const fetchSuggest = async (q) => {
     if (!q || q.trim().length < 1) { box.hidden = true; box.innerHTML = ""; return; }
     try {
-      const res = await fetch(`/api/restaurants/search?query=${encodeURIComponent(q)}`);
+      const res = await fetch(`/api/restaurants/search?query=${encodeURIComponent(q)}`, { cache: "no-store" });
       if (!res.ok) throw new Error("bad status");
       const { items } = await res.json();
       if (!Array.isArray(items) || items.length === 0) { box.hidden = true; box.innerHTML = ""; return; }
@@ -38,7 +58,7 @@
     const el = e.target.closest(".suggestion");
     if (!el) return;
     const id = el.getAttribute("data-id");
-    if (id) window.location.href = `/restaurants/${id}`;
+    if (id) window.location.assign(`/restaurants/${id}`);
   });
 
   function escapeHtml(s) {
