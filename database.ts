@@ -1,10 +1,9 @@
-export const kv = await Deno.openKv(); // KV ברירת מחדל
+export const kv = await Deno.openKv();
 
-// מודלים / פונקציות עזר
 export type User = {
   id: string;
   email: string;
-  passwordHash?: string; // אם נרשם בסיסמה
+  passwordHash?: string;
   provider?: "google" | "local";
   role: "user" | "owner";
   createdAt: number;
@@ -28,8 +27,8 @@ export type Reservation = {
   id: string;
   restaurantId: string;
   userId: string;
-  date: string;   // YYYY-MM-DD
-  time: string;   // HH:mm
+  date: string;
+  time: string;
   people: number;
   note?: string;
   createdAt: number;

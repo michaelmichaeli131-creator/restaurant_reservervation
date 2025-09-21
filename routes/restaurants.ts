@@ -8,11 +8,7 @@ export const restaurantsRouter = new Router();
 restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const id = ctx.params.id!;
   const restaurant = await getRestaurant(id);
-  if (!restaurant) {
-    ctx.response.status = 404;
-    ctx.response.body = "Not found";
-    return;
-  }
+  if (!restaurant) { ctx.response.status = 404; ctx.response.body = "Not found"; return; }
   await render(ctx, "restaurant_detail", { restaurant });
 });
 
@@ -29,10 +25,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     id: crypto.randomUUID(),
     restaurantId: id,
     userId: ctx.state.user.id,
-    date,
-    time,
-    people,
-    note,
+    date, time, people, note,
     createdAt: Date.now(),
   };
   await createReservation(resv as any);

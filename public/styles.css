@@ -1,100 +1,64 @@
-:root {
-  --bg: #0f172a;
-  --ink: #e2e8f0;
-  --muted: #9fb0c8;
-  --brand: #3b82f6;
-  --accent: #22d3ee;
+:root{
+  --bg:#0f172a; --ink:#e2e8f0; --muted:#9fb0c8;
+  --brand:#3b82f6; --accent:#22d3ee;
 }
 
 /* reset */
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html, body {
-  background: var(--bg);
-  color: var(--ink);
-  font-family: system-ui, Segoe UI, Arial;
-  line-height: 1.4;
+*{ box-sizing:border-box; }
+html,body{
+  margin:0; padding:0;
+  background:var(--bg); color:var(--ink);
+  font-family:system-ui,Segoe UI,Arial;
 }
-a { color: var(--accent); text-decoration: none; }
-button { cursor: pointer; }
+a{ color:var(--accent); text-decoration:none; }
+button{ cursor:pointer; }
 
-/* ===== TOP BAR ===== */
-.topbar {
-  position: sticky;      /* נשאר למעלה בגלילה */
-  top: 0;
-  z-index: 1000;         /* גבוה כדי להיות מעל כל תוכן */
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #233;
-  background: var(--bg);
+/* ===== Topbar ===== */
+.topbar{
+  position: static;
+  z-index: 10;
+  display:flex; justify-content:space-between; align-items:center;
+  padding:12px 16px; border-bottom:1px solid #233; background:var(--bg);
 }
-.topbar * { pointer-events: auto; }
-.topbar a, .topbar button {
-  cursor: pointer;
-  display: inline-block;
-  position: relative;
-  z-index: 1001;         /* מוודא שהן מעל שכבות אחרות */
+.nav{ display:flex; gap:12px; align-items:center; }
+.inline{ display:inline; margin:0; }
+.topbar a, .topbar button{ cursor: pointer; }
+
+/* ===== Layout ===== */
+.container{ max-width:960px; margin:24px auto; padding:0 16px; }
+.footer{
+  opacity:.7; text-align:center; padding:40px 0;
+  border-top:1px solid #233; margin-top:40px;
 }
 
-.brand { font-weight: 700; color: var(--ink); }
-
-/* ===== LAYOUT ===== */
-.container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
-.footer {
-  opacity: .7;
-  text-align: center;
-  padding: 40px 0;
-  border-top: 1px solid #233;
-  margin-top: 40px;
+/* ===== Cards ===== */
+.cards{
+  list-style:none; padding:0;
+  display:grid; gap:12px;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+}
+.card{
+  background:#121a2f; border:1px solid #223;
+  padding:16px; border-radius:10px;
 }
 
-/* ===== CARDS ===== */
-.cards {
-  list-style: none;
-  padding: 0;
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-}
-.card {
-  background: #121a2f;
-  border: 1px solid #223;
-  padding: 16px;
-  border-radius: 10px;
+/* ===== Forms ===== */
+.form{ display:grid; gap:12px; max-width:460px; }
+.form input,.form select,.form button{
+  padding:10px 12px; border-radius:8px;
+  border:1px solid #2a3a5a;
+  background:#0c1324; color:var(--ink);
 }
 
-/* ===== FORMS ===== */
-.form {
-  display: grid;
-  gap: 12px;
-  max-width: 460px;
+/* ===== Buttons ===== */
+.btn{
+  display:inline-block; padding:10px 12px;
+  border-radius:8px; background:var(--brand);
+  color:white; font-weight:500;
 }
-.form input,
-.form select,
-.form button {
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid #2a3a5a;
-  background: #0c1324;
-  color: var(--ink);
+.btn.outline{
+  background:transparent; border:1px solid var(--brand);
+  color:var(--ink);
 }
 
-/* ===== BUTTONS ===== */
-.btn {
-  display: inline-block;
-  padding: 10px 14px;
-  border-radius: 8px;
-  background: var(--brand);
-  color: white;
-  font-weight: 500;
-  text-align: center;
-}
-.btn.outline {
-  background: transparent;
-  border: 1px solid var(--brand);
-  color: var(--ink);
-}
-
-/* ===== SEPARATOR ===== */
-.sep { margin: 12px 0; opacity: .7; }
+.sep{ margin:12px 0; opacity:.7; }

@@ -7,16 +7,15 @@
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-  <!-- ====== HEADER ====== -->
   <header class="topbar">
     <a href="/" class="brand">GeoTable</a>
-    <nav style="display:flex; gap:12px; align-items:center;">
+    <nav class="nav">
       <% if (it.user) { %>
         <span>שלום, <%= it.user.email %></span>
         <% if (it.user.role === "owner") { %>
           <a href="/owner" class="btn outline">ניהול מסעדה</a>
         <% } %>
-        <form method="post" action="/logout" style="margin:0;">
+        <form method="post" action="/logout" class="inline">
           <button type="submit" class="btn outline">התנתק</button>
         </form>
       <% } else { %>
@@ -26,14 +25,10 @@
     </nav>
   </header>
 
-  <!-- ====== MAIN ====== -->
   <main class="container">
     <%- it.body %>
   </main>
 
-  <!-- ====== FOOTER ====== -->
-  <footer class="footer">
-    © <%= new Date().getFullYear() %> GeoTable
-  </footer>
+  <footer class="footer">© <%= new Date().getFullYear() %> GeoTable</footer>
 </body>
 </html>
