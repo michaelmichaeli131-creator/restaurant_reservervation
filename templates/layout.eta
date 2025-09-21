@@ -7,26 +7,33 @@
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
+  <!-- ====== HEADER ====== -->
   <header class="topbar">
     <a href="/" class="brand">GeoTable</a>
-    <nav>
+    <nav style="display:flex; gap:12px; align-items:center;">
       <% if (it.user) { %>
         <span>שלום, <%= it.user.email %></span>
         <% if (it.user.role === "owner") { %>
-          <a href="/owner">ניהול מסעדה</a>
+          <a href="/owner" class="btn outline">ניהול מסעדה</a>
         <% } %>
-        <form method="post" action="/logout" style="display:inline">
-          <button type="submit">התנתק</button>
+        <form method="post" action="/logout" style="margin:0;">
+          <button type="submit" class="btn outline">התנתק</button>
         </form>
       <% } else { %>
-        <a href="/login">התחברות</a>
-        <a href="/signup">הרשמה</a>
+        <a href="/login" class="btn outline">התחברות</a>
+        <a href="/signup" class="btn">הרשמה</a>
       <% } %>
     </nav>
   </header>
+
+  <!-- ====== MAIN ====== -->
   <main class="container">
     <%- it.body %>
   </main>
-  <footer class="footer">© <%= new Date().getFullYear() %> GeoTable</footer>
+
+  <!-- ====== FOOTER ====== -->
+  <footer class="footer">
+    © <%= new Date().getFullYear() %> GeoTable
+  </footer>
 </body>
 </html>
