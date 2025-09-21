@@ -1,4 +1,14 @@
-<h1>מסעדות זמינות</h1>
+<h1>חיפוש מסעדה</h1>
+
+<form method="get" action="/" class="form" id="searchForm">
+  <label>חפש מסעדה או עיר
+    <input id="searchInput" name="q" value="<%= it.q || '' %>" placeholder="לדוגמה: Tbilisi או Sushi" autocomplete="off"/>
+  </label>
+</form>
+
+<div id="suggestions" class="suggestions" hidden></div>
+
+<h2 style="margin-top:24px;">תוצאות</h2>
 <ul class="cards">
   <% for (const r of (it.restaurants || [])) { %>
     <li class="card">
@@ -8,6 +18,6 @@
     </li>
   <% } %>
   <% if (!it.restaurants || it.restaurants.length === 0) { %>
-    <li class="card">אין מסעדות עדיין — בעל מסעדה? היכנס ל-/owner והוסף.</li>
+    <li class="card">לא נמצאו תוצאות. נסה/י חיפוש אחר.</li>
   <% } %>
 </ul>

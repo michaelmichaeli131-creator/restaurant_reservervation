@@ -1,3 +1,4 @@
+// server.ts
 import { Application, Router, Context } from "@oak/oak";
 import { send } from "@oak/oak/send";
 import { oakCors } from "https://deno.land/x/cors@v1.2.2/mod.ts";
@@ -5,7 +6,7 @@ import { authRouter } from "./routes/auth.ts";
 import { restaurantsRouter } from "./routes/restaurants.ts";
 import { ownerRouter } from "./routes/owner.ts";
 import { initSession } from "./lib/session.ts";
-import { kv } from "./database.ts";
+import { listRestaurants } from "./database.ts";
 import { render } from "./lib/view.ts";
 
 const PORT = Number(Deno.env.get("APP_PORT") ?? 8000);
@@ -24,7 +25,7 @@ const errorHandler = async (ctx: Context, next: () => Promise<unknown>) => {
 const logger = async (ctx: Context, next: () => Promise<unknown>) => {
   const id = rid();
   const t0 = performance.now();
-  console.log(`[REQ ${id}] ${ctx.request.method} ${ctx.request.url.pathname}`);
+  console.log(`[REQ ${id}] ${ctx.request.method} ${ctx.request.url.pathname}${ctx.request.url.search}`);
   await next();
   const ms = (performance.now() - t0).toFixed(1);
   console.log(`[RES ${id}] ${ctx.response.status ?? "-"} ${ctx.request.method} ${ctx.request.url.pathname} ${ms}ms`);
@@ -47,20 +48,18 @@ app.use(oakCors());
 
 await initSession(app);
 
-// Home
+// דף בית ציבורי + חיפוש (SSR)
 const root = new Router();
 root.get("/", async (ctx) => {
-  const restaurants: any[] = [];
-  for await (const entry of kv.list({ prefix: ["restaurant"] })) {
-    restaurants.push(entry.value);
-  }
-  await render(ctx, "index", { restaurants });
+  const q = ctx.request.url.searchParams.get("q")?.toString() ?? "";
+  const restaurants = await listRestaurants(q);
+  await render(ctx, "index", { restaurants, q });
 });
 
 app.use(root.routes());
 app.use(root.allowedMethods());
 
-// Routers
+// ראוטים
 app.use(authRouter.routes());
 app.use(authRouter.allowedMethods());
 

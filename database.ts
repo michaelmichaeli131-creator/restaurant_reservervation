@@ -1,3 +1,4 @@
+// database.ts
 export const kv = await Deno.openKv();
 
 export type User = {
@@ -67,4 +68,21 @@ export async function createReservation(res: Reservation) {
   await kv.set(["reservation_by_restaurant", res.restaurantId, res.id], true);
   await kv.set(["reservation_by_user", res.userId, res.id], true);
   return res;
+}
+
+// --- חיפוש פשוט (שם/עיר/כתובת), case-insensitive ---
+export async function listRestaurants(query = ""): Promise<Restaurant[]> {
+  const q = query.trim().toLowerCase();
+  const out: Restaurant[] = [];
+  for await (const entry of kv.list<{ value: Restaurant }>({ prefix: ["restaurant"] })) {
+    const r = (entry as any).value as Restaurant;
+    if (!q) out.push(r);
+    else {
+      const hay = `${r.name} ${r.city} ${r.address}`.toLowerCase();
+      if (hay.includes(q)) out.push(r);
+    }
+  }
+  // סדר בסיסי: הכי חדשים למעלה
+  out.sort((a, b) => b.createdAt - a.createdAt);
+  return out;
 }

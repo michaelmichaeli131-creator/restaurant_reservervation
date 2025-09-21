@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title><%= it.title || "GeoTable — הזמנת מסעדות" %></title>
   <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -13,14 +14,13 @@
       <% if (it.user) { %>
         <span>שלום, <%= it.user.email %></span>
         <% if (it.user.role === "owner") { %>
-          <a href="/owner" class="btn outline">ניהול מסעדה</a>
+          <a href="/owner" class="btn outline">אזור מנהלים</a>
         <% } %>
         <form method="post" action="/logout" class="inline">
           <button type="submit" class="btn outline">התנתק</button>
         </form>
       <% } else { %>
-        <a href="/login" class="btn outline">התחברות</a>
-        <a href="/signup" class="btn">הרשמה</a>
+        <a href="/login" class="btn outline">התחברות מנהלים</a>
       <% } %>
     </nav>
   </header>
