@@ -11,6 +11,9 @@ import { render } from "./lib/view.ts";
 
 const PORT = Number(Deno.env.get("APP_PORT") ?? 8000);
 
+// DEBUG: הפעלת דיבוג כברירת מחדל; אפשר לכבות ע"י DEBUG=0
+const DEBUG = (Deno.env.get("DEBUG") ?? "1") !== "0";
+
 function rid() { return crypto.randomUUID().slice(0, 8); }
 
 const errorHandler = async (ctx: Context, next: () => Promise<unknown>) => {
@@ -48,18 +51,122 @@ app.use(oakCors());
 
 await initSession(app);
 
-// דף בית ציבורי + חיפוש (SSR)
+// ---------- DEBUG ROUTES ----------
+if (DEBUG) {
+  const dbg = new Router();
+
+  // בריאות פשוטה
+  dbg.get("/__health", (ctx) => {
+    ctx.response.headers.set("Cache-Control", "no-store");
+    ctx.response.type = "text";
+    ctx.response.body = "OK " + new Date().toISOString();
+  });
+
+  // אקו של הבקשה
+  dbg.get("/__echo", (ctx) => {
+    const headers: Record<string, string> = {};
+    for (const [k, v] of ctx.request.headers) headers[k] = v;
+    ctx.response.headers.set("Cache-Control", "no-store");
+    ctx.response.type = "json";
+    ctx.response.body = {
+      method: ctx.request.method,
+      url: ctx.request.url.toString(),
+      path: ctx.request.url.pathname,
+      query: Object.fromEntries(ctx.request.url.searchParams.entries()),
+      headers,
+      now: new Date().toISOString(),
+    };
+  });
+
+  // דף פליין (בלי תבניות) לעקיפת בעיות רינדור/קאש
+  dbg.get("/__plain", (ctx) => {
+    ctx.response.headers.set("Cache-Control", "no-store");
+    ctx.response.type = "text";
+    ctx.response.body = "PLAIN PAGE " + new Date().toISOString();
+  });
+
+  // מי אני + נתיבי קבצים חשובים
+  dbg.get("/__whoami", (ctx) => {
+    ctx.response.headers.set("Cache-Control", "no-store");
+    ctx.response.type = "json";
+    ctx.response.body = {
+      cwd: Deno.cwd(),
+      env: {
+        DEBUG: Deno.env.get("DEBUG") ?? null,
+        DENO_DEPLOYMENT_ID: Deno.env.get("DENO_DEPLOYMENT_ID") ?? null,
+        APP_PORT: Deno.env.get("APP_PORT") ?? null,
+      },
+      time: new Date().toISOString(),
+    };
+  });
+
+  // רשימת התבניות + גודלן (עוזר לזהות קובץ ריק/חסר)
+  dbg.get("/__templates", async (ctx) => {
+    const dir = `${Deno.cwd()}/templates`;
+    const items: Array<{ name: string; size: number | null }> = [];
+    try {
+      for await (const ent of Deno.readDir(dir)) {
+        if (!ent.isFile || !ent.name.endsWith(".eta")) continue;
+        try {
+          const st = await Deno.stat(`${dir}/${ent.name}`);
+          items.push({ name: ent.name, size: st.size });
+        } catch {
+          items.push({ name: ent.name, size: null });
+        }
+      }
+    } catch (e) {
+      ctx.response.status = 500;
+      ctx.response.body = { error: "readDir failed", message: String(e?.message ?? e) };
+      return;
+    }
+    ctx.response.headers.set("Cache-Control", "no-store");
+    ctx.response.type = "json";
+    ctx.response.body = { dir, items };
+  });
+
+  // הצצה לקובץ תבנית ספציפי (לדוגמה: /__template?name=index)
+  dbg.get("/__template", async (ctx) => {
+    const name = ctx.request.url.searchParams.get("name") ?? "";
+    const safe = ["layout", "index", "login", "signup", "restaurant_detail", "owner_dashboard"];
+    if (!safe.includes(name)) {
+      ctx.response.status = 400;
+      ctx.response.body = "bad name";
+      return;
+    }
+    const path = `${Deno.cwd()}/templates/${name}.eta`;
+    try {
+      const txt = await Deno.readTextFile(path);
+      ctx.response.headers.set("Cache-Control", "no-store");
+      ctx.response.type = "text";
+      ctx.response.body = txt;
+    } catch (e) {
+      ctx.response.status = 404;
+      ctx.response.body = `not found: ${path} (${String(e?.message ?? e)})`;
+    }
+  });
+
+  app.use(dbg.routes());
+  app.use(dbg.allowedMethods());
+}
+// ---------- END DEBUG ROUTES ----------
+
+// דף בית ציבורי עם חיפוש
 const root = new Router();
 root.get("/", async (ctx) => {
   const q = ctx.request.url.searchParams.get("q")?.toString() ?? "";
   const restaurants = await listRestaurants(q);
-  await render(ctx, "index", { restaurants, q });
+  await render(ctx, "index", {
+    restaurants,
+    q,
+    page: "home",
+    title: "GeoTable — חיפוש מסעדה",
+  });
 });
 
 app.use(root.routes());
 app.use(root.allowedMethods());
 
-// ראוטים
+// שאר הראוטרים
 app.use(authRouter.routes());
 app.use(authRouter.allowedMethods());
 
