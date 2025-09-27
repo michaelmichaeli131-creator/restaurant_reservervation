@@ -1,9 +1,17 @@
 <h1>חיפוש מסעדה</h1>
 
 <form method="get" action="/" class="form" id="searchForm">
-  <label>חפש מסעדה או עיר
-    <input id="searchInput" name="q" value="<%= it.q || '' %>" placeholder="לדוגמה: Tbilisi או Sushi" autocomplete="off"/>
+  <label>
+    חפש מסעדה או עיר
+    <input
+      id="searchInput"
+      name="q"
+      value="<%= it.q || '' %>"
+      placeholder="לדוגמה: Tbilisi או Sushi"
+      autocomplete="off"
+    />
   </label>
+  <button type="submit">חיפוש</button>
 </form>
 
 <div id="suggestions" class="suggestions" hidden></div>
@@ -14,10 +22,10 @@
     <li class="card">
       <h3><%= r.name %></h3>
       <p><%= r.city %> · <%= r.address %></p>
-      <a class="btn" href="/restaurants/<%= r.id %>">כניסה למסעדה</a>
+      <a class="btn" href="/restaurants/<%= r.id %>" data-hard-nav="true">כניסה למסעדה</a>
     </li>
   <% } %>
   <% if (!it.restaurants || it.restaurants.length === 0) { %>
-    <li class="card">לא נמצאו תוצאות. נסה/י חיפוש אחר.</li>
+    <li class="card">לא נמצאו תוצאות. נסה חיפוש אחר.</li>
   <% } %>
 </ul>
