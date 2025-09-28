@@ -25,7 +25,7 @@ authRouter.get("/signup", async (ctx) => {
   await render(ctx, "signup", { page: "signup", title: "הרשמה" });
 });
 
-// Signup — חשוב: formData(), לא request.body()
+// ---- Signup (Oak v17: formData) ----
 authRouter.post("/signup", async (ctx) => {
   const reqId = crypto.randomUUID().slice(0, 6);
   try {
@@ -52,7 +52,7 @@ authRouter.post("/signup", async (ctx) => {
   }
 });
 
-// Login — גם כאן formData()
+// ---- Login (Oak v17: formData) ----
 authRouter.post("/login", async (ctx) => {
   const reqId = crypto.randomUUID().slice(0, 6);
   try {
