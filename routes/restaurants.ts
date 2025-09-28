@@ -33,14 +33,12 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   ctx.response.redirect(`/restaurants/${id}`);
 });
 
+// API להשלמות חיפוש
 restaurantsRouter.get("/api/restaurants/search", async (ctx) => {
   const q = ctx.request.url.searchParams.get("query")?.toString() ?? "";
   const all = await listRestaurants(q);
   const items = all.slice(0, 10).map((r) => ({
-    id: r.id,
-    name: r.name,
-    city: r.city,
-    address: r.address,
+    id: r.id, name: r.name, city: r.city, address: r.address,
   }));
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.headers.set("Cache-Control", "no-store");
