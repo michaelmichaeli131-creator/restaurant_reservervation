@@ -16,13 +16,19 @@ ownerRouter.get("/owner", async (ctx) => {
     const r = (await kv.get(["restaurant", rid])).value;
     if (r) myRestaurants.push(r);
   }
-  await render(ctx, "owner_dashboard", { myRestaurants, page: "owner", title: "אזור מנהלים" });
+  await render(ctx, "owner_dashboard", {
+    myRestaurants,
+    page: "owner",
+    title: "אזור מנהלים",
+  });
 });
 
 ownerRouter.post("/owner/restaurant/new", async (ctx) => {
   if (!requireOwner(ctx)) return;
+
   const form = await ctx.request.body.form(); // Oak v17
   const id = crypto.randomUUID();
+
   const obj = {
     id,
     ownerId: (ctx.state as any).user.id,
@@ -34,6 +40,7 @@ ownerRouter.post("/owner/restaurant/new", async (ctx) => {
     description: form.get("description")?.toString() ?? "",
     menu: [],
   };
+
   await createRestaurant(obj as any);
   ctx.response.redirect("/owner");
 });
