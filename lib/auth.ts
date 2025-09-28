@@ -25,7 +25,7 @@ authRouter.get("/signup", async (ctx) => {
   await render(ctx, "signup", { page: "signup", title: "הרשמה" });
 });
 
-// Signup
+// Signup — חשוב: formData(), לא request.body()
 authRouter.post("/signup", async (ctx) => {
   const reqId = crypto.randomUUID().slice(0, 6);
   try {
@@ -35,15 +35,9 @@ authRouter.post("/signup", async (ctx) => {
     const role = (form.get("role")?.toString() as "user" | "owner") ?? "user";
     console.log(`[AUTH ${reqId}] signup attempt email=${email} role=${role}`);
 
-    if (!email || !pw) {
-      console.warn(`[AUTH ${reqId}] missing fields`);
-      ctx.response.status = 400; ctx.response.body = "Missing fields"; return;
-    }
+    if (!email || !pw) { ctx.response.status = 400; ctx.response.body = "Missing fields"; return; }
     const existing = await findUserByEmail(email);
-    if (existing) {
-      console.warn(`[AUTH ${reqId}] email exists`);
-      ctx.response.status = 409; ctx.response.body = "Email already used"; return;
-    }
+    if (existing) { ctx.response.status = 409; ctx.response.body = "Email already used"; return; }
 
     const passwordHash = await hashPassword(pw);
     const id = crypto.randomUUID();
@@ -58,7 +52,7 @@ authRouter.post("/signup", async (ctx) => {
   }
 });
 
-// Login
+// Login — גם כאן formData()
 authRouter.post("/login", async (ctx) => {
   const reqId = crypto.randomUUID().slice(0, 6);
   try {
@@ -68,15 +62,9 @@ authRouter.post("/login", async (ctx) => {
     console.log(`[AUTH ${reqId}] login attempt email=${email}`);
 
     const user = email ? await findUserByEmail(email) : null;
-    if (!user || !user.passwordHash) {
-      console.warn(`[AUTH ${reqId}] invalid credentials (no user or no hash)`);
-      ctx.response.status = 401; ctx.response.body = "Invalid credentials"; return;
-    }
+    if (!user || !user.passwordHash) { ctx.response.status = 401; ctx.response.body = "Invalid credentials"; return; }
     const ok = await verifyPassword(pw, user.passwordHash);
-    if (!ok) {
-      console.warn(`[AUTH ${reqId}] invalid password`);
-      ctx.response.status = 401; ctx.response.body = "Invalid credentials"; return;
-    }
+    if (!ok) { ctx.response.status = 401; ctx.response.body = "Invalid credentials"; return; }
 
     await (ctx.state as any).session.set("userId", user.id);
     console.log(`[AUTH ${reqId}] login OK user=${user.id}`);
@@ -91,5 +79,3 @@ authRouter.post("/logout", async (ctx) => {
   await (ctx.state as any).session.set("userId", null);
   ctx.response.redirect("/");
 });
-
-// OAuth נשאיר אופציונלי
