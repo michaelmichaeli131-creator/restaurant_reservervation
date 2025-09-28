@@ -18,7 +18,7 @@ function rid() {
   return crypto.randomUUID().slice(0, 8);
 }
 
-// ---------- create app first ----------
+// ---------- create app ----------
 const app = new Application();
 
 // ---------- middlewares ----------
@@ -57,23 +57,23 @@ const staticMw = async (ctx: Context, next: () => Promise<unknown>) => {
 app.use(errorHandler);
 app.use(logger);
 app.use(staticMw);
-app.use(oakCors()); // אפשר להגביל origin בהמשך לפי הצורך
+app.use(oakCors());
 
 // ---------- sessions ----------
 await initSession(app);
 
-// ---------- DEBUG-only utilities ----------
+// ---------- DEBUG ----------
 if (DEBUG) {
   const dbg = new Router();
 
-  // בדיקת חיות
+  // בריאות
   dbg.get("/__health", (ctx) => {
     ctx.response.headers.set("Cache-Control", "no-store");
     ctx.response.type = "text";
     ctx.response.body = "OK " + new Date().toISOString();
   });
 
-  // קריאת קבצים מהדיפלוי (רשימת Allow מוגבלת)
+  // עיון בקבצים שרצים בדפלוי (רשימת Allow מוגבלת)
   dbg.get("/__file", async (ctx) => {
     ctx.response.headers.set("Cache-Control", "no-store");
     const name = ctx.request.url.searchParams.get("name") || "";
@@ -100,7 +100,7 @@ if (DEBUG) {
     }
   });
 
-  // דיאגנוסטיקה לבעיית "Invalid credentials" (בודק משתמש ב-KV)
+  // דיאגנוסטיקה לחשבונות (עוזר מול "Invalid credentials")
   dbg.get("/__auth-check", async (ctx) => {
     const email = ctx.request.url.searchParams.get("email")?.toLowerCase().trim();
     if (!email) {
