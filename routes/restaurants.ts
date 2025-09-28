@@ -1,5 +1,5 @@
 // routes/restaurants.ts
-import { Router } from "@oak/oak";
+import { Router } from "jsr:@oak/oak";
 import { getRestaurant, createReservation, listRestaurants } from "../database.ts";
 import { requireAuth } from "../lib/auth.ts";
 import { render } from "../lib/view.ts";
@@ -11,14 +11,14 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const id = ctx.params.id!;
   const restaurant = await getRestaurant(id);
   if (!restaurant) { ctx.response.status = 404; ctx.response.body = "Not found"; return; }
-  await render(ctx, "restaurant_detail", { restaurant, page: "restaurant" });
+  await render(ctx, "restaurant_detail", { restaurant, page: "restaurant", title: restaurant.name });
 });
 
-// הזמנה
+// הזמנה (POST)
 restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   if (!requireAuth(ctx)) return;
   const id = ctx.params.id!;
-  const form = await ctx.request.formData();
+  const form = await ctx.request.body.form(); // Oak v17
   const date = form.get("date")?.toString() ?? "";
   const time = form.get("time")?.toString() ?? "";
   const people = Number(form.get("people") ?? 2);

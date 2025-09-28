@@ -1,5 +1,5 @@
 // routes/owner.ts
-import { Router } from "@oak/oak";
+import { Router } from "jsr:@oak/oak";
 import { kv, createRestaurant } from "../database.ts";
 import { requireOwner } from "../lib/auth.ts";
 import { render } from "../lib/view.ts";
@@ -16,12 +16,12 @@ ownerRouter.get("/owner", async (ctx) => {
     const r = (await kv.get(["restaurant", rid])).value;
     if (r) myRestaurants.push(r);
   }
-  await render(ctx, "owner_dashboard", { myRestaurants, page: "owner" });
+  await render(ctx, "owner_dashboard", { myRestaurants, page: "owner", title: "אזור מנהלים" });
 });
 
 ownerRouter.post("/owner/restaurant/new", async (ctx) => {
   if (!requireOwner(ctx)) return;
-  const form = await ctx.request.formData();
+  const form = await ctx.request.body.form(); // Oak v17
   const id = crypto.randomUUID();
   const obj = {
     id,
