@@ -1,82 +1,71 @@
-import { Application, Context } from "@oak/oak";
-import { kv, getUser } from "../database.ts";
+// lib/session.ts
+// Middleware סשן מבוסס Cookie + Deno KV.
+// יוצר sid בעוגייה ומחזיק state בספריית KV תחת ["session", sid].
+// בנוסף, אם שמור userId בסשן – נטען את המשתמש מה-DB ונשים ב-ctx.state.user.
 
-const COOKIE_NAME = "sid";
-const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14; // 14 days
+import type { Application, Context } from "jsr:@oak/oak";
+import { kv, getUserById } from "../database.ts"; // <<< שים לב: getUserById (לא getUser)
 
-type SessionRecord = { data: Record<string, unknown>; expiresAt: number; };
+type SessionData = Record<string, unknown>;
 
-function newSessionId() {
-  return crypto.randomUUID().replace(/-/g, "");
-}
-
-function isHttpsRequest(ctx: Context): boolean {
-  const xfProto = ctx.request.headers.get("x-forwarded-proto");
-  if (xfProto) return xfProto.toLowerCase() === "https";
+function isHttps(ctx: Context) {
   return ctx.request.url.protocol === "https:";
-}
-
-async function setSessionCookie(ctx: Context, sid: string, secure: boolean) {
-  try {
-    await ctx.cookies.set(COOKIE_NAME, sid, {
-      httpOnly: true, sameSite: "Lax", secure, path: "/",
-    });
-  } catch (err) {
-    const msg = String(err?.message || err);
-    if (secure && msg.includes("secure cookie")) {
-      console.warn("[WARN] secure cookie failed; retrying with secure=false");
-      await ctx.cookies.set(COOKIE_NAME, sid, {
-        httpOnly: true, sameSite: "Lax", secure: false, path: "/",
-      });
-    } else {
-      throw err;
-    }
-  }
 }
 
 export async function initSession(app: Application) {
   app.use(async (ctx, next) => {
-    const httpsLike = isHttpsRequest(ctx);
-
-    let sid = await ctx.cookies.get(COOKIE_NAME);
+    // שליפת/יצירת sid מה-cookie
+    let sid = await ctx.cookies.get("sid");
     if (!sid) {
-      sid = newSessionId();
-      await setSessionCookie(ctx, sid, httpsLike);
+      sid = crypto.randomUUID().replace(/-/g, "");
+      await ctx.cookies.set("sid", sid, {
+        httpOnly: true,
+        sameSite: "Lax",
+        secure: isHttps(ctx), // ב־Deploy זה יהיה true; לוקאלית http זה false
+        path: "/",
+      });
     }
 
     const key = ["session", sid] as const;
-    const stored = (await kv.get<SessionRecord>(key)).value;
-    let session: SessionRecord = stored ?? { data: {}, expiresAt: Date.now() + SESSION_TTL_MS };
 
-    const api = {
-      async get<T = unknown>(name: string): Promise<T | undefined> {
-        return session.data[name] as T | undefined;
+    // טען את נתוני הסשן מה-KV (או צור אובייקט ריק)
+    let data = (await kv.get<SessionData>(key)).value ?? {};
+
+    // עטיפת API נוחה לסט/גט/ניקוי
+    const session = {
+      async get<T = unknown>(k: string): Promise<T | undefined> {
+        return data[k] as T | undefined;
       },
-      async set(name: string, value: unknown): Promise<void> {
-        session.data[name] = value;
-        session.expiresAt = Date.now() + SESSION_TTL_MS;
-        await kv.set(key, session);
-        await setSessionCookie(ctx, sid!, httpsLike);
+      async set(k: string, v: unknown) {
+        data[k] = v;
+        await kv.set(key, data);
       },
-      async destroy(): Promise<void> {
+      async delete(k: string) {
+        delete data[k];
+        await kv.set(key, data);
+      },
+      async destroy() {
+        data = {};
         await kv.delete(key);
-        await setSessionCookie(ctx, "", httpsLike);
-        await ctx.cookies.set(COOKIE_NAME, "", {
-          httpOnly: true, sameSite: "Lax", secure: false, path: "/", expires: new Date(0),
+        // מחיקת cookie (לא חובה)
+        await ctx.cookies.set("sid", "", {
+          httpOnly: true,
+          sameSite: "Lax",
+          secure: isHttps(ctx),
+          path: "/",
+          expires: new Date(0),
         });
       },
     };
 
-    (ctx.state as any).session = api;
+    // חשוף ב־ctx.state
+    (ctx.state as any).session = session;
 
-    try {
-      const userId = (await api.get<string>("userId")) ?? null;
-      if (userId) {
-        const user = await getUser(userId);
-        if (user) (ctx.state as any).user = user;
-      }
-    } catch (e) {
-      console.error("[ERR] session load user failed:", e?.stack ?? e);
+    // אם יש userId בסשן – טען את המשתמש והדבק ב־ctx.state.user
+    const userId = (await session.get<string>("userId")) ?? null;
+    if (userId) {
+      const user = await getUserById(userId); // <<< כאן
+      if (user) (ctx.state as any).user = user;
     }
 
     await next();
