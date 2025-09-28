@@ -1,24 +1,35 @@
-// lib/view.ts
-import { Eta } from "npm:eta@3.5.0"; // או jsr:@eta/eta אם אתה עליו
+// src/lib/view.ts
+import { Eta } from "npm:eta@3.5.0"; // אפשר גם jsr, זה בסדר
 import type { Context } from "jsr:@oak/oak";
 import { join } from "jsr:@std/path@1.1.2/join";
 
-// ב-Deno Deploy: Deno.cwd() == /src (שורש הפרויקט בדיפלוי)
-// לכן התיקייה האמיתית של התבניות היא /src/templates, לא /src/src/templates
+// ב-Deno Deploy Deno.cwd() מצביע לשורש הקוד: /src
+// לכן התבניות יושבות ב-/src/templates
 const viewsDir = join(Deno.cwd(), "templates");
-
-// דיבוג מועיל:
 console.log("[VIEW] views dir:", viewsDir);
 
 const eta = new Eta({
-  views: viewsDir, // לפי התיעוד: יש להגדיר views לנתיב התבניות
+  views: viewsDir,     // חשוב: להגדיר את התיקייה של התבניות
   useWith: true,
 });
 
-export async function render(ctx: Context, template: string, data: Record<string, unknown> = {}) {
+/**
+ * מרנדר תבנית-תוכן (template) => body HTML,
+ * ואז מרנדר "layout" ומזריק לתוכו את ה-body.
+ * כך הלייאאוט תמיד חל — ואין תלות ב-<% layout(...) %> בתוך העמודים.
+ */
+export async function render(
+  ctx: Context,
+  template: string,
+  data: Record<string, unknown> = {},
+) {
   try {
-    console.log("[VIEW] render:", template);
-    const html = await eta.renderAsync(template, { ...data, user: (ctx.state as any).user });
+    const user = (ctx.state as any).user;
+    // 1) רנדר תוכן העמוד (body)
+    const body = await eta.renderAsync(template, { ...data, user });
+    // 2) עטיפה בלייאאוט
+    const html = await eta.renderAsync("layout", { ...data, user, body });
+
     ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
     ctx.response.body = html;
   } catch (err) {

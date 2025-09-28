@@ -30,7 +30,7 @@
     </header>
 
     <main class="container">
-      <%~ it.body %>
+      <%~ it.body %> <!-- RAW: הזרקת תוכן העמוד -->
     </main>
 
     <footer class="site-footer">
