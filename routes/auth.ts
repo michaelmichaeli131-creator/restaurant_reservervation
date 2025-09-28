@@ -1,4 +1,5 @@
-import { Router } from "@oak/oak";
+// routes/auth.ts
+import { Router } from "jsr:@oak/oak";
 import { createUser, findUserByEmail } from "../database.ts";
 import { hashPassword, verifyPassword } from "../lib/auth.ts";
 import { render } from "../lib/view.ts";
@@ -11,76 +12,70 @@ const OAUTH_ENABLED = !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && OAUTH_CALLB
 export const authRouter = new Router();
 
 authRouter.get("/login", async (ctx) => {
-  await render(ctx, "login", { oauthEnabled: OAUTH_ENABLED });
+  if (ctx.request.url.searchParams.get("plain") === "1") {
+    ctx.response.headers.set("Content-Type", "text/plain; charset=utf-8");
+    ctx.response.headers.set("Cache-Control", "no-store");
+    ctx.response.body = "LOGIN PAGE PLAIN " + new Date().toISOString();
+    return;
+  }
+  await render(ctx, "login", { oauthEnabled: OAUTH_ENABLED, page: "login", title: "התחברות" });
 });
 
 authRouter.get("/signup", async (ctx) => {
-  await render(ctx, "signup");
+  await render(ctx, "signup", { page: "signup", title: "הרשמה" });
 });
 
+// Signup (Oak v17)
 authRouter.post("/signup", async (ctx) => {
-  const body = await ctx.request.body({ type: "form" }).value;
-  const email = body.get("email")?.toString().trim().toLowerCase();
-  const pw = body.get("password")?.toString() ?? "";
-  const role = (body.get("role")?.toString() as "user" | "owner") ?? "user";
+  const reqId = crypto.randomUUID().slice(0, 6);
+  try {
+    const form = await ctx.request.body.form(); // URLSearchParams
+    const email = form.get("email")?.toString().trim().toLowerCase();
+    const pw    = form.get("password")?.toString() ?? "";
+    const role  = (form.get("role")?.toString() as "user" | "owner") ?? "user";
+    console.log(`[AUTH ${reqId}] signup attempt email=${email} role=${role}`);
 
-  if (!email || !pw) { ctx.response.status = 400; ctx.response.body = "Missing fields"; return; }
-  const existing = await findUserByEmail(email);
-  if (existing) { ctx.response.status = 409; ctx.response.body = "Email already used"; return; }
+    if (!email || !pw) { ctx.response.status = 400; ctx.response.body = "Missing fields"; return; }
+    const existing = await findUserByEmail(email);
+    if (existing) { ctx.response.status = 409; ctx.response.body = "Email already used"; return; }
 
-  const passwordHash = await hashPassword(pw);
-  const id = crypto.randomUUID();
-  const user = await createUser({ id, email, passwordHash, role, provider: "local" });
+    const passwordHash = await hashPassword(pw);
+    const id = crypto.randomUUID();
+    const user = await createUser({ id, email, passwordHash, role, provider: "local" });
 
-  await ctx.state.session.set("userId", user.id);
-  ctx.response.redirect("/");
+    await (ctx.state as any).session.set("userId", user.id);
+    console.log(`[AUTH ${reqId}] signup OK user=${user.id}`);
+    ctx.response.redirect("/");
+  } catch (err) {
+    console.error(`[AUTH ${reqId}] signup error:`, err?.stack ?? err);
+    ctx.response.status = 500; ctx.response.body = "Signup failed (server)";
+  }
 });
 
+// Login (Oak v17)
 authRouter.post("/login", async (ctx) => {
-  const body = await ctx.request.body({ type: "form" }).value;
-  const email = body.get("email")?.toString().trim().toLowerCase();
-  const pw = body.get("password")?.toString() ?? "";
-  const user = email ? await findUserByEmail(email) : null;
+  const reqId = crypto.randomUUID().slice(0, 6);
+  try {
+    const form = await ctx.request.body.form(); // URLSearchParams
+    const email = form.get("email")?.toString().trim().toLowerCase();
+    const pw    = form.get("password")?.toString() ?? "";
+    console.log(`[AUTH ${reqId}] login attempt email=${email}`);
 
-  if (!user || !user.passwordHash) { ctx.response.status = 401; ctx.response.body = "Invalid credentials"; return; }
-  const ok = await verifyPassword(pw, user.passwordHash);
-  if (!ok) { ctx.response.status = 401; ctx.response.body = "Invalid credentials"; return; }
+    const user = email ? await findUserByEmail(email) : null;
+    if (!user || !user.passwordHash) { ctx.response.status = 401; ctx.response.body = "Invalid credentials"; return; }
+    const ok = await verifyPassword(pw, user.passwordHash);
+    if (!ok) { ctx.response.status = 401; ctx.response.body = "Invalid credentials"; return; }
 
-  await ctx.state.session.set("userId", user.id);
-  ctx.response.redirect("/");
+    await (ctx.state as any).session.set("userId", user.id);
+    console.log(`[AUTH ${reqId}] login OK user=${user.id}`);
+    ctx.response.redirect("/");
+  } catch (err) {
+    console.error(`[AUTH ${reqId}] login error:`, err?.stack ?? err);
+    ctx.response.status = 500; ctx.response.body = "Login failed (server)";
+  }
 });
 
 authRouter.post("/logout", async (ctx) => {
-  await ctx.state.session.set("userId", null);
+  await (ctx.state as any).session.set("userId", null);
   ctx.response.redirect("/");
 });
-
-if (OAUTH_ENABLED) {
-  const { createGoogleOAuthConfig, createHelpers } = await import("@deno/kv-oauth");
-
-  const google = createGoogleOAuthConfig({
-    redirectUri: OAUTH_CALLBACK_URL!,
-    scope: ["openid", "email", "profile"],
-  });
-  const { signIn, handleCallback, signOut } = createHelpers(google);
-
-  authRouter.get("/oauth/google", signIn);
-  authRouter.get("/oauth/callback", async (ctx) => {
-    const { response, session, tokens, state } = await handleCallback(ctx.request);
-    const email = (state as any)?.token?.email ?? (tokens as any)?.idToken?.email;
-    if (!email) return response;
-
-    const existing = await findUserByEmail(email.toLowerCase());
-    let userId: string;
-    if (existing) {
-      userId = existing.id;
-    } else {
-      const id = crypto.randomUUID();
-      const user = await createUser({ id, email: email.toLowerCase(), role: "user", provider: "google" });
-      userId = user.id;
-    }
-    await session.set("userId", userId);
-    return Response.redirect(new URL("/", ctx.request.url).toString(), 302);
-  });
-  authRouter.get("/oauth/signout", signOut);
-}

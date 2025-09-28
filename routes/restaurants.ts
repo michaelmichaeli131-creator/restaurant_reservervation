@@ -6,7 +6,6 @@ import { render } from "../lib/view.ts";
 
 export const restaurantsRouter = new Router();
 
-// דף מסעדה
 restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const id = ctx.params.id!;
   const restaurant = await getRestaurant(id);
@@ -14,7 +13,6 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   await render(ctx, "restaurant_detail", { restaurant, page: "restaurant", title: restaurant.name });
 });
 
-// הזמנה (POST)
 restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   if (!requireAuth(ctx)) return;
   const id = ctx.params.id!;
@@ -35,7 +33,6 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   ctx.response.redirect(`/restaurants/${id}`);
 });
 
-// API השלמות לחיפוש
 restaurantsRouter.get("/api/restaurants/search", async (ctx) => {
   const q = ctx.request.url.searchParams.get("query")?.toString() ?? "";
   const all = await listRestaurants(q);
