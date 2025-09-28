@@ -33,7 +33,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   ctx.response.redirect(`/restaurants/${id}`);
 });
 
-// API להשלמות חיפוש
+// חיפוש השלמות (AJAX)
 restaurantsRouter.get("/api/restaurants/search", async (ctx) => {
   const q = ctx.request.url.searchParams.get("query")?.toString() ?? "";
   const all = await listRestaurants(q);

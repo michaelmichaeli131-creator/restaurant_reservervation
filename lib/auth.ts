@@ -1,9 +1,6 @@
 // lib/auth.ts
-// PBKDF2 על גבי WebCrypto (תואם Deno Deploy). פורמט שמירה:
-// "pbkdf2$<iterations>$<salt_b64url>$<hash_b64url>"
-
 const ITERATIONS = 120_000;
-const KEY_LEN = 32; // 256-bit
+const KEY_LEN = 32;
 const ALGO = "SHA-256";
 
 function toUint8(s: string) { return new TextEncoder().encode(s); }
@@ -14,7 +11,6 @@ function b64url(buf: ArrayBuffer | Uint8Array): string {
   const b64 = btoa(bin);
   return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
-
 function fromB64url(s: string): Uint8Array {
   const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4);
   const bin = atob(b64);
@@ -28,7 +24,6 @@ async function pbkdf2(password: string, salt: Uint8Array, iterations = ITERATION
   const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: ALGO, salt, iterations }, key, length * 8);
   return new Uint8Array(bits);
 }
-
 function constTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false; let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= (a[i] ^ b[i]);
@@ -40,7 +35,6 @@ export async function hashPassword(plain: string): Promise<string> {
   const dk = await pbkdf2(plain, salt);
   return `pbkdf2$${ITERATIONS}$${b64url(salt)}$${b64url(dk)}`;
 }
-
 export async function verifyPassword(plain: string, stored: string): Promise<boolean> {
   try {
     const [scheme, iterStr, saltB64, hashB64] = stored.split("$");
@@ -54,7 +48,6 @@ export async function verifyPassword(plain: string, stored: string): Promise<boo
   } catch { return false; }
 }
 
-// Guards
 export function requireAuth(ctx: any) {
   if (!ctx.state.user) { ctx.response.redirect("/login"); return false; }
   return true;
