@@ -1,18 +1,19 @@
-<h1>התחברות מנהלים</h1>
+<% it.layout = "layout" %>
+<%~ it.body = `
+  <h1>${it.intendedRole === "owner" ? "כניסת מנהלים" : "התחברות"}</h1>
 
-<form method="post" action="/login" class="form">
-  <label>
-    אימייל
-    <input name="email" type="email" required />
-  </label>
-  <label>
-    סיסמה
-    <input name="password" type="password" required />
-  </label>
-  <button type="submit">התחבר</button>
-</form>
+  <form method="post" action="/login" class="form">
+    <input type="hidden" name="intendedRole" value="${it.intendedRole || ""}">
+    <label>אימייל
+      <input type="email" name="email" required />
+    </label>
 
-<p>
-  עדיין אין לך חשבון?
-  <a href="/signup" data-hard-nav="true">הירשם כאן</a>
-</p>
+    <label>סיסמה
+      <input type="password" name="password" required />
+    </label>
+
+    <button class="btn" type="submit">${it.intendedRole === "owner" ? "היכנס כמנהל" : "התחבר"}</button>
+  </form>
+
+  ${it.error ? `<p class="error">${it.error}</p>` : ""}
+` %>

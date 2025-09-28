@@ -9,33 +9,32 @@ const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
 const OAUTH_CALLBACK_URL = Deno.env.get("OAUTH_CALLBACK_URL");
 const OAUTH_ENABLED = !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && OAUTH_CALLBACK_URL);
 
-export const authRouter = new Router(); // <<< יצוא בשם (NOT default)
+export const authRouter = new Router();
 
+// דף התחברות רגיל
 authRouter.get("/login", async (ctx) => {
-  if (ctx.request.url.searchParams.get("plain") === "1") {
-    ctx.response.headers.set("Content-Type", "text/plain; charset=utf-8");
-    ctx.response.headers.set("Cache-Control", "no-store");
-    ctx.response.body = "LOGIN PAGE PLAIN " + new Date().toISOString();
-    return;
-  }
   await render(ctx, "login", { oauthEnabled: OAUTH_ENABLED, page: "login", title: "התחברות" });
+});
+
+// דף "כניסת מנהלים" – רק עטיפה שמזריקה intendedRole=owner
+authRouter.get("/owner/login", async (ctx) => {
+  await render(ctx, "login", { intendedRole: "owner", page: "login", title: "כניסת מנהלים" });
 });
 
 authRouter.get("/signup", async (ctx) => {
   await render(ctx, "signup", { page: "signup", title: "הרשמה" });
 });
 
-// POST /signup — Oak v17: body.form()
+// Signup (Oak v17)
 authRouter.post("/signup", async (ctx) => {
   const reqId = crypto.randomUUID().slice(0, 6);
   try {
-    const form = await ctx.request.body.form(); // ← לא request.body(...)
+    const form = await ctx.request.body.form();
     const email = form.get("email")?.toString().trim().toLowerCase();
     const pw    = form.get("password")?.toString() ?? "";
     const role  = (form.get("role")?.toString() as "user" | "owner") ?? "user";
-    console.log(`[AUTH ${reqId}] signup attempt email=${email} role=${role}`);
-
     if (!email || !pw) { ctx.response.status = 400; ctx.response.body = "Missing fields"; return; }
+
     const existing = await findUserByEmail(email);
     if (existing) { ctx.response.status = 409; ctx.response.body = "Email already used"; return; }
 
@@ -44,31 +43,47 @@ authRouter.post("/signup", async (ctx) => {
     const user = await createUser({ id, email, passwordHash, role, provider: "local" });
 
     await (ctx.state as any).session.set("userId", user.id);
-    console.log(`[AUTH ${reqId}] signup OK user=${user.id}`);
     ctx.response.redirect("/");
   } catch (err) {
-    console.error(`[AUTH ${reqId}] signup error:`, err?.stack ?? err);
+    console.error("[AUTH signup] error:", err?.stack ?? err);
     ctx.response.status = 500; ctx.response.body = "Signup failed (server)";
   }
 });
 
-// POST /login — Oak v17: body.form()
+// Login (Oak v17) + אכיפת role אם זו כניסת מנהלים
 authRouter.post("/login", async (ctx) => {
   const reqId = crypto.randomUUID().slice(0, 6);
   try {
-    const form = await ctx.request.body.form(); // ← מתועד ב-Oak v17
+    const form = await ctx.request.body.form();
     const email = form.get("email")?.toString().trim().toLowerCase();
     const pw    = form.get("password")?.toString() ?? "";
-    console.log(`[AUTH ${reqId}] login attempt email=${email}`);
+    const intendedRole = form.get("intendedRole")?.toString(); // "owner" או ריק
 
     const user = email ? await findUserByEmail(email) : null;
-    if (!user || !user.passwordHash) { ctx.response.status = 401; ctx.response.body = "Invalid credentials"; return; }
+    if (!user || !user.passwordHash) {
+      await render(ctx, "login", { intendedRole, error: "Invalid credentials", title: "התחברות" });
+      return;
+    }
+
     const ok = await verifyPassword(pw, user.passwordHash);
-    if (!ok) { ctx.response.status = 401; ctx.response.body = "Invalid credentials"; return; }
+    if (!ok) {
+      await render(ctx, "login", { intendedRole, error: "Invalid credentials", title: "התחברות" });
+      return;
+    }
+
+    // אם זה מסך "כניסת מנהלים" – נדרוש שהמשתמש יהיה owner
+    if (intendedRole === "owner" && user.role !== "owner") {
+      await render(ctx, "login", { intendedRole, error: "המשתמש אינו מנהל/בעל מסעדה", title: "כניסת מנהלים" });
+      return;
+    }
 
     await (ctx.state as any).session.set("userId", user.id);
-    console.log(`[AUTH ${reqId}] login OK user=${user.id}`);
-    ctx.response.redirect("/");
+    // אם זה כניסת מנהלים – ננתב ישירות ללוח מנהלים
+    if (intendedRole === "owner") {
+      ctx.response.redirect("/owner");
+    } else {
+      ctx.response.redirect("/");
+    }
   } catch (err) {
     console.error(`[AUTH ${reqId}] login error:`, err?.stack ?? err);
     ctx.response.status = 500; ctx.response.body = "Login failed (server)";

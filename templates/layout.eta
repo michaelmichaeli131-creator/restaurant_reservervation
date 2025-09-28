@@ -19,6 +19,7 @@
           <% if (!it.user) { %>
             <a class="btn" href="/login">התחברות</a>
             <a class="btn secondary" href="/signup">הרשמה</a>
+            <a class="btn accent" href="/owner/login">כניסת מנהלים</a>
           <% } else { %>
             <form method="post" action="/logout" style="display:inline">
               <button class="btn danger" type="submit">התנתקות</button>
@@ -29,7 +30,7 @@
     </header>
 
     <main class="container">
-      <%~ it.body %> <!-- RAW inject (Eta raw interpolate) -->
+      <%~ it.body %>
     </main>
 
     <footer class="site-footer">
