@@ -4,14 +4,13 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title><%= it.title || "GeoTable — הזמנת מסעדות" %></title>
-  <link rel="stylesheet" href="/static/styles.css">
-  <script src="/static/app.js" defer></script>
-  <!-- מנטרל קאש אגרסיבי של חלק מהפרוקסים/דפדפנים לדף HTML -->
+  <link rel="stylesheet" href="/static/styles.css?v=5">
+  <script src="/static/app.js?v=5" defer></script>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="pragma" content="no-cache">
   <meta http-equiv="expires" content="0">
 </head>
-<body>
+<body data-page="<%= it.page || '' %>">
   <header class="topbar">
     <a href="/" class="brand" data-hard-nav="true">GeoTable</a>
     <nav class="nav">
@@ -30,7 +29,8 @@
   </header>
 
   <main class="container">
-    <%- it.body %>
+    <div class="sep" style="opacity:.6;font-size:12px">[page=<%= it.page || 'unknown' %>]</div>
+    <%~ it.body %>  <!-- 👈 זו השורה הקריטית -->
   </main>
 
   <footer class="footer">© <%= new Date().getFullYear() %> GeoTable</footer>
