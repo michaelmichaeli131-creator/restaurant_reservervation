@@ -1,27 +1,95 @@
-import { compare, genSalt, hash } from "bcrypt";
+// routes/auth.ts
+import { Router } from "@oak/oak";
+import { createUser, findUserByEmail } from "../database.ts";
+import { hashPassword, verifyPassword } from "../lib/auth.ts";
+import { render } from "../lib/view.ts";
 
-export async function hashPassword(plain: string) {
-  const salt = await genSalt(10);
-  return await hash(plain, salt);
-}
+const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
+const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
+const OAUTH_CALLBACK_URL = Deno.env.get("OAUTH_CALLBACK_URL");
+const OAUTH_ENABLED = !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && OAUTH_CALLBACK_URL);
 
-export async function verifyPassword(plain: string, passwordHash: string) {
-  return await compare(plain, passwordHash);
-}
+export const authRouter = new Router();
 
-export function requireAuth(ctx: any) {
-  if (!ctx.state.user) {
-    ctx.response.redirect("/login");
-    return false;
+authRouter.get("/login", async (ctx) => {
+  if (ctx.request.url.searchParams.get("plain") === "1") {
+    ctx.response.headers.set("Content-Type", "text/plain; charset=utf-8");
+    ctx.response.headers.set("Cache-Control", "no-store");
+    ctx.response.body = "LOGIN PAGE PLAIN " + new Date().toISOString();
+    return;
   }
-  return true;
-}
+  await render(ctx, "login", { oauthEnabled: OAUTH_ENABLED, page: "login", title: "התחברות" });
+});
 
-export function requireOwner(ctx: any) {
-  if (!ctx.state.user || ctx.state.user.role !== "owner") {
-    ctx.response.status = 403;
-    ctx.response.body = "Forbidden";
-    return false;
+authRouter.get("/signup", async (ctx) => {
+  await render(ctx, "signup", { page: "signup", title: "הרשמה" });
+});
+
+// ---- Signup (עם לוגים) ----
+authRouter.post("/signup", async (ctx) => {
+  const reqId = crypto.randomUUID().slice(0, 6);
+  try {
+    const body = await ctx.request.body({ type: "form" }).value;
+    const email = body.get("email")?.toString().trim().toLowerCase();
+    const pw = body.get("password")?.toString() ?? "";
+    const role = (body.get("role")?.toString() as "user" | "owner") ?? "user";
+    console.log(`[AUTH ${reqId}] signup attempt email=${email} role=${role}`);
+
+    if (!email || !pw) {
+      console.warn(`[AUTH ${reqId}] missing fields`);
+      ctx.response.status = 400; ctx.response.body = "Missing fields"; return;
+    }
+    const existing = await findUserByEmail(email);
+    if (existing) {
+      console.warn(`[AUTH ${reqId}] email exists`);
+      ctx.response.status = 409; ctx.response.body = "Email already used"; return;
+    }
+
+    const passwordHash = await hashPassword(pw);
+    const id = crypto.randomUUID();
+    const user = await createUser({ id, email, passwordHash, role, provider: "local" });
+
+    await (ctx.state as any).session.set("userId", user.id);
+    console.log(`[AUTH ${reqId}] signup OK user=${user.id}`);
+    ctx.response.redirect("/");
+  } catch (err) {
+    console.error(`[AUTH ${reqId}] signup error:`, err?.stack ?? err);
+    ctx.response.status = 500; ctx.response.body = "Signup failed (server)";
   }
-  return true;
-}
+});
+
+// ---- Login (עם לוגים) ----
+authRouter.post("/login", async (ctx) => {
+  const reqId = crypto.randomUUID().slice(0, 6);
+  try {
+    const body = await ctx.request.body({ type: "form" }).value;
+    const email = body.get("email")?.toString().trim().toLowerCase();
+    const pw = body.get("password")?.toString() ?? "";
+    console.log(`[AUTH ${reqId}] login attempt email=${email}`);
+
+    const user = email ? await findUserByEmail(email) : null;
+    if (!user || !user.passwordHash) {
+      console.warn(`[AUTH ${reqId}] invalid credentials`);
+      ctx.response.status = 401; ctx.response.body = "Invalid credentials"; return;
+    }
+    const ok = await verifyPassword(pw, user.passwordHash);
+    if (!ok) {
+      console.warn(`[AUTH ${reqId}] invalid password`);
+      ctx.response.status = 401; ctx.response.body = "Invalid credentials"; return;
+    }
+
+    await (ctx.state as any).session.set("userId", user.id);
+    console.log(`[AUTH ${reqId}] login OK user=${user.id}`);
+    ctx.response.redirect("/");
+  } catch (err) {
+    console.error(`[AUTH ${reqId}] login error:`, err?.stack ?? err);
+    ctx.response.status = 500; ctx.response.body = "Login failed (server)";
+  }
+});
+
+authRouter.post("/logout", async (ctx) => {
+  await (ctx.state as any).session.set("userId", null);
+  ctx.response.redirect("/");
+});
+
+// OAuth נשאר אופציונלי; אם תרצה נאפשר בהמשך
