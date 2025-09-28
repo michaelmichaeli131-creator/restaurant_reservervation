@@ -1,25 +1,44 @@
-<h1>ניהול מסעדה</h1>
-<form method="post" action="/owner/restaurant/new" class="form">
-  <h3>מסעדה חדשה</h3>
-  <label>שם <input name="name" required/></label>
-  <label>עיר <input name="city"/></label>
-  <label>כתובת <input name="address"/></label>
-  <label>טלפון <input name="phone"/></label>
-  <label>שעות פתיחה <input name="hours"/></label>
-  <label>תיאור <input name="description"/></label>
-  <button type="submit">הוסף</button>
-</form>
+<% it.layout = "layout" %>
+<%~ it.body = `
+  <h1>אזור מנהלים</h1>
 
-<h3>המסעדות שלי</h3>
-<ul class="cards">
-  <% for (const r of (it.myRestaurants || [])) { %>
-    <li class="card">
-      <h4><%= r.name %></h4>
-      <p><%= r.city %> · <%= r.address %></p>
-      <a class="btn" href="/restaurants/<%= r.id %>">צפייה</a>
-    </li>
-  <% } %>
-  <% if (!it.myRestaurants || it.myRestaurants.length === 0) { %>
-    <li class="card">עוד אין לך מסעדות — מלא את הטופס למעלה</li>
-  <% } %>
-</ul>
+  <section class="card">
+    <h2>הוספת מסעדה</h2>
+    <form method="post" action="/owner/restaurant/new" class="form grid">
+      <label>שם מסעדה
+        <input name="name" required />
+      </label>
+      <label>עיר
+        <input name="city" required />
+      </label>
+      <label>כתובת
+        <input name="address" required />
+      </label>
+      <label>טלפון
+        <input name="phone" />
+      </label>
+      <label>שעות פתיחה
+        <input name="hours" placeholder="א-ש 12:00-23:00" />
+      </label>
+      <label>תיאור
+        <textarea name="description" rows="3"></textarea>
+      </label>
+      <div>
+        <button class="btn" type="submit">שמירה</button>
+      </div>
+    </form>
+  </section>
+
+  <section>
+    <h2>המסעדות שלי</h2>
+    <ul class="cards">
+      ${it.myRestaurants.map((r)=>`
+        <li class="card">
+          <h3>${r.name}</h3>
+          <p>${r.city} · ${r.address}</p>
+          <a class="btn" href="/restaurants/${r.id}">לצפייה</a>
+        </li>
+      `).join("")}
+    </ul>
+  </section>
+` %>

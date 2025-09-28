@@ -1,38 +1,39 @@
 <!doctype html>
 <html lang="he" dir="rtl">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title><%= it.title || "GeoTable — הזמנת מסעדות" %></title>
-  <link rel="stylesheet" href="/static/styles.css?v=5">
-  <script src="/static/app.js?v=5" defer></script>
-  <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="pragma" content="no-cache">
-  <meta http-equiv="expires" content="0">
-</head>
-<body data-page="<%= it.page || '' %>">
-  <header class="topbar">
-    <a href="/" class="brand" data-hard-nav="true">GeoTable</a>
-    <nav class="nav">
-      <% if (it.user) { %>
-        <span>שלום, <%= it.user.email %></span>
-        <% if (it.user.role === "owner") { %>
-          <a href="/owner" class="btn outline" data-hard-nav="true">אזור מנהלים</a>
-        <% } %>
-        <form method="post" action="/logout" class="inline">
-          <button type="submit" class="btn outline">התנתק</button>
-        </form>
-      <% } else { %>
-        <a href="/login" class="btn outline" data-hard-nav="true">התחברות מנהלים</a>
-      <% } %>
-    </nav>
-  </header>
+  <head>
+    <meta charset="utf-8" />
+    <title><%= it.title || "GeoTable" %></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="nav">
+        <a class="brand" href="/">GeoTable</a>
 
-  <main class="container">
-    <div class="sep" style="opacity:.6;font-size:12px">[page=<%= it.page || 'unknown' %>]</div>
-    <%~ it.body %>  <!-- 👈 זו השורה הקריטית -->
-  </main>
+        <div class="nav-links">
+          <% if (it.user && it.user.role === "owner") { %>
+            <a class="link" href="/owner">אזור מנהלים</a>
+          <% } %>
 
-  <footer class="footer">© <%= new Date().getFullYear() %> GeoTable</footer>
-</body>
+          <% if (!it.user) { %>
+            <a class="btn" href="/login">התחברות</a>
+            <a class="btn secondary" href="/signup">הרשמה</a>
+          <% } else { %>
+            <form method="post" action="/logout" style="display:inline">
+              <button class="btn danger" type="submit">התנתקות</button>
+            </form>
+          <% } %>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container">
+      <%~ it.body %> <!-- RAW inject (Eta raw interpolate) -->
+    </main>
+
+    <footer class="site-footer">
+      <small>© <%= new Date().getFullYear() %> GeoTable</small>
+    </footer>
+  </body>
 </html>

@@ -1,31 +1,23 @@
-<h1>חיפוש מסעדה</h1>
+<% it.layout = "layout" %>
+<%~ it.body = `
+  <section class="hero">
+    <h1>חיפוש מסעדות</h1>
+    <form method="get" action="/" class="search">
+      <input name="q" placeholder="חפש לפי שם/עיר/כתובת" value="${(it.q||"").replaceAll('"','&quot;')}" />
+      <button type="submit" class="btn">חיפוש</button>
+    </form>
+  </section>
 
-<form method="get" action="/" class="form" id="searchForm">
-  <label>
-    חפש מסעדה או עיר
-    <input
-      id="searchInput"
-      name="q"
-      value="<%= it.q || '' %>"
-      placeholder="לדוגמה: Tbilisi או Sushi"
-      autocomplete="off"
-    />
-  </label>
-  <button type="submit">חיפוש</button>
-</form>
-
-<div id="suggestions" class="suggestions" hidden></div>
-
-<h2 style="margin-top:24px;">תוצאות</h2>
-<ul class="cards">
-  <% for (const r of (it.restaurants || [])) { %>
-    <li class="card">
-      <h3><%= r.name %></h3>
-      <p><%= r.city %> · <%= r.address %></p>
-      <a class="btn" href="/restaurants/<%= r.id %>" data-hard-nav="true">כניסה למסעדה</a>
-    </li>
-  <% } %>
-  <% if (!it.restaurants || it.restaurants.length === 0) { %>
-    <li class="card">לא נמצאו תוצאות. נסה חיפוש אחר.</li>
-  <% } %>
-</ul>
+  <section>
+    <h2>תוצאות</h2>
+    <ul class="cards">
+      ${it.restaurants.map((r)=>`
+        <li class="card">
+          <h3>${r.name}</h3>
+          <p>${r.city} · ${r.address}</p>
+          <a class="btn" href="/restaurants/${r.id}">פרטים</a>
+        </li>
+      `).join("")}
+    </ul>
+  </section>
+` %>

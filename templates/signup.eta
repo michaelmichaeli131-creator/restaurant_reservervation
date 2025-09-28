@@ -1,19 +1,22 @@
-<h1>הרשמה</h1>
-<form method="post" action="/signup" class="form">
-  <label>
-    אימייל
-    <input name="email" type="email" required />
-  </label>
-  <label>
-    סיסמה
-    <input name="password" type="password" required />
-  </label>
-  <label>
-    סוג משתמש
-    <select name="role">
-      <option value="user">משתמש רגיל</option>
-      <option value="owner">בעל מסעדה</option>
-    </select>
-  </label>
-  <button type="submit">צור משתמש</button>
-</form>
+<% it.layout = "layout" %>
+<%~ it.body = `
+  <h1>הרשמה</h1>
+  <form method="post" action="/signup" class="form">
+    <label>אימייל
+      <input type="email" name="email" required />
+    </label>
+
+    <label>סיסמה
+      <input type="password" name="password" required />
+    </label>
+
+    <label>תפקיד
+      <select name="role">
+        <option value="user">משתמש</option>
+        <option value="owner">בעל מסעדה</option>
+      </select>
+    </label>
+
+    <button class="btn" type="submit">יצירת חשבון</button>
+  </form>
+` %>
