@@ -25,14 +25,14 @@ authRouter.get("/signup", async (ctx) => {
   await render(ctx, "signup", { page: "signup", title: "הרשמה" });
 });
 
-// ---- Signup (עם לוגים) ----
+// Signup
 authRouter.post("/signup", async (ctx) => {
   const reqId = crypto.randomUUID().slice(0, 6);
   try {
-    const body = await ctx.request.body({ type: "form" }).value;
-    const email = body.get("email")?.toString().trim().toLowerCase();
-    const pw = body.get("password")?.toString() ?? "";
-    const role = (body.get("role")?.toString() as "user" | "owner") ?? "user";
+    const form = await ctx.request.formData();
+    const email = form.get("email")?.toString().trim().toLowerCase();
+    const pw = form.get("password")?.toString() ?? "";
+    const role = (form.get("role")?.toString() as "user" | "owner") ?? "user";
     console.log(`[AUTH ${reqId}] signup attempt email=${email} role=${role}`);
 
     if (!email || !pw) {
@@ -58,18 +58,18 @@ authRouter.post("/signup", async (ctx) => {
   }
 });
 
-// ---- Login (עם לוגים) ----
+// Login
 authRouter.post("/login", async (ctx) => {
   const reqId = crypto.randomUUID().slice(0, 6);
   try {
-    const body = await ctx.request.body({ type: "form" }).value;
-    const email = body.get("email")?.toString().trim().toLowerCase();
-    const pw = body.get("password")?.toString() ?? "";
+    const form = await ctx.request.formData();
+    const email = form.get("email")?.toString().trim().toLowerCase();
+    const pw = form.get("password")?.toString() ?? "";
     console.log(`[AUTH ${reqId}] login attempt email=${email}`);
 
     const user = email ? await findUserByEmail(email) : null;
     if (!user || !user.passwordHash) {
-      console.warn(`[AUTH ${reqId}] invalid credentials`);
+      console.warn(`[AUTH ${reqId}] invalid credentials (no user or no hash)`);
       ctx.response.status = 401; ctx.response.body = "Invalid credentials"; return;
     }
     const ok = await verifyPassword(pw, user.passwordHash);
@@ -92,4 +92,4 @@ authRouter.post("/logout", async (ctx) => {
   ctx.response.redirect("/");
 });
 
-// OAuth נשאר אופציונלי; אם תרצה נאפשר בהמשך
+// OAuth נשאיר אופציונלי

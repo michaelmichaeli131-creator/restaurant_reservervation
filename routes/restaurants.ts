@@ -11,23 +11,23 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const id = ctx.params.id!;
   const restaurant = await getRestaurant(id);
   if (!restaurant) { ctx.response.status = 404; ctx.response.body = "Not found"; return; }
-  await render(ctx, "restaurant_detail", { restaurant });
+  await render(ctx, "restaurant_detail", { restaurant, page: "restaurant" });
 });
 
 // הזמנה
 restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   if (!requireAuth(ctx)) return;
   const id = ctx.params.id!;
-  const body = await ctx.request.body({ type: "form" }).value;
-  const date = body.get("date")?.toString() ?? "";
-  const time = body.get("time")?.toString() ?? "";
-  const people = Number(body.get("people") ?? 2);
-  const note = body.get("note")?.toString();
+  const form = await ctx.request.formData();
+  const date = form.get("date")?.toString() ?? "";
+  const time = form.get("time")?.toString() ?? "";
+  const people = Number(form.get("people") ?? 2);
+  const note = form.get("note")?.toString();
 
   const resv = {
     id: crypto.randomUUID(),
     restaurantId: id,
-    userId: ctx.state.user.id,
+    userId: (ctx.state as any).user.id,
     date, time, people, note,
     createdAt: Date.now(),
   };
@@ -35,7 +35,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   ctx.response.redirect(`/restaurants/${id}`);
 });
 
-// --- API: חיפוש JSON להשלמות ---
+// API השלמות לחיפוש
 restaurantsRouter.get("/api/restaurants/search", async (ctx) => {
   const q = ctx.request.url.searchParams.get("query")?.toString() ?? "";
   const all = await listRestaurants(q);
@@ -46,5 +46,6 @@ restaurantsRouter.get("/api/restaurants/search", async (ctx) => {
     address: r.address,
   }));
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.headers.set("Cache-Control", "no-store");
   ctx.response.body = JSON.stringify({ items });
 });
