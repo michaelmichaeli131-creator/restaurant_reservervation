@@ -9,39 +9,6 @@ import {
 
 const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
 
-/** Helper: קריאת טופס בצורה תואמת ל-Oak v17 וגם לגרסאות ישנות יותר */
-async function readForm(ctx: any): Promise<FormData | URLSearchParams> {
-  const reqAny = (ctx.request as any);
-
-  // Oak v17+ (Web API):
-  if (typeof reqAny.formData === "function") {
-    try {
-      const fd = await reqAny.formData();
-      if (fd) return fd as FormData;
-    } catch { /* ignore */ }
-  }
-
-  // Oak ישן (body() כפונקציה):
-  if (typeof reqAny.body === "function") {
-    try {
-      const body = reqAny.body({ type: "form" });
-      const val = await body.value; // URLSearchParams
-      if (val) return val as URLSearchParams;
-    } catch { /* ignore */ }
-  }
-
-  // fallback: x-www-form-urlencoded כטקסט
-  try {
-    if (typeof reqAny.text === "function") {
-      const text = await reqAny.text();
-      return new URLSearchParams(text ?? "");
-    }
-  } catch {}
-
-  // ברירת מחדל: פרמטרי ה-URL
-  return new URLSearchParams(ctx.request.url.searchParams);
-}
-
 function getAdminKey(ctx: any): string | null {
   const urlKey = ctx.request.url.searchParams.get("key");
   const headerKey = ctx.request.headers.get("x-admin-key");
@@ -119,13 +86,13 @@ function renderRestaurantRow(r: Restaurant, key: string) {
 
 const adminRouter = new Router();
 
-// --------- Admin Login (GET) ----------
+/** מסך כניסה: שולח GET עם key אל /admin (אין POST בכלל) */
 adminRouter.get("/admin/login", (ctx) => {
   const body = `
   <div class="card" style="max-width:520px">
     <h2 style="margin-top:0">כניסת אדמין</h2>
     <p class="muted">הזן/ני את מפתח האדמין (ADMIN_SECRET) שקבעת ב־Environment Variables.</p>
-    <form method="post" action="/admin/login" enctype="application/x-www-form-urlencoded">
+    <form method="get" action="/admin">
       <label for="key">מפתח אדמין</label><br/>
       <input id="key" name="key" type="password" placeholder="הדבק כאן את המפתח" required/>
       <button class="btn" type="submit" style="margin-inline-start:8px">כניסה</button>
@@ -136,61 +103,7 @@ adminRouter.get("/admin/login", (ctx) => {
   ctx.response.body = page({ title: "כניסת אדמין", body });
 });
 
-// --------- Admin Login (POST) ----------
-// גרסה עמידה (Oak v17 + ישן) עם לוג אבחוני קצר
-adminRouter.post("/admin/login", async (ctx) => {
-  let val = "";
-
-  // 1) Web API (v17+)
-  try {
-    const fm = (ctx.request as any).formData ? await (ctx.request as any).formData() : null;
-    if (fm) {
-      const k = fm.get("key");
-      if (k != null) val = String(k).trim();
-    }
-  } catch { /* ignore */ }
-
-  // 2) Oak ישן
-  if (!val) {
-    try {
-      const body = (ctx.request as any).body ? (ctx.request as any).body({ type: "form" }) : null;
-      const usp = body ? await body.value : null;
-      if (usp) val = String(usp.get("key") ?? "").trim();
-    } catch { /* ignore */ }
-  }
-
-  // 3) fallback: query
-  if (!val) {
-    val = String(ctx.request.url.searchParams.get("key") ?? "").trim();
-  }
-
-  // DEBUG: מדפיס רק אורכי מחרוזות (לא תוכן)
-  console.log("[admin login] keyLen=", val.length, "envLen=", (Deno.env.get("ADMIN_SECRET") ?? "").length);
-
-  if (!ADMIN_SECRET || val !== ADMIN_SECRET) {
-    ctx.response.status = Status.Unauthorized;
-    ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-    ctx.response.body = page({
-      title: "כניסת אדמין",
-      body: `<div class="card" style="max-width:520px">
-        <h2 style="margin-top:0">כניסת אדמין</h2>
-        <p style="color:#c00">מפתח אדמין לא תקין.</p>
-        <form method="post" action="/admin/login" enctype="application/x-www-form-urlencoded">
-          <label for="key">מפתח אדמין</label><br/>
-          <input id="key" name="key" type="password" required/>
-          <button class="btn" type="submit" style="margin-inline-start:8px">נסיון נוסף</button>
-        </form>
-      </div>`,
-    });
-    return;
-  }
-
-  // הצלחה → Redirect לדשבורד עם המפתח ב-query
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", `/admin?key=${encodeURIComponent(val)}`);
-});
-
-// --------- Dashboard ----------
+/** דשבורד: נגיש עם ?key=... או כותרת x-admin-key */
 adminRouter.get("/admin", async (ctx) => {
   if (!assertAdmin(ctx)) return;
   const key = getAdminKey(ctx)!;
@@ -232,7 +145,7 @@ adminRouter.get("/admin", async (ctx) => {
   ctx.response.body = page({ title: "לוח בקרה · Admin", body });
 });
 
-// --------- Approve / Unapprove ----------
+/** פעולות אישור/ביטול — ממשיכות להשתמש ב-?key= כדי לא לאבד את הכניסה */
 adminRouter.post("/admin/restaurants/:id/approve", async (ctx) => {
   if (!assertAdmin(ctx)) return;
   const id = ctx.params.id!;
@@ -255,7 +168,7 @@ adminRouter.post("/admin/restaurants/:id/unapprove", async (ctx) => {
   ctx.response.headers.set("Location", `/admin?key=${encodeURIComponent(key)}`);
 });
 
-// --------- Help (optional) ----------
+// עזרה (אופציונלי)
 adminRouter.get("/admin/help", (ctx) => {
   if (!assertAdmin(ctx)) return;
   const body = `
