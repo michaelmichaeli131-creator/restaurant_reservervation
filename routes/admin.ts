@@ -11,13 +11,14 @@ const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
 
 /** Helper: קריאת טופס בצורה תואמת ל-Oak v17 וגם לגרסאות ישנות יותר */
 async function readForm(ctx: any): Promise<FormData | URLSearchParams> {
-  // Oak v17 ומעלה: לרוב יש request.formData() (Web API)
   const reqAny = (ctx.request as any);
+
+  // Oak v17+ (Web API):
   if (typeof reqAny.formData === "function") {
     try {
       const fd = await reqAny.formData();
       if (fd) return fd as FormData;
-    } catch { /* ננסה מסלולים אחרים */ }
+    } catch { /* ignore */ }
   }
 
   // Oak ישן (body() כפונקציה):
@@ -26,10 +27,10 @@ async function readForm(ctx: any): Promise<FormData | URLSearchParams> {
       const body = reqAny.body({ type: "form" });
       const val = await body.value; // URLSearchParams
       if (val) return val as URLSearchParams;
-    } catch { /* נמשיך לניסיונות אחרים */ }
+    } catch { /* ignore */ }
   }
 
-  // ניסיון אחרון: אם זה application/x-www-form-urlencoded, נקרא טקסט ונמיר
+  // fallback: x-www-form-urlencoded כטקסט
   try {
     if (typeof reqAny.text === "function") {
       const text = await reqAny.text();
@@ -37,7 +38,7 @@ async function readForm(ctx: any): Promise<FormData | URLSearchParams> {
     }
   } catch {}
 
-  // כברירת מחדל — פרמטרי ה-URL (GET) כדי שלא ניפול
+  // ברירת מחדל: פרמטרי ה-URL
   return new URLSearchParams(ctx.request.url.searchParams);
 }
 
@@ -116,7 +117,8 @@ function renderRestaurantRow(r: Restaurant, key: string) {
   </tr>`;
 }
 
-export const adminRouter = new Router();
+// <<< שינוי כאן: יצירה בלי export בקצה ההצהרה
+const adminRouter = new Router();
 
 // --------- Admin Login (GET) ----------
 adminRouter.get("/admin/login", (ctx) => {
@@ -158,7 +160,6 @@ adminRouter.post("/admin/login", async (ctx) => {
     });
     return;
   }
-  // הצלחה → Redirect לדשבורד כשמפתח ב-query
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set("Location", `/admin?key=${encodeURIComponent(val)}`);
 });
@@ -244,4 +245,5 @@ adminRouter.get("/admin/help", (ctx) => {
   ctx.response.body = page({ title: "עזרה · Admin", body });
 });
 
+// <<< יצוא יחיד
 export { adminRouter };
