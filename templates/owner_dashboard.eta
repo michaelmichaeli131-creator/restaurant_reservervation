@@ -6,22 +6,41 @@
     <label>שם מסעדה
       <input name="name" required />
     </label>
+
     <label>עיר
       <input name="city" required />
     </label>
+
     <label>כתובת
       <input name="address" required />
     </label>
+
     <label>טלפון
       <input name="phone" />
     </label>
-    <label>שעות פתיחה
+
+    <label>שעות פתיחה (טקסט חופשי)
       <input name="hours" placeholder="א-ש 12:00-23:00" />
     </label>
+
     <label>תיאור
       <textarea name="description" rows="3"></textarea>
     </label>
-    <div>
+
+    <!-- שדות חדשים לפי דרישתך -->
+    <label>קיבולת (מס׳ מקומות)
+      <input type="number" name="capacity" min="1" value="30" />
+    </label>
+
+    <label>מרווח סלוט (דקות)
+      <input type="number" name="slotIntervalMinutes" min="5" step="5" value="15" />
+    </label>
+
+    <label>משך ישיבה (דקות)
+      <input type="number" name="serviceDurationMinutes" min="30" step="15" value="120" />
+    </label>
+
+    <div style="grid-column: 1 / -1;">
       <button class="btn" type="submit">שמירה</button>
     </div>
   </form>
@@ -35,6 +54,7 @@
         <li class="card">
           <h3>${r.name}</h3>
           <p>${r.city} · ${r.address}</p>
+          <p>קיבולת: <strong>${r.capacity ?? 30}</strong> · סלוט: ${r.slotIntervalMinutes ?? 15} דק' · ישיבה: ${r.serviceDurationMinutes ?? 120} דק'</p>
           <a class="btn" href="/restaurants/${r.id}">לצפייה</a>
         </li>
       `).join("") %>

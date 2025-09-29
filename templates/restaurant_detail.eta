@@ -1,25 +1,61 @@
-<% const r = it.restaurant; %>
+<h1><%= it.r.name %></h1>
+<p><%= it.r.city %> · <%= it.r.address %></p>
+<p>קיבולת: <strong><%= it.r.capacity %></strong> | משך ישיבה: <%= it.r.serviceDurationMinutes %> דק' | סלוט: <%= it.r.slotIntervalMinutes %> דק'</p>
 
-<h1><%= r.name %></h1>
-<p><%= r.city %> · <%= r.address %></p>
-<p><%= r.description || "" %></p>
-
-<h3>תפריט</h3>
-<ul>
-  <% if (r.menu && r.menu.length) { %>
-    <% for (const m of r.menu) { %>
-      <li><%= m.name %> — <%= m.price %> ₾</li>
-    <% } %>
-  <% } else { %>
-    <li>—</li>
-  <% } %>
-</ul>
-
-<h3>הזמנת שולחן</h3>
-<form method="post" action="/restaurants/<%= r.id %>/reserve" class="form">
-  <label>תאריך <input name="date" type="date" required></label>
-  <label>שעה <input name="time" type="time" required></label>
-  <label>מס׳ סועדים <input name="people" type="number" min="1" value="2"></label>
-  <label>הערה <input name="note" type="text"></label>
-  <button type="submit">הזמן</button>
+<form method="get" action="/restaurants/<%= it.r.id %>" class="form inline">
+  <label>תאריך:
+    <input type="date" name="date" value="<%= it.date %>"/>
+  </label>
+  <button class="btn" type="submit">רענון</button>
 </form>
+
+<% if (it.error) { %>
+  <p class="error"><%= it.error %></p>
+  <% if (it.suggestions && it.suggestions.length) { %>
+    <p>יש מקומות בשעות: 
+      <% it.suggestions.forEach((s, i) => { %>
+        <a class="chip" href="/restaurants/<%= it.r.id %>?date=<%= it.date %>&time=<%= s %>"><%= s %></a>
+      <% }) %>
+    </p>
+  <% } %>
+<% } %>
+
+<% if (it.success) { %>
+  <p class="success"><%= it.success %></p>
+<% } %>
+
+<section>
+  <h2>זמינות לשעה הנבחרת (<%= it.date %>)</h2>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>שעה</th>
+        <th>תפוסה</th>
+        <th>אחוז</th>
+        <th>הזמנה</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% it.loads.forEach(L => { %>
+        <tr>
+          <td><strong><%= L.slot %></strong></td>
+          <td><%= L.booked %> / <%= L.capacity %></td>
+          <td><%= L.percent %>%</td>
+          <td>
+            <% if (L.free > 0) { %>
+              <form method="post" action="/restaurants/<%= it.r.id %>/reserve" class="form inline">
+                <input type="hidden" name="date" value="<%= it.date %>"/>
+                <input type="hidden" name="time" value="<%= L.slot %>"/>
+                <input type="number" min="1" max="<%= L.free %>" name="people" value="2" style="width:70px" />
+                <input type="text" name="note" placeholder="הערה" style="width:140px"/>
+                <button class="btn" type="submit">הזמן</button>
+              </form>
+            <% } else { %>
+              <span class="badge">מלא</span>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>
