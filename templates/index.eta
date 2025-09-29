@@ -1,3 +1,4 @@
+<!-- src/templates/index.eta -->
 <section class="hero">
   <h1>חיפוש מסעדות</h1>
 
@@ -7,6 +8,11 @@
     <input type="hidden" name="search" value="1"/>
     <button type="submit" class="btn">חיפוש</button>
   </form>
+
+  <!-- כפתור כניסת אדמין -->
+  <div style="margin-top:12px">
+    <a class="btn secondary" href="/admin/login">כניסת אדמין</a>
+  </div>
 </section>
 
 <% if (it.search === "1") { %>
