@@ -21,7 +21,6 @@ import {
   Status,
 } from "jsr:@oak/oak";
 
-
 import { render } from "./lib/view.ts";
 import sessionMiddleware from "./lib/session.ts";
 
@@ -38,28 +37,22 @@ const PORT = Number(Deno.env.get("PORT") ?? "8000");
 const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
 const BASE_URL = Deno.env.get("BASE_URL") ?? ""; // לדוגמת קישורי אימות
 const NODE_ENV = Deno.env.get("NODE_ENV") ?? "production"; // "development" | "production"
-
-// האם לרוץ מאחורי פרוקסי (Deno Deploy: כן)
-const TRUST_PROXY = true;
+const TRUST_PROXY = true; // ב-Deno Deploy מאחורי פרוקסי
 
 // -------------------- UTIL --------------------
 function genReqId(): string {
   return crypto.randomUUID().slice(0, 8);
 }
-
 function nowIso() {
   return new Date().toISOString();
 }
-
 function getClientIp(ctx: any): string | undefined {
   if (TRUST_PROXY) {
     const fwd = ctx.request.headers.get("x-forwarded-for");
     if (fwd) return fwd.split(",")[0]?.trim();
   }
-  // Oak ב-native http: ctx.request.ip קיים
   return (ctx.request as any).ip;
 }
-
 function isHttps(ctx: any): boolean {
   if (ctx.request.secure) return true;
   if (TRUST_PROXY) {
@@ -89,7 +82,6 @@ app.use(async (ctx, next) => {
     await next();
   } catch (err) {
     const reqId = (ctx.state as any).reqId;
-    // Oak friendly errors
     if (isHttpError(err)) {
       console.error(`[ERR ${reqId}] ${err.status} ${err.message}\n${err.stack ?? ""}`);
       ctx.response.status = err.status;
@@ -102,28 +94,25 @@ app.use(async (ctx, next) => {
   }
 });
 
-// --- Security headers middleware ---
+// --- Security headers ---
 app.use(async (ctx, next) => {
-  // CSP בסיסי (לא חוסם inline-eta, אפשר להקשיח בהמשך)
-  ctx.response.headers.set("Content-Security-Policy",
-    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';");
-
+  ctx.response.headers.set(
+    "Content-Security-Policy",
+    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';",
+  );
   ctx.response.headers.set("X-Frame-Options", "DENY");
   ctx.response.headers.set("X-Content-Type-Options", "nosniff");
   ctx.response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   ctx.response.headers.set("Permissions-Policy", "geolocation=(), microphone=()");
-  // HSTS רק אם HTTPS
   if (isHttps(ctx)) {
     ctx.response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
   }
   await next();
 });
 
-// --- Force HTTPS in production (to avoid secure-cookie error) ---
+// --- Force HTTPS in production ---
 app.use(async (ctx, next) => {
   if (NODE_ENV !== "development" && !isHttps(ctx)) {
-    // הרצה על HTTP בפרודקשן עלולה לגרום ל: Cannot send secure cookie over unencrypted connection.
-    // נכפה רידיירקט ל-HTTPS אם מגיעים ב-HTTP (כשמאחורי פרוקסי זה יסתמך על x-forwarded-proto).
     const url = ctx.request.url;
     const httpsUrl = `https://${url.host}${url.pathname}${url.search}`;
     ctx.response.status = Status.PermanentRedirect;
@@ -144,14 +133,14 @@ app.use(async (ctx, next) => {
   const dt = performance.now() - t0;
   console.log(
     `[RES ${reqId}] ${ctx.response.status} ${ctx.request.method} ${ctx.request.url.pathname}` +
-    ` ${dt.toFixed(1)}ms ip=${ip} user=${userTag}`
+      ` ${dt.toFixed(1)}ms ip=${ip} user=${userTag}`,
   );
 });
 
-// --- Session (cookie) ---
+// --- Session middleware ---
 app.use(sessionMiddleware);
 
-// --- Load user from session to ctx.state.user ---
+// --- Load user from session ---
 app.use(async (ctx, next) => {
   try {
     const session = (ctx.state as any).session;
@@ -166,19 +155,15 @@ app.use(async (ctx, next) => {
   await next();
 });
 
-// --- Static files ---
-// לשים קבצים ב- /public  →  נגישים ב- /static/...
-// סטטיים (/static/* -> public/*)
+// --- Static files (/static/* -> public/*) ---
 app.use(async (ctx, next) => {
   const p = ctx.request.url.pathname;
   if (!p.startsWith("/static/")) return await next();
-
-  // מסירים את ה-prefix /static כדי למפות לתיקיית public
   const filePath = p.slice("/static".length) || "/";
   try {
     await ctx.send({
       root: "public",
-      path: filePath,         // לדוגמה: /styles.css -> public/styles.css
+      path: filePath,
       index: "index.html",
     });
   } catch {
@@ -189,26 +174,28 @@ app.use(async (ctx, next) => {
 // -------------------- ROOT ROUTER --------------------
 const root = new Router();
 
-// דף הבית: תוצאות רק אם search=1
+// דף הבית
 root.get("/", async (ctx) => {
   const url = ctx.request.url;
   const q = url.searchParams.get("q")?.toString() ?? "";
   const search = url.searchParams.get("search")?.toString() ?? "";
   const restaurants = search === "1" ? await listRestaurants(q, true) : [];
   await render(ctx, "index", {
-    restaurants, q, search,
+    restaurants,
+    q,
+    search,
     page: "home",
     title: "GeoTable — חיפוש מסעדה",
   });
 });
 
-// --- Health ---
+// Health
 root.get("/__health", (ctx) => {
   ctx.response.status = 200;
   ctx.response.body = "OK " + nowIso();
 });
 
-// --- Echo (debug) ---
+// Echo
 root.get("/__echo", (ctx) => {
   const info = {
     method: ctx.request.method,
@@ -222,7 +209,7 @@ root.get("/__echo", (ctx) => {
   ctx.response.body = JSON.stringify(info, null, 2);
 });
 
-// --- Mail test (protected by ADMIN_SECRET) ---
+// Mail test
 root.get("/__mailtest", async (ctx) => {
   const key = ctx.request.url.searchParams.get("key") ?? "";
   const to = ctx.request.url.searchParams.get("to") ?? "";
@@ -237,11 +224,11 @@ root.get("/__mailtest", async (ctx) => {
     return;
   }
   const fakeToken = crypto.randomUUID().replace(/-/g, "");
-  await sendVerifyEmail(to, fakeToken); // אם RESEND_API_KEY/BASE_URL חסרים — יהיה dry-run ללוג
+  await sendVerifyEmail(to, fakeToken);
   ctx.response.body = "sent (or dry-run logged)";
 });
 
-// אופציונלי: דף מידע קצר על גרסאות/ENV (מאובטח)
+// Env info (מאובטח)
 root.get("/__env", (ctx) => {
   const key = ctx.request.url.searchParams.get("key") ?? "";
   if (!ADMIN_SECRET || key !== ADMIN_SECRET) {
@@ -255,7 +242,6 @@ root.get("/__env", (ctx) => {
     port: PORT,
     baseUrl: BASE_URL || "(not set)",
     nodeEnv: NODE_ENV,
-    // אל תדפיס API keys!
     adminSecretSet: Boolean(ADMIN_SECRET),
   }, null, 2);
 });
@@ -276,7 +262,7 @@ app.use(ownerRouter.allowedMethods());
 app.use(adminRouter.routes());
 app.use(adminRouter.allowedMethods());
 
-// --- OPTIONS (preflight) & 405 ---
+// --- OPTIONS & 404 ---
 app.use(async (ctx, next) => {
   if (ctx.request.method === "OPTIONS") {
     ctx.response.status = Status.NoContent;
@@ -284,7 +270,6 @@ app.use(async (ctx, next) => {
   }
   await next();
 });
-
 app.use((ctx) => {
   if (ctx.response.body == null) {
     ctx.response.status = Status.NotFound;
@@ -294,8 +279,7 @@ app.use((ctx) => {
 
 // -------------------- GRACEFUL SHUTDOWN --------------------
 const controller = new AbortController();
-const signals = ["SIGINT", "SIGTERM"] as const;
-for (const s of signals) {
+for (const s of ["SIGINT", "SIGTERM"] as const) {
   Deno.addSignalListener(s, () => {
     console.log(`\n[SHUTDOWN] Received ${s}, closing...`);
     controller.abort();
