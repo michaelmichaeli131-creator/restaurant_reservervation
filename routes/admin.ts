@@ -117,7 +117,6 @@ function renderRestaurantRow(r: Restaurant, key: string) {
   </tr>`;
 }
 
-// <<< שינוי כאן: יצירה בלי export בקצה ההצהרה
 const adminRouter = new Router();
 
 // --------- Admin Login (GET) ----------
@@ -126,7 +125,7 @@ adminRouter.get("/admin/login", (ctx) => {
   <div class="card" style="max-width:520px">
     <h2 style="margin-top:0">כניסת אדמין</h2>
     <p class="muted">הזן/ני את מפתח האדמין (ADMIN_SECRET) שקבעת ב־Environment Variables.</p>
-    <form method="post" action="/admin/login">
+    <form method="post" action="/admin/login" enctype="application/x-www-form-urlencoded">
       <label for="key">מפתח אדמין</label><br/>
       <input id="key" name="key" type="password" placeholder="הדבק כאן את המפתח" required/>
       <button class="btn" type="submit" style="margin-inline-start:8px">כניסה</button>
@@ -138,10 +137,35 @@ adminRouter.get("/admin/login", (ctx) => {
 });
 
 // --------- Admin Login (POST) ----------
+// גרסה עמידה (Oak v17 + ישן) עם לוג אבחוני קצר
 adminRouter.post("/admin/login", async (ctx) => {
-  const form = await readForm(ctx);
-  const key = (form instanceof URLSearchParams ? form.get("key") : (form as FormData).get("key")) ?? "";
-  const val = key.toString().trim();
+  let val = "";
+
+  // 1) Web API (v17+)
+  try {
+    const fm = (ctx.request as any).formData ? await (ctx.request as any).formData() : null;
+    if (fm) {
+      const k = fm.get("key");
+      if (k != null) val = String(k).trim();
+    }
+  } catch { /* ignore */ }
+
+  // 2) Oak ישן
+  if (!val) {
+    try {
+      const body = (ctx.request as any).body ? (ctx.request as any).body({ type: "form" }) : null;
+      const usp = body ? await body.value : null;
+      if (usp) val = String(usp.get("key") ?? "").trim();
+    } catch { /* ignore */ }
+  }
+
+  // 3) fallback: query
+  if (!val) {
+    val = String(ctx.request.url.searchParams.get("key") ?? "").trim();
+  }
+
+  // DEBUG: מדפיס רק אורכי מחרוזות (לא תוכן)
+  console.log("[admin login] keyLen=", val.length, "envLen=", (Deno.env.get("ADMIN_SECRET") ?? "").length);
 
   if (!ADMIN_SECRET || val !== ADMIN_SECRET) {
     ctx.response.status = Status.Unauthorized;
@@ -151,7 +175,7 @@ adminRouter.post("/admin/login", async (ctx) => {
       body: `<div class="card" style="max-width:520px">
         <h2 style="margin-top:0">כניסת אדמין</h2>
         <p style="color:#c00">מפתח אדמין לא תקין.</p>
-        <form method="post" action="/admin/login">
+        <form method="post" action="/admin/login" enctype="application/x-www-form-urlencoded">
           <label for="key">מפתח אדמין</label><br/>
           <input id="key" name="key" type="password" required/>
           <button class="btn" type="submit" style="margin-inline-start:8px">נסיון נוסף</button>
@@ -160,6 +184,8 @@ adminRouter.post("/admin/login", async (ctx) => {
     });
     return;
   }
+
+  // הצלחה → Redirect לדשבורד עם המפתח ב-query
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set("Location", `/admin?key=${encodeURIComponent(val)}`);
 });
@@ -245,5 +271,4 @@ adminRouter.get("/admin/help", (ctx) => {
   ctx.response.body = page({ title: "עזרה · Admin", body });
 });
 
-// <<< יצוא יחיד
 export { adminRouter };
