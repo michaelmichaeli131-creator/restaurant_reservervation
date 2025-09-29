@@ -2,11 +2,16 @@
 import type { Context } from "jsr:@oak/oak";
 
 const kv = await Deno.openKv();
-
 type SessionData = Record<string, unknown>;
 
+// זיהוי HTTPS מאחורי פרוקסי + אופציית אובררייד במשתנה סביבה
 function isHttps(ctx: Context): boolean {
-  // Oak v17: ctx.request.secure קיים בפרוטוקול HTTPS
+  // אם רוצים לאלץ ידנית:
+  const override = Deno.env.get("COOKIE_SECURE");
+  if (override === "true") return true;
+  if (override === "false") return false;
+
+  // זיהוי אוטומטי:
   if ((ctx.request as any).secure) return true;
   const xf = ctx.request.headers.get("x-forwarded-proto");
   if (xf && xf.toLowerCase() === "https") return true;
@@ -21,20 +26,15 @@ async function loadSession(sid: string): Promise<SessionData> {
   const v = await kv.get<SessionData>(["sess", sid]);
   return v.value ?? {};
 }
-
-async function saveSession(sid: string, data: SessionData): Promise<void> {
+async function saveSession(sid: string, data: SessionData) {
   await kv.set(["sess", sid], data);
 }
-
-async function destroySession(sid: string): Promise<void> {
+async function destroySession(sid: string) {
   await kv.delete(["sess", sid]);
 }
 
-// יוצא ברירת מחדל (default)
 export default async function sessionMiddleware(ctx: Context, next: () => Promise<unknown>) {
   const cookieName = "sid";
-
-  // נסה לקבל sid מהעוגייה
   let sid = await ctx.cookies.get(cookieName);
   let isNew = false;
 
@@ -43,10 +43,8 @@ export default async function sessionMiddleware(ctx: Context, next: () => Promis
     isNew = true;
   }
 
-  // טען/צור נתוני סשן מה-KV
   let data = await loadSession(sid);
 
-  // הוסף ל-state API נוח
   (ctx.state as any).session = {
     async get<T = unknown>(key: string): Promise<T | null> {
       return (data[key] as T) ?? null;
@@ -62,33 +60,29 @@ export default async function sessionMiddleware(ctx: Context, next: () => Promis
     async destroy() {
       data = {};
       await destroySession(sid!);
-      // ננקה גם את העוגייה בדפדפן
       await ctx.cookies.delete(cookieName, { path: "/" });
     },
-    // שימוש פנימי (אם תרצה)
     _all(): SessionData {
       return { ...data };
     },
   };
 
-  // קבע/רענן עוגיית sid
-  // חשוב: secure=true רק תחת HTTPS כדי להימנע מ-"Cannot send secure cookie over unencrypted connection"
+  // קביעת secure לעוגייה:
+  // ברירת מחדל — לפי isHttps(ctx); ניתן לאלץ עם COOKIE_SECURE=true/false
   const secure = isHttps(ctx);
+
   await ctx.cookies.set(cookieName, sid, {
     httpOnly: true,
     sameSite: "Lax",
     path: "/",
-    secure,
-    // אפשר גם maxAge או expires אם תרצה התנהגות מתקדמת
+    secure, // אם false — לא תיזרק השגיאה על חיבור לא מוצפן
   });
 
   try {
     await next();
   } finally {
-    // אם היתה יצירה חדשה ולא נשמר כלום — עדיין העוגייה נשלחה כבר למעלה
-    // אם תרצה, תוכל לשמור heartbeat קטן:
     if (isNew && Object.keys(data).length === 0) {
-      await saveSession(sid, {});
+      await saveSession(sid!, {});
     }
   }
 }
