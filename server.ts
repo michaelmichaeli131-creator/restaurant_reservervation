@@ -1,150 +1,254 @@
-// server.ts
-import { Application, Router, type Context } from "jsr:@oak/oak";
-import { send } from "jsr:@oak/oak/send";
-import { oakCors } from "https://deno.land/x/cors@v1.2.2/mod.ts";
+// src/server.ts
+// GeoTable – Oak server (extended)
+// -------------------------------------------------------------
+// כולל:
+// - Error handler גלובלי (עם סטאק ללוג)
+// - Request ID + Logger מפורט (שיטה, נתיב, סטטוס, משך, משתמש מחובר)
+// - כותרות אבטחה (CSP בסיסי, HSTS ב-HTTPS, X-Frame-Options, X-Content-Type-Options וכו')
+// - כפיית HTTPS בפרודקשן (במיוחד עבור cookies מאובטחים)
+// - Session middleware (cookie) + טעינת משתמש ל-ctx.state.user
+// - Static files תחת /public אל /static
+// - Root router: דף בית (תוצאות רק כשsearch=1), /__health, /__echo
+// - /__mailtest (בדיקת אימייל) מאובטח ב-ADMIN_SECRET
+// - חיבור כל הראוטרים: auth, restaurants, owner, admin
+// - טיפול 404/405/OPTIONS, וכן graceful shutdown
+// -------------------------------------------------------------
+
+import {
+  Application,
+  Router,
+  isHttpError,
+  Status,
+} from "jsr:@oak/oak";
+
+import { serveStatic } from "jsr:@oak/oak/serve";
+
+import { render } from "./lib/view.ts";
+import sessionMiddleware from "./lib/session.ts";
 
 import { authRouter } from "./routes/auth.ts";
 import { restaurantsRouter } from "./routes/restaurants.ts";
 import { ownerRouter } from "./routes/owner.ts";
+import { adminRouter } from "./routes/admin.ts";
 
-import { initSession } from "./lib/session.ts";
-import { listRestaurants, findUserByEmail } from "./database.ts";
-import { render } from "./lib/view.ts";
+import { listRestaurants, getUserById } from "./database.ts";
+import { sendVerifyEmail } from "./lib/mail.ts";
 
-const PORT = Number(Deno.env.get("APP_PORT") ?? 8000);
-const DEBUG = (Deno.env.get("DEBUG") ?? "1") !== "0";
+// -------------------- ENV --------------------
+const PORT = Number(Deno.env.get("PORT") ?? "8000");
+const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
+const BASE_URL = Deno.env.get("BASE_URL") ?? ""; // לדוגמת קישורי אימות
+const NODE_ENV = Deno.env.get("NODE_ENV") ?? "production"; // "development" | "production"
 
-function rid() {
+// האם לרוץ מאחורי פרוקסי (Deno Deploy: כן)
+const TRUST_PROXY = true;
+
+// -------------------- UTIL --------------------
+function genReqId(): string {
   return crypto.randomUUID().slice(0, 8);
 }
 
-// ---------- create app ----------
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function getClientIp(ctx: any): string | undefined {
+  if (TRUST_PROXY) {
+    const fwd = ctx.request.headers.get("x-forwarded-for");
+    if (fwd) return fwd.split(",")[0]?.trim();
+  }
+  // Oak ב-native http: ctx.request.ip קיים
+  return (ctx.request as any).ip;
+}
+
+function isHttps(ctx: any): boolean {
+  if (ctx.request.secure) return true;
+  if (TRUST_PROXY) {
+    const proto = ctx.request.headers.get("x-forwarded-proto");
+    if (proto && proto.toLowerCase() === "https") return true;
+  }
+  try {
+    const url = ctx.request.url;
+    return url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+// -------------------- APP --------------------
 const app = new Application();
 
-// ---------- middlewares ----------
-const errorHandler = async (ctx: Context, next: () => Promise<unknown>) => {
+// --- Request ID ---
+app.use(async (ctx, next) => {
+  (ctx.state as any).reqId = genReqId();
+  await next();
+});
+
+// --- Global error handler ---
+app.use(async (ctx, next) => {
   try {
     await next();
   } catch (err) {
-    console.error("[ERR] UNCAUGHT:", err?.stack ?? err);
-    ctx.response.status = 500;
-    ctx.response.body = "Internal Server Error";
+    const reqId = (ctx.state as any).reqId;
+    // Oak friendly errors
+    if (isHttpError(err)) {
+      console.error(`[ERR ${reqId}] ${err.status} ${err.message}\n${err.stack ?? ""}`);
+      ctx.response.status = err.status;
+      ctx.response.body = err.expose ? err.message : "Internal Server Error";
+    } else {
+      console.error(`[ERR ${reqId}] UNCAUGHT:`, err?.stack ?? err);
+      ctx.response.status = 500;
+      ctx.response.body = "Internal Server Error";
+    }
   }
-};
+});
 
-const logger = async (ctx: Context, next: () => Promise<unknown>) => {
-  const id = rid();
-  const t0 = performance.now();
-  console.log(
-    `[REQ ${id}] ${ctx.request.method} ${ctx.request.url.pathname}${ctx.request.url.search}`,
-  );
+// --- Security headers middleware ---
+app.use(async (ctx, next) => {
+  // CSP בסיסי (לא חוסם inline-eta, אפשר להקשיח בהמשך)
+  ctx.response.headers.set("Content-Security-Policy",
+    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';");
+
+  ctx.response.headers.set("X-Frame-Options", "DENY");
+  ctx.response.headers.set("X-Content-Type-Options", "nosniff");
+  ctx.response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  ctx.response.headers.set("Permissions-Policy", "geolocation=(), microphone=()");
+  // HSTS רק אם HTTPS
+  if (isHttps(ctx)) {
+    ctx.response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+  }
   await next();
-  const ms = (performance.now() - t0).toFixed(1);
-  console.log(
-    `[RES ${id}] ${ctx.response.status ?? "-"} ${ctx.request.method} ${ctx.request.url.pathname} ${ms}ms`,
-  );
-};
+});
 
-const staticMw = async (ctx: Context, next: () => Promise<unknown>) => {
-  const p = ctx.request.url.pathname;
-  if (p.startsWith("/static/")) {
-    await send(ctx, p.replace("/static", ""), { root: `${Deno.cwd()}/public` });
+// --- Force HTTPS in production (to avoid secure-cookie error) ---
+app.use(async (ctx, next) => {
+  if (NODE_ENV !== "development" && !isHttps(ctx)) {
+    // הרצה על HTTP בפרודקשן עלולה לגרום ל: Cannot send secure cookie over unencrypted connection.
+    // נכפה רידיירקט ל-HTTPS אם מגיעים ב-HTTP (כשמאחורי פרוקסי זה יסתמך על x-forwarded-proto).
+    const url = ctx.request.url;
+    const httpsUrl = `https://${url.host}${url.pathname}${url.search}`;
+    ctx.response.status = Status.PermanentRedirect;
+    ctx.response.headers.set("Location", httpsUrl);
     return;
   }
   await next();
-};
+});
 
-app.use(errorHandler);
-app.use(logger);
-app.use(staticMw);
-app.use(oakCors());
+// --- Logger ---
+app.use(async (ctx, next) => {
+  const t0 = performance.now();
+  const reqId = (ctx.state as any).reqId;
+  const ip = getClientIp(ctx) ?? "-";
+  const user = (ctx.state as any).user;
+  const userTag = user ? `${user.email}(${user.id})` : "-";
+  await next();
+  const dt = performance.now() - t0;
+  console.log(
+    `[RES ${reqId}] ${ctx.response.status} ${ctx.request.method} ${ctx.request.url.pathname}` +
+    ` ${dt.toFixed(1)}ms ip=${ip} user=${userTag}`
+  );
+});
 
-// ---------- sessions ----------
-await initSession(app);
+// --- Session (cookie) ---
+app.use(sessionMiddleware);
 
-// ---------- DEBUG ----------
-if (DEBUG) {
-  const dbg = new Router();
-
-  // בריאות
-  dbg.get("/__health", (ctx) => {
-    ctx.response.headers.set("Cache-Control", "no-store");
-    ctx.response.type = "text";
-    ctx.response.body = "OK " + new Date().toISOString();
-  });
-
-  // עיון בקבצים שרצים בדפלוי (רשימת Allow מוגבלת)
-  dbg.get("/__file", async (ctx) => {
-    ctx.response.headers.set("Cache-Control", "no-store");
-    const name = ctx.request.url.searchParams.get("name") || "";
-    const allow: Record<string, string> = {
-      "routes/auth.ts": `${Deno.cwd()}/routes/auth.ts`,
-      "routes/restaurants.ts": `${Deno.cwd()}/routes/restaurants.ts`,
-      "routes/owner.ts": `${Deno.cwd()}/routes/owner.ts`,
-      "lib/auth.ts": `${Deno.cwd()}/lib/auth.ts`,
-      "server.ts": `${Deno.cwd()}/server.ts`,
-    };
-    const path = allow[name];
-    if (!path) {
-      ctx.response.status = 400;
-      ctx.response.body = "bad or disallowed name";
-      return;
+// --- Load user from session to ctx.state.user ---
+app.use(async (ctx, next) => {
+  try {
+    const session = (ctx.state as any).session;
+    const uid = session ? await session.get("userId") : null;
+    if (uid) {
+      const user = await getUserById(uid);
+      if (user) (ctx.state as any).user = user;
     }
-    try {
-      const txt = await Deno.readTextFile(path);
-      ctx.response.type = "text";
-      ctx.response.body = txt;
-    } catch (e) {
-      ctx.response.status = 404;
-      ctx.response.body = `not found: ${path} (${String(e?.message ?? e)})`;
-    }
-  });
+  } catch (e) {
+    console.warn("[user-loader] failed:", e);
+  }
+  await next();
+});
 
-  // דיאגנוסטיקה לחשבונות (עוזר מול "Invalid credentials")
-  dbg.get("/__auth-check", async (ctx) => {
-    const email = ctx.request.url.searchParams.get("email")?.toLowerCase().trim();
-    if (!email) {
-      ctx.response.status = 400;
-      ctx.response.body = "email=?";
-      return;
-    }
-    const u = await findUserByEmail(email);
-    ctx.response.headers.set("Cache-Control", "no-store");
-    ctx.response.type = "json";
-    ctx.response.body = JSON.stringify({
-      found: !!u,
-      id: u?.id ?? null,
-      role: u?.role ?? null,
-      hashPrefix:
-        typeof u?.passwordHash === "string"
-          ? u.passwordHash.split("$")[0]
-          : null,
-      provider: u?.provider ?? null,
-    });
-  });
+// --- Static files ---
+// לשים קבצים ב- /public  →  נגישים ב- /static/...
+app.use(serveStatic("public", { prefix: "/static" }));
 
-  app.use(dbg.routes());
-  app.use(dbg.allowedMethods());
-}
-
-// ---------- public home ----------
+// -------------------- ROOT ROUTER --------------------
 const root = new Router();
 
+// דף הבית: תוצאות רק אם search=1
 root.get("/", async (ctx) => {
-  const q = ctx.request.url.searchParams.get("q")?.toString() ?? "";
-  const restaurants = await listRestaurants(q);
+  const url = ctx.request.url;
+  const q = url.searchParams.get("q")?.toString() ?? "";
+  const search = url.searchParams.get("search")?.toString() ?? "";
+  const restaurants = search === "1" ? await listRestaurants(q, true) : [];
   await render(ctx, "index", {
-    restaurants,
-    q,
+    restaurants, q, search,
     page: "home",
     title: "GeoTable — חיפוש מסעדה",
   });
 });
 
+// --- Health ---
+root.get("/__health", (ctx) => {
+  ctx.response.status = 200;
+  ctx.response.body = "OK " + nowIso();
+});
+
+// --- Echo (debug) ---
+root.get("/__echo", (ctx) => {
+  const info = {
+    method: ctx.request.method,
+    url: ctx.request.url.href,
+    path: ctx.request.url.pathname,
+    query: Object.fromEntries(ctx.request.url.searchParams),
+    headers: Object.fromEntries(ctx.request.headers),
+    now: nowIso(),
+  };
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = JSON.stringify(info, null, 2);
+});
+
+// --- Mail test (protected by ADMIN_SECRET) ---
+root.get("/__mailtest", async (ctx) => {
+  const key = ctx.request.url.searchParams.get("key") ?? "";
+  const to = ctx.request.url.searchParams.get("to") ?? "";
+  if (!ADMIN_SECRET || key !== ADMIN_SECRET) {
+    ctx.response.status = Status.Unauthorized;
+    ctx.response.body = "Unauthorized";
+    return;
+  }
+  if (!to) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = "missing ?to=";
+    return;
+  }
+  const fakeToken = crypto.randomUUID().replace(/-/g, "");
+  await sendVerifyEmail(to, fakeToken); // אם RESEND_API_KEY/BASE_URL חסרים — יהיה dry-run ללוג
+  ctx.response.body = "sent (or dry-run logged)";
+});
+
+// אופציונלי: דף מידע קצר על גרסאות/ENV (מאובטח)
+root.get("/__env", (ctx) => {
+  const key = ctx.request.url.searchParams.get("key") ?? "";
+  if (!ADMIN_SECRET || key !== ADMIN_SECRET) {
+    ctx.response.status = Status.Unauthorized;
+    ctx.response.body = "Unauthorized";
+    return;
+  }
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = JSON.stringify({
+    time: nowIso(),
+    port: PORT,
+    baseUrl: BASE_URL || "(not set)",
+    nodeEnv: NODE_ENV,
+    // אל תדפיס API keys!
+    adminSecretSet: Boolean(ADMIN_SECRET),
+  }, null, 2);
+});
+
 app.use(root.routes());
 app.use(root.allowedMethods());
 
-// ---------- app routers ----------
+// -------------------- FEATURE ROUTERS --------------------
 app.use(authRouter.routes());
 app.use(authRouter.allowedMethods());
 
@@ -154,6 +258,38 @@ app.use(restaurantsRouter.allowedMethods());
 app.use(ownerRouter.routes());
 app.use(ownerRouter.allowedMethods());
 
-// ---------- start ----------
-console.log(`[BOOT] listening on :${PORT}`);
-await app.listen({ port: PORT });
+app.use(adminRouter.routes());
+app.use(adminRouter.allowedMethods());
+
+// --- OPTIONS (preflight) & 405 ---
+app.use(async (ctx, next) => {
+  if (ctx.request.method === "OPTIONS") {
+    ctx.response.status = Status.NoContent;
+    return;
+  }
+  await next();
+});
+
+app.use((ctx) => {
+  if (ctx.response.body == null) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Not Found";
+  }
+});
+
+// -------------------- GRACEFUL SHUTDOWN --------------------
+const controller = new AbortController();
+const signals = ["SIGINT", "SIGTERM"] as const;
+for (const s of signals) {
+  Deno.addSignalListener(s, () => {
+    console.log(`\n[SHUTDOWN] Received ${s}, closing...`);
+    controller.abort();
+  });
+}
+
+// -------------------- START --------------------
+console.log(
+  `[BOOT] GeoTable up on :${PORT} (env=${NODE_ENV}) BASE_URL=${BASE_URL || "(not set)"}`
+);
+await app.listen({ port: PORT, signal: controller.signal });
+console.log("[BOOT] server stopped");

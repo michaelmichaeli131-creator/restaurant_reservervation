@@ -1,12 +1,11 @@
 // src/routes/owner.ts
 import { Router } from "jsr:@oak/oak";
-import { kv, createRestaurant, listReservationsByOwner } from "../database.ts";
+import { kv, createRestaurant, listReservationsByOwner, getRestaurant, createReservation, computeOccupancy } from "../database.ts";
 import { requireOwner } from "../lib/auth.ts";
 import { render } from "../lib/view.ts";
 
 export const ownerRouter = new Router();
 
-// דשבורד בעלי מסעדה: רשימת המסעדות + הזמנות אחרונות
 ownerRouter.get("/owner", async (ctx) => {
   if (!requireOwner(ctx)) return;
 
@@ -29,18 +28,52 @@ ownerRouter.get("/owner", async (ctx) => {
   });
 });
 
-// יצירת מסעדה חדשה (כולל קיבולת/סלוט/משך)
+// תצוגת תפוסה למסעדה מסוימת (רק בעלים)
+ownerRouter.get("/owner/restaurants/:id", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const id = ctx.params.id!;
+  const r = await getRestaurant(id);
+  const ownerId = (ctx.state as any).user.id;
+  if (!r || r.ownerId !== ownerId) { ctx.response.status = 404; ctx.response.body = "Not found"; return; }
+  const date = ctx.request.url.searchParams.get("date") ?? new Date().toISOString().slice(0,10);
+  const loads = await computeOccupancy(r, date);
+  await render(ctx, "owner_restaurant_capacity", { r, date, loads, title: r.name + " — תפוסה" });
+});
+
+// חסימה ידנית של שולחנות
+ownerRouter.post("/owner/restaurants/:id/block", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const id = ctx.params.id!;
+  const r = await getRestaurant(id);
+  const ownerId = (ctx.state as any).user.id;
+  if (!r || r.ownerId !== ownerId) { ctx.response.status = 404; ctx.response.body = "Not found"; return; }
+
+  const form = await ctx.request.body.form();
+  const date = (form.get("date") ?? "").toString();
+  const time = (form.get("time") ?? "").toString();
+  const people = Number((form.get("people") ?? "1").toString());
+  const note = (form.get("note") ?? "חסימה ידנית").toString();
+
+  await createReservation({
+    id: crypto.randomUUID(),
+    restaurantId: r.id,
+    userId: `manual-block:${ownerId}`,
+    date, time, people, note,
+    status: "blocked",
+    createdAt: Date.now(),
+  });
+
+  ctx.response.redirect(`/owner/restaurants/${r.id}?date=${encodeURIComponent(date)}`);
+});
+
+// יצירת מסעדה חדשה + קיבולת/סלוט/משך (מאושרת רק ע"י אדמין)
 ownerRouter.post("/owner/restaurant/new", async (ctx) => {
   if (!requireOwner(ctx)) return;
 
-  const form = await ctx.request.body.form(); // Oak v17
+  const form = await ctx.request.body.form();
   const id = crypto.randomUUID();
 
-  const capacity = Number(form.get("capacity") ?? "30");
-  const slotIntervalMinutes = Number(form.get("slotIntervalMinutes") ?? "15");
-  const serviceDurationMinutes = Number(form.get("serviceDurationMinutes") ?? "120");
-
-  const obj = {
+  await createRestaurant({
     id,
     ownerId: (ctx.state as any).user.id,
     name: form.get("name")?.toString() ?? "New Restaurant",
@@ -50,11 +83,11 @@ ownerRouter.post("/owner/restaurant/new", async (ctx) => {
     hours: form.get("hours")?.toString() ?? "",
     description: form.get("description")?.toString() ?? "",
     menu: [],
-    capacity,
-    slotIntervalMinutes,
-    serviceDurationMinutes,
-  };
+    capacity: Number(form.get("capacity") ?? "30"),
+    slotIntervalMinutes: Number(form.get("slotIntervalMinutes") ?? "15"),
+    serviceDurationMinutes: Number(form.get("serviceDurationMinutes") ?? "120"),
+    approved: false,
+  });
 
-  await createRestaurant(obj as any);
   ctx.response.redirect("/owner");
 });

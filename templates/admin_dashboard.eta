@@ -1,0 +1,22 @@
+<h1>אישור מסעדות</h1>
+<% if (it.unapproved && it.unapproved.length) { %>
+  <table class="table">
+    <thead><tr><th>שם</th><th>עיר</th><th>בעלים</th><th>פעולה</th></tr></thead>
+    <tbody>
+      <% it.unapproved.forEach(r => { %>
+        <tr>
+          <td><%= r.name %></td>
+          <td><%= r.city %></td>
+          <td><code><%= r.ownerId %></code></td>
+          <td>
+            <form method="post" action="/admin/approve/<%= r.id %>?key=<%= encodeURIComponent(new URLSearchParams(location.search).get('key')||'') %>">
+              <button class="btn" type="submit">אשר</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+<% } else { %>
+  <p>אין מסעדות ממתינות לאישור.</p>
+<% } %>

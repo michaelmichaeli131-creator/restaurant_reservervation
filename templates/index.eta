@@ -1,33 +1,48 @@
 <section class="hero">
   <h1>חיפוש מסעדות</h1>
-  <form method="get" action="/" class="search">
-    <input name="q" placeholder="חפש לפי שם/עיר/כתובת" value="<%= (it.q || '') %>" />
+
+  <form id="searchForm" method="get" action="/" class="search">
+    <input id="q" name="q" placeholder="שם/עיר/כתובת" value="<%= it.q||'' %>" list="suggest" autocomplete="off"/>
+    <datalist id="suggest"></datalist>
+    <input type="hidden" name="search" value="1"/>
     <button type="submit" class="btn">חיפוש</button>
   </form>
 </section>
 
-<% if (it.restaurants && it.restaurants.length) { %>
-  <section>
-    <h2>תוצאות</h2>
-    <ul class="cards">
-      <%~ it.restaurants.map((r)=>`
-        <li class="card">
-          <h3>${r.name}</h3>
-          <p>${r.city} · ${r.address}</p>
-          <a class="btn" href="/restaurants/${r.id}">פרטים</a>
-        </li>
-      `).join("") %>
-    </ul>
-  </section>
-<% } else { %>
-  <section class="empty">
-    <h2>לא נמצאו מסעדות</h2>
-    <p>נסה לחפש לפי שם מסעדה או עיר (למשל: <code>Tbilisi</code>), או הוסף מסעדה חדשה אם אתה בעלים.</p>
-    <% if (it.user && it.user.role === "owner") { %>
-      <a class="btn" href="/owner">אזור מנהלים — הוספת מסעדה</a>
-    <% } else { %>
-      <a class="btn secondary" href="/signup">הרשמה</a>
-      <a class="btn" href="/login">התחברות</a>
-    <% } %>
-  </section>
+<% if (it.search === "1") { %>
+  <% if (it.restaurants && it.restaurants.length) { %>
+    <section>
+      <h2>תוצאות</h2>
+      <ul class="cards">
+        <%~ it.restaurants.map((r)=>`
+          <li class="card">
+            <h3>${r.name}</h3>
+            <p>${r.city} · ${r.address}</p>
+            <a class="btn" href="/restaurants/${r.id}">פרטים</a>
+          </li>
+        `).join("") %>
+      </ul>
+    </section>
+  <% } else { %>
+    <section class="empty">
+      <h2>לא נמצאו מסעדות</h2>
+      <p>נסה חיפוש אחר.</p>
+    </section>
+  <% } %>
 <% } %>
+
+<script>
+const q = document.getElementById('q');
+const dl = document.getElementById('suggest');
+let last = '';
+q.addEventListener('input', async () => {
+  const v = q.value.trim();
+  if (v.length < 2 || v === last) return;
+  last = v;
+  try {
+    const r = await fetch('/api/restaurants/suggest?q=' + encodeURIComponent(v));
+    const items = await r.json();
+    dl.innerHTML = items.map(it => `<option value="${it.name} (${it.city})">`).join('');
+  } catch (e) {}
+});
+</script>

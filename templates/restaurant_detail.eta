@@ -1,6 +1,5 @@
 <h1><%= it.r.name %></h1>
 <p><%= it.r.city %> · <%= it.r.address %></p>
-<p>קיבולת: <strong><%= it.r.capacity %></strong> | משך ישיבה: <%= it.r.serviceDurationMinutes %> דק' | סלוט: <%= it.r.slotIntervalMinutes %> דק'</p>
 
 <form method="get" action="/restaurants/<%= it.r.id %>" class="form inline">
   <label>תאריך:
@@ -9,53 +8,47 @@
   <button class="btn" type="submit">רענון</button>
 </form>
 
-<% if (it.error) { %>
-  <p class="error"><%= it.error %></p>
-  <% if (it.suggestions && it.suggestions.length) { %>
-    <p>יש מקומות בשעות: 
-      <% it.suggestions.forEach((s, i) => { %>
-        <a class="chip" href="/restaurants/<%= it.r.id %>?date=<%= it.date %>&time=<%= s %>"><%= s %></a>
-      <% }) %>
-    </p>
-  <% } %>
+<% if (it.error) { %><p class="error"><%= it.error %></p><% } %>
+<% if (it.success) { %><p class="success"><%= it.success %></p><% } %>
+<% if (it.suggestions && it.suggestions.length) { %>
+  <p>שעות חלופיות זמינות:
+    <% it.suggestions.forEach((s)=>{ %>
+      <a class="chip" href="#" onclick="pickTime('<%= s %>')"><%= s %></a>
+    <% }) %>
+  </p>
 <% } %>
 
-<% if (it.success) { %>
-  <p class="success"><%= it.success %></p>
-<% } %>
-
-<section>
-  <h2>זמינות לשעה הנבחרת (<%= it.date %>)</h2>
-  <table class="table">
-    <thead>
-      <tr>
-        <th>שעה</th>
-        <th>תפוסה</th>
-        <th>אחוז</th>
-        <th>הזמנה</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% it.loads.forEach(L => { %>
-        <tr>
-          <td><strong><%= L.slot %></strong></td>
-          <td><%= L.booked %> / <%= L.capacity %></td>
-          <td><%= L.percent %>%</td>
-          <td>
-            <% if (L.free > 0) { %>
-              <form method="post" action="/restaurants/<%= it.r.id %>/reserve" class="form inline">
-                <input type="hidden" name="date" value="<%= it.date %>"/>
-                <input type="hidden" name="time" value="<%= L.slot %>"/>
-                <input type="number" min="1" max="<%= L.free %>" name="people" value="2" style="width:70px" />
-                <input type="text" name="note" placeholder="הערה" style="width:140px"/>
-                <button class="btn" type="submit">הזמן</button>
-              </form>
-            <% } else { %>
-              <span class="badge">מלא</span>
-            <% } %>
-          </td>
-        </tr>
-      <% }) %>
-    </tbody>
-  </table>
+<section class="card">
+  <h2>הזמנה</h2>
+  <form id="reserveForm" method="post" action="/restaurants/<%= it.r.id %>/reserve" class="form inline">
+    <input type="hidden" name="date" value="<%= it.date %>"/>
+    <label>שעה:
+      <input id="time" name="time" type="time" step="<%= (it.r.slotIntervalMinutes||15)*60 %>" required />
+    </label>
+    <label>מס׳ סועדים:
+      <input id="people" name="people" type="number" min="1" value="2" required />
+    </label>
+    <label>הערה:
+      <input name="note" type="text" />
+    </label>
+    <button type="button" class="btn" onclick="checkThenSubmit()">בדוק זמינות והזמן</button>
+  </form>
 </section>
+
+<script>
+function pickTime(t){ document.getElementById('time').value = t; }
+async function checkThenSubmit(){
+  const date = '<%= it.date %>';
+  const time = document.getElementById('time').value;
+  const people = document.getElementById('people').value;
+  if(!time){ alert('נא לבחור שעה'); return; }
+  const r = await fetch(`/api/restaurants/<%= it.r.id %>/check?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&people=${encodeURIComponent(people)}`);
+  const data = await r.json();
+  if(data.ok){ document.getElementById('reserveForm').submit(); }
+  else{
+    let msg = data.reason==='full' ? 'מלא בשעה זו.' : (data.reason==='closed' ? 'סלוט לא זמין.' : 'בקשה לא תקינה');
+    if(data.suggestions?.length){ msg += '\nשעות מוצעות: ' + data.suggestions.slice(0,6).join(', '); }
+    alert(msg);
+  }
+}
+</script>

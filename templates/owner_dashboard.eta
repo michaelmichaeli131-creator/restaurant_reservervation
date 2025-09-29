@@ -3,46 +3,24 @@
 <section class="card">
   <h2>הוספת מסעדה</h2>
   <form method="post" action="/owner/restaurant/new" class="form grid">
-    <label>שם מסעדה
-      <input name="name" required />
-    </label>
+    <label>שם מסעדה <input name="name" required /></label>
+    <label>עיר <input name="city" required /></label>
+    <label>כתובת <input name="address" required /></label>
+    <label>טלפון <input name="phone" /></label>
+    <label>שעות פתיחה <input name="hours" placeholder="א-ש 12:00-23:00" /></label>
+    <label>תיאור <textarea name="description" rows="3"></textarea></label>
 
-    <label>עיר
-      <input name="city" required />
-    </label>
-
-    <label>כתובת
-      <input name="address" required />
-    </label>
-
-    <label>טלפון
-      <input name="phone" />
-    </label>
-
-    <label>שעות פתיחה (טקסט חופשי)
-      <input name="hours" placeholder="א-ש 12:00-23:00" />
-    </label>
-
-    <label>תיאור
-      <textarea name="description" rows="3"></textarea>
-    </label>
-
-    <!-- שדות חדשים לפי דרישתך -->
     <label>קיבולת (מס׳ מקומות)
       <input type="number" name="capacity" min="1" value="30" />
     </label>
-
-    <label>מרווח סלוט (דקות)
+    <label>מרווח סלוט (דק׳)
       <input type="number" name="slotIntervalMinutes" min="5" step="5" value="15" />
     </label>
-
-    <label>משך ישיבה (דקות)
+    <label>משך ישיבה (דק׳)
       <input type="number" name="serviceDurationMinutes" min="30" step="15" value="120" />
     </label>
 
-    <div style="grid-column: 1 / -1;">
-      <button class="btn" type="submit">שמירה</button>
-    </div>
+    <div style="grid-column:1/-1"><button class="btn" type="submit">שמירה</button></div>
   </form>
 </section>
 
@@ -52,14 +30,15 @@
     <% if (it.myRestaurants && it.myRestaurants.length) { %>
       <%~ it.myRestaurants.map((r)=>`
         <li class="card">
-          <h3>${r.name}</h3>
+          <h3>${r.name}${r.approved ? "" : " (ממתין לאישור)"}</h3>
           <p>${r.city} · ${r.address}</p>
           <p>קיבולת: <strong>${r.capacity ?? 30}</strong> · סלוט: ${r.slotIntervalMinutes ?? 15} דק' · ישיבה: ${r.serviceDurationMinutes ?? 120} דק'</p>
-          <a class="btn" href="/restaurants/${r.id}">לצפייה</a>
+          <a class="btn" href="/owner/restaurants/${r.id}">תפוסה וניהול</a>
+          <a class="btn secondary" href="/restaurants/${r.id}">תצוגה ללקוח</a>
         </li>
       `).join("") %>
     <% } else { %>
-      <p>עוד אין לך מסעדות. הוסף אחת בטופס למעלה.</p>
+      <p>אין מסעדות. הוסף אחת בטופס למעלה.</p>
     <% } %>
   </ul>
 </section>
@@ -68,30 +47,19 @@
   <h2>הזמנות אחרונות</h2>
   <% if (it.reservations && it.reservations.length) { %>
     <table class="table">
-      <thead>
-        <tr>
-          <th>מסעדה</th>
-          <th>תאריך</th>
-          <th>שעה</th>
-          <th>מס׳ אורחים</th>
-          <th>הערה</th>
-          <th>מזהה הזמנה</th>
-        </tr>
-      </thead>
+      <thead><tr><th>מסעדה</th><th>תאריך</th><th>שעה</th><th>מס׳</th><th>הערה</th><th>ID</th></tr></thead>
       <tbody>
-        <% it.reservations.forEach((row)=>{ %>
-          <tr>
-            <td><%= row.restaurantName %></td>
-            <td><%= row.reservation.date %></td>
-            <td><%= row.reservation.time %></td>
-            <td><%= row.reservation.people %></td>
-            <td><%= row.reservation.note || "" %></td>
-            <td><code><%= row.reservation.id %></code></td>
-          </tr>
-        <% }) %>
+      <% it.reservations.forEach((row)=>{ %>
+        <tr>
+          <td><%= row.restaurantName %></td>
+          <td><%= row.reservation.date %></td>
+          <td><%= row.reservation.time %></td>
+          <td><%= row.reservation.people %></td>
+          <td><%= row.reservation.note || "" %></td>
+          <td><code><%= row.reservation.id %></code></td>
+        </tr>
+      <% }) %>
       </tbody>
     </table>
-  <% } else { %>
-    <p>אין הזמנות עדיין.</p>
-  <% } %>
+  <% } else { %><p>אין הזמנות עדיין.</p><% } %>
 </section>

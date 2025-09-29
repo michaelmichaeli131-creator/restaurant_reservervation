@@ -1,0 +1,32 @@
+<h1>תפוסה — <%= it.r.name %></h1>
+<form method="get" action="/owner/restaurants/<%= it.r.id %>" class="form inline">
+  <label>תאריך: <input type="date" name="date" value="<%= it.date %>"/></label>
+  <button class="btn" type="submit">רענון</button>
+</form>
+
+<section class="card">
+  <h2>חסימה ידנית</h2>
+  <form method="post" action="/owner/restaurants/<%= it.r.id %>/block" class="form inline">
+    <input type="hidden" name="date" value="<%= it.date %>"/>
+    <label>שעה: <input name="time" type="time" step="<%= (it.r.slotIntervalMinutes||15)*60 %>" required /></label>
+    <label>מס׳ מקומות לחסימה: <input name="people" type="number" min="1" value="2" required /></label>
+    <label>הערה: <input name="note" type="text" value="חסימה ידנית" /></label>
+    <button class="btn" type="submit">חסום</button>
+  </form>
+</section>
+
+<section>
+  <h2>תפוסה ל-<%= it.date %></h2>
+  <table class="table">
+    <thead><tr><th>שעה</th><th>תפוסה</th><th>אחוז</th></tr></thead>
+    <tbody>
+      <% it.loads.forEach(L => { %>
+        <tr>
+          <td><strong><%= L.slot %></strong></td>
+          <td><%= L.booked %> / <%= L.capacity %></td>
+          <td><%= L.percent %>%</td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>
