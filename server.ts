@@ -21,7 +21,6 @@ import {
   Status,
 } from "jsr:@oak/oak";
 
-import { serveStatic } from "jsr:@oak/oak/serve";
 
 import { render } from "./lib/view.ts";
 import sessionMiddleware from "./lib/session.ts";
@@ -169,7 +168,23 @@ app.use(async (ctx, next) => {
 
 // --- Static files ---
 // לשים קבצים ב- /public  →  נגישים ב- /static/...
-app.use(serveStatic("public", { prefix: "/static" }));
+// סטטיים (/static/* -> public/*)
+app.use(async (ctx, next) => {
+  const p = ctx.request.url.pathname;
+  if (!p.startsWith("/static/")) return await next();
+
+  // מסירים את ה-prefix /static כדי למפות לתיקיית public
+  const filePath = p.slice("/static".length) || "/";
+  try {
+    await ctx.send({
+      root: "public",
+      path: filePath,         // לדוגמה: /styles.css -> public/styles.css
+      index: "index.html",
+    });
+  } catch {
+    await next();
+  }
+});
 
 // -------------------- ROOT ROUTER --------------------
 const root = new Router();
