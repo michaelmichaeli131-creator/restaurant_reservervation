@@ -1,44 +1,77 @@
-<% it.layout = "layout" %>
-<%~ it.body = `
-  <h1>אזור מנהלים</h1>
+<h1>אזור מנהלים</h1>
 
-  <section class="card">
-    <h2>הוספת מסעדה</h2>
-    <form method="post" action="/owner/restaurant/new" class="form grid">
-      <label>שם מסעדה
-        <input name="name" required />
-      </label>
-      <label>עיר
-        <input name="city" required />
-      </label>
-      <label>כתובת
-        <input name="address" required />
-      </label>
-      <label>טלפון
-        <input name="phone" />
-      </label>
-      <label>שעות פתיחה
-        <input name="hours" placeholder="א-ש 12:00-23:00" />
-      </label>
-      <label>תיאור
-        <textarea name="description" rows="3"></textarea>
-      </label>
-      <div>
-        <button class="btn" type="submit">שמירה</button>
-      </div>
-    </form>
-  </section>
+<section class="card">
+  <h2>הוספת מסעדה</h2>
+  <form method="post" action="/owner/restaurant/new" class="form grid">
+    <label>שם מסעדה
+      <input name="name" required />
+    </label>
+    <label>עיר
+      <input name="city" required />
+    </label>
+    <label>כתובת
+      <input name="address" required />
+    </label>
+    <label>טלפון
+      <input name="phone" />
+    </label>
+    <label>שעות פתיחה
+      <input name="hours" placeholder="א-ש 12:00-23:00" />
+    </label>
+    <label>תיאור
+      <textarea name="description" rows="3"></textarea>
+    </label>
+    <div>
+      <button class="btn" type="submit">שמירה</button>
+    </div>
+  </form>
+</section>
 
-  <section>
-    <h2>המסעדות שלי</h2>
-    <ul class="cards">
-      ${it.myRestaurants.map((r)=>`
+<section>
+  <h2>המסעדות שלי</h2>
+  <ul class="cards">
+    <% if (it.myRestaurants && it.myRestaurants.length) { %>
+      <%~ it.myRestaurants.map((r)=>`
         <li class="card">
           <h3>${r.name}</h3>
           <p>${r.city} · ${r.address}</p>
           <a class="btn" href="/restaurants/${r.id}">לצפייה</a>
         </li>
-      `).join("")}
-    </ul>
-  </section>
-` %>
+      `).join("") %>
+    <% } else { %>
+      <p>עוד אין לך מסעדות. הוסף אחת בטופס למעלה.</p>
+    <% } %>
+  </ul>
+</section>
+
+<section>
+  <h2>הזמנות אחרונות</h2>
+  <% if (it.reservations && it.reservations.length) { %>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>מסעדה</th>
+          <th>תאריך</th>
+          <th>שעה</th>
+          <th>מס׳ אורחים</th>
+          <th>הערה</th>
+          <th>מזהה הזמנה</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% it.reservations.forEach((row)=>{ %>
+          <tr>
+            <td><%= row.restaurantName %></td>
+            <td><%= row.reservation.date %></td>
+            <td><%= row.reservation.time %></td>
+            <td><%= row.reservation.people %></td>
+            <td><%= row.reservation.note || "" %></td>
+            <td><code><%= row.reservation.id %></code></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } else { %>
+    <p>אין הזמנות עדיין.</p>
+  <% } %>
+</section>

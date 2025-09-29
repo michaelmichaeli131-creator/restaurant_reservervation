@@ -1,6 +1,6 @@
 // routes/owner.ts
 import { Router } from "jsr:@oak/oak";
-import { kv, createRestaurant } from "../database.ts";
+import { kv, createRestaurant, listReservationsByOwner } from "../database.ts";
 import { requireOwner } from "../lib/auth.ts";
 import { render } from "../lib/view.ts";
 
@@ -18,15 +18,21 @@ ownerRouter.get("/owner", async (ctx) => {
     if (r) myRestaurants.push(r);
   }
 
+  // חדש: כל ההזמנות של כל המסעדות של הבעלים
+  const reservations = await listReservationsByOwner(ownerId);
+
   await render(ctx, "owner_dashboard", {
-    myRestaurants, page: "owner", title: "אזור מנהלים",
+    myRestaurants,
+    reservations, // נעביר לתבנית
+    page: "owner",
+    title: "אזור מנהלים",
   });
 });
 
 ownerRouter.post("/owner/restaurant/new", async (ctx) => {
   if (!requireOwner(ctx)) return;
 
-  const form = await ctx.request.body.form(); // Oak v17: "form" ⇒ .form()
+  const form = await ctx.request.body.form(); // Oak v17
   const id = crypto.randomUUID();
   const obj = {
     id,
