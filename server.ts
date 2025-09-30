@@ -39,6 +39,9 @@ const BASE_URL = Deno.env.get("BASE_URL") ?? ""; // לדוגמת קישורי א
 const NODE_ENV = Deno.env.get("NODE_ENV") ?? "production"; // "development" | "production"
 const TRUST_PROXY = true; // ב-Deno Deploy מאחורי פרוקסי
 
+// תג בנייה ללוג/דיבוג (עוזר לוודא שהגרסה החדשה עלתה)
+const BUILD_TAG = new Date().toISOString();
+
 // -------------------- UTIL --------------------
 function genReqId(): string {
   return crypto.randomUUID().slice(0, 8);
@@ -171,6 +174,19 @@ app.use(async (ctx, next) => {
   }
 });
 
+// --- No-cache לאיזור האדמין + X-Build-Tag לכל תגובה ---
+app.use(async (ctx, next) => {
+  await next();
+  // כותרת דיבוג כדי לזהות פריסה חדשה
+  ctx.response.headers.set("X-Build-Tag", BUILD_TAG);
+  // ביטול קאש ב-/admin כדי שתראה תמיד את הגרסה העדכנית
+  if (ctx.request.url.pathname.startsWith("/admin")) {
+    ctx.response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+    ctx.response.headers.set("Pragma", "no-cache");
+    ctx.response.headers.set("Expires", "0");
+  }
+});
+
 // -------------------- ROOT ROUTER --------------------
 const root = new Router();
 
@@ -288,7 +304,7 @@ for (const s of ["SIGINT", "SIGTERM"] as const) {
 
 // -------------------- START --------------------
 console.log(
-  `[BOOT] GeoTable up on :${PORT} (env=${NODE_ENV}) BASE_URL=${BASE_URL || "(not set)"}`
+  `[BOOT] GeoTable up on :${PORT} (env=${NODE_ENV}) BASE_URL=${BASE_URL || "(not set)"} BUILD_TAG=${BUILD_TAG}`
 );
 await app.listen({ port: PORT, signal: controller.signal });
 console.log("[BOOT] server stopped");
