@@ -5,14 +5,15 @@ import {
   getRestaurant,
   updateRestaurant,
   type Restaurant,
-  // פונקציות איפוס מה-DB (אם הוספת לפי ההנחיות הקודמות)
   resetRestaurants,
   resetReservations,
   resetUsers,
   resetAll,
+  deleteRestaurantCascade,
 } from "../database.ts";
 
 const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
+const BUILD_TAG = new Date().toISOString().slice(0,19).replace("T"," ");
 
 // ------- utils -------
 function getAdminKey(ctx: any): string | null {
@@ -20,7 +21,6 @@ function getAdminKey(ctx: any): string | null {
   const headerKey = ctx.request.headers.get("x-admin-key");
   return (urlKey ?? headerKey ?? "").trim() || null;
 }
-
 function assertAdmin(ctx: any): boolean {
   const key = getAdminKey(ctx);
   if (!ADMIN_SECRET || !key || key !== ADMIN_SECRET) {
@@ -30,8 +30,13 @@ function assertAdmin(ctx: any): boolean {
   }
   return true;
 }
-
-function page(layout: { title: string; body: string }) {
+function setNoStore(ctx: any) {
+  ctx.response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  ctx.response.headers.set("Pragma", "no-cache");
+  ctx.response.headers.set("Expires", "0");
+}
+function page(layout: { title: string; body: string; key?: string }) {
+  const keyMasked = (layout.key ?? "").replace(/./g, "•");
   return `<!doctype html>
 <html lang="he" dir="rtl">
 <head>
@@ -43,6 +48,7 @@ function page(layout: { title: string; body: string }) {
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:1100px;margin:32px auto;padding:0 16px}
     header{display:flex;align-items:center;gap:12px;margin-bottom:20px}
     .pill{background:#eef;border:1px solid #ccd;border-radius:999px;padding:4px 10px;font-size:12px}
+    .debug{background:#fff8d6;border:1px solid #f1d17a;padding:8px 12px;border-radius:8px;margin:8px 0;color:#754c00}
     table{width:100%;border-collapse:collapse;margin-top:16px}
     th,td{border-bottom:1px solid #eee;padding:10px;vertical-align:top;text-align:right}
     th{background:#fafafa;font-weight:600}
@@ -65,7 +71,9 @@ function page(layout: { title: string; body: string }) {
     <h1 style="margin:0">GeoTable · ניהול</h1>
     <span class="pill"><small>ADMIN</small></span>
   </header>
+  <div class="debug">Build: ${BUILD_TAG}</div>
   ${layout.body}
+  <div class="muted" style="margin-top:18px">Key: ${keyMasked}</div>
 </body>
 </html>`;
 }
@@ -81,12 +89,17 @@ function renderRestaurantRow(r: Restaurant, key: string) {
       <div class="row">
         ${
           r.approved
-            ? `<span class="badge">פעילה</span>`
+            ? `<form class="inline" method="post" action="/admin/restaurants/${r.id}/unapprove?key=${encodeURIComponent(key)}">
+                 <button class="btn secondary" type="submit">השבתה (Unapprove)</button>
+               </form>`
             : `<form class="inline" method="post" action="/admin/restaurants/${r.id}/approve?key=${encodeURIComponent(key)}">
-                 <button class="btn" type="submit">אשר מסעדה</button>
+                 <button class="btn" type="submit">אישור</button>
                </form>`
         }
         <a class="btn secondary" href="/restaurants/${r.id}" target="_blank" rel="noopener">פתח דף מסעדה</a>
+        <form class="inline" method="post" action="/admin/restaurants/${r.id}/delete?key=${encodeURIComponent(key)}" onsubmit="return confirm('למחוק לצמיתות את \"${r.name}\" וכל ההזמנות שלה?')">
+          <button class="btn warn" type="submit">הסר מהאתר</button>
+        </form>
       </div>
     </td>
   </tr>`;
@@ -95,8 +108,9 @@ function renderRestaurantRow(r: Restaurant, key: string) {
 // ------- router -------
 const adminRouter = new Router();
 
-/** מסך כניסה: GET -> שולח ל-/admin עם ?key= */
+/** כניסת אדמין */
 adminRouter.get("/admin/login", (ctx) => {
+  setNoStore(ctx);
   const body = `
   <div class="card" style="max-width:520px">
     <h2 style="margin-top:0">כניסת אדמין</h2>
@@ -106,15 +120,15 @@ adminRouter.get("/admin/login", (ctx) => {
       <input id="key" name="key" type="password" placeholder="הדבק כאן את המפתח" required/>
       <button class="btn" type="submit" style="margin-inline-start:8px">כניסה</button>
     </form>
-    <p class="muted" style="margin-top:10px">אין יצירת משתמשים כאן — זו גישה עם מפתח בלבד.</p>
   </div>`;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
   ctx.response.body = page({ title: "כניסת אדמין", body });
 });
 
-/** דשבורד אדמין */
+/** דשבורד אדמין (כפתורי Reset בראש העמוד) */
 adminRouter.get("/admin", async (ctx) => {
   if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
   const key = getAdminKey(ctx)!;
 
   const all = await listRestaurants("", /*onlyApproved*/ false);
@@ -122,7 +136,6 @@ adminRouter.get("/admin", async (ctx) => {
   const approved = all.filter((r) => r.approved);
 
   const body = `
-  <!-- כפתורי איפוס בראש העמוד -->
   <section class="card" style="margin-bottom:20px">
     <h2 style="margin-top:0;color:#b00020">⚠️ פעולות אדמין (Reset)</h2>
     <div class="row" style="margin-top:6px">
@@ -178,19 +191,15 @@ adminRouter.get("/admin", async (ctx) => {
             </table>`
       }
     </section>
-  </div>
-
-  <p class="muted" style="margin-top:18px">
-    נכנסת עם מפתח אדמין ב-<span class="code">?key=${key.replace(/./g, "•")}</span>.
-    אפשר גם לשלוח את המפתח בכותרת <code>x-admin-key</code> בבקשות POST.
-  </p>`;
+  </div>`;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-  ctx.response.body = page({ title: "לוח בקרה · Admin", body });
+  ctx.response.body = page({ title: "לוח בקרה · Admin", body, key });
 });
 
 /** עמוד כלים */
 adminRouter.get("/admin/tools", (ctx) => {
   if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
   const key = getAdminKey(ctx)!;
   const body = `
   <div class="card">
@@ -204,15 +213,16 @@ adminRouter.get("/admin/tools", (ctx) => {
     </ul>
   </div>`;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-  ctx.response.body = page({ title: "Admin · Reset", body });
+  ctx.response.body = page({ title: "Admin · Reset", body, key });
 });
 
-// מאחורי הקלעים נשתמש בפונקציה אחת גם ל-GET (אישור) וגם ל-POST (ביצוע)
+// --- Reset: GET (אישור) + POST (ביצוע) ---
 async function handleReset(ctx: any) {
   if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
   const key = getAdminKey(ctx)!;
   const url = ctx.request.url;
-  const what = (url.searchParams.get("what") ?? "").toLowerCase();  // reservations | restaurants | users | all
+  const what = (url.searchParams.get("what") ?? "").toLowerCase();  // reservations|restaurants|users|all
   const confirm = url.searchParams.get("confirm") === "1";
 
   const actions: Record<string, () => Promise<any>> = {
@@ -239,11 +249,10 @@ async function handleReset(ctx: any) {
         </div>
       </div>`;
     ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-    ctx.response.body = page({ title: "אישור מחיקה · Admin", body });
+    ctx.response.body = page({ title: "אישור מחיקה · Admin", body, key });
     return;
   }
 
-  // ביצוע (POST עם confirm=1, או GET עם confirm=1)
   const result = await actions[what]();
   const body = `
     <div class="card" style="max-width:720px">
@@ -256,16 +265,15 @@ async function handleReset(ctx: any) {
       </div>
     </div>`;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-  ctx.response.body = page({ title: "הושלם · Reset", body });
+  ctx.response.body = page({ title: "הושלם · Reset", body, key });
 }
-
-/** מסכי אישור (GET) ואיפוס (POST) */
 adminRouter.get("/admin/reset", handleReset);
 adminRouter.post("/admin/reset", handleReset);
 
-/** אישור/ביטול מסעדה */
+// --- אישור/ביטול מסעדה ---
 adminRouter.post("/admin/restaurants/:id/approve", async (ctx) => {
   if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
   const id = ctx.params.id!;
   const r = await getRestaurant(id);
   if (!r) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
@@ -277,6 +285,7 @@ adminRouter.post("/admin/restaurants/:id/approve", async (ctx) => {
 
 adminRouter.post("/admin/restaurants/:id/unapprove", async (ctx) => {
   if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
   const id = ctx.params.id!;
   const r = await getRestaurant(id);
   if (!r) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
@@ -284,6 +293,31 @@ adminRouter.post("/admin/restaurants/:id/unapprove", async (ctx) => {
   const key = getAdminKey(ctx)!;
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set("Location", `/admin?key=${encodeURIComponent(key)}`);
+});
+
+// --- הסרה מהאתר (מחיקה מלאה) ---
+adminRouter.post("/admin/restaurants/:id/delete", async (ctx) => {
+  if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
+  const id = ctx.params.id!;
+  const r = await getRestaurant(id);
+  if (!r) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
+
+  const result = await deleteRestaurantCascade(id);
+  const key = getAdminKey(ctx)!;
+
+  // אחרי מחיקה נחזור לדשבורד עם הודעה קצרה
+  const body = `
+    <div class="card" style="max-width:720px">
+      <h2 style="margin-top:0">הוסרה מהאתר</h2>
+      <p>המסעדה <strong>${r.name}</strong> נמחקה מהמערכת, כולל ההזמנות שלה.</p>
+      <pre class="code" style="white-space:pre-wrap">${JSON.stringify(result, null, 2)}</pre>
+      <div class="row" style="margin-top:10px">
+        <a class="btn" href="/admin?key=${encodeURIComponent(key)}">חזרה לדשבורד</a>
+      </div>
+    </div>`;
+  ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
+  ctx.response.body = page({ title: "הוסרה מהאתר", body, key });
 });
 
 export { adminRouter };
