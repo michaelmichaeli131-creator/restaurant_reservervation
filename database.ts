@@ -4,15 +4,20 @@
 export interface User {
   id: string;
   email: string;
+  username: string;                // חדש: ייחודי
+  firstName: string;               // חדש
+  lastName: string;                // חדש
+  age?: number;                    // חדש
+  businessType?: string;           // חדש
   passwordHash?: string;
   role: "user" | "owner";
   provider: "local" | "google";
-  emailVerified?: boolean;             // אימות מייל
+  emailVerified?: boolean;
   createdAt: number;
 }
 
 export type DayOfWeek = 0|1|2|3|4|5|6; // 0=Sunday .. 6=Saturday
-export interface OpeningWindow { open: string; close: string; }
+export interface OpeningWindow { open: string; close: string; } // "HH:mm"
 export type WeeklySchedule = Partial<Record<DayOfWeek, OpeningWindow | null>>;
 
 export interface Restaurant {
@@ -29,6 +34,7 @@ export interface Restaurant {
   slotIntervalMinutes: number;      // מרווח סלוטים (דקות), ברירת מחדל 15
   serviceDurationMinutes: number;   // משך ישיבה (דקות), ברירת מחדל 120
   weeklySchedule?: WeeklySchedule;  // שעות פתיחה שבועיות (אופציונלי)
+  photos?: string[];                // חדש: תמונות (URLים)
   approved?: boolean;               // נדרש אישור אדמין
   createdAt: number;
 }
@@ -52,20 +58,51 @@ const lower = (s?: string) => (s ?? "").trim().toLowerCase();
 const now = () => Date.now();
 
 // ---------- Users ----------
+// Keys:
+// ["user", id] -> User
+// ["user_by_email", emailLower] -> id
+// ["user_by_username", usernameLower] -> id
 export async function createUser(u: {
-  id: string; email: string; passwordHash?: string; role: "user" | "owner"; provider: "local" | "google";
+  id: string;
+  email: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+  age?: number;
+  businessType?: string;
+  passwordHash?: string;
+  role: "user" | "owner";
+  provider: "local" | "google";
 }): Promise<User> {
-  const user: User = { ...u, email: lower(u.email), emailVerified: false, createdAt: now() };
+  const user: User = {
+    ...u,
+    email: lower(u.email),
+    username: lower(u.username),
+    firstName: u.firstName.trim(),
+    lastName: u.lastName.trim(),
+    age: u.age,
+    businessType: u.businessType?.trim(),
+    emailVerified: false,
+    createdAt: now(),
+  };
   const tx = kv.atomic()
     .check({ key: ["user_by_email", user.email], versionstamp: null })
+    .check({ key: ["user_by_username", user.username], versionstamp: null })
     .set(["user", user.id], user)
-    .set(["user_by_email", user.email], user.id);
+    .set(["user_by_email", user.email], user.id)
+    .set(["user_by_username", user.username], user.id);
   const res = await tx.commit();
-  if (!res.ok) throw new Error("email_used");
+  if (!res.ok) throw new Error("user_exists");
   return user;
 }
+
 export async function findUserByEmail(email: string) {
   const ref = await kv.get<string>(["user_by_email", lower(email)]);
+  if (!ref.value) return null;
+  return (await kv.get<User>(["user", ref.value])).value ?? null;
+}
+export async function findUserByUsername(username: string) {
+  const ref = await kv.get<string>(["user_by_username", lower(username)]);
   if (!ref.value) return null;
   return (await kv.get<User>(["user", ref.value])).value ?? null;
 }
@@ -79,15 +116,15 @@ export async function setEmailVerified(userId: string) {
   await kv.set(["user", userId], next);
   return next;
 }
-export async function updateUserRole(id: string, role: User["role"]) {
-  const cur = await kv.get<User>(["user", id]);
+export async function updateUserPassword(userId: string, passwordHash: string) {
+  const cur = await kv.get<User>(["user", userId]);
   if (!cur.value) return null;
-  const next = { ...cur.value, role };
-  await kv.set(["user", id], next);
+  const next = { ...cur.value, passwordHash };
+  await kv.set(["user", userId], next);
   return next;
 }
 
-// ---------- Email Verification ----------
+// אימות מייל
 export async function createVerifyToken(userId: string, email: string): Promise<string> {
   const token = crypto.randomUUID().replace(/-/g, "");
   await kv.set(["verify", token], { userId, email, createdAt: now() });
@@ -97,6 +134,22 @@ export async function useVerifyToken(token: string) {
   const v = await kv.get<{ userId: string; email: string; createdAt: number }>(["verify", token]);
   if (!v.value) return null;
   await kv.delete(["verify", token]);
+  return v.value;
+}
+
+// שחזור סיסמה – Reset token
+// ["reset", token] -> { userId, createdAt }
+export async function createResetToken(userId: string): Promise<string> {
+  const token = crypto.randomUUID().replace(/-/g, "");
+  await kv.set(["reset", token], { userId, createdAt: now() });
+  return token;
+}
+export async function useResetToken(token: string) {
+  const v = await kv.get<{ userId: string; createdAt: number }>(["reset", token]);
+  if (!v.value) return null;
+  await kv.delete(["reset", token]);
+  const THIRTY_MIN = 30 * 60 * 1000;
+  if (now() - v.value.createdAt > THIRTY_MIN) return null;
   return v.value;
 }
 
@@ -111,7 +164,7 @@ export async function createRestaurant(r: {
   phone?: string; hours?: string; description?: string;
   menu?: Array<{ name: string; price?: number; desc?: string }>;
   capacity?: number; slotIntervalMinutes?: number; serviceDurationMinutes?: number;
-  weeklySchedule?: WeeklySchedule; approved?: boolean;
+  weeklySchedule?: WeeklySchedule; photos?: string[]; approved?: boolean;
 }): Promise<Restaurant> {
   const restaurant: Restaurant = {
     ...r,
@@ -119,11 +172,12 @@ export async function createRestaurant(r: {
     city: r.city.trim(),
     address: r.address.trim(),
     menu: r.menu ?? [],
+    photos: (r.photos ?? []).filter(Boolean),
     capacity: r.capacity ?? 30,
     slotIntervalMinutes: r.slotIntervalMinutes ?? 15,
     serviceDurationMinutes: r.serviceDurationMinutes ?? 120,
     weeklySchedule: r.weeklySchedule,
-    approved: !!r.approved, // ברירת מחדל false
+    approved: !!r.approved,
     createdAt: now(),
   };
   const tx = kv.atomic()
@@ -135,17 +189,21 @@ export async function createRestaurant(r: {
   if (!res.ok) throw new Error("create_restaurant_race");
   return restaurant;
 }
-export async function getRestaurant(id: string) {
-  return (await kv.get<Restaurant>(["restaurant", id])).value ?? null;
-}
-export async function updateRestaurant(
-  id: string,
-  patch: Partial<Omit<Restaurant, "id"|"ownerId"|"createdAt">>,
-) {
+
+export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
   const cur = await kv.get<Restaurant>(["restaurant", id]);
-  if (!cur.value) return null;
   const prev = cur.value;
-  const next: Restaurant = { ...prev, ...patch };
+  if (!prev) return null;
+
+  const next: Restaurant = {
+    ...prev,
+    ...patch,
+    name: (patch.name ?? prev.name).trim(),
+    city: (patch.city ?? prev.city).trim(),
+    address: (patch.address ?? prev.address).trim(),
+    photos: (patch.photos ?? prev.photos ?? []).filter(Boolean),
+  };
+
   const tx = kv.atomic().set(["restaurant", id], next);
   if (patch.name && lower(patch.name) !== lower(prev.name)) {
     tx.delete(["restaurant_name", lower(prev.name), id]).set(["restaurant_name", lower(patch.name), id], 1);
@@ -157,60 +215,90 @@ export async function updateRestaurant(
   if (!res.ok) throw new Error("update_restaurant_race");
   return next;
 }
+
+export async function getRestaurant(id: string) {
+  return (await kv.get<Restaurant>(["restaurant", id])).value ?? null;
+}
+
 export async function listRestaurants(q?: string, onlyApproved = true): Promise<Restaurant[]> {
   const out = new Map<string, Restaurant>();
-  const needle = lower(q);
-  async function push(r?: Restaurant | null) {
+  const needle = lower(q ?? "");
+  const push = (r?: Restaurant | null) => {
     if (!r) return;
     if (onlyApproved && !r.approved) return;
     out.set(r.id, r);
-  }
-  async function byIndex(prefix: readonly unknown[]) {
-    for await (const e of kv.list({ prefix })) {
-      const rid = e.key[e.key.length - 1] as string;
-      await push((await kv.get<Restaurant>(["restaurant", rid])).value ?? null);
-    }
-  }
+  };
+
   if (!needle) {
-    for await (const e of kv.list<Restaurant>({ prefix: ["restaurant"] })) {
-      await push(e.value as unknown as Restaurant);
+    const items: Restaurant[] = [];
+    for await (const row of kv.list({ prefix: ["restaurant"] })) {
+      const r = (await kv.get<Restaurant>(row.key as any)).value;
+      if (r && (!onlyApproved || r.approved)) items.push(r);
     }
-  } else {
-    await byIndex(["restaurant_name", needle]);
-    await byIndex(["restaurant_city", needle]);
-    if (out.size < 10) {
-      for await (const e of kv.list<Restaurant>({ prefix: ["restaurant"] })) {
-        const r = e.value as unknown as Restaurant;
-        if (!r) continue;
-        const hay = `${r.name} ${r.city} ${r.address}`.toLowerCase();
-        if (hay.includes(needle)) await push(r);
-        if (out.size > 25) break;
-      }
-    }
+    items.sort((a, b) => b.createdAt - a.createdAt);
+    return items.slice(0, 50);
   }
-  return [...out.values()].sort((a, b) => a.name.localeCompare(b.name));
+
+  // אינדקסים (התאמה מלאה להתחלה)
+  for await (const k of kv.list({ prefix: ["restaurant_name", needle] })) {
+    const id = k.key[k.key.length - 1] as string;
+    push((await kv.get<Restaurant>(["restaurant", id])).value);
+  }
+  for await (const k of kv.list({ prefix: ["restaurant_city", needle] })) {
+    const id = k.key[k.key.length - 1] as string;
+    push((await kv.get<Restaurant>(["restaurant", id])).value);
+  }
+
+  // Fallback לסריקה מלאה (מכיל גם כתובת)
+  for await (const row of kv.list({ prefix: ["restaurant"] })) {
+    const r = (await kv.get<Restaurant>(row.key as any)).value;
+    if (!r) continue;
+    const hay = `${lower(r.name)} ${lower(r.city)} ${lower(r.address)}`;
+    if (hay.includes(needle)) push(r);
+  }
+
+  return Array.from(out.values()).sort((a, b) => {
+    const aName = lower(a.name).indexOf(needle);
+    const bName = lower(b.name).indexOf(needle);
+    if (aName !== bName) return (aName === -1 ? 1 : aName) - (bName === -1 ? 1 : bName);
+    const aCity = lower(a.city).indexOf(needle);
+    const bCity = lower(b.city).indexOf(needle);
+    if (aCity !== bCity) return (aCity === -1 ? 1 : aCity) - (bCity === -1 ? 1 : bCity);
+    return b.createdAt - a.createdAt;
+  });
 }
 
-// ---------- Reservations / Blocks ----------
-export async function createReservation(r: Reservation) {
-  const tx = kv.atomic()
-    .set(["reservation", r.id], r)
-    .set(["reservation_by_user", r.userId, r.id], 1)
-    .set(["reservation_by_restaurant", r.restaurantId, r.id], 1);
-  const res = await tx.commit();
-  if (!res.ok) throw new Error("reservation_create_race");
-  return r;
+// ---------- Reservations / Availability ----------
+function toMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map((x) => Number(x));
+  return h * 60 + m;
 }
-export async function listReservationsByRestaurant(restaurantId: string): Promise<Reservation[]> {
+function fromMinutes(m: number): string {
+  const h = Math.floor(m / 60).toString().padStart(2, "0");
+  const mi = (m % 60).toString().padStart(2, "0");
+  return `${h}:${mi}`;
+}
+
+export async function listReservationsFor(restaurantId: string, date: string): Promise<Reservation[]> {
   const out: Reservation[] = [];
-  for await (const row of kv.list({ prefix: ["reservation_by_restaurant", restaurantId] })) {
+  for await (const row of kv.list({ prefix: ["reservation_by_day", restaurantId, date] })) {
     const id = row.key[row.key.length - 1] as string;
     const r = (await kv.get<Reservation>(["reservation", id])).value;
     if (r) out.push(r);
   }
-  out.sort((a, b) => (a.date + " " + a.time).localeCompare(b.date + " " + b.time));
+  out.sort((a, b) => (a.time).localeCompare(b.time));
   return out;
 }
+
+export async function createReservation(r: Reservation) {
+  const tx = kv.atomic()
+    .set(["reservation", r.id], r)
+    .set(["reservation_by_day", r.restaurantId, r.date, r.id], 1);
+  const res = await tx.commit();
+  if (!res.ok) throw new Error("create_reservation_race");
+  return r;
+}
+
 export async function listReservationsByOwner(ownerId: string) {
   const my: { id: string; name: string }[] = [];
   for await (const k of kv.list({ prefix: ["restaurant_by_owner", ownerId] })) {
@@ -218,209 +306,64 @@ export async function listReservationsByOwner(ownerId: string) {
     const r = (await kv.get<Restaurant>(["restaurant", rid])).value;
     if (r) my.push({ id: r.id, name: r.name });
   }
-  const results: Array<{ restaurantId: string; restaurantName: string; reservation: Reservation }> = [];
+  const results: Array<{ restaurantName: string; reservation: Reservation }> = [];
   for (const r of my) {
-    for await (const row of kv.list({ prefix: ["reservation_by_restaurant", r.id] })) {
-      const resid = row.key[row.key.length - 1] as string;
-      const resv = (await kv.get<Reservation>(["reservation", resid])).value;
-      if (resv) results.push({ restaurantId: r.id, restaurantName: r.name, reservation: resv });
+    for await (const k of kv.list({ prefix: ["reservation_by_day", r.id] })) {
+      const id = k.key[k.key.length - 1] as string;
+      const resv = (await kv.get<Reservation>(["reservation", id])).value;
+      if (resv) results.push({ restaurantName: r.name, reservation: resv });
     }
   }
-  results.sort((a, b) =>
-    (a.reservation.date + " " + a.reservation.time)
-      .localeCompare(b.reservation.date + " " + b.reservation.time)
-  );
-  return results;
-}
-export async function updateReservationStatus(id: string, status: NonNullable<Reservation["status"]>) {
-  const cur = await kv.get<Reservation>(["reservation", id]);
-  if (!cur.value) return null;
-  const next = { ...cur.value, status };
-  await kv.set(["reservation", id], next);
-  return next;
+  results.sort((a, b) => (a.reservation.date + a.reservation.time).localeCompare(b.reservation.date + b.reservation.time));
+  return results.slice(0, 200);
 }
 
-// ---------- Availability / Capacity ----------
-function parseHHMM(s: string): number {
-  const [h, m] = s.split(":").map((x) => Number(x));
-  return (h * 60) + (m || 0);
-}
-function fmtHHMM(mins: number): string {
-  const h = Math.floor(mins / 60), m = mins % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
-function jsDayOfWeek(dateStr: string): DayOfWeek {
-  const d = new Date(dateStr + "T00:00:00");
-  return d.getDay() as DayOfWeek;
-}
-
-export interface SlotLoad {
-  slot: string;      // "HH:mm"
-  booked: number;    // כמה אנשים בסלוט (כולל חפיפה של השירות)
-  capacity: number;
-  free: number;
-  percent: number;
-}
-
-export function getSlotsForDate(r: Restaurant, date: string): string[] {
-  const dow = jsDayOfWeek(date);
-  const win = r.weeklySchedule?.[dow] ?? null;
-  const open = parseHHMM(win?.open ?? "12:00");
-  const close = parseHHMM(win?.close ?? "23:00");
-  const step = Math.max(5, r.slotIntervalMinutes || 15);
-  const dur = Math.max(15, r.serviceDurationMinutes || 120);
-  const slots: string[] = [];
-  for (let s = open; s + dur <= close; s += step) slots.push(fmtHHMM(s));
-  return slots;
-}
-
-export async function computeOccupancy(restaurant: Restaurant, date: string): Promise<SlotLoad[]> {
-  const slots = getSlotsForDate(restaurant, date);
-  const resvs = (await listReservationsByRestaurant(restaurant.id))
-    .filter(r => r.date === date && r.status !== "canceled");
-
-  const dur = Math.max(15, restaurant.serviceDurationMinutes || 120);
-  const loads: SlotLoad[] = slots.map(s => ({ slot: s, booked: 0, capacity: restaurant.capacity, free: restaurant.capacity, percent: 0 }));
-
-  for (const r of resvs) {
-    const start = parseHHMM(r.time);
-    const end = start + dur;
-    for (const L of loads) {
-      const t = parseHHMM(L.slot);
-      if (t >= start && t < end) L.booked += r.people;
+export async function computeOccupancy(restaurant: Restaurant, date: string) {
+  const resv = await listReservationsFor(restaurant.id, date);
+  const map = new Map<string, number>(); // time -> used seats
+  for (const r of resv) {
+    const start = toMinutes(r.time);
+    const end = start + (restaurant.serviceDurationMinutes || 120);
+    for (let t = start; t < end; t += restaurant.slotIntervalMinutes || 15) {
+      const key = fromMinutes(t);
+      map.set(key, (map.get(key) ?? 0) + r.people);
     }
   }
-  for (const L of loads) {
-    L.free = Math.max(0, L.capacity - L.booked);
-    L.percent = L.capacity ? Math.min(100, Math.round((L.booked / L.capacity) * 100)) : 0;
-  }
-  return loads;
+  return map;
 }
 
-export interface AvailabilityCheck {
-  ok: boolean;
-  reason?: "full" | "invalid" | "closed";
-  suggestions?: string[];
-}
-
-export async function checkAvailability(restaurant: Restaurant, date: string, time: string, people: number): Promise<AvailabilityCheck> {
-  if (people <= 0) return { ok: false, reason: "invalid" };
-  const slots = getSlotsForDate(restaurant, date);
-  if (!slots.includes(time)) return { ok: false, reason: "closed" };
-
-  const dur = Math.max(15, restaurant.serviceDurationMinutes || 120);
-  const loads = await computeOccupancy(restaurant, date);
-
-  const wantedStart = parseHHMM(time);
-  const overlapped = loads.filter(L => {
-    const t = parseHHMM(L.slot);
-    return t >= wantedStart && t < wantedStart + dur;
-  });
-
-  const can = overlapped.every(L => L.booked + people <= L.capacity);
-  if (can) return { ok: true };
-
-  // הצעות קדימה
-  const idx = slots.indexOf(time);
-  const sugg: string[] = [];
-  for (let i = idx + 1; i < slots.length && sugg.length < 12; i++) {
-    const sTime = slots[i];
-    const sStart = parseHHMM(sTime);
-    const span = loads.filter(L => {
-      const t = parseHHMM(L.slot);
-      return t >= sStart && t < sStart + dur;
-    });
-    const ok = span.every(L => L.booked + people <= L.capacity);
-    if (ok) sugg.push(sTime);
-  }
-  return { ok: false, reason: "full", suggestions: sugg };
-}
-
-
-// ------------------------
-// Delete Restaurant Cascade
-// ------------------------
-export async function deleteRestaurantCascade(restaurantId: string): Promise<void> {
-  // מוחק את המסעדה עצמה
-  await kv.delete(["restaurant", restaurantId]);
-
-  // מוחק אינדקסים של שם ועיר
-  for await (const entry of kv.list({ prefix: ["restaurant_name"] })) {
-    const key = entry.key as string[];
-    if (key.includes(restaurantId)) {
-      await kv.delete(key);
+export async function checkAvailability(restaurantId: string, date: string, time: string, people: number) {
+  const r = await getRestaurant(restaurantId);
+  if (!r) return { ok: false, reason: "not_found" as const };
+  const occ = await computeOccupancy(r, date);
+  const start = toMinutes(time);
+  const end = start + (r.serviceDurationMinutes || 120);
+  for (let t = start; t < end; t += r.slotIntervalMinutes || 15) {
+    const used = occ.get(fromMinutes(t)) ?? 0;
+    if (used + people > r.capacity) {
+      return { ok: false, reason: "full" as const, suggestions: suggestTimes(r, date, time, people, occ) };
     }
   }
-  for await (const entry of kv.list({ prefix: ["restaurant_city"] })) {
-    const key = entry.key as string[];
-    if (key.includes(restaurantId)) {
-      await kv.delete(key);
+  return { ok: true as const };
+}
+
+function suggestTimes(r: Restaurant, date: string, time: string, people: number, occ: Map<string, number>) {
+  const base = toMinutes(time);
+  const step = r.slotIntervalMinutes || 15;
+  const span = r.serviceDurationMinutes || 120;
+  const tryTime = (t: number) => {
+    for (let x = t; x < t + span; x += step) {
+      const used = occ.get(fromMinutes(x)) ?? 0;
+      if (used + people > r.capacity) return false;
     }
+    return true;
+  };
+  const out: string[] = [];
+  for (let delta = step; delta <= 60; delta += step) {
+    const before = base - delta; const after = base + delta;
+    if (before >= 0 && tryTime(before)) out.push(fromMinutes(before));
+    if (tryTime(after)) out.push(fromMinutes(after));
+    if (out.length >= 6) break;
   }
-
-  // מוחק קשרי בעלים
-  for await (const entry of kv.list({ prefix: ["restaurant_by_owner"] })) {
-    const key = entry.key as string[];
-    if (key.includes(restaurantId)) {
-      await kv.delete(key);
-    }
-  }
-
-  // מוחק את כל ההזמנות שקשורות למסעדה
-  for await (const entry of kv.list({ prefix: ["reservation_by_restaurant", restaurantId] })) {
-    const resId = entry.key[2] as string;
-    await kv.delete(["reservation", resId]);
-    await kv.delete(entry.key);
-  }
+  return out;
 }
-
-
-// ---------- BULK RESET HELPERS (ADMIN) ----------
-
-/** מוחק את כל המפתחות תחת prefix מסוים. מחזיר כמה נמחקו. */
-export async function deleteByPrefix(prefix: readonly unknown[]): Promise<number> {
-  let n = 0;
-  for await (const entry of kv.list({ prefix })) {
-    await kv.delete(entry.key);
-    n++;
-  }
-  return n;
-}
-
-/** איפוס כל המסעדות: רשומת המסעדה + כל האינדקסים */
-export async function resetRestaurants(): Promise<{ deleted: Record<string, number> }> {
-  const stats: Record<string, number> = {};
-  stats["restaurant"] = await deleteByPrefix(["restaurant"]); // הנתונים עצמם
-  stats["restaurant_by_owner"] = await deleteByPrefix(["restaurant_by_owner"]);
-  stats["restaurant_name"] = await deleteByPrefix(["restaurant_name"]);
-  stats["restaurant_city"] = await deleteByPrefix(["restaurant_city"]);
-  return { deleted: stats };
-}
-
-/** איפוס כל ההזמנות: הזמנות + אינדקסים */
-export async function resetReservations(): Promise<{ deleted: Record<string, number> }> {
-  const stats: Record<string, number> = {};
-  stats["reservation"] = await deleteByPrefix(["reservation"]);
-  stats["reservation_by_user"] = await deleteByPrefix(["reservation_by_user"]);
-  stats["reservation_by_restaurant"] = await deleteByPrefix(["reservation_by_restaurant"]);
-  return { deleted: stats };
-}
-
-/** איפוס כל המשתמשים: users + user_by_email + טוקני אימות */
-export async function resetUsers(): Promise<{ deleted: Record<string, number> }> {
-  const stats: Record<string, number> = {};
-  stats["user"] = await deleteByPrefix(["user"]);
-  stats["user_by_email"] = await deleteByPrefix(["user_by_email"]);
-  stats["verify_tokens"] = await deleteByPrefix(["verify"]); // טוקני אימות מייל
-  return { deleted: stats };
-}
-
-/** איפוס כולל (סדר בטוח: reservations -> restaurants -> users) */
-export async function resetAll(): Promise<{ reservations: any; restaurants: any; users: any }> {
-  const reservations = await resetReservations();
-  const restaurants = await resetRestaurants();
-  const users = await resetUsers();
-  return { reservations, restaurants, users };
-}
-
-

@@ -16,15 +16,17 @@
             <a class="link" href="/owner">אזור מנהלים</a>
           <% } %>
 
-          <% if (!it.user) { %>
-            <a class="btn" href="/login">התחברות</a>
-            <a class="btn secondary" href="/signup">הרשמה</a>
-            <a class="btn accent" href="/owner/login">כניסת מנהלים</a>
-          <% } else %>
-            <form method="post" action="/logout" style="display:inline">
-              <button class="btn danger" type="submit">התנתקות</button>
+          <% if (it.user) { %>
+            <span class="user-chip">
+              שלום, <strong><%= it.user.firstName || it.user.username || it.user.email %></strong>
+            </span>
+            <form class="inline" method="post" action="/logout">
+              <button class="btn secondary" type="submit">התנתקות</button>
             </form>
-          <% %>
+          <% } else { %>
+            <a class="link" href="/login">התחברות</a>
+            <a class="link" href="/signup">הרשמה</a>
+          <% } %>
         </div>
       </nav>
     </header>

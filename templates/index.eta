@@ -5,37 +5,33 @@
   <form id="searchForm" method="get" action="/" class="search">
     <input id="q" name="q" placeholder="שם/עיר/כתובת" value="<%= it.q||'' %>" list="suggest" autocomplete="off"/>
     <datalist id="suggest"></datalist>
-    <input type="hidden" name="search" value="1"/>
     <button type="submit" class="btn">חיפוש</button>
   </form>
-
-  <!-- כפתור כניסת אדמין -->
-  <div style="margin-top:12px">
-    <a class="btn secondary" href="/admin/login">כניסת אדמין</a>
-  </div>
 </section>
 
-<% if (it.search === "1") { %>
-  <% if (it.restaurants && it.restaurants.length) { %>
-    <section>
-      <h2>תוצאות</h2>
-      <ul class="cards">
-        <%~ it.restaurants.map((r)=>`
-          <li class="card">
-            <h3>${r.name}</h3>
-            <p>${r.city} · ${r.address}</p>
-            <a class="btn" href="/restaurants/${r.id}">פרטים</a>
-          </li>
-        `).join("") %>
-      </ul>
-    </section>
-  <% } else { %>
-    <section class="empty">
-      <h2>לא נמצאו מסעדות</h2>
-      <p>נסה חיפוש אחר.</p>
-    </section>
+<section>
+  <% if (it.search && it.restaurants && it.restaurants.length) { %>
+    <ul class="cards">
+      <% it.restaurants.forEach((r)=>{ %>
+        <li class="card">
+          <div class="card-title">
+            <a href="/restaurants/<%= r.id %>"><%= r.name %></a>
+          </div>
+          <div class="muted"><%= r.city %> · <%= r.address %></div>
+          <% if (r.photos && r.photos.length) { %>
+            <div class="thumbs">
+              <% r.photos.slice(0,3).forEach((p)=>{ %>
+                <img class="thumb" src="<%= p %>" alt="<%= r.name %>" loading="lazy"/>
+              <% }) %>
+            </div>
+          <% } %>
+        </li>
+      <% }) %>
+    </ul>
+  <% } else if (it.search) { %>
+    <p class="muted">לא נמצאו תוצאות לחיפוש.</p>
   <% } %>
-<% } %>
+</section>
 
 <script>
 const q = document.getElementById('q');
@@ -43,7 +39,7 @@ const dl = document.getElementById('suggest');
 let last = '';
 q.addEventListener('input', async () => {
   const v = q.value.trim();
-  if (v.length < 2 || v === last) return;
+  if (v.length < 1 || v === last) return;
   last = v;
   try {
     const r = await fetch('/api/restaurants/suggest?q=' + encodeURIComponent(v));

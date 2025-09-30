@@ -1,22 +1,42 @@
-<% it.layout = "layout" %>
-<%~ it.body = `
-  <h1>הרשמה</h1>
-  <form method="post" action="/signup" class="form">
-    <label>אימייל
-      <input type="email" name="email" required />
-    </label>
+<!-- src/templates/signup.eta -->
+<h1>הרשמה</h1>
 
-    <label>סיסמה
-      <input type="password" name="password" required />
-    </label>
+<form method="post" action="/signup" class="form grid">
+  <label>שם פרטי
+    <input name="firstName" value="<%= it.form?.firstName || '' %>" required />
+  </label>
+  <label>שם משפחה
+    <input name="lastName" value="<%= it.form?.lastName || '' %>" required />
+  </label>
+  <label>שם משתמש
+    <input name="username" value="<%= it.form?.username || '' %>" required />
+  </label>
+  <label>גיל
+    <input type="number" name="age" min="0" value="<%= it.form?.age || '' %>" />
+  </label>
+  <label>סוג עסק (לבעלי מסעדה)
+    <input name="businessType" value="<%= it.form?.businessType || '' %>" placeholder="מסעדה / בר / קפה..." />
+  </label>
+  <label>דואר אלקטרוני
+    <input type="email" name="email" value="<%= it.form?.email || '' %>" required />
+  </label>
+  <label>סיסמה
+    <input type="password" name="password" required />
+  </label>
+  <label>אימות סיסמה
+    <input type="password" name="confirm" required />
+  </label>
 
-    <label>תפקיד
-      <select name="role">
-        <option value="user">משתמש</option>
-        <option value="owner">בעל מסעדה</option>
-      </select>
-    </label>
+  <label>תפקיד
+    <select name="role">
+      <option value="user" <%= (it.form?.role||'user')==='user'?'selected':'' %>>משתמש</option>
+      <option value="owner" <%= (it.form?.role||'user')==='owner'?'selected':'' %>>בעל מסעדה</option>
+    </select>
+  </label>
 
-    <button class="btn" type="submit">יצירת חשבון</button>
-  </form>
-` %>
+  <div style="grid-column: 1 / -1">
+    <button class="btn" type="submit">הרשמה</button>
+  </div>
+</form>
+
+<% if (it.error) { %><p class="error"><%= it.error %></p><% } %>

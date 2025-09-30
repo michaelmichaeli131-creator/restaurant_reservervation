@@ -1,0 +1,15 @@
+<!-- src/templates/reset.eta -->
+<h1>איפוס סיסמה</h1>
+
+<form method="post" action="/reset" class="form">
+  <input type="hidden" name="token" value="<%= it.token || '' %>"/>
+  <label>סיסמה חדשה
+    <input type="password" name="password" required />
+  </label>
+  <label>אימות סיסמה
+    <input type="password" name="confirm" required />
+  </label>
+  <button class="btn" type="submit">אפס סיסמה</button>
+</form>
+
+<% if (it.error) { %><p class="error"><%= it.error %></p><% } %>

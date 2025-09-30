@@ -8,7 +8,7 @@
 // - כפיית HTTPS בפרודקשן (במיוחד עבור cookies מאובטחים)
 // - Session middleware (cookie) + טעינת משתמש ל-ctx.state.user
 // - Static files תחת /public אל /static
-// - Root router: דף בית (תוצאות רק כשsearch=1), /__health, /__echo
+// - Root router: דף בית (תוצאות גם כשיש q, לא רק כשsearch=1), /__health, /__echo
 // - /__mailtest (בדיקת אימייל) מאובטח ב-ADMIN_SECRET
 // - חיבור כל הראוטרים: auth, restaurants, owner, admin
 // - טיפול 404/405/OPTIONS, וכן graceful shutdown
@@ -101,7 +101,7 @@ app.use(async (ctx, next) => {
 app.use(async (ctx, next) => {
   ctx.response.headers.set(
     "Content-Security-Policy",
-    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';",
+    "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';",
   );
   ctx.response.headers.set("X-Frame-Options", "DENY");
   ctx.response.headers.set("X-Content-Type-Options", "nosniff");
@@ -164,6 +164,10 @@ app.use(async (ctx, next) => {
   if (!p.startsWith("/static/")) return await next();
   const filePath = p.slice("/static".length) || "/";
   try {
+    // ctx.send זמין ב-oak – ממפה לשורש public
+    // אם אין ctx.send בסביבתך, שמור את המימוש הקודם שקראת עם Deno.readFile
+    // אך כאן נשתמש בו כדי להשאיר תואם לגרסה הארוכה שלך:
+    // @ts-ignore
     await ctx.send({
       root: "public",
       path: filePath,
@@ -190,16 +194,17 @@ app.use(async (ctx, next) => {
 // -------------------- ROOT ROUTER --------------------
 const root = new Router();
 
-// דף הבית
+// דף הבית – שיפור: מציג תוצאות גם כשיש q, לא רק כשsearch=1
 root.get("/", async (ctx) => {
   const url = ctx.request.url;
   const q = url.searchParams.get("q")?.toString() ?? "";
   const search = url.searchParams.get("search")?.toString() ?? "";
-  const restaurants = search === "1" ? await listRestaurants(q, true) : [];
+  const shouldSearch = search === "1" || q.trim().length > 0;
+  const restaurants = shouldSearch ? await listRestaurants(q, true) : [];
   await render(ctx, "index", {
     restaurants,
     q,
-    search,
+    search: shouldSearch ? "1" : "",
     page: "home",
     title: "GeoTable — חיפוש מסעדה",
   });

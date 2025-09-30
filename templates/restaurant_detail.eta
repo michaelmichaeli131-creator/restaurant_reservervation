@@ -1,6 +1,16 @@
+<!-- templates/restaurant_detail.eta -->
 <h1><%= it.r.name %></h1>
 <p><%= it.r.city %> · <%= it.r.address %></p>
 
+<% if (it.r.photos && it.r.photos.length) { %>
+  <div class="gallery">
+    <% it.r.photos.forEach((p)=>{ %>
+      <img class="photo" src="<%= p %>" alt="<%= it.r.name %>" loading="lazy"/>
+    <% }) %>
+  </div>
+<% } %>
+
+<!-- בחירת תאריך (נשמר) -->
 <form method="get" action="/restaurants/<%= it.r.id %>" class="form inline">
   <label>תאריך:
     <input type="date" name="date" value="<%= it.date %>"/>
@@ -10,45 +20,74 @@
 
 <% if (it.error) { %><p class="error"><%= it.error %></p><% } %>
 <% if (it.success) { %><p class="success"><%= it.success %></p><% } %>
-<% if (it.suggestions && it.suggestions.length) { %>
-  <p>שעות חלופיות זמינות:
-    <% it.suggestions.forEach((s)=>{ %>
-      <a class="chip" href="#" onclick="pickTime('<%= s %>')"><%= s %></a>
-    <% }) %>
-  </p>
-<% } %>
 
-<section class="card">
-  <h2>הזמנה</h2>
-  <form id="reserveForm" method="post" action="/restaurants/<%= it.r.id %>/reserve" class="form inline">
-    <input type="hidden" name="date" value="<%= it.date %>"/>
+<!-- בדיקת זמינות (נשמר) -->
+<section class="card" style="margin-top:12px">
+  <h2>בדיקת זמינות</h2>
+  <form id="checkForm" class="form inline" onsubmit="return false;">
     <label>שעה:
-      <input id="time" name="time" type="time" step="<%= (it.r.slotIntervalMinutes||15)*60 %>" required />
+      <input type="time" id="checkTime" value="<%= it.time || '19:00' %>" required>
     </label>
-    <label>מס׳ סועדים:
-      <input id="people" name="people" type="number" min="1" value="2" required />
+    <label>מס' סועדים:
+      <input type="number" id="checkPeople" value="<%= it.people || 2 %>" min="1" required>
     </label>
-    <label>הערה:
-      <input name="note" type="text" />
+    <button class="btn" id="checkBtn" type="button">בדוק</button>
+  </form>
+  <div id="checkResult" class="muted" style="margin-top:8px"></div>
+</section>
+
+<!-- טופס הזמנה (נשמר) -->
+<section class="card" style="margin-top:12px">
+  <h2>הזמנה</h2>
+  <form method="post" action="/restaurants/<%= it.r.id %>/reserve" class="form grid">
+    <input type="hidden" name="date" value="<%= it.date %>"/>
+
+    <label>שעה
+      <input type="time" name="time" value="<%= it.time || '19:00' %>" required />
     </label>
-    <button type="button" class="btn" onclick="checkThenSubmit()">בדוק זמינות והזמן</button>
+
+    <label>מס' סועדים
+      <input type="number" name="people" value="<%= it.people || 2 %>" min="1" required />
+    </label>
+
+    <label style="grid-column: 1 / -1">הערות להזמנה (אופציונלי)
+      <textarea name="note" rows="3" placeholder="אלרגיות, העדפות ישיבה..."><%= it.note || '' %></textarea>
+    </label>
+
+    <div style="grid-column: 1 / -1">
+      <button class="btn" type="submit">בצע הזמנה</button>
+    </div>
   </form>
 </section>
 
 <script>
-function pickTime(t){ document.getElementById('time').value = t; }
-async function checkThenSubmit(){
-  const date = '<%= it.date %>';
-  const time = document.getElementById('time').value;
-  const people = document.getElementById('people').value;
-  if(!time){ alert('נא לבחור שעה'); return; }
-  const r = await fetch(`/api/restaurants/<%= it.r.id %>/check?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&people=${encodeURIComponent(people)}`);
-  const data = await r.json();
-  if(data.ok){ document.getElementById('reserveForm').submit(); }
-  else{
-    let msg = data.reason==='full' ? 'מלא בשעה זו.' : (data.reason==='closed' ? 'סלוט לא זמין.' : 'בקשה לא תקינה');
-    if(data.suggestions?.length){ msg += '\nשעות מוצעות: ' + data.suggestions.slice(0,6).join(', '); }
-    alert(msg);
+(function(){
+  const btn = document.getElementById('checkBtn');
+  const res = document.getElementById('checkResult');
+  const t = document.getElementById('checkTime');
+  const p = document.getElementById('checkPeople');
+
+  if (btn && res && t && p) {
+    btn.addEventListener('click', async () => {
+      const time = t.value;
+      const people = Number(p.value || 1);
+      const date = new URLSearchParams(location.search).get('date') || '<%= it.date %>';
+      res.textContent = 'בודק זמינות...';
+      try {
+        const r = await fetch(`/api/restaurants/<%= it.r.id %>/check?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&people=${people}`);
+        const data = await r.json();
+        if (data && data.ok) {
+          res.textContent = 'יש זמינות! אפשר לבצע הזמנה.';
+        } else {
+          const sug = (data && data.suggestions && data.suggestions.length)
+            ? ' הצעות: ' + data.suggestions.join(', ')
+            : '';
+          res.textContent = 'אין זמינות בזמן המבוקש.' + sug;
+        }
+      } catch (e) {
+        res.textContent = 'שגיאה בבדיקה. נסה שוב.';
+      }
+    });
   }
-}
+})();
 </script>

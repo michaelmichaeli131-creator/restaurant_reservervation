@@ -10,6 +10,11 @@
     <label>שעות פתיחה <input name="hours" placeholder="א-ש 12:00-23:00" /></label>
     <label>תיאור <textarea name="description" rows="3"></textarea></label>
 
+    <label>תמונות (URLs, שורה לכל כתובת או פסיקים)
+      <textarea name="photos" rows="3" placeholder="https://.../1.jpg
+https://.../2.jpg"></textarea>
+    </label>
+
     <label>קיבולת (מס׳ מקומות)
       <input type="number" name="capacity" min="1" value="30" />
     </label>
@@ -20,34 +25,46 @@
       <input type="number" name="serviceDurationMinutes" min="30" step="15" value="120" />
     </label>
 
-    <div style="grid-column:1/-1"><button class="btn" type="submit">שמירה</button></div>
+    <div style="grid-column: 1 / -1">
+      <button class="btn" type="submit">שמור מסעדה</button>
+    </div>
   </form>
 </section>
 
-<section>
+<section class="card">
   <h2>המסעדות שלי</h2>
-  <ul class="cards">
-    <% if (it.myRestaurants && it.myRestaurants.length) { %>
-      <%~ it.myRestaurants.map((r)=>`
+  <% if (it.restaurants && it.restaurants.length) { %>
+    <ul class="cards">
+      <% it.restaurants.forEach((r)=>{ %>
         <li class="card">
-          <h3>${r.name}${r.approved ? "" : " (ממתין לאישור)"}</h3>
-          <p>${r.city} · ${r.address}</p>
-          <p>קיבולת: <strong>${r.capacity ?? 30}</strong> · סלוט: ${r.slotIntervalMinutes ?? 15} דק' · ישיבה: ${r.serviceDurationMinutes ?? 120} דק'</p>
-          <a class="btn" href="/owner/restaurants/${r.id}">תפוסה וניהול</a>
-          <a class="btn secondary" href="/restaurants/${r.id}">תצוגה ללקוח</a>
+          <div class="card-title"><%= r.name %></div>
+          <div class="muted"><%= r.city %> · <%= r.address %></div>
+          <% if (r.photos && r.photos.length) { %>
+            <div class="thumbs">
+              <% r.photos.slice(0,3).forEach((p)=>{ %>
+                <img class="thumb" src="<%= p %>" alt="<%= r.name %>" loading="lazy"/>
+              <% }) %>
+            </div>
+          <% } %>
+          <form method="post" action="/owner/restaurant/<%= r.id %>/updatePhotos" class="form" style="margin-top:8px">
+            <label>עדכון תמונות (URLs, שורה לכל כתובת או פסיקים)
+              <textarea name="photos" rows="3"><%= (r.photos||[]).join("\n") %></textarea>
+            </label>
+            <button class="btn secondary" type="submit">עדכן תמונות</button>
+          </form>
         </li>
-      `).join("") %>
-    <% } else { %>
-      <p>אין מסעדות. הוסף אחת בטופס למעלה.</p>
-    <% } %>
-  </ul>
+      <% }) %>
+    </ul>
+  <% } else { %>
+    <p class="muted">אין מסעדות עדיין.</p>
+  <% } %>
 </section>
 
-<section>
+<section class="card">
   <h2>הזמנות אחרונות</h2>
   <% if (it.reservations && it.reservations.length) { %>
     <table class="table">
-      <thead><tr><th>מסעדה</th><th>תאריך</th><th>שעה</th><th>מס׳</th><th>הערה</th><th>ID</th></tr></thead>
+      <thead><tr><th>מסעדה</th><th>תאריך</th><th>שעה</th><th>סועדים</th><th>הערה</th><th>ID</th></tr></thead>
       <tbody>
       <% it.reservations.forEach((row)=>{ %>
         <tr>
