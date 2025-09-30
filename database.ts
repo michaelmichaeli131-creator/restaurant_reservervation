@@ -336,6 +336,45 @@ export async function checkAvailability(restaurant: Restaurant, date: string, ti
   return { ok: false, reason: "full", suggestions: sugg };
 }
 
+
+// ------------------------
+// Delete Restaurant Cascade
+// ------------------------
+export async function deleteRestaurantCascade(restaurantId: string): Promise<void> {
+  // מוחק את המסעדה עצמה
+  await kv.delete(["restaurant", restaurantId]);
+
+  // מוחק אינדקסים של שם ועיר
+  for await (const entry of kv.list({ prefix: ["restaurant_name"] })) {
+    const key = entry.key as string[];
+    if (key.includes(restaurantId)) {
+      await kv.delete(key);
+    }
+  }
+  for await (const entry of kv.list({ prefix: ["restaurant_city"] })) {
+    const key = entry.key as string[];
+    if (key.includes(restaurantId)) {
+      await kv.delete(key);
+    }
+  }
+
+  // מוחק קשרי בעלים
+  for await (const entry of kv.list({ prefix: ["restaurant_by_owner"] })) {
+    const key = entry.key as string[];
+    if (key.includes(restaurantId)) {
+      await kv.delete(key);
+    }
+  }
+
+  // מוחק את כל ההזמנות שקשורות למסעדה
+  for await (const entry of kv.list({ prefix: ["reservation_by_restaurant", restaurantId] })) {
+    const resId = entry.key[2] as string;
+    await kv.delete(["reservation", resId]);
+    await kv.delete(entry.key);
+  }
+}
+
+
 // ---------- BULK RESET HELPERS (ADMIN) ----------
 
 /** מוחק את כל המפתחות תחת prefix מסוים. מחזיר כמה נמחקו. */
