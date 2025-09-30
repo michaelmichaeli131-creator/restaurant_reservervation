@@ -5,6 +5,7 @@ import {
   getRestaurant,
   updateRestaurant,
   type Restaurant,
+  // פונקציות איפוס מה-DB (אם הוספת לפי ההנחיות הקודמות)
   resetRestaurants,
   resetReservations,
   resetUsers,
@@ -13,6 +14,7 @@ import {
 
 const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
 
+// ------- utils -------
 function getAdminKey(ctx: any): string | null {
   const urlKey = ctx.request.url.searchParams.get("key");
   const headerKey = ctx.request.headers.get("x-admin-key");
@@ -70,7 +72,7 @@ function page(layout: { title: string; body: string }) {
 
 function renderRestaurantRow(r: Restaurant, key: string) {
   const approved = r.approved ? "✅ מאושרת" : "⏳ ממתינה";
-  const caps = `קיבולת: ${r.capacity} · סלוט: ${r.slotIntervalMinutes}ד' · שירות: ${r.serviceDurationMinutes}ד'`;
+  const caps = `קיבולת: ${r.capacity ?? "-"} · סלוט: ${r.slotIntervalMinutes ?? "-"}ד' · שירות: ${r.serviceDurationMinutes ?? "-"}ד'`;
   return `
   <tr>
     <td><strong>${r.name}</strong><br/><small class="muted">${r.city} · ${r.address}</small></td>
@@ -90,14 +92,15 @@ function renderRestaurantRow(r: Restaurant, key: string) {
   </tr>`;
 }
 
+// ------- router -------
 const adminRouter = new Router();
 
-/** כניסת אדמין: שולח GET עם ?key= אל /admin */
+/** מסך כניסה: GET -> שולח ל-/admin עם ?key= */
 adminRouter.get("/admin/login", (ctx) => {
   const body = `
   <div class="card" style="max-width:520px">
     <h2 style="margin-top:0">כניסת אדמין</h2>
-    <p class="muted">הזן/ני את מפתח האדמין (ADMIN_SECRET) שקבעת ב־Environment Variables.</p>
+    <p class="muted">הזן/ני את מפתח האדמין (ADMIN_SECRET) שהוגדר ב־Environment Variables.</p>
     <form method="get" action="/admin">
       <label for="key">מפתח אדמין</label><br/>
       <input id="key" name="key" type="password" placeholder="הדבק כאן את המפתח" required/>
@@ -109,15 +112,48 @@ adminRouter.get("/admin/login", (ctx) => {
   ctx.response.body = page({ title: "כניסת אדמין", body });
 });
 
-/** דשבורד */
+/** דשבורד אדמין */
 adminRouter.get("/admin", async (ctx) => {
   if (!assertAdmin(ctx)) return;
   const key = getAdminKey(ctx)!;
+
   const all = await listRestaurants("", /*onlyApproved*/ false);
   const pending = all.filter((r) => !r.approved);
   const approved = all.filter((r) => r.approved);
 
   const body = `
+  <!-- כפתורי איפוס בראש העמוד -->
+  <section class="card" style="margin-bottom:20px">
+    <h2 style="margin-top:0;color:#b00020">⚠️ פעולות אדמין (Reset)</h2>
+    <div class="row" style="margin-top:6px">
+      <form method="post" action="/admin/reset?what=restaurants&confirm=1&key=${encodeURIComponent(key)}">
+        <button type="submit" class="btn warn"
+          onclick="return confirm('לאפס את כל המסעדות? הפעולה בלתי הפיכה!')">
+          איפוס כל המסעדות
+        </button>
+      </form>
+      <form method="post" action="/admin/reset?what=reservations&confirm=1&key=${encodeURIComponent(key)}">
+        <button type="submit" class="btn warn"
+          onclick="return confirm('לאפס את כל ההזמנות?')">
+          איפוס כל ההזמנות
+        </button>
+      </form>
+      <form method="post" action="/admin/reset?what=users&confirm=1&key=${encodeURIComponent(key)}">
+        <button type="submit" class="btn warn"
+          onclick="return confirm('לאפס את כל המשתמשים? שים לב: זה ימחק גם בעלי מסעדות!')">
+          איפוס כל המשתמשים
+        </button>
+      </form>
+      <form method="post" action="/admin/reset?what=all&confirm=1&key=${encodeURIComponent(key)}">
+        <button type="submit" class="btn warn"
+          onclick="return confirm('איפוס כללי: משתמשים + מסעדות + הזמנות. להמשיך?')">
+          איפוס כולל (הכול)
+        </button>
+      </form>
+      <a class="btn secondary" href="/admin/tools?key=${encodeURIComponent(key)}">עוד כלים…</a>
+    </div>
+  </section>
+
   <div class="grid">
     <section class="card">
       <h2 style="margin-top:0">ממתינות לאישור (${pending.length})</h2>
@@ -144,47 +180,40 @@ adminRouter.get("/admin", async (ctx) => {
     </section>
   </div>
 
-  <section class="card" style="margin-top:18px">
-    <h2 style="margin-top:0">כלי אדמין</h2>
-    <p class="muted">פעולות הרסניות — נדרש אישור נוסף.</p>
-    <div class="row" style="margin-top:8px">
-      <a class="btn warn" href="/admin/tools?key=${encodeURIComponent(key)}">פתח עמוד כלים (Reset)</a>
-    </div>
-  </section>
-
   <p class="muted" style="margin-top:18px">
     נכנסת עם מפתח אדמין ב-<span class="code">?key=${key.replace(/./g, "•")}</span>.
+    אפשר גם לשלוח את המפתח בכותרת <code>x-admin-key</code> בבקשות POST.
   </p>`;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
   ctx.response.body = page({ title: "לוח בקרה · Admin", body });
 });
 
-/** עמוד כלים – קישורי Reset עם מסך אישור */
+/** עמוד כלים */
 adminRouter.get("/admin/tools", (ctx) => {
   if (!assertAdmin(ctx)) return;
   const key = getAdminKey(ctx)!;
   const body = `
   <div class="card">
     <h2 style="margin-top:0">Reset · כלי אדמין</h2>
-    <p class="muted">בחר מה לאפס. תוצג בקשת אישור לפני הביצוע.</p>
+    <p class="muted">אפשר להריץ איפוסים דרך הקישורים הבאים (תופיע בקשת אישור).</p>
     <ul>
       <li><a class="btn warn" href="/admin/reset?what=reservations&key=${encodeURIComponent(key)}">אפס רק הזמנות</a></li>
       <li><a class="btn warn" href="/admin/reset?what=restaurants&key=${encodeURIComponent(key)}">אפס רק מסעדות</a></li>
       <li><a class="btn warn" href="/admin/reset?what=users&key=${encodeURIComponent(key)}">אפס רק משתמשים</a></li>
-      <li><a class="btn warn" href="/admin/reset?what=all&key=${encodeURIComponent(key)}">אפס הכל (הזמנות + מסעדות + משתמשים)</a></li>
+      <li><a class="btn warn" href="/admin/reset?what=all&key=${encodeURIComponent(key)}">אפס הכל</a></li>
     </ul>
-    <p class="muted">טיפ: אם אתה גם רוצה לאפס sessions, אפשר להוסיף מחיקה ל-prefix <span class="code">["sess"]</span> בקוד.</p>
   </div>`;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
   ctx.response.body = page({ title: "Admin · Reset", body });
 });
 
-/** Reset handler — GET עם ?what=…&confirm=1 */
-adminRouter.get("/admin/reset", async (ctx) => {
+// מאחורי הקלעים נשתמש בפונקציה אחת גם ל-GET (אישור) וגם ל-POST (ביצוע)
+async function handleReset(ctx: any) {
   if (!assertAdmin(ctx)) return;
   const key = getAdminKey(ctx)!;
-  const what = (ctx.request.url.searchParams.get("what") ?? "").toLowerCase();
-  const confirm = ctx.request.url.searchParams.get("confirm") === "1";
+  const url = ctx.request.url;
+  const what = (url.searchParams.get("what") ?? "").toLowerCase();  // reservations | restaurants | users | all
+  const confirm = url.searchParams.get("confirm") === "1";
 
   const actions: Record<string, () => Promise<any>> = {
     reservations: resetReservations,
@@ -199,7 +228,7 @@ adminRouter.get("/admin/reset", async (ctx) => {
     return;
   }
 
-  if (!confirm) {
+  if (!confirm && ctx.request.method === "GET") {
     const body = `
       <div class="card" style="max-width:680px">
         <h2 style="margin-top:0">אישור פעולה</h2>
@@ -214,9 +243,8 @@ adminRouter.get("/admin/reset", async (ctx) => {
     return;
   }
 
-  // ביצוע
-  const fn = actions[what];
-  const result = await fn();
+  // ביצוע (POST עם confirm=1, או GET עם confirm=1)
+  const result = await actions[what]();
   const body = `
     <div class="card" style="max-width:720px">
       <h2 style="margin-top:0">הושלם</h2>
@@ -229,9 +257,13 @@ adminRouter.get("/admin/reset", async (ctx) => {
     </div>`;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
   ctx.response.body = page({ title: "הושלם · Reset", body });
-});
+}
 
-/** אישור/ביטול מסעדה (נשאר כמו קודם) */
+/** מסכי אישור (GET) ואיפוס (POST) */
+adminRouter.get("/admin/reset", handleReset);
+adminRouter.post("/admin/reset", handleReset);
+
+/** אישור/ביטול מסעדה */
 adminRouter.post("/admin/restaurants/:id/approve", async (ctx) => {
   if (!assertAdmin(ctx)) return;
   const id = ctx.params.id!;
