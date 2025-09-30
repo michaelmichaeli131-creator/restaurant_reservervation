@@ -335,3 +335,53 @@ export async function checkAvailability(restaurant: Restaurant, date: string, ti
   }
   return { ok: false, reason: "full", suggestions: sugg };
 }
+
+// ---------- BULK RESET HELPERS (ADMIN) ----------
+
+/** מוחק את כל המפתחות תחת prefix מסוים. מחזיר כמה נמחקו. */
+export async function deleteByPrefix(prefix: readonly unknown[]): Promise<number> {
+  let n = 0;
+  for await (const entry of kv.list({ prefix })) {
+    await kv.delete(entry.key);
+    n++;
+  }
+  return n;
+}
+
+/** איפוס כל המסעדות: רשומת המסעדה + כל האינדקסים */
+export async function resetRestaurants(): Promise<{ deleted: Record<string, number> }> {
+  const stats: Record<string, number> = {};
+  stats["restaurant"] = await deleteByPrefix(["restaurant"]); // הנתונים עצמם
+  stats["restaurant_by_owner"] = await deleteByPrefix(["restaurant_by_owner"]);
+  stats["restaurant_name"] = await deleteByPrefix(["restaurant_name"]);
+  stats["restaurant_city"] = await deleteByPrefix(["restaurant_city"]);
+  return { deleted: stats };
+}
+
+/** איפוס כל ההזמנות: הזמנות + אינדקסים */
+export async function resetReservations(): Promise<{ deleted: Record<string, number> }> {
+  const stats: Record<string, number> = {};
+  stats["reservation"] = await deleteByPrefix(["reservation"]);
+  stats["reservation_by_user"] = await deleteByPrefix(["reservation_by_user"]);
+  stats["reservation_by_restaurant"] = await deleteByPrefix(["reservation_by_restaurant"]);
+  return { deleted: stats };
+}
+
+/** איפוס כל המשתמשים: users + user_by_email + טוקני אימות */
+export async function resetUsers(): Promise<{ deleted: Record<string, number> }> {
+  const stats: Record<string, number> = {};
+  stats["user"] = await deleteByPrefix(["user"]);
+  stats["user_by_email"] = await deleteByPrefix(["user_by_email"]);
+  stats["verify_tokens"] = await deleteByPrefix(["verify"]); // טוקני אימות מייל
+  return { deleted: stats };
+}
+
+/** איפוס כולל (סדר בטוח: reservations -> restaurants -> users) */
+export async function resetAll(): Promise<{ reservations: any; restaurants: any; users: any }> {
+  const reservations = await resetReservations();
+  const restaurants = await resetRestaurants();
+  const users = await resetUsers();
+  return { reservations, restaurants, users };
+}
+
+
