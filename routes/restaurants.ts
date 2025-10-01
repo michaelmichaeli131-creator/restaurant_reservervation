@@ -26,7 +26,7 @@ function normalizeDate(input: unknown): string {
   const s = String(input ?? "").trim();
   if (!s) return todayISO();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const m = s.match(/^(\d{2})[\/.](\d{2})[\/.](\d{4})$/); // 16/10/2025 או 16.10.2025
+  const m = s.match(/^(\d{2})[\/.](\d{2})[\/.](\d{4})$/);
   if (m) return `${m[3]}-${m[2]}-${m[1]}`;
   return s;
 }
@@ -46,16 +46,17 @@ function toIntLoose(input: unknown): number | null {
   return onlyDigits ? Math.trunc(Number(onlyDigits)) : null;
 }
 
-// ---------- Body Reader (JSON / form / text / querystring) ----------
+// ---------- Body Reader (חסין: Oak body() → originalRequest → bytes) ----------
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const ct = ctx.request.headers.get("content-type") ?? "";
   const reqAny: any = ctx.request as any;
-  const native: Request | undefined = reqAny.originalRequest ?? undefined;
+  // Oak exposing original Fetch API Request (בדנו בלבד; לא ב-Node) :contentReference[oaicite:1]{index=1}
+  const original: Request | undefined = (reqAny.originalRequest ?? undefined);
 
   const dbg: Record<string, unknown> = { ct, phases: [] as any[] };
-  function logPhase(name: string, data: unknown) {
+  const phase = (name: string, data: unknown) => {
     try { (dbg.phases as any[]).push({ name, data }); } catch {}
-  }
+  };
 
   const fromForm = (form: FormData | URLSearchParams) => {
     const o: Record<string, unknown> = {};
@@ -64,80 +65,125 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     return o;
   };
 
-  // 1) JSON
+  // 0) אם JSON — ננסה כמה נתיבים
   if (ct.includes("application/json")) {
-    if (typeof reqAny.body === "function") {
-      try {
+    // 0.1 Oak body({ type: "json" })
+    try {
+      if (typeof reqAny.body === "function") {
         const v = await reqAny.body({ type: "json" }).value;
-        logPhase("oak.json", v);
-        if (v && typeof v === "object") return { payload: v, dbg };
-      } catch (e) { logPhase("oak.json.error", String(e)); }
-    }
-    if (native && (native as any).json) {
-      try {
-        const v = await (native as any).json();
-        logPhase("native.json", v);
-        if (v && typeof v === "object") return { payload: v, dbg };
-      } catch (e) { logPhase("native.json.error", String(e)); }
-    }
+        if (v && typeof v === "object") { phase("oak.json", v); return { payload: v, dbg }; }
+        phase("oak.json.empty", v);
+      } else {
+        phase("oak.json.skip", "request.body is not a function");
+      }
+    } catch (e) { phase("oak.json.error", String(e)); }
+
+    // 0.2 Oak body() generic
+    try {
+      if (typeof reqAny.body === "function") {
+        const b = await reqAny.body();
+        if (b?.type === "json") {
+          const v = await b.value;
+          if (v && typeof v === "object") { phase("oak.generic.json", v); return { payload: v, dbg }; }
+        } else if (b?.type === "bytes") {
+          const u8: Uint8Array = await b.value;
+          const text = new TextDecoder().decode(u8);
+          phase("oak.bytes", text);
+          try { const j = JSON.parse(text); phase("oak.bytes->json", j); return { payload: j, dbg }; } catch {}
+        } else if (b?.type === "text") {
+          const text: string = await b.value;
+          phase("oak.text", text);
+          try { const j = JSON.parse(text); phase("oak.text->json", j); return { payload: j, dbg }; } catch {}
+        } else {
+          phase("oak.generic", { type: b?.type });
+        }
+      }
+    } catch (e) { phase("oak.generic.error", String(e)); }
+
+    // 0.3 originalRequest.json()
+    try {
+      if (original && (original as any).json) {
+        const v = await (original as any).json();
+        if (v && typeof v === "object") { phase("native.json", v); return { payload: v, dbg }; }
+        phase("native.json.empty", v);
+      } else {
+        phase("native.json.skip", "no originalRequest");
+      }
+    } catch (e) { phase("native.json.error", String(e)); }
+
+    // 0.4 originalRequest.text() → JSON
+    try {
+      if (original && (original as any).text) {
+        const text = await (original as any).text();
+        phase("native.text", text);
+        if (text) { try { const j = JSON.parse(text); phase("native.text->json", j); return { payload: j, dbg }; } catch {} }
+      }
+    } catch (e) { phase("native.text.error", String(e)); }
   }
 
-  // 2) x-www-form-urlencoded / multipart
+  // 1) x-www-form-urlencoded (Oak/Natively)
   if (ct.includes("application/x-www-form-urlencoded")) {
-    if (typeof reqAny.body === "function") {
-      try {
+    try {
+      if (typeof reqAny.body === "function") {
         const v = await reqAny.body({ type: "form" }).value;
         const o = fromForm(v as URLSearchParams);
-        logPhase("oak.form", o);
+        phase("oak.form", o);
         return { payload: o, dbg };
-      } catch (e) { logPhase("oak.form.error", String(e)); }
-    }
-    if (native && (native as any).formData) {
-      try {
-        const fd = await (native as any).formData();
+      }
+    } catch (e) { phase("oak.form.error", String(e)); }
+    try {
+      if (original && (original as any).formData) {
+        const fd = await (original as any).formData();
         const o = fromForm(fd);
-        logPhase("native.formData", o);
+        phase("native.formData(urlencoded)", o);
         return { payload: o, dbg };
-      } catch (e) { logPhase("native.formData.error", String(e)); }
-    }
-  } else if (ct.includes("multipart/form-data")) {
-    if (typeof reqAny.body === "function") {
-      try {
+      }
+    } catch (e) { phase("native.formData.error", String(e)); }
+  }
+
+  // 2) multipart/form-data
+  if (ct.includes("multipart/form-data")) {
+    try {
+      if (typeof reqAny.body === "function") {
         const v = await reqAny.body({ type: "form-data" }).value;
         const o = fromForm(v as FormData);
-        logPhase("oak.form-data", o);
+        phase("oak.multipart", o);
         return { payload: o, dbg };
-      } catch (e) { logPhase("oak.form-data.error", String(e)); }
-    }
-    if (native && (native as any).formData) {
-      try {
-        const fd = await (native as any).formData();
+      }
+    } catch (e) { phase("oak.multipart.error", String(e)); }
+    try {
+      if (original && (original as any).formData) {
+        const fd = await (original as any).formData();
         const o = fromForm(fd);
-        logPhase("native.formData", o);
+        phase("native.formData(multipart)", o);
         return { payload: o, dbg };
-      } catch (e) { logPhase("native.formData.error", String(e)); }
+      }
+    } catch (e) { phase("native.formData(multipart).error", String(e)); }
+  }
+
+  // 3) bytes/text fallback (גם אם ה-CT לא מתאים)
+  try {
+    if (typeof reqAny.body === "function") {
+      const b = await reqAny.body({ type: "bytes" }).value;
+      if (b && (b as Uint8Array).byteLength > 0) {
+        const text = new TextDecoder().decode(b as Uint8Array);
+        phase("oak.bytes.fallback", text);
+        try { const j = JSON.parse(text); phase("oak.bytes.fallback->json", j); return { payload: j, dbg }; } catch {}
+      }
     }
-  }
+  } catch (e) { phase("oak.bytes.fallback.error", String(e)); }
 
-  // 3) טקסט → נסה JSON
-  if (typeof reqAny.body === "function") {
-    try {
-      const t = await reqAny.body({ type: "text" }).value;
-      logPhase("oak.text", t);
-      if (t) { try { const j = JSON.parse(t); logPhase("oak.text->json", j); return { payload: j, dbg }; } catch {} }
-    } catch (e) { logPhase("oak.text.error", String(e)); }
-  }
-  if (native && (native as any).text) {
-    try {
-      const t = await (native as any).text();
-      logPhase("native.text", t);
-      if (t) { try { const j = JSON.parse(t); logPhase("native.text->json", j); return { payload: j, dbg }; } catch {} }
-    } catch (e) { logPhase("native.text.error", String(e)); }
-  }
+  try {
+    if (original && (original as any).text) {
+      const text = await (original as any).text();
+      phase("native.text.fallback", text);
+      if (text) { try { const j = JSON.parse(text); phase("native.text.fallback->json", j); return { payload: j, dbg }; } catch {} }
+    }
+  } catch (e) { phase("native.text.fallback.error", String(e)); }
 
-  // 4) fallback: querystring
+  // 4) querystring
   const qs = Object.fromEntries(ctx.request.url.searchParams);
-  logPhase("querystring", qs);
+  phase("querystring", qs);
   return { payload: qs, dbg };
 }
 
@@ -192,7 +238,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
 
   const { payload, dbg } = await readBody(ctx);
 
-  // קח גם alias נפוצים, וגם headers (למקרה של פרוקסי/שכתוב)
+  // קבלת ערכים עם גיבויים
   const date = normalizeDate((payload as any).date ?? ctx.request.url.searchParams.get("date"));
   const time = normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time"));
   const peopleRaw =
@@ -209,15 +255,9 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   const respondBad = (msg: string) => {
     console.warn(`[RESV ${reqId}] BAD: ${msg}`);
     const body = { ok: false, error: msg, debug: { rid, date, time, people, peopleRaw, dbg } };
-    if (wantsJSON(ctx)) {
-      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = JSON.stringify(body, null, 2);
-    } else {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-      ctx.response.body = JSON.stringify(body, null, 2);
-    }
+    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = JSON.stringify(body, null, 2);
   };
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return respondBad("bad date (YYYY-MM-DD expected)");
@@ -254,7 +294,6 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   };
   await createReservation(reservation);
 
-  // תמיד נחזיר JSON (גם ללא Accept), כדי שהלקוח יראה שגיאות/הצלחה מפורטות בזמן דיבוג
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = JSON.stringify({ ok: true, reservation }, null, 2);
 });
@@ -281,11 +320,18 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   console.log(`[RESV ${reqId}] /check rawBody`, dbg);
   console.log(`[RESV ${reqId}] /check input`, { rid, date, time, people, peopleRaw, maxPeople });
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { ctx.response.status = Status.BadRequest; ctx.response.body = JSON.stringify({ ok:false, error:"bad date (YYYY-MM-DD expected)", dbg }, null, 2); return; }
-  if (!/^\d{2}:\d{2}$/.test(time)) { ctx.response.status = Status.BadRequest; ctx.response.body = JSON.stringify({ ok:false, error:"bad time (HH:mm expected)", dbg }, null, 2); return; }
-  if (people == null || people < 1 || people > maxPeople) { ctx.response.status = Status.BadRequest; ctx.response.body = JSON.stringify({ ok:false, error:`bad people (1..${maxPeople})`, dbg }, null, 2); return; }
+  const bad = (m: string) => {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+    ctx.response.body = JSON.stringify({ ok:false, error:m, dbg }, null, 2);
+  };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("bad date (YYYY-MM-DD expected)");
+  if (!/^\d{2}:\d{2}$/.test(time)) return bad("bad time (HH:mm expected)");
+  if (people == null || people < 1 || people > maxPeople) return bad(`bad people (1..${maxPeople})`);
 
   const result = await checkAvailability(rid, date, time, people);
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = JSON.stringify(result, null, 2);
 });
+
+export { restaurantsRouter };

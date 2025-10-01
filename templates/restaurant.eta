@@ -25,21 +25,21 @@
     <form id="reserve-form"
           class="form-grid"
           action="/restaurants/<%= it.restaurant.id %>/reserve"
-          method="post">
-
+          method="post"
+          novalidate>
       <div class="form-row">
         <label for="date">תאריך</label>
-        <input id="date" name="date" type="date" required value="<%= it.date || '' %>"/>
+        <input id="date" name="date" type="date" required value="<%= it.date || '' %>" />
       </div>
 
       <div class="form-row">
         <label for="time">שעה</label>
-        <input id="time" name="time" type="time" step="900" required value="<%= it.time || '' %>"/>
+        <input id="time" name="time" type="time" step="900" required value="<%= it.time || '' %>" />
       </div>
 
       <div class="form-row">
         <label for="people">מספר סועדים</label>
-        <input id="people" name="people" type="number" min="1" max="<%= cap %>" required value="<%= it.people || 2 %>"/>
+        <input id="people" name="people" type="number" min="1" max="<%= cap %>" required value="<%= it.people || 2 %>" />
         <small class="muted">מינ' 1 · מקס' <%= cap %></small>
       </div>
 
@@ -77,7 +77,7 @@
       <h2 style="margin-top:0">תמונות</h2>
       <div class="photo-grid">
         <% it.restaurant.photos.forEach(src => { %>
-          <img src="<%= src %>" alt="תמונה של המסעדה" loading="lazy"/>
+          <img src="<%= src %>" alt="תמונה של המסעדה" loading="lazy" />
         <% }) %>
       </div>
     </section>
@@ -85,13 +85,37 @@
 </main>
 
 <script>
+  // ---- עזרי ולידציה בצד לקוח ----
+  function clamp(n, min, max) {
+    n = Number(n);
+    if (!Number.isFinite(n)) return null;
+    return Math.max(min, Math.min(max, n));
+  }
+
   function readForm() {
     const form = document.getElementById('reserve-form');
-    return {
-      date: form.querySelector('[name="date"]').value,
-      time: form.querySelector('[name="time"]').value,
-      people: Number(form.querySelector('[name="people"]').value || 0),
-    };
+    const dateEl = form.querySelector('[name="date"]');
+    const timeEl = form.querySelector('[name="time"]');
+    const peopleEl = form.querySelector('[name="people"]');
+
+    const dateVal = dateEl.value;         // "YYYY-MM-DD" או ריק
+    const timeVal = timeEl.value;         // "HH:mm" או ריק
+    const peopleRaw = peopleEl.value;     // מחרוזת (עשויה להיות "")
+    const min = Number(peopleEl.getAttribute('min') || 1);
+    const max = Number(peopleEl.getAttribute('max') || 30);
+
+    // אל תכריח 0; אם ריק → null. אם מספר → נקשיח לטווח [min..max].
+    const peopleParsed = peopleRaw === "" ? null : clamp(peopleRaw, min, max);
+
+    return { date: dateVal, time: timeVal, people: peopleParsed, peopleRaw };
+  }
+
+  function ensureClientValidity({ date, time, people, peopleRaw }) {
+    if (!date) return "נא לבחור תאריך";
+    if (!time) return "נא לבחור שעה";
+    if (people == null) return "נא להזין מספר סועדים";
+    if (!Number.isFinite(people) || people < 1) return "מספר סועדים חייב להיות לפחות 1";
+    return null;
   }
 
   async function postJSON(url, payload) {
@@ -99,11 +123,11 @@
     const res = await fetch(url, {
       method: 'POST',
       headers: {
-        'Accept': 'application/json',       // בקשת JSON מהשרת
-        'Content-Type': 'application/json', // שליחת JSON
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload),
-      redirect: 'follow', // לא חובה, אבל מבהיר התנהגות מול 303/302. :contentReference[oaicite:3]{index=3}
+      redirect: 'follow'
     });
     const text = await res.text();
     let data = null;
@@ -117,11 +141,15 @@
     const btn = document.getElementById('check-btn');
     if (!btn) return;
     btn.addEventListener('click', async () => {
-      const { date, time, people } = readForm();
-      const rid = btn.dataset.rid;
+      const fm = readForm();
+      const err = ensureClientValidity(fm);
+      if (err) { alert(err); return; }
 
+      const rid = btn.dataset.rid;
       try {
-        const r = await postJSON(`/api/restaurants/${encodeURIComponent(rid)}/check`, { date, time, people });
+        const r = await postJSON(`/api/restaurants/${encodeURIComponent(rid)}/check`, {
+          date: fm.date, time: fm.time, people: fm.people
+        });
         if (r.ok && r.data?.ok) {
           alert('זמין!');
         } else if (r.data && r.data.error) {
@@ -143,23 +171,24 @@
     const form = document.getElementById('reserve-form');
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
-      const { date, time, people } = readForm();
-      const url = form.getAttribute('action');
+      const fm = readForm();
+      const err = ensureClientValidity(fm);
+      if (err) { alert(err); return; }
 
+      const url = form.getAttribute('action');
       try {
-        const r = await postJSON(url, { date, time, people });
+        const r = await postJSON(url, { date: fm.date, time: fm.time, people: fm.people });
         if (r.ok && r.data?.ok) {
           const rid = "<%= it.restaurant.id %>";
           const u = new URL(`/restaurants/${encodeURIComponent(rid)}`, location.origin);
           u.searchParams.set('ok', '1');
-          u.searchParams.set('date', date);
-          u.searchParams.set('time', time);
-          u.searchParams.set('people', String(people));
+          u.searchParams.set('date', fm.date);
+          u.searchParams.set('time', fm.time);
+          u.searchParams.set('people', String(fm.people));
           location.assign(u.toString());
         } else if (r.status === 400 && r.data?.error) {
           alert('שגיאה: ' + r.data.error);
         } else if (r.status >= 300 && r.status < 400) {
-          // במקרה שהשרת מחזיר 303, הדפדפן כבר עקב אחרי redirect (redirect: 'follow') — נדפיס דיבוג.
           alert('התקבלה הפניה (redirect). בדוק קונסול דפדפן ללוגים.');
         } else {
           alert('שגיאה בשליחת ההזמנה');
