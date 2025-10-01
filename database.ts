@@ -382,10 +382,7 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
     reservationIds.push(id);
   }
 
-  // מחיקה באצוות כדי לשמור על מגבלות atomic (10 אופ׳ בערך)
-  let deleted = 0;
-
-  // מחק reservation_by_day + reservation בגושים קטנים
+  // מחיקה באצוות כדי לשמור על מגבלות atomic
   const chunk = <T>(arr: T[], size: number) =>
     arr.reduce<T[][]>((acc, v, i) => {
       if (i % size === 0) acc.push([]);
@@ -393,36 +390,74 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
       return acc;
     }, []);
 
+  let deleted = 0;
   for (const ids of chunk(reservationIds, 50)) {
     const tx = kv.atomic();
     for (const id of ids) {
-      // צריך לדעת את התאריך כדי למחוק את האינדקס, נשלוף את ההזמנה
       const resv = (await kv.get<Reservation>(["reservation", id])).value;
       if (resv) {
         tx.delete(["reservation", id]);
         tx.delete(["reservation_by_day", restaurantId, resv.date, id]);
         deleted++;
       } else {
-        // אם אין הרשומה הראשית, נסה למחוק כל מופע by_day שהתגלה
         tx.delete(["reservation", id]);
-        // אין לנו date – אבל לוסט נקה את האינדקס שראינו כבר דרך ה-list הראשי
-        // (עברנו דרך reservation_by_day/*, אז נמחק אותו בלולאה הראשונה)
       }
     }
-    const res = await tx.commit();
-    if (!res.ok) {
-      // במקרה של התנגשויות, נתקדם בכל זאת בלולאה; אפשר לשפר עם ריטריי
-    }
+    await tx.commit().catch(() => {});
   }
 
   // הסר אינדקסי מסעדה + המסעדה עצמה
-  // מחיקה באטומיק נפרד (סביר בגודל קטן)
   const tx2 = kv.atomic()
     .delete(["restaurant", restaurantId])
     .delete(["restaurant_by_owner", r.ownerId, restaurantId])
     .delete(["restaurant_name", lower(r.name), restaurantId])
     .delete(["restaurant_city", lower(r.city), restaurantId]);
-  await tx2.commit();
+  await tx2.commit().catch(() => {});
 
   return deleted;
+}
+
+// איפוס מלא של בסיס הנתונים – מנקה **את כל** הישויות/אינדקסים הידועים.
+// שימושי ל-/admin/resetAll.
+// זהיר: פעולה הרסנית!
+export async function resetAll(): Promise<void> {
+  // רשימות prefixes למחיקה
+  const prefixes: Deno.KvKey[] = [
+    ["user"],
+    ["user_by_email"],
+    ["user_by_username"],
+    ["verify"],
+    ["reset"],
+
+    ["restaurant"],
+    ["restaurant_by_owner"],
+    ["restaurant_name"],
+    ["restaurant_city"],
+
+    ["reservation"],
+    ["reservation_by_day"],
+  ];
+
+  // פונקציה כללית למחיקת כל מפתחות עם prefix מסוים
+  async function deleteByPrefix(prefix: Deno.KvKey, batchSize = 100) {
+    const keys: Deno.KvKey[] = [];
+    for await (const e of kv.list({ prefix })) {
+      keys.push(e.key);
+      if (keys.length >= batchSize) {
+        const tx = kv.atomic();
+        for (const k of keys) tx.delete(k);
+        await tx.commit().catch(() => {});
+        keys.length = 0;
+      }
+    }
+    if (keys.length) {
+      const tx = kv.atomic();
+      for (const k of keys) tx.delete(k);
+      await tx.commit().catch(() => {});
+    }
+  }
+
+  for (const p of prefixes) {
+    await deleteByPrefix(p);
+  }
 }

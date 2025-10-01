@@ -1,463 +1,323 @@
-// src/database.ts
-// Deno KV – אינדקסים עם prefix ועסקאות atomic
+// src/routes/admin.ts
+import { Router, Status } from "jsr:@oak/oak";
+import {
+  listRestaurants,
+  getRestaurant,
+  updateRestaurant,
+  type Restaurant,
+  resetRestaurants,
+  resetReservations,
+  resetUsers,
+  resetAll,
+  deleteRestaurantCascade,
+} from "../database.ts";
 
-export interface User {
-  id: string;
-  email: string;
-  username: string;                // ייחודי
-  firstName: string;
-  lastName: string;
-  age?: number;
-  businessType?: string;
-  passwordHash?: string;
-  role: "user" | "owner";
-  provider: "local" | "google";
-  emailVerified?: boolean;
-  createdAt: number;
-}
+const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
+const BUILD_TAG = new Date().toISOString().slice(0,19).replace("T"," ");
 
-export type DayOfWeek = 0|1|2|3|4|5|6; // 0=Sunday .. 6=Saturday
-export interface OpeningWindow { open: string; close: string; } // "HH:mm"
-export type WeeklySchedule = Partial<Record<DayOfWeek, OpeningWindow | null>>;
-
-export interface Restaurant {
-  id: string;
-  ownerId: string;
-  name: string;
-  city: string;
-  address: string;
-  phone?: string;
-  hours?: string;
-  description?: string;
-  menu: Array<{ name: string; price?: number; desc?: string }>;
-  capacity: number;                 // קיבולת בו־זמנית
-  slotIntervalMinutes: number;      // מרווח סלוטים (דקות), ברירת מחדל 15
-  serviceDurationMinutes: number;   // משך ישיבה (דקות), ברירת מחדל 120
-  weeklySchedule?: WeeklySchedule;  // שעות פתיחה שבועיות (אופציונלי)
-  photos?: string[];                // תמונות (URLים)
-  approved?: boolean;               // נדרש אישור אדמין
-  createdAt: number;
+// ------- utils -------
+function getAdminKey(ctx: any): string | null {
+  const urlKey = ctx.request.url.searchParams.get("key");
+  const headerKey = ctx.request.headers.get("x-admin-key");
+  return (urlKey ?? headerKey ?? "").trim() || null;
 }
-
-export interface Reservation {
-  id: string;
-  restaurantId: string;
-  userId: string; // גם ל-block ידני נשים "manual-block:<ownerId>"
-  date: string;   // YYYY-MM-DD
-  time: string;   // HH:mm (start)
-  people: number;
-  note?: string;
-  status?: "new" | "confirmed" | "canceled" | "completed" | "blocked";
-  createdAt: number;
-}
-
-// פתח KV פעם אחת
-export const kv = await Deno.openKv();
-
-const lower = (s?: string) => (s ?? "").trim().toLowerCase();
-const now = () => Date.now();
-
-// ---------- Users ----------
-// Keys:
-// ["user", id] -> User
-// ["user_by_email", emailLower] -> id
-// ["user_by_username", usernameLower] -> id
-export async function createUser(u: {
-  id: string;
-  email: string;
-  username: string;
-  firstName: string;
-  lastName: string;
-  age?: number;
-  businessType?: string;
-  passwordHash?: string;
-  role: "user" | "owner";
-  provider: "local" | "google";
-}): Promise<User> {
-  const user: User = {
-    ...u,
-    email: lower(u.email),
-    username: lower(u.username),
-    firstName: u.firstName.trim(),
-    lastName: u.lastName.trim(),
-    age: u.age,
-    businessType: u.businessType?.trim(),
-    emailVerified: false,
-    createdAt: now(),
-  };
-  const tx = kv.atomic()
-    .check({ key: ["user_by_email", user.email], versionstamp: null })
-    .check({ key: ["user_by_username", user.username], versionstamp: null })
-    .set(["user", user.id], user)
-    .set(["user_by_email", user.email], user.id)
-    .set(["user_by_username", user.username], user.id);
-  const res = await tx.commit();
-  if (!res.ok) throw new Error("user_exists");
-  return user;
-}
-
-export async function findUserByEmail(email: string) {
-  const ref = await kv.get<string>(["user_by_email", lower(email)]);
-  if (!ref.value) return null;
-  return (await kv.get<User>(["user", ref.value])).value ?? null;
-}
-export async function findUserByUsername(username: string) {
-  const ref = await kv.get<string>(["user_by_username", lower(username)]);
-  if (!ref.value) return null;
-  return (await kv.get<User>(["user", ref.value])).value ?? null;
-}
-export async function getUserById(id: string) {
-  return (await kv.get<User>(["user", id])).value ?? null;
-}
-export async function setEmailVerified(userId: string) {
-  const cur = await kv.get<User>(["user", userId]);
-  if (!cur.value) return null;
-  const next = { ...cur.value, emailVerified: true };
-  await kv.set(["user", userId], next);
-  return next;
-}
-export async function updateUserPassword(userId: string, passwordHash: string) {
-  const cur = await kv.get<User>(["user", userId]);
-  if (!cur.value) return null;
-  const next = { ...cur.value, passwordHash };
-  await kv.set(["user", userId], next);
-  return next;
-}
-
-// אימות מייל
-export async function createVerifyToken(userId: string, email: string): Promise<string> {
-  const token = crypto.randomUUID().replace(/-/g, "");
-  await kv.set(["verify", token], { userId, email, createdAt: now() });
-  return token;
-}
-export async function useVerifyToken(token: string) {
-  const v = await kv.get<{ userId: string; email: string; createdAt: number }>(["verify", token]);
-  if (!v.value) return null;
-  await kv.delete(["verify", token]);
-  return v.value;
-}
-
-// שחזור סיסמה – Reset token
-// ["reset", token] -> { userId, createdAt }
-export async function createResetToken(userId: string): Promise<string> {
-  const token = crypto.randomUUID().replace(/-/g, "");
-  await kv.set(["reset", token], { userId, createdAt: now() });
-  return token;
-}
-export async function useResetToken(token: string) {
-  const v = await kv.get<{ userId: string; createdAt: number }>(["reset", token]);
-  if (!v.value) return null;
-  await kv.delete(["reset", token]);
-  const THIRTY_MIN = 30 * 60 * 1000;
-  if (now() - v.value.createdAt > THIRTY_MIN) return null;
-  return v.value;
-}
-
-// ---------- Restaurants ----------
-// Keys:
-// ["restaurant", id] -> Restaurant
-// ["restaurant_by_owner", ownerId, id] -> 1
-// ["restaurant_name", nameLower, id] -> 1
-// ["restaurant_city", cityLower, id] -> 1
-export async function createRestaurant(r: {
-  id: string; ownerId: string; name: string; city: string; address: string;
-  phone?: string; hours?: string; description?: string;
-  menu?: Array<{ name: string; price?: number; desc?: string }>;
-  capacity?: number; slotIntervalMinutes?: number; serviceDurationMinutes?: number;
-  weeklySchedule?: WeeklySchedule; photos?: string[]; approved?: boolean;
-}): Promise<Restaurant> {
-  const restaurant: Restaurant = {
-    ...r,
-    name: r.name.trim(),
-    city: r.city.trim(),
-    address: r.address.trim(),
-    menu: r.menu ?? [],
-    photos: (r.photos ?? []).filter(Boolean),
-    capacity: r.capacity ?? 30,
-    slotIntervalMinutes: r.slotIntervalMinutes ?? 15,
-    serviceDurationMinutes: r.serviceDurationMinutes ?? 120,
-    weeklySchedule: r.weeklySchedule,
-    approved: !!r.approved,
-    createdAt: now(),
-  };
-  const tx = kv.atomic()
-    .set(["restaurant", restaurant.id], restaurant)
-    .set(["restaurant_by_owner", restaurant.ownerId, restaurant.id], 1)
-    .set(["restaurant_name", lower(restaurant.name), restaurant.id], 1)
-    .set(["restaurant_city", lower(restaurant.city), restaurant.id], 1);
-  const res = await tx.commit();
-  if (!res.ok) throw new Error("create_restaurant_race");
-  return restaurant;
-}
-
-export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
-  const cur = await kv.get<Restaurant>(["restaurant", id]);
-  const prev = cur.value;
-  if (!prev) return null;
-
-  const next: Restaurant = {
-    ...prev,
-    ...patch,
-    name: (patch.name ?? prev.name).trim(),
-    city: (patch.city ?? prev.city).trim(),
-    address: (patch.address ?? prev.address).trim(),
-    photos: (patch.photos ?? prev.photos ?? []).filter(Boolean),
-  };
-
-  const tx = kv.atomic().set(["restaurant", id], next);
-  if (patch.name && lower(patch.name) !== lower(prev.name)) {
-    tx.delete(["restaurant_name", lower(prev.name), id]).set(["restaurant_name", lower(patch.name), id], 1);
+function assertAdmin(ctx: any): boolean {
+  const key = getAdminKey(ctx);
+  if (!ADMIN_SECRET || !key || key !== ADMIN_SECRET) {
+    ctx.response.status = Status.Unauthorized;
+    ctx.response.body = "Unauthorized (missing/invalid admin key)";
+    return false;
   }
-  if (patch.city && lower(patch.city) !== lower(prev.city)) {
-    tx.delete(["restaurant_city", lower(prev.city), id]).set(["restaurant_city", lower(patch.city), id], 1);
-  }
-  const res = await tx.commit();
-  if (!res.ok) throw new Error("update_restaurant_race");
-  return next;
+  return true;
+}
+function setNoStore(ctx: any) {
+  ctx.response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  ctx.response.headers.set("Pragma", "no-cache");
+  ctx.response.headers.set("Expires", "0");
+}
+function page(layout: { title: string; body: string; key?: string }) {
+  const keyMasked = (layout.key ?? "").replace(/./g, "•");
+  return `<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>${layout.title}</title>
+  <link rel="stylesheet" href="/static/styles.css"/>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:1100px;margin:32px auto;padding:0 16px}
+    header{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+    .pill{background:#eef;border:1px solid #ccd;border-radius:999px;padding:4px 10px;font-size:12px}
+    .debug{background:#fff8d6;border:1px solid #f1d17a;padding:8px 12px;border-radius:8px;margin:8px 0;color:#754c00}
+    table{width:100%;border-collapse:collapse;margin-top:16px}
+    th,td{border-bottom:1px solid #eee;padding:10px;vertical-align:top;text-align:right}
+    th{background:#fafafa;font-weight:600}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .btn{display:inline-block;background:#111;color:#fff;border-radius:8px;padding:8px 12px;text-decoration:none;border:none;cursor:pointer}
+    .btn.secondary{background:#555}
+    .btn.warn{background:#b00020}
+    .card{border:1px solid #eee;border-radius:12px;padding:16px}
+    .muted{color:#777}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+    @media (max-width:800px){.grid{grid-template-columns:1fr}}
+    input[type="password"],input[type="text"]{border:1px solid #ddd;border-radius:8px;padding:8px 10px;width:280px;max-width:100%}
+    form.inline{display:inline}
+    .badge{display:inline-block;background:#eef;border:1px solid #ccd;border-radius:6px;padding:2px 6px;font-size:12px;margin-inline-start:6px}
+    .code{font-family:ui-monospace,Consolas,monospace;background:#f6f6f8;border:1px solid #eee;border-radius:6px;padding:6px 8px;display:inline-block}
+  </style>
+</head>
+<body>
+  <header>
+    <h1 style="margin:0">GeoTable · ניהול</h1>
+    <span class="pill"><small>ADMIN</small></span>
+  </header>
+  <div class="debug">Build: ${BUILD_TAG}</div>
+  ${layout.body}
+  <div class="muted" style="margin-top:18px">Key: ${keyMasked}</div>
+</body>
+</html>`;
 }
 
-export async function getRestaurant(id: string) {
-  return (await kv.get<Restaurant>(["restaurant", id])).value ?? null;
+function renderRestaurantRow(r: Restaurant, key: string) {
+  const approved = r.approved ? "✅ מאושרת" : "⏳ ממתינה";
+  const caps = `קיבולת: ${r.capacity ?? "-"} · סלוט: ${r.slotIntervalMinutes ?? "-"}ד' · שירות: ${r.serviceDurationMinutes ?? "-"}ד'`;
+  return `
+  <tr>
+    <td><strong>${r.name}</strong><br/><small class="muted">${r.city} · ${r.address}</small></td>
+    <td>${approved}<br/><small class="muted">${caps}</small></td>
+    <td>
+      <div class="row">
+        ${
+          r.approved
+            ? `<form class="inline" method="post" action="/admin/restaurants/${r.id}/unapprove?key=${encodeURIComponent(key)}">
+                 <button class="btn secondary" type="submit">השבתה (Unapprove)</button>
+               </form>`
+            : `<form class="inline" method="post" action="/admin/restaurants/${r.id}/approve?key=${encodeURIComponent(key)}">
+                 <button class="btn" type="submit">אישור</button>
+               </form>`
+        }
+        <a class="btn secondary" href="/restaurants/${r.id}" target="_blank" rel="noopener">פתח דף מסעדה</a>
+        <form class="inline" method="post" action="/admin/restaurants/${r.id}/delete?key=${encodeURIComponent(key)}" onsubmit="return confirm('למחוק לצמיתות את \"${r.name}\" וכל ההזמנות שלה?')">
+          <button class="btn warn" type="submit">הסר מהאתר</button>
+        </form>
+      </div>
+    </td>
+  </tr>`;
 }
 
-export async function listRestaurants(q?: string, onlyApproved = true): Promise<Restaurant[]> {
-  const out = new Map<string, Restaurant>();
-  const needle = lower(q ?? "");
-  const push = (r?: Restaurant | null) => {
-    if (!r) return;
-    if (onlyApproved && !r.approved) return;
-    out.set(r.id, r);
-  };
+// ------- router -------
+const adminRouter = new Router();
 
-  if (!needle) {
-    const items: Restaurant[] = [];
-    for await (const row of kv.list({ prefix: ["restaurant"] })) {
-      const r = (await kv.get<Restaurant>(row.key as any)).value;
-      if (r && (!onlyApproved || r.approved)) items.push(r);
-    }
-    items.sort((a, b) => b.createdAt - a.createdAt);
-    return items.slice(0, 50);
-  }
+/** כניסת אדמין */
+adminRouter.get("/admin/login", (ctx) => {
+  setNoStore(ctx);
+  const body = `
+  <div class="card" style="max-width:520px">
+    <h2 style="margin-top:0">כניסת אדמין</h2>
+    <p class="muted">הזן/ני את מפתח האדמין (ADMIN_SECRET) שהוגדר ב־Environment Variables.</p>
+    <form method="get" action="/admin">
+      <label for="key">מפתח אדמין</label><br/>
+      <input id="key" name="key" type="password" placeholder="הדבק כאן את המפתח" required/>
+      <button class="btn" type="submit" style="margin-inline-start:8px">כניסה</button>
+    </form>
+  </div>`;
+  ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
+  ctx.response.body = page({ title: "כניסת אדמין", body });
+});
 
-  // אינדקסים (התאמה מלאה להתחלה)
-  for await (const k of kv.list({ prefix: ["restaurant_name", needle] })) {
-    const id = k.key[k.key.length - 1] as string;
-    push((await kv.get<Restaurant>(["restaurant", id])).value);
-  }
-  for await (const k of kv.list({ prefix: ["restaurant_city", needle] })) {
-    const id = k.key[k.key.length - 1] as string;
-    push((await kv.get<Restaurant>(["restaurant", id])).value);
-  }
+/** דשבורד אדמין (כפתורי Reset בראש העמוד) */
+adminRouter.get("/admin", async (ctx) => {
+  if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
+  const key = getAdminKey(ctx)!;
 
-  // Fallback לסריקה מלאה (מכיל גם כתובת)
-  for await (const row of kv.list({ prefix: ["restaurant"] })) {
-    const r = (await kv.get<Restaurant>(row.key as any)).value;
-    if (!r) continue;
-    const hay = `${lower(r.name)} ${lower(r.city)} ${lower(r.address)}`;
-    if (hay.includes(needle)) push(r);
-  }
+  const all = await listRestaurants("", /*onlyApproved*/ false);
+  const pending = all.filter((r) => !r.approved);
+  const approved = all.filter((r) => r.approved);
 
-  return Array.from(out.values()).sort((a, b) => {
-    const aName = lower(a.name).indexOf(needle);
-    const bName = lower(b.name).indexOf(needle);
-    if (aName !== bName) return (aName === -1 ? 1 : aName) - (bName === -1 ? 1 : bName);
-    const aCity = lower(a.city).indexOf(needle);
-    const bCity = lower(b.city).indexOf(needle);
-    if (aCity !== bCity) return (aCity === -1 ? 1 : aCity) - (bCity === -1 ? 1 : bCity);
-    return b.createdAt - a.createdAt;
-  });
-}
+  const body = `
+  <section class="card" style="margin-bottom:20px">
+    <h2 style="margin-top:0;color:#b00020">⚠️ פעולות אדמין (Reset)</h2>
+    <div class="row" style="margin-top:6px">
+      <form method="post" action="/admin/reset?what=restaurants&confirm=1&key=${encodeURIComponent(key)}">
+        <button type="submit" class="btn warn"
+          onclick="return confirm('לאפס את כל המסעדות? הפעולה בלתי הפיכה!')">
+          איפוס כל המסעדות
+        </button>
+      </form>
+      <form method="post" action="/admin/reset?what=reservations&confirm=1&key=${encodeURIComponent(key)}">
+        <button type="submit" class="btn warn"
+          onclick="return confirm('לאפס את כל ההזמנות?')">
+          איפוס כל ההזמנות
+        </button>
+      </form>
+      <form method="post" action="/admin/reset?what=users&confirm=1&key=${encodeURIComponent(key)}">
+        <button type="submit" class="btn warn"
+          onclick="return confirm('לאפס את כל המשתמשים? שים לב: זה ימחק גם בעלי מסעדות!')">
+          איפוס כל המשתמשים
+        </button>
+      </form>
+      <form method="post" action="/admin/reset?what=all&confirm=1&key=${encodeURIComponent(key)}">
+        <button type="submit" class="btn warn"
+          onclick="return confirm('איפוס כללי: משתמשים + מסעדות + הזמנות. להמשיך?')">
+          איפוס כולל (הכול)
+        </button>
+      </form>
+      <a class="btn secondary" href="/admin/tools?key=${encodeURIComponent(key)}">עוד כלים…</a>
+    </div>
+  </section>
 
-// ---------- Reservations / Availability ----------
-function toMinutes(hhmm: string): number {
-  const [h, m] = hhmm.split(":").map((x) => Number(x));
-  return h * 60 + m;
-}
-function fromMinutes(m: number): string {
-  const h = Math.floor(m / 60).toString().padStart(2, "0");
-  const mi = (m % 60).toString().padStart(2, "0");
-  return `${h}:${mi}`;
-}
-
-export async function listReservationsFor(restaurantId: string, date: string): Promise<Reservation[]> {
-  const out: Reservation[] = [];
-  for await (const row of kv.list({ prefix: ["reservation_by_day", restaurantId, date] })) {
-    const id = row.key[row.key.length - 1] as string;
-    const r = (await kv.get<Reservation>(["reservation", id])).value;
-    if (r) out.push(r);
-  }
-  out.sort((a, b) => (a.time).localeCompare(b.time));
-  return out;
-}
-
-export async function createReservation(r: Reservation) {
-  const tx = kv.atomic()
-    .set(["reservation", r.id], r)
-    .set(["reservation_by_day", r.restaurantId, r.date, r.id], 1);
-  const res = await tx.commit();
-  if (!res.ok) throw new Error("create_reservation_race");
-  return r;
-}
-
-export async function listReservationsByOwner(ownerId: string) {
-  const my: { id: string; name: string }[] = [];
-  for await (const k of kv.list({ prefix: ["restaurant_by_owner", ownerId] })) {
-    const rid = k.key[k.key.length - 1] as string;
-    const r = (await kv.get<Restaurant>(["restaurant", rid])).value;
-    if (r) my.push({ id: r.id, name: r.name });
-  }
-  const results: Array<{ restaurantName: string; reservation: Reservation }> = [];
-  for (const r of my) {
-    for await (const k of kv.list({ prefix: ["reservation_by_day", r.id] })) {
-      const id = k.key[k.key.length - 1] as string;
-      const resv = (await kv.get<Reservation>(["reservation", id])).value;
-      if (resv) results.push({ restaurantName: r.name, reservation: resv });
-    }
-  }
-  results.sort((a, b) => (a.reservation.date + a.reservation.time).localeCompare(b.reservation.date + b.reservation.time));
-  return results.slice(0, 200);
-}
-
-export async function computeOccupancy(restaurant: Restaurant, date: string) {
-  const resv = await listReservationsFor(restaurant.id, date);
-  const map = new Map<string, number>(); // time -> used seats
-  for (const r of resv) {
-    const start = toMinutes(r.time);
-    const end = start + (restaurant.serviceDurationMinutes || 120);
-    for (let t = start; t < end; t += restaurant.slotIntervalMinutes || 15) {
-      const key = fromMinutes(t);
-      map.set(key, (map.get(key) ?? 0) + r.people);
-    }
-  }
-  return map;
-}
-
-export async function checkAvailability(restaurantId: string, date: string, time: string, people: number) {
-  const r = await getRestaurant(restaurantId);
-  if (!r) return { ok: false, reason: "not_found" as const };
-  const occ = await computeOccupancy(r, date);
-  const start = toMinutes(time);
-  const end = start + (r.serviceDurationMinutes || 120);
-  for (let t = start; t < end; t += r.slotIntervalMinutes || 15) {
-    const used = occ.get(fromMinutes(t)) ?? 0;
-    if (used + people > r.capacity) {
-      return { ok: false, reason: "full" as const, suggestions: suggestTimes(r, date, time, people, occ) };
-    }
-  }
-  return { ok: true as const };
-}
-
-function suggestTimes(r: Restaurant, date: string, time: string, people: number, occ: Map<string, number>) {
-  const base = toMinutes(time);
-  const step = r.slotIntervalMinutes || 15;
-  const span = r.serviceDurationMinutes || 120;
-  const tryTime = (t: number) => {
-    for (let x = t; x < t + span; x += step) {
-      const used = occ.get(fromMinutes(x)) ?? 0;
-      if (used + people > r.capacity) return false;
-    }
-    return true;
-  };
-  const out: string[] = [];
-  for (let delta = step; delta <= 60; delta += step) {
-    const before = base - delta; const after = base + delta;
-    if (before >= 0 && tryTime(before)) out.push(fromMinutes(before));
-    if (tryTime(after)) out.push(fromMinutes(after));
-    if (out.length >= 6) break;
-  }
-  return out;
-}
-
-// ---------- Admin Utilities ----------
-// מוחק מסעדה **וכל** התלויות שלה (אינדקסים + הזמנות) בבטיחות.
-// מחזיר את מספר ההזמנות שנמחקו.
-export async function deleteRestaurantCascade(restaurantId: string): Promise<number> {
-  const r = await getRestaurant(restaurantId);
-  if (!r) return 0;
-
-  // אסוף כל מפתחות ההזמנות: reservation_by_day + reservation
-  const reservationIds: string[] = [];
-  for await (const k of kv.list({ prefix: ["reservation_by_day", restaurantId] })) {
-    const id = k.key[k.key.length - 1] as string;
-    reservationIds.push(id);
-  }
-
-  // מחיקה באצוות כדי לשמור על מגבלות atomic
-  const chunk = <T>(arr: T[], size: number) =>
-    arr.reduce<T[][]>((acc, v, i) => {
-      if (i % size === 0) acc.push([]);
-      acc[acc.length - 1].push(v);
-      return acc;
-    }, []);
-
-  let deleted = 0;
-  for (const ids of chunk(reservationIds, 50)) {
-    const tx = kv.atomic();
-    for (const id of ids) {
-      const resv = (await kv.get<Reservation>(["reservation", id])).value;
-      if (resv) {
-        tx.delete(["reservation", id]);
-        tx.delete(["reservation_by_day", restaurantId, resv.date, id]);
-        deleted++;
-      } else {
-        tx.delete(["reservation", id]);
+  <div class="grid">
+    <section class="card">
+      <h2 style="margin-top:0">ממתינות לאישור (${pending.length})</h2>
+      ${
+        pending.length === 0
+          ? `<p class="muted">אין מסעדות ממתינות כרגע.</p>`
+          : `<table>
+              <thead><tr><th>מסעדה</th><th>סטטוס</th><th>פעולות</th></tr></thead>
+              <tbody>${pending.map((r) => renderRestaurantRow(r, key)).join("")}</tbody>
+            </table>`
       }
-    }
-    await tx.commit().catch(() => {});
-  }
+    </section>
 
-  // הסר אינדקסי מסעדה + המסעדה עצמה
-  const tx2 = kv.atomic()
-    .delete(["restaurant", restaurantId])
-    .delete(["restaurant_by_owner", r.ownerId, restaurantId])
-    .delete(["restaurant_name", lower(r.name), restaurantId])
-    .delete(["restaurant_city", lower(r.city), restaurantId]);
-  await tx2.commit().catch(() => {});
-
-  return deleted;
-}
-
-// איפוס מלא של בסיס הנתונים – מנקה **את כל** הישויות/אינדקסים הידועים.
-// שימושי ל-/admin/resetAll.
-// זהיר: פעולה הרסנית!
-export async function resetAll(): Promise<void> {
-  // רשימות prefixes למחיקה
-  const prefixes: Deno.KvKey[] = [
-    ["user"],
-    ["user_by_email"],
-    ["user_by_username"],
-    ["verify"],
-    ["reset"],
-
-    ["restaurant"],
-    ["restaurant_by_owner"],
-    ["restaurant_name"],
-    ["restaurant_city"],
-
-    ["reservation"],
-    ["reservation_by_day"],
-  ];
-
-  // פונקציה כללית למחיקת כל מפתחות עם prefix מסוים
-  async function deleteByPrefix(prefix: Deno.KvKey, batchSize = 100) {
-    const keys: Deno.KvKey[] = [];
-    for await (const e of kv.list({ prefix })) {
-      keys.push(e.key);
-      if (keys.length >= batchSize) {
-        const tx = kv.atomic();
-        for (const k of keys) tx.delete(k);
-        await tx.commit().catch(() => {});
-        keys.length = 0;
+    <section class="card">
+      <h2 style="margin-top:0">מאושרות (${approved.length})</h2>
+      ${
+        approved.length === 0
+          ? `<p class="muted">עוד לא אושרו מסעדות.</p>`
+          : `<table>
+              <thead><tr><th>מסעדה</th><th>סטטוס</th><th>פעולות</th></tr></thead>
+              <tbody>${approved.map((r) => renderRestaurantRow(r, key)).join("")}</tbody>
+            </table>`
       }
-    }
-    if (keys.length) {
-      const tx = kv.atomic();
-      for (const k of keys) tx.delete(k);
-      await tx.commit().catch(() => {});
-    }
+    </section>
+  </div>`;
+  ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
+  ctx.response.body = page({ title: "לוח בקרה · Admin", body, key });
+});
+
+/** עמוד כלים */
+adminRouter.get("/admin/tools", (ctx) => {
+  if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
+  const key = getAdminKey(ctx)!;
+  const body = `
+  <div class="card">
+    <h2 style="margin-top:0">Reset · כלי אדמין</h2>
+    <p class="muted">אפשר להריץ איפוסים דרך הקישורים הבאים (תופיע בקשת אישור).</p>
+    <ul>
+      <li><a class="btn warn" href="/admin/reset?what=reservations&key=${encodeURIComponent(key)}">אפס רק הזמנות</a></li>
+      <li><a class="btn warn" href="/admin/reset?what=restaurants&key=${encodeURIComponent(key)}">אפס רק מסעדות</a></li>
+      <li><a class="btn warn" href="/admin/reset?what=users&key=${encodeURIComponent(key)}">אפס רק משתמשים</a></li>
+      <li><a class="btn warn" href="/admin/reset?what=all&key=${encodeURIComponent(key)}">אפס הכל</a></li>
+    </ul>
+  </div>`;
+  ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
+  ctx.response.body = page({ title: "Admin · Reset", body, key });
+});
+
+// --- Reset: GET (אישור) + POST (ביצוע) ---
+async function handleReset(ctx: any) {
+  if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
+  const key = getAdminKey(ctx)!;
+  const url = ctx.request.url;
+  const what = (url.searchParams.get("what") ?? "").toLowerCase();  // reservations|restaurants|users|all
+  const confirm = url.searchParams.get("confirm") === "1";
+
+  const actions: Record<string, () => Promise<any>> = {
+    reservations: resetReservations,
+    restaurants: resetRestaurants,
+    users: resetUsers,
+    all: resetAll,
+  };
+
+  if (!(what in actions)) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = "bad 'what' (use: reservations|restaurants|users|all)";
+    return;
   }
 
-  for (const p of prefixes) {
-    await deleteByPrefix(p);
+  if (!confirm && ctx.request.method === "GET") {
+    const body = `
+      <div class="card" style="max-width:680px">
+        <h2 style="margin-top:0">אישור פעולה</h2>
+        <p>האם לאפס את: <strong>${what}</strong>?</p>
+        <div class="row">
+          <a class="btn warn" href="/admin/reset?what=${encodeURIComponent(what)}&confirm=1&key=${encodeURIComponent(key)}">אשר מחיקה</a>
+          <a class="btn secondary" href="/admin/tools?key=${encodeURIComponent(key)}">ביטול</a>
+        </div>
+      </div>`;
+    ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
+    ctx.response.body = page({ title: "אישור מחיקה · Admin", body, key });
+    return;
   }
+
+  const result = await actions[what]();
+  const body = `
+    <div class="card" style="max-width:720px">
+      <h2 style="margin-top:0">הושלם</h2>
+      <p>בוצע איפוס: <strong>${what}</strong></p>
+      <pre class="code" style="white-space:pre-wrap">${JSON.stringify(result, null, 2)}</pre>
+      <div class="row" style="margin-top:10px">
+        <a class="btn" href="/admin/tools?key=${encodeURIComponent(key)}">חזרה לכלים</a>
+        <a class="btn secondary" href="/admin?key=${encodeURIComponent(key)}">חזרה לדשבורד</a>
+      </div>
+    </div>`;
+  ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
+  ctx.response.body = page({ title: "הושלם · Reset", body, key });
 }
+adminRouter.get("/admin/reset", handleReset);
+adminRouter.post("/admin/reset", handleReset);
+
+// --- אישור/ביטול מסעדה ---
+adminRouter.post("/admin/restaurants/:id/approve", async (ctx) => {
+  if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
+  const id = ctx.params.id!;
+  const r = await getRestaurant(id);
+  if (!r) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
+  await updateRestaurant(id, { approved: true });
+  const key = getAdminKey(ctx)!;
+  ctx.response.status = Status.SeeOther;
+  ctx.response.headers.set("Location", `/admin?key=${encodeURIComponent(key)}`);
+});
+
+adminRouter.post("/admin/restaurants/:id/unapprove", async (ctx) => {
+  if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
+  const id = ctx.params.id!;
+  const r = await getRestaurant(id);
+  if (!r) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
+  await updateRestaurant(id, { approved: false });
+  const key = getAdminKey(ctx)!;
+  ctx.response.status = Status.SeeOther;
+  ctx.response.headers.set("Location", `/admin?key=${encodeURIComponent(key)}`);
+});
+
+// --- הסרה מהאתר (מחיקה מלאה) ---
+adminRouter.post("/admin/restaurants/:id/delete", async (ctx) => {
+  if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
+  const id = ctx.params.id!;
+  const r = await getRestaurant(id);
+  if (!r) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
+
+  const result = await deleteRestaurantCascade(id);
+  const key = getAdminKey(ctx)!;
+
+  // אחרי מחיקה נחזור לדשבורד עם הודעה קצרה
+  const body = `
+    <div class="card" style="max-width:720px">
+      <h2 style="margin-top:0">הוסרה מהאתר</h2>
+      <p>המסעדה <strong>${r.name}</strong> נמחקה מהמערכת, כולל ההזמנות שלה.</p>
+      <pre class="code" style="white-space:pre-wrap">${JSON.stringify(result, null, 2)}</pre>
+      <div class="row" style="margin-top:10px">
+        <a class="btn" href="/admin?key=${encodeURIComponent(key)}">חזרה לדשבורד</a>
+      </div>
+    </div>`;
+  ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
+  ctx.response.body = page({ title: "הוסרה מהאתר", body, key });
+});
+
+export { adminRouter };
