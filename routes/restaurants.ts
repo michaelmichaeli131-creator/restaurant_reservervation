@@ -44,7 +44,6 @@ function wantsJSON(ctx: any) {
 export const restaurantsRouter = new Router();
 
 /**
- * דף/חיפוש מסעדות JSON (אופציונלי):
  * GET /api/restaurants?q=tel
  */
 restaurantsRouter.get("/api/restaurants", async (ctx) => {
@@ -56,9 +55,7 @@ restaurantsRouter.get("/api/restaurants", async (ctx) => {
 });
 
 /**
- * דף מסעדה
  * GET /restaurants/:id
- * מרנדר תבנית "restaurant" אם קיימת. אחרת מחזיר JSON בסיסי.
  */
 restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const id = String(ctx.params.id ?? "");
@@ -69,27 +66,20 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
     return;
   }
 
-  // אם יש מנוע תבניות — נשתמש בו
-  try {
-    await render(ctx, "restaurant", {
-      page: "restaurant",
-      title: `${restaurant.name} — GeoTable`,
-      restaurant,
-    });
-  } catch {
-    // fallback JSON
-    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify(restaurant, null, 2);
-  }
+  // רינדור תבנית (יש קובץ restaurant.eta)
+  await render(ctx, "restaurant", {
+    page: "restaurant",
+    title: `${restaurant.name} — GeoTable`,
+    restaurant,
+  });
 });
 
 /**
- * יצירת הזמנה למסעדה
  * POST /restaurants/:id/reserve
- * שדות: date (YYYY-MM-DD), time (HH:mm), people (number), note? (string)
+ * fields: date (YYYY-MM-DD), time (HH:mm), people (number), note? (string)
  */
 restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
-  const rid = String(ctx.params.id ?? ""); // מזהה תמיד מהנתיב, לא מה-body
+  const rid = String(ctx.params.id ?? ""); // מזהה תמיד מהנתיב
   if (!rid) {
     ctx.response.status = Status.BadRequest;
     ctx.response.body = "missing restaurant id";
@@ -136,7 +126,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   // בדיקת זמינות
   const avail = await checkAvailability(rid, date, time, people);
   if (!avail.ok) {
-    const payload = { ok: false, reason: avail.reason, suggestions: avail.suggestions ?? [] };
+    const payload = { ok: false, reason: avail.reason, suggestions: (avail as any).suggestions ?? [] };
     if (wantsJSON(ctx)) {
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
       ctx.response.status = Status.Conflict;
@@ -147,7 +137,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
     url.searchParams.set("conflict", "1");
     url.searchParams.set("reason", String(avail.reason));
-    if (avail.suggestions?.length) url.searchParams.set("suggest", avail.suggestions.join(","));
+    if ((avail as any).suggestions?.length) url.searchParams.set("suggest", (avail as any).suggestions.join(","));
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", url.pathname + url.search);
     return;
@@ -183,7 +173,6 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
 });
 
 /**
- * (אופציונלי) בדיקת זמינות API:
  * POST /api/restaurants/:id/check
  * body: { date, time, people }
  */

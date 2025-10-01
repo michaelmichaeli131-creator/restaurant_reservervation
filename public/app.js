@@ -1,67 +1,77 @@
-(() => {
-  // --------- Hard navigation for internal links ---------
-  // כל לינק שיש עליו data-hard-nav יגרום לטעינה מלאה של הדף ב-window.location.assign
-  document.addEventListener("click", (e) => {
-    const a = e.target.closest('a[data-hard-nav="true"]');
-    if (!a) return;
+// /public/app.js
+(function () {
+  // --- Autocomplete for #q ---
+  const q = document.getElementById("q");
+  const ac = document.getElementById("ac-list");
 
-    // רק קליק שמאלי בלי מקשים מיוחדים
-    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-
-    try {
-      // אל תבטל את ברירת המחדל — פשוט תכריח ניווט לפני שכל קוד אחר יתערב
-      // (זה מנצח כמעט כל preventDefault צד שלישי)
-      window.location.assign(a.href);
-    } catch (_) {
-      // fallback
-      window.location.href = a.getAttribute("href");
-    }
-  }, { capture: true });
-
-  // --------- Autocomplete (כמו שהיה) ---------
-  const input = document.getElementById("searchInput");
-  const box = document.getElementById("suggestions");
-  if (!input || !box) return;
-
+  function clearAC() { if (ac) ac.innerHTML = ""; }
+  function renderAC(items) {
+    if (!ac) return;
+    if (!items || items.length === 0) { clearAC(); return; }
+    const panel = document.createElement("div");
+    panel.className = "panel";
+    items.slice(0, 8).forEach(r => {
+      const div = document.createElement("div");
+      div.className = "ac-item";
+      div.innerHTML = `<strong>${escapeHtml(r.name)}</strong><br><small class="muted">${escapeHtml(r.city)} · ${escapeHtml(r.address)}</small>`;
+      div.addEventListener("click", () => { window.location.href = `/restaurants/${r.id}`; });
+      panel.appendChild(div);
+    });
+    ac.innerHTML = "";
+    ac.appendChild(panel);
+  }
+  function escapeHtml(s){return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")}
   let timer = null;
-  const fetchSuggest = async (q) => {
-    if (!q || q.trim().length < 1) { box.hidden = true; box.innerHTML = ""; return; }
-    try {
-      const res = await fetch(`/api/restaurants/search?query=${encodeURIComponent(q)}`, { cache: "no-store" });
-      if (!res.ok) throw new Error("bad status");
-      const { items } = await res.json();
-      if (!Array.isArray(items) || items.length === 0) { box.hidden = true; box.innerHTML = ""; return; }
-      box.innerHTML = items.map(it =>
-        `<div class="suggestion" data-id="${it.id}">
-          <strong>${escapeHtml(it.name)}</strong>
-          <span class="muted">${escapeHtml(it.city)} · ${escapeHtml(it.address || "")}</span>
-        </div>`
-      ).join("");
-      box.hidden = false;
-    } catch {
-      box.hidden = true; box.innerHTML = "";
-    }
-  };
+  if (q) {
+    q.addEventListener("input", () => {
+      const val = q.value.trim();
+      if (!val) { clearAC(); return; }
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/restaurants?q=${encodeURIComponent(val)}`);
+          if (!res.ok) throw new Error("bad status");
+          const items = await res.json();
+          renderAC(items);
+        } catch {
+          clearAC();
+        }
+      }, 180);
+    });
+    document.addEventListener("click", (e) => {
+      if (!ac.contains(e.target) && e.target !== q) clearAC();
+    });
+  }
 
-  input.addEventListener("input", () => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fetchSuggest(input.value), 150);
-  });
-
-  document.addEventListener("click", (e) => {
-    if (!box.contains(e.target) && e.target !== input) {
-      box.hidden = true;
-    }
-  });
-
-  box.addEventListener("click", (e) => {
-    const el = e.target.closest(".suggestion");
-    if (!el) return;
-    const id = el.getAttribute("data-id");
-    if (id) window.location.assign(`/restaurants/${id}`);
-  });
-
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  // --- Reservation check button (AJAX) ---
+  const checkBtn = document.getElementById("check-btn");
+  const form = document.getElementById("reserve-form");
+  const result = document.getElementById("reserve-result");
+  async function post(url, data) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify(data),
+    });
+    const json = await res.json().catch(() => ({}));
+    return { ok: res.ok, json };
+  }
+  if (checkBtn && form && result) {
+    checkBtn.addEventListener("click", async () => {
+      const rid = checkBtn.dataset.rid;
+      const date = form.querySelector('input[name="date"]').value;
+      const time = form.querySelector('input[name="time"]').value;
+      const people = form.querySelector('input[name="people"]').value;
+      if (!rid || !date || !time || !people) { result.textContent = "נא למלא את כל השדות"; return; }
+      const { ok, json } = await post(`/api/restaurants/${encodeURIComponent(rid)}/check`, { date, time, people: Number(people) });
+      if (ok && json.ok) {
+        result.textContent = "זמין! ניתן להגיש את הטופס להזמנה.";
+        result.classList.remove("warn");
+      } else {
+        result.classList.add("warn");
+        result.innerHTML = `לא זמין. ${json.reason === "full" ? "מלא בתאריך/שעה זו." : "שגיאה."} ` +
+          (json.suggestions?.length ? `הצעות: ${json.suggestions.join(", ")}` : "");
+      }
+    });
   }
 })();

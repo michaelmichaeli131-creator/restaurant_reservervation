@@ -1,0 +1,65 @@
+<% layout("_layout", it) %>
+<% const r = it.restaurant; %>
+
+<section class="card">
+  <div class="row" style="justify-content:space-between; align-items:flex-start">
+    <div>
+      <h1 style="margin:0"><%= r.name %></h1>
+      <div class="muted"><%= r.city %> · <%= r.address %> <% if (r.phone) { %>· טל׳ <%= r.phone %><% } %></div>
+      <% if (!r.approved) { %><div class="badge warn" style="margin-top:8px">ממתינה לאישור</div><% } %>
+    </div>
+    <div class="muted">
+      קיבולת: <%= r.capacity %> · סלוט: <%= r.slotIntervalMinutes %> ד' · שירות: <%= r.serviceDurationMinutes %> ד'
+    </div>
+  </div>
+
+  <% if (r.photos && r.photos.length) { %>
+    <div class="grid photos">
+      <% r.photos.forEach(src => { %>
+        <img class="photo" src="<%= src %>" alt="תמונה"/>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+
+<section class="card">
+  <h2 style="margin-top:0">בצע/י הזמנה</h2>
+  <form id="reserve-form" class="grid2" method="post" action="/restaurants/<%= r.id %>/reserve">
+    <input type="hidden" name="rid" value="<%= r.id %>"/>
+    <label>
+      <span>תאריך</span>
+      <input name="date" type="date" required/>
+    </label>
+    <label>
+      <span>שעה</span>
+      <input name="time" type="time" step="900" required/>
+    </label>
+    <label>
+      <span>מס׳ סועדים</span>
+      <input name="people" type="number" min="1" max="30" value="2" required/>
+    </label>
+    <label class="col-span-2">
+      <span>הערה (לא חובה)</span>
+      <input name="note" type="text" maxlength="200" placeholder="רגישות, העדפות, וכו׳"/>
+    </label>
+    <div class="row col-span-2">
+      <button class="btn" type="submit">בדיקת זמינות והזמנה</button>
+      <button class="btn secondary" id="check-btn" data-rid="<%= r.id %>" type="button">בדיקת זמינות</button>
+    </div>
+    <div id="reserve-result" class="muted col-span-2"></div>
+  </form>
+</section>
+
+<% if (r.menu && r.menu.length) { %>
+<section class="card">
+  <h2 style="margin-top:0">תפריט</h2>
+  <ul class="list">
+    <% r.menu.forEach(i => { %>
+      <li class="list-row">
+        <div class="grow"><%= i.name %><% if (i.desc) { %> · <span class="muted"><%= i.desc %></span><% } %></div>
+        <% if (typeof i.price === "number") { %><div><%= i.price.toFixed(0) %> ₪</div><% } %>
+      </li>
+    <% }) %>
+  </ul>
+</section>
+<% } %>

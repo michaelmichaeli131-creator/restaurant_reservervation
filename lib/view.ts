@@ -92,7 +92,7 @@ export async function render(
       `[view ${reqId}] render failed for template="${template}" (views="${VIEWS_DIR}") → fallback. Error:`,
       err?.name ?? err,
     );
-    // במקרה EtaFileResolution Error עדיף לא לזרוק הלאה כדי לא להפיל את הבקשה
+    // לא מפילים את הבקשה – מחזירים fallback HTML
     ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
     ctx.response.body = fallbackHtml(String(data?.title ?? template), data);
   }

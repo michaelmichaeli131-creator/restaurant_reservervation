@@ -1,50 +1,35 @@
-<!-- src/templates/index.eta -->
-<section class="hero">
-  <h1>חיפוש מסעדות</h1>
+<% layout("_layout", it) %>
+<% const q = it.q || ""; %>
 
-  <form id="searchForm" method="get" action="/" class="search">
-    <input id="q" name="q" placeholder="שם/עיר/כתובת" value="<%= it.q||'' %>" list="suggest" autocomplete="off"/>
-    <datalist id="suggest"></datalist>
-    <button type="submit" class="btn">חיפוש</button>
+<section class="card">
+  <h1 style="margin-top:0">מצא/י מסעדה</h1>
+  <form class="row" method="get" action="/">
+    <input id="q" name="q" type="text" placeholder="שם מסעדה / עיר / כתובת" value="<%= q %>" autocomplete="off"/>
+    <input type="hidden" name="search" value="1"/>
+    <button class="btn" type="submit">חפש/י</button>
   </form>
+  <div id="ac-list" class="ac-list"></div>
 </section>
 
-<section>
-  <% if (it.search && it.restaurants && it.restaurants.length) { %>
-    <ul class="cards">
-      <% it.restaurants.forEach((r)=>{ %>
-        <li class="card">
-          <div class="card-title">
-            <a href="/restaurants/<%= r.id %>"><%= r.name %></a>
-          </div>
-          <div class="muted"><%= r.city %> · <%= r.address %></div>
-          <% if (r.photos && r.photos.length) { %>
-            <div class="thumbs">
-              <% r.photos.slice(0,3).forEach((p)=>{ %>
-                <img class="thumb" src="<%= p %>" alt="<%= r.name %>" loading="lazy"/>
-              <% }) %>
+<% if (it.search === "1") { %>
+  <section class="card">
+    <h2 style="margin-top:0">תוצאות</h2>
+    <% if (!it.restaurants || it.restaurants.length === 0) { %>
+      <p class="muted">לא נמצאו תוצאות.</p>
+    <% } else { %>
+      <ul class="list">
+        <% it.restaurants.forEach(r => { %>
+          <li class="list-row">
+            <div class="grow">
+              <div class="title"><a href="/restaurants/<%= r.id %>"><%= r.name %></a></div>
+              <div class="muted"><%= r.city %> · <%= r.address %></div>
             </div>
-          <% } %>
-        </li>
-      <% }) %>
-    </ul>
-  <% } else if (it.search) { %>
-    <p class="muted">לא נמצאו תוצאות לחיפוש.</p>
-  <% } %>
-</section>
-
-<script>
-const q = document.getElementById('q');
-const dl = document.getElementById('suggest');
-let last = '';
-q.addEventListener('input', async () => {
-  const v = q.value.trim();
-  if (v.length < 1 || v === last) return;
-  last = v;
-  try {
-    const r = await fetch('/api/restaurants/suggest?q=' + encodeURIComponent(v));
-    const items = await r.json();
-    dl.innerHTML = items.map(it => `<option value="${it.name} (${it.city})">`).join('');
-  } catch (e) {}
-});
-</script>
+            <% if (!r.approved) { %><span class="badge warn">ממתינה לאישור</span><% } %>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </section>
+<% } else { %>
+  <p class="muted">טיפ: התחל/י להקליד כדי לקבל הצעות (אוטוקומפליט).</p>
+<% } %>
