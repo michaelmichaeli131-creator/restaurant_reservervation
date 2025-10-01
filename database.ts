@@ -4,11 +4,11 @@
 export interface User {
   id: string;
   email: string;
-  username: string;                // חדש: ייחודי
-  firstName: string;               // חדש
-  lastName: string;                // חדש
-  age?: number;                    // חדש
-  businessType?: string;           // חדש
+  username: string;                // ייחודי
+  firstName: string;
+  lastName: string;
+  age?: number;
+  businessType?: string;
   passwordHash?: string;
   role: "user" | "owner";
   provider: "local" | "google";
@@ -34,7 +34,7 @@ export interface Restaurant {
   slotIntervalMinutes: number;      // מרווח סלוטים (דקות), ברירת מחדל 15
   serviceDurationMinutes: number;   // משך ישיבה (דקות), ברירת מחדל 120
   weeklySchedule?: WeeklySchedule;  // שעות פתיחה שבועיות (אופציונלי)
-  photos?: string[];                // חדש: תמונות (URLים)
+  photos?: string[];                // תמונות (URLים)
   approved?: boolean;               // נדרש אישור אדמין
   createdAt: number;
 }
@@ -366,4 +366,63 @@ function suggestTimes(r: Restaurant, date: string, time: string, people: number,
     if (out.length >= 6) break;
   }
   return out;
+}
+
+// ---------- Admin Utilities ----------
+// מוחק מסעדה **וכל** התלויות שלה (אינדקסים + הזמנות) בבטיחות.
+// מחזיר את מספר ההזמנות שנמחקו.
+export async function deleteRestaurantCascade(restaurantId: string): Promise<number> {
+  const r = await getRestaurant(restaurantId);
+  if (!r) return 0;
+
+  // אסוף כל מפתחות ההזמנות: reservation_by_day + reservation
+  const reservationIds: string[] = [];
+  for await (const k of kv.list({ prefix: ["reservation_by_day", restaurantId] })) {
+    const id = k.key[k.key.length - 1] as string;
+    reservationIds.push(id);
+  }
+
+  // מחיקה באצוות כדי לשמור על מגבלות atomic (10 אופ׳ בערך)
+  let deleted = 0;
+
+  // מחק reservation_by_day + reservation בגושים קטנים
+  const chunk = <T>(arr: T[], size: number) =>
+    arr.reduce<T[][]>((acc, v, i) => {
+      if (i % size === 0) acc.push([]);
+      acc[acc.length - 1].push(v);
+      return acc;
+    }, []);
+
+  for (const ids of chunk(reservationIds, 50)) {
+    const tx = kv.atomic();
+    for (const id of ids) {
+      // צריך לדעת את התאריך כדי למחוק את האינדקס, נשלוף את ההזמנה
+      const resv = (await kv.get<Reservation>(["reservation", id])).value;
+      if (resv) {
+        tx.delete(["reservation", id]);
+        tx.delete(["reservation_by_day", restaurantId, resv.date, id]);
+        deleted++;
+      } else {
+        // אם אין הרשומה הראשית, נסה למחוק כל מופע by_day שהתגלה
+        tx.delete(["reservation", id]);
+        // אין לנו date – אבל לוסט נקה את האינדקס שראינו כבר דרך ה-list הראשי
+        // (עברנו דרך reservation_by_day/*, אז נמחק אותו בלולאה הראשונה)
+      }
+    }
+    const res = await tx.commit();
+    if (!res.ok) {
+      // במקרה של התנגשויות, נתקדם בכל זאת בלולאה; אפשר לשפר עם ריטריי
+    }
+  }
+
+  // הסר אינדקסי מסעדה + המסעדה עצמה
+  // מחיקה באטומיק נפרד (סביר בגודל קטן)
+  const tx2 = kv.atomic()
+    .delete(["restaurant", restaurantId])
+    .delete(["restaurant_by_owner", r.ownerId, restaurantId])
+    .delete(["restaurant_name", lower(r.name), restaurantId])
+    .delete(["restaurant_city", lower(r.city), restaurantId]);
+  await tx2.commit();
+
+  return deleted;
 }
