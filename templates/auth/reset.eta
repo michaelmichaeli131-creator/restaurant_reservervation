@@ -1,0 +1,14 @@
+<% layout("_layout", it) %>
+<section class="card" style="max-width:520px">
+  <h1 style="margin-top:0">איפוס סיסמה</h1>
+  <% if (it.error) { %><p class="badge warn"><%= it.error %></p><% } %>
+  <form method="post" action="/auth/reset">
+    <input type="hidden" name="token" value="<%= it.token || '' %>"/>
+    <label><span>סיסמה חדשה</span><input type="password" name="password" required/></label>
+    <label><span>אימות סיסמה</span><input type="password" name="confirm" required/></label>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" type="submit">שמור</button>
+      <a class="btn secondary" href="/auth/login">ביטול</a>
+    </div>
+  </form>
+</section>

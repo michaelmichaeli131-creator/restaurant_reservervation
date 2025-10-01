@@ -5,7 +5,7 @@ import { Eta } from "npm:eta@3.5.0";
 import type { Context } from "jsr:@oak/oak";
 
 // תצורה בסיסית – תיקיית התבניות
-const VIEWS_DIR = "/src/templates";
+const VIEWS_DIR = "/templates";
 
 // יצירת מופע Eta עם קונפיגורציה
 const eta = new Eta({
@@ -49,7 +49,7 @@ function fallbackHtml(title: string, data: Record<string, unknown>) {
 }
 
 function escapeHtml(s: string) {
-  return s
+  return String(s)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -67,20 +67,25 @@ export async function render(
   template: string,
   data: Record<string, unknown> = {},
 ): Promise<void> {
-  // אם הלקוח ביקש JSON מפורשות – נכבד זאת
-  if (wantsJSON(ctx)) {
-    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify(data, null, 2);
-    return;
-  }
-
   try {
-    const html = await eta.renderAsync(template, data);
+    // מעשיר את הנתונים עם user במידה ויש (לטובת layout)
+    const user = (ctx.state as any)?.user ?? null;
+    const payload = { ...data, user };
+
+    if (wantsJSON(ctx)) {
+      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+      ctx.response.body = JSON.stringify(payload, null, 2);
+      return;
+    }
+
+    // ניסיון רינדור התבנית
+    const html = await eta.renderAsync(template, payload);
     if (typeof html === "string") {
       ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
       ctx.response.body = html;
       return;
     }
+
     // מקרה קצה: renderAsync החזירה undefined (למשל include בלבד)
     console.warn(`[view] template "${template}" rendered empty, using fallback`);
     ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");

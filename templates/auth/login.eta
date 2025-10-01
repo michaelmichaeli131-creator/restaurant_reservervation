@@ -1,0 +1,13 @@
+<% layout("_layout", it) %>
+<section class="card" style="max-width:520px">
+  <h1 style="margin-top:0">התחברות</h1>
+  <% if (it.error) { %><p class="badge warn"><%= it.error %></p><% } %>
+  <form method="post" action="/auth/login">
+    <label><span>דוא״ל</span><input type="email" name="email" required/></label>
+    <label><span>סיסמה</span><input type="password" name="password" required/></label>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" type="submit">כניסה</button>
+      <a class="btn secondary" href="/auth/forgot">שכחתי סיסמה</a>
+    </div>
+  </form>
+</section>

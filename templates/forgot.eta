@@ -1,9 +1,0 @@
-<!-- src/templates/forgot.eta -->
-<h1>שחזור סיסמה</h1>
-
-<form method="post" action="/forgot" class="form">
-  <label>דואר אלקטרוני
-    <input type="email" name="email" required />
-  </label>
-  <button class="btn" type="submit">שלח קישור איפוס</button>
-</form>

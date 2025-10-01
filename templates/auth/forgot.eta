@@ -1,0 +1,19 @@
+<% layout("_layout", it) %>
+<section class="card" style="max-width:720px">
+  <h1 style="margin-top:0">הרשמה</h1>
+  <% if (it.error) { %><p class="badge warn"><%= it.error %></p><% } %>
+  <form method="post" action="/auth/register" class="grid2">
+    <label><span>שם</span><input name="firstName" required/></label>
+    <label><span>שם משפחה</span><input name="lastName" required/></label>
+    <label><span>גיל</span><input name="age" type="number" min="0" max="120"/></label>
+    <label><span>סוג העסק</span><input name="businessType" placeholder="מסעדה / קפה / בר"/></label>
+    <label class="col-span-2"><span>דוא״ל</span><input name="email" type="email" required/></label>
+    <label class="col-span-2"><span>שם משתמש (אופציונלי)</span><input name="username" placeholder="ברירת מחדל מהדוא״ל"/></label>
+    <label><span>סיסמה</span><input name="password" type="password" required/></label>
+    <label><span>אימות סיסמה</span><input name="confirm" type="password" required/></label>
+    <div class="col-span-2 row" style="margin-top:10px">
+      <button class="btn" type="submit">הרשמה</button>
+      <a class="btn secondary" href="/auth/login">כבר רשומים? התחברות</a>
+    </div>
+  </form>
+</section>

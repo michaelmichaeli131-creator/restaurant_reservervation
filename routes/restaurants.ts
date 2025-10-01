@@ -9,6 +9,39 @@ import {
 } from "../database.ts";
 import { render } from "../lib/view.ts";
 
+// ---------- Utils ----------
+function pad2(n: number) { return n.toString().padStart(2, "0"); }
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+}
+function nextQuarterHour(): string {
+  const d = new Date();
+  const mins = d.getMinutes();
+  const add = 15 - (mins % 15 || 15);
+  d.setMinutes(mins + add, 0, 0);
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+// קולט גם YYYY-MM-DD וגם DD/MM/YYYY; אם ריק מחזיר היום
+function normalizeDate(input: unknown): string {
+  const s = String(input ?? "").trim();
+  if (!s) return todayISO();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) {
+    const dd = m[1], mm = m[2], yyyy = m[3];
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  return s; // ייתפס בוולידציה בהמשך אם לא תקין
+}
+function normalizeTime(input: unknown): string {
+  const s = String(input ?? "").trim();
+  if (!s) return nextQuarterHour();
+  // תומך גם ב-HH.mm
+  const s2 = /^\d{2}\.\d{2}$/.test(s) ? s.replace(".", ":") : s;
+  return s2;
+}
+
 // ---------- Body Reader (robust across Oak versions) ----------
 async function readBody(ctx: any): Promise<Record<string, unknown>> {
   const ct = ctx.request.headers.get("content-type") ?? "";
@@ -41,9 +74,7 @@ async function readBody(ctx: any): Promise<Record<string, unknown>> {
         ? await (native as any).text()
         : "";
       return txt ? JSON.parse(txt) : {};
-    } catch {
-      return {};
-    }
+    } catch { return {}; }
   }
 
   if (ct.includes("application/x-www-form-urlencoded") || ct.includes("multipart/form-data")) {
@@ -117,7 +148,7 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
 
 /** יצירת הזמנה
  * POST /restaurants/:id/reserve
- * body: { date: YYYY-MM-DD, time: HH:mm, people: number, note?: string }
+ * body: { date: YYYY-MM-DD | DD/MM/YYYY, time: HH:mm | HH.mm, people: number, note?: string }
  */
 restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
@@ -128,8 +159,8 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   }
 
   const body = await readBody(ctx);
-  const date = String(body.date ?? "");
-  const time = String(body.time ?? "");
+  const date = normalizeDate(body.date);
+  const time = normalizeTime(body.time);
   const peopleRaw = body.people;
   const note = typeof body.note === "string" ? body.note.trim() : undefined;
 
@@ -219,11 +250,10 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
 restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const body = await readBody(ctx);
-  const date = String(body.date ?? "");
-  const time = String(body.time ?? "");
+  const date = normalizeDate(body.date);
+  const time = normalizeTime(body.time);
   const people = Number(String(body.people ?? ""));
 
-  // ולידציה כמו ב-/reserve כדי למנוע חריגות ב-DB
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     ctx.response.status = Status.BadRequest;
     ctx.response.body = "bad date (YYYY-MM-DD expected)";
