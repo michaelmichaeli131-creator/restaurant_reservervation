@@ -35,28 +35,27 @@ function normalizeTime(input: unknown): string {
   if (!s) return nextQuarterHour();
   return /^\d{2}\.\d{2}$/.test(s) ? s.replace(".", ":") : s;
 }
-function toInt(input: unknown): number | null {
+function toIntLoose(input: unknown): number | null {
   if (typeof input === "number" && Number.isFinite(input)) return Math.trunc(input);
+  if (typeof input === "bigint") return Number(input);
+  if (typeof input === "boolean") return input ? 1 : 0;
   const s = String(input ?? "").trim();
   if (!s) return null;
-  const n = Number(s);
-  if (Number.isFinite(n)) return Math.trunc(n);
-  const onlyDigits = Number(s.replace(/[^\d]/g, ""));
-  return Number.isFinite(onlyDigits) ? Math.trunc(onlyDigits) : null;
+  if (/^\d+$/.test(s)) return Math.trunc(Number(s));
+  const onlyDigits = s.replace(/[^\d]/g, "");
+  return onlyDigits ? Math.trunc(Number(onlyDigits)) : null;
 }
 
-// ---------- Body Reader (חסין: JSON / form / querystring) ----------
-async function readBody(ctx: any): Promise<Record<string, unknown>> {
+// ---------- Body Reader (JSON / form / text / querystring) ----------
+async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const ct = ctx.request.headers.get("content-type") ?? "";
   const reqAny: any = ctx.request as any;
   const native: Request | undefined = reqAny.originalRequest ?? undefined;
 
-  const dbgId = (ctx.state?.reqId ?? crypto.randomUUID().slice(0,8)) as string;
-  const dbg = (msg: string, obj?: unknown) => {
-    try {
-      console.log(`[RESV ${dbgId}] ${msg}${obj !== undefined ? " :: " + JSON.stringify(obj) : ""}`);
-    } catch { console.log(`[RESV ${dbgId}] ${msg}`); }
-  };
+  const dbg: Record<string, unknown> = { ct, phases: [] as any[] };
+  function logPhase(name: string, data: unknown) {
+    try { (dbg.phases as any[]).push({ name, data }); } catch {}
+  }
 
   const fromForm = (form: FormData | URLSearchParams) => {
     const o: Record<string, unknown> = {};
@@ -65,23 +64,21 @@ async function readBody(ctx: any): Promise<Record<string, unknown>> {
     return o;
   };
 
-  dbg("incoming content-type", { ct });
-
   // 1) JSON
   if (ct.includes("application/json")) {
     if (typeof reqAny.body === "function") {
       try {
         const v = await reqAny.body({ type: "json" }).value;
-        dbg("parsed json via oak", v);
-        if (v && typeof v === "object") return v;
-      } catch (e) { dbg("json via oak failed", String(e)); }
+        logPhase("oak.json", v);
+        if (v && typeof v === "object") return { payload: v, dbg };
+      } catch (e) { logPhase("oak.json.error", String(e)); }
     }
     if (native && (native as any).json) {
       try {
         const v = await (native as any).json();
-        dbg("parsed json via native", v);
-        if (v && typeof v === "object") return v;
-      } catch (e) { dbg("json via native failed", String(e)); }
+        logPhase("native.json", v);
+        if (v && typeof v === "object") return { payload: v, dbg };
+      } catch (e) { logPhase("native.json.error", String(e)); }
     }
   }
 
@@ -91,34 +88,34 @@ async function readBody(ctx: any): Promise<Record<string, unknown>> {
       try {
         const v = await reqAny.body({ type: "form" }).value;
         const o = fromForm(v as URLSearchParams);
-        dbg("parsed form via oak", o);
-        return o;
-      } catch (e) { dbg("form via oak failed", String(e)); }
+        logPhase("oak.form", o);
+        return { payload: o, dbg };
+      } catch (e) { logPhase("oak.form.error", String(e)); }
     }
     if (native && (native as any).formData) {
       try {
         const fd = await (native as any).formData();
         const o = fromForm(fd);
-        dbg("parsed form via native", o);
-        return o;
-      } catch (e) { dbg("form via native failed", String(e)); }
+        logPhase("native.formData", o);
+        return { payload: o, dbg };
+      } catch (e) { logPhase("native.formData.error", String(e)); }
     }
   } else if (ct.includes("multipart/form-data")) {
     if (typeof reqAny.body === "function") {
       try {
         const v = await reqAny.body({ type: "form-data" }).value;
         const o = fromForm(v as FormData);
-        dbg("parsed multipart via oak", o);
-        return o;
-      } catch (e) { dbg("multipart via oak failed", String(e)); }
+        logPhase("oak.form-data", o);
+        return { payload: o, dbg };
+      } catch (e) { logPhase("oak.form-data.error", String(e)); }
     }
     if (native && (native as any).formData) {
       try {
         const fd = await (native as any).formData();
         const o = fromForm(fd);
-        dbg("parsed multipart via native", o);
-        return o;
-      } catch (e) { dbg("multipart via native failed", String(e)); }
+        logPhase("native.formData", o);
+        return { payload: o, dbg };
+      } catch (e) { logPhase("native.formData.error", String(e)); }
     }
   }
 
@@ -126,22 +123,22 @@ async function readBody(ctx: any): Promise<Record<string, unknown>> {
   if (typeof reqAny.body === "function") {
     try {
       const t = await reqAny.body({ type: "text" }).value;
-      dbg("raw text via oak", t);
-      if (t) { try { const j = JSON.parse(t); dbg("text->json ok", j); return j; } catch {} }
-    } catch (e) { dbg("text via oak failed", String(e)); }
+      logPhase("oak.text", t);
+      if (t) { try { const j = JSON.parse(t); logPhase("oak.text->json", j); return { payload: j, dbg }; } catch {} }
+    } catch (e) { logPhase("oak.text.error", String(e)); }
   }
   if (native && (native as any).text) {
     try {
       const t = await (native as any).text();
-      dbg("raw text via native", t);
-      if (t) { try { const j = JSON.parse(t); dbg("native text->json ok", j); return j; } catch {} }
-    } catch (e) { dbg("text via native failed", String(e)); }
+      logPhase("native.text", t);
+      if (t) { try { const j = JSON.parse(t); logPhase("native.text->json", j); return { payload: j, dbg }; } catch {} }
+    } catch (e) { logPhase("native.text.error", String(e)); }
   }
 
   // 4) fallback: querystring
   const qs = Object.fromEntries(ctx.request.url.searchParams);
-  dbg("fallback querystring", qs);
-  return qs;
+  logPhase("querystring", qs);
+  return { payload: qs, dbg };
 }
 
 function wantsJSON(ctx: any) {
@@ -193,29 +190,39 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "restaurant not found"; return; }
   const maxPeople = Math.max(1, Math.min(30, restaurant.capacity || 30));
 
-  const body = await readBody(ctx);
-  const date = normalizeDate((body as any).date);
-  const time = normalizeTime((body as any).time);
-  const people = toInt((body as any).people ?? (body as any).guests ?? (body as any).num);
+  const { payload, dbg } = await readBody(ctx);
 
-  console.log(`[RESV ${reqId}] /reserve input`, { rid, date, time, people, maxPeople });
+  // קח גם alias נפוצים, וגם headers (למקרה של פרוקסי/שכתוב)
+  const date = normalizeDate((payload as any).date ?? ctx.request.url.searchParams.get("date"));
+  const time = normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time"));
+  const peopleRaw =
+    (payload as any).people ??
+    (payload as any).guests ??
+    (payload as any).num ??
+    ctx.request.url.searchParams.get("people") ??
+    ctx.request.headers.get("x-people");
+  const people = toIntLoose(peopleRaw);
 
-  // ולידציה — גם תשובת JSON עם פרטים (אם הדפדפן ביקש JSON)
+  console.log(`[RESV ${reqId}] /reserve rawBody`, dbg);
+  console.log(`[RESV ${reqId}] /reserve input`, { rid, date, time, people, peopleRaw, maxPeople });
+
   const respondBad = (msg: string) => {
     console.warn(`[RESV ${reqId}] BAD: ${msg}`);
+    const body = { ok: false, error: msg, debug: { rid, date, time, people, peopleRaw, dbg } };
     if (wantsJSON(ctx)) {
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
       ctx.response.status = Status.BadRequest;
-      ctx.response.body = JSON.stringify({ ok: false, error: msg, debug: { rid, date, time, people } }, null, 2);
+      ctx.response.body = JSON.stringify(body, null, 2);
     } else {
       ctx.response.status = Status.BadRequest;
-      ctx.response.body = msg;
+      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+      ctx.response.body = JSON.stringify(body, null, 2);
     }
   };
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { return respondBad("bad date (YYYY-MM-DD expected)"); }
-  if (!/^\d{2}:\d{2}$/.test(time)) { return respondBad("bad time (HH:mm expected)"); }
-  if (people == null || people < 1 || people > maxPeople) { return respondBad(`bad people (1..${maxPeople})`); }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return respondBad("bad date (YYYY-MM-DD expected)");
+  if (!/^\d{2}:\d{2}$/.test(time)) return respondBad("bad time (HH:mm expected)");
+  if (people == null || people < 1 || people > maxPeople) return respondBad(`bad people (1..${maxPeople})`);
 
   const avail = await checkAvailability(rid, date, time, people);
   console.log(`[RESV ${reqId}] availability`, avail);
@@ -228,7 +235,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     url.searchParams.set("date", date);
     url.searchParams.set("time", time);
     url.searchParams.set("people", String(people));
-    ctx.response.status = Status.SeeOther; // 303 → דפדפן יעבור ל-GET. :contentReference[oaicite:1]{index=1}
+    ctx.response.status = Status.SeeOther; // 303
     ctx.response.headers.set("Location", url.pathname + url.search);
     return;
   }
@@ -247,19 +254,9 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   };
   await createReservation(reservation);
 
-  if (wantsJSON(ctx)) {
-    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok: true, reservation }, null, 2);
-    return;
-  }
-
-  const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
-  url.searchParams.set("ok", "1");
-  url.searchParams.set("date", date);
-  url.searchParams.set("time", time);
-  url.searchParams.set("people", String(people));
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", url.pathname + url.search);
+  // תמיד נחזיר JSON (גם ללא Accept), כדי שהלקוח יראה שגיאות/הצלחה מפורטות בזמן דיבוג
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = JSON.stringify({ ok: true, reservation }, null, 2);
 });
 
 /** API: בדיקת זמינות (AJAX) */
@@ -270,19 +267,25 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "restaurant not found"; return; }
   const maxPeople = Math.max(1, Math.min(30, restaurant.capacity || 30));
 
-  const body = await readBody(ctx);
-  const date = normalizeDate((body as any).date);
-  const time = normalizeTime((body as any).time);
-  const people = toInt((body as any).people ?? (body as any).guests ?? (body as any).num);
+  const { payload, dbg } = await readBody(ctx);
+  const date = normalizeDate((payload as any).date ?? ctx.request.url.searchParams.get("date"));
+  const time = normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time"));
+  const peopleRaw =
+    (payload as any).people ??
+    (payload as any).guests ??
+    (payload as any).num ??
+    ctx.request.url.searchParams.get("people") ??
+    ctx.request.headers.get("x-people");
+  const people = toIntLoose(peopleRaw);
 
-  console.log(`[RESV ${reqId}] /check input`, { rid, date, time, people, maxPeople });
+  console.log(`[RESV ${reqId}] /check rawBody`, dbg);
+  console.log(`[RESV ${reqId}] /check input`, { rid, date, time, people, peopleRaw, maxPeople });
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { ctx.response.status = Status.BadRequest; ctx.response.body = JSON.stringify({ ok:false, error:"bad date (YYYY-MM-DD expected)" }); return; }
-  if (!/^\d{2}:\d{2}$/.test(time)) { ctx.response.status = Status.BadRequest; ctx.response.body = JSON.stringify({ ok:false, error:"bad time (HH:mm expected)" }); return; }
-  if (people == null || people < 1 || people > maxPeople) { ctx.response.status = Status.BadRequest; ctx.response.body = JSON.stringify({ ok:false, error:`bad people (1..${maxPeople})` }); return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { ctx.response.status = Status.BadRequest; ctx.response.body = JSON.stringify({ ok:false, error:"bad date (YYYY-MM-DD expected)", dbg }, null, 2); return; }
+  if (!/^\d{2}:\d{2}$/.test(time)) { ctx.response.status = Status.BadRequest; ctx.response.body = JSON.stringify({ ok:false, error:"bad time (HH:mm expected)", dbg }, null, 2); return; }
+  if (people == null || people < 1 || people > maxPeople) { ctx.response.status = Status.BadRequest; ctx.response.body = JSON.stringify({ ok:false, error:`bad people (1..${maxPeople})`, dbg }, null, 2); return; }
 
   const result = await checkAvailability(rid, date, time, people);
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = JSON.stringify(result, null, 2);
 });
-
