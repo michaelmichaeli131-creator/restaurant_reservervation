@@ -461,3 +461,47 @@ export async function resetAll(): Promise<void> {
     await deleteByPrefix(p);
   }
 }
+
+// איפוס **רק ההזמנות** – מוחק כל Reservation וכל אינדקסי reservation_by_day.
+// מחזיר את מספר ההזמנות שנמחקו.
+export async function resetReservations(): Promise<number> {
+  // אסוף את כל מזהי ההזמנות
+  const ids: string[] = [];
+  for await (const row of kv.list({ prefix: ["reservation"] })) {
+    const id = row.key[row.key.length - 1] as string;
+    ids.push(id);
+  }
+
+  // נבנה מפה: restaurantId -> Set<date -> ids[]> כדי למחוק גם אינדקסי by_day
+  const byDayKeys: Array<Deno.KvKey> = [];
+  for await (const row of kv.list({ prefix: ["reservation_by_day"] })) {
+    byDayKeys.push(row.key);
+  }
+
+  // מחיקה באצוות
+  const chunk = <T>(arr: T[], size: number) =>
+    arr.reduce<T[][]>((acc, v, i) => {
+      if (i % size === 0) acc.push([]);
+      acc[acc.length - 1].push(v);
+      return acc;
+    }, []);
+
+  let deleted = 0;
+
+  for (const group of chunk(ids, 100)) {
+    const tx = kv.atomic();
+    for (const id of group) {
+      tx.delete(["reservation", id]);
+      deleted++;
+    }
+    await tx.commit().catch(() => {});
+  }
+
+  for (const group of chunk(byDayKeys, 100)) {
+    const tx = kv.atomic();
+    for (const key of group) tx.delete(key);
+    await tx.commit().catch(() => {});
+  }
+
+  return deleted;
+}
