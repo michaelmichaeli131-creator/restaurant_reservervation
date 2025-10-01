@@ -29,43 +29,23 @@
 
       <div class="form-row">
         <label for="date">תאריך</label>
-        <input id="date"
-               name="date"
-               type="date"
-               required
-               value="<%= it.date || '' %>" />
+        <input id="date" name="date" type="date" required value="<%= it.date || '' %>"/>
       </div>
 
       <div class="form-row">
         <label for="time">שעה</label>
-        <input id="time"
-               name="time"
-               type="time"
-               required
-               step="900"
-               value="<%= it.time || '' %>" />
+        <input id="time" name="time" type="time" step="900" required value="<%= it.time || '' %>"/>
       </div>
 
       <div class="form-row">
         <label for="people">מספר סועדים</label>
-        <input id="people"
-               name="people"
-               type="number"
-               min="1"
-               max="<%= cap %>"
-               required
-               value="<%= it.people || 2 %>" />
+        <input id="people" name="people" type="number" min="1" max="<%= cap %>" required value="<%= it.people || 2 %>"/>
         <small class="muted">מינ' 1 · מקס' <%= cap %></small>
       </div>
 
       <div class="form-actions">
         <button type="submit" class="btn">הזמן</button>
-        <button type="button"
-                id="check-btn"
-                class="btn secondary"
-                data-rid="<%= it.restaurant.id %>">
-          בדוק זמינות
-        </button>
+        <button type="button" id="check-btn" class="btn secondary" data-rid="<%= it.restaurant.id %>">בדוק זמינות</button>
       </div>
     </form>
   </section>
@@ -105,7 +85,6 @@
 </main>
 
 <script>
-  // Helper: איסוף ערכי הטופס
   function readForm() {
     const form = document.getElementById('reserve-form');
     return {
@@ -115,20 +94,22 @@
     };
   }
 
-  // שליחת JSON אמיתי – עוקף בעיות של ניתוח form-encoded בצד השרת
   async function postJSON(url, payload) {
+    console.debug('[RESV DBG] request', url, payload);
     const res = await fetch(url, {
       method: 'POST',
       headers: {
-        'Accept': 'application/json',         // גורם לשרת להחזיר JSON
-        'Content-Type': 'application/json',   // גוף JSON
+        'Accept': 'application/json',       // בקשת JSON מהשרת
+        'Content-Type': 'application/json', // שליחת JSON
       },
       body: JSON.stringify(payload),
+      redirect: 'follow', // לא חובה, אבל מבהיר התנהגות מול 303/302. :contentReference[oaicite:3]{index=3}
     });
-    const ct = res.headers.get('content-type') || '';
-    const isJson = ct.includes('application/json');
-    const data = isJson ? await res.json() : null;
-    return { ok: res.ok, status: res.status, data };
+    const text = await res.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch {}
+    console.debug('[RESV DBG] response', { status: res.status, ok: res.ok, bodyText: text, bodyParsed: data });
+    return { ok: res.ok, status: res.status, data, text };
   }
 
   // AJAX: בדיקת זמינות
@@ -143,8 +124,10 @@
         const r = await postJSON(`/api/restaurants/${encodeURIComponent(rid)}/check`, { date, time, people });
         if (r.ok && r.data?.ok) {
           alert('זמין!');
-        } else if (r.data && r.data.reason) {
-          alert('לא זמין. ' + (r.data.suggestions?.length ? 'הצעות: ' + r.data.suggestions.join(', ') : ''));
+        } else if (r.data && r.data.error) {
+          alert('בעיה: ' + r.data.error);
+        } else if (r.data && r.data.suggestions) {
+          alert('לא זמין. הצעות: ' + r.data.suggestions.join(', '));
         } else {
           alert('שגיאה בבדיקת זמינות');
         }
@@ -155,7 +138,7 @@
     });
   })();
 
-  // Submit רגיל של הטופס — ניירט ל־JSON ואז ננווט ידנית
+  // Submit → JSON + ניווט ידני אחרי הצלחה
   (function () {
     const form = document.getElementById('reserve-form');
     form.addEventListener('submit', async (ev) => {
@@ -166,17 +149,18 @@
       try {
         const r = await postJSON(url, { date, time, people });
         if (r.ok && r.data?.ok) {
-          // ניווט אחרי הצלחה
           const rid = "<%= it.restaurant.id %>";
           const u = new URL(`/restaurants/${encodeURIComponent(rid)}`, location.origin);
           u.searchParams.set('ok', '1');
           u.searchParams.set('date', date);
           u.searchParams.set('time', time);
+          u.searchParams.set('people', String(people));
           location.assign(u.toString());
-        } else if (r.status === 400 && r.data) {
-          alert(r.data?.error || 'נתונים לא תקינים');
-        } else if (r.status === 409 && r.data) {
-          alert('לא זמין. ' + (r.data.suggestions?.length ? 'הצעות: ' + r.data.suggestions.join(', ') : ''));
+        } else if (r.status === 400 && r.data?.error) {
+          alert('שגיאה: ' + r.data.error);
+        } else if (r.status >= 300 && r.status < 400) {
+          // במקרה שהשרת מחזיר 303, הדפדפן כבר עקב אחרי redirect (redirect: 'follow') — נדפיס דיבוג.
+          alert('התקבלה הפניה (redirect). בדוק קונסול דפדפן ללוגים.');
         } else {
           alert('שגיאה בשליחת ההזמנה');
         }
