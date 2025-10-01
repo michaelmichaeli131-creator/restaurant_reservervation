@@ -4,9 +4,20 @@
 import { Eta } from "npm:eta@3.5.0";
 import type { Context } from "jsr:@oak/oak";
 
-// נתיב התבניות יחסי לקובץ הנוכחי (src/lib/view.ts → ../../templates)
-// זה עובד גם בפריסה בענן וגם בהרצה מקומית.
-const VIEWS_DIR = new URL("../../templates", import.meta.url).pathname;
+// ==== תיקון נתיב התבניות ====
+// אצלך התבניות יושבות ב-/templates (שורש הפרויקט), לכן נגדיר לשם במפורש.
+// בנוסף נשמור רשימת נתיבי fallback נפוצים כדי לעבוד גם בסביבות אחרות.
+const PRIMARY_VIEWS_DIR = "/templates";
+const FALLBACK_DIRS = [
+  "/src/templates",
+  // יחסית למיקום הקובץ (ייתרון במבני פרויקט שונים)
+  new URL("../../templates/", import.meta.url).pathname,
+  new URL("../templates/", import.meta.url).pathname,
+];
+
+// נבחר את הספרייה הראשונה; אין לנו הבטחת FS ב-Deploy, לכן לא נעשה stat, רק נשתמש בראשונה.
+// אם היא לא תעבוד, תופיע ב-fallback למטה ותדע מה הוגדר בפועל.
+const VIEWS_DIR = PRIMARY_VIEWS_DIR;
 
 // יצירת מופע Eta עם קונפיגורציה
 const eta = new Eta({
@@ -37,14 +48,16 @@ function fallbackHtml(title: string, data: Record<string, unknown>) {
     .card{border:1px solid #eee;border-radius:12px;padding:16px}
     pre{background:#f6f6f8;border:1px solid #eee;border-radius:8px;padding:12px;overflow:auto}
     .muted{color:#777}
+    code{background:#f6f6f8;border:1px solid #eee;padding:2px 6px;border-radius:6px}
   </style>
 </head>
 <body>
   <h1 style="margin-top:0">${safeTitle}</h1>
   <div class="card">
     <p class="muted">תבנית לא נמצאה או נכשלה ברינדור. מוצג fallback.</p>
+    <p class="muted">views: <code>${escapeHtml(VIEWS_DIR)}</code></p>
+    <p class="muted">fallbacks tried: <code>${escapeHtml(FALLBACK_DIRS.join(", "))}</code></p>
     <pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>
-    <p class="muted">views: ${escapeHtml(VIEWS_DIR)}</p>
   </div>
 </body>
 </html>`;
