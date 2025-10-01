@@ -4,15 +4,16 @@
 import { Eta } from "npm:eta@3.5.0";
 import type { Context } from "jsr:@oak/oak";
 
-// תצורה בסיסית – תיקיית התבניות
-const VIEWS_DIR = "/templates";
+// נתיב התבניות יחסי לקובץ הנוכחי (src/lib/view.ts → ../../templates)
+// זה עובד גם בפריסה בענן וגם בהרצה מקומית.
+const VIEWS_DIR = new URL("../../templates", import.meta.url).pathname;
 
 // יצירת מופע Eta עם קונפיגורציה
 const eta = new Eta({
   views: VIEWS_DIR,
   cache: true,
   async: true,
-  useWith: true, // נוח להזרקת נתונים
+  useWith: true, // מאפשר שימוש ב-"it" בתבניות
 });
 
 // זיהוי אם הלקוח מעדיף JSON
@@ -43,6 +44,7 @@ function fallbackHtml(title: string, data: Record<string, unknown>) {
   <div class="card">
     <p class="muted">תבנית לא נמצאה או נכשלה ברינדור. מוצג fallback.</p>
     <pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+    <p class="muted">views: ${escapeHtml(VIEWS_DIR)}</p>
   </div>
 </body>
 </html>`;
@@ -68,7 +70,7 @@ export async function render(
   data: Record<string, unknown> = {},
 ): Promise<void> {
   try {
-    // מעשיר את הנתונים עם user במידה ויש (לטובת layout)
+    // הזרקת משתמש (אם נטען ע"י ה-session middleware) כדי שה-layout יציג "מחובר"
     const user = (ctx.state as any)?.user ?? null;
     const payload = { ...data, user };
 
@@ -86,18 +88,16 @@ export async function render(
       return;
     }
 
-    // מקרה קצה: renderAsync החזירה undefined (למשל include בלבד)
-    console.warn(`[view] template "${template}" rendered empty, using fallback`);
+    // מקרה קצה: renderAsync החזירה undefined
+    console.warn(`[view] template "${template}" rendered empty, using fallback (views="${VIEWS_DIR}")`);
     ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
     ctx.response.body = fallbackHtml(String(data?.title ?? template), data);
   } catch (err: any) {
     const reqId = (ctx.state as any)?.reqId ?? "-";
-    // לוג קריא כולל מידע על הנתיב/תבנית/תיקייה
     console.warn(
       `[view ${reqId}] render failed for template="${template}" (views="${VIEWS_DIR}") → fallback. Error:`,
       err?.name ?? err,
     );
-    // לא מפילים את הבקשה – מחזירים fallback HTML
     ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
     ctx.response.body = fallbackHtml(String(data?.title ?? template), data);
   }
