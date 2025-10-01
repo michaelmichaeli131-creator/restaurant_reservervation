@@ -105,32 +105,84 @@
 </main>
 
 <script>
-  // AJAX בדיקת זמינות
+  // Helper: איסוף ערכי הטופס
+  function readForm() {
+    const form = document.getElementById('reserve-form');
+    return {
+      date: form.querySelector('[name="date"]').value,
+      time: form.querySelector('[name="time"]').value,
+      people: Number(form.querySelector('[name="people"]').value || 0),
+    };
+  }
+
+  // שליחת JSON אמיתי – עוקף בעיות של ניתוח form-encoded בצד השרת
+  async function postJSON(url, payload) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',         // גורם לשרת להחזיר JSON
+        'Content-Type': 'application/json',   // גוף JSON
+      },
+      body: JSON.stringify(payload),
+    });
+    const ct = res.headers.get('content-type') || '';
+    const isJson = ct.includes('application/json');
+    const data = isJson ? await res.json() : null;
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  // AJAX: בדיקת זמינות
   (function () {
     const btn = document.getElementById('check-btn');
     if (!btn) return;
     btn.addEventListener('click', async () => {
-      const form = document.getElementById('reserve-form');
+      const { date, time, people } = readForm();
       const rid = btn.dataset.rid;
-      const date = form.querySelector('[name="date"]').value;
-      const time = form.querySelector('[name="time"]').value;
-      const people = Number(form.querySelector('[name="people"]').value || 0);
 
       try {
-        const res = await fetch(`/api/restaurants/${encodeURIComponent(rid)}/check`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }, // שליחת JSON תקין
-          body: JSON.stringify({ date, time, people })
-        });
-        const data = await res.json();
-        if (data.ok) {
+        const r = await postJSON(`/api/restaurants/${encodeURIComponent(rid)}/check`, { date, time, people });
+        if (r.ok && r.data?.ok) {
           alert('זמין!');
+        } else if (r.data && r.data.reason) {
+          alert('לא זמין. ' + (r.data.suggestions?.length ? 'הצעות: ' + r.data.suggestions.join(', ') : ''));
         } else {
-          alert('לא זמין. ' + (data.suggestions?.length ? 'הצעות: ' + data.suggestions.join(', ') : ''));
+          alert('שגיאה בבדיקת זמינות');
         }
       } catch (e) {
-        alert('שגיאה בבדיקת זמינות');
         console.error(e);
+        alert('שגיאה בבדיקת זמינות');
+      }
+    });
+  })();
+
+  // Submit רגיל של הטופס — ניירט ל־JSON ואז ננווט ידנית
+  (function () {
+    const form = document.getElementById('reserve-form');
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const { date, time, people } = readForm();
+      const url = form.getAttribute('action');
+
+      try {
+        const r = await postJSON(url, { date, time, people });
+        if (r.ok && r.data?.ok) {
+          // ניווט אחרי הצלחה
+          const rid = "<%= it.restaurant.id %>";
+          const u = new URL(`/restaurants/${encodeURIComponent(rid)}`, location.origin);
+          u.searchParams.set('ok', '1');
+          u.searchParams.set('date', date);
+          u.searchParams.set('time', time);
+          location.assign(u.toString());
+        } else if (r.status === 400 && r.data) {
+          alert(r.data?.error || 'נתונים לא תקינים');
+        } else if (r.status === 409 && r.data) {
+          alert('לא זמין. ' + (r.data.suggestions?.length ? 'הצעות: ' + r.data.suggestions.join(', ') : ''));
+        } else {
+          alert('שגיאה בשליחת ההזמנה');
+        }
+      } catch (e) {
+        console.error(e);
+        alert('שגיאה בשליחת ההזמנה');
       }
     });
   })();
