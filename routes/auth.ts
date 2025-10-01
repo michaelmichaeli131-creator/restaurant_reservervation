@@ -15,19 +15,16 @@ import {
 import { render } from "../lib/view.ts";
 import { sendVerifyEmail, sendResetEmail } from "../lib/mail.ts";
 
-// helpers
 function lower(s?: string) { return (s ?? "").trim().toLowerCase(); }
 
 // דוגמת hash בסיסית (SHA-256). אפשר להחליף ל-bcrypt בהמשך.
-// Web Crypto subtle.digest מתועד ב־Deno/MDN.
 async function hashPassword(pw: string): Promise<string> {
   const data = new TextEncoder().encode(pw);
   const buf = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// קריאת גוף בקשה (תואם JSON / x-www-form-urlencoded / text)
-// Oak: ctx.request.body({type:"json"|"form"|"text"}).value
+// קריאת גוף בקשה (JSON / form / text) — תואם Oak ו-Deno Deploy
 async function readBody(ctx: any): Promise<Record<string, unknown>> {
   const req: any = ctx.request as any;
   const ct = ctx.request.headers.get("content-type") ?? "";
@@ -45,11 +42,11 @@ async function readBody(ctx: any): Promise<Record<string, unknown>> {
         const t = await req.body({ type: "text" }).value as string;
         try { return t ? JSON.parse(t) : {}; } catch { return {}; }
       }
-      // נסה form כברירת מחדל
+      // ברירת מחדל: נסה form
       const form = await req.body({ type: "form" }).value as URLSearchParams;
       return Object.fromEntries(form.entries());
     }
-    // Deno Deploy: נסיון דרך originalRequest
+    // Deploy: ניסיון דרך הבקשה המקורית
     const native: any = req.originalRequest;
     if (native?.formData) {
       const fd = await native.formData();
@@ -96,7 +93,6 @@ authRouter.post("/auth/login", async (ctx) => {
     return;
   }
 
-  // שמירת session
   const session = (ctx.state as any)?.session;
   if (session?.set) await session.set("userId", user.id);
 
@@ -166,11 +162,9 @@ authRouter.post("/auth/register", async (ctx) => {
     provider: "local",
   });
 
-  // אימות מייל
   const token = await createVerifyToken(user.id, user.email);
   await sendVerifyEmail(user.email, token).catch(() => {});
 
-  // התחברות מידית אחרי הרשמה (אופציונלי)
   const session = (ctx.state as any)?.session;
   if (session?.set) await session.set("userId", user.id);
 
@@ -212,7 +206,6 @@ authRouter.post("/auth/forgot", async (ctx) => {
     const token = await createResetToken(user.id);
     await sendResetEmail(email, token).catch(() => {});
   }
-  // לא חושפים אם קיים/לא קיים
   await render(ctx, "auth/forgot", { title: "שחזור סיסמה", page: "forgot", ok: "אם המשתמש קיים, נשלח מייל לשחזור." });
 });
 
@@ -255,5 +248,3 @@ authRouter.post("/auth/reset", async (ctx) => {
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set("Location", "/?resetOk=1");
 });
-
-export { authRouter };
