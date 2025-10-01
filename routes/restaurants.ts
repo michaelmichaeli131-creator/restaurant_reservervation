@@ -22,7 +22,6 @@ function nextQuarterHour(): string {
   d.setMinutes(mins + add, 0, 0);
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
-// YYYY-MM-DD או DD/MM/YYYY; ריק → היום
 function normalizeDate(input: unknown): string {
   const s = String(input ?? "").trim();
   if (!s) return todayISO();
@@ -31,40 +30,37 @@ function normalizeDate(input: unknown): string {
   if (m) return `${m[3]}-${m[2]}-${m[1]}`;
   return s;
 }
-// HH:mm או HH.mm; ריק → לרבע שעה הקרובה
 function normalizeTime(input: unknown): string {
   const s = String(input ?? "").trim();
   if (!s) return nextQuarterHour();
   return /^\d{2}\.\d{2}$/.test(s) ? s.replace(".", ":") : s;
 }
-// המרה קשיחה למספר שלם חיובי; מתעלם מתווים לא־ספרתיים
 function toInt(input: unknown): number | null {
+  if (typeof input === "number" && Number.isFinite(input)) return Math.trunc(input);
   const s = String(input ?? "").trim();
   if (!s) return null;
-  const num = Number(s);
-  if (Number.isFinite(num)) return Math.trunc(num);
+  const n = Number(s);
+  if (Number.isFinite(n)) return Math.trunc(n);
   const onlyDigits = Number(s.replace(/[^\d]/g, ""));
   return Number.isFinite(onlyDigits) ? Math.trunc(onlyDigits) : null;
 }
 
-// ---------- Body Reader (תואם גרסאות Oak שונות) ----------
+// ---------- Body Reader (חסין: JSON / form / querystring) ----------
 async function readBody(ctx: any): Promise<Record<string, unknown>> {
   const ct = ctx.request.headers.get("content-type") ?? "";
   const reqAny: any = ctx.request as any;
   const native: Request | undefined = reqAny.originalRequest ?? undefined;
 
-  // form → אובייקט פשוט
-  const fromForm = (form: FormData) => {
+  const fromForm = (form: FormData | URLSearchParams) => {
     const o: Record<string, unknown> = {};
+    // @ts-ignore
     for (const [k, v] of form.entries()) o[k] = v;
     return o;
   };
 
-  const hasOakBody = typeof reqAny.body === "function";
-
-  // JSON
+  // 1) JSON
   if (ct.includes("application/json")) {
-    if (hasOakBody) {
+    if (typeof reqAny.body === "function") {
       try { const v = await reqAny.body({ type: "json" }).value; if (v && typeof v === "object") return v; } catch {}
     }
     if (native && (native as any).json) {
@@ -72,27 +68,36 @@ async function readBody(ctx: any): Promise<Record<string, unknown>> {
     }
   }
 
-  // form-urlencoded / multipart
-  if (ct.includes("application/x-www-form-urlencoded") || ct.includes("multipart/form-data")) {
-    if (hasOakBody) {
-      try { const form = await reqAny.body({ type: "form" }).value; return fromForm(form); } catch {}
+  // 2) x-www-form-urlencoded / multipart
+  if (ct.includes("application/x-www-form-urlencoded")) {
+    if (typeof reqAny.body === "function") {
+      try { const v = await reqAny.body({ type: "form" }).value; return fromForm(v as URLSearchParams); } catch {}
+    }
+    if (native && (native as any).formData) {
+      try { const fd = await (native as any).formData(); return fromForm(fd); } catch {}
+    }
+  } else if (ct.includes("multipart/form-data")) {
+    if (typeof reqAny.body === "function") {
+      try { const v = await reqAny.body({ type: "form-data" }).value; return fromForm(v as FormData); } catch {}
     }
     if (native && (native as any).formData) {
       try { const fd = await (native as any).formData(); return fromForm(fd); } catch {}
     }
   }
 
-  // טקסט → נסה JSON
-  if (hasOakBody) {
+  // 3) טקסט → נסה JSON
+  if (typeof reqAny.body === "function") {
     try { const t = await reqAny.body({ type: "text" }).value; return t ? JSON.parse(t) : {}; } catch {}
   }
   if (native && (native as any).text) {
     try { const t = await (native as any).text(); return t ? JSON.parse(t) : {}; } catch {}
   }
-  return {};
+
+  // 4) fallback: querystring
+  const qs = Object.fromEntries(ctx.request.url.searchParams);
+  return qs;
 }
 
-// ---------- Response helper ----------
 function wantsJSON(ctx: any) {
   const acc = ctx.request.headers.get("accept") ?? "";
   return acc.includes("application/json");
@@ -113,74 +118,45 @@ restaurantsRouter.get("/api/restaurants", async (ctx) => {
 restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const id = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(id);
-  if (!restaurant) {
-    ctx.response.status = Status.NotFound;
-    ctx.response.body = "Restaurant not found";
-    return;
-  }
+  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
+
+  const url = ctx.request.url;
+  const conflict = url.searchParams.get("conflict") === "1";
+  const suggestions = (url.searchParams.get("suggest") ?? "").split(",").filter(Boolean);
+
   await render(ctx, "restaurant", {
     page: "restaurant",
     title: `${restaurant.name} — GeoTable`,
     restaurant,
+    conflict,
+    suggestions,
   });
 });
 
 /** יצירת הזמנה */
 restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
-  if (!rid) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "missing restaurant id";
-    return;
-  }
+  if (!rid) { ctx.response.status = Status.BadRequest; ctx.response.body = "missing restaurant id"; return; }
 
-  // קודם נטען את המסעדה כדי לדעת capacity
   const restaurant = await getRestaurant(rid);
-  if (!restaurant) {
-    ctx.response.status = Status.NotFound;
-    ctx.response.body = "restaurant not found";
-    return;
-  }
+  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "restaurant not found"; return; }
   const maxPeople = Math.max(1, Math.min(30, restaurant.capacity || 30));
 
   const body = await readBody(ctx);
   const date = normalizeDate((body as any).date);
   const time = normalizeTime((body as any).time);
+  // קבל גם guests/num כ-alias אם יגיעו מטופס ישן
+  const people = toInt((body as any).people ?? (body as any).guests ?? (body as any).num);
 
-  // חשוב: ערכי טופס מגיעים כמחרוזות → להמיר למספר שלם
-  // (אפילו אם input type="number", בצד השרת תקבל string)
-  const people = toInt((body as any).people);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { ctx.response.status = Status.BadRequest; ctx.response.body = "bad date (YYYY-MM-DD expected)"; return; }
+  if (!/^\d{2}:\d{2}$/.test(time)) { ctx.response.status = Status.BadRequest; ctx.response.body = "bad time (HH:mm expected)"; return; }
+  if (people == null || people < 1 || people > maxPeople) { ctx.response.status = Status.BadRequest; ctx.response.body = `bad people (1..${maxPeople})`; return; }
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "bad date (YYYY-MM-DD expected)";
-    return;
-  }
-  if (!/^\d{2}:\d{2}$/.test(time)) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "bad time (HH:mm expected)";
-    return;
-  }
-  if (people == null || people < 1 || people > maxPeople) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = `bad people (1..${maxPeople})`;
-    return;
-  }
-
-  // משתמש מחובר (אם קיים)
   const user = (ctx.state as any)?.user ?? null;
   const userId: string = user?.id ?? `guest:${crypto.randomUUID().slice(0, 8)}`;
 
-  // בדיקת זמינות
   const avail = await checkAvailability(rid, date, time, people);
   if (!avail.ok) {
-    const payload = { ok: false, reason: (avail as any).reason, suggestions: (avail as any).suggestions ?? [] };
-    if (wantsJSON(ctx)) {
-      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-      ctx.response.status = Status.Conflict;
-      ctx.response.body = JSON.stringify(payload, null, 2);
-      return;
-    }
     const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
     url.searchParams.set("conflict", "1");
     url.searchParams.set("reason", String((avail as any).reason));
@@ -190,7 +166,6 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     return;
   }
 
-  // יצירת הזמנה
   const reservation: Reservation = {
     id: crypto.randomUUID(),
     restaurantId: rid,
@@ -209,7 +184,6 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     return;
   }
 
-  // redirect אחרי הצלחה
   const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
   url.searchParams.set("ok", "1");
   url.searchParams.set("date", date);
@@ -218,7 +192,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   ctx.response.headers.set("Location", url.pathname + url.search);
 });
 
-/** API: בדיקת זמינות (AJAX מהכפתור "בדוק זמינות") */
+/** API: בדיקת זמינות (AJAX) */
 restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -228,7 +202,7 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const body = await readBody(ctx);
   const date = normalizeDate((body as any).date);
   const time = normalizeTime((body as any).time);
-  const people = toInt((body as any).people);
+  const people = toInt((body as any).people ?? (body as any).guests ?? (body as any).num);
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { ctx.response.status = Status.BadRequest; ctx.response.body = "bad date (YYYY-MM-DD expected)"; return; }
   if (!/^\d{2}:\d{2}$/.test(time)) { ctx.response.status = Status.BadRequest; ctx.response.body = "bad time (HH:mm expected)"; return; }

@@ -42,14 +42,14 @@
                name="time"
                type="time"
                required
-               step="900"  <!-- 15 דק' -->
+               step="900"
                value="<%= it.time || '' %>" />
       </div>
 
       <div class="form-row">
         <label for="people">מספר סועדים</label>
         <input id="people"
-               name="people"              <!-- חשוב: זה השם שהשרת מצפה! -->
+               name="people"
                type="number"
                min="1"
                max="<%= cap %>"
@@ -105,7 +105,7 @@
 </main>
 
 <script>
-  // AJAX בדיקת זמינות (לא חובה, אבל משפר UX)
+  // AJAX בדיקת זמינות
   (function () {
     const btn = document.getElementById('check-btn');
     if (!btn) return;
@@ -114,17 +114,15 @@
       const rid = btn.dataset.rid;
       const date = form.querySelector('[name="date"]').value;
       const time = form.querySelector('[name="time"]').value;
-      const peopleStr = form.querySelector('[name="people"]').value;
-      const people = Number(peopleStr);
+      const people = Number(form.querySelector('[name="people"]').value || 0);
 
       try {
         const res = await fetch(`/api/restaurants/${encodeURIComponent(rid)}/check`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json' }, // שליחת JSON תקין
           body: JSON.stringify({ date, time, people })
         });
         const data = await res.json();
-
         if (data.ok) {
           alert('זמין!');
         } else {
