@@ -1,13 +1,14 @@
 // src/lib/view.ts
 // Safe Eta renderer: אם תבנית חסרה/שגויה - נחזיר fallback HTML/JSON במקום לזרוק חריגה.
 
-import Eta from "npm:eta@3.5.0";
+import { Eta } from "npm:eta@3.5.0";
 import type { Context } from "jsr:@oak/oak";
 
 // תצורה בסיסית – תיקיית התבניות
 const VIEWS_DIR = "/src/templates";
 
-Eta.configure({
+// יצירת מופע Eta עם קונפיגורציה
+const eta = new Eta({
   views: VIEWS_DIR,
   cache: true,
   async: true,
@@ -58,7 +59,7 @@ function escapeHtml(s: string) {
 
 /**
  * render(ctx, template, data)
- * - מנסה לרנדר את Eta template.
+ * - מנסה לרנדר את Eta template דרך המופע.
  * - אם חסר/נכשל => fallback HTML (או JSON אם הלקוח ביקש).
  */
 export async function render(
@@ -74,7 +75,7 @@ export async function render(
   }
 
   try {
-    const html = await Eta.renderAsync(template, data);
+    const html = await eta.renderAsync(template, data);
     if (typeof html === "string") {
       ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
       ctx.response.body = html;
@@ -92,11 +93,6 @@ export async function render(
       err?.name ?? err,
     );
     // במקרה EtaFileResolution Error עדיף לא לזרוק הלאה כדי לא להפיל את הבקשה
-    if (wantsJSON(ctx)) {
-      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-      ctx.response.body = JSON.stringify({ fallback: true, template, data }, null, 2);
-      return;
-    }
     ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
     ctx.response.body = fallbackHtml(String(data?.title ?? template), data);
   }
