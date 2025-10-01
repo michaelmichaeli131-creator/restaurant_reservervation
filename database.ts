@@ -324,7 +324,7 @@ export async function computeOccupancy(restaurant: Restaurant, date: string) {
   for (const r of resv) {
     const start = toMinutes(r.time);
     const end = start + (restaurant.serviceDurationMinutes || 120);
-    for (let t = start; t < end; t += restaurant.slotIntervalMinutes || 15) {
+    for (let t = start; t < end; t += (restaurant.slotIntervalMinutes || 15)) {
       const key = fromMinutes(t);
       map.set(key, (map.get(key) ?? 0) + r.people);
     }
@@ -338,7 +338,7 @@ export async function checkAvailability(restaurantId: string, date: string, time
   const occ = await computeOccupancy(r, date);
   const start = toMinutes(time);
   const end = start + (r.serviceDurationMinutes || 120);
-  for (let t = start; t < end; t += r.slotIntervalMinutes || 15) {
+  for (let t = start; t < end; t += (r.slotIntervalMinutes || 15)) {
     const used = occ.get(fromMinutes(t)) ?? 0;
     if (used + people > r.capacity) {
       return { ok: false, reason: "full" as const, suggestions: suggestTimes(r, date, time, people, occ) };
@@ -369,6 +369,7 @@ function suggestTimes(r: Restaurant, date: string, time: string, people: number,
 }
 
 // ---------- Admin Utilities ----------
+
 // מוחק מסעדה **וכל** התלויות שלה (אינדקסים + הזמנות) בבטיחות.
 // מחזיר את מספר ההזמנות שנמחקו.
 export async function deleteRestaurantCascade(restaurantId: string): Promise<number> {
@@ -417,68 +418,45 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
   return deleted;
 }
 
-// איפוס מלא של בסיס הנתונים – מנקה **את כל** הישויות/אינדקסים הידועים.
-// שימושי ל-/admin/resetAll.
-// זהיר: פעולה הרסנית!
+// איפוס מלא של בסיס הנתונים – מנקה *הכול*
 export async function resetAll(): Promise<void> {
-  // רשימות prefixes למחיקה
   const prefixes: Deno.KvKey[] = [
-    ["user"],
-    ["user_by_email"],
-    ["user_by_username"],
-    ["verify"],
-    ["reset"],
-
-    ["restaurant"],
-    ["restaurant_by_owner"],
-    ["restaurant_name"],
-    ["restaurant_city"],
-
-    ["reservation"],
-    ["reservation_by_day"],
+    ["user"], ["user_by_email"], ["user_by_username"], ["verify"], ["reset"],
+    ["restaurant"], ["restaurant_by_owner"], ["restaurant_name"], ["restaurant_city"],
+    ["reservation"], ["reservation_by_day"],
   ];
 
-  // פונקציה כללית למחיקת כל מפתחות עם prefix מסוים
   async function deleteByPrefix(prefix: Deno.KvKey, batchSize = 100) {
     const keys: Deno.KvKey[] = [];
     for await (const e of kv.list({ prefix })) {
       keys.push(e.key);
       if (keys.length >= batchSize) {
-        const tx = kv.atomic();
-        for (const k of keys) tx.delete(k);
-        await tx.commit().catch(() => {});
-        keys.length = 0;
+        const tx = kv.atomic(); for (const k of keys) tx.delete(k);
+        await tx.commit().catch(() => {}); keys.length = 0;
       }
     }
     if (keys.length) {
-      const tx = kv.atomic();
-      for (const k of keys) tx.delete(k);
+      const tx = kv.atomic(); for (const k of keys) tx.delete(k);
       await tx.commit().catch(() => {});
     }
   }
 
-  for (const p of prefixes) {
-    await deleteByPrefix(p);
-  }
+  for (const p of prefixes) await deleteByPrefix(p);
 }
 
 // איפוס **רק ההזמנות** – מוחק כל Reservation וכל אינדקסי reservation_by_day.
-// מחזיר את מספר ההזמנות שנמחקו.
 export async function resetReservations(): Promise<number> {
-  // אסוף את כל מזהי ההזמנות
   const ids: string[] = [];
   for await (const row of kv.list({ prefix: ["reservation"] })) {
     const id = row.key[row.key.length - 1] as string;
     ids.push(id);
   }
 
-  // נבנה מפה: restaurantId -> Set<date -> ids[]> כדי למחוק גם אינדקסי by_day
   const byDayKeys: Array<Deno.KvKey> = [];
   for await (const row of kv.list({ prefix: ["reservation_by_day"] })) {
     byDayKeys.push(row.key);
   }
 
-  // מחיקה באצוות
   const chunk = <T>(arr: T[], size: number) =>
     arr.reduce<T[][]>((acc, v, i) => {
       if (i % size === 0) acc.push([]);
@@ -487,21 +465,59 @@ export async function resetReservations(): Promise<number> {
     }, []);
 
   let deleted = 0;
-
   for (const group of chunk(ids, 100)) {
+    const tx = kv.atomic(); for (const id of group) { tx.delete(["reservation", id]); deleted++; }
+    await tx.commit().catch(() => {});
+  }
+  for (const group of chunk(byDayKeys, 100)) {
+    const tx = kv.atomic(); for (const key of group) tx.delete(key);
+    await tx.commit().catch(() => {});
+  }
+  return deleted;
+}
+
+// איפוס **כל המסעדות** (כולל כל ההזמנות שלהן והאינדקסים)
+export async function resetRestaurants(): Promise<{ restaurants: number; reservations: number }> {
+  const ids: string[] = [];
+  for await (const row of kv.list<Restaurant>({ prefix: ["restaurant"] })) {
+    const id = row.key[row.key.length - 1] as string;
+    ids.push(id);
+  }
+  let restaurants = 0, reservations = 0;
+  for (const id of ids) {
+    const del = await deleteRestaurantCascade(id);
+    reservations += del;
+    restaurants++;
+  }
+  return { restaurants, reservations };
+}
+
+// איפוס **רק המשתמשים** – מוחק users והאינדקסים שלהם (email/username).
+// שים לב: פעולה זו לא נוגעת במסעדות/הזמנות (עלולות להישאר יתומות אם היו תלויות במשתמשים שנמחקו).
+export async function resetUsers(): Promise<number> {
+  type UserRow = { key: Deno.KvKey; value: User };
+  const users: UserRow[] = [];
+  for await (const row of kv.list<User>({ prefix: ["user"] })) {
+    if (row.value) users.push({ key: row.key, value: row.value });
+  }
+
+  const chunk = <T>(arr: T[], size: number) =>
+    arr.reduce<T[][]>((acc, v, i) => {
+      if (i % size === 0) acc.push([]);
+      acc[acc.length - 1].push(v);
+      return acc;
+    }, []);
+
+  let deleted = 0;
+  for (const group of chunk(users, 50)) {
     const tx = kv.atomic();
-    for (const id of group) {
-      tx.delete(["reservation", id]);
+    for (const { value } of group) {
+      tx.delete(["user", value.id]);
+      tx.delete(["user_by_email", lower(value.email)]);
+      tx.delete(["user_by_username", lower(value.username)]);
       deleted++;
     }
     await tx.commit().catch(() => {});
   }
-
-  for (const group of chunk(byDayKeys, 100)) {
-    const tx = kv.atomic();
-    for (const key of group) tx.delete(key);
-    await tx.commit().catch(() => {});
-  }
-
   return deleted;
 }
