@@ -5,37 +5,86 @@ import {
   getRestaurant,
   checkAvailability,
   createReservation,
-  type Restaurant,
   type Reservation,
 } from "../database.ts";
 import { render } from "../lib/view.ts";
 
-// עזר לפענוח body כ-JSON או form-urlencoded
+// ---------- Body Reader (robust across Oak versions) ----------
 async function readBody(ctx: any): Promise<Record<string, unknown>> {
   const ct = ctx.request.headers.get("content-type") ?? "";
+  const reqAny: any = ctx.request as any;
+  const native: Request | undefined = reqAny.originalRequest ?? undefined;
+
+  // helpers
+  const toObjFromForm = (form: FormData) => {
+    const o: Record<string, unknown> = {};
+    for (const [k, v] of form.entries()) o[k] = v;
+    return o;
+  };
+
+  // Try Oak body() first (older API)
+  const hasOakBodyFn = typeof reqAny.body === "function";
+
+  // JSON
   if (ct.includes("application/json")) {
+    if (hasOakBodyFn) {
+      try {
+        const v = await reqAny.body({ type: "json" }).value;
+        if (v && typeof v === "object") return v as Record<string, unknown>;
+      } catch { /* fallthrough */ }
+    }
+    if (native && typeof (native as any).json === "function") {
+      try {
+        const v = await (native as any).json();
+        if (v && typeof v === "object") return v as Record<string, unknown>;
+      } catch { /* fallthrough */ }
+    }
+    // last resort: text()->JSON.parse
     try {
-      return await ctx.request.body({ type: "json" }).value;
+      const txt = native && typeof (native as any).text === "function"
+        ? await (native as any).text()
+        : "";
+      return txt ? JSON.parse(txt) : {};
     } catch {
       return {};
     }
   }
-  if (ct.includes("application/x-www-form-urlencoded")) {
-    const form = await ctx.request.body({ type: "form" }).value;
-    const obj: Record<string, unknown> = {};
-    for (const [k, v] of form.entries()) obj[k] = v;
-    return obj;
+
+  // Form URL Encoded / Multipart
+  if (ct.includes("application/x-www-form-urlencoded") || ct.includes("multipart/form-data")) {
+    if (hasOakBodyFn) {
+      try {
+        const form = await reqAny.body({ type: "form" }).value;
+        return toObjFromForm(form);
+      } catch { /* fallthrough */ }
+    }
+    if (native && typeof (native as any).formData === "function") {
+      try {
+        const fd = await (native as any).formData();
+        return toObjFromForm(fd);
+      } catch { /* fallthrough */ }
+    }
   }
-  // raw/text
-  try {
-    const txt = await ctx.request.body({ type: "text" }).value;
-    return txt ? JSON.parse(txt) : {};
-  } catch {
-    return {};
+
+  // Fallback: try Oak "text", else native text
+  if (hasOakBodyFn) {
+    try {
+      const txt = await reqAny.body({ type: "text" }).value;
+      if (!txt) return {};
+      try { return JSON.parse(txt); } catch { return {}; }
+    } catch { /* fallthrough */ }
   }
+  if (native && typeof (native as any).text === "function") {
+    try {
+      const txt = await (native as any).text();
+      if (!txt) return {};
+      try { return JSON.parse(txt); } catch { return {}; }
+    } catch { /* ignore */ }
+  }
+  return {};
 }
 
-// עזר להשבת JSON/HTML לפי Accept
+// ---------- Response helper ----------
 function wantsJSON(ctx: any) {
   const acc = ctx.request.headers.get("accept") ?? "";
   return acc.includes("application/json");
@@ -43,7 +92,7 @@ function wantsJSON(ctx: any) {
 
 export const restaurantsRouter = new Router();
 
-/**
+/** API: חיפוש לאוטוקומפליט
  * GET /api/restaurants?q=tel
  */
 restaurantsRouter.get("/api/restaurants", async (ctx) => {
@@ -54,7 +103,7 @@ restaurantsRouter.get("/api/restaurants", async (ctx) => {
   ctx.response.body = JSON.stringify(items, null, 2);
 });
 
-/**
+/** דף מסעדה
  * GET /restaurants/:id
  */
 restaurantsRouter.get("/restaurants/:id", async (ctx) => {
@@ -65,8 +114,6 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
     ctx.response.body = "Restaurant not found";
     return;
   }
-
-  // רינדור תבנית (יש קובץ restaurant.eta)
   await render(ctx, "restaurant", {
     page: "restaurant",
     title: `${restaurant.name} — GeoTable`,
@@ -74,12 +121,12 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   });
 });
 
-/**
+/** יצירת הזמנה
  * POST /restaurants/:id/reserve
- * fields: date (YYYY-MM-DD), time (HH:mm), people (number), note? (string)
+ * body: { date: YYYY-MM-DD, time: HH:mm, people: number, note?: string }
  */
 restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
-  const rid = String(ctx.params.id ?? ""); // מזהה תמיד מהנתיב
+  const rid = String(ctx.params.id ?? "");
   if (!rid) {
     ctx.response.status = Status.BadRequest;
     ctx.response.body = "missing restaurant id";
@@ -119,24 +166,23 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     return;
   }
 
-  // משתמש מחובר (אם יש)
+  // משתמש מחובר (אם קיים ב-session)
   const user = (ctx.state as any)?.user ?? null;
   const userId: string = user?.id ?? `guest:${crypto.randomUUID().slice(0, 8)}`;
 
   // בדיקת זמינות
   const avail = await checkAvailability(rid, date, time, people);
   if (!avail.ok) {
-    const payload = { ok: false, reason: avail.reason, suggestions: (avail as any).suggestions ?? [] };
+    const payload = { ok: false, reason: (avail as any).reason, suggestions: (avail as any).suggestions ?? [] };
     if (wantsJSON(ctx)) {
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
       ctx.response.status = Status.Conflict;
       ctx.response.body = JSON.stringify(payload, null, 2);
       return;
     }
-    // redirect חזרה לעמוד המסעדה עם פרמטרים שמאותתים על הקונפליקט
     const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
     url.searchParams.set("conflict", "1");
-    url.searchParams.set("reason", String(avail.reason));
+    url.searchParams.set("reason", String((avail as any).reason));
     if ((avail as any).suggestions?.length) url.searchParams.set("suggest", (avail as any).suggestions.join(","));
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", url.pathname + url.search);
@@ -172,9 +218,8 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   ctx.response.headers.set("Location", url.pathname + url.search);
 });
 
-/**
+/** API: בדיקת זמינות
  * POST /api/restaurants/:id/check
- * body: { date, time, people }
  */
 restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
