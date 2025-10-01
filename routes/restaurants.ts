@@ -15,31 +15,27 @@ async function readBody(ctx: any): Promise<Record<string, unknown>> {
   const reqAny: any = ctx.request as any;
   const native: Request | undefined = reqAny.originalRequest ?? undefined;
 
-  // helpers
   const toObjFromForm = (form: FormData) => {
     const o: Record<string, unknown> = {};
     for (const [k, v] of form.entries()) o[k] = v;
     return o;
   };
 
-  // Try Oak body() first (older API)
   const hasOakBodyFn = typeof reqAny.body === "function";
 
-  // JSON
   if (ct.includes("application/json")) {
     if (hasOakBodyFn) {
       try {
         const v = await reqAny.body({ type: "json" }).value;
         if (v && typeof v === "object") return v as Record<string, unknown>;
-      } catch { /* fallthrough */ }
+      } catch {}
     }
     if (native && typeof (native as any).json === "function") {
       try {
         const v = await (native as any).json();
         if (v && typeof v === "object") return v as Record<string, unknown>;
-      } catch { /* fallthrough */ }
+      } catch {}
     }
-    // last resort: text()->JSON.parse
     try {
       const txt = native && typeof (native as any).text === "function"
         ? await (native as any).text()
@@ -50,36 +46,34 @@ async function readBody(ctx: any): Promise<Record<string, unknown>> {
     }
   }
 
-  // Form URL Encoded / Multipart
   if (ct.includes("application/x-www-form-urlencoded") || ct.includes("multipart/form-data")) {
     if (hasOakBodyFn) {
       try {
         const form = await reqAny.body({ type: "form" }).value;
         return toObjFromForm(form);
-      } catch { /* fallthrough */ }
+      } catch {}
     }
     if (native && typeof (native as any).formData === "function") {
       try {
         const fd = await (native as any).formData();
         return toObjFromForm(fd);
-      } catch { /* fallthrough */ }
+      } catch {}
     }
   }
 
-  // Fallback: try Oak "text", else native text
   if (hasOakBodyFn) {
     try {
       const txt = await reqAny.body({ type: "text" }).value;
       if (!txt) return {};
       try { return JSON.parse(txt); } catch { return {}; }
-    } catch { /* fallthrough */ }
+    } catch {}
   }
   if (native && typeof (native as any).text === "function") {
     try {
       const txt = await (native as any).text();
       if (!txt) return {};
       try { return JSON.parse(txt); } catch { return {}; }
-    } catch { /* ignore */ }
+    } catch {}
   }
   return {};
 }
@@ -220,6 +214,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
 
 /** API: בדיקת זמינות
  * POST /api/restaurants/:id/check
+ * body: { date, time, people }
  */
 restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
@@ -227,6 +222,24 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const date = String(body.date ?? "");
   const time = String(body.time ?? "");
   const people = Number(String(body.people ?? ""));
+
+  // ולידציה כמו ב-/reserve כדי למנוע חריגות ב-DB
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = "bad date (YYYY-MM-DD expected)";
+    return;
+  }
+  if (!/^\d{2}:\d{2}$/.test(time)) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = "bad time (HH:mm expected)";
+    return;
+  }
+  if (!Number.isFinite(people) || people <= 0 || people > 30) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = "bad people (1..30)";
+    return;
+  }
+
   const result = await checkAvailability(rid, date, time, people);
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = JSON.stringify(result, null, 2);
