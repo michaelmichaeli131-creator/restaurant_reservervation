@@ -1,65 +1,156 @@
 <% layout("_layout", it) %>
-<% const r = it.restaurant; %>
+<main class="container">
+  <header class="page-header">
+    <h1><%= it.restaurant.name %></h1>
+    <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+    <% if (it.restaurant.phone) { %>
+      <p class="muted">טלפון: <%= it.restaurant.phone %></p>
+    <% } %>
+  </header>
 
-<section class="card">
-  <div class="row" style="justify-content:space-between; align-items:flex-start">
-    <div>
-      <h1 style="margin:0"><%= r.name %></h1>
-      <div class="muted"><%= r.city %> · <%= r.address %> <% if (r.phone) { %>· טל׳ <%= r.phone %><% } %></div>
-      <% if (!r.approved) { %><div class="badge warn" style="margin-top:8px">ממתינה לאישור</div><% } %>
-    </div>
-    <div class="muted">
-      קיבולת: <%= r.capacity %> · סלוט: <%= r.slotIntervalMinutes %> ד' · שירות: <%= r.serviceDurationMinutes %> ד'
-    </div>
-  </div>
+  <% const cap = it.restaurant.capacity || 30; %>
 
-  <% if (r.photos && r.photos.length) { %>
-    <div class="grid photos">
-      <% r.photos.forEach(src => { %>
-        <img class="photo" src="<%= src %>" alt="תמונה"/>
-      <% }) %>
-    </div>
+  <section class="card">
+    <h2 style="margin-top:0">הזמנת מקום</h2>
+
+    <% if (it.conflict) { %>
+      <div class="alert warn" role="alert">
+        לא זמין בשעה שביקשת.
+        <% if (it.suggestions && it.suggestions.length) { %>
+          הצעות: <%= it.suggestions.join(", ") %>
+        <% } %>
+      </div>
+    <% } %>
+
+    <form id="reserve-form"
+          class="form-grid"
+          action="/restaurants/<%= it.restaurant.id %>/reserve"
+          method="post">
+
+      <div class="form-row">
+        <label for="date">תאריך</label>
+        <input id="date"
+               name="date"
+               type="date"
+               required
+               value="<%= it.date || '' %>" />
+      </div>
+
+      <div class="form-row">
+        <label for="time">שעה</label>
+        <input id="time"
+               name="time"
+               type="time"
+               required
+               step="900"  <!-- 15 דק' -->
+               value="<%= it.time || '' %>" />
+      </div>
+
+      <div class="form-row">
+        <label for="people">מספר סועדים</label>
+        <input id="people"
+               name="people"              <!-- חשוב: זה השם שהשרת מצפה! -->
+               type="number"
+               min="1"
+               max="<%= cap %>"
+               required
+               value="<%= it.people || 2 %>" />
+        <small class="muted">מינ' 1 · מקס' <%= cap %></small>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn">הזמן</button>
+        <button type="button"
+                id="check-btn"
+                class="btn secondary"
+                data-rid="<%= it.restaurant.id %>">
+          בדוק זמינות
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <% if (it.restaurant.description) { %>
+    <section class="card">
+      <h2 style="margin-top:0">על המסעדה</h2>
+      <p><%= it.restaurant.description %></p>
+    </section>
   <% } %>
-</section>
 
-<section class="card">
-  <h2 style="margin-top:0">בצע/י הזמנה</h2>
-  <form id="reserve-form" class="grid2" method="post" action="/restaurants/<%= r.id %>/reserve">
-    <input type="hidden" name="rid" value="<%= r.id %>"/>
-    <label>
-      <span>תאריך</span>
-      <input name="date" type="date" required/>
-    </label>
-    <label>
-      <span>שעה</span>
-      <input name="time" type="time" step="900" required/>
-    </label>
-    <label>
-      <span>מס׳ סועדים</span>
-      <input name="people" type="number" min="1" max="30" value="2" required/>
-    </label>
-    <label class="col-span-2">
-      <span>הערה (לא חובה)</span>
-      <input name="note" type="text" maxlength="200" placeholder="רגישות, העדפות, וכו׳"/>
-    </label>
-    <div class="row col-span-2">
-      <button class="btn" type="submit">בדיקת זמינות והזמנה</button>
-      <button class="btn secondary" id="check-btn" data-rid="<%= r.id %>" type="button">בדיקת זמינות</button>
-    </div>
-    <div id="reserve-result" class="muted col-span-2"></div>
-  </form>
-</section>
+  <% if (it.restaurant.menu && it.restaurant.menu.length) { %>
+    <section class="card">
+      <h2 style="margin-top:0">תפריט</h2>
+      <ul class="menu-list">
+        <% it.restaurant.menu.forEach(item => { %>
+          <li>
+            <strong><%= item.name %></strong>
+            <% if (item.price != null) { %> — <span class="muted"><%= item.price %> ₪</span><% } %>
+            <% if (item.desc) { %><br/><span class="muted"><%= item.desc %></span><% } %>
+          </li>
+        <% }) %>
+      </ul>
+    </section>
+  <% } %>
 
-<% if (r.menu && r.menu.length) { %>
-<section class="card">
-  <h2 style="margin-top:0">תפריט</h2>
-  <ul class="list">
-    <% r.menu.forEach(i => { %>
-      <li class="list-row">
-        <div class="grow"><%= i.name %><% if (i.desc) { %> · <span class="muted"><%= i.desc %></span><% } %></div>
-        <% if (typeof i.price === "number") { %><div><%= i.price.toFixed(0) %> ₪</div><% } %>
-      </li>
-    <% }) %>
-  </ul>
-</section>
-<% } %>
+  <% if (it.restaurant.photos && it.restaurant.photos.length) { %>
+    <section class="card">
+      <h2 style="margin-top:0">תמונות</h2>
+      <div class="photo-grid">
+        <% it.restaurant.photos.forEach(src => { %>
+          <img src="<%= src %>" alt="תמונה של המסעדה" loading="lazy"/>
+        <% }) %>
+      </div>
+    </section>
+  <% } %>
+</main>
+
+<script>
+  // AJAX בדיקת זמינות (לא חובה, אבל משפר UX)
+  (function () {
+    const btn = document.getElementById('check-btn');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      const form = document.getElementById('reserve-form');
+      const rid = btn.dataset.rid;
+      const date = form.querySelector('[name="date"]').value;
+      const time = form.querySelector('[name="time"]').value;
+      const peopleStr = form.querySelector('[name="people"]').value;
+      const people = Number(peopleStr);
+
+      try {
+        const res = await fetch(`/api/restaurants/${encodeURIComponent(rid)}/check`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date, time, people })
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+          alert('זמין!');
+        } else {
+          alert('לא זמין. ' + (data.suggestions?.length ? 'הצעות: ' + data.suggestions.join(', ') : ''));
+        }
+      } catch (e) {
+        alert('שגיאה בבדיקת זמינות');
+        console.error(e);
+      }
+    });
+  })();
+</script>
+
+<style>
+  .container{max-width:960px;margin:24px auto;padding:0 16px}
+  .card{border:1px solid #eee;border-radius:12px;padding:16px;margin-bottom:18px}
+  .muted{color:#777}
+  .form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .form-row{display:flex;flex-direction:column}
+  .form-actions{grid-column:1/-1;display:flex;gap:10px}
+  .btn{background:#111;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer}
+  .btn.secondary{background:#555}
+  .alert.warn{background:#fff1f0;border:1px solid #ffccc7;color:#a8071a;border-radius:8px;padding:10px 12px;margin-bottom:12px}
+  .menu-list{list-style:none;margin:0;padding:0}
+  .menu-list li{padding:8px 0;border-bottom:1px dashed #eee}
+  .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+  .photo-grid img{width:100%;height:120px;object-fit:cover;border-radius:8px;border:1px solid #eee}
+  @media (max-width:860px){.form-grid{grid-template-columns:1fr}}
+</style>
