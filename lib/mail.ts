@@ -1,72 +1,86 @@
 // src/lib/mail.ts
-// שליחת מיילים עם Resend + fallback ל-log כאשר חסר מפתח/דומיין
-// שימושים: אימות מייל, התראות לבעלי מסעדה, שחזור סיסמה.
+// שליחת אימיילים: אימות מייל ושחזור סיסמה.
+// עובד בשני מצבים:
+// 1) RESEND_API_KEY קיים → שליחה אמיתית דרך Resend API
+// 2) בלי מפתח → DRY RUN (לוג בלבד, לא נופל בפרודקשן)
 
+const BASE_URL = Deno.env.get("BASE_URL") ?? "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const RESEND_FROM = Deno.env.get("RESEND_FROM") ?? ""; // למשל: "GeoTable <no-reply@yourdomain.com>"
-const BASE_URL = Deno.env.get("BASE_URL") ?? "";       // לדוגמה: "https://your-app.deno.dev"
+const MAIL_FROM = Deno.env.get("MAIL_FROM") ?? "GeoTable <no-reply@example.com>";
 
-async function sendResendEmail(to: string, subject: string, html: string) {
-  if (!RESEND_API_KEY || !RESEND_FROM) {
-    console.warn("[mail:dry-run] missing RESEND_API_KEY/RESEND_FROM");
-    console.info("[mail:dry-run] to=", to, "subject=", subject);
-    console.info("[mail:dry-run] html=", html);
-    return { ok: true, id: "dry-run" };
-  }
-  const resp = await fetch("https://api.resend.com/emails", {
+function buildUrl(path: string) {
+  // אם יש BASE_URL (למשל https://myapp.com) נשתמש בו; אחרת נחזיר path יחסי
+  const base = BASE_URL.replace(/\/+$/, "");
+  return base ? `${base}${path.startsWith("/") ? "" : "/"}${path}` : path;
+}
+
+async function sendViaResend(to: string, subject: string, html: string, text?: string) {
+  const url = "https://api.resend.com/emails";
+  const body = {
+    from: MAIL_FROM,
+    to,
+    subject,
+    html,
+    text: text || html.replace(/<[^>]+>/g, "").replace(/\s+\n/g, "\n"),
+  };
+
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${RESEND_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ from: RESEND_FROM, to, subject, html }),
+    body: JSON.stringify(body),
   });
-  if (!resp.ok) {
-    console.error("[mail] send failed:", resp.status, await resp.text());
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(`Resend failed (${res.status}): ${msg}`);
   }
-  return { ok: resp.ok };
+  return await res.json().catch(() => ({}));
 }
 
-function wrapLayout(title: string, bodyHtml: string) {
-  return `<!doctype html>
-<html dir="rtl" lang="he">
-  <head>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <title>${title}</title>
-  </head>
-  <body style="margin:0;background:#f6f7fb;font-family:Arial,Helvetica,sans-serif;color:#111;direction:rtl">
-    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="padding:24px 0">
-      <tr>
-        <td align="center">
-          <table width="640" cellpadding="0" cellspacing="0" role="presentation" style="background:#fff;border:1px solid #eee;border-radius:12px;padding:24px">
-            <tr><td>
-              <h2 style="margin:0 0 12px 0">GeoTable</h2>
-              <div>${bodyHtml}</div>
-              <p style="color:#777;font-size:12px;margin-top:24px">אם לא ביקשת את הפעולה – אפשר להתעלם מהמייל.</p>
-            </td></tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
+async function sendMail(to: string, subject: string, html: string, text?: string) {
+  if (RESEND_API_KEY) {
+    try {
+      return await sendViaResend(to, subject, html, text);
+    } catch (e) {
+      console.warn("[mail] Resend error → falling back to DRY RUN:", e);
+      // נפול־בק ל־DRY RUN כדי לא להפיל את הזרימה
+    }
+  }
+  // DRY RUN: לא שולחים בפועל, רק לוג
+  console.log(`[mail:DRY] to=${to} subj="${subject}"\nHTML:\n${html}\n`);
+  return { ok: true, dryRun: true };
 }
 
+/** אימות מייל אחרי הרשמה */
 export async function sendVerifyEmail(to: string, token: string) {
-  const link = `${BASE_URL || ""}/verify?token=${encodeURIComponent(token)}`;
-  const html = wrapLayout("אימות כתובת דוא״ל", `
-    <p>להשלמת ההרשמה, נא לאמת את כתובת הדוא״ל.</p>
-    <p><a href="${link}">לחצו כאן לאימות</a></p>
-  `);
-  return sendResendEmail(to, "אימות כתובת דוא״ל", html);
+  const link = buildUrl(`/auth/verify?token=${encodeURIComponent(token)}`);
+  const subject = "אימות כתובת דוא\"ל – GeoTable";
+  const html = `
+    <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+      <h2>ברוך/ה הבא/ה ל-GeoTable</h2>
+      <p>לאימות כתובת הדוא"ל שלך, לחצו על הקישור:</p>
+      <p><a href="${link}" style="display:inline-block;background:#111;color:#fff;padding:10px 14px;border-radius:8px;text-decoration:none">אימות חשבון</a></p>
+      <p>או העתיקו: <br/><code>${link}</code></p>
+    </div>
+  `;
+  return await sendMail(to, subject, html);
 }
 
-export async function sendPasswordResetEmail(to: string, token: string) {
-  const link = `${BASE_URL || ""}/reset?token=${encodeURIComponent(token)}`;
-  const html = wrapLayout("איפוס סיסמה", `
-    <p>קיבלנו בקשה לאפס את הסיסמה.</p>
-    <p><a href="${link}">לחצו כאן לאיפוס הסיסמה</a></p>
-  `);
-  return sendResendEmail(to, "איפוס סיסמה", html);
+/** קישור לשחזור סיסמה */
+export async function sendResetEmail(to: string, token: string) {
+  const link = buildUrl(`/auth/reset?token=${encodeURIComponent(token)}`);
+  const subject = "שחזור סיסמה – GeoTable";
+  const html = `
+    <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+      <h2>שחזור סיסמה</h2>
+      <p>התבקש שחזור סיסמה עבור החשבון שלך. ניתן להגדיר סיסמה חדשה בקישור הבא:</p>
+      <p><a href="${link}" style="display:inline-block;background:#111;color:#fff;padding:10px 14px;border-radius:8px;text-decoration:none">איפוס סיסמה</a></p>
+      <p>אם לא ביקשת/ביקשתּ לשחזר סיסמה — ניתן להתעלם מהודעה זו.</p>
+      <p>קישור ישיר: <br/><code>${link}</code></p>
+    </div>
+  `;
+  return await sendMail(to, subject, html);
 }
