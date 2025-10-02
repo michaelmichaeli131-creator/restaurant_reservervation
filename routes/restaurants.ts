@@ -9,6 +9,7 @@ import {
   type Reservation,
 } from "../database.ts";
 import { render } from "../lib/view.ts";
+import { sendReservationEmail } from "../lib/mail.ts";
 
 // ---------- Utils ----------
 function pad2(n: number) { return n.toString().padStart(2, "0"); }
@@ -218,8 +219,13 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     ctx.request.headers.get("x-people");
   const people = toIntLoose(peopleRaw);
 
+  // שדות הלקוח (חיוניים)
+  const name = String((payload as any).name ?? "").trim();
+  const phone = String((payload as any).phone ?? "").trim();
+  const email = String((payload as any).email ?? "").trim();
+
   console.log(`[RESV ${reqId}] /reserve rawBody`, dbg);
-  console.log(`[RESV ${reqId}] /reserve input`, { rid, date, time, people, peopleRaw, maxPeople });
+  console.log(`[RESV ${reqId}] /reserve input`, { rid, date, time, people, peopleRaw, maxPeople, name, phone, email });
 
   const respondBad = (msg: string) => {
     console.warn(`[RESV ${reqId}] BAD: ${msg}`);
@@ -232,6 +238,9 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return respondBad("bad date (YYYY-MM-DD expected)");
   if (!/^\d{2}:\d{2}$/.test(time)) return respondBad("bad time (HH:mm expected)");
   if (people == null || people < 1 || people > maxPeople) return respondBad(`bad people (1..${maxPeople})`);
+  if (!name) return respondBad("נא להזין שם");
+  if (!phone) return respondBad("נא להזין טלפון");
+  if (!email) return respondBad("נא להזין דוא״ל");
 
   const avail = await checkAvailability(rid, date, time, people);
   console.log(`[RESV ${reqId}] availability`, avail);
@@ -259,10 +268,21 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     date,
     time,
     people,
+    note: `name=${name}; phone=${phone}; email=${email}`,
     status: "new",
     createdAt: Date.now(),
   };
   await createReservation(reservation);
+
+  // מייל אישור ללקוח (DRY RUN אם אין RESEND_API_KEY)
+  await sendReservationEmail({
+    to: email,
+    restaurantName: restaurant.name,
+    date,
+    time,
+    people,
+    customerName: name,
+  }).catch((e) => console.warn("[mail] reservation email failed:", e));
 
   const message = `הזמנתך נשמרה בהצלחה ב־${restaurant.name} עבור ${people} סועדים לתאריך ${date} בשעה ${time}. נשמח לארח אותך!`;
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
@@ -311,3 +331,5 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
     ctx.response.body = JSON.stringify({ ok: false, reason: (result as any).reason, suggestions: around }, null, 2);
   }
 });
+
+export { restaurantsRouter };

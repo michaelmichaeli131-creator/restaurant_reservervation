@@ -357,7 +357,7 @@ function suggestTimes(r: Restaurant, date: string, time: string, people: number,
   return out;
 }
 
-/** NEW: החזרת סלוטים זמינים סביב שעה נתונה (ברירת מחדל ±120 דקות) */
+/** החזרת סלוטים זמינים סביב שעה נתונה (ברירת מחדל ±120 דקות) */
 export async function listAvailableSlotsAround(
   restaurantId: string,
   date: string,
@@ -386,7 +386,6 @@ export async function listAvailableSlotsAround(
   };
 
   const found = new Set<string>();
-  // נסרוק קדימה ואחורה מסביב לשעה המבוקשת בפסיעה של step
   for (let delta = 0; ; delta += step) {
     let pushed = false;
     const before = base - delta;
@@ -399,10 +398,9 @@ export async function listAvailableSlotsAround(
       if (tryTime(after)) { found.add(fromMinutes(after)); pushed = true; }
     }
     if (found.size >= maxSlots) break;
-    if (!pushed && (before < start && after > end)) break; // אין עוד מה לבדוק
+    if (!pushed && (before < start && after > end)) break;
   }
 
-  // ממיין לפי מרחק מהשעה המרכזית ואחר כך לפי זמן
   const out = Array.from(found.values());
   out.sort((a, b) => {
     const da = Math.abs(toMinutes(a) - base);

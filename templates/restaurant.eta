@@ -43,6 +43,21 @@
         <small class="muted">מינ' 1 · מקס' <%= cap %></small>
       </div>
 
+      <div class="form-row">
+        <label for="name">שם המזמין/ה</label>
+        <input id="name" name="name" type="text" required placeholder="שם פרטי ומשפחה" />
+      </div>
+
+      <div class="form-row">
+        <label for="phone">טלפון</label>
+        <input id="phone" name="phone" type="tel" required placeholder="05x-xxxxxxx" />
+      </div>
+
+      <div class="form-row">
+        <label for="email">דוא״ל לאישור</label>
+        <input id="email" name="email" type="email" required placeholder="name@example.com" />
+      </div>
+
       <div class="form-actions">
         <button type="submit" class="btn">הזמן</button>
         <button type="button" id="check-btn" class="btn secondary" data-rid="<%= it.restaurant.id %>">בדוק זמינות</button>
@@ -101,19 +116,33 @@
     const dateEl = form.querySelector('[name="date"]');
     const timeEl = form.querySelector('[name="time"]');
     const peopleEl = form.querySelector('[name="people"]');
+    const nameEl = form.querySelector('[name="name"]');
+    const phoneEl = form.querySelector('[name="phone"]');
+    const emailEl = form.querySelector('[name="email"]');
     const dateVal = dateEl.value;
     const timeVal = timeEl.value;
     const peopleRaw = peopleEl.value;
     const min = Number(peopleEl.getAttribute('min') || 1);
     const max = Number(peopleEl.getAttribute('max') || 30);
     const peopleParsed = peopleRaw === "" ? null : clamp(peopleRaw, min, max);
-    return { date: dateVal, time: timeVal, people: peopleParsed, peopleRaw };
+    return {
+      date: dateVal,
+      time: timeVal,
+      people: peopleParsed,
+      peopleRaw,
+      name: nameEl.value.trim(),
+      phone: phoneEl.value.trim(),
+      email: emailEl.value.trim()
+    };
   }
-  function ensureClientValidity({ date, time, people }) {
+  function ensureClientValidity({ date, time, people, name, phone, email }) {
     if (!date) return "נא לבחור תאריך";
     if (!time) return "נא לבחור שעה";
     if (people == null) return "נא להזין מספר סועדים";
     if (!Number.isFinite(people) || people < 1) return "מספר סועדים חייב להיות לפחות 1";
+    if (!name) return "נא להזין שם";
+    if (!phone) return "נא להזין טלפון";
+    if (!email) return "נא להזין דוא״ל";
     return null;
   }
   function politeMessage(name, people, date, time) {
@@ -137,7 +166,6 @@
     return { ok: res.ok, status: res.status, data, text };
   }
 
-  // מציג/מסתיר רשימת סלוטים
   function renderAround(slots) {
     const card = document.getElementById('around-card');
     const box = document.getElementById('around-slots');
@@ -149,9 +177,7 @@
         a.type = 'button';
         a.className = 'slot';
         a.textContent = t;
-        a.addEventListener('click', () => {
-          document.getElementById('time').value = t;
-        });
+        a.addEventListener('click', () => { document.getElementById('time').value = t; });
         box.appendChild(a);
       }
     } else {
@@ -159,7 +185,7 @@
     }
   }
 
-  // AJAX: בדיקת זמינות + הצגת סלוטים סביב השעה
+  // בדיקת זמינות (AJAX)
   (function () {
     const btn = document.getElementById('check-btn');
     if (!btn) return;
@@ -191,7 +217,7 @@
     });
   })();
 
-  // Submit → JSON + הודעת הצלחה + ניווט
+  // שליחת הזמנה (AJAX)
   (function () {
     const form = document.getElementById('reserve-form');
     form.addEventListener('submit', async (ev) => {
@@ -201,7 +227,7 @@
       if (err) { alert(err); return; }
       const url = form.getAttribute('action');
       try {
-        const r = await postJSON(url, { date: fm.date, time: fm.time, people: fm.people });
+        const r = await postJSON(url, { date: fm.date, time: fm.time, people: fm.people, name: fm.name, phone: fm.phone, email: fm.email });
         if (r.ok && r.data?.ok) {
           const successMsg = r.data.message || `הזמנתך נקלטה בהצלחה ב־<%= it.restaurant.name %> עבור ${fm.people} סועדים לתאריך ${fm.date} בשעה ${fm.time}. נשמח לארח אותך!`;
           alert(successMsg);
