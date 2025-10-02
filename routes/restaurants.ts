@@ -50,7 +50,6 @@ function toIntLoose(input: unknown): number | null {
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const ct = ctx.request.headers.get("content-type") ?? "";
   const reqAny: any = ctx.request as any;
-  // Oak exposing original Fetch API Request (בדנו בלבד; לא ב-Node) :contentReference[oaicite:1]{index=1}
   const original: Request | undefined = (reqAny.originalRequest ?? undefined);
 
   const dbg: Record<string, unknown> = { ct, phases: [] as any[] };
@@ -65,9 +64,8 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     return o;
   };
 
-  // 0) אם JSON — ננסה כמה נתיבים
+  // JSON — כמה נתיבים
   if (ct.includes("application/json")) {
-    // 0.1 Oak body({ type: "json" })
     try {
       if (typeof reqAny.body === "function") {
         const v = await reqAny.body({ type: "json" }).value;
@@ -78,7 +76,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
       }
     } catch (e) { phase("oak.json.error", String(e)); }
 
-    // 0.2 Oak body() generic
     try {
       if (typeof reqAny.body === "function") {
         const b = await reqAny.body();
@@ -100,7 +97,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
       }
     } catch (e) { phase("oak.generic.error", String(e)); }
 
-    // 0.3 originalRequest.json()
     try {
       if (original && (original as any).json) {
         const v = await (original as any).json();
@@ -111,7 +107,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
       }
     } catch (e) { phase("native.json.error", String(e)); }
 
-    // 0.4 originalRequest.text() → JSON
     try {
       if (original && (original as any).text) {
         const text = await (original as any).text();
@@ -121,7 +116,7 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     } catch (e) { phase("native.text.error", String(e)); }
   }
 
-  // 1) x-www-form-urlencoded (Oak/Natively)
+  // x-www-form-urlencoded
   if (ct.includes("application/x-www-form-urlencoded")) {
     try {
       if (typeof reqAny.body === "function") {
@@ -141,7 +136,7 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     } catch (e) { phase("native.formData.error", String(e)); }
   }
 
-  // 2) multipart/form-data
+  // multipart/form-data
   if (ct.includes("multipart/form-data")) {
     try {
       if (typeof reqAny.body === "function") {
@@ -161,7 +156,7 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     } catch (e) { phase("native.formData(multipart).error", String(e)); }
   }
 
-  // 3) bytes/text fallback (גם אם ה-CT לא מתאים)
+  // bytes/text fallback
   try {
     if (typeof reqAny.body === "function") {
       const b = await reqAny.body({ type: "bytes" }).value;
@@ -181,7 +176,7 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     }
   } catch (e) { phase("native.text.fallback.error", String(e)); }
 
-  // 4) querystring
+  // querystring
   const qs = Object.fromEntries(ctx.request.url.searchParams);
   phase("querystring", qs);
   return { payload: qs, dbg };
@@ -192,6 +187,7 @@ function wantsJSON(ctx: any) {
   return acc.includes("application/json");
 }
 
+// יצוא יחיד! אין export נוסף בסוף הקובץ.
 export const restaurantsRouter = new Router();
 
 /** API: חיפוש לאוטוקומפליט */
@@ -238,7 +234,6 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
 
   const { payload, dbg } = await readBody(ctx);
 
-  // קבלת ערכים עם גיבויים
   const date = normalizeDate((payload as any).date ?? ctx.request.url.searchParams.get("date"));
   const time = normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time"));
   const peopleRaw =
@@ -333,5 +328,3 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = JSON.stringify(result, null, 2);
 });
-
-export { restaurantsRouter };
