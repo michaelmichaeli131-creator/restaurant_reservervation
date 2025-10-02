@@ -4,6 +4,7 @@ import {
   listRestaurants,
   getRestaurant,
   checkAvailability,
+  listAvailableSlotsAround,
   createReservation,
   type Reservation,
 } from "../database.ts";
@@ -45,11 +46,8 @@ function toIntLoose(input: unknown): number | null {
   const onlyDigits = s.replace(/[^\d]/g, "");
   return onlyDigits ? Math.trunc(Number(onlyDigits)) : null;
 }
-function politeAvailMessage(name: string, people: number, date: string, time: string) {
-  return `יש זמינות ב־${name} עבור ${people} סועדים בתאריך ${date} בשעה ${time}.`;
-}
 
-// ---------- Body Reader (חסין: Oak body() → originalRequest → bytes) ----------
+// ---------- Body Reader ----------
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const ct = ctx.request.headers.get("content-type") ?? "";
   const reqAny: any = ctx.request as any;
@@ -67,35 +65,25 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     return o;
   };
 
-  // JSON
   if (ct.includes("application/json")) {
     try {
       if (typeof reqAny.body === "function") {
         const v = await reqAny.body({ type: "json" }).value;
         if (v && typeof v === "object") { phase("oak.json", v); return { payload: v, dbg }; }
         phase("oak.json.empty", v);
-      } else {
-        phase("oak.json.skip", "request.body is not a function");
       }
     } catch (e) { phase("oak.json.error", String(e)); }
 
     try {
-      if (typeof reqAny.body === "function") {
+      if (typeof reqAny.body === "function")) {
         const b = await reqAny.body();
-        if (b?.type === "json") {
-          const v = await b.value;
-          if (v && typeof v === "object") { phase("oak.generic.json", v); return { payload: v, dbg }; }
-        } else if (b?.type === "bytes") {
-          const u8: Uint8Array = await b.value;
-          const text = new TextDecoder().decode(u8);
-          phase("oak.bytes", text);
-          try { const j = JSON.parse(text); phase("oak.bytes->json", j); return { payload: j, dbg }; } catch {}
+        if (b?.type === "json") { const v = await b.value; if (v && typeof v === "object") { phase("oak.generic.json", v); return { payload: v, dbg }; } }
+        else if (b?.type === "bytes") {
+          const u8: Uint8Array = await b.value; const text = new TextDecoder().decode(u8);
+          phase("oak.bytes", text); try { const j = JSON.parse(text); phase("oak.bytes->json", j); return { payload: j, dbg }; } catch {}
         } else if (b?.type === "text") {
-          const text: string = await b.value;
-          phase("oak.text", text);
+          const text: string = await b.value; phase("oak.text", text);
           try { const j = JSON.parse(text); phase("oak.text->json", j); return { payload: j, dbg }; } catch {}
-        } else {
-          phase("oak.generic", { type: b?.type });
         }
       }
     } catch (e) { phase("oak.generic.error", String(e)); }
@@ -104,9 +92,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
       if (original && (original as any).json) {
         const v = await (original as any).json();
         if (v && typeof v === "object") { phase("native.json", v); return { payload: v, dbg }; }
-        phase("native.json.empty", v);
-      } else {
-        phase("native.json.skip", "no originalRequest");
       }
     } catch (e) { phase("native.json.error", String(e)); }
 
@@ -119,47 +104,40 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     } catch (e) { phase("native.text.error", String(e)); }
   }
 
-  // x-www-form-urlencoded
   if (ct.includes("application/x-www-form-urlencoded")) {
     try {
       if (typeof reqAny.body === "function") {
         const v = await reqAny.body({ type: "form" }).value;
-        const o = fromForm(v as URLSearchParams);
-        phase("oak.form", o);
+        const o = fromForm(v as URLSearchParams); phase("oak.form", o);
         return { payload: o, dbg };
       }
     } catch (e) { phase("oak.form.error", String(e)); }
     try {
       if (original && (original as any).formData) {
         const fd = await (original as any).formData();
-        const o = fromForm(fd);
-        phase("native.formData(urlencoded)", o);
+        const o = fromForm(fd); phase("native.formData(urlencoded)", o);
         return { payload: o, dbg };
       }
     } catch (e) { phase("native.formData.error", String(e)); }
   }
 
-  // multipart/form-data
   if (ct.includes("multipart/form-data")) {
     try {
       if (typeof reqAny.body === "function") {
         const v = await reqAny.body({ type: "form-data" }).value;
-        const o = fromForm(v as FormData);
-        phase("oak.multipart", o);
+        const o = fromForm(v as FormData); phase("oak.multipart", o);
         return { payload: o, dbg };
       }
     } catch (e) { phase("oak.multipart.error", String(e)); }
     try {
       if (original && (original as any).formData) {
         const fd = await (original as any).formData();
-        const o = fromForm(fd);
-        phase("native.formData(multipart)", o);
+        const o = fromForm(fd); phase("native.formData(multipart)", o);
         return { payload: o, dbg };
       }
     } catch (e) { phase("native.formData(multipart).error", String(e)); }
   }
 
-  // bytes/text fallback
   try {
     if (typeof reqAny.body === "function") {
       const b = await reqAny.body({ type: "bytes" }).value;
@@ -179,7 +157,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     }
   } catch (e) { phase("native.text.fallback.error", String(e)); }
 
-  // querystring
   const qs = Object.fromEntries(ctx.request.url.searchParams);
   phase("querystring", qs);
   return { payload: qs, dbg };
@@ -260,10 +237,11 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   console.log(`[RESV ${reqId}] availability`, avail);
 
   if (!avail.ok) {
+    const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
     const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
     url.searchParams.set("conflict", "1");
     url.searchParams.set("reason", String((avail as any).reason));
-    if ((avail as any).suggestions?.length) url.searchParams.set("suggest", (avail as any).suggestions.join(","));
+    if (around.length) url.searchParams.set("suggest", around.join(","));
     url.searchParams.set("date", date);
     url.searchParams.set("time", time);
     url.searchParams.set("people", String(people));
@@ -291,7 +269,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   ctx.response.body = JSON.stringify({ ok: true, reservation, message }, null, 2);
 });
 
-/** API: בדיקת זמינות (AJAX) */
+/** API: בדיקת זמינות (AJAX) + סלוטים סביב השעה (±2 שעות) */
 restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const reqId = String(ctx.state?.reqId ?? crypto.randomUUID().slice(0,8));
@@ -323,12 +301,13 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   if (people == null || people < 1 || people > maxPeople) return bad(`bad people (1..${maxPeople})`);
 
   const result = await checkAvailability(rid, date, time, people);
-  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
 
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   if (result.ok) {
-    const message = politeAvailMessage(restaurant.name, people, date, time);
-    ctx.response.body = JSON.stringify({ ok: true, message, details: { restaurantId: rid, date, time, people } }, null, 2);
+    const message = `יש זמינות ב־${restaurant.name} עבור ${people} סועדים בתאריך ${date} בשעה ${time}.`;
+    ctx.response.body = JSON.stringify({ ok: true, message, availableSlots: around, details: { restaurantId: rid, date, time, people } }, null, 2);
   } else {
-    ctx.response.body = JSON.stringify(result, null, 2);
+    ctx.response.body = JSON.stringify({ ok: false, reason: (result as any).reason, suggestions: around }, null, 2);
   }
 });

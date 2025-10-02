@@ -57,29 +57,7 @@ export const kv = await Deno.openKv();
 const lower = (s?: string) => (s ?? "").trim().toLowerCase();
 const now = () => Date.now();
 
-// ------- key helpers (מונע TypeError של Deno KV) -------
-function keyStr(x: unknown, name = "id"): string {
-  if (typeof x === "string") return x;
-  if (typeof x === "number" || typeof x === "bigint" || typeof x === "boolean") return String(x);
-  throw new TypeError(`invalid ${name}: expected string/number/bigint/boolean`);
-}
-function keyDate(x: unknown): string {
-  const s = keyStr(x, "date");
-  // מקבלים רק תבנית YYYY-MM-DD כדי לא לייצר מפתחות "מוזרים"
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw new TypeError(`invalid date format (YYYY-MM-DD expected): ${s}`);
-  return s;
-}
-function keyTime(x: unknown): string {
-  const s = keyStr(x, "time");
-  if (!/^\d{2}:\d{2}$/.test(s)) throw new TypeError(`invalid time format (HH:mm expected): ${s}`);
-  return s;
-}
-
 // ---------- Users ----------
-// Keys:
-// ["user", id] -> User
-// ["user_by_email", emailLower] -> id
-// ["user_by_username", usernameLower] -> id
 export async function createUser(u: {
   id: string;
   email: string;
@@ -156,7 +134,6 @@ export async function useVerifyToken(token: string) {
 }
 
 // שחזור סיסמה – Reset token
-// ["reset", token] -> { userId, createdAt }
 export async function createResetToken(userId: string): Promise<string> {
   const token = crypto.randomUUID().replace(/-/g, "");
   await kv.set(["reset", token], { userId, createdAt: now() });
@@ -172,11 +149,6 @@ export async function useResetToken(token: string) {
 }
 
 // ---------- Restaurants ----------
-// Keys:
-// ["restaurant", id] -> Restaurant
-// ["restaurant_by_owner", ownerId, id] -> 1
-// ["restaurant_name", nameLower, id] -> 1
-// ["restaurant_city", cityLower, id] -> 1
 export async function createRestaurant(r: {
   id: string; ownerId: string; name: string; city: string; address: string;
   phone?: string; hours?: string; description?: string;
@@ -199,18 +171,17 @@ export async function createRestaurant(r: {
     createdAt: now(),
   };
   const tx = kv.atomic()
-    .set(["restaurant", keyStr(restaurant.id)], restaurant)
-    .set(["restaurant_by_owner", keyStr(restaurant.ownerId), keyStr(restaurant.id)], 1)
-    .set(["restaurant_name", lower(restaurant.name), keyStr(restaurant.id)], 1)
-    .set(["restaurant_city", lower(restaurant.city), keyStr(restaurant.id)], 1);
+    .set(["restaurant", restaurant.id], restaurant)
+    .set(["restaurant_by_owner", restaurant.ownerId, restaurant.id], 1)
+    .set(["restaurant_name", lower(restaurant.name), restaurant.id], 1)
+    .set(["restaurant_city", lower(restaurant.city), restaurant.id], 1);
   const res = await tx.commit();
   if (!res.ok) throw new Error("create_restaurant_race");
   return restaurant;
 }
 
 export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
-  const rid = keyStr(id);
-  const cur = await kv.get<Restaurant>(["restaurant", rid]);
+  const cur = await kv.get<Restaurant>(["restaurant", id]);
   const prev = cur.value;
   if (!prev) return null;
 
@@ -223,12 +194,12 @@ export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
     photos: (patch.photos ?? prev.photos ?? []).filter(Boolean),
   };
 
-  const tx = kv.atomic().set(["restaurant", rid], next);
+  const tx = kv.atomic().set(["restaurant", id], next);
   if (patch.name && lower(patch.name) !== lower(prev.name)) {
-    tx.delete(["restaurant_name", lower(prev.name), rid]).set(["restaurant_name", lower(patch.name), rid], 1);
+    tx.delete(["restaurant_name", lower(prev.name), id]).set(["restaurant_name", lower(patch.name), id], 1);
   }
   if (patch.city && lower(patch.city) !== lower(prev.city)) {
-    tx.delete(["restaurant_city", lower(prev.city), rid]).set(["restaurant_city", lower(patch.city), rid], 1);
+    tx.delete(["restaurant_city", lower(prev.city), id]).set(["restaurant_city", lower(patch.city), id], 1);
   }
   const res = await tx.commit();
   if (!res.ok) throw new Error("update_restaurant_race");
@@ -236,8 +207,7 @@ export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
 }
 
 export async function getRestaurant(id: string) {
-  const rid = keyStr(id);
-  return (await kv.get<Restaurant>(["restaurant", rid])).value ?? null;
+  return (await kv.get<Restaurant>(["restaurant", id])).value ?? null;
 }
 
 export async function listRestaurants(q?: string, onlyApproved = true): Promise<Restaurant[]> {
@@ -300,10 +270,8 @@ function fromMinutes(m: number): string {
 }
 
 export async function listReservationsFor(restaurantId: string, date: string): Promise<Reservation[]> {
-  const rid = keyStr(restaurantId, "restaurantId");
-  const d = keyDate(date);
   const out: Reservation[] = [];
-  for await (const row of kv.list({ prefix: ["reservation_by_day", rid, d] })) {
+  for await (const row of kv.list({ prefix: ["reservation_by_day", restaurantId, date] })) {
     const id = row.key[row.key.length - 1] as string;
     const r = (await kv.get<Reservation>(["reservation", id])).value;
     if (r) out.push(r);
@@ -313,23 +281,17 @@ export async function listReservationsFor(restaurantId: string, date: string): P
 }
 
 export async function createReservation(r: Reservation) {
-  const rid = keyStr(r.restaurantId, "restaurantId");
-  const d = keyDate(r.date);
-  const t = keyTime(r.time);
-  const id = keyStr(r.id, "reservation id");
-  const safe: Reservation = { ...r, id, restaurantId: rid, date: d, time: t };
   const tx = kv.atomic()
-    .set(["reservation", safe.id], safe)
-    .set(["reservation_by_day", rid, d, safe.id], 1);
+    .set(["reservation", r.id], r)
+    .set(["reservation_by_day", r.restaurantId, r.date, r.id], 1);
   const res = await tx.commit();
   if (!res.ok) throw new Error("create_reservation_race");
-  return safe;
+  return r;
 }
 
 export async function listReservationsByOwner(ownerId: string) {
-  const oid = keyStr(ownerId, "ownerId");
   const my: { id: string; name: string }[] = [];
-  for await (const k of kv.list({ prefix: ["restaurant_by_owner", oid] })) {
+  for await (const k of kv.list({ prefix: ["restaurant_by_owner", ownerId] })) {
     const rid = k.key[k.key.length - 1] as string;
     const r = (await kv.get<Restaurant>(["restaurant", rid])).value;
     if (r) my.push({ id: r.id, name: r.name });
@@ -347,8 +309,7 @@ export async function listReservationsByOwner(ownerId: string) {
 }
 
 export async function computeOccupancy(restaurant: Restaurant, date: string) {
-  const d = keyDate(date);
-  const resv = await listReservationsFor(restaurant.id, d);
+  const resv = await listReservationsFor(restaurant.id, date);
   const map = new Map<string, number>(); // time -> used seats
   for (const r of resv) {
     const start = toMinutes(r.time);
@@ -362,18 +323,15 @@ export async function computeOccupancy(restaurant: Restaurant, date: string) {
 }
 
 export async function checkAvailability(restaurantId: string, date: string, time: string, people: number) {
-  const rid = keyStr(restaurantId, "restaurantId");
-  const d = keyDate(date);
-  const t = keyTime(time);
-  const r = await getRestaurant(rid);
+  const r = await getRestaurant(restaurantId);
   if (!r) return { ok: false, reason: "not_found" as const };
-  const occ = await computeOccupancy(r, d);
-  const start = toMinutes(t);
+  const occ = await computeOccupancy(r, date);
+  const start = toMinutes(time);
   const end = start + (r.serviceDurationMinutes || 120);
-  for (let tMin = start; tMin < end; tMin += r.slotIntervalMinutes || 15) {
-    const used = occ.get(fromMinutes(tMin)) ?? 0;
+  for (let t = start; t < end; t += r.slotIntervalMinutes || 15) {
+    const used = occ.get(fromMinutes(t)) ?? 0;
     if (used + people > r.capacity) {
-      return { ok: false, reason: "full" as const, suggestions: suggestTimes(r, d, t, people, occ) };
+      return { ok: false, reason: "full" as const, suggestions: suggestTimes(r, date, time, people, occ) };
     }
   }
   return { ok: true as const };
@@ -400,22 +358,83 @@ function suggestTimes(r: Restaurant, date: string, time: string, people: number,
   return out;
 }
 
+// ----- NEW: החזרת סלוטים זמינים סביב שעה נתונה (±windowMinutes, מיושרים לגריד) -----
+function roundDownToSlot(mins: number, slot: number) {
+  return Math.floor(mins / slot) * slot;
+}
+function dayOfWeekFromIso(date: string): DayOfWeek {
+  // JS: 0=Sunday..6=Saturday כבר מתאים
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(y, m - 1, d).getDay() as DayOfWeek;
+}
+function openingWindowFor(r: Restaurant, date: string): OpeningWindow | null | undefined {
+  if (!r.weeklySchedule) return undefined; // אין הגבלה
+  const dow = dayOfWeekFromIso(date);
+  return r.weeklySchedule[dow] ?? null;
+}
+function isSpanWithinOpen(win: OpeningWindow | null | undefined, startMin: number, spanMin: number) {
+  if (win === undefined) return true; // אין לוח – הכול מותר
+  if (win === null) return false;     // סגור באותו יום
+  const openM = toMinutes(win.open);
+  const closeM = toMinutes(win.close);
+  return startMin >= openM && (startMin + spanMin) <= closeM;
+}
+
+/**
+ * מחזיר עד N סלוטים זמינים בתוך חלון של ±windowMinutes מסביב ל-centerTime.
+ * מכבד capacity, משך שירות, גריד סלוטים, ולו״ז פתיחה אם קיים.
+ */
+export async function listAvailableSlotsAround(
+  restaurantId: string,
+  date: string,
+  centerTime: string,
+  people: number,
+  windowMinutes = 120,
+  limit = 16,
+): Promise<string[]> {
+  const r = await getRestaurant(restaurantId);
+  if (!r) return [];
+  const occ = await computeOccupancy(r, date);
+  const step = r.slotIntervalMinutes || 15;
+  const span = r.serviceDurationMinutes || 120;
+  const center = toMinutes(centerTime);
+  const startWin = Math.max(0, center - windowMinutes);
+  const endWin = center + windowMinutes;
+
+  const openWin = openingWindowFor(r, date); // עשוי להיות undefined (אין לו״ז) | null (סגור) | חלון
+  if (openWin === null) return []; // סגור ביום זה
+
+  const tryTime = (t: number) => {
+    if (!isSpanWithinOpen(openWin, t, span)) return false;
+    for (let x = t; x < t + span; x += step) {
+      const used = occ.get(fromMinutes(x)) ?? 0;
+      if (used + people > r.capacity) return false;
+    }
+    return true;
+  };
+
+  // נתחיל מהסלוט הראשון בתוך החלון המיושר לגריד
+  const first = roundDownToSlot(startWin, step);
+  const out: string[] = [];
+  for (let t = first; t <= endWin; t += step) {
+    if (t < 0) continue;
+    if (tryTime(t)) out.push(fromMinutes(t));
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 // ---------- Admin Utilities ----------
-// מוחק מסעדה **וכל** התלויות שלה (אינדקסים + הזמנות) בבטיחות.
-// מחזיר את מספר ההזמנות שנמחקו.
 export async function deleteRestaurantCascade(restaurantId: string): Promise<number> {
-  const rid = keyStr(restaurantId, "restaurantId");
-  const r = await getRestaurant(rid);
+  const r = await getRestaurant(restaurantId);
   if (!r) return 0;
 
-  // אסוף כל מפתחות ההזמנות: reservation_by_day + reservation
   const reservationIds: string[] = [];
-  for await (const k of kv.list({ prefix: ["reservation_by_day", rid] })) {
+  for await (const k of kv.list({ prefix: ["reservation_by_day", restaurantId] })) {
     const id = k.key[k.key.length - 1] as string;
     reservationIds.push(id);
   }
 
-  // מחיקה באצוות כדי לשמור על מגבלות atomic
   const chunk = <T>(arr: T[], size: number) =>
     arr.reduce<T[][]>((acc, v, i) => {
       if (i % size === 0) acc.push([]);
@@ -430,7 +449,7 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
       const resv = (await kv.get<Reservation>(["reservation", id])).value;
       if (resv) {
         tx.delete(["reservation", id]);
-        tx.delete(["reservation_by_day", rid, resv.date, id]);
+        tx.delete(["reservation_by_day", restaurantId, resv.date, id]);
         deleted++;
       } else {
         tx.delete(["reservation", id]);
@@ -439,18 +458,17 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
     await tx.commit().catch(() => {});
   }
 
-  // הסר אינדקסי מסעדה + המסעדה עצמה
   const tx2 = kv.atomic()
-    .delete(["restaurant", rid])
-    .delete(["restaurant_by_owner", keyStr(r.ownerId), rid])
-    .delete(["restaurant_name", lower(r.name), rid])
-    .delete(["restaurant_city", lower(r.city), rid]);
+    .delete(["restaurant", restaurantId])
+    .delete(["restaurant_by_owner", r.ownerId, restaurantId])
+    .delete(["restaurant_name", lower(r.name), restaurantId])
+    .delete(["restaurant_city", lower(r.city), restaurantId]);
   await tx2.commit().catch(() => {});
 
   return deleted;
 }
 
-// איפוס מלא של בסיס הנתונים – מנקה **את כל** הישויות/אינדקסים הידועים.
+// איפוס מלא
 export async function resetAll(): Promise<void> {
   const prefixes: Deno.KvKey[] = [
     ["user"],
@@ -489,82 +507,4 @@ export async function resetAll(): Promise<void> {
   for (const p of prefixes) {
     await deleteByPrefix(p);
   }
-}
-
-// איפוס **רק ההזמנות**
-export async function resetReservations(): Promise<number> {
-  const ids: string[] = [];
-  for await (const row of kv.list({ prefix: ["reservation"] })) {
-    const id = row.key[row.key.length - 1] as string;
-    ids.push(id);
-  }
-
-  const byDayKeys: Array<Deno.KvKey> = [];
-  for await (const row of kv.list({ prefix: ["reservation_by_day"] })) {
-    byDayKeys.push(row.key);
-  }
-
-  const chunk = <T>(arr: T[], size: number) =>
-    arr.reduce<T[][]>((acc, v, i) => {
-      if (i % size === 0) acc.push([]);
-      acc[acc.length - 1].push(v);
-      return acc;
-    }, []);
-
-  let deleted = 0;
-  for (const group of chunk(ids, 100)) {
-    const tx = kv.atomic(); for (const id of group) { tx.delete(["reservation", id]); deleted++; }
-    await tx.commit().catch(() => {});
-  }
-  for (const group of chunk(byDayKeys, 100)) {
-    const tx = kv.atomic(); for (const key of group) tx.delete(key);
-    await tx.commit().catch(() => {});
-  }
-
-  return deleted;
-}
-
-// איפוס **כל המסעדות** (כולל כל ההזמנות שלהן והאינדקסים)
-export async function resetRestaurants(): Promise<{ restaurants: number; reservations: number }> {
-  const ids: string[] = [];
-  for await (const row of kv.list<Restaurant>({ prefix: ["restaurant"] })) {
-    const id = row.key[row.key.length - 1] as string;
-    ids.push(id);
-  }
-  let restaurants = 0, reservations = 0;
-  for (const id of ids) {
-    const del = await deleteRestaurantCascade(id);
-    reservations += del;
-    restaurants++;
-  }
-  return { restaurants, reservations };
-}
-
-// איפוס **רק המשתמשים**
-export async function resetUsers(): Promise<number> {
-  type UserRow = { key: Deno.KvKey; value: User };
-  const users: UserRow[] = [];
-  for await (const row of kv.list<User>({ prefix: ["user"] })) {
-    if (row.value) users.push({ key: row.key, value: row.value });
-  }
-
-  const chunk = <T>(arr: T[], size: number) =>
-    arr.reduce<T[][]>((acc, v, i) => {
-      if (i % size === 0) acc.push([]);
-      acc[acc.length - 1].push(v);
-      return acc;
-    }, []);
-
-  let deleted = 0;
-  for (const group of chunk(users, 50)) {
-    const tx = kv.atomic();
-    for (const { value } of group) {
-      tx.delete(["user", value.id]);
-      tx.delete(["user_by_email", lower(value.email)]);
-      tx.delete(["user_by_username", lower(value.username)]);
-      deleted++;
-    }
-    await tx.commit().catch(() => {});
-  }
-  return deleted;
 }

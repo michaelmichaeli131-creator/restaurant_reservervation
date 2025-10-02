@@ -50,6 +50,12 @@
     </form>
   </section>
 
+  <section class="card" id="around-card" hidden>
+    <h3 style="margin-top:0">שעות זמינות סביב השעה שבחרת (±2 שעות)</h3>
+    <div id="around-slots" class="slots"></div>
+    <small class="muted">הזמנים מוצמדים לגריד של המסעדה.</small>
+  </section>
+
   <% if (it.restaurant.description) { %>
     <section class="card">
       <h2 style="margin-top:0">על המסעדה</h2>
@@ -90,23 +96,19 @@
     if (!Number.isFinite(n)) return null;
     return Math.max(min, Math.min(max, n));
   }
-
   function readForm() {
     const form = document.getElementById('reserve-form');
     const dateEl = form.querySelector('[name="date"]');
     const timeEl = form.querySelector('[name="time"]');
     const peopleEl = form.querySelector('[name="people"]');
-
     const dateVal = dateEl.value;
     const timeVal = timeEl.value;
     const peopleRaw = peopleEl.value;
     const min = Number(peopleEl.getAttribute('min') || 1);
     const max = Number(peopleEl.getAttribute('max') || 30);
     const peopleParsed = peopleRaw === "" ? null : clamp(peopleRaw, min, max);
-
     return { date: dateVal, time: timeVal, people: peopleParsed, peopleRaw };
   }
-
   function ensureClientValidity({ date, time, people }) {
     if (!date) return "נא לבחור תאריך";
     if (!time) return "נא לבחור שעה";
@@ -114,16 +116,12 @@
     if (!Number.isFinite(people) || people < 1) return "מספר סועדים חייב להיות לפחות 1";
     return null;
   }
-
   function politeMessage(name, people, date, time) {
     return `יש זמינות ב־${name} עבור ${people} סועדים בתאריך ${date} בשעה ${time}.`;
   }
-
   async function postJSON(url, payload) {
-    // fallback query + header for ‘people’, כפי שכבר הטמענו כדי לשרוד בעיות נתיב
     const urlObj = new URL(url, location.origin);
     if (payload && payload.people != null) urlObj.searchParams.set('people', String(payload.people));
-
     const res = await fetch(urlObj.toString(), {
       method: 'POST',
       headers: {
@@ -134,13 +132,34 @@
       body: JSON.stringify(payload),
       redirect: 'follow'
     });
-    const text = await res.text();
-    let data = null;
+    const text = await res.text(); let data = null;
     try { data = JSON.parse(text); } catch {}
     return { ok: res.ok, status: res.status, data, text };
   }
 
-  // AJAX: בדיקת זמינות
+  // מציג/מסתיר רשימת סלוטים
+  function renderAround(slots) {
+    const card = document.getElementById('around-card');
+    const box = document.getElementById('around-slots');
+    box.innerHTML = '';
+    if (Array.isArray(slots) && slots.length) {
+      card.hidden = false;
+      for (const t of slots) {
+        const a = document.createElement('button');
+        a.type = 'button';
+        a.className = 'slot';
+        a.textContent = t;
+        a.addEventListener('click', () => {
+          document.getElementById('time').value = t;
+        });
+        box.appendChild(a);
+      }
+    } else {
+      card.hidden = true;
+    }
+  }
+
+  // AJAX: בדיקת זמינות + הצגת סלוטים סביב השעה
   (function () {
     const btn = document.getElementById('check-btn');
     if (!btn) return;
@@ -148,20 +167,20 @@
       const fm = readForm();
       const err = ensureClientValidity(fm);
       if (err) { alert(err); return; }
-
       const rid = btn.dataset.rid;
       try {
         const r = await postJSON(`/api/restaurants/${encodeURIComponent(rid)}/check`, {
           date: fm.date, time: fm.time, people: fm.people
         });
         if (r.ok && r.data?.ok) {
-          // נשתמש בהודעה שמגיעה מהשרת, ואם אין — נבנה הודעה מכובדת
           const msg = r.data.message || politeMessage("<%= it.restaurant.name %>", fm.people, fm.date, fm.time);
           alert(msg);
+          renderAround(r.data.availableSlots || []);
+        } else if (r.data && r.data.suggestions) {
+          renderAround(r.data.suggestions);
+          alert('לא זמין. הצעות: ' + r.data.suggestions.join(', '));
         } else if (r.data && r.data.error) {
           alert('בעיה: ' + r.data.error);
-        } else if (r.data && r.data.suggestions) {
-          alert('לא זמין. הצעות: ' + r.data.suggestions.join(', '));
         } else {
           alert('שגיאה בבדיקת זמינות');
         }
@@ -172,7 +191,7 @@
     });
   })();
 
-  // Submit → JSON + הודעת הצלחה מכובדת + ניווט
+  // Submit → JSON + הודעת הצלחה + ניווט
   (function () {
     const form = document.getElementById('reserve-form');
     form.addEventListener('submit', async (ev) => {
@@ -180,15 +199,12 @@
       const fm = readForm();
       const err = ensureClientValidity(fm);
       if (err) { alert(err); return; }
-
       const url = form.getAttribute('action');
       try {
         const r = await postJSON(url, { date: fm.date, time: fm.time, people: fm.people });
         if (r.ok && r.data?.ok) {
-          const successMsg = r.data.message || `הזמנתך נקלטה בהצלחה ב־<%= it.restaurant.name %> עבור ${fm.people} סועדים בתאריך ${fm.date} בשעה ${fm.time}. נשמח לארח אותך!`;
+          const successMsg = r.data.message || `הזמנתך נקלטה בהצלחה ב־<%= it.restaurant.name %> עבור ${fm.people} סועדים לתאריך ${fm.date} בשעה ${fm.time}. נשמח לארח אותך!`;
           alert(successMsg);
-
-          // ננווט בחזרה לעמוד עם פרמטרי OK (למקרה שתרצה להציג הודעת דף)
           const rid = "<%= it.restaurant.id %>";
           const u = new URL(`/restaurants/${encodeURIComponent(rid)}`, location.origin);
           u.searchParams.set('ok', '1');
@@ -225,5 +241,8 @@
   .menu-list li{padding:8px 0;border-bottom:1px dashed #eee}
   .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
   .photo-grid img{width:100%;height:120px;object-fit:cover;border-radius:8px;border:1px solid #eee}
+  #around-slots{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .slot{padding:6px 10px;border-radius:8px;border:1px solid #ddd;background:#fafafa;cursor:pointer}
+  .slot:hover{background:#f0f0ff}
   @media (max-width:860px){.form-grid{grid-template-columns:1fr}}
 </style>
