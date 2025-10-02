@@ -58,6 +58,10 @@ const lower = (s?: string) => (s ?? "").trim().toLowerCase();
 const now = () => Date.now();
 
 // ---------- Users ----------
+// Keys:
+// ["user", id] -> User
+// ["user_by_email", emailLower] -> id
+// ["user_by_username", usernameLower] -> id
 export async function createUser(u: {
   id: string;
   email: string;
@@ -134,6 +138,7 @@ export async function useVerifyToken(token: string) {
 }
 
 // שחזור סיסמה – Reset token
+// ["reset", token] -> { userId, createdAt }
 export async function createResetToken(userId: string): Promise<string> {
   const token = crypto.randomUUID().replace(/-/g, "");
   await kv.set(["reset", token], { userId, createdAt: now() });
@@ -149,6 +154,11 @@ export async function useResetToken(token: string) {
 }
 
 // ---------- Restaurants ----------
+// Keys:
+// ["restaurant", id] -> Restaurant
+// ["restaurant_by_owner", ownerId, id] -> 1
+// ["restaurant_name", nameLower, id] -> 1
+// ["restaurant_city", cityLower, id] -> 1
 export async function createRestaurant(r: {
   id: string; ownerId: string; name: string; city: string; address: string;
   phone?: string; hours?: string; description?: string;
@@ -358,83 +368,21 @@ function suggestTimes(r: Restaurant, date: string, time: string, people: number,
   return out;
 }
 
-// ----- NEW: החזרת סלוטים זמינים סביב שעה נתונה (±windowMinutes, מיושרים לגריד) -----
-function roundDownToSlot(mins: number, slot: number) {
-  return Math.floor(mins / slot) * slot;
-}
-function dayOfWeekFromIso(date: string): DayOfWeek {
-  // JS: 0=Sunday..6=Saturday כבר מתאים
-  const [y, m, d] = date.split("-").map(Number);
-  return new Date(y, m - 1, d).getDay() as DayOfWeek;
-}
-function openingWindowFor(r: Restaurant, date: string): OpeningWindow | null | undefined {
-  if (!r.weeklySchedule) return undefined; // אין הגבלה
-  const dow = dayOfWeekFromIso(date);
-  return r.weeklySchedule[dow] ?? null;
-}
-function isSpanWithinOpen(win: OpeningWindow | null | undefined, startMin: number, spanMin: number) {
-  if (win === undefined) return true; // אין לוח – הכול מותר
-  if (win === null) return false;     // סגור באותו יום
-  const openM = toMinutes(win.open);
-  const closeM = toMinutes(win.close);
-  return startMin >= openM && (startMin + spanMin) <= closeM;
-}
-
-/**
- * מחזיר עד N סלוטים זמינים בתוך חלון של ±windowMinutes מסביב ל-centerTime.
- * מכבד capacity, משך שירות, גריד סלוטים, ולו״ז פתיחה אם קיים.
- */
-export async function listAvailableSlotsAround(
-  restaurantId: string,
-  date: string,
-  centerTime: string,
-  people: number,
-  windowMinutes = 120,
-  limit = 16,
-): Promise<string[]> {
-  const r = await getRestaurant(restaurantId);
-  if (!r) return [];
-  const occ = await computeOccupancy(r, date);
-  const step = r.slotIntervalMinutes || 15;
-  const span = r.serviceDurationMinutes || 120;
-  const center = toMinutes(centerTime);
-  const startWin = Math.max(0, center - windowMinutes);
-  const endWin = center + windowMinutes;
-
-  const openWin = openingWindowFor(r, date); // עשוי להיות undefined (אין לו״ז) | null (סגור) | חלון
-  if (openWin === null) return []; // סגור ביום זה
-
-  const tryTime = (t: number) => {
-    if (!isSpanWithinOpen(openWin, t, span)) return false;
-    for (let x = t; x < t + span; x += step) {
-      const used = occ.get(fromMinutes(x)) ?? 0;
-      if (used + people > r.capacity) return false;
-    }
-    return true;
-  };
-
-  // נתחיל מהסלוט הראשון בתוך החלון המיושר לגריד
-  const first = roundDownToSlot(startWin, step);
-  const out: string[] = [];
-  for (let t = first; t <= endWin; t += step) {
-    if (t < 0) continue;
-    if (tryTime(t)) out.push(fromMinutes(t));
-    if (out.length >= limit) break;
-  }
-  return out;
-}
-
 // ---------- Admin Utilities ----------
+// מוחק מסעדה **וכל** התלויות שלה (אינדקסים + הזמנות) בבטיחות.
+// מחזיר את מספר ההזמנות שנמחקו.
 export async function deleteRestaurantCascade(restaurantId: string): Promise<number> {
   const r = await getRestaurant(restaurantId);
   if (!r) return 0;
 
+  // אסוף כל מפתחות ההזמנות: reservation_by_day + reservation
   const reservationIds: string[] = [];
   for await (const k of kv.list({ prefix: ["reservation_by_day", restaurantId] })) {
     const id = k.key[k.key.length - 1] as string;
     reservationIds.push(id);
   }
 
+  // מחיקה באצוות כדי לשמור על מגבלות atomic
   const chunk = <T>(arr: T[], size: number) =>
     arr.reduce<T[][]>((acc, v, i) => {
       if (i % size === 0) acc.push([]);
@@ -458,6 +406,7 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
     await tx.commit().catch(() => {});
   }
 
+  // הסר אינדקסי מסעדה + המסעדה עצמה
   const tx2 = kv.atomic()
     .delete(["restaurant", restaurantId])
     .delete(["restaurant_by_owner", r.ownerId, restaurantId])
@@ -468,8 +417,72 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
   return deleted;
 }
 
-// איפוס מלא
+/* ========= NEW: פעולות איפוס לאדמין =========
+   אלו הפונקציות שחסרו והובילו לשגיאות ה-Boot.  */
+
+// איפוס כל ההזמנות בלבד (משאיר משתמשים ומסעדות)
+export async function resetReservations(): Promise<{ deleted: number }> {
+  let deleted = 0;
+
+  // מחיקת כל הרשומות ב-/reservation
+  for await (const e of kv.list({ prefix: ["reservation"] })) {
+    await kv.delete(e.key);
+    deleted++;
+  }
+
+  // מחיקת כל האינדקסים לפי יום: /reservation_by_day/*
+  for await (const e of kv.list({ prefix: ["reservation_by_day"] })) {
+    await kv.delete(e.key);
+  }
+
+  return { deleted };
+}
+
+// איפוס מסעדות בלבד (כולל מחיקת הזמנות שלהן בצורה בטוחה)
+export async function resetRestaurants(): Promise<{ restaurants: number; reservations: number }> {
+  const ids: string[] = [];
+  for await (const e of kv.list({ prefix: ["restaurant"] })) {
+    const rid = e.key[e.key.length - 1] as string;
+    ids.push(rid);
+  }
+
+  let resDeleted = 0;
+  for (const rid of ids) {
+    resDeleted += await deleteRestaurantCascade(rid);
+  }
+
+  return { restaurants: ids.length, reservations: resDeleted };
+}
+
+// איפוס משתמשים בלבד (כולל טוקני אימות/שחזור)
+export async function resetUsers(): Promise<{ users: number }> {
+  let users = 0;
+
+  for await (const e of kv.list({ prefix: ["user"] })) {
+    await kv.delete(e.key);
+    users++;
+  }
+  for await (const e of kv.list({ prefix: ["user_by_email"] })) {
+    await kv.delete(e.key);
+  }
+  for await (const e of kv.list({ prefix: ["user_by_username"] })) {
+    await kv.delete(e.key);
+  }
+  for await (const e of kv.list({ prefix: ["verify"] })) {
+    await kv.delete(e.key);
+  }
+  for await (const e of kv.list({ prefix: ["reset"] })) {
+    await kv.delete(e.key);
+  }
+
+  return { users };
+}
+
+// איפוס מלא של בסיס הנתונים – מנקה **את כל** הישויות/אינדקסים הידועים.
+// שימושי ל-/admin/resetAll.
+// זהיר: פעולה הרסנית!
 export async function resetAll(): Promise<void> {
+  // רשימות prefixes למחיקה
   const prefixes: Deno.KvKey[] = [
     ["user"],
     ["user_by_email"],
@@ -486,6 +499,7 @@ export async function resetAll(): Promise<void> {
     ["reservation_by_day"],
   ];
 
+  // פונקציה כללית למחיקת כל מפתחות עם prefix מסוים
   async function deleteByPrefix(prefix: Deno.KvKey, batchSize = 100) {
     const keys: Deno.KvKey[] = [];
     for await (const e of kv.list({ prefix })) {
