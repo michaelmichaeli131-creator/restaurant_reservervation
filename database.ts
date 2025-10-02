@@ -58,10 +58,6 @@ const lower = (s?: string) => (s ?? "").trim().toLowerCase();
 const now = () => Date.now();
 
 // ---------- Users ----------
-// Keys:
-// ["user", id] -> User
-// ["user_by_email", emailLower] -> id
-// ["user_by_username", usernameLower] -> id
 export async function createUser(u: {
   id: string;
   email: string;
@@ -138,7 +134,6 @@ export async function useVerifyToken(token: string) {
 }
 
 // שחזור סיסמה – Reset token
-// ["reset", token] -> { userId, createdAt }
 export async function createResetToken(userId: string): Promise<string> {
   const token = crypto.randomUUID().replace(/-/g, "");
   await kv.set(["reset", token], { userId, createdAt: now() });
@@ -154,11 +149,6 @@ export async function useResetToken(token: string) {
 }
 
 // ---------- Restaurants ----------
-// Keys:
-// ["restaurant", id] -> Restaurant
-// ["restaurant_by_owner", ownerId, id] -> 1
-// ["restaurant_name", nameLower, id] -> 1
-// ["restaurant_city", cityLower, id] -> 1
 export async function createRestaurant(r: {
   id: string; ownerId: string; name: string; city: string; address: string;
   phone?: string; hours?: string; description?: string;
@@ -239,7 +229,6 @@ export async function listRestaurants(q?: string, onlyApproved = true): Promise<
     return items.slice(0, 50);
   }
 
-  // אינדקסים (התאמה מלאה להתחלה)
   for await (const k of kv.list({ prefix: ["restaurant_name", needle] })) {
     const id = k.key[k.key.length - 1] as string;
     push((await kv.get<Restaurant>(["restaurant", id])).value);
@@ -249,7 +238,7 @@ export async function listRestaurants(q?: string, onlyApproved = true): Promise<
     push((await kv.get<Restaurant>(["restaurant", id])).value);
   }
 
-  // Fallback לסריקה מלאה (מכיל גם כתובת)
+  // סריקה מלאה (כולל כתובת)
   for await (const row of kv.list({ prefix: ["restaurant"] })) {
     const r = (await kv.get<Restaurant>(row.key as any)).value;
     if (!r) continue;
@@ -368,21 +357,74 @@ function suggestTimes(r: Restaurant, date: string, time: string, people: number,
   return out;
 }
 
+/** NEW: החזרת סלוטים זמינים סביב שעה נתונה (ברירת מחדל ±120 דקות) */
+export async function listAvailableSlotsAround(
+  restaurantId: string,
+  date: string,
+  centerTime: string,
+  people: number,
+  windowMinutes = 120,
+  maxSlots = 16,
+): Promise<string[]> {
+  const r = await getRestaurant(restaurantId);
+  if (!r) return [];
+  const occ = await computeOccupancy(r, date);
+
+  const step = r.slotIntervalMinutes || 15;
+  const span = r.serviceDurationMinutes || 120;
+
+  const base = toMinutes(centerTime);
+  const start = Math.max(0, base - windowMinutes);
+  const end = base + windowMinutes;
+
+  const tryTime = (t: number) => {
+    for (let x = t; x < t + span; x += step) {
+      const used = occ.get(fromMinutes(x)) ?? 0;
+      if (used + people > r.capacity) return false;
+    }
+    return true;
+  };
+
+  const found = new Set<string>();
+  // נסרוק קדימה ואחורה מסביב לשעה המבוקשת בפסיעה של step
+  for (let delta = 0; ; delta += step) {
+    let pushed = false;
+    const before = base - delta;
+    const after = base + delta;
+
+    if (before >= start && before >= 0) {
+      if (tryTime(before)) { found.add(fromMinutes(before)); pushed = true; }
+    }
+    if (after <= end) {
+      if (tryTime(after)) { found.add(fromMinutes(after)); pushed = true; }
+    }
+    if (found.size >= maxSlots) break;
+    if (!pushed && (before < start && after > end)) break; // אין עוד מה לבדוק
+  }
+
+  // ממיין לפי מרחק מהשעה המרכזית ואחר כך לפי זמן
+  const out = Array.from(found.values());
+  out.sort((a, b) => {
+    const da = Math.abs(toMinutes(a) - base);
+    const db = Math.abs(toMinutes(b) - base);
+    if (da !== db) return da - db;
+    return a.localeCompare(b);
+  });
+
+  return out.slice(0, maxSlots);
+}
+
 // ---------- Admin Utilities ----------
-// מוחק מסעדה **וכל** התלויות שלה (אינדקסים + הזמנות) בבטיחות.
-// מחזיר את מספר ההזמנות שנמחקו.
 export async function deleteRestaurantCascade(restaurantId: string): Promise<number> {
   const r = await getRestaurant(restaurantId);
   if (!r) return 0;
 
-  // אסוף כל מפתחות ההזמנות: reservation_by_day + reservation
   const reservationIds: string[] = [];
   for await (const k of kv.list({ prefix: ["reservation_by_day", restaurantId] })) {
     const id = k.key[k.key.length - 1] as string;
     reservationIds.push(id);
   }
 
-  // מחיקה באצוות כדי לשמור על מגבלות atomic
   const chunk = <T>(arr: T[], size: number) =>
     arr.reduce<T[][]>((acc, v, i) => {
       if (i % size === 0) acc.push([]);
@@ -406,7 +448,6 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
     await tx.commit().catch(() => {});
   }
 
-  // הסר אינדקסי מסעדה + המסעדה עצמה
   const tx2 = kv.atomic()
     .delete(["restaurant", restaurantId])
     .delete(["restaurant_by_owner", r.ownerId, restaurantId])
@@ -417,89 +458,60 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
   return deleted;
 }
 
-/* ========= NEW: פעולות איפוס לאדמין =========
-   אלו הפונקציות שחסרו והובילו לשגיאות ה-Boot.  */
-
-// איפוס כל ההזמנות בלבד (משאיר משתמשים ומסעדות)
+// ========= פעולות איפוס לאדמין =========
 export async function resetReservations(): Promise<{ deleted: number }> {
   let deleted = 0;
-
-  // מחיקת כל הרשומות ב-/reservation
   for await (const e of kv.list({ prefix: ["reservation"] })) {
     await kv.delete(e.key);
     deleted++;
   }
-
-  // מחיקת כל האינדקסים לפי יום: /reservation_by_day/*
   for await (const e of kv.list({ prefix: ["reservation_by_day"] })) {
     await kv.delete(e.key);
   }
-
   return { deleted };
 }
 
-// איפוס מסעדות בלבד (כולל מחיקת הזמנות שלהן בצורה בטוחה)
 export async function resetRestaurants(): Promise<{ restaurants: number; reservations: number }> {
   const ids: string[] = [];
   for await (const e of kv.list({ prefix: ["restaurant"] })) {
     const rid = e.key[e.key.length - 1] as string;
     ids.push(rid);
   }
-
   let resDeleted = 0;
   for (const rid of ids) {
     resDeleted += await deleteRestaurantCascade(rid);
   }
-
   return { restaurants: ids.length, reservations: resDeleted };
 }
 
-// איפוס משתמשים בלבד (כולל טוקני אימות/שחזור)
 export async function resetUsers(): Promise<{ users: number }> {
   let users = 0;
-
   for await (const e of kv.list({ prefix: ["user"] })) {
     await kv.delete(e.key);
     users++;
   }
-  for await (const e of kv.list({ prefix: ["user_by_email"] })) {
-    await kv.delete(e.key);
-  }
-  for await (const e of kv.list({ prefix: ["user_by_username"] })) {
-    await kv.delete(e.key);
-  }
-  for await (const e of kv.list({ prefix: ["verify"] })) {
-    await kv.delete(e.key);
-  }
-  for await (const e of kv.list({ prefix: ["reset"] })) {
-    await kv.delete(e.key);
-  }
-
+  for await (const e of kv.list({ prefix: ["user_by_email"] })) await kv.delete(e.key);
+  for await (const e of kv.list({ prefix: ["user_by_username"] })) await kv.delete(e.key);
+  for await (const e of kv.list({ prefix: ["verify"] })) await kv.delete(e.key);
+  for await (const e of kv.list({ prefix: ["reset"] })) await kv.delete(e.key);
   return { users };
 }
 
-// איפוס מלא של בסיס הנתונים – מנקה **את כל** הישויות/אינדקסים הידועים.
-// שימושי ל-/admin/resetAll.
-// זהיר: פעולה הרסנית!
 export async function resetAll(): Promise<void> {
-  // רשימות prefixes למחיקה
   const prefixes: Deno.KvKey[] = [
     ["user"],
     ["user_by_email"],
     ["user_by_username"],
     ["verify"],
     ["reset"],
-
     ["restaurant"],
     ["restaurant_by_owner"],
     ["restaurant_name"],
     ["restaurant_city"],
-
     ["reservation"],
     ["reservation_by_day"],
   ];
 
-  // פונקציה כללית למחיקת כל מפתחות עם prefix מסוים
   async function deleteByPrefix(prefix: Deno.KvKey, batchSize = 100) {
     const keys: Deno.KvKey[] = [];
     for await (const e of kv.list({ prefix })) {
@@ -518,7 +530,5 @@ export async function resetAll(): Promise<void> {
     }
   }
 
-  for (const p of prefixes) {
-    await deleteByPrefix(p);
-  }
+  for (const p of prefixes) await deleteByPrefix(p);
 }
