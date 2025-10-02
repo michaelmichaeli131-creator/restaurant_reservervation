@@ -85,7 +85,6 @@
 </main>
 
 <script>
-  // ---- עזרי ולידציה בצד לקוח ----
   function clamp(n, min, max) {
     n = Number(n);
     if (!Number.isFinite(n)) return null;
@@ -98,13 +97,11 @@
     const timeEl = form.querySelector('[name="time"]');
     const peopleEl = form.querySelector('[name="people"]');
 
-    const dateVal = dateEl.value;         // "YYYY-MM-DD" או ריק
-    const timeVal = timeEl.value;         // "HH:mm" או ריק
-    const peopleRaw = peopleEl.value;     // מחרוזת (עשויה להיות "")
+    const dateVal = dateEl.value;
+    const timeVal = timeEl.value;
+    const peopleRaw = peopleEl.value;
     const min = Number(peopleEl.getAttribute('min') || 1);
     const max = Number(peopleEl.getAttribute('max') || 30);
-
-    // אין יותר || 0 — אם ריק → null. אם מספר → נקשיח לטווח [min..max].
     const peopleParsed = peopleRaw === "" ? null : clamp(peopleRaw, min, max);
 
     return { date: dateVal, time: timeVal, people: peopleParsed, peopleRaw };
@@ -118,31 +115,28 @@
     return null;
   }
 
-  // עטיפת Fetch ששולחת גם JSON בגוף, גם Header, וגם Query Param כ-fallback
-  async function postJSON(url, payload) {
-    // fallback: נוסיף people גם ל-Query וגם לכותרת, למקרה שגוף הבקשה לא יעבור אחרי ניתוב כלשהו.
-    const urlObj = new URL(url, location.origin);
-    if (payload && payload.people != null) {
-      urlObj.searchParams.set('people', String(payload.people));   // גיבוי בפרמטר Query (לא סודי)
-    }
+  function politeMessage(name, people, date, time) {
+    return `יש זמינות ב־${name} עבור ${people} סועדים בתאריך ${date} בשעה ${time}.`;
+  }
 
-    console.debug('[RESV DBG] request', urlObj.toString(), payload);
+  async function postJSON(url, payload) {
+    // fallback query + header for ‘people’, כפי שכבר הטמענו כדי לשרוד בעיות נתיב
+    const urlObj = new URL(url, location.origin);
+    if (payload && payload.people != null) urlObj.searchParams.set('people', String(payload.people));
 
     const res = await fetch(urlObj.toString(), {
       method: 'POST',
       headers: {
-        'Accept': 'application/json',       // בקשת JSON מהשרת
-        'Content-Type': 'application/json', // שליחת JSON (הדרך התקנית עם fetch)
-        ...(payload && payload.people != null ? { 'X-People': String(payload.people) } : {}) // גיבוי גם בכותרת
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        ...(payload && payload.people != null ? { 'X-People': String(payload.people) } : {})
       },
-      body: JSON.stringify(payload),        // גוף JSON תקין
+      body: JSON.stringify(payload),
       redirect: 'follow'
     });
-
     const text = await res.text();
     let data = null;
     try { data = JSON.parse(text); } catch {}
-    console.debug('[RESV DBG] response', { status: res.status, ok: res.ok, bodyText: text, bodyParsed: data });
     return { ok: res.ok, status: res.status, data, text };
   }
 
@@ -161,7 +155,9 @@
           date: fm.date, time: fm.time, people: fm.people
         });
         if (r.ok && r.data?.ok) {
-          alert('זמין!');
+          // נשתמש בהודעה שמגיעה מהשרת, ואם אין — נבנה הודעה מכובדת
+          const msg = r.data.message || politeMessage("<%= it.restaurant.name %>", fm.people, fm.date, fm.time);
+          alert(msg);
         } else if (r.data && r.data.error) {
           alert('בעיה: ' + r.data.error);
         } else if (r.data && r.data.suggestions) {
@@ -176,7 +172,7 @@
     });
   })();
 
-  // Submit → JSON + ניווט ידני אחרי הצלחה
+  // Submit → JSON + הודעת הצלחה מכובדת + ניווט
   (function () {
     const form = document.getElementById('reserve-form');
     form.addEventListener('submit', async (ev) => {
@@ -189,6 +185,10 @@
       try {
         const r = await postJSON(url, { date: fm.date, time: fm.time, people: fm.people });
         if (r.ok && r.data?.ok) {
+          const successMsg = r.data.message || `הזמנתך נקלטה בהצלחה ב־<%= it.restaurant.name %> עבור ${fm.people} סועדים בתאריך ${fm.date} בשעה ${fm.time}. נשמח לארח אותך!`;
+          alert(successMsg);
+
+          // ננווט בחזרה לעמוד עם פרמטרי OK (למקרה שתרצה להציג הודעת דף)
           const rid = "<%= it.restaurant.id %>";
           const u = new URL(`/restaurants/${encodeURIComponent(rid)}`, location.origin);
           u.searchParams.set('ok', '1');
@@ -199,7 +199,7 @@
         } else if (r.status === 400 && r.data?.error) {
           alert('שגיאה: ' + r.data.error);
         } else if (r.status >= 300 && r.status < 400) {
-          alert('התקבלה הפניה (redirect). בדוק קונסול דפדפן ללוגים.');
+          alert('התקבלה הפניה (redirect).');
         } else {
           alert('שגיאה בשליחת ההזמנה');
         }

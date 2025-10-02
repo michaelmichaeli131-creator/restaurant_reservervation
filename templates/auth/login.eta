@@ -1,229 +1,38 @@
 <% layout("_layout", it) %>
-<main class="container">
-  <header class="page-header">
-    <h1><%= it.restaurant.name %></h1>
-    <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
-    <% if (it.restaurant.phone) { %>
-      <p class="muted">טלפון: <%= it.restaurant.phone %></p>
-    <% } %>
-  </header>
+<main class="container" dir="rtl">
+  <section class="card" style="max-width:460px;margin:24px auto">
+    <h1 style="margin-top:0">התחברות</h1>
 
-  <% const cap = it.restaurant.capacity || 30; %>
-
-  <section class="card">
-    <h2 style="margin-top:0">הזמנת מקום</h2>
-
-    <% if (it.conflict) { %>
-      <div class="alert warn" role="alert">
-        לא זמין בשעה שביקשת.
-        <% if (it.suggestions && it.suggestions.length) { %>
-          הצעות: <%= it.suggestions.join(", ") %>
-        <% } %>
-      </div>
+    <% if (it.error) { %>
+      <div class="alert warn" role="alert"><%= it.error %></div>
     <% } %>
 
-    <form id="reserve-form"
-          class="form-grid"
-          action="/restaurants/<%= it.restaurant.id %>/reserve"
-          method="post"
-          novalidate>
+    <form action="/auth/login" method="post" class="form-grid">
       <div class="form-row">
-        <label for="date">תאריך</label>
-        <input id="date" name="date" type="date" required value="<%= it.date || '' %>" />
+        <label for="email">דוא״ל</label>
+        <input id="email" name="email" type="email" required />
       </div>
 
       <div class="form-row">
-        <label for="time">שעה</label>
-        <input id="time" name="time" type="time" step="900" required value="<%= it.time || '' %>" />
-      </div>
-
-      <div class="form-row">
-        <label for="people">מספר סועדים</label>
-        <input id="people" name="people" type="number" min="1" max="<%= cap %>" required value="<%= it.people || 2 %>" />
-        <small class="muted">מינ' 1 · מקס' <%= cap %></small>
+        <label for="password">סיסמה</label>
+        <input id="password" name="password" type="password" required />
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn">הזמן</button>
-        <button type="button" id="check-btn" class="btn secondary" data-rid="<%= it.restaurant.id %>">בדוק זמינות</button>
+        <button type="submit" class="btn">כניסה</button>
+        <a class="btn secondary" href="/auth/forgot">שכחתי סיסמה</a>
       </div>
     </form>
   </section>
-
-  <% if (it.restaurant.description) { %>
-    <section class="card">
-      <h2 style="margin-top:0">על המסעדה</h2>
-      <p><%= it.restaurant.description %></p>
-    </section>
-  <% } %>
-
-  <% if (it.restaurant.menu && it.restaurant.menu.length) { %>
-    <section class="card">
-      <h2 style="margin-top:0">תפריט</h2>
-      <ul class="menu-list">
-        <% it.restaurant.menu.forEach(item => { %>
-          <li>
-            <strong><%= item.name %></strong>
-            <% if (item.price != null) { %> — <span class="muted"><%= item.price %> ₪</span><% } %>
-            <% if (item.desc) { %><br/><span class="muted"><%= item.desc %></span><% } %>
-          </li>
-        <% }) %>
-      </ul>
-    </section>
-  <% } %>
-
-  <% if (it.restaurant.photos && it.restaurant.photos.length) { %>
-    <section class="card">
-      <h2 style="margin-top:0">תמונות</h2>
-      <div class="photo-grid">
-        <% it.restaurant.photos.forEach(src => { %>
-          <img src="<%= src %>" alt="תמונה של המסעדה" loading="lazy" />
-        <% }) %>
-      </div>
-    </section>
-  <% } %>
 </main>
-
-<script>
-  function clamp(n, min, max) {
-    n = Number(n);
-    if (!Number.isFinite(n)) return null;
-    return Math.max(min, Math.min(max, n));
-  }
-
-  function readForm() {
-    const form = document.getElementById('reserve-form');
-    const dateEl = form.querySelector('[name="date"]');
-    const timeEl = form.querySelector('[name="time"]');
-    const peopleEl = form.querySelector('[name="people"]');
-
-    const dateVal = dateEl.value;
-    const timeVal = timeEl.value;
-    const peopleRaw = peopleEl.value;
-    const min = Number(peopleEl.getAttribute('min') || 1);
-    const max = Number(peopleEl.getAttribute('max') || 30);
-    const peopleParsed = peopleRaw === "" ? null : clamp(peopleRaw, min, max);
-
-    return { date: dateVal, time: timeVal, people: peopleParsed, peopleRaw };
-  }
-
-  function ensureClientValidity({ date, time, people }) {
-    if (!date) return "נא לבחור תאריך";
-    if (!time) return "נא לבחור שעה";
-    if (people == null) return "נא להזין מספר סועדים";
-    if (!Number.isFinite(people) || people < 1) return "מספר סועדים חייב להיות לפחות 1";
-    return null;
-  }
-
-  function politeMessage(name, people, date, time) {
-    return `יש זמינות ב־${name} עבור ${people} סועדים בתאריך ${date} בשעה ${time}.`;
-  }
-
-  async function postJSON(url, payload) {
-    // fallback query + header for ‘people’, כפי שכבר הטמענו כדי לשרוד בעיות נתיב
-    const urlObj = new URL(url, location.origin);
-    if (payload && payload.people != null) urlObj.searchParams.set('people', String(payload.people));
-
-    const res = await fetch(urlObj.toString(), {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        ...(payload && payload.people != null ? { 'X-People': String(payload.people) } : {})
-      },
-      body: JSON.stringify(payload),
-      redirect: 'follow'
-    });
-    const text = await res.text();
-    let data = null;
-    try { data = JSON.parse(text); } catch {}
-    return { ok: res.ok, status: res.status, data, text };
-  }
-
-  // AJAX: בדיקת זמינות
-  (function () {
-    const btn = document.getElementById('check-btn');
-    if (!btn) return;
-    btn.addEventListener('click', async () => {
-      const fm = readForm();
-      const err = ensureClientValidity(fm);
-      if (err) { alert(err); return; }
-
-      const rid = btn.dataset.rid;
-      try {
-        const r = await postJSON(`/api/restaurants/${encodeURIComponent(rid)}/check`, {
-          date: fm.date, time: fm.time, people: fm.people
-        });
-        if (r.ok && r.data?.ok) {
-          // נשתמש בהודעה שמגיעה מהשרת, ואם אין — נבנה הודעה מכובדת
-          const msg = r.data.message || politeMessage("<%= it.restaurant.name %>", fm.people, fm.date, fm.time);
-          alert(msg);
-        } else if (r.data && r.data.error) {
-          alert('בעיה: ' + r.data.error);
-        } else if (r.data && r.data.suggestions) {
-          alert('לא זמין. הצעות: ' + r.data.suggestions.join(', '));
-        } else {
-          alert('שגיאה בבדיקת זמינות');
-        }
-      } catch (e) {
-        console.error(e);
-        alert('שגיאה בבדיקת זמינות');
-      }
-    });
-  })();
-
-  // Submit → JSON + הודעת הצלחה מכובדת + ניווט
-  (function () {
-    const form = document.getElementById('reserve-form');
-    form.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const fm = readForm();
-      const err = ensureClientValidity(fm);
-      if (err) { alert(err); return; }
-
-      const url = form.getAttribute('action');
-      try {
-        const r = await postJSON(url, { date: fm.date, time: fm.time, people: fm.people });
-        if (r.ok && r.data?.ok) {
-          const successMsg = r.data.message || `הזמנתך נקלטה בהצלחה ב־<%= it.restaurant.name %> עבור ${fm.people} סועדים בתאריך ${fm.date} בשעה ${fm.time}. נשמח לארח אותך!`;
-          alert(successMsg);
-
-          // ננווט בחזרה לעמוד עם פרמטרי OK (למקרה שתרצה להציג הודעת דף)
-          const rid = "<%= it.restaurant.id %>";
-          const u = new URL(`/restaurants/${encodeURIComponent(rid)}`, location.origin);
-          u.searchParams.set('ok', '1');
-          u.searchParams.set('date', fm.date);
-          u.searchParams.set('time', fm.time);
-          u.searchParams.set('people', String(fm.people));
-          location.assign(u.toString());
-        } else if (r.status === 400 && r.data?.error) {
-          alert('שגיאה: ' + r.data.error);
-        } else if (r.status >= 300 && r.status < 400) {
-          alert('התקבלה הפניה (redirect).');
-        } else {
-          alert('שגיאה בשליחת ההזמנה');
-        }
-      } catch (e) {
-        console.error(e);
-        alert('שגיאה בשליחת ההזמנה');
-      }
-    });
-  })();
-</script>
 
 <style>
   .container{max-width:960px;margin:24px auto;padding:0 16px}
-  .card{border:1px solid #eee;border-radius:12px;padding:16px;margin-bottom:18px}
-  .muted{color:#777}
-  .form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .card{border:1px solid #eee;border-radius:12px;padding:16px}
+  .form-grid{display:grid;grid-template-columns:1fr;gap:12px}
   .form-row{display:flex;flex-direction:column}
-  .form-actions{grid-column:1/-1;display:flex;gap:10px}
-  .btn{background:#111;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer}
+  .form-actions{display:flex;gap:10px}
+  .btn{background:#111;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;text-decoration:none;text-align:center}
   .btn.secondary{background:#555}
   .alert.warn{background:#fff1f0;border:1px solid #ffccc7;color:#a8071a;border-radius:8px;padding:10px 12px;margin-bottom:12px}
-  .menu-list{list-style:none;margin:0;padding:0}
-  .menu-list li{padding:8px 0;border-bottom:1px dashed #eee}
-  .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
-  .photo-grid img{width:100%;height:120px;object-fit:cover;border-radius:8px;border:1px solid #eee}
-  @media (max-width:860px){.form-grid{grid-template-columns:1fr}}
 </style>
