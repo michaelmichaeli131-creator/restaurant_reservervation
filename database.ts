@@ -4,7 +4,7 @@
 export interface User {
   id: string;
   email: string;
-  username: string;                // ייחודי
+  username: string;
   firstName: string;
   lastName: string;
   age?: number;
@@ -17,7 +17,7 @@ export interface User {
 }
 
 export type DayOfWeek = 0|1|2|3|4|5|6; // 0=Sunday .. 6=Saturday
-export interface OpeningWindow { open: string; close: string; } // "HH:mm"
+export interface OpeningWindow { open: string; close: string; }
 export type WeeklySchedule = Partial<Record<DayOfWeek, OpeningWindow | null>>;
 
 export interface Restaurant {
@@ -30,28 +30,27 @@ export interface Restaurant {
   hours?: string;
   description?: string;
   menu: Array<{ name: string; price?: number; desc?: string }>;
-  capacity: number;                 // קיבולת בו־זמנית
-  slotIntervalMinutes: number;      // מרווח סלוטים (דקות), ברירת מחדל 15
-  serviceDurationMinutes: number;   // משך ישיבה (דקות), ברירת מחדל 120
-  weeklySchedule?: WeeklySchedule;  // שעות פתיחה שבועיות (אופציונלי)
-  photos?: string[];                // תמונות (URLים)
-  approved?: boolean;               // נדרש אישור אדמין
+  capacity: number;
+  slotIntervalMinutes: number;
+  serviceDurationMinutes: number;
+  weeklySchedule?: WeeklySchedule;
+  photos?: string[];
+  approved?: boolean;
   createdAt: number;
 }
 
 export interface Reservation {
   id: string;
   restaurantId: string;
-  userId: string; // גם ל-block ידני נשים "manual-block:<ownerId>"
+  userId: string;
   date: string;   // YYYY-MM-DD
-  time: string;   // HH:mm (start)
+  time: string;   // HH:mm
   people: number;
   note?: string;
   status?: "new" | "confirmed" | "canceled" | "completed" | "blocked";
   createdAt: number;
 }
 
-// פתח KV פעם אחת
 export const kv = await Deno.openKv();
 
 const lower = (s?: string) => (s ?? "").trim().toLowerCase();
@@ -120,7 +119,7 @@ export async function updateUserPassword(userId: string, passwordHash: string) {
   return next;
 }
 
-// אימות מייל
+// אימות/שחזור
 export async function createVerifyToken(userId: string, email: string): Promise<string> {
   const token = crypto.randomUUID().replace(/-/g, "");
   await kv.set(["verify", token], { userId, email, createdAt: now() });
@@ -132,8 +131,6 @@ export async function useVerifyToken(token: string) {
   await kv.delete(["verify", token]);
   return v.value;
 }
-
-// שחזור סיסמה – Reset token
 export async function createResetToken(userId: string): Promise<string> {
   const token = crypto.randomUUID().replace(/-/g, "");
   await kv.set(["reset", token], { userId, createdAt: now() });
@@ -148,7 +145,25 @@ export async function useResetToken(token: string) {
   return v.value;
 }
 
-// ---------- Restaurants ----------
+// ---------- Helpers for time ----------
+function toMinutes(hhmm: string): number {
+  const m = hhmm.match(/^(\d{2}):(\d{2})$/);
+  if (!m) return NaN;
+  const h = Number(m[1]), mi = Number(m[2]);
+  return h * 60 + mi;
+}
+function fromMinutes(total: number): string {
+  const t = Math.max(0, Math.min(1439, Math.trunc(total)));
+  const h = Math.floor(t / 60).toString().padStart(2, "0");
+  const mi = (t % 60).toString().padStart(2, "0");
+  return `${h}:${mi}`;
+}
+function snapToGrid(mins: number, step: number): number {
+  // מעגלים לגריד הקרוב מטה (כדי להתיישר לרבע שעה)
+  return Math.floor(mins / step) * step;
+}
+
+// ---------- Restaurants / Reservations ----------
 export async function createRestaurant(r: {
   id: string; ownerId: string; name: string; city: string; address: string;
   phone?: string; hours?: string; description?: string;
@@ -238,7 +253,7 @@ export async function listRestaurants(q?: string, onlyApproved = true): Promise<
     push((await kv.get<Restaurant>(["restaurant", id])).value);
   }
 
-  // סריקה מלאה (כולל כתובת)
+  // Fallback לסריקה מלאה (מכיל גם כתובת)
   for await (const row of kv.list({ prefix: ["restaurant"] })) {
     const r = (await kv.get<Restaurant>(row.key as any)).value;
     if (!r) continue;
@@ -255,17 +270,6 @@ export async function listRestaurants(q?: string, onlyApproved = true): Promise<
     if (aCity !== bCity) return (aCity === -1 ? 1 : aCity) - (bCity === -1 ? 1 : bCity);
     return b.createdAt - a.createdAt;
   });
-}
-
-// ---------- Reservations / Availability ----------
-function toMinutes(hhmm: string): number {
-  const [h, m] = hhmm.split(":").map((x) => Number(x));
-  return h * 60 + m;
-}
-function fromMinutes(m: number): string {
-  const h = Math.floor(m / 60).toString().padStart(2, "0");
-  const mi = (m % 60).toString().padStart(2, "0");
-  return `${h}:${mi}`;
 }
 
 export async function listReservationsFor(restaurantId: string, date: string): Promise<Reservation[]> {
@@ -325,39 +329,19 @@ export async function checkAvailability(restaurantId: string, date: string, time
   const r = await getRestaurant(restaurantId);
   if (!r) return { ok: false, reason: "not_found" as const };
   const occ = await computeOccupancy(r, date);
-  const start = toMinutes(time);
+  const step = r.slotIntervalMinutes || 15;
+  const start = snapToGrid(toMinutes(time), step);
   const end = start + (r.serviceDurationMinutes || 120);
-  for (let t = start; t < end; t += r.slotIntervalMinutes || 15) {
+  for (let t = start; t < end; t += step) {
     const used = occ.get(fromMinutes(t)) ?? 0;
     if (used + people > r.capacity) {
-      return { ok: false, reason: "full" as const, suggestions: suggestTimes(r, date, time, people, occ) };
+      return { ok: false, reason: "full" as const };
     }
   }
   return { ok: true as const };
 }
 
-function suggestTimes(r: Restaurant, date: string, time: string, people: number, occ: Map<string, number>) {
-  const base = toMinutes(time);
-  const step = r.slotIntervalMinutes || 15;
-  const span = r.serviceDurationMinutes || 120;
-  const tryTime = (t: number) => {
-    for (let x = t; x < t + span; x += step) {
-      const used = occ.get(fromMinutes(x)) ?? 0;
-      if (used + people > r.capacity) return false;
-    }
-    return true;
-  };
-  const out: string[] = [];
-  for (let delta = step; delta <= 60; delta += step) {
-    const before = base - delta; const after = base + delta;
-    if (before >= 0 && tryTime(before)) out.push(fromMinutes(before));
-    if (tryTime(after)) out.push(fromMinutes(after));
-    if (out.length >= 6) break;
-  }
-  return out;
-}
-
-/** החזרת סלוטים זמינים סביב שעה נתונה (ברירת מחדל ±120 דקות) */
+/** סלוטים זמינים סביב שעה נתונה (±windowMinutes), ממופים לגריד, בטווח היום בלבד */
 export async function listAvailableSlotsAround(
   restaurantId: string,
   date: string,
@@ -373,11 +357,16 @@ export async function listAvailableSlotsAround(
   const step = r.slotIntervalMinutes || 15;
   const span = r.serviceDurationMinutes || 120;
 
-  const base = toMinutes(centerTime);
+  let base = toMinutes(centerTime);
+  if (!Number.isFinite(base)) return [];
+  base = snapToGrid(Math.max(0, Math.min(1439, base)), step);
+
   const start = Math.max(0, base - windowMinutes);
-  const end = base + windowMinutes;
+  const end = Math.min(1439, base + windowMinutes);
 
   const tryTime = (t: number) => {
+    // שמירה על גבולות היום
+    if (t < 0 || t + span > 24 * 60) return false;
     for (let x = t; x < t + span; x += step) {
       const used = occ.get(fromMinutes(x)) ?? 0;
       if (used + people > r.capacity) return false;
@@ -388,17 +377,15 @@ export async function listAvailableSlotsAround(
   const found = new Set<string>();
   for (let delta = 0; ; delta += step) {
     let pushed = false;
-    const before = base - delta;
-    const after = base + delta;
+    const before = snapToGrid(base - delta, step);
+    const after  = snapToGrid(base + delta, step);
 
-    if (before >= start && before >= 0) {
-      if (tryTime(before)) { found.add(fromMinutes(before)); pushed = true; }
-    }
-    if (after <= end) {
-      if (tryTime(after)) { found.add(fromMinutes(after)); pushed = true; }
-    }
+    if (before >= start && tryTime(before)) { found.add(fromMinutes(before)); pushed = true; }
+    if (after <= end && tryTime(after))  { found.add(fromMinutes(after));  pushed = true; }
+
     if (found.size >= maxSlots) break;
     if (!pushed && (before < start && after > end)) break;
+    if (delta > windowMinutes) break;
   }
 
   const out = Array.from(found.values());
@@ -409,7 +396,8 @@ export async function listAvailableSlotsAround(
     return a.localeCompare(b);
   });
 
-  return out.slice(0, maxSlots);
+  // מגביל ל-4 אם זו בקשת חלופות (כך נקרא בדרך כלל)
+  return out.slice(0, Math.min(maxSlots, 4));
 }
 
 // ---------- Admin Utilities ----------
@@ -456,7 +444,7 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
   return deleted;
 }
 
-// ========= פעולות איפוס לאדמין =========
+// ========= איפוס לאדמין =========
 export async function resetReservations(): Promise<{ deleted: number }> {
   let deleted = 0;
   for await (const e of kv.list({ prefix: ["reservation"] })) {

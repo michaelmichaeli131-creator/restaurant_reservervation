@@ -1,0 +1,24 @@
+<% layout("_layout", it) %>
+<main class="container">
+  <section class="card" style="max-width:720px">
+    <h2 style="margin-top:0">הזמנה אושרה</h2>
+    <p>תודה <strong><%= it.customerName %></strong>! ההזמנה שלך נקלטה.</p>
+    <ul>
+      <li><strong>מסעדה:</strong> <%= it.restaurant.name %></li>
+      <li><strong>תאריך:</strong> <%= it.date %></li>
+      <li><strong>שעה:</strong> <%= it.time %></li>
+      <li><strong>סועדים:</strong> <%= it.people %></li>
+      <li><strong>נייד ליצירת קשר:</strong> <%= it.customerPhone %></li>
+      <li><strong>אימייל:</strong> <%= it.customerEmail %></li>
+      <li><strong>מספר הזמנה:</strong> <code><%= it.reservationId %></code></li>
+    </ul>
+    <p class="muted">אישור נשלח אליך באימייל.</p>
+    <p><a class="btn" href="/">חזרה לדף הבית</a></p>
+  </section>
+</main>
+
+<style>
+  .container{max-width:960px;margin:24px auto;padding:0 16px}
+  .card{border:1px solid #eee;border-radius:12px;padding:16px;margin-bottom:18px}
+  .btn{background:#111;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer}
+</style>

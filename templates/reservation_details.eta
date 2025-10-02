@@ -1,0 +1,42 @@
+<% layout("_layout", it) %>
+<main class="container">
+  <section class="card" style="max-width:680px">
+    <h2 style="margin-top:0">פרטי הזמנה — שלב 2</h2>
+    <p class="muted"><strong><%= it.restaurant.name %></strong> · <%= it.date %> · <%= it.time %> · <%= it.people %> סועדים</p>
+
+    <form id="details-form" method="post" action="/restaurants/<%= it.restaurant.id %>/confirm" class="form-grid" novalidate>
+      <input type="hidden" name="date" value="<%= it.date %>"/>
+      <input type="hidden" name="time" value="<%= it.time %>"/>
+      <input type="hidden" name="people" value="<%= it.people %>"/>
+
+      <div class="form-row">
+        <label for="name">שם מלא</label>
+        <input id="name" name="name" type="text" required />
+      </div>
+      <div class="form-row">
+        <label for="phone">נייד</label>
+        <input id="phone" name="phone" type="tel" required />
+      </div>
+      <div class="form-row">
+        <label for="email">אימייל</label>
+        <input id="email" name="email" type="email" required />
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn">אישור הזמנה</button>
+        <a class="btn secondary" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>">חזרה</a>
+      </div>
+    </form>
+  </section>
+</main>
+
+<style>
+  .container{max-width:960px;margin:24px auto;padding:0 16px}
+  .card{border:1px solid #eee;border-radius:12px;padding:16px;margin-bottom:18px}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .form-row{display:flex;flex-direction:column}
+  .form-actions{grid-column:1/-1;display:flex;gap:10px}
+  .btn{background:#111;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer}
+  .btn.secondary{background:#555}
+  @media (max-width:720px){.form-grid{grid-template-columns:1fr}}
+</style>

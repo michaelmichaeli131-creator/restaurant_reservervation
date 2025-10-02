@@ -1,17 +1,18 @@
 // src/lib/mail.ts
-// שליחת אימיילים: אימות מייל ושחזור סיסמה.
-// עובד בשני מצבים:
-// 1) RESEND_API_KEY קיים → שליחה אמיתית דרך Resend API
-// 2) בלי מפתח → DRY RUN (לוג בלבד, לא נופל בפרודקשן)
+// שליחת אימיילים: אימות מייל, שחזור סיסמה, אישור הזמנה ותזכורת/התראה לבעל מסעדה.
+// מצב עבודה:
+// 1) RESEND_API_KEY קיים → שליחה דרך Resend
+// 2) אחרת → DRY RUN (רק לוג, לא נופל)
 
 const BASE_URL = Deno.env.get("BASE_URL") ?? "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const MAIL_FROM = Deno.env.get("MAIL_FROM") ?? "GeoTable <no-reply@example.com>";
 
 function buildUrl(path: string) {
-  // אם יש BASE_URL (למשל https://myapp.com) נשתמש בו; אחרת נחזיר path יחסי
   const base = BASE_URL.replace(/\/+$/, "");
-  return base ? `${base}${path.startsWith("/") ? "" : "/"}${path}` : path;
+  if (!base) return path.startsWith("/") ? path : `/${path}`;
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${p}`;
 }
 
 async function sendViaResend(to: string, subject: string, html: string, text?: string) {
@@ -45,11 +46,10 @@ async function sendMail(to: string, subject: string, html: string, text?: string
     try {
       return await sendViaResend(to, subject, html, text);
     } catch (e) {
-      console.warn("[mail] Resend error → falling back to DRY RUN:", e);
-      // נפול־בק ל־DRY RUN כדי לא להפיל את הזרימה
+      console.warn("[mail] Resend error → DRY RUN:", e);
+      // נמשיך ל-DRY RUN
     }
   }
-  // DRY RUN: לא שולחים בפועל, רק לוג
   console.log(`[mail:DRY] to=${to} subj="${subject}"\nHTML:\n${html}\n`);
   return { ok: true, dryRun: true };
 }
@@ -61,9 +61,9 @@ export async function sendVerifyEmail(to: string, token: string) {
   const html = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
       <h2>ברוך/ה הבא/ה ל-GeoTable</h2>
-      <p>לאימות כתובת הדוא"ל שלך, לחצו על הקישור:</p>
+      <p>לאימות כתובת הדוא"ל שלך:</p>
       <p><a href="${link}" style="display:inline-block;background:#111;color:#fff;padding:10px 14px;border-radius:8px;text-decoration:none">אימות חשבון</a></p>
-      <p>או העתיקו: <br/><code>${link}</code></p>
+      <p>או הדביקו: <br/><code>${link}</code></p>
     </div>
   `;
   return await sendMail(to, subject, html);
@@ -76,10 +76,81 @@ export async function sendResetEmail(to: string, token: string) {
   const html = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
       <h2>שחזור סיסמה</h2>
-      <p>התבקש שחזור סיסמה עבור החשבון שלך. ניתן להגדיר סיסמה חדשה בקישור הבא:</p>
+      <p>ניתן להגדיר סיסמה חדשה בקישור הבא:</p>
       <p><a href="${link}" style="display:inline-block;background:#111;color:#fff;padding:10px 14px;border-radius:8px;text-decoration:none">איפוס סיסמה</a></p>
-      <p>אם לא ביקשת/ביקשתּ לשחזר סיסמה — ניתן להתעלם מהודעה זו.</p>
       <p>קישור ישיר: <br/><code>${link}</code></p>
+    </div>
+  `;
+  return await sendMail(to, subject, html);
+}
+
+/** אישור הזמנה ללקוח */
+export async function sendReservationEmail(opts: {
+  to: string;
+  restaurantName: string;
+  date: string;   // YYYY-MM-DD
+  time: string;   // HH:mm
+  people: number;
+  customerName?: string;
+}) {
+  const { to, restaurantName, date, time, people, customerName } = opts;
+  const subject = "אישור הזמנה – GeoTable";
+  const html = `
+    <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+      ${customerName ? `<p>שלום ${customerName},</p>` : ""}
+      <p>הזמנתך ל<strong>${restaurantName}</strong> נקלטה.</p>
+      <p><strong>תאריך:</strong> ${date} · <strong>שעה:</strong> ${time} · <strong>סועדים:</strong> ${people}</p>
+      <p>נשמח לראותך!</p>
+    </div>
+  `;
+  return await sendMail(to, subject, html);
+}
+
+/** התראה לבעל המסעדה על הזמנה חדשה */
+export async function notifyOwnerEmail(opts: {
+  to: string; // אימייל בעל המסעדה
+  restaurantName: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  date: string;
+  time: string;
+  people: number;
+}) {
+  const { to, restaurantName, customerName, customerPhone, customerEmail, date, time, people } = opts;
+  const subject = `הזמנה חדשה – ${restaurantName}`;
+  const html = `
+    <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+      <h3>התקבלה הזמנה חדשה</h3>
+      <p><strong>מסעדה:</strong> ${restaurantName}</p>
+      <p><strong>תאריך:</strong> ${date} · <strong>שעה:</strong> ${time} · <strong>סועדים:</strong> ${people}</p>
+      <p><strong>שם הלקוח:</strong> ${customerName}<br/>
+         <strong>נייד:</strong> ${customerPhone}<br/>
+         <strong>אימייל:</strong> ${customerEmail}</p>
+    </div>
+  `;
+  return await sendMail(to, subject, html);
+}
+
+/** תזכורת יום לפני (אם תממשו קרון/ווב-טסק) */
+export async function sendReminderEmail(opts: {
+  to: string;
+  confirmUrl: string;
+  restaurantName: string;
+  date: string;
+  time: string;
+  people: number;
+  customerName?: string;
+}) {
+  const { to, confirmUrl, restaurantName, date, time, people, customerName } = opts;
+  const link = confirmUrl.startsWith("http") ? confirmUrl : buildUrl(confirmUrl);
+  const subject = "תזכורת להזמנה – נא אשר/י הגעה";
+  const html = `
+    <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+      ${customerName ? `<p>שלום ${customerName},</p>` : ""}
+      <p>תזכורת להזמנתך ב<strong>${restaurantName}</strong> מחר.</p>
+      <p>תאריך: <strong>${date}</strong> · שעה: <strong>${time}</strong> · <strong>${people}</strong> סועדים</p>
+      <p>נא אשר/י הגעה: <a href="${link}" style="display:inline-block;background:#111;color:#fff;padding:10px 14px;border-radius:8px;text-decoration:none">אישור הגעה</a></p>
     </div>
   `;
   return await sendMail(to, subject, html);
