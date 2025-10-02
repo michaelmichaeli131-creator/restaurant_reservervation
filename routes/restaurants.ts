@@ -75,7 +75,7 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     } catch (e) { phase("oak.json.error", String(e)); }
 
     try {
-      if (typeof reqAny.body === "function")) {
+      if (typeof reqAny.body === "function") {
         const b = await reqAny.body();
         if (b?.type === "json") { const v = await b.value; if (v && typeof v === "object") { phase("oak.generic.json", v); return { payload: v, dbg }; } }
         else if (b?.type === "bytes") {
