@@ -45,6 +45,9 @@ function toIntLoose(input: unknown): number | null {
   const onlyDigits = s.replace(/[^\d]/g, "");
   return onlyDigits ? Math.trunc(Number(onlyDigits)) : null;
 }
+function politeAvailMessage(name: string, people: number, date: string, time: string) {
+  return `יש זמינות ב־${name} עבור ${people} סועדים בתאריך ${date} בשעה ${time}.`;
+}
 
 // ---------- Body Reader (חסין: Oak body() → originalRequest → bytes) ----------
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
@@ -64,7 +67,7 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     return o;
   };
 
-  // JSON — כמה נתיבים
+  // JSON
   if (ct.includes("application/json")) {
     try {
       if (typeof reqAny.body === "function") {
@@ -182,12 +185,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
   return { payload: qs, dbg };
 }
 
-function wantsJSON(ctx: any) {
-  const acc = ctx.request.headers.get("accept") ?? "";
-  return acc.includes("application/json");
-}
-
-// יצוא יחיד! אין export נוסף בסוף הקובץ.
 export const restaurantsRouter = new Router();
 
 /** API: חיפוש לאוטוקומפליט */
@@ -289,8 +286,9 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   };
   await createReservation(reservation);
 
+  const message = `הזמנתך נשמרה בהצלחה ב־${restaurant.name} עבור ${people} סועדים לתאריך ${date} בשעה ${time}. נשמח לארח אותך!`;
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-  ctx.response.body = JSON.stringify({ ok: true, reservation }, null, 2);
+  ctx.response.body = JSON.stringify({ ok: true, reservation, message }, null, 2);
 });
 
 /** API: בדיקת זמינות (AJAX) */
@@ -326,5 +324,11 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
 
   const result = await checkAvailability(rid, date, time, people);
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-  ctx.response.body = JSON.stringify(result, null, 2);
+
+  if (result.ok) {
+    const message = politeAvailMessage(restaurant.name, people, date, time);
+    ctx.response.body = JSON.stringify({ ok: true, message, details: { restaurantId: rid, date, time, people } }, null, 2);
+  } else {
+    ctx.response.body = JSON.stringify(result, null, 2);
+  }
 });
