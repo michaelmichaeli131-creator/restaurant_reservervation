@@ -21,7 +21,6 @@
           class="form-grid"
           action="/restaurants/<%= it.restaurant.id %>/confirm"
           method="post" novalidate>
-      <!-- נשמרים כ-hidden כדי שיישלחו גם בסאבמיט רגיל -->
       <input type="hidden" name="date" value="<%= it.date %>"/>
       <input type="hidden" name="time" value="<%= it.time %>"/>
 
@@ -57,12 +56,11 @@
     </form>
   </section>
 
-  <!-- קופסת שגיאה/חלופות (מוצגת רק במקרה 409) -->
   <section class="card" id="conflict-card" hidden>
     <h3 style="margin-top:0">אין זמינות במועד שבחרת</h3>
     <p>בחר/י אחד מהזמנים הזמינים בקרבת השעה המבוקשת (עד ±2 שעות):</p>
     <div id="suggest-slots" class="slots"></div>
-    <small class="muted">לחיצה על שעה תעדכן את השעה ותוכל/י להגיש שוב.</small>
+    <small class="muted">לחיצה על שעה תעדכן את השעה בטופס ותוכלו לשלוח שוב.</small>
   </section>
 
   <% if (it.restaurant.description) { %>
@@ -74,19 +72,18 @@
 </main>
 
 <script>
-  // ————— Client helpers —————
   function $(sel, root=document){ return root.querySelector(sel); }
   function setText(id, v){ const el = document.getElementById(id); if (el) el.textContent = v; }
 
   function ensureValid() {
-    const name  = $('#name').value.trim();
-    const phone = $('#phone').value.trim();
-    const email = $('#email').value.trim();
-    const people = Number($('#people').value || '0');
+    const name  = $('#name')?.value?.trim() || "";
+    const phone = $('#phone')?.value?.trim() || "";
+    const email = $('#email')?.value?.trim() || "";
+    const people = Number($('#people')?.value || '0');
 
     if (!name)   return "נא להזין שם";
     if (!phone)  return "נא להזין מספר נייד";
-    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return "נא להזין אימייל תקין";
+    if (!email || !/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) return "נא להזין אימייל תקין";
     if (!Number.isFinite(people) || people < 1) return "מספר סועדים לא תקין";
     return null;
   }
@@ -103,11 +100,9 @@
         b.className = 'slot';
         b.textContent = t;
         b.addEventListener('click', () => {
-          // עדכון השעה בשדות ובתקציר
           const time = t;
           document.querySelector('input[name="time"]').value = time;
           setText('sum-time', time);
-          // סגירת הקופסה (אפשר להשאיר פתוחה אם תרצה)
           card.hidden = true;
         });
         box.appendChild(b);
@@ -131,8 +126,6 @@
     return { ok: res.ok, status: res.status, data, text, ctype };
   }
 
-  // ————— Intercept submit: שולחים JSON; אם 200 → מחליפים את כל המסמך ב-HTML החוזר;
-  // אם 409 (אין זמינות) → מציגים חלופות בעמוד; אם 400 → alert ידידותי.
   (function(){
     const form = document.getElementById('details-form');
     form.addEventListener('submit', async (ev) => {
@@ -155,7 +148,6 @@
         const r = await postJSON(url, payload);
 
         if (r.ok && r.status === 200) {
-          // השרת החזיר עמוד HTML של אישור — נחליף את כל הדף
           document.open(); document.write(r.text); document.close();
           return;
         }
@@ -171,7 +163,6 @@
           return;
         }
 
-        // מקרה לא צפוי — נציג טקסט הגיוני
         alert('אירעה שגיאה בעיבוד ההזמנה. נסו שוב.');
       } catch (e) {
         console.error(e);
