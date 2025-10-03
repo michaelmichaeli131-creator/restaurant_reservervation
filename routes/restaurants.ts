@@ -12,7 +12,7 @@ import {
 import { render } from "../lib/view.ts";
 import { sendReservationEmail, notifyOwnerEmail } from "../lib/mail.ts";
 
-// ---------- Utils ----------
+// Utilities (pad2, normalizeDate, normalizeTime, etc.)
 function pad2(n: number) { return n.toString().padStart(2, "0"); }
 function todayISO(): string {
   const d = new Date();
@@ -55,12 +55,11 @@ function toIntLoose(input: unknown): number | null {
   return onlyDigits ? Math.trunc(Number(onlyDigits)) : null;
 }
 
-// ---------- Normalizers (RTL/Unicode) ----------
+// Normalizers (RTL / Unicode)
 const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
 const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
 const FULLWIDTH_AT = /＠/g;
 const FULLWIDTH_DOT = /．/g;
-
 function normalizePlain(raw: unknown): string {
   let s = String(raw ?? "");
   s = s.replace(BIDI, "");
@@ -80,16 +79,14 @@ function isValidEmail(s: string): boolean {
   return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
 }
 
-// ---------- Body Reader (native-first + Oak object/function) ----------
+// Body reader (as before)
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const ct = (ctx.request.headers.get("content-type") ?? "").toLowerCase();
   const reqAny: any = ctx.request as any;
-
   const dbg: Record<string, unknown> = { ct, phases: [] as any[] };
   const phase = (name: string, data: unknown) => {
     try { (dbg.phases as any[]).push({ name, data }); } catch {}
   };
-
   const merge = (a: Record<string, unknown>, b: Record<string, unknown>) => {
     for (const [k, v] of Object.entries(b)) {
       if (v !== undefined && v !== null && v !== "") a[k] = v;
@@ -104,7 +101,7 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
 
   const out: Record<string, unknown> = {};
 
-  // ---- 1) Native methods directly on ctx.request ----
+  // native formData
   try {
     if (typeof reqAny.formData === "function") {
       const fd = await reqAny.formData();
@@ -113,6 +110,7 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     }
   } catch (e) { phase("native.ctx.formData.error", String(e)); }
 
+  // native json
   try {
     if (typeof reqAny.json === "function") {
       const j = await reqAny.json();
@@ -120,46 +118,73 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     }
   } catch (e) { phase("native.ctx.json.error", String(e)); }
 
+  // text -> urlencoded or json
   try {
     if (typeof reqAny.text === "function") {
       const t: string = await reqAny.text();
       if (t) {
         phase("native.ctx.text", t.length > 200 ? t.slice(0,200) + "…" : t);
-        try { const j = JSON.parse(t); phase("native.ctx.text->json", j); merge(out, j); }
-        catch {
-          const sp = new URLSearchParams(t); const o = fromEntries(sp);
+        try {
+          const j = JSON.parse(t);
+          phase("native.ctx.text->json", j);
+          merge(out, j);
+        } catch {
+          const sp = new URLSearchParams(t);
+          const o = fromEntries(sp);
           if (Object.keys(o).length) { phase("native.ctx.text->urlencoded", o); merge(out, o); }
         }
       }
     }
   } catch (e) { phase("native.ctx.text.error", String(e)); }
 
-  // ---- 2) Oak body = OBJECT ----
+  // Oak object body (json, form, form-data, text, bytes)
   try {
     const b = (reqAny.body && typeof reqAny.body !== "function") ? reqAny.body : null;
     if (b && b.type) {
       if (b.type === "json") {
-        const v = await b.value; if (v && typeof v === "object") { phase("oak.obj.json", v); merge(out, v as any); }
+        const v = await b.value;
+        if (v && typeof v === "object") { phase("oak.obj.json", v); merge(out, v as any); }
       } else if (b.type === "form") {
-        const v = await b.value; const o = fromEntries(v as URLSearchParams);
-        phase("oak.obj.form(urlencoded)", o); merge(out, o);
+        const v = await b.value;
+        const o = fromEntries(v as URLSearchParams);
+        phase("oak.obj.form(urlencoded)", o);
+        merge(out, o);
       } else if (b.type === "form-data") {
-        const v = await b.value; const r = await v.read(); const o = (r?.fields ?? {}) as Record<string, unknown>;
-        phase("oak.obj.multipart", o); merge(out, o);
+        const v = await b.value;
+        const r = await v.read();
+        const o = (r?.fields ?? {}) as Record<string, unknown>;
+        phase("oak.obj.multipart", o);
+        merge(out, o);
       } else if (b.type === "text") {
-        const t: string = await b.value; phase("oak.obj.text", t);
-        try { const j = JSON.parse(t); phase("oak.obj.text->json", j); merge(out, j as any); }
-        catch {
-          const sp = new URLSearchParams(t); const o = fromEntries(sp);
-          if (Object.keys(o).length) { phase("oak.obj.text->urlencoded", o); merge(out, o); }
+        const t: string = await b.value;
+        phase("oak.obj.text", t);
+        try {
+          const j = JSON.parse(t);
+          phase("oak.obj.text->json", j);
+          merge(out, j as any);
+        } catch {
+          const sp = new URLSearchParams(t);
+          const o = fromEntries(sp);
+          if (Object.keys(o).length) {
+            phase("oak.obj.text->urlencoded", o);
+            merge(out, o);
+          }
         }
       } else if (b.type === "bytes") {
-        const u8: Uint8Array = await b.value; const t = new TextDecoder().decode(u8);
+        const u8: Uint8Array = await b.value;
+        const t = new TextDecoder().decode(u8);
         phase("oak.obj.bytes", t.length > 200 ? t.slice(0,200) + "…" : t);
-        try { const j = JSON.parse(t); phase("oak.obj.bytes->json", j); merge(out, j as any); }
-        catch {
-          const sp = new URLSearchParams(t); const o = fromEntries(sp);
-          if (Object.keys(o).length) { phase("oak.obj.bytes->urlencoded", o); merge(out, o); }
+        try {
+          const j = JSON.parse(t);
+          phase("oak.obj.bytes->json", j);
+          merge(out, j as any);
+        } catch {
+          const sp = new URLSearchParams(t);
+          const o = fromEntries(sp);
+          if (Object.keys(o).length) {
+            phase("oak.obj.bytes->urlencoded", o);
+            merge(out, o);
+          }
         }
       }
     } else if (!b) {
@@ -169,32 +194,54 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     phase("oak.body.object.error", String(e));
   }
 
-  // ---- 3) Oak body = FUNCTION ----
+  // Oak body as function (older versions)
   try {
     if (typeof reqAny.body === "function") {
       const bb = await reqAny.body();
       if (bb?.type === "json") {
-        const v = await bb.value; if (v && typeof v === "object") { phase("oak.fn.json", v); merge(out, v as any); }
+        const v = await bb.value;
+        if (v && typeof v === "object") { phase("oak.fn.json", v); merge(out, v as any); }
       } else if (bb?.type === "form") {
-        const v = await bb.value; const o = fromEntries(v as URLSearchParams);
-        phase("oak.fn.form(urlencoded)", o); merge(out, o);
+        const v = await bb.value;
+        const o = fromEntries(v as URLSearchParams);
+        phase("oak.fn.form(urlencoded)", o);
+        merge(out, o);
       } else if (bb?.type === "form-data") {
-        const v = await bb.value; const r = await v.read(); const o = (r?.fields ?? {}) as Record<string, unknown>;
-        phase("oak.fn.multipart", o); merge(out, o);
+        const v = await bb.value;
+        const r = await v.read();
+        const o = (r?.fields ?? {}) as Record<string, unknown>;
+        phase("oak.fn.multipart", o);
+        merge(out, o);
       } else if (bb?.type === "text") {
-        const t: string = await bb.value; phase("oak.fn.text", t);
-        try { const j = JSON.parse(t); phase("oak.fn.text->json", j); merge(out, j as any); }
-        catch {
-          const sp = new URLSearchParams(t); const o = fromEntries(sp);
-          if (Object.keys(o).length) { phase("oak.fn.text->urlencoded", o); merge(out, o); }
+        const t: string = await bb.value;
+        phase("oak.fn.text", t);
+        try {
+          const j = JSON.parse(t);
+          phase("oak.fn.text->json", j);
+          merge(out, j as any);
+        } catch {
+          const sp = new URLSearchParams(t);
+          const o = fromEntries(sp);
+          if (Object.keys(o).length) {
+            phase("oak.fn.text->urlencoded", o);
+            merge(out, o);
+          }
         }
       } else if (bb?.type === "bytes") {
-        const u8: Uint8Array = await bb.value; const t = new TextDecoder().decode(u8);
+        const u8: Uint8Array = await bb.value;
+        const t = new TextDecoder().decode(u8);
         phase("oak.fn.bytes", t.length > 200 ? t.slice(0,200) + "…" : t);
-        try { const j = JSON.parse(t); phase("oak.fn.bytes->json", j); merge(out, j as any); }
-        catch {
-          const sp = new URLSearchParams(t); const o = fromEntries(sp);
-          if (Object.keys(o).length) { phase("oak.fn.bytes->urlencoded", o); merge(out, o); }
+        try {
+          const j = JSON.parse(t);
+          phase("oak.fn.bytes->json", j);
+          merge(out, j as any);
+        } catch {
+          const sp = new URLSearchParams(t);
+          const o = fromEntries(sp);
+          if (Object.keys(o).length) {
+            phase("oak.fn.bytes->urlencoded", o);
+            merge(out, o);
+          }
         }
       }
     } else {
@@ -204,18 +251,20 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     phase("oak.body.fn.error", String(e));
   }
 
-  // ---- 4) Querystring (תמיד) ----
+  // Always include querystring values if not in body
   const qs = Object.fromEntries(ctx.request.url.searchParams);
   phase("querystring", qs);
   for (const [k, v] of Object.entries(qs)) {
-    if (out[k] === undefined || out[k] === null || out[k] === "") out[k] = v;
+    if (out[k] === undefined || out[k] === null || out[k] === "") {
+      out[k] = v;
+    }
   }
 
   phase("keys", Object.keys(out));
   return { payload: out, dbg };
 }
 
-// ========= ROUTER =========
+// Router
 export const restaurantsRouter = new Router();
 
 function asOk(x: unknown): boolean {
@@ -264,7 +313,11 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
 restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
-  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "restaurant not found"; return; }
+  if (!restaurant) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "restaurant not found";
+    return;
+  }
 
   const { payload, dbg } = await readBody(ctx);
   const date = normalizeDate((payload as any).date ?? "");
@@ -367,7 +420,6 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   }
 
   const sp = ctx.request.url.searchParams;
-
   const date   = normalizeDate(sp.get("date") ?? "");
   const time   = normalizeTime(sp.get("time") ?? "");
   const people = toIntLoose(sp.get("people")) ?? 2;
