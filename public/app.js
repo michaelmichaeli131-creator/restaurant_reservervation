@@ -14,15 +14,19 @@
   }
 
   function applyToInput(inputEl) {
+    // אם אין שדה כזה — דילוג
     if (!inputEl) return;
+
+    // אם כבר הופעל עליו — דילוג
     if (inputEl._timeFixed) return;
     inputEl._timeFixed = true;
 
+    // נרמול ערך קיים
     if (inputEl.value) {
       inputEl.value = roundTo15(inputEl.value);
     }
 
-    // 1. Flatpickr
+    // 1. אם יש Flatpickr
     if (inputEl._flatpickr) {
       inputEl._flatpickr.set({
         time_24hr: true,
@@ -35,7 +39,7 @@
       return;
     }
 
-    // 2. TW Elements
+    // 2. אם יש TW Elements / te timepicker
     if (window.te || window.TWElements) {
       try {
         const inst = inputEl._teTimepickerInstance;
@@ -46,10 +50,12 @@
           if (inputEl.value) inputEl.value = roundTo15(inputEl.value);
         });
         return;
-      } catch(e) {}
+      } catch(e) {
+        // לא הצליח — נמשיך ל־native
+      }
     }
 
-    // 3. Flowbite
+    // 3. אם יש Flowbite / Timepicker סטנדרטי
     if (inputEl._flowbiteInstance || window.Flowbite || window.flowbite) {
       try {
         const inst = inputEl._flowbiteInstance;
@@ -60,10 +66,12 @@
           if (inputEl.value) inputEl.value = roundTo15(inputEl.value);
         });
         return;
-      } catch(e) {}
+      } catch(e) {
+        // ניפול הלאה
+      }
     }
 
-    // 4. fallback native
+    // 4. fallback — native <input type="time">
     try {
       inputEl.type = "time";
       inputEl.step = 900; // 15 דקות
@@ -80,6 +88,7 @@
     els.forEach(applyToInput);
   }
 
+  // הרצה ראשונית כש-DOM מוכן
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
       fixAllTimeInputs();
@@ -88,6 +97,7 @@
     fixAllTimeInputs();
   }
 
+  // ניטור שינויים בדף — אם זמן picker נטען מאוחר
   const mo = new MutationObserver((mutations) => {
     for (const m of mutations) {
       if (m.addedNodes) {
@@ -107,5 +117,8 @@
   });
   try {
     mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["class","data-"] });
-  } catch(e) {}
+  } catch(e) {
+    // ניטור נכשל — לא קריטי
+  }
+
 })();

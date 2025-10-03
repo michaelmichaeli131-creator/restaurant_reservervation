@@ -27,8 +27,8 @@
       </div>
       <div class="form-row">
         <label for="time">שעה</label>
-        <!-- שונה ל-type="text" כך שתוכל להשתמש ב-picker שלך -->
-        <input id="time" name="time" type="text" required placeholder="HH:MM" value="<%= it.time || '' %>"/>
+        <!-- 24h + גריד 15 דקות -->
+        <input id="time" name="time" type="time" step="900" required value="<%= it.time || '' %>"/>
         <small class="muted">שעות בתדירות 15 דקות (24-ש’)</small>
       </div>
       <div class="form-actions">
@@ -89,12 +89,14 @@
     d.setMinutes(m+add,0,0); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
   }
 
+  // מילוי ערכי ברירת מחדל אם ריק
   (function ensureDefaults(){
     const dateEl=document.getElementById('date');
     const timeEl=document.getElementById('time');
     if(!dateEl.value){ dateEl.value=todayISO(); }
     if(!timeEl.value){ timeEl.value=nextQuarter(); }
-    dateEl.min = todayISO();
+    // הגבלת מינימום היום כדי לא לבחור עבר (אופציונלי)
+    dateEl.min=todayISO();
   })();
 
   function readForm() {
@@ -129,6 +131,7 @@
         a.textContent = t;
         a.addEventListener('click', () => {
           document.getElementById('time').value = t;
+          // לאחר בחירה – נסגור את החלופיות כדי לצמצם רעש
           renderAround([]);
         });
         box.appendChild(a);
@@ -138,6 +141,7 @@
     }
   }
 
+  // בדיקת זמינות: מציגים חלופות רק כשאין זמינות
   (function(){
     const btn = document.getElementById('check-btn');
     if (!btn) return;
@@ -147,8 +151,10 @@
       const rid = btn.dataset.rid;
       const r = await postJSON(`/api/restaurants/${encodeURIComponent(rid)}/check`, { date, time });
       if (r.ok && r.data && r.data.ok) {
+        // יש זמינות → לא מציעים חלופות
         renderAround([]);
       } else if (r.data && r.data.suggestions) {
+        // אין זמינות → מציגים עד 4 חלופות
         renderAround(r.data.suggestions);
       } else {
         renderAround([]);
@@ -156,11 +162,12 @@
     });
   })();
 
-  // שמירה של סאבמיט רגיל
+  // שליחה רגילה (לא AJAX) לשלב הבא — כדי לאפשר 303 מהשרת במקרה שאין זמינות
   (function(){
     const form = document.getElementById('reserve-form');
     form.addEventListener('submit', (ev) => {
-      // לא מפריע — השאיר submit רגיל
+      // ללא מניעה — נשתמש בסאבמיט רגיל.
+      // השרת ינווט לשלב 2 או יחזיר 303 עם חלופות.
     });
   })();
 </script>
@@ -175,7 +182,11 @@
   .btn{background:#111;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer}
   .btn.secondary{background:#555}
   .alert.warn{background:#fff1f0;border:1px solid #ffccc7;color:#a8071a;border-radius:8px;padding:10px 12px;margin-bottom:12px}
-  .slots{display:flex;gap:8px;flex-wrap:wrap}
+  .menu-list{list-style:none;margin:0;padding:0}
+  .menu-list li{padding:8px 0;border-bottom:1px dashed #eee}
+  .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+  .photo-grid img{width:100%;height:120px;object-fit:cover;border-radius:8px;border:1px solid #eee}
+  #around-slots{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
   .slot{padding:6px 10px;border-radius:8px;border:1px solid #ddd;background:#fafafa;cursor:pointer}
   .slot:hover{background:#f0f0ff}
   @media (max-width:860px){.form-grid{grid-template-columns:1fr}}
