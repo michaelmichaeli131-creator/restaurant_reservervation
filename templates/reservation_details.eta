@@ -31,7 +31,9 @@
 
       <div class="form-row">
         <label for="phone">נייד</label>
-        <input id="phone" name="phone" type="tel" required inputmode="tel" placeholder="050-1234567"/>
+        <input id="phone" name="phone" type="tel" required inputmode="tel" dir="ltr"
+               placeholder="050-1234567" pattern="[0-9+\-() ]{7,20}"/>
+        <small class="muted">אפשר להזין ספרות, +, מקפים וסוגריים</small>
       </div>
 
       <div class="form-row">
@@ -47,12 +49,15 @@
       <div class="form-row">
         <label for="people">מספר סועדים</label>
         <input id="people" name="people" type="number" min="1" max="<%= cap %>" step="1" value="<%= it.people || 2 %>" required/>
+        <small class="muted">מינ' 1 · מקס' <%= cap %></small>
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn">אשר/י הזמנה</button>
+        <button type="submit" class="btn" id="submit-btn">אשר/י הזמנה</button>
         <a class="btn secondary" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>">חזרה לשעה/תאריך</a>
       </div>
+
+      <div id="form-error" class="form-error" role="alert" aria-live="polite" hidden></div>
     </form>
   </section>
 
@@ -72,9 +77,10 @@
 </main>
 
 <script>
-  // נרמול אימייל בצד לקוח (זהה ללוגיקה בצד שרת)
+  // ===== Normalizers (מותאם ל-RTL/נייד) =====
   const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
   const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
+
   function normalizeEmail(s) {
     s = (s || "").toString();
     s = s.replace(BIDI, "");
@@ -86,10 +92,25 @@
   function isValidEmail(s) {
     return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
   }
+  function normalizePhone(s) {
+    // שומר על ספרות ו-+ ראשוני בלבד, מסיר תווי כיווניות/רווחים מיוחדים
+    s = (s || "").toString().replace(BIDI, "").replace(ZSP, " ").trim();
+    s = s.replace(/[^\d+]+/g, "");        // השאר רק ספרות ו+
+    s = s.replace(/(?!^)\+/g, "");        // אם יש יותר מ-+, השאר רק הראשון
+    return s;
+  }
+
+  // ===== UI helpers =====
+  function showError(msg) {
+    const box = document.getElementById('form-error');
+    box.textContent = msg || "";
+    box.hidden = !msg;
+  }
+  function clearError() { showError(""); }
 
   function ensureValid() {
     const name  = document.getElementById('name').value.trim();
-    const phone = document.getElementById('phone').value.trim();
+    const phone = normalizePhone(document.getElementById('phone').value);
     const email = normalizeEmail(document.getElementById('email').value);
     const people = Number(document.getElementById('people').value || '0');
 
@@ -115,6 +136,7 @@
           document.querySelector('input[name="time"]').value = t;
           document.getElementById('sum-time').textContent = t;
           card.hidden = true;
+          clearError();
         });
         box.appendChild(b);
       }
@@ -139,48 +161,65 @@
 
   (function(){
     const emailEl = document.getElementById('email');
-    emailEl.addEventListener('blur', () => {
-      const n = normalizeEmail(emailEl.value);
-      emailEl.value = n;
-    });
-
+    const phoneEl = document.getElementById('phone');
+    const submitBtn = document.getElementById('submit-btn');
     const form = document.getElementById('details-form');
+
+    emailEl.addEventListener('blur', () => { emailEl.value = normalizeEmail(emailEl.value); });
+    phoneEl.addEventListener('blur', () => { phoneEl.value = normalizePhone(phoneEl.value); });
+
+    let submitting = false;
+
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
+      if (submitting) return;
+      clearError();
 
       const err = ensureValid();
-      if (err) { alert(err); return; }
+      if (err) { showError(err); return; }
 
       const payload = {
         date:   form.querySelector('input[name="date"]').value,
         time:   form.querySelector('input[name="time"]').value,
         name:   form.querySelector('input[name="name"]').value.trim(),
-        phone:  form.querySelector('input[name="phone"]').value.trim(),
+        phone:  normalizePhone(form.querySelector('input[name="phone"]').value),
         email:  normalizeEmail(form.querySelector('input[name="email"]').value),
         people: Number(form.querySelector('input[name="people"]').value || '0')
       };
 
       try {
+        submitting = true;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'שולח...';
+
         const url = form.getAttribute('action');
         const r = await postJSON(url, payload);
 
         if (r.ok && r.status === 200) {
+          // השרת מחזיר HTML של עמוד אישור — נציג אותו במקום
           document.open(); document.write(r.text); document.close();
           return;
         }
+
         if (r.status === 409 && r.data && Array.isArray(r.data.suggestions)) {
           renderSuggestions(r.data.suggestions);
-          alert('אין זמינות במועד שבחרת — בחר/י אחת מהחלופות למטה.');
+          showError('אין זמינות במועד שבחרת — בחר/י אחת מהחלופות למטה.');
           return;
         }
+
         if (r.status === 400 && r.data && r.data.error) {
-          alert(r.data.error);
+          showError(r.data.error);
           return;
         }
-        alert('אירעה שגיאה בעיבוד ההזמנה. נסו שוב.');
+
+        showError('אירעה שגיאה בעיבוד ההזמנה. נסו שוב.');
       } catch (e) {
         console.error(e);
-        alert('שגיאה ברשת. נסו שוב.');
+        showError('שגיאה ברשת. נסו שוב.');
+      } finally {
+        submitting = false;
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'אשר/י הזמנה';
       }
     });
   })();
@@ -195,8 +234,10 @@
   .form-row{display:flex;flex-direction:column}
   .form-actions{grid-column:1/-1;display:flex;gap:10px}
   .btn{background:#111;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer}
+  .btn[disabled]{opacity:.6;cursor:not-allowed}
   .btn.secondary{background:#555}
   #conflict-card{border-color:#ffccc7}
+  .form-error{margin-top:10px;color:#a8071a;background:#fff1f0;border:1px solid #ffccc7;border-radius:8px;padding:8px 10px}
   .slots{display:flex;gap:8px;flex-wrap:wrap}
   .slot{padding:6px 10px;border-radius:8px;border:1px solid #ddd;background:#fafafa;cursor:pointer}
   .slot:hover{background:#f0f0ff}

@@ -79,6 +79,26 @@
 </main>
 
 <script>
+  // ===== עזרי זמן (24h, רבעי שעה) =====
+  function pad2(n){ return String(n).padStart(2,'0'); }
+  function todayISO(){
+    const d=new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+  }
+  function nextQuarter(){
+    const d=new Date(); const m=d.getMinutes(); const add=15 - (m % 15 || 15);
+    d.setMinutes(m+add,0,0); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  }
+
+  // מילוי ערכי ברירת מחדל אם ריק
+  (function ensureDefaults(){
+    const dateEl=document.getElementById('date');
+    const timeEl=document.getElementById('time');
+    if(!dateEl.value){ dateEl.value=todayISO(); }
+    if(!timeEl.value){ timeEl.value=nextQuarter(); }
+    // הגבלת מינימום היום כדי לא לבחור עבר (אופציונלי)
+    dateEl.min=todayISO();
+  })();
+
   function readForm() {
     const f = document.getElementById('reserve-form');
     return {
@@ -86,6 +106,7 @@
       time: f.querySelector('[name="time"]').value,
     };
   }
+
   async function postJSON(url, payload) {
     const res = await fetch(url, {
       method: 'POST',
@@ -96,6 +117,7 @@
     const text = await res.text(); let data = null; try { data = JSON.parse(text) } catch {}
     return { ok: res.ok, status: res.status, data, text };
   }
+
   function renderAround(slots) {
     const card = document.getElementById('around-card');
     const box  = document.getElementById('around-slots');

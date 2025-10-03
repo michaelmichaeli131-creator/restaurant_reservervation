@@ -55,27 +55,32 @@ function toIntLoose(input: unknown): number | null {
   return onlyDigits ? Math.trunc(Number(onlyDigits)) : null;
 }
 
-// ---------- Email normalization & validation ----------
+// ---------- Normalizers for tricky inputs (RTL, unicode spaces) ----------
 const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;               // תווי כיווניות
 const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g; // רווחי Unicode
 const FULLWIDTH_AT = /＠/g;
 const FULLWIDTH_DOT = /．/g;
 
+function normalizePlain(raw: unknown): string {
+  let s = String(raw ?? "");
+  s = s.replace(BIDI, "");
+  s = s.replace(ZSP, " ").trim();
+  s = s.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
+  return s;
+}
 function normalizeEmail(raw: unknown): string {
   let s = String(raw ?? "");
-  s = s.replace(BIDI, "");         // הסרת תווי RTL/LTR נסתרים
-  s = s.replace(FULLWIDTH_AT, "@").replace(FULLWIDTH_DOT, "."); // המרה מאסיבית
-  s = s.replace(ZSP, " ").trim();  // רווחים → רגיל ואז trim
-  // הסרת גרשיים/סוגריים מסביב אם נשארו מתיקון אוטומטי
+  s = s.replace(BIDI, "");
+  s = s.replace(FULLWIDTH_AT, "@").replace(FULLWIDTH_DOT, ".");
+  s = s.replace(ZSP, " ").trim();
   s = s.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
   return s.toLowerCase();
 }
 function isValidEmail(s: string): boolean {
-  // RFC5322-compliant-ish (פשוט ושימושי): user@domain.tld, מאפשר + . _
-  return /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(s);
+  return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
 }
 
-// ---------- Body Reader (MERGE all sources robustly) ----------
+// ---------- Body Reader (merge robustly) ----------
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const ct = (ctx.request.headers.get("content-type") ?? "").toLowerCase();
   const reqAny: any = ctx.request as any;
@@ -164,7 +169,7 @@ restaurantsRouter.get("/api/restaurants", async (ctx) => {
   ctx.response.body = JSON.stringify(items, null, 2);
 });
 
-/** דף מסעדה — שלב 1 */
+/** דף מסעדה — שלב 1: בחירת תאריך/שעה בלבד */
 restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const id = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(id);
@@ -217,7 +222,7 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   }
 });
 
-/** שלב 1 → שלב 2 */
+/** שלב 1 → שלב 2: אם אין זמינות → 303 חזרה עם חלופות; אם יש → ניווט לדף פרטים */
 restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -248,6 +253,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     return;
   }
 
+  // יש זמינות → מעבר למסך פרטי לקוח. שומרים בדיוק את ה־date/time אחרי normalizeTime.
   const u = new URL(`/restaurants/${encodeURIComponent(rid)}/details`, "http://local");
   u.searchParams.set("date", date);
   u.searchParams.set("time", time);
@@ -262,8 +268,9 @@ restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
   const restaurant = await getRestaurant(id);
   if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
 
-  const date = ctx.request.url.searchParams.get("date") ?? "";
-  const time = ctx.request.url.searchParams.get("time") ?? "";
+  // קורא את הערכים שהועברו ב־303 מהשלב הראשון
+  const date = normalizeDate(ctx.request.url.searchParams.get("date") ?? "");
+  const time = normalizeTime(ctx.request.url.searchParams.get("time") ?? "");
   const people = Number(ctx.request.url.searchParams.get("people") ?? "2") || 2;
 
   await render(ctx, "reservation_details", {
@@ -283,20 +290,29 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
 
   const { payload, dbg } = await readBody(ctx);
 
-  // דיבוג מפורט
-  console.log(`[CONF ${reqId}] raw.email=`, (payload as any)?.email);
-  const emailNormalized = normalizeEmail((payload as any)?.email);
-  console.log(`[CONF ${reqId}] norm.email=`, emailNormalized);
-  console.log(`[CONF ${reqId}] payload`, payload);
+  // דיבוג עשיר — שלח לי אם צריך
+  console.log(`[CONF ${reqId}] payload(raw)`, payload);
   console.log(`[CONF ${reqId}] dbg`, dbg);
 
   const date = normalizeDate((payload as any).date ?? "");
   const time = normalizeTime((payload as any).time ?? "");
   const people = toIntLoose((payload as any).people) ?? 2;
 
-  const customerName = String((payload as any).name ?? (payload as any).customerName ?? "").trim();
-  const customerPhone = String((payload as any).phone ?? (payload as any).customerPhone ?? "").trim();
-  const customerEmail = emailNormalized;
+  // נרמול עבור name/phone/email
+  const customerName = normalizePlain((payload as any).name ?? (payload as any).customerName ?? "");
+  const customerPhone = normalizePlain((payload as any).phone ?? (payload as any).customerPhone ?? "");
+  const customerEmail = normalizeEmail((payload as any)?.email);
+
+  // דיבוג נקודתי לשדות הקלט
+  console.log(`[CONF ${reqId}] fields`, {
+    date, time, people,
+    customerNameRaw: (payload as any)?.name,
+    customerName,
+    customerPhoneRaw: (payload as any)?.phone,
+    customerPhone,
+    customerEmailRaw: (payload as any)?.email,
+    customerEmail,
+  });
 
   const badJSON = (m: string, status = Status.BadRequest, extras: Record<string, unknown> = {}) => {
     ctx.response.status = status;
