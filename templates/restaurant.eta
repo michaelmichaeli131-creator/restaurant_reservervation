@@ -40,7 +40,7 @@
              }
           %>
         </select>
-        <small class="muted">שעות בתדירות 15 דקות (24־ש’)</small>
+        <small class="muted">שעות בתדירות 15 דקות (24-ש’)</small>
       </div>
       <div class="form-actions">
         <button type="submit" class="btn">המשך לשלב הבא</button>
@@ -118,7 +118,7 @@
     box.innerHTML = "";
     if (Array.isArray(slots) && slots.length) {
       card.hidden = false;
-      slots.slice(0,4).forEach(t => {
+      slots.slice(0, 4).forEach(t => {
         const b = document.createElement("button");
         b.type = "button";
         b.className = "slot";
@@ -154,21 +154,131 @@
 </script>
 
 <style>
-  .container{max-width:960px;margin:24px auto;padding:0 16px}
-  .card{border:1px solid #eee;border-radius:12px;padding:16px;margin-bottom:18px}
-  .muted{color:#777}
-  .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-  .form-row{display:flex;flex-direction:column}
-  .form-actions{grid-column:1/-1;display:flex;gap:10px}
-  .btn{background:#111;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer}
-  .btn.secondary{background:#555}
-  .alert.warn{background:#fff1f0;border:1px solid #ffccc7;color:#a8071a;border-radius:8px;padding:10px 12px;margin-bottom:12px}
-  .menu-list{list-style:none;margin:0;padding:0}
-  .menu-list li{padding:8px 0;border-bottom:1px dashed #eee}
-  .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
-  .photo-grid img{width:100%;height:120px;object-fit:cover;border-radius:8px;border:1px solid #eee}
-  #around-slots{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-  .slot{padding:6px 10px;border-radius:8px;border:1px solid #ddd;background:#fafafa;cursor:pointer}
-  .slot:hover{background:#f0f0ff}
-  @media (max-width:860px){.form-grid{grid-template-columns:1fr}}
+  .container {
+    max-width: 960px;
+    margin: 24px auto;
+    padding: 0 16px;
+  }
+  .card {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 24px;
+    background-color: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  }
+  .page-header h1 {
+    margin-bottom: 4px;
+    font-size: 1.8rem;
+    color: #2d3748;
+  }
+  .page-header .muted {
+    color: #718096;
+    font-size: 0.9rem;
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  .form-row {
+    display: flex;
+    flex-direction: column;
+  }
+  .form-row label {
+    font-weight: 500;
+    margin-bottom: 6px;
+    color: #333;
+  }
+  .form-row input,
+  .form-row select {
+    padding: 10px 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    font-size: 1rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .form-row input:focus,
+  .form-row select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+  }
+  .form-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .btn {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    background-color: #667eea;
+    color: #fff;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  .btn:hover {
+    background-color: #5a67d8;
+  }
+  .btn.secondary {
+    background-color: #a0aec0;
+  }
+  .btn.secondary:hover {
+    background-color: #718096;
+  }
+  .alert.warn {
+    background-color: #fff5f5;
+    border: 1px solid #fed7d7;
+    color: #c53030;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+  }
+  .slots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .slot {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background-color: #f7fafc;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+  }
+  .slot:hover {
+    background-color: #edf2f7;
+    border-color: #cbd5e0;
+  }
+  .menu-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .menu-list li {
+    padding: 8px 0;
+    border-bottom: 1px dashed #eee;
+  }
+  .photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px,1fr));
+    gap: 10px;
+  }
+  .photo-grid img {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #eee;
+  }
+  @media (max-width: 860px) {
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>
