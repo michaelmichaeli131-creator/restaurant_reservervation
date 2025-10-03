@@ -281,44 +281,121 @@ restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
   });
 });
 
-/** אישור ויצירת ההזמנה (POST משלב 2) */
+// --- POST /restaurants/:id/confirm (מלא, להחליף את ה-handler הקיים) ---
 restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
-  const reqId = String(ctx.state?.reqId ?? crypto.randomUUID().slice(0,8));
   const restaurant = await getRestaurant(rid);
   if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "restaurant not found"; return; }
 
+  // קורא את הגוף (תומך urlencoded/json/multipart) + נרמול בטוח
   const { payload, dbg } = await readBody(ctx);
 
-  // דיבוג עשיר — שלח לי אם צריך
-  console.log(`[CONF ${reqId}] payload(raw)`, payload);
-  console.log(`[CONF ${reqId}] dbg`, dbg);
+  // נרמול אימייל נגד תווי RTL/רוחב-אפס ותחבולות העתק/הדבק
+  const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+  const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
+  const normalizeEmail = (s: unknown) => {
+    let v = String(s ?? "");
+    v = v.replace(BIDI, "");
+    v = v.replace(/＠/g, "@").replace(/．/g, ".");
+    v = v.replace(ZSP, " ").trim();
+    v = v.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
+    return v.toLowerCase();
+  };
+  const isValidEmail = (s: string) => /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
 
-  const date = normalizeDate((payload as any).date ?? "");
-  const time = normalizeTime((payload as any).time ?? "");
+  const date   = normalizeDate((payload as any).date ?? "");
+  const time   = normalizeTime((payload as any).time ?? "");
   const people = toIntLoose((payload as any).people) ?? 2;
 
-  // נרמול עבור name/phone/email
-  const customerName = normalizePlain((payload as any).name ?? (payload as any).customerName ?? "");
-  const customerPhone = normalizePlain((payload as any).phone ?? (payload as any).customerPhone ?? "");
-  const customerEmail = normalizeEmail((payload as any)?.email);
+  // חשוב: שמות השדות בדיוק כך
+  const customerNameRaw  = (payload as any).name;
+  const customerPhoneRaw = (payload as any).phone;
+  const customerEmailRaw = (payload as any).email;
 
-  // דיבוג נקודתי לשדות הקלט
+  const customerName  = String(customerNameRaw ?? "").trim();
+  const customerPhone = String(customerPhoneRaw ?? "").trim();
+  const customerEmail = normalizeEmail(customerEmailRaw);
+
+  // לוג דיבוג ידידותי
+  const reqId = String(ctx.state?.reqId ?? crypto.randomUUID().slice(0, 8));
   console.log(`[CONF ${reqId}] fields`, {
     date, time, people,
-    customerNameRaw: (payload as any)?.name,
-    customerName,
-    customerPhoneRaw: (payload as any)?.phone,
-    customerPhone,
-    customerEmailRaw: (payload as any)?.email,
-    customerEmail,
+    customerNameRaw, customerName,
+    customerPhoneRaw, customerPhone,
+    customerEmailRaw, customerEmail
   });
 
-  const badJSON = (m: string, status = Status.BadRequest, extras: Record<string, unknown> = {}) => {
-    ctx.response.status = status;
+  const bad = (m: string, extra?: unknown) => {
+    ctx.response.status = Status.BadRequest;
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok: false, error: m, ...extras }, null, 2);
+    ctx.response.body = JSON.stringify({ ok:false, error:m, dbg: extra ? { ...dbg, extra } : dbg }, null, 2);
   };
+
+  // ולידציה
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("תאריך לא תקין");
+  if (!/^\d{2}:\d{2}$/.test(time))       return bad("שעה לא תקינה");
+  if (!customerName)                     return bad("נא להזין שם");
+  if (!customerPhone)                    return bad("נא להזין מספר נייד");
+
+  if (!customerEmail)                    return bad("נא להזין אימייל");
+  if (!isValidEmail(customerEmail))      return bad("נא להזין אימייל תקין", { customerEmail, note: "normalize applied" });
+
+  // בדיקת זמינות
+  const avail = await checkAvailability(rid, date, time, people);
+  if (!avail.ok) {
+    const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
+    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+    ctx.response.status = Status.Conflict;
+    ctx.response.body = JSON.stringify({ ok:false, error:"אין זמינות במועד שבחרת", suggestions: around.slice(0,4) }, null, 2);
+    return;
+  }
+
+  // יצירת ההזמנה
+  const user = (ctx.state as any)?.user ?? null;
+  const userId: string = user?.id ?? `guest:${crypto.randomUUID().slice(0, 8)}`;
+  const reservation: Reservation = {
+    id: crypto.randomUUID(),
+    restaurantId: rid,
+    userId,
+    date,
+    time,
+    people,
+    status: "new",
+    note: `Name: ${customerName}; Phone: ${customerPhone}; Email: ${customerEmail}`,
+    createdAt: Date.now(),
+  };
+  await createReservation(reservation);
+
+  // שליחת מיילים
+  await sendReservationEmail({
+    to: customerEmail,
+    restaurantName: restaurant.name,
+    date, time, people,
+    customerName,
+  }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
+
+  const owner = await getUserById(restaurant.ownerId).catch(() => null);
+  if (owner?.email) {
+    await notifyOwnerEmail({
+      to: owner.email,
+      restaurantName: restaurant.name,
+      customerName, customerPhone, customerEmail,
+      date, time, people,
+    }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
+  } else {
+    console.log("[mail] owner email not found; skipping owner notification");
+  }
+
+  // עמוד אישור (HTML)
+  await render(ctx, "reservation_confirmed", {
+    page: "reservation_confirmed",
+    title: "הזמנה אושרה",
+    restaurant,
+    date, time, people,
+    customerName, customerPhone, customerEmail,
+    reservationId: reservation.id,
+  });
+});
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return badJSON("תאריך לא תקין");
   if (!/^\d{2}:\d{2}$/.test(time)) return badJSON("שעה לא תקינה");
