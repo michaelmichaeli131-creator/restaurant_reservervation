@@ -346,7 +346,100 @@ restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
   });
 });
 
-/** שלב 2 → אישור סופי */
+/** שלב 2 → אישור סופי (GET – תוספת כדי לתמוך בהפניה עם QueryString) */
+restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
+  const rid = String(ctx.params.id ?? "");
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "restaurant not found"; return; }
+
+  const sp = ctx.request.url.searchParams;
+
+  const date   = normalizeDate(sp.get("date") ?? "");
+  const time   = normalizeTime(sp.get("time") ?? "");
+  const people = toIntLoose(sp.get("people")) ?? 2;
+
+  // תמיכה בשמות שדות חלופיים
+  const customerNameRaw =
+    sp.get("name") ?? sp.get("customerName") ?? sp.get("fullName") ?? sp.get("customer_name") ?? sp.get("full_name");
+  const customerPhoneRaw =
+    sp.get("phone") ?? sp.get("tel") ?? sp.get("customerPhone") ?? sp.get("customer_phone");
+  const customerEmailRaw =
+    sp.get("email") ?? sp.get("customerEmail") ?? sp.get("customer_email");
+
+  const customerName  = normalizePlain(customerNameRaw ?? "");
+  const customerPhone = normalizePlain(customerPhoneRaw ?? "");
+  const customerEmail = normalizeEmail(customerEmailRaw ?? "");
+
+  const bad = (m: string, extra?: unknown) => {
+    const dbg = { ct: "querystring", phases: [], keys: Array.from(sp.keys()), extra };
+    ctx.response.status = Status.BadRequest;
+    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+    ctx.response.body = JSON.stringify({ ok:false, error:m, dbg }, null, 2);
+  };
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("תאריך לא תקין");
+  if (!/^\d{2}:\d{2}$/.test(time))       return bad("שעה לא תקינה");
+  if (!customerName)                     return bad("נא להזין שם");
+
+  if (!customerPhone && !customerEmail)  return bad("נא להזין טלפון או אימייל");
+  if (customerEmail && !isValidEmail(customerEmail))
+    return bad("נא להזין אימייל תקין", { customerEmail });
+
+  const avail = await checkAvailability(rid, date, time, people);
+  if (!asOk(avail)) {
+    const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
+    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+    ctx.response.status = Status.Conflict;
+    ctx.response.body = JSON.stringify({ ok:false, error:"אין זמינות במועד שבחרת", suggestions: around.slice(0,4) }, null, 2);
+    return;
+  }
+
+  const user = (ctx.state as any)?.user ?? null;
+  const userId: string = user?.id ?? `guest:${crypto.randomUUID().slice(0, 8)}`;
+  const reservation: Reservation = {
+    id: crypto.randomUUID(),
+    restaurantId: rid,
+    userId,
+    date,
+    time,
+    people,
+    status: "new",
+    note: `Name: ${customerName}; Phone: ${customerPhone}; Email: ${customerEmail}`,
+    createdAt: Date.now(),
+  };
+  await createReservation(reservation);
+
+  // מיילים
+  await sendReservationEmail({
+    to: customerEmail,
+    restaurantName: restaurant.name,
+    date, time, people,
+    customerName,
+  }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
+
+  const owner = await getUserById(restaurant.ownerId).catch(() => null);
+  if (owner?.email) {
+    await notifyOwnerEmail({
+      to: owner.email,
+      restaurantName: restaurant.name,
+      customerName, customerPhone, customerEmail,
+      date, time, people,
+    }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
+  } else {
+    console.log("[mail] owner email not found; skipping owner notification");
+  }
+
+  await render(ctx, "reservation_confirmed", {
+    page: "reservation_confirmed",
+    title: "הזמנה אושרה",
+    restaurant,
+    date, time, people,
+    customerName, customerPhone, customerEmail,
+    reservationId: reservation.id,
+  });
+});
+
+/** שלב 2 → אישור סופי (POST – נשאר כפי שהיה) */
 restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
