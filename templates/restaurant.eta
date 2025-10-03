@@ -27,19 +27,21 @@
       </div>
       <div class="form-row">
         <label for="time">שעה</label>
-        <select id="time" name="time" required>
-          <% for (let h = 0; h < 24; h++) {
-               for (let m = 0; m < 60; m += 15) {
-                 const hh = String(h).padStart(2, "0");
-                 const mm = String(m).padStart(2, "0");
-                 const val = `${hh}:${mm}`;
-                 const sel = (it.time === val) ? "selected" : "";
-          %>
-            <option value="<%= val %>" <%= sel %>><%= val %></option>
-          <%     }
-             }
-          %>
-        </select>
+        <div class="time-select-wrapper">
+          <select id="time" name="time" required>
+            <% for (let h = 0; h < 24; h++) {
+                 for (let m = 0; m < 60; m += 15) {
+                   const hh = String(h).padStart(2, "0");
+                   const mm = String(m).padStart(2, "0");
+                   const val = `${hh}:${mm}`;
+                   const sel = (it.time === val) ? "selected" : "";
+            %>
+              <option value="<%= val %>" <%= sel %>><%= val %></option>
+            <%     }
+               }
+            %>
+          </select>
+        </div>
         <small class="muted">שעות בתדירות 15 דקות (24-ש’)</small>
       </div>
       <div class="form-actions">
@@ -190,6 +192,42 @@
     margin-bottom: 6px;
     color: #333;
   }
+  .time-select-wrapper {
+    position: relative;
+    width: 100%;
+  }
+  .time-select-wrapper select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    padding: 10px 40px 10px 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 8px;
+    background: white;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .time-select-wrapper select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+  }
+  .time-select-wrapper::after {
+    content: "▾";
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: #666;
+    font-size: 1rem;
+  }
+  .form-row input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+  }
   .form-row input,
   .form-row select {
     padding: 10px 12px;
@@ -197,12 +235,6 @@
     border-radius: 6px;
     font-size: 1rem;
     transition: border-color 0.2s, box-shadow 0.2s;
-  }
-  .form-row input:focus,
-  .form-row select:focus {
-    outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
   }
   .form-actions {
     grid-column: 1 / -1;
