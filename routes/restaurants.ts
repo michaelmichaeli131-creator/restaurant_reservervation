@@ -98,14 +98,13 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
   };
   const fromEntries = (iter: Iterable<[string, FormDataEntryValue]> | URLSearchParams) => {
     const o: Record<string, unknown> = {};
-    // @ts-ignore compatible entries()
     for (const [k, v] of (iter as any).entries()) o[k] = typeof v === "string" ? v : v?.name ?? "";
     return o;
   };
 
   const out: Record<string, unknown> = {};
 
-  // ---- 1) Native methods directly on ctx.request (חלק מהגרסאות) ----
+  // ---- 1) Native methods directly on ctx.request ----
   try {
     if (typeof reqAny.formData === "function") {
       const fd = await reqAny.formData();
@@ -135,7 +134,7 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     }
   } catch (e) { phase("native.ctx.text.error", String(e)); }
 
-  // ---- 2) Oak body = OBJECT (גרסאות חדשות יותר) ----
+  // ---- 2) Oak body = OBJECT ----
   try {
     const b = (reqAny.body && typeof reqAny.body !== "function") ? reqAny.body : null;
     if (b && b.type) {
@@ -149,7 +148,7 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
         phase("oak.obj.multipart", o); merge(out, o);
       } else if (b.type === "text") {
         const t: string = await b.value; phase("oak.obj.text", t);
-        try { const j = JSON.parse(t); phase("oak.obj.text->json", j); merge(out, j); }
+        try { const j = JSON.parse(t); phase("oak.obj.text->json", j); merge(out, j as any); }
         catch {
           const sp = new URLSearchParams(t); const o = fromEntries(sp);
           if (Object.keys(o).length) { phase("oak.obj.text->urlencoded", o); merge(out, o); }
@@ -157,7 +156,7 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
       } else if (b.type === "bytes") {
         const u8: Uint8Array = await b.value; const t = new TextDecoder().decode(u8);
         phase("oak.obj.bytes", t.length > 200 ? t.slice(0,200) + "…" : t);
-        try { const j = JSON.parse(t); phase("oak.obj.bytes->json", j); merge(out, j); }
+        try { const j = JSON.parse(t); phase("oak.obj.bytes->json", j); merge(out, j as any); }
         catch {
           const sp = new URLSearchParams(t); const o = fromEntries(sp);
           if (Object.keys(o).length) { phase("oak.obj.bytes->urlencoded", o); merge(out, o); }
@@ -170,7 +169,7 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     phase("oak.body.object.error", String(e));
   }
 
-  // ---- 3) Oak body = FUNCTION (גרסאות ישנות) ----
+  // ---- 3) Oak body = FUNCTION ----
   try {
     if (typeof reqAny.body === "function") {
       const bb = await reqAny.body();
@@ -184,7 +183,7 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
         phase("oak.fn.multipart", o); merge(out, o);
       } else if (bb?.type === "text") {
         const t: string = await bb.value; phase("oak.fn.text", t);
-        try { const j = JSON.parse(t); phase("oak.fn.text->json", j); merge(out, j); }
+        try { const j = JSON.parse(t); phase("oak.fn.text->json", j); merge(out, j as any); }
         catch {
           const sp = new URLSearchParams(t); const o = fromEntries(sp);
           if (Object.keys(o).length) { phase("oak.fn.text->urlencoded", o); merge(out, o); }
@@ -192,7 +191,7 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
       } else if (bb?.type === "bytes") {
         const u8: Uint8Array = await bb.value; const t = new TextDecoder().decode(u8);
         phase("oak.fn.bytes", t.length > 200 ? t.slice(0,200) + "…" : t);
-        try { const j = JSON.parse(t); phase("oak.fn.bytes->json", j); merge(out, j); }
+        try { const j = JSON.parse(t); phase("oak.fn.bytes->json", j); merge(out, j as any); }
         catch {
           const sp = new URLSearchParams(t); const o = fromEntries(sp);
           if (Object.keys(o).length) { phase("oak.fn.bytes->urlencoded", o); merge(out, o); }
@@ -212,7 +211,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     if (out[k] === undefined || out[k] === null || out[k] === "") out[k] = v;
   }
 
-  // סכם
   phase("keys", Object.keys(out));
   return { payload: out, dbg };
 }
@@ -239,7 +237,11 @@ restaurantsRouter.get("/api/restaurants", async (ctx) => {
 restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const id = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(id);
-  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
+  if (!restaurant) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Restaurant not found";
+    return;
+  }
 
   const url = ctx.request.url;
   const conflict = url.searchParams.get("conflict") === "1";
@@ -293,7 +295,11 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
 restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
-  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "restaurant not found"; return; }
+  if (!restaurant) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "restaurant not found";
+    return;
+  }
 
   const { payload } = await readBody(ctx);
   const date = normalizeDate((payload as any).date ?? ctx.request.url.searchParams.get("date"));
@@ -332,7 +338,11 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
 restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
   const id = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(id);
-  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
+  if (!restaurant) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Restaurant not found";
+    return;
+  }
 
   const date = normalizeDate(ctx.request.url.searchParams.get("date") ?? "");
   const time = normalizeTime(ctx.request.url.searchParams.get("time") ?? "");
@@ -346,11 +356,15 @@ restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
   });
 });
 
-/** שלב 2 → אישור סופי (GET – תוספת כדי לתמוך בהפניה עם QueryString) */
+/** שלב 2 → אישור סופי (GET) */
 restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
-  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "restaurant not found"; return; }
+  if (!restaurant) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "restaurant not found";
+    return;
+  }
 
   const sp = ctx.request.url.searchParams;
 
@@ -358,7 +372,6 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   const time   = normalizeTime(sp.get("time") ?? "");
   const people = toIntLoose(sp.get("people")) ?? 2;
 
-  // תמיכה בשמות שדות חלופיים
   const customerNameRaw =
     sp.get("name") ?? sp.get("customerName") ?? sp.get("fullName") ?? sp.get("customer_name") ?? sp.get("full_name");
   const customerPhoneRaw =
@@ -409,7 +422,6 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   };
   await createReservation(reservation);
 
-  // מיילים
   await sendReservationEmail({
     to: customerEmail,
     restaurantName: restaurant.name,
@@ -439,11 +451,15 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   });
 });
 
-/** שלב 2 → אישור סופי (POST – נשאר כפי שהיה) */
+/** שלב 2 → אישור סופי (POST) */
 restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
-  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "restaurant not found"; return; }
+  if (!restaurant) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "restaurant not found";
+    return;
+  }
 
   const { payload, dbg } = await readBody(ctx);
 
@@ -451,7 +467,6 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const time   = normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time") ?? "");
   const people = toIntLoose((payload as any).people ?? ctx.request.url.searchParams.get("people")) ?? 2;
 
-  // תמיכה בשמות שדות חלופיים
   const customerNameRaw  =
     (payload as any).name ??
     (payload as any).customerName ??
@@ -523,7 +538,6 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   };
   await createReservation(reservation);
 
-  // מיילים
   await sendReservationEmail({
     to: customerEmail,
     restaurantName: restaurant.name,
