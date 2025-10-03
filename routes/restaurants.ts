@@ -40,10 +40,7 @@ function toInt(v: unknown, def = 2): number {
 
 // Body reader that supports JSON, x-www-form-urlencoded, multipart/form-data
 async function readFields(ctx: any): Promise<Record<string, unknown>> {
-  // Oak had API differences across versions. We try the safest routes first.
   const ct = (ctx.request.headers.get("content-type") || "").toLowerCase();
-
-  // Prefer Oak's body readers when available
   const hasBodyMethod = typeof ctx.request.body === "function";
   const fields: Record<string, unknown> = {};
 
@@ -52,28 +49,28 @@ async function readFields(ctx: any): Promise<Record<string, unknown>> {
       if (hasBodyMethod) {
         const b = await ctx.request.body({ type: "json" }).value;
         Object.assign(fields, b ?? {});
-      } else if (ctx.request.originalRequest?.json) {
-        const b = await ctx.request.originalRequest.json();
+      } else if ((ctx.request as any).originalRequest?.json) {
+        const b = await (ctx.request as any).originalRequest.json();
         Object.assign(fields, b ?? {});
       }
     } else if (ct.includes("application/x-www-form-urlencoded")) {
       if (hasBodyMethod) {
         const b: URLSearchParams = await ctx.request.body({ type: "form" }).value;
         for (const [k, v] of b.entries()) fields[k] = v;
-      } else if (ctx.request.originalRequest?.formData) {
-        const fd = await ctx.request.originalRequest.formData();
+      } else if ((ctx.request as any).originalRequest?.formData) {
+        const fd = await (ctx.request as any).originalRequest.formData();
         for (const [k, v] of fd.entries()) fields[k] = typeof v === "string" ? v : v.name;
       }
     } else if (ct.includes("multipart/form-data")) {
       if (hasBodyMethod) {
         const formData = await ctx.request.body({ type: "form-data" }).value.read();
         Object.assign(fields, formData.fields ?? {});
-      } else if (ctx.request.originalRequest?.formData) {
-        const fd = await ctx.request.originalRequest.formData();
+      } else if ((ctx.request as any).originalRequest?.formData) {
+        const fd = await (ctx.request as any).originalRequest.formData();
         for (const [k, v] of fd.entries()) fields[k] = typeof v === "string" ? v : v.name;
       }
     } else {
-      // Fallback: try JSON first then form
+      // Fallbacks
       if (hasBodyMethod) {
         try {
           const b = await ctx.request.body({ type: "json" }).value;
@@ -82,14 +79,11 @@ async function readFields(ctx: any): Promise<Record<string, unknown>> {
           try {
             const b: URLSearchParams = await ctx.request.body({ type: "form" }).value;
             for (const [k, v] of b.entries()) fields[k] = v;
-          } catch {
-            // ignore
-          }
+          } catch { /* ignore */ }
         }
       }
     }
   } catch (e) {
-    // Attach minimal debug info for admin only route/logging
     ctx.state?.logger?.warn?.("readFields error", { e: String(e), ct });
   }
 
@@ -152,22 +146,25 @@ router.post("/restaurants/:id/reserve", async (ctx) => {
   const people = toInt(fields.people, 2);
 
   // Support both raw and normalized keys
-  const customerName = String(fields.customerName ?? fields.name ?? "").trim();
-  const customerPhone = String(fields.customerPhone ?? fields.phone ?? "").trim();
-  const customerEmail = String(fields.customerEmail ?? fields.email ?? "").trim();
+  const customerName = String(fields.customerName ?? (fields as any).name ?? "").trim();
+  const customerPhone = String(fields.customerPhone ?? (fields as any).phone ?? "").trim();
+  const customerEmail = String(fields.customerEmail ?? (fields as any).email ?? "").trim();
 
   const dbg = {
     ct: (ctx.request.headers.get("content-type") || "").toLowerCase(),
-    phases: [
-      { name: "body.reader", data: true },
-    ],
+    phases: [{ name: "body.reader", data: true }],
     keys: Object.keys(fields),
   };
 
-  // Validation (same semantics, but now fields are populated correctly)
+  // Validation
   if (!customerName) {
     ctx.response.status = Status.BadRequest;
-    ctx.response.body = { ok: false, error: "נא להזין שם", dbg, fields: { date, time, people, customerName, customerPhone, customerEmail } };
+    ctx.response.body = {
+      ok: false,
+      error: "נא להזין שם",
+      dbg,
+      fields: { date, time, people, customerName, customerPhone, customerEmail },
+    };
     return;
   }
   if (!customerPhone && !customerEmail) {
@@ -194,37 +191,32 @@ router.post("/restaurants/:id/reserve", async (ctx) => {
     customerName,
     customerPhone,
     customerEmail,
-    notes: String((fields.notes ?? "")).slice(0, 500),
+    notes: String((fields as any).notes ?? "").slice(0, 500),
     status: "confirmed",
     source: "web",
   };
 
   const created = await createReservation(reservation);
 
-  // Fire-and-forget emails (don’t block response)
+  // Fire-and-forget emails
   try {
     await sendReservationEmail({
       to: customerEmail,
       reservation: { ...created, restaurant: r },
     });
-  } catch (_e) {
-    // log-only; email failures shouldn’t fail booking
-  }
+  } catch { /* ignore email errors */ }
   try {
     await notifyOwnerEmail({
       restaurant: r,
       reservation: created,
     });
-  } catch (_e) {
-    // ignore
-  }
+  } catch { /* ignore email errors */ }
 
-  // If the client expects JSON (AJAX), return JSON; otherwise redirect to a success page
+  // JSON vs HTML
   const accept = (ctx.request.headers.get("accept") || "").toLowerCase();
   if (accept.includes("application/json") || accept.includes("text/json")) {
     ctx.response.body = { ok: true, reservation: created };
   } else {
-    // Render a confirmation page
     await render(ctx, "restaurants/confirmation", {
       restaurant: r,
       reservation: created,
@@ -232,4 +224,6 @@ router.post("/restaurants/:id/reserve", async (ctx) => {
   }
 });
 
-export default router;
+// ---- Exports ----
+export const restaurantsRouter = router;
+export default restaurantsRouter;
