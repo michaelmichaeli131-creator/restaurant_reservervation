@@ -27,6 +27,7 @@
       </div>
       <div class="form-row">
         <label for="time">שעה</label>
+        <!-- 24h + גריד 15 דקות -->
         <input id="time" name="time" type="time" step="900" required value="<%= it.time || '' %>"/>
         <small class="muted">שעות בתדירות 15 דקות (24-ש’)</small>
       </div>
@@ -88,26 +89,28 @@
   async function postJSON(url, payload) {
     const res = await fetch(url, {
       method: 'POST',
-      headers: {'Accept':'application/json','Content-Type':'application/json'},
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       redirect: 'follow'
     });
-    const text = await res.text(); let data=null; try{data=JSON.parse(text)}catch{}
-    return {ok:res.ok,status:res.status,data,text};
+    const text = await res.text(); let data = null; try { data = JSON.parse(text) } catch {}
+    return { ok: res.ok, status: res.status, data, text };
   }
   function renderAround(slots) {
     const card = document.getElementById('around-card');
-    const box = document.getElementById('around-slots');
+    const box  = document.getElementById('around-slots');
     box.innerHTML = '';
     if (Array.isArray(slots) && slots.length) {
       card.hidden = false;
-      for (const t of slots.slice(0,4)) {
+      for (const t of slots.slice(0, 4)) {
         const a = document.createElement('button');
         a.type = 'button';
         a.className = 'slot';
         a.textContent = t;
         a.addEventListener('click', () => {
           document.getElementById('time').value = t;
+          // לאחר בחירה – נסגור את החלופיות כדי לצמצם רעש
+          renderAround([]);
         });
         box.appendChild(a);
       }
@@ -116,19 +119,20 @@
     }
   }
 
-  // בדיקת זמינות — מציג חלופות בכרטיס (ולא alert)
+  // בדיקת זמינות: מציגים חלופות רק כשאין זמינות
   (function(){
     const btn = document.getElementById('check-btn');
     if (!btn) return;
     btn.addEventListener('click', async () => {
-      const {date, time} = readForm();
+      const { date, time } = readForm();
       if (!date || !time) { alert('נא לבחור תאריך ושעה'); return; }
       const rid = btn.dataset.rid;
-      const r = await postJSON(`/api/restaurants/${encodeURIComponent(rid)}/check`, {date, time});
+      const r = await postJSON(`/api/restaurants/${encodeURIComponent(rid)}/check`, { date, time });
       if (r.ok && r.data && r.data.ok) {
-        // זמין: עדיין מציגים גם חלונות סביב — לבחירה נוחה
-        renderAround(r.data.availableSlots || []);
+        // יש זמינות → לא מציעים חלופות
+        renderAround([]);
       } else if (r.data && r.data.suggestions) {
+        // אין זמינות → מציגים עד 4 חלופות
         renderAround(r.data.suggestions);
       } else {
         renderAround([]);
@@ -136,12 +140,12 @@
     });
   })();
 
-  // שליחה — מעבר לשלב הבא (השרת יבדוק זמינות ובמידת הצורך יחזיר חלופות)
+  // שליחה רגילה (לא AJAX) לשלב הבא — כדי לאפשר 303 מהשרת במקרה שאין זמינות
   (function(){
     const form = document.getElementById('reserve-form');
-    form.addEventListener('submit', async (ev) => {
-      // שליחה רגילה (לא AJAX) כדי לקבל 303 Location במקרה שאין זמינות
-      // כך נישאר מסונכרנים עם השרת.
+    form.addEventListener('submit', (ev) => {
+      // ללא מניעה — נשתמש בסאבמיט רגיל.
+      // השרת ינווט לשלב 2 או יחזיר 303 עם חלופות.
     });
   })();
 </script>

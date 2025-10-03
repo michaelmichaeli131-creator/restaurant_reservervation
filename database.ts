@@ -17,7 +17,7 @@ export interface User {
 }
 
 export type DayOfWeek = 0|1|2|3|4|5|6; // 0=Sunday .. 6=Saturday
-export interface OpeningWindow { open: string; close: string; }
+export interface OpeningWindow { open: string; close: string; } // "HH:mm"
 export type WeeklySchedule = Partial<Record<DayOfWeek, OpeningWindow | null>>;
 
 export interface Restaurant {
@@ -30,33 +30,35 @@ export interface Restaurant {
   hours?: string;
   description?: string;
   menu: Array<{ name: string; price?: number; desc?: string }>;
-  capacity: number;
-  slotIntervalMinutes: number;
-  serviceDurationMinutes: number;
-  weeklySchedule?: WeeklySchedule;
+  capacity: number;                 // קיבולת בו־זמנית
+  slotIntervalMinutes: number;      // גריד הסלוטים (ברירת מחדל 15 דק׳)
+  serviceDurationMinutes: number;   // משך ישיבה (ברירת מחדל 120 דק׳)
+  weeklySchedule?: WeeklySchedule;  // אופציונלי – ניתן לממש בהמשך הגבלות פתיחה
   photos?: string[];
-  approved?: boolean;
+  approved?: boolean;               // דורש אישור אדמין
   createdAt: number;
 }
 
 export interface Reservation {
   id: string;
   restaurantId: string;
-  userId: string;
+  userId: string; // גם ל-block ידני אפשר "manual-block:<ownerId>"
   date: string;   // YYYY-MM-DD
-  time: string;   // HH:mm
+  time: string;   // HH:mm (תחילת הישיבה)
   people: number;
   note?: string;
   status?: "new" | "confirmed" | "canceled" | "completed" | "blocked";
   createdAt: number;
 }
 
+// KV יחיד לכל התהליכים
 export const kv = await Deno.openKv();
 
 const lower = (s?: string) => (s ?? "").trim().toLowerCase();
 const now = () => Date.now();
 
-// ---------- Users ----------
+/* ───────────────────────────── Users ───────────────────────────── */
+
 export async function createUser(u: {
   id: string;
   email: string;
@@ -80,12 +82,14 @@ export async function createUser(u: {
     emailVerified: false,
     createdAt: now(),
   };
+
   const tx = kv.atomic()
     .check({ key: ["user_by_email", user.email], versionstamp: null })
     .check({ key: ["user_by_username", user.username], versionstamp: null })
     .set(["user", user.id], user)
     .set(["user_by_email", user.email], user.id)
     .set(["user_by_username", user.username], user.id);
+
   const res = await tx.commit();
   if (!res.ok) throw new Error("user_exists");
   return user;
@@ -96,14 +100,17 @@ export async function findUserByEmail(email: string) {
   if (!ref.value) return null;
   return (await kv.get<User>(["user", ref.value])).value ?? null;
 }
+
 export async function findUserByUsername(username: string) {
   const ref = await kv.get<string>(["user_by_username", lower(username)]);
   if (!ref.value) return null;
   return (await kv.get<User>(["user", ref.value])).value ?? null;
 }
+
 export async function getUserById(id: string) {
   return (await kv.get<User>(["user", id])).value ?? null;
 }
+
 export async function setEmailVerified(userId: string) {
   const cur = await kv.get<User>(["user", userId]);
   if (!cur.value) return null;
@@ -111,6 +118,7 @@ export async function setEmailVerified(userId: string) {
   await kv.set(["user", userId], next);
   return next;
 }
+
 export async function updateUserPassword(userId: string, passwordHash: string) {
   const cur = await kv.get<User>(["user", userId]);
   if (!cur.value) return null;
@@ -119,23 +127,27 @@ export async function updateUserPassword(userId: string, passwordHash: string) {
   return next;
 }
 
-// אימות/שחזור
+/* אימות/שחזור */
+
 export async function createVerifyToken(userId: string, email: string): Promise<string> {
   const token = crypto.randomUUID().replace(/-/g, "");
   await kv.set(["verify", token], { userId, email, createdAt: now() });
   return token;
 }
+
 export async function useVerifyToken(token: string) {
   const v = await kv.get<{ userId: string; email: string; createdAt: number }>(["verify", token]);
   if (!v.value) return null;
   await kv.delete(["verify", token]);
   return v.value;
 }
+
 export async function createResetToken(userId: string): Promise<string> {
   const token = crypto.randomUUID().replace(/-/g, "");
   await kv.set(["reset", token], { userId, createdAt: now() });
   return token;
 }
+
 export async function useResetToken(token: string) {
   const v = await kv.get<{ userId: string; createdAt: number }>(["reset", token]);
   if (!v.value) return null;
@@ -145,25 +157,30 @@ export async function useResetToken(token: string) {
   return v.value;
 }
 
-// ---------- Helpers for time ----------
+/* ─────────────────────── Helpers: time & grid ─────────────────────── */
+
 function toMinutes(hhmm: string): number {
   const m = hhmm.match(/^(\d{2}):(\d{2})$/);
   if (!m) return NaN;
   const h = Number(m[1]), mi = Number(m[2]);
   return h * 60 + mi;
 }
+
 function fromMinutes(total: number): string {
+  // הגנה: נשארים בטווח היום (00:00..23:59) וללא "24:45"
   const t = Math.max(0, Math.min(1439, Math.trunc(total)));
   const h = Math.floor(t / 60).toString().padStart(2, "0");
   const mi = (t % 60).toString().padStart(2, "0");
   return `${h}:${mi}`;
 }
+
+/** שואב מטה לגריד הקרוב (למשל ל־15 דקות) */
 function snapToGrid(mins: number, step: number): number {
-  // מעגלים לגריד הקרוב מטה (כדי להתיישר לרבע שעה)
   return Math.floor(mins / step) * step;
 }
 
-// ---------- Restaurants / Reservations ----------
+/* ─────────────────── Restaurants / Reservations ─────────────────── */
+
 export async function createRestaurant(r: {
   id: string; ownerId: string; name: string; city: string; address: string;
   phone?: string; hours?: string; description?: string;
@@ -185,11 +202,13 @@ export async function createRestaurant(r: {
     approved: !!r.approved,
     createdAt: now(),
   };
+
   const tx = kv.atomic()
     .set(["restaurant", restaurant.id], restaurant)
     .set(["restaurant_by_owner", restaurant.ownerId, restaurant.id], 1)
     .set(["restaurant_name", lower(restaurant.name), restaurant.id], 1)
     .set(["restaurant_city", lower(restaurant.city), restaurant.id], 1);
+
   const res = await tx.commit();
   if (!res.ok) throw new Error("create_restaurant_race");
   return restaurant;
@@ -211,10 +230,12 @@ export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
 
   const tx = kv.atomic().set(["restaurant", id], next);
   if (patch.name && lower(patch.name) !== lower(prev.name)) {
-    tx.delete(["restaurant_name", lower(prev.name), id]).set(["restaurant_name", lower(patch.name), id], 1);
+    tx.delete(["restaurant_name", lower(prev.name), id])
+      .set(["restaurant_name", lower(patch.name), id], 1);
   }
   if (patch.city && lower(patch.city) !== lower(prev.city)) {
-    tx.delete(["restaurant_city", lower(prev.city), id]).set(["restaurant_city", lower(patch.city), id], 1);
+    tx.delete(["restaurant_city", lower(prev.city), id])
+      .set(["restaurant_city", lower(patch.city), id], 1);
   }
   const res = await tx.commit();
   if (!res.ok) throw new Error("update_restaurant_race");
@@ -272,6 +293,8 @@ export async function listRestaurants(q?: string, onlyApproved = true): Promise<
   });
 }
 
+/* ─────────────── Reservations, occupancy & availability ─────────────── */
+
 export async function listReservationsFor(restaurantId: string, date: string): Promise<Reservation[]> {
   const out: Reservation[] = [];
   for await (const row of kv.list({ prefix: ["reservation_by_day", restaurantId, date] })) {
@@ -299,6 +322,7 @@ export async function listReservationsByOwner(ownerId: string) {
     const r = (await kv.get<Restaurant>(["restaurant", rid])).value;
     if (r) my.push({ id: r.id, name: r.name });
   }
+
   const results: Array<{ restaurantName: string; reservation: Reservation }> = [];
   for (const r of my) {
     for await (const k of kv.list({ prefix: ["reservation_by_day", r.id] })) {
@@ -307,17 +331,25 @@ export async function listReservationsByOwner(ownerId: string) {
       if (resv) results.push({ restaurantName: r.name, reservation: resv });
     }
   }
-  results.sort((a, b) => (a.reservation.date + a.reservation.time).localeCompare(b.reservation.date + b.reservation.time));
+
+  results.sort((a, b) =>
+    (a.reservation.date + a.reservation.time).localeCompare(b.reservation.date + b.reservation.time),
+  );
+
   return results.slice(0, 200);
 }
 
 export async function computeOccupancy(restaurant: Restaurant, date: string) {
   const resv = await listReservationsFor(restaurant.id, date);
   const map = new Map<string, number>(); // time -> used seats
+
+  const step = restaurant.slotIntervalMinutes || 15;
+  const span = restaurant.serviceDurationMinutes || 120;
+
   for (const r of resv) {
-    const start = toMinutes(r.time);
-    const end = start + (restaurant.serviceDurationMinutes || 120);
-    for (let t = start; t < end; t += restaurant.slotIntervalMinutes || 15) {
+    const start = snapToGrid(toMinutes(r.time), step);
+    const end = start + span;
+    for (let t = start; t < end; t += step) {
       const key = fromMinutes(t);
       map.set(key, (map.get(key) ?? 0) + r.people);
     }
@@ -325,23 +357,26 @@ export async function computeOccupancy(restaurant: Restaurant, date: string) {
   return map;
 }
 
+/** בדיקת זמינות ל-slot (מיושר לגריד) */
 export async function checkAvailability(restaurantId: string, date: string, time: string, people: number) {
   const r = await getRestaurant(restaurantId);
   if (!r) return { ok: false, reason: "not_found" as const };
-  const occ = await computeOccupancy(r, date);
+
   const step = r.slotIntervalMinutes || 15;
+  const span = r.serviceDurationMinutes || 120;
+
+  const occ = await computeOccupancy(r, date);
   const start = snapToGrid(toMinutes(time), step);
-  const end = start + (r.serviceDurationMinutes || 120);
+  const end = start + span;
+
   for (let t = start; t < end; t += step) {
     const used = occ.get(fromMinutes(t)) ?? 0;
-    if (used + people > r.capacity) {
-      return { ok: false, reason: "full" as const };
-    }
+    if (used + people > r.capacity) return { ok: false, reason: "full" as const };
   }
   return { ok: true as const };
 }
 
-/** סלוטים זמינים סביב שעה נתונה (±windowMinutes), ממופים לגריד, בטווח היום בלבד */
+/** סלוטים זמינים סביב שעה נתונה (±windowMinutes), מיושרים לגריד, בטווח היום בלבד. */
 export async function listAvailableSlotsAround(
   restaurantId: string,
   date: string,
@@ -352,20 +387,22 @@ export async function listAvailableSlotsAround(
 ): Promise<string[]> {
   const r = await getRestaurant(restaurantId);
   if (!r) return [];
-  const occ = await computeOccupancy(r, date);
 
   const step = r.slotIntervalMinutes || 15;
   const span = r.serviceDurationMinutes || 120;
 
   let base = toMinutes(centerTime);
   if (!Number.isFinite(base)) return [];
+
+  // התאמה לגריד ולימיט יומי
   base = snapToGrid(Math.max(0, Math.min(1439, base)), step);
 
+  const occ = await computeOccupancy(r, date);
   const start = Math.max(0, base - windowMinutes);
   const end = Math.min(1439, base + windowMinutes);
 
   const tryTime = (t: number) => {
-    // שמירה על גבולות היום
+    // לא חוצים את היום (אין 24:xx)
     if (t < 0 || t + span > 24 * 60) return false;
     for (let x = t; x < t + span; x += step) {
       const used = occ.get(fromMinutes(x)) ?? 0;
@@ -396,11 +433,12 @@ export async function listAvailableSlotsAround(
     return a.localeCompare(b);
   });
 
-  // מגביל ל-4 אם זו בקשת חלופות (כך נקרא בדרך כלל)
+  // מגביל להצעות קומפקטיות (עד 4) לבקשתך
   return out.slice(0, Math.min(maxSlots, 4));
 }
 
-// ---------- Admin Utilities ----------
+/* ───────────────────────── Admin Utilities ───────────────────────── */
+
 export async function deleteRestaurantCascade(restaurantId: string): Promise<number> {
   const r = await getRestaurant(restaurantId);
   if (!r) return 0;
@@ -411,6 +449,7 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
     reservationIds.push(id);
   }
 
+  // מחיקה במנות
   const chunk = <T>(arr: T[], size: number) =>
     arr.reduce<T[][]>((acc, v, i) => {
       if (i % size === 0) acc.push([]);
@@ -444,7 +483,8 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
   return deleted;
 }
 
-// ========= איפוס לאדמין =========
+/* ──────────────────────────── Admin reset ─────────────────────────── */
+
 export async function resetReservations(): Promise<{ deleted: number }> {
   let deleted = 0;
   for await (const e of kv.list({ prefix: ["reservation"] })) {

@@ -1,24 +1,79 @@
 <% layout("_layout", it) %>
 <main class="container">
-  <section class="card" style="max-width:720px">
-    <h2 style="margin-top:0">הזמנה אושרה</h2>
-    <p>תודה <strong><%= it.customerName %></strong>! ההזמנה שלך נקלטה.</p>
-    <ul>
-      <li><strong>מסעדה:</strong> <%= it.restaurant.name %></li>
-      <li><strong>תאריך:</strong> <%= it.date %></li>
-      <li><strong>שעה:</strong> <%= it.time %></li>
-      <li><strong>סועדים:</strong> <%= it.people %></li>
-      <li><strong>נייד ליצירת קשר:</strong> <%= it.customerPhone %></li>
-      <li><strong>אימייל:</strong> <%= it.customerEmail %></li>
-      <li><strong>מספר הזמנה:</strong> <code><%= it.reservationId %></code></li>
-    </ul>
-    <p class="muted">אישור נשלח אליך באימייל.</p>
-    <p><a class="btn" href="/">חזרה לדף הבית</a></p>
+  <header class="page-header">
+    <h1>הזמנה אושרה ✔</h1>
+    <p class="muted">תודה שהזמנת ב־<strong><%= it.restaurant.name %></strong>.</p>
+  </header>
+
+  <section class="card">
+    <h2 style="margin-top:0">פרטי הזמנה</h2>
+    <dl class="details">
+      <div class="row">
+        <dt>מסעדה</dt>
+        <dd><%= it.restaurant.name %></dd>
+      </div>
+      <div class="row">
+        <dt>כתובת</dt>
+        <dd><%= it.restaurant.city %> · <%= it.restaurant.address %></dd>
+      </div>
+      <div class="row">
+        <dt>תאריך</dt>
+        <dd><%= it.date %></dd>
+      </div>
+      <div class="row">
+        <dt>שעה</dt>
+        <dd><%= it.time %></dd>
+      </div>
+      <div class="row">
+        <dt>סועדים</dt>
+        <dd><%= it.people %></dd>
+      </div>
+      <div class="row">
+        <dt>שם לקוח</dt>
+        <dd><%= it.customerName %></dd>
+      </div>
+      <div class="row">
+        <dt>נייד</dt>
+        <dd><%= it.customerPhone %></dd>
+      </div>
+      <div class="row">
+        <dt>אימייל</dt>
+        <dd><%= it.customerEmail %></dd>
+      </div>
+      <div class="row">
+        <dt>מס׳ הזמנה</dt>
+        <dd><code><%= it.reservationId %></code></dd>
+      </div>
+    </dl>
+
+    <div class="cta">
+      <a class="btn" href="/restaurants/<%= it.restaurant.id %>">חזרה לעמוד המסעדה</a>
+      <a class="btn secondary" href="/">חזרה לעמוד הראשי</a>
+    </div>
+
+    <p class="muted" style="margin-top:12px">
+      קיבלת אימייל עם פרטי ההזמנה. נתראה!
+    </p>
   </section>
+
+  <% if (it.restaurant.description) { %>
+    <section class="card">
+      <h2 style="margin-top:0">על המסעדה</h2>
+      <p><%= it.restaurant.description %></p>
+    </section>
+  <% } %>
 </main>
 
 <style>
-  .container{max-width:960px;margin:24px auto;padding:0 16px}
+  .container{max-width:900px;margin:24px auto;padding:0 16px}
   .card{border:1px solid #eee;border-radius:12px;padding:16px;margin-bottom:18px}
-  .btn{background:#111;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer}
+  .muted{color:#777}
+  .details{margin:0}
+  .row{display:grid;grid-template-columns:160px 1fr;gap:8px;padding:6px 0;border-bottom:1px dashed #eee}
+  .row:last-child{border-bottom:none}
+  dt{font-weight:600}
+  dd{margin:0}
+  .btn{background:#111;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;text-decoration:none;display:inline-block}
+  .btn.secondary{background:#555}
+  .cta{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 </style>

@@ -1,42 +1,199 @@
 <% layout("_layout", it) %>
 <main class="container">
-  <section class="card" style="max-width:680px">
-    <h2 style="margin-top:0">פרטי הזמנה — שלב 2</h2>
-    <p class="muted"><strong><%= it.restaurant.name %></strong> · <%= it.date %> · <%= it.time %> · <%= it.people %> סועדים</p>
+  <header class="page-header">
+    <h1>פרטי הזמנה — <%= it.restaurant.name %></h1>
+    <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+    <% if (it.restaurant.phone) { %>
+      <p class="muted">טלפון: <%= it.restaurant.phone %></p>
+    <% } %>
+  </header>
 
-    <form id="details-form" method="post" action="/restaurants/<%= it.restaurant.id %>/confirm" class="form-grid" novalidate>
+  <section class="card">
+    <h2 style="margin-top:0">שלב 2 — מילוי פרטי לקוח</h2>
+
+    <div class="summary">
+      <div><strong>תאריך:</strong> <span id="sum-date"><%= it.date %></span></div>
+      <div><strong>שעה:</strong> <span id="sum-time"><%= it.time %></span></div>
+      <div><strong>מסעדה:</strong> <%= it.restaurant.name %></div>
+    </div>
+
+    <form id="details-form"
+          class="form-grid"
+          action="/restaurants/<%= it.restaurant.id %>/confirm"
+          method="post" novalidate>
+      <!-- נשמרים כ-hidden כדי שיישלחו גם בסאבמיט רגיל -->
       <input type="hidden" name="date" value="<%= it.date %>"/>
       <input type="hidden" name="time" value="<%= it.time %>"/>
-      <input type="hidden" name="people" value="<%= it.people %>"/>
 
       <div class="form-row">
         <label for="name">שם מלא</label>
-        <input id="name" name="name" type="text" required />
+        <input id="name" name="name" type="text" required autocomplete="name" placeholder="שם פרטי ושם משפחה"/>
+        <small class="muted">נדרש לאימות ושירות במסעדה</small>
       </div>
+
       <div class="form-row">
         <label for="phone">נייד</label>
-        <input id="phone" name="phone" type="tel" required />
+        <input id="phone" name="phone" type="tel" required inputmode="tel" placeholder="050-1234567"/>
+        <small class="muted">ליצירת קשר במקרה הצורך</small>
       </div>
+
       <div class="form-row">
         <label for="email">אימייל</label>
-        <input id="email" name="email" type="email" required />
+        <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com"/>
+        <small class="muted">נשלח אליך אישור הזמנה</small>
+      </div>
+
+      <% const cap = Math.max(1, Math.min(30, it.restaurant.capacity || 30)); %>
+      <div class="form-row">
+        <label for="people">מספר סועדים</label>
+        <input id="people" name="people" type="number" min="1" max="<%= cap %>" step="1" value="<%= it.people || 2 %>" required/>
+        <small class="muted">מינ' 1 · מקס' <%= cap %></small>
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn">אישור הזמנה</button>
-        <a class="btn secondary" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>">חזרה</a>
+        <button type="submit" class="btn">אשר/י הזמנה</button>
+        <a class="btn secondary" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>">חזרה לשעה/תאריך</a>
       </div>
     </form>
   </section>
+
+  <!-- קופסת שגיאה/חלופות (מוצגת רק במקרה 409) -->
+  <section class="card" id="conflict-card" hidden>
+    <h3 style="margin-top:0">אין זמינות במועד שבחרת</h3>
+    <p>בחר/י אחד מהזמנים הזמינים בקרבת השעה המבוקשת (עד ±2 שעות):</p>
+    <div id="suggest-slots" class="slots"></div>
+    <small class="muted">לחיצה על שעה תעדכן את השעה ותוכל/י להגיש שוב.</small>
+  </section>
+
+  <% if (it.restaurant.description) { %>
+    <section class="card">
+      <h2 style="margin-top:0">על המסעדה</h2>
+      <p><%= it.restaurant.description %></p>
+    </section>
+  <% } %>
 </main>
 
+<script>
+  // ————— Client helpers —————
+  function $(sel, root=document){ return root.querySelector(sel); }
+  function setText(id, v){ const el = document.getElementById(id); if (el) el.textContent = v; }
+
+  function ensureValid() {
+    const name  = $('#name').value.trim();
+    const phone = $('#phone').value.trim();
+    const email = $('#email').value.trim();
+    const people = Number($('#people').value || '0');
+
+    if (!name)   return "נא להזין שם";
+    if (!phone)  return "נא להזין מספר נייד";
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return "נא להזין אימייל תקין";
+    if (!Number.isFinite(people) || people < 1) return "מספר סועדים לא תקין";
+    return null;
+  }
+
+  function renderSuggestions(slots) {
+    const card = document.getElementById('conflict-card');
+    const box  = document.getElementById('suggest-slots');
+    box.innerHTML = '';
+    if (Array.isArray(slots) && slots.length) {
+      card.hidden = false;
+      for (const t of slots.slice(0, 4)) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'slot';
+        b.textContent = t;
+        b.addEventListener('click', () => {
+          // עדכון השעה בשדות ובתקציר
+          const time = t;
+          document.querySelector('input[name="time"]').value = time;
+          setText('sum-time', time);
+          // סגירת הקופסה (אפשר להשאיר פתוחה אם תרצה)
+          card.hidden = true;
+        });
+        box.appendChild(b);
+      }
+    } else {
+      card.hidden = true;
+    }
+  }
+
+  async function postJSON(url, payload) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Accept': 'text/html,application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      redirect: 'follow'
+    });
+    const ctype = res.headers.get('content-type') || '';
+    const text = await res.text();
+    let data = null;
+    if (ctype.includes('application/json')) { try { data = JSON.parse(text); } catch {} }
+    return { ok: res.ok, status: res.status, data, text, ctype };
+  }
+
+  // ————— Intercept submit: שולחים JSON; אם 200 → מחליפים את כל המסמך ב-HTML החוזר;
+  // אם 409 (אין זמינות) → מציגים חלופות בעמוד; אם 400 → alert ידידותי.
+  (function(){
+    const form = document.getElementById('details-form');
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+
+      const err = ensureValid();
+      if (err) { alert(err); return; }
+
+      const payload = {
+        date:   form.querySelector('input[name="date"]').value,
+        time:   form.querySelector('input[name="time"]').value,
+        name:   form.querySelector('input[name="name"]').value.trim(),
+        phone:  form.querySelector('input[name="phone"]').value.trim(),
+        email:  form.querySelector('input[name="email"]').value.trim(),
+        people: Number(form.querySelector('input[name="people"]').value || '0')
+      };
+
+      try {
+        const url = form.getAttribute('action');
+        const r = await postJSON(url, payload);
+
+        if (r.ok && r.status === 200) {
+          // השרת החזיר עמוד HTML של אישור — נחליף את כל הדף
+          document.open(); document.write(r.text); document.close();
+          return;
+        }
+
+        if (r.status === 409 && r.data && Array.isArray(r.data.suggestions)) {
+          renderSuggestions(r.data.suggestions);
+          alert('אין זמינות במועד שבחרת — בחר/י אחת מהחלופות למטה.');
+          return;
+        }
+
+        if (r.status === 400 && r.data && r.data.error) {
+          alert(r.data.error);
+          return;
+        }
+
+        // מקרה לא צפוי — נציג טקסט הגיוני
+        alert('אירעה שגיאה בעיבוד ההזמנה. נסו שוב.');
+      } catch (e) {
+        console.error(e);
+        alert('שגיאה ברשת. נסו שוב.');
+      }
+    });
+  })();
+</script>
+
 <style>
-  .container{max-width:960px;margin:24px auto;padding:0 16px}
+  .container{max-width:900px;margin:24px auto;padding:0 16px}
   .card{border:1px solid #eee;border-radius:12px;padding:16px;margin-bottom:18px}
-  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .muted{color:#777}
+  .summary{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+  .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
   .form-row{display:flex;flex-direction:column}
   .form-actions{grid-column:1/-1;display:flex;gap:10px}
   .btn{background:#111;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer}
   .btn.secondary{background:#555}
-  @media (max-width:720px){.form-grid{grid-template-columns:1fr}}
+  #conflict-card{border-color:#ffccc7}
+  .slots{display:flex;gap:8px;flex-wrap:wrap}
+  .slot{padding:6px 10px;border-radius:8px;border:1px solid #ddd;background:#fafafa;cursor:pointer}
+  .slot:hover{background:#f0f0ff}
+  @media (max-width:760px){.form-grid{grid-template-columns:1fr}}
 </style>

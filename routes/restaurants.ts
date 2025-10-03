@@ -12,12 +12,15 @@ import {
 import { render } from "../lib/view.ts";
 import { sendReservationEmail, notifyOwnerEmail } from "../lib/mail.ts";
 
-// ---------- Utils ----------
+/* ───────────────────────────── Utils ───────────────────────────── */
+
 function pad2(n: number) { return n.toString().padStart(2, "0"); }
+
 function todayISO(): string {
   const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
+
 function nextQuarterHour(): string {
   const d = new Date();
   const mins = d.getMinutes();
@@ -25,6 +28,8 @@ function nextQuarterHour(): string {
   d.setMinutes(mins + add, 0, 0);
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
+
+/** קלט תאריך: תומך YYYY-MM-DD וגם DD/MM/YYYY → מחזיר YYYY-MM-DD */
 function normalizeDate(input: unknown): string {
   const s = String(input ?? "").trim();
   if (!s) return todayISO();
@@ -33,19 +38,23 @@ function normalizeDate(input: unknown): string {
   if (m) return `${m[3]}-${m[2]}-${m[1]}`;
   return s;
 }
+
+/** קלט שעה: תומך "13.00" → "13:00"; מישר לגריד 15 דקות; 24H */
 function normalizeTime(input: unknown): string {
   const s = String(input ?? "").trim();
   if (!s) return nextQuarterHour();
   const t = /^\d{2}\.\d{2}$/.test(s) ? s.replace(".", ":") : s;
-  // חיתוך לשתי ספרות-נקודתיים-שתי ספרות
   const m = t.match(/^(\d{1,2}):(\d{2})$/);
   if (!m) return t;
+
   let h = Math.max(0, Math.min(23, Number(m[1])));
   let mi = Math.max(0, Math.min(59, Number(m[2])));
-  // יישור לרבע שעה
+
+  // יישור לרבע שעה (למטה)
   mi = Math.floor(mi / 15) * 15;
   return `${pad2(h)}:${pad2(mi)}`;
 }
+
 function toIntLoose(input: unknown): number | null {
   if (typeof input === "number" && Number.isFinite(input)) return Math.trunc(input);
   if (typeof input === "bigint") return Number(input);
@@ -57,8 +66,11 @@ function toIntLoose(input: unknown): number | null {
   return onlyDigits ? Math.trunc(Number(onlyDigits)) : null;
 }
 
-// ---------- Body Reader ----------
-async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
+/* ───────────────────────── Body Reader ───────────────────────── */
+
+async function readBody(
+  ctx: any,
+): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const ct = ctx.request.headers.get("content-type") ?? "";
   const reqAny: any = ctx.request as any;
   const original: Request | undefined = (reqAny.originalRequest ?? undefined);
@@ -87,12 +99,17 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     try {
       if (typeof reqAny.body === "function") {
         const b = await reqAny.body();
-        if (b?.type === "json") { const v = await b.value; if (v && typeof v === "object") { phase("oak.generic.json", v); return { payload: v, dbg }; } }
-        else if (b?.type === "bytes") {
-          const u8: Uint8Array = await b.value; const text = new TextDecoder().decode(u8);
-          phase("oak.bytes", text); try { const j = JSON.parse(text); phase("oak.bytes->json", j); return { payload: j, dbg }; } catch {}
+        if (b?.type === "json") {
+          const v = await b.value;
+          if (v && typeof v === "object") { phase("oak.generic.json", v); return { payload: v, dbg }; }
+        } else if (b?.type === "bytes") {
+          const u8: Uint8Array = await b.value;
+          const text = new TextDecoder().decode(u8);
+          phase("oak.bytes", text);
+          try { const j = JSON.parse(text); phase("oak.bytes->json", j); return { payload: j, dbg }; } catch {}
         } else if (b?.type === "text") {
-          const text: string = await b.value; phase("oak.text", text);
+          const text: string = await b.value;
+          phase("oak.text", text);
           try { const j = JSON.parse(text); phase("oak.text->json", j); return { payload: j, dbg }; } catch {}
         }
       }
@@ -172,7 +189,8 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
   return { payload: qs, dbg };
 }
 
-// ייצוא יחיד
+/* ───────────────────────── Router ───────────────────────── */
+
 export const restaurantsRouter = new Router();
 
 /** API: לאוטוקומפליט */
@@ -207,7 +225,7 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   });
 });
 
-/** API: בדיקת זמינות + חלופות במסך (לא alert) — משמש JS */
+/** API: בדיקת זמינות + חלופות (רק אם אין זמינות) — משמש JS */
 restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -216,29 +234,30 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const { payload } = await readBody(ctx);
   const date = normalizeDate((payload as any).date ?? "");
   const time = normalizeTime((payload as any).time ?? "");
-  // כרגע, מספר סועדים יקבע בשלב הבא; לצורך בדיקת עומס נשתמש בברירת מחדל 2
-  const people = 2;
+  const people = 2; // ברירת מחדל לשלב 1; בשלב 2 המשתמש יבחר
 
   const bad = (m: string) => {
     ctx.response.status = Status.BadRequest;
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok:false, error:m }, null, 2);
+    ctx.response.body = JSON.stringify({ ok: false, error: m }, null, 2);
   };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("bad date (YYYY-MM-DD expected)");
   if (!/^\d{2}:\d{2}$/.test(time)) return bad("bad time (HH:mm expected)");
 
   const result = await checkAvailability(rid, date, time, people);
-  const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
 
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   if (result.ok) {
-    ctx.response.body = JSON.stringify({ ok: true, availableSlots: around.slice(0,4) }, null, 2);
+    // יש זמינות → לא מציעים חלופות (לפי הדרישה)
+    ctx.response.body = JSON.stringify({ ok: true, availableSlots: [] }, null, 2);
   } else {
-    ctx.response.body = JSON.stringify({ ok: false, reason: (result as any).reason, suggestions: around.slice(0,4) }, null, 2);
+    // אין זמינות → מחזירים עד 4 חלופות (מיושרות לגריד)
+    const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
+    ctx.response.body = JSON.stringify({ ok: false, reason: (result as any).reason, suggestions: around.slice(0, 4) }, null, 2);
   }
 });
 
-/** שלב 1 → שלב 2 (פרטי לקוח): אם יש זמינות ננווט לדף פרטים, אחרת נחזיר 303 עם חלופות */
+/** שלב 1 → שלב 2 (פרטי לקוח): אם יש זמינות — מעבר, אחרת 303 חזרה עם חלופות */
 restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -247,12 +266,12 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   const { payload } = await readBody(ctx);
   const date = normalizeDate((payload as any).date ?? ctx.request.url.searchParams.get("date"));
   const time = normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time"));
-  const people = 2; // בשלב זה קובעים ברירת־מחדל; ניתן להרחיב בהמשך לפי דרישתך
+  const people = 2; // בשלב 1 – ברירת מחדל
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
     ctx.response.status = Status.BadRequest;
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok:false, error:"אנא בחר/י תאריך ושעה תקינים" }, null, 2);
+    ctx.response.body = JSON.stringify({ ok: false, error: "אנא בחר/י תאריך ושעה תקינים" }, null, 2);
     return;
   }
 
@@ -261,7 +280,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
     const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
     url.searchParams.set("conflict", "1");
-    if (around.length) url.searchParams.set("suggest", around.slice(0,4).join(","));
+    if (around.length) url.searchParams.set("suggest", around.slice(0, 4).join(","));
     url.searchParams.set("date", date);
     url.searchParams.set("time", time);
     ctx.response.status = Status.SeeOther; // 303
@@ -269,7 +288,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     return;
   }
 
-  // יש זמינות → מעבר למסך פרטי לקוח
+  // יש זמינות → ניווט לשלב 2 (פרטי לקוח)
   const u = new URL(`/restaurants/${encodeURIComponent(rid)}/details`, "http://local");
   u.searchParams.set("date", date);
   u.searchParams.set("time", time);
@@ -292,7 +311,7 @@ restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
     page: "reservation_details",
     title: `פרטי הזמנה — ${restaurant.name}`,
     restaurant,
-    date, time, people
+    date, time, people,
   });
 });
 
@@ -314,7 +333,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const bad = (m: string) => {
     ctx.response.status = Status.BadRequest;
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok:false, error:m }, null, 2);
+    ctx.response.body = JSON.stringify({ ok: false, error: m }, null, 2);
   };
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("תאריך לא תקין");
@@ -323,12 +342,13 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   if (!customerPhone) return bad("נא להזין מספר נייד");
   if (!customerEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(customerEmail)) return bad("נא להזין אימייל תקין");
 
+  // אימות זמינות לפני יצירה
   const avail = await checkAvailability(rid, date, time, people);
   if (!avail.ok) {
     const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.status = Status.Conflict;
-    ctx.response.body = JSON.stringify({ ok:false, error:"אין זמינות במועד שבחרת", suggestions: around.slice(0,4) }, null, 2);
+    ctx.response.body = JSON.stringify({ ok: false, error: "אין זמינות במועד שבחרת", suggestions: around.slice(0, 4) }, null, 2);
     return;
   }
 
@@ -356,8 +376,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
     customerName,
   }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
 
-  // מייל לבעל המסעדה
-  // ננסה להביא את המייל של הבעלים דרך טבלת המשתמשים:
+  // מייל לבעל המסעדה (אם יש אימייל לבעלים במשתמש)
   const owner = await getUserById(restaurant.ownerId).catch(() => null);
   if (owner?.email) {
     await notifyOwnerEmail({
@@ -370,7 +389,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
     console.log("[mail] owner email not found; skipping owner notification");
   }
 
-  // עמוד אישור
+  // עמוד אישור ללקוח
   await render(ctx, "reservation_confirmed", {
     page: "reservation_confirmed",
     title: "הזמנה אושרה",
