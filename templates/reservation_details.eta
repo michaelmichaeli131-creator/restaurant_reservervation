@@ -21,7 +21,6 @@
           class="form-grid"
           action="/restaurants/<%= it.restaurant.id %>/confirm"
           method="post" novalidate>
-      <!-- חשוב: השרת מצפה לשמות האלו -->
       <input type="hidden" name="date" value="<%= it.date %>"/>
       <input type="hidden" name="time" value="<%= it.time %>"/>
 
@@ -75,7 +74,7 @@
 </main>
 
 <script>
-  // אופציונלי: נרמול אימייל עדין (בלי ליירט submit)
+  // normalize email
   (function(){
     const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
     const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
@@ -91,34 +90,24 @@
     if (emailEl) emailEl.addEventListener('blur', () => { emailEl.value = normalizeEmail(emailEl.value); });
   })();
 
-  // --- FIX: עוקפים את בעיית body parsing ע"י המרה להפניה עם QueryString ---
+  // redirect fallback
   (function () {
     const form = document.getElementById('details-form');
     if (!form) return;
     form.addEventListener('submit', function (ev) {
       try {
-        // אל תפריע אם הדפדפן חוסם בגלל required
         if (!form.checkValidity()) return;
-
-        // אם השרת כן יודע לקרוא body בסביבה הזו – אפשר לכבות את העוקף ע"י data-attr
         if (form.hasAttribute('data-force-post')) return;
-
         ev.preventDefault();
         const sp = new URLSearchParams();
         const fd = new FormData(form);
-
-        // מעתיקים את כל השדות כפי שהם:
         for (const [k, v] of fd.entries()) {
           if (typeof v === 'string') sp.append(k, v);
         }
-
-        // יעד ה-confirm (אותו נתיב של ה-POST)
         const to = new URL(form.getAttribute('action') || window.location.href, window.location.origin);
-        // מחליפים ל-GET עם אותה אינפורמציה – השרת קורא searchParams בכל מקרה
         to.search = sp.toString();
         window.location.assign(to.toString());
       } catch (e) {
-        // במקרה של שגיאה, נופלים חזרה ל-POST רגיל
         console.warn('[details-form] redirect-as-GET failed, falling back to POST:', e);
       }
     }, { passive: false });
