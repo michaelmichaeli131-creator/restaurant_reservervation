@@ -1,7 +1,6 @@
-/* public/app.js
- * קיים: אוטוקומפליט + בדיקת זמינות (ללא שינוי).
- * חדש: כיוונון timepicker ל-24h ו-step 15 דק בכל ספרייה נפוצה (flatpickr / tw-elements / flowbite),
- * וגם fallback ל-native <input type="time"> עם step=900.
+/* static/app.js
+ * אוטוקומפליט + בדיקת זמינות (כפי שהיה),
+ * תוספת: timepicker ב-24h עם קפיצות של 15 דק, כולל ניטור דינמי אם תוסף נטען מאוחר.
  */
 
 (function () {
@@ -31,119 +30,135 @@
   // ------------------------
   // Time pickers (24h, 15min)
   // ------------------------
+  function applyAttrs(el){
+    // עוזר לרמוז לספריות/לדפדפן
+    el.setAttribute("inputmode","numeric");
+    el.setAttribute("placeholder","HH:MM");
+    el.setAttribute("pattern","^\\d{2}:\\d{2}$");
+    el.setAttribute("autocomplete","off");
+    el.setAttribute("dir","ltr");
+    // data-* למימושים שונים של TW Elements / Flowbite
+    el.setAttribute("data-te-format24","true");
+    el.setAttribute("data-te-increment","15");
+    el.setAttribute("data-format","HH:mm");
+    el.setAttribute("data-minute-increment","15");
+  }
+
   function initFlatpickr(el) {
     try {
       if (!window.flatpickr) return false;
-      // אם כבר מאותחל, נעדכן אפשרויות דרך instance.config (ככל הניתן)
       const inst = el._flatpickr;
-      if (inst) {
-        inst.set({ dateFormat: "H:i", time_24hr: true, minuteIncrement: 15, allowInput: true });
-      } else {
-        window.flatpickr(el, {
-          enableTime: true,
-          noCalendar: true,
-          dateFormat: "H:i",
-          time_24hr: true,
-          minuteIncrement: 15,
-          allowInput: true,
-        });
-      }
-      // נרמול ערך על blur
+      const opts = {
+        enableTime: true,
+        noCalendar: true,
+        dateFormat: "H:i",
+        time_24hr: true,
+        minuteIncrement: 15,
+        allowInput: true,
+      };
+      if (inst && typeof inst.set === "function") inst.set(opts);
+      else window.flatpickr(el, opts);
       el.addEventListener("blur", () => { if (el.value) el.value = roundTo15(el.value); });
-      console.debug("[time-input] flatpickr: 24h/15m applied");
       return true;
-    } catch (e) {
-      console.warn("[time-input] flatpickr init failed:", e);
-      return false;
-    }
+    } catch { return false; }
   }
 
-  // TW Elements (MDB/Tailwind) timepicker
   function initTWElements(el) {
     try {
-      const te = window.te || window.TWElements || window.mdb; // כינויים אפשריים
-      if (!te || !te.Timepicker) return false;
+      const te = window.te || window.TWElements || window.mdb;
+      const Cls = te && (te.Timepicker || te.TimePicker);
+      if (!Cls) return false;
 
-      // אם קיים אינסטנס — נעדכן קונפיג (חלק מהגרסאות תומכות setOptions)
-      const inst = te.getInstance ? te.getInstance(el, te.Timepicker) : null;
-      const opts = { format24: true, increment: 15 }; // בחלק מהגרסאות: { format: '24', increment: 15 }
+      // נסה להשיג אינסטנס קיים ולעדכן; אם לא — צור חדש
+      let inst = (te.getInstance && te.getInstance(el, te.Timepicker || te.TimePicker)) || el._teTimepickerInstance || null;
+
+      const opts = {
+        // כיסינו כמה שמות אפשריים של אפשרויות בין גרסאות:
+        format24: true, format: "24", twelveHour: false,
+        increment: 15, step: 15, minutesStep: 15
+      };
+
       if (inst && typeof inst.setOptions === "function") {
         inst.setOptions(opts);
       } else {
-        // ייתכן שהאתחול נעשה עם data-*; נכריח אתחול מחדש לא הרסני
-        // נסמן שנאתחל פעם אחת
-        if (!el._teTimepickerApplied) {
-          el.setAttribute("data-te-format24", "true");
-          el.setAttribute("data-te-increment", "15");
-          // חלק מהגרסאות דורשות init מפורש:
-          try { new te.Timepicker(el, opts); } catch(_) {}
-          el._teTimepickerApplied = true;
-        }
+        inst = new Cls(el, opts);
+        el._teTimepickerInstance = inst;
       }
       el.addEventListener("blur", () => { if (el.value) el.value = roundTo15(el.value); });
-      console.debug("[time-input] TW Elements: 24h/15m applied");
       return true;
-    } catch (e) {
-      console.warn("[time-input] TW Elements init failed:", e);
-      return false;
-    }
+    } catch { return false; }
   }
 
-  // Flowbite timepicker (flowbite-datepicker/timepicker)
   function initFlowbite(el) {
     try {
       const FB = window.Flowbite || window.flowbite;
-      // יש כמה חבילות; ננסה API נפוצים:
       const Cls = (FB && (FB.Timepicker || FB.TimePicker)) || window.Timepicker || window.TimePicker;
       if (!Cls) return false;
 
-      if (!el._flowbiteApplied) {
-        // חלק מהגרסאות: { format: 'HH:mm', minuteIncrement/stepping: 15 }
-        const opts = { format: 'HH:mm', stepping: 15, minuteIncrement: 15 };
-        try { new Cls(el, opts); } catch (_) {}
-        el._flowbiteApplied = true;
+      let inst = el._flowbiteInstance || null;
+      const opts = { format: "HH:mm", stepping: 15, minuteIncrement: 15 };
+      if (!inst) {
+        inst = new Cls(el, opts);
+        el._flowbiteInstance = inst;
+      } else if (typeof inst.setOptions === "function") {
+        inst.setOptions(opts);
       }
       el.addEventListener("blur", () => { if (el.value) el.value = roundTo15(el.value); });
-      console.debug("[time-input] Flowbite: 24h/15m applied");
       return true;
-    } catch (e) {
-      console.warn("[time-input] Flowbite init failed:", e);
-      return false;
-    }
+    } catch { return false; }
   }
 
-  // Native <input type="time">
   function initNative(el) {
     try {
       el.type = "time";
       el.step = 900; // 15 דקות
       if (el.value) el.value = roundTo15(el.value);
       el.addEventListener("blur", () => { if (el.value) el.value = roundTo15(el.value); });
-      console.debug("[time-input] native time input: step=900");
       return true;
-    } catch (e) {
-      console.warn("[time-input] native init failed:", e);
-      return false;
+    } catch { return false; }
+  }
+
+  function initOneTimeInput(el){
+    if (el._timePickerInited) return;
+    el._timePickerInited = true;
+    applyAttrs(el);
+
+    // סדר עדיפויות: Flatpickr → TW Elements → Flowbite → native
+    const ok =
+      initFlatpickr(el) ||
+      initTWElements(el) ||
+      initFlowbite(el) ||
+      initNative(el);
+
+    // נרמול מיידי + שמירת 24h בתיבה
+    if (el.value) el.value = roundTo15(el.value);
+    if (!ok) {
+      // נוודא שלפחות ה-step הנייטיבי נמצא
+      try { el.step = 900; } catch {}
     }
   }
 
   function ensureTimePicker(root=document) {
     const inputs = root.querySelectorAll('input[name="time"]');
-    inputs.forEach((input) => {
-      if (input._timePickerInited) return;
-      input._timePickerInited = true;
-
-      // נסה ספריות לפי סדר: flatpickr → tw-elements → flowbite → native
-      const ok =
-        initFlatpickr(input) ||
-        initTWElements(input) ||
-        initFlowbite(input) ||
-        initNative(input);
-
-      // נרמול מיידי לערך קיים
-      if (ok && input.value) input.value = roundTo15(input.value);
-    });
+    inputs.forEach(initOneTimeInput);
   }
+
+  // ניטור DOM — אם תוסף מאתחל מאוחר/מחליף את ה-input, ניישם שוב
+  const mo = new MutationObserver((mutations)=>{
+    for(const m of mutations){
+      for(const node of (m.addedNodes || [])){
+        if (!(node instanceof HTMLElement)) continue;
+        if (node.matches && node.matches('input[name="time"]')) initOneTimeInput(node);
+        // אם נוספו צאצאים, נבדוק שם:
+        const found = node.querySelectorAll ? node.querySelectorAll('input[name="time"]') : [];
+        found && found.forEach(initOneTimeInput);
+      }
+      if (m.type === "attributes" && m.target && m.target.matches && m.target.matches('input[name="time"]')) {
+        initOneTimeInput(m.target);
+      }
+    }
+  });
+  try { mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["class","data-te-format24","data-te-increment"] }); } catch {}
 
   // --- Autocomplete ---
   const q = document.getElementById("q");
@@ -175,7 +190,7 @@
         }catch{ clearAC(); }
       },180);
     });
-    document.addEventListener("click",(e)=>{ if(!ac.contains(e.target)&&e.target!==q) clearAC(); });
+    document.addEventListener("click",(e)=>{ if(ac && !ac.contains(e.target) && e.target!==q) clearAC(); });
   }
 
   // --- Reservation check button (AJAX) ---
@@ -210,14 +225,14 @@
     });
   }
 
-  // אתחול כללי
+  // אתחול כללי לאחר טעינה
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => ensureTimePicker(document));
   } else {
     ensureTimePicker(document);
   }
 
-  // חשיפה עדינה אם צריך לאתחל שוב אחרי ניווט דינמי
+  // חשיפה אם צריך לאתחל אחרי ניווט דינמי
   window.GeoTable = window.GeoTable || {};
   window.GeoTable.ensureTimePicker = ensureTimePicker;
 })();
