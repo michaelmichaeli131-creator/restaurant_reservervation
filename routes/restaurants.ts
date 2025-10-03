@@ -11,8 +11,9 @@ import {
 } from "../database.ts";
 import { render } from "../lib/view.ts";
 import { sendReservationEmail, notifyOwnerEmail } from "../lib/mail.ts";
+import { debugLog } from "../lib/debug.ts";
 
-// Utilities (pad2, normalizeDate, normalizeTime, etc.)
+// Utilities
 function pad2(n: number) { return n.toString().padStart(2, "0"); }
 function todayISO(): string {
   const d = new Date();
@@ -35,13 +36,20 @@ function normalizeDate(input: unknown): string {
 }
 function normalizeTime(input: unknown): string {
   const s = String(input ?? "").trim();
-  if (!s) return nextQuarterHour();
+  if (!s) {
+    // אם אין קלט — נחזיר מחרוזת ריקה כדי לא לגרום לברירת מחדל מפוקפקת
+    return "";
+  }
   const t = /^\d{2}\.\d{2}$/.test(s) ? s.replace(".", ":") : s;
   const m = t.match(/^(\d{1,2}):(\d{2})$/);
   if (!m) return t;
   let h = Math.max(0, Math.min(23, Number(m[1])));
   let mi = Math.max(0, Math.min(59, Number(m[2])));
-  mi = Math.floor(mi / 15) * 15;
+  mi = Math.round(mi / 15) * 15;
+  if (mi === 60) {
+    mi = 0;
+    h = (h + 1) % 24;
+  }
   return `${pad2(h)}:${pad2(mi)}`;
 }
 function toIntLoose(input: unknown): number | null {
@@ -79,7 +87,7 @@ function isValidEmail(s: string): boolean {
   return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
 }
 
-// Body reader (as before)
+// Body reader
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const ct = (ctx.request.headers.get("content-type") ?? "").toLowerCase();
   const reqAny: any = ctx.request as any;
@@ -101,7 +109,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
 
   const out: Record<string, unknown> = {};
 
-  // native formData
   try {
     if (typeof reqAny.formData === "function") {
       const fd = await reqAny.formData();
@@ -110,7 +117,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     }
   } catch (e) { phase("native.ctx.formData.error", String(e)); }
 
-  // native json
   try {
     if (typeof reqAny.json === "function") {
       const j = await reqAny.json();
@@ -118,7 +124,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     }
   } catch (e) { phase("native.ctx.json.error", String(e)); }
 
-  // text -> urlencoded or json
   try {
     if (typeof reqAny.text === "function") {
       const t: string = await reqAny.text();
@@ -137,7 +142,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     }
   } catch (e) { phase("native.ctx.text.error", String(e)); }
 
-  // Oak object body (json, form, form-data, text, bytes)
   try {
     const b = (reqAny.body && typeof reqAny.body !== "function") ? reqAny.body : null;
     if (b && b.type) {
@@ -194,7 +198,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     phase("oak.body.object.error", String(e));
   }
 
-  // Oak body as function (older versions)
   try {
     if (typeof reqAny.body === "function") {
       const bb = await reqAny.body();
@@ -251,7 +254,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     phase("oak.body.fn.error", String(e));
   }
 
-  // Always include querystring values if not in body
   const qs = Object.fromEntries(ctx.request.url.searchParams);
   phase("querystring", qs);
   for (const [k, v] of Object.entries(qs)) {
@@ -264,7 +266,7 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
   return { payload: out, dbg };
 }
 
-// Router
+// Router setup
 export const restaurantsRouter = new Router();
 
 function asOk(x: unknown): boolean {
@@ -273,7 +275,7 @@ function asOk(x: unknown): boolean {
   return !!x;
 }
 
-/** API: לאוטוקומפליט */
+// API: אוטוקומפליט
 restaurantsRouter.get("/api/restaurants", async (ctx) => {
   const q = ctx.request.url.searchParams.get("q") ?? "";
   const onlyApproved = (ctx.request.url.searchParams.get("approved") ?? "1") !== "0";
@@ -282,7 +284,7 @@ restaurantsRouter.get("/api/restaurants", async (ctx) => {
   ctx.response.body = JSON.stringify(items, null, 2);
 });
 
-/** דף מסעדה — שלב 1 */
+// דף מסעדה — שלב 1
 restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const id = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(id);
@@ -309,7 +311,7 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   });
 });
 
-/** API: בדיקת זמינות */
+// API: בדיקת זמינות
 restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -320,8 +322,12 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   }
 
   const { payload, dbg } = await readBody(ctx);
+  debugLog("check payload", payload);
+
   const date = normalizeDate((payload as any).date ?? "");
   const time = normalizeTime((payload as any).time ?? "");
+  debugLog("check normalized date,time", { date, time });
+
   const people = 2;
 
   const bad = (m: string) => {
@@ -333,6 +339,7 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   if (!/^\d{2}:\d{2}$/.test(time)) return bad("bad time (HH:mm expected)");
 
   const result = await checkAvailability(rid, date, time, people);
+  debugLog("checkAvailability result", result);
   const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
 
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
@@ -344,7 +351,7 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   }
 });
 
-/** שלב 1 → שלב 2 */
+// שלב 1 → שלב 2
 restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -355,11 +362,16 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   }
 
   const { payload } = await readBody(ctx);
+  debugLog("reserve payload", payload);
+
   const date = normalizeDate((payload as any).date ?? ctx.request.url.searchParams.get("date"));
   const time = normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time"));
+  debugLog("reserve normalized date,time", { date, time });
+
   const people = 2;
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
+    debugLog("reserve error invalid format", { date, time });
     ctx.response.status = Status.BadRequest;
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.body = JSON.stringify({ ok:false, error:"אנא בחר/י תאריך ושעה תקינים" }, null, 2);
@@ -367,6 +379,8 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   }
 
   const avail = await checkAvailability(rid, date, time, people);
+  debugLog("reserve availability", avail);
+
   if (!asOk(avail)) {
     const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
     const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
@@ -387,7 +401,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   ctx.response.headers.set("Location", u.pathname + u.search);
 });
 
-/** דף פרטי לקוח (שלב 2) */
+// שלב 2
 restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
   const id = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(id);
@@ -409,7 +423,7 @@ restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
   });
 });
 
-/** שלב 2 → אישור סופי (GET) */
+// שלב 2 → אישור סופי (GET)
 restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -451,6 +465,7 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
     return bad("נא להזין אימייל תקין", { customerEmail });
 
   const avail = await checkAvailability(rid, date, time, people);
+  debugLog("confirm availability", avail);
   if (!asOk(avail)) {
     const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
@@ -503,7 +518,7 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   });
 });
 
-/** שלב 2 → אישור סופי (POST) */
+// שלב 2 → אישור סופי (POST)
 restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -514,9 +529,12 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   }
 
   const { payload, dbg } = await readBody(ctx);
+  debugLog("confirm POST payload", payload);
 
   const date   = normalizeDate((payload as any).date ?? ctx.request.url.searchParams.get("date") ?? "");
   const time   = normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time") ?? "");
+  debugLog("confirm POST normalized date,time", { date, time });
+
   const people = toIntLoose((payload as any).people ?? ctx.request.url.searchParams.get("people")) ?? 2;
 
   const customerNameRaw  =
@@ -567,6 +585,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
     return bad("נא להזין אימייל תקין", { customerEmail, note: "normalize applied" });
 
   const avail = await checkAvailability(rid, date, time, people);
+  debugLog("confirm availability (POST)", avail);
   if (!asOk(avail)) {
     const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");

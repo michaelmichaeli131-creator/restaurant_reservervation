@@ -21,7 +21,7 @@
           class="form-grid"
           action="/restaurants/<%= it.restaurant.id %>/confirm"
           method="post" novalidate>
-      <!-- חשוב: לשלוח את התאריך והשעה כחלק מהטופס, אך לא לאפשר למשתמש לשנותם -->
+      <!-- שולחים את התאריך, שעה ומספר סועדים כמקורות שלא ניתנים לשינוי -->
       <input type="hidden" name="date" value="<%= it.date %>"/>
       <input type="hidden" name="time" value="<%= it.time %>"/>
       <input type="hidden" name="people" value="<%= it.people %>"/>
@@ -56,15 +56,17 @@
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn">אשר/י הזמנה</button>
-        <a class="btn secondary" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>">חזרה לשינוי שעה/תאריך</a>
+        <button type="submit" class="btn">אשר הזמנה</button>
+        <a class="btn secondary" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>">
+          חזרה לשינוי שעה/תאריך
+        </a>
       </div>
     </form>
   </section>
 
   <section class="card" id="conflict-card" hidden>
     <h3 style="margin-top:0">אין זמינות במועד שבחרת</h3>
-    <p>בחר/י אחד מהזמנים הזמינים בקרבת השעה המבוקשת (±2 שעות):</p>
+    <p>בחר/י אחד מן הזמנים הזמינים בקרבת השעה שביקשת (±2 שעות):</p>
     <div id="suggest-slots" class="slots"></div>
     <small class="muted">לחיצה על שעה תעדכן את השעה בטופס ותאפשר לשליחה מחדש.</small>
   </section>
