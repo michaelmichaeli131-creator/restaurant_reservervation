@@ -80,103 +80,111 @@ function isValidEmail(s: string): boolean {
   return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
 }
 
-// ---------- Body Reader (ROBUST merge) ----------
+// ---------- Body Reader (deterministic & robust) ----------
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const ct = (ctx.request.headers.get("content-type") ?? "").toLowerCase();
-  const reqAny: any = ctx.request as any;
-  const original: Request | undefined = (reqAny.originalRequest ?? undefined);
-
   const dbg: Record<string, unknown> = { ct, phases: [] as any[] };
   const phase = (name: string, data: unknown) => {
     try { (dbg.phases as any[]).push({ name, data }); } catch {}
   };
 
-  const merge = (a: Record<string, unknown>, b: Record<string, unknown>) => {
-    for (const [k, v] of Object.entries(b)) {
-      if (v !== undefined && v !== null && v !== "") a[k] = v;
-    }
-    return a;
-  };
-
-  const fromForm = (form: FormData | URLSearchParams) => {
+  // Helpers
+  const fromURLSearchParams = (sp: URLSearchParams) => {
     const o: Record<string, unknown> = {};
-    // @ts-ignore - FormData/URLSearchParams share entries()
-    for (const [k, v] of form.entries()) o[k] = v;
+    for (const [k, v] of sp.entries()) o[k] = v;
     return o;
   };
 
-  const out: Record<string, unknown> = {};
-
-  // Oak v17 body()
-  try {
-    if (typeof reqAny.body === "function") {
-      const b = await reqAny.body();
-      if (b?.type === "json") {
-        const v = await b.value;
-        if (v && typeof v === "object") { phase("oak.json", v); merge(out, v as any); }
-      } else if (b?.type === "form") {
-        const v = await b.value; const o = fromForm(v as URLSearchParams);
-        phase("oak.form(urlencoded)", o); merge(out, o);
-      } else if (b?.type === "form-data") {
-        const v = await b.value; const o = fromForm(v as FormData);
-        phase("oak.multipart", o); merge(out, o);
-      } else if (b?.type === "text") {
-        const t: string = await b.value; phase("oak.text", t);
-        try { const j = JSON.parse(t); phase("oak.text->json", j); merge(out, j); } catch {
-          if (ct.includes("application/x-www-form-urlencoded")) {
-            const sp = new URLSearchParams(t); const o = fromForm(sp);
-            phase("oak.text->urlencoded", o); merge(out, o);
-          }
-        }
-      } else if (b?.type === "bytes") {
-        const u8: Uint8Array = await b.value; const t = new TextDecoder().decode(u8);
-        phase("oak.bytes", t);
-        try { const j = JSON.parse(t); phase("oak.bytes->json", j); merge(out, j); } catch {
-          if (ct.includes("application/x-www-form-urlencoded")) {
-            const sp = new URLSearchParams(t); const o = fromForm(sp);
-            phase("oak.bytes->urlencoded", o); merge(out, o);
-          }
-        }
-      }
+  // 1) URL-ENCODED (exact path first)
+  if (ct.includes("application/x-www-form-urlencoded")) {
+    try {
+      const b = ctx.request.body({ type: "form" });
+      const sp: URLSearchParams = await b.value;
+      const o = fromURLSearchParams(sp);
+      phase("oak.form(urlencoded)", o);
+      // גם אם ריק (למשל אם גוף כבר נקרא במקום אחר) ננסה טקסט כפול-גיבוי:
+      if (Object.keys(o).length > 0) return { payload: o, dbg };
+    } catch (e) {
+      phase("oak.form.error", String(e));
     }
-  } catch (e) { phase("oak.error", String(e)); }
-
-  // Request המקורי (Deploy/Edge)
-  try {
-    if (original && (original as any).formData) {
-      const fd = await (original as any).formData();
-      const o = fromForm(fd); phase("native.formData", o); merge(out, o);
+    try {
+      const t = await ctx.request.body({ type: "text" }).value;
+      phase("oak.text(raw)", t);
+      const sp = new URLSearchParams(t || "");
+      const o = fromURLSearchParams(sp);
+      phase("oak.text->urlencoded", o);
+      if (Object.keys(o).length > 0) return { payload: o, dbg };
+    } catch (e) {
+      phase("oak.text.error", String(e));
     }
-  } catch (e) { phase("native.formData.error", String(e)); }
-
-  try {
-    if (original && (original as any).json) {
-      const v = await (original as any).json();
-      if (v && typeof v === "object") { phase("native.json", v); merge(out, v); }
-    }
-  } catch (e) { phase("native.json.error", String(e)); }
-
-  try {
-    if (original && (original as any).text) {
-      const t = await (original as any).text();
-      phase("native.text", t);
-      try { const j = JSON.parse(t); phase("native.text->json", j); merge(out, j); } catch {
-        if (ct.includes("application/x-www-form-urlencoded")) {
-          const sp = new URLSearchParams(t); const o = fromForm(sp);
-          phase("native.text->urlencoded", o); merge(out, o);
-        }
-      }
-    }
-  } catch (e) { phase("native.text.error", String(e)); }
-
-  // Querystring כ־fallback + merge עדין
-  const qs = Object.fromEntries(ctx.request.url.searchParams);
-  phase("querystring", qs);
-  for (const [k, v] of Object.entries(qs)) {
-    if (out[k] === undefined || out[k] === null || out[k] === "") out[k] = v;
   }
 
-  return { payload: out, dbg };
+  // 2) MULTIPART (form-data)
+  if (ct.includes("multipart/form-data")) {
+    try {
+      const b = ctx.request.body({ type: "form-data" });
+      const reader = await b.value; // FormDataReader
+      const fd = await reader.read(); // { fields, files }
+      const o = fd?.fields ?? {};
+      phase("oak.multipart.fields", o);
+      if (Object.keys(o).length > 0) return { payload: o, dbg };
+    } catch (e) {
+      phase("oak.multipart.error", String(e));
+    }
+  }
+
+  // 3) JSON
+  if (ct.includes("application/json")) {
+    try {
+      const b = ctx.request.body({ type: "json" });
+      const v = await b.value;
+      const o = (v && typeof v === "object") ? (v as Record<string, unknown>) : {};
+      phase("oak.json", o);
+      if (Object.keys(o).length > 0) return { payload: o, dbg };
+    } catch (e) {
+      phase("oak.json.error", String(e));
+    }
+  }
+
+  // 4) Fallbacks (try in safe order)
+  try {
+    const b = ctx.request.body({ type: "form" });
+    const sp: URLSearchParams = await b.value;
+    const o = fromURLSearchParams(sp);
+    phase("fallback.form", o);
+    if (Object.keys(o).length > 0) return { payload: o, dbg };
+  } catch {}
+  try {
+    const b = ctx.request.body({ type: "json" });
+    const v = await b.value;
+    const o = (v && typeof v === "object") ? (v as Record<string, unknown>) : {};
+    phase("fallback.json", o);
+    if (Object.keys(o).length > 0) return { payload: o, dbg };
+  } catch {}
+  try {
+    const t = await ctx.request.body({ type: "text" }).value;
+    phase("fallback.text", t);
+    // JSON attempt
+    try {
+      const j = JSON.parse(t || "null");
+      if (j && typeof j === "object") {
+        phase("fallback.text->json", j);
+        return { payload: j as Record<string, unknown>, dbg };
+      }
+    } catch {}
+    // urlencoded attempt
+    const sp = new URLSearchParams(t || "");
+    const o = fromURLSearchParams(sp);
+    if (Object.keys(o).length > 0) {
+      phase("fallback.text->urlencoded", o);
+      return { payload: o, dbg };
+    }
+  } catch {}
+
+  // 5) Querystring as last resort (and always log)
+  const qs = Object.fromEntries(ctx.request.url.searchParams);
+  phase("querystring", qs);
+  return { payload: qs, dbg };
 }
 
 // ========= ROUTER =========
@@ -214,6 +222,13 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   });
 });
 
+/** כלי קטן לשקלול בוליאני מתוצאה שיכולה להיות boolean או אובייקט { ok } */
+function asOk(x: unknown): boolean {
+  if (typeof x === "boolean") return x;
+  if (x && typeof x === "object" && "ok" in (x as any)) return !!(x as any).ok;
+  return !!x;
+}
+
 /** API: בדיקת זמינות + חלופות (מוצגות בכרטיס, לא alert) */
 restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
@@ -237,10 +252,11 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
 
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-  if ((result as any).ok) {
+  if (asOk(result)) {
     ctx.response.body = JSON.stringify({ ok: true, availableSlots: around.slice(0,4) }, null, 2);
   } else {
-    ctx.response.body = JSON.stringify({ ok: false, reason: (result as any).reason, suggestions: around.slice(0,4) }, null, 2);
+    const reason = (result as any)?.reason ?? "unavailable";
+    ctx.response.body = JSON.stringify({ ok: false, reason, suggestions: around.slice(0,4) }, null, 2);
   }
 });
 
@@ -263,7 +279,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   }
 
   const avail = await checkAvailability(rid, date, time, people);
-  if (!(avail as any).ok) {
+  if (!asOk(avail)) {
     const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
     const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
     url.searchParams.set("conflict", "1");
@@ -302,7 +318,7 @@ restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
   });
 });
 
-/** אישור ויצירת ההזמנה (POST משלב 2) — בטוח לשמות שדות/קידודים שונים */
+/** אישור ויצירת ההזמנה (POST משלב 2) — תומך בשמות שדה אלטרנטיביים */
 restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -314,7 +330,6 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const time   = normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time") ?? "");
   const people = toIntLoose((payload as any).people ?? ctx.request.url.searchParams.get("people")) ?? 2;
 
-  // ⬅️ קבלת שמות שדות אלטרנטיביים מהטופס (תיקון הבאג: name/phone/email עלולים להגיע בשם customerName וכו')
   const customerNameRaw  =
     (payload as any).name ??
     (payload as any).customerName ??
@@ -354,12 +369,12 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   if (!/^\d{2}:\d{2}$/.test(time))       return bad("שעה לא תקינה");
   if (!customerName)                     return bad("נא להזין שם");
 
-  // ⬅️ שינוי לוגיקה: מספיק טלפון *או* אימייל (בעבר היה חובת אימייל)
+  // מספיק טלפון *או* אימייל
   if (!customerPhone && !customerEmail)  return bad("נא להזין טלפון או אימייל");
   if (customerEmail && !isValidEmail(customerEmail)) return bad("נא להזין אימייל תקין", { customerEmail, note: "normalize applied" });
 
   const avail = await checkAvailability(rid, date, time, people);
-  if (!(avail as any).ok) {
+  if (!asOk(avail)) {
     const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.status = Status.Conflict;
