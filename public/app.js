@@ -1,6 +1,7 @@
 /* public/app.js
- * אוטוקומפליט + בדיקות זמינות קיימות (ללא שינוי התנהגות),
- * בתוספת שדרוג בחירת שעה: 24h וצעדים של 15 דקות, כולל נרמול ערך.
+ * קיים: אוטוקומפליט + בדיקת זמינות (ללא שינוי).
+ * חדש: כיוונון timepicker ל-24h ו-step 15 דק בכל ספרייה נפוצה (flatpickr / tw-elements / flowbite),
+ * וגם fallback ל-native <input type="time"> עם step=900.
  */
 
 (function () {
@@ -17,7 +18,6 @@
   // --- helper: עיגול ל-15 דקות (24h) ---
   function roundTo15(value) {
     if (typeof value !== "string" || !value) return value;
-    // תמיכה גם ב-"08.30" → "08:30"
     const t = /^\d{2}\.\d{2}$/.test(value) ? value.replace(".", ":") : value;
     const m = t.match(/^(\d{1,2}):(\d{2})$/);
     if (!m) return value;
@@ -29,37 +29,28 @@
   }
 
   // ------------------------
-  // Time picker (24h, 15min)
+  // Time pickers (24h, 15min)
   // ------------------------
-  function initNativeTimeInput(el) {
-    try {
-      // <input type="time"> כבר עובד ב-24h מבחינת value; step=900 (15 דק)
-      el.type = "time";
-      el.step = 900; // 15 * 60
-      // שמירה על ערך עגול לרבע שעה
-      if (el.value) el.value = roundTo15(el.value);
-      el.addEventListener("blur", () => {
-        if (el.value) el.value = roundTo15(el.value);
-      });
-    } catch (e) {
-      console.warn("[time-input] native init failed:", e);
-    }
-  }
-
   function initFlatpickr(el) {
     try {
       if (!window.flatpickr) return false;
-      window.flatpickr(el, {
-        enableTime: true,
-        noCalendar: true,
-        dateFormat: "H:i",   // 24h
-        time_24hr: true,
-        minuteIncrement: 15, // מרווח 15 דק
-        allowInput: true,
-        onClose: function() {
-          if (el.value) el.value = roundTo15(el.value);
-        }
-      });
+      // אם כבר מאותחל, נעדכן אפשרויות דרך instance.config (ככל הניתן)
+      const inst = el._flatpickr;
+      if (inst) {
+        inst.set({ dateFormat: "H:i", time_24hr: true, minuteIncrement: 15, allowInput: true });
+      } else {
+        window.flatpickr(el, {
+          enableTime: true,
+          noCalendar: true,
+          dateFormat: "H:i",
+          time_24hr: true,
+          minuteIncrement: 15,
+          allowInput: true,
+        });
+      }
+      // נרמול ערך על blur
+      el.addEventListener("blur", () => { if (el.value) el.value = roundTo15(el.value); });
+      console.debug("[time-input] flatpickr: 24h/15m applied");
       return true;
     } catch (e) {
       console.warn("[time-input] flatpickr init failed:", e);
@@ -67,14 +58,90 @@
     }
   }
 
+  // TW Elements (MDB/Tailwind) timepicker
+  function initTWElements(el) {
+    try {
+      const te = window.te || window.TWElements || window.mdb; // כינויים אפשריים
+      if (!te || !te.Timepicker) return false;
+
+      // אם קיים אינסטנס — נעדכן קונפיג (חלק מהגרסאות תומכות setOptions)
+      const inst = te.getInstance ? te.getInstance(el, te.Timepicker) : null;
+      const opts = { format24: true, increment: 15 }; // בחלק מהגרסאות: { format: '24', increment: 15 }
+      if (inst && typeof inst.setOptions === "function") {
+        inst.setOptions(opts);
+      } else {
+        // ייתכן שהאתחול נעשה עם data-*; נכריח אתחול מחדש לא הרסני
+        // נסמן שנאתחל פעם אחת
+        if (!el._teTimepickerApplied) {
+          el.setAttribute("data-te-format24", "true");
+          el.setAttribute("data-te-increment", "15");
+          // חלק מהגרסאות דורשות init מפורש:
+          try { new te.Timepicker(el, opts); } catch(_) {}
+          el._teTimepickerApplied = true;
+        }
+      }
+      el.addEventListener("blur", () => { if (el.value) el.value = roundTo15(el.value); });
+      console.debug("[time-input] TW Elements: 24h/15m applied");
+      return true;
+    } catch (e) {
+      console.warn("[time-input] TW Elements init failed:", e);
+      return false;
+    }
+  }
+
+  // Flowbite timepicker (flowbite-datepicker/timepicker)
+  function initFlowbite(el) {
+    try {
+      const FB = window.Flowbite || window.flowbite;
+      // יש כמה חבילות; ננסה API נפוצים:
+      const Cls = (FB && (FB.Timepicker || FB.TimePicker)) || window.Timepicker || window.TimePicker;
+      if (!Cls) return false;
+
+      if (!el._flowbiteApplied) {
+        // חלק מהגרסאות: { format: 'HH:mm', minuteIncrement/stepping: 15 }
+        const opts = { format: 'HH:mm', stepping: 15, minuteIncrement: 15 };
+        try { new Cls(el, opts); } catch (_) {}
+        el._flowbiteApplied = true;
+      }
+      el.addEventListener("blur", () => { if (el.value) el.value = roundTo15(el.value); });
+      console.debug("[time-input] Flowbite: 24h/15m applied");
+      return true;
+    } catch (e) {
+      console.warn("[time-input] Flowbite init failed:", e);
+      return false;
+    }
+  }
+
+  // Native <input type="time">
+  function initNative(el) {
+    try {
+      el.type = "time";
+      el.step = 900; // 15 דקות
+      if (el.value) el.value = roundTo15(el.value);
+      el.addEventListener("blur", () => { if (el.value) el.value = roundTo15(el.value); });
+      console.debug("[time-input] native time input: step=900");
+      return true;
+    } catch (e) {
+      console.warn("[time-input] native init failed:", e);
+      return false;
+    }
+  }
+
   function ensureTimePicker(root=document) {
-    // נאתחל כל שדה time שנמצא (גם בשלב 1 וגם בטפסים אחרים אם קיימים)
     const inputs = root.querySelectorAll('input[name="time"]');
     inputs.forEach((input) => {
       if (input._timePickerInited) return;
       input._timePickerInited = true;
-      const usedFlatpickr = initFlatpickr(input);
-      if (!usedFlatpickr) initNativeTimeInput(input);
+
+      // נסה ספריות לפי סדר: flatpickr → tw-elements → flowbite → native
+      const ok =
+        initFlatpickr(input) ||
+        initTWElements(input) ||
+        initFlowbite(input) ||
+        initNative(input);
+
+      // נרמול מיידי לערך קיים
+      if (ok && input.value) input.value = roundTo15(input.value);
     });
   }
 
@@ -120,7 +187,6 @@
     const json=await res.json().catch(()=>({})); return {ok:res.ok,json};
   }
   if(checkBtn && form && result){
-    // הבטחת time picker (24h/15min) עבור הטופס הזה
     ensureTimePicker(form);
 
     checkBtn.addEventListener("click", async ()=>{
@@ -131,7 +197,6 @@
 
       if(!date) date=todayISO();
       if(!time) time=nextQuarter();
-      // נרמול זמן לרבע שעה (אם המשתמש הקליד ידנית)
       time = roundTo15(time) || nextQuarter();
 
       if(!rid || !people){ result.textContent="נא למלא את כל השדות"; return; }
@@ -145,7 +210,7 @@
     });
   }
 
-  // אתחול גלובלי לאחר טעינת הדף (למקרה שיש עוד טפסים עם name="time")
+  // אתחול כללי
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => ensureTimePicker(document));
   } else {
