@@ -27,18 +27,19 @@
       <div class="form-row">
         <label for="name">שם מלא</label>
         <input id="name" name="name" type="text" required autocomplete="name" placeholder="שם פרטי ושם משפחה"/>
-        <small class="muted">נדרש לאימות ושירות במסעדה</small>
       </div>
 
       <div class="form-row">
         <label for="phone">נייד</label>
         <input id="phone" name="phone" type="tel" required inputmode="tel" placeholder="050-1234567"/>
-        <small class="muted">ליצירת קשר במקרה הצורך</small>
       </div>
 
       <div class="form-row">
         <label for="email">אימייל</label>
-        <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com"/>
+        <input id="email" name="email" type="email" dir="ltr" inputmode="email" autocomplete="email"
+               autocapitalize="off" spellcheck="false"
+               placeholder="you@example.com" required
+               pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"/>
         <small class="muted">נשלח אליך אישור הזמנה</small>
       </div>
 
@@ -46,7 +47,6 @@
       <div class="form-row">
         <label for="people">מספר סועדים</label>
         <input id="people" name="people" type="number" min="1" max="<%= cap %>" step="1" value="<%= it.people || 2 %>" required/>
-        <small class="muted">מינ' 1 · מקס' <%= cap %></small>
       </div>
 
       <div class="form-actions">
@@ -72,18 +72,30 @@
 </main>
 
 <script>
-  function $(sel, root=document){ return root.querySelector(sel); }
-  function setText(id, v){ const el = document.getElementById(id); if (el) el.textContent = v; }
+  // נרמול אימייל בצד לקוח (זהה ללוגיקה בצד שרת)
+  const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+  const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
+  function normalizeEmail(s) {
+    s = (s || "").toString();
+    s = s.replace(BIDI, "");
+    s = s.replace(/＠/g, "@").replace(/．/g, ".");
+    s = s.replace(ZSP, " ").trim();
+    s = s.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
+    return s.toLowerCase();
+  }
+  function isValidEmail(s) {
+    return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
+  }
 
   function ensureValid() {
-    const name  = $('#name')?.value?.trim() || "";
-    const phone = $('#phone')?.value?.trim() || "";
-    const email = $('#email')?.value?.trim() || "";
-    const people = Number($('#people')?.value || '0');
+    const name  = document.getElementById('name').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const email = normalizeEmail(document.getElementById('email').value);
+    const people = Number(document.getElementById('people').value || '0');
 
     if (!name)   return "נא להזין שם";
     if (!phone)  return "נא להזין מספר נייד";
-    if (!email || !/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) return "נא להזין אימייל תקין";
+    if (!email || !isValidEmail(email)) return "נא להזין אימייל תקין";
     if (!Number.isFinite(people) || people < 1) return "מספר סועדים לא תקין";
     return null;
   }
@@ -100,9 +112,8 @@
         b.className = 'slot';
         b.textContent = t;
         b.addEventListener('click', () => {
-          const time = t;
-          document.querySelector('input[name="time"]').value = time;
-          setText('sum-time', time);
+          document.querySelector('input[name="time"]').value = t;
+          document.getElementById('sum-time').textContent = t;
           card.hidden = true;
         });
         box.appendChild(b);
@@ -127,6 +138,12 @@
   }
 
   (function(){
+    const emailEl = document.getElementById('email');
+    emailEl.addEventListener('blur', () => {
+      const n = normalizeEmail(emailEl.value);
+      emailEl.value = n;
+    });
+
     const form = document.getElementById('details-form');
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
@@ -139,7 +156,7 @@
         time:   form.querySelector('input[name="time"]').value,
         name:   form.querySelector('input[name="name"]').value.trim(),
         phone:  form.querySelector('input[name="phone"]').value.trim(),
-        email:  form.querySelector('input[name="email"]').value.trim(),
+        email:  normalizeEmail(form.querySelector('input[name="email"]').value),
         people: Number(form.querySelector('input[name="people"]').value || '0')
       };
 
@@ -151,18 +168,15 @@
           document.open(); document.write(r.text); document.close();
           return;
         }
-
         if (r.status === 409 && r.data && Array.isArray(r.data.suggestions)) {
           renderSuggestions(r.data.suggestions);
           alert('אין זמינות במועד שבחרת — בחר/י אחת מהחלופות למטה.');
           return;
         }
-
         if (r.status === 400 && r.data && r.data.error) {
           alert(r.data.error);
           return;
         }
-
         alert('אירעה שגיאה בעיבוד ההזמנה. נסו שוב.');
       } catch (e) {
         console.error(e);

@@ -55,6 +55,26 @@ function toIntLoose(input: unknown): number | null {
   return onlyDigits ? Math.trunc(Number(onlyDigits)) : null;
 }
 
+// ---------- Email normalization & validation ----------
+const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;               // תווי כיווניות
+const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g; // רווחי Unicode
+const FULLWIDTH_AT = /＠/g;
+const FULLWIDTH_DOT = /．/g;
+
+function normalizeEmail(raw: unknown): string {
+  let s = String(raw ?? "");
+  s = s.replace(BIDI, "");         // הסרת תווי RTL/LTR נסתרים
+  s = s.replace(FULLWIDTH_AT, "@").replace(FULLWIDTH_DOT, "."); // המרה מאסיבית
+  s = s.replace(ZSP, " ").trim();  // רווחים → רגיל ואז trim
+  // הסרת גרשיים/סוגריים מסביב אם נשארו מתיקון אוטומטי
+  s = s.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
+  return s.toLowerCase();
+}
+function isValidEmail(s: string): boolean {
+  // RFC5322-compliant-ish (פשוט ושימושי): user@domain.tld, מאפשר + . _
+  return /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(s);
+}
+
 // ---------- Body Reader (MERGE all sources robustly) ----------
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const ct = (ctx.request.headers.get("content-type") ?? "").toLowerCase();
@@ -82,7 +102,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
 
   const out: Record<string, unknown> = {};
 
-  // Try: Oak typed readers first (json/form/form-data/text/bytes)
   try {
     if (typeof reqAny.body === "function") {
       const b = await reqAny.body();
@@ -102,7 +121,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     }
   } catch (e) { phase("oak.error", String(e)); }
 
-  // Try: native Request helpers (Deploy)
   try {
     if (original && (original as any).formData) {
       const fd = await (original as any).formData();
@@ -125,10 +143,8 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     }
   } catch (e) { phase("native.text.error", String(e)); }
 
-  // Always merge querystring last (lowest priority)
   const qs = Object.fromEntries(ctx.request.url.searchParams);
   phase("querystring", qs);
-  // נמזג רק אם חסר (לא נדרוס שדות שכבר הגיעו מה-body)
   for (const [k, v] of Object.entries(qs)) {
     if (out[k] === undefined || out[k] === null || out[k] === "") out[k] = v;
   }
@@ -148,7 +164,7 @@ restaurantsRouter.get("/api/restaurants", async (ctx) => {
   ctx.response.body = JSON.stringify(items, null, 2);
 });
 
-/** דף מסעדה — שלב 1: בחירת תאריך ושעה בלבד */
+/** דף מסעדה — שלב 1 */
 restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const id = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(id);
@@ -171,7 +187,7 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   });
 });
 
-/** API: בדיקת זמינות + חלופות במסך (לא alert) — משמש JS */
+/** API: בדיקת זמינות + חלופות (מוצגות בכרטיס, לא alert) */
 restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -180,8 +196,7 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const { payload } = await readBody(ctx);
   const date = normalizeDate((payload as any).date ?? "");
   const time = normalizeTime((payload as any).time ?? "");
-  // כרגע, מספר סועדים יקבע בשלב הבא; לצורך בדיקת עומס נשתמש בברירת מחדל 2
-  const people = 2;
+  const people = 2; // ברירת מחדל בשלב 1
 
   const bad = (m: string) => {
     ctx.response.status = Status.BadRequest;
@@ -202,7 +217,7 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   }
 });
 
-/** שלב 1 → שלב 2 (פרטי לקוח): אם יש זמינות ננווט לדף פרטים, אחרת נחזיר 303 עם חלופות */
+/** שלב 1 → שלב 2 */
 restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -211,7 +226,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   const { payload } = await readBody(ctx);
   const date = normalizeDate((payload as any).date ?? ctx.request.url.searchParams.get("date"));
   const time = normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time"));
-  const people = 2; // ברירת-מחדל בשלב זה
+  const people = 2;
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
     ctx.response.status = Status.BadRequest;
@@ -228,12 +243,11 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     if (around.length) url.searchParams.set("suggest", around.slice(0,4).join(","));
     url.searchParams.set("date", date);
     url.searchParams.set("time", time);
-    ctx.response.status = Status.SeeOther; // 303
+    ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", url.pathname + url.search);
     return;
   }
 
-  // יש זמינות → מעבר למסך פרטי לקוח
   const u = new URL(`/restaurants/${encodeURIComponent(rid)}/details`, "http://local");
   u.searchParams.set("date", date);
   u.searchParams.set("time", time);
@@ -269,7 +283,10 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
 
   const { payload, dbg } = await readBody(ctx);
 
-  // לוג: מה באמת הגיע
+  // דיבוג מפורט
+  console.log(`[CONF ${reqId}] raw.email=`, (payload as any)?.email);
+  const emailNormalized = normalizeEmail((payload as any)?.email);
+  console.log(`[CONF ${reqId}] norm.email=`, emailNormalized);
   console.log(`[CONF ${reqId}] payload`, payload);
   console.log(`[CONF ${reqId}] dbg`, dbg);
 
@@ -279,7 +296,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
 
   const customerName = String((payload as any).name ?? (payload as any).customerName ?? "").trim();
   const customerPhone = String((payload as any).phone ?? (payload as any).customerPhone ?? "").trim();
-  const customerEmail = String((payload as any).email ?? (payload as any).customerEmail ?? "").trim();
+  const customerEmail = emailNormalized;
 
   const badJSON = (m: string, status = Status.BadRequest, extras: Record<string, unknown> = {}) => {
     ctx.response.status = status;
@@ -291,7 +308,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   if (!/^\d{2}:\d{2}$/.test(time)) return badJSON("שעה לא תקינה");
   if (!customerName) return badJSON("נא להזין שם");
   if (!customerPhone) return badJSON("נא להזין מספר נייד");
-  if (!customerEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(customerEmail)) return badJSON("נא להזין אימייל תקין");
+  if (!customerEmail || !isValidEmail(customerEmail)) return badJSON("נא להזין אימייל תקין");
 
   const avail = await checkAvailability(rid, date, time, people);
   if (!avail.ok) {
@@ -336,7 +353,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
     console.log("[mail] owner email not found; skipping owner notification");
   }
 
-  // עמוד אישור (HTML מלא)
+  // עמוד אישור
   await render(ctx, "reservation_confirmed", {
     page: "reservation_confirmed",
     title: "הזמנה אושרה",
