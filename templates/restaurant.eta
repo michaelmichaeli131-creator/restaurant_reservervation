@@ -27,13 +27,14 @@
       </div>
       <div class="form-row">
         <label for="time">שעה</label>
-        <!-- 24h + גריד 15 דקות -->
-        <input id="time" name="time" type="time" step="900" required value="<%= it.time || '' %>"/>
-        <small class="muted">שעות בתדירות 15 דקות (24-ש’)</small>
+        <!-- השתנה ל־text כדי שהקוד ישפיע עליו -->
+        <input id="time" name="time" type="text" required value="<%= it.time || '' %>"/>
+        <small class="muted">שעות בתדירות 15 דקות (24־ש’)</small>
       </div>
       <div class="form-actions">
         <button type="submit" class="btn">המשך לשלב הבא</button>
-        <button type="button" id="check-btn" class="btn secondary" data-rid="<%= it.restaurant.id %>">בדוק זמינות</button>
+        <button type="button" id="check-btn" class="btn secondary"
+                data-rid="<%= it.restaurant.id %>">בדוק זמינות</button>
       </div>
     </form>
   </section>
@@ -81,29 +82,52 @@
 <script>
   // ===== עזרי זמן (24h, רבעי שעה) =====
   function pad2(n){ return String(n).padStart(2,'0'); }
-  function todayISO(){
-    const d=new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-  }
-  function nextQuarter(){
-    const d=new Date(); const m=d.getMinutes(); const add=15 - (m % 15 || 15);
-    d.setMinutes(m+add,0,0); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  function round15(v) {
+    if (typeof v !== "string") return v;
+    const t = /^\d{2}\.\d{2}$/.test(v) ? v.replace(".", ":") : v;
+    const m = t.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return v;
+    let h = Math.max(0, Math.min(23, parseInt(m[1],10)));
+    let mi = Math.max(0, Math.min(59, parseInt(m[2],10)));
+    mi = Math.round(mi / 15) * 15;
+    if (mi === 60) { mi = 0; h = (h + 1) % 24; }
+    return `${pad2(h)}:${pad2(mi)}`;
   }
 
-  // מילוי ערכי ברירת מחדל אם ריק
-  (function ensureDefaults(){
-    const dateEl=document.getElementById('date');
-    const timeEl=document.getElementById('time');
-    if(!dateEl.value){ dateEl.value=todayISO(); }
-    if(!timeEl.value){ timeEl.value=nextQuarter(); }
-    // הגבלת מינימום היום כדי לא לבחור עבר (אופציונלי)
-    dateEl.min=todayISO();
-  })();
+  function initTimeField(el) {
+    if (!el) return;
+    try { el.type = "text"; } catch(e) {}
+    if (el._fp) el._fp.destroy();
+    el._fp = flatpickr(el, {
+      enableTime: true,
+      noCalendar: true,
+      dateFormat: "H:i",
+      time_24hr: true,
+      minuteIncrement: 15,
+      allowInput: true,
+      parseDate: ds => {
+        const [h, m] = String(ds).split(":").map(x => parseInt(x,10));
+        if (!isNaN(h) && !isNaN(m) && h>=0 && h<24 && m>=0 && m<60) {
+          const d = new Date();
+          d.setHours(h, m, 0, 0);
+          return d;
+        }
+        return flatpickr.parseDate(ds, "H:i");
+      },
+      onChange: (_, ds) => {
+        el.value = ds;
+      }
+    });
+    el.addEventListener("blur", () => {
+      if (el.value) { el.value = round15(el.value); }
+    });
+  }
 
   function readForm() {
-    const f = document.getElementById('reserve-form');
+    const f = document.getElementById("reserve-form");
     return {
       date: f.querySelector('[name="date"]').value,
-      time: f.querySelector('[name="time"]').value,
+      time: f.querySelector('[name="time"]').value
     };
   }
 
@@ -114,60 +138,52 @@
       body: JSON.stringify(payload),
       redirect: 'follow'
     });
-    const text = await res.text(); let data = null; try { data = JSON.parse(text) } catch {}
+    const text = await res.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch {}
     return { ok: res.ok, status: res.status, data, text };
   }
 
   function renderAround(slots) {
-    const card = document.getElementById('around-card');
-    const box  = document.getElementById('around-slots');
-    box.innerHTML = '';
+    const card = document.getElementById("around-card");
+    const box = document.getElementById("around-slots");
+    box.innerHTML = "";
     if (Array.isArray(slots) && slots.length) {
       card.hidden = false;
-      for (const t of slots.slice(0, 4)) {
-        const a = document.createElement('button');
-        a.type = 'button';
-        a.className = 'slot';
-        a.textContent = t;
-        a.addEventListener('click', () => {
-          document.getElementById('time').value = t;
-          // לאחר בחירה – נסגור את החלופיות כדי לצמצם רעש
+      for (const t of slots.slice(0,4)) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "slot";
+        b.textContent = t;
+        b.addEventListener("click", () => {
+          document.getElementById("time").value = t;
           renderAround([]);
         });
-        box.appendChild(a);
+        box.appendChild(b);
       }
     } else {
       card.hidden = true;
     }
   }
 
-  // בדיקת זמינות: מציגים חלופות רק כשאין זמינות
   (function(){
-    const btn = document.getElementById('check-btn');
-    if (!btn) return;
-    btn.addEventListener('click', async () => {
-      const { date, time } = readForm();
-      if (!date || !time) { alert('נא לבחור תאריך ושעה'); return; }
-      const rid = btn.dataset.rid;
-      const r = await postJSON(`/api/restaurants/${encodeURIComponent(rid)}/check`, { date, time });
-      if (r.ok && r.data && r.data.ok) {
-        // יש זמינות → לא מציעים חלופות
-        renderAround([]);
-      } else if (r.data && r.data.suggestions) {
-        // אין זמינות → מציגים עד 4 חלופות
-        renderAround(r.data.suggestions);
-      } else {
-        renderAround([]);
-      }
-    });
-  })();
+    document.addEventListener("DOMContentLoaded", () => {
+      initTimeField(document.getElementById("time"));
 
-  // שליחה רגילה (לא AJAX) לשלב הבא — כדי לאפשר 303 מהשרת במקרה שאין זמינות
-  (function(){
-    const form = document.getElementById('reserve-form');
-    form.addEventListener('submit', (ev) => {
-      // ללא מניעה — נשתמש בסאבמיט רגיל.
-      // השרת ינווט לשלב 2 או יחזיר 303 עם חלופות.
+      const btn = document.getElementById("check-btn");
+      btn?.addEventListener("click", async () => {
+        const { date, time } = readForm();
+        if (!date || !time) { alert("נא לבחור תאריך ושעה"); return; }
+        const rid = btn.dataset.rid;
+        const r = await postJSON(`/api/restaurants/${encodeURIComponent(rid)}/check`, { date, time });
+        if (r.ok && r.data && r.data.ok) {
+          renderAround([]);
+        } else if (r.data && r.data.suggestions) {
+          renderAround(r.data.suggestions);
+        } else {
+          renderAround([]);
+        }
+      });
     });
   })();
 </script>
