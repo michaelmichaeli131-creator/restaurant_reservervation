@@ -237,7 +237,7 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
 
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-  if (result.ok) {
+  if ((result as any).ok) {
     ctx.response.body = JSON.stringify({ ok: true, availableSlots: around.slice(0,4) }, null, 2);
   } else {
     ctx.response.body = JSON.stringify({ ok: false, reason: (result as any).reason, suggestions: around.slice(0,4) }, null, 2);
@@ -263,7 +263,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   }
 
   const avail = await checkAvailability(rid, date, time, people);
-  if (!avail.ok) {
+  if (!(avail as any).ok) {
     const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
     const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
     url.searchParams.set("conflict", "1");
@@ -310,14 +310,27 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
 
   const { payload, dbg } = await readBody(ctx);
 
-  const date   = normalizeDate((payload as any).date ?? "");
-  const time   = normalizeTime((payload as any).time ?? "");
-  const people = toIntLoose((payload as any).people) ?? 2;
+  const date   = normalizeDate((payload as any).date ?? ctx.request.url.searchParams.get("date") ?? "");
+  const time   = normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time") ?? "");
+  const people = toIntLoose((payload as any).people ?? ctx.request.url.searchParams.get("people")) ?? 2;
 
-  // שמות השדות המדויקים מהטופס של שלב 2
-  const customerNameRaw  = (payload as any).name;
-  const customerPhoneRaw = (payload as any).phone;
-  const customerEmailRaw = (payload as any).email;
+  // ⬅️ קבלת שמות שדות אלטרנטיביים מהטופס (תיקון הבאג: name/phone/email עלולים להגיע בשם customerName וכו')
+  const customerNameRaw  =
+    (payload as any).name ??
+    (payload as any).customerName ??
+    (payload as any).fullName ??
+    (payload as any)["customer_name"];
+
+  const customerPhoneRaw =
+    (payload as any).phone ??
+    (payload as any).tel ??
+    (payload as any).customerPhone ??
+    (payload as any)["customer_phone"];
+
+  const customerEmailRaw =
+    (payload as any).email ??
+    (payload as any).customerEmail ??
+    (payload as any)["customer_email"];
 
   const customerName  = normalizePlain(customerNameRaw);
   const customerPhone = normalizePlain(customerPhoneRaw);
@@ -340,13 +353,13 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("תאריך לא תקין");
   if (!/^\d{2}:\d{2}$/.test(time))       return bad("שעה לא תקינה");
   if (!customerName)                     return bad("נא להזין שם");
-  if (!customerPhone)                    return bad("נא להזין מספר נייד");
 
-  if (!customerEmail)                    return bad("נא להזין אימייל");
-  if (!isValidEmail(customerEmail))      return bad("נא להזין אימייל תקין", { customerEmail, note: "normalize applied" });
+  // ⬅️ שינוי לוגיקה: מספיק טלפון *או* אימייל (בעבר היה חובת אימייל)
+  if (!customerPhone && !customerEmail)  return bad("נא להזין טלפון או אימייל");
+  if (customerEmail && !isValidEmail(customerEmail)) return bad("נא להזין אימייל תקין", { customerEmail, note: "normalize applied" });
 
   const avail = await checkAvailability(rid, date, time, people);
-  if (!avail.ok) {
+  if (!(avail as any).ok) {
     const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.status = Status.Conflict;
