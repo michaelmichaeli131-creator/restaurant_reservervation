@@ -16,7 +16,7 @@ import { sendReservationEmail, notifyOwnerEmail } from "../lib/mail.ts";
 function pad2(n: number) { return n.toString().padStart(2, "0"); }
 function todayISO(): string {
   const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 function nextQuarterHour(): string {
   const d = new Date();
@@ -26,414 +26,210 @@ function nextQuarterHour(): string {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 function normalizeDate(input: unknown): string {
-  const s = String(input ?? "").trim();
-  if (!s) return todayISO();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const m = s.match(/^(\d{2})[\/.](\d{2})[\/.](\d{4})$/);
-  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
-  return s;
+  if (typeof input === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
+  return todayISO();
 }
 function normalizeTime(input: unknown): string {
-  const s = String(input ?? "").trim();
-  if (!s) return nextQuarterHour();
-  const t = /^\d{2}\.\d{2}$/.test(s) ? s.replace(".", ":") : s;
-  const m = t.match(/^(\d{1,2}):(\d{2})$/);
-  if (!m) return t;
-  let h = Math.max(0, Math.min(23, Number(m[1])));
-  let mi = Math.max(0, Math.min(59, Number(m[2])));
-  mi = Math.floor(mi / 15) * 15;
-  return `${pad2(h)}:${pad2(mi)}`;
+  if (typeof input === "string" && /^\d{2}:\d{2}$/.test(input)) return input;
+  return nextQuarterHour();
 }
-function toIntLoose(input: unknown): number | null {
-  if (typeof input === "number" && Number.isFinite(input)) return Math.trunc(input);
-  if (typeof input === "bigint") return Number(input);
-  if (typeof input === "boolean") return input ? 1 : 0;
-  const s = String(input ?? "").trim();
-  if (!s) return null;
-  if (/^\d+$/.test(s)) return Math.trunc(Number(s));
-  const onlyDigits = s.replace(/[^\d]/g, "");
-  return onlyDigits ? Math.trunc(Number(onlyDigits)) : null;
+function toInt(v: unknown, def = 2): number {
+  const n = typeof v === "string" ? parseInt(v, 10) : Number(v);
+  return Number.isFinite(n) && n > 0 ? n : def;
 }
 
-// ---------- Normalizers (RTL/Unicode) ----------
-const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
-const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
-const FULLWIDTH_AT = /＠/g;
-const FULLWIDTH_DOT = /．/g;
+// Body reader that supports JSON, x-www-form-urlencoded, multipart/form-data
+async function readFields(ctx: any): Promise<Record<string, unknown>> {
+  // Oak had API differences across versions. We try the safest routes first.
+  const ct = (ctx.request.headers.get("content-type") || "").toLowerCase();
 
-function normalizePlain(raw: unknown): string {
-  let s = String(raw ?? "");
-  s = s.replace(BIDI, "");
-  s = s.replace(ZSP, " ").trim();
-  s = s.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
-  return s;
-}
-function normalizeEmail(raw: unknown): string {
-  let s = String(raw ?? "");
-  s = s.replace(BIDI, "");
-  s = s.replace(FULLWIDTH_AT, "@").replace(FULLWIDTH_DOT, ".");
-  s = s.replace(ZSP, " ").trim();
-  s = s.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
-  return s.toLowerCase();
-}
-function isValidEmail(s: string): boolean {
-  return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
-}
+  // Prefer Oak's body readers when available
+  const hasBodyMethod = typeof ctx.request.body === "function";
+  const fields: Record<string, unknown> = {};
 
-// ---------- Body Reader (native-first, then Oak if available) ----------
-async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
-  const ct = (ctx.request.headers.get("content-type") ?? "").toLowerCase();
-  const reqAny: any = ctx.request as any;
-  // נסה לאתר את ה-Request המקורי (דפדפן/Edge)
-  const original: Request | undefined =
-    reqAny.originalRequest ?? reqAny.request ?? reqAny.raw ?? undefined;
-
-  const dbg: Record<string, unknown> = { ct, phases: [] as any[] };
-  const phase = (name: string, data: unknown) => {
-    try { (dbg.phases as any[]).push({ name, data }); } catch {}
-  };
-
-  const merge = (a: Record<string, unknown>, b: Record<string, unknown>) => {
-    for (const [k, v] of Object.entries(b)) {
-      if (v !== undefined && v !== null && v !== "") a[k] = v;
-    }
-    return a;
-  };
-
-  const fromEntries = (iter: Iterable<[string, FormDataEntryValue]> | URLSearchParams) => {
-    const o: Record<string, unknown> = {};
-    // @ts-ignore entries() קיימת בשניהם
-    for (const [k, v] of iter.entries()) o[k] = typeof v === "string" ? v : v?.name ?? "";
-    return o;
-  };
-
-  const out: Record<string, unknown> = {};
-
-  // ---- 1) Native Request (עדיף) ----
-  if (original) {
-    try {
-      const r1 = typeof (original as any).clone === "function" ? (original as any).clone() : original;
-      if (typeof (r1 as any).formData === "function") {
-        const fd = await (r1 as any).formData();
-        const o = fromEntries(fd);
-        if (Object.keys(o).length) { phase("native.formData", o); merge(out, o); }
+  try {
+    if (ct.includes("application/json")) {
+      if (hasBodyMethod) {
+        const b = await ctx.request.body({ type: "json" }).value;
+        Object.assign(fields, b ?? {});
+      } else if (ctx.request.originalRequest?.json) {
+        const b = await ctx.request.originalRequest.json();
+        Object.assign(fields, b ?? {});
       }
-    } catch (e) { phase("native.formData.error", String(e)); }
-
-    try {
-      const r2 = typeof (original as any).clone === "function" ? (original as any).clone() : original;
-      if (typeof (r2 as any).json === "function") {
-        const j = await (r2 as any).json();
-        if (j && typeof j === "object") { phase("native.json", j); merge(out, j); }
+    } else if (ct.includes("application/x-www-form-urlencoded")) {
+      if (hasBodyMethod) {
+        const b: URLSearchParams = await ctx.request.body({ type: "form" }).value;
+        for (const [k, v] of b.entries()) fields[k] = v;
+      } else if (ctx.request.originalRequest?.formData) {
+        const fd = await ctx.request.originalRequest.formData();
+        for (const [k, v] of fd.entries()) fields[k] = typeof v === "string" ? v : v.name;
       }
-    } catch (e) { phase("native.json.error", String(e)); }
-
-    try {
-      const r3 = typeof (original as any).clone === "function" ? (original as any).clone() : original;
-      if (typeof (r3 as any).text === "function") {
-        const t = await (r3 as any).text();
-        if (t) {
-          phase("native.text", t.length > 200 ? t.slice(0, 200) + "…" : t);
-          // נסה JSON
-          try { const j = JSON.parse(t); if (j && typeof j === "object") { phase("native.text->json", j); merge(out, j); } }
-          catch {
-            // נסה urlencoded
-            const sp = new URLSearchParams(t); const o = fromEntries(sp);
-            if (Object.keys(o).length) { phase("native.text->urlencoded", o); merge(out, o); }
+    } else if (ct.includes("multipart/form-data")) {
+      if (hasBodyMethod) {
+        const formData = await ctx.request.body({ type: "form-data" }).value.read();
+        Object.assign(fields, formData.fields ?? {});
+      } else if (ctx.request.originalRequest?.formData) {
+        const fd = await ctx.request.originalRequest.formData();
+        for (const [k, v] of fd.entries()) fields[k] = typeof v === "string" ? v : v.name;
+      }
+    } else {
+      // Fallback: try JSON first then form
+      if (hasBodyMethod) {
+        try {
+          const b = await ctx.request.body({ type: "json" }).value;
+          Object.assign(fields, b ?? {});
+        } catch {
+          try {
+            const b: URLSearchParams = await ctx.request.body({ type: "form" }).value;
+            for (const [k, v] of b.entries()) fields[k] = v;
+          } catch {
+            // ignore
           }
         }
       }
-    } catch (e) { phase("native.text.error", String(e)); }
-  }
-
-  // ---- 2) Oak Request (רק אם נתמך) ----
-  try {
-    if (typeof reqAny.body === "function") {
-      const b = await reqAny.body();
-      if (b?.type === "json") {
-        const v = await b.value; if (v && typeof v === "object") { phase("oak.json", v); merge(out, v as any); }
-      } else if (b?.type === "form") {
-        const v = await b.value; const o = fromEntries(v as URLSearchParams);
-        phase("oak.form(urlencoded)", o); merge(out, o);
-      } else if (b?.type === "form-data") {
-        const v = await b.value; // FormDataReader
-        const fd = await v.read(); // { fields, files }
-        const o = (fd?.fields ?? {}) as Record<string, unknown>;
-        phase("oak.multipart", o); merge(out, o);
-      } else if (b?.type === "text") {
-        const t: string = await b.value; phase("oak.text", t);
-        try { const j = JSON.parse(t); phase("oak.text->json", j); merge(out, j); } catch {
-          const sp = new URLSearchParams(t); const o = fromEntries(sp);
-          if (Object.keys(o).length) { phase("oak.text->urlencoded", o); merge(out, o); }
-        }
-      } else if (b?.type === "bytes") {
-        const u8: Uint8Array = await b.value; const t = new TextDecoder().decode(u8);
-        phase("oak.bytes", t.length > 200 ? t.slice(0,200) + "…" : t);
-        try { const j = JSON.parse(t); phase("oak.bytes->json", j); merge(out, j); } catch {
-          const sp = new URLSearchParams(t); const o = fromEntries(sp);
-          if (Object.keys(o).length) { phase("oak.bytes->urlencoded", o); merge(out, o); }
-        }
-      }
-    } else {
-      phase("oak.body.notFunction", true);
     }
   } catch (e) {
-    phase("oak.body.error", String(e));
+    // Attach minimal debug info for admin only route/logging
+    ctx.state?.logger?.warn?.("readFields error", { e: String(e), ct });
   }
 
-  // ---- 3) Merge Querystring (תמיד) ----
-  const qs = Object.fromEntries(ctx.request.url.searchParams);
-  phase("querystring", qs);
-  for (const [k, v] of Object.entries(qs)) {
-    if (out[k] === undefined || out[k] === null || out[k] === "") out[k] = v;
-  }
-
-  // עזרה לדיבוג — מהם המפתחות שנקלטו?
-  phase("keys", Object.keys(out));
-
-  return { payload: out, dbg };
+  return fields;
 }
 
-// ========= ROUTER =========
-export const restaurantsRouter = new Router();
+// ---------- Router ----------
+const router = new Router();
 
-function asOk(x: unknown): boolean {
-  if (typeof x === "boolean") return x;
-  if (x && typeof x === "object" && "ok" in (x as any)) return !!(x as any).ok;
-  return !!x;
-}
-
-/** API: לאוטוקומפליט */
-restaurantsRouter.get("/api/restaurants", async (ctx) => {
-  const q = ctx.request.url.searchParams.get("q") ?? "";
-  const onlyApproved = (ctx.request.url.searchParams.get("approved") ?? "1") !== "0";
-  const items = await listRestaurants(q, onlyApproved);
-  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-  ctx.response.body = JSON.stringify(items, null, 2);
+// List restaurants (public)
+router.get("/restaurants", async (ctx) => {
+  const q = (ctx.request.url.searchParams.get("q") || "").trim();
+  const city = (ctx.request.url.searchParams.get("city") || "").trim();
+  const items = await listRestaurants({ q, city });
+  await render(ctx, "restaurants/index", { items, q, city });
 });
 
-/** דף מסעדה — שלב 1 */
-restaurantsRouter.get("/restaurants/:id", async (ctx) => {
-  const id = String(ctx.params.id ?? "");
-  const restaurant = await getRestaurant(id);
-  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
-
-  const url = ctx.request.url;
-  const conflict = url.searchParams.get("conflict") === "1";
-  const suggestions = (url.searchParams.get("suggest") ?? "").split(",").filter(Boolean);
-  const date = url.searchParams.get("date") ?? "";
-  const time = url.searchParams.get("time") ?? "";
-
-  await render(ctx, "restaurant", {
-    page: "restaurant",
-    title: `${restaurant.name} — GeoTable`,
-    restaurant,
-    conflict,
-    suggestions,
-    date,
-    time,
-  });
-});
-
-/** API: בדיקת זמינות */
-restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
-  const rid = String(ctx.params.id ?? "");
-  const restaurant = await getRestaurant(rid);
-  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "restaurant not found"; return; }
-
-  const { payload, dbg } = await readBody(ctx);
-  const date = normalizeDate((payload as any).date ?? "");
-  const time = normalizeTime((payload as any).time ?? "");
-  const people = 2;
-
-  const bad = (m: string) => {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok:false, error:m, dbg }, null, 2);
-  };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("bad date (YYYY-MM-DD expected)");
-  if (!/^\d{2}:\d{2}$/.test(time)) return bad("bad time (HH:mm expected)");
-
-  const result = await checkAvailability(rid, date, time, people);
-  const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
-
-  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-  if (asOk(result)) {
-    ctx.response.body = JSON.stringify({ ok: true, availableSlots: around.slice(0,4) }, null, 2);
-  } else {
-    const reason = (result as any)?.reason ?? "unavailable";
-    ctx.response.body = JSON.stringify({ ok: false, reason, suggestions: around.slice(0,4) }, null, 2);
-  }
-});
-
-/** שלב 1 → שלב 2 */
-restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
-  const rid = String(ctx.params.id ?? "");
-  const restaurant = await getRestaurant(rid);
-  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "restaurant not found"; return; }
-
-  const { payload } = await readBody(ctx);
-  const date = normalizeDate((payload as any).date ?? ctx.request.url.searchParams.get("date"));
-  const time = normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time"));
-  const people = 2;
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok:false, error:"אנא בחר/י תאריך ושעה תקינים" }, null, 2);
+// Restaurant details page (public)
+router.get("/restaurants/:id", async (ctx) => {
+  const id = ctx.params.id!;
+  const r = await getRestaurant(id);
+  if (!r) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Restaurant not found";
     return;
   }
 
-  const avail = await checkAvailability(rid, date, time, people);
-  if (!asOk(avail)) {
-    const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
-    const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
-    url.searchParams.set("conflict", "1");
-    if (around.length) url.searchParams.set("suggest", around.slice(0,4).join(","));
-    url.searchParams.set("date", date);
-    url.searchParams.set("time", time);
-    ctx.response.status = Status.SeeOther;
-    ctx.response.headers.set("Location", url.pathname + url.search);
-    return;
-  }
+  const date = normalizeDate(ctx.request.url.searchParams.get("date"));
+  const time = normalizeTime(ctx.request.url.searchParams.get("time"));
+  const people = toInt(ctx.request.url.searchParams.get("people"), 2);
 
-  const u = new URL(`/restaurants/${encodeURIComponent(rid)}/details`, "http://local");
-  u.searchParams.set("date", date);
-  u.searchParams.set("time", time);
-  u.searchParams.set("people", String(people));
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", u.pathname + u.search);
-});
+  const avail = await checkAvailability(r, { date, time, people });
+  const around = await listAvailableSlotsAround(r, { date, time, people });
 
-/** דף פרטי לקוח (שלב 2) */
-restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
-  const id = String(ctx.params.id ?? "");
-  const restaurant = await getRestaurant(id);
-  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
-
-  const date = normalizeDate(ctx.request.url.searchParams.get("date") ?? "");
-  const time = normalizeTime(ctx.request.url.searchParams.get("time") ?? "");
-  const people = Number(ctx.request.url.searchParams.get("people") ?? "2") || 2;
-
-  await render(ctx, "reservation_details", {
-    page: "reservation_details",
-    title: `פרטי הזמנה — ${restaurant.name}`,
-    restaurant,
-    date, time, people
-  });
-});
-
-/** שלב 2 → אישור סופי */
-restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
-  const rid = String(ctx.params.id ?? "");
-  const restaurant = await getRestaurant(rid);
-  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "restaurant not found"; return; }
-
-  const { payload, dbg } = await readBody(ctx);
-
-  const date   = normalizeDate((payload as any).date ?? ctx.request.url.searchParams.get("date") ?? "");
-  const time   = normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time") ?? "");
-  const people = toIntLoose((payload as any).people ?? ctx.request.url.searchParams.get("people")) ?? 2;
-
-  // תמיכה בשמות שדות חלופיים
-  const customerNameRaw  =
-    (payload as any).name ??
-    (payload as any).customerName ??
-    (payload as any).fullName ??
-    (payload as any)["customer_name"] ??
-    (payload as any)["full_name"];
-
-  const customerPhoneRaw =
-    (payload as any).phone ??
-    (payload as any).tel ??
-    (payload as any).customerPhone ??
-    (payload as any)["customer_phone"];
-
-  const customerEmailRaw =
-    (payload as any).email ??
-    (payload as any).customerEmail ??
-    (payload as any)["customer_email"];
-
-  const customerName  = normalizePlain(customerNameRaw);
-  const customerPhone = normalizePlain(customerPhoneRaw);
-  const customerEmail = normalizeEmail(customerEmailRaw);
-
-  const reqId = String(ctx.state?.reqId ?? crypto.randomUUID().slice(0, 8));
-  console.log(`[CONF ${reqId}] fields`, {
-    date, time, people,
-    customerNameRaw, customerName,
-    customerPhoneRaw, customerPhone,
-    customerEmailRaw, customerEmail
-  });
-
-  const bad = (m: string, extra?: unknown) => {
-    // הוסף גם את מפתחות ה-payload לעזרה בדיבוג
-    const keys = Object.keys(payload ?? {});
-    const dbg2 = { ...dbg, keys };
-    if (extra) (dbg2 as any).extra = extra;
-    ctx.response.status = Status.BadRequest;
-    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok:false, error:m, dbg: dbg2 }, null, 2);
-  };
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("תאריך לא תקין");
-  if (!/^\d{2}:\d{2}$/.test(time))       return bad("שעה לא תקינה");
-  if (!customerName)                     return bad("נא להזין שם");
-
-  if (!customerPhone && !customerEmail)  return bad("נא להזין טלפון או אימייל");
-  if (customerEmail && !isValidEmail(customerEmail))
-    return bad("נא להזין אימייל תקין", { customerEmail, note: "normalize applied" });
-
-  const avail = await checkAvailability(rid, date, time, people);
-  if (!asOk(avail)) {
-    const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
-    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.status = Status.Conflict;
-    ctx.response.body = JSON.stringify({ ok:false, error:"אין זמינות במועד שבחרת", suggestions: around.slice(0,4) }, null, 2);
-    return;
-  }
-
-  const user = (ctx.state as any)?.user ?? null;
-  const userId: string = user?.id ?? `guest:${crypto.randomUUID().slice(0, 8)}`;
-  const reservation: Reservation = {
-    id: crypto.randomUUID(),
-    restaurantId: rid,
-    userId,
+  await render(ctx, "restaurants/show", {
+    restaurant: r,
     date,
     time,
     people,
-    status: "new",
-    note: `Name: ${customerName}; Phone: ${customerPhone}; Email: ${customerEmail}`,
-    createdAt: Date.now(),
-  };
-  await createReservation(reservation);
-
-  // מיילים
-  await sendReservationEmail({
-    to: customerEmail,
-    restaurantName: restaurant.name,
-    date, time, people,
-    customerName,
-  }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
-
-  const owner = await getUserById(restaurant.ownerId).catch(() => null);
-  if (owner?.email) {
-    await notifyOwnerEmail({
-      to: owner.email,
-      restaurantName: restaurant.name,
-      customerName, customerPhone, customerEmail,
-      date, time, people,
-    }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
-  } else {
-    console.log("[mail] owner email not found; skipping owner notification");
-  }
-
-  await render(ctx, "reservation_confirmed", {
-    page: "reservation_confirmed",
-    title: "הזמנה אושרה",
-    restaurant,
-    date, time, people,
-    customerName, customerPhone, customerEmail,
-    reservationId: reservation.id,
+    availability: avail,
+    around,
   });
 });
+
+// Create reservation (public)
+router.post("/restaurants/:id/reserve", async (ctx) => {
+  const id = ctx.params.id!;
+  const r = await getRestaurant(id);
+  if (!r) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = { ok: false, error: "מסעדה לא נמצאה" };
+    return;
+  }
+
+  const fields = await readFields(ctx);
+
+  // Normalization & defaults
+  const date = normalizeDate(fields.date);
+  const time = normalizeTime(fields.time);
+  const people = toInt(fields.people, 2);
+
+  // Support both raw and normalized keys
+  const customerName = String(fields.customerName ?? fields.name ?? "").trim();
+  const customerPhone = String(fields.customerPhone ?? fields.phone ?? "").trim();
+  const customerEmail = String(fields.customerEmail ?? fields.email ?? "").trim();
+
+  const dbg = {
+    ct: (ctx.request.headers.get("content-type") || "").toLowerCase(),
+    phases: [
+      { name: "body.reader", data: true },
+    ],
+    keys: Object.keys(fields),
+  };
+
+  // Validation (same semantics, but now fields are populated correctly)
+  if (!customerName) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "נא להזין שם", dbg, fields: { date, time, people, customerName, customerPhone, customerEmail } };
+    return;
+  }
+  if (!customerPhone && !customerEmail) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "נא להזין טלפון או אימייל", dbg };
+    return;
+  }
+
+  // Check availability before creating
+  const available = await checkAvailability(r, { date, time, people });
+  if (!available?.ok) {
+    const around = await listAvailableSlotsAround(r, { date, time, people });
+    ctx.response.status = Status.Conflict;
+    ctx.response.body = { ok: false, error: "הסלוט שנבחר אינו זמין", around, dbg };
+    return;
+  }
+
+  // Prepare reservation
+  const reservation: Omit<Reservation, "id" | "createdAt"> = {
+    restaurantId: r.id,
+    date,
+    time,
+    people,
+    customerName,
+    customerPhone,
+    customerEmail,
+    notes: String((fields.notes ?? "")).slice(0, 500),
+    status: "confirmed",
+    source: "web",
+  };
+
+  const created = await createReservation(reservation);
+
+  // Fire-and-forget emails (don’t block response)
+  try {
+    await sendReservationEmail({
+      to: customerEmail,
+      reservation: { ...created, restaurant: r },
+    });
+  } catch (_e) {
+    // log-only; email failures shouldn’t fail booking
+  }
+  try {
+    await notifyOwnerEmail({
+      restaurant: r,
+      reservation: created,
+    });
+  } catch (_e) {
+    // ignore
+  }
+
+  // If the client expects JSON (AJAX), return JSON; otherwise redirect to a success page
+  const accept = (ctx.request.headers.get("accept") || "").toLowerCase();
+  if (accept.includes("application/json") || accept.includes("text/json")) {
+    ctx.response.body = { ok: true, reservation: created };
+  } else {
+    // Render a confirmation page
+    await render(ctx, "restaurants/confirmation", {
+      restaurant: r,
+      reservation: created,
+    });
+  }
+});
+
+export default router;
