@@ -41,9 +41,7 @@
                    const val = `${hh}:${mm}`;
             %>
               <div class="time-option" data-value="<%= val %>"><%= val %></div>
-            <%     }
-               }
-            %>
+            <% }} %>
           </div>
         </div>
         <input type="hidden" id="time" name="time" value="<%= it.time || '' %>"/>
@@ -103,6 +101,16 @@
     const btn = document.getElementById("time-display");
     const opts = document.getElementById("time-options");
     const hiddenInput = document.getElementById("time");
+    const form = document.getElementById("reserve-form");
+
+    // בדיקה לפני שליחה: אם השדה time ריק — חוסמים את השליחה
+    form.addEventListener("submit", (ev) => {
+      if (!hiddenInput.value) {
+        ev.preventDefault();
+        alert("נא לבחור שעה מהרשימה");
+        return false;
+      }
+    });
 
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -112,7 +120,7 @@
     opts.querySelectorAll(".time-option").forEach(el => {
       el.addEventListener("click", () => {
         const v = el.dataset.value;
-        // עדכון טקסט הכפתור
+        // עדכון כפתור התצוגה
         btn.textContent = v + " ";
         const arr = document.createElement("span");
         arr.className = "arrow";
@@ -167,11 +175,13 @@
         b.className = "slot";
         b.textContent = t;
         b.onclick = () => {
-          document.getElementById("time").value = t;
+          hiddenInput.value = t;
           document.getElementById("time-display").textContent = t + " ";
           const arr = document.createElement("span");
-          arr.className = "arrow"; arr.textContent = "▾";
+          arr.className = "arrow";
+          arr.textContent = "▾";
           document.getElementById("time-display").appendChild(arr);
+          opts.hidden = true;
           renderAround([]);
         };
         box.appendChild(b);
@@ -282,7 +292,9 @@
     cursor: pointer;
     transition: background-color 0.2s;
   }
-  .btn:hover { background-color: #5a67d8; }
+  .btn:hover {
+    background-color: #5a67d8;
+  }
   .btn.secondary {
     background-color: #a0aec0;
   }
