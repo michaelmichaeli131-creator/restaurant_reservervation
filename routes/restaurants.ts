@@ -80,8 +80,122 @@ function isValidEmail(s: string): boolean {
   return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
 }
 
-// ---------- Body Reader (merge robustly) ----------
+// ---------- Body Reader (ROBUST) ----------
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
+  const reqAny: any = ctx.request as any;
+  const original: Request | undefined = (reqAny.originalRequest ?? undefined);
+  const ct = (ctx.request.headers.get("content-type") ?? "").toLowerCase();
+
+  const dbg: Record<string, unknown> = { ct, phases: [] as any[] };
+  const phase = (name: string, data: unknown) => {
+    try { (dbg.phases as any[]).push({ name, data }); } catch {}
+  };
+
+  const kv = (pairs: Iterable<[string, FormDataEntryValue] | [string, string]>) => {
+    const o: Record<string, unknown> = {};
+    for (const [k, v] of pairs) o[k] = typeof v === "string" ? v : (v as File);
+    return o;
+  };
+
+  // 0) אם אין בכלל body (GET או POST בלי גוף) נחזיר querystring
+  const method = (ctx.request.method || "").toUpperCase();
+  if (method === "GET") {
+    const qs = Object.fromEntries(ctx.request.url.searchParams);
+    phase("querystring(GET)", qs);
+    return { payload: qs, dbg };
+  }
+
+  // 1) נסה Oak v17: body() פעם אחת וקבל type
+  try {
+    if (typeof reqAny.body === "function") {
+      const b = await reqAny.body();
+      // json
+      if (b?.type === "json") {
+        const v = await b.value;
+        if (v && typeof v === "object") { phase("oak.json", v); return { payload: v, dbg }; }
+        phase("oak.json.empty", v);
+      }
+      // form (application/x-www-form-urlencoded)
+      if (b?.type === "form") {
+        const v = await b.value;           // URLSearchParams
+        const o = kv((v as URLSearchParams).entries());
+        phase("oak.form(urlencoded)", o);
+        return { payload: o, dbg };
+      }
+      // form-data (multipart)
+      if (b?.type === "form-data") {
+        const v = await b.value;           // FormData
+        const o = kv((v as FormData).entries());
+        phase("oak.multipart(form-data)", o);
+        return { payload: o, dbg };
+      }
+      // bytes/text → נפרש ידנית
+      if (b?.type === "bytes") {
+        const u8: Uint8Array = await b.value;
+        const text = new TextDecoder().decode(u8);
+        phase("oak.bytes", text);
+        // אם JSON
+        try { const j = JSON.parse(text); phase("oak.bytes->json", j); return { payload: j, dbg }; } catch {}
+        // אם urlencoded
+        if (ct.includes("application/x-www-form-urlencoded")) {
+          const sp = new URLSearchParams(text);
+          const o = kv(sp.entries());
+          phase("oak.bytes->urlencoded", o);
+          return { payload: o, dbg };
+        }
+        // אם סתם טקסט – לא ידוע
+      }
+      if (b?.type === "text") {
+        const text: string = await b.value;
+        phase("oak.text", text);
+        try { const j = JSON.parse(text); phase("oak.text->json", j); return { payload: j, dbg }; } catch {}
+        if (ct.includes("application/x-www-form-urlencoded")) {
+          const sp = new URLSearchParams(text);
+          const o = kv(sp.entries());
+          phase("oak.text->urlencoded", o);
+          return { payload: o, dbg };
+        }
+      }
+    }
+  } catch (e) { phase("oak.body.error", String(e)); }
+
+  // 2) נסה את ה־Request המקורי (Deploy/Edge)
+  try {
+    if (original && typeof (original as any).formData === "function") {
+      const fd = await (original as any).formData();
+      const o = kv(fd.entries());
+      phase("native.formData", o);
+      return { payload: o, dbg };
+    }
+  } catch (e) { phase("native.formData.error", String(e)); }
+
+  try {
+    if (original && typeof (original as any).json === "function") {
+      const v = await (original as any).json();
+      if (v && typeof v === "object") { phase("native.json", v); return { payload: v, dbg }; }
+    }
+  } catch (e) { phase("native.json.error", String(e)); }
+
+  try {
+    if (original && typeof (original as any).text === "function") {
+      const text = await (original as any).text();
+      phase("native.text", text);
+      try { const j = JSON.parse(text); phase("native.text->json", j); return { payload: j, dbg }; } catch {}
+      if (ct.includes("application/x-www-form-urlencoded")) {
+        const sp = new URLSearchParams(text);
+        const o = kv(sp.entries());
+        phase("native.text->urlencoded", o);
+        return { payload: o, dbg };
+      }
+    }
+  } catch (e) { phase("native.text.error", String(e)); }
+
+  // 3) fallback מוחלט → querystring בלבד
+  const qs = Object.fromEntries(ctx.request.url.searchParams);
+  phase("querystring(fallback)", qs);
+  return { payload: qs, dbg };
+}
+
   const ct = (ctx.request.headers.get("content-type") ?? "").toLowerCase();
   const reqAny: any = ctx.request as any;
   const original: Request | undefined = (reqAny.originalRequest ?? undefined);
@@ -281,66 +395,54 @@ restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
   });
 });
 
-// --- POST /restaurants/:id/confirm (מלא, להחליף את ה-handler הקיים) ---
+/** אישור ויצירת ההזמנה (POST משלב 2) — תומך גם urlencoded וגם JSON */
 restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
   if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "restaurant not found"; return; }
 
-  // קורא את הגוף (תומך urlencoded/json/multipart) + נרמול בטוח
   const { payload, dbg } = await readBody(ctx);
 
-  // נרמול אימייל נגד תווי RTL/רוחב-אפס ותחבולות העתק/הדבק
-  const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
-  const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
-  const normalizeEmail = (s: unknown) => {
-    let v = String(s ?? "");
-    v = v.replace(BIDI, "");
-    v = v.replace(/＠/g, "@").replace(/．/g, ".");
-    v = v.replace(ZSP, " ").trim();
-    v = v.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
-    return v.toLowerCase();
-  };
-  const isValidEmail = (s: string) => /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
-
+  // נקלטים גם מהטופס (name/phone/email) וגם מגרסאות קודמות (customerName/…)
   const date   = normalizeDate((payload as any).date ?? "");
   const time   = normalizeTime((payload as any).time ?? "");
   const people = toIntLoose((payload as any).people) ?? 2;
 
-  // חשוב: שמות השדות בדיוק כך
-  const customerNameRaw  = (payload as any).name;
-  const customerPhoneRaw = (payload as any).phone;
-  const customerEmailRaw = (payload as any).email;
+  // נקבל כל אחד מהשמות האפשריים
+  const customerNameRaw  = (payload as any).name ?? (payload as any).customerName ?? "";
+  const customerPhoneRaw = (payload as any).phone ?? (payload as any).customerPhone ?? "";
+  const customerEmailRaw = (payload as any).email ?? (payload as any).customerEmail ?? "";
+
+  // נרמול כמו בלקוח
+  const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+  const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
+  const normalizeEmail = (s: string) =>
+    s.replace(BIDI, "")
+     .replace(/＠/g, "@").replace(/．/g, ".")
+     .replace(ZSP, " ").trim()
+     .replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "")
+     .toLowerCase();
 
   const customerName  = String(customerNameRaw ?? "").trim();
   const customerPhone = String(customerPhoneRaw ?? "").trim();
-  const customerEmail = normalizeEmail(customerEmailRaw);
+  const customerEmail = normalizeEmail(String(customerEmailRaw ?? ""));
 
-  // לוג דיבוג ידידותי
-  const reqId = String(ctx.state?.reqId ?? crypto.randomUUID().slice(0, 8));
-  console.log(`[CONF ${reqId}] fields`, {
-    date, time, people,
-    customerNameRaw, customerName,
-    customerPhoneRaw, customerPhone,
-    customerEmailRaw, customerEmail
-  });
-
-  const bad = (m: string, extra?: unknown) => {
+  const bad = (m: string) => {
     ctx.response.status = Status.BadRequest;
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok:false, error:m, dbg: extra ? { ...dbg, extra } : dbg }, null, 2);
+    ctx.response.body = JSON.stringify({
+      ok:false, error:m,
+      dbg: { ...dbg, fields: { date, time, people, customerNameRaw, customerName, customerPhoneRaw, customerPhone, customerEmailRaw, customerEmail } }
+    }, null, 2);
   };
 
-  // ולידציה
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("תאריך לא תקין");
-  if (!/^\d{2}:\d{2}$/.test(time))       return bad("שעה לא תקינה");
-  if (!customerName)                     return bad("נא להזין שם");
-  if (!customerPhone)                    return bad("נא להזין מספר נייד");
+  if (!/^\d{2}:\d{2}$/.test(time))     return bad("שעה לא תקינה");
+  if (!customerName)                   return bad("נא להזין שם");
+  if (!customerPhone)                  return bad("נא להזין מספר נייד");
+  if (!customerEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(customerEmail)) return bad("נא להזין אימייל תקין");
+  if (!Number.isFinite(people) || people < 1) return bad("מספר סועדים לא תקין");
 
-  if (!customerEmail)                    return bad("נא להזין אימייל");
-  if (!isValidEmail(customerEmail))      return bad("נא להזין אימייל תקין", { customerEmail, note: "normalize applied" });
-
-  // בדיקת זמינות
   const avail = await checkAvailability(rid, date, time, people);
   if (!avail.ok) {
     const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
@@ -350,7 +452,6 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
     return;
   }
 
-  // יצירת ההזמנה
   const user = (ctx.state as any)?.user ?? null;
   const userId: string = user?.id ?? `guest:${crypto.randomUUID().slice(0, 8)}`;
   const reservation: Reservation = {
@@ -366,27 +467,34 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   };
   await createReservation(reservation);
 
-  // שליחת מיילים
-  await sendReservationEmail({
-    to: customerEmail,
-    restaurantName: restaurant.name,
-    date, time, people,
-    customerName,
-  }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
-
-  const owner = await getUserById(restaurant.ownerId).catch(() => null);
-  if (owner?.email) {
-    await notifyOwnerEmail({
-      to: owner.email,
+  // מיילים (לקוח + בעלים)
+  try {
+    await sendReservationEmail({
+      to: customerEmail,
       restaurantName: restaurant.name,
-      customerName, customerPhone, customerEmail,
       date, time, people,
-    }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
-  } else {
-    console.log("[mail] owner email not found; skipping owner notification");
+      customerName,
+    });
+  } catch (e) {
+    console.warn("[mail] sendReservationEmail failed:", e);
   }
 
-  // עמוד אישור (HTML)
+  try {
+    const owner = await getUserById(restaurant.ownerId).catch(() => null);
+    if (owner?.email) {
+      await notifyOwnerEmail({
+        to: owner.email,
+        restaurantName: restaurant.name,
+        customerName, customerPhone, customerEmail,
+        date, time, people,
+      });
+    } else {
+      console.log("[mail] owner email not found; skipping owner notification");
+    }
+  } catch (e) {
+    console.warn("[mail] notifyOwnerEmail failed:", e);
+  }
+
   await render(ctx, "reservation_confirmed", {
     page: "reservation_confirmed",
     title: "הזמנה אושרה",
