@@ -11,27 +11,18 @@ import {
 } from "../database.ts";
 import { render } from "../lib/view.ts";
 import { sendReservationEmail, notifyOwnerEmail } from "../lib/mail.ts";
+import { debugLog } from "../lib/debug.ts";
 
-// Utilities (pad2, normalizeDate, normalizeTime, וכו')
+// ---------------- Utilities ----------------
 function pad2(n: number) { return n.toString().padStart(2, "0"); }
 function todayISO(): string {
   const d = new Date();
   return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
 }
-function nextQuarterHour(): string {
-  const d = new Date();
-  const mins = d.getMinutes();
-  const add = 15 - (mins % 15 || 15);
-  d.setMinutes(mins + add, 0, 0);
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
-
-// *** הקשחה: תומך גם ב-ISO datetime, וגם ב-dd/mm/yyyy או dd.mm.yyyy
 function normalizeDate(input: unknown): string {
   let s = String(input ?? "").trim();
-  if (!s) return todayISO();
-  // אם הגיע ISO עם זמן: "2025-11-06T20:00" → נחלץ רק את התאריך
-  const iso = s.match(/^(\d{4}-\d{2}-\d{2})[T\s]/);
+  if (!s) return "";
+  const iso = s.match(/^(\d{4}-\d{2}-\d{2})(?:[T\s]|$)/);
   if (iso) return iso[1];
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   const dmy = s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})$/);
@@ -43,25 +34,19 @@ function normalizeDate(input: unknown): string {
   }
   return s;
 }
-
-// *** הקשחה: תומך גם ב-ISO datetime, וגם מנרמל ל-רבעי שעה
 function normalizeTime(input: unknown): string {
   let s = String(input ?? "").trim();
   if (!s) return "";
-  // 20.00 → 20:00
   if (/^\d{1,2}\.\d{2}$/.test(s)) s = s.replace(".", ":");
-  // אם הגיע ISO עם זמן: "2025-11-06T20:00"
   const iso = s.match(/T(\d{2}):(\d{2})/);
   if (iso) s = `${iso[1]}:${iso[2]}`;
-
   const m = s.match(/^(\d{1,2}):(\d{2})$/);
   if (!m) return s;
-  let h = Math.max(0, Math.min(23, Number(m[1])));
+  const h = Math.max(0, Math.min(23, Number(m[1])));
   let mi = Math.max(0, Math.min(59, Number(m[2])));
   mi = Math.floor(mi / 15) * 15;
   return `${pad2(h)}:${pad2(mi)}`;
 }
-
 function toIntLoose(input: unknown): number | null {
   if (typeof input === "number" && Number.isFinite(input)) return Math.trunc(input);
   if (typeof input === "bigint") return Number(input);
@@ -73,7 +58,7 @@ function toIntLoose(input: unknown): number | null {
   return onlyDigits ? Math.trunc(Number(onlyDigits)) : null;
 }
 
-// Normalizers (RTL / Unicode)
+// -------- Normalizers (RTL / Unicode) --------
 const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
 const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
 const FULLWIDTH_AT = /＠/g;
@@ -97,7 +82,6 @@ function isValidEmail(s: string): boolean {
   return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
 }
 
-// עזרים
 function pickNonEmpty(...vals: unknown[]): string {
   for (const v of vals) {
     const s = String(v ?? "").trim();
@@ -106,59 +90,21 @@ function pickNonEmpty(...vals: unknown[]): string {
   return "";
 }
 
-// *** חדש: חילוץ חכם של שעה ותאריך ממגוון שמות/פורמטים
-function extractRawDate(source: Record<string, unknown>, qs: URLSearchParams): string {
-  const candidates = [
-    source["date"], source["reservation_date"], source["res_date"],
-    qs.get("date"), qs.get("reservation_date"), qs.get("res_date"),
-    source["datetime"], source["datetime_local"], source["datetime-local"],
-    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"),
-  ];
-  return pickNonEmpty(...candidates);
-}
-
-function extractRawTime(source: Record<string, unknown>, qs: URLSearchParams): string {
-  // אם יש שדה time מפורש – הוא ראשון. אחרת: time_display / צמד hour+minute / datetime-local
-  const hhmmFromHM = (() => {
-    const h = pickNonEmpty(source["hour"], qs.get("hour"));
-    const m = pickNonEmpty(source["minute"], qs.get("minute"));
-    if (h && m) return `${pad2(Number(h))}:${pad2(Number(m))}`;
-    return "";
-  })();
-
-  const candidates = [
-    source["time"], qs.get("time"),
-    source["time_display"], source["timeDisplay"], qs.get("time_display"), qs.get("timeDisplay"),
-    hhmmFromHM,
-    source["datetime"], source["datetime_local"], source["datetime-local"],
-    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"),
-  ];
-  return pickNonEmpty(...candidates);
-}
-
-// Body reader (as before) + תיקון קטן ב-fromEntries לא לדרוס ערך לא-ריק ע"י ריק
+// ---------------- Body reader ----------------
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const ct = (ctx.request.headers.get("content-type") ?? "").toLowerCase();
   const reqAny: any = ctx.request as any;
   const dbg: Record<string, unknown> = { ct, phases: [] as any[] };
-  const phase = (name: string, data: unknown) => {
-    try { (dbg.phases as any[]).push({ name, data }); } catch {}
-  };
+  const phase = (name: string, data: unknown) => { try { (dbg.phases as any[]).push({ name, data }); } catch {} };
   const merge = (a: Record<string, unknown>, b: Record<string, unknown>) => {
-    for (const [k, v] of Object.entries(b)) {
-      if (v !== undefined && v !== null && v !== "") a[k] = v;
-    }
+    for (const [k, v] of Object.entries(b)) if (v !== undefined && v !== null && v !== "") a[k] = v;
     return a;
   };
   const fromEntries = (iter: Iterable<[string, FormDataEntryValue]> | URLSearchParams) => {
     const o: Record<string, unknown> = {};
     for (const [k, v0] of (iter as any).entries()) {
       const v = typeof v0 === "string" ? v0 : (v0?.name ?? "");
-      if (v === "") {
-        if (!(k in o)) o[k] = "";
-      } else {
-        o[k] = v;
-      }
+      if (v === "") { if (!(k in o)) o[k] = ""; } else { o[k] = v; }
     }
     return o;
   };
@@ -207,52 +153,36 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
       } else if (b.type === "form") {
         const v = await b.value;
         const o = fromEntries(v as URLSearchParams);
-        phase("oak.obj.form(urlencoded)", o);
-        merge(out, o);
+        phase("oak.obj.form(urlencoded)", o); merge(out, o);
       } else if (b.type === "form-data") {
         const v = await b.value;
         const r = await v.read();
         const o = (r?.fields ?? {}) as Record<string, unknown>;
-        phase("oak.obj.multipart", o);
-        merge(out, o);
+        phase("oak.obj.multipart", o); merge(out, o);
       } else if (b.type === "text") {
         const t: string = await b.value;
         phase("oak.obj.text", t);
-        try {
-          const j = JSON.parse(t);
-          phase("oak.obj.text->json", j);
-          merge(out, j as any);
-        } catch {
+        try { const j = JSON.parse(t); phase("oak.obj.text->json", j); merge(out, j as any); }
+        catch {
           const sp = new URLSearchParams(t);
           const o = fromEntries(sp);
-          if (Object.keys(o).length) {
-            phase("oak.obj.text->urlencoded", o);
-            merge(out, o);
-          }
+          if (Object.keys(o).length) { phase("oak.obj.text->urlencoded", o); merge(out, o); }
         }
       } else if (b.type === "bytes") {
         const u8: Uint8Array = await b.value;
         const t = new TextDecoder().decode(u8);
         phase("oak.obj.bytes", t.length > 200 ? t.slice(0,200) + "…" : t);
-        try {
-          const j = JSON.parse(t);
-          phase("oak.obj.bytes->json", j);
-          merge(out, j as any);
-        } catch {
+        try { const j = JSON.parse(t); phase("oak.obj.bytes->json", j); merge(out, j as any); }
+        catch {
           const sp = new URLSearchParams(t);
           const o = fromEntries(sp);
-          if (Object.keys(o).length) {
-            phase("oak.obj.bytes->urlencoded", o);
-            merge(out, o);
-          }
+          if (Object.keys(o).length) { phase("oak.obj.bytes->urlencoded", o); merge(out, o); }
         }
       }
     } else if (!b) {
       phase("oak.body.object", false);
     }
-  } catch (e) {
-    phase("oak.body.object.error", String(e));
-  }
+  } catch (e) { phase("oak.body.object.error", String(e)); }
 
   try {
     if (typeof reqAny.body === "function") {
@@ -263,66 +193,98 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
       } else if (bb?.type === "form") {
         const v = await bb.value;
         const o = fromEntries(v as URLSearchParams);
-        phase("oak.fn.form(urlencoded)", o);
-        merge(out, o);
+        phase("oak.fn.form(urlencoded)", o); merge(out, o);
       } else if (bb?.type === "form-data") {
         const v = await bb.value;
         const r = await v.read();
         const o = (r?.fields ?? {}) as Record<string, unknown>;
-        phase("oak.fn.multipart", o);
-        merge(out, o);
+        phase("oak.fn.multipart", o); merge(out, o);
       } else if (bb?.type === "text") {
         const t: string = await bb.value;
         phase("oak.fn.text", t);
-        try {
-          const j = JSON.parse(t);
-          phase("oak.fn.text->json", j);
-          merge(out, j as any);
-        } catch {
+        try { const j = JSON.parse(t); phase("oak.fn.text->json", j); merge(out, j as any); }
+        catch {
           const sp = new URLSearchParams(t);
           const o = fromEntries(sp);
-          if (Object.keys(o).length) {
-            phase("oak.fn.text->urlencoded", o);
-            merge(out, o);
-          }
+          if (Object.keys(o).length) { phase("oak.fn.text->urlencoded", o); merge(out, o); }
         }
       } else if (bb?.type === "bytes") {
         const u8: Uint8Array = await bb.value;
         const t = new TextDecoder().decode(u8);
         phase("oak.fn.bytes", t.length > 200 ? t.slice(0,200) + "…" : t);
-        try {
-          const j = JSON.parse(t);
-          phase("oak.fn.bytes->json", j);
-          merge(out, j as any);
-        } catch {
+        try { const j = JSON.parse(t); phase("oak.fn.bytes->json", j); merge(out, j as any); }
+        catch {
           const sp = new URLSearchParams(t);
           const o = fromEntries(sp);
-          if (Object.keys(o).length) {
-            phase("oak.fn.bytes->urlencoded", o);
-            merge(out, o);
-          }
+          if (Object.keys(o).length) { phase("oak.fn.bytes->urlencoded", o); merge(out, o); }
         }
       }
     } else {
       phase("oak.body.notFunction", true);
     }
-  } catch (e) {
-    phase("oak.body.fn.error", String(e));
-  }
+  } catch (e) { phase("oak.body.fn.error", String(e)); }
 
   const qs = Object.fromEntries(ctx.request.url.searchParams);
   phase("querystring", qs);
   for (const [k, v] of Object.entries(qs)) {
-    if (out[k] === undefined || out[k] === null || out[k] === "") {
-      out[k] = v;
-    }
+    if (out[k] === undefined || out[k] === null || out[k] === "") out[k] = v;
   }
 
   phase("keys", Object.keys(out));
   return { payload: out, dbg };
 }
 
-// Router
+// ---------------- Helpers: extract date/time from body/qs/referer ----------------
+function extractFromReferer(ctx: any) {
+  const ref = ctx.request.headers.get("referer") || ctx.request.headers.get("referrer") || "";
+  try {
+    const u = new URL(ref);
+    return Object.fromEntries(u.searchParams);
+  } catch { return {}; }
+}
+
+function extractDateAndTime(ctx: any, payload: Record<string, unknown>) {
+  const qs = ctx.request.url.searchParams;
+  const ref = extractFromReferer(ctx);
+
+  const rawDate = pickNonEmpty(
+    payload["date"], payload["reservation_date"], payload["res_date"],
+    qs.get("date"), qs.get("reservation_date"), qs.get("res_date"),
+    payload["datetime"], payload["datetime_local"], payload["datetime-local"],
+    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"),
+    (ref as any)["date"], (ref as any)["reservation_date"], (ref as any)["res_date"],
+    (ref as any)["datetime"], (ref as any)["datetime_local"], (ref as any)["datetime-local"]
+  );
+
+  const hhmmFromHM = (() => {
+    const h = pickNonEmpty(payload["hour"], qs.get("hour"), (ref as any)["hour"]);
+    const m = pickNonEmpty(payload["minute"], qs.get("minute"), (ref as any)["minute"]);
+    return h && m ? `${pad2(Number(h))}:${pad2(Number(m))}` : "";
+  })();
+
+  const rawTime = pickNonEmpty(
+    payload["time"], qs.get("time"), (ref as any)["time"],
+    payload["time_display"], payload["timeDisplay"], qs.get("time_display"), qs.get("timeDisplay"),
+    (ref as any)["time_display"], (ref as any)["timeDisplay"],
+    hhmmFromHM,
+    payload["datetime"], payload["datetime_local"], payload["datetime-local"],
+    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"),
+    (ref as any)["datetime"], (ref as any)["datetime_local"], (ref as any)["datetime-local"]
+  );
+
+  const date = normalizeDate(rawDate);
+  const time = normalizeTime(rawTime);
+
+  debugLog("extractDateAndTime", { rawDate, rawTime, from: {
+    payload: { date: payload["date"], time: payload["time"], time_display: (payload as any)["time_display"] },
+    qs: { date: qs.get("date"), time: qs.get("time") },
+    referer: { date: (ref as any)["date"], time: (ref as any)["time"] },
+  }, normalized: { date, time } });
+
+  return { date, time };
+}
+
+// ---------------- Router ----------------
 export const restaurantsRouter = new Router();
 
 function asOk(x: unknown): boolean {
@@ -331,7 +293,7 @@ function asOk(x: unknown): boolean {
   return !!x;
 }
 
-/** API: אוטוקומפליט */
+// API: אוטוקומפליט
 restaurantsRouter.get("/api/restaurants", async (ctx) => {
   const q = ctx.request.url.searchParams.get("q") ?? "";
   const onlyApproved = (ctx.request.url.searchParams.get("approved") ?? "1") !== "0";
@@ -340,7 +302,7 @@ restaurantsRouter.get("/api/restaurants", async (ctx) => {
   ctx.response.body = JSON.stringify(items, null, 2);
 });
 
-/** דף מסעדה — שלב 1 */
+// דף מסעדה — שלב 1
 restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const id = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(id);
@@ -367,7 +329,7 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   });
 });
 
-/** API: בדיקת זמינות */
+// API: בדיקת זמינות
 restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -378,8 +340,7 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   }
 
   const { payload, dbg } = await readBody(ctx);
-  const date = normalizeDate(extractRawDate(payload, ctx.request.url.searchParams));
-  const time = normalizeTime(extractRawTime(payload, ctx.request.url.searchParams));
+  const { date, time } = extractDateAndTime(ctx, payload);
   const people = 2;
 
   const bad = (m: string) => {
@@ -402,7 +363,7 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   }
 });
 
-/** שלב 1 → שלב 2 */
+// שלב 1 → שלב 2
 restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -412,14 +373,12 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     return;
   }
 
-  const { payload } = await readBody(ctx);
-  const rawDate = extractRawDate(payload, ctx.request.url.searchParams);
-  const rawTime = extractRawTime(payload, ctx.request.url.searchParams);
-  const date = normalizeDate(rawDate);
-  const time = normalizeTime(rawTime);
+  const { payload, dbg } = await readBody(ctx);
+  const { date, time } = extractDateAndTime(ctx, payload);
   const people = 2;
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
+    debugLog("reserve error invalid format", { date, time, dbg });
     ctx.response.status = Status.BadRequest;
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.body = JSON.stringify({ ok:false, error:"אנא בחר/י תאריך ושעה תקינים" }, null, 2);
@@ -447,7 +406,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   ctx.response.headers.set("Location", u.pathname + u.search);
 });
 
-/** דף פרטי לקוח (שלב 2) */
+// שלב 2
 restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
   const id = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(id);
@@ -469,7 +428,7 @@ restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
   });
 });
 
-/** שלב 2 → אישור סופי (GET) */
+// שלב 2 → אישור סופי (GET)
 restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -480,8 +439,7 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   }
 
   const sp = ctx.request.url.searchParams;
-  const date   = normalizeDate(extractRawDate({}, sp));
-  const time   = normalizeTime(extractRawTime({}, sp));
+  const { date, time } = extractDateAndTime(ctx, Object.fromEntries(sp.entries()));
   const people = toIntLoose(sp.get("people")) ?? 2;
 
   const customerNameRaw =
@@ -563,7 +521,7 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   });
 });
 
-/** שלב 2 → אישור סופי (POST) */
+// שלב 2 → אישור סופי (POST)
 restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -574,35 +532,23 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   }
 
   const { payload, dbg } = await readBody(ctx);
-
-  const date   = normalizeDate(extractRawDate(payload, ctx.request.url.searchParams));
-  const time   = normalizeTime(extractRawTime(payload, ctx.request.url.searchParams));
+  const { date, time } = extractDateAndTime(ctx, payload);
   const people = toIntLoose(pickNonEmpty((payload as any).people, ctx.request.url.searchParams.get("people"))) ?? 2;
 
   const customerNameRaw  =
-    (payload as any).name ??
-    (payload as any).customerName ??
-    (payload as any).fullName ??
-    (payload as any)["customer_name"] ??
-    (payload as any)["full_name"];
-
+    (payload as any).name ?? (payload as any).customerName ?? (payload as any).fullName ??
+    (payload as any)["customer_name"] ?? (payload as any)["full_name"];
   const customerPhoneRaw =
-    (payload as any).phone ??
-    (payload as any).tel ??
-    (payload as any).customerPhone ??
-    (payload as any)["customer_phone"];
-
+    (payload as any).phone ?? (payload as any).tel ?? (payload as any).customerPhone ?? (payload as any)["customer_phone"];
   const customerEmailRaw =
-    (payload as any).email ??
-    (payload as any).customerEmail ??
-    (payload as any)["customer_email"];
+    (payload as any).email ?? (payload as any).customerEmail ?? (payload as any)["customer_email"];
 
   const customerName  = normalizePlain(customerNameRaw);
   const customerPhone = normalizePlain(customerPhoneRaw);
   const customerEmail = normalizeEmail(customerEmailRaw);
 
   const reqId = String(ctx.state?.reqId ?? crypto.randomUUID().slice(0, 8));
-  console.log(`[CONF ${reqId}] fields`, {
+  debugLog(`[CONF ${reqId}] fields`, {
     date, time, people,
     customerNameRaw, customerName,
     customerPhoneRaw, customerPhone,
