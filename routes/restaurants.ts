@@ -8,17 +8,15 @@ import {
   createReservation,
   getUserById,
   type Reservation,
+  type WeeklySchedule,
 } from "../database.ts";
 import { render } from "../lib/view.ts";
 import { sendReservationEmail, notifyOwnerEmail } from "../lib/mail.ts";
 import { debugLog } from "../lib/debug.ts";
 
-// ---------------- Utilities ----------------
+/* ---------------- Utilities ---------------- */
+
 function pad2(n: number) { return n.toString().padStart(2, "0"); }
-function todayISO(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-}
 function normalizeDate(input: unknown): string {
   let s = String(input ?? "").trim();
   if (!s) return "";
@@ -57,8 +55,16 @@ function toIntLoose(input: unknown): number | null {
   const onlyDigits = s.replace(/[^\d]/g, "");
   return onlyDigits ? Math.trunc(Number(onlyDigits)) : null;
 }
+function pickNonEmpty(...vals: unknown[]): string {
+  for (const v of vals) {
+    const s = String(v ?? "").trim();
+    if (s) return s;
+  }
+  return "";
+}
 
-// -------- Normalizers (RTL / Unicode) --------
+/* -------- Normalizers (RTL / Unicode) -------- */
+
 const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
 const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
 const FULLWIDTH_AT = /＠/g;
@@ -81,15 +87,60 @@ function normalizeEmail(raw: unknown): string {
 function isValidEmail(s: string): boolean {
   return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
 }
-function pickNonEmpty(...vals: unknown[]): string {
-  for (const v of vals) {
-    const s = String(v ?? "").trim();
-    if (s) return s;
-  }
-  return "";
+
+/* ---------------- Opening hours helpers ---------------- */
+
+function toMinutes(hhmm: string): number {
+  const m = hhmm.match(/^(\d{2}):(\d{2})$/);
+  if (!m) return NaN;
+  return Number(m[1]) * 60 + Number(m[2]);
 }
 
-// ---------------- Strong body reader for Oak ----------------
+function getWindowsForDate(weekly: WeeklySchedule | undefined | null, date: string)
+: Array<{ open: string; close: string }> {
+  if (!weekly) return [];
+  const d = new Date(date + "T00:00:00");
+  if (isNaN(d.getTime())) return [];
+  const dow = d.getDay() as keyof WeeklySchedule; // 0..6
+  const raw: any = (weekly as any)[dow];
+  if (!raw) return [];
+  // תומך הן באובייקט יחיד והן במערך של חלונות
+  return Array.isArray(raw) ? raw.filter(Boolean) : [raw];
+}
+
+function withinAnyWindow(timeMin: number, windows: Array<{ open: string; close: string }>) {
+  for (const w of windows) {
+    let a = toMinutes(w.open);
+    let b = toMinutes(w.close);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
+    // אם close <= open — חותכים עד סוף היום (לא חוצים לחצות ליום הבא בצד השרת)
+    if (b <= a) b = 24 * 60 - 1;
+    if (timeMin >= a && timeMin <= b) return true;
+  }
+  return false;
+}
+
+function isWithinSchedule(weekly: WeeklySchedule | undefined | null, date: string, time: string) {
+  const t = toMinutes(time);
+  if (!Number.isFinite(t)) return false;
+  const windows = getWindowsForDate(weekly, date);
+  return windows.length ? withinAnyWindow(t, windows) : false;
+}
+
+async function suggestionsWithinSchedule(
+  rid: string,
+  date: string,
+  time: string,
+  people: number,
+  weekly: WeeklySchedule | undefined | null,
+): Promise<string[]> {
+  const all = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
+  const windows = getWindowsForDate(weekly, date);
+  return all.filter(t => withinAnyWindow(toMinutes(t), windows)).slice(0, 4);
+}
+
+/* ---------------- Strong body reader for Oak ---------------- */
+
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const dbg: Record<string, unknown> = { ct: (ctx.request.headers.get("content-type") ?? "").toLowerCase(), phases: [] as any[] };
   const phase = (name: string, data?: unknown) => { try { (dbg.phases as any[]).push({ name, data }); } catch {} };
@@ -108,10 +159,9 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
 
   const out: Record<string, unknown> = {};
 
-  // 1) Oak body() API – ננסה קודם את הטיפוסים הסבירים לפי ה-CT
   async function tryOak(kind: "form" | "form-data" | "json" | "text" | "bytes") {
     try {
-      const b = await ctx.request.body?.({ type: kind });
+      const b = await (ctx.request as any).body?.({ type: kind });
       if (!b) return;
       const t = b.type;
       if (t === "form") {
@@ -120,7 +170,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
         phase("oak.body(form)", o);
         merge(out, o);
       } else if (t === "form-data") {
-        // Deno Oak ממיר ל־reader ייעודי
         const v = await b.value;
         const r = await v.read();
         const o = (r?.fields ?? {}) as Record<string, unknown>;
@@ -153,7 +202,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
   await tryOak("text");
   await tryOak("bytes");
 
-  // 2) Fallbacks בסגנון Web Request אם קיימים
   const reqAny: any = ctx.request as any;
   try {
     if (typeof reqAny.formData === "function") {
@@ -179,7 +227,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     }
   } catch (e) { phase("native.text.error", String(e)); }
 
-  // 3) תמיד מוסיפים querystring אם חסר
   const qs = Object.fromEntries(ctx.request.url.searchParams);
   phase("querystring", qs);
   for (const [k, v] of Object.entries(qs)) {
@@ -190,7 +237,8 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
   return { payload: out, dbg };
 }
 
-// ---------------- Helpers: extract date/time ----------------
+/* ---------------- Helpers: extract date/time ---------------- */
+
 function extractFromReferer(ctx: any) {
   const ref = ctx.request.headers.get("referer") || ctx.request.headers.get("referrer") || "";
   try {
@@ -198,6 +246,7 @@ function extractFromReferer(ctx: any) {
     return Object.fromEntries(u.searchParams);
   } catch { return {}; }
 }
+
 function extractDateAndTime(ctx: any, payload: Record<string, unknown>) {
   const qs = ctx.request.url.searchParams;
   const ref = extractFromReferer(ctx);
@@ -243,7 +292,8 @@ function extractDateAndTime(ctx: any, payload: Record<string, unknown>) {
   return { date, time };
 }
 
-// ---------------- Router ----------------
+/* ---------------- Router ---------------- */
+
 export const restaurantsRouter = new Router();
 
 function asOk(x: unknown): boolean {
@@ -252,7 +302,7 @@ function asOk(x: unknown): boolean {
   return !!x;
 }
 
-// API: אוטוקומפליט
+/* API: לאוטוקומפליט */
 restaurantsRouter.get("/api/restaurants", async (ctx) => {
   const q = ctx.request.url.searchParams.get("q") ?? "";
   const onlyApproved = (ctx.request.url.searchParams.get("approved") ?? "1") !== "0";
@@ -261,7 +311,7 @@ restaurantsRouter.get("/api/restaurants", async (ctx) => {
   ctx.response.body = JSON.stringify(items, null, 2);
 });
 
-// דף מסעדה — שלב 1
+/* דף מסעדה — שלב 1 */
 restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const id = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(id);
@@ -280,7 +330,8 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   await render(ctx, "restaurant", {
     page: "restaurant",
     title: `${restaurant.name} — GeoTable`,
-    restaurant,
+    // מעבירים ל־UI כ-openingHours (ה־UI שלך קורא מזה)
+    restaurant: { ...restaurant, openingHours: restaurant.weeklySchedule },
     conflict,
     suggestions,
     date,
@@ -288,7 +339,7 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   });
 });
 
-// API: בדיקת זמינות
+/* API: בדיקת זמינות */
 restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -310,8 +361,16 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("bad date (YYYY-MM-DD expected)");
   if (!/^\d{2}:\d{2}$/.test(time)) return bad("bad time (HH:mm expected)");
 
+  // אכיפת שעות פתיחה
+  if (!isWithinSchedule(restaurant.weeklySchedule, date, time)) {
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+    ctx.response.body = JSON.stringify({ ok:false, reason:"closed", suggestions }, null, 2);
+    return;
+  }
+
   const result = await checkAvailability(rid, date, time, people);
-  const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
+  const around = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
 
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   if (asOk(result)) {
@@ -322,7 +381,7 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   }
 });
 
-// שלב 1 → שלב 2
+/* שלב 1 → שלב 2 */
 restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -344,12 +403,25 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     return;
   }
 
-  const avail = await checkAvailability(rid, date, time, people);
-  if (!asOk(avail)) {
-    const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
+  // אכיפת שעות פתיחה
+  if (!isWithinSchedule(restaurant.weeklySchedule, date, time)) {
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
     const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
     url.searchParams.set("conflict", "1");
-    if (around.length) url.searchParams.set("suggest", around.slice(0,4).join(","));
+    if (suggestions.length) url.searchParams.set("suggest", suggestions.join(","));
+    url.searchParams.set("date", date);
+    url.searchParams.set("time", time);
+    ctx.response.status = Status.SeeOther;
+    ctx.response.headers.set("Location", url.pathname + url.search);
+    return;
+  }
+
+  const avail = await checkAvailability(rid, date, time, people);
+  if (!asOk(avail)) {
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+    const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
+    url.searchParams.set("conflict", "1");
+    if (suggestions.length) url.searchParams.set("suggest", suggestions.join(","));
     url.searchParams.set("date", date);
     url.searchParams.set("time", time);
     ctx.response.status = Status.SeeOther;
@@ -365,7 +437,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   ctx.response.headers.set("Location", u.pathname + u.search);
 });
 
-// שלב 2
+/* שלב 2 */
 restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
   const id = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(id);
@@ -387,7 +459,7 @@ restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
   });
 });
 
-// שלב 2 → אישור סופי (GET)
+/* שלב 2 → אישור סופי (GET) */
 restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -427,12 +499,21 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   if (customerEmail && !isValidEmail(customerEmail))
     return bad("נא להזין אימייל תקין", { customerEmail });
 
-  const avail = await checkAvailability(rid, date, time, people);
-  if (!asOk(avail)) {
-    const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
+  // אכיפת שעות פתיחה
+  if (!isWithinSchedule(restaurant.weeklySchedule, date, time)) {
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.status = Status.Conflict;
-    ctx.response.body = JSON.stringify({ ok:false, error:"אין זמינות במועד שבחרת", suggestions: around.slice(0,4) }, null, 2);
+    ctx.response.body = JSON.stringify({ ok:false, error:"המסעדה סגורה בשעה שנבחרה", suggestions }, null, 2);
+    return;
+  }
+
+  const avail = await checkAvailability(rid, date, time, people);
+  if (!asOk(avail)) {
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+    ctx.response.status = Status.Conflict;
+    ctx.response.body = JSON.stringify({ ok:false, error:"אין זמינות במועד שבחרת", suggestions }, null, 2);
     return;
   }
 
@@ -480,7 +561,7 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   });
 });
 
-// שלב 2 → אישור סופי (POST)
+/* שלב 2 → אישור סופי (POST) */
 restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -531,12 +612,21 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   if (customerEmail && !isValidEmail(customerEmail))
     return bad("נא להזין אימייל תקין", { customerEmail, note: "normalize applied" });
 
-  const avail = await checkAvailability(rid, date, time, people);
-  if (!asOk(avail)) {
-    const around = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
+  // אכיפת שעות פתיחה
+  if (!isWithinSchedule(restaurant.weeklySchedule, date, time)) {
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.status = Status.Conflict;
-    ctx.response.body = JSON.stringify({ ok:false, error:"אין זמינות במועד שבחרת", suggestions: around.slice(0,4) }, null, 2);
+    ctx.response.body = JSON.stringify({ ok:false, error:"המסעדה סגורה בשעה שנבחרה", suggestions }, null, 2);
+    return;
+  }
+
+  const avail = await checkAvailability(rid, date, time, people);
+  if (!asOk(avail)) {
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+    ctx.response.status = Status.Conflict;
+    ctx.response.body = JSON.stringify({ ok:false, error:"אין זמינות במועד שבחרת", suggestions }, null, 2);
     return;
   }
 
