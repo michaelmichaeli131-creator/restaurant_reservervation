@@ -79,7 +79,7 @@ function isValidEmail(s: string): boolean {
   return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
 }
 
-// Body reader (as before)
+// Body reader (as before) — עם תיקון חשוב ב-fromEntries
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const ct = (ctx.request.headers.get("content-type") ?? "").toLowerCase();
   const reqAny: any = ctx.request as any;
@@ -93,9 +93,20 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     }
     return a;
   };
+
+  // ❗ תיקון: לא לדרוס ערך קיים ב־""; לשמור את הלא־ריק האחרון
   const fromEntries = (iter: Iterable<[string, FormDataEntryValue]> | URLSearchParams) => {
     const o: Record<string, unknown> = {};
-    for (const [k, v] of (iter as any).entries()) o[k] = typeof v === "string" ? v : v?.name ?? "";
+    for (const [k, v0] of (iter as any).entries()) {
+      const v = typeof v0 === "string" ? v0 : (v0?.name ?? "");
+      if (v === "") {
+        // אם אין עדיין ערך עבור k — שמור ריק, אבל אל תדרוס ערך לא־ריק שהיה קודם
+        if (!(k in o)) o[k] = "";
+      } else {
+        // תמיד שמור ערך לא־ריק; אם היה קודם ריק – תחליף
+        o[k] = v;
+      }
+    }
     return o;
   };
 
@@ -172,14 +183,14 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
         }
       } else if (b.type === "bytes") {
         const u8: Uint8Array = await b.value;
-        const t = new TextDecoder().decode(u8);
-        phase("oak.obj.bytes", t.length > 200 ? t.slice(0,200) + "…" : t);
+        const tx = new TextDecoder().decode(u8);
+        phase("oak.obj.bytes", tx.length > 200 ? tx.slice(0,200) + "…" : tx);
         try {
-          const j = JSON.parse(t);
+          const j = JSON.parse(tx);
           phase("oak.obj.bytes->json", j);
           merge(out, j as any);
         } catch {
-          const sp = new URLSearchParams(t);
+          const sp = new URLSearchParams(tx);
           const o = fromEntries(sp);
           if (Object.keys(o).length) {
             phase("oak.obj.bytes->urlencoded", o);
@@ -229,14 +240,14 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
         }
       } else if (bb?.type === "bytes") {
         const u8: Uint8Array = await bb.value;
-        const t = new TextDecoder().decode(u8);
-        phase("oak.fn.bytes", t.length > 200 ? t.slice(0,200) + "…" : t);
+        const tx = new TextDecoder().decode(u8);
+        phase("oak.fn.bytes", tx.length > 200 ? tx.slice(0,200) + "…" : tx);
         try {
-          const j = JSON.parse(t);
+          const j = JSON.parse(tx);
           phase("oak.fn.bytes->json", j);
           merge(out, j as any);
         } catch {
-          const sp = new URLSearchParams(t);
+          const sp = new URLSearchParams(tx);
           const o = fromEntries(sp);
           if (Object.keys(o).length) {
             phase("oak.fn.bytes->urlencoded", o);
