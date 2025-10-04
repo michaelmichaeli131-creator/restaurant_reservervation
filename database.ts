@@ -400,6 +400,34 @@ export async function checkAvailability(restaurantId: string, date: string, time
   const r = await getRestaurant(restaurantId);
   if (!r) return { ok: false, reason: "not_found" as const };
 
+  // ← דיפולטים קשיחים כדי להתמודד עם נתונים ישנים ב-KV
+  const step = r.slotIntervalMinutes && r.slotIntervalMinutes > 0 ? r.slotIntervalMinutes : 15;
+  const span = r.serviceDurationMinutes && r.serviceDurationMinutes > 0 ? r.serviceDurationMinutes : 120;
+  const capacity = (typeof r.capacity === "number" && r.capacity > 0) ? r.capacity : 30;
+
+  // אם גם ה-people לא סביר – נרים ל-2
+  const seats = Math.max(1, Number.isFinite(people) ? people : 2);
+  if (seats > capacity) return { ok:false as const, reason: "full" as const };
+
+  const occ = await computeOccupancy(
+    { ...r, slotIntervalMinutes: step, serviceDurationMinutes: span, capacity }, // מבטיחים דיפולטים גם כאן
+    date
+  );
+
+  const start = snapToGrid(toMinutes(time), step);
+  const end = start + span;
+
+  for (let t = start; t < end; t += step) {
+    const used = occ.get(fromMinutes(t)) ?? 0;
+    if (used + seats > capacity) return { ok: false, reason: "full" as const };
+  }
+  return { ok: true as const };
+}
+
+
+  const r = await getRestaurant(restaurantId);
+  if (!r) return { ok: false, reason: "not_found" as const };
+
   const step = r.slotIntervalMinutes || 15;
   const span = r.serviceDurationMinutes || 120;
 
