@@ -1,10 +1,10 @@
 // public/app.js
 // SpotBook – client helpers for reservation UI
 // -------------------------------------------------------------
-// שיפורים חשובים:
-// 1) לא נוגעים יותר בשדות time חבויים (hidden)
-// 2) חיווט dropdown של שעות לעדכון השדה החבוי בשם "time"
-// 3) נרמול ל-15 דקות והשלמה בעת שליחה אם צריך
+// - ללא אינליין JS (עומד ב-CSP 'self')
+// - לא נוגעים בשדות time חבויים (hidden)
+// - חיווט dropdown לשדה החבוי name="time"
+// - בדיקת זמינות + הצגת הצעות חלופיות
 // -------------------------------------------------------------
 
 (function () {
@@ -12,12 +12,9 @@
   const QA = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
   // ---------- Utils ----------
-  function pad2(n) {
-    return String(n).padStart(2, "0");
-  }
+  function pad2(n) { return String(n).padStart(2, "0"); }
 
   function normalizeToQuarter(hhmm) {
-    // קולט "HH:MM" ומחזיר מנורמל לרבע שעה
     if (!/^\d{1,2}:\d{2}$/.test(hhmm || "")) return hhmm || "";
     const [hStr, mStr] = hhmm.split(":");
     let h = parseInt(hStr, 10);
@@ -27,10 +24,7 @@
     const rem = m % 15;
     if (rem !== 0) {
       m = m + (15 - rem);
-      if (m === 60) {
-        m = 0;
-        h = (h + 1) % 24;
-      }
+      if (m === 60) { m = 0; h = (h + 1) % 24; }
     }
     return `${pad2(h)}:${pad2(m)}`;
   }
@@ -42,38 +36,24 @@
 
   // ---------- Inputs enhancement ----------
   function enhanceInputs() {
-    // אם יש לוגיקה שהופכת inputs ל-type="time", נוודא שלא נוגעים ב-hidden:
-    // שימו לב: אנחנו בכוונה *לא* משנים type לשדה time חבוי.
-    const timeInputs = QA('input[name="time"]:not([type="hidden"])');
-    timeInputs.forEach((inp) => {
-      try {
-        // אם כבר type="time" — אל תיגע; אחרת, אל תשנה.
-        // אם בכל זאת תרצה להפוך ל-time, בטל את ההערה בשורה הבאה:
-        // if (inp.type !== "time") inp.type = "time";
-
-        // Validate to HH:MM on blur (אם המשתמש הקליד חופשי)
-        inp.addEventListener("blur", () => {
-          if (!inp.value) return;
-          const v = parseHHMMFromText(inp.value) || inp.value;
-          const norm = normalizeToQuarter(v);
-          if (norm) inp.value = norm;
-        });
-      } catch {
-        /* no-op */
-      }
+    // אל תיגע ב-hidden:
+    const visibleTimes = QA('input[name="time"]:not([type="hidden"])');
+    visibleTimes.forEach((inp) => {
+      inp.addEventListener("blur", () => {
+        if (!inp.value) return;
+        const v = parseHHMMFromText(inp.value) || inp.value;
+        const norm = normalizeToQuarter(v);
+        if (norm) inp.value = norm;
+      });
     });
 
-    // תאריך – הוספת אימות בסיסי
     const dateInputs = QA('input[type="date"][name="date"]');
     dateInputs.forEach((inp) => {
       inp.addEventListener("blur", () => {
-        // לוודא תבנית YYYY-MM-DD
         if (inp.value && !/^\d{4}-\d{2}-\d{2}$/.test(inp.value)) {
-          // נסה לתקן dd/mm/yyyy -> yyyy-mm-dd
           const m = inp.value.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);
           if (m) {
-            const d = pad2(m[1]);
-            const mo = pad2(m[2]);
+            const d = pad2(m[1]), mo = pad2(m[2]);
             const y = m[3].length === 2 ? `20${m[3]}` : m[3];
             inp.value = `${y}-${mo}-${d}`;
           }
@@ -84,166 +64,167 @@
 
   // ---------- Time dropdown wiring ----------
   function wireTimeDropdown() {
-    // הנחות מבניות (קשיח למינימום כדי לעבוד גם אם המבנה קצת שונה):
-    // - יש כפתור שמציג את השעה הנבחרת (id או data-role)
-    // - יש רשימת אפשרויות שעה עם class .time-option (הטקסט או data-time="HH:MM")
-    // - יש input hidden בשם time (input[name="time"][type="hidden"])
-    const timeHidden =
+    const hiddenTime =
       Q('input[name="time"][type="hidden"]') || Q('#time[type="hidden"]');
-    if (!timeHidden) return; // אין שדה חבוי – אין לנו מה לעשות כאן
+    if (!hiddenTime) return;
 
+    // תמיכה בשתי סכימות מזהים:
     const timeButton =
-      Q('#time-button') || Q('[data-role="time-button"]') || Q('[data-time-button]');
+      Q('#time-button') || Q('#time-display') ||
+      Q('[data-role="time-button"]') || Q('[data-time-button]');
     const dropdown =
-      Q('#time-dropdown') ||
-      Q('.time-dropdown') ||
+      Q('#time-dropdown') || Q('#time-options') ||
+      Q('.time-dropdown') || Q('.time-options') ||
       Q('[data-role="time-dropdown"]');
 
-    // עוזר להחיל שעה שנבחרה
+    function setButtonText(btn, hhmm) {
+      if (!btn) return;
+      btn.textContent = hhmm + " ";
+      const arr = document.createElement("span");
+      arr.className = "arrow";
+      arr.textContent = "▾";
+      btn.appendChild(arr);
+      btn.setAttribute("data-picked", hhmm);
+      btn.setAttribute("aria-expanded", "false");
+    }
+
     function applyPickedTime(hhmm, opts = { updateButton: true }) {
       if (!hhmm) return;
       const norm = normalizeToQuarter(hhmm);
-      timeHidden.value = norm;
-      if (opts.updateButton && timeButton) {
-        // אם הכפתור מציג טקסט בשפה אחרת, נשמור את הפורמט HH:MM החלק
-        const original = timeButton.getAttribute('data-label') || '';
-        timeButton.textContent = original ? `${original} ${norm}` : norm;
-        timeButton.setAttribute('data-picked', norm);
-      }
+      hiddenTime.value = norm;
+      if (opts.updateButton && timeButton) setButtonText(timeButton, norm);
     }
 
-    // קליק על אפשרות בתפריט
+    // קליק על אפשרות
     if (dropdown) {
       dropdown.addEventListener("click", (ev) => {
-        const target = ev.target;
-        const option = target && (target.closest?.(".time-option") || null);
-        if (!option) return;
-
-        const attr = option.getAttribute("data-time");
-        const picked =
-          attr && /^\d{1,2}:\d{2}$/.test(attr)
-            ? attr
-            : parseHHMMFromText(option.textContent);
-
-        if (picked) {
-          applyPickedTime(picked, { updateButton: true });
-          // סגירה לאחר בחירה
-          dropdown.classList.remove("open");
-          dropdown.setAttribute("aria-expanded", "false");
+        const el = ev.target?.closest?.(".time-option");
+        if (!el) return;
+        const t = el.getAttribute("data-time") || parseHHMMFromText(el.textContent);
+        if (t) {
+          applyPickedTime(t, { updateButton: true });
+          hideDropdown();
         }
       });
     }
 
-    // פתיחה/סגירה של dropdown
-    if (timeButton && dropdown) {
-      // שמור label בסיסי אם יש
-      if (!timeButton.getAttribute('data-label')) {
-        timeButton.setAttribute('data-label', timeButton.textContent.trim());
-      }
+    function showDropdown() {
+      if (!dropdown) return;
+      dropdown.hidden = false;
+      dropdown.classList.add("open");
+      timeButton?.setAttribute?.("aria-expanded", "true");
+    }
 
+    function hideDropdown() {
+      if (!dropdown) return;
+      dropdown.hidden = true;
+      dropdown.classList.remove("open");
+      timeButton?.setAttribute?.("aria-expanded", "false");
+    }
+
+    if (timeButton && dropdown) {
       timeButton.addEventListener("click", (e) => {
         e.preventDefault();
-        dropdown.classList.toggle("open");
-        dropdown.setAttribute(
-          "aria-expanded",
-          dropdown.classList.contains("open") ? "true" : "false",
-        );
+        e.stopPropagation();
+        dropdown.hidden ? showDropdown() : hideDropdown();
       });
 
-      // סגירה בלחיצה מחוץ
       document.addEventListener("click", (e) => {
-        if (
-          dropdown.classList.contains("open") &&
-          !dropdown.contains(e.target) &&
-          !timeButton.contains(e.target)
-        ) {
-          dropdown.classList.remove("open");
-          dropdown.setAttribute("aria-expanded", "false");
-        }
+        if (!dropdown.contains(e.target) && !timeButton.contains(e.target)) hideDropdown();
       });
     }
 
-    // אם יש input time גלוי (לא hidden) – סנכרון דו כיווני
-    const visibleTimeInput = Q('input[name="time"]:not([type="hidden"])');
-    if (visibleTimeInput) {
-      visibleTimeInput.addEventListener("input", () => {
-        if (!visibleTimeInput.value) return;
-        applyPickedTime(visibleTimeInput.value, { updateButton: true });
-      });
-      visibleTimeInput.addEventListener("blur", () => {
-        if (!visibleTimeInput.value) return;
-        applyPickedTime(visibleTimeInput.value, { updateButton: true });
-      });
-    }
+    // אם כבר היה ערך (חזרה משגיאה) – הצג בכפתור
+    if (hiddenTime.value && timeButton) setButtonText(timeButton, hiddenTime.value);
+  }
 
-    // אם כבר הוזן ערך (נניח שחזרנו מטעות) – הצג בכפתור
-    if (timeHidden.value && timeButton) {
-      applyPickedTime(timeHidden.value, { updateButton: true });
+  // ---------- Availability check & suggestions ----------
+  function wireAvailabilityCheck() {
+    const btn = Q("#check-btn");
+    if (!btn) return;
+
+    btn.addEventListener("click", async () => {
+      const date = Q("#date")?.value || "";
+      const time = Q('#time[type="hidden"]')?.value || "";
+      if (!date || !time) {
+        alert("נא לבחור תאריך ושעה");
+        return;
+      }
+      const rid = btn.getAttribute("data-rid") || "";
+
+      const resp = await fetch(`/api/restaurants/${encodeURIComponent(rid)}/check`, {
+        method: "POST",
+        headers: { "Accept": "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ date, time }),
+      });
+
+      let data = null;
+      try { data = await resp.json(); } catch { /* ignore */ }
+
+      if (resp.ok && data && data.ok) {
+        renderAround([]); // אין קונפליקט
+      } else {
+        renderAround(data?.suggestions || []);
+      }
+    });
+  }
+
+  function renderAround(slots) {
+    const card = Q("#around-card");
+    const box = Q("#around-slots");
+    const hiddenTime = Q('#time[type="hidden"]');
+    const timeButton =
+      Q('#time-button') || Q('#time-display') ||
+      Q('[data-role="time-button"]') || Q('[data-time-button]');
+
+    if (!card || !box) return;
+
+    box.innerHTML = "";
+    if (Array.isArray(slots) && slots.length) {
+      card.hidden = false;
+      slots.slice(0, 8).forEach((t) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "slot";
+        b.textContent = t;
+        b.addEventListener("click", () => {
+          if (hiddenTime) hiddenTime.value = normalizeToQuarter(t);
+          if (timeButton) {
+            timeButton.textContent = t + " ";
+            const arr = document.createElement("span");
+            arr.className = "arrow";
+            arr.textContent = "▾";
+            timeButton.appendChild(arr);
+            timeButton.setAttribute("data-picked", t);
+          }
+          card.hidden = true;
+        });
+        box.appendChild(b);
+      });
+    } else {
+      card.hidden = true;
     }
   }
 
-  // ---------- Form submit guard ----------
+  // ---------- Submit guard ----------
   function wireSubmitGuard() {
     const form = Q("#reserve-form") || Q('form[action*="/reserve"]');
     if (!form) return;
 
     form.addEventListener("submit", (e) => {
-      // ודא שתאריך ושעה נשלחים
       const dateInput = Q('input[name="date"]', form);
       const hiddenTime =
         Q('input[name="time"][type="hidden"]', form) ||
         Q('#time[type="hidden"]', form);
-      const visibleTime = Q('input[name="time"]:not([type="hidden"])', form);
 
-      // אם השעה החבויה ריקה אבל הכפתור מציג שעה — קח משם
-      const timeButton =
-        Q('#time-button') ||
-        Q('[data-role="time-button"]') ||
-        Q('[data-time-button]');
-      if (hiddenTime && !hiddenTime.value && timeButton) {
-        const btnPicked = timeButton.getAttribute("data-picked");
-        if (btnPicked && /^\d{1,2}:\d{2}$/.test(btnPicked)) {
-          hiddenTime.value = normalizeToQuarter(btnPicked);
-        } else {
-          // ננסה לפענח מהטקסט של הכפתור
-          const parsed = parseHHMMFromText(timeButton.textContent);
-          if (parsed) hiddenTime.value = normalizeToQuarter(parsed);
-        }
-      }
-
-      // אם נקלטה שעה בשדה הגלוי – נעדיף אותה (מנורמלת)
-      if (visibleTime && visibleTime.value) {
-        const norm = normalizeToQuarter(visibleTime.value);
-        if (hiddenTime) hiddenTime.value = norm;
-      }
-
-      // ולידציה בסיסית בצד לקוח
       const errors = [];
-      if (!dateInput || !dateInput.value) {
-        errors.push("אנא בחר/י תאריך.");
-      } else if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInput.value)) {
-        errors.push("תאריך לא תקין. פורמט נדרש: YYYY-MM-DD.");
-      }
-
-      if (!hiddenTime || !hiddenTime.value) {
-        errors.push("אנא בחר/י שעה.");
-      } else if (!/^\d{2}:\d{2}$/.test(hiddenTime.value)) {
-        errors.push("שעה לא תקינה. פורמט נדרש: HH:MM.");
-      }
+      if (!dateInput || !dateInput.value) errors.push("אנא בחר/י תאריך.");
+      if (!hiddenTime || !hiddenTime.value) errors.push("אנא בחר/י שעה.");
 
       if (errors.length) {
         e.preventDefault();
-        // הצגת הודעה למשתמש (אפשר לשפר לטוסט/אלרט מעוצב)
         alert(errors.join("\n"));
-        // נסה לפקסס לשדות שגויים
-        if (dateInput && !dateInput.value) dateInput.focus();
-        else {
-          const timeBtn =
-            Q('#time-button') ||
-            Q('[data-role="time-button"]') ||
-            Q('[data-time-button]');
-          (timeBtn || visibleTime || hiddenTime)?.focus?.();
-        }
+        (dateInput?.value ? form.querySelector("#time-button") : dateInput)?.focus?.();
       }
     });
   }
@@ -253,9 +234,9 @@
     try {
       enhanceInputs();
       wireTimeDropdown();
+      wireAvailabilityCheck();
       wireSubmitGuard();
     } catch (err) {
-      // בלוג דיבאג לקונסול בלבד
       console.debug("[app.js] init error", err);
     }
   });
