@@ -33,9 +33,10 @@ function normalizeDate(input: unknown): string {
   if (m) return `${m[3]}-${m[2]}-${m[1]}`;
   return s;
 }
+// החמרה: אם אין קלט — מחזירים "" (לא רבע שעה הבאה), כדי שלא יעבור ולידציה בטעות.
 function normalizeTime(input: unknown): string {
   const s = String(input ?? "").trim();
-  if (!s) return nextQuarterHour();
+  if (!s) return "";
   const t = /^\d{2}\.\d{2}$/.test(s) ? s.replace(".", ":") : s;
   const m = t.match(/^(\d{1,2}):(\d{2})$/);
   if (!m) return t;
@@ -79,7 +80,16 @@ function isValidEmail(s: string): boolean {
   return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
 }
 
-// Body reader (as before) — עם תיקון חשוב ב-fromEntries
+// עזר: בוחר את הערך הלא-ריק הראשון
+function pickNonEmpty(...vals: unknown[]): string {
+  for (const v of vals) {
+    const s = String(v ?? "").trim();
+    if (s) return s;
+  }
+  return "";
+}
+
+// Body reader (as before) — עם תיקון חשוב ב-fromEntries: לא לדרוס ערך לא-ריק בערך ריק
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const ct = (ctx.request.headers.get("content-type") ?? "").toLowerCase();
   const reqAny: any = ctx.request as any;
@@ -93,18 +103,14 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     }
     return a;
   };
-
-  // ❗ תיקון: לא לדרוס ערך קיים ב־""; לשמור את הלא־ריק האחרון
   const fromEntries = (iter: Iterable<[string, FormDataEntryValue]> | URLSearchParams) => {
     const o: Record<string, unknown> = {};
     for (const [k, v0] of (iter as any).entries()) {
       const v = typeof v0 === "string" ? v0 : (v0?.name ?? "");
       if (v === "") {
-        // אם אין עדיין ערך עבור k — שמור ריק, אבל אל תדרוס ערך לא־ריק שהיה קודם
-        if (!(k in o)) o[k] = "";
+        if (!(k in o)) o[k] = ""; // אל תדרוס ערך קיים
       } else {
-        // תמיד שמור ערך לא־ריק; אם היה קודם ריק – תחליף
-        o[k] = v;
+        o[k] = v; // הערך הלא-ריק תמיד מנצח
       }
     }
     return o;
@@ -183,14 +189,14 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
         }
       } else if (b.type === "bytes") {
         const u8: Uint8Array = await b.value;
-        const tx = new TextDecoder().decode(u8);
-        phase("oak.obj.bytes", tx.length > 200 ? tx.slice(0,200) + "…" : tx);
+        const t = new TextDecoder().decode(u8);
+        phase("oak.obj.bytes", t.length > 200 ? t.slice(0,200) + "…" : t);
         try {
-          const j = JSON.parse(tx);
+          const j = JSON.parse(t);
           phase("oak.obj.bytes->json", j);
           merge(out, j as any);
         } catch {
-          const sp = new URLSearchParams(tx);
+          const sp = new URLSearchParams(t);
           const o = fromEntries(sp);
           if (Object.keys(o).length) {
             phase("oak.obj.bytes->urlencoded", o);
@@ -240,14 +246,14 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
         }
       } else if (bb?.type === "bytes") {
         const u8: Uint8Array = await bb.value;
-        const tx = new TextDecoder().decode(u8);
-        phase("oak.fn.bytes", tx.length > 200 ? tx.slice(0,200) + "…" : tx);
+        const t = new TextDecoder().decode(u8);
+        phase("oak.fn.bytes", t.length > 200 ? t.slice(0,200) + "…" : t);
         try {
-          const j = JSON.parse(tx);
+          const j = JSON.parse(t);
           phase("oak.fn.bytes->json", j);
           merge(out, j as any);
         } catch {
-          const sp = new URLSearchParams(tx);
+          const sp = new URLSearchParams(t);
           const o = fromEntries(sp);
           if (Object.keys(o).length) {
             phase("oak.fn.bytes->urlencoded", o);
@@ -366,8 +372,11 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   }
 
   const { payload } = await readBody(ctx);
-  const date = normalizeDate((payload as any).date ?? ctx.request.url.searchParams.get("date"));
-  const time = normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time"));
+  // בחירה לא-ריקה (payload קודם, ואז querystring)
+  const rawDate = pickNonEmpty((payload as any).date, ctx.request.url.searchParams.get("date"));
+  const rawTime = pickNonEmpty((payload as any).time, ctx.request.url.searchParams.get("time"));
+  const date = normalizeDate(rawDate);
+  const time = normalizeTime(rawTime);
   const people = 2;
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
@@ -526,9 +535,9 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
 
   const { payload, dbg } = await readBody(ctx);
 
-  const date   = normalizeDate((payload as any).date ?? ctx.request.url.searchParams.get("date") ?? "");
-  const time   = normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time") ?? "");
-  const people = toIntLoose((payload as any).people ?? ctx.request.url.searchParams.get("people")) ?? 2;
+  const date   = normalizeDate(pickNonEmpty((payload as any).date, ctx.request.url.searchParams.get("date")));
+  const time   = normalizeTime(pickNonEmpty((payload as any).time, ctx.request.url.searchParams.get("time")));
+  const people = toIntLoose(pickNonEmpty((payload as any).people, ctx.request.url.searchParams.get("people"))) ?? 2;
 
   const customerNameRaw  =
     (payload as any).name ??
