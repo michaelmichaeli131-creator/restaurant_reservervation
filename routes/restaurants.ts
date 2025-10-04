@@ -12,7 +12,7 @@ import {
 import { render } from "../lib/view.ts";
 import { sendReservationEmail, notifyOwnerEmail } from "../lib/mail.ts";
 
-// Utilities (pad2, normalizeDate, normalizeTime, etc.)
+// Utilities (pad2, normalizeDate, normalizeTime, וכו')
 function pad2(n: number) { return n.toString().padStart(2, "0"); }
 function todayISO(): string {
   const d = new Date();
@@ -25,26 +25,43 @@ function nextQuarterHour(): string {
   d.setMinutes(mins + add, 0, 0);
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
+
+// *** הקשחה: תומך גם ב-ISO datetime, וגם ב-dd/mm/yyyy או dd.mm.yyyy
 function normalizeDate(input: unknown): string {
-  const s = String(input ?? "").trim();
+  let s = String(input ?? "").trim();
   if (!s) return todayISO();
+  // אם הגיע ISO עם זמן: "2025-11-06T20:00" → נחלץ רק את התאריך
+  const iso = s.match(/^(\d{4}-\d{2}-\d{2})[T\s]/);
+  if (iso) return iso[1];
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const m = s.match(/^(\d{2})[\/.](\d{2})[\/.](\d{4})$/);
-  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  const dmy = s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})$/);
+  if (dmy) {
+    const dd = pad2(+dmy[1]);
+    const mm = pad2(+dmy[2]);
+    const yyyy = dmy[3].length === 2 ? `20${dmy[3]}` : dmy[3];
+    return `${yyyy}-${mm}-${dd}`;
+  }
   return s;
 }
-// החמרה: אם אין קלט — מחזירים "" (לא רבע שעה הבאה), כדי שלא יעבור ולידציה בטעות.
+
+// *** הקשחה: תומך גם ב-ISO datetime, וגם מנרמל ל-רבעי שעה
 function normalizeTime(input: unknown): string {
-  const s = String(input ?? "").trim();
+  let s = String(input ?? "").trim();
   if (!s) return "";
-  const t = /^\d{2}\.\d{2}$/.test(s) ? s.replace(".", ":") : s;
-  const m = t.match(/^(\d{1,2}):(\d{2})$/);
-  if (!m) return t;
+  // 20.00 → 20:00
+  if (/^\d{1,2}\.\d{2}$/.test(s)) s = s.replace(".", ":");
+  // אם הגיע ISO עם זמן: "2025-11-06T20:00"
+  const iso = s.match(/T(\d{2}):(\d{2})/);
+  if (iso) s = `${iso[1]}:${iso[2]}`;
+
+  const m = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return s;
   let h = Math.max(0, Math.min(23, Number(m[1])));
   let mi = Math.max(0, Math.min(59, Number(m[2])));
   mi = Math.floor(mi / 15) * 15;
   return `${pad2(h)}:${pad2(mi)}`;
 }
+
 function toIntLoose(input: unknown): number | null {
   if (typeof input === "number" && Number.isFinite(input)) return Math.trunc(input);
   if (typeof input === "bigint") return Number(input);
@@ -80,7 +97,7 @@ function isValidEmail(s: string): boolean {
   return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
 }
 
-// עזר: בוחר את הערך הלא-ריק הראשון
+// עזרים
 function pickNonEmpty(...vals: unknown[]): string {
   for (const v of vals) {
     const s = String(v ?? "").trim();
@@ -89,7 +106,37 @@ function pickNonEmpty(...vals: unknown[]): string {
   return "";
 }
 
-// Body reader (as before) — עם תיקון חשוב ב-fromEntries: לא לדרוס ערך לא-ריק בערך ריק
+// *** חדש: חילוץ חכם של שעה ותאריך ממגוון שמות/פורמטים
+function extractRawDate(source: Record<string, unknown>, qs: URLSearchParams): string {
+  const candidates = [
+    source["date"], source["reservation_date"], source["res_date"],
+    qs.get("date"), qs.get("reservation_date"), qs.get("res_date"),
+    source["datetime"], source["datetime_local"], source["datetime-local"],
+    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"),
+  ];
+  return pickNonEmpty(...candidates);
+}
+
+function extractRawTime(source: Record<string, unknown>, qs: URLSearchParams): string {
+  // אם יש שדה time מפורש – הוא ראשון. אחרת: time_display / צמד hour+minute / datetime-local
+  const hhmmFromHM = (() => {
+    const h = pickNonEmpty(source["hour"], qs.get("hour"));
+    const m = pickNonEmpty(source["minute"], qs.get("minute"));
+    if (h && m) return `${pad2(Number(h))}:${pad2(Number(m))}`;
+    return "";
+  })();
+
+  const candidates = [
+    source["time"], qs.get("time"),
+    source["time_display"], source["timeDisplay"], qs.get("time_display"), qs.get("timeDisplay"),
+    hhmmFromHM,
+    source["datetime"], source["datetime_local"], source["datetime-local"],
+    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"),
+  ];
+  return pickNonEmpty(...candidates);
+}
+
+// Body reader (as before) + תיקון קטן ב-fromEntries לא לדרוס ערך לא-ריק ע"י ריק
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const ct = (ctx.request.headers.get("content-type") ?? "").toLowerCase();
   const reqAny: any = ctx.request as any;
@@ -108,9 +155,9 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     for (const [k, v0] of (iter as any).entries()) {
       const v = typeof v0 === "string" ? v0 : (v0?.name ?? "");
       if (v === "") {
-        if (!(k in o)) o[k] = ""; // אל תדרוס ערך קיים
+        if (!(k in o)) o[k] = "";
       } else {
-        o[k] = v; // הערך הלא-ריק תמיד מנצח
+        o[k] = v;
       }
     }
     return o;
@@ -118,7 +165,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
 
   const out: Record<string, unknown> = {};
 
-  // native formData
   try {
     if (typeof reqAny.formData === "function") {
       const fd = await reqAny.formData();
@@ -127,7 +173,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     }
   } catch (e) { phase("native.ctx.formData.error", String(e)); }
 
-  // native json
   try {
     if (typeof reqAny.json === "function") {
       const j = await reqAny.json();
@@ -135,7 +180,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     }
   } catch (e) { phase("native.ctx.json.error", String(e)); }
 
-  // text -> urlencoded or json
   try {
     if (typeof reqAny.text === "function") {
       const t: string = await reqAny.text();
@@ -154,7 +198,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     }
   } catch (e) { phase("native.ctx.text.error", String(e)); }
 
-  // Oak object body (json, form, form-data, text, bytes)
   try {
     const b = (reqAny.body && typeof reqAny.body !== "function") ? reqAny.body : null;
     if (b && b.type) {
@@ -211,7 +254,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     phase("oak.body.object.error", String(e));
   }
 
-  // Oak body as function (older versions)
   try {
     if (typeof reqAny.body === "function") {
       const bb = await reqAny.body();
@@ -268,7 +310,6 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     phase("oak.body.fn.error", String(e));
   }
 
-  // Always include querystring values if not in body
   const qs = Object.fromEntries(ctx.request.url.searchParams);
   phase("querystring", qs);
   for (const [k, v] of Object.entries(qs)) {
@@ -290,7 +331,7 @@ function asOk(x: unknown): boolean {
   return !!x;
 }
 
-/** API: לאוטוקומפליט */
+/** API: אוטוקומפליט */
 restaurantsRouter.get("/api/restaurants", async (ctx) => {
   const q = ctx.request.url.searchParams.get("q") ?? "";
   const onlyApproved = (ctx.request.url.searchParams.get("approved") ?? "1") !== "0";
@@ -337,8 +378,8 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   }
 
   const { payload, dbg } = await readBody(ctx);
-  const date = normalizeDate((payload as any).date ?? "");
-  const time = normalizeTime((payload as any).time ?? "");
+  const date = normalizeDate(extractRawDate(payload, ctx.request.url.searchParams));
+  const time = normalizeTime(extractRawTime(payload, ctx.request.url.searchParams));
   const people = 2;
 
   const bad = (m: string) => {
@@ -372,9 +413,8 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   }
 
   const { payload } = await readBody(ctx);
-  // בחירה לא-ריקה (payload קודם, ואז querystring)
-  const rawDate = pickNonEmpty((payload as any).date, ctx.request.url.searchParams.get("date"));
-  const rawTime = pickNonEmpty((payload as any).time, ctx.request.url.searchParams.get("time"));
+  const rawDate = extractRawDate(payload, ctx.request.url.searchParams);
+  const rawTime = extractRawTime(payload, ctx.request.url.searchParams);
   const date = normalizeDate(rawDate);
   const time = normalizeTime(rawTime);
   const people = 2;
@@ -440,8 +480,8 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   }
 
   const sp = ctx.request.url.searchParams;
-  const date   = normalizeDate(sp.get("date") ?? "");
-  const time   = normalizeTime(sp.get("time") ?? "");
+  const date   = normalizeDate(extractRawDate({}, sp));
+  const time   = normalizeTime(extractRawTime({}, sp));
   const people = toIntLoose(sp.get("people")) ?? 2;
 
   const customerNameRaw =
@@ -535,8 +575,8 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
 
   const { payload, dbg } = await readBody(ctx);
 
-  const date   = normalizeDate(pickNonEmpty((payload as any).date, ctx.request.url.searchParams.get("date")));
-  const time   = normalizeTime(pickNonEmpty((payload as any).time, ctx.request.url.searchParams.get("time")));
+  const date   = normalizeDate(extractRawDate(payload, ctx.request.url.searchParams));
+  const time   = normalizeTime(extractRawTime(payload, ctx.request.url.searchParams));
   const people = toIntLoose(pickNonEmpty((payload as any).people, ctx.request.url.searchParams.get("people"))) ?? 2;
 
   const customerNameRaw  =
