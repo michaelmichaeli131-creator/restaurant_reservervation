@@ -89,9 +89,17 @@
   <% } %>
 </main>
 
-<!-- נעביר את שעות הפתיחה לפרונט -->
+<!-- מזריקים ללקוח את weeklySchedule (ואם אין — ברירת מחדל ידידותית) -->
 <script id="opening-hours-data" type="application/json">
-<%- JSON.stringify(it.restaurant.openingHours || it.restaurant.hours || it.restaurant.open_hours || null) %>
+<%- JSON.stringify(it.restaurant.weeklySchedule || {
+  0:{open:"10:00",close:"22:00"},
+  1:{open:"10:00",close:"22:00"},
+  2:{open:"10:00",close:"22:00"},
+  3:{open:"10:00",close:"22:00"},
+  4:{open:"10:00",close:"22:00"},
+  5:{open:"10:00",close:"23:00"},
+  6:{open:"10:00",close:"23:00"}
+}) %>
 </script>
 
 <script>
@@ -109,6 +117,19 @@
       OPENING_HOURS = JSON.parse(raw);
     } catch { OPENING_HOURS = null; }
 
+    // עוגן ברירת מחדל אם לא הוגדר כלום (בטחון כפול)
+    if (!OPENING_HOURS) {
+      OPENING_HOURS = {
+        0:{open:"10:00",close:"22:00"},
+        1:{open:"10:00",close:"22:00"},
+        2:{open:"10:00",close:"22:00"},
+        3:{open:"10:00",close:"22:00"},
+        4:{open:"10:00",close:"22:00"},
+        5:{open:"10:00",close:"23:00"},
+        6:{open:"10:00",close:"23:00"},
+      };
+    }
+
     // --- עזרי זמן ---
     const pad2 = (n) => String(n).padStart(2, "0");
     const toMin = (hhmm) => {
@@ -120,16 +141,14 @@
     };
     const fromMin = (mins) => `${pad2(Math.floor(mins/60))}:${pad2(mins%60)}`;
     const roundToQuarterUp = (mins) => {
-      const rem = mins % 15;
-      return rem ? mins + (15 - rem) : mins;
+      const rem = mins % 15; return rem ? mins + (15 - rem) : mins;
     };
 
     // --- פרסינג גמיש של שעות פתיחה ליום ---
     function normalizeDayRanges(dayDef) {
-      // תומך במבנים:
-      // 1) ["10:00-14:00","18:00-23:00"]
-      // 2) [{start:"10:00", end:"14:00"}, {start:"18:00", end:"23:00"}]
-      // 3) [["10:00","14:00"],["18:00","23:00"]]
+      // תומך:
+      // {open:"10:00",close:"22:00"}  או  ["10:00-14:00","18:00-23:00"]
+      // או [{start:"10:00",end:"14:00"}, ...]  או [["10:00","14:00"],...]
       if (!dayDef) return [];
       const arr = Array.isArray(dayDef) ? dayDef : [dayDef];
       const out = [];
@@ -147,16 +166,12 @@
         const sMin = toMin(s), eMin = toMin(e);
         if (sMin == null || eMin == null) continue;
 
-        // טיפול בטווח חוצה-חצות (למשל 18:00-02:00)
         if (eMin <= sMin) {
-          // נחתוך עד סוף היום בלבד לרשימת היום הנוכחי
-          out.push([sMin, 24*60 - 1]); // 23:59
-          // את "אחרי חצות" ממילא לא נציג ליום הזה
+          out.push([sMin, 24*60 - 1]); // טווח חוצה חצות: מציגים עד סוף היום
         } else {
           out.push([sMin, eMin]);
         }
       }
-      // מיזוג חפיפות/מיון
       out.sort((a,b)=>a[0]-b[0]);
       const merged = [];
       for (const r of out) {
@@ -171,10 +186,7 @@
       if (!OPENING_HOURS) return null;
       const d = new Date(dateStr || Date.now());
       if (isNaN(d.getTime())) return null;
-      // JS: 0=Sunday ... 6=Saturday
-      const dow = d.getDay();
-
-      // נתמוך גם במבני key שונים: {0..6} או {"sun"..."sat"} או { "sunday": ... }
+      const dow = d.getDay(); // 0=Sunday..6=Saturday
       const mapKeys = [
         String(dow),
         ["sun","mon","tue","wed","thu","fri","sat"][dow],
@@ -190,13 +202,11 @@
       return normalizeDayRanges(dayDef);
     }
 
-    // --- בניית רשימת השעות בדפדוף ---
     function rebuildTimeOptionsFor(dateStr) {
       opts.innerHTML = "";
       const ranges = getRangesForDate(dateStr);
 
       if (!ranges || !ranges.length) {
-        // אין שעות פתיחה ליום הזה — נשאיר ריק
         const empty = document.createElement("div");
         empty.className = "time-option";
         empty.setAttribute("aria-disabled", "true");
@@ -205,7 +215,6 @@
         return;
       }
 
-      // בונים אופציות לפי טווחים, קפיצות של 15 דק'
       const frag = document.createDocumentFragment();
       for (const [startMin, endMin] of ranges) {
         for (let m = roundToQuarterUp(startMin); m <= endMin; m += 15) {
@@ -221,7 +230,7 @@
       opts.appendChild(frag);
     }
 
-    // --- פתיחה/סגירה של הרשימה ---
+    // פתיחה/סגירה
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -230,13 +239,11 @@
         opts.hidden = true;
         btn.setAttribute("aria-expanded","false");
       } else {
-        // לפני פתיחה דואגים שהרשימה עדכנית לתאריך הנבחר
         rebuildTimeOptionsFor(dateInput.value || new Date().toISOString().slice(0,10));
         opts.hidden = false;
         btn.setAttribute("aria-expanded","true");
       }
     });
-
     document.addEventListener("click", (e) => {
       if (!btn.contains(e.target) && !opts.contains(e.target)) {
         if (!opts.hidden) {
@@ -246,60 +253,54 @@
       }
     });
 
-    // --- בחירת שעה מתוך הרשימה (delegete כדי לעבוד גם אחרי rebuild) ---
+    // בחירת שעה
     opts.addEventListener("click", (ev) => {
       const el = ev.target?.closest?.(".time-option");
       if (!el || el.getAttribute("aria-disabled")==="true") return;
       const v = el.dataset.value;
       if (!v) return;
-      // עדכון הכפתור
       btn.textContent = v + " ";
       const arr = document.createElement("span");
-      arr.className = "arrow";
-      arr.textContent = "▾";
+      arr.className = "arrow"; arr.textContent = "▾";
       btn.appendChild(arr);
       hiddenInput.value = v;
       opts.hidden = true;
       btn.setAttribute("aria-expanded", "false");
     });
 
-    // --- שינוי תאריך: בנייה מחדש וניקוי שעה אם אינה חוקית ליום זה ---
+    // שינוי תאריך
     dateInput.addEventListener("change", () => {
       const prev = hiddenInput.value;
       rebuildTimeOptionsFor(dateInput.value);
       if (prev) {
-        // אם השעה הקודמת לא קיימת בטווח החדש — נבטל אותה
         const stillExists = !!opts.querySelector(`.time-option[data-value="${prev}"]`);
         if (!stillExists) {
           hiddenInput.value = "";
           btn.textContent = "בחר שעה ";
           const arr = document.createElement("span");
-          arr.className = "arrow";
-          arr.textContent = "▾";
+          arr.className = "arrow"; arr.textContent = "▾";
           btn.appendChild(arr);
         }
       }
     });
 
-    // --- שמירה שהשעה ההתחלתית (אם קיימת) גם חוקית ליום ---
+    // init
     (function initTimeForInitialDate(){
       const initDate = dateInput.value || new Date().toISOString().slice(0,10);
       rebuildTimeOptionsFor(initDate);
       if (hiddenInput.value) {
         const ok = !!opts.querySelector(`.time-option[data-value="${hiddenInput.value}"]`);
         if (!ok) {
-          // שעה שהגיעה מה-URL או חזרה משגיאה אך לא חוקית לפתיחה: ננקה
           hiddenInput.value = "";
           btn.textContent = "בחר שעה ";
           const arr = document.createElement("span");
-          arr.className = "arrow";
-          arr.textContent = "▾";
+          arr.className = "arrow"; arr.textContent = "▾";
           btn.appendChild(arr);
         }
       }
     })();
 
-    // --- Submit guard + הזרקה ל-URL (נשאר כמו קודם) ---
+    // Submit guard + הזרקה ל-URL
     form.addEventListener("submit", (ev) => {
       const dateVal = dateInput.value.trim();
       const timeVal = hiddenInput.value.trim();
@@ -314,7 +315,7 @@
       form.action = u.pathname + u.search;
     });
 
-    // --- בדיקת זמינות (לא שינינו לוגיקה) ---
+    // בדיקת זמינות
     const checkBtn = document.getElementById("check-btn");
     checkBtn?.addEventListener("click", async () => {
       const date = dateInput.value.trim();
@@ -371,165 +372,33 @@
 </script>
 
 <style>
-  .container {
-    max-width: 960px;
-    margin: 24px auto;
-    padding: 0 16px;
-  }
-  .card {
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 20px;
-    margin-bottom: 24px;
-    background: #fff;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-  }
-  .form-grid {
-    display: grid;
-    grid-template-columns: repeat(2,1fr);
-    gap: 16px;
-  }
-  .form-row {
-    display: flex;
-    flex-direction: column;
-    position: relative;
-  }
-  .form-row.time-row {
-    grid-column: 1 / -1;
-  }
-  .time-dropdown-wrapper {
-    position: relative;
-    width: 100%;
-  }
-  .time-dropdown-btn {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid #cbd5e0;
-    border-radius: 6px;
-    background: #fff;
-    text-align: left;
-    font-size: 1rem;
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .time-options {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    max-height: 240px;
-    overflow-y: auto;
-    border: 1px solid #cbd5e0;
-    border-radius: 6px;
-    background: #fff;
-    z-index: 1000;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-  }
-  .time-option {
-    padding: 8px 12px;
-    cursor: pointer;
-  }
-  .time-option[aria-disabled="true"] {
-    color: #999;
-    cursor: default;
-  }
-  .time-option:hover {
-    background: #f0f0ff;
-  }
-  .arrow {
-    margin-left: 8px;
-    color: #666;
-  }
-  .form-row label {
-    margin-bottom: 4px;
-    color: #333;
-    font-weight: 500;
-  }
-  .form-row input {
-    padding: 10px 12px;
-    border: 1px solid #cbd5e0;
-    border-radius: 6px;
-    font-size: 1rem;
-    transition: border-color 0.2s;
-  }
-  .form-row input:focus {
-    outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102,126,234,0.3);
-  }
-  .form-actions {
-    grid-column: 1 / -1;
-    display: flex;
-    gap: 12px;
-    margin-top: 16px;
-  }
-  .btn {
-    padding: 10px 16px;
-    border: none;
-    border-radius: 6px;
-    background-color: #667eea;
-    color: #fff;
-    cursor: pointer;
-    transition: background-color 0.2s;
-  }
+  .container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+  .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 24px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .form-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
+  .form-row { display: flex; flex-direction: column; position: relative; }
+  .form-row.time-row { grid-column: 1 / -1; }
+  .time-dropdown-wrapper { position: relative; width: 100%; }
+  .time-dropdown-btn { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e0; border-radius: 6px; background: #fff; text-align: left; font-size: 1rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .time-options { position: absolute; top: calc(100% + 4px); left: 0; right: 0; max-height: 240px; overflow-y: auto; border: 1px solid #cbd5e0; border-radius: 6px; background: #fff; z-index: 1000; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+  .time-option { padding: 8px 12px; cursor: pointer; }
+  .time-option[aria-disabled="true"] { color: #999; cursor: default; }
+  .time-option:hover { background: #f0f0ff; }
+  .arrow { margin-left: 8px; color: #666; }
+  .form-row label { margin-bottom: 4px; color: #333; font-weight: 500; }
+  .form-row input { padding: 10px 12px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 1rem; transition: border-color 0.2s; }
+  .form-row input:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.3); }
+  .form-actions { grid-column: 1 / -1; display: flex; gap: 12px; margin-top: 16px; }
+  .btn { padding: 10px 16px; border: none; border-radius: 6px; background-color: #667eea; color: #fff; cursor: pointer; transition: background-color 0.2s; }
   .btn:hover { background-color: #5a67d8; }
-  .btn.secondary {
-    background-color: #a0aec0;
-  }
-  .btn.secondary:hover {
-    background-color: #718096;
-  }
-  .alert.warn {
-    background: #fff5f5;
-    border: 1px solid #fed7d7;
-    color: #c53030;
-    padding: 12px;
-    border-radius: 6px;
-    margin-bottom: 12px;
-  }
-  .slots {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 12px;
-  }
-  .slot {
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    background: #f7fafc;
-    cursor: pointer;
-    transition: background-color 0.2s;
-  }
-  .slot:hover {
-    background: #edf2f7;
-  }
-  .menu-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-  .menu-list li {
-    padding: 8px 0;
-    border-bottom: 1px dashed #eee;
-  }
-  .photo-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px,1fr));
-    gap: 10px;
-  }
-  .photo-grid img {
-    width: 100%;
-    height: 120px;
-    object-fit: cover;
-    border-radius: 8px;
-    border: 1px solid #eee;
-  }
-  @media (max-width: 860px) {
-    .form-grid {
-      grid-template-columns: 1fr;
-    }
-  }
+  .btn.secondary { background-color: #a0aec0; }
+  .btn.secondary:hover { background-color: #718096; }
+  .alert.warn { background: #fff5f5; border: 1px solid #fed7d7; color: #c53030; padding: 12px; border-radius: 6px; margin-bottom: 12px; }
+  .slots { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .slot { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; background: #f7fafc; cursor: pointer; transition: background-color 0.2s; }
+  .slot:hover { background: #edf2f7; }
+  .menu-list { list-style: none; margin: 0; padding: 0; }
+  .menu-list li { padding: 8px 0; border-bottom: 1px dashed #eee; }
+  .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 10px; }
+  .photo-grid img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; }
+  @media (max-width: 860px) { .form-grid { grid-template-columns: 1fr; } }
 </style>
