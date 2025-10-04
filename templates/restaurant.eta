@@ -25,23 +25,29 @@
         <label for="date">תאריך</label>
         <input id="date" name="date" type="date" required value="<%= it.date || '' %>"/>
       </div>
-      <div class="form-row">
-        <label for="time">שעה</label>
-        <select id="time" name="time" required>
-          <% for (let h = 0; h < 24; h++) {
-               for (let m = 0; m < 60; m += 15) {
-                 const hh = String(h).padStart(2, "0");
-                 const mm = String(m).padStart(2, "0");
-                 const val = `${hh}:${mm}`;
-                 const sel = (it.time === val) ? "selected" : "";
-          %>
-            <option value="<%= val %>" <%= sel %>><%= val %></option>
-          <%     }
-             }
-          %>
-        </select>
+
+      <div class="form-row time-row">
+        <label for="time-display">שעה</label>
+        <div class="time-dropdown-wrapper">
+          <button type="button" class="time-dropdown-btn" id="time-display" aria-haspopup="listbox" aria-expanded="false">
+            <span id="time-display-text"><%= it.time || "בחר שעה" %></span>
+            <span class="arrow">▾</span>
+          </button>
+          <div class="time-options" id="time-options" hidden role="listbox" aria-label="בחירת שעה">
+            <% for (let h = 0; h < 24; h++) {
+                 for (let m = 0; m < 60; m += 15) {
+                   const hh = String(h).padStart(2, "0");
+                   const mm = String(m).padStart(2, "0");
+                   const val = `${hh}:${mm}`;
+            %>
+              <div class="time-option" role="option" data-value="<%= val %>"><%= val %></div>
+            <% }} %>
+          </div>
+        </div>
+        <input type="hidden" id="time" name="time" value="<%= it.time || '' %>"/>
         <small class="muted">שעות בתדירות 15 דקות (24-ש’)</small>
       </div>
+
       <div class="form-actions">
         <button type="submit" class="btn">המשך לשלב הבא</button>
         <button type="button" id="check-btn" class="btn secondary"
@@ -91,66 +97,161 @@
 </main>
 
 <script>
-  function readForm() {
-    const f = document.getElementById("reserve-form");
-    return {
-      date: f.querySelector('[name="date"]').value,
-      time: f.querySelector('[name="time"]').value
-    };
+  // עזרים
+  function pad2(n){ return String(n).padStart(2,"0"); }
+  function normalizeToQuarter(hhmm) {
+    const m = String(hhmm||"").match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return String(hhmm||"");
+    let h = Math.max(0, Math.min(23, parseInt(m[1],10)));
+    let mi = Math.max(0, Math.min(59, parseInt(m[2],10)));
+    const rem = mi % 15;
+    if (rem) {
+      mi += (15 - rem);
+      if (mi === 60) { mi = 0; h = (h + 1) % 24; }
+    }
+    return pad2(h)+":"+pad2(mi);
+  }
+  function pickHHMMFromText(t){
+    const m = String(t||"").trim().match(/\b(\d{1,2}):(\d{2})\b/);
+    return m ? pad2(m[1])+":"+pad2(m[2]) : "";
   }
 
-  async function postJSON(url, payload) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Accept": "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      redirect: "follow"
+  document.addEventListener("DOMContentLoaded", () => {
+    const btn  = document.getElementById("time-display");
+    const txt  = document.getElementById("time-display-text");
+    const opts = document.getElementById("time-options");
+    const hiddenInput = document.getElementById("time");
+    const form = document.getElementById("reserve-form");
+
+    if (!btn || !opts || !hiddenInput || !form) return;
+
+    // אם חזרנו עם שעה קיימת – הצג אותה בכפתור וסנכרן ל-hidden
+    if (hiddenInput.value && /^\d{2}:\d{2}$/.test(hiddenInput.value)) {
+      txt.textContent = hiddenInput.value;
+    } else {
+      // אם בטקסט הכפתור כבר מופיעה שעה — מלא את ה-hidden
+      const fromBtn = pickHHMMFromText(txt.textContent);
+      if (fromBtn) hiddenInput.value = fromBtn;
+    }
+
+    // פתיחה/סגירה של הרשימה
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const open = opts.hidden === false;
+      opts.hidden = open; // toggle
+      btn.setAttribute("aria-expanded", String(!open));
     });
-    const text = await res.text();
-    let data = null;
-    try { data = JSON.parse(text); } catch {}
-    return { ok: res.ok, status: res.status, data, text };
-  }
 
+    // בחירת שעה מרשימת האפשרויות
+    opts.addEventListener("click", (e) => {
+      const el = e.target && e.target.closest && e.target.closest(".time-option");
+      if (!el) return;
+      const v = el.getAttribute("data-value") || pickHHMMFromText(el.textContent);
+      if (!v) return;
+      const norm = normalizeToQuarter(v);
+      hiddenInput.value = norm;
+      txt.textContent = norm;
+      opts.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+    });
+
+    // לחיצה מחוץ — סגור
+    document.addEventListener("click", (e) => {
+      if (!btn.contains(e.target) && !opts.contains(e.target)) {
+        opts.hidden = true;
+        btn.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    // סינכרון מכל שדה שעה גלוי (אם קיים אצלך select/input גלוי נוסף)
+    document.querySelectorAll('input[name="time"]:not([type="hidden"]), select[name="time"]').forEach(el => {
+      el.addEventListener("change", () => {
+        if (!el.value) return;
+        const norm = normalizeToQuarter(el.value);
+        hiddenInput.value = norm;
+        txt.textContent = norm;
+      });
+      // אם לטופס כבר יש ערך גלוי – קח אותו כערך התחלתי
+      if (el.value && !hiddenInput.value) {
+        const norm = normalizeToQuarter(el.value);
+        hiddenInput.value = norm;
+        txt.textContent = norm;
+      }
+    });
+
+    // בדיקה לפני שליחה — כולל פולבאק מהכפתור אם ה-hidden ריק
+    form.addEventListener("submit", (ev) => {
+      if (!hiddenInput.value) {
+        const fromBtn = pickHHMMFromText(txt.textContent);
+        if (fromBtn) hiddenInput.value = normalizeToQuarter(fromBtn);
+      }
+      if (!hiddenInput.value) {
+        ev.preventDefault();
+        alert("נא לבחור שעה.");
+        return false;
+      }
+    });
+
+    // כפתור "בדוק זמינות"
+    const checkBtn = document.getElementById("check-btn");
+    checkBtn?.addEventListener("click", async () => {
+      if (!hiddenInput.value) {
+        const fromBtn = pickHHMMFromText(txt.textContent);
+        if (fromBtn) hiddenInput.value = normalizeToQuarter(fromBtn);
+      }
+      const date = document.getElementById("date").value;
+      const time = hiddenInput.value;
+      if (!date || !time) {
+        alert("נא לבחור תאריך ושעה");
+        return;
+      }
+      const rid = checkBtn.dataset.rid;
+      const resp = await fetch(`/api/restaurants/${encodeURIComponent(rid)}/check`, {
+        method: "POST",
+        headers: { "Accept": "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ date, time }),
+      });
+      const txtResp = await resp.text();
+      let data = null;
+      try { data = JSON.parse(txtResp); } catch {}
+      if (resp.ok && data && data.ok) {
+        renderAround([]); // אין קונפליקט
+      } else {
+        renderAround(data?.suggestions || []);
+      }
+    });
+  });
+
+  // --- חשוב: כאן אין תלות במשתנים מחוץ לסקופ ---
   function renderAround(slots) {
     const card = document.getElementById("around-card");
     const box = document.getElementById("around-slots");
+    const hiddenInput = document.getElementById("time");
+    const btn = document.getElementById("time-display");
+    const txt = document.getElementById("time-display-text");
+
+    if (!card || !box) return;
+
     box.innerHTML = "";
     if (Array.isArray(slots) && slots.length) {
       card.hidden = false;
-      slots.slice(0, 4).forEach(t => {
+      slots.slice(0, 8).forEach(t => {
         const b = document.createElement("button");
         b.type = "button";
         b.className = "slot";
         b.textContent = t;
-        b.onclick = () => {
-          document.getElementById("time").value = t;
-          renderAround([]);
-        };
+        b.addEventListener("click", () => {
+          const norm = normalizeToQuarter(t);
+          hiddenInput.value = norm;
+          if (txt) txt.textContent = norm;
+          card.hidden = true;
+        });
         box.appendChild(b);
       });
     } else {
       card.hidden = true;
     }
   }
-
-  document.addEventListener("DOMContentLoaded", () => {
-    const btn = document.getElementById("check-btn");
-    btn?.addEventListener("click", async () => {
-      const { date, time } = readForm();
-      if (!date || !time) {
-        alert("נא לבחור תאריך ושעה");
-        return;
-      }
-      const rid = btn.dataset.rid;
-      const r = await postJSON(`/api/restaurants/${encodeURIComponent(rid)}/check`, { date, time });
-      if (r.ok && r.data && r.data.ok) {
-        renderAround([]);
-      } else {
-        renderAround(r.data?.suggestions || []);
-      }
-    });
-  });
 </script>
 
 <style>
@@ -164,45 +265,79 @@
     border-radius: 10px;
     padding: 20px;
     margin-bottom: 24px;
-    background-color: #fff;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-  }
-  .page-header h1 {
-    margin-bottom: 4px;
-    font-size: 1.8rem;
-    color: #2d3748;
-  }
-  .page-header .muted {
-    color: #718096;
-    font-size: 0.9rem;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
   }
   .form-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2,1fr);
     gap: 16px;
   }
   .form-row {
     display: flex;
     flex-direction: column;
+    position: relative;
+  }
+  .form-row.time-row {
+    grid-column: 1 / -1;
+  }
+  .time-dropdown-wrapper {
+    position: relative;
+    width: 100%;
+  }
+  .time-dropdown-btn {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    background: #fff;
+    text-align: left;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .time-options {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    background: #fff;
+    z-index: 1000;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  }
+  .time-option {
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  .time-option:hover {
+    background: #f0f0ff;
+  }
+  .arrow {
+    margin-left: 8px;
+    color: #666;
   }
   .form-row label {
-    font-weight: 500;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
     color: #333;
+    font-weight: 500;
   }
-  .form-row input,
-  .form-row select {
+  .form-row input {
     padding: 10px 12px;
     border: 1px solid #cbd5e0;
     border-radius: 6px;
     font-size: 1rem;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    transition: border-color 0.2s;
   }
-  .form-row input:focus,
-  .form-row select:focus {
+  .form-row input:focus {
     outline: none;
     border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+    box-shadow: 0 0 0 3px rgba(102,126,234,0.3);
   }
   .form-actions {
     grid-column: 1 / -1;
@@ -216,13 +351,10 @@
     border-radius: 6px;
     background-color: #667eea;
     color: #fff;
-    font-size: 1rem;
     cursor: pointer;
     transition: background-color 0.2s;
   }
-  .btn:hover {
-    background-color: #5a67d8;
-  }
+  .btn:hover { background-color: #5a67d8; }
   .btn.secondary {
     background-color: #a0aec0;
   }
@@ -230,7 +362,7 @@
     background-color: #718096;
   }
   .alert.warn {
-    background-color: #fff5f5;
+    background: #fff5f5;
     border: 1px solid #fed7d7;
     color: #c53030;
     padding: 12px;
@@ -247,13 +379,12 @@
     padding: 8px 12px;
     border: 1px solid #ddd;
     border-radius: 6px;
-    background-color: #f7fafc;
+    background: #f7fafc;
     cursor: pointer;
-    transition: background-color 0.2s, border-color 0.2s;
+    transition: background-color 0.2s;
   }
   .slot:hover {
-    background-color: #edf2f7;
-    border-color: #cbd5e0;
+    background: #edf2f7;
   }
   .menu-list {
     list-style: none;
