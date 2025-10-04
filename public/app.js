@@ -100,7 +100,7 @@
       dropdown.addEventListener("click", (ev) => {
         const el = ev.target?.closest?.(".time-option");
         if (!el) return;
-        // ★ תיקון: תמיכה גם ב-data-value (כמו ב-HTML שלך) וגם ב-data-time
+        // תמיכה גם ב-data-value (ב-HTML שלך) וגם ב-data-time
         const t =
           el.getAttribute("data-value") ||
           el.getAttribute("data-time") ||
@@ -228,7 +228,7 @@
       if (errors.length) {
         e.preventDefault();
         alert(errors.join("\n"));
-        (dateInput?.value ? form.querySelector("#time-button") : dateInput)?.focus?.();
+        (dateInput?.value ? form.querySelector("#time-display") : dateInput)?.focus?.();
       }
     });
   }

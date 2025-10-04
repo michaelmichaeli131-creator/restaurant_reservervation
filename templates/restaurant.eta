@@ -27,7 +27,7 @@
       </div>
 
       <div class="form-row time-row">
-        <!-- שינוי: במקום for="time-display" שמפריע לקליק על כפתור, משתמשים ב-id ו-aria-labelledby -->
+        <!-- שינוי: בלי for אל הכפתור (מנע התנגשויות קליק); כן נותנים id ללייבל וקישור ARIA -->
         <label id="time-label">שעה</label>
         <div class="time-dropdown-wrapper">
           <button
@@ -106,121 +106,8 @@
   <% } %>
 </main>
 
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const btn = document.getElementById("time-display");
-    const opts = document.getElementById("time-options");
-    const hiddenInput = document.getElementById("time");
-    const form = document.getElementById("reserve-form");
-
-    // --- Submit guard: לא שולחים אם אין time ---
-    form.addEventListener("submit", (ev) => {
-      if (!hiddenInput.value) {
-        ev.preventDefault();
-        alert("נא לבחור שעה מהרשימה");
-        return false;
-      }
-    });
-
-    // פתיחה/סגירה בלחיצה
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const open = opts.hidden;
-      opts.hidden = !open;
-      btn.setAttribute("aria-expanded", open ? "true" : "false");
-    });
-
-    // תמיכה במקלדת: Enter/Space לפתיחה
-    btn.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        const open = opts.hidden;
-        opts.hidden = !open;
-        btn.setAttribute("aria-expanded", open ? "true" : "false");
-      }
-      if (e.key === "Escape" && !opts.hidden) {
-        opts.hidden = true;
-        btn.setAttribute("aria-expanded", "false");
-      }
-    });
-
-    // בחירת שעה
-    opts.querySelectorAll(".time-option").forEach(el => {
-      el.addEventListener("click", () => {
-        const v = el.dataset.value;
-        // עדכון טקסט הכפתור
-        btn.textContent = v + " ";
-        const arr = document.createElement("span");
-        arr.className = "arrow";
-        arr.textContent = "▾";
-        btn.appendChild(arr);
-
-        hiddenInput.value = v;
-        opts.hidden = true;
-        btn.setAttribute("aria-expanded", "false");
-      });
-    });
-
-    // קליק מחוץ ל-dropdown סוגר אותו
-    document.addEventListener("click", (e) => {
-      if (!btn.contains(e.target) && !opts.contains(e.target)) {
-        opts.hidden = true;
-        btn.setAttribute("aria-expanded", "false");
-      }
-    });
-
-    const checkBtn = document.getElementById("check-btn");
-    checkBtn?.addEventListener("click", async () => {
-      const date = document.getElementById("date").value;
-      const time = hiddenInput.value;
-      if (!date || !time) {
-        alert("נא לבחור תאריך ושעה");
-        return;
-      }
-      const rid = checkBtn.dataset.rid;
-      const resp = await fetch(`/api/restaurants/${encodeURIComponent(rid)}/check`, {
-        method: "POST",
-        headers: { "Accept": "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify({ date, time }),
-      });
-      const txt = await resp.text();
-      let data = null;
-      try { data = JSON.parse(txt); } catch {}
-      if (resp.ok && data && data.ok) {
-        renderAround([]);
-      } else {
-        renderAround(data?.suggestions || []);
-      }
-    });
-  });
-
-  function renderAround(slots) {
-    const card = document.getElementById("around-card");
-    const box = document.getElementById("around-slots");
-    box.innerHTML = "";
-    if (Array.isArray(slots) && slots.length) {
-      card.hidden = false;
-      slots.slice(0, 4).forEach(t => {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "slot";
-        b.textContent = t;
-        b.onclick = () => {
-          document.getElementById("time").value = t;
-          const btn = document.getElementById("time-display");
-          btn.textContent = t + " ";
-          const arr = document.createElement("span");
-          arr.className = "arrow"; arr.textContent = "▾";
-          btn.appendChild(arr);
-          renderAround([]);
-        };
-        box.appendChild(b);
-      });
-    } else {
-      card.hidden = true;
-    }
-  }
-</script>
+<!-- טוענים JS חיצוני (CSP-ידידותי) -->
+<script src="/static/app.js" defer></script>
 
 <style>
   .container {
@@ -322,9 +209,7 @@
     cursor: pointer;
     transition: background-color 0.2s;
   }
-  .btn:hover {
-    background-color: #5a67d8;
-  }
+  .btn:hover { background-color: #5a67d8; }
   .btn.secondary {
     background-color: #a0aec0;
   }
