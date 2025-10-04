@@ -34,20 +34,11 @@
             <span class="arrow">▾</span>
           </button>
           <div class="time-options" id="time-options" hidden role="listbox">
-            <% for (let h = 0; h < 24; h++) {
-                 for (let m = 0; m < 60; m += 15) {
-                   const hh = String(h).padStart(2, "0");
-                   const mm = String(m).padStart(2, "0");
-                   const val = `${hh}:${mm}`;
-            %>
-              <div class="time-option" role="option" data-value="<%= val %>"><%= val %></div>
-            <%     }
-               }
-            %>
+            <!-- ימולא דינמית לפי שעות הפתיחה ליום הנבחר -->
           </div>
         </div>
         <input type="hidden" id="time" name="time" value="<%= it.time || '' %>"/>
-        <small class="muted">שעות בתדירות 15 דקות (24-ש’)</small>
+        <small class="muted">שעות בתדירות 15 דקות (רק בתוך שעות הפתיחה של המסעדה)</small>
       </div>
 
       <div class="form-actions">
@@ -98,72 +89,235 @@
   <% } %>
 </main>
 
+<!-- נעביר את שעות הפתיחה לפרונט -->
+<script id="opening-hours-data" type="application/json">
+<%- JSON.stringify(it.restaurant.openingHours || it.restaurant.hours || it.restaurant.open_hours || null) %>
+</script>
+
 <script>
   document.addEventListener("DOMContentLoaded", () => {
     const btn = document.getElementById("time-display");
     const opts = document.getElementById("time-options");
     const hiddenInput = document.getElementById("time");
     const form = document.getElementById("reserve-form");
+    const dateInput = document.getElementById("date");
 
-    // ----- Toggle dropdown -----
+    // --- קריאת שעות פתיחה מהשרת ---
+    let OPENING_HOURS = null;
+    try {
+      const raw = document.getElementById("opening-hours-data")?.textContent || "null";
+      OPENING_HOURS = JSON.parse(raw);
+    } catch { OPENING_HOURS = null; }
+
+    // --- עזרי זמן ---
+    const pad2 = (n) => String(n).padStart(2, "0");
+    const toMin = (hhmm) => {
+      const m = (hhmm || "").match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return null;
+      const h = Math.min(23, Math.max(0, parseInt(m[1], 10)));
+      const mi = Math.min(59, Math.max(0, parseInt(m[2], 10)));
+      return h * 60 + mi;
+    };
+    const fromMin = (mins) => `${pad2(Math.floor(mins/60))}:${pad2(mins%60)}`;
+    const roundToQuarterUp = (mins) => {
+      const rem = mins % 15;
+      return rem ? mins + (15 - rem) : mins;
+    };
+
+    // --- פרסינג גמיש של שעות פתיחה ליום ---
+    function normalizeDayRanges(dayDef) {
+      // תומך במבנים:
+      // 1) ["10:00-14:00","18:00-23:00"]
+      // 2) [{start:"10:00", end:"14:00"}, {start:"18:00", end:"23:00"}]
+      // 3) [["10:00","14:00"],["18:00","23:00"]]
+      if (!dayDef) return [];
+      const arr = Array.isArray(dayDef) ? dayDef : [dayDef];
+      const out = [];
+      for (const item of arr) {
+        let s=null, e=null;
+        if (typeof item === "string") {
+          const m = item.match(/^\s*(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})\s*$/);
+          if (m) { s = m[1]; e = m[2]; }
+        } else if (Array.isArray(item) && item.length >= 2) {
+          s = item[0]; e = item[1];
+        } else if (item && typeof item === "object") {
+          s = item.start || item.open || item.from;
+          e = item.end   || item.close || item.to;
+        }
+        const sMin = toMin(s), eMin = toMin(e);
+        if (sMin == null || eMin == null) continue;
+
+        // טיפול בטווח חוצה-חצות (למשל 18:00-02:00)
+        if (eMin <= sMin) {
+          // נחתוך עד סוף היום בלבד לרשימת היום הנוכחי
+          out.push([sMin, 24*60 - 1]); // 23:59
+          // את "אחרי חצות" ממילא לא נציג ליום הזה
+        } else {
+          out.push([sMin, eMin]);
+        }
+      }
+      // מיזוג חפיפות/מיון
+      out.sort((a,b)=>a[0]-b[0]);
+      const merged = [];
+      for (const r of out) {
+        if (!merged.length || r[0] > merged[merged.length-1][1]) merged.push(r);
+        else merged[merged.length-1][1] = Math.max(merged[merged.length-1][1], r[1]);
+      }
+      return merged;
+    }
+
+    // --- שליפת טווחי יום לפי תאריך ---
+    function getRangesForDate(dateStr) {
+      if (!OPENING_HOURS) return null;
+      const d = new Date(dateStr || Date.now());
+      if (isNaN(d.getTime())) return null;
+      // JS: 0=Sunday ... 6=Saturday
+      const dow = d.getDay();
+
+      // נתמוך גם במבני key שונים: {0..6} או {"sun"..."sat"} או { "sunday": ... }
+      const mapKeys = [
+        String(dow),
+        ["sun","mon","tue","wed","thu","fri","sat"][dow],
+        ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][dow]
+      ];
+      let dayDef = null;
+      for (const k of mapKeys) {
+        if (OPENING_HOURS && Object.prototype.hasOwnProperty.call(OPENING_HOURS, k)) {
+          dayDef = OPENING_HOURS[k];
+          break;
+        }
+      }
+      return normalizeDayRanges(dayDef);
+    }
+
+    // --- בניית רשימת השעות בדפדוף ---
+    function rebuildTimeOptionsFor(dateStr) {
+      opts.innerHTML = "";
+      const ranges = getRangesForDate(dateStr);
+
+      if (!ranges || !ranges.length) {
+        // אין שעות פתיחה ליום הזה — נשאיר ריק
+        const empty = document.createElement("div");
+        empty.className = "time-option";
+        empty.setAttribute("aria-disabled", "true");
+        empty.textContent = "אין שעות פתיחה ליום זה";
+        opts.appendChild(empty);
+        return;
+      }
+
+      // בונים אופציות לפי טווחים, קפיצות של 15 דק'
+      const frag = document.createDocumentFragment();
+      for (const [startMin, endMin] of ranges) {
+        for (let m = roundToQuarterUp(startMin); m <= endMin; m += 15) {
+          const hhmm = fromMin(m);
+          const div = document.createElement("div");
+          div.className = "time-option";
+          div.setAttribute("role","option");
+          div.dataset.value = hhmm;
+          div.textContent = hhmm;
+          frag.appendChild(div);
+        }
+      }
+      opts.appendChild(frag);
+    }
+
+    // --- פתיחה/סגירה של הרשימה ---
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const open = !opts.hidden;
-      opts.hidden = open ? true : false;
-      btn.setAttribute("aria-expanded", String(!open));
+      const openNow = !opts.hidden;
+      if (openNow) {
+        opts.hidden = true;
+        btn.setAttribute("aria-expanded","false");
+      } else {
+        // לפני פתיחה דואגים שהרשימה עדכנית לתאריך הנבחר
+        rebuildTimeOptionsFor(dateInput.value || new Date().toISOString().slice(0,10));
+        opts.hidden = false;
+        btn.setAttribute("aria-expanded","true");
+      }
     });
 
     document.addEventListener("click", (e) => {
       if (!btn.contains(e.target) && !opts.contains(e.target)) {
         if (!opts.hidden) {
           opts.hidden = true;
-          btn.setAttribute("aria-expanded", "false");
+          btn.setAttribute("aria-expanded","false");
         }
       }
     });
 
-    // ----- Pick time -----
-    opts.querySelectorAll(".time-option").forEach(el => {
-      el.addEventListener("click", () => {
-        const v = el.dataset.value;
-        if (!v) return;
-        // עדכון טקסט הכפתור
-        btn.textContent = v + " ";
-        const arr = document.createElement("span");
-        arr.className = "arrow";
-        arr.textContent = "▾";
-        btn.appendChild(arr);
-
-        hiddenInput.value = v;
-        opts.hidden = true;
-        btn.setAttribute("aria-expanded", "false");
-      });
+    // --- בחירת שעה מתוך הרשימה (delegete כדי לעבוד גם אחרי rebuild) ---
+    opts.addEventListener("click", (ev) => {
+      const el = ev.target?.closest?.(".time-option");
+      if (!el || el.getAttribute("aria-disabled")==="true") return;
+      const v = el.dataset.value;
+      if (!v) return;
+      // עדכון הכפתור
+      btn.textContent = v + " ";
+      const arr = document.createElement("span");
+      arr.className = "arrow";
+      arr.textContent = "▾";
+      btn.appendChild(arr);
+      hiddenInput.value = v;
+      opts.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
     });
 
-    // ----- Submit guard + הזרקה ל-URL -----
-    form.addEventListener("submit", (ev) => {
-      const dateVal = document.getElementById("date").value.trim();
-      const timeVal = hiddenInput.value.trim();
+    // --- שינוי תאריך: בנייה מחדש וניקוי שעה אם אינה חוקית ליום זה ---
+    dateInput.addEventListener("change", () => {
+      const prev = hiddenInput.value;
+      rebuildTimeOptionsFor(dateInput.value);
+      if (prev) {
+        // אם השעה הקודמת לא קיימת בטווח החדש — נבטל אותה
+        const stillExists = !!opts.querySelector(`.time-option[data-value="${prev}"]`);
+        if (!stillExists) {
+          hiddenInput.value = "";
+          btn.textContent = "בחר שעה ";
+          const arr = document.createElement("span");
+          arr.className = "arrow";
+          arr.textContent = "▾";
+          btn.appendChild(arr);
+        }
+      }
+    });
 
+    // --- שמירה שהשעה ההתחלתית (אם קיימת) גם חוקית ליום ---
+    (function initTimeForInitialDate(){
+      const initDate = dateInput.value || new Date().toISOString().slice(0,10);
+      rebuildTimeOptionsFor(initDate);
+      if (hiddenInput.value) {
+        const ok = !!opts.querySelector(`.time-option[data-value="${hiddenInput.value}"]`);
+        if (!ok) {
+          // שעה שהגיעה מה-URL או חזרה משגיאה אך לא חוקית לפתיחה: ננקה
+          hiddenInput.value = "";
+          btn.textContent = "בחר שעה ";
+          const arr = document.createElement("span");
+          arr.className = "arrow";
+          arr.textContent = "▾";
+          btn.appendChild(arr);
+        }
+      }
+    })();
+
+    // --- Submit guard + הזרקה ל-URL (נשאר כמו קודם) ---
+    form.addEventListener("submit", (ev) => {
+      const dateVal = dateInput.value.trim();
+      const timeVal = hiddenInput.value.trim();
       if (!dateVal || !timeVal) {
         ev.preventDefault();
         alert("נא לבחור תאריך ושעה");
         return;
       }
-
-      // מוסיפים גם ל-QueryString כדי שהשרת יוכל לקרוא גם אם body לא נקרא
       const u = new URL(form.action, window.location.origin);
       u.searchParams.set("date", dateVal);
       u.searchParams.set("time", timeVal);
       form.action = u.pathname + u.search;
-      // נשארים על method=POST (לא משנים פיצ’רים) — אבל הנתונים קיימים גם ב-URL
     });
 
-    // ----- Check availability -----
+    // --- בדיקת זמינות (לא שינינו לוגיקה) ---
     const checkBtn = document.getElementById("check-btn");
     checkBtn?.addEventListener("click", async () => {
-      const date = document.getElementById("date").value.trim();
+      const date = dateInput.value.trim();
       const time = hiddenInput.value.trim();
       if (!date || !time) {
         alert("נא לבחור תאריך ושעה");
@@ -265,7 +419,7 @@
     top: calc(100% + 4px);
     left: 0;
     right: 0;
-    max-height: 200px;
+    max-height: 240px;
     overflow-y: auto;
     border: 1px solid #cbd5e0;
     border-radius: 6px;
@@ -276,6 +430,10 @@
   .time-option {
     padding: 8px 12px;
     cursor: pointer;
+  }
+  .time-option[aria-disabled="true"] {
+    color: #999;
+    cursor: default;
   }
   .time-option:hover {
     background: #f0f0ff;
