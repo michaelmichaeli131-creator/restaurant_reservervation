@@ -18,6 +18,7 @@ export interface User {
 
 export type DayOfWeek = 0|1|2|3|4|5|6; // 0=Sunday .. 6=Saturday
 export interface OpeningWindow { open: string; close: string; } // "HH:mm"
+// אפשר גם לתמוך במערכים מרובים לכל יום בהמשך; כרגע חלון יחיד ליום:
 export type WeeklySchedule = Partial<Record<DayOfWeek, OpeningWindow | null>>;
 
 export interface Restaurant {
@@ -27,13 +28,13 @@ export interface Restaurant {
   city: string;
   address: string;
   phone?: string;
-  hours?: string;
+  hours?: string;                 // טקסט חופשי, נשאר לפורמט ישן
   description?: string;
   menu: Array<{ name: string; price?: number; desc?: string }>;
   capacity: number;                 // קיבולת בו־זמנית
   slotIntervalMinutes: number;      // גריד הסלוטים (ברירת מחדל 15 דק׳)
   serviceDurationMinutes: number;   // משך ישיבה (ברירת מחדל 120 דק׳)
-  weeklySchedule?: WeeklySchedule;  // אופציונלי – ניתן לממש בהמשך הגבלות פתיחה
+  weeklySchedule?: WeeklySchedule;  // הגבלת פתיחה (אופציונלי)
   photos?: string[];
   approved?: boolean;               // דורש אישור אדמין
   createdAt: number;
@@ -179,40 +180,50 @@ function snapToGrid(mins: number, step: number): number {
   return Math.floor(mins / step) * step;
 }
 
-/* ─────────── Opening hours helpers (NEW, לא שוברים כלום) ─────────── */
+/* ─────────────── דיפולטים + שעות פתיחה ─────────────── */
 
-/** ברירת מחדל: פתוח כל יום 10:00–22:00; שישי־שבת עד 23:00 */
-function defaultWeeklySchedule(): WeeklySchedule {
-  return {
-    0: { open: "10:00", close: "22:00" }, // Sunday
-    1: { open: "10:00", close: "22:00" },
-    2: { open: "10:00", close: "22:00" },
-    3: { open: "10:00", close: "22:00" },
-    4: { open: "10:00", close: "22:00" },
-    5: { open: "10:00", close: "23:00" },
-    6: { open: "10:00", close: "23:00" },
-  };
+function coerceRestaurantDefaults(r: Restaurant): Restaurant {
+  const step = (r.slotIntervalMinutes && r.slotIntervalMinutes > 0) ? r.slotIntervalMinutes : 15;
+  const span = (r.serviceDurationMinutes && r.serviceDurationMinutes > 0) ? r.serviceDurationMinutes : 120;
+  const capacity = (typeof r.capacity === "number" && r.capacity > 0) ? r.capacity : 30;
+  return { ...r, slotIntervalMinutes: step, serviceDurationMinutes: span, capacity };
 }
 
-/** מחזיר טווח פתיחה בדקות עבור תאריך נתון, או null אם סגור. מטפל גם בחלון שחוצה חצות (נגזר עד סוף היום בלבד). */
-function getOpeningRangeForDate(r: Restaurant, date: string): { start: number; end: number } | null {
-  const d = new Date(date);
-  if (Number.isNaN(d.getTime())) return null;
+/** מחזיר מערך טווחי פתיחה [start,end] בדקות לאותו יום לפי weeklySchedule (אם קיים) */
+function openingRangesForDate(r: Restaurant, date: string): Array<[number, number]> {
+  if (!r.weeklySchedule) return [];
+  const d = new Date(date + "T00:00:00");
+  if (isNaN(d.getTime())) return [];
   const dow = d.getDay() as DayOfWeek;
 
-  const ws = (r.weeklySchedule ?? defaultWeeklySchedule());
-  const win = ws[dow];
+  const def = r.weeklySchedule[dow];
+  if (!def) return [];
 
-  if (win == null) return null; // סגור
-  const open = toMinutes((win.open || "").padStart(5, "0"));
-  const close = toMinutes((win.close || "").padStart(5, "0"));
-  if (!Number.isFinite(open) || !Number.isFinite(close)) return null;
+  const toMin = (hhmm: string) => {
+    const m = hhmm?.match?.(/^(\d{2}):(\d{2})$/);
+    if (!m) return NaN;
+    return Number(m[1]) * 60 + Number(m[2]);
+  };
 
-  if (close <= open) {
-    // חלון שחוצה חצות → נחתוך עד סוף היום
-    return { start: open, end: 24 * 60 };
+  const start = toMin((def as any).open ?? (def as any).start ?? "");
+  const end   = toMin((def as any).close ?? (def as any).end ?? "");
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return [];
+
+  if (end <= start) {
+    // חוצה חצות — ליום הנוכחי נחתוך עד סוף היום
+    return [[start, 24*60 - 1]];
   }
-  return { start: open, end: close };
+  return [[start, end]];
+}
+
+function isWithinOpening(r: Restaurant, date: string, startMin: number, span: number): boolean {
+  const ranges = openingRangesForDate(r, date);
+  if (!ranges.length) return true; // אין מגבלה = פתוח כל היום
+  const end = startMin + span;
+  for (const [a,b] of ranges) {
+    if (startMin >= a && end <= b) return true;
+  }
+  return false;
 }
 
 /* ─────────────────── Restaurants / Reservations ─────────────────── */
@@ -234,7 +245,7 @@ export async function createRestaurant(r: {
     capacity: r.capacity ?? 30,
     slotIntervalMinutes: r.slotIntervalMinutes ?? 15,
     serviceDurationMinutes: r.serviceDurationMinutes ?? 120,
-    weeklySchedule: r.weeklySchedule ?? defaultWeeklySchedule(), // ← ברירת מחדל אם לא הוגדר
+    weeklySchedule: r.weeklySchedule,
     approved: !!r.approved,
     createdAt: now(),
   };
@@ -262,8 +273,6 @@ export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
     city: (patch.city ?? prev.city).trim(),
     address: (patch.address ?? prev.address).trim(),
     photos: (patch.photos ?? prev.photos ?? []).filter(Boolean),
-    // אם המחזיק הסיר schedule (undefined) — נשאיר את הקיים; אם שם null במפורש לא נשבור, רק נעביר כ-nullים לימים שצוינו
-    weeklySchedule: (patch.weeklySchedule ?? prev.weeklySchedule),
   };
 
   const tx = kv.atomic().set(["restaurant", id], next);
@@ -378,65 +387,56 @@ export async function listReservationsByOwner(ownerId: string) {
 }
 
 export async function computeOccupancy(restaurant: Restaurant, date: string) {
-  const resv = await listReservationsFor(restaurant.id, date);
+  const r = coerceRestaurantDefaults(restaurant);
+  const resv = await listReservationsFor(r.id, date);
   const map = new Map<string, number>(); // time -> used seats
 
-  const step = restaurant.slotIntervalMinutes || 15;
-  const span = restaurant.serviceDurationMinutes || 120;
+  const step = r.slotIntervalMinutes;
+  const span = r.serviceDurationMinutes;
 
-  for (const r of resv) {
-    const start = snapToGrid(toMinutes(r.time), step);
+  for (const rr of resv) {
+    const start = snapToGrid(toMinutes(rr.time), step);
     const end = start + span;
     for (let t = start; t < end; t += step) {
       const key = fromMinutes(t);
-      map.set(key, (map.get(key) ?? 0) + r.people);
+      map.set(key, (map.get(key) ?? 0) + rr.people);
     }
   }
   return map;
 }
 
-/** בדיקת זמינות ל-slot (מיושר לגריד) + אכיפת שעות פתיחה */
-
-export async function checkAvailability(
-  restaurantId: string,
-  date: string,
-  time: string,
-  people: number,
-) {
-  const r = await getRestaurant(restaurantId);
-  if (!r) return { ok: false, reason: "not_found" as const };
-
-  // דיפולטים קשיחים כדי להתמודד עם מסעדות ישנות ב-KV
-  const step = (r.slotIntervalMinutes && r.slotIntervalMinutes > 0) ? r.slotIntervalMinutes : 15;
-  const span = (r.serviceDurationMinutes && r.serviceDurationMinutes > 0) ? r.serviceDurationMinutes : 120;
-  const capacity = (typeof r.capacity === "number" && r.capacity > 0) ? r.capacity : 30;
+/** בדיקת זמינות ל-slot (מיושר לגריד) */
+export async function checkAvailability(restaurantId: string, date: string, time: string, people: number) {
+  const r0 = await getRestaurant(restaurantId);
+  if (!r0) return { ok: false, reason: "not_found" as const };
+  const r = coerceRestaurantDefaults(r0);
 
   const seats = Math.max(1, Number.isFinite(people) ? people : 2);
-  if (seats > capacity) return { ok: false as const, reason: "full" as const };
-
-  // מוודאים שיש לנו מפה עם אותם דיפולטים (למקרה שהרסטורנט בקי־וי ישן)
-  const occ = await computeOccupancy(
-    { ...r, slotIntervalMinutes: step, serviceDurationMinutes: span, capacity },
-    date,
-  );
+  if (seats > r.capacity) return { ok: false as const, reason: "full" as const };
 
   const startRaw = toMinutes(time);
   if (!Number.isFinite(startRaw)) return { ok: false as const, reason: "bad_time" as const };
 
+  const step = r.slotIntervalMinutes;
+  const span = r.serviceDurationMinutes;
   const start = snapToGrid(startRaw, step);
   const end = start + span;
 
-  // לא חוצים את היום
-  if (end > 24 * 60) return { ok: false as const, reason: "out_of_hours" as const };
+  if (end > 24 * 60) return { ok: false as const, reason: "out_of_day" as const };
 
+  if (!isWithinOpening(r, date, start, span)) {
+    return { ok: false as const, reason: "closed" as const };
+  }
+
+  const occ = await computeOccupancy(r, date);
   for (let t = start; t < end; t += step) {
     const used = occ.get(fromMinutes(t)) ?? 0;
-    if (used + seats > capacity) return { ok: false, reason: "full" as const };
+    if (used + seats > r.capacity) return { ok: false, reason: "full" as const };
   }
   return { ok: true as const };
 }
 
-/** סלוטים זמינים סביב שעה נתונה (±windowMinutes), מיושרים לגריד, בטווח היום בלבד + אכיפת שעות פתיחה. */
+/** סלוטים זמינים סביב שעה נתונה (±windowMinutes), מיושרים לגריד, בטווח היום בלבד. */
 export async function listAvailableSlotsAround(
   restaurantId: string,
   date: string,
@@ -445,35 +445,29 @@ export async function listAvailableSlotsAround(
   windowMinutes = 120,
   maxSlots = 16,
 ): Promise<string[]> {
-  const r = await getRestaurant(restaurantId);
-  if (!r) return [];
+  const r0 = await getRestaurant(restaurantId);
+  if (!r0) return [];
+  const r = coerceRestaurantDefaults(r0);
 
-  const step = r.slotIntervalMinutes || 15;
-  const span = r.serviceDurationMinutes || 120;
+  const step = r.slotIntervalMinutes;
+  const span = r.serviceDurationMinutes;
+  const capacity = r.capacity;
 
   let base = toMinutes(centerTime);
   if (!Number.isFinite(base)) return [];
 
-  // התאמה לגריד ולימיט יומי
   base = snapToGrid(Math.max(0, Math.min(1439, base)), step);
 
-  const range = getOpeningRangeForDate(r, date);
-  if (!range) return []; // סגור ביום זה
-
   const occ = await computeOccupancy(r, date);
-
-  // חלון חיפוש מצומצם לשעות פתיחה (כך ש- slot מלא ייכנס)
-  const earliest = Math.max(range.start, base - windowMinutes);
-  const latest   = Math.min(range.end - span, base + windowMinutes);
-  if (earliest > latest) return [];
+  const startWin = Math.max(0, base - windowMinutes);
+  const endWin = Math.min(1439, base + windowMinutes);
 
   const tryTime = (t: number) => {
-    // לא חוצים את היום (אין 24:xx), וחייב כולו להיכנס לחלו"פ
     if (t < 0 || t + span > 24 * 60) return false;
-    if (t < range.start || t + span > range.end) return false;
+    if (!isWithinOpening(r, date, t, span)) return false;
     for (let x = t; x < t + span; x += step) {
       const used = occ.get(fromMinutes(x)) ?? 0;
-      if (used + people > r.capacity) return false;
+      if (used + people > capacity) return false;
     }
     return true;
   };
@@ -484,11 +478,11 @@ export async function listAvailableSlotsAround(
     const before = snapToGrid(base - delta, step);
     const after  = snapToGrid(base + delta, step);
 
-    if (before >= earliest && tryTime(before)) { found.add(fromMinutes(before)); pushed = true; }
-    if (after  <= latest   && tryTime(after))  { found.add(fromMinutes(after));  pushed = true; }
+    if (before >= startWin && tryTime(before)) { found.add(fromMinutes(before)); pushed = true; }
+    if (after <= endWin && tryTime(after))  { found.add(fromMinutes(after));  pushed = true; }
 
     if (found.size >= maxSlots) break;
-    if (!pushed && (before < earliest && after > latest)) break;
+    if (!pushed && (before < startWin && after > endWin)) break;
     if (delta > windowMinutes) break;
   }
 
@@ -500,7 +494,6 @@ export async function listAvailableSlotsAround(
     return a.localeCompare(b);
   });
 
-  // מגביל להצעות קומפקטיות (עד 4) לבקשתך
   return out.slice(0, Math.min(maxSlots, 4));
 }
 
@@ -624,4 +617,22 @@ export async function resetAll(): Promise<void> {
   }
 
   for (const p of prefixes) await deleteByPrefix(p);
+}
+
+/* אופציונלי — מתקנת רשומות ישנות עם capacity/step/span לא תקינים */
+export async function fixRestaurantsDefaults(): Promise<number> {
+  let changed = 0;
+  for await (const row of kv.list({ prefix: ["restaurant"] })) {
+    const id = row.key[row.key.length - 1] as string;
+    const cur = (await kv.get<Restaurant>(["restaurant", id])).value;
+    if (!cur) continue;
+    const r = coerceRestaurantDefaults(cur);
+    if (r.capacity !== cur.capacity ||
+        r.slotIntervalMinutes !== cur.slotIntervalMinutes ||
+        r.serviceDurationMinutes !== cur.serviceDurationMinutes) {
+      await kv.set(["restaurant", id], r);
+      changed++;
+    }
+  }
+  return changed;
 }
