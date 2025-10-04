@@ -25,39 +25,23 @@
         <label for="date">תאריך</label>
         <input id="date" name="date" type="date" required value="<%= it.date || '' %>"/>
       </div>
-
-      <div class="form-row time-row">
-        <!-- שינוי: בלי for אל הכפתור (מנע התנגשויות קליק); כן נותנים id ללייבל וקישור ARIA -->
-        <label id="time-label">שעה</label>
-        <div class="time-dropdown-wrapper">
-          <button
-            type="button"
-            class="time-dropdown-btn"
-            id="time-display"
-            aria-haspopup="listbox"
-            aria-expanded="false"
-            aria-labelledby="time-label time-display"
-          >
-            <%= it.time || "בחר שעה" %>
-            <span class="arrow">▾</span>
-          </button>
-          <div class="time-options" id="time-options" hidden role="listbox" aria-label="בחירת שעה">
-            <% for (let h = 0; h < 24; h++) {
-                 for (let m = 0; m < 60; m += 15) {
-                   const hh = String(h).padStart(2, "0");
-                   const mm = String(m).padStart(2, "0");
-                   const val = `${hh}:${mm}`;
-            %>
-              <div class="time-option" role="option" data-value="<%= val %>"><%= val %></div>
-            <%     }
-               }
-            %>
-          </div>
-        </div>
-        <input type="hidden" id="time" name="time" value="<%= it.time || '' %>"/>
+      <div class="form-row">
+        <label for="time">שעה</label>
+        <select id="time" name="time" required>
+          <% for (let h = 0; h < 24; h++) {
+               for (let m = 0; m < 60; m += 15) {
+                 const hh = String(h).padStart(2, "0");
+                 const mm = String(m).padStart(2, "0");
+                 const val = `${hh}:${mm}`;
+                 const sel = (it.time === val) ? "selected" : "";
+          %>
+            <option value="<%= val %>" <%= sel %>><%= val %></option>
+          <%     }
+             }
+          %>
+        </select>
         <small class="muted">שעות בתדירות 15 דקות (24-ש’)</small>
       </div>
-
       <div class="form-actions">
         <button type="submit" class="btn">המשך לשלב הבא</button>
         <button type="button" id="check-btn" class="btn secondary"
@@ -106,8 +90,68 @@
   <% } %>
 </main>
 
-<!-- טוענים JS חיצוני (CSP-ידידותי) -->
-<script src="/static/app.js" defer></script>
+<script>
+  function readForm() {
+    const f = document.getElementById("reserve-form");
+    return {
+      date: f.querySelector('[name="date"]').value,
+      time: f.querySelector('[name="time"]').value
+    };
+  }
+
+  async function postJSON(url, payload) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Accept": "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      redirect: "follow"
+    });
+    const text = await res.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch {}
+    return { ok: res.ok, status: res.status, data, text };
+  }
+
+  function renderAround(slots) {
+    const card = document.getElementById("around-card");
+    const box = document.getElementById("around-slots");
+    box.innerHTML = "";
+    if (Array.isArray(slots) && slots.length) {
+      card.hidden = false;
+      slots.slice(0, 4).forEach(t => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "slot";
+        b.textContent = t;
+        b.onclick = () => {
+          document.getElementById("time").value = t;
+          renderAround([]);
+        };
+        box.appendChild(b);
+      });
+    } else {
+      card.hidden = true;
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const btn = document.getElementById("check-btn");
+    btn?.addEventListener("click", async () => {
+      const { date, time } = readForm();
+      if (!date || !time) {
+        alert("נא לבחור תאריך ושעה");
+        return;
+      }
+      const rid = btn.dataset.rid;
+      const r = await postJSON(`/api/restaurants/${encodeURIComponent(rid)}/check`, { date, time });
+      if (r.ok && r.data && r.data.ok) {
+        renderAround([]);
+      } else {
+        renderAround(r.data?.suggestions || []);
+      }
+    });
+  });
+</script>
 
 <style>
   .container {
@@ -120,79 +164,45 @@
     border-radius: 10px;
     padding: 20px;
     margin-bottom: 24px;
-    background: #fff;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    background-color: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  }
+  .page-header h1 {
+    margin-bottom: 4px;
+    font-size: 1.8rem;
+    color: #2d3748;
+  }
+  .page-header .muted {
+    color: #718096;
+    font-size: 0.9rem;
   }
   .form-grid {
     display: grid;
-    grid-template-columns: repeat(2,1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 16px;
   }
   .form-row {
     display: flex;
     flex-direction: column;
-    position: relative;
-  }
-  .form-row.time-row {
-    grid-column: 1 / -1;
-  }
-  .time-dropdown-wrapper {
-    position: relative;
-    width: 100%;
-  }
-  .time-dropdown-btn {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid #cbd5e0;
-    border-radius: 6px;
-    background: #fff;
-    text-align: left;
-    font-size: 1rem;
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .time-options {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    max-height: 200px;
-    overflow-y: auto;
-    border: 1px solid #cbd5e0;
-    border-radius: 6px;
-    background: #fff;
-    z-index: 1000;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-  }
-  .time-option {
-    padding: 8px 12px;
-    cursor: pointer;
-  }
-  .time-option:hover {
-    background: #f0f0ff;
-  }
-  .arrow {
-    margin-left: 8px;
-    color: #666;
   }
   .form-row label {
-    margin-bottom: 4px;
-    color: #333;
     font-weight: 500;
+    margin-bottom: 6px;
+    color: #333;
   }
-  .form-row input {
+  .form-row input,
+  .form-row select {
     padding: 10px 12px;
     border: 1px solid #cbd5e0;
     border-radius: 6px;
     font-size: 1rem;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
-  .form-row input:focus {
+  .form-row input:focus,
+  .form-row select:focus {
     outline: none;
     border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102,126,234,0.3);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
   }
   .form-actions {
     grid-column: 1 / -1;
@@ -206,10 +216,13 @@
     border-radius: 6px;
     background-color: #667eea;
     color: #fff;
+    font-size: 1rem;
     cursor: pointer;
     transition: background-color 0.2s;
   }
-  .btn:hover { background-color: #5a67d8; }
+  .btn:hover {
+    background-color: #5a67d8;
+  }
   .btn.secondary {
     background-color: #a0aec0;
   }
@@ -217,7 +230,7 @@
     background-color: #718096;
   }
   .alert.warn {
-    background: #fff5f5;
+    background-color: #fff5f5;
     border: 1px solid #fed7d7;
     color: #c53030;
     padding: 12px;
@@ -234,12 +247,13 @@
     padding: 8px 12px;
     border: 1px solid #ddd;
     border-radius: 6px;
-    background: #f7fafc;
+    background-color: #f7fafc;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: background-color 0.2s, border-color 0.2s;
   }
   .slot:hover {
-    background: #edf2f7;
+    background-color: #edf2f7;
+    border-color: #cbd5e0;
   }
   .menu-list {
     list-style: none;
