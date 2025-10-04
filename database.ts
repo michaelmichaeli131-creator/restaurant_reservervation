@@ -179,6 +179,42 @@ function snapToGrid(mins: number, step: number): number {
   return Math.floor(mins / step) * step;
 }
 
+/* ─────────── Opening hours helpers (NEW, לא שוברים כלום) ─────────── */
+
+/** ברירת מחדל: פתוח כל יום 10:00–22:00; שישי־שבת עד 23:00 */
+function defaultWeeklySchedule(): WeeklySchedule {
+  return {
+    0: { open: "10:00", close: "22:00" }, // Sunday
+    1: { open: "10:00", close: "22:00" },
+    2: { open: "10:00", close: "22:00" },
+    3: { open: "10:00", close: "22:00" },
+    4: { open: "10:00", close: "22:00" },
+    5: { open: "10:00", close: "23:00" },
+    6: { open: "10:00", close: "23:00" },
+  };
+}
+
+/** מחזיר טווח פתיחה בדקות עבור תאריך נתון, או null אם סגור. מטפל גם בחלון שחוצה חצות (נגזר עד סוף היום בלבד). */
+function getOpeningRangeForDate(r: Restaurant, date: string): { start: number; end: number } | null {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return null;
+  const dow = d.getDay() as DayOfWeek;
+
+  const ws = (r.weeklySchedule ?? defaultWeeklySchedule());
+  const win = ws[dow];
+
+  if (win == null) return null; // סגור
+  const open = toMinutes((win.open || "").padStart(5, "0"));
+  const close = toMinutes((win.close || "").padStart(5, "0"));
+  if (!Number.isFinite(open) || !Number.isFinite(close)) return null;
+
+  if (close <= open) {
+    // חלון שחוצה חצות → נחתוך עד סוף היום
+    return { start: open, end: 24 * 60 };
+  }
+  return { start: open, end: close };
+}
+
 /* ─────────────────── Restaurants / Reservations ─────────────────── */
 
 export async function createRestaurant(r: {
@@ -198,7 +234,7 @@ export async function createRestaurant(r: {
     capacity: r.capacity ?? 30,
     slotIntervalMinutes: r.slotIntervalMinutes ?? 15,
     serviceDurationMinutes: r.serviceDurationMinutes ?? 120,
-    weeklySchedule: r.weeklySchedule,
+    weeklySchedule: r.weeklySchedule ?? defaultWeeklySchedule(), // ← ברירת מחדל אם לא הוגדר
     approved: !!r.approved,
     createdAt: now(),
   };
@@ -226,6 +262,8 @@ export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
     city: (patch.city ?? prev.city).trim(),
     address: (patch.address ?? prev.address).trim(),
     photos: (patch.photos ?? prev.photos ?? []).filter(Boolean),
+    // אם המחזיק הסיר schedule (undefined) — נשאיר את הקיים; אם שם null במפורש לא נשבור, רק נעביר כ-nullים לימים שצוינו
+    weeklySchedule: (patch.weeklySchedule ?? prev.weeklySchedule),
   };
 
   const tx = kv.atomic().set(["restaurant", id], next);
@@ -357,7 +395,7 @@ export async function computeOccupancy(restaurant: Restaurant, date: string) {
   return map;
 }
 
-/** בדיקת זמינות ל-slot (מיושר לגריד) */
+/** בדיקת זמינות ל-slot (מיושר לגריד) + אכיפת שעות פתיחה */
 export async function checkAvailability(restaurantId: string, date: string, time: string, people: number) {
   const r = await getRestaurant(restaurantId);
   if (!r) return { ok: false, reason: "not_found" as const };
@@ -365,10 +403,17 @@ export async function checkAvailability(restaurantId: string, date: string, time
   const step = r.slotIntervalMinutes || 15;
   const span = r.serviceDurationMinutes || 120;
 
-  const occ = await computeOccupancy(r, date);
+  // אכיפת שעות פתיחה
+  const range = getOpeningRangeForDate(r, date);
+  if (!range) return { ok: false, reason: "closed" as const };
+
   const start = snapToGrid(toMinutes(time), step);
   const end = start + span;
 
+  // חייב להיות כולו בתוך חלון הפתיחה
+  if (start < range.start || end > range.end) return { ok: false, reason: "closed" as const };
+
+  const occ = await computeOccupancy(r, date);
   for (let t = start; t < end; t += step) {
     const used = occ.get(fromMinutes(t)) ?? 0;
     if (used + people > r.capacity) return { ok: false, reason: "full" as const };
@@ -376,7 +421,7 @@ export async function checkAvailability(restaurantId: string, date: string, time
   return { ok: true as const };
 }
 
-/** סלוטים זמינים סביב שעה נתונה (±windowMinutes), מיושרים לגריד, בטווח היום בלבד. */
+/** סלוטים זמינים סביב שעה נתונה (±windowMinutes), מיושרים לגריד, בטווח היום בלבד + אכיפת שעות פתיחה. */
 export async function listAvailableSlotsAround(
   restaurantId: string,
   date: string,
@@ -397,13 +442,20 @@ export async function listAvailableSlotsAround(
   // התאמה לגריד ולימיט יומי
   base = snapToGrid(Math.max(0, Math.min(1439, base)), step);
 
+  const range = getOpeningRangeForDate(r, date);
+  if (!range) return []; // סגור ביום זה
+
   const occ = await computeOccupancy(r, date);
-  const start = Math.max(0, base - windowMinutes);
-  const end = Math.min(1439, base + windowMinutes);
+
+  // חלון חיפוש מצומצם לשעות פתיחה (כך ש- slot מלא ייכנס)
+  const earliest = Math.max(range.start, base - windowMinutes);
+  const latest   = Math.min(range.end - span, base + windowMinutes);
+  if (earliest > latest) return [];
 
   const tryTime = (t: number) => {
-    // לא חוצים את היום (אין 24:xx)
+    // לא חוצים את היום (אין 24:xx), וחייב כולו להיכנס לחלו"פ
     if (t < 0 || t + span > 24 * 60) return false;
+    if (t < range.start || t + span > range.end) return false;
     for (let x = t; x < t + span; x += step) {
       const used = occ.get(fromMinutes(x)) ?? 0;
       if (used + people > r.capacity) return false;
@@ -417,11 +469,11 @@ export async function listAvailableSlotsAround(
     const before = snapToGrid(base - delta, step);
     const after  = snapToGrid(base + delta, step);
 
-    if (before >= start && tryTime(before)) { found.add(fromMinutes(before)); pushed = true; }
-    if (after <= end && tryTime(after))  { found.add(fromMinutes(after));  pushed = true; }
+    if (before >= earliest && tryTime(before)) { found.add(fromMinutes(before)); pushed = true; }
+    if (after  <= latest   && tryTime(after))  { found.add(fromMinutes(after));  pushed = true; }
 
     if (found.size >= maxSlots) break;
-    if (!pushed && (before < start && after > end)) break;
+    if (!pushed && (before < earliest && after > latest)) break;
     if (delta > windowMinutes) break;
   }
 
