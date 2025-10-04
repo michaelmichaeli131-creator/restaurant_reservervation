@@ -30,10 +30,10 @@
         <label for="time-display">שעה</label>
         <div class="time-dropdown-wrapper">
           <button type="button" class="time-dropdown-btn" id="time-display" aria-haspopup="listbox" aria-expanded="false">
-            <span id="time-display-text"><%= it.time || "בחר שעה" %></span>
+            <%= it.time || "בחר שעה" %>
             <span class="arrow">▾</span>
           </button>
-          <div class="time-options" id="time-options" hidden role="listbox" aria-label="בחירת שעה">
+          <div class="time-options" id="time-options" hidden role="listbox">
             <% for (let h = 0; h < 24; h++) {
                  for (let m = 0; m < 60; m += 15) {
                    const hh = String(h).padStart(2, "0");
@@ -41,7 +41,9 @@
                    const val = `${hh}:${mm}`;
             %>
               <div class="time-option" role="option" data-value="<%= val %>"><%= val %></div>
-            <% }} %>
+            <%     }
+               }
+            %>
           </div>
         </div>
         <input type="hidden" id="time" name="time" value="<%= it.time || '' %>"/>
@@ -97,110 +99,72 @@
 </main>
 
 <script>
-  // עזרים
-  function pad2(n){ return String(n).padStart(2,"0"); }
-  function normalizeToQuarter(hhmm) {
-    const m = String(hhmm||"").match(/^(\d{1,2}):(\d{2})$/);
-    if (!m) return String(hhmm||"");
-    let h = Math.max(0, Math.min(23, parseInt(m[1],10)));
-    let mi = Math.max(0, Math.min(59, parseInt(m[2],10)));
-    const rem = mi % 15;
-    if (rem) {
-      mi += (15 - rem);
-      if (mi === 60) { mi = 0; h = (h + 1) % 24; }
-    }
-    return pad2(h)+":"+pad2(mi);
-  }
-  function pickHHMMFromText(t){
-    const m = String(t||"").trim().match(/\b(\d{1,2}):(\d{2})\b/);
-    return m ? pad2(m[1])+":"+pad2(m[2]) : "";
-  }
-
   document.addEventListener("DOMContentLoaded", () => {
-    const btn  = document.getElementById("time-display");
-    const txt  = document.getElementById("time-display-text");
+    const btn = document.getElementById("time-display");
     const opts = document.getElementById("time-options");
     const hiddenInput = document.getElementById("time");
     const form = document.getElementById("reserve-form");
 
-    if (!btn || !opts || !hiddenInput || !form) return;
-
-    // אם חזרנו עם שעה קיימת – הצג אותה בכפתור וסנכרן ל-hidden
-    if (hiddenInput.value && /^\d{2}:\d{2}$/.test(hiddenInput.value)) {
-      txt.textContent = hiddenInput.value;
-    } else {
-      // אם בטקסט הכפתור כבר מופיעה שעה — מלא את ה-hidden
-      const fromBtn = pickHHMMFromText(txt.textContent);
-      if (fromBtn) hiddenInput.value = fromBtn;
-    }
-
-    // פתיחה/סגירה של הרשימה
+    // ----- Toggle dropdown -----
     btn.addEventListener("click", (e) => {
+      e.preventDefault();
       e.stopPropagation();
-      const open = opts.hidden === false;
-      opts.hidden = open; // toggle
+      const open = !opts.hidden;
+      opts.hidden = open ? true : false;
       btn.setAttribute("aria-expanded", String(!open));
     });
 
-    // בחירת שעה מרשימת האפשרויות
-    opts.addEventListener("click", (e) => {
-      const el = e.target && e.target.closest && e.target.closest(".time-option");
-      if (!el) return;
-      const v = el.getAttribute("data-value") || pickHHMMFromText(el.textContent);
-      if (!v) return;
-      const norm = normalizeToQuarter(v);
-      hiddenInput.value = norm;
-      txt.textContent = norm;
-      opts.hidden = true;
-      btn.setAttribute("aria-expanded", "false");
-    });
-
-    // לחיצה מחוץ — סגור
     document.addEventListener("click", (e) => {
       if (!btn.contains(e.target) && !opts.contains(e.target)) {
+        if (!opts.hidden) {
+          opts.hidden = true;
+          btn.setAttribute("aria-expanded", "false");
+        }
+      }
+    });
+
+    // ----- Pick time -----
+    opts.querySelectorAll(".time-option").forEach(el => {
+      el.addEventListener("click", () => {
+        const v = el.dataset.value;
+        if (!v) return;
+        // עדכון טקסט הכפתור
+        btn.textContent = v + " ";
+        const arr = document.createElement("span");
+        arr.className = "arrow";
+        arr.textContent = "▾";
+        btn.appendChild(arr);
+
+        hiddenInput.value = v;
         opts.hidden = true;
         btn.setAttribute("aria-expanded", "false");
-      }
-    });
-
-    // סינכרון מכל שדה שעה גלוי (אם קיים אצלך select/input גלוי נוסף)
-    document.querySelectorAll('input[name="time"]:not([type="hidden"]), select[name="time"]').forEach(el => {
-      el.addEventListener("change", () => {
-        if (!el.value) return;
-        const norm = normalizeToQuarter(el.value);
-        hiddenInput.value = norm;
-        txt.textContent = norm;
       });
-      // אם לטופס כבר יש ערך גלוי – קח אותו כערך התחלתי
-      if (el.value && !hiddenInput.value) {
-        const norm = normalizeToQuarter(el.value);
-        hiddenInput.value = norm;
-        txt.textContent = norm;
-      }
     });
 
-    // בדיקה לפני שליחה — כולל פולבאק מהכפתור אם ה-hidden ריק
+    // ----- Submit guard + הזרקה ל-URL -----
     form.addEventListener("submit", (ev) => {
-      if (!hiddenInput.value) {
-        const fromBtn = pickHHMMFromText(txt.textContent);
-        if (fromBtn) hiddenInput.value = normalizeToQuarter(fromBtn);
-      }
-      if (!hiddenInput.value) {
+      const dateVal = document.getElementById("date").value.trim();
+      const timeVal = hiddenInput.value.trim();
+
+      if (!dateVal || !timeVal) {
         ev.preventDefault();
-        alert("נא לבחור שעה.");
-        return false;
+        alert("נא לבחור תאריך ושעה");
+        return;
       }
+
+      // מוסיפים גם ל-QueryString כדי שהשרת יוכל לקרוא גם אם body לא נקרא
+      const u = new URL(form.action, window.location.origin);
+      u.searchParams.set("date", dateVal);
+      u.searchParams.set("time", timeVal);
+      form.action = u.pathname + u.search;
+      // נשארים על method=POST (לא משנים פיצ’רים) — אבל הנתונים קיימים גם ב-URL
     });
 
-    // כפתור "בדוק זמינות"
+    // ----- Check availability -----
     const checkBtn = document.getElementById("check-btn");
     checkBtn?.addEventListener("click", async () => {
-      if (!hiddenInput.value) {
-        const fromBtn = pickHHMMFromText(txt.textContent);
-        if (fromBtn) hiddenInput.value = normalizeToQuarter(fromBtn);
-      }
-      const date = document.getElementById("date").value;
-      const time = hiddenInput.value;
+      const date = document.getElementById("date").value.trim();
+      const time = hiddenInput.value.trim();
       if (!date || !time) {
         alert("נא לבחור תאריך ושעה");
         return;
@@ -211,26 +175,22 @@
         headers: { "Accept": "application/json", "Content-Type": "application/json" },
         body: JSON.stringify({ date, time }),
       });
-      const txtResp = await resp.text();
+      const txt = await resp.text();
       let data = null;
-      try { data = JSON.parse(txtResp); } catch {}
+      try { data = JSON.parse(txt); } catch {}
       if (resp.ok && data && data.ok) {
-        renderAround([]); // אין קונפליקט
+        renderAround([]);
       } else {
         renderAround(data?.suggestions || []);
       }
     });
   });
 
-  // --- חשוב: כאן אין תלות במשתנים מחוץ לסקופ ---
   function renderAround(slots) {
     const card = document.getElementById("around-card");
     const box = document.getElementById("around-slots");
     const hiddenInput = document.getElementById("time");
     const btn = document.getElementById("time-display");
-    const txt = document.getElementById("time-display-text");
-
-    if (!card || !box) return;
 
     box.innerHTML = "";
     if (Array.isArray(slots) && slots.length) {
@@ -240,12 +200,14 @@
         b.type = "button";
         b.className = "slot";
         b.textContent = t;
-        b.addEventListener("click", () => {
-          const norm = normalizeToQuarter(t);
-          hiddenInput.value = norm;
-          if (txt) txt.textContent = norm;
+        b.onclick = () => {
+          hiddenInput.value = t;
+          btn.textContent = t + " ";
+          const arr = document.createElement("span");
+          arr.className = "arrow"; arr.textContent = "▾";
+          btn.appendChild(arr);
           card.hidden = true;
-        });
+        };
         box.appendChild(b);
       });
     } else {
