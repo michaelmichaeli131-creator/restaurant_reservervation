@@ -396,55 +396,42 @@ export async function computeOccupancy(restaurant: Restaurant, date: string) {
 }
 
 /** בדיקת זמינות ל-slot (מיושר לגריד) + אכיפת שעות פתיחה */
-export async function checkAvailability(restaurantId: string, date: string, time: string, people: number) {
+
+export async function checkAvailability(
+  restaurantId: string,
+  date: string,
+  time: string,
+  people: number,
+) {
   const r = await getRestaurant(restaurantId);
   if (!r) return { ok: false, reason: "not_found" as const };
 
-  // ← דיפולטים קשיחים כדי להתמודד עם נתונים ישנים ב-KV
-  const step = r.slotIntervalMinutes && r.slotIntervalMinutes > 0 ? r.slotIntervalMinutes : 15;
-  const span = r.serviceDurationMinutes && r.serviceDurationMinutes > 0 ? r.serviceDurationMinutes : 120;
+  // דיפולטים קשיחים כדי להתמודד עם מסעדות ישנות ב-KV
+  const step = (r.slotIntervalMinutes && r.slotIntervalMinutes > 0) ? r.slotIntervalMinutes : 15;
+  const span = (r.serviceDurationMinutes && r.serviceDurationMinutes > 0) ? r.serviceDurationMinutes : 120;
   const capacity = (typeof r.capacity === "number" && r.capacity > 0) ? r.capacity : 30;
 
-  // אם גם ה-people לא סביר – נרים ל-2
   const seats = Math.max(1, Number.isFinite(people) ? people : 2);
-  if (seats > capacity) return { ok:false as const, reason: "full" as const };
+  if (seats > capacity) return { ok: false as const, reason: "full" as const };
 
+  // מוודאים שיש לנו מפה עם אותם דיפולטים (למקרה שהרסטורנט בקי־וי ישן)
   const occ = await computeOccupancy(
-    { ...r, slotIntervalMinutes: step, serviceDurationMinutes: span, capacity }, // מבטיחים דיפולטים גם כאן
-    date
+    { ...r, slotIntervalMinutes: step, serviceDurationMinutes: span, capacity },
+    date,
   );
 
-  const start = snapToGrid(toMinutes(time), step);
+  const startRaw = toMinutes(time);
+  if (!Number.isFinite(startRaw)) return { ok: false as const, reason: "bad_time" as const };
+
+  const start = snapToGrid(startRaw, step);
   const end = start + span;
+
+  // לא חוצים את היום
+  if (end > 24 * 60) return { ok: false as const, reason: "out_of_hours" as const };
 
   for (let t = start; t < end; t += step) {
     const used = occ.get(fromMinutes(t)) ?? 0;
     if (used + seats > capacity) return { ok: false, reason: "full" as const };
-  }
-  return { ok: true as const };
-}
-
-
-  const r = await getRestaurant(restaurantId);
-  if (!r) return { ok: false, reason: "not_found" as const };
-
-  const step = r.slotIntervalMinutes || 15;
-  const span = r.serviceDurationMinutes || 120;
-
-  // אכיפת שעות פתיחה
-  const range = getOpeningRangeForDate(r, date);
-  if (!range) return { ok: false, reason: "closed" as const };
-
-  const start = snapToGrid(toMinutes(time), step);
-  const end = start + span;
-
-  // חייב להיות כולו בתוך חלון הפתיחה
-  if (start < range.start || end > range.end) return { ok: false, reason: "closed" as const };
-
-  const occ = await computeOccupancy(r, date);
-  for (let t = start; t < end; t += step) {
-    const used = occ.get(fromMinutes(t)) ?? 0;
-    if (used + people > r.capacity) return { ok: false, reason: "full" as const };
   }
   return { ok: true as const };
 }
