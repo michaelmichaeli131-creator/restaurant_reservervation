@@ -100,7 +100,11 @@
       dropdown.addEventListener("click", (ev) => {
         const el = ev.target?.closest?.(".time-option");
         if (!el) return;
-        const t = el.getAttribute("data-time") || parseHHMMFromText(el.textContent);
+        // ★ תיקון: תמיכה גם ב-data-value (כמו ב-HTML שלך) וגם ב-data-time
+        const t =
+          el.getAttribute("data-value") ||
+          el.getAttribute("data-time") ||
+          parseHHMMFromText(el.textContent);
         if (t) {
           applyPickedTime(t, { updateButton: true });
           hideDropdown();

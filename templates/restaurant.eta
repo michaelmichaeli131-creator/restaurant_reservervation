@@ -27,20 +27,28 @@
       </div>
 
       <div class="form-row time-row">
-        <label for="time-display">שעה</label>
+        <!-- שינוי: במקום for="time-display" שמפריע לקליק על כפתור, משתמשים ב-id ו-aria-labelledby -->
+        <label id="time-label">שעה</label>
         <div class="time-dropdown-wrapper">
-          <button type="button" class="time-dropdown-btn" id="time-display">
+          <button
+            type="button"
+            class="time-dropdown-btn"
+            id="time-display"
+            aria-haspopup="listbox"
+            aria-expanded="false"
+            aria-labelledby="time-label time-display"
+          >
             <%= it.time || "בחר שעה" %>
             <span class="arrow">▾</span>
           </button>
-          <div class="time-options" id="time-options" hidden>
+          <div class="time-options" id="time-options" hidden role="listbox" aria-label="בחירת שעה">
             <% for (let h = 0; h < 24; h++) {
                  for (let m = 0; m < 60; m += 15) {
                    const hh = String(h).padStart(2, "0");
                    const mm = String(m).padStart(2, "0");
                    const val = `${hh}:${mm}`;
             %>
-              <div class="time-option" data-value="<%= val %>"><%= val %></div>
+              <div class="time-option" role="option" data-value="<%= val %>"><%= val %></div>
             <%     }
                }
             %>
@@ -103,12 +111,40 @@
     const btn = document.getElementById("time-display");
     const opts = document.getElementById("time-options");
     const hiddenInput = document.getElementById("time");
+    const form = document.getElementById("reserve-form");
 
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      opts.hidden = !opts.hidden;
+    // --- Submit guard: לא שולחים אם אין time ---
+    form.addEventListener("submit", (ev) => {
+      if (!hiddenInput.value) {
+        ev.preventDefault();
+        alert("נא לבחור שעה מהרשימה");
+        return false;
+      }
     });
 
+    // פתיחה/סגירה בלחיצה
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const open = opts.hidden;
+      opts.hidden = !open;
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+
+    // תמיכה במקלדת: Enter/Space לפתיחה
+    btn.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        const open = opts.hidden;
+        opts.hidden = !open;
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+      }
+      if (e.key === "Escape" && !opts.hidden) {
+        opts.hidden = true;
+        btn.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    // בחירת שעה
     opts.querySelectorAll(".time-option").forEach(el => {
       el.addEventListener("click", () => {
         const v = el.dataset.value;
@@ -121,12 +157,15 @@
 
         hiddenInput.value = v;
         opts.hidden = true;
+        btn.setAttribute("aria-expanded", "false");
       });
     });
 
+    // קליק מחוץ ל-dropdown סוגר אותו
     document.addEventListener("click", (e) => {
       if (!btn.contains(e.target) && !opts.contains(e.target)) {
         opts.hidden = true;
+        btn.setAttribute("aria-expanded", "false");
       }
     });
 
@@ -168,10 +207,11 @@
         b.textContent = t;
         b.onclick = () => {
           document.getElementById("time").value = t;
-          document.getElementById("time-display").textContent = t + " ";
+          const btn = document.getElementById("time-display");
+          btn.textContent = t + " ";
           const arr = document.createElement("span");
           arr.className = "arrow"; arr.textContent = "▾";
-          document.getElementById("time-display").appendChild(arr);
+          btn.appendChild(arr);
           renderAround([]);
         };
         box.appendChild(b);
@@ -282,7 +322,9 @@
     cursor: pointer;
     transition: background-color 0.2s;
   }
-  .btn:hover { background-color: #5a67d8; }
+  .btn:hover {
+    background-color: #5a67d8;
+  }
   .btn.secondary {
     background-color: #a0aec0;
   }
