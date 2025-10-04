@@ -87,179 +87,186 @@ function isValidEmail(s: string): boolean {
   return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
 }
 
-// Body reader
+// ---------- helpers: coalesce date/time from various keys ----------
+function coalesceDateLike(obj: Record<string, unknown> | URLSearchParams | null | undefined): string | null {
+  if (!obj) return null;
+  const pick = (...names: string[]) => {
+    for (const n of names) {
+      const v = obj instanceof URLSearchParams ? obj.get(n) : (obj as any)[n];
+      if (v != null && String(v).trim() !== "") return String(v);
+    }
+    return null;
+  };
+  const candidates = pick("date", "day", "when_date", "dt", "reservation_date");
+  if (candidates) return normalizeDate(candidates);
+  // נסה לחלץ מכל שדה שפוי
+  const entries = obj instanceof URLSearchParams ? Array.from(obj.entries()) : Object.entries(obj as any);
+  for (const [, v] of entries) {
+    const s = String(v ?? "").trim();
+    if (!s) continue;
+    // yyyy-mm-dd או dd/mm/yyyy וכד'
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    const m = s.match(/^(\d{2})[\/.](\d{2})[\/.](\d{4})$/);
+    if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  }
+  return null;
+}
+function coalesceTimeLike(obj: Record<string, unknown> | URLSearchParams | null | undefined): string {
+  if (!obj) return "";
+  const pick = (...names: string[]) => {
+    for (const n of names) {
+      const v = obj instanceof URLSearchParams ? obj.get(n) : (obj as any)[n];
+      if (v != null && String(v).trim() !== "") return String(v);
+    }
+    return null;
+  };
+  const direct =
+    pick("time", "slot", "hour", "hhmm", "when", "time_display", "time-display", "timeDisplay", "timeSelected") ??
+    "";
+  if (direct) {
+    const norm = normalizeTime(direct);
+    if (/^\d{2}:\d{2}$/.test(norm)) return norm;
+  }
+  // נסה לחלץ HH:MM מכל שדה
+  const entries = obj instanceof URLSearchParams ? Array.from(obj.entries()) : Object.entries(obj as any);
+  for (const [, v] of entries) {
+    const s = String(v ?? "").trim();
+    const m = s.match(/\b(\d{1,2}):(\d{2})\b/);
+    if (m) {
+      return normalizeTime(`${pad2(Number(m[1]))}:${pad2(Number(m[2]))}`);
+    }
+  }
+  return "";
+}
+
+// Body reader (REWORKED: קודם Oak → ואז native; לא שותים את הזרם פעמיים)
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const ct = (ctx.request.headers.get("content-type") ?? "").toLowerCase();
-  const reqAny: any = ctx.request as any;
   const dbg: Record<string, unknown> = { ct, phases: [] as any[] };
   const phase = (name: string, data: unknown) => {
     try { (dbg.phases as any[]).push({ name, data }); } catch {}
   };
-  const merge = (a: Record<string, unknown>, b: Record<string, unknown>) => {
-    for (const [k, v] of Object.entries(b)) {
-      if (v !== undefined && v !== null && v !== "") a[k] = v;
-    }
-    return a;
-  };
-  const fromEntries = (iter: Iterable<[string, FormDataEntryValue]> | URLSearchParams) => {
-    const o: Record<string, unknown> = {};
-    for (const [k, v] of (iter as any).entries()) o[k] = typeof v === "string" ? v : v?.name ?? "";
-    return o;
-  };
 
   const out: Record<string, unknown> = {};
+  const fromEntries = (iter: Iterable<[string, FormDataEntryValue]> | URLSearchParams | any) => {
+    const o: Record<string, unknown> = {};
+    if (iter && typeof (iter as any).entries === "function") {
+      for (const [k, v] of iter.entries()) o[k] = typeof v === "string" ? v : v?.name ?? "";
+    } else if (iter && typeof iter === "object") {
+      for (const [k, v] of Object.entries(iter)) o[k] = v as any;
+    }
+    return o;
+  };
+  const merge = (src: Record<string, unknown>) => {
+    for (const [k, v] of Object.entries(src)) {
+      if (v !== undefined && v !== null && v !== "") out[k] = v;
+    }
+  };
 
+  // 1) OAK FIRST: ctx.request.body() (auto detect)
   try {
-    if (typeof reqAny.formData === "function") {
+    const bb = await ctx.request.body(); // auto-detect
+    phase("oak.fn.detected", bb?.type ?? null);
+
+    if (bb?.type === "json") {
+      const v = await bb.value;
+      phase("oak.fn.json", v);
+      if (v && typeof v === "object") merge(v as any);
+    } else if (bb?.type === "form") {
+      const v = await bb.value; // URLSearchParams
+      const o = fromEntries(v as URLSearchParams);
+      phase("oak.fn.form(urlencoded)", o);
+      merge(o);
+    } else if (bb?.type === "form-data") {
+      const v = await bb.value;
+      // @ts-ignore read exists on form-data body in Oak
+      const r = await v.read();
+      const o = (r?.fields ?? {}) as Record<string, unknown>;
+      phase("oak.fn.multipart", Object.keys(o));
+      merge(o);
+    } else if (bb?.type === "text") {
+      const t: string = await bb.value;
+      phase("oak.fn.text", t.length > 200 ? t.slice(0,200) + "…" : t);
+      try {
+        const j = JSON.parse(t);
+        phase("oak.fn.text->json", true);
+        merge(j as any);
+      } catch {
+        const sp = new URLSearchParams(t);
+        const o = fromEntries(sp);
+        if (Object.keys(o).length) {
+          phase("oak.fn.text->urlencoded", o);
+          merge(o);
+        }
+      }
+    } else if (bb?.type === "bytes") {
+      const u8: Uint8Array = await bb.value;
+      const t = new TextDecoder().decode(u8);
+      phase("oak.fn.bytes", t.length > 200 ? t.slice(0,200) + "…" : t);
+      try {
+        const j = JSON.parse(t);
+        phase("oak.fn.bytes->json", true);
+        merge(j as any);
+      } catch {
+        const sp = new URLSearchParams(t);
+        const o = fromEntries(sp);
+        if (Object.keys(o).length) {
+          phase("oak.fn.bytes->urlencoded", o);
+          merge(o);
+        }
+      }
+    } else {
+      phase("oak.fn.type", bb?.type ?? "none");
+    }
+  } catch (e) {
+    phase("oak.fn.error", String(e));
+  }
+
+  // 2) NATIVE (run only if needed; לא חובה, אבל עוזר אם מישהו עוקף את Oak)
+  try {
+    // formData
+    // deno-lint-ignore no-explicit-any
+    const reqAny: any = ctx.request;
+    if (Object.keys(out).length === 0 && typeof reqAny?.formData === "function") {
       const fd = await reqAny.formData();
       const o = fromEntries(fd);
-      if (Object.keys(o).length) { phase("native.ctx.formData", o); merge(out, o); }
+      if (Object.keys(o).length) { phase("native.ctx.formData", o); merge(o); }
     }
   } catch (e) { phase("native.ctx.formData.error", String(e)); }
 
   try {
-    if (typeof reqAny.json === "function") {
+    const reqAny: any = ctx.request;
+    if (Object.keys(out).length === 0 && typeof reqAny?.json === "function") {
       const j = await reqAny.json();
-      if (j && typeof j === "object") { phase("native.ctx.json", j); merge(out, j); }
+      if (j && typeof j === "object") { phase("native.ctx.json", j); merge(j as any); }
     }
   } catch (e) { phase("native.ctx.json.error", String(e)); }
 
   try {
-    if (typeof reqAny.text === "function") {
+    const reqAny: any = ctx.request;
+    if (Object.keys(out).length === 0 && typeof reqAny?.text === "function") {
       const t: string = await reqAny.text();
       if (t) {
         phase("native.ctx.text", t.length > 200 ? t.slice(0,200) + "…" : t);
         try {
           const j = JSON.parse(t);
-          phase("native.ctx.text->json", j);
-          merge(out, j);
+          phase("native.ctx.text->json", true);
+          merge(j as any);
         } catch {
           const sp = new URLSearchParams(t);
           const o = fromEntries(sp);
-          if (Object.keys(o).length) { phase("native.ctx.text->urlencoded", o); merge(out, o); }
+          if (Object.keys(o).length) { phase("native.ctx.text->urlencoded", o); merge(o); }
         }
       }
     }
   } catch (e) { phase("native.ctx.text.error", String(e)); }
 
-  try {
-    const b = (reqAny.body && typeof reqAny.body !== "function") ? reqAny.body : null;
-    if (b && b.type) {
-      if (b.type === "json") {
-        const v = await b.value;
-        if (v && typeof v === "object") { phase("oak.obj.json", v); merge(out, v as any); }
-      } else if (b.type === "form") {
-        const v = await b.value;
-        const o = fromEntries(v as URLSearchParams);
-        phase("oak.obj.form(urlencoded)", o);
-        merge(out, o);
-      } else if (b.type === "form-data") {
-        const v = await b.value;
-        const r = await v.read();
-        const o = (r?.fields ?? {}) as Record<string, unknown>;
-        phase("oak.obj.multipart", o);
-        merge(out, o);
-      } else if (b.type === "text") {
-        const t: string = await b.value;
-        phase("oak.obj.text", t);
-        try {
-          const j = JSON.parse(t);
-          phase("oak.obj.text->json", j);
-          merge(out, j as any);
-        } catch {
-          const sp = new URLSearchParams(t);
-          const o = fromEntries(sp);
-          if (Object.keys(o).length) {
-            phase("oak.obj.text->urlencoded", o);
-            merge(out, o);
-          }
-        }
-      } else if (b.type === "bytes") {
-        const u8: Uint8Array = await b.value;
-        const t = new TextDecoder().decode(u8);
-        phase("oak.obj.bytes", t.length > 200 ? t.slice(0,200) + "…" : t);
-        try {
-          const j = JSON.parse(t);
-          phase("oak.obj.bytes->json", j);
-          merge(out, j as any);
-        } catch {
-          const sp = new URLSearchParams(t);
-          const o = fromEntries(sp);
-          if (Object.keys(o).length) {
-            phase("oak.obj.bytes->urlencoded", o);
-            merge(out, o);
-          }
-        }
-      }
-    } else if (!b) {
-      phase("oak.body.object", false);
-    }
-  } catch (e) {
-    phase("oak.body.object.error", String(e));
-  }
-
-  try {
-    if (typeof reqAny.body === "function") {
-      const bb = await reqAny.body();
-      if (bb?.type === "json") {
-        const v = await bb.value;
-        if (v && typeof v === "object") { phase("oak.fn.json", v); merge(out, v as any); }
-      } else if (bb?.type === "form") {
-        const v = await bb.value;
-        const o = fromEntries(v as URLSearchParams);
-        phase("oak.fn.form(urlencoded)", o);
-        merge(out, o);
-      } else if (bb?.type === "form-data") {
-        const v = await bb.value;
-        const r = await v.read();
-        const o = (r?.fields ?? {}) as Record<string, unknown>;
-        phase("oak.fn.multipart", o);
-        merge(out, o);
-      } else if (bb?.type === "text") {
-        const t: string = await bb.value;
-        phase("oak.fn.text", t);
-        try {
-          const j = JSON.parse(t);
-          phase("oak.fn.text->json", j);
-          merge(out, j as any);
-        } catch {
-          const sp = new URLSearchParams(t);
-          const o = fromEntries(sp);
-          if (Object.keys(o).length) {
-            phase("oak.fn.text->urlencoded", o);
-            merge(out, o);
-          }
-        }
-      } else if (bb?.type === "bytes") {
-        const u8: Uint8Array = await bb.value;
-        const t = new TextDecoder().decode(u8);
-        phase("oak.fn.bytes", t.length > 200 ? t.slice(0,200) + "…" : t);
-        try {
-          const j = JSON.parse(t);
-          phase("oak.fn.bytes->json", j);
-          merge(out, j as any);
-        } catch {
-          const sp = new URLSearchParams(t);
-          const o = fromEntries(sp);
-          if (Object.keys(o).length) {
-            phase("oak.fn.bytes->urlencoded", o);
-            merge(out, o);
-          }
-        }
-      }
-    } else {
-      phase("oak.body.notFunction", true);
-    }
-  } catch (e) {
-    phase("oak.body.fn.error", String(e));
-  }
-
-  const qs = Object.fromEntries(ctx.request.url.searchParams);
-  phase("querystring", qs);
-  for (const [k, v] of Object.entries(qs)) {
-    if (out[k] === undefined || out[k] === null || out[k] === "") {
-      out[k] = v;
-    }
+  // 3) Query fallback
+  const qs = ctx.request.url.searchParams;
+  const qsObj = Object.fromEntries(qs.entries());
+  phase("querystring", qsObj);
+  for (const [k, v] of Object.entries(qsObj)) {
+    if (out[k] === undefined || out[k] === null || out[k] === "") out[k] = v;
   }
 
   phase("keys", Object.keys(out));
@@ -324,8 +331,10 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const { payload, dbg } = await readBody(ctx);
   debugLog("check payload", payload);
 
-  const date = normalizeDate((payload as any).date ?? "");
-  const time = normalizeTime((payload as any).time ?? "");
+  // ★ חדש: שימוש ב-coalesce
+  const date = coalesceDateLike(payload) ?? coalesceDateLike(ctx.request.url.searchParams) ?? todayISO();
+  const time = coalesceTimeLike(payload) || coalesceTimeLike(ctx.request.url.searchParams);
+
   debugLog("check normalized date,time", { date, time });
 
   const people = 2;
@@ -361,20 +370,28 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     return;
   }
 
-  const { payload } = await readBody(ctx);
+  const { payload, dbg } = await readBody(ctx);
   debugLog("reserve payload", payload);
 
-  const date = normalizeDate((payload as any).date ?? ctx.request.url.searchParams.get("date"));
-  const time = normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time"));
+  // ★ חדש: שימוש ב-coalesce גם כאן (payload + query)
+  const date =
+    coalesceDateLike(payload) ??
+    coalesceDateLike(ctx.request.url.searchParams) ??
+    normalizeDate((payload as any).date ?? ctx.request.url.searchParams.get("date"));
+  const time =
+    coalesceTimeLike(payload) ||
+    coalesceTimeLike(ctx.request.url.searchParams) ||
+    normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time"));
+
   debugLog("reserve normalized date,time", { date, time });
 
   const people = 2;
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
-    debugLog("reserve error invalid format", { date, time });
+    debugLog("reserve error invalid format", { date, time, dbg });
     ctx.response.status = Status.BadRequest;
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok:false, error:"אנא בחר/י תאריך ושעה תקינים" }, null, 2);
+    ctx.response.body = JSON.stringify({ ok:false, error:"אנא בחר/י תאריך ושעה תקינים", dbg }, null, 2);
     return;
   }
 
@@ -531,8 +548,8 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const { payload, dbg } = await readBody(ctx);
   debugLog("confirm POST payload", payload);
 
-  const date   = normalizeDate((payload as any).date ?? ctx.request.url.searchParams.get("date") ?? "");
-  const time   = normalizeTime((payload as any).time ?? ctx.request.url.searchParams.get("time") ?? "");
+  const date   = coalesceDateLike(payload) ?? coalesceDateLike(ctx.request.url.searchParams) ?? "";
+  const time   = coalesceTimeLike(payload) || coalesceTimeLike(ctx.request.url.searchParams) || "";
   debugLog("confirm POST normalized date,time", { date, time });
 
   const people = toIntLoose((payload as any).people ?? ctx.request.url.searchParams.get("people")) ?? 2;

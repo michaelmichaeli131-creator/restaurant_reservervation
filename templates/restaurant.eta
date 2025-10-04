@@ -14,11 +14,6 @@
     <% if (it.conflict) { %>
       <div class="alert warn" role="alert">
         אין זמינות בשעה שבחרת. בחר/י שעה אחרת מהרשימה להלן.
-        <% if (it.suggestions && it.suggestions.length) { %>
-          <div class="muted" style="margin-top:.5rem">
-            הצעות: <%= it.suggestions.join(", ") %>
-          </div>
-        <% } %>
       </div>
     <% } %>
 
@@ -26,38 +21,32 @@
           class="form-grid"
           action="/restaurants/<%= it.restaurant.id %>/reserve"
           method="post" novalidate>
-
-      <!-- תאריך -->
       <div class="form-row">
         <label for="date">תאריך</label>
         <input id="date" name="date" type="date" required value="<%= it.date || '' %>"/>
       </div>
 
-      <!-- שעה: השדה החבוי שנשלח לשרת -->
-      <input id="time" name="time" type="hidden" value="<%= it.time || '' %>"/>
-
       <div class="form-row time-row">
-        <label>שעה</label>
-
-        <!-- כפתור תצוגה/פתיחה של רשימת השעות -->
-        <button id="time-button" type="button" class="time-dropdown-btn" aria-haspopup="listbox" aria-expanded="false">
-          <%= it.time ? it.time : "בחר/י שעה" %><span class="arrow">▾</span>
-        </button>
-
-        <!-- Dropdown של שעות; כל פריט .time-option עם data-time="HH:MM" -->
-        <ul id="time-dropdown" class="menu time-options" role="listbox" aria-label="בחירת שעה" hidden>
-          <%
-            function pad2(n){ return String(n).padStart(2,'0'); }
-            const fromH = (it.restaurant.openHour ?? 10);
-            const toH   = (it.restaurant.closeHour ?? 23);
-            for (let h = 0; h < 24; h++) {   // אם תרצה פתיחה/סגירה אמיתיים, החלף ל-fromH/toH
-              for (let m of [0,15,30,45]) {
-                const hhmm = `${pad2(h)}:${pad2(m)}`;
-          %>
-            <li class="menu-item time-option" role="option" data-time="<%= hhmm %>"><%= hhmm %></li>
-          <% } } %>
-        </ul>
-
+        <label for="time-display">שעה</label>
+        <div class="time-dropdown-wrapper">
+          <button type="button" class="time-dropdown-btn" id="time-display">
+            <%= it.time || "בחר שעה" %>
+            <span class="arrow">▾</span>
+          </button>
+          <div class="time-options" id="time-options" hidden>
+            <% for (let h = 0; h < 24; h++) {
+                 for (let m = 0; m < 60; m += 15) {
+                   const hh = String(h).padStart(2, "0");
+                   const mm = String(m).padStart(2, "0");
+                   const val = `${hh}:${mm}`;
+            %>
+              <div class="time-option" data-value="<%= val %>"><%= val %></div>
+            <%     }
+               }
+            %>
+          </div>
+        </div>
+        <input type="hidden" id="time" name="time" value="<%= it.time || '' %>"/>
         <small class="muted">שעות בתדירות 15 דקות (24-ש’)</small>
       </div>
 
@@ -109,32 +98,246 @@
   <% } %>
 </main>
 
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const btn = document.getElementById("time-display");
+    const opts = document.getElementById("time-options");
+    const hiddenInput = document.getElementById("time");
+
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      opts.hidden = !opts.hidden;
+    });
+
+    opts.querySelectorAll(".time-option").forEach(el => {
+      el.addEventListener("click", () => {
+        const v = el.dataset.value;
+        // עדכון טקסט הכפתור
+        btn.textContent = v + " ";
+        const arr = document.createElement("span");
+        arr.className = "arrow";
+        arr.textContent = "▾";
+        btn.appendChild(arr);
+
+        hiddenInput.value = v;
+        opts.hidden = true;
+      });
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!btn.contains(e.target) && !opts.contains(e.target)) {
+        opts.hidden = true;
+      }
+    });
+
+    const checkBtn = document.getElementById("check-btn");
+    checkBtn?.addEventListener("click", async () => {
+      const date = document.getElementById("date").value;
+      const time = hiddenInput.value;
+      if (!date || !time) {
+        alert("נא לבחור תאריך ושעה");
+        return;
+      }
+      const rid = checkBtn.dataset.rid;
+      const resp = await fetch(`/api/restaurants/${encodeURIComponent(rid)}/check`, {
+        method: "POST",
+        headers: { "Accept": "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ date, time }),
+      });
+      const txt = await resp.text();
+      let data = null;
+      try { data = JSON.parse(txt); } catch {}
+      if (resp.ok && data && data.ok) {
+        renderAround([]);
+      } else {
+        renderAround(data?.suggestions || []);
+      }
+    });
+  });
+
+  function renderAround(slots) {
+    const card = document.getElementById("around-card");
+    const box = document.getElementById("around-slots");
+    box.innerHTML = "";
+    if (Array.isArray(slots) && slots.length) {
+      card.hidden = false;
+      slots.slice(0, 4).forEach(t => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "slot";
+        b.textContent = t;
+        b.onclick = () => {
+          document.getElementById("time").value = t;
+          document.getElementById("time-display").textContent = t + " ";
+          const arr = document.createElement("span");
+          arr.className = "arrow"; arr.textContent = "▾";
+          document.getElementById("time-display").appendChild(arr);
+          renderAround([]);
+        };
+        box.appendChild(b);
+      });
+    } else {
+      card.hidden = true;
+    }
+  }
+</script>
+
 <style>
-  .container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
-  .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 24px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
-  .form-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
-  .form-row { display: flex; flex-direction: column; position: relative; }
-  .form-row.time-row { grid-column: 1 / -1; }
-  .time-dropdown-btn { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e0; border-radius: 6px; background: #fff; text-align: left; font-size: 1rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-  .menu.time-options { position: absolute; top: calc(100% + 4px); left: 0; right: 0; max-height: 200px; overflow-y: auto; border: 1px solid #cbd5e0; border-radius: 6px; background: #fff; z-index: 1000; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-  .menu-item.time-option { padding: 8px 12px; cursor: pointer; }
-  .menu-item.time-option:hover { background: #f0f0ff; }
-  .arrow { margin-left: 8px; color: #666; }
-  .form-row label { margin-bottom: 4px; color: #333; font-weight: 500; }
-  .form-row input { padding: 10px 12px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 1rem; transition: border-color 0.2s; }
-  .form-row input:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.3); }
-  .form-actions { grid-column: 1 / -1; display: flex; gap: 12px; margin-top: 16px; }
-  .btn { padding: 10px 16px; border: none; border-radius: 6px; background-color: #667eea; color: #fff; cursor: pointer; transition: background-color 0.2s; }
+  .container {
+    max-width: 960px;
+    margin: 24px auto;
+    padding: 0 16px;
+  }
+  .card {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 24px;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2,1fr);
+    gap: 16px;
+  }
+  .form-row {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .form-row.time-row {
+    grid-column: 1 / -1;
+  }
+  .time-dropdown-wrapper {
+    position: relative;
+    width: 100%;
+  }
+  .time-dropdown-btn {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    background: #fff;
+    text-align: left;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .time-options {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    background: #fff;
+    z-index: 1000;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  }
+  .time-option {
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  .time-option:hover {
+    background: #f0f0ff;
+  }
+  .arrow {
+    margin-left: 8px;
+    color: #666;
+  }
+  .form-row label {
+    margin-bottom: 4px;
+    color: #333;
+    font-weight: 500;
+  }
+  .form-row input {
+    padding: 10px 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+  }
+  .form-row input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102,126,234,0.3);
+  }
+  .form-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .btn {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    background-color: #667eea;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
   .btn:hover { background-color: #5a67d8; }
-  .btn.secondary { background-color: #a0aec0; }
-  .btn.secondary:hover { background-color: #718096; }
-  .alert.warn { background: #fff5f5; border: 1px solid #fed7d7; color: #c53030; padding: 12px; border-radius: 6px; margin-bottom: 12px; }
-  .slots { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-  .slot { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; background: #f7fafc; cursor: pointer; transition: background-color 0.2s; }
-  .slot:hover { background: #edf2f7; }
-  .menu-list { list-style: none; margin: 0; padding: 0; }
-  .menu-list li { padding: 8px 0; border-bottom: 1px dashed #eee; }
-  .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 10px; }
-  .photo-grid img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; }
-  @media (max-width: 860px) { .form-grid { grid-template-columns: 1fr; } }
+  .btn.secondary {
+    background-color: #a0aec0;
+  }
+  .btn.secondary:hover {
+    background-color: #718096;
+  }
+  .alert.warn {
+    background: #fff5f5;
+    border: 1px solid #fed7d7;
+    color: #c53030;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+  }
+  .slots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .slot {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #f7fafc;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  .slot:hover {
+    background: #edf2f7;
+  }
+  .menu-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .menu-list li {
+    padding: 8px 0;
+    border-bottom: 1px dashed #eee;
+  }
+  .photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px,1fr));
+    gap: 10px;
+  }
+  .photo-grid img {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #eee;
+  }
+  @media (max-width: 860px) {
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>
