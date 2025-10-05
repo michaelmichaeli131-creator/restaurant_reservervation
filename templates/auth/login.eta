@@ -12,11 +12,8 @@
     </div>
   <% } %>
 
-  <!-- שולח בוודאות x-www-form-urlencoded -->
   <form action="/auth/login" method="post" enctype="application/x-www-form-urlencoded"
         id="login-form" class="form-grid" novalidate>
-    <input type="hidden" name="__form" value="login"/>
-
     <div class="form-row" style="grid-column:1/-1">
       <label for="email">אימייל</label>
       <input id="email" name="email" type="email" dir="ltr" inputmode="email" required
@@ -30,11 +27,12 @@
              placeholder="הקלד/י סיסמה"/>
     </div>
 
-    <div class="form-row" style="grid-column:1/-1;align-items:flex-start">
+    <div class="form-row" style="grid-column:1/-1;align-items:flex-start;gap:6px">
       <label style="display:flex;gap:8px;align-items:center;font-weight:500">
         <input type="checkbox" name="remember" value="1"/>
         זכור אותי (מכשיר זה)
       </label>
+      <a href="/auth/forgot" class="muted" style="margin-inline-start:auto">שכחת סיסמה?</a>
     </div>
 
     <div class="form-actions" style="grid-column:1/-1;display:flex;gap:10px;margin-top:12px">
@@ -50,51 +48,8 @@
   .form-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:14px}
   .form-row{display:flex;flex-direction:column}
   .form-row label{margin-bottom:4px;font-weight:600}
-  .form-row input{padding:8px 10px;border:1px solid #ccc;border-radius:8px;font-size:1rem}
+  .form-row input{padding:8px 10px;border:1px solid #ccc;border-radius:10px;font-size:1rem}
   .btn{background:#111;color:#fff;border:none;border-radius:10px;padding:8px 12px;cursor:pointer}
   .btn.secondary{background:#555}
   .alert.error{border:1px solid #ffb4ad;background:#ffeceb;border-radius:8px;padding:10px}
 </style>
-
-<script>
-  (function(){
-    const form = document.getElementById('login-form');
-    const emailEl = document.getElementById('email');
-    if (emailEl) emailEl.dir = 'ltr';
-
-    // לשמירה על תאימות עם BEים שמחפשים שמות אחרים (username/login/user/mail)
-    function upsertHidden(name, value){
-      if (!value && value !== 0) return;
-      let el = form.querySelector('input[type="hidden"][name="'+name+'"]');
-      if (!el) {
-        el = document.createElement('input');
-        el.type = 'hidden';
-        el.name = name;
-        form.appendChild(el);
-      }
-      el.value = value;
-    }
-
-    form.addEventListener('submit', ()=>{
-      const em = (form.email?.value || "").trim();
-      const pw = (form.password?.value || "");
-      // אלטרנטיבות נפוצות
-      upsertHidden("username", em);
-      upsertHidden("user", em);
-      upsertHidden("login", em);
-      upsertHidden("mail", em);
-      // לפעמים ב-remember קוראים rememberMe/remember_me
-      if (form.remember?.checked) {
-        upsertHidden("rememberMe", "1");
-        upsertHidden("remember_me", "1");
-      }
-      // ביטוח מפני פרוקסי שמסיר גוף — שומר עותק גם בפרמטרי query אם יידרש (לא פוגע בשרת רגיל)
-      try {
-        const url = new URL(form.action, window.location.origin);
-        url.searchParams.set("email", em);
-        url.searchParams.set("password", pw);
-        form.action = url.pathname + url.search;
-      } catch {}
-    });
-  })();
-</script>
