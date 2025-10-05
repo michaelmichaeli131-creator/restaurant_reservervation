@@ -1,5 +1,6 @@
 // src/database.ts
 // Deno KV – אינדקסים עם prefix ועסקאות atomic
+// שדרוגים: נירמול חלקי מפתח (Key Parts) + קשיחות createUser לגזירת username מה-email במקרה הצורך.
 
 export interface User {
   id: string;
@@ -58,38 +59,68 @@ export const kv = await Deno.openKv();
 const lower = (s?: string) => (s ?? "").trim().toLowerCase();
 const now = () => Date.now();
 
+/* ─────────────── Key helpers: הבטחת טיפוסים חוקיים לכל חלק מפתח ─────────────── */
+
+type KeyPart = string | number | bigint | boolean | Uint8Array;
+function ensureKeyPart(p: unknown): KeyPart {
+  if (typeof p === "string" || typeof p === "number" || typeof p === "bigint" || typeof p === "boolean") return p;
+  if (p instanceof Uint8Array) return p;
+  if (p === undefined || p === null) return "";          // אין undefined/null ב־KV key
+  return String(p);                                      // כל השאר -> מחרוזת
+}
+function toKey(...parts: unknown[]): Deno.KvKey {
+  return parts.map(ensureKeyPart) as Deno.KvKey;
+}
+
 /* ───────────────────────────── Users ───────────────────────────── */
 
 export async function createUser(u: {
-  id: string;
-  email: string;
-  username: string;
-  firstName: string;
-  lastName: string;
+  id?: string;
+  email?: string;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
   age?: number;
   businessType?: string;
   passwordHash?: string;
-  role: "user" | "owner";
-  provider: "local" | "google";
+  role?: "user" | "owner";
+  provider?: "local" | "google";
 }): Promise<User> {
+  const id = u.id || crypto.randomUUID();
+
+  const emailNorm = lower(u.email);
+  if (!emailNorm) throw new Error("email_required");
+
+  // אם לא הגיע username – נגזור מ-email (לפני ה־@); אם עדיין ריק, ניצור מחולל קצר
+  const usernameNorm =
+    lower(u.username) ||
+    lower(emailNorm.split("@")[0] || "") ||
+    ("user_" + crypto.randomUUID().slice(0, 8));
+
+  const firstName = (u.firstName ?? "").trim();
+  const lastName  = (u.lastName ?? "").trim();
+
   const user: User = {
-    ...u,
-    email: lower(u.email),
-    username: lower(u.username),
-    firstName: u.firstName.trim(),
-    lastName: u.lastName.trim(),
+    id,
+    email: emailNorm,
+    username: usernameNorm,
+    firstName,
+    lastName,
     age: u.age,
     businessType: u.businessType?.trim(),
+    passwordHash: u.passwordHash,
+    role: u.role ?? "owner",
+    provider: u.provider ?? "local",
     emailVerified: false,
     createdAt: now(),
   };
 
   const tx = kv.atomic()
-    .check({ key: ["user_by_email", user.email], versionstamp: null })
-    .check({ key: ["user_by_username", user.username], versionstamp: null })
-    .set(["user", user.id], user)
-    .set(["user_by_email", user.email], user.id)
-    .set(["user_by_username", user.username], user.id);
+    .check({ key: toKey("user_by_email", user.email), versionstamp: null })
+    .check({ key: toKey("user_by_username", user.username), versionstamp: null })
+    .set(toKey("user", user.id), user)
+    .set(toKey("user_by_email", user.email), user.id)
+    .set(toKey("user_by_username", user.username), user.id);
 
   const res = await tx.commit();
   if (!res.ok) throw new Error("user_exists");
@@ -97,34 +128,34 @@ export async function createUser(u: {
 }
 
 export async function findUserByEmail(email: string) {
-  const ref = await kv.get<string>(["user_by_email", lower(email)]);
+  const ref = await kv.get<string>(toKey("user_by_email", lower(email)));
   if (!ref.value) return null;
-  return (await kv.get<User>(["user", ref.value])).value ?? null;
+  return (await kv.get<User>(toKey("user", ref.value))).value ?? null;
 }
 
 export async function findUserByUsername(username: string) {
-  const ref = await kv.get<string>(["user_by_username", lower(username)]);
+  const ref = await kv.get<string>(toKey("user_by_username", lower(username)));
   if (!ref.value) return null;
-  return (await kv.get<User>(["user", ref.value])).value ?? null;
+  return (await kv.get<User>(toKey("user", ref.value))).value ?? null;
 }
 
 export async function getUserById(id: string) {
-  return (await kv.get<User>(["user", id])).value ?? null;
+  return (await kv.get<User>(toKey("user", id))).value ?? null;
 }
 
 export async function setEmailVerified(userId: string) {
-  const cur = await kv.get<User>(["user", userId]);
+  const cur = await kv.get<User>(toKey("user", userId));
   if (!cur.value) return null;
   const next = { ...cur.value, emailVerified: true };
-  await kv.set(["user", userId], next);
+  await kv.set(toKey("user", userId), next);
   return next;
 }
 
 export async function updateUserPassword(userId: string, passwordHash: string) {
-  const cur = await kv.get<User>(["user", userId]);
+  const cur = await kv.get<User>(toKey("user", userId));
   if (!cur.value) return null;
   const next = { ...cur.value, passwordHash };
-  await kv.set(["user", userId], next);
+  await kv.set(toKey("user", userId), next);
   return next;
 }
 
@@ -132,27 +163,27 @@ export async function updateUserPassword(userId: string, passwordHash: string) {
 
 export async function createVerifyToken(userId: string, email: string): Promise<string> {
   const token = crypto.randomUUID().replace(/-/g, "");
-  await kv.set(["verify", token], { userId, email, createdAt: now() });
+  await kv.set(toKey("verify", token), { userId, email, createdAt: now() });
   return token;
 }
 
 export async function useVerifyToken(token: string) {
-  const v = await kv.get<{ userId: string; email: string; createdAt: number }>(["verify", token]);
+  const v = await kv.get<{ userId: string; email: string; createdAt: number }>(toKey("verify", token));
   if (!v.value) return null;
-  await kv.delete(["verify", token]);
+  await kv.delete(toKey("verify", token));
   return v.value;
 }
 
 export async function createResetToken(userId: string): Promise<string> {
   const token = crypto.randomUUID().replace(/-/g, "");
-  await kv.set(["reset", token], { userId, createdAt: now() });
+  await kv.set(toKey("reset", token), { userId, createdAt: now() });
   return token;
 }
 
 export async function useResetToken(token: string) {
-  const v = await kv.get<{ userId: string; createdAt: number }>(["reset", token]);
+  const v = await kv.get<{ userId: string; createdAt: number }>(toKey("reset", token));
   if (!v.value) return null;
-  await kv.delete(["reset", token]);
+  await kv.delete(toKey("reset", token));
   const THIRTY_MIN = 30 * 60 * 1000;
   if (now() - v.value.createdAt > THIRTY_MIN) return null;
   return v.value;
@@ -251,10 +282,10 @@ export async function createRestaurant(r: {
   };
 
   const tx = kv.atomic()
-    .set(["restaurant", restaurant.id], restaurant)
-    .set(["restaurant_by_owner", restaurant.ownerId, restaurant.id], 1)
-    .set(["restaurant_name", lower(restaurant.name), restaurant.id], 1)
-    .set(["restaurant_city", lower(restaurant.city), restaurant.id], 1);
+    .set(toKey("restaurant", restaurant.id), restaurant)
+    .set(toKey("restaurant_by_owner", restaurant.ownerId, restaurant.id), 1)
+    .set(toKey("restaurant_name", lower(restaurant.name), restaurant.id), 1)
+    .set(toKey("restaurant_city", lower(restaurant.city), restaurant.id), 1);
 
   const res = await tx.commit();
   if (!res.ok) throw new Error("create_restaurant_race");
@@ -262,7 +293,7 @@ export async function createRestaurant(r: {
 }
 
 export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
-  const cur = await kv.get<Restaurant>(["restaurant", id]);
+  const cur = await kv.get<Restaurant>(toKey("restaurant", id));
   const prev = cur.value;
   if (!prev) return null;
 
@@ -275,14 +306,14 @@ export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
     photos: (patch.photos ?? prev.photos ?? []).filter(Boolean),
   };
 
-  const tx = kv.atomic().set(["restaurant", id], next);
+  const tx = kv.atomic().set(toKey("restaurant", id), next);
   if (patch.name && lower(patch.name) !== lower(prev.name)) {
-    tx.delete(["restaurant_name", lower(prev.name), id])
-      .set(["restaurant_name", lower(patch.name), id], 1);
+    tx.delete(toKey("restaurant_name", lower(prev.name), id))
+      .set(toKey("restaurant_name", lower(patch.name), id), 1);
   }
   if (patch.city && lower(patch.city) !== lower(prev.city)) {
-    tx.delete(["restaurant_city", lower(prev.city), id])
-      .set(["restaurant_city", lower(patch.city), id], 1);
+    tx.delete(toKey("restaurant_city", lower(prev.city), id))
+      .set(toKey("restaurant_city", lower(patch.city), id), 1);
   }
   const res = await tx.commit();
   if (!res.ok) throw new Error("update_restaurant_race");
@@ -290,7 +321,7 @@ export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
 }
 
 export async function getRestaurant(id: string) {
-  return (await kv.get<Restaurant>(["restaurant", id])).value ?? null;
+  return (await kv.get<Restaurant>(toKey("restaurant", id))).value ?? null;
 }
 
 export async function listRestaurants(q?: string, onlyApproved = true): Promise<Restaurant[]> {
@@ -304,7 +335,7 @@ export async function listRestaurants(q?: string, onlyApproved = true): Promise<
 
   if (!needle) {
     const items: Restaurant[] = [];
-    for await (const row of kv.list({ prefix: ["restaurant"] })) {
+    for await (const row of kv.list({ prefix: toKey("restaurant") })) {
       const r = (await kv.get<Restaurant>(row.key as any)).value;
       if (r && (!onlyApproved || r.approved)) items.push(r);
     }
@@ -312,17 +343,17 @@ export async function listRestaurants(q?: string, onlyApproved = true): Promise<
     return items.slice(0, 50);
   }
 
-  for await (const k of kv.list({ prefix: ["restaurant_name", needle] })) {
+  for await (const k of kv.list({ prefix: toKey("restaurant_name", needle) })) {
     const id = k.key[k.key.length - 1] as string;
-    push((await kv.get<Restaurant>(["restaurant", id])).value);
+    push((await kv.get<Restaurant>(toKey("restaurant", id))).value);
   }
-  for await (const k of kv.list({ prefix: ["restaurant_city", needle] })) {
+  for await (const k of kv.list({ prefix: toKey("restaurant_city", needle) })) {
     const id = k.key[k.key.length - 1] as string;
-    push((await kv.get<Restaurant>(["restaurant", id])).value);
+    push((await kv.get<Restaurant>(toKey("restaurant", id))).value);
   }
 
   // Fallback לסריקה מלאה (מכיל גם כתובת)
-  for await (const row of kv.list({ prefix: ["restaurant"] })) {
+  for await (const row of kv.list({ prefix: toKey("restaurant") })) {
     const r = (await kv.get<Restaurant>(row.key as any)).value;
     if (!r) continue;
     const hay = `${lower(r.name)} ${lower(r.city)} ${lower(r.address)}`;
@@ -344,9 +375,9 @@ export async function listRestaurants(q?: string, onlyApproved = true): Promise<
 
 export async function listReservationsFor(restaurantId: string, date: string): Promise<Reservation[]> {
   const out: Reservation[] = [];
-  for await (const row of kv.list({ prefix: ["reservation_by_day", restaurantId, date] })) {
+  for await (const row of kv.list({ prefix: toKey("reservation_by_day", restaurantId, date) })) {
     const id = row.key[row.key.length - 1] as string;
-    const r = (await kv.get<Reservation>(["reservation", id])).value;
+    const r = (await kv.get<Reservation>(toKey("reservation", id))).value;
     if (r) out.push(r);
   }
   out.sort((a, b) => (a.time).localeCompare(b.time));
@@ -355,8 +386,8 @@ export async function listReservationsFor(restaurantId: string, date: string): P
 
 export async function createReservation(r: Reservation) {
   const tx = kv.atomic()
-    .set(["reservation", r.id], r)
-    .set(["reservation_by_day", r.restaurantId, r.date, r.id], 1);
+    .set(toKey("reservation", r.id), r)
+    .set(toKey("reservation_by_day", r.restaurantId, r.date, r.id), 1);
   const res = await tx.commit();
   if (!res.ok) throw new Error("create_reservation_race");
   return r;
@@ -364,17 +395,17 @@ export async function createReservation(r: Reservation) {
 
 export async function listReservationsByOwner(ownerId: string) {
   const my: { id: string; name: string }[] = [];
-  for await (const k of kv.list({ prefix: ["restaurant_by_owner", ownerId] })) {
+  for await (const k of kv.list({ prefix: toKey("restaurant_by_owner", ownerId) })) {
     const rid = k.key[k.key.length - 1] as string;
-    const r = (await kv.get<Restaurant>(["restaurant", rid])).value;
+    const r = (await kv.get<Restaurant>(toKey("restaurant", rid))).value;
     if (r) my.push({ id: r.id, name: r.name });
   }
 
   const results: Array<{ restaurantName: string; reservation: Reservation }> = [];
   for (const r of my) {
-    for await (const k of kv.list({ prefix: ["reservation_by_day", r.id] })) {
+    for await (const k of kv.list({ prefix: toKey("reservation_by_day", r.id) })) {
       const id = k.key[k.key.length - 1] as string;
-      const resv = (await kv.get<Reservation>(["reservation", id])).value;
+      const resv = (await kv.get<Reservation>(toKey("reservation", id))).value;
       if (resv) results.push({ restaurantName: r.name, reservation: resv });
     }
   }
@@ -504,7 +535,7 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
   if (!r) return 0;
 
   const reservationIds: string[] = [];
-  for await (const k of kv.list({ prefix: ["reservation_by_day", restaurantId] })) {
+  for await (const k of kv.list({ prefix: toKey("reservation_by_day", restaurantId) })) {
     const id = k.key[k.key.length - 1] as string;
     reservationIds.push(id);
   }
@@ -521,23 +552,23 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
   for (const ids of chunk(reservationIds, 50)) {
     const tx = kv.atomic();
     for (const id of ids) {
-      const resv = (await kv.get<Reservation>(["reservation", id])).value;
+      const resv = (await kv.get<Reservation>(toKey("reservation", id))).value;
       if (resv) {
-        tx.delete(["reservation", id]);
-        tx.delete(["reservation_by_day", restaurantId, resv.date, id]);
+        tx.delete(toKey("reservation", id));
+        tx.delete(toKey("reservation_by_day", restaurantId, resv.date, id));
         deleted++;
       } else {
-        tx.delete(["reservation", id]);
+        tx.delete(toKey("reservation", id));
       }
     }
     await tx.commit().catch(() => {});
   }
 
   const tx2 = kv.atomic()
-    .delete(["restaurant", restaurantId])
-    .delete(["restaurant_by_owner", r.ownerId, restaurantId])
-    .delete(["restaurant_name", lower(r.name), restaurantId])
-    .delete(["restaurant_city", lower(r.city), restaurantId]);
+    .delete(toKey("restaurant", restaurantId))
+    .delete(toKey("restaurant_by_owner", r.ownerId, restaurantId))
+    .delete(toKey("restaurant_name", lower(r.name), restaurantId))
+    .delete(toKey("restaurant_city", lower(r.city), restaurantId));
   await tx2.commit().catch(() => {});
 
   return deleted;
@@ -547,11 +578,11 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
 
 export async function resetReservations(): Promise<{ deleted: number }> {
   let deleted = 0;
-  for await (const e of kv.list({ prefix: ["reservation"] })) {
+  for await (const e of kv.list({ prefix: toKey("reservation") })) {
     await kv.delete(e.key);
     deleted++;
   }
-  for await (const e of kv.list({ prefix: ["reservation_by_day"] })) {
+  for await (const e of kv.list({ prefix: toKey("reservation_by_day") })) {
     await kv.delete(e.key);
   }
   return { deleted };
@@ -559,7 +590,7 @@ export async function resetReservations(): Promise<{ deleted: number }> {
 
 export async function resetRestaurants(): Promise<{ restaurants: number; reservations: number }> {
   const ids: string[] = [];
-  for await (const e of kv.list({ prefix: ["restaurant"] })) {
+  for await (const e of kv.list({ prefix: toKey("restaurant") })) {
     const rid = e.key[e.key.length - 1] as string;
     ids.push(rid);
   }
@@ -572,30 +603,30 @@ export async function resetRestaurants(): Promise<{ restaurants: number; reserva
 
 export async function resetUsers(): Promise<{ users: number }> {
   let users = 0;
-  for await (const e of kv.list({ prefix: ["user"] })) {
+  for await (const e of kv.list({ prefix: toKey("user") })) {
     await kv.delete(e.key);
     users++;
   }
-  for await (const e of kv.list({ prefix: ["user_by_email"] })) await kv.delete(e.key);
-  for await (const e of kv.list({ prefix: ["user_by_username"] })) await kv.delete(e.key);
-  for await (const e of kv.list({ prefix: ["verify"] })) await kv.delete(e.key);
-  for await (const e of kv.list({ prefix: ["reset"] })) await kv.delete(e.key);
+  for await (const e of kv.list({ prefix: toKey("user_by_email") })) await kv.delete(e.key);
+  for await (const e of kv.list({ prefix: toKey("user_by_username") })) await kv.delete(e.key);
+  for await (const e of kv.list({ prefix: toKey("verify") })) await kv.delete(e.key);
+  for await (const e of kv.list({ prefix: toKey("reset") })) await kv.delete(e.key);
   return { users };
 }
 
 export async function resetAll(): Promise<void> {
   const prefixes: Deno.KvKey[] = [
-    ["user"],
-    ["user_by_email"],
-    ["user_by_username"],
-    ["verify"],
-    ["reset"],
-    ["restaurant"],
-    ["restaurant_by_owner"],
-    ["restaurant_name"],
-    ["restaurant_city"],
-    ["reservation"],
-    ["reservation_by_day"],
+    toKey("user"),
+    toKey("user_by_email"),
+    toKey("user_by_username"),
+    toKey("verify"),
+    toKey("reset"),
+    toKey("restaurant"),
+    toKey("restaurant_by_owner"),
+    toKey("restaurant_name"),
+    toKey("restaurant_city"),
+    toKey("reservation"),
+    toKey("reservation_by_day"),
   ];
 
   async function deleteByPrefix(prefix: Deno.KvKey, batchSize = 100) {
@@ -622,15 +653,15 @@ export async function resetAll(): Promise<void> {
 /* אופציונלי — מתקנת רשומות ישנות עם capacity/step/span לא תקינים */
 export async function fixRestaurantsDefaults(): Promise<number> {
   let changed = 0;
-  for await (const row of kv.list({ prefix: ["restaurant"] })) {
+  for await (const row of kv.list({ prefix: toKey("restaurant") })) {
     const id = row.key[row.key.length - 1] as string;
-    const cur = (await kv.get<Restaurant>(["restaurant", id])).value;
+    const cur = (await kv.get<Restaurant>(toKey("restaurant", id))).value;
     if (!cur) continue;
     const r = coerceRestaurantDefaults(cur);
     if (r.capacity !== cur.capacity ||
         r.slotIntervalMinutes !== cur.slotIntervalMinutes ||
         r.serviceDurationMinutes !== cur.serviceDurationMinutes) {
-      await kv.set(["restaurant", id], r);
+      await kv.set(toKey("restaurant", id), r);
       changed++;
     }
   }
