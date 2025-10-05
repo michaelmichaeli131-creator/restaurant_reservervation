@@ -1,82 +1,82 @@
-<h1>אזור מנהלים</h1>
+<!-- templates/owner_dashboard.eta -->
+<% layout("_layout", it) %>
 
-<section class="card">
-  <h2>הוספת מסעדה</h2>
-  <form method="post" action="/owner/restaurant/new" class="form grid">
-    <label>שם מסעדה <input name="name" required /></label>
-    <label>עיר <input name="city" required /></label>
-    <label>כתובת <input name="address" required /></label>
-    <label>טלפון <input name="phone" /></label>
-    <label>שעות פתיחה <input name="hours" placeholder="א-ש 12:00-23:00" /></label>
-    <label>תיאור <textarea name="description" rows="3"></textarea></label>
+<section class="card" style="max-width:1000px;margin:20px auto">
+  <header style="display:flex;align-items:center;gap:10px;justify-content:space-between">
+    <h1 style="margin:0">דשבורד בעלים</h1>
+    <span class="muted">שלום, <strong><%= it.user?.firstName || it.user?.username || "בעלים" %></strong></span>
+  </header>
 
-    <label>תמונות (URLs, שורה לכל כתובת או פסיקים)
-      <textarea name="photos" rows="3" placeholder="https://.../1.jpg
-https://.../2.jpg"></textarea>
-    </label>
+  <div class="grid" style="display:grid;grid-template-columns:1.2fr 1fr;gap:16px;margin-top:14px">
+    <!-- רשימת מסעדות -->
+    <div class="panel card">
+      <h2 style="margin-top:0">המסעדות שלי</h2>
 
-    <label>קיבולת (מס׳ מקומות)
-      <input type="number" name="capacity" min="1" value="30" />
-    </label>
-    <label>מרווח סלוט (דק׳)
-      <input type="number" name="slotIntervalMinutes" min="5" step="5" value="15" />
-    </label>
-    <label>משך ישיבה (דק׳)
-      <input type="number" name="serviceDurationMinutes" min="30" step="15" value="120" />
-    </label>
-
-    <div style="grid-column: 1 / -1">
-      <button class="btn" type="submit">שמור מסעדה</button>
+      <% if (it.restaurants && it.restaurants.length) { %>
+        <ul class="list">
+          <% it.restaurants.forEach(function(r){ %>
+            <li class="item">
+              <div class="meta">
+                <div class="title"><strong><%= r.name %></strong></div>
+                <div class="sub muted"><%= r.city %> • <%= r.address %></div>
+                <div class="sub muted">קיבולת: <%= r.capacity %> • גריד: <%= r.slotIntervalMinutes %> דק׳ • משך ישיבה: <%= r.serviceDurationMinutes %> דק׳</div>
+              </div>
+              <div class="actions">
+                <a class="btn" href="/restaurants/<%= r.id %>/edit">עריכת פרטים</a>
+                <a class="btn" href="/owner/restaurants/<%= r.id %>/hours">שעות פתיחה</a>
+                <a class="btn" href="/owner/restaurants/<%= r.id %>/capacity">קיבולת/גריד</a>
+              </div>
+            </li>
+          <% }) %>
+        </ul>
+      <% } else { %>
+        <p class="muted">עדיין אין לך מסעדות.</p>
+      <% } %>
     </div>
-  </form>
+
+    <!-- פתיחת מסעדה חדשה -->
+    <div class="panel card">
+      <h2 style="margin-top:0">פתח/י מסעדה חדשה</h2>
+      <form action="/owner/restaurant/new" method="post" class="form">
+        <label>שם מסעדה
+          <input name="name" required placeholder="לדוגמה: פסטה דל סול">
+        </label>
+        <label>עיר
+          <input name="city" required placeholder="תל אביב">
+        </label>
+        <label>כתובת
+          <input name="address" required placeholder="אבן גבירול 12">
+        </label>
+        <label>טלפון (לא חובה)
+          <input name="phone" placeholder="03-1234567">
+        </label>
+        <div class="row" style="display:flex;gap:10px">
+          <label style="flex:1">קיבולת
+            <input name="capacity" type="number" min="1" step="1" value="30">
+          </label>
+          <label style="flex:1">גריד (דקות)
+            <input name="slotIntervalMinutes" type="number" min="5" step="5" value="15">
+          </label>
+          <label style="flex:1">משך ישיבה (דקות)
+            <input name="serviceDurationMinutes" type="number" min="30" step="15" value="120">
+          </label>
+        </div>
+        <button class="btn primary" type="submit" style="margin-top:10px">שמירה ויצירה</button>
+      </form>
+      <p class="muted" style="margin-top:8px">לאחר יצירה ניתן לעדכן שעות פתיחה ופרטים נוספים.</p>
+    </div>
+  </div>
 </section>
 
-<section class="card">
-  <h2>המסעדות שלי</h2>
-  <% if (it.restaurants && it.restaurants.length) { %>
-    <ul class="cards">
-      <% it.restaurants.forEach((r)=>{ %>
-        <li class="card">
-          <div class="card-title"><%= r.name %></div>
-          <div class="muted"><%= r.city %> · <%= r.address %></div>
-          <% if (r.photos && r.photos.length) { %>
-            <div class="thumbs">
-              <% r.photos.slice(0,3).forEach((p)=>{ %>
-                <img class="thumb" src="<%= p %>" alt="<%= r.name %>" loading="lazy"/>
-              <% }) %>
-            </div>
-          <% } %>
-          <form method="post" action="/owner/restaurant/<%= r.id %>/updatePhotos" class="form" style="margin-top:8px">
-            <label>עדכון תמונות (URLs, שורה לכל כתובת או פסיקים)
-              <textarea name="photos" rows="3"><%= (r.photos||[]).join("\n") %></textarea>
-            </label>
-            <button class="btn secondary" type="submit">עדכן תמונות</button>
-          </form>
-        </li>
-      <% }) %>
-    </ul>
-  <% } else { %>
-    <p class="muted">אין מסעדות עדיין.</p>
-  <% } %>
-</section>
-
-<section class="card">
-  <h2>הזמנות אחרונות</h2>
-  <% if (it.reservations && it.reservations.length) { %>
-    <table class="table">
-      <thead><tr><th>מסעדה</th><th>תאריך</th><th>שעה</th><th>סועדים</th><th>הערה</th><th>ID</th></tr></thead>
-      <tbody>
-      <% it.reservations.forEach((row)=>{ %>
-        <tr>
-          <td><%= row.restaurantName %></td>
-          <td><%= row.reservation.date %></td>
-          <td><%= row.reservation.time %></td>
-          <td><%= row.reservation.people %></td>
-          <td><%= row.reservation.note || "" %></td>
-          <td><code><%= row.reservation.id %></code></td>
-        </tr>
-      <% }) %>
-      </tbody>
-    </table>
-  <% } else { %><p>אין הזמנות עדיין.</p><% } %>
-</section>
+<style>
+  .card{border:1px solid #eee;border-radius:12px;padding:16px}
+  .muted{color:#777}
+  .list{list-style:none;padding:0;margin:0}
+  .item{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-top:1px solid #f0f0f0;padding:12px 0}
+  .item:first-child{border-top:none;padding-top:0}
+  .btn{display:inline-block;background:#111;color:#fff;border:none;border-radius:10px;padding:8px 12px;text-decoration:none}
+  .btn.primary{background:#0b6}
+  .form input{width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:8px;margin-top:4px}
+  .panel.card{height:100%}
+  @media (max-width:900px){ .grid{grid-template-columns:1fr} }
+</style>

@@ -1,32 +1,54 @@
-<h1>תפוסה — <%= it.r.name %></h1>
-<form method="get" action="/owner/restaurants/<%= it.r.id %>" class="form inline">
-  <label>תאריך: <input type="date" name="date" value="<%= it.date %>"/></label>
-  <button class="btn" type="submit">רענון</button>
-</form>
+<!-- templates/owner_restaurant_capacity.eta -->
+<% layout("_layout", it) %>
 
-<section class="card">
-  <h2>חסימה ידנית</h2>
-  <form method="post" action="/owner/restaurants/<%= it.r.id %>/block" class="form inline">
-    <input type="hidden" name="date" value="<%= it.date %>"/>
-    <label>שעה: <input name="time" type="time" step="<%= (it.r.slotIntervalMinutes||15)*60 %>" required /></label>
-    <label>מס׳ מקומות לחסימה: <input name="people" type="number" min="1" value="2" required /></label>
-    <label>הערה: <input name="note" type="text" value="חסימה ידנית" /></label>
-    <button class="btn" type="submit">חסום</button>
+<section class="card" style="max-width:820px;margin:24px auto">
+  <header class="page-header">
+    <h1 style="margin:0 0 8px">קיבולת וזמני ישיבה — <%= it.restaurant.name %></h1>
+    <% if (it.saved) { %>
+      <div class="alert success" role="status">ההגדרות נשמרו</div>
+    <% } %>
+  </header>
+
+  <form action="/owner/restaurants/<%= it.restaurant.id %>/capacity" method="post" class="form-grid">
+    <div class="form-row">
+      <label for="capacity">קיבולת בו־זמנית</label>
+      <input id="capacity" name="capacity" type="number" min="1" step="1" value="<%= it.restaurant.capacity %>"/>
+      <small class="muted">מס׳ סועדים מקסימלי בו־זמנית.</small>
+    </div>
+
+    <div class="form-row">
+      <label for="slotIntervalMinutes">גריד (דקות)</label>
+      <input id="slotIntervalMinutes" name="slotIntervalMinutes" type="number" min="5" step="5" value="<%= it.restaurant.slotIntervalMinutes %>"/>
+      <small class="muted">המרווח בין סלוטי התחלה (למשל 15 דק׳).</small>
+    </div>
+
+    <div class="form-row">
+      <label for="serviceDurationMinutes">משך ישיבה (דקות)</label>
+      <input id="serviceDurationMinutes" name="serviceDurationMinutes" type="number" min="30" step="15" value="<%= it.restaurant.serviceDurationMinutes %>"/>
+      <small class="muted">משך ישיבה מוקצה לכל הזמנה (למשל 120 דק׳).</small>
+    </div>
+
+    <div class="form-row">
+      <label for="phone">טלפון למסעדה (אופציונלי)</label>
+      <input id="phone" name="phone" value="<%= it.restaurant.phone || "" %>"/>
+    </div>
+
+    <div style="grid-column:1/-1;display:flex;gap:10px;margin-top:12px">
+      <button class="btn primary" type="submit">שמור</button>
+      <a class="btn" href="/owner">חזרה לדשבורד</a>
+      <a class="btn" href="/owner/restaurants/<%= it.restaurant.id %>/hours">שעות פתיחה</a>
+      <a class="btn" href="/restaurants/<%= it.restaurant.id %>/edit">עריכת פרטים</a>
+    </div>
   </form>
 </section>
 
-<section>
-  <h2>תפוסה ל-<%= it.date %></h2>
-  <table class="table">
-    <thead><tr><th>שעה</th><th>תפוסה</th><th>אחוז</th></tr></thead>
-    <tbody>
-      <% it.loads.forEach(L => { %>
-        <tr>
-          <td><strong><%= L.slot %></strong></td>
-          <td><%= L.booked %> / <%= L.capacity %></td>
-          <td><%= L.percent %>%</td>
-        </tr>
-      <% }) %>
-    </tbody>
-  </table>
-</section>
+<style>
+  .card{border:1px solid #eee;border-radius:12px;padding:16px}
+  .alert.success{border:1px solid #bde5b8;background:#e6ffea;border-radius:8px;padding:10px;margin:8px 0}
+  .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+  .form-row{display:flex;flex-direction:column}
+  .form-row input{padding:8px 10px;border:1px solid #ccc;border-radius:8px;font-size:1rem}
+  .btn{background:#111;color:#fff;border:none;border-radius:10px;padding:8px 12px;cursor:pointer;text-decoration:none}
+  .btn.primary{background:#0b6}
+  @media (max-width:760px){.form-grid{grid-template-columns:1fr}}
+</style>

@@ -28,7 +28,8 @@ import { authRouter } from "./routes/auth.ts";
 import { restaurantsRouter } from "./routes/restaurants.ts";
 import { ownerRouter } from "./routes/owner.ts";
 import { adminRouter } from "./routes/admin.ts";
-
+import rootRouter from "./routes/root.ts";
+import ownerCapacityRouter from "./routes/owner_capacity.ts";
 import { listRestaurants, getUserById } from "./database.ts";
 import { sendVerifyEmail } from "./lib/mail.ts";
 
@@ -282,6 +283,12 @@ app.use(ownerRouter.allowedMethods());
 
 app.use(adminRouter.routes());
 app.use(adminRouter.allowedMethods());
+
+app.use(rootRouter.routes());
+app.use(rootRouter.allowedMethods());
+
+app.use(ownerCapacityRouter.routes());
+app.use(ownerCapacityRouter.allowedMethods());
 
 // --- OPTIONS & 404 ---
 app.use(async (ctx, next) => {

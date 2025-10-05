@@ -1,4 +1,4 @@
-<!-- templates/_layout.eta -->
+<!-- templates/_layout.eta (עדכון קישור כפתור לבעלים) -->
 <!doctype html>
 <html lang="he" dir="rtl">
 <head>
@@ -29,8 +29,8 @@
       <a class="brand" href="/">GeoTable</a>
       <nav class="nav">
         <% if (it.user) { %>
-          <!-- מוצג רק כשהמשתמש מחובר -->
-          <a class="btn primary" href="/restaurants/new" title="פתיחת מסעדה חדשה">פתח/י מסעדה</a>
+          <!-- מחוברים רואים קיצור לניהול -->
+          <a class="btn primary" href="/owner">פתח/י מסעדה / ניהול</a>
           <span class="user">מחובר/ת: <strong><%= it.user.firstName %> <%= it.user.lastName %></strong> (<%= it.user.email %>)</span>
           <a class="btn" href="/auth/logout">התנתקות</a>
         <% } else { %>
