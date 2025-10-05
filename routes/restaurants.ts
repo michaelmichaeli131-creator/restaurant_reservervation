@@ -297,7 +297,7 @@ function extractDateAndTime(ctx: any, payload: Record<string, unknown>) {
     payload["date"], payload["reservation_date"], payload["res_date"],
     qs.get("date"), qs.get("reservation_date"), qs.get("res_date"),
     payload["datetime"], payload["datetime_local"], payload["datetime-local"],
-    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"],
+    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"),
     (ref as any)["date"], (ref as any)["reservation_date"], (ref as any)["res_date"],
     (ref as any)["datetime"], (ref as any)["datetime_local"], (ref as any)["datetime-local"]
   );
@@ -314,7 +314,7 @@ function extractDateAndTime(ctx: any, payload: Record<string, unknown>) {
     (ref as any)["time_display"], (ref as any)["timeDisplay"],
     hhmmFromHM,
     payload["datetime"], payload["datetime_local"], payload["datetime-local"],
-    qs.get("datetime"), qs.get("datetime_local"], qs.get("datetime-local"],
+    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"),
     (ref as any)["datetime"], (ref as any)["datetime_local"], (ref as any)["datetime-local"]
   );
 
