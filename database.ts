@@ -222,12 +222,14 @@ function coerceRestaurantDefaults(r: Restaurant): Restaurant {
 
 /** מחזיר מערך טווחי פתיחה [start,end] בדקות לאותו יום לפי weeklySchedule (אם קיים) */
 function openingRangesForDate(r: Restaurant, date: string): Array<[number, number]> {
-  if (!r.weeklySchedule) return [];
+  // מקור השעות: weeklySchedule או openingHours
+  const weekly: any = r.weeklySchedule ?? (r as any).openingHours ?? null;
+  if (!weekly) return [];
   const d = new Date(date + "T00:00:00");
   if (isNaN(d.getTime())) return [];
   const dow = d.getDay() as DayOfWeek;
 
-  const def = r.weeklySchedule[dow];
+  const def = weekly[dow] ?? weekly[String(dow)] ?? null;
   if (!def) return [];
 
   const toMin = (hhmm: string) => {
@@ -241,7 +243,6 @@ function openingRangesForDate(r: Restaurant, date: string): Array<[number, numbe
   if (!Number.isFinite(start) || !Number.isFinite(end)) return [];
 
   if (end <= start) {
-    // חוצה חצות — ליום הנוכחי נחתוך עד סוף היום
     return [[start, 24*60 - 1]];
   }
   return [[start, end]];

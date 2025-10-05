@@ -1,6 +1,7 @@
 // src/routes/owner_hours.ts
 // ניהול שעות פתיחה שבועיות למסעדה — לבעלים בלבד
 // תיקון: קריאת גוף חסינה (Oak/Deno Deploy) כדי למנוע "ctx.request.body is not a function"
+// עדכון תאימות: קוראים גם מ-openingHours ושומרים גם ל-weeklySchedule וגם ל-openingHours
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -163,9 +164,11 @@ ownerHoursRouter.get("/owner/restaurants/:id/hours", async (ctx) => {
     return;
   }
 
+  // תאימות: נטען להצגה מ-weeklySchedule ואם אין — מ-openingHours (גרסאות קודמות)
   const weekly: WeeklySchedule = {};
+  const src: any = (r.weeklySchedule ?? (r as any).openingHours ?? {});
   for (let d = 0 as 0|1|2|3|4|5|6; d <= 6; d = (d + 1) as 0|1|2|3|4|5|6) {
-    const cur = (r.weeklySchedule ?? {})[d] as any;
+    const cur = src[d];
     weekly[d] = (cur && cur.open && cur.close) ? { open: cur.open, close: cur.close } : null;
   }
 
@@ -195,8 +198,12 @@ ownerHoursRouter.post("/owner/restaurants/:id/hours", async (ctx) => {
   const weekly = parseWeeklyFromPayload(payload);
 
   try {
-    const patch: Partial<Restaurant> = { weeklySchedule: weekly };
+    // תאימות לאחור: נשמור גם weeklySchedule וגם openingHours (שדה שה-UI/קוד ישן עלול לקרוא ממנו)
+    const patch: Partial<Restaurant> = { weeklySchedule: weekly } as any;
+    (patch as any).openingHours = weekly;
+
     await updateRestaurant(id, patch);
+    debugLog("[owner_hours] saved", { id, weekly });
   } catch (e) {
     debugLog("[owner_hours] updateRestaurant.error", { error: String(e) });
     ctx.response.status = Status.InternalServerError;

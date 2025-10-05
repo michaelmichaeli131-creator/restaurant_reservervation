@@ -8,7 +8,6 @@ import {
   createReservation,
   getUserById,
   type Reservation,
-  type WeeklySchedule,
 } from "../database.ts";
 import { render } from "../lib/view.ts";
 import { sendReservationEmail, notifyOwnerEmail } from "../lib/mail.ts";
@@ -92,7 +91,7 @@ function isValidEmail(s: string): boolean {
   return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
 }
 
-/* ---------------- Opening hours helpers ---------------- */
+/* ---------------- Opening hours helpers (compat) ---------------- */
 
 function toMinutes(hhmm: string): number {
   const m = hhmm.match(/^(\d{2}):(\d{2})$/);
@@ -100,12 +99,17 @@ function toMinutes(hhmm: string): number {
   return Number(m[1]) * 60 + Number(m[2]);
 }
 
+/** unify weekly source: prefer weeklySchedule, fallback to openingHours */
+function weeklyOf(restaurant: any): Record<string | number, any> | null {
+  return (restaurant?.weeklySchedule ?? restaurant?.openingHours ?? null) as any;
+}
+
 /**
- * Robustly read windows for a given date from WeeklySchedule.
- * Supports keys: 0..6, "0".."6", "sun".."sat", "sunday".."saturday".
+ * Robustly read windows for a given date from weekly (can be WeeklySchedule or {0..6}).
+ * Supports keys: 0..6, "0".."6", "sun".."sat", "sunday".."saturday", uppercase variants.
  */
 function getWindowsForDate(
-  weekly: WeeklySchedule | undefined | null,
+  weekly: Record<string | number, any> | undefined | null,
   date: string,
 ): Array<{ open: string; close: string }> {
   if (!weekly) return [];
@@ -129,7 +133,12 @@ function getWindowsForDate(
     }
   }
   if (!raw) return [];
-  return Array.isArray(raw) ? raw.filter(Boolean) : [raw];
+  const arr = Array.isArray(raw) ? raw.filter(Boolean) : [raw];
+  // normalize records that might use {start,end}
+  return arr.map((x: any) => ({
+    open: String(x?.open ?? x?.start ?? "").trim(),
+    close: String(x?.close ?? x?.end ?? "").trim(),
+  })).filter(w => /^\d{2}:\d{2}$/.test(w.open) && /^\d{2}:\d{2}$/.test(w.close));
 }
 
 function withinAnyWindow(timeMin: number, windows: Array<{ open: string; close: string }>) {
@@ -144,10 +153,10 @@ function withinAnyWindow(timeMin: number, windows: Array<{ open: string; close: 
   return false;
 }
 
-function isWithinSchedule(weekly: WeeklySchedule | undefined | null, date: string, time: string) {
+function isWithinScheduleCompat(restaurant: any, date: string, time: string) {
   const t = toMinutes(time);
   if (!Number.isFinite(t)) return false;
-  const windows = getWindowsForDate(weekly, date);
+  const windows = getWindowsForDate(weeklyOf(restaurant), date);
   return windows.length ? withinAnyWindow(t, windows) : false;
 }
 
@@ -156,7 +165,7 @@ async function suggestionsWithinSchedule(
   date: string,
   time: string,
   people: number,
-  weekly: WeeklySchedule | undefined | null,
+  weekly: Record<string | number, any> | undefined | null,
 ): Promise<string[]> {
   const all = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
   const windows = getWindowsForDate(weekly, date);
@@ -338,7 +347,7 @@ restaurantsRouter.get("/api/restaurants", async (ctx) => {
 /* דף מסעדה — שלב 1 */
 restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const id = String(ctx.params.id ?? "");
-  const restaurant = await getRestaurant(id);
+  const restaurant: any = await getRestaurant(id);
   if (!restaurant) {
     ctx.response.status = Status.NotFound;
     ctx.response.body = "Restaurant not found";
@@ -351,14 +360,15 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const date = normalizeDate(rawDate) || todayISO();
   const time = normalizeTime(rawTime); // time may stay empty here (UI can pick)
 
-  const openingWindows = getWindowsForDate(restaurant.weeklySchedule as WeeklySchedule, date);
+  // windows from weeklySchedule or openingHours (compat)
+  const openingWindows = getWindowsForDate(weeklyOf(restaurant), date);
 
   await render(ctx, "restaurant", {
     page: "restaurant",
     title: `${restaurant.name} — GeoTable`,
-    // keep original shape + expose weeklySchedule as openingHours for UI compatibility
-    restaurant: { ...restaurant, openingHours: restaurant.weeklySchedule },
-    openingWindows, // <<< template uses this to render the list
+    // keep original shape + expose openingHours for template compatibility
+    restaurant: { ...restaurant, openingHours: weeklyOf(restaurant) },
+    openingWindows, // template uses this to render the list
     conflict: ctx.request.url.searchParams.get("conflict") === "1",
     suggestions: (ctx.request.url.searchParams.get("suggest") ?? "").split(",").filter(Boolean),
     date,
@@ -369,7 +379,7 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
 /* API: בדיקת זמינות */
 restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
-  const restaurant = await getRestaurant(rid);
+  const restaurant: any = await getRestaurant(rid);
   if (!restaurant) {
     ctx.response.status = Status.NotFound;
     ctx.response.body = "restaurant not found";
@@ -388,16 +398,16 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("bad date (YYYY-MM-DD expected)");
   if (!/^\d{2}:\d{2}$/.test(time)) return bad("bad time (HH:mm expected)");
 
-  // אכיפת שעות פתיחה
-  if (!isWithinSchedule(restaurant.weeklySchedule, date, time)) {
-    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+  // אכיפת שעות פתיחה (compat)
+  if (!isWithinScheduleCompat(restaurant, date, time)) {
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, weeklyOf(restaurant));
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.body = JSON.stringify({ ok:false, reason:"closed", suggestions }, null, 2);
     return;
   }
 
   const result = await checkAvailability(rid, date, time, people);
-  const around = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+  const around = await suggestionsWithinSchedule(rid, date, time, people, weeklyOf(restaurant));
 
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   if (asOk(result)) {
@@ -411,7 +421,7 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
 /* שלב 1 → שלב 2 */
 restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
-  const restaurant = await getRestaurant(rid);
+  const restaurant: any = await getRestaurant(rid);
   if (!restaurant) {
     ctx.response.status = Status.NotFound;
     ctx.response.body = "restaurant not found";
@@ -430,9 +440,9 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     return;
   }
 
-  // אכיפת שעות פתיחה
-  if (!isWithinSchedule(restaurant.weeklySchedule, date, time)) {
-    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+  // שעות פתיחה — תאימות מלאה
+  if (!isWithinScheduleCompat(restaurant, date, time)) {
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, weeklyOf(restaurant));
     const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
     url.searchParams.set("conflict", "1");
     if (suggestions.length) url.searchParams.set("suggest", suggestions.join(","));
@@ -445,7 +455,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
 
   const avail = await checkAvailability(rid, date, time, people);
   if (!asOk(avail)) {
-    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, weeklyOf(restaurant));
     const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
     url.searchParams.set("conflict", "1");
     if (suggestions.length) url.searchParams.set("suggest", suggestions.join(","));
@@ -489,7 +499,7 @@ restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
 /* שלב 2 → אישור סופי (GET) */
 restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
-  const restaurant = await getRestaurant(rid);
+  const restaurant: any = await getRestaurant(rid);
   if (!restaurant) {
     ctx.response.status = Status.NotFound;
     ctx.response.body = "restaurant not found";
@@ -526,9 +536,9 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   if (customerEmail && !isValidEmail(customerEmail))
     return bad("נא להזין אימייל תקין", { customerEmail });
 
-  // אכיפת שעות פתיחה
-  if (!isWithinSchedule(restaurant.weeklySchedule, date, time)) {
-    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+  // אכיפת שעות פתיחה — תאימות מלאה
+  if (!isWithinScheduleCompat(restaurant, date, time)) {
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, weeklyOf(restaurant));
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.status = Status.Conflict;
     ctx.response.body = JSON.stringify({ ok:false, error:"המסעדה סגורה בשעה שנבחרה", suggestions }, null, 2);
@@ -537,7 +547,7 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
 
   const avail = await checkAvailability(rid, date, time, people);
   if (!asOk(avail)) {
-    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, weeklyOf(restaurant));
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.status = Status.Conflict;
     ctx.response.body = JSON.stringify({ ok:false, error:"אין זמינות במועד שבחרת", suggestions }, null, 2);
@@ -591,7 +601,7 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
 /* שלב 2 → אישור סופי (POST) */
 restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
-  const restaurant = await getRestaurant(rid);
+  const restaurant: any = await getRestaurant(rid);
   if (!restaurant) {
     ctx.response.status = Status.NotFound;
     ctx.response.body = "restaurant not found";
@@ -639,9 +649,9 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   if (customerEmail && !isValidEmail(customerEmail))
     return bad("נא להזין אימייל תקין", { customerEmail, note: "normalize applied" });
 
-  // אכיפת שעות פתיחה
-  if (!isWithinSchedule(restaurant.weeklySchedule, date, time)) {
-    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+  // אכיפת שעות פתיחה — תאימות מלאה
+  if (!isWithinScheduleCompat(restaurant, date, time)) {
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, weeklyOf(restaurant));
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.status = Status.Conflict;
     ctx.response.body = JSON.stringify({ ok:false, error:"המסעדה סגורה בשעה שנבחרה", suggestions }, null, 2);
@@ -650,7 +660,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
 
   const avail = await checkAvailability(rid, date, time, people);
   if (!asOk(avail)) {
-    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, weeklyOf(restaurant));
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.status = Status.Conflict;
     ctx.response.body = JSON.stringify({ ok:false, error:"אין זמינות במועד שבחרת", suggestions }, null, 2);
