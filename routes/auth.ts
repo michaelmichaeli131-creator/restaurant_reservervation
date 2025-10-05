@@ -18,63 +18,55 @@ import { hashPassword, verifyPassword } from "../lib/auth.ts";
 import { debugLog } from "../lib/debug.ts";
 
 /* ---------------- Debug helpers ---------------- */
-
 function phase(name: string, data?: unknown) {
-  try {
-    debugLog(`[auth] ${name}`, data ?? "");
-  } catch {}
+  try { debugLog(`[auth] ${name}`, data ?? ""); } catch {}
 }
 
 function lower(s?: string) { return (s ?? "").trim().toLowerCase(); }
 function trim(s?: string)  { return (s ?? "").trim(); }
 
-function fromEntries(iter: Iterable<[string, FormDataEntryValue]> | URLSearchParams): Record<string, string> {
-  const o: Record<string, string> = {};
-  // @ts-ignore
-  const entries = (iter && typeof (iter as any).entries === "function") ? (iter as any).entries() : iter;
-  for (const [k, v0] of entries as Iterable<[string, FormDataEntryValue]>) {
-    const v = typeof v0 === "string" ? v0 : (v0?.name ?? "");
-    o[k] = v;
+function formDataToObject(fd: FormData): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of fd.entries()) {
+    out[k] = typeof v === "string" ? v : (v?.name ?? "");
   }
-  return o;
+  return out;
 }
 
+/**
+ * Oak v17: אין request.body().
+ * משתמשים ב- ctx.request.formData() / json() / text() לפי ה-Content-Type.
+ */
 async function readBody(ctx: any): Promise<{ data: Record<string, unknown>; meta: Record<string,string> }> {
   const req = ctx.request;
   const ctRaw = req.headers.get("content-type") || "";
   const ct = ctRaw.split(";")[0].trim().toLowerCase();
   const meta: Record<string, string> = { contentType: ct || "(empty)" };
+
   phase("body.start", { method: req.method, url: String(req.url), contentType: ctRaw });
 
   try {
-    if (ct === "application/x-www-form-urlencoded") {
-      const b = await req.body({ type: "form" }).value as URLSearchParams;
-      const r = fromEntries(b);
-      meta.parser = "form-urlencoded";
-      phase("body.parsed", { parser: meta.parser, keys: Object.keys(r) });
-      return { data: r, meta };
-    }
-    if (ct === "multipart/form-data") {
-      const b = await req.body({ type: "form-data" }).value;
-      const r0 = await b.read();
-      const r = (r0?.fields ?? {}) as Record<string, unknown>;
-      meta.parser = "multipart/form-data";
+    if (ct === "application/x-www-form-urlencoded" || ct === "multipart/form-data") {
+      const fd = await req.formData();
+      const r = formDataToObject(fd);
+      meta.parser = ct.includes("multipart") ? "multipart/form-data" : "form-urlencoded";
       phase("body.parsed", { parser: meta.parser, keys: Object.keys(r) });
       return { data: r, meta };
     }
     if (ct === "application/json") {
-      const j = await req.body({ type: "json" }).value as Record<string, unknown>;
+      const j = await req.json() as Record<string, unknown>;
       const r = j ?? {};
       meta.parser = "json";
       phase("body.parsed", { parser: meta.parser, keys: Object.keys(r) });
       return { data: r, meta };
     }
     if (ct === "text/plain") {
-      const t = await req.body({ type: "text" }).value as string;
+      const t = await req.text();
       meta.parser = "text";
       if (t.includes("=") && t.includes("&")) {
         const params = new URLSearchParams(t);
-        const r = fromEntries(params);
+        const r: Record<string, string> = {};
+        for (const [k, v] of params.entries()) r[k] = v;
         phase("body.parsed", { parser: "text->qs", keys: Object.keys(r) });
         return { data: r, meta };
       }
@@ -84,31 +76,42 @@ async function readBody(ctx: any): Promise<{ data: Record<string, unknown>; meta
           phase("body.parsed", { parser: "text->json", keys: Object.keys(j as any) });
           return { data: j as Record<string, unknown>, meta };
         }
-      } catch {
-        // not json
-      }
+      } catch {}
       phase("body.parsed", { parser: "text->raw", size: t.length });
       return { data: { _raw: t }, meta };
     }
-    // Unknown/empty: try form then json once
+
+    // Unknown/empty Content-Type — ננסה formData ואז json ואז text, בזהירות
     try {
-      const b = await req.body({ type: "form" }).value as URLSearchParams;
-      const r = fromEntries(b);
-      meta.parser = "fallback:form";
+      const fd = await req.formData();
+      const r = formDataToObject(fd);
+      meta.parser = "fallback:formData";
       phase("body.parsed", { parser: meta.parser, keys: Object.keys(r) });
       return { data: r, meta };
-    } catch (e) {
-      phase("body.fallback.form.error", String(e));
-    }
+    } catch (e) { phase("body.fallback.formData.error", String(e)); }
+
     try {
-      const j = await req.body({ type: "json" }).value as Record<string, unknown>;
+      const j = await req.json() as Record<string, unknown>;
       const r = j ?? {};
       meta.parser = "fallback:json";
       phase("body.parsed", { parser: meta.parser, keys: Object.keys(r) });
       return { data: r, meta };
-    } catch (e) {
-      phase("body.fallback.json.error", String(e));
-    }
+    } catch (e) { phase("body.fallback.json.error", String(e)); }
+
+    try {
+      const t = await req.text();
+      meta.parser = "fallback:text";
+      if (t.includes("=") && t.includes("&")) {
+        const params = new URLSearchParams(t);
+        const r: Record<string, string> = {};
+        for (const [k, v] of params.entries()) r[k] = v;
+        phase("body.parsed", { parser: "fallback:text->qs", keys: Object.keys(r) });
+        return { data: r, meta };
+      }
+      phase("body.parsed", { parser: "fallback:text->raw", size: t.length });
+      return { data: { _raw: t }, meta };
+    } catch (e) { phase("body.fallback.text.error", String(e)); }
+
     meta.parser = "empty";
     phase("body.empty");
     return { data: {}, meta };
@@ -151,7 +154,7 @@ authRouter.post("/auth/register", async (ctx) => {
 
   if (!firstName || !lastName || !email || !password || !confirm) {
     ctx.response.status = Status.BadRequest;
-    phase("register.validation.missing", { firstName, lastName, email, password: password ? "(len:"+String(password.length)+")" : "", confirm: !!confirm });
+    phase("register.validation.missing", { firstName, lastName, email, password: password ? `(len:${String(password.length)})` : "", confirm: !!confirm });
     await render(ctx, "auth/register", { title: "הרשמה", page: "register", error: "נא למלא את כל השדות החיוניים" });
     return;
   }
