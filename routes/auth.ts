@@ -25,100 +25,135 @@ function phase(name: string, data?: unknown) {
 function lower(s?: string) { return (s ?? "").trim().toLowerCase(); }
 function trim(s?: string)  { return (s ?? "").trim(); }
 
-function formDataToObject(fd: FormData): Record<string, string> {
+function entriesToObject(entries: Iterable<[string, string]>): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const [k, v] of fd.entries()) {
-    out[k] = typeof v === "string" ? v : (v?.name ?? "");
-  }
+  for (const [k, v] of entries) out[k] = v;
   return out;
 }
 
+function formDataToObject(fd: FormData): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of fd.entries()) out[k] = typeof v === "string" ? v : (v?.name ?? "");
+  return out;
+}
+
+async function readStreamText(req: Request): Promise<string> {
+  // פוליביל: קורא את הגוף מה-ReadableStream גם אם אין text()/json()/formData()
+  const dec = new TextDecoder();
+  const body = (req as any).body as ReadableStream<Uint8Array> | null;
+  if (!body) return "";
+  const reader = (body as ReadableStream<Uint8Array>).getReader();
+  let chunks: Uint8Array[] = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) chunks.push(value);
+  }
+  // איחוד כל המקטעים
+  let totalLen = 0;
+  for (const c of chunks) totalLen += c.byteLength;
+  const merged = new Uint8Array(totalLen);
+  let offset = 0;
+  for (const c of chunks) { merged.set(c, offset); offset += c.byteLength; }
+  return dec.decode(merged);
+}
+
 /**
- * Oak v17: אין request.body().
- * משתמשים ב- ctx.request.formData() / json() / text() לפי ה-Content-Type.
+ * קורא את גוף הבקשה באופן הדטרמיניסטי:
+ * 1) ניסיונות API אם קיימים (formData/json/text).
+ * 2) קריאה ישירה מה-Stream כ-פוליביל.
+ * 3) פירוק תוכן לפי Content-Type (urlencoded/json/text).
  */
 async function readBody(ctx: any): Promise<{ data: Record<string, unknown>; meta: Record<string,string> }> {
-  const req = ctx.request;
-  const ctRaw = req.headers.get("content-type") || "";
-  const ct = ctRaw.split(";")[0].trim().toLowerCase();
+  const req = ctx.request as Request;
+  const ctRaw = (req.headers.get("content-type") || "").trim();
+  const ct = ctRaw.split(";")[0].toLowerCase();
   const meta: Record<string, string> = { contentType: ct || "(empty)" };
 
-  phase("body.start", { method: req.method, url: String(req.url), contentType: ctRaw });
+  phase("body.start", {
+    method: (ctx.request as any).method ?? "POST",
+    url: String((ctx.request as any).url ?? ""),
+    contentType: ctRaw,
+    hasFormDataFn: typeof (req as any).formData === "function",
+    hasJsonFn: typeof (req as any).json === "function",
+    hasTextFn: typeof (req as any).text === "function",
+  });
 
   try {
-    if (ct === "application/x-www-form-urlencoded" || ct === "multipart/form-data") {
-      const fd = await req.formData();
-      const r = formDataToObject(fd);
-      meta.parser = ct.includes("multipart") ? "multipart/form-data" : "form-urlencoded";
-      phase("body.parsed", { parser: meta.parser, keys: Object.keys(r) });
-      return { data: r, meta };
-    }
-    if (ct === "application/json") {
-      const j = await req.json() as Record<string, unknown>;
-      const r = j ?? {};
-      meta.parser = "json";
-      phase("body.parsed", { parser: meta.parser, keys: Object.keys(r) });
-      return { data: r, meta };
-    }
-    if (ct === "text/plain") {
-      const t = await req.text();
-      meta.parser = "text";
-      if (t.includes("=") && t.includes("&")) {
-        const params = new URLSearchParams(t);
-        const r: Record<string, string> = {};
-        for (const [k, v] of params.entries()) r[k] = v;
-        phase("body.parsed", { parser: "text->qs", keys: Object.keys(r) });
-        return { data: r, meta };
-      }
+    // 1) אם יש formData() ו-CT תואם
+    if ((ct === "application/x-www-form-urlencoded" || ct === "multipart/form-data")
+        && typeof (req as any).formData === "function") {
       try {
-        const j = JSON.parse(t);
-        if (j && typeof j === "object") {
-          phase("body.parsed", { parser: "text->json", keys: Object.keys(j as any) });
-          return { data: j as Record<string, unknown>, meta };
-        }
-      } catch {}
-      phase("body.parsed", { parser: "text->raw", size: t.length });
-      return { data: { _raw: t }, meta };
+        const fd = await (req as any).formData();
+        const r = formDataToObject(fd);
+        meta.parser = ct.includes("multipart") ? "formData(multipart)" : "formData(urlencoded)";
+        phase("body.parsed", { parser: meta.parser, keys: Object.keys(r) });
+        return { data: r, meta };
+      } catch (e) {
+        phase("body.formData.api.error", String(e));
+      }
     }
 
-    // Unknown/empty Content-Type — ננסה formData ואז json ואז text, בזהירות
-    try {
-      const fd = await req.formData();
-      const r = formDataToObject(fd);
-      meta.parser = "fallback:formData";
-      phase("body.parsed", { parser: meta.parser, keys: Object.keys(r) });
-      return { data: r, meta };
-    } catch (e) { phase("body.fallback.formData.error", String(e)); }
-
-    try {
-      const j = await req.json() as Record<string, unknown>;
-      const r = j ?? {};
-      meta.parser = "fallback:json";
-      phase("body.parsed", { parser: meta.parser, keys: Object.keys(r) });
-      return { data: r, meta };
-    } catch (e) { phase("body.fallback.json.error", String(e)); }
-
-    try {
-      const t = await req.text();
-      meta.parser = "fallback:text";
-      if (t.includes("=") && t.includes("&")) {
-        const params = new URLSearchParams(t);
-        const r: Record<string, string> = {};
-        for (const [k, v] of params.entries()) r[k] = v;
-        phase("body.parsed", { parser: "fallback:text->qs", keys: Object.keys(r) });
+    // 2) JSON אם יש json()
+    if (ct === "application/json" && typeof (req as any).json === "function") {
+      try {
+        const j = await (req as any).json() as Record<string, unknown>;
+        const r = j ?? {};
+        meta.parser = "json(api)";
+        phase("body.parsed", { parser: meta.parser, keys: Object.keys(r) });
         return { data: r, meta };
+      } catch (e) {
+        phase("body.json.api.error", String(e));
       }
-      phase("body.parsed", { parser: "fallback:text->raw", size: t.length });
-      return { data: { _raw: t }, meta };
-    } catch (e) { phase("body.fallback.text.error", String(e)); }
+    }
 
-    meta.parser = "empty";
-    phase("body.empty");
-    return { data: {}, meta };
+    // 3) TEXT אם יש text()
+    if (typeof (req as any).text === "function") {
+      try {
+        const t = await (req as any).text() as string;
+        const parsed = parseByContentType(t, ct);
+        meta.parser = `text(api)->${parsed.kind}`;
+        phase("body.parsed", { parser: meta.parser, keys: Object.keys(parsed.data) });
+        return { data: parsed.data, meta };
+      } catch (e) {
+        phase("body.text.api.error", String(e));
+      }
+    }
+
+    // 4) פוליביל: קורא Stream ידנית
+    const t = await readStreamText(req);
+    const parsed = parseByContentType(t, ct);
+    meta.parser = `stream->${parsed.kind}`;
+    phase("body.parsed", { parser: meta.parser, keys: Object.keys(parsed.data) });
+    return { data: parsed.data, meta };
   } catch (e) {
     phase("body.error", String(e));
     return { data: {}, meta };
   }
+}
+
+function parseByContentType(t: string, ct: string): { kind: string; data: Record<string, unknown> } {
+  if (!t) return { kind: "empty", data: {} };
+
+  // urlencoded
+  if (ct === "application/x-www-form-urlencoded" || (t.includes("=") && t.includes("&") && !t.trim().startsWith("{"))) {
+    const params = new URLSearchParams(t);
+    const r = entriesToObject(params.entries());
+    return { kind: "urlencoded", data: r };
+  }
+
+  // json
+  if (ct === "application/json" || t.trim().startsWith("{") || t.trim().startsWith("[")) {
+    try {
+      const j = JSON.parse(t);
+      if (j && typeof j === "object") return { kind: "json", data: j as Record<string, unknown> };
+    } catch {
+      // נפל—נחזיר raw
+    }
+  }
+
+  // text raw
+  return { kind: "rawtext", data: { _raw: t } };
 }
 
 /* ---------------- Router ---------------- */
