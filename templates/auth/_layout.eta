@@ -1,0 +1,38 @@
+
+
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title><%= it.title || "GeoTable" %></title>
+  <link rel="stylesheet" href="/static/styles.css"/>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container row">
+      <a class="brand" href="/">GeoTable</a>
+      <nav class="nav">
+        <% if (it.user) { %>
+          <span class="user">מחובר/ת: <strong><%= it.user.firstName %> <%= it.user.lastName %></strong> (<%= it.user.email %>)</span>
+          <a class="btn" href="/auth/logout">התנתקות</a>
+        <% } else { %>
+          <a class="btn" href="/auth/login">התחברות</a>
+          <a class="btn outline" href="/auth/register">הרשמה</a>
+        <% } %>
+        <a class="btn secondary" href="/admin/login">Admin</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <%~ it.body %>
+  </main>
+
+  <footer class="site-footer container muted">
+    <small>© <%= new Date().getFullYear() %> GeoTable</small>
+  </footer>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
