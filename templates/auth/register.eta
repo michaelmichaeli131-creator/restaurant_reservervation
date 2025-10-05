@@ -1,19 +1,97 @@
 <% layout("_layout", it) %>
-<section class="card" style="max-width:720px">
-  <h1 style="margin-top:0">הרשמה</h1>
-  <% if (it.error) { %><p class="badge warn"><%= it.error %></p><% } %>
-  <form method="post" action="/auth/register" class="grid2">
-    <label><span>שם</span><input name="firstName" required/></label>
-    <label><span>שם משפחה</span><input name="lastName" required/></label>
-    <label><span>גיל</span><input name="age" type="number" min="0" max="120"/></label>
-    <label><span>סוג העסק</span><input name="businessType" placeholder="מסעדה / קפה / בר"/></label>
-    <label class="col-span-2"><span>דוא״ל</span><input name="email" type="email" required/></label>
-    <label class="col-span-2"><span>שם משתמש (אופציונלי)</span><input name="username" placeholder="ברירת מחדל מהדוא״ל"/></label>
-    <label><span>סיסמה</span><input name="password" type="password" required/></label>
-    <label><span>אימות סיסמה</span><input name="confirm" type="password" required/></label>
-    <div class="col-span-2 row" style="margin-top:10px">
-      <button class="btn" type="submit">הרשמה</button>
-      <a class="btn secondary" href="/auth/login">כבר רשומים? התחברות</a>
+
+<section class="card" style="max-width:720px;margin:24px auto">
+  <header class="page-header">
+    <h1 style="margin:0 0 8px">הרשמה</h1>
+    <p class="muted" style="margin:0">פתח/י חשבון חדש ל־GeoTable</p>
+  </header>
+
+  <% if (it.error) { %>
+    <div class="alert error" role="alert" style="margin-top:12px">
+      <strong>שגיאה:</strong> <%= it.error %>
+    </div>
+  <% } %>
+
+  <form action="/auth/register" method="post" id="register-form" class="form-grid" novalidate>
+    <!-- שדות החיוניים עם שמות שהשרת מצפה להם -->
+    <div class="form-row">
+      <label for="firstName">שם פרטי</label>
+      <input id="firstName" name="firstName" type="text" required autocomplete="given-name"
+             placeholder="לדוגמה: דניאל" value="<%= it.prefill?.firstName || "" %>"/>
+    </div>
+
+    <div class="form-row">
+      <label for="lastName">שם משפחה</label>
+      <input id="lastName" name="lastName" type="text" required autocomplete="family-name"
+             placeholder="לדוגמה: כהן" value="<%= it.prefill?.lastName || "" %>"/>
+    </div>
+
+    <div class="form-row">
+      <label for="email">אימייל</label>
+      <input id="email" name="email" type="email" dir="ltr" inputmode="email" required
+             autocomplete="email" autocapitalize="off" spellcheck="false"
+             placeholder="you@example.com" value="<%= it.prefill?.email || "" %>"/>
+    </div>
+
+    <div class="form-row">
+      <label for="password">סיסמה</label>
+      <input id="password" name="password" type="password" required autocomplete="new-password"
+             minlength="6" placeholder="לפחות 6 תווים"/>
+    </div>
+
+    <div class="form-row">
+      <label for="passwordConfirm">אימות סיסמה</label>
+      <input id="passwordConfirm" name="passwordConfirm" type="password" required autocomplete="new-password"
+             minlength="6" placeholder="הקלד/י שוב את הסיסמה"/>
+    </div>
+
+    <!-- שדות לא חובה (אם השרת תומך בהם) -->
+    <div class="form-row" style="grid-column:1/-1">
+      <label for="phone">נייד (לא חובה)</label>
+      <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="050-1234567"
+             value="<%= it.prefill?.phone || "" %>"/>
+    </div>
+
+    <div class="form-actions" style="grid-column:1/-1;display:flex;gap:10px;margin-top:12px">
+      <button type="submit" class="btn">הירשם/י</button>
+      <a class="btn secondary" href="/auth/login">יש כבר חשבון? התחברות</a>
     </div>
   </form>
 </section>
+
+<style>
+  .card{border:1px solid #eee;border-radius:12px;padding:16px}
+  .muted{color:#777}
+  .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+  .form-row{display:flex;flex-direction:column}
+  .form-row label{margin-bottom:4px;font-weight:600}
+  .form-row input{padding:8px 10px;border:1px solid #ccc;border-radius:8px;font-size:1rem}
+  .btn{background:#111;color:#fff;border:none;border-radius:10px;padding:8px 12px;cursor:pointer}
+  .btn.secondary{background:#555}
+  .alert.error{border:1px solid #ffb4ad;background:#ffeceb;border-radius:8px;padding:10px}
+  @media (max-width:760px){.form-grid{grid-template-columns:1fr}}
+</style>
+
+<script>
+  // ניקוי אימייל מ־BIDI ותווים מלאים, ושמירה על LTR
+  (function(){
+    const BIDI=/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, ZSP=/[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
+    const emailEl=document.getElementById('email');
+    function normalizeEmail(s){ s=(s||"")+""; s=s.replace(BIDI,""); s=s.replace(/＠/g,"@").replace(/．/g,"."); s=s.replace(ZSP," ").trim();
+      s=s.replace(/^[<"'\s]+/,"").replace(/[>"'\s]+$/,""); return s.toLowerCase(); }
+    if(emailEl){ emailEl.addEventListener('blur',()=>{ emailEl.value=normalizeEmail(emailEl.value); }); emailEl.dir='ltr'; }
+  })();
+
+  // בדיקת סיסמה תואמת בצד לקוח (אופציונלי)
+  (function(){
+    const form=document.getElementById('register-form');
+    if(!form) return;
+    form.addEventListener('submit', (ev)=>{
+      const p=form.password?.value||"", c=form.passwordConfirm?.value||"";
+      if(p && c && p!==c){
+        ev.preventDefault();
+        alert("הסיסמאות אינן תואמות");
+      }
+    }, {passive:false});
+  })();
+</script>
