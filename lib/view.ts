@@ -12,20 +12,36 @@ const ENV_DIR =
   Deno.env.get("VIEWS_DIR") ??
   "";
 
+/**
+ * בניית רשימת מועמדות לספריית תבניות:
+ * - ENV override
+ * - נתיבים אבסולוטיים נפוצים (הפריסה שלך משתמשת בהם)
+ * - נתיבים יחסיים לסביבת הפעלה/לקובץ (שיפור עמידות ב-Deploy/Local)
+ */
 function candidatePaths(): string[] {
   // 1) ENV override
   const p0 = ENV_DIR || "";
-  // 2) שורש הפרויקט
+
+  // 2) שורש הפרויקט (אבסולוטי, כפי שמשמש אצלך)
   const p1 = "/templates";
-  // 3) פרויקטים שמבוצעים לתיקיית /src
   const p2 = "/src/templates";
-  // 4) יחסית לקובץ הזה
-  const p3 = new URL("../../templates", import.meta.url).pathname;
-  // 5) עוד יחסית (למקרי בנדל שונים)
-  const p4 = new URL("../templates", import.meta.url).pathname;
+
+  // 3) יחסית לקובץ הזה (עשוי להיכשל בחלק מהפריסות — נעטוף ב-try)
+  let p3 = "";
+  let p4 = "";
+  try {
+    p3 = new URL("../../templates", import.meta.url).pathname;
+  } catch {}
+  try {
+    p4 = new URL("../templates", import.meta.url).pathname;
+  } catch {}
+
+  // 4) אופציות יחסיות לסביבת הריצה (לתמיכה ב-local run / Deno Deploy)
+  const p5 = "./templates";
+  const p6 = "templates";
 
   // הסר כפילויות וריקים
-  return Array.from(new Set([p0, p1, p2, p3, p4].filter(Boolean)));
+  return Array.from(new Set([p0, p1, p2, p3, p4, p5, p6].filter(Boolean)));
 }
 
 function dirJoin(a: string, b: string) {
@@ -42,8 +58,11 @@ const PROBES = [
   "auth/register.eta",
 ];
 
+/**
+ * בדיקת קיום "סבירה" גם בסביבות שבהן statSync לא זמין לכל נתיב.
+ * ב-Deno Deploy לעיתים נתיבים מסוימים לא ניתנים לבדיקה; נחזיר false בשקט.
+ */
 function dirLooksLikeViews(dir: string): boolean {
-  // ב־Deno Deploy לעיתים statSync לא זמין לכל נתיב; לכן ננסה בעדינות (optional chaining).
   // deno-lint-ignore no-explicit-any
   const statSync = (Deno as any).statSync?.bind(Deno);
   if (!statSync) return false;
@@ -62,20 +81,24 @@ function dirLooksLikeViews(dir: string): boolean {
 
 const CANDIDATES = candidatePaths();
 
+/**
+ * בוחרים ספריית views לפי המועמדות הראשונות שנראות תקינות.
+ * אם לא נמצאה — נעדיף ENV (אם ניתן), אחרת "/templates", ובדפדוף אחרון "./templates".
+ */
 const PICKED_VIEWS_DIR = (() => {
   for (const p of CANDIDATES) {
     if (dirLooksLikeViews(p)) return p;
   }
-  // אם לא נמצא דבר — נעדיף קודם ENV (אם קיים), אחרת "/templates"
   return ENV_DIR || "/templates";
 })();
 
 // --------- Eta instance ---------
 const eta = new Eta({
-  views: PICKED_VIEWS_DIR,
-  cache: true,   // אפשר לשנות ל-false בזמן דיבוג
+  views: PICKED_VIEWS_DIR, // נתיב קבוע (לפי הבחירה למעלה)
+  cache: true,             // אפשר לשנות ל-false בזמן דיבוג
   async: true,
-  useWith: true, // מאפשר שימוש ב-it ישירות בתבניות
+  useWith: true,           // מאפשר שימוש ב-it ישירות בתבניות
+  autoEscape: true,
 });
 
 // --------- Helpers ---------
@@ -153,7 +176,7 @@ export async function render(
       ctx.response.body = html;
       return;
     }
-    // נרנדר fallback אם יצא undefined/falsey
+    // רינדור ריק → fallback
     console.warn(`[view] empty render for "${template}". views="${PICKED_VIEWS_DIR}"`);
     ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
     ctx.response.body = fallbackHtml(String(data?.title ?? template), {
