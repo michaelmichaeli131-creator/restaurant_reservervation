@@ -17,6 +17,10 @@ import { debugLog } from "../lib/debug.ts";
 /* ---------------- Utilities ---------------- */
 
 function pad2(n: number) { return n.toString().padStart(2, "0"); }
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+}
 function normalizeDate(input: unknown): string {
   let s = String(input ?? "").trim();
   if (!s) return "";
@@ -96,15 +100,35 @@ function toMinutes(hhmm: string): number {
   return Number(m[1]) * 60 + Number(m[2]);
 }
 
-function getWindowsForDate(weekly: WeeklySchedule | undefined | null, date: string)
-: Array<{ open: string; close: string }> {
+/**
+ * Robustly read windows for a given date from WeeklySchedule.
+ * Supports keys: 0..6, "0".."6", "sun".."sat", "sunday".."saturday".
+ */
+function getWindowsForDate(
+  weekly: WeeklySchedule | undefined | null,
+  date: string,
+): Array<{ open: string; close: string }> {
   if (!weekly) return [];
   const d = new Date(date + "T00:00:00");
   if (isNaN(d.getTime())) return [];
-  const dow = d.getDay() as keyof WeeklySchedule; // 0..6
-  const raw: any = (weekly as any)[dow];
+  const dowNum = d.getDay(); // 0..6 (0=Sun)
+  const long = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"] as const;
+  const short = ["sun","mon","tue","wed","thu","fri","sat"] as const;
+
+  const candidates: Array<string | number> = [
+    dowNum, String(dowNum),
+    long[dowNum], short[dowNum],
+    (long as readonly string[])[dowNum].toUpperCase(),
+    (short as readonly string[])[dowNum].toUpperCase(),
+  ];
+
+  let raw: any = undefined;
+  for (const k of candidates) {
+    if (raw == null && (weekly as any)[k] != null) {
+      raw = (weekly as any)[k];
+    }
+  }
   if (!raw) return [];
-  // תומך הן באובייקט יחיד והן במערך של חלונות
   return Array.isArray(raw) ? raw.filter(Boolean) : [raw];
 }
 
@@ -321,19 +345,22 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
     return;
   }
 
-  const url = ctx.request.url;
-  const conflict = url.searchParams.get("conflict") === "1";
-  const suggestions = (url.searchParams.get("suggest") ?? "").split(",").filter(Boolean);
-  const date = url.searchParams.get("date") ?? "";
-  const time = url.searchParams.get("time") ?? "";
+  // normalize + sensible defaults so opening hours always show
+  const rawDate = ctx.request.url.searchParams.get("date") ?? "";
+  const rawTime = ctx.request.url.searchParams.get("time") ?? "";
+  const date = normalizeDate(rawDate) || todayISO();
+  const time = normalizeTime(rawTime); // time may stay empty here (UI can pick)
+
+  const openingWindows = getWindowsForDate(restaurant.weeklySchedule as WeeklySchedule, date);
 
   await render(ctx, "restaurant", {
     page: "restaurant",
     title: `${restaurant.name} — GeoTable`,
-    // מעבירים ל־UI כ-openingHours (ה־UI שלך קורא מזה)
+    // keep original shape + expose weeklySchedule as openingHours for UI compatibility
     restaurant: { ...restaurant, openingHours: restaurant.weeklySchedule },
-    conflict,
-    suggestions,
+    openingWindows, // <<< template uses this to render the list
+    conflict: ctx.request.url.searchParams.get("conflict") === "1",
+    suggestions: (ctx.request.url.searchParams.get("suggest") ?? "").split(",").filter(Boolean),
     date,
     time,
   });
@@ -447,7 +474,7 @@ restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
     return;
   }
 
-  const date = normalizeDate(ctx.request.url.searchParams.get("date") ?? "");
+  const date = normalizeDate(ctx.request.url.searchParams.get("date") ?? "") || todayISO();
   const time = normalizeTime(ctx.request.url.searchParams.get("time") ?? "");
   const people = Number(ctx.request.url.searchParams.get("people") ?? "2") || 2;
 
