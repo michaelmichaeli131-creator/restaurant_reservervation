@@ -1,86 +1,82 @@
-import { Router, Status } from "jsr:@oak/oak";
-import { getRestaurant, updateRestaurant, type WeeklySchedule, type OpeningWindow } from "../database.ts";
-import { render } from "../lib/view.ts";
+// src/routes/owner_hours.ts
+// ניהול שעות פתיחה שבועיות למסעדה — לבעלים בלבד
 
-const HOUR_RE = /^([01]?\d|2[0-3]):([0-5]\d)$/;
-const pad2 = (n: number) => String(n).padStart(2,"0");
-function validHHMM(s?: string) { return !!s && HOUR_RE.test(String(s).trim()); }
-function asHHMM(s: string) {
-  const m = String(s || "").trim().match(/^(\d{1,2}):(\d{2})$/);
-  if (!m) return "";
-  const h = Math.max(0, Math.min(23, +m[1]));
-  const mi = Math.max(0, Math.min(59, +m[2]));
-  return `${pad2(h)}:${pad2(mi)}`;
+import { Router, Status } from "jsr:@oak/oak";
+import { render } from "../lib/view.ts";
+import { getRestaurant, updateRestaurant, type Restaurant, type WeeklySchedule } from "../database.ts";
+import { requireOwner } from "../lib/auth.ts";
+
+const ownerHoursRouter = new Router();
+
+function toHHMM(v: unknown): string | null {
+  const s = String(v ?? "").trim();
+  if (!s) return null;
+  const s2 = s.includes(".") ? s.replace(".", ":") : s;
+  const m = s2.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const h = Math.max(0, Math.min(23, Number(m[1])));
+  const mi = Math.max(0, Math.min(59, Number(m[2])));
+  return `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
 }
 
-function parseScheduleFromPayload(payload: Record<string,string>): WeeklySchedule {
-  // נקבל שמות שדות בסגנון:
-  // day0_closed=on
-  // day0_open1=10:00 day0_close1=14:00
-  // day0_open2=18:00 day0_close2=23:00
-  // day1_open1=...
+function parseWeeklyFromForm(form: URLSearchParams): WeeklySchedule {
   const out: WeeklySchedule = {};
-  for (let d = 0; d <= 6; d++) {
-    const closed = !!payload[`day${d}_closed`];
-    if (closed) { out[d as any] = null; continue; }
-
-    const win1: OpeningWindow | null =
-      validHHMM(payload[`day${d}_open1`]) && validHHMM(payload[`day${d}_close1`])
-        ? { open: asHHMM(payload[`day${d}_open1`]), close: asHHMM(payload[`day${d}_close1`]) }
-        : null;
-
-    const win2: OpeningWindow | null =
-      validHHMM(payload[`day${d}_open2`]) && validHHMM(payload[`day${d}_close2`])
-        ? { open: asHHMM(payload[`day${d}_open2`]), close: asHHMM(payload[`day${d}_close2`]) }
-        : null;
-
-    if (win1 && win2) out[d as any] = [win1, win2];
-    else if (win1)    out[d as any] = win1;
-    else if (win2)    out[d as any] = win2;
-    else              out[d as any] = null; // אין שעות → נחשב כסגור
+  for (let d = 0 as 0|1|2|3|4|5|6; d <= 6; d = (d+1) as 0|1|2|3|4|5|6) {
+    const open = toHHMM(form.get(`d${d}_open`));
+    const close = toHHMM(form.get(`d${d}_close`));
+    const enabled = form.get(`d${d}_enabled`) === "on" || (!!open && !!close);
+    out[d] = (enabled && open && close) ? { open, close } : null;
   }
   return out;
 }
 
-export const ownerHoursRouter = new Router();
+const DAY_LABELS = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"] as const;
 
-// TODO: אפשר לעטוף במידלוור אימות בעלים
 ownerHoursRouter.get("/owner/restaurants/:id/hours", async (ctx) => {
-  const id = String(ctx.params.id ?? "");
+  if (!requireOwner(ctx)) return;
+  const id = ctx.params.id!;
   const r = await getRestaurant(id);
-  if (!r) {
+  if (!r || r.ownerId !== (ctx.state as any)?.user?.id) {
     ctx.response.status = Status.NotFound;
-    ctx.response.body = "Restaurant not found";
+    await render(ctx, "error", { title: "לא נמצא", message: "מסעדה לא נמצאה או שאין הרשאה." });
     return;
   }
-  await render(ctx, "owner_hours", { page: "owner_hours", title: "שעות פתיחה", restaurant: r });
+
+  const weekly: WeeklySchedule = {};
+  for (let d = 0 as 0|1|2|3|4|5|6; d <= 6; d = (d+1) as 0|1|2|3|4|5|6) {
+    const cur = (r.weeklySchedule ?? {})[d] as any;
+    weekly[d] = (cur && cur.open && cur.close) ? { open: cur.open, close: cur.close } : null;
+  }
+
+  await render(ctx, "owner_hours", {
+    title: `שעות פתיחה — ${r.name}`,
+    page: "owner_hours",
+    restaurant: r,
+    weekly,
+    labels: DAY_LABELS,
+    saved: ctx.request.url.searchParams.get("saved") === "1",
+  });
 });
 
 ownerHoursRouter.post("/owner/restaurants/:id/hours", async (ctx) => {
-  const id = String(ctx.params.id ?? "");
+  if (!requireOwner(ctx)) return;
+  const id = ctx.params.id!;
   const r = await getRestaurant(id);
-  if (!r) {
+  if (!r || r.ownerId !== (ctx.state as any)?.user?.id) {
     ctx.response.status = Status.NotFound;
-    ctx.response.body = "Restaurant not found";
+    await render(ctx, "error", { title: "לא נמצא", message: "מסעדה לא נמצאה או שאין הרשאה." });
     return;
   }
 
-  const body = await ctx.request.body({ type: "form" }).value; // application/x-www-form-urlencoded
-  const payload = Object.fromEntries(body.entries()) as Record<string,string>;
-  const schedule = parseScheduleFromPayload(payload);
+  const form = await (ctx.request.body({ type: "form" }).value) as URLSearchParams;
+  const weekly = parseWeeklyFromForm(form);
 
-  const updated = await updateRestaurant(id, { weeklySchedule: schedule });
-  if (!updated) {
-    ctx.response.status = Status.InternalServerError;
-    ctx.response.body = "failed to update";
-    return;
-  }
+  const patch: Partial<Restaurant> = { weeklySchedule: weekly };
+  await updateRestaurant(id, patch);
 
-  // חזרה לדף עם הודעת הצלחה
-  const u = new URL(`/owner/restaurants/${encodeURIComponent(id)}/hours`, "http://local");
-  u.searchParams.set("saved", "1");
   ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", u.pathname + u.search);
+  ctx.response.headers.set("Location", `/owner/restaurants/${encodeURIComponent(id)}/hours?saved=1`);
 });
 
 export default ownerHoursRouter;
+export { ownerHoursRouter };
