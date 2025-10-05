@@ -1,38 +1,85 @@
 <% layout("_layout", it) %>
-<main class="container" dir="rtl">
-  <section class="card" style="max-width:460px;margin:24px auto">
-    <h1 style="margin-top:0">התחברות</h1>
 
-    <% if (it.error) { %>
-      <div class="alert warn" role="alert"><%= it.error %></div>
-    <% } %>
+<section class="card" style="max-width:520px;margin:24px auto">
+  <header class="page-header">
+    <h1 style="margin:0 0 8px">התחברות</h1>
+    <p class="muted" style="margin:0">ברוך/ה הבא/ה</p>
+  </header>
 
-    <form action="/auth/login" method="post" class="form-grid">
-      <div class="form-row">
-        <label for="email">דוא״ל</label>
-        <input id="email" name="email" type="email" required />
-      </div>
+  <% if (it.error) { %>
+    <div class="alert error" role="alert" style="margin-top:12px">
+      <strong>שגיאה:</strong> <%= it.error %>
+    </div>
+  <% } %>
 
-      <div class="form-row">
-        <label for="password">סיסמה</label>
-        <input id="password" name="password" type="password" required />
-      </div>
+  <form action="/auth/login" method="post" id="login-form" class="form-grid" novalidate>
+    <div class="form-row" style="grid-column:1/-1">
+      <label for="email">אימייל</label>
+      <input id="email" name="email" type="email" dir="ltr" inputmode="email" required
+             autocomplete="username" autocapitalize="off" spellcheck="false"
+             placeholder="you@example.com" value="<%= it.prefill?.email || "" %>"/>
+    </div>
 
-      <div class="form-actions">
-        <button type="submit" class="btn">כניסה</button>
-        <a class="btn secondary" href="/auth/forgot">שכחתי סיסמה</a>
-      </div>
-    </form>
-  </section>
-</main>
+    <div class="form-row" style="grid-column:1/-1">
+      <label for="password">סיסמה</label>
+      <input id="password" name="password" type="password" required autocomplete="current-password"
+             placeholder="הקלד/י סיסמה"/>
+    </div>
+
+    <div class="form-row" style="grid-column:1/-1;align-items:flex-start">
+      <label style="display:flex;gap:8px;align-items:center;font-weight:500">
+        <input type="checkbox" name="remember" value="1"/>
+        זכור אותי (מכשיר זה)
+      </label>
+    </div>
+
+    <div class="form-actions" style="grid-column:1/-1;display:flex;gap:10px;margin-top:12px">
+      <button type="submit" class="btn">התחבר/י</button>
+      <a class="btn secondary" href="/auth/register">אין חשבון? הרשמה</a>
+    </div>
+  </form>
+</section>
 
 <style>
-  .container{max-width:960px;margin:24px auto;padding:0 16px}
   .card{border:1px solid #eee;border-radius:12px;padding:16px}
-  .form-grid{display:grid;grid-template-columns:1fr;gap:12px}
+  .muted{color:#777}
+  .form-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:14px}
   .form-row{display:flex;flex-direction:column}
-  .form-actions{display:flex;gap:10px}
-  .btn{background:#111;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;text-decoration:none;text-align:center}
+  .form-row label{margin-bottom:4px;font-weight:600}
+  .form-row input{padding:8px 10px;border:1px solid #ccc;border-radius:8px;font-size:1rem}
+  .btn{background:#111;color:#fff;border:none;border-radius:10px;padding:8px 12px;cursor:pointer}
   .btn.secondary{background:#555}
-  .alert.warn{background:#fff1f0;border:1px solid #ffccc7;color:#a8071a;border-radius:8px;padding:10px 12px;margin-bottom:12px}
+  .alert.error{border:1px solid #ffb4ad;background:#ffeceb;border-radius:8px;padding:10px}
 </style>
+
+<script>
+  (function(){
+    const form = document.getElementById('login-form');
+    const emailEl = document.getElementById('email');
+    if (emailEl) emailEl.dir = 'ltr';
+
+    // לשמירה על תאימות עם BE שייתכן שמצפה לשמות אחרים (username/login/user/mail)
+    function addHidden(name, value){
+      if (!value && value !== 0) return;
+      let el = form.querySelector('input[type="hidden"][name="'+name+'"]');
+      if (!el) {
+        el = document.createElement('input');
+        el.type = 'hidden';
+        el.name = name;
+        form.appendChild(el);
+      }
+      el.value = value;
+    }
+
+    form.addEventListener('submit', ()=>{
+      const em = (form.email?.value || "").trim();
+      // אלטרנטיבות נפוצות לשם המשתמש
+      addHidden("username", em);
+      addHidden("user", em);
+      addHidden("login", em);
+      addHidden("mail", em);
+      // אם יש remember נשלח גם כ-rememberMe ששרתים לעיתים מצפים לו
+      if (form.remember?.checked) addHidden("rememberMe", "1");
+    });
+  })();
+</script>

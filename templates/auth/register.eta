@@ -13,7 +13,6 @@
   <% } %>
 
   <form action="/auth/register" method="post" id="register-form" class="form-grid" novalidate>
-    <!-- שדות החיוניים עם שמות שהשרת מצפה להם -->
     <div class="form-row">
       <label for="firstName">שם פרטי</label>
       <input id="firstName" name="firstName" type="text" required autocomplete="given-name"
@@ -40,13 +39,25 @@
     </div>
 
     <div class="form-row">
-      <label for="passwordConfirm">אימות סיסמה</label>
-      <input id="passwordConfirm" name="passwordConfirm" type="password" required autocomplete="new-password"
+      <label for="confirm">אימות סיסמה</label>
+      <input id="confirm" name="confirm" type="password" required autocomplete="new-password"
              minlength="6" placeholder="הקלד/י שוב את הסיסמה"/>
     </div>
 
-    <!-- שדות לא חובה (אם השרת תומך בהם) -->
-    <div class="form-row" style="grid-column:1/-1">
+    <!-- שדה חדש: סוג העסק -->
+    <div class="form-row">
+      <label for="businessType">סוג העסק</label>
+      <select id="businessType" name="businessType" required>
+        <option value="" disabled selected hidden>בחר/י סוג עסק</option>
+        <option value="restaurant">מסעדה</option>
+        <option value="cafe">בית קפה</option>
+        <option value="bar">בר</option>
+        <option value="hotel">מלון / אירוח</option>
+        <option value="other">אחר</option>
+      </select>
+    </div>
+
+    <div class="form-row">
       <label for="phone">נייד (לא חובה)</label>
       <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="050-1234567"
              value="<%= it.prefill?.phone || "" %>"/>
@@ -65,7 +76,12 @@
   .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
   .form-row{display:flex;flex-direction:column}
   .form-row label{margin-bottom:4px;font-weight:600}
-  .form-row input{padding:8px 10px;border:1px solid #ccc;border-radius:8px;font-size:1rem}
+  .form-row input, .form-row select{
+    padding:8px 10px;
+    border:1px solid #ccc;
+    border-radius:8px;
+    font-size:1rem;
+  }
   .btn{background:#111;color:#fff;border:none;border-radius:10px;padding:8px 12px;cursor:pointer}
   .btn.secondary{background:#555}
   .alert.error{border:1px solid #ffb4ad;background:#ffeceb;border-radius:8px;padding:10px}
@@ -73,25 +89,17 @@
 </style>
 
 <script>
-  // ניקוי אימייל מ־BIDI ותווים מלאים, ושמירה על LTR
-  (function(){
-    const BIDI=/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, ZSP=/[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
-    const emailEl=document.getElementById('email');
-    function normalizeEmail(s){ s=(s||"")+""; s=s.replace(BIDI,""); s=s.replace(/＠/g,"@").replace(/．/g,"."); s=s.replace(ZSP," ").trim();
-      s=s.replace(/^[<"'\s]+/,"").replace(/[>"'\s]+$/,""); return s.toLowerCase(); }
-    if(emailEl){ emailEl.addEventListener('blur',()=>{ emailEl.value=normalizeEmail(emailEl.value); }); emailEl.dir='ltr'; }
-  })();
-
-  // בדיקת סיסמה תואמת בצד לקוח (אופציונלי)
   (function(){
     const form=document.getElementById('register-form');
-    if(!form) return;
-    form.addEventListener('submit', (ev)=>{
-      const p=form.password?.value||"", c=form.passwordConfirm?.value||"";
-      if(p && c && p!==c){
+    const emailEl=document.getElementById('email');
+    if(emailEl){ emailEl.dir='ltr'; }
+
+    form.addEventListener('submit',(ev)=>{
+      const p=form.password?.value||"", c=form.confirm?.value||"";
+      if(p&&c&&p!==c){
         ev.preventDefault();
         alert("הסיסמאות אינן תואמות");
       }
-    }, {passive:false});
+    },{passive:false});
   })();
 </script>
