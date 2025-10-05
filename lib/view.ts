@@ -1,9 +1,12 @@
 // src/lib/view.ts
 // Eta renderer חכם: מאתר ספריית תבניות באופן חסין-פריסה, תומך ב-ENV override,
 // ומספק fallback מפורט (HTML/JSON) במקרה כשל.
+// שדרוג: טעינת user אוטומטית מה־session אם לא קיים ב-ctx.state.user
+//        כך שהתבניות (לרבות ה-layout) יוכלו להציג "פתח/י מסעדה" כשמחוברים.
 
 import { Eta } from "npm:eta@3.5.0";
 import type { Context } from "jsr:@oak/oak";
+import { getUserById } from "../database.ts";
 
 // --------- איתור ספריית התבניות ---------
 // מאפשר override דרך ENV (TEMPLATES_DIR או VIEWS_DIR)
@@ -146,9 +149,36 @@ function fallbackHtml(title: string, info: Record<string, unknown>) {
 </html>`;
 }
 
+/**
+ * מנסה לטעון את המשתמש מה-session אם לא קיים ב-ctx.state.user
+ * ההנחה: middleware של session מאחסן userId תחת ctx.state.session / ctx.state.session.get("userId")
+ */
+async function ensureStateUser(ctx: Context): Promise<any | null> {
+  // אם כבר קיים user ב-state – לא נוגעים
+  // deno-lint-ignore no-explicit-any
+  const stateAny = ctx.state as any;
+  if (stateAny?.user) return stateAny.user;
+
+  try {
+    const session = stateAny?.session;
+    const userId = session && (await session.get?.("userId"));
+    if (userId) {
+      const user = await getUserById(String(userId));
+      if (user) {
+        stateAny.user = user; // נשמור לזמן חיי הבקשה
+        return user;
+      }
+    }
+  } catch {
+    // מתעלמים – לא חוסם
+  }
+  return null;
+}
+
 // --------- Public API ---------
 /**
  * render(ctx, template, data)
+ * - טוען user ל-ctx.state.user במידת הצורך (מה-session)
  * - אם Accept: application/json → מחזיר JSON (כולל user ב-payload)
  * - אחרת: מרנדר תבנית Eta מתוך PICKED_VIEWS_DIR
  * - במקרה כשל: מחזיר fallback (JSON או HTML לפי Accept)
@@ -158,7 +188,7 @@ export async function render(
   template: string,
   data: Record<string, unknown> = {},
 ): Promise<void> {
-  const user = (ctx.state as any)?.user ?? null;
+  const user = await ensureStateUser(ctx);
   const payload = { ...data, user };
 
   // JSON במפורש
