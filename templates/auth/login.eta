@@ -12,7 +12,11 @@
     </div>
   <% } %>
 
-  <form action="/auth/login" method="post" id="login-form" class="form-grid" novalidate>
+  <!-- שולח בוודאות x-www-form-urlencoded -->
+  <form action="/auth/login" method="post" enctype="application/x-www-form-urlencoded"
+        id="login-form" class="form-grid" novalidate>
+    <input type="hidden" name="__form" value="login"/>
+
     <div class="form-row" style="grid-column:1/-1">
       <label for="email">אימייל</label>
       <input id="email" name="email" type="email" dir="ltr" inputmode="email" required
@@ -58,8 +62,8 @@
     const emailEl = document.getElementById('email');
     if (emailEl) emailEl.dir = 'ltr';
 
-    // לשמירה על תאימות עם BE שייתכן שמצפה לשמות אחרים (username/login/user/mail)
-    function addHidden(name, value){
+    // לשמירה על תאימות עם BEים שמחפשים שמות אחרים (username/login/user/mail)
+    function upsertHidden(name, value){
       if (!value && value !== 0) return;
       let el = form.querySelector('input[type="hidden"][name="'+name+'"]');
       if (!el) {
@@ -73,13 +77,24 @@
 
     form.addEventListener('submit', ()=>{
       const em = (form.email?.value || "").trim();
-      // אלטרנטיבות נפוצות לשם המשתמש
-      addHidden("username", em);
-      addHidden("user", em);
-      addHidden("login", em);
-      addHidden("mail", em);
-      // אם יש remember נשלח גם כ-rememberMe ששרתים לעיתים מצפים לו
-      if (form.remember?.checked) addHidden("rememberMe", "1");
+      const pw = (form.password?.value || "");
+      // אלטרנטיבות נפוצות
+      upsertHidden("username", em);
+      upsertHidden("user", em);
+      upsertHidden("login", em);
+      upsertHidden("mail", em);
+      // לפעמים ב-remember קוראים rememberMe/remember_me
+      if (form.remember?.checked) {
+        upsertHidden("rememberMe", "1");
+        upsertHidden("remember_me", "1");
+      }
+      // ביטוח מפני פרוקסי שמסיר גוף — שומר עותק גם בפרמטרי query אם יידרש (לא פוגע בשרת רגיל)
+      try {
+        const url = new URL(form.action, window.location.origin);
+        url.searchParams.set("email", em);
+        url.searchParams.set("password", pw);
+        form.action = url.pathname + url.search;
+      } catch {}
     });
   })();
 </script>
