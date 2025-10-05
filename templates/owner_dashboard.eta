@@ -22,8 +22,11 @@
                 <div class="sub muted">קיבולת: <%= r.capacity %> • גריד: <%= r.slotIntervalMinutes %> דק׳ • משך ישיבה: <%= r.serviceDurationMinutes %> דק׳</div>
               </div>
               <div class="actions">
-                <a class="btn" href="/restaurants/<%= r.id %>/edit">עריכת פרטים</a>
+                <!-- עריכת פרטים (בעלים) -->
+                <a class="btn" href="/owner/restaurants/<%= r.id %>/edit">עריכת פרטים</a>
+                <!-- שעות פתיחה (קיים ב-owner_hours.ts) -->
                 <a class="btn" href="/owner/restaurants/<%= r.id %>/hours">שעות פתיחה</a>
+                <!-- קיבולת/גריד (קיים ב-owner_capacity.ts) -->
                 <a class="btn" href="/owner/restaurants/<%= r.id %>/capacity">קיבולת/גריד</a>
               </div>
             </li>

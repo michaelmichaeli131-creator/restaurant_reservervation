@@ -32,6 +32,7 @@ import rootRouter from "./routes/root.ts";
 import ownerCapacityRouter from "./routes/owner_capacity.ts";
 import { listRestaurants, getUserById } from "./database.ts";
 import { sendVerifyEmail } from "./lib/mail.ts";
+import ownerManageRouter from "./routes/owner_manage.ts";
 
 // -------------------- ENV --------------------
 const PORT = Number(Deno.env.get("PORT") ?? "8000");
@@ -289,6 +290,9 @@ app.use(rootRouter.allowedMethods());
 
 app.use(ownerCapacityRouter.routes());
 app.use(ownerCapacityRouter.allowedMethods());
+
+app.use(ownerManageRouter.routes());
+app.use(ownerManageRouter.allowedMethods());
 
 // --- OPTIONS & 404 ---
 app.use(async (ctx, next) => {
