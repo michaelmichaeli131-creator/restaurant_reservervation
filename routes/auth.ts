@@ -90,11 +90,17 @@ authRouter.get("/auth/register", async (ctx) => {
 authRouter.post("/auth/register", async (ctx) => {
   const b = await readBody(ctx);
 
-  const firstName = trim(String(b.firstName ?? b.first_name ?? ""));
-  const lastName  = trim(String(b.lastName  ?? b.last_name  ?? ""));
-  const email     = lower(String(b.email ?? b.mail ?? b.username ?? ""));
+  const firstName = trim(String(b.firstName ?? (b as any).first_name ?? ""));
+  const lastName  = trim(String(b.lastName  ?? (b as any).last_name  ?? ""));
+  const email     = lower(String(b.email ?? (b as any).mail ?? (b as any).username ?? ""));
   const password  = String(b.password ?? "");
-  const confirm   = String(b.confirm ?? b.passwordConfirm ?? b["password_confirm"] ?? b.passwordConfirmation ?? b["password_confirmation"] ?? "");
+  const confirm   = String(
+    (b as any).confirm ??
+    (b as any).passwordConfirm ??
+    (b as any)["password_confirm"] ??
+    (b as any).passwordConfirmation ??
+    (b as any)["password_confirmation"] ?? ""
+  );
 
   // שדות אופציונליים
   const businessType = trim(String((b as any).businessType ?? (b as any)["business_type"] ?? "")) || undefined;
@@ -146,7 +152,7 @@ authRouter.get("/auth/login", async (ctx) => {
 
 authRouter.post("/auth/login", async (ctx) => {
   const b = await readBody(ctx);
-  const email = lower(String(b.email ?? b.username ?? ""));
+  const email = lower(String(b.email ?? (b as any).username ?? ""));
   const password = String(b.password ?? "");
 
   if (!email || !password) {
@@ -237,7 +243,7 @@ authRouter.post("/auth/reset", async (ctx) => {
   const b = await readBody(ctx);
   const token = String(b.token ?? "");
   const pw    = String(b.password ?? "");
-  const confirm = String(b.confirm ?? b.passwordConfirm ?? "");
+  const confirm = String((b as any).confirm ?? (b as any).passwordConfirm ?? "");
 
   if (!token || !pw || !confirm) {
     ctx.response.status = Status.BadRequest;
@@ -264,4 +270,5 @@ authRouter.post("/auth/reset", async (ctx) => {
   ctx.response.headers.set("Location", "/?resetOk=1");
 });
 
-export default authRouter;
+export { authRouter };           // <- ייצוא Named עבור server.ts
+export default authRouter;        // <- נשמר גם כ-Default
