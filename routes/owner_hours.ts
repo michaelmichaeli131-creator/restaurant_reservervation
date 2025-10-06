@@ -1,5 +1,5 @@
 // src/routes/owner_hours.ts
-// ניהול שעות פתיחה שבועיות למסעדה — לבעלים בלבד (בחירה ושמירה פר-יום)
+// ניהול שעות פתיחה שבועיות למסעדה — לבעלים בלבד
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -39,7 +39,7 @@ function parseWeeklyFromPayload(payload: Record<string, unknown>): WeeklySchedul
   return out;
 }
 
-// Strong body reader (form/json/text/bytes)
+// ---- Strong body reader (form/json/text/bytes) ----
 async function readBodyStrong(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const out: Record<string, unknown> = {};
   const dbg: Record<string, unknown> = { ct: (ctx.request.headers.get("content-type") ?? "").toLowerCase(), phases: [] as any[] };
@@ -148,7 +148,7 @@ ownerHoursRouter.post("/owner/restaurants/:id/hours", async (ctx) => {
   }
 
   const { payload, dbg } = await readBodyStrong(ctx);
-  debugLog("[owner_hours][POST] body", { ct: dbg.ct, keys: Object.keys(payload), sample: Object.fromEntries(Object.entries(payload).slice(0,8)) });
+  debugLog("[owner_hours][POST] body", { ct: dbg.ct, keys: Object.keys(payload) });
 
   const weekly = parseWeeklyFromPayload(payload);
   debugLog("[owner_hours][POST] parsed.weekly", weekly);
