@@ -11,8 +11,6 @@
 
   <section class="card">
     <form id="hours-form" class="form-grid" method="post" action="/owner/restaurants/<%= it.restaurant.id %>/hours" novalidate>
-      <input type="hidden" id="rid" value="<%= it.restaurant.id %>"/>
-
       <div class="form-row">
         <label for="capacity">קיבולת מקסימלית בו־זמנית</label>
         <input id="capacity" name="capacity" type="number" min="1" step="1" value="<%= it.restaurant.capacity %>"/>
@@ -56,11 +54,13 @@
           <div class="row">
             <div class="col">
               <label>פתיחה</label>
-              <input class="open" type="time" name="d<%= d %>_open" value="<%= open %>" <%= isOn ? "" : "disabled" %> step="900" placeholder="HH:mm"/>
+              <!-- *** לעולם לא Disabled כדי שתמיד יישלחו לשרת *** -->
+              <input class="open" type="time" name="d<%= d %>_open" value="<%= open %>" step="900" placeholder="HH:mm"/>
             </div>
             <div class="col">
               <label>סגירה</label>
-              <input class="close" type="time" name="d<%= d %>_close" value="<%= close %>" <%= isOn ? "" : "disabled" %> step="900" placeholder="HH:mm"/>
+              <!-- *** לעולם לא Disabled כדי שתמיד יישלחו לשרת *** -->
+              <input class="close" type="time" name="d<%= d %>_close" value="<%= close %>" step="900" placeholder="HH:mm"/>
             </div>
           </div>
         </div>
@@ -89,105 +89,42 @@
     return pad2(h)+":"+pad2(mi);
   };
 
-  // מצב התחלתי מהשרת – לשימוש בכלי "העתק לכל השבוע"
-  const initial = <%~ JSON.stringify(it.weekly || {}, null, 2) %>;
-
-  // חבר אירועים לכל כרטיס יום
+  // שיפור UX: אם מזינים שעה, הסמן "פעיל" יסומן אוטומטית
   document.querySelectorAll(".day-card").forEach(card=>{
-    const day = +card.dataset.day;
     const enabled = card.querySelector(".enabled");
     const open    = card.querySelector(".open");
     const close   = card.querySelector(".close");
 
-    function setEnabled(on){
-      enabled.checked = !!on;
-      open.disabled = !on;
-      close.disabled = !on;
-      if (on) {
-        // אם אין ערך – תן דיפולט
-        open.value  = normHHMM(open.value)  || "10:00";
-        close.value = normHHMM(close.value) || "22:00";
-      } else {
-        open.value = "";
-        close.value = "";
-      }
-    }
-
-    enabled.addEventListener("change", ()=> setEnabled(enabled.checked));
-
-    function autoEnableFromInput(inp){
+    function autoEnable(inp){
       const v = normHHMM(inp.value);
       if (v) {
-        if (!enabled.checked) setEnabled(true);
         inp.value = v;
+        if (!enabled.checked) enabled.checked = true;
       }
     }
-    open.addEventListener("input", ()=> autoEnableFromInput(open));
-    close.addEventListener("input", ()=> autoEnableFromInput(close));
-
-    open.addEventListener("change", ()=> { open.value  = normHHMM(open.value)  || (enabled.checked ? "10:00" : ""); });
-    close.addEventListener("change",()=> { close.value = normHHMM(close.value) || (enabled.checked ? "22:00" : ""); });
+    open.addEventListener("input", ()=> autoEnable(open));
+    close.addEventListener("input", ()=> autoEnable(close));
   });
 
-  // כלים גלובליים
+  // כלים
   document.getElementById("fill-week").addEventListener("click", ()=>{
-    // קח בסיס מיום ראשון או מהערך הראשון שמוגדר
     let baseOpen = "", baseClose = "";
     const first = document.querySelector('.day-card[data-day="0"]');
-    if (first) {
-      baseOpen = first.querySelector(".open").value || "";
-      baseClose = first.querySelector(".close").value || "";
-    }
-    if (!baseOpen || !baseClose) {
-      // נסה מ-initial
-      const v = initial && initial[0] || Object.values(initial||{}).find(Boolean) || {open:"10:00", close:"22:00"};
-      baseOpen = v.open || "10:00";
-      baseClose = v.close || "22:00";
-    }
-    baseOpen = normHHMM(baseOpen) || "10:00";
-    baseClose = normHHMM(baseClose) || "22:00";
-
+    if (first) { baseOpen = first.querySelector(".open").value || ""; baseClose = first.querySelector(".close").value || ""; }
+    if (!baseOpen) baseOpen = "10:00";
+    if (!baseClose) baseClose = "22:00";
     document.querySelectorAll(".day-card").forEach(card=>{
-      const enabled = card.querySelector(".enabled");
-      const open    = card.querySelector(".open");
-      const close   = card.querySelector(".close");
-      enabled.checked = true;
-      open.disabled = false; close.disabled = false;
-      open.value = baseOpen; close.value = baseClose;
+      card.querySelector(".enabled").checked = true;
+      card.querySelector(".open").value  = baseOpen;
+      card.querySelector(".close").value = baseClose;
     });
   });
 
   document.getElementById("reset-defaults").addEventListener("click", ()=>{
     document.querySelectorAll(".day-card").forEach(card=>{
-      const enabled = card.querySelector(".enabled");
-      const open    = card.querySelector(".open");
-      const close   = card.querySelector(".close");
-      enabled.checked = false;
-      open.disabled = true; close.disabled = true;
-      open.value = ""; close.value = "";
-    });
-  });
-
-  // שליחה: ודא ששום קלט קריטי לא נשאר disabled ושיש enabled=on לכל יום פעיל
-  const form = document.getElementById("hours-form");
-  form.addEventListener("submit", ()=>{
-    document.querySelectorAll(".day-card").forEach(card=>{
-      const enabled = card.querySelector(".enabled");
-      const open    = card.querySelector(".open");
-      const close   = card.querySelector(".close");
-      if (enabled.checked) {
-        open.disabled = false; close.disabled = false;
-        open.value  = normHHMM(open.value)  || "10:00";
-        close.value = normHHMM(close.value) || "22:00";
-        // הזרק hidden כדי להבטיח שיגיע enabled
-        if (!card.querySelector(`input[type="hidden"][name="d${card.dataset.day}_enabled"]`)) {
-          const hidden = document.createElement("input");
-          hidden.type = "hidden";
-          hidden.name = `d${card.dataset.day}_enabled`;
-          hidden.value = "on";
-          card.appendChild(hidden);
-        }
-      }
+      card.querySelector(".enabled").checked = false;
+      card.querySelector(".open").value  = "";
+      card.querySelector(".close").value = "";
     });
   });
 })();
