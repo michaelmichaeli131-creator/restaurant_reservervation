@@ -81,8 +81,8 @@ async function readBodyStrong(ctx: any): Promise<{ payload: Record<string, unkno
     } catch (e) { phase(`oak.${type}.error`, String(e)); }
   }
 
-  await tryOak("form");
   await tryOak("json");
+  await tryOak("form");
   await tryOak("form-data");
   await tryOak("text");
   await tryOak("bytes");
@@ -118,13 +118,20 @@ ownerHoursRouter.get("/owner/restaurants/:id/hours", async (ctx) => {
     return;
   }
 
-  debugLog("[owner_hours][GET] current.weeklySchedule", r.weeklySchedule ?? null);
-
+  // טעינת weeklySchedule קיים (אם יש)
   const weekly: WeeklySchedule = {};
+  const source = r.weeklySchedule ?? (r as any).openingHours ?? (r as any).hours ?? {};
+  
   for (let d = 0 as 0|1|2|3|4|5|6; d <= 6; d = (d + 1) as 0|1|2|3|4|5|6) {
-    const cur = (r.weeklySchedule ?? {})[d] as any;
-    weekly[d] = (cur && cur.open && cur.close) ? { open: cur.open, close: cur.close } : null;
+    const cur = source[d] ?? source[String(d)] ?? null;
+    if (cur && typeof cur === "object" && cur.open && cur.close) {
+      weekly[d] = { open: String(cur.open), close: String(cur.close) };
+    } else {
+      weekly[d] = null;
+    }
   }
+
+  debugLog("[owner_hours][GET] current.weeklySchedule", weekly);
 
   await render(ctx, "owner_hours", {
     title: `שעות פתיחה — ${r.name}`,
@@ -150,18 +157,20 @@ ownerHoursRouter.post("/owner/restaurants/:id/hours", async (ctx) => {
   const { payload, dbg } = await readBodyStrong(ctx);
   debugLog("[owner_hours][POST] body", { ct: dbg.ct, keys: Object.keys(payload) });
 
-  const weekly = parseWeeklyFromPayload(payload);
-  debugLog("[owner_hours][POST] parsed.weekly", weekly);
+  // קליטת weeklySchedule מה-payload
+  const weeklySchedule = payload.weeklySchedule as WeeklySchedule ?? parseWeeklyFromPayload(payload);
+  
+  debugLog("[owner_hours][POST] parsed.weeklySchedule", weeklySchedule);
 
-  const cap = Number(payload["capacity"]);
-  const slot = Number(payload["slotIntervalMinutes"]);
-  const dur  = Number(payload["serviceDurationMinutes"]);
+  const capacity = Number(payload["capacity"]) || r.capacity;
+  const slotIntervalMinutes = Number(payload["slotIntervalMinutes"]) || r.slotIntervalMinutes;
+  const serviceDurationMinutes = Number(payload["serviceDurationMinutes"]) || r.serviceDurationMinutes;
 
   const patch: Partial<Restaurant> = {
-    weeklySchedule: weekly,
-    capacity: Number.isFinite(cap) && cap > 0 ? cap : r.capacity,
-    slotIntervalMinutes: Number.isFinite(slot) && slot > 0 ? slot : r.slotIntervalMinutes,
-    serviceDurationMinutes: Number.isFinite(dur) && dur > 0 ? dur : r.serviceDurationMinutes,
+    weeklySchedule,
+    capacity: Number.isFinite(capacity) && capacity > 0 ? capacity : r.capacity,
+    slotIntervalMinutes: Number.isFinite(slotIntervalMinutes) && slotIntervalMinutes > 0 ? slotIntervalMinutes : r.slotIntervalMinutes,
+    serviceDurationMinutes: Number.isFinite(serviceDurationMinutes) && serviceDurationMinutes > 0 ? serviceDurationMinutes : r.serviceDurationMinutes,
   };
 
   try {
