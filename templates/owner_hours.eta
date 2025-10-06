@@ -169,7 +169,7 @@
     console.log("[hours-form] submitting:", { rid, capacity, slotIntervalMinutes, weeklySchedule });
 
     try {
-      const res = await fetch(`/restaurants/${encodeURIComponent(rid)}/hours`, {
+	const res = await fetch(`/owner/restaurants/${encodeURIComponent(rid)}/hours`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept":"application/json" },
         body: JSON.stringify({ capacity, slotIntervalMinutes, weeklySchedule }),

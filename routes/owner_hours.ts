@@ -186,6 +186,31 @@ ownerHoursRouter.post("/owner/restaurants/:id/hours", async (ctx) => {
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set("Location", `/owner/restaurants/${encodeURIComponent(id)}/hours?saved=1`);
 });
+try {
+  await updateRestaurant(id, patch);
+  debugLog("[owner_hours][POST] updateRestaurant.ok", { id });
+} catch (e) {
+  debugLog("[owner_hours][POST] updateRestaurant.error", { error: String(e) });
+  ctx.response.status = Status.InternalServerError;
+  await render(ctx, "error", { title: "שגיאה בשמירה", message: "אירעה תקלה בשמירת שעות הפתיחה." });
+  return;
+}
 
-export default ownerHoursRouter;
-export { ownerHoursRouter };
+// בדיקה אם זה JSON request
+const wantsJson =
+  (ctx.request.headers.get("accept") || "").includes("application/json") ||
+  (ctx.request.headers.get("content-type") || "").includes("application/json");
+
+if (wantsJson) {
+  ctx.response.status = Status.OK;
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = JSON.stringify({ 
+    ok: true, 
+    weeklySchedule, 
+    capacity: patch.capacity, 
+    slotIntervalMinutes: patch.slotIntervalMinutes 
+  }, null, 2);
+} else {
+  ctx.response.status = Status.SeeOther;
+  ctx.response.headers.set("Location", `/owner/restaurants/${encodeURIComponent(id)}/hours?saved=1`);
+}
