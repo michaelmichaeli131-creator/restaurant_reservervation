@@ -6,15 +6,15 @@ import { render } from "../lib/view.ts";
 import { getRestaurant, updateRestaurant } from "../database.ts";
 import { requireOwner } from "../lib/auth.ts";
 import { debugLog } from "../lib/debug.ts";
-import { encodeBase64 } from "jsr:@std/encoding/base64"; // ✅ שימוש נכון
 
 type PhotoItem = { id: string; dataUrl: string; alt?: string };
 
 const ownerPhotosRouter = new Router();
 
-/** קורא את גוף הבקשה כ-Uint8Array — תומך בגרסאות Oak שונות */
+/** קורא את גוף הבקשה כ-Uint8Array—בצורה עמידה בגרסאות Oak שונות. */
 async function readBodyBytes(ctx: any): Promise<Uint8Array | null> {
   try {
+    // Oak 17+ — נסה להגיע אל ה-Web Request
     const webReq: any =
       (ctx.request && (ctx.request as any).request) ??
       (ctx.request && (ctx.request as any).originalRequest) ??
@@ -31,6 +31,7 @@ async function readBodyBytes(ctx: any): Promise<Uint8Array | null> {
       }
     }
 
+    // תאימות לאחור אם עדיין יש body()
     if (ctx.request && typeof (ctx.request as any).body === "function") {
       try {
         const b = (ctx.request as any).body({ type: "bytes" });
@@ -54,6 +55,40 @@ async function readBodyBytes(ctx: any): Promise<Uint8Array | null> {
     debugLog("[photos][readBodyBytes] failed:", String(e));
   }
   return null;
+}
+
+/** Base64 encoder ללא שימוש ב-String.fromCharCode/apply — עובד לכל גודל. */
+function bytesToBase64(u8: Uint8Array): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let out = "";
+  let i = 0;
+  const len = u8.length;
+
+  for (; i + 2 < len; i += 3) {
+    const n = (u8[i] << 16) | (u8[i + 1] << 8) | u8[i + 2];
+    out +=
+      chars[(n >> 18) & 63] +
+      chars[(n >> 12) & 63] +
+      chars[(n >> 6) & 63] +
+      chars[n & 63];
+  }
+
+  if (i < len) {
+    const rem = len - i;
+    if (rem === 1) {
+      const n = u8[i] << 16;
+      out += chars[(n >> 18) & 63] + chars[(n >> 12) & 63] + "==";
+    } else {
+      // rem === 2
+      const n = (u8[i] << 16) | (u8[i + 1] << 8);
+      out +=
+        chars[(n >> 18) & 63] +
+        chars[(n >> 12) & 63] +
+        chars[(n >> 6) & 63] +
+        "=";
+    }
+  }
+  return out;
 }
 
 // ---------------- GET: דף התמונות ----------------
@@ -109,8 +144,8 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
     return;
   }
 
-  // הגדלת מגבלת גודל תמונה (למשל 20MB)
-  const MAX_BYTES = 20 * 1024 * 1024;
+  // הגבלת גודל (עדכן לפי הצורך)
+  const MAX_BYTES = 20 * 1024 * 1024; // 20MB
   if (bytes.length > MAX_BYTES) {
     ctx.response.status = Status.BadRequest;
     ctx.response.body = `Image too large (max ${(MAX_BYTES / (1024 * 1024)).toFixed(0)}MB).`;
@@ -118,7 +153,7 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
   }
 
   try {
-    const base64 = encodeBase64(bytes); // ✅ שימוש תקין
+    const base64 = bytesToBase64(bytes); // ✅ ללא הגבלת 64KB
     const dataUrl = `data:${contentType};base64,${base64}`;
 
     const pid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -151,6 +186,7 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/delete", async (ctx) => {
     return;
   }
 
+  // קריאת JSON "דקיקה" דרך ה-Web Request (ללא body() של Oak)
   let payload: any = null;
   try {
     const webReq: any =
