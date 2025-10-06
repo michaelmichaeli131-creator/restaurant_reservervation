@@ -25,7 +25,7 @@
 
       <h3 style="margin:0 0 .5rem">שעות פתיחה שבועיות (24h)</h3>
       <p class="muted" style="margin-top:0">
-        השתמש/י בפורמט 24 שעות. כדי לסגור יום מסומן, סמן/י "סגור".
+        כדי לפתוח יום — בטל/י את הסימון ב״סגור״ או הקלק/י על שדה השעה כדי לפתוח אותו. פורמט 24h.
       </p>
 
       <table class="table compact" style="width:100%">
@@ -34,21 +34,18 @@
             <th>יום</th>
             <th>פתיחה</th>
             <th>סגירה</th>
-            <th>סגור</th>
+            <th style="text-align:center">סגור</th>
           </tr>
         </thead>
         <tbody>
           <% 
             const dayNames = ["א׳","ב׳","ג׳","ד׳","ה׳","ו׳","ש׳"];
-            // hours עשוי להיות null/מחרוזת/אובייקט — ננרמל לתצוגה בלבד
-            function pick(v, d){ return (v === undefined || v === null) ? d : v; }
             let hours = it.restaurant.hours || {};
-            // אם נשמר כמחרוזת JSON (מקרים ישנים) — ננסה לפרסר
             if (typeof hours === "string") {
               try { hours = JSON.parse(hours); } catch { hours = {}; }
             }
           %>
-          <% for (let d = 0; d < 7; d++) { 
+          <% for (let d = 0; d < 7; d++) {
                const row = hours?.[d] ?? null;
                const isClosed = row == null;
                const openVal = !isClosed ? row.open : "";
@@ -57,14 +54,10 @@
           <tr data-day="<%= d %>">
             <td><strong><%= dayNames[d] %></strong></td>
             <td>
-              <input type="time" inputmode="numeric" pattern="[0-2][0-9]:[0-5][0-9]" step="60"
-                     class="open"
-                     value="<%= openVal %>" <%= isClosed ? "disabled" : "" %> />
+              <input type="time" class="open" value="<%= openVal %>" <%= isClosed ? "data-disabled-init='1'" : "" %> />
             </td>
             <td>
-              <input type="time" inputmode="numeric" pattern="[0-2][0-9]:[0-5][0-9]" step="60"
-                     class="close"
-                     value="<%= closeVal %>" <%= isClosed ? "disabled" : "" %> />
+              <input type="time" class="close" value="<%= closeVal %>" <%= isClosed ? "data-disabled-init='1'" : "" %> />
             </td>
             <td style="text-align:center">
               <input type="checkbox" class="closed" <%= isClosed ? "checked" : "" %> />
@@ -84,80 +77,84 @@
 
 <script>
 (function(){
-  /*** FIX: נרמול זמן ל־HH:mm (כולל AM/PM אם דפדפן סיפק כך) ***/
+  function enableRow(tr, yes) {
+    tr.querySelectorAll("input.open, input.close").forEach(inp => {
+      inp.disabled = !yes;
+      if (yes && !inp.value) {
+        if (inp.classList.contains("open")) inp.value = "09:00";
+        if (inp.classList.contains("close")) inp.value = "22:00";
+      }
+    });
+  }
+
   function toHHmm24(input) {
     if (!input) return "";
     const s = String(input).trim();
-
-    // Already looks like 24h "HH:mm"
     const m24 = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(s);
-    if (m24) {
-      const h = String(m24[1]).padStart(2, "0");
-      const m = String(m24[2]).padStart(2, "0");
-      return `${h}:${m}`;
-    }
-
-    // AM/PM variants: "h:mm AM" or "hh:mmAM" or "h AM"
+    if (m24) return m24[1].padStart(2,"0")+":"+m24[2];
     const m12 = /^(\d{1,2})(?::([0-5]\d))?\s*([AaPp][Mm])$/.exec(s);
     if (m12) {
-      let h = parseInt(m12[1], 10);
-      const m = String(m12[2] ?? "00").padStart(2, "0");
+      let h = parseInt(m12[1],10);
+      const m = (m12[2]??"00").padStart(2,"0");
       const ampm = m12[3].toUpperCase();
       if (ampm === "AM") h = (h % 12);
-      else if (ampm === "PM") h = (h % 12) + 12;
-      return String(h).padStart(2, "0") + ":" + m;
+      else h = (h % 12) + 12;
+      return String(h).padStart(2,"0")+":"+m;
     }
-
-    // Edge: "h" or "hh" -> treat as HH:00
     const mh = /^([01]?\d|2[0-3])$/.exec(s);
-    if (mh) return String(mh[1]).padStart(2, "0") + ":00";
-
-    // As last resort, empty
+    if (mh) return String(mh[1]).padStart(2,"0")+":00";
     return "";
   }
 
-  /*** FIX: בניית hours map 0..6 → {open,close}|null ***/
   function collectWeeklyHours(tbody) {
     const rows = tbody.querySelectorAll("tr[data-day]");
     const out = {};
     rows.forEach(tr => {
       const d = parseInt(tr.getAttribute("data-day"), 10);
-      const closed = tr.querySelector(".closed").checked;
-      if (closed) {
-        out[d] = null;
-        return;
-      }
-      const openRaw = tr.querySelector(".open").value;
-      const closeRaw = tr.querySelector(".close").value;
-      const open = toHHmm24(openRaw);
-      const close = toHHmm24(closeRaw);
-      if (!open || !close) {
-        out[d] = null; // אם חסר ערך — נחשב כסגור (נמנע מלשמור מבנה שגוי)
-      } else {
-        out[d] = { open, close };
-      }
+      const isClosed = tr.querySelector(".closed").checked;
+      if (isClosed) { out[d] = null; return; }
+      const o = toHHmm24(tr.querySelector(".open").value);
+      const c = toHHmm24(tr.querySelector(".close").value);
+      out[d] = (o && c) ? { open:o, close:c } : null;
     });
     return out;
   }
 
-  /*** FIX: סנכרון מצב 'סגור' ↔ הפעלת/השבתת שדות זמן ***/
-  function wireClosedToggles(tbody) {
-    tbody.addEventListener("change", (ev) => {
-      const el = ev.target;
-      if (!(el instanceof HTMLInputElement)) return;
-      if (!el.classList.contains("closed")) return;
-      const tr = el.closest("tr");
-      const disabled = el.checked;
-      tr.querySelectorAll("input.open, input.close").forEach(inp => {
-        inp.disabled = disabled;
-        if (disabled) inp.value = "";
-      });
-    });
-  }
-
   const form = document.getElementById("hours-form");
   const tbody = form.querySelector("tbody");
-  wireClosedToggles(tbody);
+
+  tbody.querySelectorAll("tr[data-day]").forEach(tr => {
+    const closed = tr.querySelector(".closed");
+    if (closed.checked) enableRow(tr, false);
+
+    tr.querySelectorAll("input.open, input.close").forEach(inp => {
+      const ensureOpen = () => {
+        if (closed.checked) {
+          closed.checked = false;
+          enableRow(tr, true);
+          if (!inp.value) {
+            if (inp.classList.contains("open")) inp.value = "09:00";
+            if (inp.classList.contains("close")) inp.value = "22:00";
+          }
+        }
+      };
+      inp.addEventListener("pointerdown", ensureOpen);
+      inp.addEventListener("focus", ensureOpen);
+      inp.addEventListener("click", ensureOpen);
+    });
+
+    closed.addEventListener("change", () => {
+      enableRow(tr, !closed.checked);
+      if (closed.checked) {
+        tr.querySelectorAll("input.open, input.close").forEach(inp => inp.value = "");
+      } else {
+        const o = tr.querySelector("input.open");
+        const c = tr.querySelector("input.close");
+        if (!o.value) o.value = "09:00";
+        if (!c.value) c.value = "22:00";
+      }
+    });
+  });
 
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
@@ -167,23 +164,17 @@
     const slot = Math.max(5, parseInt(document.getElementById("slot").value || "15", 10));
     const hours = collectWeeklyHours(tbody);
 
-    // בקשה בפורמט JSON — תואם למה שהשרת מצפה לפרסר
-    const payload = { capacity, slot, hours };
-
     try {
       const res = await fetch(`/restaurants/${encodeURIComponent(rid)}/hours`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json", "Accept":"application/json" },
+        body: JSON.stringify({ capacity, slot, hours }),
       });
-
-      if (!res.ok) {
-        const text = await res.text().catch(()=>"");
-        alert("שמירה נכשלה: " + (text || res.status));
+      if (!res.ok && res.status !== 204) {
+        const txt = await res.text().catch(()=> "");
+        alert("שמירה נכשלה: " + (txt || res.status));
         return;
       }
-
-      // אופציונלי: חיווי הצלחה וניווט
       alert("שעות נשמרו בהצלחה");
       location.assign(`/restaurants/${encodeURIComponent(rid)}`);
     } catch (e) {
@@ -195,7 +186,7 @@
 </script>
 
 <style>
-/* שמירה על ה-UI הקיים שלך; תוספות מינוריות למרווחיות */
-.table.compact th, .table.compact td { padding: .4rem .5rem; }
+.table.compact th, .table.compact td { padding: .45rem .5rem; }
+.table.compact input[type="time"], .table.compact input[type="text"] { width: 8.5rem; max-width: 100%; }
 .form-actions { display:flex; gap:.5rem; align-items:center; }
 </style>

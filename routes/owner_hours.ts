@@ -1,5 +1,5 @@
 // src/routes/owner_hours.ts
-// ניהול שעות פתיחה שבועיות למסעדה — לבעלים בלבד
+// ניהול שעות פתיחה שבועיות למסעדה — לבעלים בלבד (בחירה ושמירה פר-יום)
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -39,7 +39,7 @@ function parseWeeklyFromPayload(payload: Record<string, unknown>): WeeklySchedul
   return out;
 }
 
-// ---- Strong body reader (form/json/text/bytes) ----
+// Strong body reader (form/json/text/bytes)
 async function readBodyStrong(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const out: Record<string, unknown> = {};
   const dbg: Record<string, unknown> = { ct: (ctx.request.headers.get("content-type") ?? "").toLowerCase(), phases: [] as any[] };
