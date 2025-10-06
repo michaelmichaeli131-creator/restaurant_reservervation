@@ -112,16 +112,13 @@ function isValidEmail(s: string): boolean {
 
 /* ---------------- Opening hours helpers ---------------- */
 
-/** קבל גם H:mm וגם HH:mm כדי לא ליפול על ערכים כמו "9:00" שנשמרו בעבר */
 function toMinutes(hhmm: string): number {
   const m = hhmm.match(/^(\d{1,2}):(\d{2})$/);
   if (!m) return NaN;
   return Number(m[1]) * 60 + Number(m[2]);
 }
 
-/**
- * מזהה אם קיימת הגדרה ליום (גם אם היא `null` = סגור).
- */
+/* ---- detect if weekly has explicit key for date (even if null) ---- */
 function hasScheduleForDate(
   weekly: WeeklySchedule | undefined | null,
   date: string,
@@ -146,10 +143,7 @@ function hasScheduleForDate(
   return false;
 }
 
-/**
- * מחזיר חלונות פתיחה ליום (אם הערך `null` → אין חלונות).
- * שים לב: אם אין בכלל מפתח ליום → מוחזר [].
- */
+/* ---- read windows for a given date; null => [] ---- */
 function getWindowsForDate(
   weekly: WeeklySchedule | undefined | null,
   date: string,
@@ -157,7 +151,7 @@ function getWindowsForDate(
   if (!weekly) return [];
   const d = new Date(date + "T00:00:00");
   if (isNaN(d.getTime())) return [];
-  const dowNum = d.getDay(); // 0..6
+  const dowNum = d.getDay();
   const long = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"] as const;
   const short = ["sun","mon","tue","wed","thu","fri","sat"] as const;
 
@@ -168,14 +162,13 @@ function getWindowsForDate(
     (short as readonly string[])[dowNum].toUpperCase(),
   ];
 
-  // נחפש ערך כלשהו (גם null). אם null—נחזיר [] אבל נבדיל בלוגים.
   let found = false;
   let raw: any = undefined;
 
   for (const k of candidates) {
     if (Object.prototype.hasOwnProperty.call(weekly as any, k)) {
       found = true;
-      raw = (weekly as any)[k]; // יכול להיות null | {open,close} | Array
+      raw = (weekly as any)[k];
       break;
     }
   }
@@ -195,18 +188,13 @@ function withinAnyWindow(timeMin: number, windows: Array<{ open: string; close: 
     let a = toMinutes(w.open);
     let b = toMinutes(w.close);
     if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
-    if (b <= a) b = 24 * 60 - 1; // close<=open -> עד סוף היום
+    if (b <= a) b = 24 * 60 - 1;
     if (timeMin >= a && timeMin <= b) return true;
   }
   return false;
 }
 
-/**
- * לוגיקה נכונה:
- * - אם אין **שום** מפתח ליום → נחשוב "אין הגדרה" ⇒ פתוח כל היום (לכידות לאחור).
- * - אם יש מפתח והערך **null** → סגור.
- * - אם יש מפתח ורשימת חלונות → בדוק בתוכה.
- */
+/* ---- final schedule logic ---- */
 function isWithinSchedule(weekly: WeeklySchedule | undefined | null, date: string, time: string) {
   const t = toMinutes(time);
   if (!Number.isFinite(t)) return false;
@@ -214,32 +202,9 @@ function isWithinSchedule(weekly: WeeklySchedule | undefined | null, date: strin
   const hasDay = hasScheduleForDate(weekly, date);
   const windows = getWindowsForDate(weekly, date);
 
-  if (!hasDay) return true;           // אין הגדרה—פתוח כל היום (כמו בעבר)
-  if (windows.length === 0) return false; // יש הגדרה אבל null/ריק—סגור
+  if (!hasDay) return true;            // backward compatibility: no key ⇒ open all day
+  if (windows.length === 0) return false; // explicit null ⇒ closed
   return withinAnyWindow(t, windows);
-}
-
-async function suggestionsWithinSchedule(
-  rid: string,
-  date: string,
-  time: string,
-  people: number,
-  weekly: WeeklySchedule | undefined | null,
-): Promise<string[]> {
-  const all = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
-  const hasDay = hasScheduleForDate(weekly, date);
-  const windows = getWindowsForDate(weekly, date);
-
-  if (!hasDay) {
-    // אין הגדרה—מציעים הכל (לכידות לאחור)
-    return all.slice(0, 4);
-  }
-  if (windows.length === 0) {
-    // יש הגדרה אבל היום סגור
-    return [];
-  }
-  // מסננים רק מה שבטווח
-  return all.filter(t => withinAnyWindow(toMinutes(t), windows)).slice(0, 4);
 }
 
 /* ---------------- Strong body reader for Oak ---------------- */
@@ -394,6 +359,106 @@ function extractDateAndTime(ctx: any, payload: Record<string, unknown>) {
   return { date, time };
 }
 
+/* ---------------- Owner hours: parsing helpers ---------------- */
+
+const DAY_NAME_TO_INDEX: Record<string, number> = {
+  sunday: 0, sun: 0, "0": 0,
+  monday: 1, mon: 1, "1": 1,
+  tuesday: 2, tue: 2, "2": 2,
+  wednesday: 3, wed: 3, "3": 3,
+  thursday: 4, thu: 4, "4": 4,
+  friday: 5, fri: 5, "5": 5,
+  saturday: 6, sat: 6, "6": 6,
+  "א": 0, "א׳": 0, "ב": 1, "ב׳": 1, "ג": 2, "ג׳": 2, "ד": 3, "ד׳": 3, "ה": 4, "ה׳": 4, "ו": 5, "ו׳": 5, "ש": 6, "ש׳": 6,
+};
+
+type WeeklyHoursMap = { [day: string]: { open: string; close: string } | null };
+
+/** מפענח שעות מ־payload שטוח: hours[1][open], hours.1.close, hours_mon_open וכו' */
+function extractHoursFromFlatPayload(payload: Record<string, unknown>): WeeklyHoursMap | null {
+  const out: WeeklyHoursMap = { "0": null, "1": null, "2": null, "3": null, "4": null, "5": null, "6": null };
+
+  const entries = Object.entries(payload);
+  let hit = false;
+
+  for (const [rawKey, value] of entries) {
+    const key = String(rawKey);
+
+    // 1) hours[1][open] / hours[mon][close]
+    let m = key.match(/^hours\[(.+?)\]\[(open|close)\]$/i);
+    if (!m) {
+      // 2) hours.1.open / hours.MON.close
+      m = key.match(/^hours[.\-](.+?)[.\-](open|close)$/i);
+    }
+    if (!m) {
+      // 3) hours_1_open / hours_mon_close
+      m = key.match(/^hours[_\-](.+?)[_\-](open|close)$/i);
+    }
+    if (!m) continue;
+
+    hit = true;
+    const dayToken = m[1].toString().toLowerCase();
+    const field = m[2].toLowerCase(); // open|close
+
+    let idx: number | undefined;
+    if (dayToken in DAY_NAME_TO_INDEX) idx = DAY_NAME_TO_INDEX[dayToken];
+    else if (/^[0-6]$/.test(dayToken)) idx = parseInt(dayToken, 10);
+    if (idx === undefined) continue;
+
+    const rec = out[idx] ?? { open: "", close: "" };
+    (rec as any)[field] = normalizeTime(value);
+    out[idx] = (rec.open && rec.close) ? { open: rec.open, close: rec.close } : rec;
+  }
+
+  return hit ? out : null;
+}
+
+/** ממיר כל קלט (כולל JSON string, object או payload שטוח) למפה 0..6 → {open,close}|null */
+function ensureWeeklyHours(input: unknown, payloadForFlat?: Record<string, unknown>): WeeklyHoursMap {
+  // קודם ננסה לפרק מ־payload שטוח (form)
+  if (payloadForFlat) {
+    const flat = extractHoursFromFlatPayload(payloadForFlat);
+    if (flat) return flat;
+  }
+
+  // אחרת—ננסה אובייקט JSON רגיל
+  let obj: any = input ?? {};
+  if (typeof obj === "string") {
+    try { obj = JSON.parse(obj); } catch { obj = {}; }
+  }
+  const out: WeeklyHoursMap = {};
+  for (let i = 0; i < 7; i++) out[i] = null;
+
+  for (const [k, v] of Object.entries(obj)) {
+    const key = k.toLowerCase();
+    let idx: number | undefined;
+    if (key in DAY_NAME_TO_INDEX) idx = DAY_NAME_TO_INDEX[key];
+    else if (/^[0-6]$/.test(key)) idx = parseInt(key, 10);
+    if (idx === undefined) continue;
+
+    if (v == null || v === "" || v === false) { out[idx] = null; continue; }
+
+    if (typeof v === "object") {
+      const open = normalizeTime((v as any).open);
+      const close = normalizeTime((v as any).close);
+      out[idx] = (open && close) ? { open, close } : null;
+      continue;
+    }
+
+    if (typeof v === "string") {
+      const m = /^(\S+)\s*-\s*(\S+)$/.exec(v);
+      if (m) {
+        const open = normalizeTime(m[1]);
+        const close = normalizeTime(m[2]);
+        out[idx] = (open && close) ? { open, close } : null;
+      } else {
+        out[idx] = null;
+      }
+    }
+  }
+  return out;
+}
+
 /* ---------------- Router ---------------- */
 
 export const restaurantsRouter = new Router();
@@ -430,8 +495,6 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
 
   const hasDay = hasScheduleForDate(restaurant.weeklySchedule as WeeklySchedule, date);
   const windows = getWindowsForDate(restaurant.weeklySchedule as WeeklySchedule, date);
-
-  // אם יש מפתח ליום אבל ערך null/empty ⇒ אין חלונות (סגור). אם אין מפתח ⇒ פתוח כל היום (תאימות לאחור).
   const openingWindows = hasDay ? windows : [{ open: "00:00", close: "23:59" }];
 
   debugLog("[restaurants][GET /restaurants/:id] view", {
@@ -810,60 +873,9 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   });
 });
 
-/* ---------------- Owner: save opening hours (כפי שהצעתי קודם) ---------------- */
+/* ---------------- Owner: save opening hours ---------------- */
 
-const DAY_NAME_TO_INDEX: Record<string, number> = {
-  sunday: 0, sun: 0, "0": 0,
-  monday: 1, mon: 1, "1": 1,
-  tuesday: 2, tue: 2, "2": 2,
-  wednesday: 3, wed: 3, "3": 3,
-  thursday: 4, thu: 4, "4": 4,
-  friday: 5, fri: 5, "5": 5,
-  saturday: 6, sat: 6, "6": 6,
-  "א": 0, "א׳": 0, "ב": 1, "ב׳": 1, "ג": 2, "ג׳": 2, "ד": 3, "ד׳": 3, "ה": 4, "ה׳": 4, "ו": 5, "ו׳": 5, "ש": 6, "ש׳": 6,
-};
-
-type WeeklyHoursMap = { [day: string]: { open: string; close: string } | null };
-
-function ensureWeeklyHours(input: unknown): WeeklyHoursMap {
-  let obj: any = input ?? {};
-  if (typeof obj === "string") {
-    try { obj = JSON.parse(obj); } catch { obj = {}; }
-  }
-  const out: WeeklyHoursMap = {};
-  for (let i = 0; i < 7; i++) out[i] = null;
-
-  for (const [k, v] of Object.entries(obj)) {
-    const key = k.toLowerCase();
-    let idx: number | undefined;
-    if (key in DAY_NAME_TO_INDEX) idx = DAY_NAME_TO_INDEX[key];
-    else if (/^[0-6]$/.test(key)) idx = parseInt(key, 10);
-    if (idx === undefined) continue;
-
-    if (v == null || v === "" || v === false) { out[idx] = null; continue; }
-
-    if (typeof v === "object") {
-      const open = normalizeTime((v as any).open);
-      const close = normalizeTime((v as any).close);
-      out[idx] = (open && close) ? { open, close } : null;
-      continue;
-    }
-
-    if (typeof v === "string") {
-      const m = /^(\S+)\s*-\s*(\S+)$/.exec(v);
-      if (m) {
-        const open = normalizeTime(m[1]);
-        const close = normalizeTime(m[2]);
-        out[idx] = (open && close) ? { open, close } : null;
-      } else {
-        out[idx] = null;
-      }
-    }
-  }
-  return out;
-}
-
-/** POST /restaurants/:id/hours — שמירת שעות פתיחה בצד בעל המסעדה */
+/** POST /restaurants/:id/hours — תומך ב-JSON, form-data ו-urlencoded (כולל שדות שטוחים) */
 restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
 
@@ -873,7 +885,8 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   const slot = Math.max(5, toIntLoose((payload as any).slot ?? (payload as any).slotMinutes) ?? 15);
 
   const hours = ensureWeeklyHours(
-    (payload as any).hours ?? (payload as any).weeklyHours ?? (payload as any).openingHours ?? null
+    (payload as any).hours ?? (payload as any).weeklyHours ?? (payload as any).openingHours ?? null,
+    payload // חשוב: כדי לפרק keys כמו hours[1][open]
   );
 
   // ולידציה סופית ל-HH:mm
@@ -889,9 +902,10 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   debugLog("[restaurants][POST hours] input", {
     rid, capacity, slot,
     body_ct: dbg.ct, body_keys: Object.keys(payload),
-    hours_preview: Object.fromEntries(Object.entries(hours).slice(0,3)),
+    hours_preview: Object.fromEntries(Object.entries(hours).slice(0,7)), // כל השבוע
   });
 
+  // עדכון DB — מנסה כמה שמות לפונקציית עדכון לשמירה על תאימות
   const db = await import("../database.ts");
   const updater =
     (db as any).updateRestaurantHours ??
@@ -919,12 +933,14 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
     return;
   }
 
-  const acceptsJson =
+  const wantsJson =
     (ctx.request.headers.get("accept") || "").includes("application/json") ||
     (ctx.request.headers.get("content-type") || "").includes("application/json");
 
-  if (acceptsJson) {
-    ctx.response.status = Status.NoContent;
+  if (wantsJson) {
+    ctx.response.status = Status.OK;
+    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+    ctx.response.body = JSON.stringify({ ok: true, hours, slot, capacity }, null, 2);
   } else {
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", `/restaurants/${encodeURIComponent(rid)}`);
