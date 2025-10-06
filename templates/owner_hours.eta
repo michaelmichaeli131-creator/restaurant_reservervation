@@ -12,66 +12,75 @@
   <% } %>
 
   <section class="card">
-    <!-- חשוב: שמירה ב-GET לנתיב /hours/save כדי לעבוד עם הארכיטקטורה הפשוטה -->
     <form class="form-grid" action="/owner/restaurants/<%= it.restaurant.id %>/hours/save" method="get" novalidate>
       <div class="form-row">
         <label for="capacity">קיבולת מקסימלית בו־זמנית</label>
         <input id="capacity" name="capacity" type="number" min="1" step="1"
-               value="<%= (it.restaurant.capacity ?? 20) %>" />
+               value="<%= it.restaurant.capacity ?? 20 %>" />
       </div>
 
       <div class="form-row">
         <label for="slotIntervalMinutes">גריד סלוטים (דקות)</label>
         <input id="slotIntervalMinutes" name="slotIntervalMinutes" type="number" min="5" max="180" step="5"
-               value="<%= (it.restaurant.slotIntervalMinutes ?? 15) %>" />
+               value="<%= it.restaurant.slotIntervalMinutes ?? 15 %>" />
       </div>
 
       <hr style="grid-column:1/-1;border:none;border-top:1px solid #eee;margin:8px 0"/>
 
       <h3 style="margin:0 0 .5rem;grid-column:1/-1">שעות פתיחה שבועיות (24h)</h3>
       <p class="muted" style="margin-top:0;grid-column:1/-1">
-        כדי לפתוח יום — בטלו את הסימון ב״סגור״ או הקליקו על שדה השעה. פורמט 24h (לדוגמה: 09:00 עד 22:00).
+        ניתן לבחור שעות במרווחים של 15 דקות. כדי לפתוח יום — בטלו את הסימון ב״סגור״.
       </p>
 
       <%
-        // שמות ימים
         const dayNames = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
-
-        // פונקציה שמחזירה נתון יום — תומך גם ב-openingHours legacy וגם ב-weeklySchedule
         function dayData(d) {
           const ws = it.restaurant && it.restaurant.weeklySchedule ? it.restaurant.weeklySchedule[d] : undefined;
           if (typeof ws !== "undefined") return ws;
           const oh = it.restaurant && it.restaurant.openingHours ? it.restaurant.openingHours[d] : undefined;
           return oh;
         }
+
+        const timeOptions = [];
+        for (let h=0; h<24; h++) {
+          for (let m=0; m<60; m+=15) {
+            const hh = String(h).padStart(2,"0");
+            const mm = String(m).padStart(2,"0");
+            timeOptions.push(`${hh}:${mm}`);
+          }
+        }
+        function optSel(v, cur){ return v === cur ? "selected" : ""; }
       %>
 
       <table class="table compact" style="width:100%;grid-column:1/-1">
         <thead>
-          <tr>
-            <th>יום</th>
-            <th>פתיחה</th>
-            <th>סגירה</th>
-            <th style="text-align:center">סגור</th>
-          </tr>
+          <tr><th>יום</th><th>פתיחה</th><th>סגירה</th><th style="text-align:center">סגור</th></tr>
         </thead>
         <tbody>
-          <% for (let d = 0; d < 7; d++) {
+          <% for (let d=0; d<7; d++) {
                const row = dayData(d);
                const isClosed = row == null;
                const first = (Array.isArray(row) && row.length) ? row[0] : { open: "09:00", close: "22:00" };
-               const openVal = isClosed ? "" : (first.open || "");
-               const closeVal = isClosed ? "" : (first.close || "");
+               const openVal = isClosed ? "" : first.open;
+               const closeVal = isClosed ? "" : first.close;
           %>
           <tr data-day="<%= d %>">
             <td><strong><%= dayNames[d] %></strong></td>
             <td>
-              <input type="time" class="open" name="w<%= d %>_open"
-                     value="<%= openVal %>" <%= isClosed ? "disabled" : "" %> />
+              <select name="w<%= d %>_open" class="open" <%= isClosed ? "disabled" : "" %>>
+                <option value="">—</option>
+                <% for (const t of timeOptions) { %>
+                  <option value="<%= t %>" <%= optSel(t, openVal) %>><%= t %></option>
+                <% } %>
+              </select>
             </td>
             <td>
-              <input type="time" class="close" name="w<%= d %>_close"
-                     value="<%= closeVal %>" <%= isClosed ? "disabled" : "" %> />
+              <select name="w<%= d %>_close" class="close" <%= isClosed ? "disabled" : "" %>>
+                <option value="">—</option>
+                <% for (const t of timeOptions) { %>
+                  <option value="<%= t %>" <%= optSel(t, closeVal) %>><%= t %></option>
+                <% } %>
+              </select>
             </td>
             <td style="text-align:center">
               <input type="checkbox" class="closed" name="w<%= d %>_closed" <%= isClosed ? "checked" : "" %> />
@@ -91,39 +100,20 @@
 
 <script>
 (function(){
-  // הפעלה/נטרול של שדות השעה בעת שינוי "סגור"
-  document.querySelectorAll('tr[data-day] .closed').forEach(function(chk){
-    chk.addEventListener('change', function(){
-      var tr = chk.closest('tr');
-      var disabled = chk.checked;
-      tr.querySelectorAll('input.open, input.close').forEach(function(inp){
-        inp.disabled = disabled;
-        if (disabled) {
-          // כשסוגרים — לרוקן ערכים (כך לא יישלחו)
-          inp.value = "";
-        } else {
-          // כשפותחים — למלא ברירת מחדל אם ריק
-          if (!inp.value && inp.classList.contains('open')) inp.value = "09:00";
-          if (!inp.value && inp.classList.contains('close')) inp.value = "22:00";
-        }
-      });
-    }, { passive: true });
-  });
-
-  // פתיחה אוטומטית של היום אם המשתמש מקליק על השעות כשהיום מסומן כסגור
-  document.querySelectorAll('tr[data-day] input.open, tr[data-day] input.close').forEach(function(inp){
-    inp.addEventListener('focus', function(){
-      var tr = inp.closest('tr');
-      var chk = tr.querySelector('.closed');
-      if (chk && chk.checked) {
-        chk.checked = false;
-        var openI = tr.querySelector('input.open');
-        var closeI = tr.querySelector('input.close');
-        openI.disabled = false; closeI.disabled = false;
-        if (!openI.value) openI.value = "09:00";
-        if (!closeI.value) closeI.value = "22:00";
+  document.querySelectorAll('tr[data-day]').forEach(tr=>{
+    const chk = tr.querySelector('.closed');
+    const openSel = tr.querySelector('.open');
+    const closeSel = tr.querySelector('.close');
+    chk.addEventListener('change',()=>{
+      const dis = chk.checked;
+      openSel.disabled = dis;
+      closeSel.disabled = dis;
+      if(dis){ openSel.value = ""; closeSel.value = ""; }
+      else {
+        if(!openSel.value) openSel.value="09:00";
+        if(!closeSel.value) closeSel.value="22:00";
       }
-    }, { passive: true });
+    });
   });
 })();
 </script>
@@ -136,8 +126,8 @@
 .form-row label{margin-bottom:4px;font-weight:600}
 .form-row input{padding:8px 10px;border:1px solid #ccc;border-radius:8px;font-size:1rem}
 .table.compact{border-collapse:collapse}
-.table.compact th,.table.compact td{padding:.45rem .5rem;border-bottom:1px solid #eee}
-.table.compact input[type="time"]{width:8.5rem;max-width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px}
+.table.compact th,.table.compact td{padding:.45rem .5rem;border-bottom:1px solid #eee;text-align:center}
+.table.compact select{padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:0.95rem}
 .form-actions{display:flex;gap:.5rem;align-items:center;margin-top:12px}
 .btn{display:inline-block;background:#111;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;text-decoration:none}
 .btn:hover{background:#333}
