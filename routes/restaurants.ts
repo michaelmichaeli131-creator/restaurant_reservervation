@@ -114,7 +114,7 @@ function isValidEmail(s: string): boolean {
 
 /** קבל גם H:mm וגם HH:mm כדי לא ליפול על ערכים כמו "9:00" שנשמרו בעבר */
 function toMinutes(hhmm: string): number {
-  const m = hhmm.match(/^(\d{1,2}):(\d{2})$/); // ← רך יותר (היה \d{2})
+  const m = hhmm.match(/^(\d{1,2}):(\d{2})$/);
   if (!m) return NaN;
   return Number(m[1]) * 60 + Number(m[2]);
 }
@@ -148,7 +148,6 @@ function getWindowsForDate(
     }
   }
 
-  // לוג עזר כדי להבין למה אין חלונות
   debugLog("[hours] getWindowsForDate", {
     date, dowNum, hadWeekly: !!weekly,
     candidateHit: raw ? true : false,
@@ -171,12 +170,12 @@ function withinAnyWindow(timeMin: number, windows: Array<{ open: string; close: 
   return false;
 }
 
-/** בררת־מחדל מותאמת: אין חלונות = פתוח כל היום (כמו בצד ה־DB) */
+/** בררת־מחדל מותאמת: אין חלונות = פתוח כל היום */
 function isWithinSchedule(weekly: WeeklySchedule | undefined | null, date: string, time: string) {
   const t = toMinutes(time);
   if (!Number.isFinite(t)) return false;
   const windows = getWindowsForDate(weekly, date);
-  if (!windows.length) return true; // ← שינוי: פתוח בהיעדר מגבלה
+  if (!windows.length) return true;
   return withinAnyWindow(t, windows);
 }
 
@@ -308,9 +307,9 @@ function extractDateAndTime(ctx: any, payload: Record<string, unknown>) {
 
   const rawDate = pickNonEmpty(
     payload["date"], payload["reservation_date"], payload["res_date"],
-    qs.get("date"), qs.get("reservation_date"), qs.get("res_date"),
+    qs.get("date"), qs.get("reservation_date"), qs.get("res_date"],
     payload["datetime"], payload["datetime_local"], payload["datetime-local"],
-    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"),
+    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"],
     (ref as any)["date"], (ref as any)["reservation_date"], (ref as any)["res_date"],
     (ref as any)["datetime"], (ref as any)["datetime_local"], (ref as any)["datetime-local"]
   );
@@ -323,11 +322,11 @@ function extractDateAndTime(ctx: any, payload: Record<string, unknown>) {
 
   const rawTime = pickNonEmpty(
     payload["time"], qs.get("time"), (ref as any)["time"],
-    payload["time_display"], payload["timeDisplay"], qs.get("time_display"), qs.get("timeDisplay"),
+    payload["time_display"], payload["timeDisplay"], qs.get("time_display"), qs.get("timeDisplay"],
     (ref as any)["time_display"], (ref as any)["timeDisplay"],
     hhmmFromHM,
     payload["datetime"], payload["datetime_local"], payload["datetime-local"],
-    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"),
+    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"],
     (ref as any)["datetime"], (ref as any)["datetime_local"], (ref as any)["datetime-local"]
   );
 
@@ -379,7 +378,9 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const date = normalizeDate(rawDate) || todayISO();
   const time = normalizeTime(rawTime);
 
-  const openingWindows = getWindowsForDate(restaurant.weeklySchedule as WeeklySchedule, date);
+  // חלונות להצגה ב-UI: אם אין — ברירת מחדל "פתוח כל היום"
+  const windows = getWindowsForDate(restaurant.weeklySchedule as WeeklySchedule, date);
+  const openingWindows = windows.length ? windows : [{ open: "00:00", close: "23:59" }];
 
   debugLog("[restaurants][GET /restaurants/:id] view", {
     id, date, rawTime, time,
