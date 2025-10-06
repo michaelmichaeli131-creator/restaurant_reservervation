@@ -9,7 +9,7 @@
   </header>
 
   <section class="card">
-    <!-- בלי JS: טופס רגיל עם name= כדי שהשרת יקבל ערכים -->
+    <!-- טופס פשוט: שולח form/x-www-form-urlencoded כדי לוודא שהשרת יקבל ערכים -->
     <form class="form-grid" action="/owner/restaurants/<%= it.restaurant.id %>/hours" method="post" novalidate>
       <div class="form-row">
         <label for="capacity">קיבולת מקסימלית בו־זמנית</label>
@@ -22,16 +22,29 @@
       </div>
 
       <h3>שעות לכל יום</h3>
+
+      <% 
+        // אין TypeScript ב-Eta: לא "as string[]"
+        const labels = it.dayLabels || ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
+
+        // תמיכה גם ב-openingHours legacy וגם ב-weeklySchedule החדש
+        function dayData(d) {
+          const ws = it.restaurant && it.restaurant.weeklySchedule ? it.restaurant.weeklySchedule[d] : undefined;
+          if (typeof ws !== "undefined") return ws;
+          const oh = it.restaurant && it.restaurant.openingHours ? it.restaurant.openingHours[d] : undefined;
+          return oh;
+        }
+      %>
+
       <table class="table">
         <thead>
           <tr><th>יום</th><th>סגור</th><th>מ־</th><th>עד</th></tr>
         </thead>
         <tbody>
-          <% const labels = it.dayLabels as string[]; %>
-          <% for (let d = 0; d < 7; d++) {
-               const day = it.restaurant.weeklySchedule?.[d];
-               const isClosed = day === null;
-               const first = Array.isArray(day) && day.length ? day[0] : { open: "09:00", close: "22:00" };
+          <% for (let d = 0; d < 7; d++) { 
+               const day = dayData(d);
+               const isClosed = (day === null);
+               const first = (Array.isArray(day) && day.length) ? day[0] : { open: "09:00", close: "22:00" };
           %>
           <tr>
             <td><%= labels[d] %></td>
