@@ -1,3 +1,4 @@
+// src/routes/restaurants.ts
 import { Router, Status } from "jsr:@oak/oak";
 import {
   listRestaurants,
@@ -111,8 +112,9 @@ function isValidEmail(s: string): boolean {
 
 /* ---------------- Opening hours helpers ---------------- */
 
+/** קבל גם H:mm וגם HH:mm כדי לא ליפול על ערכים כמו "9:00" שנשמרו בעבר */
 function toMinutes(hhmm: string): number {
-  const m = hhmm.match(/^(\d{2}):(\d{2})$/);
+  const m = hhmm.match(/^(\d{1,2}):(\d{2})$/); // ← רך יותר (היה \d{2})
   if (!m) return NaN;
   return Number(m[1]) * 60 + Number(m[2]);
 }
@@ -145,6 +147,15 @@ function getWindowsForDate(
       raw = (weekly as any)[k];
     }
   }
+
+  // לוג עזר כדי להבין למה אין חלונות
+  debugLog("[hours] getWindowsForDate", {
+    date, dowNum, hadWeekly: !!weekly,
+    candidateHit: raw ? true : false,
+    candidateType: raw ? (Array.isArray(raw) ? "array" : typeof raw) : "none",
+    sample: raw
+  });
+
   if (!raw) return [];
   return Array.isArray(raw) ? raw.filter(Boolean) : [raw];
 }
@@ -160,11 +171,13 @@ function withinAnyWindow(timeMin: number, windows: Array<{ open: string; close: 
   return false;
 }
 
+/** בררת־מחדל מותאמת: אין חלונות = פתוח כל היום (כמו בצד ה־DB) */
 function isWithinSchedule(weekly: WeeklySchedule | undefined | null, date: string, time: string) {
   const t = toMinutes(time);
   if (!Number.isFinite(t)) return false;
   const windows = getWindowsForDate(weekly, date);
-  return windows.length ? withinAnyWindow(t, windows) : false;
+  if (!windows.length) return true; // ← שינוי: פתוח בהיעדר מגבלה
+  return withinAnyWindow(t, windows);
 }
 
 async function suggestionsWithinSchedule(
@@ -176,7 +189,9 @@ async function suggestionsWithinSchedule(
 ): Promise<string[]> {
   const all = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
   const windows = getWindowsForDate(weekly, date);
-  return all.filter(t => withinAnyWindow(toMinutes(t), windows)).slice(0, 4);
+  return windows.length
+    ? all.filter(t => withinAnyWindow(toMinutes(t), windows)).slice(0, 4)
+    : all.slice(0, 4);
 }
 
 /* ---------------- Strong body reader for Oak ---------------- */
