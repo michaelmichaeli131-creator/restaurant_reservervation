@@ -11,6 +11,55 @@ type PhotoItem = { id: string; dataUrl: string; alt?: string };
 
 const ownerPhotosRouter = new Router();
 
+/** קורא את גוף הבקשה כ-Uint8Array—בצורה עמידה בגרסאות Oak שונות. */
+async function readBodyBytes(ctx: any): Promise<Uint8Array | null> {
+  try {
+    // 1) Oak 17+: ניסיון לקבל את ה-Web Request
+    const webReq: any =
+      (ctx.request && (ctx.request as any).request) ??
+      (ctx.request && (ctx.request as any).originalRequest) ??
+      null;
+
+    if (webReq) {
+      // 1.a) אם יש פונקציה arrayBuffer()—קל
+      if (typeof webReq.arrayBuffer === "function") {
+        const ab = await webReq.arrayBuffer();
+        return new Uint8Array(ab);
+      }
+      // 1.b) אם אין arrayBuffer אבל יש body (ReadableStream) — נעטוף ב-Response
+      if (webReq.body) {
+        const ab = await new Response(webReq.body).arrayBuffer();
+        return new Uint8Array(ab);
+      }
+    }
+
+    // 2) תאימות לאחור: אם קיים ctx.request.body() (גרסאות Oak ישנות)
+    if (ctx.request && typeof (ctx.request as any).body === "function") {
+      try {
+        const b = (ctx.request as any).body({ type: "bytes" });
+        const bytes: Uint8Array = await b.value;
+        return bytes ?? null;
+      } catch (e) {
+        debugLog("[photos][readBodyBytes] legacy body({bytes}) failed:", String(e));
+      }
+      // fallback נוסף: stream -> Response
+      try {
+        const b2 = (ctx.request as any).body({ type: "stream" });
+        const rs: ReadableStream | undefined = await b2.value;
+        if (rs) {
+          const ab = await new Response(rs).arrayBuffer();
+          return new Uint8Array(ab);
+        }
+      } catch (e) {
+        debugLog("[photos][readBodyBytes] legacy body({stream}) failed:", String(e));
+      }
+    }
+  } catch (e) {
+    debugLog("[photos][readBodyBytes] failed:", String(e));
+  }
+  return null;
+}
+
 // ---------------- GET: דף התמונות ----------------
 ownerPhotosRouter.get("/owner/restaurants/:id/photos", async (ctx) => {
   if (!requireOwner(ctx)) return;
@@ -45,56 +94,26 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
     return;
   }
 
-  // Oak 17+: אין ctx.request.body() לפענוח גופים בינאריים.
-  // קוראים את ה-Web Request הגולמי ומוציאים ממנו arrayBuffer().
-  let webReq: Request | null = null;
-  try {
-    webReq =
-      ((ctx.request as any).request as Request | undefined) ??
-      ((ctx.request as any).originalRequest as Request | undefined) ??
-      null;
-  } catch {
-    webReq = null;
-  }
-
-  if (!webReq) {
-    debugLog("[photos][upload] no web Request on ctx.request");
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "Invalid request.";
-    return;
-  }
-
   const contentType =
-    webReq.headers.get("content-type") ??
-    ctx.request.headers.get("content-type") ??
-    "";
+    ctx.request.headers.get("content-type") ||
+    ((ctx.request as any)?.request?.headers?.get?.("content-type") ?? "");
 
   if (!/^image\/(png|jpeg|webp)$/.test(contentType)) {
     debugLog("[photos][upload] unsupported content-type:", contentType);
-    ctx.response.status = Status.UnsupportedMediaType; // 415
+    ctx.response.status = Status.UnsupportedMediaType;
     ctx.response.body = "Unsupported image format. Use PNG/JPEG/WebP.";
     return;
   }
 
-  let bytes: Uint8Array | null = null;
-  try {
-    const ab = await webReq.arrayBuffer();
-    bytes = new Uint8Array(ab);
-    debugLog("[photos][upload] received bytes:", bytes.length, "type:", contentType);
-  } catch (e) {
-    debugLog("[photos][upload] arrayBuffer() failed:", String(e));
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "Failed reading image body.";
-    return;
-  }
-
+  const bytes = await readBodyBytes(ctx);
   if (!bytes || !bytes.length) {
+    debugLog("[photos][upload] no bytes read");
     ctx.response.status = Status.BadRequest;
     ctx.response.body = "Empty image body.";
     return;
   }
 
-  // הגבלת גודל (למשל 2MB)
+  // הגבלת גודל (2MB)
   const MAX_BYTES = 2 * 1024 * 1024;
   if (bytes.length > MAX_BYTES) {
     ctx.response.status = Status.BadRequest;
@@ -102,12 +121,8 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
     return;
   }
 
-  // המרה ל-base64 לשמירה בדאטה-URL (DB)
-  // הערה: לשמירה יעילה/זולה יותר עדיף אחסון חיצוני (S3/GCS) ושמירת URL בלבד.
-  let base64: string;
+  // המרה ל-base64 לשמירה כ-data URL (פשוט להצגה מיידית)
   try {
-    // המרה מהירה של Uint8Array ל-base64
-    // זה בטוח לקבצים עד כמה MB בודדים.
     let binary = "";
     const chunkSize = 0x8000;
     for (let i = 0; i < bytes.length; i += chunkSize) {
@@ -115,26 +130,25 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
       binary += String.fromCharCode.apply(null, Array.from(chunk));
     }
     // deno-lint-ignore no-deprecated-deno-api
-    base64 = btoa(binary);
+    const base64 = btoa(binary);
+    const dataUrl = `data:${contentType};base64,${base64}`;
+
+    const pid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const newPhoto: PhotoItem = { id: pid, dataUrl };
+
+    const prev = Array.isArray(r.photos) ? r.photos : [];
+    const next = [...prev, newPhoto];
+
+    await updateRestaurant(id, { photos: next } as any);
+
+    ctx.response.status = Status.OK;
+    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+    ctx.response.body = JSON.stringify({ ok: true, added: 1, total: next.length });
   } catch (e) {
-    debugLog("[photos][upload] base64 encode failed:", String(e));
+    debugLog("[photos][upload] base64 encode/save failed:", String(e));
     ctx.response.status = Status.InternalServerError;
-    ctx.response.body = "Failed encoding image.";
-    return;
+    ctx.response.body = "Failed processing image.";
   }
-
-  const dataUrl = `data:${contentType};base64,${base64}`;
-  const pid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const newPhoto: PhotoItem = { id: pid, dataUrl };
-
-  const prev = Array.isArray(r.photos) ? r.photos : [];
-  const next = [...prev, newPhoto];
-
-  await updateRestaurant(id, { photos: next } as any);
-
-  ctx.response.status = Status.OK;
-  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-  ctx.response.body = JSON.stringify({ ok: true, added: 1, total: next.length });
 });
 
 // ---------------- POST: מחיקת תמונה ----------------
@@ -149,25 +163,16 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/delete", async (ctx) => {
     return;
   }
 
-  // כאן כן נקרא JSON פשוט ע"י Web Request text() (לא body() של Oak).
-  let webReq: Request | null = null;
-  try {
-    webReq =
-      ((ctx.request as any).request as Request | undefined) ??
-      ((ctx.request as any).originalRequest as Request | undefined) ??
-      null;
-  } catch {
-    webReq = null;
-  }
-  if (!webReq) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "Invalid request.";
-    return;
-  }
-
+  // קריאה פשוטה ל-JSON דרך Web Request text() (לא body() של Oak)
   let payload: any = null;
   try {
-    const raw = await webReq.text();
+    const webReq: any =
+      (ctx.request && (ctx.request as any).request) ??
+      (ctx.request && (ctx.request as any).originalRequest) ??
+      null;
+    const raw = webReq && typeof webReq.text === "function"
+      ? await webReq.text()
+      : await new Response(webReq?.body ?? null).text();
     payload = raw ? JSON.parse(raw) : null;
   } catch {
     payload = null;
