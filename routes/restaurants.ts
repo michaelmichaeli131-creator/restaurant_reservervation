@@ -758,4 +758,131 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   });
 });
 
+/* ---------------- Owner: save opening hours (NEW) ---------------- */
+
+/** מיפוי שמות/מספרי ימים ל־0..6 */
+const DAY_NAME_TO_INDEX: Record<string, number> = {
+  sunday: 0, sun: 0, "0": 0,
+  monday: 1, mon: 1, "1": 1,
+  tuesday: 2, tue: 2, "2": 2,
+  wednesday: 3, wed: 3, "3": 3,
+  thursday: 4, thu: 4, "4": 4,
+  friday: 5, fri: 5, "5": 5,
+  saturday: 6, sat: 6, "6": 6,
+  "א": 0, "א׳": 0, "ב": 1, "ב׳": 1, "ג": 2, "ג׳": 2, "ד": 3, "ד׳": 3, "ה": 4, "ה׳": 4, "ו": 5, "ו׳": 5, "ש": 6, "ש׳": 6,
+};
+
+type WeeklyHoursMap = { [day: string]: { open: string; close: string } | null };
+
+/** ממיר כל קלט (כולל מחרוזת JSON) למפה 0..6 → {open,close}|null, עם HH:mm */
+function ensureWeeklyHours(input: unknown): WeeklyHoursMap {
+  let obj: any = input ?? {};
+  if (typeof obj === "string") {
+    try { obj = JSON.parse(obj); } catch { obj = {}; }
+  }
+  const out: WeeklyHoursMap = {};
+  for (let i = 0; i < 7; i++) out[i] = null;
+
+  for (const [k, v] of Object.entries(obj)) {
+    const key = k.toLowerCase();
+    let idx: number | undefined;
+    if (key in DAY_NAME_TO_INDEX) idx = DAY_NAME_TO_INDEX[key];
+    else if (/^[0-6]$/.test(key)) idx = parseInt(key, 10);
+    if (idx === undefined) continue;
+
+    if (v == null || v === "" || v === false) { out[idx] = null; continue; }
+
+    if (typeof v === "object") {
+      const open = normalizeTime((v as any).open);
+      const close = normalizeTime((v as any).close);
+      out[idx] = (open && close) ? { open, close } : null;
+      continue;
+    }
+
+    if (typeof v === "string") {
+      const m = /^(\S+)\s*-\s*(\S+)$/.exec(v);
+      if (m) {
+        const open = normalizeTime(m[1]);
+        const close = normalizeTime(m[2]);
+        out[idx] = (open && close) ? { open, close } : null;
+      } else {
+        out[idx] = null;
+      }
+    }
+  }
+  return out;
+}
+
+/** POST /restaurants/:id/hours — שמירת שעות פתיחה בצד בעל המסעדה */
+restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
+  const rid = String(ctx.params.id ?? "");
+
+  const { payload, dbg } = await readBody(ctx);
+
+  // תואם גם לשמות חלופיים אם קיימים בקליינט הישן
+  const capacity = Math.max(1, toIntLoose((payload as any).capacity ?? (payload as any).maxConcurrent) ?? 1);
+  const slot = Math.max(5, toIntLoose((payload as any).slot ?? (payload as any).slotMinutes) ?? 15);
+
+  const hours = ensureWeeklyHours(
+    (payload as any).hours ?? (payload as any).weeklyHours ?? (payload as any).openingHours ?? null
+  );
+
+  // ולידציה סופית ל-HH:mm
+  for (let d = 0; d < 7; d++) {
+    const row = (hours as any)[d] ?? null;
+    if (row) {
+      const o = normalizeTime((row as any).open);
+      const c = normalizeTime((row as any).close);
+      (hours as any)[d] = (o && c) ? { open: o, close: c } : null;
+    }
+  }
+
+  debugLog("[restaurants][POST hours] input", {
+    rid, capacity, slot,
+    body_ct: dbg.ct, body_keys: Object.keys(payload),
+    hours_preview: Object.fromEntries(Object.entries(hours).slice(0,3)),
+  });
+
+  // עדכון DB — מנסה כמה שמות פונקציה נפוצים לשמירה על תאימות
+  const db = await import("../database.ts");
+  const updater =
+    (db as any).updateRestaurantHours ??
+    (db as any).updateRestaurant ??
+    (db as any).setRestaurant ??
+    (db as any).saveRestaurant ??
+    null;
+
+  if (!updater) {
+    ctx.response.status = Status.InternalServerError;
+    ctx.response.body = "No DB updater found (updateRestaurantHours/updateRestaurant/setRestaurant/saveRestaurant)";
+    return;
+  }
+
+  try {
+    // אם הפונקציה מרמזת על Hours ויש חתימה מפורשת (id, hours, slot, capacity)
+    if (/hours/i.test(updater.name || "") && updater.length >= 4) {
+      await updater.call(db, rid, hours, slot, capacity);
+    } else {
+      // Patch object — שומר גם תחת weeklySchedule וגם תחת hours לתאימות
+      await updater.call(db, rid, { weeklySchedule: hours, hours, slot, capacity });
+    }
+  } catch (e) {
+    console.error("[hours.save] DB update failed", e);
+    ctx.response.status = Status.InternalServerError;
+    ctx.response.body = "DB update failed";
+    return;
+  }
+
+  const acceptsJson =
+    (ctx.request.headers.get("accept") || "").includes("application/json") ||
+    (ctx.request.headers.get("content-type") || "").includes("application/json");
+
+  if (acceptsJson) {
+    ctx.response.status = Status.NoContent; // 204
+  } else {
+    ctx.response.status = Status.SeeOther;
+    ctx.response.headers.set("Location", `/restaurants/${encodeURIComponent(rid)}`);
+  }
+});
+
 export default restaurantsRouter;
