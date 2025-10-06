@@ -3,73 +3,43 @@
   <header class="page-header">
     <h1>הגדרת שעות פתיחה — <%= it.restaurant.name %></h1>
     <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+    <% if (it.saved) { %>
+      <div class="alert" role="status">נשמר בהצלחה.</div>
+    <% } %>
   </header>
 
   <section class="card">
-    <form id="hours-form" class="form-grid" novalidate>
+    <form id="hours-form" class="form-grid" method="post" action="/owner/restaurants/<%= it.restaurant.id %>/hours" novalidate>
       <input type="hidden" id="rid" value="<%= it.restaurant.id %>"/>
 
       <div class="form-row">
         <label for="capacity">קיבולת מקסימלית בו־זמנית</label>
-        <input id="capacity" name="capacity" type="number" min="1" step="1"
-               value="<%= it.restaurant.capacity ?? 20 %>" />
+        <input id="capacity" name="capacity" type="number" min="1" step="1" value="<%= it.restaurant.capacity %>"/>
       </div>
 
       <div class="form-row">
-        <label for="slot">גריד סלוטים (דקות)</label>
-        <input id="slot" name="slot" type="number" min="5" step="5"
-               value="<%= it.restaurant.slot ?? 15 %>" />
+        <label for="slot">גריד (דקות לכל סלוט)</label>
+        <input id="slot" name="slotIntervalMinutes" type="number" min="5" step="5" value="<%= it.restaurant.slotIntervalMinutes %>"/>
       </div>
 
-      <hr/>
+      <div class="form-row">
+        <label for="duration">משך ישיבה (דקות)</label>
+        <input id="duration" name="serviceDurationMinutes" type="number" min="30" step="15" value="<%= it.restaurant.serviceDurationMinutes %>"/>
+      </div>
 
-      <h3 style="margin:0 0 .5rem">שעות פתיחה שבועיות (24h)</h3>
-      <p class="muted" style="margin-top:0">
-        כדי לפתוח יום — בטל/י את הסימון ב״סגור״ או הקלק/י על שדה השעה כדי לפתוח אותו. פורמט 24h.
-      </p>
+      <div class="form-row" style="grid-column:1/-1">
+        <div class="tools">
+          <button class="btn secondary" type="button" id="fill-week">העתק לכל השבוע</button>
+          <button class="btn secondary" type="button" id="reset-defaults">אפס לברירת מחדל</button>
+          <span class="muted" style="margin-inline-start:8px">פורמט שעה: HH:mm</span>
+        </div>
+      </div>
 
-      <table class="table compact" style="width:100%">
-        <thead>
-          <tr>
-            <th>יום</th>
-            <th>פתיחה</th>
-            <th>סגירה</th>
-            <th style="text-align:center">סגור</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% 
-            const dayNames = ["א׳","ב׳","ג׳","ד׳","ה׳","ו׳","ש׳"];
-            let hours = it.restaurant.hours || {};
-            if (typeof hours === "string") {
-              try { hours = JSON.parse(hours); } catch { hours = {}; }
-            }
-          %>
-          <% for (let d = 0; d < 7; d++) {
-               const row = hours?.[d] ?? null;
-               const isClosed = row == null;
-               const openVal = !isClosed ? row.open : "";
-               const closeVal = !isClosed ? row.close : "";
-          %>
-          <tr data-day="<%= d %>">
-            <td><strong><%= dayNames[d] %></strong></td>
-            <td>
-              <input type="time" class="open" value="<%= openVal %>" <%= isClosed ? "data-disabled-init='1'" : "" %> />
-            </td>
-            <td>
-              <input type="time" class="close" value="<%= closeVal %>" <%= isClosed ? "data-disabled-init='1'" : "" %> />
-            </td>
-            <td style="text-align:center">
-              <input type="checkbox" class="closed" <%= isClosed ? "checked" : "" %> />
-            </td>
-          </tr>
-          <% } %>
-        </tbody>
-      </table>
+      <div class="week-grid" style="grid-column:1/-1"></div>
 
-      <div class="form-actions">
-        <button type="submit" class="btn primary">שמירה</button>
-        <a class="btn" href="/owner">ביטול</a>
+      <div class="form-actions" style="grid-column:1/-1">
+        <button type="submit" class="btn">שמור</button>
+        <a class="btn secondary" href="/owner/restaurants">חזרה</a>
       </div>
     </form>
   </section>
@@ -77,116 +47,176 @@
 
 <script>
 (function(){
-  function enableRow(tr, yes) {
-    tr.querySelectorAll("input.open, input.close").forEach(inp => {
-      inp.disabled = !yes;
-      if (yes && !inp.value) {
-        if (inp.classList.contains("open")) inp.value = "09:00";
-        if (inp.classList.contains("close")) inp.value = "22:00";
-      }
-    });
+  const pad2 = (n)=>String(n).padStart(2,"0");
+  const normHHMM = (s)=>{
+    s = String(s||"").trim();
+    if (!s) return "";
+    if (/^\d{1,2}\.\d{2}$/.test(s)) s = s.replace(".",":");
+    const m = s.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return "";
+    let h = Math.max(0, Math.min(23, +m[1]));
+    let mi = Math.max(0, Math.min(59, +m[2]));
+    return pad2(h)+":"+pad2(mi);
+  };
+
+  const DAYS = [
+    { i:0, he:"ראשון" }, { i:1, he:"שני" }, { i:2, he:"שלישי" },
+    { i:3, he:"רביעי" }, { i:4, he:"חמישי"}, { i:5, he:"שישי" },
+    { i:6, he:"שבת" }
+  ];
+
+  // מצב התחלתי מהשרת:
+  const initial = <%- JSON.stringify(it.weekly || {}, null, 2) %>;
+  const schedule = {};
+  for (const d of DAYS) {
+    const v = initial[d.i] || null;
+    schedule[d.i] = (v && v.open && v.close) ? { open:v.open, close:v.close } : null;
   }
 
-  function toHHmm24(input) {
-    if (!input) return "";
-    const s = String(input).trim();
-    const m24 = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(s);
-    if (m24) return m24[1].padStart(2,"0")+":"+m24[2];
-    const m12 = /^(\d{1,2})(?::([0-5]\d))?\s*([AaPp][Mm])$/.exec(s);
-    if (m12) {
-      let h = parseInt(m12[1],10);
-      const m = (m12[2]??"00").padStart(2,"0");
-      const ampm = m12[3].toUpperCase();
-      if (ampm === "AM") h = (h % 12);
-      else h = (h % 12) + 12;
-      return String(h).padStart(2,"0")+":"+m;
-    }
-    const mh = /^([01]?\d|2[0-3])$/.exec(s);
-    if (mh) return String(mh[1]).padStart(2,"0")+":00";
-    return "";
+  const weekGrid = document.querySelector(".week-grid");
+
+  function rowTemplate(dayIdx, label, value){
+    const closed = !value;
+    const open  = !closed ? (value.open||"") : "";
+    const close = !closed ? (value.close||"") : "";
+    return `
+      <div class="day-card" data-day="${dayIdx}">
+        <div class="day-head">
+          <strong>${label}</strong>
+          <label class="chk">
+            <input type="checkbox" class="enabled" name="d${dayIdx}_enabled" ${closed ? "" : "checked"}/>
+            <span>פעיל</span>
+          </label>
+        </div>
+        <div class="row">
+          <div class="col">
+            <label>פתיחה</label>
+            <input class="open"  type="time" name="d${dayIdx}_open"  value="${open}"  ${closed?"disabled":""} step="900" placeholder="HH:mm"/>
+          </div>
+          <div class="col">
+            <label>סגירה</label>
+            <input class="close" type="time" name="d${dayIdx}_close" value="${close}" ${closed?"disabled":""} step="900" placeholder="HH:mm"/>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
-  function collectWeeklyHours(tbody) {
-    const rows = tbody.querySelectorAll("tr[data-day]");
-    const out = {};
-    rows.forEach(tr => {
-      const d = parseInt(tr.getAttribute("data-day"), 10);
-      const isClosed = tr.querySelector(".closed").checked;
-      if (isClosed) { out[d] = null; return; }
-      const o = toHHmm24(tr.querySelector(".open").value);
-      const c = toHHmm24(tr.querySelector(".close").value);
-      out[d] = (o && c) ? { open:o, close:c } : null;
-    });
-    return out;
-  }
+  function render() {
+    weekGrid.innerHTML = DAYS.map(d=>{
+      const val = Object.prototype.hasOwnProperty.call(schedule, d.i) ? schedule[d.i] : null;
+      return rowTemplate(d.i, d.he, val);
+    }).join("");
 
-  const form = document.getElementById("hours-form");
-  const tbody = form.querySelector("tbody");
+    // חבר אירועים:
+    document.querySelectorAll(".day-card").forEach(card=>{
+      const enabled = card.querySelector(".enabled");
+      const open    = card.querySelector(".open");
+      const close   = card.querySelector(".close");
 
-  tbody.querySelectorAll("tr[data-day]").forEach(tr => {
-    const closed = tr.querySelector(".closed");
-    if (closed.checked) enableRow(tr, false);
-
-    tr.querySelectorAll("input.open, input.close").forEach(inp => {
-      const ensureOpen = () => {
-        if (closed.checked) {
-          closed.checked = false;
-          enableRow(tr, true);
-          if (!inp.value) {
-            if (inp.classList.contains("open")) inp.value = "09:00";
-            if (inp.classList.contains("close")) inp.value = "22:00";
-          }
+      function setEnabled(on){
+        enabled.checked = !!on;
+        open.disabled = !on;
+        close.disabled = !on;
+        if (on) {
+          const o = normHHMM(open.value) || "10:00";
+          const c = normHHMM(close.value) || "22:00";
+          schedule[+card.dataset.day] = { open:o, close:c };
+          open.value = o; close.value = c;
+        } else {
+          schedule[+card.dataset.day] = null;
+          open.value = ""; close.value = "";
         }
-      };
-      inp.addEventListener("pointerdown", ensureOpen);
-      inp.addEventListener("focus", ensureOpen);
-      inp.addEventListener("click", ensureOpen);
-    });
-
-    closed.addEventListener("change", () => {
-      enableRow(tr, !closed.checked);
-      if (closed.checked) {
-        tr.querySelectorAll("input.open, input.close").forEach(inp => inp.value = "");
-      } else {
-        const o = tr.querySelector("input.open");
-        const c = tr.querySelector("input.close");
-        if (!o.value) o.value = "09:00";
-        if (!c.value) c.value = "22:00";
       }
-    });
-  });
 
-  form.addEventListener("submit", async (ev) => {
-    ev.preventDefault();
+      enabled.addEventListener("change", ()=> setEnabled(enabled.checked));
 
-    const rid = document.getElementById("rid").value;
-    const capacity = Math.max(1, parseInt(document.getElementById("capacity").value || "1", 10));
-    const slot = Math.max(5, parseInt(document.getElementById("slot").value || "15", 10));
-    const hours = collectWeeklyHours(tbody);
+      // UX: הקלדה בשעת פתיחה/סגירה מפעילה אוטומטית את היום
+      function autoEnableFromInput(inp){
+        const v = normHHMM(inp.value);
+        if (v) {
+          if (!enabled.checked) setEnabled(true);
+          const day = +card.dataset.day;
+          if (!schedule[day]) schedule[day] = { open:"10:00", close:"22:00" };
+          if (inp === open)  schedule[day].open  = v;
+          if (inp === close) schedule[day].close = v;
+          inp.value = v;
+        }
+      }
+      open.addEventListener("input", ()=> autoEnableFromInput(open));
+      close.addEventListener("input", ()=> autoEnableFromInput(close));
 
-    try {
-      const res = await fetch(`/restaurants/${encodeURIComponent(rid)}/hours`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Accept":"application/json" },
-        body: JSON.stringify({ capacity, slot, hours }),
+      open.addEventListener("change", ()=>{
+        const day = +card.dataset.day;
+        if (!schedule[day]) schedule[day] = {open:"10:00", close:"22:00"};
+        schedule[day].open = normHHMM(open.value) || "10:00";
+        open.value = schedule[day].open;
       });
-      if (!res.ok && res.status !== 204) {
-        const txt = await res.text().catch(()=> "");
-        alert("שמירה נכשלה: " + (txt || res.status));
-        return;
-      }
-      alert("שעות נשמרו בהצלחה");
-      location.assign(`/restaurants/${encodeURIComponent(rid)}`);
-    } catch (e) {
-      console.error(e);
-      alert("שמירה נכשלה (רשת/שרת).");
+      close.addEventListener("change", ()=>{
+        const day = +card.dataset.day;
+        if (!schedule[day]) schedule[day] = {open:"10:00", close:"22:00"};
+        schedule[day].close = normHHMM(close.value) || "22:00";
+        close.value = schedule[day].close;
+      });
+    });
+  }
+
+  // כלים:
+  document.getElementById("fill-week").addEventListener("click", ()=>{
+    let base = schedule[0];
+    if (base == null) {
+      for (const d of DAYS) { if (schedule[d.i] != null) { base = schedule[d.i]; break; } }
+      if (!base) base = { open:"10:00", close:"22:00" };
     }
+    const copy = { open: normHHMM(base.open)||"10:00", close: normHHMM(base.close)||"22:00" };
+    for (const d of DAYS) schedule[d.i] = { ...copy };
+    render();
   });
+
+  document.getElementById("reset-defaults").addEventListener("click", ()=>{
+    for (const d of DAYS) schedule[d.i] = null;
+    render();
+  });
+
+  // שליחה: ודא ששום קלט קריטי לא נשאר disabled ושיש enabled=on לכל יום פעיל
+  const form = document.getElementById("hours-form");
+  form.addEventListener("submit", (ev)=>{
+    // הסר disabled כדי שהדפדפן ישלח את הערכים
+    document.querySelectorAll(".day-card").forEach(card=>{
+      const enabled = card.querySelector(".enabled");
+      const open    = card.querySelector(".open");
+      const close   = card.querySelector(".close");
+      if (enabled.checked) { open.disabled = false; close.disabled = false; }
+      // הזרקת שדה מוסתר dX_enabled=on עבור ימים פעילים (ביטוח)
+      const d = +card.dataset.day;
+      const has = card.querySelector(`input[type="hidden"][name="d${d}_enabled"]`);
+      if (enabled.checked && !has) {
+        const hidden = document.createElement("input");
+        hidden.type = "hidden";
+        hidden.name = `d${d}_enabled`;
+        hidden.value = "on";
+        card.appendChild(hidden);
+      }
+    });
+  });
+
+  render();
 })();
 </script>
 
 <style>
-.table.compact th, .table.compact td { padding: .45rem .5rem; }
-.table.compact input[type="time"], .table.compact input[type="text"] { width: 8.5rem; max-width: 100%; }
-.form-actions { display:flex; gap:.5rem; align-items:center; }
+  .form-grid{display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:16px}
+  .form-row label{margin-bottom:4px;color:#333;font-weight:500}
+  .tools{display:flex;gap:8px;align-items:center}
+  .week-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+  .day-card{border:1px solid #e5e7eb;border-radius:8px;padding:12px;background:#fafafa}
+  .day-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .day-card .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .day-card .col{display:flex;flex-direction:column}
+  .chk{display:flex;align-items:center;gap:6px;font-size:.9rem;color:#444}
+  .form-actions{display:flex;gap:12px;margin-top:8px}
+  .btn{padding:10px 16px;border:none;border-radius:6px;background-color:#667eea;color:#fff;cursor:pointer}
+  .btn.secondary{background-color:#a0aec0}
+  .muted{color:#6b7280}
+  @media (max-width:860px){.form-grid{grid-template-columns:1fr}}
 </style>
