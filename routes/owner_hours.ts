@@ -1,7 +1,9 @@
 // src/routes/owner_hours.ts
 // ניהול שעות פתיחה שבועיות למסעדה — לבעלים בלבד
-// תיקון: פרסור גוף JSON/FORM עקבי + ולידציה שמונעת השארת null לא מכוון
-// וגם: העברת ctx ל-render כדי למנוע wantsJSON(ctx) על undefined
+// תיקונים:
+// - render(ctx, ...) כדי למנוע wantsJSON על undefined
+// - Alias לנתיבים היסטוריים (/owner/hours/:id, /owner/restaurants/:id/opening-hours)
+// - פרסור גוף JSON/FORM עקבי + נרמול weeklySchedule כדי לא להשאיר null/undefined לא מכוונים
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -55,12 +57,12 @@ function normalizeWeeklySchedule(input?: IncomingPayload["weeklySchedule"]): Wee
   const out: WeeklySchedule = {} as any;
   for (let d = 0 as DayOfWeek; d <= 6; d++) {
     const day = input[String(d)] as DayPatch | undefined;
-    if (!day) { 
-      // לא נגענו ביום – לא נכפה שינוי
+    if (!day) {
+      // לא נגענו ביום – לא נכפה שינוי (נשאיר כפי שהיה)
       continue;
     }
     if (day.closed) {
-      out[d] = null;
+      out[d] = null; // סגור מפורש
       continue;
     }
     const arr = Array.isArray(day.ranges) ? day.ranges : [];
@@ -72,7 +74,7 @@ function normalizeWeeklySchedule(input?: IncomingPayload["weeklySchedule"]): Wee
       if (!timeLT(o, c)) continue; // פתיחה חייבת להיות לפני סגירה
       norm.push({ open: o, close: c });
     }
-    // אם לא נוספו טווחים — נסגור את היום מפורשות (כדי לא להשאיר undefined/ריק)
+    // אין טווחים תקינים -> נסגור את היום מפורשות כדי לא להשאיר מצב עמום
     out[d] = norm.length ? norm : null;
   }
   return out;
@@ -109,53 +111,79 @@ async function readSafePayload(ctx: any): Promise<IncomingPayload> {
   return {};
 }
 
-// ---------- GET ----------
-ownerHoursRouter.get("/owner/restaurants/:id/hours", async (ctx) => {
+// ---------------------------
+// ALIASES (ללא שינוי UI קיים)
+// ---------------------------
+
+// /owner/hours/:id  -> redirect לקנוני
+ownerHoursRouter.get("/owner/hours/:id", async (ctx) => {
   if (!requireOwner(ctx)) return;
   const id = ctx.params.id!;
+  ctx.response.status = Status.SeeOther;
+  ctx.response.headers.set("Location", `/owner/restaurants/${encodeURIComponent(id)}/hours`);
+});
+
+// /owner/restaurants/:id/opening-hours -> redirect לקנוני
+ownerHoursRouter.get("/owner/restaurants/:id/opening-hours", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const id = ctx.params.id!;
+  ctx.response.status = Status.SeeOther;
+  ctx.response.headers.set("Location", `/owner/restaurants/${encodeURIComponent(id)}/hours`);
+});
+
+// ---------------------------
+// GET: העמוד עצמו
+// ---------------------------
+ownerHoursRouter.get("/owner/restaurants/:id/hours", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const id = ctx.params.id!;
+  debugLog("[owner_hours][GET] enter", { path: ctx.request.url.pathname, id });
+
   const r = await getRestaurant(id);
-  debugLog("[owner_hours][GET] load", { id, found: !!r, ownerId: r?.ownerId, userId: (ctx.state?.user?.id ?? null) });
+
+  debugLog("[owner_hours][GET] load", { id, found: !!r, ownerId: r?.ownerId, userId: (ctx.state as any)?.user?.id });
 
   if (!r) {
     ctx.response.status = Status.NotFound;
-    ctx.response.body = "Restaurant not found";
+    await render(ctx, "error", { title: "לא נמצא", message: "המסעדה לא נמצאה." });
     return;
   }
-  if (r.ownerId !== ctx.state.user.id) {
+  if (r.ownerId !== (ctx.state as any)?.user?.id) {
     ctx.response.status = Status.Forbidden;
-    ctx.response.body = "Forbidden";
+    await render(ctx, "error", { title: "אין הרשאה", message: "אין הרשאה למסעדה זו." });
     return;
   }
 
   const saved = ctx.request.url.searchParams.get("saved") === "1";
-  // >>> תיקון כאן: להעביר ctx ל-render <<<
-  ctx.response.body = await render(ctx, "owner_hours.eta", {
+  await render(ctx, "owner_hours.eta", {
     restaurant: r,
     saved,
     dayLabels: DAY_LABELS,
   });
 });
 
-// ---------- POST ----------
+// ---------------------------
+// POST: שמירה
+// ---------------------------
 ownerHoursRouter.post("/owner/restaurants/:id/hours", async (ctx) => {
   if (!requireOwner(ctx)) return;
   const id = ctx.params.id!;
   const r = await getRestaurant(id);
   if (!r) {
     ctx.response.status = Status.NotFound;
-    ctx.response.body = "Restaurant not found";
+    await render(ctx, "error", { title: "לא נמצא", message: "המסעדה לא נמצאה." });
     return;
   }
-  if (r.ownerId !== ctx.state.user.id) {
+  if (r.ownerId !== (ctx.state as any)?.user?.id) {
     ctx.response.status = Status.Forbidden;
-    ctx.response.body = "Forbidden";
+    await render(ctx, "error", { title: "אין הרשאה", message: "אין הרשאה למסעדה זו." });
     return;
   }
 
   const payload = await readSafePayload(ctx);
   debugLog("[owner_hours][POST] raw payload", payload);
 
-  // capacity & slotIntervalMinutes
   const patch: Partial<typeof r> = {};
   if (payload.capacity !== undefined) {
     const n = Number(payload.capacity);
@@ -171,9 +199,9 @@ ownerHoursRouter.post("/owner/restaurants/:id/hours", async (ctx) => {
 
   debugLog("[owner_hours][POST] patch.weeklySchedule", patch.weeklySchedule);
 
-  const accept = ctx.request.headers.get("accept") || "";
   await updateRestaurant(id, patch as any);
 
+  const accept = ctx.request.headers.get("accept") || "";
   if (accept.includes("application/json") || (payload as any).__json === true) {
     ctx.response.status = Status.OK;
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
