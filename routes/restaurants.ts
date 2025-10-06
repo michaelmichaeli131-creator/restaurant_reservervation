@@ -372,11 +372,11 @@ function extractDateAndTime(ctx: any, payload: Record<string, unknown>) {
   const rawTime = pickNonEmpty(
     payload["time"], qs.get("time"), (ref as any)["time"],
     (payload as any)["time_display"], (payload as any)["timeDisplay"],
-    qs.get("time_display"), qs.get("timeDisplay"],
+    qs.get("time_display"), qs.get("timeDisplay"),
     (ref as any)["time_display"], (ref as any)["timeDisplay"],
     hhmmFromHM,
     payload["datetime"], payload["datetime_local"], payload["datetime-local"],
-    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"],
+    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"),
     (ref as any)["datetime"], (ref as any)["datetime_local"], (ref as any)["datetime-local"]
   );
 
@@ -931,4 +931,5 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   }
 });
 
+export const router = restaurantsRouter;
 export default restaurantsRouter;
