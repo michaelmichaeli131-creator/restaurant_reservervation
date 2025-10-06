@@ -105,6 +105,7 @@
       const raw = document.getElementById("opening-hours-data")?.textContent || "null";
       OPENING_HOURS = JSON.parse(raw);
     } catch { OPENING_HOURS = null; }
+    console.debug("GT: opening-hours raw", OPENING_HOURS);
 
     // אם הגיע מחרוזת hours ישנה כמו "10:00-22:00", נהפוך למפה לכל הימים:
     if (typeof OPENING_HOURS === "string") {
@@ -183,7 +184,9 @@
       if (!dayDef && Array.isArray(OPENING_HOURS)) {
         dayDef = OPENING_HOURS[dow];
       }
-      return normalizeDayRanges(dayDef);
+      const ranges = normalizeDayRanges(dayDef);
+      console.debug("GT: time ranges for", dateStr, { dow, ranges });
+      return ranges;
     }
 
     function rebuildTimeOptionsFor(dateStr) {
@@ -196,10 +199,12 @@
         empty.setAttribute("aria-disabled", "true");
         empty.textContent = "אין שעות פתיחה ליום זה";
         opts.appendChild(empty);
+        console.debug("GT: no opening hours for date", dateStr);
         return;
       }
 
       const frag = document.createDocumentFragment();
+      let count = 0;
       for (const [startMin, endMin] of ranges) {
         for (let m = roundToQuarterUp(startMin); m <= endMin; m += 15) {
           const hhmm = fromMin(m);
@@ -209,9 +214,11 @@
           div.dataset.value = hhmm;
           div.textContent = hhmm;
           frag.appendChild(div);
+          count++;
         }
       }
       opts.appendChild(frag);
+      console.debug("GT: built time options", { date: dateStr, options: count });
     }
 
     btn.addEventListener("click", (e) => {
@@ -250,11 +257,13 @@
       hiddenInput.value = v;
       opts.hidden = true;
       btn.setAttribute("aria-expanded", "false");
+      console.debug("GT: time selected", v);
     });
 
     dateInput.addEventListener("change", () => {
       const prev = hiddenInput.value;
-      rebuildTimeOptionsFor(dateInput.value);
+      const d = dateInput.value;
+      rebuildTimeOptionsFor(d);
       if (prev) {
         const stillExists = !!opts.querySelector(`.time-option[data-value="${prev}"]`);
         if (!stillExists) {
@@ -292,6 +301,10 @@
         alert("נא לבחור תאריך ושעה");
         return;
       }
+      // לוג צד לקוח לפני שליחה
+      console.debug("GT: submit reserve", { date: dateVal, time: timeVal, rid: "<%= it.restaurant.id %>" });
+
+      // לשמר פורמט 24h ולהוסיף לשורת ה-query (כמו שהיה)
       const u = new URL(form.action, window.location.origin);
       u.searchParams.set("date", dateVal);
       u.searchParams.set("time", timeVal);
@@ -307,6 +320,7 @@
         return;
       }
       const rid = checkBtn.dataset.rid;
+      console.debug("GT: check availability", { rid, date, time });
       const resp = await fetch(`/api/restaurants/${encodeURIComponent(rid)}/check`, {
         method: "POST",
         headers: { "Accept": "application/json", "Content-Type": "application/json" },
@@ -315,6 +329,7 @@
       const txt = await resp.text();
       let data = null;
       try { data = JSON.parse(txt); } catch {}
+      console.debug("GT: check result", data || txt);
       if (resp.ok && data && data.ok) {
         renderAround([]);
       } else {
@@ -344,6 +359,7 @@
           arr.className = "arrow"; arr.textContent = "▾";
           btn.appendChild(arr);
           card.hidden = true;
+          console.debug("GT: suggestion picked", t);
         };
         box.appendChild(b);
       });

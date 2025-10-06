@@ -3,27 +3,30 @@
   <header class="page-header">
     <h1>הגדרת שעות פתיחה — <%= it.restaurant.name %></h1>
     <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+    <% if (it.saved) { %>
+      <div class="alert" role="status">נשמר בהצלחה.</div>
+    <% } %>
   </header>
 
   <section class="card">
-    <form id="hours-form" class="form-grid" novalidate>
+    <form id="hours-form" class="form-grid" method="post" action="/owner/restaurants/<%= it.restaurant.id %>/hours" novalidate>
       <input type="hidden" id="rid" value="<%= it.restaurant.id %>"/>
 
       <div class="form-row">
         <label for="capacity">קיבולת מקסימלית בו־זמנית</label>
-        <input id="capacity" type="number" min="1" step="1"
+        <input id="capacity" name="capacity" type="number" min="1" step="1"
                value="<%= it.restaurant.capacity %>"/>
       </div>
 
       <div class="form-row">
         <label for="slot">גריד סלוטים (דקות)</label>
-        <input id="slot" type="number" min="5" step="5"
+        <input id="slot" name="slotIntervalMinutes" type="number" min="5" step="5"
                value="<%= it.restaurant.slotIntervalMinutes %>"/>
       </div>
 
       <div class="form-row">
         <label for="duration">משך ישיבה (דקות)</label>
-        <input id="duration" type="number" min="30" step="15"
+        <input id="duration" name="serviceDurationMinutes" type="number" min="30" step="15"
                value="<%= it.restaurant.serviceDurationMinutes %>"/>
       </div>
 
@@ -105,18 +108,18 @@
         <div class="day-head">
           <strong>${label}</strong>
           <label class="chk">
-            <input type="checkbox" class="closed" ${closed ? "checked":""}/>
-            <span>סגור ביום זה</span>
+            <input type="checkbox" class="closed" name="d${dayIdx}_enabled" ${closed ? "" : "checked"}/>
+            <span>פעיל</span>
           </label>
         </div>
         <div class="row">
           <div class="col">
             <label>פתיחה</label>
-            <input class="open" type="time" value="${open}" ${closed?"disabled":""} placeholder="HH:mm"/>
+            <input class="open"  type="time" name="d${dayIdx}_open"  value="${open}"  ${closed?"disabled":""} step="900" placeholder="HH:mm"/>
           </div>
           <div class="col">
             <label>סגירה</label>
-            <input class="close" type="time" value="${close}" ${closed?"disabled":""} placeholder="HH:mm"/>
+            <input class="close" type="time" name="d${dayIdx}_close" value="${close}" ${closed?"disabled":""} step="900" placeholder="HH:mm"/>
           </div>
         </div>
       </div>
@@ -137,11 +140,12 @@
       const open = card.querySelector(".open");
       const close = card.querySelector(".close");
       chk.addEventListener("change", ()=>{
-        const isClosed = chk.checked;
-        open.disabled = close.disabled = isClosed;
+        const enabled = chk.checked;
+        open.disabled = close.disabled = !enabled;
         const day = +card.dataset.day;
-        if (isClosed) {
+        if (!enabled) {
           schedule[day] = null;
+          open.value = ""; close.value = "";
         } else {
           const prev = (schedule[day] && typeof schedule[day]==="object") ? schedule[day] : DEFAULTS[day] || {open:"10:00", close:"22:00"};
           schedule[day] = {
@@ -172,15 +176,13 @@
     // נשתמש בערך של ראשון (או היום הראשון שלא סגור) לכל השבוע
     let base = schedule[0];
     if (base == null) {
-      // חפש יום פתוח אחר
       for (const d of DAYS) {
         if (schedule[d.i] != null) { base = schedule[d.i]; break; }
       }
       if (!base) base = {open:"10:00", close:"22:00"};
     }
     const copy = { open: normHHMM(base.open||"10:00"), close: normHHMM(base.close||"22:00") };
-    const wantClosed = false;
-    for (const d of DAYS) schedule[d.i] = wantClosed ? null : { ...copy };
+    for (const d of DAYS) schedule[d.i] = { ...copy };
     render();
   });
 
@@ -189,46 +191,36 @@
     render();
   });
 
-  // שליחה
-  document.getElementById("hours-form").addEventListener("submit", async (ev)=>{
-    ev.preventDefault();
-
-    // אימות בסיסי לשעות
-    for (const d of DAYS) {
-      const val = schedule[d.i];
-      if (val == null) continue;
-      if (!isHHMM(val.open) || !isHHMM(val.close)) {
-        alert(`שגיאה ביום ${d.he}: אנא הזן שעות בפורמט HH:mm`);
-        return;
+  // שליחה רגילה של הטופס (לא מונעים), אבל עם לוגים מקדימים והבטחת ערכים בשדות ה-name
+  document.getElementById("hours-form").addEventListener("submit", (ev)=>{
+    // הטמעת הערכים לפני השליחה (למקרה שמישהו לא יצא מהשדה)
+    document.querySelectorAll(".day-card").forEach(card=>{
+      const day = +card.dataset.day;
+      const open = card.querySelector(".open");
+      const close = card.querySelector(".close");
+      const enabled = card.querySelector(".closed").checked;
+      if (enabled) {
+        const o = normHHMM(open.value || (schedule[day]?.open||""));
+        const c = normHHMM(close.value|| (schedule[day]?.close||""));
+        open.value = o; close.value = c;
+        schedule[day] = { open:o, close:c };
+      } else {
+        open.value = ""; close.value = "";
+        schedule[day] = null;
       }
-    }
-
-    const rid = document.getElementById("rid").value;
-    const capacity = Math.max(1, parseInt(document.getElementById("capacity").value||"30", 10));
-    const slot = Math.max(5, parseInt(document.getElementById("slot").value||"15", 10));
-    const duration = Math.max(30, parseInt(document.getElementById("duration").value||"120", 10));
-
-    const payload = {
-      weeklySchedule: schedule,
-      capacity,
-      slotIntervalMinutes: slot,
-      serviceDurationMinutes: duration,
-    };
-
-    // שליחה כ-JSON — עדכן את הנתיב אם השתמשת באחר
-    const resp = await fetch(`/owner/restaurants/${encodeURIComponent(rid)}/hours`, {
-      method: "POST",
-      headers: { "Accept":"application/json", "Content-Type":"application/json" },
-      body: JSON.stringify(payload),
     });
 
-    if (resp.ok) {
-      alert("נשמר בהצלחה");
-      location.href = `/restaurants/${encodeURIComponent(rid)}`;
-    } else {
-      const txt = await resp.text().catch(()=> "");
-      alert("שגיאה בשמירה: " + (txt || resp.status));
+    // לוג קליינט מפורט
+    const payloadLog = {};
+    for (const d of DAYS) {
+      const row = schedule[d.i];
+      payloadLog["d"+d.i] = row ? { open: row.open, close: row.close, enabled:true } : { enabled:false };
     }
+    payloadLog.capacity = document.getElementById("capacity").value;
+    payloadLog.slotIntervalMinutes = document.getElementById("slot").value;
+    payloadLog.serviceDurationMinutes = document.getElementById("duration").value;
+    console.debug("GT: owner_hours submit (form/urlencoded)", payloadLog);
+    // לא מונעים שליחה — ה־BE יקבל dX_open/dX_close/dX_enabled + שדות הקיבולת/סלוט/משך
   });
 
   render();
@@ -241,7 +233,6 @@
   .form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
   .form-row{display:flex;flex-direction:column}
   .form-row label{margin-bottom:4px;color:#333;font-weight:500}
-  .form-row input{padding:10px 12px;border:1px solid #cbd5e0;border-radius:6px;font-size:1rem}
   .tools{display:flex;gap:8px;align-items:center}
   .week-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
   .day-card{border:1px solid #e5e7eb;border-radius:8px;padding:12px;background:#fafafa}
@@ -253,7 +244,5 @@
   .btn{padding:10px 16px;border:none;border-radius:6px;background-color:#667eea;color:#fff;cursor:pointer}
   .btn.secondary{background-color:#a0aec0}
   .muted{color:#6b7280}
-  @media (max-width:860px){
-    .form-grid{grid-template-columns:1fr}
-  }
+  @media (max-width:860px){.form-grid{grid-template-columns:1fr}}
 </style>
