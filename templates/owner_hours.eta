@@ -3,10 +3,13 @@
   <header class="page-header">
     <h1>הגדרת שעות פתיחה — <%= it.restaurant.name %></h1>
     <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
-    <% if (it.saved) { %>
-      <div class="alert ok" role="alert">השעות נשמרו בהצלחה.</div>
-    <% } %>
   </header>
+
+  <% if (it.saved) { %>
+    <div class="alert success" role="status" style="background:#e6ffea;border:1px solid #bde5b8;border-radius:8px;padding:10px;margin-bottom:12px">
+      ✓ השעות נשמרו בהצלחה
+    </div>
+  <% } %>
 
   <section class="card">
     <form id="hours-form" class="form-grid" novalidate>
@@ -14,130 +17,217 @@
 
       <div class="form-row">
         <label for="capacity">קיבולת מקסימלית בו־זמנית</label>
-        <input id="capacity" type="number" min="1" step="1" value="<%= it.restaurant.capacity %>"/>
+        <input id="capacity" name="capacity" type="number" min="1" step="1"
+               value="<%= it.restaurant.capacity ?? 20 %>" />
       </div>
 
       <div class="form-row">
-        <label for="slot">גריד סלוטים (דקות)</label>
-        <input id="slot" type="number" min="5" max="180" step="5" value="<%= it.restaurant.slotIntervalMinutes %>"/>
+        <label for="slotIntervalMinutes">גריד סלוטים (דקות)</label>
+        <input id="slotIntervalMinutes" name="slotIntervalMinutes" type="number" min="5" step="5"
+               value="<%= it.restaurant.slotIntervalMinutes ?? 15 %>" />
       </div>
 
-      <h3>שעות לכל יום</h3>
-      <table class="table">
+      <hr style="grid-column:1/-1;border:none;border-top:1px solid #eee;margin:8px 0"/>
+
+      <h3 style="margin:0 0 .5rem;grid-column:1/-1">שעות פתיחה שבועיות (24h)</h3>
+      <p class="muted" style="margin-top:0;grid-column:1/-1">
+        כדי לפתוח יום — בטל/י את הסימון ב״סגור״ או הקלק/י על שדה השעה. פורמט 24h (לדוגמה: 09:00 עד 22:00).
+      </p>
+
+      <table class="table compact" style="width:100%;grid-column:1/-1">
         <thead>
-          <tr><th>יום</th><th>סגור</th><th>מ־</th><th>עד</th></tr>
+          <tr>
+            <th>יום</th>
+            <th>פתיחה</th>
+            <th>סגירה</th>
+            <th style="text-align:center">סגור</th>
+          </tr>
         </thead>
         <tbody>
-          <% for (let d = 0; d < 7; d++) { 
-               const day = it.restaurant.weeklySchedule?.[d];
-               const isClosed = day === null;
-               const first = Array.isArray(day) && day.length ? day[0] : { open: "09:00", close: "22:00" };
+          <% 
+            const dayNames = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
+            let weekly = it.weekly || {};
+            if (typeof weekly === "string") {
+              try { weekly = JSON.parse(weekly); } catch { weekly = {}; }
+            }
+          %>
+          <% for (let d = 0; d < 7; d++) {
+               const row = weekly?.[d] ?? null;
+               const isClosed = row == null;
+               const openVal = !isClosed && row.open ? row.open : "";
+               const closeVal = !isClosed && row.close ? row.close : "";
           %>
           <tr data-day="<%= d %>">
-            <td><%= it.dayLabels[d] %></td>
+            <td><strong><%= dayNames[d] %></strong></td>
             <td>
+              <input type="time" class="open" value="<%= openVal %>" <%= isClosed ? "disabled" : "" %> />
+            </td>
+            <td>
+              <input type="time" class="close" value="<%= closeVal %>" <%= isClosed ? "disabled" : "" %> />
+            </td>
+            <td style="text-align:center">
               <input type="checkbox" class="closed" <%= isClosed ? "checked" : "" %> />
-            </td>
-            <td>
-              <input type="text" class="open" value="<%= isClosed ? "" : first.open %>" placeholder="09:00" pattern="\\d{2}:\\d{2}" />
-            </td>
-            <td>
-              <input type="text" class="close" value="<%= isClosed ? "" : first.close %>" placeholder="22:00" pattern="\\d{2}:\\d{2}" />
             </td>
           </tr>
           <% } %>
         </tbody>
       </table>
 
-      <div class="form-row">
+      <div class="form-actions" style="grid-column:1/-1">
         <button type="submit" class="btn primary">שמירה</button>
+        <a class="btn secondary" href="/owner">חזרה לדשבורד</a>
       </div>
     </form>
   </section>
 </main>
 
 <script>
-(function () {
-  const $ = (sel, root=document) => root.querySelector(sel);
-  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
-  const form = $("#hours-form");
-
-  function toHHMM(s) {
-    if (!s) return null;
-    const t = String(s).trim().replace(".", ":");
-    const m = t.match(/^(\d{1,2}):(\d{2})$/);
-    if (!m) return null;
-    const h = Math.max(0, Math.min(23, Number(m[1])));
-    const mi = Math.max(0, Math.min(59, Number(m[2])));
-    return String(h).padStart(2,"0") + ":" + String(mi).padStart(2,"0");
+(function(){
+  function enableRow(tr, yes) {
+    tr.querySelectorAll("input.open, input.close").forEach(inp => {
+      inp.disabled = !yes;
+      if (yes && !inp.value) {
+        if (inp.classList.contains("open")) inp.value = "09:00";
+        if (inp.classList.contains("close")) inp.value = "22:00";
+      }
+    });
   }
+
+  function toHHmm24(input) {
+    if (!input) return "";
+    const s = String(input).trim();
+    const m24 = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(s);
+    if (m24) return m24[1].padStart(2,"0")+":"+m24[2];
+    const m12 = /^(\d{1,2})(?::([0-5]\d))?\s*([AaPp][Mm])$/.exec(s);
+    if (m12) {
+      let h = parseInt(m12[1],10);
+      const m = (m12[2]??"00").padStart(2,"0");
+      const ampm = m12[3].toUpperCase();
+      if (ampm === "AM") h = (h % 12);
+      else h = (h % 12) + 12;
+      return String(h).padStart(2,"0")+":"+m;
+    }
+    const mh = /^([01]?\d|2[0-3])$/.exec(s);
+    if (mh) return String(mh[1]).padStart(2,"0")+":00";
+    return "";
+  }
+
+  function collectWeeklyHours(tbody) {
+    const rows = tbody.querySelectorAll("tr[data-day]");
+    const out = {};
+    rows.forEach(tr => {
+      const d = parseInt(tr.getAttribute("data-day"), 10);
+      const isClosed = tr.querySelector(".closed").checked;
+      if (isClosed) { out[d] = null; return; }
+      const o = toHHmm24(tr.querySelector(".open").value);
+      const c = toHHmm24(tr.querySelector(".close").value);
+      out[d] = (o && c) ? { open:o, close:c } : null;
+    });
+    return out;
+  }
+
+  const form = document.getElementById("hours-form");
+  const tbody = form.querySelector("tbody");
+
+  tbody.querySelectorAll("tr[data-day]").forEach(tr => {
+    const closed = tr.querySelector(".closed");
+    const openInp = tr.querySelector(".open");
+    const closeInp = tr.querySelector(".close");
+
+    const ensureOpen = () => {
+      if (closed.checked) {
+        closed.checked = false;
+        enableRow(tr, true);
+        if (!openInp.value) openInp.value = "09:00";
+        if (!closeInp.value) closeInp.value = "22:00";
+      }
+    };
+
+    openInp.addEventListener("focus", ensureOpen);
+    closeInp.addEventListener("focus", ensureOpen);
+
+    closed.addEventListener("change", () => {
+      enableRow(tr, !closed.checked);
+      if (closed.checked) {
+        openInp.value = "";
+        closeInp.value = "";
+      } else {
+        if (!openInp.value) openInp.value = "09:00";
+        if (!closeInp.value) closeInp.value = "22:00";
+      }
+    });
+  });
 
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
-    const rid = $("#rid").value;
-    const capacity = Number($("#capacity").value || "0");
-    const slot = Number($("#slot").value || "15");
 
-    const weeklySchedule = {};
-    $$("#hours-form tbody tr").forEach(tr => {
-      const day = Number(tr.getAttribute("data-day"));
-      const closed = tr.querySelector(".closed").checked;
-      const open = toHHMM(tr.querySelector(".open").value);
-      const close = toHHMM(tr.querySelector(".close").value);
+    const rid = document.getElementById("rid").value;
+    const capacity = Math.max(1, parseInt(document.getElementById("capacity").value || "1", 10));
+    const slotIntervalMinutes = Math.max(5, parseInt(document.getElementById("slotIntervalMinutes").value || "15", 10));
+    const weeklySchedule = collectWeeklyHours(tbody);
 
-      if (closed) {
-        weeklySchedule[day] = null;         // סגור מפורש
-      } else {
-        if (open && close) {
-          weeklySchedule[day] = { closed: false, ranges: [{ open, close }] };
-        } else {
-          // לא נשלח את היום בכלל → השרת לא ישנה אותו
-        }
-      }
-    });
+    console.log("[hours-form] submitting:", { rid, capacity, slotIntervalMinutes, weeklySchedule });
 
-    const payload = {
-      capacity,
-      slotIntervalMinutes: slot,
-      weeklySchedule
-    };
-
-    // לוג דיבוג בצד לקוח (כמו שהצגת)
-    try { console.debug("payload", payload); } catch {}
-
-    // שליחה ב-JSON תקני
     try {
       const res = await fetch(`/owner/restaurants/${encodeURIComponent(rid)}/hours`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify(payload)
+        headers: { "Content-Type": "application/json", "Accept":"application/json" },
+        body: JSON.stringify({ capacity, slotIntervalMinutes, weeklySchedule }),
       });
-      if (res.ok) {
-        // ננווט עם saved=1 כדי שתראה הודעת הצלחה
-        location.href = `/owner/restaurants/${encodeURIComponent(rid)}/hours?saved=1`;
+
+      if (!res.ok) {
+        const txt = await res.text().catch(()=> "");
+        console.error("[hours-form] failed:", res.status, txt);
+        alert("שמירה נכשלה: " + res.status + "\n" + txt);
         return;
       }
-    } catch (e) {
-      console.warn("fetch failed, falling back to standard submit", e);
-    }
 
-    // נפילה ל-submit רגיל אם fetch נכשל (נייצר שדות חבויים מהאובייקט)
-    const tmp = document.createElement("form");
-    tmp.method = "POST";
-    tmp.action = `/owner/restaurants/${encodeURIComponent(rid)}/hours`;
-    const inp = document.createElement("input");
-    inp.type = "hidden";
-    inp.name = "weeklySchedule";
-    inp.value = JSON.stringify(weeklySchedule);
-    tmp.appendChild(inp);
-    const cap = document.createElement("input");
-    cap.type = "hidden"; cap.name = "capacity"; cap.value = String(capacity);
-    tmp.appendChild(cap);
-    const sl = document.createElement("input");
-    sl.type = "hidden"; sl.name = "slotIntervalMinutes"; sl.value = String(slot);
-    tmp.appendChild(sl);
-    document.body.appendChild(tmp);
-    tmp.submit();
+      const contentType = res.headers.get("content-type") || "";
+      
+      if (contentType.includes("application/json")) {
+        try {
+          const data = await res.json();
+          console.log("[hours-form] success:", data);
+          if (data.ok) {
+            alert("שעות נשמרו בהצלחה!");
+            location.assign(`/owner/restaurants/${encodeURIComponent(rid)}/hours?saved=1`);
+          } else {
+            alert("שמירה נכשלה: " + (data.error || "שגיאה לא ידועה"));
+          }
+        } catch (e) {
+          console.error("[hours-form] parse error:", e);
+          alert("שגיאה בקריאת תגובת השרת");
+        }
+      } else {
+        console.log("[hours-form] non-JSON response, assuming success");
+        alert("שעות נשמרו בהצלחה!");
+        location.assign(`/owner/restaurants/${encodeURIComponent(rid)}/hours?saved=1`);
+      }
+    } catch (e) {
+      console.error("[hours-form] network error:", e);
+      alert("שמירה נכשלה (רשת/שרת).");
+    }
   });
 })();
 </script>
+
+<style>
+.container{max-width:1000px;margin:0 auto;padding:0 16px}
+.card{border:1px solid #eee;border-radius:12px;padding:16px;margin:12px 0}
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.form-row{display:flex;flex-direction:column}
+.form-row label{margin-bottom:4px;font-weight:600}
+.form-row input{padding:8px 10px;border:1px solid #ccc;border-radius:8px;font-size:1rem}
+.table.compact{border-collapse:collapse}
+.table.compact th,.table.compact td{padding:.45rem .5rem;border-bottom:1px solid #eee}
+.table.compact input[type="time"]{width:8.5rem;max-width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:6px}
+.form-actions{display:flex;gap:.5rem;align-items:center;margin-top:12px}
+.btn{display:inline-block;background:#111;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;text-decoration:none}
+.btn:hover{background:#333}
+.btn.primary{background:#0b6}
+.btn.primary:hover{background:#0a5}
+.btn.secondary{background:#555}
+.btn.secondary:hover{background:#666}
+.muted{color:#777;font-size:.9rem}
+@media (max-width:760px){.form-grid{grid-template-columns:1fr}}
+</style>
