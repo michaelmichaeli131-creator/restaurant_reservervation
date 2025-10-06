@@ -268,43 +268,42 @@ app.use(root.routes());
 app.use(root.allowedMethods());
 
 // -------------------- FEATURE ROUTERS (ordered, no duplicates) --------------------
+// -------------------- FEATURE ROUTERS (ordered, no duplicates) --------------------
+
+// לוג לכל בקשה (debug)
+app.use(async (ctx, next) => {
+  console.log(`[DEBUG] incoming: ${ctx.request.method} ${ctx.request.url.pathname}`);
+  await next();
+});
+
 // אימות/משתמשים
 app.use(authRouter.routes());
 app.use(authRouter.allowedMethods());
 
-// ראוטרים ציבוריים של מסעדות
-app.use(restaurantsRouter.routes());
-app.use(restaurantsRouter.allowedMethods());
+// אדמין
+app.use(adminRouter.routes());
+app.use(adminRouter.allowedMethods());
 
-// ראוטרים לבעלים
-app.use(ownerRouter.routes());
-app.use(ownerRouter.allowedMethods());
-
-// יכולות בעלים נוספות (capacity/config)
-app.use(ownerCapacityRouter.routes());
-app.use(ownerCapacityRouter.allowedMethods());
-
-// מסכי ניהול כלליים לבעלים
-app.use(ownerManageRouter.routes());
-app.use(ownerManageRouter.allowedMethods());
-
-// מסך שעות פתיחה לבעלים (הלב של הבאג שתוקן)
+// ראוטרים לבעלים - הספציפיים ביותר קודם!
 app.use(ownerHoursRouter.routes());
 app.use(ownerHoursRouter.allowedMethods());
 
-// ראוטר שורש נוסף מהפרויקט (עמודים נוספים)
+app.use(ownerCapacityRouter.routes());
+app.use(ownerCapacityRouter.allowedMethods());
+
+app.use(ownerManageRouter.routes());
+app.use(ownerManageRouter.allowedMethods());
+
+app.use(ownerRouter.routes());
+app.use(ownerRouter.allowedMethods());
+
+// ראוטרים ציבוריים של מסעדות - אחרון כי הכי כללי
+app.use(restaurantsRouter.routes());
+app.use(restaurantsRouter.allowedMethods());
+
+// ראוטר שורש נוסף
 app.use(rootRouter.routes());
 app.use(rootRouter.allowedMethods());
-
-// --- OPTIONS (כללי) ---
-app.use(async (ctx, next) => {
-  if (ctx.request.method === "OPTIONS") {
-    ctx.response.status = Status.NoContent;
-    return;
-  }
-  await next();
-});
-
 // --- 404 (כללי) ---
 app.use((ctx) => {
   if (ctx.response.body == null) {
