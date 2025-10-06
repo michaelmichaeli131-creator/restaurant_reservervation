@@ -27,6 +27,7 @@ await render(ctx, "owner_photos.eta", {
   page: "owner_photos",
   restaurant: r,
 });
+});
 
 // ---------------- POST (UPLOAD IMAGE) ----------------
 ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
