@@ -22,11 +22,10 @@ ownerPhotosRouter.get("/owner/restaurants/:id/photos", async (ctx) => {
     return;
   }
 
-  await ctx.render("owner_photos.eta", {
-    title: `תמונות — ${r.name}`,
-    restaurant: r,
-    page: "owner_photos",
-  });
+await render(ctx, "owner_photos.eta", {
+  title: `תמונות — ${r.name}`,
+  page: "owner_photos",
+  restaurant: r,
 });
 
 // ---------------- POST (UPLOAD IMAGE) ----------------
