@@ -1,4 +1,3 @@
-<!-- src/templates/owner_hours.eta -->
 <% layout("_layout", it) %>
 <main class="container">
   <header class="page-header">
@@ -15,28 +14,33 @@
 
       <div class="form-row">
         <label for="capacity">קיבולת מקסימלית בו־זמנית</label>
-        <input id="capacity" name="capacity" type="number" min="1" step="1" value="<%= it.restaurant.capacity %>"/>
+        <input id="capacity" name="capacity" type="number" min="1" step="1"
+               value="<%= it.restaurant.capacity %>"/>
       </div>
 
       <div class="form-row">
-        <label for="slot">גריד (דקות לכל סלוט)</label>
-        <input id="slot" name="slotIntervalMinutes" type="number" min="5" step="5" value="<%= it.restaurant.slotIntervalMinutes %>"/>
+        <label for="slot">גריד סלוטים (דקות)</label>
+        <input id="slot" name="slotIntervalMinutes" type="number" min="5" step="5"
+               value="<%= it.restaurant.slotIntervalMinutes %>"/>
       </div>
 
       <div class="form-row">
         <label for="duration">משך ישיבה (דקות)</label>
-        <input id="duration" name="serviceDurationMinutes" type="number" min="30" step="15" value="<%= it.restaurant.serviceDurationMinutes %>"/>
+        <input id="duration" name="serviceDurationMinutes" type="number" min="30" step="15"
+               value="<%= it.restaurant.serviceDurationMinutes %>"/>
       </div>
 
       <div class="form-row" style="grid-column:1/-1">
         <div class="tools">
-          <button class="btn secondary" type="button" id="fill-week">העתק לכל השבוע</button>
+          <button class="btn secondary" type="button" id="fill-week">העתק לכל הימים</button>
           <button class="btn secondary" type="button" id="reset-defaults">אפס לברירת מחדל</button>
           <span class="muted" style="margin-inline-start:8px">פורמט שעה: HH:mm</span>
         </div>
       </div>
 
-      <div class="week-grid" style="grid-column:1/-1"></div>
+      <div class="week-grid" style="grid-column:1/-1">
+        <!-- ימולא דינמית -->
+      </div>
 
       <div class="form-actions" style="grid-column:1/-1">
         <button type="submit" class="btn">שמור</button>
@@ -46,46 +50,65 @@
   </section>
 </main>
 
+<script id="existing-schedule" type="application/json">
+<%- JSON.stringify(it.restaurant.weeklySchedule || null) %>
+</script>
+
 <script>
 (function(){
   const pad2 = (n)=>String(n).padStart(2,"0");
+  const isHHMM = (s)=>/^\d{1,2}:\d{2}$/.test(s);
   const normHHMM = (s)=>{
     s = String(s||"").trim();
     if (!s) return "";
     if (/^\d{1,2}\.\d{2}$/.test(s)) s = s.replace(".",":");
     const m = s.match(/^(\d{1,2}):(\d{2})$/);
-    if (!m) return "";
+    if (!m) return s;
     let h = Math.max(0, Math.min(23, +m[1]));
     let mi = Math.max(0, Math.min(59, +m[2]));
     return pad2(h)+":"+pad2(mi);
   };
 
   const DAYS = [
-    { i:0, he:"ראשון" }, { i:1, he:"שני" }, { i:2, he:"שלישי" },
-    { i:3, he:"רביעי" }, { i:4, he:"חמישי"}, { i:5, he:"שישי" },
-    { i:6, he:"שבת" }
+    {i:0, he:"א׳ (ראשון)"},
+    {i:1, he:"ב׳ (שני)"},
+    {i:2, he:"ג׳ (שלישי)"},
+    {i:3, he:"ד׳ (רביעי)"},
+    {i:4, he:"ה׳ (חמישי)"},
+    {i:5, he:"ו׳ (שישי)"},
+    {i:6, he:"ש׳ (שבת)"},
   ];
 
-  // מצב התחלתי מהשרת:
-  const initial = <%- JSON.stringify(it.weekly || {}, null, 2) %>;
-  const schedule = {};
-  for (const d of DAYS) {
-    const v = initial[d.i] || null;
-    schedule[d.i] = (v && v.open && v.close) ? { open:v.open, close:v.close } : null;
-  }
+  const DEFAULTS = {
+    0:{open:"10:00", close:"22:00"},
+    1:{open:"10:00", close:"22:00"},
+    2:{open:"10:00", close:"22:00"},
+    3:{open:"10:00", close:"22:00"},
+    4:{open:"10:00", close:"22:00"},
+    5:{open:"10:00", close:"23:00"},
+    6:{open:"10:00", close:"23:00"},
+  };
+
+  let schedule = null;
+  try {
+    schedule = JSON.parse(document.getElementById("existing-schedule").textContent || "null");
+  } catch { schedule = null; }
+
+  // אם אין schedule שמור — נתחיל מברירת מחדל
+  schedule = schedule && typeof schedule === "object" ? schedule : DEFAULTS;
 
   const weekGrid = document.querySelector(".week-grid");
 
-  function rowTemplate(dayIdx, label, value){
-    const closed = !value;
-    const open  = !closed ? (value.open||"") : "";
+  function rowTemplate(dayIdx, label, value) {
+    const closed = value == null;
+    const open = !closed ? (value.open||"") : "";
     const close = !closed ? (value.close||"") : "";
     return `
       <div class="day-card" data-day="${dayIdx}">
         <div class="day-head">
           <strong>${label}</strong>
           <label class="chk">
-            <input type="checkbox" class="enabled" name="d${dayIdx}_enabled" ${closed ? "" : "checked"}/>
+            <input type="checkbox" class="closed" name="d${dayIdx}_enabled" ${closed ? "" : "checked"}/>
             <span>פעיל</span>
           </label>
         </div>
@@ -108,95 +131,96 @@
       const val = Object.prototype.hasOwnProperty.call(schedule, d.i) ? schedule[d.i] : null;
       return rowTemplate(d.i, d.he, val);
     }).join("");
+    bindDayHandlers();
+  }
 
-    // חבר אירועים:
-    document.querySelectorAll(".day-card").forEach(card=>{
-      const enabled = card.querySelector(".enabled");
-      const open    = card.querySelector(".open");
-      const close   = card.querySelector(".close");
-
-      function setEnabled(on){
-        enabled.checked = !!on;
-        open.disabled = !on;
-        close.disabled = !on;
-        if (on) {
-          const o = normHHMM(open.value) || "10:00";
-          const c = normHHMM(close.value) || "22:00";
-          schedule[+card.dataset.day] = { open:o, close:c };
-          open.value = o; close.value = c;
-        } else {
-          schedule[+card.dataset.day] = null;
+  function bindDayHandlers() {
+    weekGrid.querySelectorAll(".day-card").forEach(card=>{
+      const chk = card.querySelector(".closed");
+      const open = card.querySelector(".open");
+      const close = card.querySelector(".close");
+      chk.addEventListener("change", ()=>{
+        const enabled = chk.checked;
+        open.disabled = close.disabled = !enabled;
+        const day = +card.dataset.day;
+        if (!enabled) {
+          schedule[day] = null;
           open.value = ""; close.value = "";
+        } else {
+          const prev = (schedule[day] && typeof schedule[day]==="object") ? schedule[day] : DEFAULTS[day] || {open:"10:00", close:"22:00"};
+          schedule[day] = {
+            open: normHHMM(open.value || prev.open || "10:00"),
+            close: normHHMM(close.value || prev.close || "22:00"),
+          };
+          open.value = schedule[day].open;
+          close.value = schedule[day].close;
         }
-      }
-
-      enabled.addEventListener("change", ()=> setEnabled(enabled.checked));
-
-      // הקלדה בשעת פתיחה/סגירה מפעילה אוטומטית את היום
-      function autoEnableFromInput(inp){
-        const v = normHHMM(inp.value);
-        if (v) {
-          if (!enabled.checked) setEnabled(true);
-          const day = +card.dataset.day;
-          if (!schedule[day]) schedule[day] = { open:"10:00", close:"22:00" };
-          if (inp === open)  schedule[day].open  = v;
-          if (inp === close) schedule[day].close = v;
-          inp.value = v;
-        }
-      }
-      open.addEventListener("input", ()=> autoEnableFromInput(open));
-      close.addEventListener("input", ()=> autoEnableFromInput(close));
-
+      });
       open.addEventListener("change", ()=>{
         const day = +card.dataset.day;
         if (!schedule[day]) schedule[day] = {open:"10:00", close:"22:00"};
-        schedule[day].open = normHHMM(open.value) || "10:00";
+        schedule[day].open = normHHMM(open.value);
         open.value = schedule[day].open;
       });
       close.addEventListener("change", ()=>{
         const day = +card.dataset.day;
         if (!schedule[day]) schedule[day] = {open:"10:00", close:"22:00"};
-        schedule[day].close = normHHMM(close.value) || "22:00";
+        schedule[day].close = normHHMM(close.value);
         close.value = schedule[day].close;
       });
     });
   }
 
-  // כלים:
+  // כלים כלליים
   document.getElementById("fill-week").addEventListener("click", ()=>{
+    // נשתמש בערך של ראשון (או היום הראשון שלא סגור) לכל השבוע
     let base = schedule[0];
     if (base == null) {
-      for (const d of DAYS) { if (schedule[d.i] != null) { base = schedule[d.i]; break; } }
+      for (const d of DAYS) {
+        if (schedule[d.i] != null) { base = schedule[d.i]; break; }
+      }
+      if (!base) base = {open:"10:00", close:"22:00"};
     }
-    if (!base) base = { open:"10:00", close:"22:00" };
-    const copy = { open: normHHMM(base.open)||"10:00", close: normHHMM(base.close)||"22:00" };
+    const copy = { open: normHHMM(base.open||"10:00"), close: normHHMM(base.close||"22:00") };
     for (const d of DAYS) schedule[d.i] = { ...copy };
     render();
   });
 
   document.getElementById("reset-defaults").addEventListener("click", ()=>{
-    for (const d of DAYS) schedule[d.i] = null;
+    schedule = JSON.parse(JSON.stringify(DEFAULTS));
     render();
   });
 
-  // שליחה: ודא ששום קלט קריטי לא נשאר disabled ושיש enabled=on לכל יום פעיל
-  const form = document.getElementById("hours-form");
-  form.addEventListener("submit", ()=>{
+  // שליחה רגילה של הטופס (לא מונעים), אבל עם לוגים מקדימים והבטחת ערכים בשדות ה-name
+  document.getElementById("hours-form").addEventListener("submit", (ev)=>{
+    // הטמעת הערכים לפני השליחה (למקרה שמישהו לא יצא מהשדה)
     document.querySelectorAll(".day-card").forEach(card=>{
-      const enabled = card.querySelector(".enabled");
-      const open    = card.querySelector(".open");
-      const close   = card.querySelector(".close");
-      if (enabled.checked) { open.disabled = false; close.disabled = false; }
-      const d = +card.dataset.day;
-      const has = card.querySelector(`input[type="hidden"][name="d${d}_enabled"]`);
-      if (enabled.checked && !has) {
-        const hidden = document.createElement("input");
-        hidden.type = "hidden";
-        hidden.name = `d${d}_enabled`;
-        hidden.value = "on";
-        card.appendChild(hidden);
+      const day = +card.dataset.day;
+      const open = card.querySelector(".open");
+      const close = card.querySelector(".close");
+      const enabled = card.querySelector(".closed").checked;
+      if (enabled) {
+        const o = normHHMM(open.value || (schedule[day]?.open||""));
+        const c = normHHMM(close.value|| (schedule[day]?.close||""));
+        open.value = o; close.value = c;
+        schedule[day] = { open:o, close:c };
+      } else {
+        open.value = ""; close.value = "";
+        schedule[day] = null;
       }
     });
+
+    // לוג קליינט מפורט
+    const payloadLog = {};
+    for (const d of DAYS) {
+      const row = schedule[d.i];
+      payloadLog["d"+d.i] = row ? { open: row.open, close: row.close, enabled:true } : { enabled:false };
+    }
+    payloadLog.capacity = document.getElementById("capacity").value;
+    payloadLog.slotIntervalMinutes = document.getElementById("slot").value;
+    payloadLog.serviceDurationMinutes = document.getElementById("duration").value;
+    console.debug("GT: owner_hours submit (form/urlencoded)", payloadLog);
+    // לא מונעים שליחה — ה־BE יקבל dX_open/dX_close/dX_enabled + שדות הקיבולת/סלוט/משך
   });
 
   render();
@@ -204,7 +228,10 @@
 </script>
 
 <style>
-  .form-grid{display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:16px}
+  .container{max-width:960px;margin:24px auto;padding:0 16px}
+  .card{border:1px solid #e2e8f0;border-radius:10px;padding:20px;margin-bottom:24px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.05)}
+  .form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .form-row{display:flex;flex-direction:column}
   .form-row label{margin-bottom:4px;color:#333;font-weight:500}
   .tools{display:flex;gap:8px;align-items:center}
   .week-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
