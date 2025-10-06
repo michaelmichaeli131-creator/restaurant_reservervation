@@ -7,7 +7,7 @@ import { getRestaurant, updateRestaurant } from "../database.ts";
 import { requireOwner } from "../lib/auth.ts";
 import { debugLog } from "../lib/debug.ts";
 // שימוש במקודד Base64 מה-std של Deno — לא יוצר מחרוזות ענקיות ב-apply/charCode
-import { encode as base64Encode } from "jsr:@std/encoding/base64";
+import { Base64 } from "jsr:@std/encoding/base64";
 
 type PhotoItem = { id: string; dataUrl: string; alt?: string };
 
@@ -127,7 +127,7 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
   }
 
   try {
-    const base64 = toBase64(bytes); // שימוש במקודד std אמין
+const base64 = Base64.encode(bytes);
     const dataUrl = `data:${contentType};base64,${base64}`;
 
     const pid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
