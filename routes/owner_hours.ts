@@ -1,6 +1,6 @@
 // src/routes/owner_hours.ts
 // ניהול שעות פתיחה שבועיות למסעדה — בעלים בלבד
-// שיפור עוקף-פרסרים: שמירה ב-GET (/hours/save) דרך url.searchParams
+// ארכיטקטורה: שמירה ב-GET (/hours/save) דרך url.searchParams
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -108,13 +108,24 @@ ownerHoursRouter.get("/owner/restaurants/:id/hours/save", async (ctx) => {
 
   const patch: Partial<typeof r> = {};
 
+  // קיבולת (נשאיר בעמוד זה, אם לא רוצים להסיר)
   if (sp.has("capacity")) {
     const n = Number(sp.get("capacity"));
     if (Number.isFinite(n) && n > 0) patch.capacity = Math.floor(n);
   }
+  // גריד סלוטים (דקות)
   if (sp.has("slotIntervalMinutes")) {
     const s = Number(sp.get("slotIntervalMinutes"));
-    if (Number.isFinite(s) && s >= 5 && s <= 180) patch.slotIntervalMinutes = Math.floor(s);
+    if (Number.isFinite(s) && s >= 5 && s <= 180) {
+      patch.slotIntervalMinutes = Math.floor(s);
+    }
+  }
+  // משך ישיבה (דקות) — הועבר לעמוד זה
+  if (sp.has("serviceDurationMinutes")) {
+    const d = Number(sp.get("serviceDurationMinutes"));
+    if (Number.isFinite(d) && d >= 15 && d <= 240) {
+      patch.serviceDurationMinutes = Math.floor(d);
+    }
   }
 
   const weekly = buildWeeklyFromParams(sp);
@@ -128,9 +139,8 @@ ownerHoursRouter.get("/owner/restaurants/:id/hours/save", async (ctx) => {
   ctx.response.headers.set("Location", `/owner/restaurants/${encodeURIComponent(id)}/hours?saved=1`);
 });
 
-// ---------- POST (נשאר למי שמעדיף) ----------
+// ---------- POST (תאימות לאחור) ----------
 ownerHoursRouter.post("/owner/restaurants/:id/hours", async (ctx) => {
-  // נשאיר התאמה לאחור: פשוט נעביר לנתיב ה-GET עם אותם פרמטרים אם יש query (או נפנה חזרה לדף)
   const id = ctx.params.id!;
   const sp = ctx.request.url.searchParams;
   ctx.response.status = Status.SeeOther;

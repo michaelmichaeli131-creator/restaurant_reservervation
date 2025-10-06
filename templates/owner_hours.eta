@@ -12,24 +12,39 @@
   <% } %>
 
   <section class="card">
+    <!-- שמירה ב-GET כדי לעקוף פרסינג גוף -->
     <form class="form-grid" action="/owner/restaurants/<%= it.restaurant.id %>/hours/save" method="get" novalidate>
       <div class="form-row">
         <label for="capacity">קיבולת מקסימלית בו־זמנית</label>
         <input id="capacity" name="capacity" type="number" min="1" step="1"
-               value="<%= it.restaurant.capacity ?? 20 %>" />
+               value="<%= typeof it.restaurant.capacity === 'number' ? it.restaurant.capacity : 20 %>" />
       </div>
 
       <div class="form-row">
         <label for="slotIntervalMinutes">גריד סלוטים (דקות)</label>
         <input id="slotIntervalMinutes" name="slotIntervalMinutes" type="number" min="5" max="180" step="5"
-               value="<%= it.restaurant.slotIntervalMinutes ?? 15 %>" />
+               value="<%= typeof it.restaurant.slotIntervalMinutes === 'number' ? it.restaurant.slotIntervalMinutes : 15 %>" />
+      </div>
+
+      <div class="form-row">
+        <label for="serviceDurationMinutes">משך ישיבה (דקות)</label>
+        <select id="serviceDurationMinutes" name="serviceDurationMinutes">
+          <% 
+            const d = it.restaurant.serviceDurationMinutes ?? 90;
+            const opts = [30,45,60,75,90,105,120,135,150,165,180,195,210,225,240];
+            function sel(x){ return x === d ? "selected" : ""; }
+          %>
+          <% for (const x of opts) { %>
+            <option value="<%= x %>" <%= sel(x) %>><%= x %> דק'</option>
+          <% } %>
+        </select>
       </div>
 
       <hr style="grid-column:1/-1;border:none;border-top:1px solid #eee;margin:8px 0"/>
 
       <h3 style="margin:0 0 .5rem;grid-column:1/-1">שעות פתיחה שבועיות (24h)</h3>
       <p class="muted" style="margin-top:0;grid-column:1/-1">
-        ניתן לבחור שעות במרווחים של 15 דקות. כדי לפתוח יום — בטלו את הסימון ב״סגור״.
+        בחרו שעות במרווחים של 15 דקות. כדי לסגור יום — סמנו "סגור".
       </p>
 
       <%
@@ -40,7 +55,6 @@
           const oh = it.restaurant && it.restaurant.openingHours ? it.restaurant.openingHours[d] : undefined;
           return oh;
         }
-
         const timeOptions = [];
         for (let h=0; h<24; h++) {
           for (let m=0; m<60; m+=15) {
@@ -100,20 +114,20 @@
 
 <script>
 (function(){
-  document.querySelectorAll('tr[data-day]').forEach(tr=>{
-    const chk = tr.querySelector('.closed');
-    const openSel = tr.querySelector('.open');
-    const closeSel = tr.querySelector('.close');
-    chk.addEventListener('change',()=>{
-      const dis = chk.checked;
+  document.querySelectorAll('tr[data-day]').forEach(function(tr){
+    var chk = tr.querySelector('.closed');
+    var openSel = tr.querySelector('.open');
+    var closeSel = tr.querySelector('.close');
+    chk.addEventListener('change', function(){
+      var dis = chk.checked;
       openSel.disabled = dis;
       closeSel.disabled = dis;
-      if(dis){ openSel.value = ""; closeSel.value = ""; }
+      if (dis) { openSel.value = ""; closeSel.value = ""; }
       else {
-        if(!openSel.value) openSel.value="09:00";
-        if(!closeSel.value) closeSel.value="22:00";
+        if (!openSel.value) openSel.value = "09:00";
+        if (!closeSel.value) closeSel.value = "22:00";
       }
-    });
+    }, { passive: true });
   });
 })();
 </script>
@@ -124,7 +138,7 @@
 .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 .form-row{display:flex;flex-direction:column}
 .form-row label{margin-bottom:4px;font-weight:600}
-.form-row input{padding:8px 10px;border:1px solid #ccc;border-radius:8px;font-size:1rem}
+.form-row input, .form-row select{padding:8px 10px;border:1px solid #ccc;border-radius:8px;font-size:1rem}
 .table.compact{border-collapse:collapse}
 .table.compact th,.table.compact td{padding:.45rem .5rem;border-bottom:1px solid #eee;text-align:center}
 .table.compact select{padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:0.95rem}
