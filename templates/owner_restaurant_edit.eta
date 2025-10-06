@@ -1,52 +1,190 @@
 <% layout("_layout", it) %>
 
-<section class="card" style="max-width:820px;margin:24px auto">
-  <header class="page-header">
-    <h1 style="margin:0 0 8px">עריכת פרטי המסעדה — <%= it.restaurant.name %></h1>
-    <% if (it.saved) { %>
-      <div class="alert success" role="status">הפרטים נשמרו</div>
-    <% } %>
+<main class="container" style="max-width:980px;margin:24px auto">
+  <header class="page-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div>
+      <h1 style="margin:0 0 8px">עריכת פרטי המסעדה — <%= it.restaurant.name %></h1>
+      <p class="muted" style="margin:0"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+    </div>
+    <a class="btn" href="/owner">חזרה לדשבורד</a>
   </header>
 
-  <!-- שמירה ב-GET ל-/edit/save כדי לעקוף קריאת גוף -->
-  <form action="/owner/restaurants/<%= it.restaurant.id %>/edit/save" method="get" class="form-grid" novalidate>
-    <div class="form-row">
-      <label for="name">שם</label>
-      <input id="name" name="name" value="<%= it.restaurant.name %>" required />
+  <% if (it.saved) { %>
+    <div class="alert success" role="status" style="background:#e6ffea;border:1px solid #bde5b8;border-radius:8px;padding:10px;margin-bottom:12px">
+      ✓ הפרטים נשמרו
     </div>
-    <div class="form-row">
-      <label for="city">עיר</label>
-      <input id="city" name="city" value="<%= it.restaurant.city %>" required />
-    </div>
-    <div class="form-row">
-      <label for="address">כתובת</label>
-      <input id="address" name="address" value="<%= it.restaurant.address %>" required />
-    </div>
-    <div class="form-row">
-      <label for="phone">טלפון</label>
-      <input id="phone" name="phone" value="<%= it.restaurant.phone || "" %>" />
-    </div>
-    <div class="form-row" style="grid-column:1/-1">
-      <label for="description">תיאור (אופציונלי)</label>
-      <textarea id="description" name="description" rows="4" style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:8px"><%= it.restaurant.description || "" %></textarea>
+  <% } %>
+
+  <section class="card" style="margin-bottom:16px">
+    <!-- שמירה ב-GET ל-/edit/save כדי לעקוף קריאת גוף -->
+    <form action="/owner/restaurants/<%= it.restaurant.id %>/edit/save" method="get" class="form-grid" novalidate>
+      <div class="form-row">
+        <label for="name">שם</label>
+        <input id="name" name="name" value="<%= it.restaurant.name %>" required />
+      </div>
+      <div class="form-row">
+        <label for="city">עיר</label>
+        <input id="city" name="city" value="<%= it.restaurant.city %>" required />
+      </div>
+      <div class="form-row">
+        <label for="address">כתובת</label>
+        <input id="address" name="address" value="<%= it.restaurant.address %>" required />
+      </div>
+      <div class="form-row">
+        <label for="phone">טלפון</label>
+        <input id="phone" name="phone" value="<%= it.restaurant.phone || "" %>" />
+      </div>
+      <div class="form-row" style="grid-column:1/-1">
+        <label for="description">תיאור (אופציונלי)</label>
+        <textarea id="description" name="description" rows="4" style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:8px"><%= it.restaurant.description || "" %></textarea>
+      </div>
+
+      <div style="grid-column:1/-1;display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn primary" type="submit">שמור</button>
+        <a class="btn" href="/owner/restaurants/<%= it.restaurant.id %>/hours">שעות פתיחה</a>
+      </div>
+    </form>
+  </section>
+
+  <!-- ניהול תמונות ישירות מתוך מסך העריכה -->
+  <section class="card">
+    <h3 style="margin-top:0">תמונות המסעדה</h3>
+    <p class="muted" style="margin-top:0">העלאת JPG/PNG/WebP (עד ~1.8MB לקובץ).</p>
+
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple>
+      <button id="upload-btn" class="btn primary" type="button">העלה</button>
     </div>
 
-    <div style="grid-column:1/-1;display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
-      <button class="btn primary" type="submit">שמור</button>
-      <a class="btn" href="/owner">חזרה לדשבורד</a>
-      <a class="btn" href="/owner/restaurants/<%= it.restaurant.id %>/hours">שעות פתיחה</a>
-      <!-- הוסר: קישור לקיבולת/גריד -->
-    </div>
-  </form>
-</section>
+    <div id="preview" class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px"></div>
+
+    <hr style="margin:16px 0;border:none;border-top:1px solid #eee">
+
+    <h4 style="margin:0 0 8px">גלריה</h4>
+    <% 
+      const photos = Array.isArray(it.restaurant.photos) ? it.restaurant.photos : [];
+    %>
+    <% if (!photos.length) { %>
+      <p class="muted">אין עדיין תמונות.</p>
+    <% } else { %>
+      <div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
+        <% photos.forEach(function(p){ %>
+          <figure class="photo-card" data-id="<%= p.id %>" style="border:1px solid #eee;border-radius:10px;padding:8px">
+            <img src="<%= p.dataUrl %>" alt="<%= p.alt || it.restaurant.name %>" style="width:100%;height:120px;object-fit:cover;border-radius:6px">
+            <figcaption style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+              <input class="alt-edit" value="<%= p.alt || '' %>" placeholder="כיתוב" style="flex:1;min-width:0;margin-inline-end:8px;padding:6px;border:1px solid #ccc;border-radius:6px">
+              <button class="btn btn-danger btn-sm delete-btn" data-id="<%= p.id %>" type="button">מחיקה</button>
+            </figcaption>
+          </figure>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+</main>
+
+<script>
+(function(){
+  var rid = "<%= it.restaurant.id %>";
+  var fileInput = document.getElementById('file-input');
+  var uploadBtn = document.getElementById('upload-btn');
+  var preview = document.getElementById('preview');
+
+  function readFileAsDataURL(file) {
+    return new Promise(function(resolve, reject){
+      var fr = new FileReader();
+      fr.onload = function(){ resolve(fr.result); };
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
+    });
+  }
+
+  fileInput.addEventListener('change', async function(){
+    preview.innerHTML = '';
+    var files = Array.from(fileInput.files || []);
+    for (var i=0; i<files.length; i++) {
+      var f = files[i];
+      var url = URL.createObjectURL(f);
+      var div = document.createElement('div');
+      div.style.border = "1px solid #eee";
+      div.style.borderRadius = "8px";
+      div.style.padding = "6px";
+      div.innerHTML = '<img style="width:100%;height:120px;object-fit:cover;border-radius:6px" src="'+url+'"><input class="alt" placeholder="כיתוב לתמונה" style="margin-top:6px;width:100%;padding:6px;border:1px solid #ccc;border-radius:6px">';
+      preview.appendChild(div);
+    }
+  });
+
+  uploadBtn.addEventListener('click', async function(){
+    var files = Array.from(fileInput.files || []);
+    if (!files.length) { alert('לא נבחרו קבצים'); return; }
+
+    var images = [];
+    var cards = Array.from(preview.children);
+    for (var i=0; i<files.length; i++) {
+      var f = files[i];
+      if (f.size > (1.8 * 1024 * 1024)) { continue; } // ~1.8MB
+      var dataUrl = await readFileAsDataURL(f);
+      var alt = cards[i]?.querySelector('.alt')?.value || '';
+      images.push({ dataUrl: dataUrl, alt: alt });
+    }
+    if (!images.length) { alert('הקבצים גדולים מדי או לא תקינים'); return; }
+
+    try {
+      var res = await fetch('/owner/restaurants/'+encodeURIComponent(rid)+'/photos/upload', {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept":"application/json" },
+        body: JSON.stringify({ images: images }),
+      });
+      if (!res.ok) {
+        var txt = await res.text().catch(function(){ return ""; });
+        alert('העלאה נכשלה: ' + res.status + '\n' + txt);
+        return;
+      }
+      var data = await res.json();
+      if (data.ok) { location.reload(); }
+      else { alert('העלאה נכשלה'); }
+    } catch (e) {
+      console.error(e);
+      alert('שגיאת רשת');
+    }
+  });
+
+  // מחיקת תמונה
+  document.addEventListener('click', async function(ev){
+    var btn = ev.target && ev.target.closest ? ev.target.closest('.delete-btn') : null;
+    if (!btn) return;
+    var pid = btn.getAttribute('data-id');
+    if (!pid) return;
+    if (!confirm('למחוק תמונה זו?')) return;
+
+    try {
+      var res = await fetch('/owner/restaurants/'+encodeURIComponent(rid)+'/photos/delete', {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept":"application/json" },
+        body: JSON.stringify({ id: pid }),
+      });
+      if (!res.ok) { alert('מחיקה נכשלה'); return; }
+      var data = await res.json();
+      if (data.ok) {
+        var card = document.querySelector('.photo-card[data-id="'+pid+'"]');
+        if (card) card.remove();
+      }
+    } catch (e) {
+      console.error(e);
+      alert('שגיאת רשת');
+    }
+  });
+})();
+</script>
 
 <style>
-  .card{border:1px solid #eee;border-radius:12px;padding:16px}
-  .alert.success{border:1px solid #bde5b8;background:#e6ffea;border-radius:8px;padding:10px;margin:8px 0}
-  .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
-  .form-row{display:flex;flex-direction:column}
-  .form-row input{padding:8px 10px;border:1px solid #ccc;border-radius:8px;font-size:1rem}
-  .btn{background:#111;color:#fff;border:none;border-radius:10px;padding:8px 12px;cursor:pointer;text-decoration:none}
-  .btn.primary{background:#0b6}
-  @media (max-width:760px){.form-grid{grid-template-columns:1fr}}
+.container{max-width:1000px;margin:0 auto;padding:0 16px}
+.card{border:1px solid #eee;border-radius:12px;padding:16px;margin:12px 0;background:#fff}
+.muted{color:#777}
+.btn{display:inline-block;background:#111;color:#fff;border:none;border-radius:10px;padding:8px 12px;text-decoration:none;cursor:pointer}
+.btn.primary{background:#0b6}
+.btn-danger{background:#c0392b}
+.btn.btn-sm{padding:6px 8px;border-radius:8px;font-size:.9rem}
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.form-row{display:flex;flex-direction:column}
+.form-row input, .form-row textarea{padding:8px 10px;border:1px solid #ccc;border-radius:8px;font-size:1rem}
 </style>

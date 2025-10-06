@@ -33,6 +33,8 @@ import { listRestaurants, getUserById } from "./database.ts";
 import { sendVerifyEmail } from "./lib/mail.ts";
 import ownerManageRouter from "./routes/owner_manage.ts";
 import { ownerHoursRouter } from "./routes/owner_hours.ts";
+import ownerPhotosRouter from "./routes/owner_photos.ts";
+
 
 // -------------------- ENV --------------------
 const PORT = Number(Deno.env.get("PORT") ?? "8000");
@@ -295,6 +297,9 @@ app.use(ownerManageRouter.allowedMethods());
 
 app.use(ownerRouter.routes());
 app.use(ownerRouter.allowedMethods());
+
+app.use(ownerPhotosRouter.routes());
+app.use(ownerPhotosRouter.allowedMethods());
 
 // ראוטרים ציבוריים של מסעדות - אחרון כי הכי כללי
 app.use(restaurantsRouter.routes());

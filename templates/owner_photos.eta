@@ -1,0 +1,159 @@
+<% layout("_layout", it) %>
+
+<main class="container">
+  <header class="page-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div>
+      <h1 style="margin:0 0 6px">תמונות — <%= it.restaurant.name %></h1>
+      <p class="muted" style="margin:0"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+    </div>
+    <a class="btn" href="/owner">חזרה לדשבורד</a>
+  </header>
+
+  <% if (it.saved) { %>
+    <div class="alert success" role="status" style="background:#e6ffea;border:1px solid #bde5b8;border-radius:8px;padding:10px;margin-bottom:12px">
+      ✓ נשמר בהצלחה
+    </div>
+  <% } %>
+
+  <section class="card" style="margin-bottom:16px">
+    <h3 style="margin-top:0">העלאת תמונות</h3>
+    <p class="muted">בחרו קבצי JPG/PNG/WebP (עד ~1.8MB לקובץ), ניתן לבחור כמה קבצים יחד.</p>
+
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple>
+      <button id="upload-btn" class="btn primary" type="button">העלה</button>
+    </div>
+
+    <div id="preview" class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px"></div>
+  </section>
+
+  <section class="card">
+    <h3 style="margin-top:0">גלריה</h3>
+    <% 
+      const photos = Array.isArray(it.restaurant.photos) ? it.restaurant.photos : [];
+    %>
+    <% if (!photos.length) { %>
+      <p class="muted">אין עדיין תמונות.</p>
+    <% } else { %>
+      <div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
+        <% photos.forEach(function(p){ %>
+          <figure class="photo-card" data-id="<%= p.id %>" style="border:1px solid #eee;border-radius:10px;padding:8px">
+            <img src="<%= p.dataUrl %>" alt="<%= p.alt || it.restaurant.name %>" style="width:100%;height:120px;object-fit:cover;border-radius:6px">
+            <figcaption style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+              <span class="muted" style="font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= p.alt || "" %></span>
+              <button class="btn btn-danger btn-sm delete-btn" data-id="<%= p.id %>" type="button">מחיקה</button>
+            </figcaption>
+          </figure>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+</main>
+
+<script>
+(function(){
+  const rid = "<%= it.restaurant.id %>";
+  const fileInput = document.getElementById('file-input');
+  const uploadBtn = document.getElementById('upload-btn');
+  const preview = document.getElementById('preview');
+
+  function readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
+    });
+  }
+
+  fileInput.addEventListener('change', async () => {
+    preview.innerHTML = '';
+    const files = Array.from(fileInput.files || []);
+    for (const f of files) {
+      const url = URL.createObjectURL(f);
+      const div = document.createElement('div');
+      div.style.border = "1px solid #eee";
+      div.style.borderRadius = "8px";
+      div.style.padding = "6px";
+      div.innerHTML = '<img style="width:100%;height:120px;object-fit:cover;border-radius:6px" src="'+url+'"><input class="alt" placeholder="כיתוב לתמונה" style="margin-top:6px;width:100%;padding:6px;border:1px solid #ccc;border-radius:6px">';
+      preview.appendChild(div);
+    }
+  });
+
+  uploadBtn.addEventListener('click', async () => {
+    const files = Array.from(fileInput.files || []);
+    if (!files.length) { alert('לא נבחרו קבצים'); return; }
+
+    // ממירים ל-dataURL בצד לקוח, ושולחים JSON לשרת
+    const images = [];
+    const cards = Array.from(preview.children);
+    for (let i=0; i<files.length; i++) {
+      const f = files[i];
+      if (f.size > (1.8 * 1024 * 1024)) { continue; } // ~1.8MB
+      const dataUrl = await readFileAsDataURL(f);
+      const alt = cards[i]?.querySelector('.alt')?.value || '';
+      images.push({ dataUrl, alt });
+    }
+
+    if (!images.length) { alert('הקבצים גדולים מדי או לא תקינים'); return; }
+
+    try {
+      const res = await fetch(`/owner/restaurants/${encodeURIComponent(rid)}/photos/upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept":"application/json" },
+        body: JSON.stringify({ images }),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(()=> "");
+        alert('העלאה נכשלה: ' + res.status + '\\n' + txt);
+        return;
+      }
+      const data = await res.json();
+      if (data.ok) {
+        location.assign(`/owner/restaurants/${encodeURIComponent(rid)}/photos?saved=1`);
+      } else {
+        alert('העלאה נכשלה');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('שגיאת רשת');
+    }
+  });
+
+  // מחיקת תמונה
+  document.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest?.('.delete-btn');
+    if (!btn) return;
+    const pid = btn.getAttribute('data-id');
+    if (!pid) return;
+    if (!confirm('למחוק תמונה זו?')) return;
+
+    try {
+      const res = await fetch(`/owner/restaurants/${encodeURIComponent(rid)}/photos/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept":"application/json" },
+        body: JSON.stringify({ id: pid }),
+      });
+      if (!res.ok) { alert('מחיקה נכשלה'); return; }
+      const data = await res.json();
+      if (data.ok) {
+        const card = document.querySelector('.photo-card[data-id="'+pid+'"]');
+        card?.remove();
+      }
+    } catch (e) {
+      console.error(e);
+      alert('שגיאת רשת');
+    }
+  });
+})();
+</script>
+
+<style>
+.container{max-width:1000px;margin:0 auto;padding:0 16px}
+.card{border:1px solid #eee;border-radius:12px;padding:16px;margin:12px 0;background:#fff}
+.muted{color:#777}
+.btn{display:inline-block;background:#111;color:#fff;border:none;border-radius:10px;padding:8px 12px;text-decoration:none;cursor:pointer}
+.btn.primary{background:#0b6}
+.btn-danger{background:#c0392b}
+.btn.btn-sm{padding:6px 8px;border-radius:8px;font-size:.9rem}
+</style>

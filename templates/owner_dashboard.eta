@@ -13,21 +13,26 @@
 
       <% if (it.restaurants && it.restaurants.length) { %>
         <ul class="list">
-          <% it.restaurants.forEach(function(r){ %>
+          <% it.restaurants.forEach(function(r){ 
+               const photos = Array.isArray(r.photos) ? r.photos : [];
+               const first = photos.length ? photos[0] : null;
+          %>
             <li class="item">
-              <div class="meta">
-                <div class="title"><strong><%= r.name %></strong></div>
-                <div class="sub muted"><%= r.city %> • <%= r.address %></div>
-                <div class="sub muted">
-                  משך ישיבה: <%= (typeof r.serviceDurationMinutes === 'number' ? r.serviceDurationMinutes : 90) %> דק׳
+              <div class="meta" style="display:flex;gap:12px;align-items:flex-start">
+                <% if (first) { %>
+                  <img src="<%= first.dataUrl %>" alt="<%= first.alt || r.name %>"
+                       style="width:90px;height:70px;object-fit:cover;border-radius:8px;border:1px solid #eee">
+                <% } %>
+                <div>
+                  <div class="title"><strong><%= r.name %></strong></div>
+                  <div class="sub muted"><%= r.city %> • <%= r.address %></div>
+                  <div class="sub muted">משך ישיבה: <%= (typeof r.serviceDurationMinutes === 'number' ? r.serviceDurationMinutes : 90) %> דק׳</div>
                 </div>
               </div>
               <div class="actions" style="display:flex;gap:8px;flex-wrap:wrap">
-                <!-- עריכת פרטים (תחת owner_manage.ts) -->
                 <a class="btn" href="/owner/restaurants/<%= r.id %>/edit" target="_self" rel="nofollow">עריכת פרטים</a>
-                <!-- שעות פתיחה (תחת owner_hours.ts) -->
                 <a class="btn" href="/owner/restaurants/<%= r.id %>/hours" target="_self" rel="nofollow">שעות פתיחה</a>
-                <!-- הוסר: כפתור "קיבולת/גריד" -->
+                <a class="btn" href="/owner/restaurants/<%= r.id %>/photos" target="_self" rel="nofollow">תמונות</a>
               </div>
             </li>
           <% }) %>
@@ -40,7 +45,7 @@
     <!-- פתיחת מסעדה חדשה -->
     <div class="panel card">
       <h2 style="margin-top:0">פתח/י מסעדה חדשה</h2>
-      <!-- הוסר: שדות קיבולת וגריד. נשאר רק משך ישיבה. -->
+      <!-- נשאר POST קלאסי; התמונות יועמסו אוטומטית אחרי יצירה דרך localStorage -->
       <form action="/owner/restaurant/new" method="post" class="form" id="create-restaurant-form">
         <label>שם מסעדה
           <input name="name" required placeholder="לדוגמה: פסטה דל סול">
@@ -59,30 +64,68 @@
           <input name="serviceDurationMinutes" type="number" min="30" step="15" value="120">
         </label>
 
+        <hr style="margin:10px 0;border:none;border-top:1px solid #eee">
+
+        <label>תמונות למסעדה (אופציונלי בשלב יצירה)
+          <input id="create-files" type="file" accept="image/png,image/jpeg,image/webp" multiple>
+        </label>
+        <small class="muted">הקבצים יועלו אוטומטית למסעדה החדשה אחרי היצירה.</small>
+
         <button class="btn primary" type="submit" style="margin-top:10px">שמירה ויצירה</button>
       </form>
       <p class="muted" style="margin-top:8px">
-        לאחר יצירה ניתן לעדכן שעות פתיחה ופרטים נוספים בעמוד “שעות פתיחה”.
+        לאחר יצירה ניתן לעדכן שעות פתיחה, פרטים, ותמונות במסך “עריכת פרטים” או “תמונות”.
       </p>
     </div>
   </div>
 </section>
 
 <script>
-  // JS נקי (ללא TypeScript): מבטיח שלחיצות בליסטה ינווטו בדפדפן הנוכחי
+  // ניווט תקין בלחיצות
   document.addEventListener('click', function (ev) {
     var target = ev.target;
     if (!target) return;
     var link = null;
-    if (target.closest) {
-      link = target.closest('a[href]');
-    }
+    if (target.closest) link = target.closest('a[href]');
     if (!link) return;
     var href = link.getAttribute('href') || '';
-    if (href.indexOf('/owner/') === 0) {
-      link.setAttribute('target', '_self');
-    }
+    if (href.indexOf('/owner/') === 0) link.setAttribute('target', '_self');
   }, true);
+
+  // בשלב יצירת מסעדה: שומרים תמונות ב-localStorage ואז יועמסו אוטומטית בעמוד התמונות/העריכה
+  (function(){
+    var input = document.getElementById('create-files');
+    var form = document.getElementById('create-restaurant-form');
+
+    function readFileAsDataURL(file) {
+      return new Promise(function(resolve, reject){
+        var fr = new FileReader();
+        fr.onload = function(){ resolve(fr.result); };
+        fr.onerror = reject;
+        fr.readAsDataURL(file);
+      });
+    }
+
+    form.addEventListener('submit', async function(){
+      try {
+        var files = Array.from((input && input.files) || []);
+        if (!files.length) return; // אין תמונות — אין מה לשמור
+        var images = [];
+        for (var i=0; i<files.length; i++) {
+          var f = files[i];
+          if (f.size > (1.8 * 1024 * 1024)) continue; // ~1.8MB
+          var dataUrl = await readFileAsDataURL(f);
+          images.push({ dataUrl: dataUrl, alt: '' });
+        }
+        if (images.length) {
+          localStorage.setItem('pendingRestaurantPhotos', JSON.stringify(images));
+          // בצד השני (owner_photos / owner_restaurant_edit) נטען אוטומטית ונתחיל העלאה
+        }
+      } catch (e) {
+        console.warn('failed to stash pending photos', e);
+      }
+    }, { passive: true });
+  })();
 </script>
 
 <style>
