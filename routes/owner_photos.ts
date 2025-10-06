@@ -6,6 +6,8 @@ import { render } from "../lib/view.ts";
 import { getRestaurant, updateRestaurant } from "../database.ts";
 import { requireOwner } from "../lib/auth.ts";
 import { debugLog } from "../lib/debug.ts";
+// שימוש במקודד Base64 מה-std של Deno — לא יוצר מחרוזות ענקיות ב-apply/charCode
+import { encode as base64Encode } from "jsr:@std/encoding/base64";
 
 type PhotoItem = { id: string; dataUrl: string; alt?: string };
 
@@ -14,35 +16,32 @@ const ownerPhotosRouter = new Router();
 /** קורא את גוף הבקשה כ-Uint8Array—בצורה עמידה בגרסאות Oak שונות. */
 async function readBodyBytes(ctx: any): Promise<Uint8Array | null> {
   try {
-    // 1) Oak 17+: ניסיון לקבל את ה-Web Request
+    // Oak 17+ — נסה להגיע אל ה-Web Request
     const webReq: any =
       (ctx.request && (ctx.request as any).request) ??
       (ctx.request && (ctx.request as any).originalRequest) ??
       null;
 
     if (webReq) {
-      // 1.a) אם יש פונקציה arrayBuffer()—קל
       if (typeof webReq.arrayBuffer === "function") {
         const ab = await webReq.arrayBuffer();
         return new Uint8Array(ab);
       }
-      // 1.b) אם אין arrayBuffer אבל יש body (ReadableStream) — נעטוף ב-Response
       if (webReq.body) {
         const ab = await new Response(webReq.body).arrayBuffer();
         return new Uint8Array(ab);
       }
     }
 
-    // 2) תאימות לאחור: אם קיים ctx.request.body() (גרסאות Oak ישנות)
+    // תאימות לאחור אם עדיין יש body()
     if (ctx.request && typeof (ctx.request as any).body === "function") {
       try {
         const b = (ctx.request as any).body({ type: "bytes" });
         const bytes: Uint8Array = await b.value;
-        return bytes ?? null;
+        if (bytes && bytes.length) return bytes;
       } catch (e) {
         debugLog("[photos][readBodyBytes] legacy body({bytes}) failed:", String(e));
       }
-      // fallback נוסף: stream -> Response
       try {
         const b2 = (ctx.request as any).body({ type: "stream" });
         const rs: ReadableStream | undefined = await b2.value;
@@ -58,6 +57,12 @@ async function readBodyBytes(ctx: any): Promise<Uint8Array | null> {
     debugLog("[photos][readBodyBytes] failed:", String(e));
   }
   return null;
+}
+
+/** המרת bytes ל-base64 בצורה יעילה ובטוחה (ללא String.fromCharCode/apply). */
+function toBase64(u8: Uint8Array): string {
+  // encode() מה-std מקבל Uint8Array ומחזיר מחרוזת base64 יעילה
+  return base64Encode(u8);
 }
 
 // ---------------- GET: דף התמונות ----------------
@@ -113,24 +118,16 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
     return;
   }
 
-  // הגבלת גודל (2MB)
-  const MAX_BYTES = 20 * 1024 * 1024;
+  // הגדל כאן אם תרצה — לדוגמה 10MB:
+  const MAX_BYTES = 20 * 1024 * 1024; // ← עדכן ערך זה לפי הצורך
   if (bytes.length > MAX_BYTES) {
     ctx.response.status = Status.BadRequest;
-    ctx.response.body = "Image too large (max 20MB).";
+    ctx.response.body = `Image too large (max ${(MAX_BYTES / (1024 * 1024)).toFixed(0)}MB).`;
     return;
   }
 
-  // המרה ל-base64 לשמירה כ-data URL (פשוט להצגה מיידית)
   try {
-    let binary = "";
-    const chunkSize = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      const chunk = bytes.subarray(i, i + chunkSize);
-      binary += String.fromCharCode.apply(null, Array.from(chunk));
-    }
-    // deno-lint-ignore no-deprecated-deno-api
-    const base64 = btoa(binary);
+    const base64 = toBase64(bytes); // שימוש במקודד std אמין
     const dataUrl = `data:${contentType};base64,${base64}`;
 
     const pid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -163,7 +160,7 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/delete", async (ctx) => {
     return;
   }
 
-  // קריאה פשוטה ל-JSON דרך Web Request text() (לא body() של Oak)
+  // קריאת JSON "דקיקה" דרך ה-Web Request (ללא body() של Oak)
   let payload: any = null;
   try {
     const webReq: any =
