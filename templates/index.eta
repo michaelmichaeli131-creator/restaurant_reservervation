@@ -17,17 +17,33 @@
     <% if (!it.restaurants || it.restaurants.length === 0) { %>
       <p class="muted">לא נמצאו תוצאות.</p>
     <% } else { %>
-      <ul class="list">
-        <% it.restaurants.forEach(r => { %>
-          <li class="list-row">
-            <div class="grow">
-              <div class="title"><a href="/restaurants/<%= r.id %>"><%= r.name %></a></div>
-              <div class="muted"><%= r.city %> · <%= r.address %></div>
-            </div>
-            <% if (!r.approved) { %><span class="badge warn">ממתינה לאישור</span><% } %>
-          </li>
-        <% }) %>
-      </ul>
+      
+<ul class="list">
+  <% function firstPhoto(photos) {
+       try {
+         if (Array.isArray(photos) && photos.length > 0 && photos[0]) return String(photos[0]);
+       } catch(_e) {}
+       return "/static/placeholder.png";
+     } %>
+  <% it.restaurants.forEach(r => { const thumb = firstPhoto(r.photos); %>
+    <li class="list-row">
+      <a href="/restaurants/<%= r.id %>" class="thumb-link" aria-label="פתח <%= r.name %>">
+        <img class="thumb" src="<%= thumb %>" alt="תמונה של <%= r.name %>" loading="lazy"/>
+      </a>
+      <div class="grow">
+        <div class="title"><a href="/restaurants/<%= r.id %>"><%= r.name %></a></div>
+        <div class="muted"><%= r.city %> · <%= r.address %></div>
+      </div>
+      <% if (!r.approved) { %><span class="badge warn">ממתינה לאישור</span><% } %>
+    </li>
+  <% }) %>
+</ul>
+
+<style>
+  .list-row .thumb { width: 96px; height: 64px; object-fit: cover; border-radius: 8px; border:1px solid var(--border); display:block; }
+  .thumb-link { display:block; flex: 0 0 auto; }
+</style>
+
     <% } %>
   </section>
 <% } else { %>
