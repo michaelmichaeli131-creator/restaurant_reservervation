@@ -11,41 +11,51 @@
   <div id="ac-list" class="ac-list"></div>
 </section>
 
+<%
+  // לוקח את התמונה הראשונה אם קיימת; אחרת מחזיר placeholder
+  function firstPhoto(photos) {
+    try {
+      if (Array.isArray(photos) && photos.length > 0 && photos[0]) return String(photos[0]);
+    } catch (_e) {}
+    return "/static/placeholder.png";
+  }
+%>
+
 <% if (it.search === "1") { %>
   <section class="card">
     <h2 style="margin-top:0">תוצאות</h2>
     <% if (!it.restaurants || it.restaurants.length === 0) { %>
       <p class="muted">לא נמצאו תוצאות.</p>
     <% } else { %>
-      
-<ul class="list">
-  <% function firstPhoto(photos) {
-       try {
-         if (Array.isArray(photos) && photos.length > 0 && photos[0]) return String(photos[0]);
-       } catch(_e) {}
-       return "/static/placeholder.png";
-     } %>
-  <% it.restaurants.forEach(r => { const thumb = firstPhoto(r.photos); %>
-    <li class="list-row">
-      <a href="/restaurants/<%= r.id %>" class="thumb-link" aria-label="פתח <%= r.name %>">
-        <img class="thumb" src="<%= thumb %>" alt="תמונה של <%= r.name %>" loading="lazy"/>
-      </a>
-      <div class="grow">
-        <div class="title"><a href="/restaurants/<%= r.id %>"><%= r.name %></a></div>
-        <div class="muted"><%= r.city %> · <%= r.address %></div>
-      </div>
-      <% if (!r.approved) { %><span class="badge warn">ממתינה לאישור</span><% } %>
-    </li>
-  <% }) %>
-</ul>
-
-<style>
-  .list-row .thumb { width: 96px; height: 64px; object-fit: cover; border-radius: 8px; border:1px solid var(--border); display:block; }
-  .thumb-link { display:block; flex: 0 0 auto; }
-</style>
-
+      <ul class="list">
+        <% it.restaurants.forEach(r => { const thumb = firstPhoto(r.photos); %>
+          <li class="list-row">
+            <a href="/restaurants/<%= r.id %>" class="thumb-link" aria-label="פתח <%= r.name %>">
+              <img class="thumb" src="<%= thumb %>" alt="תמונה של <%= r.name %>" loading="lazy"/>
+            </a>
+            <div class="grow">
+              <div class="title"><a href="/restaurants/<%= r.id %>"><%= r.name %></a></div>
+              <div class="muted"><%= r.city %><% if (r.address) { %> · <%= r.address %><% } %></div>
+            </div>
+            <% if (!r.approved) { %><span class="badge warn">ממתינה לאישור</span><% } %>
+          </li>
+        <% }) %>
+      </ul>
     <% } %>
   </section>
 <% } else { %>
   <p class="muted">טיפ: התחל/י להקליד כדי לקבל הצעות (אוטוקומפליט).</p>
 <% } %>
+
+<style>
+  .list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:12px; }
+  .list-row { display:flex; gap:12px; align-items:center; }
+  .thumb-link { display:block; flex:0 0 auto; }
+  .list-row .thumb {
+    width: 96px; height: 64px; object-fit: cover;
+    border-radius: 8px; border:1px solid var(--border, #e5e7eb);
+    display:block; background:#f3f3f3;
+  }
+  .grow { flex:1 1 auto; min-width:0; }
+  .title { font-weight:600; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+</style>
