@@ -120,8 +120,35 @@ function toMinutes(hhmm: string): number {
 }
 
 /**
- * Robustly read windows for a given date from WeeklySchedule.
- * Supports keys: 0..6, "0".."6", "sun".."sat", "sunday".."saturday".
+ * מזהה אם קיימת הגדרה ליום (גם אם היא `null` = סגור).
+ */
+function hasScheduleForDate(
+  weekly: WeeklySchedule | undefined | null,
+  date: string,
+): boolean {
+  if (!weekly) return false;
+  const d = new Date(date + "T00:00:00");
+  if (isNaN(d.getTime())) return false;
+  const dowNum = d.getDay();
+  const long = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"] as const;
+  const short = ["sun","mon","tue","wed","thu","fri","sat"] as const;
+
+  const keys: Array<string | number> = [
+    dowNum, String(dowNum),
+    long[dowNum], short[dowNum],
+    (long as readonly string[])[dowNum].toUpperCase(),
+    (short as readonly string[])[dowNum].toUpperCase(),
+  ];
+
+  for (const k of keys) {
+    if (Object.prototype.hasOwnProperty.call(weekly as any, k)) return true;
+  }
+  return false;
+}
+
+/**
+ * מחזיר חלונות פתיחה ליום (אם הערך `null` → אין חלונות).
+ * שים לב: אם אין בכלל מפתח ליום → מוחזר [].
  */
 function getWindowsForDate(
   weekly: WeeklySchedule | undefined | null,
@@ -130,7 +157,7 @@ function getWindowsForDate(
   if (!weekly) return [];
   const d = new Date(date + "T00:00:00");
   if (isNaN(d.getTime())) return [];
-  const dowNum = d.getDay(); // 0..6 (0=Sun)
+  const dowNum = d.getDay(); // 0..6
   const long = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"] as const;
   const short = ["sun","mon","tue","wed","thu","fri","sat"] as const;
 
@@ -141,21 +168,25 @@ function getWindowsForDate(
     (short as readonly string[])[dowNum].toUpperCase(),
   ];
 
+  // נחפש ערך כלשהו (גם null). אם null—נחזיר [] אבל נבדיל בלוגים.
+  let found = false;
   let raw: any = undefined;
+
   for (const k of candidates) {
-    if (raw == null && (weekly as any)[k] != null) {
-      raw = (weekly as any)[k];
+    if (Object.prototype.hasOwnProperty.call(weekly as any, k)) {
+      found = true;
+      raw = (weekly as any)[k]; // יכול להיות null | {open,close} | Array
+      break;
     }
   }
 
   debugLog("[hours] getWindowsForDate", {
     date, dowNum, hadWeekly: !!weekly,
-    candidateHit: raw ? true : false,
-    candidateType: raw ? (Array.isArray(raw) ? "array" : typeof raw) : "none",
-    sample: raw
+    candidateHit: found,
+    candidateType: found ? (Array.isArray(raw) ? "array" : typeof raw) : "none",
   });
 
-  if (!raw) return [];
+  if (!found || raw == null) return [];
   return Array.isArray(raw) ? raw.filter(Boolean) : [raw];
 }
 
@@ -170,12 +201,21 @@ function withinAnyWindow(timeMin: number, windows: Array<{ open: string; close: 
   return false;
 }
 
-/** בררת־מחדל מותאמת: אין חלונות = פתוח כל היום */
+/**
+ * לוגיקה נכונה:
+ * - אם אין **שום** מפתח ליום → נחשוב "אין הגדרה" ⇒ פתוח כל היום (לכידות לאחור).
+ * - אם יש מפתח והערך **null** → סגור.
+ * - אם יש מפתח ורשימת חלונות → בדוק בתוכה.
+ */
 function isWithinSchedule(weekly: WeeklySchedule | undefined | null, date: string, time: string) {
   const t = toMinutes(time);
   if (!Number.isFinite(t)) return false;
+
+  const hasDay = hasScheduleForDate(weekly, date);
   const windows = getWindowsForDate(weekly, date);
-  if (!windows.length) return true;
+
+  if (!hasDay) return true;           // אין הגדרה—פתוח כל היום (כמו בעבר)
+  if (windows.length === 0) return false; // יש הגדרה אבל null/ריק—סגור
   return withinAnyWindow(t, windows);
 }
 
@@ -187,10 +227,19 @@ async function suggestionsWithinSchedule(
   weekly: WeeklySchedule | undefined | null,
 ): Promise<string[]> {
   const all = await listAvailableSlotsAround(rid, date, time, people, 120, 16);
+  const hasDay = hasScheduleForDate(weekly, date);
   const windows = getWindowsForDate(weekly, date);
-  return windows.length
-    ? all.filter(t => withinAnyWindow(toMinutes(t), windows)).slice(0, 4)
-    : all.slice(0, 4);
+
+  if (!hasDay) {
+    // אין הגדרה—מציעים הכל (לכידות לאחור)
+    return all.slice(0, 4);
+  }
+  if (windows.length === 0) {
+    // יש הגדרה אבל היום סגור
+    return [];
+  }
+  // מסננים רק מה שבטווח
+  return all.filter(t => withinAnyWindow(toMinutes(t), windows)).slice(0, 4);
 }
 
 /* ---------------- Strong body reader for Oak ---------------- */
@@ -323,11 +372,11 @@ function extractDateAndTime(ctx: any, payload: Record<string, unknown>) {
   const rawTime = pickNonEmpty(
     payload["time"], qs.get("time"), (ref as any)["time"],
     (payload as any)["time_display"], (payload as any)["timeDisplay"],
-    qs.get("time_display"), qs.get("timeDisplay"),
+    qs.get("time_display"), qs.get("timeDisplay"],
     (ref as any)["time_display"], (ref as any)["timeDisplay"],
     hhmmFromHM,
     payload["datetime"], payload["datetime_local"], payload["datetime-local"],
-    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"),
+    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"],
     (ref as any)["datetime"], (ref as any)["datetime_local"], (ref as any)["datetime-local"]
   );
 
@@ -379,9 +428,11 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const date = normalizeDate(rawDate) || todayISO();
   const time = normalizeTime(rawTime);
 
-  // חלונות להצגה ב-UI: אם אין — ברירת מחדל "פתוח כל היום"
+  const hasDay = hasScheduleForDate(restaurant.weeklySchedule as WeeklySchedule, date);
   const windows = getWindowsForDate(restaurant.weeklySchedule as WeeklySchedule, date);
-  const openingWindows = windows.length ? windows : [{ open: "00:00", close: "23:59" }];
+
+  // אם יש מפתח ליום אבל ערך null/empty ⇒ אין חלונות (סגור). אם אין מפתח ⇒ פתוח כל היום (תאימות לאחור).
+  const openingWindows = hasDay ? windows : [{ open: "00:00", close: "23:59" }];
 
   debugLog("[restaurants][GET /restaurants/:id] view", {
     id, date, rawTime, time,
@@ -416,6 +467,7 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const { date, time } = extractDateAndTime(ctx, payload);
   const people = 2;
 
+  const hasDay = hasScheduleForDate(restaurant.weeklySchedule, date);
   const windows = getWindowsForDate(restaurant.weeklySchedule, date);
   const within = isWithinSchedule(restaurant.weeklySchedule, date, time);
 
@@ -423,7 +475,7 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
     rid, date, time, people,
     body_ct: dbg.ct, body_keys: Object.keys(payload),
     weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : [],
-    windows, within
+    hasDay, windows, within
   });
 
   const bad = (m: string) => {
@@ -437,7 +489,7 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   if (!within) {
     const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok:false, reason:"closed", suggestions }, null, 2);
+    ctx.response.body = JSON.stringify({ ok:false, reason: hasDay ? "closed" : "unspecified", suggestions }, null, 2);
     return;
   }
 
@@ -758,9 +810,8 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   });
 });
 
-/* ---------------- Owner: save opening hours (NEW) ---------------- */
+/* ---------------- Owner: save opening hours (כפי שהצעתי קודם) ---------------- */
 
-/** מיפוי שמות/מספרי ימים ל־0..6 */
 const DAY_NAME_TO_INDEX: Record<string, number> = {
   sunday: 0, sun: 0, "0": 0,
   monday: 1, mon: 1, "1": 1,
@@ -774,7 +825,6 @@ const DAY_NAME_TO_INDEX: Record<string, number> = {
 
 type WeeklyHoursMap = { [day: string]: { open: string; close: string } | null };
 
-/** ממיר כל קלט (כולל מחרוזת JSON) למפה 0..6 → {open,close}|null, עם HH:mm */
 function ensureWeeklyHours(input: unknown): WeeklyHoursMap {
   let obj: any = input ?? {};
   if (typeof obj === "string") {
@@ -819,7 +869,6 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
 
   const { payload, dbg } = await readBody(ctx);
 
-  // תואם גם לשמות חלופיים אם קיימים בקליינט הישן
   const capacity = Math.max(1, toIntLoose((payload as any).capacity ?? (payload as any).maxConcurrent) ?? 1);
   const slot = Math.max(5, toIntLoose((payload as any).slot ?? (payload as any).slotMinutes) ?? 15);
 
@@ -843,7 +892,6 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
     hours_preview: Object.fromEntries(Object.entries(hours).slice(0,3)),
   });
 
-  // עדכון DB — מנסה כמה שמות פונקציה נפוצים לשמירה על תאימות
   const db = await import("../database.ts");
   const updater =
     (db as any).updateRestaurantHours ??
@@ -859,11 +907,9 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   }
 
   try {
-    // אם הפונקציה מרמזת על Hours ויש חתימה מפורשת (id, hours, slot, capacity)
     if (/hours/i.test(updater.name || "") && updater.length >= 4) {
       await updater.call(db, rid, hours, slot, capacity);
     } else {
-      // Patch object — שומר גם תחת weeklySchedule וגם תחת hours לתאימות
       await updater.call(db, rid, { weeklySchedule: hours, hours, slot, capacity });
     }
   } catch (e) {
@@ -878,7 +924,7 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
     (ctx.request.headers.get("content-type") || "").includes("application/json");
 
   if (acceptsJson) {
-    ctx.response.status = Status.NoContent; // 204
+    ctx.response.status = Status.NoContent;
   } else {
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", `/restaurants/${encodeURIComponent(rid)}`);
