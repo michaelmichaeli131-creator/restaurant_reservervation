@@ -9,8 +9,8 @@
   </header>
 
   <section class="card">
-    <!-- שולחים כ-GET כדי לעקוף פרסינג של גוף -->
-    <form class="form-grid" action="/owner/restaurants/<%= it.restaurant.id %>/hours/save" method="get" novalidate>
+    <!-- שולחים כ-GET כדי לעקוף פרסינג של גוף, כמו שעובד עכשיו -->
+    <form id="hours-form" class="form-grid" action="/owner/restaurants/<%= it.restaurant.id %>/hours/save" method="get" novalidate>
       <div class="form-row">
         <label for="capacity">קיבולת מקסימלית בו־זמנית</label>
         <input id="capacity" name="capacity" type="number" min="1" step="1" value="<%= it.restaurant.capacity %>"/>
@@ -21,47 +21,165 @@
         <input id="slotIntervalMinutes" name="slotIntervalMinutes" type="number" min="5" max="180" step="5" value="<%= it.restaurant.slotIntervalMinutes %>"/>
       </div>
 
+      <style>
+        .hours-toolbar { display:flex; gap:.5rem; flex-wrap:wrap; margin:.5rem 0 1rem }
+        .hours-toolbar .btn-sm { padding:.35rem .7rem; font-size:.9rem }
+        .table-hours { width:100%; border-collapse: collapse }
+        .table-hours th, .table-hours td { padding:.5rem; border-bottom:1px solid #eee; vertical-align:middle }
+        .table-hours select { min-width: 6.5rem }
+        .muted-sm { font-size:.85rem; color:#777 }
+      </style>
+
+      <div class="hours-toolbar">
+        <button type="button" class="btn btn-sm" id="preset-9-22">קבע 09:00–22:00 לכל הימים</button>
+        <button type="button" class="btn btn-sm" id="preset-close-all">סמן סגור לכולם</button>
+      </div>
+
       <h3>שעות לכל יום</h3>
 
       <% 
         const labels = it.dayLabels || ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
+
         function dayData(d) {
           const ws = it.restaurant && it.restaurant.weeklySchedule ? it.restaurant.weeklySchedule[d] : undefined;
           if (typeof ws !== "undefined") return ws;
           const oh = it.restaurant && it.restaurant.openingHours ? it.restaurant.openingHours[d] : undefined;
           return oh;
         }
+
+        // בניית רשימת זמנים כל 15 דק' כערכי "HH:MM"
+        const timeOptions = [];
+        for (let h=0; h<24; h++) {
+          for (let m=0; m<60; m+=15) {
+            const hh = String(h).padStart(2,"0");
+            const mm = String(m).padStart(2,"0");
+            timeOptions.push(`${hh}:${mm}`);
+          }
+        }
+        function isSelected(val, current) { return String(val) === String(current) ? 'selected' : ''; }
       %>
 
-      <table class="table">
+      <table class="table table-hours">
         <thead>
-          <tr><th>יום</th><th>סגור</th><th>מ־</th><th>עד</th></tr>
+          <tr><th style="width:10%">יום</th><th style="width:12%">סגור</th><th style="width:39%">מ־</th><th style="width:39%">עד</th></tr>
         </thead>
         <tbody>
           <% for (let d = 0; d < 7; d++) { 
                const day = dayData(d);
                const isClosed = (day === null);
                const first = (Array.isArray(day) && day.length) ? day[0] : { open: "09:00", close: "22:00" };
+               const openVal = isClosed ? "" : (first.open || "09:00");
+               const closeVal = isClosed ? "" : (first.close || "22:00");
           %>
-          <tr>
-            <td><%= labels[d] %></td>
+          <tr data-day="<%= d %>">
             <td>
-              <input type="checkbox" name="w<%= d %>_closed" <%= isClosed ? "checked" : "" %> />
+              <strong><%= labels[d] %></strong><br>
+              <button type="button" class="btn btn-sm copy-day" data-src="<%= d %>">העתק ליתר הימים</button>
             </td>
             <td>
-              <input type="text" name="w<%= d %>_open" value="<%= isClosed ? "" : first.open %>" placeholder="09:00" pattern="\\d{2}:\\d{2}" />
+              <label class="muted-sm">
+                <input type="checkbox" class="closed" name="w<%= d %>_closed" <%= isClosed ? "checked" : "" %> />
+                סגור
+              </label>
             </td>
             <td>
-              <input type="text" name="w<%= d %>_close" value="<%= isClosed ? "" : first.close %>" placeholder="22:00" pattern="\\d{2}:\\d{2}" />
+              <select class="open" name="w<%= d %>_open" <%= isClosed ? "disabled" : "" %>>
+                <option value="">—</option>
+                <% for (const t of timeOptions) { %>
+                  <option value="<%= t %>" <%= isSelected(t, openVal) %>><%= t %></option>
+                <% } %>
+              </select>
+            </td>
+            <td>
+              <select class="close" name="w<%= d %>_close" <%= isClosed ? "disabled" : "" %>>
+                <option value="">—</option>
+                <% for (const t of timeOptions) { %>
+                  <option value="<%= t %>" <%= isSelected(t, closeVal) %>><%= t %></option>
+                <% } %>
+              </select>
             </td>
           </tr>
           <% } %>
         </tbody>
       </table>
 
-      <div class="form-row">
+      <div class="form-row" style="margin-top:1rem">
         <button type="submit" class="btn primary">שמירה</button>
       </div>
+
+      <p class="muted-sm">טיפ: זמני ברירת המחדל הם 09:00–22:00. אפשר להעתיק יום אחד לשאר הימים בלחיצה על “העתק ליתר הימים”.</p>
     </form>
   </section>
 </main>
+
+<script>
+(function(){
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+  const form = $("#hours-form");
+
+  // סגירה/פתיחה של יום — נטרול/הפעלת ה-selectים
+  $$(".closed", form).forEach(chk => {
+    chk.addEventListener("change", () => {
+      const tr = chk.closest("tr");
+      const disable = chk.checked;
+      tr.querySelectorAll("select.open, select.close").forEach(s => s.disabled = disable);
+      if (!disable) {
+        // אם פותחים יום מחדש ואין ערכים — מלא 09:00–22:00
+        const open = tr.querySelector("select.open");
+        const close = tr.querySelector("select.close");
+        if (!open.value) open.value = "09:00";
+        if (!close.value) close.value = "22:00";
+      } else {
+        // אם סוגרים — ננקה ערכים כדי שלא יישלחו כלא רלוונטיים
+        tr.querySelectorAll("select.open, select.close").forEach(s => s.value = "");
+      }
+    }, { passive: true });
+  });
+
+  // העתק יום מסוים לשאר הימים הפתוחים (שלא מסומנים סגור)
+  $$(".copy-day", form).forEach(btn => {
+    btn.addEventListener("click", () => {
+      const srcIdx = Number(btn.getAttribute("data-src"));
+      const srcRow = form.querySelector(`tr[data-day="${srcIdx}"]`);
+      const srcClosed = srcRow.querySelector(".closed").checked;
+      const srcOpen = srcRow.querySelector(".open").value || "09:00";
+      const srcClose = srcRow.querySelector(".close").value || "22:00";
+
+      $$(".table-hours tbody tr", form).forEach(tr => {
+        const day = Number(tr.getAttribute("data-day"));
+        if (day === srcIdx) return;
+        const closed = tr.querySelector(".closed");
+        if (!closed.checked) {
+          tr.querySelector(".open").value = srcOpen;
+          tr.querySelector(".close").value = srcClose;
+        }
+      });
+    });
+  });
+
+  // פריסטים כלליים
+  $("#preset-9-22")?.addEventListener("click", () => {
+    $$(".table-hours tbody tr").forEach(tr => {
+      const closed = tr.querySelector(".closed");
+      if (closed.checked) {
+        closed.checked = false;
+        tr.querySelectorAll("select.open, select.close").forEach(s => s.disabled = false);
+      }
+      tr.querySelector(".open").value = "09:00";
+      tr.querySelector(".close").value = "22:00";
+    });
+  });
+
+  $("#preset-close-all")?.addEventListener("click", () => {
+    $$(".table-hours tbody tr").forEach(tr => {
+      tr.querySelector(".closed").checked = true;
+      tr.querySelectorAll("select.open, select.close").forEach(s => { s.value = ""; s.disabled = true; });
+    });
+  });
+
+  // לפני שליחה: אין צורך בעיבוד — השמות כבר w{d}_open / w{d}_close / w{d}_closed
+  // ודואגים ש-selectים שאינם disabled ישלחו ערכים "HH:MM". disabled לא נשלח (בסדר).
+})();
+</script>
