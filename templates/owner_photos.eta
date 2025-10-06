@@ -15,18 +15,20 @@
     </div>
   <% } %>
 
+  <!-- העלאת תמונה -->
   <section class="card" style="margin-bottom:16px">
-    <h3 style="margin-top:0">העלאת תמונות</h3>
-    <p class="muted">בחרו קבצי JPG/PNG/WebP (עד ~1.8MB לקובץ), ניתן לבחור כמה קבצים יחד.</p>
+    <h3 style="margin-top:0">העלאת תמונה</h3>
+    <p class="muted">בחרו קובץ JPG/PNG/WebP (עד ~2MB).</p>
 
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple>
+      <input id="photo-input" type="file" accept="image/png,image/jpeg,image/webp">
       <button id="upload-btn" class="btn primary" type="button">העלה</button>
     </div>
 
-    <div id="preview" class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px"></div>
+    <div id="preview" style="margin-top:12px"></div>
   </section>
 
+  <!-- גלריה -->
   <section class="card">
     <h3 style="margin-top:0">גלריה</h3>
     <% 
@@ -40,8 +42,7 @@
           <figure class="photo-card" data-id="<%= p.id %>" style="border:1px solid #eee;border-radius:10px;padding:8px">
             <img src="<%= p.dataUrl %>" alt="<%= p.alt || it.restaurant.name %>" style="width:100%;height:120px;object-fit:cover;border-radius:6px">
             <figcaption style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
-              <span class="muted" style="font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= p.alt || "" %></span>
-              <button class="btn btn-danger btn-sm delete-btn" data-id="<%= p.id %>" type="button">מחיקה</button>
+              <button class="btn btn-danger btn-sm delete-btn" data-id="<%= p.id %>" type="button">🗑 מחיקה</button>
             </figcaption>
           </figure>
         <% }) %>
@@ -53,70 +54,44 @@
 <script>
 (function(){
   const rid = "<%= it.restaurant.id %>";
-  const fileInput = document.getElementById('file-input');
+  const fileInput = document.getElementById('photo-input');
   const uploadBtn = document.getElementById('upload-btn');
   const preview = document.getElementById('preview');
 
-  function readFileAsDataURL(file) {
-    return new Promise((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onload = () => resolve(fr.result);
-      fr.onerror = reject;
-      fr.readAsDataURL(file);
-    });
-  }
-
-  fileInput.addEventListener('change', async () => {
+  // תצוגה מקדימה
+  fileInput.addEventListener('change', () => {
     preview.innerHTML = '';
-    const files = Array.from(fileInput.files || []);
-    for (const f of files) {
-      const url = URL.createObjectURL(f);
-      const div = document.createElement('div');
-      div.style.border = "1px solid #eee";
-      div.style.borderRadius = "8px";
-      div.style.padding = "6px";
-      div.innerHTML = '<img style="width:100%;height:120px;object-fit:cover;border-radius:6px" src="'+url+'"><input class="alt" placeholder="כיתוב לתמונה" style="margin-top:6px;width:100%;padding:6px;border:1px solid #ccc;border-radius:6px">';
-      preview.appendChild(div);
+    const file = fileInput.files[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      preview.innerHTML = '<img src="'+url+'" style="max-width:200px;border-radius:8px;border:1px solid #ccc">';
     }
   });
 
+  // העלאה לשרת (POST binary)
   uploadBtn.addEventListener('click', async () => {
-    const files = Array.from(fileInput.files || []);
-    if (!files.length) { alert('לא נבחרו קבצים'); return; }
+    const file = fileInput.files[0];
+    if (!file) return alert("בחר/י תמונה קודם");
+    if (file.size > 2 * 1024 * 1024) return alert("הקובץ גדול מדי (מעל 2MB)");
 
-    // ממירים ל-dataURL בצד לקוח, ושולחים JSON לשרת
-    const images = [];
-    const cards = Array.from(preview.children);
-    for (let i=0; i<files.length; i++) {
-      const f = files[i];
-      if (f.size > (1.8 * 1024 * 1024)) { continue; } // ~1.8MB
-      const dataUrl = await readFileAsDataURL(f);
-      const alt = cards[i]?.querySelector('.alt')?.value || '';
-      images.push({ dataUrl, alt });
+    const res = await fetch(`/owner/restaurants/${encodeURIComponent(rid)}/photos/upload`, {
+      method: "POST",
+      headers: { "Content-Type": file.type },
+      body: file
+    });
+
+    if (!res.ok) {
+      const txt = await res.text().catch(()=>"");
+      alert("שגיאה בהעלאה: " + res.status + "\\n" + txt);
+      return;
     }
 
-    if (!images.length) { alert('הקבצים גדולים מדי או לא תקינים'); return; }
-
-    try {
-      const res = await fetch(`/owner/restaurants/${encodeURIComponent(rid)}/photos/upload`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Accept":"application/json" },
-        body: JSON.stringify({ images }),
-      });
-      if (!res.ok) {
-        const txt = await res.text().catch(()=> "");
-        alert('העלאה נכשלה: ' + res.status + '\\n' + txt);
-        return;
-      }
-      const data = await res.json();
-      if (data.ok) {
-        location.assign(`/owner/restaurants/${encodeURIComponent(rid)}/photos?saved=1`);
-      } else {
-        alert('העלאה נכשלה');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('שגיאת רשת');
+    const data = await res.json();
+    if (data.ok) {
+      alert("תמונה הועלתה בהצלחה!");
+      location.reload();
+    } else {
+      alert("שגיאה בשמירה");
     }
   });
 
@@ -131,10 +106,9 @@
     try {
       const res = await fetch(`/owner/restaurants/${encodeURIComponent(rid)}/photos/delete`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Accept":"application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: pid }),
       });
-      if (!res.ok) { alert('מחיקה נכשלה'); return; }
       const data = await res.json();
       if (data.ok) {
         const card = document.querySelector('.photo-card[data-id="'+pid+'"]');
@@ -156,4 +130,5 @@
 .btn.primary{background:#0b6}
 .btn-danger{background:#c0392b}
 .btn.btn-sm{padding:6px 8px;border-radius:8px;font-size:.9rem}
+img{display:block;max-width:100%}
 </style>
