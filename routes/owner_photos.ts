@@ -1,6 +1,6 @@
 // src/routes/owner_photos.ts
 // ניהול תמונות מסעדה — בעלים בלבד
-// העלאה/מחיקה: קריאת JSON עמידה לגרסאות Oak שונות (ללא תלות ב-request.body ספציפי)
+// קריאת JSON עמידה (Oak 11–17+): נסיונות מרובים כולל Web Request clone().text()
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -10,9 +10,34 @@ import { debugLog } from "../lib/debug.ts";
 
 type PhotoItem = { id: string; dataUrl: string; alt?: string };
 
-// עוזר: קריאת JSON בצורה גנרית (תומך בכמה דרכים של Oak/Web API)
+// ---- JSON reader hardened ----
 async function readJsonSafe(ctx: any): Promise<any | null> {
-  // 1) הדרך הרגילה של Oak (אם קיימת בסביבתך)
+  // לוג על סוג התוכן כדי לעזור בדיבאג
+  try {
+    const ct = ctx.request?.headers?.get?.("content-type") || "";
+    debugLog("[photos][readJsonSafe] content-type:", ct);
+  } catch {}
+
+  // 1) Web Request תקני: clone().text() ואז JSON.parse
+  try {
+    const req =
+      (ctx.request as any)?.request ??
+      (ctx.request as any)?.originalRequest ??
+      (ctx as any)?.request ??
+      null;
+
+    if (req && typeof req.clone === "function" && typeof req.text === "function") {
+      const text = await req.clone().text();
+      if (text && text.trim().length) {
+        const data = JSON.parse(text);
+        if (data && typeof data === "object") return data;
+      }
+    }
+  } catch (e) {
+    debugLog("[photos] req.clone().text() parse failed", String(e));
+  }
+
+  // 2) Oak קלאסי: body({ type: "json" })
   try {
     if (typeof ctx.request?.body === "function") {
       const b = ctx.request.body({ type: "json" });
@@ -23,7 +48,7 @@ async function readJsonSafe(ctx: any): Promise<any | null> {
     debugLog("[photos] body({json}) failed", String(e));
   }
 
-  // 2) נסיון לקרוא bytes ולפענח ידנית
+  // 3) Oak bytes -> טקסט -> JSON
   try {
     if (typeof ctx.request?.body === "function") {
       const b2 = ctx.request.body({ type: "bytes" });
@@ -31,7 +56,8 @@ async function readJsonSafe(ctx: any): Promise<any | null> {
       if (bytes && bytes.length) {
         const text = new TextDecoder().decode(bytes);
         if (text && text.trim().length) {
-          return JSON.parse(text);
+          const v = JSON.parse(text);
+          if (v && typeof v === "object") return v;
         }
       }
     }
@@ -39,12 +65,12 @@ async function readJsonSafe(ctx: any): Promise<any | null> {
     debugLog("[photos] body({bytes}) parse failed", String(e));
   }
 
-  // 3) Web API Request אם זמינה
+  // 4) ניסיון ישיר: originalRequest.json (אם קיים)
   try {
-    const req = (ctx.request as any).request
-      ?? (ctx.request as any).originalRequest
-      ?? (ctx as any).request
-      ?? null;
+    const req =
+      (ctx.request as any)?.originalRequest ??
+      (ctx.request as any)?.request ??
+      null;
     if (req && typeof req.json === "function") {
       const v = await req.json();
       if (v && typeof v === "object") return v;
@@ -110,7 +136,7 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
 
   // ולידציה בסיסית + מגבלות
   const MAX_FILES = 12;
-  // ~1.8MB (raw) -> base64 ~1.33x, נשאיר מרווח
+  // ~1.8MB raw -> base64 ~1.33x-1.6x; נשאיר מרווח סביר
   const MAX_DATAURL_LEN = Math.floor(1.8 * 1024 * 1024 * 1.6);
 
   const out: PhotoItem[] = [];
@@ -118,7 +144,6 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
     const dataUrl = String(item?.dataUrl ?? "");
     const alt = typeof item?.alt === "string" ? item.alt.slice(0, 140) : undefined;
 
-    // וידוא data URL תקין
     if (!/^data:image\/(png|jpe?g|webp);base64,/.test(dataUrl)) continue;
     if (dataUrl.length > MAX_DATAURL_LEN) continue;
 
