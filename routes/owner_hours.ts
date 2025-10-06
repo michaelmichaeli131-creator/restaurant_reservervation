@@ -67,11 +67,15 @@ ownerHoursRouter.post("/owner/restaurants/:id/hours", async (ctx) => {
     return;
   }
 
-  // קריאה פשוטה של JSON
+  // קריאת raw text ופרסור JSON ידני
   let payload: any = {};
   try {
-    const body = ctx.request.body({ type: "json" });
-    payload = await body.value || {};
+    const body = ctx.request.body({ type: "text" });
+    const text = await body.value;
+    debugLog("[owner_hours][POST] raw body", text?.slice(0, 200) || "(empty)");
+    if (text) {
+      payload = JSON.parse(text);
+    }
   } catch (e) {
     debugLog("[owner_hours][POST] body parse error", String(e));
   }
