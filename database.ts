@@ -668,3 +668,79 @@ export async function fixRestaurantsDefaults(): Promise<number> {
   }
   return changed;
 }
+
+/* ─────────────────────── NEW: Hours updaters & normalizers ─────────────────────── */
+
+function normHHmm(raw: unknown): string {
+  let s = String(raw ?? "").trim();
+  if (!s) return "";
+  // 8:00 -> 08:00 ; 08.30 -> 08:30 ; AM/PM -> 24h
+  if (/^\d{1,2}\.\d{2}(\s*[ap]m)?$/i.test(s)) s = s.replace(".", ":");
+  const ampm = s.match(/^\s*(\d{1,2}):(\d{2})\s*(AM|PM)\s*$/i);
+  if (ampm) {
+    let h = Math.max(0, Math.min(12, Number(ampm[1])));
+    const mi = Math.max(0, Math.min(59, Number(ampm[2])));
+    const isPM = /pm/i.test(ampm[3]);
+    if (isPM && h < 12) h += 12;
+    if (!isPM && h === 12) h = 0;
+    return `${String(h).padStart(2,"0")}:${String(mi).padStart(2,"0")}`;
+  }
+  const iso = s.match(/T(\d{2}):(\d{2})/);
+  if (iso) s = `${iso[1]}:${iso[2]}`;
+  const m = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return "";
+  const h = Math.max(0, Math.min(23, Number(m[1])));
+  const mi = Math.max(0, Math.min(59, Number(m[2])));
+  return `${String(h).padStart(2,"0")}:${String(mi).padStart(2,"0")}`;
+}
+
+/** ממיר אובייקט "0..6" או 0..6 עם {open,close}|null ל־WeeklySchedule טיפוסי */
+function normalizeWeeklySchedule(anyHours: any): WeeklySchedule {
+  const out: WeeklySchedule = {};
+  for (let d = 0 as DayOfWeek; d <= 6; d = (d + 1) as DayOfWeek) {
+    const row = (anyHours?.[d] ?? anyHours?.[String(d)] ?? null) as any;
+    if (!row) { out[d] = null; continue; }
+    const open  = normHHmm(row.open ?? row.start);
+    const close = normHHmm(row.close ?? row.end);
+    out[d] = (open && close) ? { open, close } : null;
+  }
+  return out;
+}
+
+/**
+ * עדכון שעות פתיחה (+ אופציונלי: slotIntervalMinutes, capacity)
+ * תואם חתימות שהקוד בצד ה־router עלול לקרוא.
+ */
+export async function updateRestaurantHours(
+  id: string,
+  hours: WeeklySchedule | Record<string, OpeningWindow | null>,
+  slotIntervalMinutes?: number,
+  capacity?: number,
+) {
+  const current = await getRestaurant(id);
+  if (!current) return null;
+
+  const weekly = normalizeWeeklySchedule(hours);
+
+  const patch: Partial<Restaurant> = {
+    weeklySchedule: weekly,
+  };
+
+  if (Number.isFinite(slotIntervalMinutes as number)) {
+    patch.slotIntervalMinutes = Math.max(5, (slotIntervalMinutes as number));
+  }
+  if (Number.isFinite(capacity as number)) {
+    patch.capacity = Math.max(1, (capacity as number));
+  }
+
+  // לשמירה על תאימות לאזכורים ישנים
+  // @ts-ignore
+  (patch as any).openingHours = weekly;
+  // @ts-ignore
+  (patch as any).hours = (current.hours ?? "");
+
+  return await updateRestaurant(id, patch);
+}
+
+/** שם חלופי נפוץ */
+export const setRestaurantOpeningHours = updateRestaurantHours;
