@@ -6,6 +6,7 @@ import { Router, Status } from "jsr:@oak/oak";
 import { getRestaurant, updateRestaurant } from "../database.ts";
 import { requireOwner } from "../lib/auth.ts";
 import { debugLog } from "../lib/debug.ts";
+import { render } from "../lib/view.ts";
 
 const ownerPhotosRouter = new Router();
 
