@@ -1,4 +1,3 @@
-<!-- templates/owner_dashboard.eta -->
 <% layout("_layout", it) %>
 
 <section class="card" style="max-width:1000px;margin:20px auto">
@@ -19,15 +18,16 @@
               <div class="meta">
                 <div class="title"><strong><%= r.name %></strong></div>
                 <div class="sub muted"><%= r.city %> • <%= r.address %></div>
-                <div class="sub muted">קיבולת: <%= r.capacity %> • גריד: <%= r.slotIntervalMinutes %> דק׳ • משך ישיבה: <%= r.serviceDurationMinutes %> דק׳</div>
+                <div class="sub muted">
+                  משך ישיבה: <%= (typeof r.serviceDurationMinutes === 'number' ? r.serviceDurationMinutes : 90) %> דק׳
+                </div>
               </div>
               <div class="actions" style="display:flex;gap:8px;flex-wrap:wrap">
                 <!-- עריכת פרטים (תחת owner_manage.ts) -->
                 <a class="btn" href="/owner/restaurants/<%= r.id %>/edit" target="_self" rel="nofollow">עריכת פרטים</a>
                 <!-- שעות פתיחה (תחת owner_hours.ts) -->
                 <a class="btn" href="/owner/restaurants/<%= r.id %>/hours" target="_self" rel="nofollow">שעות פתיחה</a>
-                <!-- קיבולת/גריד (תחת owner_capacity.ts) -->
-                <a class="btn" href="/owner/restaurants/<%= r.id %>/capacity" target="_self" rel="nofollow">קיבולת/גריד</a>
+                <!-- הוסר: כפתור "קיבולת/גריד" -->
               </div>
             </li>
           <% }) %>
@@ -40,6 +40,7 @@
     <!-- פתיחת מסעדה חדשה -->
     <div class="panel card">
       <h2 style="margin-top:0">פתח/י מסעדה חדשה</h2>
+      <!-- הוסר: שדות קיבולת וגריד. נשאר רק משך ישיבה. -->
       <form action="/owner/restaurant/new" method="post" class="form" id="create-restaurant-form">
         <label>שם מסעדה
           <input name="name" required placeholder="לדוגמה: פסטה דל סול">
@@ -53,38 +54,35 @@
         <label>טלפון (לא חובה)
           <input name="phone" placeholder="03-1234567">
         </label>
-        <div class="row" style="display:flex;gap:10px">
-          <label style="flex:1">קיבולת
-            <input name="capacity" type="number" min="1" step="1" value="30">
-          </label>
-          <label style="flex:1">גריד (דקות)
-            <input name="slotIntervalMinutes" type="number" min="5" step="5" value="15">
-          </label>
-          <label style="flex:1">משך ישיבה (דקות)
-            <input name="serviceDurationMinutes" type="number" min="30" step="15" value="120">
-          </label>
-        </div>
+
+        <label>משך ישיבה (דקות)
+          <input name="serviceDurationMinutes" type="number" min="30" step="15" value="120">
+        </label>
+
         <button class="btn primary" type="submit" style="margin-top:10px">שמירה ויצירה</button>
       </form>
-      <p class="muted" style="margin-top:8px">לאחר יצירה ניתן לעדכן שעות פתיחה ופרטים נוספים.</p>
+      <p class="muted" style="margin-top:8px">
+        לאחר יצירה ניתן לעדכן שעות פתיחה ופרטים נוספים בעמוד “שעות פתיחה”.
+      </p>
     </div>
   </div>
 </section>
 
 <script>
-  // הגנה: אם כפתור "שעות פתיחה" או "עריכת פרטים" נמצא בתוך אזור שעלול למנוע ניווט,
-  // נבטיח שהלחיצה תנווט.
-  document.addEventListener('click', (ev) => {
-    const a = (ev.target as HTMLElement)?.closest?.('a[href]');
-    if (!a) return;
-    const href = (a as HTMLAnchorElement).getAttribute('href') || '';
-    if (href.startsWith('/owner/')) {
-      // ודא שלא קיים preventDefault לא רצוי
-      // לא מבטלים את ברירת המחדל כדי לא לשבור התנהגות רגילה,
-      // רק וידוא היעד.
-      (a as HTMLAnchorElement).target = '_self';
+  // JS נקי (ללא TypeScript): מבטיח שלחיצות בליסטה ינווטו בדפדפן הנוכחי
+  document.addEventListener('click', function (ev) {
+    var target = ev.target;
+    if (!target) return;
+    var link = null;
+    if (target.closest) {
+      link = target.closest('a[href]');
     }
-  }, {capture:true});
+    if (!link) return;
+    var href = link.getAttribute('href') || '';
+    if (href.indexOf('/owner/') === 0) {
+      link.setAttribute('target', '_self');
+    }
+  }, true);
 </script>
 
 <style>
@@ -95,6 +93,7 @@
   .item:first-child{border-top:none;padding-top:0}
   .btn{display:inline-block;background:#111;color:#fff;border:none;border-radius:10px;padding:8px 12px;text-decoration:none;cursor:pointer}
   .btn.primary{background:#0b6}
+  .btn.primary:hover{background:#0a5}
   .form input{width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:8px;margin-top:4px}
   .panel.card{height:100%}
   @media (max-width:900px){ .grid{grid-template-columns:1fr} }
