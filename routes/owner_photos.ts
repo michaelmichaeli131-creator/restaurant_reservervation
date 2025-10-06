@@ -11,6 +11,31 @@ type PhotoItem = { id: string; dataUrl: string; alt?: string };
 
 const ownerPhotosRouter = new Router();
 
+/** עזר: הבטחת מערך */
+function ensureArray<T = unknown>(v: unknown, fallback: T[] = []): T[] {
+  return Array.isArray(v) ? (v as T[]) : fallback;
+}
+
+/** נרמול פורמט התמונות לכלל {id, dataUrl, alt?} (תאימות לאחור) */
+function normalizePhotos(list: unknown): PhotoItem[] {
+  const arr = ensureArray(list);
+  const out: PhotoItem[] = [];
+  for (const item of arr) {
+    if (!item) continue;
+    if (typeof item === "string") {
+      out.push({ id: crypto.randomUUID(), dataUrl: String(item) });
+    } else if (typeof item === "object") {
+      const o = item as any;
+      const id = String(o.id ?? crypto.randomUUID());
+      const dataUrl = String(o.dataUrl ?? o.url ?? "");
+      const alt = o.alt ? String(o.alt) : undefined;
+      if (!dataUrl) continue;
+      out.push({ id, dataUrl, alt });
+    }
+  }
+  return out;
+}
+
 /** קריאת גוף בקשה לבייטים (תואם Oak חדשים וישנים) */
 async function readBodyBytes(ctx: any): Promise<Uint8Array | null> {
   try {
@@ -83,6 +108,11 @@ function bytesToBase64(u8: Uint8Array): string {
   return out;
 }
 
+/** קבועים ללוגיקת גודל/סוג */
+const MAX_DATAURL_LENGTH = 60 * 1024; // ~60KB כולל prefix (KV value budget)
+const MAX_BYTES = 100 * 1024;         // failsafe על גוף הבקשה (client-side אמור כבר לכווץ)
+const MIME_RE = /^image\/(png|jpeg|webp)$/i;
+
 // ---------------- GET: דף התמונות ----------------
 ownerPhotosRouter.get("/owner/restaurants/:id/photos", async (ctx) => {
   if (!requireOwner(ctx)) return;
@@ -95,13 +125,35 @@ ownerPhotosRouter.get("/owner/restaurants/:id/photos", async (ctx) => {
     return;
   }
 
+  // נוודא שהפורמט תמיד אחיד בתצוגה
+  const normalized = normalizePhotos(r.photos);
+  if (normalized.length !== ensureArray(r.photos).length) {
+    // אם יש הבדל (למשל היו מחרוזות), נשמור חזרה בפורמט התקני — שקט.
+    await updateRestaurant(id, { photos: normalized } as any).catch(() => {});
+  }
+
   const saved = ctx.request.url.searchParams.get("saved") === "1";
   await render(ctx, "owner_photos.eta", {
     title: `תמונות — ${r.name}`,
     page: "owner_photos",
-    restaurant: r,
+    restaurant: { ...r, photos: normalized },
     saved,
   });
+});
+
+// ---------------- (אופציונלי) GET JSON: לקבלת גלריה בצורה אחידה ----------------
+ownerPhotosRouter.get("/owner/restaurants/:id/photos.json", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const id = ctx.params.id!;
+  const r = await getRestaurant(id);
+  if (!r || r.ownerId !== (ctx.state as any)?.user?.id) {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = { ok: false, error: "forbidden" };
+    return;
+  }
+  const normalized = normalizePhotos(r.photos);
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = JSON.stringify({ ok: true, photos: normalized });
 });
 
 // ---------------- POST: העלאת תמונה (binary body) ----------------
@@ -118,9 +170,10 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
 
   const contentType =
     ctx.request.headers.get("content-type") ||
-    ((ctx.request as any)?.request?.headers?.get?.("content-type") ?? "");
+    ((ctx.request as any)?.request?.headers?.get?.("content-type") ?? "") ||
+    ((ctx.request as any)?.originalRequest?.headers?.get?.("content-type") ?? "");
 
-  if (!/^image\/(png|jpeg|webp)$/.test(contentType)) {
+  if (!MIME_RE.test(contentType || "")) {
     debugLog("[photos][upload] unsupported content-type:", contentType);
     ctx.response.status = Status.UnsupportedMediaType;
     ctx.response.body = "Unsupported image format. Use PNG/JPEG/WebP.";
@@ -135,15 +188,10 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
     return;
   }
 
-  // ⚠ מגבלת KV ~64KiB לערך. נשמור dataURL קטן.
-  // נעצור הרבה לפני הגבול כדי לכלול מטא-דאטה ואובייקט JSON.
-  const MAX_DATAURL_LENGTH = 60 * 1024; // ~60KB dataURL (כולל prefix)
-  const MAX_BYTES = 100 * 1024; // לא למה שמחליטים בשרת — רק failsafe (נמוך יחסית)
-
   if (bytes.length > MAX_BYTES) {
     ctx.response.status = Status.BadRequest;
     ctx.response.body =
-      "התמונה גדולה מדי לשמירה ב-DB הנוכחי. הקטינו/כווצו צד-לקוח (ניסו שוב), או עברו לאחסון קבצים חיצוני.";
+      "התמונה גדולה מדי לשמירה ב-DB הנוכחי. הקטינו/כווצו צד-לקוח (נסו שוב), או עברו לאחסון קבצים חיצוני.";
     return;
   }
 
@@ -154,21 +202,21 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
     if (dataUrl.length > MAX_DATAURL_LENGTH) {
       ctx.response.status = Status.BadRequest;
       ctx.response.body =
-        "התמונה עדיין גדולה מדי לשמירה. נסו תמונה קטנה יותר או עברו לאחסון קבצים (S3/GCS).";
+        "התמונה עדיין גדולה מדי לשמירה. נסו תמונה קטנה יותר/מכווצת, או עברו לאחסון קבצים (S3/GCS).";
       return;
     }
 
     const pid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const newPhoto: PhotoItem = { id: pid, dataUrl };
 
-    const prev = Array.isArray(r.photos) ? r.photos : [];
+    const prev = normalizePhotos(r.photos);
     const next = [...prev, newPhoto];
 
     await updateRestaurant(id, { photos: next } as any);
 
     ctx.response.status = Status.OK;
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok: true, added: 1, total: next.length });
+    ctx.response.body = JSON.stringify({ ok: true, added: 1, total: next.length, id: pid });
   } catch (e) {
     debugLog("[photos][upload] base64 encode/save failed:", String(e));
     ctx.response.status = Status.InternalServerError;
@@ -193,6 +241,7 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/delete", async (ctx) => {
     const webReq: any =
       (ctx.request && (ctx.request as any).request) ??
       (ctx.request && (ctx.request as any).originalRequest) ?? null;
+
     const raw = webReq && typeof webReq.text === "function"
       ? await webReq.text()
       : await new Response(webReq?.body ?? null).text();
@@ -208,8 +257,14 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/delete", async (ctx) => {
     return;
   }
 
-  const prev = Array.isArray(r.photos) ? r.photos : [];
+  const prev = normalizePhotos(r.photos);
   const next = prev.filter((p: PhotoItem) => p.id !== pid);
+
+  if (next.length === prev.length) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = JSON.stringify({ ok: false, error: "not_found" });
+    return;
+  }
 
   await updateRestaurant(id, { photos: next } as any);
 

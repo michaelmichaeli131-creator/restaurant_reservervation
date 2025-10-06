@@ -394,6 +394,35 @@ export async function listRestaurants(q?: string, onlyApproved = true): Promise<
   });
 }
 
+/* ─────────────── NEW: Photos API (מחבר בין העלאות הבעלים לבין restaurant.photos) ─────────────── */
+
+/**
+ * מחזיר את מערך התמונות של המסעדה.
+ * כרגע אנחנו שומרים ישירות ב-restaurant.photos, לכן פשוט קורא מהמסעדה.
+ * אם בעתיד תרצה לעבור לטבלת owner_photos, כאן המקום לשנות מימוש.
+ */
+export async function listOwnerPhotosByRestaurant(restaurantId: string): Promise<string[]> {
+  const r = await getRestaurant(restaurantId);
+  if (!r) return [];
+  return Array.isArray(r.photos) ? r.photos.filter(Boolean).map(String) : [];
+}
+
+/** קובע מערך תמונות מלא למסעדה (מחליף את הקיים) */
+export async function setRestaurantPhotos(restaurantId: string, photos: string[]): Promise<void> {
+  const r = await getRestaurant(restaurantId);
+  if (!r) return;
+  await updateRestaurant(restaurantId, { photos: (photos ?? []).filter(Boolean) });
+}
+
+/** מוסיף תמונה אחת למסעדה (dataURL או URL חיצוני) לסוף המערך */
+export async function addOwnerPhoto(restaurantId: string, dataURL: string): Promise<void> {
+  const r = await getRestaurant(restaurantId);
+  if (!r) return;
+  const cur = Array.isArray(r.photos) ? r.photos.slice() : [];
+  cur.push(String(dataURL));
+  await updateRestaurant(restaurantId, { photos: cur });
+}
+
 /* ─────────────── Reservations, occupancy & availability ─────────────── */
 
 export async function listReservationsFor(restaurantId: string, date: string): Promise<Reservation[]> {
