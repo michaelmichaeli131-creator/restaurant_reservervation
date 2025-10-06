@@ -169,23 +169,42 @@
     console.log("[hours-form] submitting:", { rid, capacity, slotIntervalMinutes, weeklySchedule });
 
     try {
-	const res = await fetch(`/owner/restaurants/${encodeURIComponent(rid)}/hours`, {
+      const res = await fetch(`/owner/restaurants/${encodeURIComponent(rid)}/hours`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept":"application/json" },
         body: JSON.stringify({ capacity, slotIntervalMinutes, weeklySchedule }),
       });
 
-      if (!res.ok && res.status !== 204) {
+      if (!res.ok) {
         const txt = await res.text().catch(()=> "");
-        alert("שמירה נכשלה: " + (txt || res.status));
         console.error("[hours-form] failed:", res.status, txt);
+        alert("שמירה נכשלה: " + res.status + "\n" + txt);
         return;
       }
 
-      alert("שעות נשמרו בהצלחה!");
-      location.assign(`/owner/restaurants/${encodeURIComponent(rid)}/hours?saved=1`);
+      const contentType = res.headers.get("content-type") || "";
+      
+      if (contentType.includes("application/json")) {
+        try {
+          const data = await res.json();
+          console.log("[hours-form] success:", data);
+          if (data.ok) {
+            alert("שעות נשמרו בהצלחה!");
+            location.assign(`/owner/restaurants/${encodeURIComponent(rid)}/hours?saved=1`);
+          } else {
+            alert("שמירה נכשלה: " + (data.error || "שגיאה לא ידועה"));
+          }
+        } catch (e) {
+          console.error("[hours-form] parse error:", e);
+          alert("שגיאה בקריאת תגובת השרת");
+        }
+      } else {
+        console.log("[hours-form] non-JSON response, assuming success");
+        alert("שעות נשמרו בהצלחה!");
+        location.assign(`/owner/restaurants/${encodeURIComponent(rid)}/hours?saved=1`);
+      }
     } catch (e) {
-      console.error("[hours-form] error:", e);
+      console.error("[hours-form] network error:", e);
       alert("שמירה נכשלה (רשת/שרת).");
     }
   });
