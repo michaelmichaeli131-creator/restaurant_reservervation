@@ -114,10 +114,10 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
   }
 
   // הגבלת גודל (2MB)
-  const MAX_BYTES = 2 * 1024 * 1024;
+  const MAX_BYTES = 20 * 1024 * 1024;
   if (bytes.length > MAX_BYTES) {
     ctx.response.status = Status.BadRequest;
-    ctx.response.body = "Image too large (max 2MB).";
+    ctx.response.body = "Image too large (max 20MB).";
     return;
   }
 
