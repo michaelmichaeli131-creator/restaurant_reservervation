@@ -1,7 +1,6 @@
 // src/routes/owner_photos.ts
 // ניהול תמונות מסעדה — בעלים בלבד
-// העלאה/מחיקה ללא שימוש ב-request.body: משתמשים ב-ctx.request.originalRequest (Web API)
-// התמונות נשמרות במערך photos של ה-restaurant כ-dataURL (MVP פשוט ללא תלות בקבצים חיצוניים)
+// העלאה/מחיקה: קריאת JSON עמידה לגרסאות Oak שונות (ללא תלות ב-request.body ספציפי)
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -10,6 +9,52 @@ import { requireOwner } from "../lib/auth.ts";
 import { debugLog } from "../lib/debug.ts";
 
 type PhotoItem = { id: string; dataUrl: string; alt?: string };
+
+// עוזר: קריאת JSON בצורה גנרית (תומך בכמה דרכים של Oak/Web API)
+async function readJsonSafe(ctx: any): Promise<any | null> {
+  // 1) הדרך הרגילה של Oak (אם קיימת בסביבתך)
+  try {
+    if (typeof ctx.request?.body === "function") {
+      const b = ctx.request.body({ type: "json" });
+      const v = await b.value;
+      if (v && typeof v === "object") return v;
+    }
+  } catch (e) {
+    debugLog("[photos] body({json}) failed", String(e));
+  }
+
+  // 2) נסיון לקרוא bytes ולפענח ידנית
+  try {
+    if (typeof ctx.request?.body === "function") {
+      const b2 = ctx.request.body({ type: "bytes" });
+      const bytes: Uint8Array = await b2.value;
+      if (bytes && bytes.length) {
+        const text = new TextDecoder().decode(bytes);
+        if (text && text.trim().length) {
+          return JSON.parse(text);
+        }
+      }
+    }
+  } catch (e) {
+    debugLog("[photos] body({bytes}) parse failed", String(e));
+  }
+
+  // 3) Web API Request אם זמינה
+  try {
+    const req = (ctx.request as any).request
+      ?? (ctx.request as any).originalRequest
+      ?? (ctx as any).request
+      ?? null;
+    if (req && typeof req.json === "function") {
+      const v = await req.json();
+      if (v && typeof v === "object") return v;
+    }
+  } catch (e) {
+    debugLog("[photos] originalRequest.json failed", String(e));
+  }
+
+  return null;
+}
 
 const ownerPhotosRouter = new Router();
 
@@ -49,14 +94,8 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
     return;
   }
 
-  // שימוש ב-Web Request מקורית כדי לקרוא JSON
-  let data: any = null;
-  try {
-    const req = (ctx.request as any).originalRequest ?? null;
-    if (!req || typeof req.json !== "function") throw new Error("no_json_api");
-    data = await req.json();
-  } catch (e) {
-    debugLog("[owner_photos][upload] json read failed", String(e));
+  const data = await readJsonSafe(ctx);
+  if (!data) {
     ctx.response.status = Status.BadRequest;
     ctx.response.body = "Invalid JSON";
     return;
@@ -71,17 +110,17 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
 
   // ולידציה בסיסית + מגבלות
   const MAX_FILES = 12;
-  const MAX_SIZE_B64 = 1_800_000 * 1.4; // בערך ~1.8MB לפני base64 (מרווח)
-  const out: PhotoItem[] = [];
+  // ~1.8MB (raw) -> base64 ~1.33x, נשאיר מרווח
+  const MAX_DATAURL_LEN = Math.floor(1.8 * 1024 * 1024 * 1.6);
 
+  const out: PhotoItem[] = [];
   for (const item of images.slice(0, MAX_FILES)) {
     const dataUrl = String(item?.dataUrl ?? "");
     const alt = typeof item?.alt === "string" ? item.alt.slice(0, 140) : undefined;
 
-    // לוודא שמדובר ב-data url תקין (image/*)
+    // וידוא data URL תקין
     if (!/^data:image\/(png|jpe?g|webp);base64,/.test(dataUrl)) continue;
-    // הגבלת גודל בסיסית
-    if (dataUrl.length > MAX_SIZE_B64 * 1.42) continue;
+    if (dataUrl.length > MAX_DATAURL_LEN) continue;
 
     const idPart = Math.random().toString(36).slice(2, 10);
     out.push({ id: `${Date.now()}-${idPart}`, dataUrl, alt });
@@ -117,12 +156,8 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/delete", async (ctx) => {
     return;
   }
 
-  let data: any = null;
-  try {
-    const req = (ctx.request as any).originalRequest ?? null;
-    if (!req || typeof req.json !== "function") throw new Error("no_json_api");
-    data = await req.json();
-  } catch {
+  const data = await readJsonSafe(ctx);
+  if (!data) {
     ctx.response.status = Status.BadRequest;
     ctx.response.body = "Invalid JSON";
     return;
