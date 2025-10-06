@@ -6,7 +6,6 @@ import { render } from "../lib/view.ts";
 import { getRestaurant, updateRestaurant } from "../database.ts";
 import { requireOwner } from "../lib/auth.ts";
 import { debugLog } from "../lib/debug.ts";
-// שימוש במקודד Base64 מה-std של Deno — לא יוצר מחרוזות ענקיות ב-apply/charCode
 import { Base64 } from "jsr:@std/encoding/base64";
 
 type PhotoItem = { id: string; dataUrl: string; alt?: string };
@@ -59,10 +58,9 @@ async function readBodyBytes(ctx: any): Promise<Uint8Array | null> {
   return null;
 }
 
-/** המרת bytes ל-base64 בצורה יעילה ובטוחה (ללא String.fromCharCode/apply). */
+/** המרת bytes ל-base64 בצורה יעילה ובטוחה. */
 function toBase64(u8: Uint8Array): string {
-  // encode() מה-std מקבל Uint8Array ומחזיר מחרוזת base64 יעילה
-  return base64Encode(u8);
+  return Base64.encode(u8);
 }
 
 // ---------------- GET: דף התמונות ----------------
@@ -118,8 +116,8 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
     return;
   }
 
-  // הגדל כאן אם תרצה — לדוגמה 10MB:
-  const MAX_BYTES = 20 * 1024 * 1024; // ← עדכן ערך זה לפי הצורך
+  // הגבלת גודל (עדכן לפי הצורך)
+  const MAX_BYTES = 20 * 1024 * 1024; // 20MB
   if (bytes.length > MAX_BYTES) {
     ctx.response.status = Status.BadRequest;
     ctx.response.body = `Image too large (max ${(MAX_BYTES / (1024 * 1024)).toFixed(0)}MB).`;
@@ -127,7 +125,7 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
   }
 
   try {
-const base64 = Base64.encode(bytes);
+    const base64 = toBase64(bytes);
     const dataUrl = `data:${contentType};base64,${base64}`;
 
     const pid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
