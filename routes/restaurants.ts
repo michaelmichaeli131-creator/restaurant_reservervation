@@ -36,7 +36,7 @@ function normalizeDate(input: unknown): string {
   return s;
 }
 
-/* ─────────── UPDATED: normalizeTime supports AM/PM and 24h ─────────── */
+/* ─────────── normalizeTime: תומך 24h וגם AM/PM ─────────── */
 function normalizeTime(input: unknown): string {
   let s = String(input ?? "").trim();
   if (!s) return "";
@@ -66,7 +66,6 @@ function normalizeTime(input: unknown): string {
   mi = Math.floor(mi / 15) * 15;
   return `${pad2(h)}:${pad2(mi)}`;
 }
-
 function toIntLoose(input: unknown): number | null {
   if (typeof input === "number" && Number.isFinite(input)) return Math.trunc(input);
   if (typeof input === "bigint") return Number(input);
@@ -155,8 +154,7 @@ function withinAnyWindow(timeMin: number, windows: Array<{ open: string; close: 
     let a = toMinutes(w.open);
     let b = toMinutes(w.close);
     if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
-    // אם close <= open — חותכים עד סוף היום (לא חוצים לחצות ליום הבא בצד השרת)
-    if (b <= a) b = 24 * 60 - 1;
+    if (b <= a) b = 24 * 60 - 1; // close<=open -> עד סוף היום
     if (timeMin >= a && timeMin <= b) return true;
   }
   return false;
@@ -321,13 +319,11 @@ function extractDateAndTime(ctx: any, payload: Record<string, unknown>) {
   const date = normalizeDate(rawDate);
   const time = normalizeTime(rawTime);
 
-  debugLog("extractDateAndTime", {
+  debugLog("[restaurants] extractDateAndTime", {
+    from_payload: { date: payload["date"], time: payload["time"], time_display: (payload as any)["time_display"] },
+    from_qs: { date: qs.get("date"), time: qs.get("time") },
+    from_ref: { date: (ref as any)["date"], time: (ref as any)["time"] },
     rawDate, rawTime,
-    from: {
-      payload: { date: payload["date"], time: payload["time"], time_display: (payload as any)["time_display"] },
-      qs: { date: qs.get("date"), time: qs.get("time") },
-      referer: { date: (ref as any)["date"], time: (ref as any)["time"] },
-    },
     normalized: { date, time }
   });
 
@@ -363,18 +359,23 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
     return;
   }
 
-  // normalize + sensible defaults so opening hours always show
   const rawDate = ctx.request.url.searchParams.get("date") ?? "";
   const rawTime = ctx.request.url.searchParams.get("time") ?? "";
   const date = normalizeDate(rawDate) || todayISO();
-  const time = normalizeTime(rawTime); // time may stay empty here (UI can pick)
+  const time = normalizeTime(rawTime);
 
   const openingWindows = getWindowsForDate(restaurant.weeklySchedule as WeeklySchedule, date);
+
+  debugLog("[restaurants][GET /restaurants/:id] view", {
+    id, date, rawTime, time,
+    hasWeekly: !!restaurant.weeklySchedule,
+    weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : [],
+    openingWindows
+  });
 
   await render(ctx, "restaurant", {
     page: "restaurant",
     title: `${restaurant.name} — GeoTable`,
-    // keep original shape + expose weeklySchedule as openingHours for UI compatibility
     restaurant: { ...restaurant, openingHours: restaurant.weeklySchedule },
     openingWindows,
     conflict: ctx.request.url.searchParams.get("conflict") === "1",
@@ -398,6 +399,16 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const { date, time } = extractDateAndTime(ctx, payload);
   const people = 2;
 
+  const windows = getWindowsForDate(restaurant.weeklySchedule, date);
+  const within = isWithinSchedule(restaurant.weeklySchedule, date, time);
+
+  debugLog("[restaurants][POST /api/.../check] input", {
+    rid, date, time, people,
+    body_ct: dbg.ct, body_keys: Object.keys(payload),
+    weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : [],
+    windows, within
+  });
+
   const bad = (m: string) => {
     ctx.response.status = Status.BadRequest;
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
@@ -406,8 +417,7 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("bad date (YYYY-MM-DD expected)");
   if (!/^\d{2}:\d{2}$/.test(time)) return bad("bad time (HH:mm expected)");
 
-  // אכיפת שעות פתיחה
-  if (!isWithinSchedule(restaurant.weeklySchedule, date, time)) {
+  if (!within) {
     const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.body = JSON.stringify({ ok:false, reason:"closed", suggestions }, null, 2);
@@ -440,16 +450,21 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   const { date, time } = extractDateAndTime(ctx, payload);
   const people = 2;
 
+  const within = isWithinSchedule(restaurant.weeklySchedule, date, time);
+  debugLog("[restaurants][POST reserve] before-redirect", {
+    rid, date, time, within,
+    weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : []
+  });
+
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
-    debugLog("reserve error invalid format", { date, time, dbg });
+    debugLog("[restaurants][POST reserve] invalid-format", { date, time, dbg });
     ctx.response.status = Status.BadRequest;
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.body = JSON.stringify({ ok:false, error:"אנא בחר/י תאריך ושעה תקינים" }, null, 2);
     return;
   }
 
-  // אכיפת שעות פתיחה
-  if (!isWithinSchedule(restaurant.weeklySchedule, date, time)) {
+  if (!within) {
     const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
     const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
     url.searchParams.set("conflict", "1");
@@ -496,6 +511,11 @@ restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
   const time = normalizeTime(ctx.request.url.searchParams.get("time") ?? "");
   const people = Number(ctx.request.url.searchParams.get("people") ?? "2") || 2;
 
+  debugLog("[restaurants][GET details]", {
+    id, date, time, people,
+    weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : []
+  });
+
   await render(ctx, "reservation_details", {
     page: "reservation_details",
     title: `פרטי הזמנה — ${restaurant.name}`,
@@ -517,6 +537,12 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   const sp = ctx.request.url.searchParams;
   const { date, time } = extractDateAndTime(ctx, Object.fromEntries(sp.entries()));
   const people = toIntLoose(sp.get("people")) ?? 2;
+
+  const within = isWithinSchedule(restaurant.weeklySchedule, date, time);
+  debugLog("[restaurants][GET confirm] input", {
+    rid, date, time, people, within,
+    weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : []
+  });
 
   const customerNameRaw =
     sp.get("name") ?? sp.get("customerName") ?? sp.get("fullName") ?? sp.get("customer_name") ?? sp.get("full_name");
@@ -544,8 +570,7 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   if (customerEmail && !isValidEmail(customerEmail))
     return bad("נא להזין אימייל תקין", { customerEmail });
 
-  // אכיפת שעות פתיחה
-  if (!isWithinSchedule(restaurant.weeklySchedule, date, time)) {
+  if (!within) {
     const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.status = Status.Conflict;
@@ -620,6 +645,8 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const { date, time } = extractDateAndTime(ctx, payload);
   const people = toIntLoose(pickNonEmpty((payload as any).people, ctx.request.url.searchParams.get("people"))) ?? 2;
 
+  const within = isWithinSchedule(restaurant.weeklySchedule, date, time);
+
   const customerNameRaw  =
     (payload as any).name ?? (payload as any).customerName ?? (payload as any).fullName ??
     (payload as any)["customer_name"] ?? (payload as any)["full_name"];
@@ -628,17 +655,15 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const customerEmailRaw =
     (payload as any).email ?? (payload as any).customerEmail ?? (payload as any)["customer_email"];
 
+  debugLog("[restaurants][POST confirm] input", {
+    rid, date, time, people,
+    within, body_ct: dbg.ct, body_keys: Object.keys(payload),
+    weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : []
+  });
+
   const customerName  = normalizePlain(customerNameRaw);
   const customerPhone = normalizePlain(customerPhoneRaw);
   const customerEmail = normalizeEmail(customerEmailRaw);
-
-  const reqId = String(ctx.state?.reqId ?? crypto.randomUUID().slice(0, 8));
-  debugLog(`[CONF ${reqId}] fields`, {
-    date, time, people,
-    customerNameRaw, customerName,
-    customerPhoneRaw, customerPhone,
-    customerEmailRaw, customerEmail
-  });
 
   const bad = (m: string, extra?: unknown) => {
     const keys = Object.keys(payload ?? {});
@@ -652,13 +677,10 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("תאריך לא תקין");
   if (!/^\d{2}:\d{2}$/.test(time))       return bad("שעה לא תקינה");
   if (!customerName)                     return bad("נא להזין שם");
-
   if (!customerPhone && !customerEmail)  return bad("נא להזין טלפון או אימייל");
-  if (customerEmail && !isValidEmail(customerEmail))
-    return bad("נא להזין אימייל תקין", { customerEmail, note: "normalize applied" });
+  if (customerEmail && !isValidEmail(customerEmail)) return bad("נא להזין אימייל תקין", { customerEmail, note: "normalize applied" });
 
-  // אכיפת שעות פתיחה
-  if (!isWithinSchedule(restaurant.weeklySchedule, date, time)) {
+  if (!within) {
     const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.status = Status.Conflict;

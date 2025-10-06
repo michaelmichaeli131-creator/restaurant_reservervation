@@ -1,6 +1,6 @@
 // src/routes/owner_hours.ts
 // ניהול שעות פתיחה שבועיות למסעדה — לבעלים בלבד
-// כולל קריאת גוף "חזקה" שמתאימה גם ל-Deno Deploy/Oak
+// כולל קריאת גוף "חזקה" שמתאימה גם ל-Deno Deploy/Oak + לוגים מפורטים
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -35,9 +35,7 @@ async function readBodyStrong(ctx: any): Promise<{ payload: Record<string, unkno
     ct: (ctx.request.headers.get("content-type") ?? "").toLowerCase(),
     phases: [] as any[],
   };
-  const phase = (name: string, data?: unknown) => {
-    try { (dbg.phases as any[]).push({ name, data }); } catch {}
-  };
+  const phase = (name: string, data?: unknown) => { try { (dbg.phases as any[]).push({ name, data }); } catch {} };
   const merge = (src: Record<string, unknown>) => {
     for (const [k, v] of Object.entries(src)) if (v !== undefined && v !== null && v !== "") out[k] = v;
   };
@@ -51,7 +49,6 @@ async function readBodyStrong(ctx: any): Promise<{ payload: Record<string, unkno
     return o;
   };
 
-  // 1) נסיונות Oak
   async function tryOak(type: "form" | "form-data" | "json" | "text" | "bytes") {
     try {
       const b = await (ctx.request as any).body?.({ type });
@@ -103,7 +100,7 @@ async function readBodyStrong(ctx: any): Promise<{ payload: Record<string, unkno
   await tryOak("text");
   await tryOak("bytes");
 
-  // 2) נסיונות native (Deploy/WHATWG)
+  // WHATWG
   const reqAny: any = ctx.request as any;
   try {
     if (typeof reqAny.formData === "function") {
@@ -157,11 +154,17 @@ ownerHoursRouter.get("/owner/restaurants/:id/hours", async (ctx) => {
   if (!requireOwner(ctx)) return;
   const id = ctx.params.id!;
   const r = await getRestaurant(id);
+
+  debugLog("[owner_hours][GET] load", { id, found: !!r, ownerId: r?.ownerId, userId: (ctx.state as any)?.user?.id });
+
   if (!r || r.ownerId !== (ctx.state as any)?.user?.id) {
     ctx.response.status = Status.NotFound;
     await render(ctx, "error", { title: "לא נמצא", message: "מסעדה לא נמצאה או שאין הרשאה." });
     return;
   }
+
+  // הצגה מפורטת של מה שמאוחסן כרגע
+  debugLog("[owner_hours][GET] current.weeklySchedule", r.weeklySchedule ?? null);
 
   const weekly: WeeklySchedule = {};
   for (let d = 0 as 0|1|2|3|4|5|6; d <= 6; d = (d + 1) as 0|1|2|3|4|5|6) {
@@ -190,15 +193,17 @@ ownerHoursRouter.post("/owner/restaurants/:id/hours", async (ctx) => {
   }
 
   const { payload, dbg } = await readBodyStrong(ctx);
-  debugLog("[owner_hours] payload", { keys: Object.keys(payload), sample: payload });
+  debugLog("[owner_hours][POST] body", { ct: dbg.ct, phases: dbg.phases?.map((p: any) => p.name), keys: Object.keys(payload) });
 
   const weekly = parseWeeklyFromPayload(payload);
+  debugLog("[owner_hours][POST] parsed.weekly", weekly);
 
   try {
     const patch: Partial<Restaurant> = { weeklySchedule: weekly };
     await updateRestaurant(id, patch);
+    debugLog("[owner_hours][POST] updateRestaurant.ok", { id });
   } catch (e) {
-    debugLog("[owner_hours] updateRestaurant.error", { error: String(e) });
+    debugLog("[owner_hours][POST] updateRestaurant.error", { error: String(e) });
     ctx.response.status = Status.InternalServerError;
     await render(ctx, "error", { title: "שגיאה בשמירה", message: "אירעה תקלה בשמירת שעות הפתיחה." });
     return;
