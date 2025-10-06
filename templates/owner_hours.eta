@@ -132,7 +132,7 @@
 
       enabled.addEventListener("change", ()=> setEnabled(enabled.checked));
 
-      // UX: הקלדה בשעת פתיחה/סגירה מפעילה אוטומטית את היום
+      // הקלדה בשעת פתיחה/סגירה מפעילה אוטומטית את היום
       function autoEnableFromInput(inp){
         const v = normHHMM(inp.value);
         if (v) {
@@ -181,7 +181,7 @@
 
   // שליחה: ודא ששום קלט קריטי לא נשאר disabled ושיש enabled=on לכל יום פעיל
   const form = document.getElementById("hours-form");
-  form.addEventListener("submit", (ev)=>{
+  form.addEventListener("submit", ()=>{
     document.querySelectorAll(".day-card").forEach(card=>{
       const enabled = card.querySelector(".enabled");
       const open    = card.querySelector(".open");
