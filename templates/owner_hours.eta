@@ -1,3 +1,4 @@
+<!-- src/templates/owner_hours.eta -->
 <% layout("_layout", it) %>
 <main class="container">
   <header class="page-header">
@@ -181,13 +182,11 @@
   // שליחה: ודא ששום קלט קריטי לא נשאר disabled ושיש enabled=on לכל יום פעיל
   const form = document.getElementById("hours-form");
   form.addEventListener("submit", (ev)=>{
-    // הסר disabled כדי שהדפדפן ישלח את הערכים
     document.querySelectorAll(".day-card").forEach(card=>{
       const enabled = card.querySelector(".enabled");
       const open    = card.querySelector(".open");
       const close   = card.querySelector(".close");
       if (enabled.checked) { open.disabled = false; close.disabled = false; }
-      // הזרקת שדה מוסתר dX_enabled=on עבור ימים פעילים (ביטוח)
       const d = +card.dataset.day;
       const has = card.querySelector(`input[type="hidden"][name="d${d}_enabled"]`);
       if (enabled.checked && !has) {

@@ -1,5 +1,5 @@
 // src/server.ts
-// GeoTable – Oak server (extended)
+// GeoTable – Oak server (extended, cleaned & ordered)
 // -------------------------------------------------------------
 // כולל:
 // - Error handler גלובלי (עם סטאק ללוג)
@@ -8,9 +8,8 @@
 // - כפיית HTTPS בפרודקשן (במיוחד עבור cookies מאובטחים)
 // - Session middleware (cookie) + טעינת משתמש ל-ctx.state.user
 // - Static files תחת /public אל /static
-// - Root router: דף בית (תוצאות גם כשיש q, לא רק כשsearch=1), /__health, /__echo
-// - /__mailtest (בדיקת אימייל) מאובטח ב-ADMIN_SECRET
-// - חיבור כל הראוטרים: auth, restaurants, owner, admin
+// - Root router: דף בית (תוצאות גם כשיש q, לא רק כשsearch=1), /__health, /__echo, /__mailtest, /__env
+// - חיבור כל הראוטרים: auth, restaurants, owner, admin, owner_capacity, owner_manage, owner_hours
 // - טיפול 404/405/OPTIONS, וכן graceful shutdown
 // -------------------------------------------------------------
 
@@ -34,7 +33,6 @@ import { listRestaurants, getUserById } from "./database.ts";
 import { sendVerifyEmail } from "./lib/mail.ts";
 import ownerManageRouter from "./routes/owner_manage.ts";
 import { ownerHoursRouter } from "./routes/owner_hours.ts";
-
 
 // -------------------- ENV --------------------
 const PORT = Number(Deno.env.get("PORT") ?? "8000");
@@ -134,9 +132,9 @@ app.use(async (ctx, next) => {
   const t0 = performance.now();
   const reqId = (ctx.state as any).reqId;
   const ip = getClientIp(ctx) ?? "-";
+  await next();
   const user = (ctx.state as any).user;
   const userTag = user ? `${user.email}(${user.id})` : "-";
-  await next();
   const dt = performance.now() - t0;
   console.log(
     `[RES ${reqId}] ${ctx.response.status} ${ctx.request.method} ${ctx.request.url.pathname}` +
@@ -168,10 +166,7 @@ app.use(async (ctx, next) => {
   if (!p.startsWith("/static/")) return await next();
   const filePath = p.slice("/static".length) || "/";
   try {
-    // ctx.send זמין ב-oak – ממפה לשורש public
-    // אם אין ctx.send בסביבתך, שמור את המימוש הקודם שקראת עם Deno.readFile
-    // אך כאן נשתמש בו כדי להשאיר תואם לגרסה הארוכה שלך:
-    // @ts-ignore
+    // @ts-ignore oak ctx.send
     await ctx.send({
       root: "public",
       path: filePath,
@@ -185,9 +180,7 @@ app.use(async (ctx, next) => {
 // --- No-cache לאיזור האדמין + X-Build-Tag לכל תגובה ---
 app.use(async (ctx, next) => {
   await next();
-  // כותרת דיבוג כדי לזהות פריסה חדשה
   ctx.response.headers.set("X-Build-Tag", BUILD_TAG);
-  // ביטול קאש ב-/admin כדי שתראה תמיד את הגרסה העדכנית
   if (ctx.request.url.pathname.startsWith("/admin")) {
     ctx.response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     ctx.response.headers.set("Pragma", "no-cache");
@@ -195,10 +188,10 @@ app.use(async (ctx, next) => {
   }
 });
 
-// -------------------- ROOT ROUTER --------------------
+// -------------------- ROOT ROUTER (inline) --------------------
 const root = new Router();
 
-// דף הבית – שיפור: מציג תוצאות גם כשיש q, לא רק כשsearch=1
+// דף הבית – מציג תוצאות גם כשיש q, לא רק כשsearch=1
 root.get("/", async (ctx) => {
   const url = ctx.request.url;
   const q = url.searchParams.get("q")?.toString() ?? "";
@@ -234,7 +227,7 @@ root.get("/__echo", (ctx) => {
   ctx.response.body = JSON.stringify(info, null, 2);
 });
 
-// Mail test
+// Mail test (מאובטח ב-ADMIN_SECRET)
 root.get("/__mailtest", async (ctx) => {
   const key = ctx.request.url.searchParams.get("key") ?? "";
   const to = ctx.request.url.searchParams.get("to") ?? "";
@@ -274,33 +267,36 @@ root.get("/__env", (ctx) => {
 app.use(root.routes());
 app.use(root.allowedMethods());
 
-// -------------------- FEATURE ROUTERS --------------------
+// -------------------- FEATURE ROUTERS (ordered, no duplicates) --------------------
+// אימות/משתמשים
 app.use(authRouter.routes());
 app.use(authRouter.allowedMethods());
 
+// ראוטרים ציבוריים של מסעדות
 app.use(restaurantsRouter.routes());
 app.use(restaurantsRouter.allowedMethods());
 
+// ראוטרים לבעלים
 app.use(ownerRouter.routes());
 app.use(ownerRouter.allowedMethods());
 
-app.use(adminRouter.routes());
-app.use(adminRouter.allowedMethods());
-
-app.use(rootRouter.routes());
-app.use(rootRouter.allowedMethods());
-
+// יכולות בעלים נוספות (capacity/config)
 app.use(ownerCapacityRouter.routes());
 app.use(ownerCapacityRouter.allowedMethods());
 
+// מסכי ניהול כלליים לבעלים
 app.use(ownerManageRouter.routes());
 app.use(ownerManageRouter.allowedMethods());
 
-app.use(authRouter.routes());
-app.use(restaurantsRouter.routes());
+// מסך שעות פתיחה לבעלים (הלב של הבאג שתוקן)
 app.use(ownerHoursRouter.routes());
+app.use(ownerHoursRouter.allowedMethods());
 
-// --- OPTIONS & 404 ---
+// ראוטר שורש נוסף מהפרויקט (עמודים נוספים)
+app.use(rootRouter.routes());
+app.use(rootRouter.allowedMethods());
+
+// --- OPTIONS (כללי) ---
 app.use(async (ctx, next) => {
   if (ctx.request.method === "OPTIONS") {
     ctx.response.status = Status.NoContent;
@@ -308,6 +304,8 @@ app.use(async (ctx, next) => {
   }
   await next();
 });
+
+// --- 404 (כללי) ---
 app.use((ctx) => {
   if (ctx.response.body == null) {
     ctx.response.status = Status.NotFound;
@@ -326,7 +324,7 @@ for (const s of ["SIGINT", "SIGTERM"] as const) {
 
 // -------------------- START --------------------
 console.log(
-  `[BOOT] GeoTable up on :${PORT} (env=${NODE_ENV}) BASE_URL=${BASE_URL || "(not set)"} BUILD_TAG=${BUILD_TAG}`
+  `[BOOT] GeoTable up on :${PORT} (env=${NODE_ENV}) BASE_URL=${BASE_URL || "(not set)"} BUILD_TAG=${BUILD_TAG}`,
 );
 await app.listen({ port: PORT, signal: controller.signal });
 console.log("[BOOT] server stopped");

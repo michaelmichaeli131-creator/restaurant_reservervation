@@ -1,6 +1,5 @@
 // src/routes/owner_hours.ts
 // ניהול שעות פתיחה שבועיות למסעדה — לבעלים בלבד
-// כולל קריאת גוף "חזקה" + פרסינג hours משדות dX_open/dX_close/dX_enabled
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
