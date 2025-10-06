@@ -1,9 +1,9 @@
 // src/routes/owner_hours.ts
 // ניהול שעות פתיחה שבועיות למסעדה — לבעלים בלבד
-// תיקונים:
-// - render(ctx, ...) כדי למנוע wantsJSON על undefined
-// - Alias לנתיבים היסטוריים (/owner/hours/:id, /owner/restaurants/:id/opening-hours)
-// - פרסור גוף JSON/FORM עקבי + נרמול weeklySchedule כדי לא להשאיר null/undefined לא מכוונים
+// עדכון: התאמה ל-Fetch API של Oak החדש (json()/formData() במקום request.body())
+// + ולידציה/נרמול למניעת שמירת weeklySchedule ריק בטעות
+// + render(ctx, ...) כדי למנוע wantsJSON על undefined
+// + נתיבי Alias היסטוריים
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -80,33 +80,55 @@ function normalizeWeeklySchedule(input?: IncomingPayload["weeklySchedule"]): Wee
   return out;
 }
 
-/** קריאת גוף בצורה בטוחה: JSON תחילה, נפילה ל-form */
+/** קריאת גוף בצורה בטוחה (Fetch API): JSON תחילה, ואז formData */
 async function readSafePayload(ctx: any): Promise<IncomingPayload> {
-  const ct = ctx.request.headers.get("content-type") || "";
+  const req: Request = ctx.request; // Oak 17 משתמש ב-Fetch API
+  const ct = req.headers.get("content-type") || "";
+
+  // אם הגוף כבר נצרך ע"י Middleware אחר, אל ננסה שוב
+  // (ב-Fetch יש bodyUsed; אם איננו, ננסה כרגיל)
   try {
     if (ct.includes("application/json")) {
-      const body = ctx.request.body({ type: "json" });
-      const data = await body.value;
+      // JSON
+      const data = await req.json();
       if (data && typeof data === "object") return data as IncomingPayload;
     }
   } catch (e) {
     debugLog("[owner_hours][POST] JSON parse failed", String(e));
   }
 
-  // fallback: x-www-form-urlencoded
   try {
-    const body = ctx.request.body({ type: "form" });
-    const form = await body.value;
+    // x-www-form-urlencoded או multipart/form-data -> formData()
+    if (ct.includes("application/x-www-form-urlencoded") || ct.includes("multipart/form-data")) {
+      const form = await req.formData();
+      const obj: any = {};
+      for (const [k, v] of form.entries()) {
+        obj[k] = typeof v === "string" ? v : v; // קבצים לא צפויים כאן, אבל נשאיר כללי
+      }
+      // weeklySchedule עשוי להגיע כמחרוזת JSON
+      if (obj.weeklySchedule && typeof obj.weeklySchedule === "string") {
+        try { obj.weeklySchedule = JSON.parse(obj.weeklySchedule); } catch {}
+      }
+      return obj as IncomingPayload;
+    }
+  } catch (e) {
+    debugLog("[owner_hours][POST] form parse failed", String(e));
+  }
+
+  // ייתכן ש-ct לא הוגדר/ריק — ננסה קודם JSON ואז formData בניסיון עדין
+  try {
+    const data = await req.json();
+    if (data && typeof data === "object") return data as IncomingPayload;
+  } catch {}
+  try {
+    const form = await req.formData();
     const obj: any = {};
     for (const [k, v] of form.entries()) obj[k] = v;
-    // weeklySchedule עשוי להגיע כמחרוזת JSON
     if (obj.weeklySchedule && typeof obj.weeklySchedule === "string") {
       try { obj.weeklySchedule = JSON.parse(obj.weeklySchedule); } catch {}
     }
     return obj as IncomingPayload;
-  } catch (e) {
-    debugLog("[owner_hours][POST] form parse failed", String(e));
-  }
+  } catch {}
 
   return {};
 }
@@ -115,7 +137,6 @@ async function readSafePayload(ctx: any): Promise<IncomingPayload> {
 // ALIASES (ללא שינוי UI קיים)
 // ---------------------------
 
-// /owner/hours/:id  -> redirect לקנוני
 ownerHoursRouter.get("/owner/hours/:id", async (ctx) => {
   if (!requireOwner(ctx)) return;
   const id = ctx.params.id!;
@@ -123,7 +144,6 @@ ownerHoursRouter.get("/owner/hours/:id", async (ctx) => {
   ctx.response.headers.set("Location", `/owner/restaurants/${encodeURIComponent(id)}/hours`);
 });
 
-// /owner/restaurants/:id/opening-hours -> redirect לקנוני
 ownerHoursRouter.get("/owner/restaurants/:id/opening-hours", async (ctx) => {
   if (!requireOwner(ctx)) return;
   const id = ctx.params.id!;
@@ -185,10 +205,12 @@ ownerHoursRouter.post("/owner/restaurants/:id/hours", async (ctx) => {
   debugLog("[owner_hours][POST] raw payload", payload);
 
   const patch: Partial<typeof r> = {};
+
   if (payload.capacity !== undefined) {
     const n = Number(payload.capacity);
     if (Number.isFinite(n) && n > 0) patch.capacity = Math.floor(n);
   }
+
   if (payload.slotIntervalMinutes !== undefined) {
     const s = Number(payload.slotIntervalMinutes);
     if (Number.isFinite(s) && s >= 5 && s <= 180) patch.slotIntervalMinutes = Math.floor(s);
