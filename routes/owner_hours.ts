@@ -1,6 +1,6 @@
 // src/routes/owner_hours.ts
-// ניהול שעות פתיחה שבועיות — גרסה פשוטה: טופס HTML רגיל (ללא JS)
-// קורא form/x-www-form-urlencoded (או formData/json כפאלבק), שומר capacity/slot והשעות.
+// ניהול שעות פתיחה שבועיות למסעדה — בעלים בלבד
+// שיפור עוקף-פרסרים: שמירה ב-GET (/hours/save) דרך url.searchParams
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -14,6 +14,7 @@ import { requireOwner } from "../lib/auth.ts";
 import { debugLog } from "../lib/debug.ts";
 
 const ownerHoursRouter = new Router();
+
 const DAY_LABELS = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"] as const;
 
 function toHHMM(v: unknown): string | null {
@@ -32,81 +33,32 @@ function timeLT(a: string, b: string): boolean {
   return h1 < h2 || (h1 === h2 && m1 < m2);
 }
 
-// קריאת גוף: קודם form (oak), אח"כ formData/json (fetch) כפאלבק
-async function readFormLike(ctx: any): Promise<Map<string,string>> {
-  // oak form
-  try {
-    if (typeof ctx.request?.body === "function") {
-      const b = ctx.request.body({ type: "form" });
-      const form = await b.value;
-      const map = new Map<string,string>();
-      for (const [k, v] of form.entries()) map.set(k, String(v));
-      return map;
-    }
-  } catch (e) {
-    debugLog("[owner_hours][POST] oak form failed", String(e));
-  }
-
-  // fetch formData
-  try {
-    if (typeof ctx.request?.formData === "function") {
-      const fd = await ctx.request.formData();
-      const map = new Map<string,string>();
-      for (const [k, v] of fd.entries()) if (typeof v === "string") map.set(k, v);
-      return map;
-    }
-  } catch (e) {
-    debugLog("[owner_hours][POST] fetch formData failed", String(e));
-  }
-
-  // json כפאלבק (אם בכל זאת שלחו JSON)
-  try {
-    const ct = ctx.request?.headers?.get?.("content-type") || "";
-    if (ct.includes("application/json")) {
-      const obj = await (typeof ctx.request?.json === "function" ? ctx.request.json() : Promise.resolve({}));
-      const map = new Map<string,string>();
-      for (const [k, v] of Object.entries(obj || {})) map.set(k, typeof v === "string" ? v : JSON.stringify(v));
-      return map;
-    }
-  } catch (e) {
-    debugLog("[owner_hours][POST] json fallback failed", String(e));
-  }
-
-  return new Map();
-}
-
-function buildWeeklyFromForm(form: Map<string,string>): WeeklySchedule | undefined {
-  // אם אין אף שדה רלוונטי, נחזיר undefined (לא לשנות DB)
-  let anyTouched = false;
+function buildWeeklyFromParams(sp: URLSearchParams): WeeklySchedule | undefined {
+  let touched = false;
   const weekly: WeeklySchedule = {} as any;
-
   for (let d = 0 as DayOfWeek; d <= 6; d++) {
-    const hasClosed = form.has(`w${d}_closed`);
-    const hasOpen = form.has(`w${d}_open`);
-    const hasClose = form.has(`w${d}_close`);
-    if (!hasClosed && !hasOpen && !hasClose) {
-      continue; // לא נגעו ביום → לא משנים אותו
-    }
-    anyTouched = true;
+    const hasClosed = sp.has(`w${d}_closed`);
+    const hasOpen = sp.has(`w${d}_open`);
+    const hasClose = sp.has(`w${d}_close`);
+    if (!hasClosed && !hasOpen && !hasClose) continue;
+    touched = true;
 
-    const closed = form.get(`w${d}_closed`) === "on";
-    const open = toHHMM(form.get(`w${d}_open`));
-    const close = toHHMM(form.get(`w${d}_close`));
+    const closed = sp.get(`w${d}_closed`) === "on";
+    const open = toHHMM(sp.get(`w${d}_open`));
+    const close = toHHMM(sp.get(`w${d}_close`));
 
     if (closed) {
       weekly[d] = null;
     } else if (open && close && timeLT(open, close)) {
       weekly[d] = [{ open, close }];
     } else {
-      // נגעו ביום אבל נתנו ערכים לא חוקיים → נסגור מפורשות כדי לא להשאיר מצב עמום
       weekly[d] = null;
     }
   }
-
-  return anyTouched ? weekly : undefined;
+  return touched ? weekly : undefined;
 }
 
-// --------- GET ----------
+// ---------- GET: דף השעות ----------
 ownerHoursRouter.get("/owner/restaurants/:id/hours", async (ctx) => {
   if (!requireOwner(ctx)) return;
 
@@ -116,9 +68,15 @@ ownerHoursRouter.get("/owner/restaurants/:id/hours", async (ctx) => {
   const r = await getRestaurant(id);
   debugLog("[owner_hours][GET] load", { id, found: !!r, ownerId: r?.ownerId, userId: (ctx.state as any)?.user?.id });
 
-  if (!r) { ctx.response.status = Status.NotFound; await render(ctx, "error", { title: "לא נמצא", message: "המסעדה לא נמצאה." }); return; }
+  if (!r) {
+    ctx.response.status = Status.NotFound;
+    await render(ctx, "error", { title: "לא נמצא", message: "המסעדה לא נמצאה." });
+    return;
+  }
   if (r.ownerId !== (ctx.state as any)?.user?.id) {
-    ctx.response.status = Status.Forbidden; await render(ctx, "error", { title: "אין הרשאה", message: "אין הרשאה למסעדה זו." }); return;
+    ctx.response.status = Status.Forbidden;
+    await render(ctx, "error", { title: "אין הרשאה", message: "אין הרשאה למסעדה זו." });
+    return;
   }
 
   const saved = ctx.request.url.searchParams.get("saved") === "1";
@@ -129,43 +87,56 @@ ownerHoursRouter.get("/owner/restaurants/:id/hours", async (ctx) => {
   });
 });
 
-// --------- POST ----------
-ownerHoursRouter.post("/owner/restaurants/:id/hours", async (ctx) => {
+// ---------- GET: שמירה (עוקף-פרסרים) ----------
+ownerHoursRouter.get("/owner/restaurants/:id/hours/save", async (ctx) => {
   if (!requireOwner(ctx)) return;
 
   const id = ctx.params.id!;
   const r = await getRestaurant(id);
-  if (!r) { ctx.response.status = Status.NotFound; await render(ctx, "error", { title: "לא נמצא", message: "המסעדה לא נמצאה." }); return; }
+  if (!r) {
+    ctx.response.status = Status.NotFound;
+    await render(ctx, "error", { title: "לא נמצא", message: "המסעדה לא נמצאה." });
+    return;
+  }
   if (r.ownerId !== (ctx.state as any)?.user?.id) {
-    ctx.response.status = Status.Forbidden; await render(ctx, "error", { title: "אין הרשאה", message: "אין הרשאה למסעדה זו." }); return;
+    ctx.response.status = Status.Forbidden;
+    await render(ctx, "error", { title: "אין הרשאה", message: "אין הרשאה למסעדה זו." });
+    return;
   }
 
-  const form = await readFormLike(ctx);
+  const sp = ctx.request.url.searchParams;
 
   const patch: Partial<typeof r> = {};
 
-  // capacity
-  if (form.has("capacity")) {
-    const n = Number(form.get("capacity"));
+  if (sp.has("capacity")) {
+    const n = Number(sp.get("capacity"));
     if (Number.isFinite(n) && n > 0) patch.capacity = Math.floor(n);
   }
-
-  // slot
-  if (form.has("slotIntervalMinutes")) {
-    const s = Number(form.get("slotIntervalMinutes"));
+  if (sp.has("slotIntervalMinutes")) {
+    const s = Number(sp.get("slotIntervalMinutes"));
     if (Number.isFinite(s) && s >= 5 && s <= 180) patch.slotIntervalMinutes = Math.floor(s);
   }
 
-  // weekly
-  const weekly = buildWeeklyFromForm(form);
+  const weekly = buildWeeklyFromParams(sp);
   if (weekly) patch.weeklySchedule = weekly;
 
-  debugLog("[owner_hours][POST] patch", patch);
+  debugLog("[owner_hours][SAVE][GET] patch", patch);
 
   await updateRestaurant(id, patch as any);
 
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set("Location", `/owner/restaurants/${encodeURIComponent(id)}/hours?saved=1`);
+});
+
+// ---------- POST (נשאר למי שמעדיף) ----------
+ownerHoursRouter.post("/owner/restaurants/:id/hours", async (ctx) => {
+  // נשאיר התאמה לאחור: פשוט נעביר לנתיב ה-GET עם אותם פרמטרים אם יש query (או נפנה חזרה לדף)
+  const id = ctx.params.id!;
+  const sp = ctx.request.url.searchParams;
+  ctx.response.status = Status.SeeOther;
+  ctx.response.headers.set("Location",
+    `/owner/restaurants/${encodeURIComponent(id)}/hours/save?${sp.toString()}`
+  );
 });
 
 export default ownerHoursRouter;

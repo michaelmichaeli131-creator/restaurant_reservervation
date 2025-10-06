@@ -9,8 +9,8 @@
   </header>
 
   <section class="card">
-    <!-- טופס פשוט: שולח form/x-www-form-urlencoded כדי לוודא שהשרת יקבל ערכים -->
-    <form class="form-grid" action="/owner/restaurants/<%= it.restaurant.id %>/hours" method="post" novalidate>
+    <!-- שולחים כ-GET כדי לעקוף פרסינג של גוף -->
+    <form class="form-grid" action="/owner/restaurants/<%= it.restaurant.id %>/hours/save" method="get" novalidate>
       <div class="form-row">
         <label for="capacity">קיבולת מקסימלית בו־זמנית</label>
         <input id="capacity" name="capacity" type="number" min="1" step="1" value="<%= it.restaurant.capacity %>"/>
@@ -24,10 +24,7 @@
       <h3>שעות לכל יום</h3>
 
       <% 
-        // אין TypeScript ב-Eta: לא "as string[]"
         const labels = it.dayLabels || ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
-
-        // תמיכה גם ב-openingHours legacy וגם ב-weeklySchedule החדש
         function dayData(d) {
           const ws = it.restaurant && it.restaurant.weeklySchedule ? it.restaurant.weeklySchedule[d] : undefined;
           if (typeof ws !== "undefined") return ws;
