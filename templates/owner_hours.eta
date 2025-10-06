@@ -166,8 +166,8 @@
     let base = schedule[0];
     if (base == null) {
       for (const d of DAYS) { if (schedule[d.i] != null) { base = schedule[d.i]; break; } }
-      if (!base) base = { open:"10:00", close:"22:00" };
     }
+    if (!base) base = { open:"10:00", close:"22:00" };
     const copy = { open: normHHMM(base.open)||"10:00", close: normHHMM(base.close)||"22:00" };
     for (const d of DAYS) schedule[d.i] = { ...copy };
     render();
