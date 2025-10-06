@@ -1,6 +1,7 @@
 // src/routes/owner_hours.ts
 // ניהול שעות פתיחה שבועיות למסעדה — לבעלים בלבד
 // תיקון: פרסור גוף JSON/FORM עקבי + ולידציה שמונעת השארת null לא מכוון
+// וגם: העברת ctx ל-render כדי למנוע wantsJSON(ctx) על undefined
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -127,7 +128,8 @@ ownerHoursRouter.get("/owner/restaurants/:id/hours", async (ctx) => {
   }
 
   const saved = ctx.request.url.searchParams.get("saved") === "1";
-  ctx.response.body = await render("owner_hours.eta", {
+  // >>> תיקון כאן: להעביר ctx ל-render <<<
+  ctx.response.body = await render(ctx, "owner_hours.eta", {
     restaurant: r,
     saved,
     dayLabels: DAY_LABELS,
@@ -167,8 +169,6 @@ ownerHoursRouter.post("/owner/restaurants/:id/hours", async (ctx) => {
   const weekly = normalizeWeeklySchedule(payload.weeklySchedule);
   if (weekly) patch.weeklySchedule = weekly;
 
-  // ולידציה כללית: אל תשאיר ימים undefined אם UI שלח אובייקט יום
-  // (normalizeWeeklySchedule כבר הופך יום ללא טווחים ל-null => סגור)
   debugLog("[owner_hours][POST] patch.weeklySchedule", patch.weeklySchedule);
 
   const accept = ctx.request.headers.get("accept") || "";
