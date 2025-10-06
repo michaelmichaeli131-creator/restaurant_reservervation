@@ -298,18 +298,29 @@ export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
   const prev = cur.value;
   if (!prev) return null;
 
+  function lower(s?: string) { return (s ?? "").trim().toLowerCase(); }
+
   const next: Restaurant = {
     ...prev,
-    ...patch,
+    // אל תדרוס שדות שלא הגיעו
+    capacity: patch.capacity !== undefined ? patch.capacity : prev.capacity,
+    slotIntervalMinutes: patch.slotIntervalMinutes !== undefined ? patch.slotIntervalMinutes : prev.slotIntervalMinutes,
+    weeklySchedule: patch.weeklySchedule !== undefined ? patch.weeklySchedule : prev.weeklySchedule,
+
+    // שדות טקסט — שמירה עם trim
     name: (patch.name ?? prev.name).trim(),
     city: (patch.city ?? prev.city).trim(),
     address: (patch.address ?? prev.address).trim(),
+
+    // שדות נוספים
     photos: (patch.photos ?? prev.photos ?? []).filter(Boolean),
-    // ודא שמירה מפורשת של weeklySchedule
-    weeklySchedule: patch.weeklySchedule !== undefined ? patch.weeklySchedule : prev.weeklySchedule,
+
+    // פריסות נוספות (אם יש) מתוך patch/prev:
+    ...patch, // (נשאיר בסוף, אך הוא לא ידרוס כי כבר קבענו למעלה את העיקריים)
   };
 
   const tx = kv.atomic().set(toKey("restaurant", id), next);
+
   if (patch.name && lower(patch.name) !== lower(prev.name)) {
     tx.delete(toKey("restaurant_name", lower(prev.name), id))
       .set(toKey("restaurant_name", lower(patch.name), id), 1);
@@ -318,17 +329,17 @@ export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
     tx.delete(toKey("restaurant_city", lower(prev.city), id))
       .set(toKey("restaurant_city", lower(patch.city), id), 1);
   }
+
   const res = await tx.commit();
   if (!res.ok) throw new Error("update_restaurant_race");
-  
-  // לוג לדיבאג
-  console.log("[DB] updateRestaurant saved:", { 
-    id, 
+
+  console.log("[DB] updateRestaurant saved:", {
+    id,
     weeklySchedule: next.weeklySchedule,
     capacity: next.capacity,
-    slotIntervalMinutes: next.slotIntervalMinutes
+    slotIntervalMinutes: next.slotIntervalMinutes,
   });
-  
+
   return next;
 }
 
