@@ -875,61 +875,69 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
 
 /* ---------------- Owner: save opening hours ---------------- */
 
-/** POST /restaurants/:id/hours — תומך ב-JSON, form-data ו-urlencoded (כולל שדות שטוחים) */
+/** POST /restaurants/:id/hours – תומך ב-JSON, form-data ו-urlencoded (כולל שדות שטוחים) */
 restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
 
   const { payload, dbg } = await readBody(ctx);
 
+  debugLog("[restaurants][POST hours] input", {
+    rid,
+    body_ct: dbg.ct,
+    body_keys: Object.keys(payload),
+  });
+
   const capacity = Math.max(1, toIntLoose((payload as any).capacity ?? (payload as any).maxConcurrent) ?? 1);
-  const slot = Math.max(5, toIntLoose((payload as any).slot ?? (payload as any).slotMinutes) ?? 15);
+  const slotIntervalMinutes = Math.max(5, toIntLoose((payload as any).slotIntervalMinutes ?? (payload as any).slot) ?? 15);
+  const serviceDurationMinutes = Math.max(30, toIntLoose((payload as any).serviceDurationMinutes ?? (payload as any).span) ?? 120);
 
-  const hours = ensureWeeklyHours(
-    (payload as any).hours ?? (payload as any).weeklyHours ?? (payload as any).openingHours ?? null,
-    payload // חשוב: כדי לפרק keys כמו hours[1][open]
-  );
+  // קליטת weeklySchedule
+  let weeklySchedule = (payload as any).weeklySchedule ?? (payload as any).hours ?? (payload as any).weeklyHours ?? (payload as any).openingHours ?? null;
 
-  // ולידציה סופית ל-HH:mm
-  for (let d = 0; d < 7; d++) {
-    const row = (hours as any)[d] ?? null;
-    if (row) {
-      const o = normalizeTime((row as any).open);
-      const c = normalizeTime((row as any).close);
-      (hours as any)[d] = (o && c) ? { open: o, close: c } : null;
+  // נרמול ל-WeeklySchedule תקין
+  const normalized: WeeklySchedule = {};
+  if (weeklySchedule && typeof weeklySchedule === "object") {
+    for (let d = 0; d <= 6; d++) {
+      const row = weeklySchedule[d] ?? weeklySchedule[String(d)] ?? null;
+      if (row && typeof row === "object" && row.open && row.close) {
+        const open = normalizeTime(row.open);
+        const close = normalizeTime(row.close);
+        normalized[d as DayOfWeek] = (open && close) ? { open, close } : null;
+      } else {
+        normalized[d as DayOfWeek] = null;
+      }
     }
   }
 
-  debugLog("[restaurants][POST hours] input", {
-    rid, capacity, slot,
-    body_ct: dbg.ct, body_keys: Object.keys(payload),
-    hours_preview: Object.fromEntries(Object.entries(hours).slice(0,7)), // כל השבוע
+  debugLog("[restaurants][POST hours] normalized", {
+    capacity,
+    slotIntervalMinutes,
+    serviceDurationMinutes,
+    weeklySchedule: normalized,
   });
 
-  // עדכון DB — מנסה כמה שמות לפונקציית עדכון לשמירה על תאימות
+  // עדכון DB
   const db = await import("../database.ts");
-  const updater =
-    (db as any).updateRestaurantHours ??
-    (db as any).updateRestaurant ??
-    (db as any).setRestaurant ??
-    (db as any).saveRestaurant ??
-    null;
+  const updater = (db as any).updateRestaurant;
 
   if (!updater) {
     ctx.response.status = Status.InternalServerError;
-    ctx.response.body = "No DB updater found (updateRestaurantHours/updateRestaurant/setRestaurant/saveRestaurant)";
+    ctx.response.body = "No DB updater found";
     return;
   }
 
   try {
-    if (/hours/i.test(updater.name || "") && updater.length >= 4) {
-      await updater.call(db, rid, hours, slot, capacity);
-    } else {
-      await updater.call(db, rid, { weeklySchedule: hours, hours, slot, capacity });
-    }
+    await updater(rid, {
+      weeklySchedule: normalized,
+      capacity,
+      slotIntervalMinutes,
+      serviceDurationMinutes,
+    });
+    debugLog("[restaurants][POST hours] saved OK", { rid });
   } catch (e) {
     console.error("[hours.save] DB update failed", e);
     ctx.response.status = Status.InternalServerError;
-    ctx.response.body = "DB update failed";
+    ctx.response.body = "DB update failed: " + String(e);
     return;
   }
 
@@ -940,7 +948,7 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   if (wantsJson) {
     ctx.response.status = Status.OK;
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok: true, hours, slot, capacity }, null, 2);
+    ctx.response.body = JSON.stringify({ ok: true, weeklySchedule: normalized, capacity, slotIntervalMinutes }, null, 2);
   } else {
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", `/restaurants/${encodeURIComponent(rid)}`);
