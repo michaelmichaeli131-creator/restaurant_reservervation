@@ -8,6 +8,7 @@ import {
   updateRestaurant,
   type Restaurant,
   type WeeklySchedule,
+  type DayOfWeek,
 } from "../database.ts";
 import { requireOwner } from "../lib/auth.ts";
 import { debugLog } from "../lib/debug.ts";
@@ -157,8 +158,24 @@ ownerHoursRouter.post("/owner/restaurants/:id/hours", async (ctx) => {
   const { payload, dbg } = await readBodyStrong(ctx);
   debugLog("[owner_hours][POST] body", { ct: dbg.ct, keys: Object.keys(payload) });
 
-  // קליטת weeklySchedule מה-payload
-  const weeklySchedule = payload.weeklySchedule as WeeklySchedule ?? parseWeeklyFromPayload(payload);
+  // קליטת weeklySchedule מה-payload - תיקון הפרסור
+  let weeklySchedule: WeeklySchedule = {};
+
+  if (payload.weeklySchedule && typeof payload.weeklySchedule === 'object') {
+    // המרה מספרית של המפתחות
+    const raw = payload.weeklySchedule as any;
+    for (let d = 0; d <= 6; d++) {
+      const day = d as DayOfWeek;
+      const entry = raw[d] ?? raw[String(d)] ?? null;
+      if (entry && typeof entry === 'object' && entry.open && entry.close) {
+        weeklySchedule[day] = { open: String(entry.open), close: String(entry.close) };
+      } else {
+        weeklySchedule[day] = null;
+      }
+    }
+  } else {
+    weeklySchedule = parseWeeklyFromPayload(payload);
+  }
   
   debugLog("[owner_hours][POST] parsed.weeklySchedule", weeklySchedule);
 
