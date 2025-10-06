@@ -1,5 +1,5 @@
 // src/routes/owner_photos.ts
-// העלאת תמונות פשוטה — קובץ אחד בכל בקשה (binary body, ללא JSON וללא multipart)
+// העלאת תמונות: שומר dataURL קטן ב-KV (חייב <~64KB)
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -11,14 +11,12 @@ type PhotoItem = { id: string; dataUrl: string; alt?: string };
 
 const ownerPhotosRouter = new Router();
 
-/** קורא את גוף הבקשה כ-Uint8Array—בצורה עמידה בגרסאות Oak שונות. */
+/** קריאת גוף בקשה לבייטים (תואם Oak חדשים וישנים) */
 async function readBodyBytes(ctx: any): Promise<Uint8Array | null> {
   try {
-    // Oak 17+ — נסה להגיע אל ה-Web Request
     const webReq: any =
       (ctx.request && (ctx.request as any).request) ??
-      (ctx.request && (ctx.request as any).originalRequest) ??
-      null;
+      (ctx.request && (ctx.request as any).originalRequest) ?? null;
 
     if (webReq) {
       if (typeof webReq.arrayBuffer === "function") {
@@ -31,15 +29,12 @@ async function readBodyBytes(ctx: any): Promise<Uint8Array | null> {
       }
     }
 
-    // תאימות לאחור אם עדיין יש body()
     if (ctx.request && typeof (ctx.request as any).body === "function") {
       try {
         const b = (ctx.request as any).body({ type: "bytes" });
         const bytes: Uint8Array = await b.value;
         if (bytes && bytes.length) return bytes;
-      } catch (e) {
-        debugLog("[photos][readBodyBytes] legacy body({bytes}) failed:", String(e));
-      }
+      } catch (e) { debugLog("[photos][readBodyBytes] legacy bytes failed:", String(e)); }
       try {
         const b2 = (ctx.request as any).body({ type: "stream" });
         const rs: ReadableStream | undefined = await b2.value;
@@ -47,9 +42,7 @@ async function readBodyBytes(ctx: any): Promise<Uint8Array | null> {
           const ab = await new Response(rs).arrayBuffer();
           return new Uint8Array(ab);
         }
-      } catch (e) {
-        debugLog("[photos][readBodyBytes] legacy body({stream}) failed:", String(e));
-      }
+      } catch (e) { debugLog("[photos][readBodyBytes] legacy stream failed:", String(e)); }
     }
   } catch (e) {
     debugLog("[photos][readBodyBytes] failed:", String(e));
@@ -57,7 +50,7 @@ async function readBodyBytes(ctx: any): Promise<Uint8Array | null> {
   return null;
 }
 
-/** Base64 encoder ללא שימוש ב-String.fromCharCode/apply — עובד לכל גודל. */
+/** Base64 encoder ללא apply/fromCharCode — עובד לכל גודל (אבל KV מגביל) */
 function bytesToBase64(u8: Uint8Array): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   let out = "";
@@ -79,7 +72,6 @@ function bytesToBase64(u8: Uint8Array): string {
       const n = u8[i] << 16;
       out += chars[(n >> 18) & 63] + chars[(n >> 12) & 63] + "==";
     } else {
-      // rem === 2
       const n = (u8[i] << 16) | (u8[i + 1] << 8);
       out +=
         chars[(n >> 18) & 63] +
@@ -94,7 +86,6 @@ function bytesToBase64(u8: Uint8Array): string {
 // ---------------- GET: דף התמונות ----------------
 ownerPhotosRouter.get("/owner/restaurants/:id/photos", async (ctx) => {
   if (!requireOwner(ctx)) return;
-
   const id = ctx.params.id!;
   const r = await getRestaurant(id);
 
@@ -144,17 +135,28 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
     return;
   }
 
-  // הגבלת גודל (עדכן לפי הצורך)
-  const MAX_BYTES = 20 * 1024 * 1024; // 20MB
+  // ⚠ מגבלת KV ~64KiB לערך. נשמור dataURL קטן.
+  // נעצור הרבה לפני הגבול כדי לכלול מטא-דאטה ואובייקט JSON.
+  const MAX_DATAURL_LENGTH = 60 * 1024; // ~60KB dataURL (כולל prefix)
+  const MAX_BYTES = 100 * 1024; // לא למה שמחליטים בשרת — רק failsafe (נמוך יחסית)
+
   if (bytes.length > MAX_BYTES) {
     ctx.response.status = Status.BadRequest;
-    ctx.response.body = `Image too large (max ${(MAX_BYTES / (1024 * 1024)).toFixed(0)}MB).`;
+    ctx.response.body =
+      "התמונה גדולה מדי לשמירה ב-DB הנוכחי. הקטינו/כווצו צד-לקוח (ניסו שוב), או עברו לאחסון קבצים חיצוני.";
     return;
   }
 
   try {
-    const base64 = bytesToBase64(bytes); // ✅ ללא הגבלת 64KB
+    const base64 = bytesToBase64(bytes);
     const dataUrl = `data:${contentType};base64,${base64}`;
+
+    if (dataUrl.length > MAX_DATAURL_LENGTH) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body =
+        "התמונה עדיין גדולה מדי לשמירה. נסו תמונה קטנה יותר או עברו לאחסון קבצים (S3/GCS).";
+      return;
+    }
 
     const pid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const newPhoto: PhotoItem = { id: pid, dataUrl };
@@ -186,13 +188,11 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/delete", async (ctx) => {
     return;
   }
 
-  // קריאת JSON "דקיקה" דרך ה-Web Request (ללא body() של Oak)
   let payload: any = null;
   try {
     const webReq: any =
       (ctx.request && (ctx.request as any).request) ??
-      (ctx.request && (ctx.request as any).originalRequest) ??
-      null;
+      (ctx.request && (ctx.request as any).originalRequest) ?? null;
     const raw = webReq && typeof webReq.text === "function"
       ? await webReq.text()
       : await new Response(webReq?.body ?? null).text();

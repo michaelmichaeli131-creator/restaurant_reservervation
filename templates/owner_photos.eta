@@ -15,10 +15,9 @@
     </div>
   <% } %>
 
-  <!-- העלאת תמונה -->
   <section class="card" style="margin-bottom:16px">
-    <h3 style="margin-top:0">העלאת תמונה</h3>
-    <p class="muted">בחרו קובץ JPG/PNG/WebP (עד ~20MB).</p>
+    <h3 style="margin-top:0">העלאת תמונה (מוקטנת אוטומטית)</h3>
+    <p class="muted">JPG/PNG/WebP — ננסה לכווץ כדי להתאים למגבלת המערכת (~64KB).</p>
 
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <input id="photo-input" type="file" accept="image/png,image/jpeg,image/webp">
@@ -28,7 +27,6 @@
     <div id="preview" style="margin-top:12px"></div>
   </section>
 
-  <!-- גלריה -->
   <section class="card">
     <h3 style="margin-top:0">גלריה</h3>
     <% 
@@ -58,26 +56,63 @@
   const uploadBtn = document.getElementById('upload-btn');
   const preview = document.getElementById('preview');
 
-  // תצוגה מקדימה
   fileInput.addEventListener('change', () => {
     preview.innerHTML = '';
-    const file = fileInput.files[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      preview.innerHTML = '<img src="'+url+'" style="max-width:200px;border-radius:8px;border:1px solid #ccc">';
-    }
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    const url = URL.createObjectURL(f);
+    preview.innerHTML = '<img src="'+url+'" style="max-width:220px;max-height:160px;border-radius:8px;border:1px solid #ccc">';
   });
 
-  // העלאה לשרת (POST binary)
+  async function shrinkToUnder(targetBytes, file) {
+    // נקטין לרוחב מקסימלי 1280px ונכווץ איכות בהדרגה עד שמגיעים ליעד
+    const img = await new Promise((res, rej) => {
+      const el = new Image();
+      el.onload = () => res(el);
+      el.onerror = rej;
+      el.src = URL.createObjectURL(file);
+    });
+
+    const canvas = document.createElement('canvas');
+    const ctx2d = canvas.getContext('2d');
+
+    const maxW = 1280, maxH = 1280;
+    let { width: w, height: h } = img;
+    const ratio = Math.min(1, maxW / w, maxH / h);
+    w = Math.floor(w * ratio);
+    h = Math.floor(h * ratio);
+
+    canvas.width = w; canvas.height = h;
+    ctx2d.drawImage(img, 0, 0, w, h);
+
+    let quality = 0.85;
+    for (let i=0; i<8; i++) {
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/webp', quality));
+      if (!blob) break;
+      if (blob.size <= targetBytes) return blob;
+      quality *= 0.8; // הורדת איכות מדורגת
+    }
+    // אם לא הצליח – נחזיר את הקטן ביותר שקיבלנו
+    const fallback = await new Promise(res => canvas.toBlob(res, 'image/webp', 0.6));
+    return fallback || file;
+  }
+
   uploadBtn.addEventListener('click', async () => {
-    const file = fileInput.files[0];
-    if (!file) return alert("בחר/י תמונה קודם");
-    if (file.size > 2 * 1024 * 1024) return alert("הקובץ גדול מדי (מעל 2MB)");
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) return alert("בחר/י תמונה קודם");
+
+    // ננסה לרדת מתחת ~60KB כדי להתאים ל-KV
+    const targetBytes = 60 * 1024;
+    let blob = f;
+    if (f.size > targetBytes) {
+      try { blob = await shrinkToUnder(targetBytes, f) || f; }
+      catch(e){ console.warn("shrink failed", e); }
+    }
 
     const res = await fetch(`/owner/restaurants/${encodeURIComponent(rid)}/photos/upload`, {
       method: "POST",
-      headers: { "Content-Type": file.type },
-      body: file
+      headers: { "Content-Type": blob.type || "image/webp" },
+      body: blob
     });
 
     if (!res.ok) {
@@ -85,17 +120,11 @@
       alert("שגיאה בהעלאה: " + res.status + "\\n" + txt);
       return;
     }
-
     const data = await res.json();
-    if (data.ok) {
-      alert("תמונה הועלתה בהצלחה!");
-      location.reload();
-    } else {
-      alert("שגיאה בשמירה");
-    }
+    if (data.ok) location.reload();
+    else alert("שגיאה בשמירה");
   });
 
-  // מחיקת תמונה
   document.addEventListener('click', async (ev) => {
     const btn = ev.target.closest?.('.delete-btn');
     if (!btn) return;
@@ -103,21 +132,14 @@
     if (!pid) return;
     if (!confirm('למחוק תמונה זו?')) return;
 
-    try {
-      const res = await fetch(`/owner/restaurants/${encodeURIComponent(rid)}/photos/delete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: pid }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        const card = document.querySelector('.photo-card[data-id="'+pid+'"]');
-        card?.remove();
-      }
-    } catch (e) {
-      console.error(e);
-      alert('שגיאת רשת');
-    }
+    const res = await fetch(`/owner/restaurants/${encodeURIComponent(rid)}/photos/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: pid }),
+    });
+    if (!res.ok) return alert('מחיקה נכשלה');
+    const data = await res.json();
+    if (data.ok) document.querySelector('.photo-card[data-id="'+pid+'"]')?.remove();
   });
 })();
 </script>
