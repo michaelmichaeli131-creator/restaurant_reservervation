@@ -9,6 +9,7 @@ import {
   getUserById,
   type Reservation,
   type WeeklySchedule,
+  type DayOfWeek, // ✅ כדי שלא נצטרך ts-ignore
 } from "../database.ts";
 import { render } from "../lib/view.ts";
 import { sendReservationEmail, notifyOwnerEmail } from "../lib/mail.ts";
@@ -215,6 +216,27 @@ function isWithinSchedule(weekly: WeeklySchedule | undefined | null, date: strin
   return withinAnyWindow(t, windows);
 }
 
+/* ----------- Suggestions helper (missing before) ----------- */
+async function suggestionsWithinSchedule(
+  restaurantId: string,
+  date: string,
+  time: string,
+  people: number,
+  weekly: WeeklySchedule | undefined | null,
+): Promise<string[]> {
+  // קבל סלוטים סביב המועד שביקשו
+  const around = await listAvailableSlotsAround(restaurantId, date, time, people, 120, 16);
+  if (!around.length) return [];
+
+  // אם ליום אין מפתח מפורש => כל היום פתוח, תחזיר כמו שהוא
+  if (!hasScheduleForDate(weekly, date)) return around.slice(0, 8);
+
+  // אחרת, סנן לפי חלונות פתיחה
+  const windows = getWindowsForDate(weekly, date);
+  const ok = around.filter((t) => withinAnyWindow(toMinutes(t), windows));
+  return ok.slice(0, 8);
+}
+
 /* ---------------- Strong body reader for Oak ---------------- */
 
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
@@ -298,7 +320,7 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
       if (t) {
         phase("native.text", t.length > 200 ? t.slice(0,200) + "…" : t);
         try { const j = JSON.parse(t); phase("native.text->json", j); merge(out, j); }
-        catch { const sp = new URLSearchParams(t); const o = fromEntries(sp); if (Object.keys(o).length) { phase("native.text->urlencoded", o); merge(out, o); } }
+        catch { const sp = new URLSearchParams(t); const o = fromEntries(sp); if (Object.keys(o).length) { phase("native.text->urlencoded)", o); merge(out, o); } }
       }
     }
   } catch (e) { phase("native.text.error", String(e)); }
@@ -669,7 +691,7 @@ restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
   await render(ctx, "reservation_details", {
     page: "reservation_details",
     title: `פרטי הזמנה — ${restaurant.name}`,
-    restaurant: { ...restaurant, photos },
+    restaurant: { ...restaurant, photos, openingHours: restaurant.weeklySchedule },
     date, time, people
   });
 });
@@ -920,16 +942,14 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   // נרמול ל-WeeklySchedule תקין
   const normalized: WeeklySchedule = {};
   if (weeklySchedule && typeof weeklySchedule === "object") {
-    for (let d = 0; d <= 6; d++) {
+    for (let d = 0 as DayOfWeek; d <= 6; d = (d + 1) as DayOfWeek) {
       const row = weeklySchedule[d] ?? weeklySchedule[String(d)] ?? null;
       if (row && typeof row === "object" && row.open && row.close) {
         const open = normalizeTime(row.open);
         const close = normalizeTime(row.close);
-        // @ts-ignore DayOfWeek type is declared in DB; cast is for compatibility with existing file
-        normalized[d as DayOfWeek] = (open && close) ? { open, close } : null;
+        normalized[d] = (open && close) ? { open, close } : null;
       } else {
-        // @ts-ignore
-        normalized[d as DayOfWeek] = null;
+        normalized[d] = null;
       }
     }
   }
