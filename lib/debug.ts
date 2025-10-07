@@ -1,36 +1,26 @@
 // src/lib/debug.ts
-const DEF = (typeof Deno !== "undefined" && (Deno.env?.get?.("DEBUG") || "")) || "";
-const NAMES = new Set(
-  DEF.split(/[,\s]+/)
-     .map(s => s.trim())
-     .filter(Boolean)
-);
+const MAX_LEN = 20_000;
 
-function on(scope: string) {
-  if (NAMES.size === 0) return true; // ברירת מחדל: הכל
-  return NAMES.has(scope) || NAMES.has("*");
+function safe(v: unknown) {
+  try {
+    return JSON.stringify(v, (_k, val) => {
+      if (val instanceof Error) {
+        return { message: val.message, stack: val.stack };
+      }
+      return val;
+    });
+  } catch {
+    try { return String(v); } catch { return "[Unserializable]"; }
+  }
 }
 
-function ts() {
-  const d = new Date();
-  const pad = (n:number)=>String(n).padStart(2,"0");
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`;
-}
-
-export function debugLog(scope: string, msg: string, data?: unknown) {
-  if (!on(scope)) return;
-  const base = `[${ts()}][${scope}] ${msg}`;
-  if (data === undefined) {
-    console.log(base);
+export function debugLog(label: string, payload?: unknown) {
+  const ts = new Date().toISOString();
+  if (payload === undefined) {
+    console.log(`[${ts}][${label}]`);
     return;
   }
-  try {
-    // הדפסה יפה לאובייקטים
-    console.log(base + ": " + JSON.stringify(data, null, 2));
-  } catch {
-    console.log(base + ": " + String(data));
-  }
+  const s = safe(payload);
+  const out = s.length > MAX_LEN ? s.slice(0, MAX_LEN) + "…(truncated)" : s;
+  console.log(`[${ts}][${label}] ${out}`);
 }
-
-// כלי עזר מקוצר
-export const dlog = debugLog;

@@ -18,7 +18,7 @@
 
   <!-- Hero -->
   <section class="hero card" aria-label="תמונה ראשית">
-    <img src="<%= hero %>" alt="תמונה ראשית של <%= it.restaurant.name %>" class="hero-img"/>
+    <img src="<%= hero %>" alt="תמונה ראשית של <%= it.restaurant.name %>" class="hero-img" onerror="this.src='<%= PLACEHOLDER %>'"/>
   </section>
 
   <section class="card">
@@ -77,7 +77,7 @@
       <h2 style="margin-top:0">תמונות</h2>
       <div class="photo-grid">
         <% _photos.forEach(src => { %>
-          <img src="<%= src %>" alt="תמונה של המסעדה" loading="lazy"/>
+          <img src="<%= src %>" alt="תמונה של המסעדה" loading="lazy" onerror="this.src='<%= PLACEHOLDER %>'"/>
         <% }) %>
       </div>
     </section>
@@ -113,10 +113,10 @@
       const raw2 = document.getElementById("opening-windows-today")?.textContent || "null";
       OPENING_WINDOWS_TODAY = JSON.parse(raw2);
     } catch { OPENING_WINDOWS_TODAY = null; }
-    console.debug("GT: opening-hours raw", OPENING_HOURS);
-    console.debug("GT: opening-windows today", OPENING_WINDOWS_TODAY);
+    console.debug("GT: OPENING_HOURS =", OPENING_HOURS);
+    console.debug("GT: OPENING_WINDOWS_TODAY =", OPENING_WINDOWS_TODAY);
 
-    // תמיכה ב-"10:00-22:00" (מחרוזת ישנה) => הכל פתוח כל יום בטווח הזה
+    // תמיכה ב-"10:00-22:00" (מחרוזת ישנה) => אותו טווח לכל הימים
     if (typeof OPENING_HOURS === "string") {
       const m = OPENING_HOURS.match(/^\s*(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})\s*$/);
       if (m) {
@@ -141,7 +141,7 @@
       return rem ? mins + (15 - rem) : mins;
     };
 
-    // NEW: פונקציה שבודקת אם יש מפתח מפורש ליום (גם אם ערכו null)
+    // יש מפתח מפורש ליום (גם אם ערכו null)?
     function hasExplicitKeyForDay(obj, dow) {
       if (!obj || typeof obj !== "object") return false;
       const long = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
@@ -167,11 +167,8 @@
         }
         const sMin = toMin(s), eMin = toMin(e);
         if (sMin == null || eMin == null) continue;
-        if (eMin <= sMin) {
-          out.push([sMin, 24*60 - 1]);
-        } else {
-          out.push([sMin, eMin]);
-        }
+        if (eMin <= sMin) { out.push([sMin, 24*60 - 1]); }
+        else { out.push([sMin, eMin]); }
       }
       out.sort((a,b)=>a[0]-b[0]);
       const merged = [];
@@ -186,14 +183,15 @@
       const d = new Date(dateStr || Date.now());
       if (isNaN(d.getTime())) return null;
 
-      // אם זה התאריך שמופיע כרגע בשדה ויש לנו חלונות מוכנים מהשרת – נשתמש בהם (זה גם מיישר קו עם הלוגיקה בשרת)
+      // אם זה תאריך ההתחלתי ויש חלונות מוכנים מהשרת — נשתמש בהם
       const initDate = (dateInput?.value || new Date().toISOString().slice(0,10));
       const isInitDate = (dateStr === initDate);
       if (isInitDate && Array.isArray(OPENING_WINDOWS_TODAY) && OPENING_WINDOWS_TODAY.length) {
-        return OPENING_WINDOWS_TODAY
+        const pre = OPENING_WINDOWS_TODAY
           .map(w => [toMin(w.open), toMin(w.close)])
           .filter(([a,b]) => Number.isFinite(a) && Number.isFinite(b))
           .map(([a,b]) => b <= a ? [a, 24*60-1] : [a,b]);
+        return pre;
       }
 
       if (!OPENING_HOURS) return null;
@@ -205,7 +203,7 @@
         ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][dow]
       ];
 
-      // אם אין מפתח מפורש ליום – מתייחסים כפתוח כל היום (ליישור קו עם השרת)
+      // אין מפתח מפורש => כל היום פתוח (יישור קו עם השרת)
       if (!hasExplicitKeyForDay(OPENING_HOURS, dow)) {
         return [[0, 24*60 - 1]];
       }
@@ -229,7 +227,6 @@
       const ranges = getRangesForDate(dateStr);
 
       if (!ranges || !ranges.length) {
-        // כאן אנחנו בטוחים שיש מפתח מפורש עם ערך ריק/null => סגור
         const empty = document.createElement("div");
         empty.className = "time-option";
         empty.setAttribute("aria-disabled", "true");
@@ -265,7 +262,9 @@
         opts.hidden = true;
         btn.setAttribute("aria-expanded","false");
       } else {
-        rebuildTimeOptionsFor(dateInput.value || new Date().toISOString().slice(0,10));
+        const d = dateInput.value || new Date().toISOString().slice(0,10);
+        console.debug("GT: click -> rebuild for date", d, "ranges:", getRangesForDate(d));
+        rebuildTimeOptionsFor(d);
         opts.hidden = false;
         btn.setAttribute("aria-expanded","true");
       }
@@ -299,6 +298,7 @@
     dateInput.addEventListener("change", () => {
       const prev = hiddenInput.value;
       const d = dateInput.value;
+      console.debug("GT: date change ->", d, "ranges:", getRangesForDate(d));
       rebuildTimeOptionsFor(d);
       if (prev) {
         const stillExists = !!opts.querySelector(`.time-option[data-value="${prev}"]`);
@@ -315,6 +315,10 @@
 
     (function initTimeForInitialDate(){
       const initDate = dateInput.value || new Date().toISOString().slice(0,10);
+      console.debug("GT: init date =", initDate);
+      console.debug("GT: OPENING_HOURS =", OPENING_HOURS);
+      const ranges = getRangesForDate(initDate);
+      console.debug("GT: ranges for init date =", ranges);
       rebuildTimeOptionsFor(initDate);
       if (hiddenInput.value) {
         const ok = !!opts.querySelector(`.time-option[data-value="${hiddenInput.value}"]`);
@@ -355,9 +359,14 @@
         headers: { "Accept": "application/json", "Content-Type": "application/json" },
         body: JSON.stringify({ date, time }),
       });
-      const data = await resp.json().catch(()=>null);
-      if (resp.ok && data && data.ok) renderAround([]);
-      else renderAround(data?.suggestions || []);
+      const txt = await resp.text();
+      let data = null;
+      try { data = JSON.parse(txt); } catch {}
+      if (resp.ok && data && data.ok) {
+        renderAround([]);
+      } else {
+        renderAround(data?.suggestions || []);
+      }
     });
   });
 
