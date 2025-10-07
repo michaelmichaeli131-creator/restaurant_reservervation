@@ -16,6 +16,9 @@
     const staticPrefix = it.staticPrefix || "/static";
     const PLACEHOLDER = staticPrefix + "/placeholder.png";
     const hero = _photos[0] || PLACEHOLDER;
+
+    // אינטרוול קפיצות דקות (ברירת מחדל 15)
+    const SLOT_STEP = it.restaurant?.slotIntervalMinutes || it.slotIntervalMinutes || 15;
   %>
 
   <!-- Hero -->
@@ -56,7 +59,7 @@
           <div class="time-options" id="time-options" hidden role="listbox"></div>
         </div>
         <input type="hidden" id="time" name="time" value="<%= it.time || '' %>"/>
-        <small class="muted">שעות בתדירות 15 דקות (רק בתוך שעות הפתיחה של המסעדה)</small>
+        <small class="muted">שעות בתדירות <span id="step-label"><%= SLOT_STEP %></span> דקות (רק בתוך שעות הפתיחה של המסעדה)</small>
       </div>
 
       <div class="form-actions">
@@ -111,15 +114,21 @@
 <%- JSON.stringify(it.restaurant.weeklySchedule || it.restaurant.openingHours || it.restaurant.hours || it.restaurant.open_hours || null) %>
 </script>
 
-<!-- חלונות פתיחה מחושבים ל"אינדקס" (היום הנוכחי בטופס) -->
+<!-- חלונות פתיחה מחושבים ליום ההתחלתי -->
 <script id="opening-windows-today" type="application/json">
 <%- JSON.stringify(it.openingWindows || null) %>
 </script>
 
-<!-- ⬇️ דיבאג: מה הגיע מהשרת -->
+<!-- קפיצות דקות מהשרת -->
+<script id="slot-interval" type="application/json">
+<%- JSON.stringify(it.restaurant?.slotIntervalMinutes || it.slotIntervalMinutes || 15) %>
+</script>
+
+<!-- דיבאג: מה הגיע -->
 <script>
   console.debug("SRV weeklySchedule:", <%- JSON.stringify(it.restaurant.weeklySchedule || it.restaurant.openingHours || it.restaurant.hours || it.restaurant.open_hours || null) %>);
   console.debug("SRV openingWindows(today):", <%- JSON.stringify(it.openingWindows || null) %>);
+  console.debug("SRV slotIntervalMinutes:", <%- JSON.stringify(it.restaurant?.slotIntervalMinutes || it.slotIntervalMinutes || 15) %>);
 </script>
 
 <script>
@@ -129,24 +138,30 @@
     const hiddenInput = document.getElementById("time");
     const form = document.getElementById("reserve-form");
     const dateInput = document.getElementById("date");
+    const stepLabel = document.getElementById("step-label");
 
-    /* ------------ קריאת שעות פתיחה מהשרת ------------ */
+    /* ------------ קריאת נתונים מה-HTML ------------ */
     let OPENING_HOURS = null;
     let OPENING_WINDOWS_TODAY = null;
+    let STEP_MIN = 15;
+
     try {
-      const raw = document.getElementById("opening-hours-data")?.textContent || "null";
-      OPENING_HOURS = JSON.parse(raw);
+      OPENING_HOURS = JSON.parse(document.getElementById("opening-hours-data")?.textContent || "null");
     } catch { OPENING_HOURS = null; }
     try {
-      const raw2 = document.getElementById("opening-windows-today")?.textContent || "null";
-      OPENING_WINDOWS_TODAY = JSON.parse(raw2);
+      OPENING_WINDOWS_TODAY = JSON.parse(document.getElementById("opening-windows-today")?.textContent || "null");
     } catch { OPENING_WINDOWS_TODAY = null; }
+    try {
+      STEP_MIN = Math.max(1, parseInt(JSON.parse(document.getElementById("slot-interval")?.textContent || "15"), 10) || 15);
+    } catch { STEP_MIN = 15; }
 
-    // אם weeklySchedule לא הגיע ללקוח, נבנה מפה מינימלית מהחלונות של היום
+    if (stepLabel) stepLabel.textContent = String(STEP_MIN);
+
+    // אם weeklySchedule לא הגיע, בנה מפה מינימלית מהחלונות של היום
     (function fallbackWeeklyFromWindows(){
       if (OPENING_HOURS == null && Array.isArray(OPENING_WINDOWS_TODAY) && OPENING_WINDOWS_TODAY.length) {
         const initDate = (dateInput?.value || new Date().toISOString().slice(0,10));
-        const dow = new Date(initDate).getDay(); // 0..6
+        const dow = new Date(initDate).getDay();
         const toHHMM = (s) => {
           if (!s) return null;
           const m = String(s).match(/^(\d{1,2}):(\d{2})$/); return m ? `${m[1].padStart(2,'0')}:${m[2]}` : null;
@@ -154,7 +169,6 @@
         const dayArr = OPENING_WINDOWS_TODAY
           .map(w => ({ open: toHHMM(w.open), close: toHHMM(w.close) }))
           .filter(w => w.open && w.close);
-        // מפתח מפורש ליום הזה בלבד (כדי שהקליינט יבין שזה יום מוגדר)
         OPENING_HOURS = { [String(dow)]: dayArr.length <= 1 ? (dayArr[0] || null) : dayArr };
         console.debug("GT: Fallback weekly built from today windows", { initDate, dow, OPENING_HOURS });
       }
@@ -162,8 +176,9 @@
 
     console.debug("GT: opening-hours raw", OPENING_HOURS);
     console.debug("GT: opening-windows today", OPENING_WINDOWS_TODAY);
+    console.debug("GT: step minutes", STEP_MIN);
 
-    // תמיכה במחרוזת ישנה "10:00-22:00" => אותו טווח לכל הימים
+    // תמיכה במחרוזת ישנה "10:00-22:00"
     if (typeof OPENING_HOURS === "string") {
       const m = OPENING_HOURS.match(/^\s*(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})\s*$/);
       if (m) {
@@ -183,9 +198,10 @@
       return h * 60 + mi;
     };
     const fromMin = (mins) => `${pad2(Math.floor(mins/60))}:${pad2(mins%60)}`;
-    const roundToQuarterUp = (mins) => {
-      const rem = mins % 15;
-      return rem ? mins + (15 - rem) : mins;
+    const roundToStepUp = (mins) => {
+      const step = Math.max(1, STEP_MIN);
+      const rem = mins % step;
+      return rem ? mins + (step - rem) : mins;
     };
 
     function hasExplicitKeyForDay(obj, dow) {
@@ -229,6 +245,7 @@
       const d = new Date(dateStr || Date.now());
       if (isNaN(d.getTime())) return null;
 
+      // עבור התאריך הראשוני – תעדף openingWindows אם הגיעו מהשרת
       const initDate = (dateInput?.value || new Date().toISOString().slice(0,10));
       const isInitDate = (dateStr === initDate);
       if (isInitDate && Array.isArray(OPENING_WINDOWS_TODAY) && OPENING_WINDOWS_TODAY.length) {
@@ -247,8 +264,9 @@
         ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][dow]
       ];
 
+      // אם אין מפתח מפורש – פתוח כל היום (תאימות לשרת)
       if (!hasExplicitKeyForDay(OPENING_HOURS, dow)) {
-        return [[0, 24*60 - 1]]; // תאימות עם השרת
+        return [[0, 24*60 - 1]];
       }
 
       let dayDef = null;
@@ -283,7 +301,7 @@
       const frag = document.createDocumentFragment();
       let count = 0;
       for (const [startMin, endMin] of ranges) {
-        for (let m = roundToQuarterUp(startMin); m <= endMin; m += 15) {
+        for (let m = roundToStepUp(startMin); m <= endMin; m += Math.max(1, STEP_MIN)) {
           const hhmm = fromMin(m);
           const div = document.createElement("div");
           div.className = "time-option";
@@ -296,7 +314,7 @@
       }
       opts.appendChild(frag);
       const domCount = opts.querySelectorAll(".time-option").length;
-      console.debug("GT: built time options", { date: dateStr, ranges, count, domCount, hoursType: typeof OPENING_HOURS, keys: OPENING_HOURS ? Object.keys(OPENING_HOURS) : null });
+      console.debug("GT: built time options", { date: dateStr, ranges, count, domCount, hoursType: typeof OPENING_HOURS, keys: OPENING_HOURS ? Object.keys(OPENING_HOURS) : null, step: STEP_MIN });
     }
 
     btn.addEventListener("click", (e) => {
@@ -307,7 +325,8 @@
         opts.hidden = true;
         btn.setAttribute("aria-expanded","false");
       } else {
-        rebuildTimeOptionsFor(dateInput.value || new Date().toISOString().slice(0,10));
+        const d = dateInput.value || new Date().toISOString().slice(0,10);
+        rebuildTimeOptionsFor(d);
         opts.hidden = false;
         btn.setAttribute("aria-expanded","true");
       }
