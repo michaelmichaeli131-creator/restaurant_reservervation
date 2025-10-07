@@ -116,6 +116,12 @@
 <%- JSON.stringify(it.openingWindows || null) %>
 </script>
 
+<!-- ⬇️ דיבאג: מה הגיע מהשרת -->
+<script>
+  console.debug("SRV weeklySchedule:", <%- JSON.stringify(it.restaurant.weeklySchedule || it.restaurant.openingHours || it.restaurant.hours || it.restaurant.open_hours || null) %>);
+  console.debug("SRV openingWindows(today):", <%- JSON.stringify(it.openingWindows || null) %>);
+</script>
+
 <script>
   document.addEventListener("DOMContentLoaded", () => {
     const btn = document.getElementById("time-display");
@@ -148,7 +154,7 @@
         const dayArr = OPENING_WINDOWS_TODAY
           .map(w => ({ open: toHHMM(w.open), close: toHHMM(w.close) }))
           .filter(w => w.open && w.close);
-        // נייצר אובייקט עם מפתח מפורש ליום הזה בלבד (כדי שהקליינט יבין שזה יום מוגדר)
+        // מפתח מפורש ליום הזה בלבד (כדי שהקליינט יבין שזה יום מוגדר)
         OPENING_HOURS = { [String(dow)]: dayArr.length <= 1 ? (dayArr[0] || null) : dayArr };
         console.debug("GT: Fallback weekly built from today windows", { initDate, dow, OPENING_HOURS });
       }
