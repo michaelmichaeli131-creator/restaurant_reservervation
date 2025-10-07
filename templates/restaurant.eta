@@ -79,6 +79,21 @@
     </section>
   <% } %>
 
+  <% if (it.restaurant.menu && it.restaurant.menu.length) { %>
+    <section class="card">
+      <h2 style="margin-top:0">תפריט</h2>
+      <ul class="menu-list">
+        <% it.restaurant.menu.forEach(item => { %>
+          <li>
+            <strong><%= item.name %></strong>
+            <% if (item.price != null) { %> — <span class="muted"><%= item.price %> ₪</span><% } %>
+            <% if (item.desc) { %><br/><span class="muted"><%= item.desc %></span><% } %>
+          </li>
+        <% }) %>
+      </ul>
+    </section>
+  <% } %>
+
   <% if (_photos.length > 0) { %>
     <section class="card">
       <h2 style="margin-top:0">תמונות</h2>
@@ -91,7 +106,7 @@
   <% } %>
 </main>
 
-<!-- נעביר את שעות הפתיחה לפרונט -->
+<!-- נעביר את שעות הפתיחה לפרונט: קודם weeklySchedule; אם אין — openingHours/hours/open_hours -->
 <script id="opening-hours-data" type="application/json">
 <%- JSON.stringify(it.restaurant.weeklySchedule || it.restaurant.openingHours || it.restaurant.hours || it.restaurant.open_hours || null) %>
 </script>
@@ -123,7 +138,7 @@
     console.debug("GT: opening-hours raw", OPENING_HOURS);
     console.debug("GT: opening-windows today", OPENING_WINDOWS_TODAY);
 
-    // תמיכה ב-"10:00-22:00" (מחרוזת ישנה) => הכל פתוח כל יום בטווח הזה
+    // תמיכה במחרוזת ישנה "10:00-22:00" => אותו טווח לכל הימים
     if (typeof OPENING_HOURS === "string") {
       const m = OPENING_HOURS.match(/^\s*(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})\s*$/);
       if (m) {
@@ -190,16 +205,14 @@
       const d = new Date(dateStr || Date.now());
       if (isNaN(d.getTime())) return null;
 
-      // אם זה התאריך שבשדה ויש חלונות מוכנים מהשרת – נשתמש בהם (יישור קו מלא עם השרת)
+      // אם זה התאריך שמופיע כרגע בשדה ויש לנו חלונות מוכנים מהשרת – נשתמש בהם
       const initDate = (dateInput?.value || new Date().toISOString().slice(0,10));
       const isInitDate = (dateStr === initDate);
       if (isInitDate && Array.isArray(OPENING_WINDOWS_TODAY) && OPENING_WINDOWS_TODAY.length) {
-        const ranges = OPENING_WINDOWS_TODAY
+        return OPENING_WINDOWS_TODAY
           .map(w => [toMin(w.open), toMin(w.close)])
           .filter(([a,b]) => Number.isFinite(a) && Number.isFinite(b))
           .map(([a,b]) => b <= a ? [a, 24*60-1] : [a,b]);
-        console.debug("GT: using server openingWindows for", dateStr, ranges);
-        return ranges;
       }
 
       if (!OPENING_HOURS) return null;
@@ -211,7 +224,7 @@
         ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][dow]
       ];
 
-      // אין מפתח מפורש ⇒ פתוח כל היום (כמו השרת)
+      // אין מפתח מפורש ליום ⇒ פתוח כל היום (תאימות לשרת)
       if (!hasExplicitKeyForDay(OPENING_HOURS, dow)) {
         return [[0, 24*60 - 1]];
       }
@@ -235,12 +248,14 @@
       const ranges = getRangesForDate(dateStr);
 
       if (!ranges || !ranges.length) {
+        // יש מפתח מפורש עם null/ריק ⇒ סגור
         const empty = document.createElement("div");
         empty.className = "time-option";
         empty.setAttribute("aria-disabled", "true");
         empty.textContent = "אין שעות פתיחה ליום זה";
         opts.appendChild(empty);
-        console.debug("GT: no opening hours for date", { date: dateStr, ranges });
+        const domCount = opts.querySelectorAll(".time-option").length;
+        console.debug("GT: built time options", { date: dateStr, ranges, count: 0, domCount });
         return;
       }
 
@@ -259,10 +274,8 @@
         }
       }
       opts.appendChild(frag);
-      console.debug("GT: built time options", {
-        date: dateStr, ranges, count,
-        domCount: opts.querySelectorAll(".time-option").length
-      });
+      const domCount = opts.querySelectorAll(".time-option").length;
+      console.debug("GT: built time options", { date: dateStr, ranges, count, domCount });
     }
 
     btn.addEventListener("click", (e) => {
@@ -325,17 +338,16 @@
       const initDate = dateInput.value || new Date().toISOString().slice(0,10);
       rebuildTimeOptionsFor(initDate);
 
-      // לוג דיאגנוסטי: כמה פריטים נבנו
+      // דיאגנוסטיקה בטוחה (ללא סלקטור invalid)
+      const allOpts = Array.from(document.querySelectorAll("#time-options .time-option"));
+      const enabledOptsCount = allOpts.filter(el => el.getAttribute("aria-disabled") !== "true").length;
       console.debug("GT: options after init", {
         date: initDate,
-        count: document.querySelectorAll("#time-options .time-option[aria-disabled!='true']").length
+        totalOpts: allOpts.length,
+        enabledOptsCount
       });
 
-      // אם אין שעה נבחרת — לפתוח אוטומטית כדי לראות שיש רשימה
-      if (!hiddenInput.value) {
-        opts.hidden = false;
-        btn.setAttribute("aria-expanded", "true");
-      } else {
+      if (hiddenInput.value) {
         const ok = !!opts.querySelector(`.time-option[data-value="${hiddenInput.value}"]`);
         if (!ok) {
           hiddenInput.value = "";
@@ -442,6 +454,9 @@
   .slots { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
   .slot { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; background: #f7fafc; cursor: pointer; transition: background-color 0.2s; }
   .slot:hover { background: #edf2f7; }
+
+  .menu-list { list-style: none; margin: 0; padding: 0; }
+  .menu-list li { padding: 8px 0; border-bottom: 1px dashed #eee; }
 
   .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 10px; }
   .photo-grid img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; }
