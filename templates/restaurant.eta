@@ -9,7 +9,7 @@
   </header>
 
   <%
-    // --- תמונות (תמיכה גם במבנה הישן של [{id,dataUrl}] וגם במחרוזות) ---
+    // תמונות (תומך גם במבנה הישן של [{id,dataUrl}] וגם במחרוזות)
     const _photos = Array.isArray(it.restaurant.photos)
       ? it.restaurant.photos.map(p => (typeof p === 'string' ? p : p?.dataUrl)).filter(Boolean)
       : [];
@@ -106,12 +106,12 @@
   <% } %>
 </main>
 
-<!-- נעביר את שעות הפתיחה לפרונט: קודם weeklySchedule; אם אין — openingHours/hours/open_hours -->
+<!-- weeklySchedule / openingHours / hours (fallbackים) -->
 <script id="opening-hours-data" type="application/json">
 <%- JSON.stringify(it.restaurant.weeklySchedule || it.restaurant.openingHours || it.restaurant.hours || it.restaurant.open_hours || null) %>
 </script>
 
-<!-- הזרקת חלונות היום כפי שחושבו בשרת (ליום ההתחלתי) -->
+<!-- חלונות פתיחה מחושבים ל"אינדקס" (היום הנוכחי בטופס) -->
 <script id="opening-windows-today" type="application/json">
 <%- JSON.stringify(it.openingWindows || null) %>
 </script>
@@ -135,6 +135,25 @@
       const raw2 = document.getElementById("opening-windows-today")?.textContent || "null";
       OPENING_WINDOWS_TODAY = JSON.parse(raw2);
     } catch { OPENING_WINDOWS_TODAY = null; }
+
+    // אם weeklySchedule לא הגיע ללקוח, נבנה מפה מינימלית מהחלונות של היום
+    (function fallbackWeeklyFromWindows(){
+      if (OPENING_HOURS == null && Array.isArray(OPENING_WINDOWS_TODAY) && OPENING_WINDOWS_TODAY.length) {
+        const initDate = (dateInput?.value || new Date().toISOString().slice(0,10));
+        const dow = new Date(initDate).getDay(); // 0..6
+        const toHHMM = (s) => {
+          if (!s) return null;
+          const m = String(s).match(/^(\d{1,2}):(\d{2})$/); return m ? `${m[1].padStart(2,'0')}:${m[2]}` : null;
+        };
+        const dayArr = OPENING_WINDOWS_TODAY
+          .map(w => ({ open: toHHMM(w.open), close: toHHMM(w.close) }))
+          .filter(w => w.open && w.close);
+        // נייצר אובייקט עם מפתח מפורש ליום הזה בלבד (כדי שהקליינט יבין שזה יום מוגדר)
+        OPENING_HOURS = { [String(dow)]: dayArr.length <= 1 ? (dayArr[0] || null) : dayArr };
+        console.debug("GT: Fallback weekly built from today windows", { initDate, dow, OPENING_HOURS });
+      }
+    })();
+
     console.debug("GT: opening-hours raw", OPENING_HOURS);
     console.debug("GT: opening-windows today", OPENING_WINDOWS_TODAY);
 
@@ -163,7 +182,6 @@
       return rem ? mins + (15 - rem) : mins;
     };
 
-    // בדיקה אם יש מפתח מפורש ליום (גם אם הוא null) — ליישור התנהגות מול השרת
     function hasExplicitKeyForDay(obj, dow) {
       if (!obj || typeof obj !== "object") return false;
       const long = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
@@ -205,7 +223,6 @@
       const d = new Date(dateStr || Date.now());
       if (isNaN(d.getTime())) return null;
 
-      // אם זה התאריך שמופיע כרגע בשדה ויש לנו חלונות מוכנים מהשרת – נשתמש בהם
       const initDate = (dateInput?.value || new Date().toISOString().slice(0,10));
       const isInitDate = (dateStr === initDate);
       if (isInitDate && Array.isArray(OPENING_WINDOWS_TODAY) && OPENING_WINDOWS_TODAY.length) {
@@ -224,9 +241,8 @@
         ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][dow]
       ];
 
-      // אין מפתח מפורש ליום ⇒ פתוח כל היום (תאימות לשרת)
       if (!hasExplicitKeyForDay(OPENING_HOURS, dow)) {
-        return [[0, 24*60 - 1]];
+        return [[0, 24*60 - 1]]; // תאימות עם השרת
       }
 
       let dayDef = null;
@@ -248,14 +264,13 @@
       const ranges = getRangesForDate(dateStr);
 
       if (!ranges || !ranges.length) {
-        // יש מפתח מפורש עם null/ריק ⇒ סגור
         const empty = document.createElement("div");
         empty.className = "time-option";
         empty.setAttribute("aria-disabled", "true");
         empty.textContent = "אין שעות פתיחה ליום זה";
         opts.appendChild(empty);
         const domCount = opts.querySelectorAll(".time-option").length;
-        console.debug("GT: built time options", { date: dateStr, ranges, count: 0, domCount });
+        console.debug("GT: built time options", { date: dateStr, ranges, count: 0, domCount, hoursNull: OPENING_HOURS == null });
         return;
       }
 
@@ -275,7 +290,7 @@
       }
       opts.appendChild(frag);
       const domCount = opts.querySelectorAll(".time-option").length;
-      console.debug("GT: built time options", { date: dateStr, ranges, count, domCount });
+      console.debug("GT: built time options", { date: dateStr, ranges, count, domCount, hoursType: typeof OPENING_HOURS, keys: OPENING_HOURS ? Object.keys(OPENING_HOURS) : null });
     }
 
     btn.addEventListener("click", (e) => {
@@ -338,7 +353,6 @@
       const initDate = dateInput.value || new Date().toISOString().slice(0,10);
       rebuildTimeOptionsFor(initDate);
 
-      // דיאגנוסטיקה בטוחה (ללא סלקטור invalid)
       const allOpts = Array.from(document.querySelectorAll("#time-options .time-option"));
       const enabledOptsCount = allOpts.filter(el => el.getAttribute("aria-disabled") !== "true").length;
       console.debug("GT: options after init", {
