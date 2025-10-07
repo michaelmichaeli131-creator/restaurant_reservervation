@@ -1,6 +1,6 @@
 // src/routes/owner_hours.ts
 // ניהול שעות פתיחה שבועיות למסעדה — בעלים בלבד
-// ארכיטקטורה: שמירה ב-GET (/hours/save) דרך url.searchParams
+// שמירה ב-GET (/hours/save) דרך url.searchParams
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -33,9 +33,11 @@ function timeLT(a: string, b: string): boolean {
   return h1 < h2 || (h1 === h2 && m1 < m2);
 }
 
+/** בונה weeklySchedule תקין: { open, close } או null */
 function buildWeeklyFromParams(sp: URLSearchParams): WeeklySchedule | undefined {
   let touched = false;
   const weekly: WeeklySchedule = {} as any;
+
   for (let d = 0 as DayOfWeek; d <= 6; d++) {
     const hasClosed = sp.has(`w${d}_closed`);
     const hasOpen = sp.has(`w${d}_open`);
@@ -50,11 +52,13 @@ function buildWeeklyFromParams(sp: URLSearchParams): WeeklySchedule | undefined 
     if (closed) {
       weekly[d] = null;
     } else if (open && close && timeLT(open, close)) {
-      weekly[d] = [{ open, close }];
+      // ✅ שמירה בפורמט הנכון — אובייקט יחיד ולא מערך
+      weekly[d] = { open, close };
     } else {
       weekly[d] = null;
     }
   }
+
   return touched ? weekly : undefined;
 }
 
@@ -66,16 +70,27 @@ ownerHoursRouter.get("/owner/restaurants/:id/hours", async (ctx) => {
   debugLog("[owner_hours][GET] enter", { path: ctx.request.url.pathname, id });
 
   const r = await getRestaurant(id);
-  debugLog("[owner_hours][GET] load", { id, found: !!r, ownerId: r?.ownerId, userId: (ctx.state as any)?.user?.id });
+  debugLog("[owner_hours][GET] load", {
+    id,
+    found: !!r,
+    ownerId: r?.ownerId,
+    userId: (ctx.state as any)?.user?.id,
+  });
 
   if (!r) {
     ctx.response.status = Status.NotFound;
-    await render(ctx, "error", { title: "לא נמצא", message: "המסעדה לא נמצאה." });
+    await render(ctx, "error", {
+      title: "לא נמצא",
+      message: "המסעדה לא נמצאה.",
+    });
     return;
   }
   if (r.ownerId !== (ctx.state as any)?.user?.id) {
     ctx.response.status = Status.Forbidden;
-    await render(ctx, "error", { title: "אין הרשאה", message: "אין הרשאה למסעדה זו." });
+    await render(ctx, "error", {
+      title: "אין הרשאה",
+      message: "אין הרשאה למסעדה זו.",
+    });
     return;
   }
 
@@ -87,7 +102,7 @@ ownerHoursRouter.get("/owner/restaurants/:id/hours", async (ctx) => {
   });
 });
 
-// ---------- GET: שמירה (עוקף-פרסרים) ----------
+// ---------- GET: שמירה ----------
 ownerHoursRouter.get("/owner/restaurants/:id/hours/save", async (ctx) => {
   if (!requireOwner(ctx)) return;
 
@@ -95,24 +110,30 @@ ownerHoursRouter.get("/owner/restaurants/:id/hours/save", async (ctx) => {
   const r = await getRestaurant(id);
   if (!r) {
     ctx.response.status = Status.NotFound;
-    await render(ctx, "error", { title: "לא נמצא", message: "המסעדה לא נמצאה." });
+    await render(ctx, "error", {
+      title: "לא נמצא",
+      message: "המסעדה לא נמצאה.",
+    });
     return;
   }
   if (r.ownerId !== (ctx.state as any)?.user?.id) {
     ctx.response.status = Status.Forbidden;
-    await render(ctx, "error", { title: "אין הרשאה", message: "אין הרשאה למסעדה זו." });
+    await render(ctx, "error", {
+      title: "אין הרשאה",
+      message: "אין הרשאה למסעדה זו.",
+    });
     return;
   }
 
   const sp = ctx.request.url.searchParams;
-
   const patch: Partial<typeof r> = {};
 
-  // קיבולת (נשאיר בעמוד זה, אם לא רוצים להסיר)
+  // קיבולת
   if (sp.has("capacity")) {
     const n = Number(sp.get("capacity"));
     if (Number.isFinite(n) && n > 0) patch.capacity = Math.floor(n);
   }
+
   // גריד סלוטים (דקות)
   if (sp.has("slotIntervalMinutes")) {
     const s = Number(sp.get("slotIntervalMinutes"));
@@ -120,7 +141,8 @@ ownerHoursRouter.get("/owner/restaurants/:id/hours/save", async (ctx) => {
       patch.slotIntervalMinutes = Math.floor(s);
     }
   }
-  // משך ישיבה (דקות) — הועבר לעמוד זה
+
+  // משך ישיבה (דקות)
   if (sp.has("serviceDurationMinutes")) {
     const d = Number(sp.get("serviceDurationMinutes"));
     if (Number.isFinite(d) && d >= 15 && d <= 240) {
@@ -128,6 +150,7 @@ ownerHoursRouter.get("/owner/restaurants/:id/hours/save", async (ctx) => {
     }
   }
 
+  // שעות פתיחה
   const weekly = buildWeeklyFromParams(sp);
   if (weekly) patch.weeklySchedule = weekly;
 
@@ -136,7 +159,10 @@ ownerHoursRouter.get("/owner/restaurants/:id/hours/save", async (ctx) => {
   await updateRestaurant(id, patch as any);
 
   ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", `/owner/restaurants/${encodeURIComponent(id)}/hours?saved=1`);
+  ctx.response.headers.set(
+    "Location",
+    `/owner/restaurants/${encodeURIComponent(id)}/hours?saved=1`,
+  );
 });
 
 // ---------- POST (תאימות לאחור) ----------
@@ -144,8 +170,9 @@ ownerHoursRouter.post("/owner/restaurants/:id/hours", async (ctx) => {
   const id = ctx.params.id!;
   const sp = ctx.request.url.searchParams;
   ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location",
-    `/owner/restaurants/${encodeURIComponent(id)}/hours/save?${sp.toString()}`
+  ctx.response.headers.set(
+    "Location",
+    `/owner/restaurants/${encodeURIComponent(id)}/hours/save?${sp.toString()}`,
   );
 });
 
