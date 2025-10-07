@@ -234,7 +234,7 @@ async function suggestionsWithinSchedule(
 }
 
 /* ---------------- Strong body reader for Oak ---------------- */
-// (ללא שינוי – נשאר מלא כדי לתמוך בכל סוגי הגופים)
+
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const dbg: Record<string, unknown> = { ct: (ctx.request.headers.get("content-type") ?? "").toLowerCase(), phases: [] as any[] };
   const phase = (name: string, data?: unknown) => { try { (dbg.phases as any[]).push({ name, data }); } catch {} };
@@ -363,11 +363,11 @@ function extractDateAndTime(ctx: any, payload: Record<string, unknown>) {
   const rawTime = pickNonEmpty(
     payload["time"], qs.get("time"), (ref as any)["time"],
     (payload as any)["time_display"], (payload as any)["timeDisplay"],
-    qs.get("time_display"), qs.get("timeDisplay"],
+    qs.get("time_display"), qs.get("timeDisplay"),
     (ref as any)["time_display"], (ref as any)["timeDisplay"],
     hhmmFromHM,
-    payload["datetime"], payload["datetime_local"], payload["datetime-local"],
-    qs.get("datetime"], qs.get("datetime_local"], qs.get("datetime-local"],
+    payload["datetime"], payload["datetime_local"], (payload as any)["datetime-local"],
+    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"),
     (ref as any)["datetime"], (ref as any)["datetime_local"], (ref as any)["datetime-local"]
   );
 
@@ -542,7 +542,7 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   // normalize photos for template (expects string[])
   const photos = photoStrings(restaurant.photos);
 
-  // חשוב: להעביר שעות פתיחה תחת כמה שמות לתמיכה בטמפלטים שונים + קונפיג סלוטים
+  // להעביר שעות פתיחה תחת כמה שמות לתמיכה בטמפלטים שונים + קונפיג סלוטים
   const restaurantForView = {
     ...restaurant,
     photos,
@@ -950,7 +950,7 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   const slotIntervalMinutes = Math.max(5, toIntLoose((payload as any).slotIntervalMinutes ?? (payload as any).slot) ?? 15);
   const serviceDurationMinutes = Math.max(30, toIntLoose((payload as any).serviceDurationMinutes ?? (payload as any).span) ?? 120);
 
-  // *** שימוש בנרמול המקיף כדי לתמוך בכל הצורות (JSON/שטוח/מחרוזות) ***
+  // שימוש בנרמול המקיף כדי לתמוך בכל הצורות (JSON/שטוח/מחרוזות)
   const weeklyCandidate =
     (payload as any).weeklySchedule ??
     (payload as any).hours ??
