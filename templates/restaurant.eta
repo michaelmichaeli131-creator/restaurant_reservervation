@@ -9,7 +9,6 @@
   </header>
 
   <%
-    // תמונות (תומך גם במבנה הישן של [{id,dataUrl}] וגם במחרוזות)
     const _photos = Array.isArray(it.restaurant.photos)
       ? it.restaurant.photos.map(p => (typeof p === 'string' ? p : p?.dataUrl)).filter(Boolean)
       : [];
@@ -17,7 +16,6 @@
     const PLACEHOLDER = staticPrefix + "/placeholder.png";
     const hero = _photos[0] || PLACEHOLDER;
 
-    // אינטרוול קפיצות דקות (ברירת מחדל 15)
     const SLOT_STEP = it.restaurant?.slotIntervalMinutes || it.slotIntervalMinutes || 15;
   %>
 
@@ -109,26 +107,20 @@
   <% } %>
 </main>
 
-<!-- weeklySchedule / openingHours / hours (fallbackים) -->
-<script id="opening-hours-data" type="application/json">
-<%- JSON.stringify(it.restaurant.weeklySchedule || it.restaurant.openingHours || it.restaurant.hours || it.restaurant.open_hours || null) %>
-</script>
+<!-- *** הזרקת נתונים מהשרת בצורה חסינה דרך data-* על meta *** -->
+<meta id="srv-data"
+  data-weekly='<%= JSON.stringify(it.restaurant?.weeklySchedule ?? it.restaurant?.openingHours ?? it.restaurant?.hours ?? it.restaurant?.open_hours ?? null) %>'
+  data-windows='<%= JSON.stringify(it.openingWindows ?? null) %>'
+  data-step='<%= JSON.stringify(it.restaurant?.slotIntervalMinutes ?? it.slotIntervalMinutes ?? 15) %>'>
 
-<!-- חלונות פתיחה מחושבים ליום ההתחלתי -->
-<script id="opening-windows-today" type="application/json">
-<%- JSON.stringify(it.openingWindows || null) %>
-</script>
-
-<!-- קפיצות דקות מהשרת -->
-<script id="slot-interval" type="application/json">
-<%- JSON.stringify(it.restaurant?.slotIntervalMinutes || it.slotIntervalMinutes || 15) %>
-</script>
-
-<!-- דיבאג: מה הגיע -->
 <script>
-  console.debug("SRV weeklySchedule:", <%- JSON.stringify(it.restaurant.weeklySchedule || it.restaurant.openingHours || it.restaurant.hours || it.restaurant.open_hours || null) %>);
-  console.debug("SRV openingWindows(today):", <%- JSON.stringify(it.openingWindows || null) %>);
-  console.debug("SRV slotIntervalMinutes:", <%- JSON.stringify(it.restaurant?.slotIntervalMinutes || it.slotIntervalMinutes || 15) %>);
+  // דיבאג: מה הגיע מהשרת לפני פירסינג
+  (function () {
+    const meta = document.getElementById("srv-data");
+    console.debug("SRV weeklySchedule:", meta?.dataset.weekly ?? "(missing)");
+    console.debug("SRV openingWindows(today):", meta?.dataset.windows ?? "(missing)");
+    console.debug("SRV slotIntervalMinutes:", meta?.dataset.step ?? "(missing)");
+  })();
 </script>
 
 <script>
@@ -139,29 +131,22 @@
     const form = document.getElementById("reserve-form");
     const dateInput = document.getElementById("date");
     const stepLabel = document.getElementById("step-label");
+    const meta = document.getElementById("srv-data");
 
-    /* ------------ קריאת נתונים מה-HTML ------------ */
-    let OPENING_HOURS = null;
-    let OPENING_WINDOWS_TODAY = null;
-    let STEP_MIN = 15;
-
-    try {
-      OPENING_HOURS = JSON.parse(document.getElementById("opening-hours-data")?.textContent || "null");
-    } catch { OPENING_HOURS = null; }
-    try {
-      OPENING_WINDOWS_TODAY = JSON.parse(document.getElementById("opening-windows-today")?.textContent || "null");
-    } catch { OPENING_WINDOWS_TODAY = null; }
-    try {
-      STEP_MIN = Math.max(1, parseInt(JSON.parse(document.getElementById("slot-interval")?.textContent || "15"), 10) || 15);
-    } catch { STEP_MIN = 15; }
-
+    /* ------------ קריאה חסינה מה-meta ------------ */
+    const parseJSON = (s) => {
+      try { return JSON.parse(s); } catch { return null; }
+    };
+    let OPENING_HOURS = parseJSON(meta?.dataset.weekly ?? "null");
+    let OPENING_WINDOWS_TODAY = parseJSON(meta?.dataset.windows ?? "null");
+    let STEP_MIN = Math.max(1, parseInt(parseJSON(meta?.dataset.step ?? "15") ?? 15, 10) || 15);
     if (stepLabel) stepLabel.textContent = String(STEP_MIN);
 
-    // אם weeklySchedule לא הגיע, בנה מפה מינימלית מהחלונות של היום
+    // אם weeklySchedule לא הגיע ללקוח, בנה מפה מינימלית מהחלונות של היום
     (function fallbackWeeklyFromWindows(){
       if (OPENING_HOURS == null && Array.isArray(OPENING_WINDOWS_TODAY) && OPENING_WINDOWS_TODAY.length) {
         const initDate = (dateInput?.value || new Date().toISOString().slice(0,10));
-        const dow = new Date(initDate).getDay();
+        const dow = new Date(initDate).getDay(); // 0..6
         const toHHMM = (s) => {
           if (!s) return null;
           const m = String(s).match(/^(\d{1,2}):(\d{2})$/); return m ? `${m[1].padStart(2,'0')}:${m[2]}` : null;
@@ -245,7 +230,6 @@
       const d = new Date(dateStr || Date.now());
       if (isNaN(d.getTime())) return null;
 
-      // עבור התאריך הראשוני – תעדף openingWindows אם הגיעו מהשרת
       const initDate = (dateInput?.value || new Date().toISOString().slice(0,10));
       const isInitDate = (dateStr === initDate);
       if (isInitDate && Array.isArray(OPENING_WINDOWS_TODAY) && OPENING_WINDOWS_TODAY.length) {
@@ -264,9 +248,8 @@
         ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][dow]
       ];
 
-      // אם אין מפתח מפורש – פתוח כל היום (תאימות לשרת)
       if (!hasExplicitKeyForDay(OPENING_HOURS, dow)) {
-        return [[0, 24*60 - 1]];
+        return [[0, 24*60 - 1]]; // תאימות עם השרת
       }
 
       let dayDef = null;
@@ -505,3 +488,4 @@
     .hero-img { height: 200px; }
   }
 </style>
+
