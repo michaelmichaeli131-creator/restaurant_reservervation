@@ -274,21 +274,53 @@ function isWithinOpening(r: Restaurant, date: string, startMin: number, span: nu
 
 // מחזיר חלונות פתיחה כתווים {open, close} ליום נתון.
 // אם אין מגבלה באותו יום (אין מפתח מפורש) – ברירת המחדל: פתוח כל היום.
+
 export function openingWindowsForDate(
   r: Restaurant,
   dateISO: string,
 ): Array<{ open: string; close: string }> {
-  const ranges = openingRangesForDate(r, dateISO);
-  if (!ranges.length) {
-    // אין מגבלה עבור היום הזה → פתוח כל היום
-    return [{ open: "00:00", close: "24:00" }];
-  }
-  return ranges.map(([start, end]) => ({
-    open: fromMinutes(start),
-    close: fromMinutes(end),
-  }));
-}
+  const weekly: any = r.weeklySchedule ?? (r as any).openingHours ?? null;
 
+  // אין כל מגבלה → פתוח כל היום
+  if (!weekly) return [{ open: "00:00", close: "24:00" }];
+
+  // פרסינג מקומי בטוח
+  const m = String(dateISO ?? "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return [{ open: "00:00", close: "24:00" }];
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
+  if (isNaN(d.getTime())) return [{ open: "00:00", close: "24:00" }];
+
+  const dow = d.getDay() as DayOfWeek;
+  const keyNum = dow as any;
+  const keyStr = String(dow);
+
+  const hasNum = Object.prototype.hasOwnProperty.call(weekly, keyNum);
+  const hasStr = Object.prototype.hasOwnProperty.call(weekly, keyStr);
+  const hasKey = hasNum || hasStr;
+
+  const def = hasNum ? weekly[keyNum] : (hasStr ? weekly[keyStr] : null);
+
+  // מפתח קיים והערך null → סגור
+  if (hasKey && (def == null)) return [];
+
+  // מפתח לא קיים → פתוח כל היום (fallback)
+  if (!hasKey) return [{ open: "00:00", close: "24:00" }];
+
+  // יש הגדרה לאותו יום → לקרוא open/close
+  const open = String(def.open ?? def.start ?? "");
+  const close = String(def.close ?? def.end ?? "");
+  const toMin = (hhmm: string) => {
+    const mm = hhmm.match(/^(\d{2}):(\d{2})$/);
+    return mm ? Number(mm[1]) * 60 + Number(mm[2]) : NaN;
+  };
+  const s = toMin(open), e = toMin(close);
+  if (!Number.isFinite(s) || !Number.isFinite(e)) return [];
+
+  // סוף לפני התחלה → חתוך עד סוף היום
+  if (e <= s) return [{ open, close: "23:59" }];
+
+  return [{ open, close }];
+}
 
 
 
