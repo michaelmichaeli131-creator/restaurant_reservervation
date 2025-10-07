@@ -65,6 +65,7 @@ function normalizeTime(input: unknown): string {
   if (!m) return s;
   const h = Math.max(0, Math.min(23, Number(m[1])));
   let mi = Math.max(0, Math.min(59, Number(m[2])));
+  // יישור ל-15 דק’ לטובת בדיקות לוגיות; בפועל הפרונט יבנה סלוטים לפי קונפיג
   mi = Math.floor(mi / 15) * 15;
   return `${pad2(h)}:${pad2(mi)}`;
 }
@@ -233,7 +234,7 @@ async function suggestionsWithinSchedule(
 }
 
 /* ---------------- Strong body reader for Oak ---------------- */
-
+// (ללא שינוי – נשאר מלא כדי לתמוך בכל סוגי הגופים)
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const dbg: Record<string, unknown> = { ct: (ctx.request.headers.get("content-type") ?? "").toLowerCase(), phases: [] as any[] };
   const phase = (name: string, data?: unknown) => { try { (dbg.phases as any[]).push({ name, data }); } catch {} };
@@ -362,11 +363,11 @@ function extractDateAndTime(ctx: any, payload: Record<string, unknown>) {
   const rawTime = pickNonEmpty(
     payload["time"], qs.get("time"), (ref as any)["time"],
     (payload as any)["time_display"], (payload as any)["timeDisplay"],
-    qs.get("time_display"), qs.get("timeDisplay"),
+    qs.get("time_display"), qs.get("timeDisplay"],
     (ref as any)["time_display"], (ref as any)["timeDisplay"],
     hhmmFromHM,
     payload["datetime"], payload["datetime_local"], payload["datetime-local"],
-    qs.get("datetime"), qs.get("datetime_local"), qs.get("datetime-local"),
+    qs.get("datetime"], qs.get("datetime_local"], qs.get("datetime-local"],
     (ref as any)["datetime"], (ref as any)["datetime_local"], (ref as any)["datetime-local"]
   );
 
@@ -499,7 +500,10 @@ restaurantsRouter.get("/api/restaurants", async (ctx) => {
   const items = await listRestaurants(q, onlyApproved);
 
   // normalize photos for API consumers
-  const out = items.map(r => ({ ...r, photos: photoStrings(r.photos) }));
+  const out = items.map(r => ({
+    ...r,
+    photos: photoStrings(r.photos),
+  }));
 
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = JSON.stringify(out, null, 2);
@@ -524,6 +528,10 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const windows = getWindowsForDate(restaurant.weeklySchedule as WeeklySchedule, date);
   const openingWindows = hasDay ? windows : [{ open: "00:00", close: "23:59" }];
 
+  // ברירת מחדל לקונפיג סלוטים אם לא נשמרו במסעדה
+  const slotIntervalMinutes = (restaurant as any).slotIntervalMinutes ?? 15;
+  const serviceDurationMinutes = (restaurant as any).serviceDurationMinutes ?? 120;
+
   debugLog("[restaurants][GET /restaurants/:id] view", {
     id, date, rawTime, time,
     hasWeekly: !!restaurant.weeklySchedule,
@@ -534,11 +542,25 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   // normalize photos for template (expects string[])
   const photos = photoStrings(restaurant.photos);
 
+  // חשוב: להעביר שעות פתיחה תחת כמה שמות לתמיכה בטמפלטים שונים + קונפיג סלוטים
+  const restaurantForView = {
+    ...restaurant,
+    photos,
+    weeklySchedule: (restaurant as any).weeklySchedule ?? null,
+    openingHours: (restaurant as any).weeklySchedule ?? (restaurant as any).openingHours ?? null,
+    hours:        (restaurant as any).weeklySchedule ?? (restaurant as any).hours ?? null,
+    open_hours:   (restaurant as any).weeklySchedule ?? (restaurant as any).open_hours ?? null,
+    slotIntervalMinutes,
+    serviceDurationMinutes,
+  };
+
   await render(ctx, "restaurant", {
     page: "restaurant",
     title: `${restaurant.name} — GeoTable`,
-    restaurant: { ...restaurant, openingHours: restaurant.weeklySchedule, photos },
-    openingWindows,
+    restaurant: restaurantForView,
+    openingWindows,           // חלונות ליום ההתחלתי (לנוחות הפרונט)
+    slotIntervalMinutes,      // אופציונלי: אם התבנית משתמשת בזה
+    serviceDurationMinutes,   // אופציונלי
     conflict: ctx.request.url.searchParams.get("conflict") === "1",
     suggestions: (ctx.request.url.searchParams.get("suggest") ?? "").split(",").filter(Boolean),
     date,
@@ -558,7 +580,7 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
 
   const { payload, dbg } = await readBody(ctx);
   const { date, time } = extractDateAndTime(ctx, payload);
-  const people = 2;
+  const people = toIntLoose((payload as any).people) ?? 2;
 
   const hasDay = hasScheduleForDate(restaurant.weeklySchedule, date);
   const windows = getWindowsForDate(restaurant.weeklySchedule, date);
@@ -610,7 +632,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
 
   const { payload, dbg } = await readBody(ctx);
   const { date, time } = extractDateAndTime(ctx, payload);
-  const people = 2;
+  const people = toIntLoose((payload as any).people) ?? 2;
 
   const within = isWithinSchedule(restaurant.weeklySchedule, date, time);
   debugLog("[restaurants][POST reserve] before-redirect", {
@@ -678,7 +700,6 @@ restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
     weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : []
   });
 
-  // normalize photos (למרות שהתבנית הזו לא חייבת תמונות – לשמירה על אחידות)
   const photos = photoStrings(restaurant.photos);
 
   await render(ctx, "reservation_details", {
@@ -929,22 +950,21 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   const slotIntervalMinutes = Math.max(5, toIntLoose((payload as any).slotIntervalMinutes ?? (payload as any).slot) ?? 15);
   const serviceDurationMinutes = Math.max(30, toIntLoose((payload as any).serviceDurationMinutes ?? (payload as any).span) ?? 120);
 
-  // קליטת weeklySchedule
-  let weeklySchedule = (payload as any).weeklySchedule ?? (payload as any).hours ?? (payload as any).weeklyHours ?? (payload as any).openingHours ?? null;
+  // *** שימוש בנרמול המקיף כדי לתמוך בכל הצורות (JSON/שטוח/מחרוזות) ***
+  const weeklyCandidate =
+    (payload as any).weeklySchedule ??
+    (payload as any).hours ??
+    (payload as any).weeklyHours ??
+    (payload as any).openingHours ??
+    null;
 
-  // נרמול ל-WeeklySchedule תקין
+  const normalizedMap = ensureWeeklyHours(weeklyCandidate, payload);
+
+  // המרה ל־WeeklySchedule לפי DayOfWeek (0..6) → {open,close}|null
   const normalized: WeeklySchedule = {};
-  if (weeklySchedule && typeof weeklySchedule === "object") {
-    for (let d = 0 as DayOfWeek; d <= 6; d = (d + 1) as DayOfWeek) {
-      const row = weeklySchedule[d] ?? weeklySchedule[String(d)] ?? null;
-      if (row && typeof row === "object" && (row as any).open && (row as any).close) {
-        const open = normalizeTime((row as any).open);
-        const close = normalizeTime((row as any).close);
-        normalized[d] = (open && close) ? { open, close } : null;
-      } else {
-        normalized[d] = null;
-      }
-    }
+  for (let d = 0 as DayOfWeek; d <= 6; d = (d + 1) as DayOfWeek) {
+    const row = (normalizedMap as any)[d] ?? null;
+    normalized[d] = row && row.open && row.close ? { open: row.open, close: row.close } : null;
   }
 
   debugLog("[restaurants][POST hours] normalized", {
@@ -986,7 +1006,7 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   if (wantsJson) {
     ctx.response.status = Status.OK;
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok: true, weeklySchedule: normalized, capacity, slotIntervalMinutes }, null, 2);
+    ctx.response.body = JSON.stringify({ ok: true, weeklySchedule: normalized, capacity, slotIntervalMinutes, serviceDurationMinutes }, null, 2);
   } else {
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", `/restaurants/${encodeURIComponent(rid)}`);

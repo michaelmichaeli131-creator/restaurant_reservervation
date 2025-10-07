@@ -9,16 +9,23 @@
   </header>
 
   <%
+    // תמונות (תומך גם במבנה הישן של [{id,dataUrl}] וגם במחרוזות)
     const _photos = Array.isArray(it.restaurant.photos)
       ? it.restaurant.photos.map(p => (typeof p === 'string' ? p : p?.dataUrl)).filter(Boolean)
       : [];
-    const PLACEHOLDER = (it.staticPrefix || "/static") + "/placeholder.png";
+    const staticPrefix = it.staticPrefix || "/static";
+    const PLACEHOLDER = staticPrefix + "/placeholder.png";
     const hero = _photos[0] || PLACEHOLDER;
   %>
 
   <!-- Hero -->
   <section class="hero card" aria-label="תמונה ראשית">
-    <img src="<%= hero %>" alt="תמונה ראשית של <%= it.restaurant.name %>" class="hero-img"/>
+    <img
+      src="<%= hero %>"
+      alt="תמונה ראשית של <%= it.restaurant.name %>"
+      class="hero-img"
+      onerror="this.src='<%= PLACEHOLDER %>'"
+    />
   </section>
 
   <section class="card">
@@ -72,154 +79,404 @@
     </section>
   <% } %>
 
+  <% if (it.restaurant.menu && it.restaurant.menu.length) { %>
+    <section class="card">
+      <h2 style="margin-top:0">תפריט</h2>
+      <ul class="menu-list">
+        <% it.restaurant.menu.forEach(item => { %>
+          <li>
+            <strong><%= item.name %></strong>
+            <% if (item.price != null) { %> — <span class="muted"><%= item.price %> ₪</span><% } %>
+            <% if (item.desc) { %><br/><span class="muted"><%= item.desc %></span><% } %>
+          </li>
+        <% }) %>
+      </ul>
+    </section>
+  <% } %>
+
   <% if (_photos.length > 0) { %>
     <section class="card">
       <h2 style="margin-top:0">תמונות</h2>
       <div class="photo-grid">
         <% _photos.forEach(src => { %>
-          <img src="<%= src %>" alt="תמונה של המסעדה" loading="lazy"/>
+          <img src="<%= src %>" alt="תמונה של המסעדה" loading="lazy" onerror="this.src='<%= PLACEHOLDER %>'"/>
         <% }) %>
       </div>
     </section>
   <% } %>
 </main>
 
+<!-- weeklySchedule / openingHours / hours (fallbackים) -->
 <script id="opening-hours-data" type="application/json">
 <%- JSON.stringify(it.restaurant.weeklySchedule || it.restaurant.openingHours || it.restaurant.hours || it.restaurant.open_hours || null) %>
 </script>
 
+<!-- חלונות פתיחה מחושבים ל"אינדקס" (היום הנוכחי בטופס) -->
 <script id="opening-windows-today" type="application/json">
 <%- JSON.stringify(it.openingWindows || null) %>
 </script>
 
 <script>
-document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("time-display");
-  const opts = document.getElementById("time-options");
-  const hiddenInput = document.getElementById("time");
-  const form = document.getElementById("reserve-form");
-  const dateInput = document.getElementById("date");
+  document.addEventListener("DOMContentLoaded", () => {
+    const btn = document.getElementById("time-display");
+    const opts = document.getElementById("time-options");
+    const hiddenInput = document.getElementById("time");
+    const form = document.getElementById("reserve-form");
+    const dateInput = document.getElementById("date");
 
-  let OPENING_HOURS = null;
-  let OPENING_WINDOWS_TODAY = null;
-  try { OPENING_HOURS = JSON.parse(document.getElementById("opening-hours-data")?.textContent || "null"); } catch {}
-  try { OPENING_WINDOWS_TODAY = JSON.parse(document.getElementById("opening-windows-today")?.textContent || "null"); } catch {}
+    /* ------------ קריאת שעות פתיחה מהשרת ------------ */
+    let OPENING_HOURS = null;
+    let OPENING_WINDOWS_TODAY = null;
+    try {
+      const raw = document.getElementById("opening-hours-data")?.textContent || "null";
+      OPENING_HOURS = JSON.parse(raw);
+    } catch { OPENING_HOURS = null; }
+    try {
+      const raw2 = document.getElementById("opening-windows-today")?.textContent || "null";
+      OPENING_WINDOWS_TODAY = JSON.parse(raw2);
+    } catch { OPENING_WINDOWS_TODAY = null; }
 
-  console.debug("GT: opening-hours raw", OPENING_HOURS);
-  console.debug("GT: opening-windows today", OPENING_WINDOWS_TODAY);
-
-  // fallback: אם אין weekly אבל יש openingWindows, ניצור מהם טווח אחיד לכל הימים
-  (function fallbackWeeklyFromWindows(){
-    if (OPENING_HOURS == null && Array.isArray(OPENING_WINDOWS_TODAY) && OPENING_WINDOWS_TODAY.length) {
-      const toHHMM = (s) => {
-        const m = String(s || "").match(/^(\d{1,2}):(\d{2})$/);
-        return m ? `${m[1].padStart(2,'0')}:${m[2]}` : null;
-      };
-      const arr = OPENING_WINDOWS_TODAY.map(w => ({
-        open: toHHMM(w.open), close: toHHMM(w.close)
-      })).filter(w => w.open && w.close);
-      if (!arr.length) return;
-      const same = arr.length === 1 ? arr[0] : arr;
-      OPENING_HOURS = Object.fromEntries(Array.from({length:7},(_,i)=>[String(i),same]));
-      console.debug("GT: built fallback weekly", OPENING_HOURS);
-    }
-  })();
-
-  const pad2 = n => String(n).padStart(2,"0");
-  const toMin = hhmm => {
-    const m = (hhmm || "").match(/^(\d{1,2}):(\d{2})$/);
-    if (!m) return null;
-    return parseInt(m[1])*60 + parseInt(m[2]);
-  };
-  const fromMin = m => `${pad2(Math.floor(m/60))}:${pad2(m%60)}`;
-  const roundToQuarterUp = m => m % 15 ? m + (15 - m % 15) : m;
-
-  const normalizeDayRanges = def => {
-    if (!def) return [];
-    const arr = Array.isArray(def) ? def : [def];
-    const out = [];
-    for (const item of arr) {
-      let s=null, e=null;
-      if (typeof item === "string") {
-        const m=item.match(/(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/);
-        if(m){s=m[1];e=m[2];}
-      } else if (item && typeof item === "object") {
-        s=item.open||item.start||item.from;
-        e=item.close||item.end||item.to;
+    // אם weeklySchedule לא הגיע ללקוח, נבנה מפה מינימלית מהחלונות של היום
+    (function fallbackWeeklyFromWindows(){
+      if (OPENING_HOURS == null && Array.isArray(OPENING_WINDOWS_TODAY) && OPENING_WINDOWS_TODAY.length) {
+        const initDate = (dateInput?.value || new Date().toISOString().slice(0,10));
+        const dow = new Date(initDate).getDay(); // 0..6
+        const toHHMM = (s) => {
+          if (!s) return null;
+          const m = String(s).match(/^(\d{1,2}):(\d{2})$/); return m ? `${m[1].padStart(2,'0')}:${m[2]}` : null;
+        };
+        const dayArr = OPENING_WINDOWS_TODAY
+          .map(w => ({ open: toHHMM(w.open), close: toHHMM(w.close) }))
+          .filter(w => w.open && w.close);
+        // נייצר אובייקט עם מפתח מפורש ליום הזה בלבד (כדי שהקליינט יבין שזה יום מוגדר)
+        OPENING_HOURS = { [String(dow)]: dayArr.length <= 1 ? (dayArr[0] || null) : dayArr };
+        console.debug("GT: Fallback weekly built from today windows", { initDate, dow, OPENING_HOURS });
       }
-      const sm=toMin(s), em=toMin(e);
-      if(sm!=null&&em!=null) out.push([sm,em]);
-    }
-    return out;
-  };
+    })();
 
-  function getRangesForDate(dateStr) {
-    const d = new Date(dateStr || Date.now());
-    if (isNaN(d)) return null;
+    console.debug("GT: opening-hours raw", OPENING_HOURS);
+    console.debug("GT: opening-windows today", OPENING_WINDOWS_TODAY);
 
-    if (!OPENING_HOURS && Array.isArray(OPENING_WINDOWS_TODAY)) {
-      return OPENING_WINDOWS_TODAY.map(w=>[toMin(w.open),toMin(w.close)]);
-    }
-    if (!OPENING_HOURS) return null;
-
-    const dow = d.getDay();
-    const def = OPENING_HOURS[String(dow)] || null;
-    return normalizeDayRanges(def);
-  }
-
-  function rebuildTimeOptionsFor(dateStr){
-    opts.innerHTML="";
-    const ranges=getRangesForDate(dateStr);
-    const frag=document.createDocumentFragment();
-    if(!ranges||!ranges.length){
-      const d=document.createElement("div");
-      d.textContent="אין שעות פתיחה ליום זה";
-      d.className="time-option";
-      d.setAttribute("aria-disabled","true");
-      opts.appendChild(d);
-      console.debug("GT: built time options",{date:dateStr,ranges:null,count:0,domCount:opts.children.length,hoursNull:!OPENING_HOURS});
-      return;
-    }
-    let count=0;
-    for(const [s,e] of ranges){
-      for(let m=roundToQuarterUp(s);m<=e;m+=15){
-        const t=fromMin(m);
-        const el=document.createElement("div");
-        el.className="time-option";
-        el.dataset.value=t;
-        el.textContent=t;
-        frag.appendChild(el);
-        count++;
+    // תמיכה במחרוזת ישנה "10:00-22:00" => אותו טווח לכל הימים
+    if (typeof OPENING_HOURS === "string") {
+      const m = OPENING_HOURS.match(/^\s*(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})\s*$/);
+      if (m) {
+        const open = m[1], close = m[2];
+        OPENING_HOURS = { "0": { open, close }, "1": { open, close }, "2": { open, close }, "3": { open, close }, "4": { open, close }, "5": { open, close }, "6": { open, close } };
+      } else {
+        OPENING_HOURS = null;
       }
     }
-    opts.appendChild(frag);
-    console.debug("GT: built time options",{date:dateStr,ranges,count,domCount:opts.children.length,hoursNull:!OPENING_HOURS});
+
+    const pad2 = (n) => String(n).padStart(2, "0");
+    const toMin = (hhmm) => {
+      const m = (hhmm || "").match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return null;
+      const h = Math.min(23, Math.max(0, parseInt(m[1], 10)));
+      const mi = Math.min(59, Math.max(0, parseInt(m[2], 10)));
+      return h * 60 + mi;
+    };
+    const fromMin = (mins) => `${pad2(Math.floor(mins/60))}:${pad2(mins%60)}`;
+    const roundToQuarterUp = (mins) => {
+      const rem = mins % 15;
+      return rem ? mins + (15 - rem) : mins;
+    };
+
+    function hasExplicitKeyForDay(obj, dow) {
+      if (!obj || typeof obj !== "object") return false;
+      const long = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+      const short = ["sun","mon","tue","wed","thu","fri","sat"];
+      const keys = [String(dow), dow, long[dow], short[dow], long[dow]?.toUpperCase?.(), short[dow]?.toUpperCase?.()];
+      return keys.some(k => Object.prototype.hasOwnProperty.call(obj, k));
+    }
+
+    function normalizeDayRanges(dayDef) {
+      if (!dayDef) return [];
+      const arr = Array.isArray(dayDef) ? dayDef : [dayDef];
+      const out = [];
+      for (const item of arr) {
+        let s=null, e=null;
+        if (typeof item === "string") {
+          const m = item.match(/^\s*(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})\s*$/);
+          if (m) { s = m[1]; e = m[2]; }
+        } else if (Array.isArray(item) && item.length >= 2) {
+          s = item[0]; e = item[1];
+        } else if (item && typeof item === "object") {
+          s = item.start || item.open || item.from || item.begin;
+          e = item.end   || item.close || item.to   || item.finish;
+        }
+        const sMin = toMin(s), eMin = toMin(e);
+        if (sMin == null || eMin == null) continue;
+        if (eMin <= sMin) { out.push([sMin, 24*60 - 1]); }
+        else { out.push([sMin, eMin]); }
+      }
+      out.sort((a,b)=>a[0]-b[0]);
+      const merged = [];
+      for (const r of out) {
+        if (!merged.length || r[0] > merged[merged.length-1][1]) merged.push(r);
+        else merged[merged.length-1][1] = Math.max(merged[merged.length-1][1], r[1]);
+      }
+      return merged;
+    }
+
+    function getRangesForDate(dateStr) {
+      const d = new Date(dateStr || Date.now());
+      if (isNaN(d.getTime())) return null;
+
+      const initDate = (dateInput?.value || new Date().toISOString().slice(0,10));
+      const isInitDate = (dateStr === initDate);
+      if (isInitDate && Array.isArray(OPENING_WINDOWS_TODAY) && OPENING_WINDOWS_TODAY.length) {
+        return OPENING_WINDOWS_TODAY
+          .map(w => [toMin(w.open), toMin(w.close)])
+          .filter(([a,b]) => Number.isFinite(a) && Number.isFinite(b))
+          .map(([a,b]) => b <= a ? [a, 24*60-1] : [a,b]);
+      }
+
+      if (!OPENING_HOURS) return null;
+
+      const dow = d.getDay(); // 0..6
+      const mapKeys = [
+        String(dow),
+        ["sun","mon","tue","wed","thu","fri","sat"][dow],
+        ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][dow]
+      ];
+
+      if (!hasExplicitKeyForDay(OPENING_HOURS, dow)) {
+        return [[0, 24*60 - 1]]; // תאימות עם השרת
+      }
+
+      let dayDef = null;
+      for (const k of mapKeys) {
+        if (Object.prototype.hasOwnProperty.call(OPENING_HOURS, k)) {
+          dayDef = OPENING_HOURS[k];
+          break;
+        }
+      }
+      if (!dayDef && Array.isArray(OPENING_HOURS)) {
+        dayDef = OPENING_HOURS[dow];
+      }
+      const ranges = normalizeDayRanges(dayDef);
+      return ranges;
+    }
+
+    function rebuildTimeOptionsFor(dateStr) {
+      opts.innerHTML = "";
+      const ranges = getRangesForDate(dateStr);
+
+      if (!ranges || !ranges.length) {
+        const empty = document.createElement("div");
+        empty.className = "time-option";
+        empty.setAttribute("aria-disabled", "true");
+        empty.textContent = "אין שעות פתיחה ליום זה";
+        opts.appendChild(empty);
+        const domCount = opts.querySelectorAll(".time-option").length;
+        console.debug("GT: built time options", { date: dateStr, ranges, count: 0, domCount, hoursNull: OPENING_HOURS == null });
+        return;
+      }
+
+      const frag = document.createDocumentFragment();
+      let count = 0;
+      for (const [startMin, endMin] of ranges) {
+        for (let m = roundToQuarterUp(startMin); m <= endMin; m += 15) {
+          const hhmm = fromMin(m);
+          const div = document.createElement("div");
+          div.className = "time-option";
+          div.setAttribute("role","option");
+          div.dataset.value = hhmm;
+          div.textContent = hhmm;
+          frag.appendChild(div);
+          count++;
+        }
+      }
+      opts.appendChild(frag);
+      const domCount = opts.querySelectorAll(".time-option").length;
+      console.debug("GT: built time options", { date: dateStr, ranges, count, domCount, hoursType: typeof OPENING_HOURS, keys: OPENING_HOURS ? Object.keys(OPENING_HOURS) : null });
+    }
+
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const openNow = !opts.hidden;
+      if (openNow) {
+        opts.hidden = true;
+        btn.setAttribute("aria-expanded","false");
+      } else {
+        rebuildTimeOptionsFor(dateInput.value || new Date().toISOString().slice(0,10));
+        opts.hidden = false;
+        btn.setAttribute("aria-expanded","true");
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!btn.contains(e.target) && !opts.contains(e.target)) {
+        if (!opts.hidden) {
+          opts.hidden = true;
+          btn.setAttribute("aria-expanded","false");
+        }
+      }
+    });
+
+    opts.addEventListener("click", (ev) => {
+      const el = ev.target?.closest?.(".time-option");
+      if (!el || el.getAttribute("aria-disabled")==="true") return;
+      const v = el.dataset.value;
+      if (!v) return;
+      btn.textContent = v + " ";
+      const arr = document.createElement("span");
+      arr.className = "arrow";
+      arr.textContent = "▾";
+      btn.appendChild(arr);
+      hiddenInput.value = v;
+      opts.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+      console.debug("GT: time selected", v);
+    });
+
+    dateInput.addEventListener("change", () => {
+      const prev = hiddenInput.value;
+      const d = dateInput.value;
+      rebuildTimeOptionsFor(d);
+      if (prev) {
+        const stillExists = !!opts.querySelector(`.time-option[data-value="${prev}"]`);
+        if (!stillExists) {
+          hiddenInput.value = "";
+          btn.textContent = "בחר שעה ";
+          const arr = document.createElement("span");
+          arr.className = "arrow";
+          arr.textContent = "▾";
+          btn.appendChild(arr);
+        }
+      }
+    });
+
+    (function initTimeForInitialDate(){
+      const initDate = dateInput.value || new Date().toISOString().slice(0,10);
+      rebuildTimeOptionsFor(initDate);
+
+      const allOpts = Array.from(document.querySelectorAll("#time-options .time-option"));
+      const enabledOptsCount = allOpts.filter(el => el.getAttribute("aria-disabled") !== "true").length;
+      console.debug("GT: options after init", {
+        date: initDate,
+        totalOpts: allOpts.length,
+        enabledOptsCount
+      });
+
+      if (hiddenInput.value) {
+        const ok = !!opts.querySelector(`.time-option[data-value="${hiddenInput.value}"]`);
+        if (!ok) {
+          hiddenInput.value = "";
+          btn.textContent = "בחר שעה ";
+          const arr = document.createElement("span"); arr.className = "arrow"; arr.textContent = "▾";
+          btn.appendChild(arr);
+        }
+      }
+    })();
+
+    form.addEventListener("submit", (ev) => {
+      const dateVal = dateInput.value.trim();
+      const timeVal = hiddenInput.value.trim();
+      if (!dateVal || !timeVal) {
+        ev.preventDefault();
+        alert("נא לבחור תאריך ושעה");
+        return;
+      }
+      const u = new URL(form.action, window.location.origin);
+      u.searchParams.set("date", dateVal);
+      u.searchParams.set("time", timeVal);
+      form.action = u.pathname + u.search;
+    });
+
+    const checkBtn = document.getElementById("check-btn");
+    checkBtn?.addEventListener("click", async () => {
+      const date = dateInput.value.trim();
+      const time = hiddenInput.value.trim();
+      if (!date || !time) {
+        alert("נא לבחור תאריך ושעה");
+        return;
+      }
+      const rid = checkBtn.dataset.rid;
+      const resp = await fetch(`/api/restaurants/${encodeURIComponent(rid)}/check`, {
+        method: "POST",
+        headers: { "Accept": "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ date, time }),
+      });
+      const data = await resp.json().catch(()=>null);
+      if (resp.ok && data && data.ok) renderAround([]);
+      else renderAround(data?.suggestions || []);
+    });
+  });
+
+  function renderAround(slots) {
+    const card = document.getElementById("around-card");
+    const box = document.getElementById("around-slots");
+    const hiddenInput = document.getElementById("time");
+    const btn = document.getElementById("time-display");
+
+    box.innerHTML = "";
+    if (Array.isArray(slots) && slots.length) {
+      card.hidden = false;
+      slots.slice(0, 8).forEach(t => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "slot";
+        b.textContent = t;
+        b.onclick = () => {
+          hiddenInput.value = t;
+          btn.textContent = t + " ";
+          const arr = document.createElement("span");
+          arr.className = "arrow"; arr.textContent = "▾";
+          btn.appendChild(arr);
+          card.hidden = true;
+        };
+        box.appendChild(b);
+      });
+    } else {
+      card.hidden = true;
+    }
   }
-
-  btn.addEventListener("click",()=>{
-    opts.hidden=!opts.hidden;
-    if(!opts.hidden) rebuildTimeOptionsFor(dateInput.value||new Date().toISOString().slice(0,10));
-  });
-
-  opts.addEventListener("click",e=>{
-    const el=e.target.closest(".time-option");
-    if(!el||el.getAttribute("aria-disabled")==="true")return;
-    hiddenInput.value=el.dataset.value;
-    btn.textContent=el.dataset.value+" ";
-    const s=document.createElement("span");
-    s.className="arrow";s.textContent="▾";btn.appendChild(s);
-    opts.hidden=true;
-  });
-
-  dateInput.addEventListener("change",()=>rebuildTimeOptionsFor(dateInput.value));
-
-  rebuildTimeOptionsFor(dateInput.value||new Date().toISOString().slice(0,10));
-});
 </script>
 
 <style>
-.container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
-.card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 24px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
-.hero-img { width: 100%; height: 260px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; }
-.time-option[aria-disabled="true"] { color:#aaa; cursor:default; }
+  .container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+  .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 24px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .page-header h1 { margin: 0 0 6px; }
+  .muted { color: #6b7280; }
+
+  .hero-img { width: 100%; height: 260px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; }
+
+  .form-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
+  .form-row { display: flex; flex-direction: column; position: relative; }
+  .form-row.time-row { grid-column: 1 / -1; }
+  .time-dropdown-wrapper { position: relative; width: 100%; }
+  .time-dropdown-btn { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e0; border-radius: 6px; background: #fff; text-align: left; font-size: 1rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .time-options { position: absolute; top: calc(100% + 4px); left: 0; right: 0; max-height: 240px; overflow-y: auto; border: 1px solid #cbd5e0; border-radius: 6px; background: #fff; z-index: 1000; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+  .time-option { padding: 8px 12px; cursor: pointer; }
+  .time-option[aria-disabled="true"] { color: #999; cursor: default; }
+  .time-option:hover { background: #f0f0ff; }
+  .arrow { margin-left: 8px; color: #666; }
+
+  .form-row label { margin-bottom: 4px; color: #333; font-weight: 500; }
+  .form-row input { padding: 10px 12px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 1rem; transition: border-color 0.2s; }
+  .form-row input:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.3); }
+  .form-actions { grid-column: 1 / -1; display: flex; gap: 12px; margin-top: 16px; }
+  .btn { padding: 10px 16px; border: none; border-radius: 6px; background-color: #667eea; color: #fff; cursor: pointer; transition: background-color 0.2s; }
+  .btn:hover { background-color: #5a67d8; }
+  .btn.secondary { background-color: #a0aec0; }
+  .btn.secondary:hover { background-color: #718096; }
+  .alert.warn { background: #fff5f5; border: 1px solid #fed7d7; color: #c53030; padding: 12px; border-radius: 6px; margin-bottom: 12px; }
+
+  .slots { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .slot { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; background: #f7fafc; cursor: pointer; transition: background-color 0.2s; }
+  .slot:hover { background: #edf2f7; }
+
+  .menu-list { list-style: none; margin: 0; padding: 0; }
+  .menu-list li { padding: 8px 0; border-bottom: 1px dashed #eee; }
+
+  .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 10px; }
+  .photo-grid img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; }
+
+  @media (max-width: 860px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .hero-img { height: 200px; }
+  }
 </style>
