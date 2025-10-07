@@ -210,9 +210,6 @@ async function readBody(ctx: any): Promise<{ data: Record<string, unknown>; meta
 
 /* ---------------- Router ---------------- */
 
-const authRouter = new Router();
-
-/* --------- Register --------- */
 authRouter.get("/auth/register", async (ctx) => {
   await render(ctx, "auth/register", { title: "הרשמה", page: "register" });
 });
@@ -239,41 +236,44 @@ authRouter.post("/auth/register", async (ctx) => {
 
   phase("register.fields", { firstName: !!firstName, lastName: !!lastName, email: !!email, password: !!password, confirm: !!confirm });
 
-  if (!firstName || !lastName || !email || !password || !confirm) {
+  if (!email || !password || password !== confirm) {
     ctx.response.status = Status.BadRequest;
-    phase("register.validation.missing", { firstName, lastName, email, password: password ? `(len:${String(password.length)})` : "", confirm: !!confirm });
-    await render(ctx, "auth/register", { title: "הרשמה", page: "register", error: "נא למלא את כל השדות החיוניים" });
+    await render(ctx, "auth/register", { title: "הרשמה", page: "register", error: "בדוק/י דוא״ל וסיסמה (והתאמה בין סיסמה לאישור)" });
     return;
   }
-  if (password !== confirm) {
-    ctx.response.status = Status.BadRequest;
-    phase("register.validation.mismatch");
-    await render(ctx, "auth/register", { title: "הרשמה", page: "register", error: "אימות סיסמה לא תואם" });
-    return;
-  }
-
-  if (await findUserByEmail(email)) {
+  const existed = await findUserByEmail(email) || await findUserByUsername(email);
+  if (existed) {
     ctx.response.status = Status.Conflict;
-    phase("register.conflict.email", email);
-    await render(ctx, "auth/register", { title: "הרשמה", page: "register", error: "דוא״ל כבר קיים במערכת" });
+    await render(ctx, "auth/register", { title: "הרשמה", page: "register", error: "משתמש/ת כבר קיים/ת עם הדוא״ל הזה" });
     return;
   }
 
+  // יצירת hash והכנסתו *לתוך* אובייקט המשתמש
+  const passwordHash = await hashPassword(password);
   const user: Partial<User> = {
-    firstName, lastName, email,
-    businessType, phone,
+    email,
+    username: email.split("@")[0] || email,
+    firstName,
+    lastName,
+    businessType,
+    // אפשר לשמור phone בשדה ייעודי אם יש לכם סכימה, כאן רק דוגמה:
+    // phone,
+    passwordHash,     // <-- חשוב!
     provider: "local",
     role: "owner",
   };
 
-  const hash = await hashPassword(password);
-  const created = await createUser(user as User, hash);
+  const created = await createUser(user as User);
   phase("register.created", { userId: created.id });
 
-  // שליחת אימות
-  const token = await createVerifyToken(created.id);
-  try { await sendVerifyEmail(created.email, token); phase("register.verify.sent", { email: created.email }); }
-  catch (e) { phase("register.verify.error", String(e)); }
+  // שליחת אימות — חייבים להעביר גם email לפי החתימה שב־database.ts
+  const token = await createVerifyToken(created.id, created.email);
+  try {
+    await sendVerifyEmail(created.email, token);
+    phase("register.verify.sent", { email: created.email });
+  } catch (e) {
+    phase("register.verify.error", String(e));
+  }
 
   // session
   const session = (ctx.state as any)?.session;
@@ -283,8 +283,9 @@ authRouter.post("/auth/register", async (ctx) => {
   } catch (e) { phase("register.session.error", String(e)); }
 
   ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", "/?welcome=1");
+  ctx.response.headers.set("Location", "/");
 });
+
 
 /* --------- Login --------- */
 authRouter.get("/auth/login", async (ctx) => {
