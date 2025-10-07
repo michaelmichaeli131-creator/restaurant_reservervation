@@ -211,6 +211,16 @@ function snapToGrid(mins: number, step: number): number {
   return Math.floor(mins / step) * step;
 }
 
+/** פרסינג מקומי בטוח ל-YYYY-MM-DD → Date ב-00:00 בזמן מקומי */
+function parseLocalYMD(dateISO: string): Date | null {
+  const m = String(dateISO ?? "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = Number(m[1]), mon = Number(m[2]) - 1, d = Number(m[3]);
+  const dt = new Date(y, mon, d, 0, 0, 0, 0); // מקומי, לא UTC
+  if (dt.getFullYear() !== y || dt.getMonth() !== mon || dt.getDate() !== d) return null;
+  return dt;
+}
+
 /* ─────────────── דיפולטים + שעות פתיחה ─────────────── */
 
 function coerceRestaurantDefaults(r: Restaurant): Restaurant {
@@ -220,17 +230,20 @@ function coerceRestaurantDefaults(r: Restaurant): Restaurant {
   return { ...r, slotIntervalMinutes: step, serviceDurationMinutes: span, capacity };
 }
 
-/** מחזיר מערך טווחי פתיחה [start,end] בדקות לאותו יום לפי weeklySchedule (אם קיים) */
+/** מחזיר מערך טווחי פתיחה [start,end] בדקות לאותו יום לפי weeklySchedule (אם קיים) — לפי התאריך שהלקוח ביקש */
 function openingRangesForDate(r: Restaurant, date: string): Array<[number, number]> {
-  // מקור השעות: weeklySchedule או openingHours
   const weekly: any = r.weeklySchedule ?? (r as any).openingHours ?? null;
-  if (!weekly) return [];
-  const d = new Date(date + "T00:00:00");
-  if (isNaN(d.getTime())) return [];
+  if (!weekly) return []; // אין מגבלה → פתוח כל היום (handled by caller)
+
+  // ✅ תאריך מקומי (לא new Date("YYYY-MM-DD") שעלול להתפרש כ-UTC)
+  const d = parseLocalYMD(date);
+  if (!d) return [];
+
+  // JS getDay: 0=Sunday..6=Saturday — תואם למפתחות 0..6 שלנו
   const dow = d.getDay() as DayOfWeek;
 
   const def = weekly[dow] ?? weekly[String(dow)] ?? null;
-  if (!def) return [];
+  if (!def) return []; // אין מפתח מפורש → פתוח כל היום (כמו בדרישת ברירת המחדל)
 
   const toMin = (hhmm: string) => {
     const m = hhmm?.match?.(/^(\d{2}):(\d{2})$/);
@@ -243,6 +256,7 @@ function openingRangesForDate(r: Restaurant, date: string): Array<[number, numbe
   if (!Number.isFinite(start) || !Number.isFinite(end)) return [];
 
   if (end <= start) {
+    // קלט בעייתי: לא נקרוס — נאפשר עד סוף היום
     return [[start, 24*60 - 1]];
   }
   return [[start, end]];
@@ -507,6 +521,7 @@ export async function checkAvailability(restaurantId: string, date: string, time
 
   if (end > 24 * 60) return { ok: false as const, reason: "out_of_day" as const };
 
+  // ✅ לפי התאריך שהלקוח בחר
   if (!isWithinOpening(r, date, start, span)) {
     return { ok: false as const, reason: "closed" as const };
   }
@@ -547,6 +562,7 @@ export async function listAvailableSlotsAround(
 
   const tryTime = (t: number) => {
     if (t < 0 || t + span > 24 * 60) return false;
+    // ✅ לפי התאריך שהלקוח בחר
     if (!isWithinOpening(r, date, t, span)) return false;
     for (let x = t; x < t + span; x += step) {
       const used = occ.get(fromMinutes(x)) ?? 0;

@@ -36,6 +36,7 @@ import { ownerHoursRouter } from "./routes/owner_hours.ts";
 import ownerPhotosRouter from "./routes/owner_photos.ts";
 import { requestLogger } from "./lib/log_mw.ts";
 import { diagRouter } from "./routes/diag.ts";
+import openingRouter from "./routes/opening.ts";
 
 // -------------------- ENV --------------------
 const PORT = Number(Deno.env.get("PORT") ?? "8000");
@@ -316,6 +317,10 @@ app.use(restaurantsRouter.allowedMethods());
 // ראוטר שורש נוסף
 app.use(rootRouter.routes());
 app.use(rootRouter.allowedMethods());
+
+//hours
+app.use(openingRouter.routes());
+app.use(openingRouter.allowedMethods());
 
 // --- 404 (כללי) ---
 app.use((ctx) => {
