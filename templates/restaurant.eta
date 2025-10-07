@@ -107,8 +107,9 @@
   <% } %>
 </main>
 
-<!-- *** הזרקת נתונים מהשרת בצורה חסינה דרך data-* על meta *** -->
+<!-- *** הזרקת נתונים מהשרת (כולל rid) *** -->
 <meta id="srv-data"
+  data-rid="<%= it.restaurant.id %>"
   data-weekly='<%= JSON.stringify(it.restaurant?.weeklySchedule ?? it.restaurant?.openingHours ?? it.restaurant?.hours ?? it.restaurant?.open_hours ?? null) %>'
   data-windows='<%= JSON.stringify(it.openingWindows ?? null) %>'
   data-step='<%= JSON.stringify(it.restaurant?.slotIntervalMinutes ?? it.slotIntervalMinutes ?? 15) %>'>
@@ -120,9 +121,11 @@
     console.debug("SRV weeklySchedule:", meta?.dataset.weekly ?? "(missing)");
     console.debug("SRV openingWindows(today):", meta?.dataset.windows ?? "(missing)");
     console.debug("SRV slotIntervalMinutes:", meta?.dataset.step ?? "(missing)");
+    console.debug("SRV rid:", meta?.dataset.rid ?? "(missing)");
   })();
 </script>
 
+<!-- *** CLIENT: תמיד מביא שעות מהשרת לפי התאריך שנבחר, עם fallback אם אין API *** -->
 <script>
   document.addEventListener("DOMContentLoaded", () => {
     const btn = document.getElementById("time-display");
@@ -133,47 +136,15 @@
     const stepLabel = document.getElementById("step-label");
     const meta = document.getElementById("srv-data");
 
-    /* ------------ קריאה חסינה מה-meta ------------ */
-    const parseJSON = (s) => {
-      try { return JSON.parse(s); } catch { return null; }
-    };
-    let OPENING_HOURS = parseJSON(meta?.dataset.weekly ?? "null");
-    let OPENING_WINDOWS_TODAY = parseJSON(meta?.dataset.windows ?? "null");
+    // נתונים מהשרת (ל-fallback בלבד)
+    const parseJSON = (s) => { try { return JSON.parse(s); } catch { return null; } };
+    const RID = meta?.dataset.rid || "";
+    const FALLBACK_WEEKLY = parseJSON(meta?.dataset.weekly ?? "null");
+    const FALLBACK_WINDOWS_TODAY = parseJSON(meta?.dataset.windows ?? "null");
     let STEP_MIN = Math.max(1, parseInt(parseJSON(meta?.dataset.step ?? "15") ?? 15, 10) || 15);
     if (stepLabel) stepLabel.textContent = String(STEP_MIN);
 
-    // אם weeklySchedule לא הגיע ללקוח, בנה מפה מינימלית מהחלונות של היום
-    (function fallbackWeeklyFromWindows(){
-      if (OPENING_HOURS == null && Array.isArray(OPENING_WINDOWS_TODAY) && OPENING_WINDOWS_TODAY.length) {
-        const initDate = (dateInput?.value || new Date().toISOString().slice(0,10));
-        const dow = new Date(initDate).getDay(); // 0..6
-        const toHHMM = (s) => {
-          if (!s) return null;
-          const m = String(s).match(/^(\d{1,2}):(\d{2})$/); return m ? `${m[1].padStart(2,'0')}:${m[2]}` : null;
-        };
-        const dayArr = OPENING_WINDOWS_TODAY
-          .map(w => ({ open: toHHMM(w.open), close: toHHMM(w.close) }))
-          .filter(w => w.open && w.close);
-        OPENING_HOURS = { [String(dow)]: dayArr.length <= 1 ? (dayArr[0] || null) : dayArr };
-        console.debug("GT: Fallback weekly built from today windows", { initDate, dow, OPENING_HOURS });
-      }
-    })();
-
-    console.debug("GT: opening-hours raw", OPENING_HOURS);
-    console.debug("GT: opening-windows today", OPENING_WINDOWS_TODAY);
-    console.debug("GT: step minutes", STEP_MIN);
-
-    // תמיכה במחרוזת ישנה "10:00-22:00"
-    if (typeof OPENING_HOURS === "string") {
-      const m = OPENING_HOURS.match(/^\s*(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})\s*$/);
-      if (m) {
-        const open = m[1], close = m[2];
-        OPENING_HOURS = { "0": { open, close }, "1": { open, close }, "2": { open, close }, "3": { open, close }, "4": { open, close }, "5": { open, close }, "6": { open, close } };
-      } else {
-        OPENING_HOURS = null;
-      }
-    }
-
+    // עזרי זמן
     const pad2 = (n) => String(n).padStart(2, "0");
     const toMin = (hhmm) => {
       const m = (hhmm || "").match(/^(\d{1,2}):(\d{2})$/);
@@ -189,102 +160,25 @@
       return rem ? mins + (step - rem) : mins;
     };
 
-    function hasExplicitKeyForDay(obj, dow) {
-      if (!obj || typeof obj !== "object") return false;
-      const long = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
-      const short = ["sun","mon","tue","wed","thu","fri","sat"];
-      const keys = [String(dow), dow, long[dow], short[dow], long[dow]?.toUpperCase?.(), short[dow]?.toUpperCase?.()];
-      return keys.some(k => Object.prototype.hasOwnProperty.call(obj, k));
+    // API עיקרי: שעות פתיחה ליום שנבחר
+    async function fetchOpeningForDate(rid, dateStr) {
+      const url = `/restaurants/${encodeURIComponent(rid)}/opening?date=${encodeURIComponent(dateStr)}`;
+      const res = await fetch(url, { headers: { "Accept": "application/json" }, cache: "no-store" });
+      if (!res.ok) throw new Error("opening_fetch_failed");
+      const data = await res.json();
+      // צורה: { openingWindows: [{open,close}], slotIntervalMinutes }
+      return data;
     }
 
-    function normalizeDayRanges(dayDef) {
-      if (!dayDef) return [];
-      const arr = Array.isArray(dayDef) ? dayDef : [dayDef];
-      const out = [];
-      for (const item of arr) {
-        let s=null, e=null;
-        if (typeof item === "string") {
-          const m = item.match(/^\s*(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})\s*$/);
-          if (m) { s = m[1]; e = m[2]; }
-        } else if (Array.isArray(item) && item.length >= 2) {
-          s = item[0]; e = item[1];
-        } else if (item && typeof item === "object") {
-          s = item.start || item.open || item.from || item.begin;
-          e = item.end   || item.close || item.to   || item.finish;
-        }
-        const sMin = toMin(s), eMin = toMin(e);
-        if (sMin == null || eMin == null) continue;
-        if (eMin <= sMin) { out.push([sMin, 24*60 - 1]); }
-        else { out.push([sMin, eMin]); }
-      }
-      out.sort((a,b)=>a[0]-b[0]);
-      const merged = [];
-      for (const r of out) {
-        if (!merged.length || r[0] > merged[merged.length-1][1]) merged.push(r);
-        else merged[merged.length-1][1] = Math.max(merged[merged.length-1][1], r[1]);
-      }
-      return merged;
-    }
-
-    function getRangesForDate(dateStr) {
-      const d = new Date(dateStr || Date.now());
-      if (isNaN(d.getTime())) return null;
-
-      const initDate = (dateInput?.value || new Date().toISOString().slice(0,10));
-      const isInitDate = (dateStr === initDate);
-      if (isInitDate && Array.isArray(OPENING_WINDOWS_TODAY) && OPENING_WINDOWS_TODAY.length) {
-        return OPENING_WINDOWS_TODAY
-          .map(w => [toMin(w.open), toMin(w.close)])
-          .filter(([a,b]) => Number.isFinite(a) && Number.isFinite(b))
-          .map(([a,b]) => b <= a ? [a, 24*60-1] : [a,b]);
-      }
-
-      if (!OPENING_HOURS) return null;
-
-      const dow = d.getDay(); // 0..6
-      const mapKeys = [
-        String(dow),
-        ["sun","mon","tue","wed","thu","fri","sat"][dow],
-        ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][dow]
-      ];
-
-      if (!hasExplicitKeyForDay(OPENING_HOURS, dow)) {
-        return [[0, 24*60 - 1]]; // תאימות עם השרת
-      }
-
-      let dayDef = null;
-      for (const k of mapKeys) {
-        if (Object.prototype.hasOwnProperty.call(OPENING_HOURS, k)) {
-          dayDef = OPENING_HOURS[k];
-          break;
-        }
-      }
-      if (!dayDef && Array.isArray(OPENING_HOURS)) {
-        dayDef = OPENING_HOURS[dow];
-      }
-      const ranges = normalizeDayRanges(dayDef);
-      return ranges;
-    }
-
-    function rebuildTimeOptionsFor(dateStr) {
-      opts.innerHTML = "";
-      const ranges = getRangesForDate(dateStr);
-
-      if (!ranges || !ranges.length) {
-        const empty = document.createElement("div");
-        empty.className = "time-option";
-        empty.setAttribute("aria-disabled", "true");
-        empty.textContent = "אין שעות פתיחה ליום זה";
-        opts.appendChild(empty);
-        const domCount = opts.querySelectorAll(".time-option").length;
-        console.debug("GT: built time options", { date: dateStr, ranges, count: 0, domCount, hoursNull: OPENING_HOURS == null });
-        return;
-      }
-
+    // בניית רשימת שעות מהחלונות
+    function buildOptionsFromWindows(windows, step) {
       const frag = document.createDocumentFragment();
       let count = 0;
-      for (const [startMin, endMin] of ranges) {
-        for (let m = roundToStepUp(startMin); m <= endMin; m += Math.max(1, STEP_MIN)) {
+      for (const w of windows) {
+        const s = toMin(w.open), e = toMin(w.close);
+        if (s == null || e == null) continue;
+        // לא נחרוג מעבר ל-end
+        for (let m = roundToStepUp(s); m + step <= e; m += step) {
           const hhmm = fromMin(m);
           const div = document.createElement("div");
           div.className = "time-option";
@@ -295,11 +189,92 @@
           count++;
         }
       }
-      opts.appendChild(frag);
-      const domCount = opts.querySelectorAll(".time-option").length;
-      console.debug("GT: built time options", { date: dateStr, ranges, count, domCount, hoursType: typeof OPENING_HOURS, keys: OPENING_HOURS ? Object.keys(OPENING_HOURS) : null, step: STEP_MIN });
+      return { frag, count };
     }
 
+    // fallback אם ה-API נפל: שימוש ב-weekly או בחלון היום שהוזרק
+    function fallbackRangesFor(dateStr) {
+      const d = new Date(dateStr || Date.now());
+      if (isNaN(d.getTime())) return [[0, 24*60-1]];
+      const dow = d.getDay();
+
+      // אם קיבלנו חלונות מוכנים ל"יום הטעינה" — ונמצא שזה אותו יום
+      if (Array.isArray(FALLBACK_WINDOWS_TODAY) && FALLBACK_WINDOWS_TODAY.length) {
+        const arr = FALLBACK_WINDOWS_TODAY
+          .map(w => [toMin(w.open), toMin(w.close)])
+          .filter(([a,b]) => Number.isFinite(a) && Number.isFinite(b))
+          .map(([a,b]) => b <= a ? [a, 24*60-1] : [a,b]);
+        if (arr.length) return arr;
+      }
+      if (!FALLBACK_WEEKLY) return [[0, 24*60-1]];
+
+      const dayDef = FALLBACK_WEEKLY[dow] ?? FALLBACK_WEEKLY[String(dow)] ?? null;
+      if (!dayDef) return [[0, 24*60-1]];
+
+      const arr = (Array.isArray(dayDef) ? dayDef : [dayDef]).map(item => {
+        let s=null,e=null;
+        if (typeof item === "string") {
+          const m = item.match(/^\s*(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})\s*$/);
+          if (m) { s=m[1]; e=m[2]; }
+        } else if (item && typeof item === "object") {
+          s=item.open ?? item.start ?? item.from ?? item.begin;
+          e=item.close ?? item.end  ?? item.to   ?? item.finish;
+        } else if (Array.isArray(item) && item.length>=2) {
+          s=item[0]; e=item[1];
+        }
+        const a = toMin(s), b = toMin(e);
+        if (a==null || b==null) return null;
+        return b <= a ? [a, 24*60-1] : [a,b];
+      }).filter(Boolean);
+
+      if (!arr.length) return [[0, 24*60-1]];
+      return arr.sort((A,B)=>A[0]-B[0]);
+    }
+
+    function rebuildTimeOptionsFor(dateStr) {
+      opts.innerHTML = "";
+      const rid = RID;
+      if (!rid) return;
+
+      // תמיד מנסים API קודם
+      fetchOpeningForDate(rid, dateStr).then(data => {
+        const windows = Array.isArray(data?.openingWindows) && data.openingWindows.length
+          ? data.openingWindows
+          : [{ open: "00:00", close: "24:00" }];
+
+        STEP_MIN = Math.max(1, parseInt(data?.slotIntervalMinutes ?? STEP_MIN, 10) || STEP_MIN);
+        if (stepLabel) stepLabel.textContent = String(STEP_MIN);
+
+        const { frag, count } = buildOptionsFromWindows(windows, Math.max(1, STEP_MIN));
+        if (count === 0) {
+          const empty = document.createElement("div");
+          empty.className = "time-option";
+          empty.setAttribute("aria-disabled","true");
+          empty.textContent = "אין שעות פתיחה ליום זה";
+          opts.appendChild(empty);
+        } else {
+          opts.appendChild(frag);
+        }
+        console.debug("GT(API): built time options", { date: dateStr, count, step: STEP_MIN, windows });
+      }).catch(() => {
+        // Fallback: נבנה טווחים ידניים מהמידע שהוזרק
+        const ranges = fallbackRangesFor(dateStr);
+        const windows = ranges.map(([a,b]) => ({ open: fromMin(a), close: fromMin(b) }));
+        const { frag, count } = buildOptionsFromWindows(windows, Math.max(1, STEP_MIN));
+        if (count === 0) {
+          const empty = document.createElement("div");
+          empty.className = "time-option";
+          empty.setAttribute("aria-disabled","true");
+          empty.textContent = "אין שעות פתיחה ליום זה";
+          opts.appendChild(empty);
+        } else {
+          opts.appendChild(frag);
+        }
+        console.debug("GT(FALLBACK): built time options", { date: dateStr, count, step: STEP_MIN, ranges });
+      });
+    }
+
+    // פתיחת הרשימה — בונה לפי התאריך הנבחר
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -324,6 +299,7 @@
       }
     });
 
+    // בחירת שעה
     opts.addEventListener("click", (ev) => {
       const el = ev.target?.closest?.(".time-option");
       if (!el || el.getAttribute("aria-disabled")==="true") return;
@@ -340,46 +316,34 @@
       console.debug("GT: time selected", v);
     });
 
+    // שינוי תאריך — תמיד מביא מחדש מהשרת לפי התאריך החדש
     dateInput.addEventListener("change", () => {
       const prev = hiddenInput.value;
-      const d = dateInput.value;
+      const d = dateInput.value || new Date().toISOString().slice(0,10);
       rebuildTimeOptionsFor(d);
       if (prev) {
-        const stillExists = !!opts.querySelector(`.time-option[data-value="${prev}"]`);
-        if (!stillExists) {
-          hiddenInput.value = "";
-          btn.textContent = "בחר שעה ";
-          const arr = document.createElement("span");
-          arr.className = "arrow";
-          arr.textContent = "▾";
-          btn.appendChild(arr);
-        }
+        // אם השעה שנבחרה כבר לא קיימת לטווח החדש, ננקה
+        setTimeout(() => {
+          const stillExists = !!opts.querySelector(`.time-option[data-value="${prev}"]`);
+          if (!stillExists) {
+            hiddenInput.value = "";
+            btn.textContent = "בחר שעה ";
+            const arr = document.createElement("span");
+            arr.className = "arrow";
+            arr.textContent = "▾";
+            btn.appendChild(arr);
+          }
+        }, 0);
       }
     });
 
+    // אתחול ראשון לפי ערך התאריך בטופס
     (function initTimeForInitialDate(){
       const initDate = dateInput.value || new Date().toISOString().slice(0,10);
       rebuildTimeOptionsFor(initDate);
-
-      const allOpts = Array.from(document.querySelectorAll("#time-options .time-option"));
-      const enabledOptsCount = allOpts.filter(el => el.getAttribute("aria-disabled") !== "true").length;
-      console.debug("GT: options after init", {
-        date: initDate,
-        totalOpts: allOpts.length,
-        enabledOptsCount
-      });
-
-      if (hiddenInput.value) {
-        const ok = !!opts.querySelector(`.time-option[data-value="${hiddenInput.value}"]`);
-        if (!ok) {
-          hiddenInput.value = "";
-          btn.textContent = "בחר שעה ";
-          const arr = document.createElement("span"); arr.className = "arrow"; arr.textContent = "▾";
-          btn.appendChild(arr);
-        }
-      }
     })();
 
+    // וידוא פרמטרים בטופס
     form.addEventListener("submit", (ev) => {
       const dateVal = dateInput.value.trim();
       const timeVal = hiddenInput.value.trim();
@@ -394,6 +358,7 @@
       form.action = u.pathname + u.search;
     });
 
+    // "בדוק זמינות" + הצעות סביב השעה
     const checkBtn = document.getElementById("check-btn");
     checkBtn?.addEventListener("click", async () => {
       const date = dateInput.value.trim();
@@ -488,4 +453,3 @@
     .hero-img { height: 200px; }
   }
 </style>
-
