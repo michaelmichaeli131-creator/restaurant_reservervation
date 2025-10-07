@@ -272,6 +272,26 @@ function isWithinOpening(r: Restaurant, date: string, startMin: number, span: nu
   return false;
 }
 
+// מחזיר חלונות פתיחה כתווים {open, close} ליום נתון.
+// אם אין מגבלה באותו יום (אין מפתח מפורש) – ברירת המחדל: פתוח כל היום.
+export function openingWindowsForDate(
+  r: Restaurant,
+  dateISO: string,
+): Array<{ open: string; close: string }> {
+  const ranges = openingRangesForDate(r, dateISO);
+  if (!ranges.length) {
+    // אין מגבלה עבור היום הזה → פתוח כל היום
+    return [{ open: "00:00", close: "24:00" }];
+  }
+  return ranges.map(([start, end]) => ({
+    open: fromMinutes(start),
+    close: fromMinutes(end),
+  }));
+}
+
+
+
+
 /* ─────────────────── Restaurants / Reservations ─────────────────── */
 
 export async function createRestaurant(r: {
