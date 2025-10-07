@@ -9,7 +9,7 @@ import {
   getUserById,
   type Reservation,
   type WeeklySchedule,
-  type DayOfWeek, // ✅ כדי שלא נצטרך ts-ignore
+  type DayOfWeek,
 } from "../database.ts";
 import { render } from "../lib/view.ts";
 import { sendReservationEmail, notifyOwnerEmail } from "../lib/mail.ts";
@@ -115,7 +115,7 @@ function isValidEmail(s: string): boolean {
 function photoStrings(photos: unknown): string[] {
   if (!Array.isArray(photos)) return [];
   return photos
-    .map((p: any) => typeof p === "string" ? p : String(p?.dataUrl || ""))
+    .map((p: any) => (typeof p === "string" ? p : String(p?.dataUrl || "")))
     .filter(Boolean);
 }
 
@@ -216,7 +216,7 @@ function isWithinSchedule(weekly: WeeklySchedule | undefined | null, date: strin
   return withinAnyWindow(t, windows);
 }
 
-/* ----------- Suggestions helper (missing before) ----------- */
+/* ----------- Suggestions helper ----------- */
 async function suggestionsWithinSchedule(
   restaurantId: string,
   date: string,
@@ -224,14 +224,9 @@ async function suggestionsWithinSchedule(
   people: number,
   weekly: WeeklySchedule | undefined | null,
 ): Promise<string[]> {
-  // קבל סלוטים סביב המועד שביקשו
   const around = await listAvailableSlotsAround(restaurantId, date, time, people, 120, 16);
   if (!around.length) return [];
-
-  // אם ליום אין מפתח מפורש => כל היום פתוח, תחזיר כמו שהוא
   if (!hasScheduleForDate(weekly, date)) return around.slice(0, 8);
-
-  // אחרת, סנן לפי חלונות פתיחה
   const windows = getWindowsForDate(weekly, date);
   const ok = around.filter((t) => withinAnyWindow(toMinutes(t), windows));
   return ok.slice(0, 8);
@@ -445,13 +440,11 @@ function extractHoursFromFlatPayload(payload: Record<string, unknown>): WeeklyHo
 
 /** ממיר כל קלט (כולל JSON string, object או payload שטוח) למפה 0..6 → {open,close}|null */
 function ensureWeeklyHours(input: unknown, payloadForFlat?: Record<string, unknown>): WeeklyHoursMap {
-  // קודם ננסה לפרק מ־payload שטוח (form)
   if (payloadForFlat) {
     const flat = extractHoursFromFlatPayload(payloadForFlat);
     if (flat) return flat;
   }
 
-  // אחרת—ננסה אובייקט JSON רגיל
   let obj: any = input ?? {};
   if (typeof obj === "string") {
     try { obj = JSON.parse(obj); } catch { obj = {}; }
@@ -944,9 +937,9 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   if (weeklySchedule && typeof weeklySchedule === "object") {
     for (let d = 0 as DayOfWeek; d <= 6; d = (d + 1) as DayOfWeek) {
       const row = weeklySchedule[d] ?? weeklySchedule[String(d)] ?? null;
-      if (row && typeof row === "object" && row.open && row.close) {
-        const open = normalizeTime(row.open);
-        const close = normalizeTime(row.close);
+      if (row && typeof row === "object" && (row as any).open && (row as any).close) {
+        const open = normalizeTime((row as any).open);
+        const close = normalizeTime((row as any).close);
         normalized[d] = (open && close) ? { open, close } : null;
       } else {
         normalized[d] = null;

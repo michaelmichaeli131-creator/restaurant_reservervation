@@ -9,7 +9,7 @@
 // - Session middleware (cookie) + טעינת משתמש ל-ctx.state.user
 // - Static files תחת /public אל /static
 // - Root router: דף בית (תוצאות גם כשיש q, לא רק כשsearch=1), /__health, /__echo, /__mailtest, /__env
-// - חיבור כל הראוטרים: auth, restaurants, owner, admin, owner_capacity, owner_manage, owner_hours
+// - חיבור כל הראוטרים: auth, restaurants, owner, admin, owner_capacity, owner_manage, owner_hours, owner_photos
 // - טיפול 404/405/OPTIONS, וכן graceful shutdown
 // -------------------------------------------------------------
 
@@ -34,7 +34,8 @@ import { sendVerifyEmail } from "./lib/mail.ts";
 import ownerManageRouter from "./routes/owner_manage.ts";
 import { ownerHoursRouter } from "./routes/owner_hours.ts";
 import ownerPhotosRouter from "./routes/owner_photos.ts";
-
+import { requestLogger } from "./lib/log_mw.ts";
+import { diagRouter } from "./routes/diag.ts";
 
 // -------------------- ENV --------------------
 const PORT = Number(Deno.env.get("PORT") ?? "8000");
@@ -101,11 +102,11 @@ app.use(async (ctx, next) => {
   }
 });
 
-// --- Security headers ---
+// --- Security headers (CSP כולל blob: לתמונות preview) ---
 app.use(async (ctx, next) => {
   ctx.response.headers.set(
     "Content-Security-Policy",
-    "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';",
+    "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';",
   );
   ctx.response.headers.set("X-Frame-Options", "DENY");
   ctx.response.headers.set("X-Content-Type-Options", "nosniff");
@@ -129,7 +130,7 @@ app.use(async (ctx, next) => {
   await next();
 });
 
-// --- Logger ---
+// --- Logger (פשוט) ---
 app.use(async (ctx, next) => {
   const t0 = performance.now();
   const reqId = (ctx.state as any).reqId;
@@ -161,6 +162,9 @@ app.use(async (ctx, next) => {
   }
   await next();
 });
+
+// --- 🔎 Request logger המפורט שלך — ממוקם מוקדם כדי לעטוף הכל ---
+app.use(requestLogger());
 
 // --- Static files (/static/* -> public/*) ---
 app.use(async (ctx, next) => {
@@ -269,9 +273,9 @@ root.get("/__env", (ctx) => {
 app.use(root.routes());
 app.use(root.allowedMethods());
 
-// -------------------- FEATURE ROUTERS (ordered, no duplicates) --------------------
+// -------------------- FEATURE ROUTERS (ordered) --------------------
 
-// לוג לכל בקשה (debug)
+// לוג קצר לכל בקשה (debug)
 app.use(async (ctx, next) => {
   console.log(`[DEBUG] incoming: ${ctx.request.method} ${ctx.request.url.pathname}`);
   await next();
@@ -301,6 +305,10 @@ app.use(ownerRouter.allowedMethods());
 app.use(ownerPhotosRouter.routes());
 app.use(ownerPhotosRouter.allowedMethods());
 
+// debug/diag
+app.use(diagRouter.routes());
+app.use(diagRouter.allowedMethods());
+
 // ראוטרים ציבוריים של מסעדות - אחרון כי הכי כללי
 app.use(restaurantsRouter.routes());
 app.use(restaurantsRouter.allowedMethods());
@@ -308,6 +316,7 @@ app.use(restaurantsRouter.allowedMethods());
 // ראוטר שורש נוסף
 app.use(rootRouter.routes());
 app.use(rootRouter.allowedMethods());
+
 // --- 404 (כללי) ---
 app.use((ctx) => {
   if (ctx.response.body == null) {
