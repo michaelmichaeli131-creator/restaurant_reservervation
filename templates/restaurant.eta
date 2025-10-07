@@ -8,11 +8,12 @@
     <% } %>
   </header>
 
-  <% 
+  <%
     const _photos = Array.isArray(it.restaurant.photos)
       ? it.restaurant.photos.map(p => (typeof p === 'string' ? p : p?.dataUrl)).filter(Boolean)
       : [];
-    const hero = _photos[0] || "/static/placeholder.png";
+    const PLACEHOLDER = (it.staticPrefix || "/static") + "/placeholder.png";
+    const hero = _photos[0] || PLACEHOLDER;
   %>
 
   <!-- Hero -->
@@ -83,7 +84,7 @@
   <% } %>
 </main>
 
-<!-- נעביר את שעות הפתיחה לפרונט: קודם weeklySchedule; אם אין — ננסה openingHours/hours/open_hours -->
+<!-- נעביר את שעות הפתיחה לפרונט -->
 <script id="opening-hours-data" type="application/json">
 <%- JSON.stringify(it.restaurant.weeklySchedule || it.restaurant.openingHours || it.restaurant.hours || it.restaurant.open_hours || null) %>
 </script>
@@ -96,7 +97,7 @@
     const form = document.getElementById("reserve-form");
     const dateInput = document.getElementById("date");
 
-    // --- קריאת שעות פתיחה מהשרת ---
+    /* ------------ קריאת שעות פתיחה מהשרת ------------ */
     let OPENING_HOURS = null;
     try {
       const raw = document.getElementById("opening-hours-data")?.textContent || "null";
@@ -104,7 +105,7 @@
     } catch { OPENING_HOURS = null; }
     console.debug("GT: opening-hours raw", OPENING_HOURS);
 
-    // אם הגיע מחרוזת hours ישנה כמו "10:00-22:00", נהפוך למפה לכל הימים:
+    // תמיכה ב-"10:00-22:00" (מחרוזת ישנה) => הכל פתוח כל יום בטווח הזה
     if (typeof OPENING_HOURS === "string") {
       const m = OPENING_HOURS.match(/^\s*(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})\s*$/);
       if (m) {
@@ -128,6 +129,15 @@
       const rem = mins % 15;
       return rem ? mins + (15 - rem) : mins;
     };
+
+    // NEW: פונקציה שבודקת אם יש מפתח מפורש ליום (גם אם ערכו null)
+    function hasExplicitKeyForDay(obj, dow) {
+      if (!obj || typeof obj !== "object") return false;
+      const long = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+      const short = ["sun","mon","tue","wed","thu","fri","sat"];
+      const keys = [String(dow), dow, long[dow], short[dow], long[dow]?.toUpperCase?.(), short[dow]?.toUpperCase?.()];
+      return keys.some(k => Object.prototype.hasOwnProperty.call(obj, k));
+    }
 
     function normalizeDayRanges(dayDef) {
       if (!dayDef) return [];
@@ -162,15 +172,22 @@
     }
 
     function getRangesForDate(dateStr) {
-      if (!OPENING_HOURS) return null;
       const d = new Date(dateStr || Date.now());
       if (isNaN(d.getTime())) return null;
+      if (!OPENING_HOURS) return null;
+
       const dow = d.getDay(); // 0..6
       const mapKeys = [
         String(dow),
         ["sun","mon","tue","wed","thu","fri","sat"][dow],
         ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][dow]
       ];
+
+      // אם אין מפתח מפורש ליום – מתייחסים כפתוח כל היום (ליישור קו עם השרת)
+      if (!hasExplicitKeyForDay(OPENING_HOURS, dow)) {
+        return [[0, 24*60 - 1]];
+      }
+
       let dayDef = null;
       for (const k of mapKeys) {
         if (Object.prototype.hasOwnProperty.call(OPENING_HOURS, k)) {
@@ -182,7 +199,6 @@
         dayDef = OPENING_HOURS[dow];
       }
       const ranges = normalizeDayRanges(dayDef);
-      console.debug("GT: time ranges for", dateStr, { dow, ranges });
       return ranges;
     }
 
@@ -191,6 +207,7 @@
       const ranges = getRangesForDate(dateStr);
 
       if (!ranges || !ranges.length) {
+        // כאן אנחנו בטוחים שיש מפתח מפורש עם ערך ריק/null => סגור
         const empty = document.createElement("div");
         empty.className = "time-option";
         empty.setAttribute("aria-disabled", "true");
@@ -297,8 +314,6 @@
         alert("נא לבחור תאריך ושעה");
         return;
       }
-      console.debug("GT: submit reserve", { date: dateVal, time: timeVal, rid: "<%= it.restaurant.id %>" });
-
       const u = new URL(form.action, window.location.origin);
       u.searchParams.set("date", dateVal);
       u.searchParams.set("time", timeVal);
@@ -314,21 +329,14 @@
         return;
       }
       const rid = checkBtn.dataset.rid;
-      console.debug("GT: check availability", { rid, date, time });
       const resp = await fetch(`/api/restaurants/${encodeURIComponent(rid)}/check`, {
         method: "POST",
         headers: { "Accept": "application/json", "Content-Type": "application/json" },
         body: JSON.stringify({ date, time }),
       });
-      const txt = await resp.text();
-      let data = null;
-      try { data = JSON.parse(txt); } catch {}
-      console.debug("GT: check result", data || txt);
-      if (resp.ok && data && data.ok) {
-        renderAround([]);
-      } else {
-        renderAround(data?.suggestions || []);
-      }
+      const data = await resp.json().catch(()=>null);
+      if (resp.ok && data && data.ok) renderAround([]);
+      else renderAround(data?.suggestions || []);
     });
   });
 
@@ -353,7 +361,6 @@
           arr.className = "arrow"; arr.textContent = "▾";
           btn.appendChild(arr);
           card.hidden = true;
-          console.debug("GT: suggestion picked", t);
         };
         box.appendChild(b);
       });
