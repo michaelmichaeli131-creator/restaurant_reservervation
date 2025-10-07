@@ -240,7 +240,7 @@
       fetchOpeningForDate(rid, dateStr).then(data => {
         const windows = Array.isArray(data?.openingWindows) && data.openingWindows.length
           ? data.openingWindows
-          : [{ open: "00:00", close: "24:00" }];
+          : []; // אם אין חלונות → סגור
 
         STEP_MIN = Math.max(1, parseInt(data?.slotIntervalMinutes ?? STEP_MIN, 10) || STEP_MIN);
         if (stepLabel) stepLabel.textContent = String(STEP_MIN);
@@ -250,7 +250,7 @@
           const empty = document.createElement("div");
           empty.className = "time-option";
           empty.setAttribute("aria-disabled","true");
-          empty.textContent = "אין שעות פתיחה ליום זה";
+          empty.textContent = "המסעדה סגורה ביום זה";
           opts.appendChild(empty);
         } else {
           opts.appendChild(frag);
@@ -265,7 +265,7 @@
           const empty = document.createElement("div");
           empty.className = "time-option";
           empty.setAttribute("aria-disabled","true");
-          empty.textContent = "אין שעות פתיחה ליום זה";
+          empty.textContent = "המסעדה סגורה ביום זה";
           opts.appendChild(empty);
         } else {
           opts.appendChild(frag);
