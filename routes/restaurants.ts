@@ -110,6 +110,14 @@ function isValidEmail(s: string): boolean {
   return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
 }
 
+/* ---------------- Photos helper (normalize to string[]) ---------------- */
+function photoStrings(photos: unknown): string[] {
+  if (!Array.isArray(photos)) return [];
+  return photos
+    .map((p: any) => typeof p === "string" ? p : String(p?.dataUrl || ""))
+    .filter(Boolean);
+}
+
 /* ---------------- Opening hours helpers ---------------- */
 
 function toMinutes(hhmm: string): number {
@@ -474,8 +482,12 @@ restaurantsRouter.get("/api/restaurants", async (ctx) => {
   const q = ctx.request.url.searchParams.get("q") ?? "";
   const onlyApproved = (ctx.request.url.searchParams.get("approved") ?? "1") !== "0";
   const items = await listRestaurants(q, onlyApproved);
+
+  // normalize photos for API consumers
+  const out = items.map(r => ({ ...r, photos: photoStrings(r.photos) }));
+
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-  ctx.response.body = JSON.stringify(items, null, 2);
+  ctx.response.body = JSON.stringify(out, null, 2);
 });
 
 /* דף מסעדה — שלב 1 */
@@ -504,10 +516,13 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
     openingWindows
   });
 
+  // normalize photos for template (expects string[])
+  const photos = photoStrings(restaurant.photos);
+
   await render(ctx, "restaurant", {
     page: "restaurant",
     title: `${restaurant.name} — GeoTable`,
-    restaurant: { ...restaurant, openingHours: restaurant.weeklySchedule },
+    restaurant: { ...restaurant, openingHours: restaurant.weeklySchedule, photos },
     openingWindows,
     conflict: ctx.request.url.searchParams.get("conflict") === "1",
     suggestions: (ctx.request.url.searchParams.get("suggest") ?? "").split(",").filter(Boolean),
@@ -648,10 +663,13 @@ restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
     weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : []
   });
 
+  // normalize photos (למרות שהתבנית הזו לא חייבת תמונות – לשמירה על אחידות)
+  const photos = photoStrings(restaurant.photos);
+
   await render(ctx, "reservation_details", {
     page: "reservation_details",
     title: `פרטי הזמנה — ${restaurant.name}`,
-    restaurant,
+    restaurant: { ...restaurant, photos },
     date, time, people
   });
 });
@@ -753,10 +771,13 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
     console.log("[mail] owner email not found; skipping owner notification");
   }
 
+  // normalize for template (אחידות)
+  const photos = photoStrings(restaurant.photos);
+
   await render(ctx, "reservation_confirmed", {
     page: "reservation_confirmed",
     title: "הזמנה אושרה",
-    restaurant,
+    restaurant: { ...restaurant, photos },
     date, time, people,
     customerName, customerPhone, customerEmail,
     reservationId: reservation.id,
@@ -863,10 +884,12 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
     console.log("[mail] owner email not found; skipping owner notification");
   }
 
+  const photos = photoStrings(restaurant.photos);
+
   await render(ctx, "reservation_confirmed", {
     page: "reservation_confirmed",
     title: "הזמנה אושרה",
-    restaurant,
+    restaurant: { ...restaurant, photos },
     date, time, people,
     customerName, customerPhone, customerEmail,
     reservationId: reservation.id,
@@ -902,8 +925,10 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
       if (row && typeof row === "object" && row.open && row.close) {
         const open = normalizeTime(row.open);
         const close = normalizeTime(row.close);
+        // @ts-ignore DayOfWeek type is declared in DB; cast is for compatibility with existing file
         normalized[d as DayOfWeek] = (open && close) ? { open, close } : null;
       } else {
+        // @ts-ignore
         normalized[d as DayOfWeek] = null;
       }
     }
