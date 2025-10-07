@@ -8,6 +8,18 @@
     <% } %>
   </header>
 
+  <% 
+    const _photos = Array.isArray(it.restaurant.photos)
+      ? it.restaurant.photos.map(p => (typeof p === 'string' ? p : p?.dataUrl)).filter(Boolean)
+      : [];
+    const hero = _photos[0] || "/static/placeholder.png";
+  %>
+
+  <!-- Hero -->
+  <section class="hero card" aria-label="תמונה ראשית">
+    <img src="<%= hero %>" alt="תמונה ראשית של <%= it.restaurant.name %>" class="hero-img"/>
+  </section>
+
   <section class="card">
     <h2 style="margin-top:0">הזמנת מקום — שלב 1</h2>
 
@@ -46,35 +58,6 @@
     </form>
   </section>
 
-  <!-- === חדש: גלריה עם תמונת HERO + Thumbnails, כולל fallback === -->
-  <%
-    function safePhotos(photos) {
-      if (Array.isArray(photos) && photos.length) {
-        return photos.filter(Boolean).map(String);
-      }
-      return [];
-    }
-    const _photos = safePhotos(it.restaurant.photos);
-    const _hero = _photos.length ? _photos[0] : "/static/placeholder.png";
-    const _thumbs = _photos.length ? _photos : ["/static/placeholder.png"];
-  %>
-
-  <section class="card">
-    <div class="gallery">
-      <figure class="hero">
-        <img id="hero-img" src="<%= _hero %>" alt="תמונה ראשית של <%= it.restaurant.name %>"/>
-      </figure>
-      <div class="thumbs" role="list" aria-label="גלריית תמונות">
-        <% _thumbs.forEach((src, idx) => { %>
-          <button class="thumb" role="listitem" data-src="<%= src %>" aria-label="הצג תמונה <%= idx+1 %>">
-            <img src="<%= src %>" alt="תמונה <%= idx+1 %> של <%= it.restaurant.name %>" loading="lazy"/>
-          </button>
-        <% }) %>
-      </div>
-    </div>
-  </section>
-  <!-- === סוף גלריה === -->
-
   <section class="card" id="around-card" hidden>
     <h3 style="margin-top:0">שעות זמינות סביב המועד שבחרת (±2 שעות)</h3>
     <div id="around-slots" class="slots"></div>
@@ -88,18 +71,14 @@
     </section>
   <% } %>
 
-  <% if (it.restaurant.menu && it.restaurant.menu.length) { %>
+  <% if (_photos.length > 0) { %>
     <section class="card">
-      <h2 style="margin-top:0">תפריט</h2>
-      <ul class="menu-list">
-        <% it.restaurant.menu.forEach(item => { %>
-          <li>
-            <strong><%= item.name %></strong>
-            <% if (item.price != null) { %> — <span class="muted"><%= item.price %> ₪</span><% } %>
-            <% if (item.desc) { %><br/><span class="muted"><%= item.desc %></span><% } %>
-          </li>
+      <h2 style="margin-top:0">תמונות</h2>
+      <div class="photo-grid">
+        <% _photos.forEach(src => { %>
+          <img src="<%= src %>" alt="תמונה של המסעדה" loading="lazy"/>
         <% }) %>
-      </ul>
+      </div>
     </section>
   <% } %>
 </main>
@@ -107,21 +86,6 @@
 <!-- נעביר את שעות הפתיחה לפרונט: קודם weeklySchedule; אם אין — ננסה openingHours/hours/open_hours -->
 <script id="opening-hours-data" type="application/json">
 <%- JSON.stringify(it.restaurant.weeklySchedule || it.restaurant.openingHours || it.restaurant.hours || it.restaurant.open_hours || null) %>
-</script>
-
-<script>
-  // === לוגיקת גלריה מינימלית: החלפת תמונת ה-HERO בלחיצה על Thumbnail ===
-  (function () {
-    const hero = document.getElementById('hero-img');
-    const thumbs = document.querySelectorAll('.thumb[data-src]');
-    if (!hero || !thumbs.length) return;
-    thumbs.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const src = btn.getAttribute('data-src');
-        if (src) hero.setAttribute('src', src);
-      });
-    });
-  })();
 </script>
 
 <script>
@@ -140,6 +104,7 @@
     } catch { OPENING_HOURS = null; }
     console.debug("GT: opening-hours raw", OPENING_HOURS);
 
+    // אם הגיע מחרוזת hours ישנה כמו "10:00-22:00", נהפוך למפה לכל הימים:
     if (typeof OPENING_HOURS === "string") {
       const m = OPENING_HOURS.match(/^\s*(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})\s*$/);
       if (m) {
@@ -200,7 +165,7 @@
       if (!OPENING_HOURS) return null;
       const d = new Date(dateStr || Date.now());
       if (isNaN(d.getTime())) return null;
-      const dow = d.getDay();
+      const dow = d.getDay(); // 0..6
       const mapKeys = [
         String(dow),
         ["sun","mon","tue","wed","thu","fri","sat"][dow],
@@ -318,12 +283,27 @@
           hiddenInput.value = "";
           btn.textContent = "בחר שעה ";
           const arr = document.createElement("span");
-          arr.className = "arrow";
-          arr.textContent = "▾";
+          arr.className = "arrow"; arr.textContent = "▾";
           btn.appendChild(arr);
         }
       }
     })();
+
+    form.addEventListener("submit", (ev) => {
+      const dateVal = dateInput.value.trim();
+      const timeVal = hiddenInput.value.trim();
+      if (!dateVal || !timeVal) {
+        ev.preventDefault();
+        alert("נא לבחור תאריך ושעה");
+        return;
+      }
+      console.debug("GT: submit reserve", { date: dateVal, time: timeVal, rid: "<%= it.restaurant.id %>" });
+
+      const u = new URL(form.action, window.location.origin);
+      u.searchParams.set("date", dateVal);
+      u.searchParams.set("time", timeVal);
+      form.action = u.pathname + u.search;
+    });
 
     const checkBtn = document.getElementById("check-btn");
     checkBtn?.addEventListener("click", async () => {
@@ -386,6 +366,11 @@
 <style>
   .container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
   .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 24px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .page-header h1 { margin: 0 0 6px; }
+  .muted { color: #6b7280; }
+
+  .hero-img { width: 100%; height: 260px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; }
+
   .form-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
   .form-row { display: flex; flex-direction: column; position: relative; }
   .form-row.time-row { grid-column: 1 / -1; }
@@ -396,6 +381,7 @@
   .time-option[aria-disabled="true"] { color: #999; cursor: default; }
   .time-option:hover { background: #f0f0ff; }
   .arrow { margin-left: 8px; color: #666; }
+
   .form-row label { margin-bottom: 4px; color: #333; font-weight: 500; }
   .form-row input { padding: 10px 12px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 1rem; transition: border-color 0.2s; }
   .form-row input:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.3); }
@@ -405,21 +391,16 @@
   .btn.secondary { background-color: #a0aec0; }
   .btn.secondary:hover { background-color: #718096; }
   .alert.warn { background: #fff5f5; border: 1px solid #fed7d7; color: #c53030; padding: 12px; border-radius: 6px; margin-bottom: 12px; }
+
   .slots { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
   .slot { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; background: #f7fafc; cursor: pointer; transition: background-color 0.2s; }
   .slot:hover { background: #edf2f7; }
 
-  /* גלריה */
-  .gallery { display: grid; gap: 12px; }
-  .hero { margin: 0; border-radius: 16px; overflow: hidden; background: #f3f3f3; }
-  .hero img { width: 100%; height: 420px; object-fit: cover; display: block; }
-  .thumbs { display: grid; grid-auto-flow: column; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
-  .thumb { border: 0; background: transparent; padding: 0; cursor: pointer; border-radius: 10px; overflow: hidden; flex: 0 0 auto; }
-  .thumb img { width: 120px; height: 80px; object-fit: cover; display: block; border:1px solid #eee; background:#fafafa; }
+  .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 10px; }
+  .photo-grid img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; }
 
-  .menu-list { list-style: none; margin: 0; padding: 0; }
-  .menu-list li { padding: 8px 0; border-bottom: 1px dashed #eee; }
-
-  @media (max-width: 860px) { .form-grid { grid-template-columns: 1fr; } }
-  @media (max-width: 720px) { .hero img { height: 260px; } }
+  @media (max-width: 860px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .hero-img { height: 200px; }
+  }
 </style>
