@@ -1,0 +1,28 @@
+<% layout("_layout", it) %>
+
+<section class="card" style="max-width:1000px;margin:24px auto">
+  <h1>רשימת מסעדות</h1>
+
+  <table class="table" style="width:100%;border-collapse:collapse;margin-top:16px">
+    <thead>
+      <tr>
+        <th>שם מסעדה</th>
+        <th>עיר</th>
+        <th>בעלים</th>
+        <th>אימייל בעלים</th>
+        <th>סטטוס בעלים</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% it.rows.forEach(({restaurant:r, owner:o}) => { %>
+        <tr>
+          <td><a href="/restaurants/<%= r.id %>"><%= r.name %></a></td>
+          <td><%= r.city %></td>
+          <td><%= o ? o.firstName + " " + o.lastName : "—" %></td>
+          <td dir="ltr"><%= o ? o.email : "—" %></td>
+          <td><%= o ? (o.isActive ? "פעיל" : "מבוטל") : "—" %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>

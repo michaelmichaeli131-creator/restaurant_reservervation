@@ -10,6 +10,11 @@ import {
   resetUsers,
   resetAll,
   deleteRestaurantCascade,
+
+  // NEW:
+  listUsersWithRestaurants,     // [{...user, restaurants: Restaurant[]}]
+  listRestaurantsWithOwners,    // [{...restaurant, owner: User|null}]
+  setUserActive,                // (userId, isActive) => Promise<boolean>
 } from "../database.ts";
 
 const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
@@ -56,14 +61,18 @@ function page(layout: { title: string; body: string; key?: string }) {
     .btn{display:inline-block;background:#111;color:#fff;border-radius:8px;padding:8px 12px;text-decoration:none;border:none;cursor:pointer}
     .btn.secondary{background:#555}
     .btn.warn{background:#b00020}
-    .card{border:1px solid #eee;border-radius:12px;padding:16px}
+    .btn.ghost{background:#f4f4f6;color:#111}
+    .card{border:1px solid #eee;border-radius:12px;padding:16px;background:#fff}
     .muted{color:#777}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-    @media (max-width:800px){.grid{grid-template-columns:1fr}}
+    @media (max-width:1000px){.grid{grid-template-columns:1fr}}
     input[type="password"],input[type="text"]{border:1px solid #ddd;border-radius:8px;padding:8px 10px;width:280px;max-width:100%}
     form.inline{display:inline}
     .badge{display:inline-block;background:#eef;border:1px solid #ccd;border-radius:6px;padding:2px 6px;font-size:12px;margin-inline-start:6px}
     .code{font-family:ui-monospace,Consolas,monospace;background:#f6f6f8;border:1px solid #eee;border-radius:6px;padding:6px 8px;display:inline-block}
+    .tabs{display:flex;gap:6px;margin:12px 0}
+    .tab{padding:6px 10px;border:1px solid #ddd;border-radius:10px;text-decoration:none;color:#111;background:#f9f9fb}
+    .tab.active{background:#111;color:#fff;border-color:#111}
   </style>
 </head>
 <body>
@@ -105,6 +114,42 @@ function renderRestaurantRow(r: Restaurant, key: string) {
   </tr>`;
 }
 
+/** גרסה שמציגה גם בעלים */
+function renderRestaurantRowWithOwner(
+  r: Restaurant & { owner?: { id: string; firstName?: string; lastName?: string; email?: string; isActive?: boolean } | null },
+  key: string,
+) {
+  const ownerName = r.owner ? `${r.owner.firstName ?? ""} ${r.owner.lastName ?? ""}`.trim() || "—" : "—";
+  const ownerEmail = r.owner?.email || "—";
+  const ownerStatus = r.owner ? (r.owner.isActive ? "פעיל" : "מבוטל") : "—";
+  const approved = r.approved ? "✅ מאושרת" : "⏳ ממתינה";
+  const caps = `קיבולת: ${r.capacity ?? "-"} · סלוט: ${r.slotIntervalMinutes ?? "-"}ד' · שירות: ${r.serviceDurationMinutes ?? "-"}ד'`;
+  return `
+  <tr>
+    <td><strong>${r.name}</strong><br/><small class="muted">${r.city} · ${r.address}</small></td>
+    <td>${ownerName}<br/><small class="muted" dir="ltr">${ownerEmail}</small></td>
+    <td>${ownerStatus}</td>
+    <td>${approved}<br/><small class="muted">${caps}</small></td>
+    <td>
+      <div class="row">
+        ${
+          r.approved
+            ? `<form class="inline" method="post" action="/admin/restaurants/${r.id}/unapprove?key=${encodeURIComponent(key)}">
+                 <button class="btn secondary" type="submit">השבתה</button>
+               </form>`
+            : `<form class="inline" method="post" action="/admin/restaurants/${r.id}/approve?key=${encodeURIComponent(key)}">
+                 <button class="btn" type="submit">אישור</button>
+               </form>`
+        }
+        <a class="btn secondary" href="/restaurants/${r.id}" target="_blank" rel="noopener">דף מסעדה</a>
+        <form class="inline" method="post" action="/admin/restaurants/${r.id}/delete?key=${encodeURIComponent(key)}" onsubmit="return confirm('למחוק לצמיתות את \"${r.name}\" וכל ההזמנות שלה?')">
+          <button class="btn warn" type="submit">הסר</button>
+        </form>
+      </div>
+    </td>
+  </tr>`;
+}
+
 // ------- router -------
 const adminRouter = new Router();
 
@@ -125,19 +170,27 @@ adminRouter.get("/admin/login", (ctx) => {
   ctx.response.body = page({ title: "כניסת אדמין", body });
 });
 
-/** דשבורד אדמין (כפתורי Reset בראש העמוד) */
+/** דשבורד אדמין (כפתורי Reset + מסעדות עם בעלים) */
 adminRouter.get("/admin", async (ctx) => {
   if (!assertAdmin(ctx)) return;
   setNoStore(ctx);
   const key = getAdminKey(ctx)!;
 
-  const all = await listRestaurants("", /*onlyApproved*/ false);
-  const pending = all.filter((r) => !r.approved);
-  const approved = all.filter((r) => r.approved);
+  // רשימת מסעדות + בעלים
+  const rows = await listRestaurantsWithOwners(); // [{...restaurant, owner}]
+  const pending = rows.filter((r) => !r.approved);
+  const approved = rows.filter((r) => r.approved);
 
   const body = `
   <section class="card" style="margin-bottom:20px">
-    <h2 style="margin-top:0;color:#b00020">⚠️ פעולות אדמין (Reset)</h2>
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h2 style="margin:0;color:#b00020">⚠️ פעולות אדמין (Reset)</h2>
+      <div class="tabs">
+        <a class="tab active" href="/admin?key=${encodeURIComponent(key)}">מסעדות</a>
+        <a class="tab" href="/admin/users?key=${encodeURIComponent(key)}">משתמשים</a>
+        <a class="tab" href="/admin/tools?key=${encodeURIComponent(key)}">כלים</a>
+      </div>
+    </div>
     <div class="row" style="margin-top:6px">
       <form method="post" action="/admin/reset?what=restaurants&confirm=1&key=${encodeURIComponent(key)}">
         <button type="submit" class="btn warn"
@@ -163,7 +216,7 @@ adminRouter.get("/admin", async (ctx) => {
           איפוס כולל (הכול)
         </button>
       </form>
-      <a class="btn secondary" href="/admin/tools?key=${encodeURIComponent(key)}">עוד כלים…</a>
+      <a class="btn ghost" href="/admin/tools?key=${encodeURIComponent(key)}">עוד כלים…</a>
     </div>
   </section>
 
@@ -174,8 +227,8 @@ adminRouter.get("/admin", async (ctx) => {
         pending.length === 0
           ? `<p class="muted">אין מסעדות ממתינות כרגע.</p>`
           : `<table>
-              <thead><tr><th>מסעדה</th><th>סטטוס</th><th>פעולות</th></tr></thead>
-              <tbody>${pending.map((r) => renderRestaurantRow(r, key)).join("")}</tbody>
+              <thead><tr><th>מסעדה</th><th>בעלים</th><th>סטטוס בעלים</th><th>סטטוס</th><th>פעולות</th></tr></thead>
+              <tbody>${pending.map((r) => renderRestaurantRowWithOwner(r as any, key)).join("")}</tbody>
             </table>`
       }
     </section>
@@ -186,8 +239,8 @@ adminRouter.get("/admin", async (ctx) => {
         approved.length === 0
           ? `<p class="muted">עוד לא אושרו מסעדות.</p>`
           : `<table>
-              <thead><tr><th>מסעדה</th><th>סטטוס</th><th>פעולות</th></tr></thead>
-              <tbody>${approved.map((r) => renderRestaurantRow(r, key)).join("")}</tbody>
+              <thead><tr><th>מסעדה</th><th>בעלים</th><th>סטטוס בעלים</th><th>סטטוס</th><th>פעולות</th></tr></thead>
+              <tbody>${approved.map((r) => renderRestaurantRowWithOwner(r as any, key)).join("")}</tbody>
             </table>`
       }
     </section>
@@ -203,7 +256,14 @@ adminRouter.get("/admin/tools", (ctx) => {
   const key = getAdminKey(ctx)!;
   const body = `
   <div class="card">
-    <h2 style="margin-top:0">Reset · כלי אדמין</h2>
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h2 style="margin-top:0">Reset · כלי אדמין</h2>
+      <div class="tabs">
+        <a class="tab" href="/admin?key=${encodeURIComponent(key)}">מסעדות</a>
+        <a class="tab" href="/admin/users?key=${encodeURIComponent(key)}">משתמשים</a>
+        <a class="tab active" href="/admin/tools?key=${encodeURIComponent(key)}">כלים</a>
+      </div>
+    </div>
     <p class="muted">אפשר להריץ איפוסים דרך הקישורים הבאים (תופיע בקשת אישור).</p>
     <ul>
       <li><a class="btn warn" href="/admin/reset?what=reservations&key=${encodeURIComponent(key)}">אפס רק הזמנות</a></li>
@@ -306,7 +366,6 @@ adminRouter.post("/admin/restaurants/:id/delete", async (ctx) => {
   const result = await deleteRestaurantCascade(id);
   const key = getAdminKey(ctx)!;
 
-  // אחרי מחיקה נחזור לדשבורד עם הודעה קצרה
   const body = `
     <div class="card" style="max-width:720px">
       <h2 style="margin-top:0">הוסרה מהאתר</h2>
@@ -320,4 +379,100 @@ adminRouter.post("/admin/restaurants/:id/delete", async (ctx) => {
   ctx.response.body = page({ title: "הוסרה מהאתר", body, key });
 });
 
+/* ========= Users Admin ========= */
+
+/** רשימת משתמשים + מספר מסעדות בבעלותם + פעולת בטל/הפעל */
+adminRouter.get("/admin/users", async (ctx) => {
+  if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
+  const key = getAdminKey(ctx)!;
+
+  const users = await listUsersWithRestaurants(); // [{...user, restaurants: []}]
+  const active = users.filter(u => u.isActive !== false);
+  const inactive = users.filter(u => u.isActive === false);
+
+  const rows = (list: any[]) => list.map(u => `
+    <tr>
+      <td><strong>${u.firstName ?? ""} ${u.lastName ?? ""}</strong><br/><small class="muted" dir="ltr">${u.email}</small></td>
+      <td>${u.role ?? "user"} <span class="badge">${u.provider ?? "local"}</span></td>
+      <td>${u.isActive === false ? "❌ מבוטל" : "✅ פעיל"}</td>
+      <td>
+        ${u.restaurants?.length ? u.restaurants.map((r:any)=>`<div><a href="/restaurants/${r.id}" target="_blank">${r.name}</a></div>`).join("") : `<span class="muted">אין</span>`}
+      </td>
+      <td>
+        ${
+          u.isActive === false
+            ? `<form class="inline" method="post" action="/admin/users/${u.id}/activate?key=${encodeURIComponent(key)}">
+                 <button class="btn" type="submit">הפעל</button>
+               </form>`
+            : `<form class="inline" method="post" action="/admin/users/${u.id}/deactivate?key=${encodeURIComponent(key)}" onsubmit="return confirm('לבטל את המשתמש ${u.email}?')">
+                 <button class="btn warn" type="submit">בטל</button>
+               </form>`
+        }
+      </td>
+    </tr>
+  `).join("");
+
+  const body = `
+  <section class="card" style="margin-bottom:20px">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h2 style="margin:0">ניהול משתמשים</h2>
+      <div class="tabs">
+        <a class="tab" href="/admin?key=${encodeURIComponent(key)}">מסעדות</a>
+        <a class="tab active" href="/admin/users?key=${encodeURIComponent(key)}">משתמשים</a>
+        <a class="tab" href="/admin/tools?key=${encodeURIComponent(key)}">כלים</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <h3 style="margin-top:0">משתמשים פעילים (${active.length})</h3>
+      ${
+        active.length === 0
+          ? `<p class="muted">אין משתמשים פעילים.</p>`
+          : `<table>
+              <thead><tr><th>משתמש</th><th>תפקיד</th><th>סטטוס</th><th>מסעדות</th><th>פעולות</th></tr></thead>
+              <tbody>${rows(active)}</tbody>
+            </table>`
+      }
+    </section>
+
+    <section class="card">
+      <h3 style="margin-top:0">משתמשים מבוטלים (${inactive.length})</h3>
+      ${
+        inactive.length === 0
+          ? `<p class="muted">אין משתמשים מבוטלים.</p>`
+          : `<table>
+              <thead><tr><th>משתמש</th><th>תפקיד</th><th>סטטוס</th><th>מסעדות</th><th>פעולות</th></tr></thead>
+              <tbody>${rows(inactive)}</tbody>
+            </table>`
+      }
+    </section>
+  </div>`;
+  ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
+  ctx.response.body = page({ title: "Admin · Users", body, key });
+});
+
+adminRouter.post("/admin/users/:id/deactivate", async (ctx) => {
+  if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
+  const id = ctx.params.id!;
+  await setUserActive(id, false);
+  const key = getAdminKey(ctx)!;
+  ctx.response.status = Status.SeeOther;
+  ctx.response.headers.set("Location", `/admin/users?key=${encodeURIComponent(key)}`);
+});
+
+adminRouter.post("/admin/users/:id/activate", async (ctx) => {
+  if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
+  const id = ctx.params.id!;
+  await setUserActive(id, true);
+  const key = getAdminKey(ctx)!;
+  ctx.response.status = Status.SeeOther;
+  ctx.response.headers.set("Location", `/admin/users?key=${encodeURIComponent(key)}`);
+});
+
 export { adminRouter };
+export default adminRouter;

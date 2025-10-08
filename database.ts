@@ -650,6 +650,39 @@ export async function listAvailableSlotsAround(
 
 /* ───────────────────────── Admin Utilities ───────────────────────── */
 
+export async function deactivateUser(id: string) {
+  const u = await getUserById(id);
+  if (!u) return false;
+  u.isActive = false;
+  return await updateUser(u.id, u);
+}
+
+export async function activateUser(id: string) {
+  const u = await getUserById(id);
+  if (!u) return false;
+  u.isActive = true;
+  return await updateUser(u.id, u);
+}
+
+export async function listUsersWithRestaurants() {
+  const users = await listUsers();
+  const restaurants = await listRestaurants();
+  return users.map(u => ({
+    ...u,
+    restaurants: restaurants.filter(r => r.ownerId === u.id),
+  }));
+}
+
+export async function listRestaurantsWithOwners() {
+  const restaurants = await listRestaurants();
+  return await Promise.all(restaurants.map(async r => ({
+    ...r,
+    owner: await getUserById(r.ownerId),
+  })));
+}
+
+
+
 export async function deleteRestaurantCascade(restaurantId: string): Promise<number> {
   const r = await getRestaurant(restaurantId);
   if (!r) return 0;

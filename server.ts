@@ -37,6 +37,7 @@ import ownerPhotosRouter from "./routes/owner_photos.ts";
 import { requestLogger } from "./lib/log_mw.ts";
 import { diagRouter } from "./routes/diag.ts";
 import openingRouter from "./routes/opening.ts";
+import adminUsersRouter from "./routes/admin_users.ts";
 
 // -------------------- ENV --------------------
 const PORT = Number(Deno.env.get("PORT") ?? "8000");
