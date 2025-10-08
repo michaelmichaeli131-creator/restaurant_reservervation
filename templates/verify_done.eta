@@ -1,3 +1,30 @@
-<h1>האימות בוצע בהצלחה</h1>
-<p>אפשר להמשיך להשתמש במערכת.</p>
-<a class="btn" href="/">לדף הבית</a>
+<% layout("_layout", it) %>
+
+<section class="card verify-card" style="max-width:720px;margin:24px auto">
+  <header class="page-header" style="text-align:center">
+    <div class="icon-bubble ok">✅</div>
+    <h1 style="margin:8px 0 4px">האימות הושלם!</h1>
+    <p class="muted" style="margin:0">החשבון שלך מוכן לשימוש</p>
+  </header>
+
+  <div style="text-align:center;margin-top:14px">
+    <p style="margin:0 0 16px">אפשר להמשיך אל הדף הראשי או לפתוח את אזור הניהול.</p>
+    <div class="actions" style="justify-content:center">
+      <a class="btn" href="/">מעבר לדף הראשי</a>
+      <a class="btn secondary" href="/dashboard">אל לוח הבקרה</a>
+    </div>
+  </div>
+</section>
+
+<style>
+  .card{border:1px solid #eee;border-radius:12px;padding:16px;background:#fff}
+  .muted{color:#777}
+  .btn{background:#111;color:#fff;border:none;border-radius:10px;padding:10px 14px;cursor:pointer;display:inline-block;text-decoration:none}
+  .btn.secondary{background:#555}
+  .verify-card .icon-bubble{
+    width:54px;height:54px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+    font-size:26px;margin:auto;background:#eaffea;border:1px solid #b9f0b9
+  }
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  @media (max-width:760px){ .actions{flex-direction:column} }
+</style>

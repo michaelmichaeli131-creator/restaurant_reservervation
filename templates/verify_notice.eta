@@ -1,3 +1,57 @@
-<h1>כמעט סיימנו✉️</h1>
-<p>שלחנו קישור אימות ל: <strong><%= it.email %></strong></p>
-<p>בדוק/י את תיבת הדוא״ל והשלם/י את האימות.</p>
+<% layout("_layout", it) %>
+
+<section class="card verify-card" style="max-width:720px;margin:24px auto">
+  <header class="page-header" style="text-align:center">
+    <div class="icon-bubble info">✉️</div>
+    <h1 style="margin:8px 0 4px">אימות אימייל</h1>
+    <p class="muted" style="margin:0">כמעט סיימנו! רק לאשר את הכתובת</p>
+  </header>
+
+  <% if (it.error) { %>
+    <div class="alert error" role="alert" style="margin-top:12px">
+      <strong>שגיאה:</strong> <%= it.error %>
+    </div>
+  <% } %>
+  <% if (it.info) { %>
+    <div class="alert info" role="status" style="margin-top:12px">
+      <%= it.info %>
+    </div>
+  <% } %>
+
+  <div class="verify-body">
+    <% if (it.email) { %>
+      <p style="margin:0 0 8px">שלחנו קישור אימות ל־<strong dir="ltr"><%= it.email %></strong>.</p>
+      <p class="muted" style="margin:0 0 16px">
+        לא הגיע? בדקו בתיקיית “ספאם/קידומי מכירות”. אפשר גם לשלוח שוב קישור:
+      </p>
+      <div class="actions">
+        <% if (it.resendUrl) { %>
+          <a class="btn" href="<%= it.resendUrl %>">שלחו שוב קישור</a>
+        <% } %>
+        <a class="btn secondary" href="/auth/login">חזרה להתחברות</a>
+      </div>
+    <% } else { %>
+      <p style="margin:0 0 16px">אנא בדקו את תיבת הדוא״ל ולחצו על הקישור שקיבלתם.</p>
+      <div class="actions">
+        <a class="btn secondary" href="/auth/login">חזרה להתחברות</a>
+      </div>
+    <% } %>
+  </div>
+</section>
+
+<style>
+  .card{border:1px solid #eee;border-radius:12px;padding:16px;background:#fff}
+  .muted{color:#777}
+  .btn{background:#111;color:#fff;border:none;border-radius:10px;padding:10px 14px;cursor:pointer;display:inline-block;text-decoration:none}
+  .btn.secondary{background:#555}
+  .alert{border-radius:8px;padding:10px}
+  .alert.error{border:1px solid #ffb4ad;background:#ffeceb}
+  .alert.info{border:1px solid #b3e5ff;background:#eef9ff}
+  .verify-card .icon-bubble{
+    width:54px;height:54px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+    font-size:26px;margin:auto;background:#eef9ff;border:1px solid #b3e5ff
+  }
+  .verify-body{margin-top:14px}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  @media (max-width:760px){ .actions{flex-direction:column} }
+</style>
