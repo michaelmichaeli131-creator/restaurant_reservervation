@@ -1,30 +1,57 @@
 // src/lib/mail.ts
-// שליחת אימיילים דרך Resend עם אכיפה על MAIL_FROM תקין,
+// שליחת אימיילים דרך Resend עם אכיפה על MAIL_FROM תקין מדומיין spotbook.rest,
 // תמיכת DRY-RUN נשלטת, ולוגים ברורים.
 
-// --------- ENV ----------
+// ====== ENV & CONSTS ======
 const ENV = {
   BASE_URL: (Deno.env.get("BASE_URL") || "").trim(),
   RESEND_API_KEY: (Deno.env.get("RESEND_API_KEY") || "").trim(),
-  MAIL_FROM: (Deno.env.get("MAIL_FROM") || "").trim(), // חובה: דומיין מאומת
+  MAIL_FROM: (Deno.env.get("MAIL_FROM") || "").trim(),
   DRY_RUN: (Deno.env.get("RESEND_DRY_RUN") || "").toLowerCase() === "1",
 };
 
-// --------- Utils ----------
+const VERIFIED_DOMAIN = "spotbook.rest";
+
+// ====== Utils ======
+function extractEmailAddress(from: string): string {
+  // "Name <user@domain>"  -> "user@domain"
+  // "user@domain"         -> "user@domain"
+  const m = from.match(/<\s*([^>]+)\s*>/);
+  const addr = (m ? m[1] : from).trim();
+  return addr;
+}
+
 function ensureFrom(): string {
-  // חייבים MAIL_FROM עם @ ושאינו example.com
-  if (!ENV.MAIL_FROM || !ENV.MAIL_FROM.includes("@")) {
+  // חייבים MAIL_FROM עם @ ושייך לדומיין המאומת spotbook.rest
+  const raw = ENV.MAIL_FROM;
+  if (!raw) {
     throw new Error(
-      "MAIL_FROM is missing or invalid. Set MAIL_FROM to a verified address, e.g. 'GeoTable <no-reply@yourdomain.com>'."
+      `MAIL_FROM is missing. Set MAIL_FROM to a verified address, e.g. 'SpotBook <no-reply@${VERIFIED_DOMAIN}>'`
     );
   }
-  const lower = ENV.MAIL_FROM.toLowerCase();
-  if (lower.includes("@example.com")) {
+  if (!raw.includes("@")) {
     throw new Error(
-      "MAIL_FROM uses example.com which is not a verified domain. Set MAIL_FROM to your verified domain."
+      `MAIL_FROM is invalid. Use a proper address, e.g. 'SpotBook <no-reply@${VERIFIED_DOMAIN}>'`
     );
   }
-  return ENV.MAIL_FROM;
+
+  const addr = extractEmailAddress(raw).toLowerCase();
+  const atIdx = addr.lastIndexOf("@");
+  if (atIdx === -1 || atIdx === addr.length - 1) {
+    throw new Error("MAIL_FROM email address is malformed.");
+  }
+  const domain = addr.slice(atIdx + 1);
+
+  if (domain === "example.com") {
+    throw new Error("MAIL_FROM uses example.com which is not verified.");
+  }
+  // אוכפים spotbook.rest (כולל תתי־דומיינים כמו mail.spotbook.rest)
+  if (!(domain === VERIFIED_DOMAIN || domain.endsWith(`.${VERIFIED_DOMAIN}`))) {
+    throw new Error(
+      `MAIL_FROM domain must be ${VERIFIED_DOMAIN} (or a subdomain). Got: ${domain}`
+    );
+  }
+  return raw;
 }
 
 function buildUrl(path: string) {
@@ -40,11 +67,10 @@ type MailParams = {
   html: string;
   text?: string;
   headers?: Record<string, string>;
-  fromOverride?: string; // לשימוש נדיר, בד"כ לא צריך
+  fromOverride?: string;
 };
 
 function htmlToText(html: string): string {
-  // המרה גסה אך סבירה לטקסט
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<script[\s\S]*?<\/script>/gi, "")
@@ -89,19 +115,22 @@ async function sendViaResend(p: MailParams) {
 
 function logDry(label: string, p: MailParams) {
   const to = Array.isArray(p.to) ? p.to.join(", ") : p.to;
-  console.warn(`[mail][DRY] ${label}: to=${to} subj="${p.subject}" from="${p.fromOverride || ENV.MAIL_FROM || "(unset)"}"`);
+  console.warn(
+    `[mail][DRY] ${label}: to=${to} subj="${p.subject}" from="${p.fromOverride || ENV.MAIL_FROM || "(unset)"}"`
+  );
   console.warn(`[mail][DRY] text:\n${p.text || htmlToText(p.html)}\n`);
 }
 
-// --------- Public send wrapper ----------
+// ====== Public send wrapper ======
 async function sendMailAny(p: MailParams) {
-  // אוכפים from תקין כבר עכשיו — אם חסר קונפיג, נכשיל במקום "לנחש"
-  try { ensureFrom(); } catch (e) {
+  // מאמתים קונפיג מראש — כדי לתת שגיאה ברורה אם יש בעיה ב־MAIL_FROM
+  try {
+    ensureFrom();
+  } catch (e) {
     console.error("[mail] config error:", String(e));
     return { ok: false, reason: String(e) };
   }
 
-  // DRY_RUN מפורש או חסר מפתח API
   if (ENV.DRY_RUN || !ENV.RESEND_API_KEY) {
     logDry(ENV.DRY_RUN ? "RESEND_DRY_RUN=1" : "RESEND_API_KEY missing", p);
     return { ok: true, dryRun: true };
@@ -109,17 +138,21 @@ async function sendMailAny(p: MailParams) {
 
   try {
     const data = await sendViaResend(p);
-    console.log("[mail] sent via Resend:", { to: p.to, subject: p.subject, id: (data as any)?.id });
+    console.log("[mail] sent via Resend:", {
+      to: p.to,
+      subject: p.subject,
+      id: (data as any)?.id,
+    });
     return { ok: true };
   } catch (e) {
-    const msg = String(e?.message || e);
+    const msg = String((e as any)?.message || e);
     console.error("[mail] Resend error:", msg);
-    // בכוונה לא נופלים ל-DRY כאן — זו תקלה שראוי לתקן (403/401/422 וכו')
+    // בכוונה לא נופלים ל־DRY כדי שלא להסתיר תקלות אמיתיות (403/401/422 וכו')
     return { ok: false, reason: msg };
   }
 }
 
-// --------- Backward-compatible helper (string 'to') ----------
+// ====== Backward-compatible helper ======
 async function sendMail(to: string | string[], subject: string, html: string, text?: string) {
   return await sendMailAny({
     to,
@@ -127,22 +160,22 @@ async function sendMail(to: string | string[], subject: string, html: string, te
     html,
     text,
     headers: {
-      // שני ראשים שימושיים (לא חובה):
-      "Reply-To": "no-reply", // אפשר לשנות אם רוצים
-      "List-Unsubscribe": "<mailto:no-reply>", // או URL אם יש עמוד ביטול
+      "Reply-To": "no-reply@spotbook.rest",
+      // אם יש לכם עמוד ביטול/ניהול העדפות:
+      // "List-Unsubscribe": "<https://spotbook.rest/unsubscribe>",
     },
   });
 }
 
-// =================== Public templates (שומר על אותן חתימות) ===================
+// ====== Public templates (חתימות זהות לקוד הקודם) ======
 
 /** אימות מייל אחרי הרשמה */
 export async function sendVerifyEmail(to: string, token: string) {
   const link = buildUrl(`/auth/verify?token=${encodeURIComponent(token)}`);
-  const subject = "אימות כתובת דוא\"ל – GeoTable";
+  const subject = "אימות כתובת דוא\"ל – SpotBook";
   const html = `
     <div dir="rtl" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6">
-      <h2>ברוך/ה הבא/ה ל-GeoTable</h2>
+      <h2>ברוך/ה הבא/ה ל-SpotBook</h2>
       <p>לאימות כתובת הדוא"ל שלך:</p>
       <p><a href="${link}" style="display:inline-block;background:#4f46e5;color:#fff;padding:10px 14px;border-radius:8px;text-decoration:none">אימות חשבון</a></p>
       <p>או הדבק/י: <br/><a href="${link}">${link}</a></p>
@@ -154,7 +187,7 @@ export async function sendVerifyEmail(to: string, token: string) {
 /** קישור לשחזור סיסמה */
 export async function sendResetEmail(to: string, token: string) {
   const link = buildUrl(`/auth/reset?token=${encodeURIComponent(token)}`);
-  const subject = "שחזור סיסמה – GeoTable";
+  const subject = "שחזור סיסמה – SpotBook";
   const html = `
     <div dir="rtl" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6">
       <h2>איפוס סיסמה</h2>
@@ -190,7 +223,7 @@ export async function sendReservationEmail(opts: {
 
 /** התראה לבעל המסעדה על הזמנה חדשה */
 export async function notifyOwnerEmail(opts: {
-  to: string | string[]; // אפשר גם כמה נמענים
+  to: string | string[];
   restaurantName: string;
   customerName: string;
   customerPhone: string;
