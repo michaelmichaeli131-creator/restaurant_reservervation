@@ -76,13 +76,12 @@ function parseByContentType(t: string, ct: string): { kind: string; data: Record
     try {
       const j = JSON.parse(t);
       if (j && typeof j === "object") return { kind: "json", data: j as Record<string, unknown> };
-    } catch { /* fallthrough */ }
+    } catch { /* raw */ }
   }
 
   return { kind: "rawtext", data: { _raw: t } };
 }
 
-/** Universal body reader for Oak/Deno Deploy */
 async function readBody(ctx: any): Promise<{ data: Record<string, unknown>; meta: Record<string,string> }> {
   const meta: Record<string, string> = {};
   const oakReq: any = ctx?.request;
@@ -141,9 +140,7 @@ async function readBody(ctx: any): Promise<{ data: Record<string, unknown>; meta
         phase("body.parsed", { parser: meta.parser, keys: Object.keys(r) });
         return { data: r, meta };
       }
-    } catch (e) {
-      phase("body.fetch.formData.error", String(e));
-    }
+    } catch (e) { phase("body.fetch.formData.error", String(e)); }
 
     try {
       if (ct === "application/json" && typeof fetchReq.json === "function") {
@@ -153,9 +150,7 @@ async function readBody(ctx: any): Promise<{ data: Record<string, unknown>; meta
         phase("body.parsed", { parser: meta.parser, keys: Object.keys(r) });
         return { data: r, meta };
       }
-    } catch (e) {
-      phase("body.fetch.json.error", String(e));
-    }
+    } catch (e) { phase("body.fetch.json.error", String(e)); }
 
     try {
       if (typeof fetchReq.text === "function") {
@@ -165,9 +160,7 @@ async function readBody(ctx: any): Promise<{ data: Record<string, unknown>; meta
         phase("body.parsed", { parser: meta.parser, keys: Object.keys(parsed.data) });
         return { data: parsed.data, meta };
       }
-    } catch (e) {
-      phase("body.fetch.text.error", String(e));
-    }
+    } catch (e) { phase("body.fetch.text.error", String(e)); }
 
     try {
       if (fetchReq.body) {
@@ -177,9 +170,7 @@ async function readBody(ctx: any): Promise<{ data: Record<string, unknown>; meta
         phase("body.parsed", { parser: meta.parser, keys: Object.keys(parsed.data) });
         return { data: parsed.data, meta };
       }
-    } catch (e) {
-      phase("body.fetch.stream.error", String(e));
-    }
+    } catch (e) { phase("body.fetch.stream.error", String(e)); }
   }
 
   meta.parser = "empty";
@@ -212,59 +203,50 @@ authRouter.post("/auth/register", async (ctx) => {
     (b as any)["password_confirmation"] ?? ""
   );
 
-  // אופציונלי
   const businessType = trim(String((b as any).businessType ?? (b as any)["business_type"] ?? "")) || undefined;
   const phone        = trim(String((b as any).phone ?? "")) || undefined;
 
-  phase("register.fields", { firstName: !!firstName, lastName: !!lastName, email: !!email, password: !!password, confirm: !!confirm });
-
   if (!firstName || !lastName || !email || !password || !confirm) {
     ctx.response.status = Status.BadRequest;
-    phase("register.validation.missing", { firstName, lastName, email, password: password ? `(len:${String(password.length)})` : "", confirm: !!confirm });
     await render(ctx, "auth/register", { title: "הרשמה", page: "register", error: "נא למלא את כל השדות החיוניים" });
     return;
   }
   if (password !== confirm) {
     ctx.response.status = Status.BadRequest;
-    phase("register.validation.mismatch");
     await render(ctx, "auth/register", { title: "הרשמה", page: "register", error: "אימות סיסמה לא תואם" });
     return;
   }
-
   if (await findUserByEmail(email)) {
     ctx.response.status = Status.Conflict;
-    phase("register.conflict.email", email);
     await render(ctx, "auth/register", { title: "הרשמה", page: "register", error: "דוא״ל כבר קיים במערכת" });
     return;
   }
 
-  // יצירת hash ושמירתו כחלק מהמשתמש (createUser מקבל אובייקט אחד)
-  const passwordHash = await hashPassword(password);
   const user: Partial<User> = {
     firstName, lastName, email,
     businessType, phone,
     provider: "local",
     role: "owner",
-    passwordHash, // <-- חשוב
   };
 
-  const created = await createUser(user as User);
+  const hash = await hashPassword(password);
+  // הערה: אם createUser שלך מקבל hash בתוך האובייקט – עדכן בהתאם.
+  const created = await createUser({ ...(user as User), passwordHash: hash } as any);
   phase("register.created", { userId: created.id });
 
-  // שליחת אימות — החתימה דורשת userId וגם email
-  const token = await createVerifyToken(created.id, created.email);
+  // שליחת אימות
+  const token = await createVerifyToken(created.id);
   try { await sendVerifyEmail(created.email, token); phase("register.verify.sent", { email: created.email }); }
   catch (e) { phase("register.verify.error", String(e)); }
 
-  // session
-  const session = (ctx.state as any)?.session;
-  try {
-    if (session?.set) await session.set("userId", created.id);
-    phase("register.session.set", { userId: created.id, hasSession: !!session });
-  } catch (e) { phase("register.session.error", String(e)); }
-
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", "/?welcome=1");
+  // אין התחברות! דורשים אימות קודם
+  await render(ctx, "verify_notice", {
+    title: "בדיקת דוא״ל",
+    page: "verify",
+    info: "נשלח קישור אימות לכתובת הדוא״ל. יש ללחוץ על הקישור כדי להשלים את ההרשמה.",
+    email: created.email,
+    resendUrl: `/auth/verify/resend?email=${encodeURIComponent(created.email)}`,
+  });
 });
 
 /* --------- Login --------- */
@@ -276,29 +258,37 @@ authRouter.post("/auth/login", async (ctx) => {
   const { data: b, meta } = await readBody(ctx);
   phase("login.input", { meta, keys: Object.keys(b) });
 
-  const email = lower(String((b as any).email ?? (b as any).username ?? ""));
+  const emailOrUser = lower(String((b as any).email ?? (b as any).username ?? ""));
   const password = String((b as any).password ?? "");
 
-  if (!email || !password) {
+  if (!emailOrUser || !password) {
     ctx.response.status = Status.BadRequest;
-    phase("login.validation.missing", { email: !!email, password: !!password });
-    await render(ctx, "auth/login", { title: "התחברות", page: "login", error: "נא למלא דוא״ל וסיסמה" });
+    await render(ctx, "auth/login", { title: "התחברות", page: "login", error: "נא למלא דוא״ל/שם משתמש וסיסמה" });
     return;
   }
 
-  // אל תשתמש ב-await על ביטוי עם ?? שמחזיר Promise — בצע חיפוש סדרתי
-  let user = await findUserByEmail(email);
-  if (!user) user = await findUserByUsername(email);
-
+  const user = await findUserByEmail(emailOrUser) || await findUserByUsername(emailOrUser);
   if (!user) {
     ctx.response.status = Status.Unauthorized;
-    phase("login.notfound", email);
     await render(ctx, "auth/login", { title: "התחברות", page: "login", error: "דוא״ל או סיסמה שגויים" });
     return;
   }
 
+  if (!user.emailVerified) {
+    // חוסמים התחברות עד אימות
+    const token = await createVerifyToken(user.id);
+    try { await sendVerifyEmail(user.email, token); } catch {}
+    ctx.response.status = Status.Forbidden;
+    await render(ctx, "auth/login", {
+      title: "התחברות",
+      page: "login",
+      error: "נדרש אימות דוא״ל לפני התחברות. שלחנו לך קישור אימות נוסף.",
+      verifyResend: true,
+    });
+    return;
+  }
+
   const ok = await verifyPassword(password, (user as any).passwordHash);
-  phase("login.password.verify", { ok });
   if (!ok) {
     ctx.response.status = Status.Unauthorized;
     await render(ctx, "auth/login", { title: "התחברות", page: "login", error: "דוא״ל או סיסמה שגויים" });
@@ -308,7 +298,6 @@ authRouter.post("/auth/login", async (ctx) => {
   const session = (ctx.state as any)?.session;
   try {
     if (session?.set) await session.set("userId", user.id);
-    phase("login.session.set", { userId: user.id, hasSession: !!session });
   } catch (e) { phase("login.session.error", String(e)); }
 
   ctx.response.status = Status.SeeOther;
@@ -328,25 +317,50 @@ authRouter.get("/auth/logout", async (ctx) => {
   ctx.response.headers.set("Location", "/");
 });
 
-/* --------- Email Verify --------- */
+/* --------- Email Verify (complete) --------- */
 authRouter.get("/auth/verify", async (ctx) => {
   const token = ctx.request.url.searchParams.get("token") || "";
   if (!token) {
     ctx.response.status = Status.BadRequest;
-    phase("verify.badtoken");
     await render(ctx, "verify_notice", { title: "אימות אימייל", page: "verify", error: "קישור אימות לא תקין" });
     return;
   }
   const used = await useVerifyToken(token);
   if (!used) {
     ctx.response.status = Status.BadRequest;
-    phase("verify.notused");
     await render(ctx, "verify_notice", { title: "אימות אימייל", page: "verify", error: "קישור פג או לא תקין" });
     return;
   }
   await setEmailVerified(used.userId);
-  phase("verify.ok", { userId: used.userId });
-  await render(ctx, "verify_done", { title: "אימות הושלם", page: "verify" });
+
+  // לאחר אימות – מחברים אוטומטית
+  const session = (ctx.state as any)?.session;
+  try { if (session?.set) await session.set("userId", used.userId); } catch {}
+
+  ctx.response.status = Status.SeeOther;
+  ctx.response.headers.set("Location", "/?verified=1");
+});
+
+/* --------- Resend verification --------- */
+authRouter.get("/auth/verify/resend", async (ctx) => {
+  const email = lower(ctx.request.url.searchParams.get("email") || "");
+  if (!email) {
+    ctx.response.status = Status.BadRequest;
+    await render(ctx, "verify_notice", { title: "שליחת אימות", page: "verify", error: "חסר דוא״ל לשליחת קישור אימות" });
+    return;
+  }
+  const user = await findUserByEmail(email);
+  if (!user) {
+    await render(ctx, "verify_notice", { title: "שליחת אימות", page: "verify", info: "אם הדוא״ל קיים — נשלח קישור אימות." });
+    return;
+  }
+  if (user.emailVerified) {
+    await render(ctx, "verify_notice", { title: "שליחת אימות", page: "verify", info: "החשבון כבר מאומת. אפשר להתחבר." });
+    return;
+  }
+  const token = await createVerifyToken(user.id);
+  try { await sendVerifyEmail(user.email, token); } catch (e) { phase("verify.resend.error", String(e)); }
+  await render(ctx, "verify_notice", { title: "שליחת אימות", page: "verify", info: "קישור אימות נשלח מחדש לתיבת הדוא״ל." });
 });
 
 /* --------- Forgot / Reset --------- */
@@ -361,19 +375,13 @@ authRouter.post("/auth/forgot", async (ctx) => {
   const email = lower(String((b as any).email ?? ""));
   if (!email) {
     ctx.response.status = Status.BadRequest;
-    phase("forgot.validation.missing");
     await render(ctx, "auth/forgot", { title: "שכחתי סיסמה", page: "forgot", error: "נא להזין דוא״ל" });
     return;
   }
   const user = await findUserByEmail(email);
   if (user) {
     const token = await createResetToken(user.id);
-    try {
-      await sendResetEmail(email, token);
-      phase("forgot.sent", { email });
-    } catch (e) {
-      phase("forgot.send.error", String(e));
-    }
+    try { await sendResetEmail(email, token); } catch (e) { phase("forgot.send.error", String(e)); }
   }
   await render(ctx, "auth/forgot", { title: "שכחתי סיסמה", page: "forgot", info: "אם הדוא״ל קיים, נשלח קישור איפוס" });
 });
@@ -382,7 +390,6 @@ authRouter.get("/auth/reset", async (ctx) => {
   const token = ctx.request.url.searchParams.get("token") || "";
   if (!token) {
     ctx.response.status = Status.BadRequest;
-    phase("reset.badtoken");
     await render(ctx, "auth/reset", { title: "איפוס סיסמה", page: "reset", error: "קישור לא תקין" });
     return;
   }
@@ -399,13 +406,11 @@ authRouter.post("/auth/reset", async (ctx) => {
 
   if (!token || !pw || !confirm) {
     ctx.response.status = Status.BadRequest;
-    phase("reset.validation.missing", { token: !!token, pw: !!pw, confirm: !!confirm });
     await render(ctx, "auth/reset", { title: "איפוס סיסמה", page: "reset", token, error: "נא למלא את כל השדות" });
     return;
   }
   if (pw !== confirm) {
     ctx.response.status = Status.BadRequest;
-    phase("reset.validation.mismatch");
     await render(ctx, "auth/reset", { title: "איפוס סיסמה", page: "reset", token, error: "אימות סיסמה לא תואם" });
     return;
   }
@@ -413,14 +418,12 @@ authRouter.post("/auth/reset", async (ctx) => {
   const used = await useResetToken(token);
   if (!used) {
     ctx.response.status = Status.BadRequest;
-    phase("reset.token.invalid");
     await render(ctx, "auth/reset", { title: "איפוס סיסמה", page: "reset", error: "קישור פג או לא תקין" });
     return;
   }
 
   const hash = await hashPassword(pw);
   await updateUserPassword(used.userId, hash);
-  phase("reset.ok", { userId: used.userId });
 
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set("Location", "/?resetOk=1");
