@@ -10,17 +10,40 @@ import {
   resetUsers,
   resetAll,
   deleteRestaurantCascade,
-
-  // NEW:
-  listUsersWithRestaurants,     // [{...user, restaurants: Restaurant[]}]
-  listRestaurantsWithOwners,    // [{...restaurant, owner: User|null}]
-  setUserActive,                // (userId, isActive) => Promise<boolean>
+  // 👇 שים לב: את היכולות החדשות אנחנו לא מייבאים סטטית כדי למנוע BOOT_FAILURE
+  // listUsersWithRestaurants,
+  // listRestaurantsWithOwners,
+  // setUserActive,
 } from "../database.ts";
 
 const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
 const BUILD_TAG = new Date().toISOString().slice(0,19).replace("T"," ");
 
-// ------- utils -------
+/* ================== טעינה דינמית של יכולות אופציונליות מה-DB ================== */
+type DBExtra = {
+  listUsersWithRestaurants?: (q?: string) => Promise<any[]>;
+  listRestaurantsWithOwners?: (q?: string) => Promise<(Restaurant & { owner?: any | null })[]>;
+  setUserActive?: (userId: string, isActive: boolean) => Promise<boolean>;
+};
+let _dbExtraCache: DBExtra | null = null;
+
+async function getDbExtra(): Promise<DBExtra> {
+  if (_dbExtraCache) return _dbExtraCache;
+  try {
+    // ייבוא דינמי כדי לא להפיל את האפליקציה אם הפונקציות לא קיימות עדיין
+    const mod = await import("../database.ts");
+    _dbExtraCache = {
+      listUsersWithRestaurants: mod.listUsersWithRestaurants,
+      listRestaurantsWithOwners: mod.listRestaurantsWithOwners,
+      setUserActive: mod.setUserActive,
+    };
+  } catch {
+    _dbExtraCache = {};
+  }
+  return _dbExtraCache!;
+}
+
+/* ================== utils ================== */
 function getAdminKey(ctx: any): string | null {
   const urlKey = ctx.request.url.searchParams.get("key");
   const headerKey = ctx.request.headers.get("x-admin-key");
@@ -150,7 +173,7 @@ function renderRestaurantRowWithOwner(
   </tr>`;
 }
 
-// ------- router -------
+/* ================== router ================== */
 const adminRouter = new Router();
 
 /** כניסת אדמין */
@@ -170,16 +193,65 @@ adminRouter.get("/admin/login", (ctx) => {
   ctx.response.body = page({ title: "כניסת אדמין", body });
 });
 
-/** דשבורד אדמין (כפתורי Reset + מסעדות עם בעלים) */
+/** דשבורד אדמין (מסעדות, ואם אפשר — גם בעלים) */
 adminRouter.get("/admin", async (ctx) => {
   if (!assertAdmin(ctx)) return;
   setNoStore(ctx);
   const key = getAdminKey(ctx)!;
 
-  // רשימת מסעדות + בעלים
-  const rows = await listRestaurantsWithOwners(); // [{...restaurant, owner}]
+  const { listRestaurantsWithOwners } = await getDbExtra();
+
+  let rows: (Restaurant & { owner?: any | null })[];
+  if (typeof listRestaurantsWithOwners === "function") {
+    rows = await listRestaurantsWithOwners(""); // עם בעלים
+  } else {
+    const basic = await listRestaurants("", /*onlyApproved*/ false);
+    rows = basic as any;
+  }
+
   const pending = rows.filter((r) => !r.approved);
   const approved = rows.filter((r) => r.approved);
+
+  const tables = (withOwners: boolean) => `
+    <div class="grid">
+      <section class="card">
+        <h2 style="margin-top:0">ממתינות לאישור (${pending.length})</h2>
+        ${
+          pending.length === 0
+            ? `<p class="muted">אין מסעדות ממתינות כרגע.</p>`
+            : `<table>
+                <thead><tr>
+                  <th>מסעדה</th>${withOwners ? "<th>בעלים</th><th>סטטוס בעלים</th>" : ""}
+                  <th>סטטוס</th><th>פעולות</th>
+                </tr></thead>
+                <tbody>${
+                  pending.map((r) =>
+                    withOwners ? renderRestaurantRowWithOwner(r as any, key) : renderRestaurantRow(r as any, key)
+                  ).join("")
+                }</tbody>
+              </table>`
+        }
+      </section>
+
+      <section class="card">
+        <h2 style="margin-top:0">מאושרות (${approved.length})</h2>
+        ${
+          approved.length === 0
+            ? `<p class="muted">עוד לא אושרו מסעדות.</p>`
+            : `<table>
+                <thead><tr>
+                  <th>מסעדה</th>${withOwners ? "<th>בעלים</th><th>סטטוס בעלים</th>" : ""}
+                  <th>סטטוס</th><th>פעולות</th>
+                </tr></thead>
+                <tbody>${
+                  approved.map((r) =>
+                    withOwners ? renderRestaurantRowWithOwner(r as any, key) : renderRestaurantRow(r as any, key)
+                  ).join("")
+                }</tbody>
+              </table>`
+        }
+      </section>
+    </div>`;
 
   const body = `
   <section class="card" style="margin-bottom:20px">
@@ -193,58 +265,22 @@ adminRouter.get("/admin", async (ctx) => {
     </div>
     <div class="row" style="margin-top:6px">
       <form method="post" action="/admin/reset?what=restaurants&confirm=1&key=${encodeURIComponent(key)}">
-        <button type="submit" class="btn warn"
-          onclick="return confirm('לאפס את כל המסעדות? הפעולה בלתי הפיכה!')">
-          איפוס כל המסעדות
-        </button>
+        <button type="submit" class="btn warn" onclick="return confirm('לאפס את כל המסעדות? הפעולה בלתי הפיכה!')">איפוס כל המסעדות</button>
       </form>
       <form method="post" action="/admin/reset?what=reservations&confirm=1&key=${encodeURIComponent(key)}">
-        <button type="submit" class="btn warn"
-          onclick="return confirm('לאפס את כל ההזמנות?')">
-          איפוס כל ההזמנות
-        </button>
+        <button type="submit" class="btn warn" onclick="return confirm('לאפס את כל ההזמנות?')">איפוס כל ההזמנות</button>
       </form>
       <form method="post" action="/admin/reset?what=users&confirm=1&key=${encodeURIComponent(key)}">
-        <button type="submit" class="btn warn"
-          onclick="return confirm('לאפס את כל המשתמשים? שים לב: זה ימחק גם בעלי מסעדות!')">
-          איפוס כל המשתמשים
-        </button>
+        <button type="submit" class="btn warn" onclick="return confirm('לאפס את כל המשתמשים? שים לב: זה ימחק גם בעלי מסעדות!')">איפוס כל המשתמשים</button>
       </form>
       <form method="post" action="/admin/reset?what=all&confirm=1&key=${encodeURIComponent(key)}">
-        <button type="submit" class="btn warn"
-          onclick="return confirm('איפוס כללי: משתמשים + מסעדות + הזמנות. להמשיך?')">
-          איפוס כולל (הכול)
-        </button>
+        <button type="submit" class="btn warn" onclick="return confirm('איפוס כללי: משתמשים + מסעדות + הזמנות. להמשיך?')">איפוס כולל (הכול)</button>
       </form>
       <a class="btn ghost" href="/admin/tools?key=${encodeURIComponent(key)}">עוד כלים…</a>
     </div>
   </section>
-
-  <div class="grid">
-    <section class="card">
-      <h2 style="margin-top:0">ממתינות לאישור (${pending.length})</h2>
-      ${
-        pending.length === 0
-          ? `<p class="muted">אין מסעדות ממתינות כרגע.</p>`
-          : `<table>
-              <thead><tr><th>מסעדה</th><th>בעלים</th><th>סטטוס בעלים</th><th>סטטוס</th><th>פעולות</th></tr></thead>
-              <tbody>${pending.map((r) => renderRestaurantRowWithOwner(r as any, key)).join("")}</tbody>
-            </table>`
-      }
-    </section>
-
-    <section class="card">
-      <h2 style="margin-top:0">מאושרות (${approved.length})</h2>
-      ${
-        approved.length === 0
-          ? `<p class="muted">עוד לא אושרו מסעדות.</p>`
-          : `<table>
-              <thead><tr><th>מסעדה</th><th>בעלים</th><th>סטטוס בעלים</th><th>סטטוס</th><th>פעולות</th></tr></thead>
-              <tbody>${approved.map((r) => renderRestaurantRowWithOwner(r as any, key)).join("")}</tbody>
-            </table>`
-      }
-    </section>
-  </div>`;
+  ${tables(typeof listRestaurantsWithOwners === "function")}
+  `;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
   ctx.response.body = page({ title: "לוח בקרה · Admin", body, key });
 });
@@ -276,13 +312,13 @@ adminRouter.get("/admin/tools", (ctx) => {
   ctx.response.body = page({ title: "Admin · Reset", body, key });
 });
 
-// --- Reset: GET (אישור) + POST (ביצוע) ---
+/* --- Reset: GET (אישור) + POST (ביצוע) --- */
 async function handleReset(ctx: any) {
   if (!assertAdmin(ctx)) return;
   setNoStore(ctx);
   const key = getAdminKey(ctx)!;
   const url = ctx.request.url;
-  const what = (url.searchParams.get("what") ?? "").toLowerCase();  // reservations|restaurants|users|all
+  const what = (url.searchParams.get("what") ?? "").toLowerCase();
   const confirm = url.searchParams.get("confirm") === "1";
 
   const actions: Record<string, () => Promise<any>> = {
@@ -330,7 +366,7 @@ async function handleReset(ctx: any) {
 adminRouter.get("/admin/reset", handleReset);
 adminRouter.post("/admin/reset", handleReset);
 
-// --- אישור/ביטול מסעדה ---
+/* --- אישור/ביטול מסעדה --- */
 adminRouter.post("/admin/restaurants/:id/approve", async (ctx) => {
   if (!assertAdmin(ctx)) return;
   setNoStore(ctx);
@@ -355,7 +391,7 @@ adminRouter.post("/admin/restaurants/:id/unapprove", async (ctx) => {
   ctx.response.headers.set("Location", `/admin?key=${encodeURIComponent(key)}`);
 });
 
-// --- הסרה מהאתר (מחיקה מלאה) ---
+/* --- הסרה מהאתר (מחיקה מלאה) --- */
 adminRouter.post("/admin/restaurants/:id/delete", async (ctx) => {
   if (!assertAdmin(ctx)) return;
   setNoStore(ctx);
@@ -380,24 +416,38 @@ adminRouter.post("/admin/restaurants/:id/delete", async (ctx) => {
 });
 
 /* ========= Users Admin ========= */
-
-/** רשימת משתמשים + מספר מסעדות בבעלותם + פעולת בטל/הפעל */
 adminRouter.get("/admin/users", async (ctx) => {
   if (!assertAdmin(ctx)) return;
   setNoStore(ctx);
   const key = getAdminKey(ctx)!;
 
+  const { listUsersWithRestaurants } = await getDbExtra();
+  if (typeof listUsersWithRestaurants !== "function") {
+    const body = `
+      <div class="card" style="max-width:720px">
+        <h2 style="margin-top:0">ניהול משתמשים</h2>
+        <p class="muted">הפיצ’ר הזה מחייב פונקציה <code class="code">listUsersWithRestaurants</code> ב־<code class="code">database.ts</code>.</p>
+        <p class="muted">הוסף/י את הייצוא ואז טען/י שוב את העמוד.</p>
+        <div class="row" style="margin-top:10px">
+          <a class="btn" href="/admin?key=${encodeURIComponent(key)}">חזרה למסעדות</a>
+          <a class="btn secondary" href="/admin/tools?key=${encodeURIComponent(key)}">כלים</a>
+        </div>
+      </div>`;
+    ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
+    ctx.response.body = page({ title: "Admin · Users (disabled)", body, key });
+    return;
+  }
+
   const users = await listUsersWithRestaurants(); // [{...user, restaurants: []}]
-  const active = users.filter(u => u.isActive !== false);
-  const inactive = users.filter(u => u.isActive === false);
+  const active = users.filter((u: any) => u.isActive !== false);
+  const inactive = users.filter((u: any) => u.isActive === false);
 
   const rows = (list: any[]) => list.map(u => `
     <tr>
       <td><strong>${u.firstName ?? ""} ${u.lastName ?? ""}</strong><br/><small class="muted" dir="ltr">${u.email}</small></td>
       <td>${u.role ?? "user"} <span class="badge">${u.provider ?? "local"}</span></td>
       <td>${u.isActive === false ? "❌ מבוטל" : "✅ פעיל"}</td>
-      <td>
-        ${u.restaurants?.length ? u.restaurants.map((r:any)=>`<div><a href="/restaurants/${r.id}" target="_blank">${r.name}</a></div>`).join("") : `<span class="muted">אין</span>`}
+      <td>${u.restaurants?.length ? u.restaurants.map((r:any)=>`<div><a href="/restaurants/${r.id}" target="_blank">${r.name}</a></div>`).join("") : `<span class="muted">אין</span>`}
       </td>
       <td>
         ${
@@ -457,6 +507,12 @@ adminRouter.get("/admin/users", async (ctx) => {
 adminRouter.post("/admin/users/:id/deactivate", async (ctx) => {
   if (!assertAdmin(ctx)) return;
   setNoStore(ctx);
+  const { setUserActive } = await getDbExtra();
+  if (typeof setUserActive !== "function") {
+    ctx.response.status = Status.NotImplemented;
+    ctx.response.body = "setUserActive is not implemented in database.ts";
+    return;
+  }
   const id = ctx.params.id!;
   await setUserActive(id, false);
   const key = getAdminKey(ctx)!;
@@ -467,6 +523,12 @@ adminRouter.post("/admin/users/:id/deactivate", async (ctx) => {
 adminRouter.post("/admin/users/:id/activate", async (ctx) => {
   if (!assertAdmin(ctx)) return;
   setNoStore(ctx);
+  const { setUserActive } = await getDbExtra();
+  if (typeof setUserActive !== "function") {
+    ctx.response.status = Status.NotImplemented;
+    ctx.response.body = "setUserActive is not implemented in database.ts";
+    return;
+  }
   const id = ctx.params.id!;
   await setUserActive(id, true);
   const key = getAdminKey(ctx)!;
