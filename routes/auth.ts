@@ -36,11 +36,6 @@ function formDataToObject(fd: FormData): Record<string, string> {
 
 /* ---------- helpers to access original Fetch Request (not Oak wrapper) ---------- */
 function getFetchRequest(ctx: any): Request | null {
-  // Oak exposes the underlying fetch Request in some properties depending on version:
-  // - ctx.request.originalRequest
-  // - ctx.request.rawRequest
-  // - ctx.request.secureRequest (rare)
-  // - ctx.requestEvent?.request
   const r =
     (ctx?.request as any)?.originalRequest ??
     (ctx?.request as any)?.rawRequest ??
@@ -71,34 +66,24 @@ function parseByContentType(t: string, ct: string): { kind: string; data: Record
   if (!t) return { kind: "empty", data: {} };
   const base = (ct || "").toLowerCase().split(";")[0].trim();
 
-  // urlencoded (explicit ct, או detect לפי תבנית)
   if (base === "application/x-www-form-urlencoded" ||
       (t.includes("=") && t.includes("&") && !t.trim().startsWith("{"))) {
     const params = new URLSearchParams(t);
     return { kind: "urlencoded", data: entriesToObject(params.entries()) };
   }
 
-  // json
   if (base === "application/json" || t.trim().startsWith("{") || t.trim().startsWith("[")) {
     try {
       const j = JSON.parse(t);
       if (j && typeof j === "object") return { kind: "json", data: j as Record<string, unknown> };
-    } catch { /* fallthrough to raw */ }
+    } catch { /* fallthrough */ }
   }
 
-  // raw text
   return { kind: "rawtext", data: { _raw: t } };
 }
 
-/**
- * Universal body reader for Oak/Deno Deploy:
- * 1) Try Oak API: ctx.request.body({type:"form"|"json"|"text"}).
- * 2) Else use underlying Fetch Request (originalRequest/rawRequest/requestEvent.request):
- *    - prefer .formData()/.json()/.text() if exist
- *    - fallback to stream getReader() on original Fetch Request (NOT on ctx.request)
- */
+/** Universal body reader for Oak/Deno Deploy */
 async function readBody(ctx: any): Promise<{ data: Record<string, unknown>; meta: Record<string,string> }> {
-  // Collect meta
   const meta: Record<string, string> = {};
   const oakReq: any = ctx?.request;
   const fetchReq: any = getFetchRequest(ctx);
@@ -120,10 +105,8 @@ async function readBody(ctx: any): Promise<{ data: Record<string, unknown>; meta
     fetchHasStream: !!fetchReq?.body,
   });
 
-  // 1) Oak API path
   try {
     if (typeof oakReq?.body === "function") {
-      // Choose explicit parser to avoid double consumption
       if (ct === "application/x-www-form-urlencoded" || ct === "multipart/form-data") {
         const form = await oakReq.body({ type: "form" }).value as URLSearchParams;
         const r = entriesToObject(form.entries());
@@ -138,7 +121,6 @@ async function readBody(ctx: any): Promise<{ data: Record<string, unknown>; meta
         phase("body.parsed", { parser: meta.parser, keys: Object.keys(r) });
         return { data: r, meta };
       }
-      // fall back to text
       const txt = await oakReq.body({ type: "text" }).value as string;
       const parsed = parseByContentType(txt, ct);
       meta.parser = `oak:text->${parsed.kind}`;
@@ -149,9 +131,7 @@ async function readBody(ctx: any): Promise<{ data: Record<string, unknown>; meta
     phase("body.oak.error", String(e));
   }
 
-  // 2) Fetch Request path (preferred on Deno Deploy)
   if (fetchReq) {
-    // Use native helpers if available
     try {
       if ((ct === "application/x-www-form-urlencoded" || ct === "multipart/form-data") &&
           typeof fetchReq.formData === "function") {
@@ -189,7 +169,6 @@ async function readBody(ctx: any): Promise<{ data: Record<string, unknown>; meta
       phase("body.fetch.text.error", String(e));
     }
 
-    // 2c) Raw stream (only on original Fetch Request)
     try {
       if (fetchReq.body) {
         const t = await readAllFromStream(fetchReq as Request);
@@ -210,6 +189,9 @@ async function readBody(ctx: any): Promise<{ data: Record<string, unknown>; meta
 
 /* ---------------- Router ---------------- */
 
+const authRouter = new Router();
+
+/* --------- Register --------- */
 authRouter.get("/auth/register", async (ctx) => {
   await render(ctx, "auth/register", { title: "הרשמה", page: "register" });
 });
@@ -236,44 +218,43 @@ authRouter.post("/auth/register", async (ctx) => {
 
   phase("register.fields", { firstName: !!firstName, lastName: !!lastName, email: !!email, password: !!password, confirm: !!confirm });
 
-  if (!email || !password || password !== confirm) {
+  if (!firstName || !lastName || !email || !password || !confirm) {
     ctx.response.status = Status.BadRequest;
-    await render(ctx, "auth/register", { title: "הרשמה", page: "register", error: "בדוק/י דוא״ל וסיסמה (והתאמה בין סיסמה לאישור)" });
+    phase("register.validation.missing", { firstName, lastName, email, password: password ? `(len:${String(password.length)})` : "", confirm: !!confirm });
+    await render(ctx, "auth/register", { title: "הרשמה", page: "register", error: "נא למלא את כל השדות החיוניים" });
     return;
   }
-  const existed = await findUserByEmail(email) || await findUserByUsername(email);
-  if (existed) {
-    ctx.response.status = Status.Conflict;
-    await render(ctx, "auth/register", { title: "הרשמה", page: "register", error: "משתמש/ת כבר קיים/ת עם הדוא״ל הזה" });
+  if (password !== confirm) {
+    ctx.response.status = Status.BadRequest;
+    phase("register.validation.mismatch");
+    await render(ctx, "auth/register", { title: "הרשמה", page: "register", error: "אימות סיסמה לא תואם" });
     return;
   }
 
-  // יצירת hash והכנסתו *לתוך* אובייקט המשתמש
+  if (await findUserByEmail(email)) {
+    ctx.response.status = Status.Conflict;
+    phase("register.conflict.email", email);
+    await render(ctx, "auth/register", { title: "הרשמה", page: "register", error: "דוא״ל כבר קיים במערכת" });
+    return;
+  }
+
+  // יצירת hash ושמירתו כחלק מהמשתמש (createUser מקבל אובייקט אחד)
   const passwordHash = await hashPassword(password);
   const user: Partial<User> = {
-    email,
-    username: email.split("@")[0] || email,
-    firstName,
-    lastName,
-    businessType,
-    // אפשר לשמור phone בשדה ייעודי אם יש לכם סכימה, כאן רק דוגמה:
-    // phone,
-    passwordHash,     // <-- חשוב!
+    firstName, lastName, email,
+    businessType, phone,
     provider: "local",
     role: "owner",
+    passwordHash, // <-- חשוב
   };
 
   const created = await createUser(user as User);
   phase("register.created", { userId: created.id });
 
-  // שליחת אימות — חייבים להעביר גם email לפי החתימה שב־database.ts
+  // שליחת אימות — החתימה דורשת userId וגם email
   const token = await createVerifyToken(created.id, created.email);
-  try {
-    await sendVerifyEmail(created.email, token);
-    phase("register.verify.sent", { email: created.email });
-  } catch (e) {
-    phase("register.verify.error", String(e));
-  }
+  try { await sendVerifyEmail(created.email, token); phase("register.verify.sent", { email: created.email }); }
+  catch (e) { phase("register.verify.error", String(e)); }
 
   // session
   const session = (ctx.state as any)?.session;
@@ -283,9 +264,8 @@ authRouter.post("/auth/register", async (ctx) => {
   } catch (e) { phase("register.session.error", String(e)); }
 
   ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", "/");
+  ctx.response.headers.set("Location", "/?welcome=1");
 });
-
 
 /* --------- Login --------- */
 authRouter.get("/auth/login", async (ctx) => {
@@ -306,7 +286,10 @@ authRouter.post("/auth/login", async (ctx) => {
     return;
   }
 
-  const user = await (findUserByEmail(email) ?? findUserByUsername(email));
+  // אל תשתמש ב-await על ביטוי עם ?? שמחזיר Promise — בצע חיפוש סדרתי
+  let user = await findUserByEmail(email);
+  if (!user) user = await findUserByUsername(email);
+
   if (!user) {
     ctx.response.status = Status.Unauthorized;
     phase("login.notfound", email);
