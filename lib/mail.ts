@@ -1,74 +1,35 @@
 // src/lib/mail.ts
-// שליחת אימיילים דרך Resend עם אכיפה על MAIL_FROM תקין מדומיין spotbook.rest,
-// תמיכת DRY-RUN נשלטת, ולוגים ברורים.
+// שליחת אימיילים: אימות מייל, שחזור סיסמה, אישור הזמנה ותזכורת/התראה לבעל מסעדה.
+// מצב עבודה:
+// 1) RESEND_API_KEY קיים → שליחה דרך Resend
+// 2) אחרת → DRY RUN (רק לוג, לא נופל)
 
-// ====== ENV & CONSTS ======
-const ENV = {
-  BASE_URL: (Deno.env.get("BASE_URL") || "").trim(),
-  RESEND_API_KEY: (Deno.env.get("RESEND_API_KEY") || "").trim(),
-  MAIL_FROM: (Deno.env.get("MAIL_FROM") || "").trim(),
-  DRY_RUN: (Deno.env.get("RESEND_DRY_RUN") || "").toLowerCase() === "1",
-};
+const BASE_URL = (Deno.env.get("BASE_URL") ?? "").trim();
+const RESEND_API_KEY = (Deno.env.get("RESEND_API_KEY") ?? "").trim();
+const MAIL_FROM_RAW = (Deno.env.get("MAIL_FROM") ?? "").trim() || "GeoTable <no-reply@example.com>";
 
-const VERIFIED_DOMAIN = "spotbook.rest";
-
-// ====== Utils ======
-function extractEmailAddress(from: string): string {
-  // "Name <user@domain>"  -> "user@domain"
-  // "user@domain"         -> "user@domain"
-  const m = from.match(/<\s*([^>]+)\s*>/);
-  const addr = (m ? m[1] : from).trim();
-  return addr;
-}
-
-function ensureFrom(): string {
-  // חייבים MAIL_FROM עם @ ושייך לדומיין המאומת spotbook.rest
-  const raw = ENV.MAIL_FROM;
-  if (!raw) {
-    throw new Error(
-      `MAIL_FROM is missing. Set MAIL_FROM to a verified address, e.g. 'SpotBook <no-reply@${VERIFIED_DOMAIN}>'`
+// הגנה קלה על FROM (נזהיר אם נשאר example.com)
+function getMailFrom(): string {
+  const low = MAIL_FROM_RAW.toLowerCase();
+  if (!MAIL_FROM_RAW || !MAIL_FROM_RAW.includes("@")) {
+    console.error(
+      `[mail] WARN: MAIL_FROM missing/invalid. Current value="${MAIL_FROM_RAW}". ` +
+      `המלצה: 'SpotBook <no-reply@spotbook.rest>'`
+    );
+  } else if (low.includes("@example.com")) {
+    console.error(
+      `[mail] WARN: MAIL_FROM uses example.com. ודא שהוגדר דומיין מאומת, לדוגמה: 'SpotBook <no-rePLY@spotbook.rest>'`
     );
   }
-  if (!raw.includes("@")) {
-    throw new Error(
-      `MAIL_FROM is invalid. Use a proper address, e.g. 'SpotBook <no-reply@${VERIFIED_DOMAIN}>'`
-    );
-  }
-
-  const addr = extractEmailAddress(raw).toLowerCase();
-  const atIdx = addr.lastIndexOf("@");
-  if (atIdx === -1 || atIdx === addr.length - 1) {
-    throw new Error("MAIL_FROM email address is malformed.");
-  }
-  const domain = addr.slice(atIdx + 1);
-
-  if (domain === "example.com") {
-    throw new Error("MAIL_FROM uses example.com which is not verified.");
-  }
-  // אוכפים spotbook.rest (כולל תתי־דומיינים כמו mail.spotbook.rest)
-  if (!(domain === VERIFIED_DOMAIN || domain.endsWith(`.${VERIFIED_DOMAIN}`))) {
-    throw new Error(
-      `MAIL_FROM domain must be ${VERIFIED_DOMAIN} (or a subdomain). Got: ${domain}`
-    );
-  }
-  return raw;
+  return MAIL_FROM_RAW;
 }
 
 function buildUrl(path: string) {
-  const base = ENV.BASE_URL.replace(/\/+$/, "");
+  const base = BASE_URL.replace(/\/+$/, "");
+  if (!base) return path.startsWith("/") ? path : `/${path}`;
   const p = path.startsWith("/") ? path : `/${path}`;
-  if (!base) return p; // בפיתוח – יחסי
   return `${base}${p}`;
 }
-
-type MailParams = {
-  to: string | string[];
-  subject: string;
-  html: string;
-  text?: string;
-  headers?: Record<string, string>;
-  fromOverride?: string;
-};
 
 function htmlToText(html: string): string {
   return html
@@ -82,25 +43,20 @@ function htmlToText(html: string): string {
     .trim();
 }
 
-async function sendViaResend(p: MailParams) {
-  const apiKey = ENV.RESEND_API_KEY;
-  if (!apiKey) throw new Error("RESEND_API_KEY missing");
-
-  const from = p.fromOverride || ensureFrom();
-  const toArr = Array.isArray(p.to) ? p.to : [p.to];
+async function sendViaResend(to: string, subject: string, html: string, text?: string) {
+  const url = "https://api.resend.com/emails";
   const body = {
-    from,
-    to: toArr,
-    subject: p.subject,
-    html: p.html,
-    text: p.text || htmlToText(p.html),
-    headers: p.headers,
+    from: getMailFrom(),
+    to,
+    subject,
+    html,
+    text: text || htmlToText(html),
   };
 
-  const res = await fetch("https://api.resend.com/emails", {
+  const res = await fetch(url, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${apiKey}`,
+      "Authorization": `Bearer ${RESEND_API_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
@@ -108,77 +64,37 @@ async function sendViaResend(p: MailParams) {
 
   if (!res.ok) {
     const msg = await res.text().catch(() => "");
-    throw new Error(`Resend failed (${res.status}): ${msg || res.statusText}`);
+    throw new Error(`Resend failed (${res.status}): ${msg}`);
   }
   return await res.json().catch(() => ({}));
 }
 
-function logDry(label: string, p: MailParams) {
-  const to = Array.isArray(p.to) ? p.to.join(", ") : p.to;
-  console.warn(
-    `[mail][DRY] ${label}: to=${to} subj="${p.subject}" from="${p.fromOverride || ENV.MAIL_FROM || "(unset)"}"`
-  );
-  console.warn(`[mail][DRY] text:\n${p.text || htmlToText(p.html)}\n`);
-}
-
-// ====== Public send wrapper ======
-async function sendMailAny(p: MailParams) {
-  // מאמתים קונפיג מראש — כדי לתת שגיאה ברורה אם יש בעיה ב־MAIL_FROM
-  try {
-    ensureFrom();
-  } catch (e) {
-    console.error("[mail] config error:", String(e));
-    return { ok: false, reason: String(e) };
+async function sendMail(to: string, subject: string, html: string, text?: string) {
+  if (RESEND_API_KEY) {
+    try {
+      return await sendViaResend(to, subject, html, text);
+    } catch (e) {
+      console.warn("[mail] Resend error → DRY RUN:", e);
+      // נמשיך ל-DRY RUN כדי לא לשבור את הזרימה
+    }
+  } else {
+    console.warn("[mail] RESEND_API_KEY missing → DRY RUN");
   }
-
-  if (ENV.DRY_RUN || !ENV.RESEND_API_KEY) {
-    logDry(ENV.DRY_RUN ? "RESEND_DRY_RUN=1" : "RESEND_API_KEY missing", p);
-    return { ok: true, dryRun: true };
-  }
-
-  try {
-    const data = await sendViaResend(p);
-    console.log("[mail] sent via Resend:", {
-      to: p.to,
-      subject: p.subject,
-      id: (data as any)?.id,
-    });
-    return { ok: true };
-  } catch (e) {
-    const msg = String((e as any)?.message || e);
-    console.error("[mail] Resend error:", msg);
-    // בכוונה לא נופלים ל־DRY כדי שלא להסתיר תקלות אמיתיות (403/401/422 וכו')
-    return { ok: false, reason: msg };
-  }
+  // DRY RUN
+  console.log(`[mail:DRY] to=${to} subj="${subject}"\nTEXT:\n${text || htmlToText(html)}\n`);
+  return { ok: true, dryRun: true };
 }
-
-// ====== Backward-compatible helper ======
-async function sendMail(to: string | string[], subject: string, html: string, text?: string) {
-  return await sendMailAny({
-    to,
-    subject,
-    html,
-    text,
-    headers: {
-      "Reply-To": "no-reply@spotbook.rest",
-      // אם יש לכם עמוד ביטול/ניהול העדפות:
-      // "List-Unsubscribe": "<https://spotbook.rest/unsubscribe>",
-    },
-  });
-}
-
-// ====== Public templates (חתימות זהות לקוד הקודם) ======
 
 /** אימות מייל אחרי הרשמה */
 export async function sendVerifyEmail(to: string, token: string) {
   const link = buildUrl(`/auth/verify?token=${encodeURIComponent(token)}`);
-  const subject = "אימות כתובת דוא\"ל – SpotBook";
+  const subject = "אימות כתובת דוא\"ל – GeoTable";
   const html = `
-    <div dir="rtl" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6">
-      <h2>ברוך/ה הבא/ה ל-SpotBook</h2>
+    <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+      <h2>ברוך/ה הבא/ה ל-GeoTable</h2>
       <p>לאימות כתובת הדוא"ל שלך:</p>
-      <p><a href="${link}" style="display:inline-block;background:#4f46e5;color:#fff;padding:10px 14px;border-radius:8px;text-decoration:none">אימות חשבון</a></p>
-      <p>או הדבק/י: <br/><a href="${link}">${link}</a></p>
+      <p><a href="${link}" style="display:inline-block;background:#111;color:#fff;padding:10px 14px;border-radius:8px;text-decoration:none">אימות חשבון</a></p>
+      <p>או הדביקו: <br/><code>${link}</code></p>
     </div>
   `;
   return await sendMail(to, subject, html);
@@ -187,13 +103,13 @@ export async function sendVerifyEmail(to: string, token: string) {
 /** קישור לשחזור סיסמה */
 export async function sendResetEmail(to: string, token: string) {
   const link = buildUrl(`/auth/reset?token=${encodeURIComponent(token)}`);
-  const subject = "שחזור סיסמה – SpotBook";
+  const subject = "שחזור סיסמה – GeoTable";
   const html = `
-    <div dir="rtl" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6">
-      <h2>איפוס סיסמה</h2>
+    <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+      <h2>שחזור סיסמה</h2>
       <p>ניתן להגדיר סיסמה חדשה בקישור הבא:</p>
-      <p><a href="${link}" style="display:inline-block;background:#4f46e5;color:#fff;padding:10px 14px;border-radius:8px;text-decoration:none">איפוס סיסמה</a></p>
-      <p>קישור ישיר: <br/><a href="${link}">${link}</a></p>
+      <p><a href="${link}" style="display:inline-block;background:#111;color:#fff;padding:10px 14px;border-radius:8px;text-decoration:none">איפוס סיסמה</a></p>
+      <p>קישור ישיר: <br/><code>${link}</code></p>
     </div>
   `;
   return await sendMail(to, subject, html);
@@ -209,9 +125,9 @@ export async function sendReservationEmail(opts: {
   customerName?: string;
 }) {
   const { to, restaurantName, date, time, people, customerName } = opts;
-  const subject = `אישור הזמנה – ${restaurantName}`;
+  const subject = "אישור הזמנה – GeoTable";
   const html = `
-    <div dir="rtl" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6">
+    <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
       ${customerName ? `<p>שלום ${customerName},</p>` : ""}
       <p>הזמנתך ל<strong>${restaurantName}</strong> נקלטה.</p>
       <p><strong>תאריך:</strong> ${date} · <strong>שעה:</strong> ${time} · <strong>סועדים:</strong> ${people}</p>
@@ -223,7 +139,7 @@ export async function sendReservationEmail(opts: {
 
 /** התראה לבעל המסעדה על הזמנה חדשה */
 export async function notifyOwnerEmail(opts: {
-  to: string | string[];
+  to: string; // אימייל בעל המסעדה
   restaurantName: string;
   customerName: string;
   customerPhone: string;
@@ -235,7 +151,7 @@ export async function notifyOwnerEmail(opts: {
   const { to, restaurantName, customerName, customerPhone, customerEmail, date, time, people } = opts;
   const subject = `הזמנה חדשה – ${restaurantName}`;
   const html = `
-    <div dir="rtl" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6">
+    <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
       <h3>התקבלה הזמנה חדשה</h3>
       <p><strong>מסעדה:</strong> ${restaurantName}</p>
       <p><strong>תאריך:</strong> ${date} · <strong>שעה:</strong> ${time} · <strong>סועדים:</strong> ${people}</p>
@@ -247,9 +163,9 @@ export async function notifyOwnerEmail(opts: {
   return await sendMail(to, subject, html);
 }
 
-/** תזכורת (למשל יום לפני) */
+/** תזכורת יום לפני (אם תממשו קרון/ווב-טסק) */
 export async function sendReminderEmail(opts: {
-  to: string | string[];
+  to: string;
   confirmUrl: string;
   restaurantName: string;
   date: string;
@@ -261,11 +177,11 @@ export async function sendReminderEmail(opts: {
   const link = confirmUrl.startsWith("http") ? confirmUrl : buildUrl(confirmUrl);
   const subject = "תזכורת להזמנה – נא אשר/י הגעה";
   const html = `
-    <div dir="rtl" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6">
+    <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
       ${customerName ? `<p>שלום ${customerName},</p>` : ""}
-      <p>תזכורת להזמנתך ב<strong>${restaurantName}</strong>.</p>
+      <p>תזכורת להזמנתך ב<strong>${restaurantName}</strong> מחר.</p>
       <p>תאריך: <strong>${date}</strong> · שעה: <strong>${time}</strong> · <strong>${people}</strong> סועדים</p>
-      <p>נא אשר/י הגעה: <a href="${link}" style="display:inline-block;background:#4f46e5;color:#fff;padding:10px 14px;border-radius:8px;text-decoration:none">אישור הגעה</a></p>
+      <p>נא אשר/י הגעה: <a href="${link}" style="display:inline-block;background:#111;color:#fff;padding:10px 14px;border-radius:8px;text-decoration:none">אישור הגעה</a></p>
     </div>
   `;
   return await sendMail(to, subject, html);
