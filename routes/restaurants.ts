@@ -213,7 +213,7 @@ function isWithinSchedule(weekly: WeeklySchedule | undefined | null, date: strin
   const hasDay = hasScheduleForDate(weekly, date);
   const windows = getWindowsForDate(weekly, date);
 
-  if (!hasDay) return true;            // backward compatibility: no key ⇒ open all day
+  if (!hasDay) return true;             // backward compatibility: no key ⇒ open all day
   if (windows.length === 0) return false; // explicit null ⇒ closed
   return withinAnyWindow(t, windows);
 }
@@ -364,7 +364,7 @@ function extractDateAndTime(ctx: any, payload: Record<string, unknown>) {
   const rawTime = pickNonEmpty(
     payload["time"], qs.get("time"), (ref as any)["time"],
     (payload as any)["time_display"], (payload as any)["timeDisplay"],
-    qs.get("time_display"), qs.get("timeDisplay"),
+    qs.get("time_display"), qs.get("timeDisplay"],
     (ref as any)["time_display"], (ref as any)["timeDisplay"],
     hhmmFromHM,
     payload["datetime"], payload["datetime_local"], (payload as any)["datetime-local"],
@@ -549,8 +549,8 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
     photos,
     weeklySchedule: (restaurant as any).weeklySchedule ?? null,
     openingHours: (restaurant as any).weeklySchedule ?? (restaurant as any).openingHours ?? null,
-    hours:        (restaurant as any).weeklySchedule ?? (restaurant as any).hours ?? null,
-    open_hours:   (restaurant as any).weeklySchedule ?? (restaurant as any).open_hours ?? null,
+    hours:         (restaurant as any).weeklySchedule ?? (restaurant as any).hours ?? null,
+    open_hours:    (restaurant as any).weeklySchedule ?? (restaurant as any).open_hours ?? null,
     slotIntervalMinutes,
     serviceDurationMinutes,
   };
@@ -788,6 +788,7 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
     createdAt: Date.now(),
   };
   await createReservation(reservation);
+
   // --- Reservation self-service link (token + manageUrl) ---
   const token = await makeReservationToken(reservation.id, customerEmail);
   const origin = Deno.env.get("APP_BASE_URL")?.replace(/\/+$/, "") || `${ctx.request.url.protocol}//${ctx.request.url.host}`;
@@ -798,6 +799,7 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
     restaurantName: restaurant.name,
     date, time, people,
     customerName,
+    manageUrl, // <<< חשוב: הקישור למייל
   }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
 
   const owner = await getUserById(restaurant.ownerId).catch(() => null);
@@ -824,17 +826,6 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
     reservationId: reservation.id,
   });
 });
-// שלב את `manageUrl` בגוף המייל (טקסט/HTML):
-await sendReservationEmail({
-  to: user.email,
-  subject: "הזמנתך התקבלה",
-  text: `שלום ${user.firstName ?? ""},\n\nלניהול ההזמנה:\n${manageUrl}\n\nלאשר, לבטל או לשנות מועד — בלחיצה אחת.`,
-  html: `<p>שלום ${user.firstName ?? ""},</p>
-         <p>להלן קישור לניהול ההזמנה (אישור/ביטול/שינוי מועד):<br>
-         <a href="${manageUrl}" target="_blank" rel="noopener">${manageUrl}</a></p>`,
-});
-
-
 
 /* שלב 2 → אישור סופי (POST) */
 restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
@@ -916,6 +907,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
     createdAt: Date.now(),
   };
   await createReservation(reservation);
+
   // --- Reservation self-service link (token + manageUrl) ---
   const token = await makeReservationToken(reservation.id, customerEmail);
   const origin = Deno.env.get("APP_BASE_URL")?.replace(/\/+$/, "") || `${ctx.request.url.protocol}//${ctx.request.url.host}`;
@@ -926,6 +918,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
     restaurantName: restaurant.name,
     date, time, people,
     customerName,
+    manageUrl, // <<< חשוב
   }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
 
   const owner = await getUserById(restaurant.ownerId).catch(() => null);
