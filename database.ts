@@ -14,6 +14,7 @@ export interface User {
   role: "user" | "owner";
   provider: "local" | "google";
   emailVerified?: boolean;
+  isActive?: boolean;               // ← חדש: סטטוס חשבון
   createdAt: number;
 }
 
@@ -112,6 +113,7 @@ export async function createUser(u: {
     role: u.role ?? "owner",
     provider: u.provider ?? "local",
     emailVerified: false,
+    isActive: true,               // ← ברירת מחדל: פעיל
     createdAt: now(),
   };
 
@@ -159,16 +161,37 @@ export async function updateUserPassword(userId: string, passwordHash: string) {
   return next;
 }
 
+/** הפעלה/השבתה של משתמש (לשימוש אדמין) */
+export async function setUserActive(userId: string, isActive: boolean): Promise<boolean> {
+  const cur = await kv.get<User>(toKey("user", userId));
+  if (!cur.value) return false;
+  const next = { ...cur.value, isActive: !!isActive };
+  await kv.set(toKey("user", userId), next);
+  return true;
+}
+
+/** רשימת משתמשים (ממויינים חדש->ישן) */
+export async function listUsers(limit = 500): Promise<User[]> {
+  const users: User[] = [];
+  for await (const row of kv.list({ prefix: toKey("user") })) {
+    const u = (await kv.get<User>(row.key as any)).value;
+    if (u) users.push(u);
+    if (users.length >= limit) break;
+  }
+  users.sort((a,b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  return users;
+}
+
 /* אימות/שחזור */
 
-export async function createVerifyToken(userId: string, email: string): Promise<string> {
+export async function createVerifyToken(userId: string, email?: string): Promise<string> {
   const token = crypto.randomUUID().replace(/-/g, "");
-  await kv.set(toKey("verify", token), { userId, email, createdAt: now() });
+  await kv.set(toKey("verify", token), { userId, email: email ?? null, createdAt: now() });
   return token;
 }
 
 export async function useVerifyToken(token: string) {
-  const v = await kv.get<{ userId: string; email: string; createdAt: number }>(toKey("verify", token));
+  const v = await kv.get<{ userId: string; email?: string | null; createdAt: number }>(toKey("verify", token));
   if (!v.value) return null;
   await kv.delete(toKey("verify", token));
   return v.value;
@@ -322,8 +345,6 @@ export function openingWindowsForDate(
   return [{ open, close }];
 }
 
-
-
 /* ─────────────────── Restaurants / Reservations ─────────────────── */
 
 export async function createRestaurant(r: {
@@ -462,11 +483,6 @@ export async function listRestaurants(q?: string, onlyApproved = true): Promise<
 
 /* ─────────────── NEW: Photos API (מחבר בין העלאות הבעלים לבין restaurant.photos) ─────────────── */
 
-/**
- * מחזיר את מערך התמונות של המסעדה.
- * כרגע אנחנו שומרים ישירות ב-restaurant.photos, לכן פשוט קורא מהמסעדה.
- * אם בעתיד תרצה לעבור לטבלת owner_photos, כאן המקום לשנות מימוש.
- */
 export async function listOwnerPhotosByRestaurant(restaurantId: string): Promise<string[]> {
   const r = await getRestaurant(restaurantId);
   if (!r) return [];
@@ -651,17 +667,11 @@ export async function listAvailableSlotsAround(
 /* ───────────────────────── Admin Utilities ───────────────────────── */
 
 export async function deactivateUser(id: string) {
-  const u = await getUserById(id);
-  if (!u) return false;
-  u.isActive = false;
-  return await updateUser(u.id, u);
+  return await setUserActive(id, false);
 }
 
 export async function activateUser(id: string) {
-  const u = await getUserById(id);
-  if (!u) return false;
-  u.isActive = true;
-  return await updateUser(u.id, u);
+  return await setUserActive(id, true);
 }
 
 export async function listUsersWithRestaurants() {
@@ -680,8 +690,6 @@ export async function listRestaurantsWithOwners() {
     owner: await getUserById(r.ownerId),
   })));
 }
-
-
 
 export async function deleteRestaurantCascade(restaurantId: string): Promise<number> {
   const r = await getRestaurant(restaurantId);
