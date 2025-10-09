@@ -50,7 +50,7 @@ export interface Reservation {
   time: string;   // HH:mm (תחילת הישיבה)
   people: number;
   note?: string;
-  status?: "new" | "confirmed" | "canceled" | "completed" | "blocked";
+  status?: "new" | "confirmed" | "canceled" | "completed" | "blocked" | "rescheduled";
   createdAt: number;
 }
 
@@ -525,6 +525,50 @@ export async function createReservation(r: Reservation) {
   const res = await tx.commit();
   if (!res.ok) throw new Error("create_reservation_race");
   return r;
+}
+
+/** ← חדש: קבלת הזמנה לפי מזהה */
+export async function getReservationById(id: string): Promise<Reservation | null> {
+  return (await kv.get<Reservation>(toKey("reservation", id))).value ?? null;
+}
+
+/** ← חדש: עדכון הזמנה (מטפל גם במעבר אינדקס אם restaurantId/date השתנו) */
+export async function updateReservation(id: string, patch: Partial<Reservation>): Promise<Reservation | null> {
+  const cur = await kv.get<Reservation>(toKey("reservation", id));
+  const prev = cur.value;
+  if (!prev) return null;
+
+  const next: Reservation = {
+    ...prev,
+    // לא לדרוס שדות שלא הגיעו
+    restaurantId: patch.restaurantId ?? prev.restaurantId,
+    date: patch.date ?? prev.date,
+    time: patch.time ?? prev.time,
+    people: patch.people ?? prev.people,
+    note: patch.note ?? prev.note,
+    status: patch.status ?? prev.status,
+    userId: patch.userId ?? prev.userId,
+    createdAt: prev.createdAt,
+  };
+
+  const tx = kv.atomic().set(toKey("reservation", id), next);
+
+  // אם restaurantId או date השתנו — לעדכן אינדקס reservation_by_day
+  const dayChanged = (next.restaurantId !== prev.restaurantId) || (next.date !== prev.date);
+  if (dayChanged) {
+    tx.delete(toKey("reservation_by_day", prev.restaurantId, prev.date, id))
+      .set(toKey("reservation_by_day", next.restaurantId, next.date, id), 1);
+  }
+
+  const res = await tx.commit();
+  if (!res.ok) throw new Error("update_reservation_race");
+  return next;
+}
+
+/** ← חדש: עדכון סטטוס בלבד */
+export async function setReservationStatus(id: string, status: NonNullable<Reservation["status"]>): Promise<boolean> {
+  const r = await updateReservation(id, { status });
+  return !!r;
 }
 
 export async function listReservationsByOwner(ownerId: string) {
