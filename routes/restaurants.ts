@@ -364,7 +364,7 @@ function extractDateAndTime(ctx: any, payload: Record<string, unknown>) {
   const rawTime = pickNonEmpty(
     payload["time"], qs.get("time"), (ref as any)["time"],
     (payload as any)["time_display"], (payload as any)["timeDisplay"],
-    qs.get("time_display"), qs.get("timeDisplay"],
+    qs.get("time_display"), qs.get("timeDisplay"),   // ← ← תוקן הסוגר
     (ref as any)["time_display"], (ref as any)["timeDisplay"],
     hhmmFromHM,
     payload["datetime"], payload["datetime_local"], (payload as any)["datetime-local"],
@@ -401,7 +401,7 @@ const DAY_NAME_TO_INDEX: Record<string, number> = {
 
 type WeeklyHoursMap = { [day: string]: { open: string; close: string } | null };
 
-/** מפענח שעות מ־payload שטוח: hours[1][open], hours.1.close, hours_mon_open וכו' */
+/** מפענח שעות מ־payload שטוח: hours[1][open], hours.1.open וכו' */
 function extractHoursFromFlatPayload(payload: Record<string, unknown>): WeeklyHoursMap | null {
   const out: WeeklyHoursMap = { "0": null, "1": null, "2": null, "3": null, "4": null, "5": null, "6": null };
 
@@ -440,7 +440,7 @@ function extractHoursFromFlatPayload(payload: Record<string, unknown>): WeeklyHo
   return hit ? out : null;
 }
 
-/** ממיר כל קלט (כולל JSON string, object או payload שטוח) למפה 0..6 → {open,close}|null */
+/** ממיר כל קלט למפה 0..6 → {open,close}|null */
 function ensureWeeklyHours(input: unknown, payloadForFlat?: Record<string, unknown>): WeeklyHoursMap {
   if (payloadForFlat) {
     const flat = extractHoursFromFlatPayload(payloadForFlat);
@@ -799,7 +799,7 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
     restaurantName: restaurant.name,
     date, time, people,
     customerName,
-    manageUrl, // <<< חשוב: הקישור למייל
+    manageUrl,
   }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
 
   const owner = await getUserById(restaurant.ownerId).catch(() => null);
@@ -918,7 +918,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
     restaurantName: restaurant.name,
     date, time, people,
     customerName,
-    manageUrl, // <<< חשוב
+    manageUrl,
   }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
 
   const owner = await getUserById(restaurant.ownerId).catch(() => null);
