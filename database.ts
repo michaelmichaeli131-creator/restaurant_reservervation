@@ -30,7 +30,7 @@ export interface Restaurant {
   city: string;
   address: string;
   phone?: string;
-  hours?: string;                 // טקסט חופשי, נשאר לפורמט ישן
+  hours?: string;                   // טקסט חופשי, נשאר לפורמט ישן
   description?: string;
   menu: Array<{ name: string; price?: number; desc?: string }>;
   capacity: number;                 // קיבולת בו־זמנית
@@ -212,26 +212,6 @@ export async function useResetToken(token: string) {
   return v.value;
 }
 
-/* ─────────── 🔒 Email-verified login guard (לשימוש שכבת ה־auth) ─────────── */
-
-/** האם משתמש רשאי להתחבר? דורש אימות מייל + שלא בוטל. */
-export function canUserLogin(user: User): boolean {
-  const active = user.isActive !== false;
-  const verified = user.emailVerified === true;
-  return active && verified;
-}
-
-/**
- * מחזיר אובייקט נוח להחלטה ב־auth:
- *  - { ok: true }       → אפשר להתחבר
- *  - { ok: false, reason: "unverified" | "disabled" }
- */
-export function loginGuard(user: User): { ok: true } | { ok: false; reason: "unverified" | "disabled" } {
-  if (user.isActive === false) return { ok: false, reason: "disabled" };
-  if (user.emailVerified !== true) return { ok: false, reason: "unverified" };
-  return { ok: true };
-}
-
 /* ─────────────────────── Helpers: time & grid ─────────────────────── */
 
 function toMinutes(hhmm: string): number {
@@ -405,7 +385,7 @@ export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
   const prev = cur.value;
   if (!prev) return null;
 
-  function lower(s?: string) { return (s ?? "").trim().toLowerCase(); }
+  function lowerLocal(s?: string) { return (s ?? "").trim().toLowerCase(); }
 
   const next: Restaurant = {
     ...prev,
@@ -428,13 +408,13 @@ export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
 
   const tx = kv.atomic().set(toKey("restaurant", id), next);
 
-  if (patch.name && lower(patch.name) !== lower(prev.name)) {
-    tx.delete(toKey("restaurant_name", lower(prev.name), id))
-      .set(toKey("restaurant_name", lower(patch.name), id), 1);
+  if (patch.name && lowerLocal(patch.name) !== lowerLocal(prev.name)) {
+    tx.delete(toKey("restaurant_name", lowerLocal(prev.name), id))
+      .set(toKey("restaurant_name", lowerLocal(patch.name), id), 1);
   }
-  if (patch.city && lower(patch.city) !== lower(prev.city)) {
-    tx.delete(toKey("restaurant_city", lower(prev.city), id))
-      .set(toKey("restaurant_city", lower(patch.city), id), 1);
+  if (patch.city && lowerLocal(patch.city) !== lowerLocal(prev.city)) {
+    tx.delete(toKey("restaurant_city", lowerLocal(prev.city), id))
+      .set(toKey("restaurant_city", lowerLocal(patch.city), id), 1);
   }
 
   const res = await tx.commit();
@@ -753,6 +733,43 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
   await tx2.commit().catch(() => {});
 
   return deleted;
+}
+
+/** מחיקת משתמש מדדית: כל המסעדות שלו + ההזמנות שלהן + אינדקסים + טוקנים */
+export async function deleteUserCascade(userId: string): Promise<{ restaurants: number }> {
+  // מחיקת כל המסעדות של המשתמש (כולל ההזמנות)
+  let restCount = 0;
+  for await (const row of kv.list({ prefix: toKey("restaurant_by_owner", userId) })) {
+    const rid = row.key[row.key.length - 1] as string;
+    await deleteRestaurantCascade(rid);
+    restCount++;
+  }
+  // ניקוי restaurant_by_owner שנותרו (אם נשארו מפתחות)
+  for await (const row of kv.list({ prefix: toKey("restaurant_by_owner", userId) })) {
+    await kv.delete(row.key);
+  }
+
+  // מחיקת טוקני verify/reset של המשתמש
+  for await (const row of kv.list({ prefix: toKey("verify") })) {
+    const token = row.key[row.key.length - 1] as string;
+    const v = (await kv.get<{ userId: string }>(toKey("verify", token))).value;
+    if (v?.userId === userId) await kv.delete(toKey("verify", token));
+  }
+  for await (const row of kv.list({ prefix: toKey("reset") })) {
+    const token = row.key[row.key.length - 1] as string;
+    const v = (await kv.get<{ userId: string }>(toKey("reset", token))).value;
+    if (v?.userId === userId) await kv.delete(toKey("reset", token));
+  }
+
+  // מחיקת המשתמש עצמו + אינדקסים
+  const user = await getUserById(userId);
+  if (user) {
+    await kv.delete(toKey("user", userId));
+    await kv.delete(toKey("user_by_email", lower(user.email)));
+    await kv.delete(toKey("user_by_username", lower(user.username)));
+  }
+
+  return { restaurants: restCount };
 }
 
 /* ──────────────────────────── Admin reset ─────────────────────────── */
