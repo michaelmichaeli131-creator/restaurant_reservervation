@@ -37,6 +37,7 @@ import ownerPhotosRouter from "./routes/owner_photos.ts";
 import { requestLogger } from "./lib/log_mw.ts";
 import { diagRouter } from "./routes/diag.ts";
 import openingRouter from "./routes/opening.ts";
+import { reservationPortal } from "./routes/reservation_portal.ts";
 
 // -------------------- ENV --------------------
 const PORT = Number(Deno.env.get("PORT") ?? "8000");
@@ -329,6 +330,10 @@ app.use(async (ctx, next) => {
 // אימות/משתמשים
 app.use(authRouter.routes());
 app.use(authRouter.allowedMethods());
+
+//מייל
+app.use(reservationPortal.routes());
+app.use(reservationPortal.allowedMethods());
 
 // אדמין (מוגן עם ADMIN_SECRET בתוך הראוטר עצמו)
 app.use(adminRouter.routes());

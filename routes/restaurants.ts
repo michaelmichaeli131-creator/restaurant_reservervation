@@ -14,6 +14,7 @@ import {
 import { render } from "../lib/view.ts";
 import { sendReservationEmail, notifyOwnerEmail } from "../lib/mail.ts";
 import { debugLog } from "../lib/debug.ts";
+import { makeReservationToken } from "../lib/token.ts";
 
 /* ---------------- Utilities ---------------- */
 
@@ -819,6 +820,23 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
     reservationId: reservation.id,
   });
 });
+
+
+const token = await makeReservationToken(reservation.id, user?.email);
+const origin = Deno.env.get("APP_BASE_URL")?.replace(/\/+$/, "") || `${ctx.request.url.protocol}//${ctx.request.url.host}`;
+const manageUrl = `${origin}/r/${encodeURIComponent(token)}`;
+
+// שלב את `manageUrl` בגוף המייל (טקסט/HTML):
+await sendReservationEmail({
+  to: user.email,
+  subject: "הזמנתך התקבלה",
+  text: `שלום ${user.firstName ?? ""},\n\nלניהול ההזמנה:\n${manageUrl}\n\nלאשר, לבטל או לשנות מועד — בלחיצה אחת.`,
+  html: `<p>שלום ${user.firstName ?? ""},</p>
+         <p>להלן קישור לניהול ההזמנה (אישור/ביטול/שינוי מועד):<br>
+         <a href="${manageUrl}" target="_blank" rel="noopener">${manageUrl}</a></p>`,
+});
+
+
 
 /* שלב 2 → אישור סופי (POST) */
 restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
