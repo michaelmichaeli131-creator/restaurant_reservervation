@@ -744,6 +744,45 @@ export async function deleteUserCascade(userId: string): Promise<{ restaurants: 
     await deleteRestaurantCascade(rid);
     restCount++;
   }
+  // ניקוי restaurant_by_owner שנותרו (בטיחות)
+  for await (const row of kv.list({ prefix: toKey("restaurant_by_owner", userId) })) {
+    await kv.delete(row.key);
+  }
+
+  // מחיקת טוקני verify/reset של המשתמש
+  for await (const row of kv.list({ prefix: toKey("verify") })) {
+    const token = row.key[row.key.length - 1] as string;
+    const v = (await kv.get<{ userId: string }>(toKey("verify", token))).value;
+    if (v?.userId === userId) await kv.delete(toKey("verify", token));
+  }
+  for await (const row of kv.list({ prefix: toKey("reset") })) {
+    const token = row.key[row.key.length - 1] as string;
+    const v = (await kv.get<{ userId: string }>(toKey("reset", token))).value;
+    if (v?.userId === userId) await kv.delete(toKey("reset", token));
+  }
+
+  // מחיקת המשתמש עצמו + אינדקסים
+  const user = await getUserById(userId);
+  if (user) {
+    await kv.delete(toKey("user", userId));
+    await kv.delete(toKey("user_by_email", (user.email ?? "").trim().toLowerCase()));
+    await kv.delete(toKey("user_by_username", (user.username ?? "").trim().toLowerCase()));
+  }
+
+  return { restaurants: restCount };
+}
+
+
+
+/** מחיקת משתמש מדדית: כל המסעדות שלו + ההזמנות שלהן + אינדקסים + טוקנים */
+export async function deleteUserCascade(userId: string): Promise<{ restaurants: number }> {
+  // מחיקת כל המסעדות של המשתמש (כולל ההזמנות)
+  let restCount = 0;
+  for await (const row of kv.list({ prefix: toKey("restaurant_by_owner", userId) })) {
+    const rid = row.key[row.key.length - 1] as string;
+    await deleteRestaurantCascade(rid);
+    restCount++;
+  }
   // ניקוי restaurant_by_owner שנותרו (אם נשארו מפתחות)
   for await (const row of kv.list({ prefix: toKey("restaurant_by_owner", userId) })) {
     await kv.delete(row.key);
