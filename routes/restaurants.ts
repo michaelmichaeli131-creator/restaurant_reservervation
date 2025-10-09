@@ -7,6 +7,9 @@ import {
   listAvailableSlotsAround,
   createReservation,
   getUserById,
+  getReservationById,          // ← צריך להיות ב-database.ts
+  updateReservationStatus,     // ← צריך להיות ב-database.ts
+  updateReservationTime,       // ← צריך להיות ב-database.ts
   type Reservation,
   type WeeklySchedule,
   type DayOfWeek,
@@ -14,7 +17,7 @@ import {
 import { render } from "../lib/view.ts";
 import { sendReservationEmail, notifyOwnerEmail } from "../lib/mail.ts";
 import { debugLog } from "../lib/debug.ts";
-import { makeReservationToken } from "../lib/token.ts";
+import { makeReservationToken, verifyReservationToken } from "../lib/token.ts";
 
 /* ---------------- Utilities ---------------- */
 
@@ -364,7 +367,7 @@ function extractDateAndTime(ctx: any, payload: Record<string, unknown>) {
   const rawTime = pickNonEmpty(
     payload["time"], qs.get("time"), (ref as any)["time"],
     (payload as any)["time_display"], (payload as any)["timeDisplay"],
-    qs.get("time_display"), qs.get("timeDisplay"),   // ← ← תוקן הסוגר
+    qs.get("time_display"), qs.get("timeDisplay"),
     (ref as any)["time_display"], (ref as any)["timeDisplay"],
     hhmmFromHM,
     payload["datetime"], payload["datetime_local"], (payload as any)["datetime-local"],
@@ -1024,6 +1027,58 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", `/restaurants/${encodeURIComponent(rid)}`);
   }
+});
+
+/* ===================== Reservation self-service ===================== */
+/* GET /r/:token – דף ניהול הזמנה */
+restaurantsRouter.get("/r/:token", async (ctx) => {
+  const token = String(ctx.params.token ?? "");
+  const payload = await verifyReservationToken(token).catch(() => null);
+  if (!payload) { ctx.response.status = Status.Unauthorized; ctx.response.body = "Invalid or expired link."; return; }
+
+  const reservation = await getReservationById(payload.rid).catch(() => null);
+  if (!reservation) { ctx.response.status = Status.NotFound; ctx.response.body = "Reservation not found."; return; }
+
+  await render(ctx, "reservation_manage", {
+    page: "reservation_manage",
+    title: "ניהול הזמנה",
+    token,
+    reservation,
+  });
+});
+
+/* POST /r/:token/confirm|cancel|reschedule – פעולות */
+restaurantsRouter.post("/r/:token/confirm", async (ctx) => {
+  const token = String(ctx.params.token ?? "");
+  const payload = await verifyReservationToken(token).catch(() => null);
+  if (!payload) { ctx.response.status = Status.Unauthorized; ctx.response.body = "Invalid or expired link."; return; }
+  await updateReservationStatus(payload.rid, "confirmed");
+  ctx.response.status = Status.SeeOther;
+  ctx.response.headers.set("Location", `/r/${encodeURIComponent(token)}`);
+});
+
+restaurantsRouter.post("/r/:token/cancel", async (ctx) => {
+  const token = String(ctx.params.token ?? "");
+  const payload = await verifyReservationToken(token).catch(() => null);
+  if (!payload) { ctx.response.status = Status.Unauthorized; ctx.response.body = "Invalid or expired link."; return; }
+  await updateReservationStatus(payload.rid, "canceled");
+  ctx.response.status = Status.SeeOther;
+  ctx.response.headers.set("Location", `/r/${encodeURIComponent(token)}`);
+});
+
+restaurantsRouter.post("/r/:token/reschedule", async (ctx) => {
+  const token = String(ctx.params.token ?? "");
+  const payload = await verifyReservationToken(token).catch(() => null);
+  if (!payload) { ctx.response.status = Status.Unauthorized; ctx.response.body = "Invalid or expired link."; return; }
+  const { payload: body } = await readBody(ctx);
+  const date = normalizeDate((body as any).date);
+  const time = normalizeTime((body as any).time);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
+    ctx.response.status = Status.BadRequest; ctx.response.body = "Bad date/time"; return;
+  }
+  await updateReservationTime(payload.rid, date, time);
+  ctx.response.status = Status.SeeOther;
+  ctx.response.headers.set("Location", `/r/${encodeURIComponent(token)}`);
 });
 
 export const router = restaurantsRouter;

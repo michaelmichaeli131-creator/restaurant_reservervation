@@ -2,8 +2,10 @@
 // שליחת אימיילים דרך Resend עם אכיפה על MAIL_FROM תקין,
 // תמיכת DRY-RUN נשלטת, ולוגים ברורים.
 // כולל תבניות HTML מעוצבות (RTL) לאימות, איפוס, אישור הזמנה ועוד.
+// **שיפורים**: כפתור ניהול הזמנה עם קישור ישיר (manageUrl),
+// אנטי-קליפינג בג'ימייל (תוכן ייחודי גלוי), וטקסט/HTML ברורים.
 
-// --------- ENV ----------
+/* ======================= ENV ======================= */
 const ENV = {
   BASE_URL: (Deno.env.get("BASE_URL") || "").trim(),
   RESEND_API_KEY: (Deno.env.get("RESEND_API_KEY") || "").trim(),
@@ -11,7 +13,7 @@ const ENV = {
   DRY_RUN: (Deno.env.get("RESEND_DRY_RUN") || "").toLowerCase() === "1",
 };
 
-// --------- Utils ----------
+/* ======================= Utils ======================= */
 function ensureFrom(): string {
   // חייבים MAIL_FROM עם @ ושאינו example.com
   if (!ENV.MAIL_FROM || !ENV.MAIL_FROM.includes("@")) {
@@ -94,7 +96,7 @@ function logDry(label: string, p: MailParams) {
   console.warn(`[mail][DRY] text:\n${p.text || htmlToText(p.html)}\n`);
 }
 
-// --------- Public send wrapper ----------
+/* ======================= Public send wrapper ======================= */
 async function sendMailAny(p: MailParams) {
   // אוכפים from תקין כבר עכשיו — אם חסר קונפיג, נכשיל במקום "לנחש"
   try { ensureFrom(); } catch (e) {
@@ -113,14 +115,14 @@ async function sendMailAny(p: MailParams) {
     console.log("[mail] sent via Resend:", { to: p.to, subject: p.subject, id: (data as any)?.id });
     return { ok: true };
   } catch (e) {
-    const msg = String(e?.message || e);
+    const msg = String((e as any)?.message || e);
     console.error("[mail] Resend error:", msg);
     // בכוונה לא נופלים ל-DRY כאן — זו תקלה שראוי לתקן (403/401/422 וכו')
     return { ok: false, reason: msg };
   }
 }
 
-// --------- Backward-compatible helper (string 'to') ----------
+/* --------- Backward-compatible helper (string 'to') ---------- */
 async function sendMail(to: string | string[], subject: string, html: string, text?: string) {
   return await sendMailAny({
     to,
@@ -141,7 +143,7 @@ const palette = {
   bg: "#f4f7fb",
   card: "#06b6d4", // טורקיז
   text: "#0f172a",
-  sub: "#64748b",
+  sub: "#475569",  // כהה יותר למניעת "טמון"/קליפינג
   btn: "#06b6d4",
   btnText: "#ffffff",
   white: "#ffffff",
@@ -152,7 +154,7 @@ const baseWrapStart = `
   <div dir="rtl" style="background:${palette.bg};padding:32px 0;">
     <table align="center" role="presentation" width="100%" style="max-width:640px;margin:auto;background:${palette.white};border:1px solid ${palette.border};border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,.04);font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:${palette.text};line-height:1.6">
       <tr><td style="padding:28px 28px 8px;">
-        <h1 style="margin:0 0 4px;font-size:32px;font-weight:700;">`;
+        <h1 style="margin:0 0 4px;font-size:28px;font-weight:800;letter-spacing:.2px;">`;
 const baseWrapMid = `</h1>
         <p style="margin:0 0 16px;color:${palette.sub};font-size:16px;">`;
 const baseWrapEndHead = `</p>
@@ -177,7 +179,7 @@ function formatDM(dateStr: string) {
   return `${d}/${m}`;
 }
 
-/* ---------------- אימות מייל אחרי הרשמה ---------------- */
+/* =================== אימות מייל אחרי הרשמה =================== */
 export async function sendVerifyEmail(to: string, token: string) {
   const link = buildUrl(`/auth/verify?token=${encodeURIComponent(token)}`);
   const html = `
@@ -191,7 +193,7 @@ ${baseWrapClose}
   return await sendMail(to, "אימות כתובת דוא\"ל – GeoTable", html);
 }
 
-/* ---------------- קישור לשחזור סיסמה ---------------- */
+/* =================== קישור לשחזור סיסמה =================== */
 export async function sendResetEmail(to: string, token: string) {
   const link = buildUrl(`/auth/reset?token=${encodeURIComponent(token)}`);
   const html = `
@@ -205,7 +207,7 @@ ${baseWrapClose}
   return await sendMail(to, "שחזור סיסמה – GeoTable", html);
 }
 
-/* ---------------- אישור הזמנה ללקוח ---------------- */
+/* =================== אישור הזמנה ללקוח =================== */
 export async function sendReservationEmail(opts: {
   to: string;
   restaurantName: string;
@@ -213,36 +215,46 @@ export async function sendReservationEmail(opts: {
   time: string;   // HH:mm
   people: number;
   customerName?: string;
+  manageUrl?: string;     // ← כפתור ניהול ישיר
+  reservationId?: string; // ← להצגה גלויה למניעת קליפינג בג'ימייל
 }) {
-  const { to, restaurantName, date, time, people, customerName } = opts;
+  const { to, restaurantName, date, time, people, customerName, manageUrl, reservationId } = opts;
   const d = new Date(`${date}T12:00:00`); // להימנע מ-TZ edge
   const dayShort = isNaN(d.getTime()) ? "" : hebDayShort(d);
   const dm = formatDM(date);
 
+  // מזהה קצר לאנטי-קליפינג (גלוי ללקוח)
+  const shortId =
+    (reservationId && reservationId.slice(-6)) ||
+    (manageUrl?.split("/").pop()?.replace(/[^a-zA-Z0-9]/g, "").slice(-6)) ||
+    "";
+
   // בלוק פרטים כמו בתמונה: כרטיס טורקיז עם 3 עמודות
   const detailsCard = `
-    <div style="background:${palette.card};color:#fff;border-radius:16px;padding:18px 16px;max-width:420px;margin:10px auto 4px;">
+    <div style="background:${palette.card};color:#fff;border-radius:16px;padding:18px 16px;max-width:460px;margin:10px auto 8px;">
       <table role="presentation" width="100%" style="border-collapse:collapse;color:#fff;">
         <tr>
           <td style="width:33%;text-align:center;">
-            <div style="opacity:.9;font-size:14px;">יום / ת׳</div>
-            <div style="font-size:20px;font-weight:700;letter-spacing:.3px;">${dayShort} ${dm}</div>
+            <div style="opacity:.95;font-size:14px;">יום / ת׳</div>
+            <div style="font-size:20px;font-weight:800;letter-spacing:.3px;">${dayShort} ${dm}</div>
           </td>
           <td style="width:33%;text-align:center;">
-            <div style="opacity:.9;font-size:14px;">בשעה</div>
-            <div style="font-size:20px;font-weight:700;letter-spacing:.3px;">${time}</div>
+            <div style="opacity:.95;font-size:14px;">בשעה</div>
+            <div style="font-size:20px;font-weight:800;letter-spacing:.3px;">${time}</div>
           </td>
           <td style="width:33%;text-align:center;">
-            <div style="opacity:.9;font-size:14px;">אורחים</div>
-            <div style="font-size:20px;font-weight:700;letter-spacing:.3px;">${people}</div>
+            <div style="opacity:.95;font-size:14px;">אורחים</div>
+            <div style="font-size:20px;font-weight:800;letter-spacing:.3px;">${people}</div>
           </td>
         </tr>
       </table>
+      ${shortId ? `<div style="margin-top:8px;text-align:center;font-size:12px;opacity:.9;">קוד הזמנה: <strong style="letter-spacing:.4px;">${shortId}</strong></div>` : ""}
     </div>
   `;
 
+  // טקסטים גלויים (למנוע קליפינג: אין display:none; אין צבע לבן על לבן; אין ציטוטים ארוכים)
   const html = `
-${baseWrapStart}${restaurantName}${baseWrapMid}הכתובת/הוראות הגעה יופיעו בדף המסעדה.${baseWrapEndHead}
+${baseWrapStart}${restaurantName}${baseWrapMid}פרטי ההזמנה שלך. ניתן לאשר/לבטל/לשנות מועד דרך הקישור למטה.${baseWrapEndHead}
   ${detailsCard}
 
   <div style="padding:6px 4px 0;">
@@ -254,15 +266,44 @@ ${baseWrapStart}${restaurantName}${baseWrapMid}הכתובת/הוראות הגע�
   </div>
 
   <div style="text-align:center;margin:16px 0 0;">
-    <a href="${buildUrl("/")}" style="display:inline-block;background:${palette.btn};color:${palette.btnText};padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:600;">לפרטים או ביטול</a>
+    ${
+      manageUrl
+        ? `<a href="${manageUrl}" style="display:inline-block;background:${palette.btn};color:${palette.btnText};padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:700;">ניהול ההזמנה (אישור/ביטול/שינוי)</a>`
+        : `<a href="${buildUrl("/")}" style="display:inline-block;background:${palette.btn};color:${palette.btnText};padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:700;">דף המסעדה</a>`
+    }
   </div>
+
+  ${
+    manageUrl
+      ? `<p style="margin:14px 0 0;color:${palette.sub};font-size:14px;word-break:break-all">קישור ישיר: <a href="${manageUrl}">${manageUrl}</a></p>`
+      : ""
+  }
 ${baseWrapClose}
   `;
 
-  return await sendMail(to, `אישור הזמנה – ${restaurantName}`, html);
+  // נוסיף טקסט ברור כדי שלא "יוחבא" בקליינטים מסוימים
+  const text = [
+    `${restaurantName} – אישור הזמנה`,
+    customerName ? `שלום ${customerName},` : "",
+    `תאריך: ${date} | שעה: ${time} | סועדים: ${people}`,
+    shortId ? `קוד הזמנה: ${shortId}` : "",
+    "🎉 הזמנתך נקלטה. השולחן ישמר 15 דקות. חניה מוזלת בסופי שבוע מ-18:00.",
+    manageUrl ? `ניהול ההזמנה (אישור/ביטול/שינוי): ${manageUrl}` : `לפרטים: ${buildUrl("/")}`,
+  ].filter(Boolean).join("\n");
+
+  return await sendMailAny({
+    to,
+    subject: `אישור הזמנה – ${restaurantName}`,
+    html,
+    text,
+    headers: {
+      "Reply-To": "no-reply",
+      "List-Unsubscribe": "<mailto:no-reply>",
+    },
+  });
 }
 
-/* ---------------- התראה לבעל המסעדה ---------------- */
+/* =================== התראה לבעל המסעדה =================== */
 export async function notifyOwnerEmail(opts: {
   to: string | string[];
   restaurantName: string;
@@ -286,10 +327,14 @@ ${baseWrapStart}התקבלה הזמנה חדשה${baseWrapMid}${restaurantName}$
   </div>
 ${baseWrapClose}
   `;
-  return await sendMail(to, `הזמנה חדשה – ${restaurantName}`, html);
+  const text =
+    `התקבלה הזמנה חדשה – ${restaurantName}\n` +
+    `תאריך: ${date} | שעה: ${time} | סועדים: ${people}\n` +
+    `לקוח: ${customerName} | נייד: ${customerPhone} | אימייל: ${customerEmail}`;
+  return await sendMailAny({ to, subject: `הזמנה חדשה – ${restaurantName}`, html, text });
 }
 
-/* ---------------- תזכורת (למשל יום לפני) ---------------- */
+/* =================== תזכורת (למשל יום לפני) =================== */
 export async function sendReminderEmail(opts: {
   to: string | string[];
   confirmUrl: string;
@@ -316,5 +361,9 @@ ${baseWrapStart}תזכורת להזמנה${baseWrapMid}${restaurantName}${baseWr
   </div>
 ${baseWrapClose}
   `;
-  return await sendMail(to, "תזכורת להזמנה – נא אשר/י הגעה", html);
+  const text =
+    `תזכורת להזמנה – ${restaurantName}\n` +
+    `תאריך: ${date} | שעה: ${time} | סועדים: ${people}\n` +
+    `אישור הגעה: ${link}`;
+  return await sendMailAny({ to, subject: "תזכורת להזמנה – נא אשר/י הגעה", html, text });
 }
