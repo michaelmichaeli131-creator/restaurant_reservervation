@@ -293,8 +293,6 @@ app.use(adminRouter.allowedMethods());
 // ראוטרים לבעלים - הספציפיים ביותר קודם!
 app.use(ownerHoursRouter.routes());
 app.use(ownerHoursRouter.allowedMethods());
-app.use(adminUsersRouter.routes());
-app.use(adminUsersRouter.allowedMethods());
 
 app.use(ownerCapacityRouter.routes());
 app.use(ownerCapacityRouter.allowedMethods());
