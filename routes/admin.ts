@@ -14,7 +14,7 @@ import {
   // listUsersWithRestaurants,
   // listRestaurantsWithOwners,
   // setUserActive,
-   deleteUserCascade,
+  // deleteUserCascade,
 } from "../database.ts";
 
 const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
