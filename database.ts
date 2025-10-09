@@ -1,6 +1,6 @@
 // src/database.ts
 // Deno KV – אינדקסים עם prefix ועסקאות atomic
-// שדרוגים: נירמול חלקי מפתח (Key Parts) + קשיחות createUser לגזירת username מה-email במקרה הצורך.
+// שדרוגים: נירמול חלקי מפתח (Key Parts) + שדות אימות/סטטוס משתמש והצלבות משתמש↔מסעדות.
 
 export interface User {
   id: string;
@@ -14,7 +14,7 @@ export interface User {
   role: "user" | "owner";
   provider: "local" | "google";
   emailVerified?: boolean;
-  isActive?: boolean;               // ← חדש: סטטוס חשבון
+  isActive?: boolean;               // סטטוס חשבון
   createdAt: number;
 }
 
@@ -29,22 +29,22 @@ export interface Restaurant {
   city: string;
   address: string;
   phone?: string;
-  hours?: string;
+  hours?: string;                  // טקסט חופשי לשמירה לאחור
   description?: string;
   menu: Array<{ name: string; price?: number; desc?: string }>;
-  capacity: number;
-  slotIntervalMinutes: number;
-  serviceDurationMinutes: number;
-  weeklySchedule?: WeeklySchedule;
+  capacity: number;                 // קיבולת בו־זמנית
+  slotIntervalMinutes: number;      // גריד הסלוטים (דיפולט 15)
+  serviceDurationMinutes: number;   // משך ישיבה (דיפולט 120)
+  weeklySchedule?: WeeklySchedule;  // פתיחה לפי ימים
   photos?: string[];
-  approved?: boolean;
+  approved?: boolean;               // דורש אישור אדמין
   createdAt: number;
 }
 
 export interface Reservation {
   id: string;
   restaurantId: string;
-  userId: string;
+  userId: string; // גם ל-block ידני אפשר "manual-block:<ownerId>"
   date: string;   // YYYY-MM-DD
   time: string;   // HH:mm
   people: number;
@@ -53,7 +53,7 @@ export interface Reservation {
   createdAt: number;
 }
 
-// KV יחיד לכל התהליכים
+// KV יחיד
 export const kv = await Deno.openKv();
 
 const lower = (s?: string) => (s ?? "").trim().toLowerCase();
@@ -87,10 +87,10 @@ export async function createUser(u: {
   provider?: "local" | "google";
 }): Promise<User> {
   const id = u.id || crypto.randomUUID();
-
   const emailNorm = lower(u.email);
   if (!emailNorm) throw new Error("email_required");
 
+  // אם אין username → נגזור מה-email (לפני @) או ניצור שם קצר
   const usernameNorm =
     lower(u.username) ||
     lower(emailNorm.split("@")[0] || "") ||
@@ -111,7 +111,7 @@ export async function createUser(u: {
     role: u.role ?? "owner",
     provider: u.provider ?? "local",
     emailVerified: false,
-    isActive: true, // ברירת מחדל
+    isActive: true,
     createdAt: now(),
   };
 
@@ -143,6 +143,14 @@ export async function getUserById(id: string) {
   return (await kv.get<User>(toKey("user", id))).value ?? null;
 }
 
+export async function updateUser(userId: string, patch: Partial<User>) {
+  const cur = await kv.get<User>(toKey("user", userId));
+  if (!cur.value) return null;
+  const next: User = { ...cur.value, ...patch };
+  await kv.set(toKey("user", userId), next);
+  return next;
+}
+
 export async function setEmailVerified(userId: string) {
   const cur = await kv.get<User>(toKey("user", userId));
   if (!cur.value) return null;
@@ -159,7 +167,7 @@ export async function updateUserPassword(userId: string, passwordHash: string) {
   return next;
 }
 
-/** הפעלה/השבתה של משתמש (לשימוש אדמין) */
+/** הפעלה/השבתה של משתמש (אדמין) */
 export async function setUserActive(userId: string, isActive: boolean): Promise<boolean> {
   const cur = await kv.get<User>(toKey("user", userId));
   if (!cur.value) return false;
@@ -218,18 +226,15 @@ function toMinutes(hhmm: string): number {
   const h = Number(m[1]), mi = Number(m[2]);
   return h * 60 + mi;
 }
-
 function fromMinutes(total: number): string {
   const t = Math.max(0, Math.min(1439, Math.trunc(total)));
   const h = Math.floor(t / 60).toString().padStart(2, "0");
   const mi = (t % 60).toString().padStart(2, "0");
   return `${h}:${mi}`;
 }
-
 function snapToGrid(mins: number, step: number): number {
   return Math.floor(mins / step) * step;
 }
-
 function parseLocalYMD(dateISO: string): Date | null {
   const m = String(dateISO ?? "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return null;
@@ -254,7 +259,6 @@ function openingRangesForDate(r: Restaurant, date: string): Array<[number, numbe
 
   const d = parseLocalYMD(date);
   if (!d) return [];
-
   const dow = d.getDay() as DayOfWeek;
 
   const def = weekly[dow] ?? weekly[String(dow)] ?? null;
@@ -289,18 +293,16 @@ export function openingWindowsForDate(
   dateISO: string,
 ): Array<{ open: string; close: string }> {
   const weekly: any = r.weeklySchedule ?? (r as any).openingHours ?? null;
-
   if (!weekly) return [{ open: "00:00", close: "24:00" }];
 
   const m = String(dateISO ?? "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return [{ open: "00:00", close: "24:00" }];
   const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
   if (isNaN(d.getTime())) return [{ open: "00:00", close: "24:00" }];
-
   const dow = d.getDay() as DayOfWeek;
+
   const keyNum = dow as any;
   const keyStr = String(dow);
-
   const hasNum = Object.prototype.hasOwnProperty.call(weekly, keyNum);
   const hasStr = Object.prototype.hasOwnProperty.call(weekly, keyStr);
   const hasKey = hasNum || hasStr;
@@ -362,7 +364,7 @@ export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
   const prev = cur.value;
   if (!prev) return null;
 
-  function lower(s?: string) { return (s ?? "").trim().toLowerCase(); }
+  function lowerLocal(s?: string) { return (s ?? "").trim().toLowerCase(); }
 
   const next: Restaurant = {
     ...prev,
@@ -378,24 +380,17 @@ export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
 
   const tx = kv.atomic().set(toKey("restaurant", id), next);
 
-  if (patch.name && lower(patch.name) !== lower(prev.name)) {
-    tx.delete(toKey("restaurant_name", lower(prev.name), id))
-      .set(toKey("restaurant_name", lower(patch.name), id), 1);
+  if (patch.name && lowerLocal(patch.name) !== lowerLocal(prev.name)) {
+    tx.delete(toKey("restaurant_name", lowerLocal(prev.name), id))
+      .set(toKey("restaurant_name", lowerLocal(patch.name), id), 1);
   }
-  if (patch.city && lower(patch.city) !== lower(prev.city)) {
-    tx.delete(toKey("restaurant_city", lower(prev.city), id))
-      .set(toKey("restaurant_city", lower(patch.city), id), 1);
+  if (patch.city && lowerLocal(patch.city) !== lowerLocal(prev.city)) {
+    tx.delete(toKey("restaurant_city", lowerLocal(prev.city), id))
+      .set(toKey("restaurant_city", lowerLocal(patch.city), id), 1);
   }
 
   const res = await tx.commit();
   if (!res.ok) throw new Error("update_restaurant_race");
-
-  console.log("[DB] updateRestaurant saved:", {
-    id,
-    weeklySchedule: next.weeklySchedule,
-    capacity: next.capacity,
-    slotIntervalMinutes: next.slotIntervalMinutes,
-  });
 
   return next;
 }
@@ -432,6 +427,7 @@ export async function listRestaurants(q?: string, onlyApproved = true): Promise<
     push((await kv.get<Restaurant>(toKey("restaurant", id))).value);
   }
 
+  // חיפוש חופשי (מכיל גם כתובת)
   for await (const row of kv.list({ prefix: toKey("restaurant") })) {
     const r = (await kv.get<Restaurant>(row.key as any)).value;
     if (!r) continue;
@@ -457,13 +453,11 @@ export async function listOwnerPhotosByRestaurant(restaurantId: string): Promise
   if (!r) return [];
   return Array.isArray(r.photos) ? r.photos.filter(Boolean).map(String) : [];
 }
-
 export async function setRestaurantPhotos(restaurantId: string, photos: string[]): Promise<void> {
   const r = await getRestaurant(restaurantId);
   if (!r) return;
   await updateRestaurant(restaurantId, { photos: (photos ?? []).filter(Boolean) });
 }
-
 export async function addOwnerPhoto(restaurantId: string, dataURL: string): Promise<void> {
   const r = await getRestaurant(restaurantId);
   if (!r) return;
@@ -472,7 +466,7 @@ export async function addOwnerPhoto(restaurantId: string, dataURL: string): Prom
   await updateRestaurant(restaurantId, { photos: cur });
 }
 
-/* ───────── Reservations, occupancy & availability ───────── */
+/* ─────────────── Reservations & availability ─────────────── */
 
 export async function listReservationsFor(restaurantId: string, date: string): Promise<Reservation[]> {
   const out: Reservation[] = [];
@@ -521,7 +515,7 @@ export async function listReservationsByOwner(ownerId: string) {
 export async function computeOccupancy(restaurant: Restaurant, date: string) {
   const r = coerceRestaurantDefaults(restaurant);
   const resv = await listReservationsFor(r.id, date);
-  const map = new Map<string, number>();
+  const map = new Map<string, number>(); // time -> used seats
 
   const step = r.slotIntervalMinutes;
   const span = r.serviceDurationMinutes;
@@ -555,9 +549,7 @@ export async function checkAvailability(restaurantId: string, date: string, time
 
   if (end > 24 * 60) return { ok: false as const, reason: "out_of_day" as const };
 
-  if (!isWithinOpening(r, date, start, span)) {
-    return { ok: false as const, reason: "closed" as const };
-  }
+  if (!isWithinOpening(r, date, start, span)) return { ok: false as const, reason: "closed" as const };
 
   const occ = await computeOccupancy(r, date);
   for (let t = start; t < end; t += step) {
@@ -632,14 +624,13 @@ export async function listAvailableSlotsAround(
 export async function deactivateUser(id: string) {
   return await setUserActive(id, false);
 }
-
 export async function activateUser(id: string) {
   return await setUserActive(id, true);
 }
 
 export async function listUsersWithRestaurants() {
   const users = await listUsers();
-  const restaurants = await listRestaurants();
+  const restaurants = await listRestaurants("", false);
   return users.map(u => ({
     ...u,
     restaurants: restaurants.filter(r => r.ownerId === u.id),
@@ -647,14 +638,13 @@ export async function listUsersWithRestaurants() {
 }
 
 export async function listRestaurantsWithOwners() {
-  const restaurants = await listRestaurants();
+  const restaurants = await listRestaurants("", false);
   return await Promise.all(restaurants.map(async r => ({
     ...r,
     owner: await getUserById(r.ownerId),
   })));
 }
 
-/** מחיקת מסעדה כולל הזמנות ואינדקסים */
 export async function deleteRestaurantCascade(restaurantId: string): Promise<number> {
   const r = await getRestaurant(restaurantId);
   if (!r) return 0;
@@ -665,6 +655,7 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
     reservationIds.push(id);
   }
 
+  // מחיקה במנות
   const chunk = <T>(arr: T[], size: number) =>
     arr.reduce<T[][]>((acc, v, i) => {
       if (i % size === 0) acc.push([]);
@@ -696,43 +687,6 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
   await tx2.commit().catch(() => {});
 
   return deleted;
-}
-
-/** מחיקת משתמש מדדית: כל המסעדות שלו + ההזמנות שלהן + אינדקסים + טוקנים */
-export async function deleteUserCascade(userId: string): Promise<{ restaurants: number }> {
-  // מחיקת כל המסעדות של המשתמש (כולל ההזמנות)
-  let restCount = 0;
-  for await (const row of kv.list({ prefix: toKey("restaurant_by_owner", userId) })) {
-    const rid = row.key[row.key.length - 1] as string;
-    await deleteRestaurantCascade(rid);
-    restCount++;
-  }
-  // ניקוי restaurant_by_owner שנותרו (אם נשארו מפתחות)
-  for await (const row of kv.list({ prefix: toKey("restaurant_by_owner", userId) })) {
-    await kv.delete(row.key);
-  }
-
-  // מחיקת טוקני verify/reset של המשתמש
-  for await (const row of kv.list({ prefix: toKey("verify") })) {
-    const token = row.key[row.key.length - 1] as string;
-    const v = (await kv.get<{ userId: string }>(toKey("verify", token))).value;
-    if (v?.userId === userId) await kv.delete(toKey("verify", token));
-  }
-  for await (const row of kv.list({ prefix: toKey("reset") })) {
-    const token = row.key[row.key.length - 1] as string;
-    const v = (await kv.get<{ userId: string }>(toKey("reset", token))).value;
-    if (v?.userId === userId) await kv.delete(toKey("reset", token));
-  }
-
-  // מחיקת המשתמש עצמו + אינדקסים
-  const user = await getUserById(userId);
-  if (user) {
-    await kv.delete(toKey("user", userId));
-    await kv.delete(toKey("user_by_email", lower(user.email)));
-    await kv.delete(toKey("user_by_username", lower(user.username)));
-  }
-
-  return { restaurants: restCount };
 }
 
 /* ──────────────────────────── Admin reset ─────────────────────────── */
@@ -811,25 +765,7 @@ export async function resetAll(): Promise<void> {
   for (const p of prefixes) await deleteByPrefix(p);
 }
 
-/* אופציונלי — מתקנת רשומות ישנות עם capacity/step/span לא תקינים */
-export async function fixRestaurantsDefaults(): Promise<number> {
-  let changed = 0;
-  for await (const row of kv.list({ prefix: toKey("restaurant") })) {
-    const id = row.key[row.key.length - 1] as string;
-    const cur = (await kv.get<Restaurant>(toKey("restaurant", id))).value;
-    if (!cur) continue;
-    const r = coerceRestaurantDefaults(cur);
-    if (r.capacity !== cur.capacity ||
-        r.slotIntervalMinutes !== cur.slotIntervalMinutes ||
-        r.serviceDurationMinutes !== cur.serviceDurationMinutes) {
-      await kv.set(toKey("restaurant", id), r);
-      changed++;
-    }
-  }
-  return changed;
-}
-
-/* ─────────────────────── Hours updaters & normalizers ─────────────────────── */
+/* ─────────────────────── NEW: Hours updaters & normalizers ─────────────────────── */
 
 function normHHmm(raw: unknown): string {
   let s = String(raw ?? "").trim();
@@ -853,6 +789,7 @@ function normHHmm(raw: unknown): string {
   return `${String(h).padStart(2,"0")}:${String(mi).padStart(2,"0")}`;
 }
 
+/** ממיר אובייקט "0..6" או 0..6 עם {open,close}|null ל־WeeklySchedule טיפוסי */
 function normalizeWeeklySchedule(anyHours: any): WeeklySchedule {
   const out: WeeklySchedule = {};
   for (let d = 0 as DayOfWeek; d <= 6; d = (d + 1) as DayOfWeek) {
@@ -865,6 +802,7 @@ function normalizeWeeklySchedule(anyHours: any): WeeklySchedule {
   return out;
 }
 
+/** עדכון שעות פתיחה (+ אופציונלי: slotIntervalMinutes, capacity) */
 export async function updateRestaurantHours(
   id: string,
   hours: WeeklySchedule | Record<string, OpeningWindow | null>,
@@ -877,7 +815,6 @@ export async function updateRestaurantHours(
   const weekly = normalizeWeeklySchedule(hours);
 
   const patch: Partial<Restaurant> = { weeklySchedule: weekly };
-
   if (Number.isFinite(slotIntervalMinutes as number)) {
     patch.slotIntervalMinutes = Math.max(5, (slotIntervalMinutes as number));
   }
@@ -885,10 +822,8 @@ export async function updateRestaurantHours(
     patch.capacity = Math.max(1, (capacity as number));
   }
 
-  // תאימות
-  // @ts-ignore
+  // תאימות לשדות ישנים:
   (patch as any).openingHours = weekly;
-  // @ts-ignore
   (patch as any).hours = (current.hours ?? "");
 
   return await updateRestaurant(id, patch);

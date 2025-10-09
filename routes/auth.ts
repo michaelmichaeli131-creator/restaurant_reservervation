@@ -11,7 +11,6 @@ import {
   useResetToken,
   updateUserPassword,
   type User,
-  getUserById,
 } from "../database.ts";
 import { render } from "../lib/view.ts";
 import { sendVerifyEmail, sendResetEmail } from "../lib/mail.ts";
@@ -99,10 +98,6 @@ async function readBody(ctx: any): Promise<{ data: Record<string, unknown>; meta
     contentType: ctRaw || "(none)",
     hasOakBodyFn: typeof oakReq?.body === "function",
     hasFetchReq: !!fetchReq,
-    fetchHasFormDataFn: typeof fetchReq?.formData === "function",
-    fetchHasJsonFn: typeof fetchReq?.json === "function",
-    fetchHasTextFn: typeof fetchReq?.text === "function",
-    fetchHasStream: !!fetchReq?.body,
   });
 
   try {
@@ -274,17 +269,6 @@ authRouter.post("/auth/login", async (ctx) => {
     return;
   }
 
-  // חדש: חסימת משתמשים מבוטלים
-  if (user.isActive === false) {
-    ctx.response.status = Status.Forbidden;
-    await render(ctx, "auth/login", {
-      title: "התחברות",
-      page: "login",
-      error: "החשבון מבוטל. לפתרון אנא פנו לתמיכה.",
-    });
-    return;
-  }
-
   if (!user.emailVerified) {
     // חוסמים התחברות עד אימות
     const token = await createVerifyToken(user.id);
@@ -295,6 +279,16 @@ authRouter.post("/auth/login", async (ctx) => {
       page: "login",
       error: "נדרש אימות דוא״ל לפני התחברות. שלחנו לך קישור אימות נוסף.",
       verifyResend: true,
+    });
+    return;
+  }
+
+  if (user.isActive === false) {
+    ctx.response.status = Status.Forbidden;
+    await render(ctx, "auth/login", {
+      title: "התחברות",
+      page: "login",
+      error: "החשבון מבוטל. פנה/י לתמיכה.",
     });
     return;
   }
@@ -342,19 +336,7 @@ authRouter.get("/auth/verify", async (ctx) => {
     await render(ctx, "verify_notice", { title: "אימות אימייל", page: "verify", error: "קישור פג או לא תקין" });
     return;
   }
-
   await setEmailVerified(used.userId);
-
-  // בדיקה אם המשתמש אינו פעיל — לא נחבר
-  const u = await getUserById(used.userId);
-  if (u?.isActive === false) {
-    await render(ctx, "verify_notice", {
-      title: "אימות אימייל",
-      page: "verify",
-      info: "האימייל אומת, אך החשבון מבוטל. לפתרון אנא פנו לתמיכה.",
-    });
-    return;
-  }
 
   // לאחר אימות – מחברים אוטומטית
   const session = (ctx.state as any)?.session;
@@ -377,16 +359,6 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
     await render(ctx, "verify_notice", { title: "שליחת אימות", page: "verify", info: "אם הדוא״ל קיים — נשלח קישור אימות." });
     return;
   }
-
-  if (user.isActive === false) {
-    await render(ctx, "verify_notice", {
-      title: "שליחת אימות",
-      page: "verify",
-      info: "לא ניתן לשלוח אימות לחשבון שבוטל. לפתרון אנא פנו לתמיכה.",
-    });
-    return;
-  }
-
   if (user.emailVerified) {
     await render(ctx, "verify_notice", { title: "שליחת אימות", page: "verify", info: "החשבון כבר מאומת. אפשר להתחבר." });
     return;

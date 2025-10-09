@@ -10,11 +10,10 @@ import {
   resetUsers,
   resetAll,
   deleteRestaurantCascade,
-  // את היכולות המתקדמות נטען דינמית (כדי לא להפיל את השרת אם לא קיימות)
+  // את היכולות החדשות נטען דינמית כדי לא לשבור אם לא קיימות
   // listUsersWithRestaurants,
   // listRestaurantsWithOwners,
   // setUserActive,
-  // deleteUserCascade,
 } from "../database.ts";
 
 const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
@@ -25,7 +24,6 @@ type DBExtra = {
   listUsersWithRestaurants?: (q?: string) => Promise<any[]>;
   listRestaurantsWithOwners?: (q?: string) => Promise<(Restaurant & { owner?: any | null })[]>;
   setUserActive?: (userId: string, isActive: boolean) => Promise<boolean>;
-  deleteUserCascade?: (userId: string) => Promise<boolean | number>;
 };
 let _dbExtraCache: DBExtra | null = null;
 
@@ -37,7 +35,6 @@ async function getDbExtra(): Promise<DBExtra> {
       listUsersWithRestaurants: mod.listUsersWithRestaurants,
       listRestaurantsWithOwners: mod.listRestaurantsWithOwners,
       setUserActive: mod.setUserActive,
-      deleteUserCascade: (mod as any).deleteUserCascade, // ייתכן שלא קיים — נשאר אופציונלי
     };
   } catch {
     _dbExtraCache = {};
@@ -112,7 +109,6 @@ function page(layout: { title: string; body: string; key?: string }) {
 </html>`;
 }
 
-/* שורת מסעדה בסיסית */
 function renderRestaurantRow(r: Restaurant, key: string) {
   const approved = r.approved ? "✅ מאושרת" : "⏳ ממתינה";
   const caps = `קיבולת: ${r.capacity ?? "-"} · סלוט: ${r.slotIntervalMinutes ?? "-"}ד' · שירות: ${r.serviceDurationMinutes ?? "-"}ד'`;
@@ -140,7 +136,7 @@ function renderRestaurantRow(r: Restaurant, key: string) {
   </tr>`;
 }
 
-/** גרסה שמציגה גם בעלים (ובאג סטטוס תוקן: אם isActive === false → מבוטל, אחרת פעיל) */
+/** גרסה שמציגה גם בעלים */
 function renderRestaurantRowWithOwner(
   r: Restaurant & { owner?: { id: string; firstName?: string; lastName?: string; email?: string; isActive?: boolean } | null },
   key: string,
@@ -450,11 +446,8 @@ adminRouter.get("/admin/users", async (ctx) => {
       <td><strong>${u.firstName ?? ""} ${u.lastName ?? ""}</strong><br/><small class="muted" dir="ltr">${u.email}</small></td>
       <td>${u.role ?? "user"} <span class="badge">${u.provider ?? "local"}</span></td>
       <td>${u.isActive === false ? "❌ מבוטל" : "✅ פעיל"}</td>
-      <td>${
-        u.restaurants?.length
-          ? u.restaurants.map((r:any)=>`<div><a href="/restaurants/${r.id}" target="_blank" rel="noopener">${r.name}</a></div>`).join("")
-          : `<span class="muted">אין</span>`
-      }</td>
+      <td>${u.restaurants?.length ? u.restaurants.map((r:any)=>`<div><a href="/restaurants/${r.id}" target="_blank">${r.name}</a></div>`).join("") : `<span class="muted">אין</span>`}
+      </td>
       <td>
         ${
           u.isActive === false
@@ -462,13 +455,9 @@ adminRouter.get("/admin/users", async (ctx) => {
                  <button class="btn" type="submit">הפעל</button>
                </form>`
             : `<form class="inline" method="post" action="/admin/users/${u.id}/deactivate?key=${encodeURIComponent(key)}" onsubmit="return confirm('לבטל את המשתמש ${u.email}?')">
-                 <button class="btn secondary" type="submit">בטל</button>
+                 <button class="btn warn" type="submit">בטל</button>
                </form>`
         }
-        <form class="inline" method="post" action="/admin/users/${u.id}/delete?key=${encodeURIComponent(key)}"
-              onsubmit="return confirm('מחיקת משתמש תמחק גם את כל המסעדות וההזמנות שבבעלותו. להמשיך?')">
-          <button class="btn warn" type="submit">מחק</button>
-        </form>
       </td>
     </tr>
   `).join("");
@@ -541,23 +530,6 @@ adminRouter.post("/admin/users/:id/activate", async (ctx) => {
   }
   const id = ctx.params.id!;
   await setUserActive(id, true);
-  const key = getAdminKey(ctx)!;
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", `/admin/users?key=${encodeURIComponent(key)}`);
-});
-
-/** מחיקת משתמש (קסקייד) — טעינה דינמית כדי לא לשבור Boot בזמן פיתוח */
-adminRouter.post("/admin/users/:id/delete", async (ctx) => {
-  if (!assertAdmin(ctx)) return;
-  setNoStore(ctx);
-  const { deleteUserCascade } = await getDbExtra();
-  if (typeof deleteUserCascade !== "function") {
-    ctx.response.status = Status.NotImplemented;
-    ctx.response.body = "deleteUserCascade is not implemented in database.ts";
-    return;
-  }
-  const id = ctx.params.id!;
-  await deleteUserCascade(id);
   const key = getAdminKey(ctx)!;
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set("Location", `/admin/users?key=${encodeURIComponent(key)}`);

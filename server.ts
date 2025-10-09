@@ -63,7 +63,7 @@ function getClientIp(ctx: any): string | undefined {
   return (ctx.request as any).ip;
 }
 function isHttps(ctx: any): boolean {
-  if (ctx.request.secure) return true;
+  if ((ctx.request as any).secure) return true;
   if (TRUST_PROXY) {
     const proto = ctx.request.headers.get("x-forwarded-proto");
     if (proto && proto.toLowerCase() === "https") return true;
@@ -96,7 +96,7 @@ app.use(async (ctx, next) => {
       ctx.response.status = err.status;
       ctx.response.body = err.expose ? err.message : "Internal Server Error";
     } else {
-      console.error(`[ERR ${reqId}] UNCAUGHT:`, err?.stack ?? err);
+      console.error(`[ERR ${reqId}] UNCAUGHT:`, (err as any)?.stack ?? err);
       ctx.response.status = 500;
       ctx.response.body = "Internal Server Error";
     }
@@ -157,9 +157,13 @@ app.use(async (ctx, next) => {
     if (uid) {
       const user = await getUserById(uid);
       if (user) (ctx.state as any).user = user;
+      else (ctx.state as any).user = null;
+    } else {
+      (ctx.state as any).user = null;
     }
   } catch (e) {
     console.warn("[user-loader] failed:", e);
+    (ctx.state as any).user = null;
   }
   await next();
 });
@@ -174,7 +178,7 @@ app.use(async (ctx, next) => {
   const filePath = p.slice("/static".length) || "/";
   try {
     // @ts-ignore oak ctx.send
-    await ctx.send({
+    await (ctx as any).send({
       root: "public",
       path: filePath,
       index: "index.html",
@@ -274,6 +278,46 @@ root.get("/__env", (ctx) => {
 app.use(root.routes());
 app.use(root.allowedMethods());
 
+// -------------------- AUTH GATE (חדש) --------------------
+// חוסם גישה לאזורי בעלים/ניהול עד שהמשתמש גם מחובר,
+// גם אימת דוא"ל, וגם החשבון פעיל.
+app.use(async (ctx, next) => {
+  const path = ctx.request.url.pathname;
+
+  // נתיבים שדורשים התחברות ובדיקות:
+  const needsAuth =
+    path.startsWith("/owner") ||
+    path.startsWith("/dashboard") ||
+    path.startsWith("/manage") ||
+    path.startsWith("/opening"); // אם זה אזור ניהול שעות
+
+  if (!needsAuth) return await next();
+
+  const user = (ctx.state as any).user;
+
+  if (!user) {
+    const redirect = "/auth/login?redirect=" + encodeURIComponent(path);
+    ctx.response.status = Status.SeeOther;
+    ctx.response.headers.set("Location", redirect);
+    return;
+  }
+
+  if (!user.emailVerified) {
+    // אפשר גם להפנות למסך "בדיקת דוא״ל" שלך אם תרצה
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = "נדרש אימות דוא״ל לפני גישה לאזור זה.";
+    return;
+  }
+
+  if (user.isActive === false) {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = "החשבון מבוטל. פנה/י לתמיכה.";
+    return;
+  }
+
+  await next();
+});
+
 // -------------------- FEATURE ROUTERS (ordered) --------------------
 
 // לוג קצר לכל בקשה (debug)
@@ -286,7 +330,7 @@ app.use(async (ctx, next) => {
 app.use(authRouter.routes());
 app.use(authRouter.allowedMethods());
 
-// אדמין
+// אדמין (מוגן עם ADMIN_SECRET בתוך הראוטר עצמו)
 app.use(adminRouter.routes());
 app.use(adminRouter.allowedMethods());
 
@@ -318,7 +362,7 @@ app.use(restaurantsRouter.allowedMethods());
 app.use(rootRouter.routes());
 app.use(rootRouter.allowedMethods());
 
-//hours
+// hours
 app.use(openingRouter.routes());
 app.use(openingRouter.allowedMethods());
 
