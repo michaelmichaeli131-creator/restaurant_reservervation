@@ -7,6 +7,8 @@ import {
   listAvailableSlotsAround,
   createReservation,
   getUserById,
+  getReservationById,
+  updateReservation,
   type Reservation,
   type WeeklySchedule,
   type DayOfWeek,
@@ -790,17 +792,12 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   await createReservation(reservation);
 
   // --- Reservation self-service link (token + manageUrl) ---
-  const token = await makeReservationToken(reservation.id, customerEmail);
-  const origin = Deno.env.get("APP_BASE_URL")?.replace(/\/+$/, "") || `${ctx.request.url.protocol}//${ctx.request.url.host}`;
-  const manageUrl = `${origin}/r/${encodeURIComponent(token)}`;
-
+  // (בטמפלט המייל הנוכחי אין כפתור ישיר ל-manageUrl; אם תעדכן את mail.ts – ניתן להוסיף)
   await sendReservationEmail({
     to: customerEmail,
     restaurantName: restaurant.name,
     date, time, people,
     customerName,
-    manageUrl,
-    reservationId: reservation.id,
   }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
 
   const owner = await getUserById(restaurant.ownerId).catch(() => null);
@@ -909,18 +906,11 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   };
   await createReservation(reservation);
 
-  // --- Reservation self-service link (token + manageUrl) ---
-  const token = await makeReservationToken(reservation.id, customerEmail);
-  const origin = Deno.env.get("APP_BASE_URL")?.replace(/\/+$/, "") || `${ctx.request.url.protocol}//${ctx.request.url.host}`;
-  const manageUrl = `${origin}/r/${encodeURIComponent(token)}`;
-
   await sendReservationEmail({
     to: customerEmail,
     restaurantName: restaurant.name,
     date, time, people,
     customerName,
-    manageUrl,
-    reservationId: reservation.id,
   }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
 
   const owner = await getUserById(restaurant.ownerId).catch(() => null);
@@ -945,177 +935,6 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
     customerName, customerPhone, customerEmail,
     reservationId: reservation.id,
   });
-});
-
-/* ======================  דף וקונטרולר לניהול הזמנה  ====================== */
-/* GET /r/:token – הצגת דף הניהול (אישור/ביטול/דחייה) */
-restaurantsRouter.get("/r/:token", async (ctx) => {
-  const token = String(ctx.params.token ?? "");
-  const payload = await verifyReservationToken(token);
-  if (!payload) {
-    ctx.response.status = Status.Unauthorized;
-    ctx.response.body = "Invalid or expired link";
-    return;
-  }
-
-  // נטען את ההזמנה מה-DB (דורש פונקציה שתיקרא אחת מהבאות)
-  const db = await import("../database.ts");
-  const getById =
-    (db as any).getReservationById ??
-    (db as any).findReservationById ??
-    (db as any).readReservationById;
-
-  if (!getById) {
-    ctx.response.status = Status.NotImplemented;
-    ctx.response.body = "getReservationById is not implemented in database.ts";
-    return;
-  }
-
-  const reservation: Reservation | null = await getById(payload.rid);
-  if (!reservation) {
-    ctx.response.status = Status.NotFound;
-    ctx.response.body = "Reservation not found";
-    return;
-  }
-
-  const restaurant = await getRestaurant(reservation.restaurantId);
-  if (!restaurant) {
-    ctx.response.status = Status.NotFound;
-    ctx.response.body = "Restaurant not found";
-    return;
-  }
-
-  // הצעה לשעות חלופיות (אם צריך בדף)
-  const suggestions = await suggestionsWithinSchedule(
-    reservation.restaurantId,
-    reservation.date,
-    reservation.time,
-    reservation.people,
-    restaurant.weeklySchedule,
-  );
-
-  await render(ctx, "reservation_manage", {
-    page: "reservation_manage",
-    title: `ניהול הזמנה — ${restaurant.name}`,
-    restaurant,
-    reservation,
-    suggestions,
-    token, // כדי שהפרונט ישלח אותו ב-POST
-  });
-});
-
-/* POST /r/:token – ביצוע פעולה: confirm|cancel|reschedule */
-restaurantsRouter.post("/r/:token", async (ctx) => {
-  const token = String(ctx.params.token ?? "");
-  const payloadToken = await verifyReservationToken(token);
-  if (!payloadToken) {
-    ctx.response.status = Status.Unauthorized;
-    ctx.response.body = JSON.stringify({ ok:false, error:"invalid_or_expired_token" });
-    return;
-  }
-
-  const db = await import("../database.ts");
-  const getById =
-    (db as any).getReservationById ??
-    (db as any).findReservationById ??
-    (db as any).readReservationById;
-
-  const updateReservation =
-    (db as any).updateReservation ??
-    (db as any).saveReservation ??
-    (db as any).patchReservation;
-
-  const setReservationStatus =
-    (db as any).setReservationStatus ??
-    (resId: string, status: string) => updateReservation?.(resId, { status });
-
-  if (!getById) {
-    ctx.response.status = Status.NotImplemented;
-    ctx.response.body = JSON.stringify({ ok:false, error:"getReservationById_not_implemented" });
-    return;
-  }
-
-  const { payload } = await readBody(ctx);
-  const action = String((payload as any).action ?? "").toLowerCase();
-
-  const reservation: Reservation | null = await getById(payloadToken.rid);
-  if (!reservation) {
-    ctx.response.status = Status.NotFound;
-    ctx.response.body = JSON.stringify({ ok:false, error:"reservation_not_found" });
-    return;
-  }
-
-  const restaurant = await getRestaurant(reservation.restaurantId);
-  if (!restaurant) {
-    ctx.response.status = Status.NotFound;
-    ctx.response.body = JSON.stringify({ ok:false, error:"restaurant_not_found" });
-    return;
-  }
-
-  if (action === "confirm") {
-    if (!setReservationStatus) {
-      ctx.response.status = Status.NotImplemented;
-      ctx.response.body = JSON.stringify({ ok:false, error:"setReservationStatus_not_implemented" });
-      return;
-    }
-    await setReservationStatus(reservation.id, "confirmed");
-    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok:true, status:"confirmed" });
-    return;
-  }
-
-  if (action === "cancel") {
-    if (!setReservationStatus) {
-      ctx.response.status = Status.NotImplemented;
-      ctx.response.body = JSON.stringify({ ok:false, error:"setReservationStatus_not_implemented" });
-      return;
-    }
-    await setReservationStatus(reservation.id, "canceled");
-    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok:true, status:"canceled" });
-    return;
-  }
-
-  if (action === "reschedule") {
-    if (!updateReservation) {
-      ctx.response.status = Status.NotImplemented;
-      ctx.response.body = JSON.stringify({ ok:false, error:"updateReservation_not_implemented" });
-      return;
-    }
-    const newDate = normalizeDate((payload as any).date);
-    const newTime = normalizeTime((payload as any).time);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate) || !/^\d{2}:\d{2}$/.test(newTime)) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body = JSON.stringify({ ok:false, error:"bad_date_or_time" });
-      return;
-    }
-
-    // בדיקת שעות פתיחה + זמינות
-    const within = isWithinSchedule(restaurant.weeklySchedule, newDate, newTime);
-    if (!within) {
-      const sug = await suggestionsWithinSchedule(restaurant.id, newDate, newTime, reservation.people, restaurant.weeklySchedule);
-      ctx.response.status = Status.Conflict;
-      ctx.response.body = JSON.stringify({ ok:false, error:"closed_at_requested_time", suggestions: sug });
-      return;
-    }
-
-    const avail = await checkAvailability(restaurant.id, newDate, newTime, reservation.people);
-    if (!asOk(avail)) {
-      const sug = await suggestionsWithinSchedule(restaurant.id, newDate, newTime, reservation.people, restaurant.weeklySchedule);
-      ctx.response.status = Status.Conflict;
-      ctx.response.body = JSON.stringify({ ok:false, error:"unavailable", suggestions: sug });
-      return;
-    }
-
-    // עדכון בפועל
-    await updateReservation(reservation.id, { date: newDate, time: newTime, status: "rescheduled" });
-    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok:true, status:"rescheduled", date:newDate, time:newTime });
-    return;
-  }
-
-  ctx.response.status = Status.BadRequest;
-  ctx.response.body = JSON.stringify({ ok:false, error:"unknown_action" });
 });
 
 /* ---------------- Owner: save opening hours ---------------- */
@@ -1153,7 +972,7 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
     normalized[d] = row && row.open && row.close ? { open: row.open, close: row.close } : null;
   }
 
-  debugLog("[restaurants][POST hours] normalized]", {
+  debugLog("[restaurants][POST hours] normalized", {
     capacity,
     slotIntervalMinutes,
     serviceDurationMinutes,
@@ -1197,6 +1016,122 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", `/restaurants/${encodeURIComponent(rid)}`);
   }
+});
+
+/* ───────────────────────── Self-service manage link (/r/:token) ───────────────────────── */
+
+restaurantsRouter.get("/r/:token", async (ctx) => {
+  const token = String(ctx.params.token ?? "").trim();
+  const payload = await verifyReservationToken(token);
+  if (!payload) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Invalid or expired link";
+    return;
+  }
+
+  const reservation = await getReservationById(payload.rid);
+  if (!reservation) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Reservation not found";
+    return;
+  }
+
+  const restaurant = await getRestaurant(reservation.restaurantId);
+  const photos = photoStrings(restaurant?.photos);
+
+  await render(ctx, "reservation_manage", {
+    page: "reservation_manage",
+    title: "ניהול הזמנה",
+    token,
+    reservation,
+    restaurant: restaurant ? { ...restaurant, photos } : null,
+    flash: null,
+    suggestions: [],
+  });
+});
+
+restaurantsRouter.post("/r/:token", async (ctx) => {
+  const token = String(ctx.params.token ?? "").trim();
+  const payload = await verifyReservationToken(token);
+  if (!payload) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = "Invalid or expired link";
+    return;
+  }
+
+  const { payload: body } = await readBody(ctx);
+  const action = String(body.action ?? "").trim().toLowerCase();
+
+  const reservation = await getReservationById(payload.rid);
+  if (!reservation) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Reservation not found";
+    return;
+  }
+
+  const restaurant = await getRestaurant(reservation.restaurantId);
+  if (!restaurant) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Restaurant not found";
+    return;
+  }
+
+  const photos = photoStrings(restaurant.photos);
+  const renderBack = async (flash: any, suggestions: string[] = []) => {
+    await render(ctx, "reservation_manage", {
+      page: "reservation_manage",
+      title: "ניהול הזמנה",
+      token,
+      reservation: await getReservationById(payload.rid), // רפרש אחרי עדכון
+      restaurant: { ...restaurant, photos },
+      flash,
+      suggestions,
+    });
+  };
+
+  if (action === "confirm") {
+    await updateReservation(reservation.id, { status: "confirmed" }).catch(() => {});
+    await renderBack({ ok: "ההגעה אושרה. נתראה!" });
+    return;
+  }
+
+  if (action === "cancel") {
+    await updateReservation(reservation.id, { status: "canceled" }).catch(() => {});
+    await renderBack({ ok: "ההזמנה בוטלה." });
+    return;
+  }
+
+  if (action === "reschedule") {
+    const { date, time } = extractDateAndTime(ctx, body);
+    const people = toIntLoose((body as any).people) ?? reservation.people;
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
+      await renderBack({ error: "תאריך/שעה לא תקינים" });
+      return;
+    }
+
+    // האם עומד בשעות פתיחה
+    const within = isWithinSchedule(restaurant.weeklySchedule, date, time);
+    if (!within) {
+      const suggestions = await suggestionsWithinSchedule(restaurant.id, date, time, people, restaurant.weeklySchedule);
+      await renderBack({ error: "המסעדה סגורה בשעה שבחרת" }, suggestions);
+      return;
+    }
+
+    const avail = await checkAvailability(restaurant.id, date, time, people);
+    if (!asOk(avail)) {
+      const suggestions = await suggestionsWithinSchedule(restaurant.id, date, time, people, restaurant.weeklySchedule);
+      await renderBack({ error: "אין זמינות במועד שבחרת" }, suggestions);
+      return;
+    }
+
+    await updateReservation(reservation.id, { date, time, people }).catch(() => {});
+    await renderBack({ ok: "המועד עודכן בהצלחה" });
+    return;
+  }
+
+  // פעולה לא מזוהה
+  await renderBack({ error: "פעולה לא מוכרת" });
 });
 
 export const router = restaurantsRouter;
