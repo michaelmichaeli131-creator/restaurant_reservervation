@@ -20,7 +20,6 @@ export interface User {
 
 export type DayOfWeek = 0|1|2|3|4|5|6; // 0=Sunday .. 6=Saturday
 export interface OpeningWindow { open: string; close: string; } // "HH:mm"
-// אפשר גם לתמוך במערכים מרובים לכל יום בהמשך; כרגע חלון יחיד ליום:
 export type WeeklySchedule = Partial<Record<DayOfWeek, OpeningWindow | null>>;
 
 export interface Restaurant {
@@ -30,24 +29,24 @@ export interface Restaurant {
   city: string;
   address: string;
   phone?: string;
-  hours?: string;                 // טקסט חופשי, נשאר לפורמט ישן
+  hours?: string;
   description?: string;
   menu: Array<{ name: string; price?: number; desc?: string }>;
-  capacity: number;                 // קיבולת בו־זמנית
-  slotIntervalMinutes: number;      // גריד הסלוטים (ברירת מחדל 15 דק׳)
-  serviceDurationMinutes: number;   // משך ישיבה (ברירת מחדל 120 דק׳)
-  weeklySchedule?: WeeklySchedule;  // הגבלת פתיחה (אופציונלי)
+  capacity: number;
+  slotIntervalMinutes: number;
+  serviceDurationMinutes: number;
+  weeklySchedule?: WeeklySchedule;
   photos?: string[];
-  approved?: boolean;               // דורש אישור אדמין
+  approved?: boolean;
   createdAt: number;
 }
 
 export interface Reservation {
   id: string;
   restaurantId: string;
-  userId: string; // גם ל-block ידני אפשר "manual-block:<ownerId>"
+  userId: string;
   date: string;   // YYYY-MM-DD
-  time: string;   // HH:mm (תחילת הישיבה)
+  time: string;   // HH:mm
   people: number;
   note?: string;
   status?: "new" | "confirmed" | "canceled" | "completed" | "blocked";
@@ -60,14 +59,14 @@ export const kv = await Deno.openKv();
 const lower = (s?: string) => (s ?? "").trim().toLowerCase();
 const now = () => Date.now();
 
-/* ─────────────── Key helpers: הבטחת טיפוסים חוקיים לכל חלק מפתח ─────────────── */
+/* ─────────────── Key helpers ─────────────── */
 
 type KeyPart = string | number | bigint | boolean | Uint8Array;
 function ensureKeyPart(p: unknown): KeyPart {
   if (typeof p === "string" || typeof p === "number" || typeof p === "bigint" || typeof p === "boolean") return p;
   if (p instanceof Uint8Array) return p;
-  if (p === undefined || p === null) return "";          // אין undefined/null ב־KV key
-  return String(p);                                      // כל השאר -> מחרוזת
+  if (p === undefined || p === null) return "";
+  return String(p);
 }
 function toKey(...parts: unknown[]): Deno.KvKey {
   return parts.map(ensureKeyPart) as Deno.KvKey;
@@ -92,7 +91,6 @@ export async function createUser(u: {
   const emailNorm = lower(u.email);
   if (!emailNorm) throw new Error("email_required");
 
-  // אם לא הגיע username – נגזור מ-email (לפני ה־@); אם עדיין ריק, ניצור מחולל קצר
   const usernameNorm =
     lower(u.username) ||
     lower(emailNorm.split("@")[0] || "") ||
@@ -113,7 +111,7 @@ export async function createUser(u: {
     role: u.role ?? "owner",
     provider: u.provider ?? "local",
     emailVerified: false,
-    isActive: true,               // ← ברירת מחדל: פעיל
+    isActive: true, // ברירת מחדל
     createdAt: now(),
   };
 
@@ -222,24 +220,21 @@ function toMinutes(hhmm: string): number {
 }
 
 function fromMinutes(total: number): string {
-  // הגנה: נשארים בטווח היום (00:00..23:59) וללא "24:45"
   const t = Math.max(0, Math.min(1439, Math.trunc(total)));
   const h = Math.floor(t / 60).toString().padStart(2, "0");
   const mi = (t % 60).toString().padStart(2, "0");
   return `${h}:${mi}`;
 }
 
-/** שואב מטה לגריד הקרוב (למשל ל־15 דקות) */
 function snapToGrid(mins: number, step: number): number {
   return Math.floor(mins / step) * step;
 }
 
-/** פרסינג מקומי בטוח ל-YYYY-MM-DD → Date ב-00:00 בזמן מקומי */
 function parseLocalYMD(dateISO: string): Date | null {
   const m = String(dateISO ?? "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return null;
   const y = Number(m[1]), mon = Number(m[2]) - 1, d = Number(m[3]);
-  const dt = new Date(y, mon, d, 0, 0, 0, 0); // מקומי, לא UTC
+  const dt = new Date(y, mon, d, 0, 0, 0, 0);
   if (dt.getFullYear() !== y || dt.getMonth() !== mon || dt.getDate() !== d) return null;
   return dt;
 }
@@ -253,20 +248,17 @@ function coerceRestaurantDefaults(r: Restaurant): Restaurant {
   return { ...r, slotIntervalMinutes: step, serviceDurationMinutes: span, capacity };
 }
 
-/** מחזיר מערך טווחי פתיחה [start,end] בדקות לאותו יום לפי weeklySchedule (אם קיים) — לפי התאריך שהלקוח ביקש */
 function openingRangesForDate(r: Restaurant, date: string): Array<[number, number]> {
   const weekly: any = r.weeklySchedule ?? (r as any).openingHours ?? null;
-  if (!weekly) return []; // אין מגבלה → פתוח כל היום (handled by caller)
+  if (!weekly) return [];
 
-  // ✅ תאריך מקומי (לא new Date("YYYY-MM-DD") שעלול להתפרש כ-UTC)
   const d = parseLocalYMD(date);
   if (!d) return [];
 
-  // JS getDay: 0=Sunday..6=Saturday — תואם למפתחות 0..6 שלנו
   const dow = d.getDay() as DayOfWeek;
 
   const def = weekly[dow] ?? weekly[String(dow)] ?? null;
-  if (!def) return []; // אין מפתח מפורש → פתוח כל היום (כמו בדרישת ברירת המחדל)
+  if (!def) return [];
 
   const toMin = (hhmm: string) => {
     const m = hhmm?.match?.(/^(\d{2}):(\d{2})$/);
@@ -278,16 +270,13 @@ function openingRangesForDate(r: Restaurant, date: string): Array<[number, numbe
   const end   = toMin((def as any).close ?? (def as any).end ?? "");
   if (!Number.isFinite(start) || !Number.isFinite(end)) return [];
 
-  if (end <= start) {
-    // קלט בעייתי: לא נקרוס — נאפשר עד סוף היום
-    return [[start, 24*60 - 1]];
-  }
+  if (end <= start) return [[start, 24*60 - 1]];
   return [[start, end]];
 }
 
 function isWithinOpening(r: Restaurant, date: string, startMin: number, span: number): boolean {
   const ranges = openingRangesForDate(r, date);
-  if (!ranges.length) return true; // אין מגבלה = פתוח כל היום
+  if (!ranges.length) return true;
   const end = startMin + span;
   for (const [a,b] of ranges) {
     if (startMin >= a && end <= b) return true;
@@ -295,19 +284,14 @@ function isWithinOpening(r: Restaurant, date: string, startMin: number, span: nu
   return false;
 }
 
-// מחזיר חלונות פתיחה כתווים {open, close} ליום נתון.
-// אם אין מגבלה באותו יום (אין מפתח מפורש) – ברירת המחדל: פתוח כל היום.
-
 export function openingWindowsForDate(
   r: Restaurant,
   dateISO: string,
 ): Array<{ open: string; close: string }> {
   const weekly: any = r.weeklySchedule ?? (r as any).openingHours ?? null;
 
-  // אין כל מגבלה → פתוח כל היום
   if (!weekly) return [{ open: "00:00", close: "24:00" }];
 
-  // פרסינג מקומי בטוח
   const m = String(dateISO ?? "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return [{ open: "00:00", close: "24:00" }];
   const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
@@ -323,13 +307,9 @@ export function openingWindowsForDate(
 
   const def = hasNum ? weekly[keyNum] : (hasStr ? weekly[keyStr] : null);
 
-  // מפתח קיים והערך null → סגור
   if (hasKey && (def == null)) return [];
-
-  // מפתח לא קיים → פתוח כל היום (fallback)
   if (!hasKey) return [{ open: "00:00", close: "24:00" }];
 
-  // יש הגדרה לאותו יום → לקרוא open/close
   const open = String(def.open ?? def.start ?? "");
   const close = String(def.close ?? def.end ?? "");
   const toMin = (hhmm: string) => {
@@ -338,10 +318,7 @@ export function openingWindowsForDate(
   };
   const s = toMin(open), e = toMin(close);
   if (!Number.isFinite(s) || !Number.isFinite(e)) return [];
-
-  // סוף לפני התחלה → חתוך עד סוף היום
   if (e <= s) return [{ open, close: "23:59" }];
-
   return [{ open, close }];
 }
 
@@ -389,21 +366,14 @@ export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
 
   const next: Restaurant = {
     ...prev,
-    // אל תדרוס שדות שלא הגיעו
     capacity: patch.capacity !== undefined ? patch.capacity : prev.capacity,
     slotIntervalMinutes: patch.slotIntervalMinutes !== undefined ? patch.slotIntervalMinutes : prev.slotIntervalMinutes,
     weeklySchedule: patch.weeklySchedule !== undefined ? patch.weeklySchedule : prev.weeklySchedule,
-
-    // שדות טקסט — שמירה עם trim
     name: (patch.name ?? prev.name).trim(),
     city: (patch.city ?? prev.city).trim(),
     address: (patch.address ?? prev.address).trim(),
-
-    // שדות נוספים
     photos: (patch.photos ?? prev.photos ?? []).filter(Boolean),
-
-    // פריסות נוספות (אם יש) מתוך patch/prev:
-    ...patch, // (נשאיר בסוף, אך הוא לא ידרוס כי כבר קבענו למעלה את העיקריים)
+    ...patch,
   };
 
   const tx = kv.atomic().set(toKey("restaurant", id), next);
@@ -462,7 +432,6 @@ export async function listRestaurants(q?: string, onlyApproved = true): Promise<
     push((await kv.get<Restaurant>(toKey("restaurant", id))).value);
   }
 
-  // Fallback לסריקה מלאה (מכיל גם כתובת)
   for await (const row of kv.list({ prefix: toKey("restaurant") })) {
     const r = (await kv.get<Restaurant>(row.key as any)).value;
     if (!r) continue;
@@ -481,7 +450,7 @@ export async function listRestaurants(q?: string, onlyApproved = true): Promise<
   });
 }
 
-/* ─────────────── NEW: Photos API (מחבר בין העלאות הבעלים לבין restaurant.photos) ─────────────── */
+/* ─────────────── Photos API ─────────────── */
 
 export async function listOwnerPhotosByRestaurant(restaurantId: string): Promise<string[]> {
   const r = await getRestaurant(restaurantId);
@@ -489,14 +458,12 @@ export async function listOwnerPhotosByRestaurant(restaurantId: string): Promise
   return Array.isArray(r.photos) ? r.photos.filter(Boolean).map(String) : [];
 }
 
-/** קובע מערך תמונות מלא למסעדה (מחליף את הקיים) */
 export async function setRestaurantPhotos(restaurantId: string, photos: string[]): Promise<void> {
   const r = await getRestaurant(restaurantId);
   if (!r) return;
   await updateRestaurant(restaurantId, { photos: (photos ?? []).filter(Boolean) });
 }
 
-/** מוסיף תמונה אחת למסעדה (dataURL או URL חיצוני) לסוף המערך */
 export async function addOwnerPhoto(restaurantId: string, dataURL: string): Promise<void> {
   const r = await getRestaurant(restaurantId);
   if (!r) return;
@@ -505,7 +472,7 @@ export async function addOwnerPhoto(restaurantId: string, dataURL: string): Prom
   await updateRestaurant(restaurantId, { photos: cur });
 }
 
-/* ─────────────── Reservations, occupancy & availability ─────────────── */
+/* ───────── Reservations, occupancy & availability ───────── */
 
 export async function listReservationsFor(restaurantId: string, date: string): Promise<Reservation[]> {
   const out: Reservation[] = [];
@@ -554,7 +521,7 @@ export async function listReservationsByOwner(ownerId: string) {
 export async function computeOccupancy(restaurant: Restaurant, date: string) {
   const r = coerceRestaurantDefaults(restaurant);
   const resv = await listReservationsFor(r.id, date);
-  const map = new Map<string, number>(); // time -> used seats
+  const map = new Map<string, number>();
 
   const step = r.slotIntervalMinutes;
   const span = r.serviceDurationMinutes;
@@ -570,7 +537,6 @@ export async function computeOccupancy(restaurant: Restaurant, date: string) {
   return map;
 }
 
-/** בדיקת זמינות ל-slot (מיושר לגריד) */
 export async function checkAvailability(restaurantId: string, date: string, time: string, people: number) {
   const r0 = await getRestaurant(restaurantId);
   if (!r0) return { ok: false, reason: "not_found" as const };
@@ -589,7 +555,6 @@ export async function checkAvailability(restaurantId: string, date: string, time
 
   if (end > 24 * 60) return { ok: false as const, reason: "out_of_day" as const };
 
-  // ✅ לפי התאריך שהלקוח בחר
   if (!isWithinOpening(r, date, start, span)) {
     return { ok: false as const, reason: "closed" as const };
   }
@@ -602,7 +567,6 @@ export async function checkAvailability(restaurantId: string, date: string, time
   return { ok: true as const };
 }
 
-/** סלוטים זמינים סביב שעה נתונה (±windowMinutes), מיושרים לגריד, בטווח היום בלבד. */
 export async function listAvailableSlotsAround(
   restaurantId: string,
   date: string,
@@ -630,7 +594,6 @@ export async function listAvailableSlotsAround(
 
   const tryTime = (t: number) => {
     if (t < 0 || t + span > 24 * 60) return false;
-    // ✅ לפי התאריך שהלקוח בחר
     if (!isWithinOpening(r, date, t, span)) return false;
     for (let x = t; x < t + span; x += step) {
       const used = occ.get(fromMinutes(x)) ?? 0;
@@ -691,6 +654,7 @@ export async function listRestaurantsWithOwners() {
   })));
 }
 
+/** מחיקת מסעדה כולל הזמנות ואינדקסים */
 export async function deleteRestaurantCascade(restaurantId: string): Promise<number> {
   const r = await getRestaurant(restaurantId);
   if (!r) return 0;
@@ -701,7 +665,6 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
     reservationIds.push(id);
   }
 
-  // מחיקה במנות
   const chunk = <T>(arr: T[], size: number) =>
     arr.reduce<T[][]>((acc, v, i) => {
       if (i % size === 0) acc.push([]);
@@ -733,6 +696,43 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
   await tx2.commit().catch(() => {});
 
   return deleted;
+}
+
+/** מחיקת משתמש מדדית: כל המסעדות שלו + ההזמנות שלהן + אינדקסים + טוקנים */
+export async function deleteUserCascade(userId: string): Promise<{ restaurants: number }> {
+  // מחיקת כל המסעדות של המשתמש (כולל ההזמנות)
+  let restCount = 0;
+  for await (const row of kv.list({ prefix: toKey("restaurant_by_owner", userId) })) {
+    const rid = row.key[row.key.length - 1] as string;
+    await deleteRestaurantCascade(rid);
+    restCount++;
+  }
+  // ניקוי restaurant_by_owner שנותרו (אם נשארו מפתחות)
+  for await (const row of kv.list({ prefix: toKey("restaurant_by_owner", userId) })) {
+    await kv.delete(row.key);
+  }
+
+  // מחיקת טוקני verify/reset של המשתמש
+  for await (const row of kv.list({ prefix: toKey("verify") })) {
+    const token = row.key[row.key.length - 1] as string;
+    const v = (await kv.get<{ userId: string }>(toKey("verify", token))).value;
+    if (v?.userId === userId) await kv.delete(toKey("verify", token));
+  }
+  for await (const row of kv.list({ prefix: toKey("reset") })) {
+    const token = row.key[row.key.length - 1] as string;
+    const v = (await kv.get<{ userId: string }>(toKey("reset", token))).value;
+    if (v?.userId === userId) await kv.delete(toKey("reset", token));
+  }
+
+  // מחיקת המשתמש עצמו + אינדקסים
+  const user = await getUserById(userId);
+  if (user) {
+    await kv.delete(toKey("user", userId));
+    await kv.delete(toKey("user_by_email", lower(user.email)));
+    await kv.delete(toKey("user_by_username", lower(user.username)));
+  }
+
+  return { restaurants: restCount };
 }
 
 /* ──────────────────────────── Admin reset ─────────────────────────── */
@@ -829,12 +829,11 @@ export async function fixRestaurantsDefaults(): Promise<number> {
   return changed;
 }
 
-/* ─────────────────────── NEW: Hours updaters & normalizers ─────────────────────── */
+/* ─────────────────────── Hours updaters & normalizers ─────────────────────── */
 
 function normHHmm(raw: unknown): string {
   let s = String(raw ?? "").trim();
   if (!s) return "";
-  // 8:00 -> 08:00 ; 08.30 -> 08:30 ; AM/PM -> 24h
   if (/^\d{1,2}\.\d{2}(\s*[ap]m)?$/i.test(s)) s = s.replace(".", ":");
   const ampm = s.match(/^\s*(\d{1,2}):(\d{2})\s*(AM|PM)\s*$/i);
   if (ampm) {
@@ -854,7 +853,6 @@ function normHHmm(raw: unknown): string {
   return `${String(h).padStart(2,"0")}:${String(mi).padStart(2,"0")}`;
 }
 
-/** ממיר אובייקט "0..6" או 0..6 עם {open,close}|null ל־WeeklySchedule טיפוסי */
 function normalizeWeeklySchedule(anyHours: any): WeeklySchedule {
   const out: WeeklySchedule = {};
   for (let d = 0 as DayOfWeek; d <= 6; d = (d + 1) as DayOfWeek) {
@@ -867,10 +865,6 @@ function normalizeWeeklySchedule(anyHours: any): WeeklySchedule {
   return out;
 }
 
-/**
- * עדכון שעות פתיחה (+ אופציונלי: slotIntervalMinutes, capacity)
- * תואם חתימות שהקוד בצד ה־router עלול לקרוא.
- */
 export async function updateRestaurantHours(
   id: string,
   hours: WeeklySchedule | Record<string, OpeningWindow | null>,
@@ -882,9 +876,7 @@ export async function updateRestaurantHours(
 
   const weekly = normalizeWeeklySchedule(hours);
 
-  const patch: Partial<Restaurant> = {
-    weeklySchedule: weekly,
-  };
+  const patch: Partial<Restaurant> = { weeklySchedule: weekly };
 
   if (Number.isFinite(slotIntervalMinutes as number)) {
     patch.slotIntervalMinutes = Math.max(5, (slotIntervalMinutes as number));
@@ -893,7 +885,7 @@ export async function updateRestaurantHours(
     patch.capacity = Math.max(1, (capacity as number));
   }
 
-  // לשמירה על תאימות לאזכורים ישנים
+  // תאימות
   // @ts-ignore
   (patch as any).openingHours = weekly;
   // @ts-ignore
@@ -902,5 +894,4 @@ export async function updateRestaurantHours(
   return await updateRestaurant(id, patch);
 }
 
-/** שם חלופי נפוץ */
 export const setRestaurantOpeningHours = updateRestaurantHours;
