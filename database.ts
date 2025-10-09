@@ -385,7 +385,7 @@ export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
   const prev = cur.value;
   if (!prev) return null;
 
-  function lowerLocal(s?: string) { return (s ?? "").trim().toLowerCase(); }
+  function lower(s?: string) { return (s ?? "").trim().toLowerCase(); }
 
   const next: Restaurant = {
     ...prev,
@@ -408,13 +408,13 @@ export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
 
   const tx = kv.atomic().set(toKey("restaurant", id), next);
 
-  if (patch.name && lowerLocal(patch.name) !== lowerLocal(prev.name)) {
-    tx.delete(toKey("restaurant_name", lowerLocal(prev.name), id))
-      .set(toKey("restaurant_name", lowerLocal(patch.name), id), 1);
+  if (patch.name && lower(patch.name) !== lower(prev.name)) {
+    tx.delete(toKey("restaurant_name", lower(prev.name), id))
+      .set(toKey("restaurant_name", lower(patch.name), id), 1);
   }
-  if (patch.city && lowerLocal(patch.city) !== lowerLocal(prev.city)) {
-    tx.delete(toKey("restaurant_city", lowerLocal(prev.city), id))
-      .set(toKey("restaurant_city", lowerLocal(patch.city), id), 1);
+  if (patch.city && lower(patch.city) !== lower(prev.city)) {
+    tx.delete(toKey("restaurant_city", lower(prev.city), id))
+      .set(toKey("restaurant_city", lower(patch.city), id), 1);
   }
 
   const res = await tx.commit();
@@ -691,6 +691,7 @@ export async function listRestaurantsWithOwners() {
   })));
 }
 
+/** מחיקת מסעדה כולל הזמנות ואינדקסים */
 export async function deleteRestaurantCascade(restaurantId: string): Promise<number> {
   const r = await getRestaurant(restaurantId);
   if (!r) return 0;
@@ -735,48 +736,9 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
   return deleted;
 }
 
-/** מחיקת משתמש מדדית: כל המסעדות שלו + ההזמנות שלהן + אינדקסים + טוקנים */
+/** 🔥 מחיקת משתמש מדדית: כל המסעדות שלו + ההזמנות שלהן + אינדקסים + טוקני אימות/איפוס + המשתמש עצמו */
 export async function deleteUserCascade(userId: string): Promise<{ restaurants: number }> {
-  // מחיקת כל המסעדות של המשתמש (כולל ההזמנות)
-  let restCount = 0;
-  for await (const row of kv.list({ prefix: toKey("restaurant_by_owner", userId) })) {
-    const rid = row.key[row.key.length - 1] as string;
-    await deleteRestaurantCascade(rid);
-    restCount++;
-  }
-  // ניקוי restaurant_by_owner שנותרו (בטיחות)
-  for await (const row of kv.list({ prefix: toKey("restaurant_by_owner", userId) })) {
-    await kv.delete(row.key);
-  }
-
-  // מחיקת טוקני verify/reset של המשתמש
-  for await (const row of kv.list({ prefix: toKey("verify") })) {
-    const token = row.key[row.key.length - 1] as string;
-    const v = (await kv.get<{ userId: string }>(toKey("verify", token))).value;
-    if (v?.userId === userId) await kv.delete(toKey("verify", token));
-  }
-  for await (const row of kv.list({ prefix: toKey("reset") })) {
-    const token = row.key[row.key.length - 1] as string;
-    const v = (await kv.get<{ userId: string }>(toKey("reset", token))).value;
-    if (v?.userId === userId) await kv.delete(toKey("reset", token));
-  }
-
-  // מחיקת המשתמש עצמו + אינדקסים
-  const user = await getUserById(userId);
-  if (user) {
-    await kv.delete(toKey("user", userId));
-    await kv.delete(toKey("user_by_email", (user.email ?? "").trim().toLowerCase()));
-    await kv.delete(toKey("user_by_username", (user.username ?? "").trim().toLowerCase()));
-  }
-
-  return { restaurants: restCount };
-}
-
-
-
-/** מחיקת משתמש מדדית: כל המסעדות שלו + ההזמנות שלהן + אינדקסים + טוקנים */
-export async function deleteUserCascade(userId: string): Promise<{ restaurants: number }> {
-  // מחיקת כל המסעדות של המשתמש (כולל ההזמנות)
+  // 1) מחיקת כל המסעדות של המשתמש (כולל ההזמנות והאינדקסים שלהן)
   let restCount = 0;
   for await (const row of kv.list({ prefix: toKey("restaurant_by_owner", userId) })) {
     const rid = row.key[row.key.length - 1] as string;
@@ -788,7 +750,7 @@ export async function deleteUserCascade(userId: string): Promise<{ restaurants: 
     await kv.delete(row.key);
   }
 
-  // מחיקת טוקני verify/reset של המשתמש
+  // 2) מחיקת טוקני verify/reset של המשתמש
   for await (const row of kv.list({ prefix: toKey("verify") })) {
     const token = row.key[row.key.length - 1] as string;
     const v = (await kv.get<{ userId: string }>(toKey("verify", token))).value;
@@ -800,7 +762,7 @@ export async function deleteUserCascade(userId: string): Promise<{ restaurants: 
     if (v?.userId === userId) await kv.delete(toKey("reset", token));
   }
 
-  // מחיקת המשתמש עצמו + אינדקסים
+  // 3) מחיקת המשתמש עצמו + אינדקסים
   const user = await getUserById(userId);
   if (user) {
     await kv.delete(toKey("user", userId));

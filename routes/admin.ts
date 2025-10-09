@@ -14,7 +14,7 @@ import {
   // listUsersWithRestaurants,
   // listRestaurantsWithOwners,
   // setUserActive,
-  // deleteUserCascade,
+   deleteUserCascade,
 } from "../database.ts";
 
 const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
@@ -59,6 +59,9 @@ function assertAdmin(ctx: any): boolean {
     return false;
   }
   return true;
+
+
+
 }
 function setNoStore(ctx: any) {
   ctx.response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
