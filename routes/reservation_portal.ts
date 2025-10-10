@@ -1,28 +1,94 @@
-// /src/routes/reservation_portal.ts
-// דף ניהול הזמנה דרך קישור במייל – משתמש ב-Eta template reservation_manage.eta
-// ללא שינוי מועד (reschedule)
+// src/routes/reservation_portal.ts
+// דף ניהול הזמנה דרך קישור בטוח במייל:
+// רנדר של reservation_manage.eta (אין יותר שינוי מועד).
 
 import { Router, Status } from "jsr:@oak/oak";
 import { verifyReservationToken } from "../lib/token.ts";
-import {
-  getRestaurant,
-  getReservationById,
-  updateReservation,
-  type Reservation,
-} from "../database.ts";
+import { getRestaurant } from "../database.ts";
 import { render } from "../lib/view.ts";
 
-/* עזר קטן להמרת photos לכל מערך מחרוזות */
-function photoStrings(photos: unknown): string[] {
-  if (!Array.isArray(photos)) return [];
-  return photos
-    .map((p: any) => (typeof p === "string" ? p : String(p?.dataUrl || "")))
-    .filter(Boolean);
+// נטען פונקציות DB באופן חסין (בפרויקטים שונים שמות קצת שונים)
+type Reservation = {
+  id: string;
+  restaurantId: string;
+  userId: string;
+  date: string;
+  time: string;
+  people: number;
+  status: "new" | "confirmed" | "canceled" | string;
+  note?: string;
+  createdAt?: number;
+};
+
+type DBExtra = Partial<{
+  getReservation: (id: string) => Promise<Reservation | null>;
+  getReservationById: (id: string) => Promise<Reservation | null>;
+  updateReservation: (id: string, patch: Partial<Reservation>) => Promise<Reservation | null>;
+  setReservationStatus: (id: string, status: string) => Promise<boolean>;
+}>;
+
+let _db: DBExtra | null = null;
+async function db(): Promise<DBExtra> {
+  if (_db) return _db;
+  const mod = await import("../database.ts");
+  _db = {
+    getReservation: (mod as any).getReservation,
+    getReservationById: (mod as any).getReservationById ?? (mod as any).getReservation,
+    updateReservation: (mod as any).updateReservation,
+    setReservationStatus: (mod as any).setReservationStatus,
+  };
+  return _db!;
 }
 
-const reservationPortal = new Router();
+export const reservationPortal = new Router();
 
-/* GET /r/:token – מציג את דף הניהול מתוך reservation_manage.eta */
+/* ---------------- Small utils ---------------- */
+
+function canConfirm(status: string | undefined): boolean {
+  return status !== "confirmed" && status !== "canceled";
+}
+function canCancel(status: string | undefined): boolean {
+  return status !== "canceled";
+}
+async function patchReservation(
+  id: string,
+  patch: Partial<Reservation>,
+  helpers: DBExtra,
+): Promise<boolean> {
+  const { updateReservation, setReservationStatus } = helpers;
+  if (typeof updateReservation === "function") {
+    const res = await updateReservation(id, patch);
+    return !!res;
+  }
+  if (typeof setReservationStatus === "function" && patch.status) {
+    return await setReservationStatus(id, String(patch.status));
+  }
+  return false;
+}
+async function readAction(ctx: any): Promise<string> {
+  // פעולה יכולה להגיע ב-query (?action=...) או כ-field בטופס.
+  const q = (ctx.request.url.searchParams.get("action") ?? "").toLowerCase();
+  if (q) return q;
+  try {
+    // Oak החדשה: formData()
+    const fd = await ctx.request.formData();
+    const a = String(fd.get("action") ?? "").toLowerCase();
+    if (a) return a;
+  } catch { /* ignore */ }
+  try {
+    // fallback: טקסט/urlencoded
+    const t: string = await (ctx.request as any).text?.();
+    if (t) {
+      const sp = new URLSearchParams(t);
+      const a = String(sp.get("action") ?? "").toLowerCase();
+      if (a) return a;
+    }
+  } catch { /* ignore */ }
+  return "";
+}
+
+/* ---------------- GET: תצוגה ---------------- */
+
 reservationPortal.get("/r/:token", async (ctx) => {
   const token = String(ctx.params.token ?? "").trim();
   const payload = await verifyReservationToken(token);
@@ -32,7 +98,15 @@ reservationPortal.get("/r/:token", async (ctx) => {
     return;
   }
 
-  const reservation = await getReservationById(payload.rid);
+  const { getReservation, getReservationById } = await db();
+  const getRes = getReservationById ?? getReservation;
+  if (typeof getRes !== "function") {
+    ctx.response.status = Status.NotImplemented;
+    ctx.response.body = "getReservationById/getReservation is not implemented in database.ts";
+    return;
+  }
+
+  const reservation = await getRes(payload.rid);
   if (!reservation) {
     ctx.response.status = Status.NotFound;
     ctx.response.body = "Reservation not found";
@@ -40,13 +114,12 @@ reservationPortal.get("/r/:token", async (ctx) => {
   }
 
   const restaurant = await getRestaurant(reservation.restaurantId).catch(() => null);
-  const photos = photoStrings(restaurant?.photos);
+  const photos = Array.isArray((restaurant as any)?.photos)
+    ? (restaurant as any).photos.map((p: any) => (typeof p === "string" ? p : String(p?.dataUrl || ""))).filter(Boolean)
+    : [];
 
-  // לוגיקת הצגת כפתורים:
-  // confirm מותר רק אם לא מאושר ולא מבוטל
-  // cancel מותר כל עוד לא מבוטל
-  const allowConfirm = reservation.status !== "confirmed" && reservation.status !== "canceled";
-  const allowCancel  = reservation.status !== "canceled";
+  const allowConfirm = canConfirm(reservation.status);
+  const allowCancel = canCancel(reservation.status);
 
   await render(ctx, "reservation_manage", {
     page: "reservation_manage",
@@ -55,13 +128,14 @@ reservationPortal.get("/r/:token", async (ctx) => {
     reservation,
     restaurant: restaurant ? { ...restaurant, photos } : null,
     flash: null,
-    suggestions: [], // אין שינוי מועד → אין הצעות
+    suggestions: [],   // אין שינוי מועד
     allowConfirm,
     allowCancel,
   });
 });
 
-/* POST /r/:token – פעולות: confirm | cancel בלבד */
+/* ---------------- POST: פעולות (אישור/ביטול בלבד) ---------------- */
+
 reservationPortal.post("/r/:token", async (ctx) => {
   const token = String(ctx.params.token ?? "").trim();
   const payload = await verifyReservationToken(token);
@@ -71,32 +145,16 @@ reservationPortal.post("/r/:token", async (ctx) => {
     return;
   }
 
-  // קורא גוף בפורמט גמיש (form/json/…)
-  async function readBody(ctxAny: any): Promise<Record<string, unknown>> {
-    try {
-      const b = await ctxAny.request.body?.();
-      if (!b) return {};
-      const t = b.type;
-      if (t === "form")         return Object.fromEntries(await b.value as URLSearchParams);
-      if (t === "form-data")    return (await (await b.value).read()).fields ?? {};
-      if (t === "json")         return (await b.value) ?? {};
-      if (t === "text") {
-        const txt = await b.value as string;
-        try { return JSON.parse(txt); } catch { return Object.fromEntries(new URLSearchParams(txt)); }
-      }
-      if (t === "bytes") {
-        const u8  = await b.value as Uint8Array;
-        const txt = new TextDecoder().decode(u8);
-        try { return JSON.parse(txt); } catch { return Object.fromEntries(new URLSearchParams(txt)); }
-      }
-    } catch {}
-    return {};
+  const helpers = await db();
+  const { getReservation, getReservationById } = helpers;
+  const getRes = getReservationById ?? getReservation;
+  if (typeof getRes !== "function") {
+    ctx.response.status = Status.NotImplemented;
+    ctx.response.body = "getReservationById/getReservation is not implemented in database.ts";
+    return;
   }
 
-  const body = await readBody(ctx);
-  const action = String((body as any).action ?? "").trim().toLowerCase();
-
-  const reservation = await getReservationById(payload.rid);
+  const reservation = await getRes(payload.rid);
   if (!reservation) {
     ctx.response.status = Status.NotFound;
     ctx.response.body = "Reservation not found";
@@ -104,36 +162,49 @@ reservationPortal.post("/r/:token", async (ctx) => {
   }
 
   const restaurant = await getRestaurant(reservation.restaurantId).catch(() => null);
-  const photos = photoStrings(restaurant?.photos);
+  if (!restaurant) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Restaurant not found";
+    return;
+  }
+  const photos = Array.isArray((restaurant as any)?.photos)
+    ? (restaurant as any).photos.map((p: any) => (typeof p === "string" ? p : String(p?.dataUrl || ""))).filter(Boolean)
+    : [];
 
-  const renderBack = async (flash: any) => {
-    const fresh = await getReservationById(payload.rid);
-    const allowConfirm = fresh?.status !== "confirmed" && fresh?.status !== "canceled";
-    const allowCancel  = fresh?.status !== "canceled";
+  const action = await readAction(ctx);
 
+  async function renderBack(flash: any) {
+    const fresh = await getRes(payload.rid);
+    const allowConfirm = canConfirm(fresh?.status);
+    const allowCancel  = canCancel(fresh?.status);
     await render(ctx, "reservation_manage", {
       page: "reservation_manage",
       title: "ניהול הזמנה",
       token,
       reservation: fresh,
-      restaurant: restaurant ? { ...restaurant, photos } : null,
+      restaurant: { ...restaurant, photos },
       flash,
       suggestions: [], // אין שינוי מועד
       allowConfirm,
       allowCancel,
     });
-  };
+  }
 
   if (action === "confirm") {
     if (reservation.status === "canceled") {
-      await renderBack({ error: "ההזמנה מבוטלת — לא ניתן לאשר." });
+      await renderBack({ error: "ההזמנה מבוטלת ולא ניתן לאשר אותה." });
       return;
     }
     if (reservation.status === "confirmed") {
       await renderBack({ ok: "ההזמנה כבר מאושרת." });
       return;
     }
-    await updateReservation(reservation.id, { status: "confirmed" as Reservation["status"] }).catch(() => {});
+    const ok = await patchReservation(reservation.id, { status: "confirmed" }, helpers);
+    if (!ok) {
+      ctx.response.status = Status.NotImplemented;
+      ctx.response.body = "updateReservation/setReservationStatus is not implemented.";
+      return;
+    }
     await renderBack({ ok: "ההגעה אושרה. נתראה!" });
     return;
   }
@@ -143,14 +214,18 @@ reservationPortal.post("/r/:token", async (ctx) => {
       await renderBack({ ok: "ההזמנה כבר בוטלה." });
       return;
     }
-    await updateReservation(reservation.id, { status: "canceled" as Reservation["status"] }).catch(() => {});
+    const ok = await patchReservation(reservation.id, { status: "canceled" }, helpers);
+    if (!ok) {
+      ctx.response.status = Status.NotImplemented;
+      ctx.response.body = "updateReservation/setReservationStatus is not implemented.";
+      return;
+    }
     await renderBack({ ok: "ההזמנה בוטלה." });
     return;
   }
 
-  // אין יותר reschedule כאן
+  // אין יותר reschedule, וכל פעולה אחרת תיחשב לא מוכרת
   await renderBack({ error: "פעולה לא מוכרת" });
 });
 
-export { reservationPortal };
 export default reservationPortal;
