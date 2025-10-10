@@ -1140,7 +1140,7 @@ restaurantsRouter.post("/r/:token", async (ctx) => {
     return;
   }
 
-  // אין יותר reschedule
+  /// אין יותר reschedule
   await renderBack({ error: "פעולה לא מוכרת" });
 });
 
