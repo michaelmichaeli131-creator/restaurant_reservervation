@@ -567,6 +567,7 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const rawTime = ctx.request.url.searchParams.get("time") ?? "";
   const date = normalizeDate(rawDate) || todayISO();
   const time = normalizeTime(rawTime);
+  const people = Number(ctx.request.url.searchParams.get("people") ?? "2") || 2; // ← NEW
 
   const hasDay = hasScheduleForDate(restaurant.weeklySchedule as WeeklySchedule, date);
   const windows = getWindowsForDate(restaurant.weeklySchedule as WeeklySchedule, date);
@@ -576,7 +577,7 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const serviceDurationMinutes = (restaurant as any).serviceDurationMinutes ?? 120;
 
   debugLog("[restaurants][GET /restaurants/:id] view", {
-    id, date, rawTime, time,
+    id, date, rawTime, time, people, // ← log people
     hasWeekly: !!restaurant.weeklySchedule,
     weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : [],
     openingWindows
@@ -605,6 +606,7 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
     suggestions: (ctx.request.url.searchParams.get("suggest") ?? "").split(",").filter(Boolean),
     date,
     time,
+    people, // ← NEW (מוזרם לתבנית)
   });
 });
 
@@ -687,6 +689,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     if (suggestions.length) url.searchParams.set("suggest", suggestions.join(","));
     url.searchParams.set("date", date);
     url.searchParams.set("time", time);
+    url.searchParams.set("people", String(people)); // ← NEW
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", url.pathname + url.search);
     return;
@@ -700,6 +703,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
     if (suggestions.length) url.searchParams.set("suggest", suggestions.join(","));
     url.searchParams.set("date", date);
     url.searchParams.set("time", time);
+    url.searchParams.set("people", String(people)); // ← NEW
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", url.pathname + url.search);
     return;

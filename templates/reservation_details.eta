@@ -25,6 +25,8 @@
       <!-- תאריך ושעה נעולים בשלב הזה -->
       <input type="hidden" name="date" value="<%= it.date %>"/>
       <input type="hidden" name="time" value="<%= it.time %>"/>
+      <!-- מס' סועדים נעול בשלב הזה -->
+      <input type="hidden" id="hidden-people" name="people" value="<%= it.people %>"/>
 
       <div class="form-row">
         <label for="name">שם מלא</label>
@@ -46,18 +48,15 @@
         <small class="muted">נשלח אליך אישור הזמנה</small>
       </div>
 
-      <%
-        const cap = Math.max(1, Math.min(30, it.restaurant.capacity || 30));
-      %>
+      <!-- הצגת מס' הסועדים לתקציר/וידוא (ללא עריכה) -->
       <div class="form-row">
-        <label for="people">מספר סועדים</label>
-        <input id="people" name="people" type="number" min="1" max="<%= cap %>"
-               step="1" value="<%= it.people || 2 %>" required/>
+        <label>מספר סועדים</label>
+        <div class="readonly-box"><%= it.people %></div>
       </div>
 
       <div class="form-actions">
         <button type="submit" class="btn">אשר הזמנה</button>
-        <a class="btn secondary" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>">
+        <a class="btn secondary" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
           חזרה לשינוי שעה/תאריך
         </a>
       </div>
@@ -98,11 +97,11 @@
       });
     }
 
-    // עדכון תקציר הסועדים בזמן אמת
-    const ppl = document.getElementById('people');
+    // שמירה על עקביות התקציר עם ה-hidden (במקום קלט ניתן לעריכה)
+    const hiddenPeople = document.getElementById('hidden-people');
     const sumP = document.getElementById('sum-people');
-    if (ppl && sumP) {
-      ppl.addEventListener('input', () => { sumP.textContent = ppl.value; });
+    if (hiddenPeople && sumP) {
+      sumP.textContent = hiddenPeople.value || sumP.textContent;
     }
   })();
 
@@ -118,7 +117,7 @@
         const sp = new URLSearchParams();
         const fd = new FormData(form);
 
-        // נשלח את כל הערכים (כולל people העדכני)
+        // נשלח את כל הערכים (כולל people הנעול)
         for (const [k, v] of fd.entries()) {
           if (typeof v === 'string') sp.append(k, v);
         }
@@ -169,6 +168,13 @@
     padding: 8px 10px;
     border: 1px solid #ccc;
     border-radius: 6px;
+    font-size: 1rem;
+  }
+  .readonly-box {
+    padding: 8px 10px;
+    border: 1px dashed #ccc;
+    border-radius: 6px;
+    background: #fafafa;
     font-size: 1rem;
   }
   .form-actions {

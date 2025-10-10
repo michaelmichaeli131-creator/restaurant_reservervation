@@ -21,7 +21,7 @@
 <% if (it.error) { %><p class="error"><%= it.error %></p><% } %>
 <% if (it.success) { %><p class="success"><%= it.success %></p><% } %>
 
-<!-- בדיקת זמינות (נשמר) -->
+<!-- בדיקת זמינות (שלב 1: כאן מותר לערוך מס' סועדים) -->
 <section class="card" style="margin-top:12px">
   <h2>בדיקת זמינות</h2>
   <form id="checkForm" class="form inline" onsubmit="return false;">
@@ -36,7 +36,7 @@
   <div id="checkResult" class="muted" style="margin-top:8px"></div>
 </section>
 
-<!-- טופס הזמנה (נשמר) -->
+<!-- טופס הזמנה (שלב 2: מס' סועדים מוצג + נשלח כ-hidden בלבד) -->
 <section class="card" style="margin-top:12px">
   <h2>הזמנה</h2>
   <form method="post" action="/restaurants/<%= it.r.id %>/reserve" class="form grid">
@@ -46,9 +46,12 @@
       <input type="time" name="time" value="<%= it.time || '19:00' %>" required />
     </label>
 
-    <label>מס' סועדים
-      <input type="number" name="people" value="<%= it.people || 2 %>" min="1" required />
-    </label>
+    <!-- הצגה בלבד + hidden במקום שדה לעריכה -->
+    <div>
+      <strong>מס' סועדים:</strong>
+      <span><%= it.people || 2 %></span>
+      <input type="hidden" name="people" value="<%= it.people || 2 %>"/>
+    </div>
 
     <label style="grid-column: 1 / -1">הערות להזמנה (אופציונלי)
       <textarea name="note" rows="3" placeholder="אלרגיות, העדפות ישיבה..."><%= it.note || '' %></textarea>
@@ -69,14 +72,22 @@
 
   if (btn && res && t && p) {
     btn.addEventListener('click', async () => {
-      const time = t.value;
+      const time = (t.value || '').trim();
       const people = Number(p.value || 1);
       const date = new URLSearchParams(location.search).get('date') || '<%= it.date %>';
+      if (!date || !time) {
+        res.textContent = 'נא לבחור תאריך ושעה';
+        return;
+      }
       res.textContent = 'בודק זמינות...';
       try {
-        const r = await fetch(`/api/restaurants/<%= it.r.id %>/check?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&people=${people}`);
-        const data = await r.json();
-        if (data && data.ok) {
+        const r = await fetch(`/api/restaurants/<%= it.r.id %>/check`, {
+          method: 'POST',
+          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date, time, people })
+        });
+        const data = await r.json().catch(()=>null);
+        if (r.ok && data && data.ok) {
           res.textContent = 'יש זמינות! אפשר לבצע הזמנה.';
         } else {
           const sug = (data && data.suggestions && data.suggestions.length)

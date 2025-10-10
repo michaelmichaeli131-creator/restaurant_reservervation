@@ -47,7 +47,16 @@
     </dl>
 
     <div class="cta">
+      <!-- כפתור חזרה לדף המסעדה -->
       <a class="btn" href="/restaurants/<%= it.restaurant.id %>">חזרה לעמוד המסעדה</a>
+
+      <!-- כפתור עריכה: חזרה לשלב 1 עם כל ה-query (כולל people) -->
+      <a class="btn secondary"
+         href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
+        עריכת תאריך/שעה/סועדים
+      </a>
+
+      <!-- עמוד ראשי -->
       <a class="btn secondary" href="/">חזרה לעמוד הראשי</a>
     </div>
 

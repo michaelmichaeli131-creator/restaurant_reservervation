@@ -17,6 +17,7 @@
     const hero = _photos[0] || PLACEHOLDER;
 
     const SLOT_STEP = it.restaurant?.slotIntervalMinutes || it.slotIntervalMinutes || 15;
+    const PEOPLE_INIT = Math.max(1, Number(it.people || 2) || 2);
   %>
 
   <!-- Hero -->
@@ -45,6 +46,11 @@
       <div class="form-row">
         <label for="date">תאריך</label>
         <input id="date" name="date" type="date" required value="<%= it.date || '' %>"/>
+      </div>
+
+      <div class="form-row">
+        <label for="people">מס׳ סועדים</label>
+        <input id="people" name="people" type="number" min="1" step="1" required value="<%= PEOPLE_INIT %>"/>
       </div>
 
       <div class="form-row time-row">
@@ -115,7 +121,6 @@
   data-step='<%= JSON.stringify(it.restaurant?.slotIntervalMinutes ?? it.slotIntervalMinutes ?? 15) %>'>
 
 <script>
-  // דיבאג: מה הגיע מהשרת לפני פירסינג
   (function () {
     const meta = document.getElementById("srv-data");
     console.debug("SRV weeklySchedule:", meta?.dataset.weekly ?? "(missing)");
@@ -125,7 +130,6 @@
   })();
 </script>
 
-<!-- *** CLIENT: תמיד מביא שעות מהשרת לפי התאריך שנבחר, עם fallback אם אין API *** -->
 <script>
   document.addEventListener("DOMContentLoaded", () => {
     const btn = document.getElementById("time-display");
@@ -133,10 +137,10 @@
     const hiddenInput = document.getElementById("time");
     const form = document.getElementById("reserve-form");
     const dateInput = document.getElementById("date");
+    const peopleInput = document.getElementById("people");
     const stepLabel = document.getElementById("step-label");
     const meta = document.getElementById("srv-data");
 
-    // נתונים מהשרת (ל-fallback בלבד)
     const parseJSON = (s) => { try { return JSON.parse(s); } catch { return null; } };
     const RID = meta?.dataset.rid || "";
     const FALLBACK_WEEKLY = parseJSON(meta?.dataset.weekly ?? "null");
@@ -144,7 +148,6 @@
     let STEP_MIN = Math.max(1, parseInt(parseJSON(meta?.dataset.step ?? "15") ?? 15, 10) || 15);
     if (stepLabel) stepLabel.textContent = String(STEP_MIN);
 
-    // עזרי זמן
     const pad2 = (n) => String(n).padStart(2, "0");
     const toMin = (hhmm) => {
       const m = (hhmm || "").match(/^(\d{1,2}):(\d{2})$/);
@@ -160,24 +163,19 @@
       return rem ? mins + (step - rem) : mins;
     };
 
-    // API עיקרי: שעות פתיחה ליום שנבחר
     async function fetchOpeningForDate(rid, dateStr) {
       const url = `/restaurants/${encodeURIComponent(rid)}/opening?date=${encodeURIComponent(dateStr)}`;
       const res = await fetch(url, { headers: { "Accept": "application/json" }, cache: "no-store" });
       if (!res.ok) throw new Error("opening_fetch_failed");
-      const data = await res.json();
-      // צורה: { openingWindows: [{open,close}], slotIntervalMinutes }
-      return data;
+      return res.json();
     }
 
-    // בניית רשימת שעות מהחלונות
     function buildOptionsFromWindows(windows, step) {
       const frag = document.createDocumentFragment();
       let count = 0;
       for (const w of windows) {
         const s = toMin(w.open), e = toMin(w.close);
         if (s == null || e == null) continue;
-        // לא נחרוג מעבר ל-end
         for (let m = roundToStepUp(s); m + step <= e; m += step) {
           const hhmm = fromMin(m);
           const div = document.createElement("div");
@@ -192,13 +190,11 @@
       return { frag, count };
     }
 
-    // fallback אם ה-API נפל: שימוש ב-weekly או בחלון היום שהוזרק
     function fallbackRangesFor(dateStr) {
       const d = new Date(dateStr || Date.now());
       if (isNaN(d.getTime())) return [[0, 24*60-1]];
       const dow = d.getDay();
 
-      // אם קיבלנו חלונות מוכנים ל"יום הטעינה" — ונמצא שזה אותו יום
       if (Array.isArray(FALLBACK_WINDOWS_TODAY) && FALLBACK_WINDOWS_TODAY.length) {
         const arr = FALLBACK_WINDOWS_TODAY
           .map(w => [toMin(w.open), toMin(w.close)])
@@ -211,7 +207,12 @@
       const dayDef = FALLBACK_WEEKLY[dow] ?? FALLBACK_WEEKLY[String(dow)] ?? null;
       if (!dayDef) return [[0, 24*60-1]];
 
-      const arr = (Array.isArray(dayDef) ? dayDef : [dayDef]).map(item => {
+      const toM = (s) => {
+        const m = (s || "").match(/^(\d{1,2}):(\d{2})$/);
+        if (!m) return null;
+        return Math.min(23, Math.max(0, +m[1])) * 60 + Math.min(59, Math.max(0, +m[2]));
+      };
+      const items = (Array.isArray(dayDef) ? dayDef : [dayDef]).map(item => {
         let s=null,e=null;
         if (typeof item === "string") {
           const m = item.match(/^\s*(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})\s*$/);
@@ -222,13 +223,13 @@
         } else if (Array.isArray(item) && item.length>=2) {
           s=item[0]; e=item[1];
         }
-        const a = toMin(s), b = toMin(e);
+        const a = toM(s), b = toM(e);
         if (a==null || b==null) return null;
         return b <= a ? [a, 24*60-1] : [a,b];
       }).filter(Boolean);
 
-      if (!arr.length) return [[0, 24*60-1]];
-      return arr.sort((A,B)=>A[0]-B[0]);
+      if (!items.length) return [[0, 24*60-1]];
+      return items.sort((A,B)=>A[0]-B[0]);
     }
 
     function rebuildTimeOptionsFor(dateStr) {
@@ -236,11 +237,9 @@
       const rid = RID;
       if (!rid) return;
 
-      // תמיד מנסים API קודם
       fetchOpeningForDate(rid, dateStr).then(data => {
         const windows = Array.isArray(data?.openingWindows) && data.openingWindows.length
-          ? data.openingWindows
-          : []; // אם אין חלונות → סגור
+          ? data.openingWindows : [];
 
         STEP_MIN = Math.max(1, parseInt(data?.slotIntervalMinutes ?? STEP_MIN, 10) || STEP_MIN);
         if (stepLabel) stepLabel.textContent = String(STEP_MIN);
@@ -257,7 +256,6 @@
         }
         console.debug("GT(API): built time options", { date: dateStr, count, step: STEP_MIN, windows });
       }).catch(() => {
-        // Fallback: נבנה טווחים ידניים מהמידע שהוזרק
         const ranges = fallbackRangesFor(dateStr);
         const windows = ranges.map(([a,b]) => ({ open: fromMin(a), close: fromMin(b) }));
         const { frag, count } = buildOptionsFromWindows(windows, Math.max(1, STEP_MIN));
@@ -274,7 +272,6 @@
       });
     }
 
-    // פתיחת הרשימה — בונה לפי התאריך הנבחר
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -299,7 +296,6 @@
       }
     });
 
-    // בחירת שעה
     opts.addEventListener("click", (ev) => {
       const el = ev.target?.closest?.(".time-option");
       if (!el || el.getAttribute("aria-disabled")==="true") return;
@@ -316,13 +312,11 @@
       console.debug("GT: time selected", v);
     });
 
-    // שינוי תאריך — תמיד מביא מחדש מהשרת לפי התאריך החדש
     dateInput.addEventListener("change", () => {
       const prev = hiddenInput.value;
       const d = dateInput.value || new Date().toISOString().slice(0,10);
       rebuildTimeOptionsFor(d);
       if (prev) {
-        // אם השעה שנבחרה כבר לא קיימת לטווח החדש, ננקה
         setTimeout(() => {
           const stillExists = !!opts.querySelector(`.time-option[data-value="${prev}"]`);
           if (!stillExists) {
@@ -337,16 +331,15 @@
       }
     });
 
-    // אתחול ראשון לפי ערך התאריך בטופס
     (function initTimeForInitialDate(){
       const initDate = dateInput.value || new Date().toISOString().slice(0,10);
       rebuildTimeOptionsFor(initDate);
     })();
 
-    // וידוא פרמטרים בטופס
     form.addEventListener("submit", (ev) => {
-      const dateVal = dateInput.value.trim();
-      const timeVal = hiddenInput.value.trim();
+      const dateVal = (dateInput.value || "").trim();
+      const timeVal = (hiddenInput.value || "").trim();
+      const pplVal  = Math.max(1, parseInt((peopleInput.value || "1"), 10) || 1);
       if (!dateVal || !timeVal) {
         ev.preventDefault();
         alert("נא לבחור תאריך ושעה");
@@ -355,14 +348,16 @@
       const u = new URL(form.action, window.location.origin);
       u.searchParams.set("date", dateVal);
       u.searchParams.set("time", timeVal);
+      u.searchParams.set("people", String(pplVal));
       form.action = u.pathname + u.search;
     });
 
-    // "בדוק זמינות" + הצעות סביב השעה
+    // "בדוק זמינות" + הצעות סביב השעה — שולח גם people
     const checkBtn = document.getElementById("check-btn");
     checkBtn?.addEventListener("click", async () => {
-      const date = dateInput.value.trim();
-      const time = hiddenInput.value.trim();
+      const date = (dateInput.value || "").trim();
+      const time = (hiddenInput.value || "").trim();
+      const people = Math.max(1, parseInt((peopleInput.value || "1"), 10) || 1);
       if (!date || !time) {
         alert("נא לבחור תאריך ושעה");
         return;
@@ -371,7 +366,7 @@
       const resp = await fetch(`/api/restaurants/${encodeURIComponent(rid)}/check`, {
         method: "POST",
         headers: { "Accept": "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify({ date, time }),
+        body: JSON.stringify({ date, time, people }),
       });
       const data = await resp.json().catch(()=>null);
       if (resp.ok && data && data.ok) renderAround([]);
