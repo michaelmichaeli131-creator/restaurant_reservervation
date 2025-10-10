@@ -8,7 +8,7 @@
   <style>
     :root{
       --bg:#f4f7fb;--card:#ffffff;--ink:#0f172a;--muted:#64748b;
-      --brand:#06b6d4;--brand-ink:#fff;--bd:#e2e8f0;--danger:#ef4444;--ok:#16a34a;
+      --brand:#06b6d4;--brand-ink:#fff;--bd:#e2e8f0;--danger:#ef4444;--ok:#16a34a;--warn:#f59e0b;
       --radius:14px;
     }
     *{box-sizing:border-box}
@@ -32,7 +32,12 @@
     .btn-danger{background:var(--danger);color:#fff}
     .btn-danger:hover{filter:brightness(1.05)}
     .btn[disabled],button[disabled]{opacity:.55;cursor:not-allowed;filter:none}
+    form{margin:0}
     .hr{height:1px;background:var(--bd);margin:20px 0}
+    .note{font-size:13px;color:var(--muted)}
+    .slots{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    .slot{border:1px solid var(--bd);border-radius:999px;padding:6px 10px;cursor:pointer;background:#fff}
+    .slot:hover{background:#f1f5f9}
     .success{color:var(--ok);font-weight:700;margin:10px 0 0}
     .error{color:var(--danger);font-weight:700;margin:10px 0 0}
     .restaurant{display:flex;gap:14px;align-items:center;margin-top:8px}
@@ -41,6 +46,9 @@
     .badge.new{border-color:#cbd5e1;background:#f8fafc}
     .badge.confirmed{border-color:#bbf7d0;background:#f0fdf4;color:#065f46}
     .badge.canceled{border-color:#fecaca;background:#fff1f2;color:#7f1d1d}
+    .fieldset{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end}
+    .pill input{width:100%;border:0;outline:none;background:transparent;font:inherit;padding:6px 0}
+    .disabled-tip{margin-top:6px;font-size:13px;color:var(--muted)}
   </style>
 </head>
 <body>
@@ -51,6 +59,7 @@
           <h1>ניהול הזמנה</h1>
           <div class="muted">מס׳ הזמנה: <code><%= it.reservation.id %></code></div>
         </div>
+        <!-- תג סטטוס -->
         <% 
           const status = (it.reservation.status || 'new');
           const statusLabel = status==='confirmed' ? 'מאושר'
@@ -105,15 +114,15 @@
         <% } %>
 
         <div class="actions">
-          <!-- אישור הגעה (מופיע רק כשהוא אפשרי) -->
-          <% if (it.allowConfirm) { %>
-            <form method="post" action="/r/<%= it.token %>">
-              <input type="hidden" name="action" value="confirm">
-              <button class="btn btn-brand" type="submit">מאשר/ת הגעה</button>
-            </form>
-          <% } %>
+          <!-- אישור הגעה -->
+          <form method="post" action="/r/<%= it.token %>">
+            <input type="hidden" name="action" value="confirm">
+            <button class="btn btn-brand" type="submit" <%= it.allowConfirm ? '' : 'disabled aria-disabled="true"' %>>
+              מאשר/ת הגעה
+            </button>
+          </form>
 
-          <!-- ביטול (תמיד זמין עד שההזמנה כבר בוטלה) -->
+          <!-- ביטול -->
           <form method="post" action="/r/<%= it.token %>" onsubmit="return <%= it.allowCancel ? 'confirm(\\'לבטל את ההזמנה?\\')' : 'false' %>;">
             <input type="hidden" name="action" value="cancel">
             <button class="btn btn-danger" type="submit" <%= it.allowCancel ? '' : 'disabled aria-disabled="true"' %>>
@@ -127,7 +136,52 @@
 
         <div class="hr"></div>
 
-        <p class="muted">צריך עזרה? פנו אלינו עם מספר ההזמנה שמופיע למעלה.</p>
+        <!-- שינוי מועד -->
+        <h2 style="margin:0 0 6px;font-size:20px">שינוי מועד</h2>
+        <p class="note">
+          בחר/י תאריך ושעה חדשים ואז שמירה. אם אין זמינות, נציע חלופות קרובות.
+          <% if (!it.allowCancel) { %>
+            <span class="disabled-tip">ההזמנה בוטלה — לא ניתן לשנות מועד.</span>
+          <% } %>
+        </p>
+
+        <form method="post" action="/r/<%= it.token %>" class="fieldset">
+          <input type="hidden" name="action" value="reschedule">
+          <label class="pill" style="display:block">
+            <strong>תאריך חדש</strong>
+            <input type="date" name="date" value="<%= it.reservation.date %>" <%= it.allowCancel ? '' : 'disabled' %>>
+          </label>
+          <label class="pill" style="display:block">
+            <strong>שעה חדשה</strong>
+            <input type="time" name="time" value="<%= it.reservation.time %>" step="900" <%= it.allowCancel ? '' : 'disabled' %>>
+          </label>
+          <label class="pill" style="display:block">
+            <strong>סועדים</strong>
+            <input type="number" name="people" value="<%= it.reservation.people %>" min="1" <%= it.allowCancel ? '' : 'disabled' %>>
+          </label>
+          <button class="btn btn-brand" type="submit" <%= it.allowCancel ? '' : 'disabled aria-disabled="true"' %>>
+            שמירת שינוי
+          </button>
+        </form>
+
+        <% if (it.suggestions && it.suggestions.length) { %>
+          <div class="slots" aria-label="הצעות קרובות">
+            <% it.suggestions.forEach(function(t){ %>
+              <form method="post" action="/r/<%= it.token %>">
+                <input type="hidden" name="action" value="reschedule">
+                <input type="hidden" name="date" value="<%= it.reservation.date %>">
+                <input type="hidden" name="time" value="<%= t %>">
+                <input type="hidden" name="people" value="<%= it.reservation.people %>">
+                <button class="slot" type="submit" <%= it.allowCancel ? '' : 'disabled aria-disabled="true"' %>><%= t %></button>
+              </form>
+            <% }) %>
+          </div>
+          <p class="note">הצעות קרובות לשעה שביקשת.</p>
+        <% } %>
+
+        <div class="hr"></div>
+
+        <p class="note">יש בעיה? פנו אלינו עם מספר ההזמנה המופיע למעלה.</p>
       </div>
     </div>
   </div>
