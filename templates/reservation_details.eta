@@ -14,6 +14,7 @@
     <div class="summary">
       <div><strong>תאריך:</strong> <span id="sum-date"><%= it.date %></span></div>
       <div><strong>שעה:</strong> <span id="sum-time"><%= it.time %></span></div>
+      <div><strong>מס׳ סועדים:</strong> <span id="sum-people"><%= it.people %></span></div>
       <div><strong>מסעדה:</strong> <%= it.restaurant.name %></div>
     </div>
 
@@ -21,10 +22,9 @@
           class="form-grid"
           action="/restaurants/<%= it.restaurant.id %>/confirm"
           method="post" novalidate>
-      <!-- שולחים את התאריך, שעה ומספר סועדים כמקורות שלא ניתנים לשינוי -->
+      <!-- תאריך ושעה נעולים בשלב הזה -->
       <input type="hidden" name="date" value="<%= it.date %>"/>
       <input type="hidden" name="time" value="<%= it.time %>"/>
-      <input type="hidden" name="people" value="<%= it.people %>"/>
 
       <div class="form-row">
         <label for="name">שם מלא</label>
@@ -46,7 +46,7 @@
         <small class="muted">נשלח אליך אישור הזמנה</small>
       </div>
 
-      <% 
+      <%
         const cap = Math.max(1, Math.min(30, it.restaurant.capacity || 30));
       %>
       <div class="form-row">
@@ -97,6 +97,13 @@
         emailEl.value = normalizeEmail(emailEl.value);
       });
     }
+
+    // עדכון תקציר הסועדים בזמן אמת
+    const ppl = document.getElementById('people');
+    const sumP = document.getElementById('sum-people');
+    if (ppl && sumP) {
+      ppl.addEventListener('input', () => { sumP.textContent = ppl.value; });
+    }
   })();
 
   (function () {
@@ -111,6 +118,7 @@
         const sp = new URLSearchParams();
         const fd = new FormData(form);
 
+        // נשלח את כל הערכים (כולל people העדכני)
         for (const [k, v] of fd.entries()) {
           if (typeof v === 'string') sp.append(k, v);
         }
