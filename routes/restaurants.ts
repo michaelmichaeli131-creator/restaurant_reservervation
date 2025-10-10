@@ -41,7 +41,7 @@ function normalizeDate(input: unknown): string {
   return s;
 }
 
-/* ─────────── normalizeTime: תומך 24h וגם AM/PM ─────────── */
+/* ─────────── normalizeTime ─────────── */
 function normalizeTime(input: unknown): string {
   let s = String(input ?? "").trim();
   if (!s) return "";
@@ -97,7 +97,7 @@ function normalizePlain(raw: unknown): string {
   return s;
 }
 
-/* -------- Email utils (מינימלי בלבד) -------- */
+/* -------- Email utils -------- */
 function sanitizeEmailMinimal(raw: unknown): string {
   let s = String(raw ?? "");
   s = s.replace(BIDI, "");
@@ -117,7 +117,7 @@ function isValidEmailStrict(s: string): boolean {
   return /^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/.test(s);
 }
 
-/* ---------------- Photos helper (normalize to string[]) ---------------- */
+/* ---------------- Photos helper ---------------- */
 function photoStrings(photos: unknown): string[] {
   if (!Array.isArray(photos)) return [];
   return photos
@@ -133,11 +133,7 @@ function toMinutes(hhmm: string): number {
   return Number(m[1]) * 60 + Number(m[2]);
 }
 
-/* ---- detect if weekly has explicit key for date (even if null) ---- */
-function hasScheduleForDate(
-  weekly: WeeklySchedule | undefined | null,
-  date: string,
-): boolean {
+function hasScheduleForDate(weekly: WeeklySchedule | undefined | null, date: string): boolean {
   if (!weekly) return false;
   const d = new Date(date + "T00:00:00");
   if (isNaN(d.getTime())) return false;
@@ -151,14 +147,10 @@ function hasScheduleForDate(
     (long as readonly string[])[dowNum].toUpperCase(),
     (short as readonly string[])[dowNum].toUpperCase(),
   ];
-
-  for (const k of keys) {
-    if (Object.prototype.hasOwnProperty.call(weekly as any, k)) return true;
-  }
+  for (const k of keys) if (Object.prototype.hasOwnProperty.call(weekly as any, k)) return true;
   return false;
 }
 
-/* ---- read windows for a given date; null => [] ---- */
 function getWindowsForDate(
   weekly: WeeklySchedule | undefined | null,
   date: string,
@@ -209,16 +201,13 @@ function withinAnyWindow(timeMin: number, windows: Array<{ open: string; close: 
   return false;
 }
 
-/* ---- final schedule logic ---- */
 function isWithinSchedule(weekly: WeeklySchedule | undefined | null, date: string, time: string) {
   const t = toMinutes(time);
   if (!Number.isFinite(t)) return false;
-
   const hasDay = hasScheduleForDate(weekly, date);
   const windows = getWindowsForDate(weekly, date);
-
-  if (!hasDay) return true;             // backward compatibility: no key ⇒ open all day
-  if (windows.length === 0) return false; // explicit null ⇒ closed
+  if (!hasDay) return true;
+  if (windows.length === 0) return false;
   return withinAnyWindow(t, windows);
 }
 
@@ -238,17 +227,34 @@ async function suggestionsWithinSchedule(
   return ok.slice(0, 8);
 }
 
-/* ---------------- Strong body reader for Oak/Web ---------------- */
+/* -------------- Strong body reader (v17+ & legacy) -------------- */
+
+function lcContentType(ctx: any): string {
+  return (ctx.request.headers.get("content-type") ?? "").toLowerCase();
+}
+
+function pickNativeRequest(reqAny: any): any | null {
+  // Oak v17: originalRequest; חלק מהגרסאות: request/raw/_original
+  const cands = [
+    reqAny?.originalRequest,
+    reqAny?.request,
+    reqAny?.raw,
+    reqAny, // כ־fallback — לעיתים המתודות עצמן נמצאות כאן
+  ];
+  for (const c of cands) {
+    if (!c) continue;
+    if (typeof c === "object" && (typeof c.formData === "function" || typeof c.json === "function" || typeof c.text === "function")) {
+      return c;
+    }
+  }
+  return null;
+}
 
 async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
-  const dbg: Record<string, unknown> = {
-    ct: (ctx.request.headers.get("content-type") ?? "").toLowerCase(),
-    phases: [] as any[],
-  };
-  const phase = (name: string, data?: unknown) => {
-    try { (dbg.phases as any[]).push({ name, data }); } catch {}
-  };
+  const dbg: Record<string, unknown> = { ct: lcContentType(ctx), phases: [] as any[] };
+  const phase = (name: string, data?: unknown) => { try { (dbg.phases as any[]).push({ name, data }); } catch {} };
 
+  const out: Record<string, unknown> = {};
   const merge = (dst: Record<string, unknown>, src: Record<string, unknown>) => {
     for (const [k, v] of Object.entries(src)) if (v !== undefined && v !== null && v !== "") dst[k] = v;
     return dst;
@@ -262,101 +268,119 @@ async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; d
     return o;
   };
 
-  const out: Record<string, unknown> = {};
-  const reqAny: any = ctx.request as any;
+  // 1) Oak v17+ — ניגש ל־Request המקורי (WHATWG)
+  try {
+    const native = pickNativeRequest((ctx as any).request);
+    if (native) {
+      phase("native.detected", Object.keys(native));
+      const ct = dbg.ct;
 
-  // 1) Web standard APIs first (Oak v17+ ממליץ)
-  try {
-    if (typeof reqAny.formData === "function") {
-      const fd = await reqAny.formData();
-      const o = fromEntries(fd);
-      if (Object.keys(o).length) { phase("web.formData", o); merge(out, o); }
-    }
-  } catch (e) { phase("web.formData.error", String(e)); }
-  try {
-    if (typeof reqAny.json === "function") {
-      const j = await reqAny.json();
-      if (j && typeof j === "object") { phase("web.json", j); merge(out, j); }
-    }
-  } catch (e) { phase("web.json.error", String(e)); }
-  try {
-    if (typeof reqAny.text === "function") {
-      const t: string = await reqAny.text();
-      if (t) {
-        phase("web.text", t.length > 200 ? t.slice(0,200) + "…" : t);
-        try { const j = JSON.parse(t); phase("web.text->json", j); merge(out, j); }
-        catch {
+      const useForm = /\bmultipart\/form-data\b/.test(ct);
+      const useUrlEnc = /\bapplication\/x-www-form-urlencoded\b/.test(ct);
+      const useJson = /\bapplication\/json\b/.test(ct);
+
+      if (useJson && typeof native.json === "function") {
+        try {
+          const j = await native.json();
+          if (j && typeof j === "object") { phase("native.json", j); merge(out, j); }
+        } catch (e) { phase("native.json.error", String(e)); }
+      } else if (useForm && typeof native.formData === "function") {
+        try {
+          const fd = await native.formData();
+          const o = fromEntries(fd);
+          phase("native.formData", o);
+          merge(out, o);
+        } catch (e) { phase("native.formData.error", String(e)); }
+      } else if (useUrlEnc && typeof native.text === "function") {
+        try {
+          const t = await native.text();
+          phase("native.text(urlencoded)", t.length > 200 ? t.slice(0,200)+"…" : t);
           const sp = new URLSearchParams(t);
           const o = fromEntries(sp);
-          if (Object.keys(o).length) { phase("web.text->urlencoded", o); merge(out, o); }
-        }
+          merge(out, o);
+        } catch (e) { phase("native.text.urlencoded.error", String(e)); }
+      } else if (typeof native.text === "function") {
+        // Fallback — נקרא כטקסט וננסה JSON/URL-encoded
+        try {
+          const t = await native.text();
+          phase("native.text", t.length > 200 ? t.slice(0,200)+"…" : t);
+          try { const j = JSON.parse(t); phase("native.text->json", j); merge(out, j as any); }
+          catch {
+            const sp = new URLSearchParams(t);
+            const o = fromEntries(sp);
+            if (Object.keys(o).length) { phase("native.text->urlencoded", o); merge(out, o); }
+          }
+        } catch (e) { phase("native.text.error", String(e)); }
       }
+    } else {
+      phase("native.missing", "no suitable Request with formData/json/text");
     }
-  } catch (e) { phase("web.text.error", String(e)); }
-
-  // 2) Back-compat with older Oak (.body()) — רק אם קיימת פונקציה
-  async function tryOak(kind: "form" | "form-data" | "json" | "text" | "bytes") {
-    try {
-      const bodyFn = (ctx.request as any).body;
-      if (typeof bodyFn !== "function") {
-        phase(`oak.body(${kind}).skip`, "ctx.request.body is not a function");
-        return;
-      }
-      const b = await bodyFn.call(ctx.request, { type: kind });
-      if (!b) return;
-      const t = b.type;
-      if (t === "form") {
-        const v = await b.value as URLSearchParams;
-        const o = fromEntries(v);
-        phase("oak.body(form)", o);
-        merge(out, o);
-      } else if (t === "form-data") {
-        const v = await b.value;
-        const r = await v.read();
-        const o = (r?.fields ?? {}) as Record<string, unknown>;
-        phase("oak.body(form-data)", o);
-        merge(out, o);
-      } else if (t === "json") {
-        const j = await b.value as Record<string, unknown>;
-        phase("oak.body(json)", j);
-        merge(out, j || {});
-      } else if (t === "text") {
-        const txt = await b.value as string;
-        phase("oak.body(text)", txt.length > 200 ? txt.slice(0,200) + "…" : txt);
-        try { const j = JSON.parse(txt); phase("oak.body(text->json)", j); merge(out, j as any); }
-        catch {
-          const sp = new URLSearchParams(txt);
-          const o = fromEntries(sp);
-          if (Object.keys(o).length) { phase("oak.body(text->urlencoded)", o); merge(out, o); }
-        }
-      } else if (t === "bytes") {
-        const u8 = await b.value as Uint8Array;
-        const txt = new TextDecoder().decode(u8);
-        phase("oak.body(bytes)", txt.length > 200 ? txt.slice(0,200) + "…" : txt);
-        try { const j = JSON.parse(txt); phase("oak.body(bytes->json)", j); merge(out, j as any); }
-        catch {
-          const sp = new URLSearchParams(txt);
-          const o = fromEntries(sp);
-          if (Object.keys(o).length) { phase("oak.body(bytes->urlencoded)", o); merge(out, o); }
-        }
-      }
-    } catch (e) {
-      phase(`oak.body(${kind}).error`, String(e));
-    }
+  } catch (e) {
+    phase("native.fatal", String(e));
   }
 
-  // נרוץ רק אם עוד אין לנו שדות (כדי לא “לשרוף” את ה־Body פעמיים)
+  // 2) תאימות לאחור — Oak ישן: ctx.request.body()
   if (Object.keys(out).length === 0) {
-    await tryOak("form");
-    await tryOak("json");
-    await tryOak("form-data");
-    await tryOak("text");
-    await tryOak("bytes");
+    async function tryOak(kind: "form" | "form-data" | "json" | "text" | "bytes") {
+      try {
+        const bodyFn = (ctx.request as any).body;
+        if (typeof bodyFn !== "function") {
+          phase(`oak.body(${kind}).skip`, "ctx.request.body is not a function");
+          return;
+        }
+        const b = await bodyFn.call(ctx.request, { type: kind });
+        if (!b) return;
+        const t = b.type;
+        if (t === "form") {
+          const v = await b.value as URLSearchParams;
+          const o = fromEntries(v);
+          phase("oak.body(form)", o);
+          merge(out, o);
+        } else if (t === "form-data") {
+          const v = await b.value;
+          const r = await v.read();
+          const o = (r?.fields ?? {}) as Record<string, unknown>;
+          phase("oak.body(form-data)", o);
+          merge(out, o);
+        } else if (t === "json") {
+          const j = await b.value as Record<string, unknown>;
+          phase("oak.body(json)", j);
+          merge(out, j || {});
+        } else if (t === "text") {
+          const txt = await b.value as string;
+          phase("oak.body(text)", txt.length > 200 ? txt.slice(0,200)+"…" : txt);
+          try { const j = JSON.parse(txt); phase("oak.body(text->json)", j); merge(out, j as any); }
+          catch {
+            const sp = new URLSearchParams(txt);
+            const o = fromEntries(sp);
+            if (Object.keys(o).length) { phase("oak.body(text->urlencoded)", o); merge(out, o); }
+          }
+        } else if (t === "bytes") {
+          const u8 = await b.value as Uint8Array;
+          const txt = new TextDecoder().decode(u8);
+          phase("oak.body(bytes)", txt.length > 200 ? txt.slice(0,200)+"…" : txt);
+          try { const j = JSON.parse(txt); phase("oak.body(bytes->json)", j); merge(out, j as any); }
+          catch {
+            const sp = new URLSearchParams(txt);
+            const o = fromEntries(sp);
+            if (Object.keys(o).length) { phase("oak.body(bytes->urlencoded)", o); merge(out, o); }
+          }
+        }
+      } catch (e) {
+        phase(`oak.body(${kind}).error`, String(e));
+      }
+    }
+
+    await tryOak("json"); // אם זה JSON, עדיף לקרוא קודם
+    if (Object.keys(out).length === 0) await tryOak("form");
+    if (Object.keys(out).length === 0) await tryOak("form-data");
+    if (Object.keys(out).length === 0) await tryOak("text");
+    if (Object.keys(out).length === 0) await tryOak("bytes");
   } else {
-    phase("oak.body.skip", "payload already filled by web API");
+    phase("oak.compat.skip", "already read via native request");
   }
 
-  // 3) Query string (merge only empty keys)
+  // 3) Query string (רק לשדות שלא מולאו)
   const qs = Object.fromEntries(ctx.request.url.searchParams);
   phase("querystring", qs);
   for (const [k, v] of Object.entries(qs)) {
@@ -444,22 +468,14 @@ function extractHoursFromFlatPayload(payload: Record<string, unknown>): WeeklyHo
 
   for (const [rawKey, value] of entries) {
     const key = String(rawKey);
-
-    // 1) hours[1][open] / hours[mon][close]
     let m = key.match(/^hours\[(.+?)\]\[(open|close)\]$/i);
-    if (!m) {
-      // 2) hours.1.open / hours.MON.close
-      m = key.match(/^hours[.\-](.+?)[.\-](open|close)$/i);
-    }
-    if (!m) {
-      // 3) hours_1_open / hours_mon_close
-      m = key.match(/^hours[_\-](.+?)[_\-](open|close)$/i);
-    }
+    if (!m) m = key.match(/^hours[.\-](.+?)[.\-](open|close)$/i);
+    if (!m) m = key.match(/^hours[_\-](.+?)[_\-](open|close)$/i);
     if (!m) continue;
 
     hit = true;
     const dayToken = m[1].toString().toLowerCase();
-    const field = m[2].toLowerCase(); // open|close
+    const field = m[2].toLowerCase();
 
     let idx: number | undefined;
     if (dayToken in DAY_NAME_TO_INDEX) idx = DAY_NAME_TO_INDEX[dayToken];
@@ -536,13 +552,7 @@ restaurantsRouter.get("/api/restaurants", async (ctx) => {
   const q = ctx.request.url.searchParams.get("q") ?? "";
   const onlyApproved = (ctx.request.url.searchParams.get("approved") ?? "1") !== "0";
   const items = await listRestaurants(q, onlyApproved);
-
-  // normalize photos for API consumers
-  const out = items.map(r => ({
-    ...r,
-    photos: photoStrings(r.photos),
-  }));
-
+  const out = items.map(r => ({ ...r, photos: photoStrings(r.photos) }));
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = JSON.stringify(out, null, 2);
 });
@@ -551,11 +561,7 @@ restaurantsRouter.get("/api/restaurants", async (ctx) => {
 restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const id = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(id);
-  if (!restaurant) {
-    ctx.response.status = Status.NotFound;
-    ctx.response.body = "Restaurant not found";
-    return;
-  }
+  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
 
   const rawDate = ctx.request.url.searchParams.get("date") ?? "";
   const rawTime = ctx.request.url.searchParams.get("time") ?? "";
@@ -566,7 +572,6 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const windows = getWindowsForDate(restaurant.weeklySchedule as WeeklySchedule, date);
   const openingWindows = hasDay ? windows : [{ open: "00:00", close: "23:59" }];
 
-  // ברירת מחדל לקונפיג סלוטים אם לא נשמרו במסעדה
   const slotIntervalMinutes = (restaurant as any).slotIntervalMinutes ?? 15;
   const serviceDurationMinutes = (restaurant as any).serviceDurationMinutes ?? 120;
 
@@ -577,10 +582,7 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
     openingWindows
   });
 
-  // normalize photos for template (expects string[])
   const photos = photoStrings(restaurant.photos);
-
-  // להעביר שעות פתיחה תחת כמה שמות לתמיכה בטמפלטים שונים + קונפיג סלוטים
   const restaurantForView = {
     ...restaurant,
     photos,
@@ -596,9 +598,9 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
     page: "restaurant",
     title: `${restaurant.name} — GeoTable`,
     restaurant: restaurantForView,
-    openingWindows,           // חלונות ליום ההתחלתי (לנוחות הפרונט)
-    slotIntervalMinutes,      // אופציונלי: אם התבנית משתמשת בזה
-    serviceDurationMinutes,   // אופציונלי
+    openingWindows,
+    slotIntervalMinutes,
+    serviceDurationMinutes,
     conflict: ctx.request.url.searchParams.get("conflict") === "1",
     suggestions: (ctx.request.url.searchParams.get("suggest") ?? "").split(",").filter(Boolean),
     date,
@@ -610,11 +612,7 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
 restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
-  if (!restaurant) {
-    ctx.response.status = Status.NotFound;
-    ctx.response.body = "restaurant not found";
-    return;
-  }
+  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "restaurant not found"; return; }
 
   const { payload, dbg } = await readBody(ctx);
   const { date, time } = extractDateAndTime(ctx, payload);
@@ -662,11 +660,7 @@ restaurantsRouter.post("/api/restaurants/:id/check", async (ctx) => {
 restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
-  if (!restaurant) {
-    ctx.response.status = Status.NotFound;
-    ctx.response.body = "restaurant not found";
-    return;
-  }
+  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "restaurant not found"; return; }
 
   const { payload, dbg } = await readBody(ctx);
   const { date, time } = extractDateAndTime(ctx, payload);
@@ -723,11 +717,7 @@ restaurantsRouter.post("/restaurants/:id/reserve", async (ctx) => {
 restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
   const id = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(id);
-  if (!restaurant) {
-    ctx.response.status = Status.NotFound;
-    ctx.response.body = "Restaurant not found";
-    return;
-  }
+  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
 
   const date = normalizeDate(ctx.request.url.searchParams.get("date") ?? "") || todayISO();
   const time = normalizeTime(ctx.request.url.searchParams.get("time") ?? "");
@@ -752,11 +742,7 @@ restaurantsRouter.get("/restaurants/:id/details", async (ctx) => {
 restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
-  if (!restaurant) {
-    ctx.response.status = Status.NotFound;
-    ctx.response.body = "restaurant not found";
-    return;
-  }
+  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "restaurant not found"; return; }
 
   const sp = ctx.request.url.searchParams;
   const { date, time } = extractDateAndTime(ctx, Object.fromEntries(sp.entries()));
@@ -781,10 +767,10 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   const customerEmail = sanitizeEmailMinimal(emailRaw);
 
   const bad = (m: string, extra?: unknown) => {
-    const dbg = { ct: "querystring", phases: [], keys: Array.from(sp.keys()), extra };
+    const dbgObj = { ct: "querystring", phases: [], keys: Array.from(sp.keys()), extra };
     ctx.response.status = Status.BadRequest;
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok:false, error:m, dbg }, null, 2);
+    ctx.response.body = JSON.stringify({ ok:false, error:m, dbg: dbgObj }, null, 2);
   };
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("תאריך לא תקין");
@@ -877,11 +863,7 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
 restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
-  if (!restaurant) {
-    ctx.response.status = Status.NotFound;
-    ctx.response.body = "restaurant not found";
-    return;
-  }
+  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "restaurant not found"; return; }
 
   const { payload, dbg } = await readBody(ctx);
   const { date, time } = extractDateAndTime(ctx, payload);
@@ -994,7 +976,6 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
 
 /* ---------------- Owner: save opening hours ---------------- */
 
-/** POST /restaurants/:id/hours – תומך ב-JSON, form-data ו-urlencoded (כולל שדות שטוחים) */
 restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
 
@@ -1010,7 +991,6 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   const slotIntervalMinutes = Math.max(5, toIntLoose((payload as any).slotIntervalMinutes ?? (payload as any).slot) ?? 15);
   const serviceDurationMinutes = Math.max(30, toIntLoose((payload as any).serviceDurationMinutes ?? (payload as any).span) ?? 120);
 
-  // שימוש בנרמול המקיף כדי לתמוך בכל הצורות (JSON/שטוח/מחרוזות)
   const weeklyCandidate =
     (payload as any).weeklySchedule ??
     (payload as any).hours ??
@@ -1020,7 +1000,6 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
 
   const normalizedMap = ensureWeeklyHours(weeklyCandidate, payload);
 
-  // המרה ל־WeeklySchedule לפי DayOfWeek (0..6) → {open,close}|null
   const normalized: WeeklySchedule = {};
   for (let d = 0 as DayOfWeek; d <= 6; d = (d + 1) as DayOfWeek) {
     const row = (normalizedMap as any)[d] ?? null;
@@ -1034,15 +1013,10 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
     weeklySchedule: normalized,
   });
 
-  // עדכון DB
   const db = await import("../database.ts");
   const updater = (db as any).updateRestaurant;
 
-  if (!updater) {
-    ctx.response.status = Status.InternalServerError;
-    ctx.response.body = "No DB updater found";
-    return;
-  }
+  if (!updater) { ctx.response.status = Status.InternalServerError; ctx.response.body = "No DB updater found"; return; }
 
   try {
     await updater(rid, {
@@ -1078,25 +1052,14 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
 restaurantsRouter.get("/r/:token", async (ctx) => {
   const token = String(ctx.params.token ?? "").trim();
   const payload = await verifyReservationToken(token);
-  if (!payload) {
-    ctx.response.status = Status.NotFound;
-    ctx.response.body = "Invalid or expired link";
-    return;
-  }
+  if (!payload) { ctx.response.status = Status.NotFound; ctx.response.body = "Invalid or expired link"; return; }
 
   const reservation = await getReservationById(payload.rid);
-  if (!reservation) {
-    ctx.response.status = Status.NotFound;
-    ctx.response.body = "Reservation not found";
-    return;
-  }
+  if (!reservation) { ctx.response.status = Status.NotFound; ctx.response.body = "Reservation not found"; return; }
 
   const restaurant = await getRestaurant(reservation.restaurantId);
   const photos = photoStrings(restaurant?.photos);
 
-  // כללים:
-  // confirm מותר רק אם לא מאושר ולא מבוטל
-  // cancel מותר אם סטטוס אינו "canceled"
   const allowConfirm = reservation.status !== "confirmed" && reservation.status !== "canceled";
   const allowCancel  = reservation.status !== "canceled";
 
@@ -1107,7 +1070,7 @@ restaurantsRouter.get("/r/:token", async (ctx) => {
     reservation,
     restaurant: restaurant ? { ...restaurant, photos } : null,
     flash: null,
-    suggestions: [],      // אין שינוי מועד → אין הצעות
+    suggestions: [],
     allowConfirm,
     allowCancel,
   });
@@ -1116,28 +1079,16 @@ restaurantsRouter.get("/r/:token", async (ctx) => {
 restaurantsRouter.post("/r/:token", async (ctx) => {
   const token = String(ctx.params.token ?? "").trim();
   const payload = await verifyReservationToken(token);
-  if (!payload) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "Invalid or expired link";
-    return;
-  }
+  if (!payload) { ctx.response.status = Status.BadRequest; ctx.response.body = "Invalid or expired link"; return; }
 
   const { payload: body } = await readBody(ctx);
   const action = String(body.action ?? "").trim().toLowerCase();
 
   const reservation = await getReservationById(payload.rid);
-  if (!reservation) {
-    ctx.response.status = Status.NotFound;
-    ctx.response.body = "Reservation not found";
-    return;
-  }
+  if (!reservation) { ctx.response.status = Status.NotFound; ctx.response.body = "Reservation not found"; return; }
 
   const restaurant = await getRestaurant(reservation.restaurantId);
-  if (!restaurant) {
-    ctx.response.status = Status.NotFound;
-    ctx.response.body = "Restaurant not found";
-    return;
-  }
+  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
 
   const photos = photoStrings(restaurant.photos);
   const renderBack = async (flash: any) => {
@@ -1151,40 +1102,29 @@ restaurantsRouter.post("/r/:token", async (ctx) => {
       reservation: fresh,
       restaurant: { ...restaurant, photos },
       flash,
-      suggestions: [], // נשאר ריק – אין שינוי מועד
+      suggestions: [],
       allowConfirm,
       allowCancel,
     });
   };
 
   if (action === "confirm") {
-    if (reservation.status === "canceled") {
-      await renderBack({ error: "ההזמנה מבוטלת ולא ניתן לאשר אותה." });
-      return;
-    }
-    if (reservation.status === "confirmed") {
-      await renderBack({ ok: "ההזמנה כבר מאושרת." });
-      return;
-    }
+    if (reservation.status === "canceled") { await renderBack({ error: "ההזמנה מבוטלת ולא ניתן לאשר אותה." }); return; }
+    if (reservation.status === "confirmed") { await renderBack({ ok: "ההזמנה כבר מאושרת." }); return; }
     await updateReservation(reservation.id, { status: "confirmed" }).catch(() => {});
     await renderBack({ ok: "ההגעה אושרה. נתראה!" });
     return;
   }
 
   if (action === "cancel") {
-    if (reservation.status === "canceled") {
-      await renderBack({ ok: "ההזמנה כבר בוטלה." });
-      return;
-    }
+    if (reservation.status === "canceled") { await renderBack({ ok: "ההזמנה כבר בוטלה." }); return; }
     await updateReservation(reservation.id, { status: "canceled" }).catch(() => {});
     await renderBack({ ok: "ההזמנה בוטלה." });
     return;
   }
 
-  /// אין יותר reschedule
   await renderBack({ error: "פעולה לא מוכרת" });
 });
-
 
 export const router = restaurantsRouter;
 export default restaurantsRouter;
