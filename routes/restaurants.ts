@@ -45,30 +45,22 @@ function normalizeDate(input: unknown): string {
 function normalizeTime(input: unknown): string {
   let s = String(input ?? "").trim();
   if (!s) return "";
-
-  // 08.30 -> 08:30 (אפשרי עם AM/PM)
   if (/^\d{1,2}\.\d{2}(\s*[ap]m)?$/i.test(s)) s = s.replace(".", ":");
-
-  // AM/PM -> 24h
   const ampm = s.match(/^\s*(\d{1,2}):(\d{2})\s*(AM|PM)\s*$/i);
   if (ampm) {
     let h = Math.max(0, Math.min(12, Number(ampm[1])));
     const mi = Math.max(0, Math.min(59, Number(ampm[2])));
     const isPM = /pm/i.test(ampm[3]);
     if (isPM && h < 12) h += 12;
-    if (!isPM && h === 12) h = 0; // 12:xx AM -> 00:xx
+    if (!isPM && h === 12) h = 0;
     return `${pad2(h)}:${pad2(mi)}`;
   }
-
-  // ISO "T08:30" -> "08:30"
   const iso = s.match(/T(\d{2}):(\d{2})/);
   if (iso) s = `${iso[1]}:${iso[2]}`;
-
   const m = s.match(/^(\d{1,2}):(\d{2})$/);
   if (!m) return s;
   const h = Math.max(0, Math.min(23, Number(m[1])));
   let mi = Math.max(0, Math.min(59, Number(m[2])));
-  // יישור ל-15 דק’ לטובת בדיקות לוגיות; בפועל הפרונט יבנה סלוטים לפי קונפיג
   mi = Math.floor(mi / 15) * 15;
   return `${pad2(h)}:${pad2(mi)}`;
 }
@@ -105,43 +97,46 @@ function normalizePlain(raw: unknown): string {
   return s;
 }
 
-/** נרמול אימייל "סלחני": מתקן דפוסים נפוצים לפני ולפני הוולידציה */
-function normalizeEmail(raw: unknown): string {
-  let s = String(raw ?? "");
+/* -------- Email normalization & validation -------- */
 
-  // ניקוי bidi/רווחים לא סטנדרטיים ותווים רוחב-מלא
+/** שמרני: לא "מתקן" טקסט — רק ניקוי bidi/רווחים חריגים/Fullwidth ו-lowercase */
+function normalizeEmailStrict(raw: unknown): string {
+  let s = String(raw ?? "");
   s = s.replace(BIDI, "");
   s = s.replace(FULLWIDTH_AT, "@").replace(FULLWIDTH_DOT, ".");
   s = s.replace(ZSP, " ").trim();
+  s = s.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
+  // להסיר רווחים סביב @ בלבד (בלי לגעת בשאר התווים)
+  s = s.replace(/\s*@\s*/g, "@");
+  return s.toLowerCase();
+}
 
-  // הסרת מרכאות/סוגריים מסביב
+/** סלחני: מתקין דפוסים כמו " at " / " dot " ורווח במקום '@' — לשימוש Fallback בלבד */
+function normalizeEmailLoose(raw: unknown): string {
+  let s = String(raw ?? "");
+  s = s.replace(BIDI, "");
+  s = s.replace(FULLWIDTH_AT, "@").replace(FULLWIDTH_DOT, ".");
+  s = s.replace(ZSP, " ").trim();
   s = s.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
 
-  // תיקון דפוסים מילוליים נפוצים
   s = s.replace(/\s+at\s+/gi, "@");
   s = s.replace(/\s+dot\s+/gi, ".");
   s = s.replace(/\s*\(at\)\s*/gi, "@").replace(/\s*\[at\]\s*/gi, "@");
   s = s.replace(/\s*\(dot\)\s*/gi, ".").replace(/\s*\[dot\]\s*/gi, ".");
 
-  // אם אין '@' אבל יש שני טוקנים עם נקודה בטוקן השני → לשים '@' ביניהם
+  // ניסיון עדין: אם אין '@' ויש שני טוקנים עם נקודה בשני
   if (!s.includes("@")) {
     const parts = s.split(/\s+/).filter(Boolean);
     if (parts.length === 2 && /\./.test(parts[1])) {
       s = `${parts[0]}@${parts[1]}`;
     }
   }
-
-  // להוריד רווחים שנותרו סביב '@'
   s = s.replace(/\s*@\s*/g, "@");
-
-  // פסיקים במקום נקודות בדומיין
   s = s.replace(/,([A-Za-z]{2,})\b/g, ".$1");
-
   return s.toLowerCase();
 }
 
 function isValidEmail(s: string): boolean {
-  // regex פשוט וסלחני יחסית, אבל מחייב '@' ודומיין עם נקודה
   return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
 }
 
@@ -161,7 +156,6 @@ function toMinutes(hhmm: string): number {
   return Number(m[1]) * 60 + Number(m[2]);
 }
 
-/* ---- detect if weekly has explicit key for date (even if null) ---- */
 function hasScheduleForDate(
   weekly: WeeklySchedule | undefined | null,
   date: string,
@@ -186,7 +180,6 @@ function hasScheduleForDate(
   return false;
 }
 
-/* ---- read windows for a given date; null => [] ---- */
 function getWindowsForDate(
   weekly: WeeklySchedule | undefined | null,
   date: string,
@@ -237,7 +230,6 @@ function withinAnyWindow(timeMin: number, windows: Array<{ open: string; close: 
   return false;
 }
 
-/* ---- final schedule logic ---- */
 function isWithinSchedule(weekly: WeeklySchedule | undefined | null, date: string, time: string) {
   const t = toMinutes(time);
   if (!Number.isFinite(t)) return false;
@@ -245,12 +237,11 @@ function isWithinSchedule(weekly: WeeklySchedule | undefined | null, date: strin
   const hasDay = hasScheduleForDate(weekly, date);
   const windows = getWindowsForDate(weekly, date);
 
-  if (!hasDay) return true;             // backward compatibility: no key ⇒ open all day
-  if (windows.length === 0) return false; // explicit null ⇒ closed
+  if (!hasDay) return true;
+  if (windows.length === 0) return false;
   return withinAnyWindow(t, windows);
 }
 
-/* ----------- Suggestions helper ----------- */
 async function suggestionsWithinSchedule(
   restaurantId: string,
   date: string,
@@ -267,15 +258,12 @@ async function suggestionsWithinSchedule(
 }
 
 /* ---------------- Strong body reader for Oak v16/17 ---------------- */
-/** קורא את הגוף פעם אחת על בסיס ה-Content-Type, עם fallback נקודתי — מונע "Body already used" */
 async function readBody(
   ctx: any,
 ): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
   const ct = (ctx.request.headers.get("content-type") ?? "").toLowerCase();
   const dbg: Record<string, unknown> = { ct, phases: [] as any[] };
-  const phase = (name: string, data?: unknown) => {
-    try { (dbg.phases as any[]).push({ name, data }); } catch {}
-  };
+  const phase = (name: string, data?: unknown) => { try { (dbg.phases as any[]).push({ name, data }); } catch {} };
 
   const out: Record<string, unknown> = {};
   const merge = (src: Record<string, unknown>) => {
@@ -293,8 +281,6 @@ async function readBody(
 
   const b: any = ctx.request?.body;
   let consumed = false;
-
-  // מפה של סדרי עדיפויות לפי content-type
   const wantsFormData = /\bmultipart\/form-data\b/.test(ct);
   const wantsUrlEncoded = /\bapplication\/x-www-form-urlencoded\b/.test(ct);
   const wantsJson = /\bapplication\/json\b/.test(ct);
@@ -310,12 +296,10 @@ async function readBody(
       if (!consumed && wantsJson && typeof b.json === "function") {
         try { const j = await b.json(); if (j && typeof j === "object") { phase("oak17.json", j); merge(j as any); consumed = true; } } catch (e) { phase("oak17.json.error", String(e)); }
       }
-      // Fallback: אם לא זוהה CT או נכשל — ננסה text פעם אחת
       if (!consumed && typeof b.text === "function") {
         try {
           const t: string = await b.text();
           phase("oak17.text", t.length > 200 ? t.slice(0,200)+"…" : t);
-          // ננסה JSON ואז URL-encoded
           let merged = false;
           try { const j = JSON.parse(t); phase("oak17.text->json", j); if (j && typeof j === "object") { merge(j as any); merged = true; } } catch {}
           if (!merged) {
@@ -333,7 +317,6 @@ async function readBody(
     phase("oak17.global.error", String(e));
   }
 
-  // Query string כתוספת אחרונה (לא צורכים body)
   const qs = Object.fromEntries(ctx.request.url.searchParams);
   phase("querystring", qs);
   for (const [k, v] of Object.entries(qs)) {
@@ -413,52 +396,35 @@ const DAY_NAME_TO_INDEX: Record<string, number> = {
 
 type WeeklyHoursMap = { [day: string]: { open: string; close: string } | null };
 
-/** מפענח שעות מ־payload שטוח: hours[1][open], hours.1.open וכו' */
 function extractHoursFromFlatPayload(payload: Record<string, unknown>): WeeklyHoursMap | null {
   const out: WeeklyHoursMap = { "0": null, "1": null, "2": null, "3": null, "4": null, "5": null, "6": null };
-
   const entries = Object.entries(payload);
   let hit = false;
-
   for (const [rawKey, value] of entries) {
     const key = String(rawKey);
-
-    // 1) hours[1][open] / hours[mon][close]
     let m = key.match(/^hours\[(.+?)\]\[(open|close)\]$/i);
-    if (!m) {
-      // 2) hours.1.open / hours.MON.close
-      m = key.match(/^hours[.\-](.+?)[.\-](open|close)$/i);
-    }
-    if (!m) {
-      // 3) hours_1_open / hours_mon_close
-      m = key.match(/^hours[_\-](.+?)[_\-](open|close)$/i);
-    }
+    if (!m) m = key.match(/^hours[.\-](.+?)[.\-](open|close)$/i);
+    if (!m) m = key.match(/^hours[_\-](.+?)[_\-](open|close)$/i);
     if (!m) continue;
-
     hit = true;
     const dayToken = m[1].toString().toLowerCase();
-    const field = m[2].toLowerCase(); // open|close
-
+    const field = m[2].toLowerCase();
     let idx: number | undefined;
     if (dayToken in DAY_NAME_TO_INDEX) idx = DAY_NAME_TO_INDEX[dayToken];
     else if (/^[0-6]$/.test(dayToken)) idx = parseInt(dayToken, 10);
     if (idx === undefined) continue;
-
     const rec = out[idx] ?? { open: "", close: "" };
     (rec as any)[field] = normalizeTime(value);
     out[idx] = (rec.open && rec.close) ? { open: rec.open, close: rec.close } : rec;
   }
-
   return hit ? out : null;
 }
 
-/** ממיר כל קלט למפה 0..6 → {open,close}|null */
 function ensureWeeklyHours(input: unknown, payloadForFlat?: Record<string, unknown>): WeeklyHoursMap {
   if (payloadForFlat) {
     const flat = extractHoursFromFlatPayload(payloadForFlat);
     if (flat) return flat;
   }
-
   let obj: any = input ?? {};
   if (typeof obj === "string") {
     try { obj = JSON.parse(obj); } catch { obj = {}; }
@@ -511,13 +477,7 @@ restaurantsRouter.get("/api/restaurants", async (ctx) => {
   const q = ctx.request.url.searchParams.get("q") ?? "";
   const onlyApproved = (ctx.request.url.searchParams.get("approved") ?? "1") !== "0";
   const items = await listRestaurants(q, onlyApproved);
-
-  // normalize photos for API consumers
-  const out = items.map(r => ({
-    ...r,
-    photos: photoStrings(r.photos),
-  }));
-
+  const out = items.map(r => ({ ...r, photos: photoStrings(r.photos) }));
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = JSON.stringify(out, null, 2);
 });
@@ -541,7 +501,6 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const windows = getWindowsForDate(restaurant.weeklySchedule as WeeklySchedule, date);
   const openingWindows = hasDay ? windows : [{ open: "00:00", close: "23:59" }];
 
-  // ברירת מחדל לקונפיג סלוטים אם לא נשמרו במסעדה
   const slotIntervalMinutes = (restaurant as any).slotIntervalMinutes ?? 15;
   const serviceDurationMinutes = (restaurant as any).serviceDurationMinutes ?? 120;
 
@@ -552,10 +511,8 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
     openingWindows
   });
 
-  // normalize photos for template (expects string[])
   const photos = photoStrings(restaurant.photos);
 
-  // להעביר שעות פתיחה תחת כמה שמות לתמיכה בטמפלטים שונים + קונפיג סלוטים
   const restaurantForView = {
     ...restaurant,
     photos,
@@ -571,9 +528,9 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
     page: "restaurant",
     title: `${restaurant.name} — GeoTable`,
     restaurant: restaurantForView,
-    openingWindows,           // חלונות ליום ההתחלתי (לנוחות הפרונט)
-    slotIntervalMinutes,      // אופציונלי: אם התבנית משתמשת בזה
-    serviceDurationMinutes,   // אופציונלי
+    openingWindows,
+    slotIntervalMinutes,
+    serviceDurationMinutes,
     conflict: ctx.request.url.searchParams.get("conflict") === "1",
     suggestions: (ctx.request.url.searchParams.get("suggest") ?? "").split(",").filter(Boolean),
     date,
@@ -752,7 +709,12 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
 
   const customerName  = normalizePlain(customerNameRaw ?? "");
   const customerPhone = normalizePlain(customerPhoneRaw ?? "");
-  const customerEmail = normalizeEmail(customerEmailRaw ?? "");
+  // Strict → אם תקין נשאר; אחרת ננסה Loose כדי להציל טפסים בעייתיים
+  const emailStrict = normalizeEmailStrict(customerEmailRaw ?? "");
+  const emailLoose  = normalizeEmailLoose(customerEmailRaw ?? "");
+  const customerEmail = isValidEmail(emailStrict)
+    ? emailStrict
+    : (isValidEmail(emailLoose) ? emailLoose : emailStrict); // אם גם loose לא תקין, נשאיר strict (כדי להציג שגיאה עקבית)
 
   const bad = (m: string, extra?: unknown) => {
     const dbg = { ct: "querystring", phases: [], keys: Array.from(sp.keys()), extra };
@@ -764,7 +726,6 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("תאריך לא תקין");
   if (!/^\d{2}:\d{2}$/.test(time))       return bad("שעה לא תקינה");
   if (!customerName)                     return bad("נא להזין שם");
-
   if (!customerPhone && !customerEmail)  return bad("נא להזין טלפון או אימייל");
   if (customerEmail && !isValidEmail(customerEmail))
     return bad("נא להזין אימייל תקין", { customerEmail });
@@ -799,15 +760,12 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
     note: `Name: ${customerName}; Phone: ${customerPhone}; Email: ${customerEmail}`,
     createdAt: Date.now(),
   };
-  // ⚠️ בוצע פעם אחת בלבד (תיקון כפילות)
   await createReservation(reservation);
 
-  // --- Reservation self-service link (token + manageUrl) ---
   const token = await makeReservationToken(reservation.id, customerEmail);
   const origin = (Deno.env.get("APP_BASE_URL") || Deno.env.get("BASE_URL") || `${ctx.request.url.protocol}//${ctx.request.url.host}`).replace(/\/+$/, "");
   const manageUrl = `${origin}/r/${encodeURIComponent(token)}`;
 
-  // --- שליחת מייל ללקוח עם קישור ישיר ---
   await sendReservationEmail({
     to: customerEmail,
     restaurantName: restaurant.name,
@@ -817,7 +775,6 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
     reservationId: reservation.id,
   }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
 
-  // --- שליחת התראה לבעל המסעדה או לוג ---
   const owner = await getUserById(restaurant.ownerId).catch(() => null);
   if (owner?.email) {
     await notifyOwnerEmail({
@@ -834,7 +791,6 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
     console.log("[mail] owner email not found; skipping owner notification");
   }
 
-  // normalize for template (אחידות)
   const photos = photoStrings(restaurant.photos);
 
   await render(ctx, "reservation_confirmed", {
@@ -879,7 +835,12 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
 
   const customerName  = normalizePlain(customerNameRaw);
   const customerPhone = normalizePlain(customerPhoneRaw);
-  const customerEmail = normalizeEmail(customerEmailRaw);
+
+  const emailStrict = normalizeEmailStrict(customerEmailRaw ?? "");
+  const emailLoose  = normalizeEmailLoose(customerEmailRaw ?? "");
+  const customerEmail = isValidEmail(emailStrict)
+    ? emailStrict
+    : (isValidEmail(emailLoose) ? emailLoose : emailStrict);
 
   const bad = (m: string, extra?: unknown) => {
     const keys = Object.keys(payload ?? {});
@@ -894,11 +855,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   if (!/^\d{2}:\d{2}$/.test(time))       return bad("שעה לא תקינה");
   if (!customerName)                     return bad("נא להזין שם");
   if (!customerPhone && !customerEmail)  return bad("נא להזין טלפון או אימייל");
-
-  if (customerEmail) {
-    // אחרי נרמול סלחני, עדיין נאמת בצורה תקנית
-    if (!isValidEmail(customerEmail)) return bad("נא להזין אימייל תקין", { customerEmail, note: "normalize applied" });
-  }
+  if (customerEmail && !isValidEmail(customerEmail)) return bad("נא להזין אימייל תקין", { customerEmail, note: "strict/loose checked" });
 
   if (!within) {
     const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
@@ -965,7 +922,6 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
 
 /* ---------------- Owner: save opening hours ---------------- */
 
-/** POST /restaurants/:id/hours – תומך ב-JSON, form-data ו-urlencoded (כולל שדות שטוחים) */
 restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
 
@@ -981,7 +937,6 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   const slotIntervalMinutes = Math.max(5, toIntLoose((payload as any).slotIntervalMinutes ?? (payload as any).slot) ?? 15);
   const serviceDurationMinutes = Math.max(30, toIntLoose((payload as any).serviceDurationMinutes ?? (payload as any).span) ?? 120);
 
-  // שימוש בנרמול המקיף כדי לתמוך בכל הצורות (JSON/שטוח/מחרוזות)
   const weeklyCandidate =
     (payload as any).weeklySchedule ??
     (payload as any).hours ??
@@ -991,7 +946,6 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
 
   const normalizedMap = ensureWeeklyHours(weeklyCandidate, payload);
 
-  // המרה ל־WeeklySchedule לפי DayOfWeek (0..6) → {open,close}|null
   const normalized: WeeklySchedule = {};
   for (let d = 0 as DayOfWeek; d <= 6; d = (d + 1) as DayOfWeek) {
     const row = (normalizedMap as any)[d] ?? null;
@@ -1005,7 +959,6 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
     weeklySchedule: normalized,
   });
 
-  // עדכון DB
   const db = await import("../database.ts");
   const updater = (db as any).updateRestaurant;
 
@@ -1065,9 +1018,6 @@ restaurantsRouter.get("/r/:token", async (ctx) => {
   const restaurant = await getRestaurant(reservation.restaurantId);
   const photos = photoStrings(restaurant?.photos);
 
-  // כללים:
-  // confirm מותר רק אם לא מאושר ולא מבוטל
-  // cancel מותר אם סטטוס אינו "canceled"
   const allowConfirm = reservation.status !== "confirmed" && reservation.status !== "canceled";
   const allowCancel  = reservation.status !== "canceled";
 
@@ -1078,7 +1028,7 @@ restaurantsRouter.get("/r/:token", async (ctx) => {
     reservation,
     restaurant: restaurant ? { ...restaurant, photos } : null,
     flash: null,
-    suggestions: [],      // אין שינוי מועד → אין הצעות
+    suggestions: [],
     allowConfirm,
     allowCancel,
   });
@@ -1122,7 +1072,7 @@ restaurantsRouter.post("/r/:token", async (ctx) => {
       reservation: fresh,
       restaurant: { ...restaurant, photos },
       flash,
-      suggestions: [], // נשאר ריק – אין שינוי מועד
+      suggestions: [],
       allowConfirm,
       allowCancel,
     });
@@ -1152,7 +1102,6 @@ restaurantsRouter.post("/r/:token", async (ctx) => {
     return;
   }
 
-  /// אין יותר reschedule
   await renderBack({ error: "פעולה לא מוכרת" });
 });
 
