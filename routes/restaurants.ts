@@ -96,6 +96,7 @@ const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
 const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
 const FULLWIDTH_AT = /＠/g;
 const FULLWIDTH_DOT = /．/g;
+
 function normalizePlain(raw: unknown): string {
   let s = String(raw ?? "");
   s = s.replace(BIDI, "");
@@ -103,15 +104,44 @@ function normalizePlain(raw: unknown): string {
   s = s.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
   return s;
 }
+
+/** נרמול אימייל "סלחני": מתקן דפוסים נפוצים לפני ולפני הוולידציה */
 function normalizeEmail(raw: unknown): string {
   let s = String(raw ?? "");
+
+  // ניקוי bidi/רווחים לא סטנדרטיים ותווים רוחב-מלא
   s = s.replace(BIDI, "");
   s = s.replace(FULLWIDTH_AT, "@").replace(FULLWIDTH_DOT, ".");
   s = s.replace(ZSP, " ").trim();
+
+  // הסרת מרכאות/סוגריים מסביב
   s = s.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
+
+  // תיקון דפוסים מילוליים נפוצים
+  s = s.replace(/\s+at\s+/gi, "@");
+  s = s.replace(/\s+dot\s+/gi, ".");
+  s = s.replace(/\s*\(at\)\s*/gi, "@").replace(/\s*\[at\]\s*/gi, "@");
+  s = s.replace(/\s*\(dot\)\s*/gi, ".").replace(/\s*\[dot\]\s*/gi, ".");
+
+  // אם אין '@' אבל יש שני טוקנים עם נקודה בטוקן השני → לשים '@' ביניהם
+  if (!s.includes("@")) {
+    const parts = s.split(/\s+/).filter(Boolean);
+    if (parts.length === 2 && /\./.test(parts[1])) {
+      s = `${parts[0]}@${parts[1]}`;
+    }
+  }
+
+  // להוריד רווחים שנותרו סביב '@'
+  s = s.replace(/\s*@\s*/g, "@");
+
+  // פסיקים במקום נקודות בדומיין
+  s = s.replace(/,([A-Za-z]{2,})\b/g, ".$1");
+
   return s.toLowerCase();
 }
+
 function isValidEmail(s: string): boolean {
+  // regex פשוט וסלחני יחסית, אבל מחייב '@' ודומיין עם נקודה
   return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
 }
 
@@ -237,7 +267,7 @@ async function suggestionsWithinSchedule(
 }
 
 /* ---------------- Strong body reader for Oak v16/17 ---------------- */
-/** קריאת גוף לבקשה – רק ה-API החדש של Oak (ללא ctx.request.body({type})) */
+/** קורא את הגוף פעם אחת על בסיס ה-Content-Type, עם fallback נקודתי — מונע "Body already used" */
 async function readBody(
   ctx: any,
 ): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
@@ -261,36 +291,40 @@ async function readBody(
     return o;
   };
 
-  // Oak v16/17: ctx.request.body הוא אובייקט עם מתודות
-  try {
-    const b: any = ctx.request?.body;
+  const b: any = ctx.request?.body;
+  let consumed = false;
 
+  // מפה של סדרי עדיפויות לפי content-type
+  const wantsFormData = /\bmultipart\/form-data\b/.test(ct);
+  const wantsUrlEncoded = /\bapplication\/x-www-form-urlencoded\b/.test(ct);
+  const wantsJson = /\bapplication\/json\b/.test(ct);
+
+  try {
     if (b && typeof b !== "function") {
-      if (typeof b.form === "function") {
-        try { const f = await b.form(); const o = fromEntries(f); phase("oak17.form", o); merge(o); } catch (e) { phase("oak17.form.error", String(e)); }
+      if (!consumed && wantsFormData && typeof b.formData === "function") {
+        try { const fd = await b.formData(); const o = fromEntries(fd); phase("oak17.formData", o); merge(o); consumed = true; } catch (e) { phase("oak17.formData.error", String(e)); }
       }
-      if (typeof b.formData === "function") {
-        try { const fd = await b.formData(); const o = fromEntries(fd); phase("oak17.formData", o); merge(o); } catch (e) { phase("oak17.formData.error", String(e)); }
+      if (!consumed && wantsUrlEncoded && typeof b.form === "function") {
+        try { const f = await b.form(); const o = fromEntries(f); phase("oak17.form", o); merge(o); consumed = true; } catch (e) { phase("oak17.form.error", String(e)); }
       }
-      if (typeof b.json === "function") {
-        try { const j = await b.json(); if (j && typeof j === "object") { phase("oak17.json", j); merge(j as any); } } catch (e) { phase("oak17.json.error", String(e)); }
+      if (!consumed && wantsJson && typeof b.json === "function") {
+        try { const j = await b.json(); if (j && typeof j === "object") { phase("oak17.json", j); merge(j as any); consumed = true; } } catch (e) { phase("oak17.json.error", String(e)); }
       }
-      if (typeof b.text === "function") {
+      // Fallback: אם לא זוהה CT או נכשל — ננסה text פעם אחת
+      if (!consumed && typeof b.text === "function") {
         try {
           const t: string = await b.text();
           phase("oak17.text", t.length > 200 ? t.slice(0,200)+"…" : t);
-          try { const j = JSON.parse(t); phase("oak17.text->json", j); merge(j as any); }
-          catch { const sp = new URLSearchParams(t); const o = fromEntries(sp); if (sp.size) { phase("oak17.text->urlencoded", o); merge(o); } }
+          // ננסה JSON ואז URL-encoded
+          let merged = false;
+          try { const j = JSON.parse(t); phase("oak17.text->json", j); if (j && typeof j === "object") { merge(j as any); merged = true; } } catch {}
+          if (!merged) {
+            const sp = new URLSearchParams(t);
+            const o = fromEntries(sp);
+            if (sp.size) { phase("oak17.text->urlencoded", o); merge(o); }
+          }
+          consumed = true;
         } catch (e) { phase("oak17.text.error", String(e)); }
-      }
-      if (typeof b.bytes === "function") {
-        try {
-          const u8: Uint8Array = await b.bytes();
-          const t = new TextDecoder().decode(u8);
-          phase("oak17.bytes->text", t.length > 200 ? t.slice(0,200)+"…" : t);
-          try { const j = JSON.parse(t); phase("oak17.bytes->json", j); merge(j as any); }
-          catch { const sp = new URLSearchParams(t); const o = fromEntries(sp); if (sp.size) { phase("oak17.bytes->urlencoded", o); merge(o); } }
-        } catch (e) { phase("oak17.bytes.error", String(e)); }
       }
     } else {
       phase("oak17.body.missing", typeof b);
@@ -299,30 +333,7 @@ async function readBody(
     phase("oak17.global.error", String(e));
   }
 
-  // Fallback Native (ל-Deno Deploy/Edge Request)
-  try {
-    const reqAny: any = ctx.request;
-    if (typeof reqAny.formData === "function") {
-      try { const fd = await reqAny.formData(); const o = fromEntries(fd); if (Object.keys(o).length) { phase("native.formData", o); merge(o); } } catch (e) { phase("native.formData.error", String(e)); }
-    }
-    if (typeof reqAny.json === "function") {
-      try { const j = await reqAny.json(); if (j && typeof j === "object") { phase("native.json", j); merge(j as any); } } catch (e) { phase("native.json.error", String(e)); }
-    }
-    if (typeof reqAny.text === "function") {
-      try {
-        const t: string = await reqAny.text();
-        if (t) {
-          phase("native.text", t.length > 200 ? t.slice(0,200)+"…" : t);
-          try { const j = JSON.parse(t); phase("native.text->json", j); merge(j as any); }
-          catch { const sp = new URLSearchParams(t); const o = fromEntries(sp); if (sp.size) { phase("native.text->urlencoded", o); merge(o); } }
-        }
-      } catch (e) { phase("native.text.error", String(e)); }
-    }
-  } catch (e) {
-    phase("native.global.error", String(e));
-  }
-
-  // Query string כתוספת אחרונה
+  // Query string כתוספת אחרונה (לא צורכים body)
   const qs = Object.fromEntries(ctx.request.url.searchParams);
   phase("querystring", qs);
   for (const [k, v] of Object.entries(qs)) {
@@ -883,7 +894,11 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   if (!/^\d{2}:\d{2}$/.test(time))       return bad("שעה לא תקינה");
   if (!customerName)                     return bad("נא להזין שם");
   if (!customerPhone && !customerEmail)  return bad("נא להזין טלפון או אימייל");
-  if (customerEmail && !isValidEmail(customerEmail)) return bad("נא להזין אימייל תקין", { customerEmail, note: "normalize applied" });
+
+  if (customerEmail) {
+    // אחרי נרמול סלחני, עדיין נאמת בצורה תקנית
+    if (!isValidEmail(customerEmail)) return bad("נא להזין אימייל תקין", { customerEmail, note: "normalize applied" });
+  }
 
   if (!within) {
     const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
