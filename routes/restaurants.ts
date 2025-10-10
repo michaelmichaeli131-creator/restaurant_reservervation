@@ -789,43 +789,40 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
     note: `Name: ${customerName}; Phone: ${customerPhone}; Email: ${customerEmail}`,
     createdAt: Date.now(),
   };
+  // ⚠️ בוצע פעם אחת בלבד (תיקון כפילות)
   await createReservation(reservation);
 
   // --- Reservation self-service link (token + manageUrl) ---
-  // (בטמפלט המייל הנוכחי אין כפתור ישיר ל-manageUrl; אם תעדכן את mail.ts – ניתן להוסיף)
-await createReservation(reservation);
+  const token = await makeReservationToken(reservation.id, customerEmail);
+  const origin = (Deno.env.get("APP_BASE_URL") || Deno.env.get("BASE_URL") || `${ctx.request.url.protocol}//${ctx.request.url.host}`).replace(/\/+$/, "");
+  const manageUrl = `${origin}/r/${encodeURIComponent(token)}`;
 
-// --- Reservation self-service link (token + manageUrl) ---
-const token = await makeReservationToken(reservation.id, customerEmail);
-const origin = (Deno.env.get("APP_BASE_URL") || Deno.env.get("BASE_URL") || `${ctx.request.url.protocol}//${ctx.request.url.host}`).replace(/\/+$/, "");
-const manageUrl = `${origin}/r/${encodeURIComponent(token)}`;
-
-// --- שליחת מייל ללקוח עם קישור ישיר ---
-await sendReservationEmail({
-  to: customerEmail,
-  restaurantName: restaurant.name,
-  date, time, people,
-  customerName,
-  manageUrl, // ← חשוב: קישור ישיר לדף ההזמנה
-}).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
-
-// --- שליחת התראה לבעל המסעדה או לוג ---
-const owner = await getUserById(restaurant.ownerId).catch(() => null);
-if (owner?.email) {
-  await notifyOwnerEmail({
-    to: owner.email,
+  // --- שליחת מייל ללקוח עם קישור ישיר ---
+  await sendReservationEmail({
+    to: customerEmail,
     restaurantName: restaurant.name,
+    date, time, people,
     customerName,
-    customerPhone,
-    customerEmail,
-    date,
-    time,
-    people,
-  }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
-} else {
-  console.log("[mail] owner email not found; skipping owner notification");
-}
+    manageUrl, // ← חשוב: קישור ישיר לדף ההזמנה
+    reservationId: reservation.id,
+  }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
 
+  // --- שליחת התראה לבעל המסעדה או לוג ---
+  const owner = await getUserById(restaurant.ownerId).catch(() => null);
+  if (owner?.email) {
+    await notifyOwnerEmail({
+      to: owner.email,
+      restaurantName: restaurant.name,
+      customerName,
+      customerPhone,
+      customerEmail,
+      date,
+      time,
+      people,
+    }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
+  } else {
+    console.log("[mail] owner email not found; skipping owner notification");
+  }
 
   // normalize for template (אחידות)
   const photos = photoStrings(restaurant.photos);
@@ -1054,6 +1051,9 @@ restaurantsRouter.get("/r/:token", async (ctx) => {
   const restaurant = await getRestaurant(reservation.restaurantId);
   const photos = photoStrings(restaurant?.photos);
 
+  const allowConfirm = reservation.status !== "canceled";
+  const allowCancel  = reservation.status !== "canceled";
+
   await render(ctx, "reservation_manage", {
     page: "reservation_manage",
     title: "ניהול הזמנה",
@@ -1062,6 +1062,8 @@ restaurantsRouter.get("/r/:token", async (ctx) => {
     restaurant: restaurant ? { ...restaurant, photos } : null,
     flash: null,
     suggestions: [],
+    allowConfirm,
+    allowCancel,
   });
 });
 
@@ -1093,18 +1095,27 @@ restaurantsRouter.post("/r/:token", async (ctx) => {
 
   const photos = photoStrings(restaurant.photos);
   const renderBack = async (flash: any, suggestions: string[] = []) => {
+    const fresh = await getReservationById(payload.rid);
+    const allowConfirm = fresh?.status !== "canceled";
+    const allowCancel  = fresh?.status !== "canceled";
     await render(ctx, "reservation_manage", {
       page: "reservation_manage",
       title: "ניהול הזמנה",
       token,
-      reservation: await getReservationById(payload.rid), // רפרש אחרי עדכון
+      reservation: fresh,
       restaurant: { ...restaurant, photos },
       flash,
       suggestions,
+      allowConfirm,
+      allowCancel,
     });
   };
 
   if (action === "confirm") {
+    if (reservation.status === "canceled") {
+      await renderBack({ error: "ההזמנה בוטלה בעבר ולא ניתן לאשר אותה מחדש." });
+      return;
+    }
     await updateReservation(reservation.id, { status: "confirmed" }).catch(() => {});
     await renderBack({ ok: "ההגעה אושרה. נתראה!" });
     return;
@@ -1117,6 +1128,11 @@ restaurantsRouter.post("/r/:token", async (ctx) => {
   }
 
   if (action === "reschedule") {
+    if (reservation.status === "canceled") {
+      await renderBack({ error: "ההזמנה בוטלה — לא ניתן לשנות מועד." });
+      return;
+    }
+
     const { date, time } = extractDateAndTime(ctx, body);
     const people = toIntLoose((body as any).people) ?? reservation.people;
 
