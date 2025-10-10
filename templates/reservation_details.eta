@@ -1,135 +1,214 @@
-<!-- /src/templates/reservation_manage.eta -->
-<!doctype html>
-<html lang="he" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <title><%= it.title %></title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    :root{
-      --bg:#f4f7fb;--card:#ffffff;--ink:#0f172a;--muted:#64748b;
-      --brand:#06b6d4;--brand-ink:#fff;--bd:#e2e8f0;--danger:#ef4444;--ok:#16a34a;
-      --radius:14px;
-    }
-    *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink)}
-    .wrap{max-width:760px;margin:24px auto;padding:0 16px}
-    .card{background:var(--card);border:1px solid var(--bd);border-radius:var(--radius);box-shadow:0 2px 8px rgba(0,0,0,.04)}
-    .head{padding:22px 20px 12px;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;gap:12px;align-items:center}
-    h1{margin:0;font-size:26px}
-    .muted{color:var(--muted)}
-    .body{padding:18px 20px}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
-    .pill{border:1px dashed var(--bd);border-radius:12px;padding:10px 12px;background:#fafcff}
-    .pill strong{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
-    .pill span{font-weight:700;letter-spacing:.3px}
-    .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
-    button,.btn{appearance:none;border:0;border-radius:999px;padding:10px 14px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block;transition:.15s ease}
-    .btn-brand{background:var(--brand);color:var(--brand-ink)}
-    .btn-brand:hover{filter:brightness(1.05)}
-    .btn-ghost{background:transparent;border:1px solid var(--bd);color:var(--ink)}
-    .btn-ghost:hover{background:#f8fafc}
-    .btn-danger{background:var(--danger);color:#fff}
-    .btn-danger:hover{filter:brightness(1.05)}
-    .btn[disabled],button[disabled]{opacity:.55;cursor:not-allowed;filter:none}
-    .hr{height:1px;background:var(--bd);margin:20px 0}
-    .success{color:var(--ok);font-weight:700;margin:10px 0 0}
-    .error{color:var(--danger);font-weight:700;margin:10px 0 0}
-    .restaurant{display:flex;gap:14px;align-items:center;margin-top:8px}
-    .restaurant img{width:60px;height:60px;object-fit:cover;border-radius:10px;border:1px solid var(--bd)}
-    .badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 10px;font-weight:700;font-size:12px;border:1px solid var(--bd);background:#fff}
-    .badge.new{border-color:#cbd5e1;background:#f8fafc}
-    .badge.confirmed{border-color:#bbf7d0;background:#f0fdf4;color:#065f46}
-    .badge.canceled{border-color:#fecaca;background:#fff1f2;color:#7f1d1d}
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="card">
-      <div class="head">
-        <div>
-          <h1>ניהול הזמנה</h1>
-          <div class="muted">מס׳ הזמנה: <code><%= it.reservation.id %></code></div>
-        </div>
-        <% 
-          const status = (it.reservation.status || 'new');
-          const statusLabel = status==='confirmed' ? 'מאושר'
-                              : status==='canceled' ? 'מבוטל'
-                              : 'חדש';
-        %>
-        <div class="badge <%= status %>">
-          <% if (status==='confirmed') { %>✓<% } else if (status==='canceled') { %>✗<% } else { %>•<% } %>
-          <span><%= statusLabel %></span>
-        </div>
-      </div>
+<% layout("_layout", it) %>
+<main class="container">
+  <header class="page-header">
+    <h1>פרטי הזמנה — <%= it.restaurant.name %></h1>
+    <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+    <% if (it.restaurant.phone) { %>
+      <p class="muted">טלפון: <%= it.restaurant.phone %></p>
+    <% } %>
+  </header>
 
-      <div class="body">
-        <!-- פרטי מסעדה -->
-        <div class="restaurant">
-          <% if (it.restaurant && (it.restaurant.photos && it.restaurant.photos.length)) { %>
-            <img src="<%= it.restaurant.photos[0] %>" alt="<%= it.restaurant.name %>" />
-          <% } %>
-          <div>
-            <div style="font-weight:700"><%= it.restaurant?.name || "מסעדה" %></div>
-            <div class="muted"><%= it.restaurant?.address || "" %></div>
-          </div>
-        </div>
+  <section class="card">
+    <h2 style="margin-top:0">שלב 2 — פרטי לקוח</h2>
 
-        <div class="hr"></div>
-
-        <!-- פרטי הזמנה -->
-        <div class="grid">
-          <div class="pill">
-            <strong>תאריך</strong>
-            <span><%= it.reservation.date %></span>
-          </div>
-          <div class="pill">
-            <strong>שעה</strong>
-            <span><%= it.reservation.time %></span>
-          </div>
-          <div class="pill">
-            <strong>מס׳ סועדים</strong>
-            <span><%= it.reservation.people %></span>
-          </div>
-          <div class="pill">
-            <strong>סטטוס</strong>
-            <span><%= statusLabel %></span>
-          </div>
-        </div>
-
-        <% if (it.flash?.ok) { %>
-          <p class="success">✓ <%= it.flash.ok %></p>
-        <% } %>
-        <% if (it.flash?.error) { %>
-          <p class="error">✗ <%= it.flash.error %></p>
-        <% } %>
-
-        <div class="actions">
-          <!-- אישור הגעה (מופיע רק כשהוא אפשרי) -->
-          <% if (it.allowConfirm) { %>
-            <form method="post" action="/r/<%= it.token %>">
-              <input type="hidden" name="action" value="confirm">
-              <button class="btn btn-brand" type="submit">מאשר/ת הגעה</button>
-            </form>
-          <% } %>
-
-          <!-- ביטול (תמיד זמין עד שההזמנה כבר בוטלה) -->
-          <form method="post" action="/r/<%= it.token %>" onsubmit="return <%= it.allowCancel ? 'confirm(&#39;לבטל את ההזמנה?&#39;)' : 'false' %>;">
-            <input type="hidden" name="action" value="cancel">
-            <button class="btn btn-danger" type="submit" <%= it.allowCancel ? '' : 'disabled aria-disabled="true"' %>>
-              ביטול הזמנה
-            </button>
-          </form>
-
-          <!-- רענון דף -->
-          <a class="btn btn-ghost" href="/r/<%= it.token %>">רענון</a>
-        </div>
-
-        <div class="hr"></div>
-
-        <p class="muted">צריך עזרה? פנו אלינו עם מספר ההזמנה שמופיע למעלה.</p>
-      </div>
+    <div class="summary">
+      <div><strong>תאריך:</strong> <span id="sum-date"><%= it.date %></span></div>
+      <div><strong>שעה:</strong> <span id="sum-time"><%= it.time %></span></div>
+      <div><strong>מס׳ סועדים:</strong> <span id="sum-people"><%= it.people %></span></div>
+      <div><strong>מסעדה:</strong> <%= it.restaurant.name %></div>
     </div>
-  </div>
-</body>
-</html>
+
+    <form id="details-form"
+          class="form-grid"
+          action="/restaurants/<%= it.restaurant.id %>/confirm"
+          method="post" novalidate>
+      <!-- תאריך ושעה נעולים בשלב הזה -->
+      <input type="hidden" name="date" value="<%= it.date %>"/>
+      <input type="hidden" name="time" value="<%= it.time %>"/>
+
+      <div class="form-row">
+        <label for="name">שם מלא</label>
+        <input id="name" name="name" type="text" required autocomplete="name"
+               placeholder="שם פרטי ושם משפחה"/>
+      </div>
+
+      <div class="form-row">
+        <label for="phone">נייד</label>
+        <input id="phone" name="phone" type="tel" required inputmode="tel"
+               placeholder="050-1234567"/>
+      </div>
+
+      <div class="form-row">
+        <label for="email">אימייל</label>
+        <input id="email" name="email" type="email" dir="ltr" inputmode="email"
+               autocomplete="email" autocapitalize="off" spellcheck="false"
+               placeholder="you@example.com" required />
+        <small class="muted">נשלח אליך אישור הזמנה</small>
+      </div>
+
+      <%
+        const cap = Math.max(1, Math.min(30, it.restaurant.capacity || 30));
+      %>
+      <div class="form-row">
+        <label for="people">מספר סועדים</label>
+        <input id="people" name="people" type="number" min="1" max="<%= cap %>"
+               step="1" value="<%= it.people || 2 %>" required/>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn">אשר הזמנה</button>
+        <a class="btn secondary" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>">
+          חזרה לשינוי שעה/תאריך
+        </a>
+      </div>
+    </form>
+  </section>
+
+  <section class="card" id="conflict-card" hidden>
+    <h3 style="margin-top:0">אין זמינות במועד שבחרת</h3>
+    <p>בחר/י אחד מן הזמנים הזמינים בקרבת השעה שביקשת (±2 שעות):</p>
+    <div id="suggest-slots" class="slots"></div>
+    <small class="muted">לחיצה על שעה תעדכן את השעה בטופס ותאפשר לשליחה מחדש.</small>
+  </section>
+
+  <% if (it.restaurant.description) { %>
+    <section class="card">
+      <h2 style="margin-top:0">על המסעדה</h2>
+      <p><%= it.restaurant.description %></p>
+    </section>
+  <% } %>
+</main>
+
+<script>
+  (function(){
+    const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+    const ZSP  = /[\\s\\u00A0\\u1680\\u180E\\u2000-\\u200A\\u202F\\u205F\\u3000]+/g;
+    function normalizeEmail(s) {
+      s = (s || "").toString();
+      s = s.replace(BIDI, "");
+      s = s.replace(/＠/g, "@").replace(/．/g, ".");
+      s = s.replace(ZSP, " ").trim();
+      s = s.replace(/^[<"'\\s]+/, "").replace(/[>"'\\s]+$/, "");
+      return s.toLowerCase();
+    }
+    const emailEl = document.getElementById('email');
+    if (emailEl) {
+      emailEl.addEventListener('blur', () => {
+        emailEl.value = normalizeEmail(emailEl.value);
+      });
+    }
+
+    // עדכון תקציר הסועדים בזמן אמת
+    const ppl = document.getElementById('people');
+    const sumP = document.getElementById('sum-people');
+    if (ppl && sumP) {
+      ppl.addEventListener('input', () => { sumP.textContent = ppl.value; });
+    }
+  })();
+
+  (function () {
+    const form = document.getElementById('details-form');
+    if (!form) return;
+    form.addEventListener('submit', function (ev) {
+      try {
+        if (!form.checkValidity()) return;
+        if (form.hasAttribute('data-force-post')) return;
+
+        ev.preventDefault();
+        const sp = new URLSearchParams();
+        const fd = new FormData(form);
+
+        // נשלח את כל הערכים (כולל people העדכני)
+        for (const [k, v] of fd.entries()) {
+          if (typeof v === 'string') sp.append(k, v);
+        }
+
+        const to = new URL(form.getAttribute('action') || window.location.href, window.location.origin);
+        to.search = sp.toString();
+        window.location.assign(to.toString());
+      } catch (e) {
+        console.warn('[details-form] redirect-as-GET failed, falling back to POST:', e);
+      }
+    }, { passive: false });
+  })();
+</script>
+
+<style>
+  .container {
+    max-width: 900px;
+    margin: 24px auto;
+    padding: 0 16px;
+  }
+  .card {
+    border: 1px solid #eee;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 18px;
+  }
+  .muted { color: #777; }
+  .summary {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .form-row {
+    display: flex;
+    flex-direction: column;
+  }
+  .form-row label {
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .form-row input {
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 1rem;
+  }
+  .form-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .btn {
+    background: #111;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  .btn.secondary {
+    background: #555;
+  }
+  #conflict-card {
+    border-color: #ffccc7;
+  }
+  .slots {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .slot {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    background: #fafafa;
+    cursor: pointer;
+  }
+  .slot:hover {
+    background: #f0f0ff;
+  }
+  @media (max-width:760px) {
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
