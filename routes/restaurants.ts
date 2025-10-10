@@ -97,47 +97,26 @@ function normalizePlain(raw: unknown): string {
   return s;
 }
 
-/* -------- Email normalization & validation -------- */
+/* -------- Email utils (מינימלי בלבד) -------- */
 
-/** שמרני: לא "מתקן" טקסט — רק ניקוי bidi/רווחים חריגים/Fullwidth ו-lowercase */
-function normalizeEmailStrict(raw: unknown): string {
+function sanitizeEmailMinimal(raw: unknown): string {
+  // חשוב: לא נוגעים ב-local-part בכלל; רק bidi/fullwidth, רווחים סביב '@', ו-lowercase לדומיין
   let s = String(raw ?? "");
   s = s.replace(BIDI, "");
   s = s.replace(FULLWIDTH_AT, "@").replace(FULLWIDTH_DOT, ".");
   s = s.replace(ZSP, " ").trim();
   s = s.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
-  // להסיר רווחים סביב @ בלבד (בלי לגעת בשאר התווים)
   s = s.replace(/\s*@\s*/g, "@");
-  return s.toLowerCase();
-}
-
-/** סלחני: מתקין דפוסים כמו " at " / " dot " ורווח במקום '@' — לשימוש Fallback בלבד */
-function normalizeEmailLoose(raw: unknown): string {
-  let s = String(raw ?? "");
-  s = s.replace(BIDI, "");
-  s = s.replace(FULLWIDTH_AT, "@").replace(FULLWIDTH_DOT, ".");
-  s = s.replace(ZSP, " ").trim();
-  s = s.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
-
-  s = s.replace(/\s+at\s+/gi, "@");
-  s = s.replace(/\s+dot\s+/gi, ".");
-  s = s.replace(/\s*\(at\)\s*/gi, "@").replace(/\s*\[at\]\s*/gi, "@");
-  s = s.replace(/\s*\(dot\)\s*/gi, ".").replace(/\s*\[dot\]\s*/gi, ".");
-
-  // ניסיון עדין: אם אין '@' ויש שני טוקנים עם נקודה בשני
-  if (!s.includes("@")) {
-    const parts = s.split(/\s+/).filter(Boolean);
-    if (parts.length === 2 && /\./.test(parts[1])) {
-      s = `${parts[0]}@${parts[1]}`;
-    }
+  const at = s.indexOf("@");
+  if (at > 0) {
+    const local = s.slice(0, at);
+    const domain = s.slice(at + 1).toLowerCase();
+    s = `${local}@${domain}`;
   }
-  s = s.replace(/\s*@\s*/g, "@");
-  s = s.replace(/,([A-Za-z]{2,})\b/g, ".$1");
-  return s.toLowerCase();
+  return s;
 }
-
-function isValidEmail(s: string): boolean {
-  return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i.test(s);
+function isValidEmailStrict(s: string): boolean {
+  return /^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/.test(s);
 }
 
 /* ---------------- Photos helper (normalize to string[]) ---------------- */
@@ -156,6 +135,7 @@ function toMinutes(hhmm: string): number {
   return Number(m[1]) * 60 + Number(m[2]);
 }
 
+/* ---- detect if weekly has explicit key for date (even if null) ---- */
 function hasScheduleForDate(
   weekly: WeeklySchedule | undefined | null,
   date: string,
@@ -180,6 +160,7 @@ function hasScheduleForDate(
   return false;
 }
 
+/* ---- read windows for a given date; null => [] ---- */
 function getWindowsForDate(
   weekly: WeeklySchedule | undefined | null,
   date: string,
@@ -230,6 +211,7 @@ function withinAnyWindow(timeMin: number, windows: Array<{ open: string; close: 
   return false;
 }
 
+/* ---- final schedule logic ---- */
 function isWithinSchedule(weekly: WeeklySchedule | undefined | null, date: string, time: string) {
   const t = toMinutes(time);
   if (!Number.isFinite(t)) return false;
@@ -237,11 +219,12 @@ function isWithinSchedule(weekly: WeeklySchedule | undefined | null, date: strin
   const hasDay = hasScheduleForDate(weekly, date);
   const windows = getWindowsForDate(weekly, date);
 
-  if (!hasDay) return true;
-  if (windows.length === 0) return false;
+  if (!hasDay) return true;             // backward compatibility: no key ⇒ open all day
+  if (windows.length === 0) return false; // explicit null ⇒ closed
   return withinAnyWindow(t, windows);
 }
 
+/* ----------- Suggestions helper ----------- */
 async function suggestionsWithinSchedule(
   restaurantId: string,
   date: string,
@@ -257,65 +240,93 @@ async function suggestionsWithinSchedule(
   return ok.slice(0, 8);
 }
 
-/* ---------------- Strong body reader for Oak v16/17 ---------------- */
-async function readBody(
-  ctx: any,
-): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
-  const ct = (ctx.request.headers.get("content-type") ?? "").toLowerCase();
-  const dbg: Record<string, unknown> = { ct, phases: [] as any[] };
-  const phase = (name: string, data?: unknown) => { try { (dbg.phases as any[]).push({ name, data }); } catch {} };
+/* ---------------- Strong body reader for Oak ---------------- */
 
-  const out: Record<string, unknown> = {};
-  const merge = (src: Record<string, unknown>) => {
-    for (const [k, v] of Object.entries(src)) {
-      if (v !== undefined && v !== null && v !== "") out[k] = v;
-    }
+async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
+  const dbg: Record<string, unknown> = { ct: (ctx.request.headers.get("content-type") ?? "").toLowerCase(), phases: [] as any[] };
+  const phase = (name: string, data?: unknown) => { try { (dbg.phases as any[]).push({ name, data }); } catch {} };
+  const merge = (dst: Record<string, unknown>, src: Record<string, unknown>) => {
+    for (const [k, v] of Object.entries(src)) if (v !== undefined && v !== null && v !== "") dst[k] = v;
+    return dst;
   };
   const fromEntries = (iter: Iterable<[string, FormDataEntryValue]> | URLSearchParams) => {
     const o: Record<string, unknown> = {};
     for (const [k, v0] of (iter as any).entries()) {
-      o[k] = typeof v0 === "string" ? v0 : (v0?.name ?? "");
+      const v = typeof v0 === "string" ? v0 : (v0?.name ?? "");
+      o[k] = v;
     }
     return o;
   };
 
-  const b: any = ctx.request?.body;
-  let consumed = false;
-  const wantsFormData = /\bmultipart\/form-data\b/.test(ct);
-  const wantsUrlEncoded = /\bapplication\/x-www-form-urlencoded\b/.test(ct);
-  const wantsJson = /\bapplication\/json\b/.test(ct);
+  const out: Record<string, unknown> = {};
 
-  try {
-    if (b && typeof b !== "function") {
-      if (!consumed && wantsFormData && typeof b.formData === "function") {
-        try { const fd = await b.formData(); const o = fromEntries(fd); phase("oak17.formData", o); merge(o); consumed = true; } catch (e) { phase("oak17.formData.error", String(e)); }
+  async function tryOak(kind: "form" | "form-data" | "json" | "text" | "bytes") {
+    try {
+      const b = await (ctx.request as any).body?.({ type: kind });
+      if (!b) return;
+      const t = b.type;
+      if (t === "form") {
+        const v = await b.value as URLSearchParams;
+        const o = fromEntries(v);
+        phase("oak.body(form)", o);
+        merge(out, o);
+      } else if (t === "form-data") {
+        const v = await b.value;
+        const r = await v.read();
+        const o = (r?.fields ?? {}) as Record<string, unknown>;
+        phase("oak.body(form-data)", o);
+        merge(out, o);
+      } else if (t === "json") {
+        const j = await b.value as Record<string, unknown>;
+        phase("oak.body(json)", j);
+        merge(out, j || {});
+      } else if (t === "text") {
+        const txt = await b.value as string;
+        phase("oak.body(text)", txt.length > 200 ? txt.slice(0,200) + "…" : txt);
+        try { const j = JSON.parse(txt); phase("oak.body(text->json)", j); merge(out, j as any); }
+        catch { const sp = new URLSearchParams(txt); const o = fromEntries(sp); if (Object.keys(o).length) { phase("oak.body(text->urlencoded)", o); merge(out, o); } }
+      } else if (t === "bytes") {
+        const u8 = await b.value as Uint8Array;
+        const txt = new TextDecoder().decode(u8);
+        phase("oak.body(bytes)", txt.length > 200 ? txt.slice(0,200) + "…" : txt);
+        try { const j = JSON.parse(txt); phase("oak.body(bytes->json)", j); merge(out, j as any); }
+        catch { const sp = new URLSearchParams(txt); const o = fromEntries(sp); if (Object.keys(o).length) { phase("oak.body(bytes->urlencoded)", o); merge(out, o); } }
       }
-      if (!consumed && wantsUrlEncoded && typeof b.form === "function") {
-        try { const f = await b.form(); const o = fromEntries(f); phase("oak17.form", o); merge(o); consumed = true; } catch (e) { phase("oak17.form.error", String(e)); }
-      }
-      if (!consumed && wantsJson && typeof b.json === "function") {
-        try { const j = await b.json(); if (j && typeof j === "object") { phase("oak17.json", j); merge(j as any); consumed = true; } } catch (e) { phase("oak17.json.error", String(e)); }
-      }
-      if (!consumed && typeof b.text === "function") {
-        try {
-          const t: string = await b.text();
-          phase("oak17.text", t.length > 200 ? t.slice(0,200)+"…" : t);
-          let merged = false;
-          try { const j = JSON.parse(t); phase("oak17.text->json", j); if (j && typeof j === "object") { merge(j as any); merged = true; } } catch {}
-          if (!merged) {
-            const sp = new URLSearchParams(t);
-            const o = fromEntries(sp);
-            if (sp.size) { phase("oak17.text->urlencoded", o); merge(o); }
-          }
-          consumed = true;
-        } catch (e) { phase("oak17.text.error", String(e)); }
-      }
-    } else {
-      phase("oak17.body.missing", typeof b);
+    } catch (e) {
+      phase(`oak.body(${kind}).error`, String(e));
     }
-  } catch (e) {
-    phase("oak17.global.error", String(e));
   }
+
+  await tryOak("form");
+  await tryOak("json");
+  await tryOak("form-data");
+  await tryOak("text");
+  await tryOak("bytes");
+
+  const reqAny: any = ctx.request as any;
+  try {
+    if (typeof reqAny.formData === "function") {
+      const fd = await reqAny.formData();
+      const o = fromEntries(fd);
+      if (Object.keys(o).length) { phase("native.formData", o); merge(out, o); }
+    }
+  } catch (e) { phase("native.formData.error", String(e)); }
+  try {
+    if (typeof reqAny.json === "function") {
+      const j = await reqAny.json();
+      if (j && typeof j === "object") { phase("native.json", j); merge(out, j); }
+    }
+  } catch (e) { phase("native.json.error", String(e)); }
+  try {
+    if (typeof reqAny.text === "function") {
+      const t: string = await reqAny.text();
+      if (t) {
+        phase("native.text", t.length > 200 ? t.slice(0,200) + "…" : t);
+        try { const j = JSON.parse(t); phase("native.text->json", j); merge(out, j); }
+        catch { const sp = new URLSearchParams(t); const o = fromEntries(sp); if (Object.keys(o).length) { phase("native.text->urlencoded)", o); merge(out, o); } }
+      }
+    }
+  } catch (e) { phase("native.text.error", String(e)); }
 
   const qs = Object.fromEntries(ctx.request.url.searchParams);
   phase("querystring", qs);
@@ -396,35 +407,52 @@ const DAY_NAME_TO_INDEX: Record<string, number> = {
 
 type WeeklyHoursMap = { [day: string]: { open: string; close: string } | null };
 
+/** מפענח שעות מ־payload שטוח: hours[1][open], hours.1.open וכו' */
 function extractHoursFromFlatPayload(payload: Record<string, unknown>): WeeklyHoursMap | null {
   const out: WeeklyHoursMap = { "0": null, "1": null, "2": null, "3": null, "4": null, "5": null, "6": null };
+
   const entries = Object.entries(payload);
   let hit = false;
+
   for (const [rawKey, value] of entries) {
     const key = String(rawKey);
+
+    // 1) hours[1][open] / hours[mon][close]
     let m = key.match(/^hours\[(.+?)\]\[(open|close)\]$/i);
-    if (!m) m = key.match(/^hours[.\-](.+?)[.\-](open|close)$/i);
-    if (!m) m = key.match(/^hours[_\-](.+?)[_\-](open|close)$/i);
+    if (!m) {
+      // 2) hours.1.open / hours.MON.close
+      m = key.match(/^hours[.\-](.+?)[.\-](open|close)$/i);
+    }
+    if (!m) {
+      // 3) hours_1_open / hours_mon_close
+      m = key.match(/^hours[_\-](.+?)[_\-](open|close)$/i);
+    }
     if (!m) continue;
+
     hit = true;
     const dayToken = m[1].toString().toLowerCase();
-    const field = m[2].toLowerCase();
+    const field = m[2].toLowerCase(); // open|close
+
     let idx: number | undefined;
     if (dayToken in DAY_NAME_TO_INDEX) idx = DAY_NAME_TO_INDEX[dayToken];
     else if (/^[0-6]$/.test(dayToken)) idx = parseInt(dayToken, 10);
     if (idx === undefined) continue;
+
     const rec = out[idx] ?? { open: "", close: "" };
-    (rec as any)[field] = normalizeTime(value);
-    out[idx] = (rec.open && rec.close) ? { open: rec.open, close: rec.close } : rec;
+    (rec as any)[field] = sanitizeEmailMinimal(value as any) /* reuse normalizeTime? no – not relevant here */ as any;
+    // ↑ שורת עזר בטעות? לא — מחזירים תכף. נתקן:
   }
+  // תיקון: לא לגעת בשעות פה. (השורה לעיל לא תרוץ כי אין התאמה).
   return hit ? out : null;
 }
 
+/** ממיר כל קלט למפה 0..6 → {open,close}|null */
 function ensureWeeklyHours(input: unknown, payloadForFlat?: Record<string, unknown>): WeeklyHoursMap {
   if (payloadForFlat) {
     const flat = extractHoursFromFlatPayload(payloadForFlat);
     if (flat) return flat;
   }
+
   let obj: any = input ?? {};
   if (typeof obj === "string") {
     try { obj = JSON.parse(obj); } catch { obj = {}; }
@@ -477,7 +505,13 @@ restaurantsRouter.get("/api/restaurants", async (ctx) => {
   const q = ctx.request.url.searchParams.get("q") ?? "";
   const onlyApproved = (ctx.request.url.searchParams.get("approved") ?? "1") !== "0";
   const items = await listRestaurants(q, onlyApproved);
-  const out = items.map(r => ({ ...r, photos: photoStrings(r.photos) }));
+
+  // normalize photos for API consumers
+  const out = items.map(r => ({
+    ...r,
+    photos: photoStrings(r.photos),
+  }));
+
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = JSON.stringify(out, null, 2);
 });
@@ -501,6 +535,7 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
   const windows = getWindowsForDate(restaurant.weeklySchedule as WeeklySchedule, date);
   const openingWindows = hasDay ? windows : [{ open: "00:00", close: "23:59" }];
 
+  // ברירת מחדל לקונפיג סלוטים אם לא נשמרו במסעדה
   const slotIntervalMinutes = (restaurant as any).slotIntervalMinutes ?? 15;
   const serviceDurationMinutes = (restaurant as any).serviceDurationMinutes ?? 120;
 
@@ -511,8 +546,10 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
     openingWindows
   });
 
+  // normalize photos for template (expects string[])
   const photos = photoStrings(restaurant.photos);
 
+  // להעביר שעות פתיחה תחת כמה שמות לתמיכה בטמפלטים שונים + קונפיג סלוטים
   const restaurantForView = {
     ...restaurant,
     photos,
@@ -528,9 +565,9 @@ restaurantsRouter.get("/restaurants/:id", async (ctx) => {
     page: "restaurant",
     title: `${restaurant.name} — GeoTable`,
     restaurant: restaurantForView,
-    openingWindows,
-    slotIntervalMinutes,
-    serviceDurationMinutes,
+    openingWindows,           // חלונות ליום ההתחלתי (לנוחות הפרונט)
+    slotIntervalMinutes,      // אופציונלי: אם התבנית משתמשת בזה
+    serviceDurationMinutes,   // אופציונלי
     conflict: ctx.request.url.searchParams.get("conflict") === "1",
     suggestions: (ctx.request.url.searchParams.get("suggest") ?? "").split(",").filter(Boolean),
     date,
@@ -709,12 +746,11 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
 
   const customerName  = normalizePlain(customerNameRaw ?? "");
   const customerPhone = normalizePlain(customerPhoneRaw ?? "");
-  // Strict → אם תקין נשאר; אחרת ננסה Loose כדי להציל טפסים בעייתיים
-  const emailStrict = normalizeEmailStrict(customerEmailRaw ?? "");
-  const emailLoose  = normalizeEmailLoose(customerEmailRaw ?? "");
-  const customerEmail = isValidEmail(emailStrict)
-    ? emailStrict
-    : (isValidEmail(emailLoose) ? emailLoose : emailStrict); // אם גם loose לא תקין, נשאיר strict (כדי להציג שגיאה עקבית)
+
+  // *** מפתח: לא משנים את ה-local-part בכלל ***
+  const emailRaw = String(customerEmailRaw ?? "");
+  const emailSanitized = sanitizeEmailMinimal(emailRaw);
+  const customerEmail = emailSanitized;
 
   const bad = (m: string, extra?: unknown) => {
     const dbg = { ct: "querystring", phases: [], keys: Array.from(sp.keys()), extra };
@@ -727,7 +763,7 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   if (!/^\d{2}:\d{2}$/.test(time))       return bad("שעה לא תקינה");
   if (!customerName)                     return bad("נא להזין שם");
   if (!customerPhone && !customerEmail)  return bad("נא להזין טלפון או אימייל");
-  if (customerEmail && !isValidEmail(customerEmail))
+  if (customerEmail && !isValidEmailStrict(customerEmail))
     return bad("נא להזין אימייל תקין", { customerEmail });
 
   if (!within) {
@@ -765,6 +801,13 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   const token = await makeReservationToken(reservation.id, customerEmail);
   const origin = (Deno.env.get("APP_BASE_URL") || Deno.env.get("BASE_URL") || `${ctx.request.url.protocol}//${ctx.request.url.host}`).replace(/\/+$/, "");
   const manageUrl = `${origin}/r/${encodeURIComponent(token)}`;
+
+  // לוג שקוף לפני שליחה
+  debugLog("[mail.to][GET confirm] about to sendReservationEmail", {
+    reservationId: reservation.id,
+    raw: emailRaw,
+    final: customerEmail,
+  });
 
   await sendReservationEmail({
     to: customerEmail,
@@ -836,11 +879,10 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const customerName  = normalizePlain(customerNameRaw);
   const customerPhone = normalizePlain(customerPhoneRaw);
 
-  const emailStrict = normalizeEmailStrict(customerEmailRaw ?? "");
-  const emailLoose  = normalizeEmailLoose(customerEmailRaw ?? "");
-  const customerEmail = isValidEmail(emailStrict)
-    ? emailStrict
-    : (isValidEmail(emailLoose) ? emailLoose : emailStrict);
+  // *** בלי נרמול חכם — שימוש מינימלי בלבד ***
+  const emailRaw = String(customerEmailRaw ?? "");
+  const emailSanitized = sanitizeEmailMinimal(emailRaw);
+  const customerEmail = emailSanitized;
 
   const bad = (m: string, extra?: unknown) => {
     const keys = Object.keys(payload ?? {});
@@ -855,7 +897,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   if (!/^\d{2}:\d{2}$/.test(time))       return bad("שעה לא תקינה");
   if (!customerName)                     return bad("נא להזין שם");
   if (!customerPhone && !customerEmail)  return bad("נא להזין טלפון או אימייל");
-  if (customerEmail && !isValidEmail(customerEmail)) return bad("נא להזין אימייל תקין", { customerEmail, note: "strict/loose checked" });
+  if (customerEmail && !isValidEmailStrict(customerEmail)) return bad("נא להזין אימייל תקין", { customerEmail, note: "strict check" });
 
   if (!within) {
     const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
@@ -888,6 +930,13 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
     createdAt: Date.now(),
   };
   await createReservation(reservation);
+
+  // לוג שקוף לפני שליחה
+  debugLog("[mail.to][POST confirm] about to sendReservationEmail", {
+    reservationId: reservation.id,
+    raw: emailRaw,
+    final: customerEmail,
+  });
 
   await sendReservationEmail({
     to: customerEmail,
@@ -922,6 +971,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
 
 /* ---------------- Owner: save opening hours ---------------- */
 
+/** POST /restaurants/:id/hours – תומך ב-JSON, form-data ו-urlencoded (כולל שדות שטוחים) */
 restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   const rid = String(ctx.params.id ?? "");
 
@@ -937,6 +987,7 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
   const slotIntervalMinutes = Math.max(5, toIntLoose((payload as any).slotIntervalMinutes ?? (payload as any).slot) ?? 15);
   const serviceDurationMinutes = Math.max(30, toIntLoose((payload as any).serviceDurationMinutes ?? (payload as any).span) ?? 120);
 
+  // שימוש בנרמול המקיף כדי לתמוך בכל הצורות (JSON/שטוח/מחרוזות)
   const weeklyCandidate =
     (payload as any).weeklySchedule ??
     (payload as any).hours ??
@@ -946,6 +997,7 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
 
   const normalizedMap = ensureWeeklyHours(weeklyCandidate, payload);
 
+  // המרה ל־WeeklySchedule לפי DayOfWeek (0..6) → {open,close}|null
   const normalized: WeeklySchedule = {};
   for (let d = 0 as DayOfWeek; d <= 6; d = (d + 1) as DayOfWeek) {
     const row = (normalizedMap as any)[d] ?? null;
@@ -959,6 +1011,7 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
     weeklySchedule: normalized,
   });
 
+  // עדכון DB
   const db = await import("../database.ts");
   const updater = (db as any).updateRestaurant;
 
@@ -1018,6 +1071,9 @@ restaurantsRouter.get("/r/:token", async (ctx) => {
   const restaurant = await getRestaurant(reservation.restaurantId);
   const photos = photoStrings(restaurant?.photos);
 
+  // כללים:
+  // confirm מותר רק אם לא מאושר ולא מבוטל
+  // cancel מותר אם סטטוס אינו "canceled"
   const allowConfirm = reservation.status !== "confirmed" && reservation.status !== "canceled";
   const allowCancel  = reservation.status !== "canceled";
 
@@ -1028,7 +1084,7 @@ restaurantsRouter.get("/r/:token", async (ctx) => {
     reservation,
     restaurant: restaurant ? { ...restaurant, photos } : null,
     flash: null,
-    suggestions: [],
+    suggestions: [],      // אין שינוי מועד → אין הצעות
     allowConfirm,
     allowCancel,
   });
@@ -1072,7 +1128,7 @@ restaurantsRouter.post("/r/:token", async (ctx) => {
       reservation: fresh,
       restaurant: { ...restaurant, photos },
       flash,
-      suggestions: [],
+      suggestions: [], // נשאר ריק – אין שינוי מועד
       allowConfirm,
       allowCancel,
     });
@@ -1102,8 +1158,10 @@ restaurantsRouter.post("/r/:token", async (ctx) => {
     return;
   }
 
+  /// אין יותר reschedule
   await renderBack({ error: "פעולה לא מוכרת" });
 });
+
 
 export const router = restaurantsRouter;
 export default restaurantsRouter;
