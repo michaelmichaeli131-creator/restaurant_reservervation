@@ -1081,8 +1081,43 @@ restaurantsRouter.post("/r/:token", async (ctx) => {
   const payload = await verifyReservationToken(token);
   if (!payload) { ctx.response.status = Status.BadRequest; ctx.response.body = "Invalid or expired link"; return; }
 
-  const { payload: body } = await readBody(ctx);
-  const action = String(body.action ?? "").trim().toLowerCase();
+  const { payload: body, dbg } = await readBody(ctx);
+
+  // ---- זיהוי פעולה חסין (גוף, כפתור, query, referer) ----
+  const qs = ctx.request.url.searchParams;
+  const ref = extractFromReferer(ctx);
+  let action = pickNonEmpty(
+    (body as any).action,
+    (body as any)._action,
+    (body as any).__action,
+    (body as any).op,
+    qs.get("action"),
+    qs.get("op"),
+    (body as any).confirm ? "confirm" : "",
+    (body as any).cancel ? "cancel" : "",
+    (qs.get("confirm") ? "confirm" : ""),
+    (qs.get("cancel") ? "cancel" : ""),
+    (ref as any)["action"] || "",
+    (ref as any)["op"] || "",
+    ((ref as any)["confirm"] ? "confirm" : ""),
+    ((ref as any)["cancel"] ? "cancel" : ""),
+  ).toLowerCase();
+
+  // אם מייל-קליינט שלח key יחיד "confirm" או "cancel" ללא ערך
+  if (!action) {
+    const keys = Object.keys(body || {});
+    if (keys.length === 1 && (keys[0] === "confirm" || keys[0] === "cancel")) {
+      action = keys[0];
+    }
+  }
+
+  debugLog("[reservation.manage][POST] action detect", {
+    body_keys: Object.keys(body || {}),
+    qs: Object.fromEntries(qs.entries()),
+    ref,
+    action,
+    ct: dbg?.ct,
+  });
 
   const reservation = await getReservationById(payload.rid);
   if (!reservation) { ctx.response.status = Status.NotFound; ctx.response.body = "Reservation not found"; return; }
