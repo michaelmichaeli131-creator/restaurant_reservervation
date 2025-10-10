@@ -793,24 +793,39 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
 
   // --- Reservation self-service link (token + manageUrl) ---
   // (בטמפלט המייל הנוכחי אין כפתור ישיר ל-manageUrl; אם תעדכן את mail.ts – ניתן להוסיף)
-  await sendReservationEmail({
-    to: customerEmail,
-    restaurantName: restaurant.name,
-    date, time, people,
-    customerName,
-  }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
+await createReservation(reservation);
 
-  const owner = await getUserById(restaurant.ownerId).catch(() => null);
-  if (owner?.email) {
-    await notifyOwnerEmail({
-      to: owner.email,
-      restaurantName: restaurant.name,
-      customerName, customerPhone, customerEmail,
-      date, time, people,
-    }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
-  } else {
-    console.log("[mail] owner email not found; skipping owner notification");
-  }
+// --- Reservation self-service link (token + manageUrl) ---
+const token = await makeReservationToken(reservation.id, customerEmail);
+const origin = (Deno.env.get("APP_BASE_URL") || Deno.env.get("BASE_URL") || `${ctx.request.url.protocol}//${ctx.request.url.host}`).replace(/\/+$/, "");
+const manageUrl = `${origin}/r/${encodeURIComponent(token)}`;
+
+// --- שליחת מייל ללקוח עם קישור ישיר ---
+await sendReservationEmail({
+  to: customerEmail,
+  restaurantName: restaurant.name,
+  date, time, people,
+  customerName,
+  manageUrl, // ← חשוב: קישור ישיר לדף ההזמנה
+}).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
+
+// --- שליחת התראה לבעל המסעדה או לוג ---
+const owner = await getUserById(restaurant.ownerId).catch(() => null);
+if (owner?.email) {
+  await notifyOwnerEmail({
+    to: owner.email,
+    restaurantName: restaurant.name,
+    customerName,
+    customerPhone,
+    customerEmail,
+    date,
+    time,
+    people,
+  }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
+} else {
+  console.log("[mail] owner email not found; skipping owner notification");
+}
+
 
   // normalize for template (אחידות)
   const photos = photoStrings(restaurant.photos);
