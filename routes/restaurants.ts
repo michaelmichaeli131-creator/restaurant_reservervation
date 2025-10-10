@@ -236,94 +236,93 @@ async function suggestionsWithinSchedule(
   return ok.slice(0, 8);
 }
 
-/* ---------------- Strong body reader for Oak ---------------- */
+/* ---------------- Strong body reader for Oak v16/17 ---------------- */
+/** קריאת גוף לבקשה – רק ה-API החדש של Oak (ללא ctx.request.body({type})) */
+async function readBody(
+  ctx: any,
+): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
+  const ct = (ctx.request.headers.get("content-type") ?? "").toLowerCase();
+  const dbg: Record<string, unknown> = { ct, phases: [] as any[] };
+  const phase = (name: string, data?: unknown) => {
+    try { (dbg.phases as any[]).push({ name, data }); } catch {}
+  };
 
-async function readBody(ctx: any): Promise<{ payload: Record<string, unknown>; dbg: Record<string, unknown> }> {
-  const dbg: Record<string, unknown> = { ct: (ctx.request.headers.get("content-type") ?? "").toLowerCase(), phases: [] as any[] };
-  const phase = (name: string, data?: unknown) => { try { (dbg.phases as any[]).push({ name, data }); } catch {} };
-  const merge = (dst: Record<string, unknown>, src: Record<string, unknown>) => {
-    for (const [k, v] of Object.entries(src)) if (v !== undefined && v !== null && v !== "") dst[k] = v;
-    return dst;
+  const out: Record<string, unknown> = {};
+  const merge = (src: Record<string, unknown>) => {
+    for (const [k, v] of Object.entries(src)) {
+      if (v !== undefined && v !== null && v !== "") out[k] = v;
+    }
   };
   const fromEntries = (iter: Iterable<[string, FormDataEntryValue]> | URLSearchParams) => {
     const o: Record<string, unknown> = {};
     for (const [k, v0] of (iter as any).entries()) {
-      const v = typeof v0 === "string" ? v0 : (v0?.name ?? "");
-      o[k] = v;
+      o[k] = typeof v0 === "string" ? v0 : (v0?.name ?? "");
     }
     return o;
   };
 
-  const out: Record<string, unknown> = {};
+  // Oak v16/17: ctx.request.body הוא אובייקט עם מתודות
+  try {
+    const b: any = ctx.request?.body;
 
-  async function tryOak(kind: "form" | "form-data" | "json" | "text" | "bytes") {
-    try {
-      const b = await (ctx.request as any).body?.({ type: kind });
-      if (!b) return;
-      const t = b.type;
-      if (t === "form") {
-        const v = await b.value as URLSearchParams;
-        const o = fromEntries(v);
-        phase("oak.body(form)", o);
-        merge(out, o);
-      } else if (t === "form-data") {
-        const v = await b.value;
-        const r = await v.read();
-        const o = (r?.fields ?? {}) as Record<string, unknown>;
-        phase("oak.body(form-data)", o);
-        merge(out, o);
-      } else if (t === "json") {
-        const j = await b.value as Record<string, unknown>;
-        phase("oak.body(json)", j);
-        merge(out, j || {});
-      } else if (t === "text") {
-        const txt = await b.value as string;
-        phase("oak.body(text)", txt.length > 200 ? txt.slice(0,200) + "…" : txt);
-        try { const j = JSON.parse(txt); phase("oak.body(text->json)", j); merge(out, j as any); }
-        catch { const sp = new URLSearchParams(txt); const o = fromEntries(sp); if (Object.keys(o).length) { phase("oak.body(text->urlencoded)", o); merge(out, o); } }
-      } else if (t === "bytes") {
-        const u8 = await b.value as Uint8Array;
-        const txt = new TextDecoder().decode(u8);
-        phase("oak.body(bytes)", txt.length > 200 ? txt.slice(0,200) + "…" : txt);
-        try { const j = JSON.parse(txt); phase("oak.body(bytes->json)", j); merge(out, j as any); }
-        catch { const sp = new URLSearchParams(txt); const o = fromEntries(sp); if (Object.keys(o).length) { phase("oak.body(bytes->urlencoded)", o); merge(out, o); } }
+    if (b && typeof b !== "function") {
+      if (typeof b.form === "function") {
+        try { const f = await b.form(); const o = fromEntries(f); phase("oak17.form", o); merge(o); } catch (e) { phase("oak17.form.error", String(e)); }
       }
-    } catch (e) {
-      phase(`oak.body(${kind}).error`, String(e));
+      if (typeof b.formData === "function") {
+        try { const fd = await b.formData(); const o = fromEntries(fd); phase("oak17.formData", o); merge(o); } catch (e) { phase("oak17.formData.error", String(e)); }
+      }
+      if (typeof b.json === "function") {
+        try { const j = await b.json(); if (j && typeof j === "object") { phase("oak17.json", j); merge(j as any); } } catch (e) { phase("oak17.json.error", String(e)); }
+      }
+      if (typeof b.text === "function") {
+        try {
+          const t: string = await b.text();
+          phase("oak17.text", t.length > 200 ? t.slice(0,200)+"…" : t);
+          try { const j = JSON.parse(t); phase("oak17.text->json", j); merge(j as any); }
+          catch { const sp = new URLSearchParams(t); const o = fromEntries(sp); if (sp.size) { phase("oak17.text->urlencoded", o); merge(o); } }
+        } catch (e) { phase("oak17.text.error", String(e)); }
+      }
+      if (typeof b.bytes === "function") {
+        try {
+          const u8: Uint8Array = await b.bytes();
+          const t = new TextDecoder().decode(u8);
+          phase("oak17.bytes->text", t.length > 200 ? t.slice(0,200)+"…" : t);
+          try { const j = JSON.parse(t); phase("oak17.bytes->json", j); merge(j as any); }
+          catch { const sp = new URLSearchParams(t); const o = fromEntries(sp); if (sp.size) { phase("oak17.bytes->urlencoded", o); merge(o); } }
+        } catch (e) { phase("oak17.bytes.error", String(e)); }
+      }
+    } else {
+      phase("oak17.body.missing", typeof b);
     }
+  } catch (e) {
+    phase("oak17.global.error", String(e));
   }
 
-  await tryOak("form");
-  await tryOak("json");
-  await tryOak("form-data");
-  await tryOak("text");
-  await tryOak("bytes");
-
-  const reqAny: any = ctx.request as any;
+  // Fallback Native (ל-Deno Deploy/Edge Request)
   try {
+    const reqAny: any = ctx.request;
     if (typeof reqAny.formData === "function") {
-      const fd = await reqAny.formData();
-      const o = fromEntries(fd);
-      if (Object.keys(o).length) { phase("native.formData", o); merge(out, o); }
+      try { const fd = await reqAny.formData(); const o = fromEntries(fd); if (Object.keys(o).length) { phase("native.formData", o); merge(o); } } catch (e) { phase("native.formData.error", String(e)); }
     }
-  } catch (e) { phase("native.formData.error", String(e)); }
-  try {
     if (typeof reqAny.json === "function") {
-      const j = await reqAny.json();
-      if (j && typeof j === "object") { phase("native.json", j); merge(out, j); }
+      try { const j = await reqAny.json(); if (j && typeof j === "object") { phase("native.json", j); merge(j as any); } } catch (e) { phase("native.json.error", String(e)); }
     }
-  } catch (e) { phase("native.json.error", String(e)); }
-  try {
     if (typeof reqAny.text === "function") {
-      const t: string = await reqAny.text();
-      if (t) {
-        phase("native.text", t.length > 200 ? t.slice(0,200) + "…" : t);
-        try { const j = JSON.parse(t); phase("native.text->json", j); merge(out, j); }
-        catch { const sp = new URLSearchParams(t); const o = fromEntries(sp); if (Object.keys(o).length) { phase("native.text->urlencoded)", o); merge(out, o); } }
-      }
+      try {
+        const t: string = await reqAny.text();
+        if (t) {
+          phase("native.text", t.length > 200 ? t.slice(0,200)+"…" : t);
+          try { const j = JSON.parse(t); phase("native.text->json", j); merge(j as any); }
+          catch { const sp = new URLSearchParams(t); const o = fromEntries(sp); if (sp.size) { phase("native.text->urlencoded", o); merge(o); } }
+        }
+      } catch (e) { phase("native.text.error", String(e)); }
     }
-  } catch (e) { phase("native.text.error", String(e)); }
+  } catch (e) {
+    phase("native.global.error", String(e));
+  }
 
+  // Query string כתוספת אחרונה
   const qs = Object.fromEntries(ctx.request.url.searchParams);
   phase("querystring", qs);
   for (const [k, v] of Object.entries(qs)) {
@@ -803,7 +802,7 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
     restaurantName: restaurant.name,
     date, time, people,
     customerName,
-    manageUrl, // ← חשוב: קישור ישיר לדף ההזמנה
+    manageUrl,
     reservationId: reservation.id,
   }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
 
