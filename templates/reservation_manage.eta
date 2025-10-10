@@ -51,7 +51,7 @@
           <h1>ניהול הזמנה</h1>
           <div class="muted">מס׳ הזמנה: <code><%= it.reservation.id %></code></div>
         </div>
-        <% 
+        <%
           const status = (it.reservation.status || 'new');
           const statusLabel = status==='confirmed' ? 'מאושר'
                               : status==='canceled' ? 'מבוטל'
@@ -109,14 +109,29 @@
           <% if (it.allowConfirm) { %>
             <form method="post" action="/r/<%= it.token %>">
               <input type="hidden" name="action" value="confirm">
-              <button class="btn btn-brand" type="submit">מאשר/ת הגעה</button>
+              <button
+                class="btn btn-brand"
+                type="submit"
+                name="action"
+                value="confirm"
+                formmethod="post"
+                formaction="/r/<%= it.token %>?action=confirm"
+              >מאשר/ת הגעה</button>
             </form>
           <% } %>
 
           <!-- ביטול (תמיד זמין עד שההזמנה כבר בוטלה) -->
           <form method="post" action="/r/<%= it.token %>" onsubmit="return <%= it.allowCancel ? 'confirm(&#39;לבטל את ההזמנה?&#39;)' : 'false' %>;">
             <input type="hidden" name="action" value="cancel">
-            <button class="btn btn-danger" type="submit" <%= it.allowCancel ? '' : 'disabled aria-disabled="true"' %>>
+            <button
+              class="btn btn-danger"
+              type="submit"
+              name="action"
+              value="cancel"
+              formmethod="post"
+              formaction="/r/<%= it.token %>?action=cancel"
+              <%= it.allowCancel ? '' : 'disabled aria-disabled="true"' %>
+            >
               ביטול הזמנה
             </button>
           </form>
