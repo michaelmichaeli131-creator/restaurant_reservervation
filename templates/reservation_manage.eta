@@ -1,4 +1,4 @@
-<!-- /src/views/reservation_manage.eta -->
+<!-- /src/templates/reservation_manage.eta -->
 <!doctype html>
 <html lang="he" dir="rtl">
 <head>
@@ -114,7 +114,7 @@
           <% } %>
 
           <!-- ביטול (תמיד זמין עד שההזמנה כבר בוטלה) -->
-          <form method="post" action="/r/<%= it.token %>" onsubmit="return <%= it.allowCancel ? 'confirm(\\'לבטל את ההזמנה?\\')' : 'false' %>;">
+          <form method="post" action="/r/<%= it.token %>" onsubmit="return <%= it.allowCancel ? 'confirm(&#39;לבטל את ההזמנה?&#39;)' : 'false' %>;">
             <input type="hidden" name="action" value="cancel">
             <button class="btn btn-danger" type="submit" <%= it.allowCancel ? '' : 'disabled aria-disabled="true"' %>>
               ביטול הזמנה
