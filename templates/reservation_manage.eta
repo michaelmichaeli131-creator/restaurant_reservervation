@@ -41,6 +41,8 @@
     .badge.new{border-color:#cbd5e1;background:#f8fafc}
     .badge.confirmed{border-color:#bbf7d0;background:#f0fdf4;color:#065f46}
     .badge.canceled{border-color:#fecaca;background:#fff1f2;color:#7f1d1d}
+    .phone{margin-top:4px;}
+    .phone a{color:#06b6d4;text-decoration:none;font-weight:600;}
   </style>
 </head>
 <body>
@@ -51,7 +53,7 @@
           <h1>ניהול הזמנה</h1>
           <div class="muted">מס׳ הזמנה: <code><%= it.reservation.id %></code></div>
         </div>
-        <%
+        <% 
           const status = (it.reservation.status || 'new');
           const statusLabel = status==='confirmed' ? 'מאושר'
                               : status==='canceled' ? 'מבוטל'
@@ -72,6 +74,9 @@
           <div>
             <div style="font-weight:700"><%= it.restaurant?.name || "מסעדה" %></div>
             <div class="muted"><%= it.restaurant?.address || "" %></div>
+            <% if (it.restaurant?.phone) { %>
+              <div class="phone">📞 טלפון: <a href="tel:<%= it.restaurant.phone %>"><%= it.restaurant.phone %></a></div>
+            <% } %>
           </div>
         </div>
 
@@ -105,44 +110,28 @@
         <% } %>
 
         <div class="actions">
-          <!-- אישור הגעה (מופיע רק כשהוא אפשרי) -->
           <% if (it.allowConfirm) { %>
             <form method="post" action="/r/<%= it.token %>">
               <input type="hidden" name="action" value="confirm">
-              <button
-                class="btn btn-brand"
-                type="submit"
-                name="action"
-                value="confirm"
-                formmethod="post"
-                formaction="/r/<%= it.token %>?action=confirm"
-              >מאשר/ת הגעה</button>
+              <button class="btn btn-brand" type="submit">מאשר/ת הגעה</button>
             </form>
           <% } %>
 
-          <!-- ביטול (תמיד זמין עד שההזמנה כבר בוטלה) -->
-          <form method="post" action="/r/<%= it.token %>" onsubmit="return <%= it.allowCancel ? 'confirm(&#39;לבטל את ההזמנה?&#39;)' : 'false' %>;">
+          <form method="post" action="/r/<%= it.token %>" onsubmit="return <%= it.allowCancel ? 'confirm(\'לבטל את ההזמנה?\')' : 'false' %>;">
             <input type="hidden" name="action" value="cancel">
-            <button
-              class="btn btn-danger"
-              type="submit"
-              name="action"
-              value="cancel"
-              formmethod="post"
-              formaction="/r/<%= it.token %>?action=cancel"
-              <%= it.allowCancel ? '' : 'disabled aria-disabled="true"' %>
-            >
+            <button class="btn btn-danger" type="submit" <%= it.allowCancel ? '' : 'disabled aria-disabled="true"' %>>
               ביטול הזמנה
             </button>
           </form>
 
-          <!-- רענון דף -->
           <a class="btn btn-ghost" href="/r/<%= it.token %>">רענון</a>
         </div>
 
         <div class="hr"></div>
 
-        <p class="muted">צריך עזרה? פנו אלינו עם מספר ההזמנה שמופיע למעלה.</p>
+        <p class="muted">
+          צריך עזרה? ניתן לפנות למסעדה בטלפון <strong><%= it.restaurant?.phone || "—" %></strong> או לציין את מספר ההזמנה בשיחה.
+        </p>
       </div>
     </div>
   </div>
