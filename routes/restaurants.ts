@@ -1032,8 +1032,6 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
 
 /* ───────────────────────── Self-service manage link (/r/:token) ───────────────────────── */
 
-/* ───────────────────────── Self-service manage link (/r/:token) ───────────────────────── */
-
 restaurantsRouter.get("/r/:token", async (ctx) => {
   const token = String(ctx.params.token ?? "").trim();
   const payload = await verifyReservationToken(token);
@@ -1143,7 +1141,6 @@ restaurantsRouter.post("/r/:token", async (ctx) => {
   /// אין יותר reschedule
   await renderBack({ error: "פעולה לא מוכרת" });
 });
-
 
 export const router = restaurantsRouter;
 export default restaurantsRouter;
