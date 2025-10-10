@@ -1032,6 +1032,8 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
 
 /* ───────────────────────── Self-service manage link (/r/:token) ───────────────────────── */
 
+/* ───────────────────────── Self-service manage link (/r/:token) ───────────────────────── */
+
 restaurantsRouter.get("/r/:token", async (ctx) => {
   const token = String(ctx.params.token ?? "").trim();
   const payload = await verifyReservationToken(token);
@@ -1051,7 +1053,10 @@ restaurantsRouter.get("/r/:token", async (ctx) => {
   const restaurant = await getRestaurant(reservation.restaurantId);
   const photos = photoStrings(restaurant?.photos);
 
-  const allowConfirm = reservation.status !== "canceled";
+  // כללים:
+  // confirm מותר רק אם לא מאושר ולא מבוטל
+  // cancel מותר אם סטטוס אינו "canceled"
+  const allowConfirm = reservation.status !== "confirmed" && reservation.status !== "canceled";
   const allowCancel  = reservation.status !== "canceled";
 
   await render(ctx, "reservation_manage", {
@@ -1061,7 +1066,7 @@ restaurantsRouter.get("/r/:token", async (ctx) => {
     reservation,
     restaurant: restaurant ? { ...restaurant, photos } : null,
     flash: null,
-    suggestions: [],
+    suggestions: [],      // אין שינוי מועד → אין הצעות
     allowConfirm,
     allowCancel,
   });
@@ -1094,9 +1099,9 @@ restaurantsRouter.post("/r/:token", async (ctx) => {
   }
 
   const photos = photoStrings(restaurant.photos);
-  const renderBack = async (flash: any, suggestions: string[] = []) => {
+  const renderBack = async (flash: any) => {
     const fresh = await getReservationById(payload.rid);
-    const allowConfirm = fresh?.status !== "canceled";
+    const allowConfirm = fresh?.status !== "confirmed" && fresh?.status !== "canceled";
     const allowCancel  = fresh?.status !== "canceled";
     await render(ctx, "reservation_manage", {
       page: "reservation_manage",
@@ -1105,7 +1110,7 @@ restaurantsRouter.post("/r/:token", async (ctx) => {
       reservation: fresh,
       restaurant: { ...restaurant, photos },
       flash,
-      suggestions,
+      suggestions: [], // נשאר ריק – אין שינוי מועד
       allowConfirm,
       allowCancel,
     });
@@ -1113,7 +1118,11 @@ restaurantsRouter.post("/r/:token", async (ctx) => {
 
   if (action === "confirm") {
     if (reservation.status === "canceled") {
-      await renderBack({ error: "ההזמנה בוטלה בעבר ולא ניתן לאשר אותה מחדש." });
+      await renderBack({ error: "ההזמנה מבוטלת ולא ניתן לאשר אותה." });
+      return;
+    }
+    if (reservation.status === "confirmed") {
+      await renderBack({ ok: "ההזמנה כבר מאושרת." });
       return;
     }
     await updateReservation(reservation.id, { status: "confirmed" }).catch(() => {});
@@ -1122,48 +1131,19 @@ restaurantsRouter.post("/r/:token", async (ctx) => {
   }
 
   if (action === "cancel") {
+    if (reservation.status === "canceled") {
+      await renderBack({ ok: "ההזמנה כבר בוטלה." });
+      return;
+    }
     await updateReservation(reservation.id, { status: "canceled" }).catch(() => {});
     await renderBack({ ok: "ההזמנה בוטלה." });
     return;
   }
 
-  if (action === "reschedule") {
-    if (reservation.status === "canceled") {
-      await renderBack({ error: "ההזמנה בוטלה — לא ניתן לשנות מועד." });
-      return;
-    }
-
-    const { date, time } = extractDateAndTime(ctx, body);
-    const people = toIntLoose((body as any).people) ?? reservation.people;
-
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
-      await renderBack({ error: "תאריך/שעה לא תקינים" });
-      return;
-    }
-
-    // האם עומד בשעות פתיחה
-    const within = isWithinSchedule(restaurant.weeklySchedule, date, time);
-    if (!within) {
-      const suggestions = await suggestionsWithinSchedule(restaurant.id, date, time, people, restaurant.weeklySchedule);
-      await renderBack({ error: "המסעדה סגורה בשעה שבחרת" }, suggestions);
-      return;
-    }
-
-    const avail = await checkAvailability(restaurant.id, date, time, people);
-    if (!asOk(avail)) {
-      const suggestions = await suggestionsWithinSchedule(restaurant.id, date, time, people, restaurant.weeklySchedule);
-      await renderBack({ error: "אין זמינות במועד שבחרת" }, suggestions);
-      return;
-    }
-
-    await updateReservation(reservation.id, { date, time, people }).catch(() => {});
-    await renderBack({ ok: "המועד עודכן בהצלחה" });
-    return;
-  }
-
-  // פעולה לא מזוהה
+  // אין יותר reschedule
   await renderBack({ error: "פעולה לא מוכרת" });
 });
+
 
 export const router = restaurantsRouter;
 export default restaurantsRouter;
