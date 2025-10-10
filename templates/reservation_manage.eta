@@ -41,8 +41,13 @@
     .badge.new{border-color:#cbd5e1;background:#f8fafc}
     .badge.confirmed{border-color:#bbf7d0;background:#f0fdf4;color:#065f46}
     .badge.canceled{border-color:#fecaca;background:#fff1f2;color:#7f1d1d}
-    .phone{margin-top:4px;}
-    .phone a{color:#06b6d4;text-decoration:none;font-weight:600;}
+    /* Phone block */
+    .phone{margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .phone a.tel{color:#06b6d4;text-decoration:none;font-weight:700}
+    .copy-btn{background:#f1f5f9;border:1px solid var(--bd);color:#0f172a;border-radius:10px;padding:6px 10px;font-weight:600;cursor:pointer}
+    .copy-btn:hover{background:#e2e8f0}
+    .copied-badge{display:none;font-size:12px;color:var(--ok);font-weight:700}
+    .copied .copied-badge{display:inline}
   </style>
 </head>
 <body>
@@ -53,7 +58,7 @@
           <h1>ניהול הזמנה</h1>
           <div class="muted">מס׳ הזמנה: <code><%= it.reservation.id %></code></div>
         </div>
-        <% 
+        <%
           const status = (it.reservation.status || 'new');
           const statusLabel = status==='confirmed' ? 'מאושר'
                               : status==='canceled' ? 'מבוטל'
@@ -74,8 +79,17 @@
           <div>
             <div style="font-weight:700"><%= it.restaurant?.name || "מסעדה" %></div>
             <div class="muted"><%= it.restaurant?.address || "" %></div>
-            <% if (it.restaurant?.phone) { %>
-              <div class="phone">📞 טלפון: <a href="tel:<%= it.restaurant.phone %>"><%= it.restaurant.phone %></a></div>
+
+            <!-- טלפון: לחיץ לחיוג + כפתור העתקה -->
+            <% if (it.restaurant?.phone) { 
+                 const phone = String(it.restaurant.phone);
+            %>
+              <div class="phone" id="phone-block">
+                <span>📞</span>
+                <a class="tel" href="tel:<%= phone %>"><%= phone %></a>
+                <button class="copy-btn" type="button" data-phone="<%= phone %>" onclick="copyPhone(this)">העתקה</button>
+                <span class="copied-badge" aria-live="polite">הועתק ✓</span>
+              </div>
             <% } %>
           </div>
         </div>
@@ -110,30 +124,76 @@
         <% } %>
 
         <div class="actions">
+          <!-- אישור הגעה (מופיע רק כשהוא אפשרי) -->
           <% if (it.allowConfirm) { %>
             <form method="post" action="/r/<%= it.token %>">
               <input type="hidden" name="action" value="confirm">
-              <button class="btn btn-brand" type="submit">מאשר/ת הגעה</button>
+              <button
+                class="btn btn-brand"
+                type="submit"
+                name="action"
+                value="confirm"
+                formmethod="post"
+                formaction="/r/<%= it.token %>?action=confirm"
+              >מאשר/ת הגעה</button>
             </form>
           <% } %>
 
-          <form method="post" action="/r/<%= it.token %>" onsubmit="return <%= it.allowCancel ? 'confirm(\'לבטל את ההזמנה?\')' : 'false' %>;">
+          <!-- ביטול (תמיד זמין עד שההזמנה כבר בוטלה) -->
+          <form method="post" action="/r/<%= it.token %>" onsubmit="return <%= it.allowCancel ? 'confirm(&#39;לבטל את ההזמנה?&#39;)' : 'false' %>;">
             <input type="hidden" name="action" value="cancel">
-            <button class="btn btn-danger" type="submit" <%= it.allowCancel ? '' : 'disabled aria-disabled="true"' %>>
+            <button
+              class="btn btn-danger"
+              type="submit"
+              name="action"
+              value="cancel"
+              formmethod="post"
+              formaction="/r/<%= it.token %>?action=cancel"
+              <%= it.allowCancel ? '' : 'disabled aria-disabled="true"' %>
+            >
               ביטול הזמנה
             </button>
           </form>
 
+          <!-- רענון דף -->
           <a class="btn btn-ghost" href="/r/<%= it.token %>">רענון</a>
         </div>
 
         <div class="hr"></div>
 
         <p class="muted">
-          צריך עזרה? ניתן לפנות למסעדה בטלפון <strong><%= it.restaurant?.phone || "—" %></strong> או לציין את מספר ההזמנה בשיחה.
+          צריך עזרה? פנו אלינו עם מספר ההזמנה שמופיע למעלה.
+          <% if (it.restaurant?.phone) { %>
+            או חייגו אל <strong><a class="tel" href="tel:<%= it.restaurant.phone %>"><%= it.restaurant.phone %></a></strong>.
+          <% } %>
         </p>
       </div>
     </div>
   </div>
+
+  <script>
+    // העתקת מספר הטלפון ללוח
+    async function copyPhone(btn){
+      try{
+        const v = btn.getAttribute('data-phone') || '';
+        await navigator.clipboard.writeText(v);
+        const wrap = btn.parentElement;
+        if (wrap){
+          wrap.classList.add('copied');
+          setTimeout(()=>wrap.classList.remove('copied'), 1500);
+        }
+      }catch(e){
+        // fallback: בחר טקסט בקישור
+        const tel = btn.previousElementSibling;
+        if (tel && window.getSelection){
+          const range = document.createRange();
+          range.selectNodeContents(tel);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      }
+    }
+  </script>
 </body>
 </html>
