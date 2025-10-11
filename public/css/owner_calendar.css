@@ -1,0 +1,132 @@
+/* /public/css/owner_calendar.css */
+/* Layout נקי מודרני בסגנון הצילומים: פאנל שמאלי (יום/טיימליין) + Drawer לקוחות מימין */
+
+:root{
+  --bg:#f5f7fa;--card:#fff;--ink:#0f172a;--muted:#64748b;--bd:#e2e8f0;
+  --brand:#2563eb;--ok:#22c55e;--warn:#f59e0b;--danger:#ef4444;
+  --radius:14px;--radius-sm:10px;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+}
+
+/* Header */
+.oc-header{
+  background:var(--card);
+  border-bottom:1px solid var(--bd);
+  box-shadow:0 1px 3px rgba(0,0,0,.05);
+}
+.oc-header .wrap{
+  max-width:1100px;margin:0 auto;padding:12px 16px;
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+}
+.oc-title{
+  font-weight:700;font-size:1.05rem;padding:8px 12px;border-radius:8px;
+  background:#f1f5f9;
+}
+.oc-spacer{flex:1}
+.oc-search{
+  position:relative;display:flex;align-items:center;gap:8px;
+}
+.oc-search input[type="search"]{
+  width:260px;max-width:60vw;
+  padding:8px 10px;border:1px solid var(--bd);border-radius:8px;
+  background:#fff;outline:none;
+}
+.oc-date-nav{
+  display:flex;align-items:center;gap:6px;
+}
+.oc-date-nav button{
+  border:1px solid var(--bd);background:#fff;border-radius:8px;padding:6px 9px;cursor:pointer;
+}
+.oc-date-nav .date-label{
+  font-weight:600;padding:6px 10px;border-radius:8px;border:1px solid var(--bd);background:#fff;
+}
+
+/* Main layout */
+.oc-main{
+  max-width:1100px;margin:18px auto;display:grid;grid-template-columns:1fr;gap:16px;padding:0 16px;
+}
+@media (min-width: 900px){
+  .oc-main{grid-template-columns:1fr 380px;}
+}
+
+/* Left panel (timeline) */
+.oc-panel{
+  background:var(--card);border:1px solid var(--bd);border-radius:var(--radius);
+  overflow:hidden;
+}
+.oc-panel header{
+  padding:14px 16px;border-bottom:1px solid var(--bd);
+  display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;
+}
+.oc-cap{
+  color:var(--muted);font-size:.92rem;
+}
+.oc-hint{
+  color:var(--muted);font-size:.9rem;padding:10px 16px;border-top:1px dashed var(--bd);
+}
+
+/* Slots table-like list */
+.oc-slots{width:100%}
+.oc-row{
+  display:grid;grid-template-columns:90px 1fr 110px;gap:12px;
+  padding:10px 14px;border-bottom:1px solid var(--bd);cursor:pointer;
+}
+.oc-row:hover{background:#f8fafc}
+.oc-th{
+  background:#f8fafc;font-weight:700;color:#0b1320;border-bottom:1px solid var(--bd);
+}
+.oc-time{font-weight:700}
+.oc-bar{
+  position:relative;height:12px;background:#edf2f7;border-radius:8px;overflow:hidden;margin-top:2px;
+}
+.oc-bar .fill{height:100%;width:0%}
+.oc-info{color:var(--muted);font-size:.9rem;text-align:right}
+
+/* Summary */
+.oc-summary{
+  padding:12px 16px;border-top:1px solid var(--bd);color:var(--muted);
+}
+.oc-summary b{color:#111827}
+
+/* Right drawer */
+.oc-drawer{
+  position:fixed;top:0;right:0;height:100%;width:380px;max-width:100%;
+  background:var(--card);border-left:1px solid var(--bd);
+  transform:translateX(100%);transition:transform .25s ease;z-index:1000;
+  display:flex;flex-direction:column;
+}
+.oc-drawer.open{transform:translateX(0)}
+.oc-drawer header{
+  padding:12px 14px;border-bottom:1px solid var(--bd);display:flex;gap:8px;align-items:center;justify-content:space-between;
+}
+.oc-drawer header .title{font-weight:700}
+.oc-drawer header .close{border:1px solid var(--bd);background:#fff;border-radius:8px;padding:6px 8px;cursor:pointer}
+.oc-drawer .toolbar{
+  padding:10px 12px;border-bottom:1px solid var(--bd);display:flex;gap:8px;align-items:center;
+}
+.oc-drawer .toolbar input[type="search"]{
+  flex:1;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;
+}
+.btn{
+  border:1px solid var(--bd);background:#fff;border-radius:8px;padding:8px 10px;cursor:pointer;
+}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.warn{background:var(--danger);border-color:var(--danger);color:#fff}
+
+.oc-drawer .body{padding:8px 12px;overflow:auto}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th,.tbl td{padding:8px 6px;border-bottom:1px solid var(--bd);text-align:right}
+.tbl th{background:#f8fafc;font-weight:700}
+.badge{
+  display:inline-block;padding:2px 8px;border-radius:999px;font-size:.78rem;color:#fff;
+}
+.badge.approved{background:var(--ok)}
+.badge.booked{background:var(--warn)}
+.badge.arrived{background:#22d3ee}
+.badge.cancelled{background:var(--danger)}

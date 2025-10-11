@@ -49,8 +49,15 @@ export interface Reservation {
   date: string;   // YYYY-MM-DD
   time: string;   // HH:mm (תחילת הישיבה)
   people: number;
-  note?: string;
-  status?: "new" | "confirmed" | "canceled" | "completed" | "blocked" | "rescheduled";
+  note?: string;  // הערות (שם שדה קיים בפרויקט)
+  // ↓ הרחבה לתמיכה ב-Owner Calendar (תואם גם ל-UI החדש)
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  durationMinutes?: number; // ברירת מחדל לוגית 120 כשהשדה חסר
+  status?:
+    | "new" | "confirmed" | "canceled" | "completed" | "blocked" | "rescheduled"
+    | "approved" | "arrived" | "cancelled"; // תמיכה בשתי האיותים והסטטוסים החדשים
   createdAt: number;
 }
 
@@ -297,7 +304,6 @@ function isWithinOpening(r: Restaurant, date: string, startMin: number, span: nu
 
 // מחזיר חלונות פתיחה כתווים {open, close} ליום נתון.
 // אם אין מגבלה באותו יום (אין מפתח מפורש) – ברירת המחדל: פתוח כל היום.
-
 export function openingWindowsForDate(
   r: Restaurant,
   dateISO: string,
@@ -518,6 +524,19 @@ export async function listReservationsFor(restaurantId: string, date: string): P
   return out;
 }
 
+/** ← חדש: כל ההזמנות למסעדה (ללא תלות ביום) */
+export async function listReservationsByRestaurant(restaurantId: string): Promise<Reservation[]> {
+  const out: Reservation[] = [];
+  for await (const row of kv.list({ prefix: toKey("reservation_by_day", restaurantId) })) {
+    const id = row.key[row.key.length - 1] as string;
+    const r = (await kv.get<Reservation>(toKey("reservation", id))).value;
+    if (r) out.push(r);
+  }
+  // מיון לפי תאריך+שעה
+  out.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  return out;
+}
+
 export async function createReservation(r: Reservation) {
   const tx = kv.atomic()
     .set(toKey("reservation", r.id), r)
@@ -547,6 +566,10 @@ export async function updateReservation(id: string, patch: Partial<Reservation>)
     people: patch.people ?? prev.people,
     note: patch.note ?? prev.note,
     status: patch.status ?? prev.status,
+    firstName: patch.firstName ?? prev.firstName,
+    lastName: patch.lastName ?? prev.lastName,
+    phone: patch.phone ?? prev.phone,
+    durationMinutes: patch.durationMinutes ?? prev.durationMinutes,
     userId: patch.userId ?? prev.userId,
     createdAt: prev.createdAt,
   };
@@ -641,7 +664,7 @@ export async function checkAvailability(restaurantId: string, date: string, time
   const occ = await computeOccupancy(r, date);
   for (let t = start; t < end; t += step) {
     const used = occ.get(fromMinutes(t)) ?? 0;
-    if (used + seats > r.capacity) return { ok: false, reason: "full" as const };
+    if (used + seats > r.capacity) return false as any || { ok: false, reason: "full" as const };
   }
   return { ok: true as const };
 }
@@ -986,3 +1009,98 @@ export async function updateRestaurantHours(
 
 /** שם חלופי נפוץ */
 export const setRestaurantOpeningHours = updateRestaurantHours;
+
+
+/* ================= Occupancy Calendar Helpers (תואם מפתחי ה-KV הקיימים) ================ */
+
+/** כל ההזמנות למסעדה ביום נתון (YYYY-MM-DD) */
+export async function listReservationsByRestaurantAndDate(rid: string, date: string): Promise<Reservation[]> {
+  return await listReservationsFor(rid, date);
+}
+
+/** בדיקת "מבוטל" כולל שתי האיותים */
+function isCancelled(status?: string): boolean {
+  const s = String(status || "").toLowerCase();
+  return s === "canceled" || s === "cancelled";
+}
+
+/** ההזמנות המכסות סלוט מסוים (חופפות בזמן) */
+export async function listReservationsCoveringSlot(
+  rid: string,
+  date: string,
+  time: string,
+  opts: { slotMinutes?: number; durationMinutes?: number } = {},
+): Promise<Reservation[]> {
+  const slotMinutes = opts.slotMinutes ?? 15;
+  const duration = opts.durationMinutes ?? 120;
+  const startM = toMinutes(time);
+  const endM = startM + slotMinutes;
+  const all = await listReservationsByRestaurantAndDate(rid, date);
+
+  return all.filter((r) => {
+    if (isCancelled(r.status)) return false;
+    const sM = toMinutes(r.time);
+    const eM = sM + (r.durationMinutes ?? duration);
+    return sM < endM && startM < eM;
+  });
+}
+
+/** יצירת הזמנה ידנית ע"י בעל המסעדה (status: confirmed) */
+export async function createManualReservation(rid: string, data: {
+  firstName: string; lastName: string; phone: string; people: number;
+  notes?: string; date: string; time: string; status?: string;
+}): Promise<Reservation> {
+  const id = crypto.randomUUID();
+  const reservation: Reservation = {
+    id,
+    restaurantId: rid,
+    userId: `manual:${rid}`,
+    date: data.date,
+    time: data.time,
+    people: data.people,
+    note: data.notes ?? "",
+    status: (data.status ?? "confirmed") as any, // "approved" תמופה ל-"confirmed" בצד הראוטרים
+    firstName: data.firstName,
+    lastName: data.lastName,
+    phone: data.phone,
+    durationMinutes: 120,
+    createdAt: now(),
+  };
+  const tx = kv.atomic()
+    .set(toKey("reservation", id), reservation)
+    .set(toKey("reservation_by_day", rid, data.date, id), 1);
+  const res = await tx.commit();
+  if (!res.ok) throw new Error("create_reservation_race");
+  return reservation;
+}
+
+/** עדכון שדות חופשיים להזמנה */
+export async function updateReservationFields(id: string, patch: Partial<Reservation>): Promise<Reservation | null> {
+  const cur = await kv.get<Reservation>(toKey("reservation", id));
+  if (!cur.value) return null;
+  const merged = { ...cur.value, ...patch };
+  await kv.set(toKey("reservation", id), merged);
+  // אם עבר יום/מסעדה — עדכן אינדקס
+  if (patch.restaurantId || patch.date) {
+    const prev = cur.value;
+    const next = merged as Reservation;
+    if (prev.restaurantId !== next.restaurantId || prev.date !== next.date) {
+      const tx = kv.atomic()
+        .delete(toKey("reservation_by_day", prev.restaurantId, prev.date, id))
+        .set(toKey("reservation_by_day", next.restaurantId, next.date, id), 1);
+      await tx.commit().catch(() => {});
+    }
+  }
+  return merged as Reservation;
+}
+
+/** ביטול הזמנה (איות אמריקאי, תואם הסכמה המקורית) */
+export async function cancelReservation(id: string, reason?: string): Promise<Reservation | null> {
+  return await updateReservationFields(id, { status: "canceled", note: reason ?? "" });
+}
+
+/** סימון "הגיע" */
+export async function markArrived(id: string, at?: Date): Promise<Reservation | null> {
+  const arrivalNote = at ? `arrived at ${at.toISOString()}` : undefined;
+  return await updateReservationFields(id, { status: "arrived", note: arrivalNote });
+}

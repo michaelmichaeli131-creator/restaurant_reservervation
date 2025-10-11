@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title><%= it.title %></title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/css/owner_calendar.css" />
+</head>
+<body>
+  <!-- Header -->
+  <div class="oc-header">
+    <div class="wrap">
+      <div class="oc-title">Restaurant Name • Admin</div>
+      <div class="oc-date-nav">
+        <button id="btn-prev" aria-label="Previous day">◀</button>
+        <div class="date-label" id="date-label">—</div>
+        <button id="btn-next" aria-label="Next day">▶</button>
+        <input type="date" id="datePicker" style="display:none" value="<%= it.date %>"/>
+      </div>
+      <div class="oc-spacer"></div>
+      <div class="oc-search">
+        <input type="search" id="daySearch" placeholder="Search name"/>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <main class="oc-main">
+    <!-- Left: Day/Timeline -->
+    <section class="oc-panel">
+      <header>
+        <div class="oc-cap" id="cap-line">Capacity: People — • Tables — • Step: —</div>
+      </header>
+
+      <div class="oc-slots" id="slots">
+        <div class="oc-row oc-th">
+          <div>Time</div>
+          <div>Occupancy</div>
+          <div class="oc-info">People • Tables • %</div>
+        </div>
+        <!-- rows injected by JS -->
+      </div>
+
+      <div class="oc-hint">Hint: Click a slot to manage customers</div>
+
+      <div class="oc-summary" id="summary">
+        Daily Summary — loading…
+      </div>
+    </section>
+  </main>
+
+  <!-- Right Drawer -->
+  <aside class="oc-drawer" id="drawer">
+    <header>
+      <div class="title" id="drawer-title">Customers</div>
+      <button class="close" id="drawer-close">✕</button>
+    </header>
+    <div class="toolbar">
+      <input type="search" id="drawer-search" placeholder="Search name in this slot"/>
+      <button class="btn primary" id="btn-add">＋ Add customer</button>
+    </div>
+    <div class="body">
+      <table class="tbl" id="drawer-table">
+        <thead>
+          <tr>
+            <th>First Name</th><th>Last Name</th><th>Party sz</th><th>Status</th><th>Phone</th><th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </aside>
+
+  <script src="/static/js/owner_calendar.js" defer></script>
+  <script>
+    // העברת פרמטרים ראשוניים ל-JS
+    window.__OC__ = { rid: "<%= it.rid %>", date: "<%= it.date %>" };
+  </script>
+</body>
+</html>

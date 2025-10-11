@@ -10,6 +10,7 @@
 // - Static files תחת /public אל /static
 // - Root router: דף בית (תוצאות גם כשיש q, לא רק כשsearch=1), /__health, /__echo, /__mailtest, /__env
 // - חיבור כל הראוטרים: auth, restaurants, owner, admin, owner_capacity, owner_manage, owner_hours, owner_photos
+//   ✅ + owner_calendar (מערכת ניהול תפוסה – חדש)
 // - טיפול 404/405/OPTIONS, וכן graceful shutdown
 // -------------------------------------------------------------
 
@@ -38,6 +39,9 @@ import { requestLogger } from "./lib/log_mw.ts";
 import { diagRouter } from "./routes/diag.ts";
 import openingRouter from "./routes/opening.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
+
+// ✅ חדש: ראוטר ניהול תפוסה יומי (Calendar/Timeline)
+import { ownerCalendarRouter } from "./routes/owner_calendar.ts";
 
 // -------------------- ENV --------------------
 const PORT = Number(Deno.env.get("PORT") ?? "8000");
@@ -93,7 +97,9 @@ app.use(async (ctx, next) => {
   } catch (err) {
     const reqId = (ctx.state as any).reqId;
     if (isHttpError(err)) {
-      console.error(`[ERR ${reqId}] ${err.status} ${err.message}\n${err.stack ?? ""}`);
+      console.error(
+        `[ERR ${reqId}] ${err.status} ${err.message}\n${err.stack ?? ""}`,
+      );
       ctx.response.status = err.status;
       ctx.response.body = err.expose ? err.message : "Internal Server Error";
     } else {
@@ -115,7 +121,10 @@ app.use(async (ctx, next) => {
   ctx.response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   ctx.response.headers.set("Permissions-Policy", "geolocation=(), microphone=()");
   if (isHttps(ctx)) {
-    ctx.response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+    ctx.response.headers.set(
+      "Strict-Transport-Security",
+      "max-age=63072000; includeSubDomains; preload",
+    );
   }
   await next();
 });
@@ -194,7 +203,10 @@ app.use(async (ctx, next) => {
   await next();
   ctx.response.headers.set("X-Build-Tag", BUILD_TAG);
   if (ctx.request.url.pathname.startsWith("/admin")) {
-    ctx.response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+    ctx.response.headers.set(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, max-age=0",
+    );
     ctx.response.headers.set("Pragma", "no-cache");
     ctx.response.headers.set("Expires", "0");
   }
@@ -304,7 +316,6 @@ app.use(async (ctx, next) => {
   }
 
   if (!user.emailVerified) {
-    // אפשר גם להפנות למסך "בדיקת דוא״ל" שלך אם תרצה
     ctx.response.status = Status.Forbidden;
     ctx.response.body = "נדרש אימות דוא״ל לפני גישה לאזור זה.";
     return;
@@ -323,7 +334,9 @@ app.use(async (ctx, next) => {
 
 // לוג קצר לכל בקשה (debug)
 app.use(async (ctx, next) => {
-  console.log(`[DEBUG] incoming: ${ctx.request.method} ${ctx.request.url.pathname}`);
+  console.log(
+    `[DEBUG] incoming: ${ctx.request.method} ${ctx.request.url.pathname}`,
+  );
   await next();
 });
 
@@ -331,7 +344,7 @@ app.use(async (ctx, next) => {
 app.use(authRouter.routes());
 app.use(authRouter.allowedMethods());
 
-//מייל
+// פורטל הזמנות (מייל)
 app.use(reservationPortal.routes());
 app.use(reservationPortal.allowedMethods());
 
@@ -340,6 +353,10 @@ app.use(adminRouter.routes());
 app.use(adminRouter.allowedMethods());
 
 // ראוטרים לבעלים - הספציפיים ביותר קודם!
+// ✅ חדש: Calendar (ניהול תפוסה יומי)
+app.use(ownerCalendarRouter.routes());
+app.use(ownerCalendarRouter.allowedMethods());
+
 app.use(ownerHoursRouter.routes());
 app.use(ownerHoursRouter.allowedMethods());
 
