@@ -24,7 +24,7 @@ import { render } from "./lib/view.ts";
 import sessionMiddleware from "./lib/session.ts";
 
 import { authRouter } from "./routes/auth.ts";
-import { restaurantsRouter } from "./routes/restaurants.ts";
+import { restaurantsRouter } from "./routes/restaurants/index.ts";
 import { ownerRouter } from "./routes/owner.ts";
 import { adminRouter } from "./routes/admin.ts";
 import rootRouter from "./routes/root.ts";
