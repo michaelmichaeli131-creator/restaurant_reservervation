@@ -21,7 +21,7 @@
         <dd><%= it.date %></dd>
       </div>
       <div class="row">
-        <dt>שעה</dt>
+        <dt>শעה</dt>
         <dd><%= it.time %></dd>
       </div>
       <div class="row">
@@ -40,6 +40,12 @@
         <dt>אימייל</dt>
         <dd><%= it.customerEmail %></dd>
       </div>
+      <% if (it.note) { %>
+      <div class="row">
+        <dt>הערות</dt>
+        <dd><%= it.note %></dd>
+      </div>
+      <% } %>
       <div class="row">
         <dt>מס׳ הזמנה</dt>
         <dd><code><%= it.reservationId %></code></dd>
@@ -82,7 +88,7 @@
   .row:last-child{border-bottom:none}
   dt{font-weight:600}
   dd{margin:0}
-  .btn{background:#111;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;text-decoration:none;display:inline-block}
+  .btn{background:#111;color:#fff;border:none;border-radius:12px;padding:8px 12px;cursor:pointer;text-decoration:none;display:inline-block}
   .btn.secondary{background:#555}
   .cta{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 </style>

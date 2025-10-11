@@ -48,6 +48,14 @@
         <small class="muted">נשלח אליך אישור הזמנה</small>
       </div>
 
+      <!-- תיבת הערות/בקשות מיוחדות (אופציונלי) -->
+      <div class="form-row" style="grid-column: 1 / -1">
+        <label for="note">הערות ובקשות מיוחדות (אופציונלי)</label>
+        <textarea id="note" name="note" rows="3" maxlength="500"
+                  placeholder="אלרגיות, עדיפות למיקום, חגיגה, כסא תינוק..."></textarea>
+        <small class="muted">עד 500 תווים</small>
+      </div>
+
       <!-- הצגת מס' הסועדים לתקציר/וידוא (ללא עריכה) -->
       <div class="form-row">
         <label>מספר סועדים</label>
@@ -117,7 +125,7 @@
         const sp = new URLSearchParams();
         const fd = new FormData(form);
 
-        // נשלח את כל הערכים (כולל people הנעול)
+        // נשלח את כל הערכים (כולל note ו-people הנעול)
         for (const [k, v] of fd.entries()) {
           if (typeof v === 'string') sp.append(k, v);
         }
@@ -164,7 +172,7 @@
     margin-bottom: 4px;
     font-weight: 500;
   }
-  .form-row input {
+  .form-row input, .form-row textarea {
     padding: 8px 10px;
     border: 1px solid #ccc;
     border-radius: 6px;

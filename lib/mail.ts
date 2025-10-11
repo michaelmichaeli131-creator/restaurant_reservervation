@@ -4,6 +4,7 @@
 // כולל תבניות HTML מעוצבות (RTL) לאימות, איפוס, אישור הזמנה ועוד.
 // **שיפורים**: כפתור ניהול הזמנה עם קישור ישיר (manageUrl),
 // אנטי-קליפינג בג'ימייל (תוכן ייחודי גלוי), וטקסט/HTML ברורים.
+// **הוספה**: תמיכה ב־note (הערות) להצגה גם ללקוח וגם לבעל המסעדה.
 
 /* ======================= ENV ======================= */
 const ENV = {
@@ -92,14 +93,20 @@ async function sendViaResend(p: MailParams) {
 
 function logDry(label: string, p: MailParams) {
   const to = Array.isArray(p.to) ? p.to.join(", ") : p.to;
-  console.warn(`[mail][DRY] ${label}: to=${to} subj="${p.subject}" from="${p.fromOverride || ENV.MAIL_FROM || "(unset)"}"`);
+  console.warn(
+    `[mail][DRY] ${label}: to=${to} subj="${p.subject}" from="${
+      p.fromOverride || ENV.MAIL_FROM || "(unset)"
+    }"`
+  );
   console.warn(`[mail][DRY] text:\n${p.text || htmlToText(p.html)}\n`);
 }
 
 /* ======================= Public send wrapper ======================= */
 async function sendMailAny(p: MailParams) {
   // אוכפים from תקין כבר עכשיו — אם חסר קונפיג, נכשיל במקום "לנחש"
-  try { ensureFrom(); } catch (e) {
+  try {
+    ensureFrom();
+  } catch (e) {
     console.error("[mail] config error:", String(e));
     return { ok: false, reason: String(e) };
   }
@@ -112,7 +119,11 @@ async function sendMailAny(p: MailParams) {
 
   try {
     const data = await sendViaResend(p);
-    console.log("[mail] sent via Resend:", { to: p.to, subject: p.subject, id: (data as any)?.id });
+    console.log("[mail] sent via Resend:", {
+      to: p.to,
+      subject: p.subject,
+      id: (data as any)?.id,
+    });
     return { ok: true };
   } catch (e) {
     const msg = String((e as any)?.message || e);
@@ -123,7 +134,12 @@ async function sendMailAny(p: MailParams) {
 }
 
 /* --------- Backward-compatible helper (string 'to') ---------- */
-async function sendMail(to: string | string[], subject: string, html: string, text?: string) {
+async function sendMail(
+  to: string | string[],
+  subject: string,
+  html: string,
+  text?: string
+) {
   return await sendMailAny({
     to,
     subject,
@@ -143,7 +159,7 @@ const palette = {
   bg: "#f4f7fb",
   card: "#06b6d4", // טורקיז
   text: "#0f172a",
-  sub: "#475569",  // כהה יותר למניעת "טמון"/קליפינג
+  sub: "#475569", // כהה יותר למניעת "טמון"/קליפינג
   btn: "#06b6d4",
   btnText: "#ffffff",
   white: "#ffffff",
@@ -170,13 +186,44 @@ const baseWrapClose = `
 
 // מחזיר יום קצר (א׳, ב׳, …, ש׳) ותאריך D/M
 function hebDayShort(d: Date) {
-  const map = ["א׳","ב׳","ג׳","ד׳","ה׳","ו׳","ש׳"];
+  const map = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
   return map[d.getDay()] || "";
 }
 function formatDM(dateStr: string) {
-  const [y,m,d] = (dateStr || "").split("-").map(Number);
+  const [y, m, d] = (dateStr || "").split("-").map(Number);
   if (!y || !m || !d) return dateStr || "";
   return `${d}/${m}`;
+}
+
+/* =============== Sanitizers for note (הערות) =============== */
+function sanitizeNoteRaw(raw?: string | null): string {
+  const s = String(raw ?? "").replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "");
+  // להסיר תווי שליטה בעייתיים, להשאיר שורות/טאבים בסיסיים
+  return s.replace(/[^\x09\x0A\x0D\x20-\x7E\u0590-\u05FF\u0600-\u06FF]/g, "").trim();
+}
+function clampNoteLen(s: string, max = 500): string {
+  if (s.length <= max) return s;
+  return s.slice(0, max - 1) + "…";
+}
+function noteAsHtml(note?: string | null): string {
+  const clean = clampNoteLen(sanitizeNoteRaw(note));
+  if (!clean) return "";
+  // המרה פשוטה לשורות <br>
+  const esc = clean
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  const withBr = esc.replace(/\n/g, "<br/>");
+  return `
+    <div style="margin-top:14px;border:1px solid ${palette.border};border-radius:10px;background:#fafafa;padding:10px 12px;">
+      <div style="font-weight:700;margin-bottom:6px;">הערות/בקשות הלקוח:</div>
+      <div style="white-space:pre-wrap;line-height:1.5">${withBr}</div>
+    </div>
+  `;
+}
+function noteAsText(note?: string | null): string {
+  const clean = clampNoteLen(sanitizeNoteRaw(note));
+  return clean ? `\nהערות הלקוח:\n${clean}\n` : "";
 }
 
 /* =================== אימות מייל אחרי הרשמה =================== */
@@ -190,7 +237,7 @@ ${baseWrapStart}ברוכים הבאים ל-GeoTable${baseWrapMid}נשאר רק �
   <p style="margin:0;color:${palette.sub};font-size:14px;word-break:break-all">או הדבק/י ידנית: <a href="${link}">${link}</a></p>
 ${baseWrapClose}
   `;
-  return await sendMail(to, "אימות כתובת דוא\"ל – GeoTable", html);
+  return await sendMail(to, 'אימות כתובת דוא"ל – GeoTable', html);
 }
 
 /* =================== קישור לשחזור סיסמה =================== */
@@ -211,14 +258,25 @@ ${baseWrapClose}
 export async function sendReservationEmail(opts: {
   to: string;
   restaurantName: string;
-  date: string;   // YYYY-MM-DD
-  time: string;   // HH:mm
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
   people: number;
   customerName?: string;
-  manageUrl?: string;     // ← כפתור ניהול ישיר
+  manageUrl?: string; // ← כפתור ניהול ישיר
   reservationId?: string; // ← להצגה גלויה למניעת קליפינג בג'ימייל
+  note?: string | null; // ← חדש: הערות הלקוח
 }) {
-  const { to, restaurantName, date, time, people, customerName, manageUrl, reservationId } = opts;
+  const {
+    to,
+    restaurantName,
+    date,
+    time,
+    people,
+    customerName,
+    manageUrl,
+    reservationId,
+    note,
+  } = opts;
   const d = new Date(`${date}T12:00:00`); // להימנע מ-TZ edge
   const dayShort = isNaN(d.getTime()) ? "" : hebDayShort(d);
   const dm = formatDM(date);
@@ -229,7 +287,6 @@ export async function sendReservationEmail(opts: {
     (manageUrl?.split("/").pop()?.replace(/[^a-zA-Z0-9]/g, "").slice(-6)) ||
     "";
 
-  // בלוק פרטים כמו בתמונה: כרטיס טורקיז עם 3 עמודות
   const detailsCard = `
     <div style="background:${palette.card};color:#fff;border-radius:16px;padding:18px 16px;max-width:460px;margin:10px auto 8px;">
       <table role="presentation" width="100%" style="border-collapse:collapse;color:#fff;">
@@ -252,7 +309,8 @@ export async function sendReservationEmail(opts: {
     </div>
   `;
 
-  // טקסטים גלויים (למנוע קליפינג: אין display:none; אין צבע לבן על לבן; אין ציטוטים ארוכים)
+  const notesHtml = noteAsHtml(note);
+
   const html = `
 ${baseWrapStart}${restaurantName}${baseWrapMid}פרטי ההזמנה שלך. ניתן לאשר/לבטל/לשנות מועד דרך הקישור למטה.${baseWrapEndHead}
   ${detailsCard}
@@ -264,6 +322,8 @@ ${baseWrapStart}${restaurantName}${baseWrapMid}פרטי ההזמנה שלך. נ�
     <p style="margin:6px 0 0;">⏱️ השולחן ישמר 15 דקות.</p>
     <p style="margin:6px 0 0;">מחכים לראותכם ❤️</p>
   </div>
+
+  ${notesHtml}
 
   <div style="text-align:center;margin:16px 0 0;">
     ${
@@ -281,15 +341,19 @@ ${baseWrapStart}${restaurantName}${baseWrapMid}פרטי ההזמנה שלך. נ�
 ${baseWrapClose}
   `;
 
-  // נוסיף טקסט ברור כדי שלא "יוחבא" בקליינטים מסוימים
   const text = [
     `${restaurantName} – אישור הזמנה`,
     customerName ? `שלום ${customerName},` : "",
     `תאריך: ${date} | שעה: ${time} | סועדים: ${people}`,
     shortId ? `קוד הזמנה: ${shortId}` : "",
     "🎉 הזמנתך נקלטה. השולחן ישמר 15 דקות. חניה מוזלת בסופי שבוע מ-18:00.",
-    manageUrl ? `ניהול ההזמנה (אישור/ביטול/שינוי): ${manageUrl}` : `לפרטים: ${buildUrl("/")}`,
-  ].filter(Boolean).join("\n");
+    noteAsText(note).trim(),
+    manageUrl
+      ? `ניהול ההזמנה (אישור/ביטול/שינוי): ${manageUrl}`
+      : `לפרטים: ${buildUrl("/")}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return await sendMailAny({
     to,
@@ -313,8 +377,22 @@ export async function notifyOwnerEmail(opts: {
   date: string;
   time: string;
   people: number;
+  note?: string | null; // ← חדש: העברת הערות לבעל המסעדה
 }) {
-  const { to, restaurantName, customerName, customerPhone, customerEmail, date, time, people } = opts;
+  const {
+    to,
+    restaurantName,
+    customerName,
+    customerPhone,
+    customerEmail,
+    date,
+    time,
+    people,
+    note,
+  } = opts;
+
+  const notesHtml = noteAsHtml(note);
+
   const html = `
 ${baseWrapStart}התקבלה הזמנה חדשה${baseWrapMid}${restaurantName}${baseWrapEndHead}
   <div style="background:${palette.card};color:#fff;border-radius:14px;padding:14px 16px;">
@@ -322,16 +400,25 @@ ${baseWrapStart}התקבלה הזמנה חדשה${baseWrapMid}${restaurantName}$
   </div>
   <div style="margin-top:12px;">
     <p style="margin:0;"><strong>שם הלקוח:</strong> ${customerName}</p>
-    <p style="margin:0;"><strong>נייד:</strong> ${customerPhone}</p>
-    <p style="margin:0;"><strong>אימייל:</strong> ${customerEmail}</p>
+    <p style="margin:0;"><strong>נייד:</strong> ${customerPhone || "-"}</p>
+    <p style="margin:0;"><strong>אימייל:</strong> ${customerEmail || "-"}</p>
   </div>
+  ${notesHtml}
 ${baseWrapClose}
   `;
+
   const text =
     `התקבלה הזמנה חדשה – ${restaurantName}\n` +
     `תאריך: ${date} | שעה: ${time} | סועדים: ${people}\n` +
-    `לקוח: ${customerName} | נייד: ${customerPhone} | אימייל: ${customerEmail}`;
-  return await sendMailAny({ to, subject: `הזמנה חדשה – ${restaurantName}`, html, text });
+    `לקוח: ${customerName} | נייד: ${customerPhone || "-"} | אימייל: ${customerEmail || "-"}\n` +
+    (noteAsText(note) || "");
+
+  return await sendMailAny({
+    to,
+    subject: `הזמנה חדשה – ${restaurantName}`,
+    html,
+    text,
+  });
 }
 
 /* =================== תזכורת (למשל יום לפני) =================== */
@@ -344,8 +431,11 @@ export async function sendReminderEmail(opts: {
   people: number;
   customerName?: string;
 }) {
-  const { to, confirmUrl, restaurantName, date, time, people, customerName } = opts;
-  const link = confirmUrl.startsWith("http") ? confirmUrl : buildUrl(confirmUrl);
+  const { to, confirmUrl, restaurantName, date, time, people, customerName } =
+    opts;
+  const link = confirmUrl.startsWith("http")
+    ? confirmUrl
+    : buildUrl(confirmUrl);
 
   const html = `
 ${baseWrapStart}תזכורת להזמנה${baseWrapMid}${restaurantName}${baseWrapEndHead}
@@ -365,5 +455,10 @@ ${baseWrapClose}
     `תזכורת להזמנה – ${restaurantName}\n` +
     `תאריך: ${date} | שעה: ${time} | סועדים: ${people}\n` +
     `אישור הגעה: ${link}`;
-  return await sendMailAny({ to, subject: "תזכורת להזמנה – נא אשר/י הגעה", html, text });
+  return await sendMailAny({
+    to,
+    subject: "תזכורת להזמנה – נא אשר/י הגעה",
+    html,
+    text,
+  });
 }

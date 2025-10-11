@@ -117,6 +117,28 @@ function isValidEmailStrict(s: string): boolean {
   return /^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/.test(s);
 }
 
+/* ---------------- Notes helper ---------------- */
+function sanitizeNote(raw: unknown): string {
+  const s = normalizePlain(raw ?? "");
+  // Collapse internal whitespace and cap length
+  return s.replace(/\s+/g, " ").slice(0, 500);
+}
+function composeReservationNote(params: {
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  customerNote?: string;
+}): string {
+  const parts = [
+    `Name: ${params.customerName}`,
+    `Phone: ${params.customerPhone}`,
+    `Email: ${params.customerEmail}`,
+  ];
+  const n = sanitizeNote(params.customerNote ?? "");
+  if (n) parts.push(`Note: ${n}`);
+  return parts.join("; ");
+}
+
 /* ---------------- Photos helper ---------------- */
 function photoStrings(photos: unknown): string[] {
   if (!Array.isArray(photos)) return [];
@@ -753,22 +775,26 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
   const people = toIntLoose(sp.get("people")) ?? 2;
 
   const within = isWithinSchedule(restaurant.weeklySchedule, date, time);
-  debugLog("[restaurants][GET confirm] input", {
-    rid, date, time, people, within,
-    weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : []
-  });
-
   const customerNameRaw =
     sp.get("name") ?? sp.get("customerName") ?? sp.get("fullName") ?? sp.get("customer_name") ?? sp.get("full_name");
   const customerPhoneRaw =
     sp.get("phone") ?? sp.get("tel") ?? sp.get("customerPhone") ?? sp.get("customer_phone");
   const customerEmailRaw =
     sp.get("email") ?? sp.get("customerEmail") ?? sp.get("customer_email");
+  const customerNoteRaw =
+    sp.get("note") ?? sp.get("comments") ?? sp.get("special_requests") ?? sp.get("specialRequests") ?? "";
 
   const customerName  = normalizePlain(customerNameRaw ?? "");
   const customerPhone = normalizePlain(customerPhoneRaw ?? "");
   const emailRaw = String(customerEmailRaw ?? "");
   const customerEmail = sanitizeEmailMinimal(emailRaw);
+  const customerNote = sanitizeNote(customerNoteRaw);
+
+  debugLog("[restaurants][GET confirm] input", {
+    rid, date, time, people, within,
+    hasNote: !!customerNote, noteLen: customerNote.length,
+    weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : []
+  });
 
   const bad = (m: string, extra?: unknown) => {
     const dbgObj = { ct: "querystring", phases: [], keys: Array.from(sp.keys()), extra };
@@ -803,6 +829,13 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
 
   const user = (ctx.state as any)?.user ?? null;
   const userId: string = user?.id ?? `guest:${crypto.randomUUID().slice(0, 8)}`;
+  const reservationNote = composeReservationNote({
+    customerName,
+    customerPhone,
+    customerEmail,
+    customerNote,
+  });
+
   const reservation: Reservation = {
     id: crypto.randomUUID(),
     restaurantId: rid,
@@ -811,7 +844,7 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
     time,
     people,
     status: "new",
-    note: `Name: ${customerName}; Phone: ${customerPhone}; Email: ${customerEmail}`,
+    note: reservationNote,
     createdAt: Date.now(),
   };
   await createReservation(reservation);
@@ -826,6 +859,7 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
     final: customerEmail,
   });
 
+  // (הוספת ההערה למיילים נעשה בשלב 4)
   await sendReservationEmail({
     to: customerEmail,
     restaurantName: restaurant.name,
@@ -860,6 +894,7 @@ restaurantsRouter.get("/restaurants/:id/confirm", async (ctx) => {
     date, time, people,
     customerName, customerPhone, customerEmail,
     reservationId: reservation.id,
+    note: customerNote, // מועבר לתבנית (יוצג בשלב 3)
   });
 });
 
@@ -882,10 +917,12 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
     (payload as any).phone ?? (payload as any).tel ?? (payload as any).customerPhone ?? (payload as any)["customer_phone"];
   const customerEmailRaw =
     (payload as any).email ?? (payload as any).customerEmail ?? (payload as any)["customer_email"];
+  const customerNoteRaw =
+    (payload as any).note ?? (payload as any).comments ?? (payload as any)["special_requests"] ?? (payload as any).specialRequests ?? "";
 
   debugLog("[restaurants][POST confirm] input", {
     rid, date, time, people,
-    within, body_ct: dbg.ct, body_keys: Object.keys(payload),
+    within, hasNote: !!customerNoteRaw, body_ct: dbg.ct, body_keys: Object.keys(payload),
     weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : []
   });
 
@@ -893,6 +930,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
   const customerPhone = normalizePlain(customerPhoneRaw);
   const emailRaw = String(customerEmailRaw ?? "");
   const customerEmail = sanitizeEmailMinimal(emailRaw);
+  const customerNote = sanitizeNote(customerNoteRaw);
 
   const bad = (m: string, extra?: unknown) => {
     const keys = Object.keys(payload ?? {});
@@ -928,6 +966,13 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
 
   const user = (ctx.state as any)?.user ?? null;
   const userId: string = user?.id ?? `guest:${crypto.randomUUID().slice(0, 8)}`;
+  const reservationNote = composeReservationNote({
+    customerName,
+    customerPhone,
+    customerEmail,
+    customerNote,
+  });
+
   const reservation: Reservation = {
     id: crypto.randomUUID(),
     restaurantId: rid,
@@ -936,7 +981,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
     time,
     people,
     status: "new",
-    note: `Name: ${customerName}; Phone: ${customerPhone}; Email: ${customerEmail}`,
+    note: reservationNote,
     createdAt: Date.now(),
   };
   await createReservation(reservation);
@@ -947,6 +992,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
     final: customerEmail,
   });
 
+  // (הוספת ההערה למיילים נעשה בשלב 4)
   await sendReservationEmail({
     to: customerEmail,
     restaurantName: restaurant.name,
@@ -975,6 +1021,7 @@ restaurantsRouter.post("/restaurants/:id/confirm", async (ctx) => {
     date, time, people,
     customerName, customerPhone, customerEmail,
     reservationId: reservation.id,
+    note: customerNote, // מועבר לתבנית (יוצג בשלב 3)
   });
 });
 
@@ -985,7 +1032,7 @@ restaurantsRouter.post("/restaurants/:id/hours", async (ctx) => {
 
   const { payload, dbg } = await readBody(ctx);
 
-  debugLog("[restaurants][POST hours] input", {
+  debugLog("[restaurants][POST hours] input]", {
     rid,
     body_ct: dbg.ct,
     body_keys: Object.keys(payload),
