@@ -2,304 +2,84 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title><%= it.title || "ניהול תפוסה יומי" %></title>
-  <link rel="stylesheet" href="/static/css/owner_calendar.css">
-  <style>
-    /* תוספות קלות לטבלה שבדראואר */
-    .oc-drawer { position: fixed; inset: 0; background: rgba(0,0,0,.35); display:none; }
-    .oc-drawer.open { display:block; }
-    .oc-drawer-panel { position:absolute; inset-inline-end:0; top:0; bottom:0; width:min(560px,100%); background:#fff; box-shadow: -8px 0 24px rgba(0,0,0,.12); padding:16px; overflow:auto; }
-    .oc-drawer-h { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; }
-    .oc-tbl { width:100%; border-collapse: collapse; }
-    .oc-tbl th, .oc-tbl td { border-bottom:1px solid #eee; padding:8px 6px; text-align: start; }
-    .oc-tbl th { background:#fafafa; font-weight:700; }
-    .oc-kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; background:#f5f5f5; border:1px solid #e5e7eb; border-radius:6px; padding:2px 6px; }
-    .oc-actions { display:flex; gap:6px; flex-wrap:wrap; }
-    .btn { display:inline-block; border:1px solid #e5e7eb; background:#f9fafb; border-radius:10px; padding:6px 10px; cursor:pointer; text-decoration:none; }
-    .btn.primary { background:#111; color:#fff; border-color:#111; }
-    .btn.warn { background:#fee2e2; border-color:#fecaca; }
-    .muted { color:#6b7280; }
-    .oc-grid { max-width: 1000px; margin: 16px auto; padding: 0 12px; }
-    .oc-head { display:flex; gap:10px; align-items:center; justify-content:space-between; }
-    .oc-slots { margin-top:12px; border:1px solid #eee; border-radius:12px; overflow:hidden; }
-    .oc-row { display:grid; grid-template-columns: 80px 1fr 80px; gap:0; border-top:1px solid #f3f4f6; }
-    .oc-row:first-child { border-top:none; }
-    .oc-cell { padding:10px 8px; }
-    .oc-time { font-weight:700; }
-    .barg { height:8px; background:#10b981; border-radius:999px; }
-    .bary { height:8px; background:#f59e0b; border-radius:999px; }
-    .barr { height:8px; background:#ef4444; border-radius:999px; }
-    .pointer { cursor:pointer; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/css/owner_calendar.css" />
 </head>
-<body class="oc-body">
-  <div class="oc-grid">
-    <div class="oc-head">
-      <h1 style="margin:0">ניהול תפוסה יומי</h1>
-      <div style="display:flex; gap:8px; align-items:center;">
-        <input id="oc-date" type="date" value="<%= it.date %>" />
-        <a class="btn" href="/owner/manage">חזרה לדשבורד</a>
+<body>
+  <!-- Header -->
+  <div class="oc-header">
+    <div class="wrap">
+      <div class="oc-title"><%= (it.restaurant && it.restaurant.name) ? (it.restaurant.name + " • Admin") : "Restaurant • Admin" %></div>
+      <div class="oc-date-nav">
+        <button id="btn-prev" aria-label="Previous day">◀</button>
+        <div class="date-label" id="date-label">—</div>
+        <button id="btn-next" aria-label="Next day">▶</button>
+        <input type="date" id="datePicker" style="display:none" value="<%= it.date %>"/>
+      </div>
+      <div class="oc-spacer"></div>
+      <div class="oc-search">
+        <input type="search" id="daySearch" placeholder="Search name"/>
       </div>
     </div>
-
-    <!-- תקציר יומי יופיע כאן אם נטען -->
-    <div id="oc-summary" class="muted" style="margin-top:6px"></div>
-
-    <!-- גריד רבעי שעה -->
-    <div id="oc-slots" class="oc-slots" aria-live="polite"></div>
   </div>
 
-  <!-- Drawer / רשימת לקוחות בסלוט -->
-  <div id="drawer" class="oc-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
-    <div class="oc-drawer-panel">
-      <div class="oc-drawer-h">
-        <div>
-          <div id="drawer-title" style="font-weight:700">לקוחות במשבצת</div>
-          <div id="drawer-sub" class="muted" style="font-size:12px"></div>
+  <!-- Main -->
+  <main class="oc-main">
+    <!-- Left: Day/Timeline -->
+    <section class="oc-panel">
+      <header>
+        <div class="oc-cap" id="cap-line">Capacity: People — • Tables — • Step: —</div>
+      </header>
+
+      <div class="oc-slots" id="slots">
+        <div class="oc-row oc-th">
+          <div>Time</div>
+          <div>Occupancy</div>
+          <div class="oc-info">People • Tables • %</div>
         </div>
-        <button id="btn-close" class="btn">סגירה</button>
+        <!-- rows injected by JS -->
       </div>
 
-      <!-- כפתור הוספה -->
-      <div style="margin-bottom:8px">
-        <button id="btn-add" class="btn primary">➕ הוסף לקוח ידנית</button>
-      </div>
+      <div class="oc-hint">Hint: Click a slot to manage customers</div>
 
-      <!-- 🟦 טבלת לקוחות — כולל שם וטלפון -->
-      <table class="oc-tbl" id="tbl-customers">
+      <div class="oc-summary" id="summary">
+        Daily Summary — loading…
+      </div>
+    </section>
+  </main>
+
+  <!-- Right Drawer -->
+  <aside class="oc-drawer" id="drawer">
+    <header>
+      <div class="title" id="drawer-title">Customers</div>
+      <button class="close" id="drawer-close">✕</button>
+    </header>
+    <div class="toolbar">
+      <input type="search" id="drawer-search" placeholder="Search name in this slot"/>
+      <button class="btn primary" id="btn-add">＋ Add customer</button>
+    </div>
+    <div class="body">
+      <table class="tbl" id="drawer-table">
         <thead>
           <tr>
-            <th scope="col">שם פרטי</th>
-            <th scope="col">שם משפחה</th>
-            <th scope="col">טלפון</th>
-            <th scope="col">מס׳ סועדים</th>
-            <th scope="col">סטטוס</th>
-            <th scope="col">הערות</th>
-            <th scope="col" style="width:1%">פעולות</th>
+            <th>First Name</th>
+            <th>Last Name</th>
+            <th>Party sz</th>
+            <th>Status</th>
+            <th>Phone</th>
+            <th></th>
           </tr>
         </thead>
-        <tbody id="tbl-body">
-          <!-- ימולא דינמית -->
-        </tbody>
+        <tbody></tbody>
       </table>
     </div>
-  </div>
+  </aside>
 
+  <script src="/static/js/owner_calendar.js" defer></script>
   <script>
-  (function(){
-    const rid = "<%= it.rid %>";
-    const dateInput = document.getElementById('oc-date');
-    const $slots = document.getElementById('oc-slots');
-    const $summary = document.getElementById('oc-summary');
-
-    const drawer = document.getElementById('drawer');
-    const btnClose = document.getElementById('btn-close');
-    const btnAdd = document.getElementById('btn-add');
-    const tblBody = document.getElementById('tbl-body');
-    const drawerTitle = document.getElementById('drawer-title');
-    const drawerSub = document.getElementById('drawer-sub');
-
-    let currentSlot = { date: "<%= it.date %>", time: null };
-
-    function pctColor(p){
-      if (p >= 80) return 'barr';
-      if (p >= 50) return 'bary';
-      return 'barg';
-    }
-
-    async function fetchJSON(url){
-      const res = await fetch(url, { credentials: 'same-origin' });
-      if (!res.ok) throw new Error('HTTP '+res.status);
-      return await res.json();
-    }
-
-    async function loadDay(){
-      const date = dateInput.value;
-      const data = await fetchJSON(`/owner/restaurants/${rid}/calendar/day?date=${encodeURIComponent(date)}`);
-
-      // סיכום יומי
-      try {
-        const sum = await fetchJSON(`/owner/restaurants/${rid}/calendar/day/summary?date=${encodeURIComponent(date)}`);
-        $summary.textContent = `סיכום ${sum.date}: הזמנות ${sum.totalReservations || 0} · סועדים ${sum.totalGuests || 0} · Peak ${sum.peakOccupancy || 0}%`;
-      } catch(e) {
-        $summary.textContent = '';
-      }
-
-      const slots = data.slots || [];
-      $slots.innerHTML = '';
-      slots.forEach(function(s){
-        const row = document.createElement('div');
-        row.className = 'oc-row pointer';
-        row.dataset.time = s.time;
-
-        const cellTime = document.createElement('div');
-        cellTime.className = 'oc-cell oc-time';
-        cellTime.textContent = s.time;
-
-        const cellBar = document.createElement('div');
-        cellBar.className = 'oc-cell';
-        const bar = document.createElement('div');
-        bar.className = pctColor(s.percent);
-        bar.style.width = Math.max(0, Math.min(100, s.percent)) + '%';
-        cellBar.appendChild(bar);
-
-        const cellInfo = document.createElement('div');
-        cellInfo.className = 'oc-cell';
-        cellInfo.innerHTML = `
-          <span class="muted">people:</span> <strong>${s.people}</strong>
-          &nbsp; <span class="muted">tables:</span> <strong>${s.tables}</strong>
-          &nbsp; <span class="muted">percent:</span> <strong>${s.percent}%</strong>
-        `;
-
-        row.appendChild(cellTime);
-        row.appendChild(cellBar);
-        row.appendChild(cellInfo);
-
-        row.addEventListener('click', () => openSlot(data.date, s.time));
-        $slots.appendChild(row);
-      });
-    }
-
-    function openDrawer(){ drawer.classList.add('open'); }
-    function closeDrawer(){ drawer.classList.remove('open'); }
-
-    async function openSlot(date, time){
-      currentSlot = { date, time };
-      drawerTitle.textContent = `לקוחות למשבצת ${time}`;
-      drawerSub.textContent = `תאריך: ${date}`;
-
-      const res = await fetchJSON(`/owner/restaurants/${rid}/calendar/slot?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}`);
-      renderCustomers(res.items || []);
-      openDrawer();
-    }
-
-    function telLink(phone) {
-      const p = String(phone || '').replace(/\s+/g, '');
-      return p ? `<a href="tel:${p}">${phone}</a>` : '';
-    }
-
-    function renderCustomers(items){
-      tblBody.innerHTML = '';
-      if (!items.length) {
-        const tr = document.createElement('tr');
-        const td = document.createElement('td');
-        td.colSpan = 7;
-        td.className = 'muted';
-        td.textContent = 'אין לקוחות במשבצת זו.';
-        tr.appendChild(td);
-        tblBody.appendChild(tr);
-        return;
-      }
-
-      for (const it of items) {
-        const tr = document.createElement('tr');
-
-        // 🟦 שם פרטי + שם משפחה + טלפון (tel:)
-        const tdFirst = document.createElement('td');
-        tdFirst.textContent = it.firstName || '';
-
-        const tdLast = document.createElement('td');
-        tdLast.textContent = it.lastName || '';
-
-        const tdPhone = document.createElement('td');
-        tdPhone.innerHTML = telLink(it.phone);
-
-        const tdPeople = document.createElement('td');
-        tdPeople.textContent = String(it.people ?? 0);
-
-        const tdStatus = document.createElement('td');
-        tdStatus.textContent = String(it.status || '');
-
-        const tdNotes = document.createElement('td');
-        tdNotes.textContent = String(it.notes || '');
-
-        const tdActions = document.createElement('td');
-        tdActions.innerHTML = `
-          <div class="oc-actions">
-            <button class="btn" data-act="arrived">הגיע</button>
-            <button class="btn" data-act="edit">עריכה</button>
-            <button class="btn warn" data-act="cancel">ביטול</button>
-          </div>
-        `;
-
-        tr.appendChild(tdFirst);
-        tr.appendChild(tdLast);
-        tr.appendChild(tdPhone);
-        tr.appendChild(tdPeople);
-        tr.appendChild(tdStatus);
-        tr.appendChild(tdNotes);
-        tr.appendChild(tdActions);
-
-        // הקלקות פעולה
-        tr.addEventListener('click', async (ev) => {
-          const btn = ev.target.closest && ev.target.closest('button[data-act]');
-          if (!btn) return;
-          const act = btn.getAttribute('data-act');
-          if (act === 'arrived') {
-            await patchSlot('arrived', { id: it.id });
-            await openSlot(currentSlot.date, currentSlot.time);
-          } else if (act === 'cancel') {
-            if (!confirm('לבטל את ההזמנה?')) return;
-            await patchSlot('cancel', { id: it.id, reason: '' });
-            await openSlot(currentSlot.date, currentSlot.time);
-          } else if (act === 'edit') {
-            const firstName = prompt('שם פרטי', it.firstName || '') || '';
-            const lastName  = prompt('שם משפחה', it.lastName || '') || '';
-            const phone     = prompt('טלפון', it.phone || '') || '';
-            const people    = Number(prompt('מס׳ סועדים', String(it.people || 0)) || 0);
-            const notes     = prompt('הערות', it.notes || '') || '';
-            const status    = prompt('סטטוס (invited/approved/arrived/cancelled)', it.status || 'approved') || 'approved';
-            await patchSlot('update', { id: it.id, firstName, lastName, phone, people, notes, status });
-            await openSlot(currentSlot.date, currentSlot.time);
-          }
-        });
-
-        tblBody.appendChild(tr);
-      }
-    }
-
-    async function patchSlot(action, reservation){
-      const payload = { action, date: currentSlot.date, time: currentSlot.time, reservation };
-      const res = await fetch(`/owner/restaurants/${rid}/calendar/slot`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error('HTTP '+res.status);
-      return await res.json();
-    }
-
-    // הוספה ידנית
-    btnAdd.addEventListener('click', async () => {
-      const firstName = prompt('שם פרטי') || '';
-      const lastName  = prompt('שם משפחה') || '';
-      const phone     = prompt('טלפון') || '';
-      const people    = Number(prompt('מס׳ סועדים', '2') || 2);
-      const notes     = prompt('הערות') || '';
-      const status    = 'approved';
-
-      if (!firstName || !lastName || !people) return;
-
-      await patchSlot('create', {
-        firstName, lastName, phone, people, notes, status
-      });
-      await openSlot(currentSlot.date, currentSlot.time);
-    });
-
-    // תאריך
-    dateInput.addEventListener('change', loadDay);
-
-    // סגירה
-    btnClose.addEventListener('click', closeDrawer);
-    drawer.addEventListener('click', (ev) => {
-      if (ev.target === drawer) closeDrawer();
-    });
-
-    // init
-    loadDay().catch(console.error);
-  })();
+    // פרמטרים התחלתיים ל-JS
+    window.__OC__ = { rid: "<%= it.rid %>", date: "<%= it.date %>" };
   </script>
 </body>
 </html>
