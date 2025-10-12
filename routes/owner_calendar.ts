@@ -1,4 +1,5 @@
-// /src/routes/owner_calendar.ts
+// קוד מתוקן של owner_calendar.ts עם התאמה ל־readBody שלך
+
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
 import { requireOwner } from "../lib/auth.ts";
@@ -72,67 +73,37 @@ function extractFromNote(note?: string): { name?: string; phone?: string } {
   return { name: mName ? mName[1].trim() : undefined, phone: mPhone ? mPhone[1].trim() : undefined };
 }
 
-/* ---------- קריאת גוף גמישה + לוגים מרובים ---------- */
+/* ---------- קריאת פעולה + התאמה ל־readBody שלך ---------- */
 async function readActionBody(ctx: any): Promise<any> {
-  // 1) attempt JSON
+  // ניסיון JSON / form / text דרך pickNative / oak
+  let rb: any;
   try {
-    const bodyReader = ctx.request.body({ type: "json" });
-    debugLog("owner_calendar", "readActionBody: bodyReader.type", { type: (bodyReader as any)?.type });
-    if (bodyReader) {
-      const val = await (bodyReader as any).value;
-      debugLog("owner_calendar", "readActionBody: val from JSON reader", { val });
-      if (val && typeof val === "object" && Object.keys(val).length > 0) {
-        return val;
-      }
-    }
+    rb = await readBody(ctx);
   } catch (e) {
-    debugLog("owner_calendar", "readActionBody JSON stage failed", { error: e.toString() });
+    debugLog("owner_calendar", "readBody threw", { error: e.toString() });
+    rb = { payload: {}, dbg: {} };
   }
+  const payload = rb?.payload ?? {};
+  const dbg = rb?.dbg;
+  debugLog("owner_calendar", "readBody payload & dbg", { payload, dbg });
 
-  // 2) attempt readBody helper
-  try {
-    const rb = await readBody(ctx);
-    debugLog("owner_calendar", "readActionBody: val from readBody()", { rb });
-    if (rb && typeof rb === "object" && Object.keys(rb).length > 0) {
-      return rb;
-    }
-  } catch (e) {
-    debugLog("owner_calendar", "readActionBody readBody() failed", { error: e.toString() });
-  }
-
-  // 3) fallback to query params
-  const sp = ctx.request.url.searchParams;
-  const fallback: any = {};
-  if (sp.has("action")) fallback.action = sp.get("action");
-  if (sp.has("date")) fallback.date = sp.get("date");
-  if (sp.has("time")) fallback.time = sp.get("time");
-  if (sp.has("reservation")) {
-    try {
-      fallback.reservation = JSON.parse(sp.get("reservation")!);
-    } catch {
-      fallback.reservation = sp.get("reservation");
-    }
-  }
-  debugLog("owner_calendar", "readActionBody: fallback query", { fallback });
-  return fallback;
+  return payload;
 }
 
-/* ---------- Handler עם ריבוי לוגים ---------- */
+/* ---------- Handler עם הדיבאגים וה־payload הנכון ---------- */
 async function handleSlotAction(ctx: any) {
   const { rid } = ctx.params;
   await ensureOwnerAccess(ctx, rid);
 
-  // לוג בקשות ראשוני
-  const reqMeth = ctx.request.method;
+  const method = ctx.request.method;
   const ct = ctx.request.headers.get("content-type");
-  debugLog("owner_calendar", "handleSlotAction ENTER", { rid, method: reqMeth, contentType: ct });
+  debugLog("owner_calendar", "handleSlotAction ENTER", { rid, method, contentType: ct });
 
   const body = await readActionBody(ctx);
-  debugLog("owner_calendar", "Body after readActionBody", { body });
+  debugLog("owner_calendar", "Body (payload) after readActionBody", { body });
 
   let action = String(body?.action ?? "").trim();
 
-  // fallback alias
   if (!action && typeof body === "object") {
     const alias = (body as any).type ?? (body as any).op ?? (body as any).mode;
     if (alias && typeof alias === "string") {
@@ -162,7 +133,7 @@ async function handleSlotAction(ctx: any) {
     ctx.throw(Status.BadRequest, "Bad date/time");
   }
 
-  debugLog("owner_calendar", "Proceeding SLOT ACTION", { rid, action, normalized, date, time });
+  debugLog("owner_calendar", "Proceeding SLOT ACTION", { rid, normalized, date, time });
 
   const db = await import("../database.ts");
   let result: any = null;
@@ -185,7 +156,7 @@ async function handleSlotAction(ctx: any) {
     result = await (db as any).createReservation(rid, payload);
   } else if (normalized === "update") {
     const id = String(reservation?.id ?? "");
-    debugLog("owner_calendar", "update id/patch", { id, reservation });
+    debugLog("owner_calendar", "update id & patch", { id, reservation });
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
     const patch: Partial<Reservation> = {
       firstName: reservation?.firstName,
