@@ -9,7 +9,7 @@ import { debugLog } from "../lib/debug.ts";
 // שכבת נתונים
 import {
   getRestaurant,
-  openingWindowsForDate, // ← ייבוא מה-DB
+  openingWindowsForDate,
   type Restaurant,
   type Reservation,
 } from "../database.ts";
@@ -38,7 +38,7 @@ function json(ctx: any, data: unknown, status = Status.OK) {
 }
 
 async function ensureOwnerAccess(ctx: any, rid: string): Promise<Restaurant> {
-  const user = await requireOwner(ctx); // זורק אם אין גישה
+  const user = await requireOwner(ctx);
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound, "Restaurant not found");
   if (r.ownerId !== user.id && (r as any).userId !== user.id) {
@@ -79,6 +79,13 @@ function extractFromNote(note?: string): { name?: string; phone?: string } {
   const mPhone = t.match(/\bPhone:\s*([^;]+)/i);
   return { name: mName ? mName[1].trim() : undefined, phone: mPhone ? mPhone[1].trim() : undefined };
 }
+
+/* ---- Filter helpers: keep only slots inside opening windows ---- */
+type OpenWin = { open: string; close: string };
+function timeLE(a: string, b: string) { return a <= b; } // HH:MM strings
+function inAnyOpenWindow(t: string, wins: OpenWin[]) {
+  return wins.some(w => timeLE(w.open, t) && timeLE(t, w.close));
+}
 /* ---------------------------------------------------------------- */
 
 /* ---------------- Routes ---------------- */
@@ -100,7 +107,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
   });
 });
 
-// JSON — יום
+// JSON — יום (רק שעות פתיחה)
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
@@ -109,16 +116,15 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
 
-  // הערה: ברוב המימושים הפונקציה מקבלת (restaurantId, date)
-  const openWinsRaw = await openingWindowsForDate(r.id, selected);
-  const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
-  const timeline = buildDayTimeline(openWindows, slotMinutes);
+  const openWinsRaw = await openingWindowsForDate(r.id, selected);     // [{open, close}]
+  const openWindows = mapOpenWindowsForTimeline(openWinsRaw);          // [{start, end}]
+  const timeline = buildDayTimeline(openWindows, slotMinutes);         // בסיס לטווחי פתיחה בלבד
 
   const db = await import("../database.ts");
   const reservations: Reservation[] =
     (await db.listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
 
-  const occupancy = computeOccupancyForDay({
+  const occupancyAll = computeOccupancyForDay({
     reservations,
     timeline,
     slotMinutes,
@@ -129,14 +135,19 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
     deriveTables: (people: number, avg = 3) => Math.max(1, Math.ceil(people / Math.max(1, avg))),
   });
 
+  // 🔎 סינון סופי על בסיס HH:MM בתוך חלונות פתיחה בלבד
+  const slots = Array.isArray(occupancyAll)
+    ? occupancyAll.filter((s: any) => typeof s?.time === "string" && inAnyOpenWindow(s.time, openWinsRaw))
+    : occupancyAll;
+
   json(ctx, {
     ok: true,
     date: selected,
-    openWindows: openWinsRaw, // מחזירים במבנה {open,close} ל-UI
+    openWindows: openWinsRaw,
     slotMinutes,
     capacityPeople,
     capacityTables,
-    slots: occupancy,
+    slots,
   });
 });
 
@@ -304,7 +315,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
   });
 });
 
-// JSON — סיכום יומי
+// JSON — סיכום יומי (מושפע רק מעומסים בשעות פתיחה)
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
@@ -314,7 +325,6 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
 
-  // הערה: ברוב המימושים הפונקציה מקבלת (restaurantId, date)
   const openWinsRaw = await openingWindowsForDate(r.id, selected);
   const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
   const timeline = buildDayTimeline(openWindows, slotMinutes);
@@ -323,7 +333,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
   const reservations: Reservation[] =
     (await db.listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
 
-  const occupancy = computeOccupancyForDay({
+  const occupancyAll = computeOccupancyForDay({
     reservations,
     timeline,
     slotMinutes,
@@ -334,7 +344,11 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
     deriveTables: (p: number, avg = 3) => Math.max(1, Math.ceil(p / Math.max(1, avg))),
   });
 
-  const summary = summarizeDay(occupancy, reservations);
+  const filtered = Array.isArray(occupancyAll)
+    ? occupancyAll.filter((s: any) => typeof s?.time === "string" && inAnyOpenWindow(s.time, openWinsRaw))
+    : occupancyAll;
+
+  const summary = summarizeDay(filtered, reservations);
   json(ctx, { ok: true, date: selected, ...summary });
 });
 
