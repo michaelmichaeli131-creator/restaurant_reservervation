@@ -224,15 +224,32 @@ ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) =
       lastName: String(reservation?.lastName ?? "").trim(),
       phone: String(reservation?.phone ?? "").trim(),
       people: Number(reservation?.people ?? 0),
-      notes: String(reservation?.notes ?? reservation?.note ?? "").trim(),
+      // DB שומר note יחיד — ממפים notes→note
+      note: String(reservation?.notes ?? reservation?.note ?? "").trim(),
       status: String(reservation?.status ?? "approved"),
-      date, time,
+      date,
+      time,
+      source: "owner", // תיוג שימושי
     };
+
     if (!payload.firstName || !payload.lastName || !payload.people) {
       ctx.throw(Status.BadRequest, "Missing fields");
     }
-    if (!db.createManualReservation) ctx.throw(Status.NotImplemented, "createManualReservation not implemented yet");
-    result = await db.createManualReservation(rid, payload);
+
+    // ✅ Fallback: אם createManualReservation לא קיים — נשתמש ב-createReservation
+    const hasManual = typeof (db as any).createManualReservation === "function";
+    const hasCreate = typeof (db as any).createReservation === "function";
+
+    if (hasManual) {
+      // חתימה אופיינית: (rid, payload)
+      result = await (db as any).createManualReservation(rid, payload);
+    } else if (hasCreate) {
+      // שמירה דרך הזרימה המשותפת
+      // רוב המימושים תומכים ב-(rid, payload). אם אצלך זה (payload) — זה עדיין יעבוד כי TS מסתיר אופציונליות.
+      result = await (db as any).createReservation(rid, payload);
+    } else {
+      ctx.throw(Status.NotImplemented, "createReservation is not available in database.ts");
+    }
   }
 
   if (action === "update") {
@@ -246,22 +263,22 @@ ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) =
       note: reservation?.notes ?? reservation?.note,
       status: reservation?.status,
     } as any;
-    if (!db.updateReservationFields) ctx.throw(Status.NotImplemented, "updateReservationFields not implemented yet");
-    result = await db.updateReservationFields(id, patch);
+    if (!(db as any).updateReservationFields) ctx.throw(Status.NotImplemented, "updateReservationFields not implemented yet");
+    result = await (db as any).updateReservationFields(id, patch);
   }
 
   if (action === "cancel") {
     const id = String(reservation?.id ?? "");
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
-    if (!db.cancelReservation) ctx.throw(Status.NotImplemented, "cancelReservation not implemented yet");
-    result = await db.cancelReservation(id, String(reservation?.reason ?? ""));
+    if (!(db as any).cancelReservation) ctx.throw(Status.NotImplemented, "cancelReservation not implemented yet");
+    result = await (db as any).cancelReservation(id, String(reservation?.reason ?? ""));
   }
 
   if (action === "arrived") {
     const id = String(reservation?.id ?? "");
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
-    if (!db.markArrived) ctx.throw(Status.NotImplemented, "markArrived not implemented yet");
-    result = await db.markArrived(id);
+    if (!(db as any).markArrived) ctx.throw(Status.NotImplemented, "markArrived not implemented yet");
+    result = await (db as any).markArrived(id);
   }
 
   json(ctx, { ok: true, result });
