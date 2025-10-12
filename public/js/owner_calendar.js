@@ -1,6 +1,4 @@
 // /public/js/owner_calendar.js
-// גרסה מעודכנת: Layout כפול, כפתורי Prev/Next, שורת קיבולת, טבלת סלוטים, Drawer עם טבלת לקוחות ובאדג'ים
-
 (function(){
   "use strict";
 
@@ -68,15 +66,17 @@
 
   async function fetchJSON(url, opts={}){
     const res = await fetch(url, { credentials:"same-origin", headers:{Accept:"application/json"}, ...opts });
-    if(!res.ok) throw new Error(await res.text());
+    if(!res.ok) {
+      const txt = await res.text();
+      console.error("fetchJSON error", url, opts, txt);
+      throw new Error(txt);
+    }
     return res.json();
   }
 
   /* ---------- Rendering ---------- */
-
   function renderHeaderLine(){
     if (!state.day){ dateLabel.textContent = "—"; capLine.textContent=""; return; }
-    // תווית תאריך נחמדה
     const d = new Date(state.date+"T00:00:00");
     const weekday = d.toLocaleDateString("en-US", { weekday:"short" });
     const long = d.toLocaleDateString("en-US", { year:"numeric", month:"short", day:"numeric" });
@@ -85,7 +85,6 @@
   }
 
   function rowHeader(){
-    // כבר קיים ב-ETA, אך אם נרצה רינדור מחדש מלא:
     if (!$(".oc-th", slotsRoot)){
       const th = document.createElement("div");
       th.className = "oc-row oc-th";
@@ -95,9 +94,8 @@
   }
 
   function renderSlots(){
-    // מחיקה של כל שורות ה-Data (לא של ה-Header)
     $$(".oc-row", slotsRoot).slice(1).forEach(el=>el.remove());
-    if (!state.day){ return; }
+    if (!state.day) return;
     const frag = document.createDocumentFragment();
     for (const s of state.day.slots){
       const row = document.createElement("div");
@@ -123,7 +121,9 @@
       c3.textContent = `People ${fmt(s.people)} · Tables ${fmt(s.tables)} · ${s.percent}%`;
 
       row.title = `People: ${s.people}/${state.day.capacityPeople} • Tables: ${s.tables}/${state.day.capacityTables} • ${s.percent}%`;
-      row.appendChild(c1); row.appendChild(c2); row.appendChild(c3);
+      row.appendChild(c1);
+      row.appendChild(c2);
+      row.appendChild(c3);
 
       row.addEventListener("click", ()=>openDrawer(s.time));
       frag.appendChild(row);
@@ -161,12 +161,11 @@
     }
     drawerTableBody.appendChild(frag);
 
-    // wire actions
     $$('button[data-act="arrived"]', drawerTableBody).forEach(b=>{
-      b.addEventListener("click", ()=>markArrived(b.dataset.id));
+      b.addEventListener("click", ()=>slotAction("arrived", { id: b.dataset.id }));
     });
     $$('button[data-act="cancel"]', drawerTableBody).forEach(b=>{
-      b.addEventListener("click", ()=>cancelRes(b.dataset.id));
+      b.addEventListener("click", ()=>slotAction("cancel", { id: b.dataset.id }));
     });
   }
 
@@ -185,10 +184,15 @@
   function openDrawer(hhmm){
     state.drawer.time = hhmm;
     drawerTitle.textContent = `Customers ${toAMPM(hhmm)}`;
-    setOpen(drawer,true); state.drawer.open=true;
+    setOpen(drawer,true);
+    state.drawer.open = true;
     loadSlot();
   }
-  function closeDrawer(){ setOpen(drawer,false); state.drawer.open=false; state.drawer.time=null; }
+  function closeDrawer(){
+    setOpen(drawer,false);
+    state.drawer.open = false;
+    state.drawer.time = null;
+  }
 
   function toAMPM(hhmm){
     const [H,M] = hhmm.split(":").map(Number);
@@ -201,7 +205,6 @@
   async function loadDay(){
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day?date=${encodeURIComponent(state.date)}`;
     const data = await fetchJSON(url);
-    if (!data.ok) throw new Error("day failed");
     state.day = data;
     renderHeaderLine();
     rowHeader();
@@ -219,66 +222,67 @@
     if (!state.drawer.time) return;
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/slot?date=${encodeURIComponent(state.date)}&time=${encodeURIComponent(state.drawer.time)}`;
     const data = await fetchJSON(url);
-    if (!data.ok) throw new Error("slot failed");
     state.drawer.items = data.items||[];
     renderDrawer(state.drawer.items);
   }
 
-  /* ---------- Actions ---------- */
+  /* ---------- Unified slot action sender ---------- */
+  async function slotAction(action, reservation = {}) {
+    if (!state.drawer.time) return;
+    const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/slot`;
+    await fetchJSON(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: action,
+        date: state.date,
+        time: state.drawer.time,
+        reservation: reservation
+      })
+    });
+    // רענון אחרי פעולה
+    await Promise.all([loadSlot(), loadDay(), loadSummary()]);
+  }
+
   async function createManual(){
     if (!state.drawer.time) return;
-    const firstName = prompt("First name:"); if(!firstName) return;
-    const lastName = prompt("Last name:"); if(!lastName) return;
-    const phone = prompt("Phone:")||"";
-    const people = Math.max(1, parseInt(prompt("Party size:","2")||"2",10));
-    const notes = prompt("Notes (optional):")||"";
-    await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/slot`,{
-      method:"PATCH",headers:{ "Content-Type":"application/json" },
-      body:JSON.stringify({ action:"create", date:state.date, time:state.drawer.time, reservation:{ firstName,lastName,phone,people,notes,status:"approved" } })
-    });
-    await Promise.all([loadSlot(), loadDay(), loadSummary()]);
+    const firstName = prompt("First name:"); if (!firstName) return;
+    const lastName = prompt("Last name:"); if (!lastName) return;
+    const phone = prompt("Phone:") || "";
+    const people = Math.max(1, parseInt(prompt("Party size:", "2") || "2", 10));
+    const notes = prompt("Notes (optional):") || "";
+    await slotAction("create", { firstName, lastName, phone, people, notes, status: "approved" });
   }
 
   async function cancelRes(id){
-    if(!confirm("Cancel this reservation?")) return;
-    await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/slot`,{
-      method:"PATCH",headers:{ "Content-Type":"application/json" },
-      body:JSON.stringify({ action:"cancel", date:state.date, time:state.drawer.time, reservation:{ id } })
-    });
-    await Promise.all([loadSlot(), loadDay(), loadSummary()]);
+    if (!confirm("Cancel this reservation?")) return;
+    await slotAction("cancel", { id });
   }
 
   async function markArrived(id){
-    await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/slot`,{
-      method:"PATCH",headers:{ "Content-Type":"application/json" },
-      body:JSON.stringify({ action:"arrived", date:state.date, time:state.drawer.time, reservation:{ id } })
-    });
-    await Promise.all([loadSlot(), loadDay(), loadSummary()]);
+    await slotAction("arrived", { id });
   }
 
-  /* ---------- Search ---------- */
   async function searchInDay(q){
-    if(!q){ // clear highlights
-      $$('.oc-row', slotsRoot).forEach((r,i)=>{ if(i>0) r.style.outline="none"; });
+    if (!q) {
+      $$('.oc-row', slotsRoot).forEach((r,i)=> { if (i>0) r.style.outline = "none"; });
       return;
     }
     const data = await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day/search?date=${encodeURIComponent(state.date)}&q=${encodeURIComponent(q)}`);
-    if (!data.ok) return;
-    const times = new Set((data.items||[]).map(x=>x.time).filter(Boolean));
+    const times = new Set((data.items || []).map(x => x.time).filter(Boolean));
     $$('.oc-row', slotsRoot).forEach((r,i)=>{
-      if(i===0) return;
+      if (i === 0) return;
       const t = r.dataset.time;
       r.style.outline = times.has(t) ? `2px solid ${getCSS("--brand")}` : "none";
     });
-    const first = (data.items||[])[0];
-    if (first && first.time){
+    const first = (data.items || [])[0];
+    if (first && first.time) {
       const el = $(`.oc-row[data-time="${CSS.escape(first.time)}"]`, slotsRoot);
-      if (el) el.scrollIntoView({ behavior:"smooth", block:"center" });
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
       openDrawer(first.time);
     }
   }
 
-  /* ---------- Wiring ---------- */
   function wire(){
     btnPrev.addEventListener("click", async ()=>{
       state.date = addDays(state.date, -1);
@@ -298,7 +302,6 @@
     drawerClose.addEventListener("click", closeDrawer);
     btnAdd.addEventListener("click", createManual);
     drawerSearch.addEventListener("input", ()=>{
-      // סנן מקומית בתוך הטבלה
       const q = drawerSearch.value.trim().toLowerCase();
       $$("tbody tr", $("#drawer-table")).forEach(tr=>{
         tr.style.display = tr.textContent.toLowerCase().includes(q) ? "" : "none";
@@ -307,10 +310,9 @@
   }
 
   function debounce(fn, ms){
-    let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); };
+    let t; return (...args)=>{ clearTimeout(t); t = setTimeout(()=>fn(...args), ms); };
   }
 
-  /* ---------- Init ---------- */
   async function initApp(){
     datePicker.value = state.date;
     wire();
