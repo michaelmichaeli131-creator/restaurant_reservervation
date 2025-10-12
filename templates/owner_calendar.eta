@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <title><%= it.title || "ניהול תפוסה יומי" %></title>
+  <title><%= it.title %></title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/static/css/owner_calendar.css" />
 </head>
@@ -10,7 +10,7 @@
   <!-- Header -->
   <div class="oc-header">
     <div class="wrap">
-      <div class="oc-title"><%= (it.restaurant && it.restaurant.name) ? (it.restaurant.name + " • Admin") : "Restaurant • Admin" %></div>
+      <div class="oc-title">Restaurant Name • Admin</div>
       <div class="oc-date-nav">
         <button id="btn-prev" aria-label="Previous day">◀</button>
         <div class="date-label" id="date-label">—</div>
@@ -63,12 +63,7 @@
       <table class="tbl" id="drawer-table">
         <thead>
           <tr>
-            <th>First Name</th>
-            <th>Last Name</th>
-            <th>Party sz</th>
-            <th>Status</th>
-            <th>Phone</th>
-            <th></th>
+            <th>First Name</th><th>Last Name</th><th>Party sz</th><th>Status</th><th>Phone</th><th></th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -78,7 +73,7 @@
 
   <script src="/static/js/owner_calendar.js" defer></script>
   <script>
-    // פרמטרים התחלתיים ל-JS
+    // העברת פרמטרים ראשוניים ל-JS
     window.__OC__ = { rid: "<%= it.rid %>", date: "<%= it.date %>" };
   </script>
 </body>

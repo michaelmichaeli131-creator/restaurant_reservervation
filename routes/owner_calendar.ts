@@ -1,377 +1,299 @@
-// /public/js/owner_calendar.js
-// Owner Day Calendar — keep the exact layout; fill data & include phone & names (with normalization).
+// /src/routes/owner_calendar.ts
+// ניהול תפוסה יומי — לוח שנה → יום → רבעי שעה (בעלים בלבד)
 
-(function () {
-  const $ = (sel, root) => (root || document).querySelector(sel);
-  const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+import { Router, Status } from "jsr:@oak/oak";
+import { render } from "../lib/view.ts";
+import { requireOwner } from "../lib/auth.ts";
+import { debugLog } from "../lib/debug.ts";
 
-  const boot = (window.__OC__ && typeof window.__OC__ === "object") ? window.__OC__ : {};
-  const state = {
-    rid: boot.rid || "",
-    date: boot.date || "",
-    slots: [],
-    caps: { people: 0, tables: 0, step: 15 },
-    drawer: { time: null, items: [], filter: "" },
-  };
+// שכבת נתונים
+import {
+  getRestaurant,
+  openingWindowsForDate, // ← ייבוא מה-DB (תוקן)
+  type Restaurant,
+  type Reservation,
+} from "../database.ts";
 
-  // Elements (guard against null)
-  const dateLabel = $("#date-label");
-  const datePicker = $("#datePicker");
-  const btnPrev = $("#btn-prev");
-  const btnNext = $("#btn-next");
-  const daySearch = $("#daySearch");
-  const capLine = $("#cap-line");
-  const slotsWrap = $("#slots");
-  const summaryBox = $("#summary");
+// Utilities קיימים בפרויקט
+import { readBody } from "./restaurants/_utils/body.ts";
 
-  const drawer = $("#drawer");
-  const drawerTitle = $("#drawer-title");
-  const drawerClose = $("#drawer-close");
-  const drawerSearch = $("#drawer-search");
-  const btnAdd = $("#btn-add");
-  const drawerTableBody = $("#drawer-table tbody");
+// שירותי טיימליין ותפוסה
+import { buildDayTimeline, slotRange } from "../services/timeline.ts";
+import { computeOccupancyForDay, summarizeDay } from "../services/occupancy.ts";
 
-  // Utils
-  const pad2 = (n) => String(n).padStart(2, "0");
-  const toISO = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-  const parseISO = (s) => {
-    const m = String(s || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!m) return null;
-    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
-  };
-  const addDays = (dateISO, delta) => {
-    const d = parseISO(dateISO);
-    if (!d) return dateISO;
-    d.setDate(d.getDate() + delta);
-    return toISO(d);
-  };
+const ownerCalendarRouter = new Router();
 
-  const safe = (v, dash = "—") => {
-    const s = (v == null ? "" : String(v)).trim();
-    return s ? s : dash;
-  };
+// ---------- Helpers ----------
+function pad2(n: number) { return n.toString().padStart(2, "0"); }
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+function isISODate(s?: string | null): s is string { return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s); }
+function isHHMM(s?: string | null): s is string { return !!s && /^\d{2}:\d{2}$/.test(s); }
+function json(ctx: any, data: unknown, status = Status.OK) {
+  ctx.response.status = status;
+  ctx.response.type = "application/json; charset=utf-8";
+  ctx.response.body = data;
+}
 
-  const telLink = (p) => {
-    const phone = String(p || "").trim();
-    return phone ? `<a href="tel:${phone.replace(/\s+/g,'')}">${phone}</a>` : "—";
-  };
+async function ensureOwnerAccess(ctx: any, rid: string): Promise<Restaurant> {
+  const user = await requireOwner(ctx); // זורק אם אין גישה
+  const r = await getRestaurant(rid);
+  if (!r) ctx.throw(Status.NotFound, "Restaurant not found");
+  if (r.ownerId !== user.id && (r as any).userId !== user.id) {
+    ctx.throw(Status.Forbidden, "Not your restaurant");
+  }
+  return r as Restaurant;
+}
 
-  const colorClass = (pctRaw) => {
-    const pct = Number.isFinite(+pctRaw) ? +pctRaw : 0;
-    return pct >= 80 ? "barr" : pct >= 50 ? "bary" : "barg";
-  };
+function deriveCapacities(r: Restaurant) {
+  const capacityPeople = Math.max(1, Number((r as any).capacity ?? 0));
+  const avgPeoplePerTable = Number((r as any).avgPeoplePerTable ?? 3);
+  let capacityTables = Number((r as any).capacityTables ?? 0);
+  if (!capacityTables || capacityTables <= 0) {
+    capacityTables = Math.max(1, Math.ceil(capacityPeople / Math.max(1, avgPeoplePerTable)));
+  }
+  const slotMinutes = Number((r as any).slotIntervalMinutes ?? 15);
+  const durationMinutes = Number((r as any).serviceDurationMinutes ?? (r as any).reservationDurationMinutes ?? 120);
+  return { capacityPeople, capacityTables, slotMinutes, durationMinutes, avgPeoplePerTable };
+}
 
-  // --- Normalizer: unify possible backend shapes ---
-  function normalizeItem(raw) {
-    const it = raw || {};
+// ממיר {open,close} → {start,end} לשירות ה-timeline
+function mapOpenWindowsForTimeline(wins: Array<{ open: string; close: string }>) {
+  return wins.map(w => ({ start: w.open as `${number}${number}:${number}${number}`, end: w.close as `${number}${number}:${number}${number}` }));
+}
 
-    // possible alternate keys
-    const firstName =
-      it.firstName ?? it.first_name ?? it.givenName ?? it.given_name ?? "";
-    const lastName =
-      it.lastName ?? it.last_name ?? it.familyName ?? it.family_name ?? "";
-    const phone =
-      it.phone ?? it.phoneNumber ?? it.phone_number ?? it.mobile ?? it.tel ?? "";
-    const notes = it.notes ?? it.note ?? "";
-    const status = (it.status || it.state || "").toString();
+// ---------- Routes ----------
 
-    let f = String(firstName || "").trim();
-    let l = String(lastName || "").trim();
-    let p = String(phone || "").trim();
+// HTML
+ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
+  const { rid } = ctx.params;
+  const r = await ensureOwnerAccess(ctx, rid);
+  const date = ctx.request.url.searchParams.get("date");
+  const selected = isISODate(date) ? date! : todayISO();
 
-    // If we only have a full name
-    const full = String(it.name || it.fullName || it.full_name || it.guestName || "").trim();
-    if ((!f && !l) && full) {
-      const parts = full.split(/\s+/);
-      f = parts.shift() || "";
-      l = parts.join(" ");
-    }
+  debugLog("owner_calendar", "GET /calendar", { rid, selected });
 
-    // sanitize phone to digits + plus (no validation, just cleanup spacing)
-    p = p.replace(/[^\d+]/g, "").replace(/(\+)(?=.*\+)/g, "");
+  await render(ctx, "owner_calendar.eta", {
+    title: "ניהול תפוסה יומי",
+    rid,
+    date: selected,
+    restaurant: { id: r.id, name: (r as any).name ?? "Restaurant" },
+  });
+});
 
-    return {
-      id: it.id || it._id || it.reservationId || "",
-      firstName: f,
-      lastName: l,
-      phone: p,
-      people: Number(it.people ?? it.partySize ?? it.party_size ?? it.guests ?? 0) || 0,
-      status: status || "approved",
-      notes,
+// JSON — יום
+ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
+  const { rid } = ctx.params;
+  const r = await ensureOwnerAccess(ctx, rid);
+  const date = ctx.request.url.searchParams.get("date");
+  const selected = isISODate(date) ? date! : todayISO();
+
+  const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
+  const openWinsRaw = openingWindowsForDate(r, selected); // ← מה-DB
+  const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
+  const timeline = buildDayTimeline(openWindows, slotMinutes);
+
+  const reservations: Reservation[] =
+    (await (await import("../database.ts")).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
+
+  const occupancy = computeOccupancyForDay({
+    reservations,
+    timeline,
+    slotMinutes,
+    capacityPeople,
+    capacityTables,
+    defaultDurationMinutes: durationMinutes,
+    avgPeoplePerTable: (r as any).avgPeoplePerTable ?? 3,
+    deriveTables: (people: number, avg = 3) => Math.max(1, Math.ceil(people / Math.max(1, avg))),
+  });
+
+  json(ctx, {
+    ok: true,
+    date: selected,
+    openWindows: openWinsRaw, // מחזירים במבנה {open,close} ל-UI
+    slotMinutes,
+    capacityPeople,
+    capacityTables,
+    slots: occupancy,
+  });
+});
+
+// JSON — סלוט
+ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
+  const { rid } = ctx.params;
+  const r = await ensureOwnerAccess(ctx, rid);
+  const date = ctx.request.url.searchParams.get("date");
+  const time = ctx.request.url.searchParams.get("time");
+  if (!isISODate(date) || !isHHMM(time)) ctx.throw(Status.BadRequest, "Bad date/time");
+
+  const { slotMinutes, durationMinutes } = deriveCapacities(r);
+  const range = slotRange(time!, durationMinutes, slotMinutes);
+
+  const items: Reservation[] =
+    (await (await import("../database.ts")).listReservationsCoveringSlot?.(rid, date!, time!, {
+      slotMinutes,
+      durationMinutes,
+    })) ?? [];
+
+  json(ctx, {
+    ok: true,
+    date,
+    time,
+    range,
+    items: items.map((it) => ({
+      id: (it as any).id,
+      firstName: (it as any).firstName ?? "",
+      lastName: (it as any).lastName ?? "",
+      phone: (it as any).phone ?? "",
+      people: Number((it as any).people ?? 0),
+      status: (it as any).status ?? "approved",
+      notes: (it as any).note ?? (it as any).notes ?? "",
+      at: (it as any).time ?? time,
+    })),
+  });
+});
+
+// JSON — פעולות סלוט: create/update/cancel/arrived
+ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
+  const { rid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+
+  const body = await readBody(ctx).catch(() => ({}));
+  const action = String(body?.action ?? "").trim();
+  const date = String(body?.date ?? "");
+  const time = String(body?.time ?? "");
+  const reservation = body?.reservation ?? {};
+
+  if (!["create", "update", "cancel", "arrived"].includes(action)) {
+    ctx.throw(Status.BadRequest, "Unknown action");
+  }
+  if (!isISODate(date) || !isHHMM(time)) {
+    ctx.throw(Status.BadRequest, "Bad date/time");
+  }
+
+  debugLog("owner_calendar", "PATCH /slot", { rid, action, date, time });
+
+  const db = await import("../database.ts");
+  let result: any = null;
+
+  if (action === "create") {
+    const payload = {
+      firstName: String(reservation?.firstName ?? "").trim(),
+      lastName: String(reservation?.lastName ?? "").trim(),
+      phone: String(reservation?.phone ?? "").trim(),
+      people: Number(reservation?.people ?? 0),
+      notes: String(reservation?.notes ?? reservation?.note ?? "").trim(),
+      status: String(reservation?.status ?? "approved"),
+      date, time,
     };
-  }
-
-  async function getJSON(url) {
-    const res = await fetch(url, { credentials: "same-origin" });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    return await res.json();
-  }
-
-  async function loadDay(dateISO) {
-    if (!slotsWrap) return;
-    // Day payload
-    const day = await getJSON(
-      `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day?date=${encodeURIComponent(
-        dateISO
-      )}`
-    );
-    state.date = day.date || dateISO;
-    if (datePicker) datePicker.value = state.date;
-    if (dateLabel) dateLabel.textContent = state.date;
-
-    // Caps line
-    state.caps.people = Number(day.capacityPeople || 0);
-    state.caps.tables = Number(day.capacityTables || 0);
-    state.caps.step = Number(day.slotMinutes || 15);
-    if (capLine) {
-      capLine.textContent = `Capacity: People ${state.caps.people} • Tables ${state.caps.tables} • Step: ${state.caps.step}`;
+    if (!payload.firstName || !payload.lastName || !payload.people) {
+      ctx.throw(Status.BadRequest, "Missing fields");
     }
-
-    // Slots
-    state.slots = Array.isArray(day.slots) ? day.slots : [];
-    renderSlots();
-
-    // Summary
-    if (summaryBox) {
-      try {
-        const sum = await getJSON(
-          `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day/summary?date=${encodeURIComponent(
-            state.date
-          )}`
-        );
-        summaryBox.textContent = `Daily Summary — reservations ${sum.totalReservations || 0} • guests ${sum.totalGuests || 0} • peak ${sum.peakOccupancy || 0}%`;
-      } catch {
-        summaryBox.textContent = "";
-      }
-    }
+    if (!db.createManualReservation) ctx.throw(Status.NotImplemented, "createManualReservation not implemented yet");
+    result = await db.createManualReservation(rid, payload);
   }
 
-  function renderSlots() {
-    if (!slotsWrap) return;
-
-    // clear existing rows except header
-    $$(".oc-row", slotsWrap)
-      .filter((el) => !el.classList.contains("oc-th"))
-      .forEach((el) => el.remove());
-
-    const q = (daySearch && daySearch.value || "").trim().toLowerCase();
-    const byName = q.length > 0;
-
-    state.slots.forEach((s) => {
-      const row = document.createElement("div");
-      row.className = "oc-row";
-      row.dataset.time = s.time;
-
-      const colTime = document.createElement("div");
-      colTime.textContent = s.time;
-
-      const colOcc = document.createElement("div");
-      const bar = document.createElement("div");
-      bar.className = colorClass(s.percent);
-      bar.style.width = Math.max(0, Math.min(100, Number(s.percent || 0))) + "%";
-      colOcc.appendChild(bar);
-
-      const colInfo = document.createElement("div");
-      colInfo.className = "oc-info";
-      colInfo.textContent = `${s.people} • ${s.tables} • ${s.percent}%`;
-
-      row.appendChild(colTime);
-      row.appendChild(colOcc);
-      row.appendChild(colInfo);
-
-      row.addEventListener("click", () => openSlot(state.date, s.time));
-
-      // Simple highlight if name search is active → visual hint (actual filtering inside drawer)
-      if (byName) row.style.outline = "1px dashed #c7d2fe";
-
-      slotsWrap.appendChild(row);
-    });
+  if (action === "update") {
+    const id = String(reservation?.id ?? "");
+    if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
+    const patch: Partial<Reservation> = {
+      firstName: reservation?.firstName,
+      lastName: reservation?.lastName,
+      phone: reservation?.phone,
+      people: reservation?.people ? Number(reservation?.people) : undefined,
+      note: reservation?.notes ?? reservation?.note,
+      status: reservation?.status,
+    } as any;
+    if (!db.updateReservationFields) ctx.throw(Status.NotImplemented, "updateReservationFields not implemented yet");
+    result = await db.updateReservationFields(id, patch);
   }
 
-  async function openSlot(date, time) {
-    if (drawer) drawer.classList.add("open");
-    if (drawerTitle) drawerTitle.textContent = `Customers — ${time}`;
-    state.drawer.time = time;
-    state.drawer.items = [];
-    state.drawer.filter = "";
-
-    const payload = await getJSON(
-      `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/slot?date=${encodeURIComponent(
-        date
-      )}&time=${encodeURIComponent(time)}`
-    );
-
-    // Normalize items for robust display
-    const rawItems = Array.isArray(payload.items) ? payload.items : [];
-    state.drawer.items = rawItems.map(normalizeItem);
-
-    renderDrawerTable();
+  if (action === "cancel") {
+    const id = String(reservation?.id ?? "");
+    if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
+    if (!db.cancelReservation) ctx.throw(Status.NotImplemented, "cancelReservation not implemented yet");
+    result = await db.cancelReservation(id, String(reservation?.reason ?? ""));
   }
 
-  function renderDrawerTable() {
-    if (!drawerTableBody) return;
-
-    const q = (drawerSearch && drawerSearch.value || "").trim().toLowerCase();
-    const items = state.drawer.items.filter((it) => {
-      if (!q) return true;
-      const f = String(it.firstName || "").toLowerCase();
-      const l = String(it.lastName || "").toLowerCase();
-      const p = String(it.phone || "").toLowerCase();
-      const full = (f + " " + l).trim();
-      return f.includes(q) || l.includes(q) || p.includes(q) || full.includes(q);
-    });
-
-    // empty
-    drawerTableBody.innerHTML = "";
-    if (!items.length) {
-      const tr = document.createElement("tr");
-      const td = document.createElement("td");
-      td.colSpan = 6;
-      td.className = "muted";
-      td.textContent = "No customers in this slot.";
-      tr.appendChild(td);
-      drawerTableBody.appendChild(tr);
-      return;
-    }
-
-    for (const it of items) {
-      const tr = document.createElement("tr");
-
-      const tdFirst = document.createElement("td");
-      tdFirst.textContent = safe(it.firstName);
-
-      const tdLast = document.createElement("td");
-      tdLast.textContent = safe(it.lastName);
-
-      const tdParty = document.createElement("td");
-      tdParty.textContent = String(it.people ?? 0);
-
-      const tdStatus = document.createElement("td");
-      tdStatus.textContent = safe(it.status, "");
-
-      const tdPhone = document.createElement("td");
-      tdPhone.innerHTML = telLink(it.phone);
-
-      const tdActions = document.createElement("td");
-      tdActions.className = "tbl-actions";
-      tdActions.innerHTML = `
-        <button class="btn sm" data-act="arrived">Arrived</button>
-        <button class="btn sm" data-act="edit">Edit</button>
-        <button class="btn sm warn" data-act="cancel">Cancel</button>
-      `;
-
-      tdActions.addEventListener("click", async (ev) => {
-        const b = ev.target.closest && ev.target.closest("button[data-act]");
-        if (!b) return;
-        const act = b.getAttribute("data-act");
-        if (act === "arrived") {
-          await patchSlot("arrived", { id: it.id });
-          await Promise.all([reopenSlot(), loadDay(state.date)]);
-        } else if (act === "cancel") {
-          if (!confirm("Cancel this reservation?")) return;
-          await patchSlot("cancel", { id: it.id, reason: "" });
-          await Promise.all([reopenSlot(), loadDay(state.date)]);
-        } else if (act === "edit") {
-          const firstName = prompt("First name", it.firstName || "") || "";
-          const lastName = prompt("Last name", it.lastName || "") || "";
-          const phone = prompt("Phone", it.phone || "") || "";
-          const people = Number(prompt("Party size", String(it.people || 0)) || 0);
-          const notes = prompt("Notes", it.notes || "") || "";
-          const status = prompt("Status (invited/approved/arrived/cancelled)", it.status || "approved") || "approved";
-          await patchSlot("update", { id: it.id, firstName, lastName, phone, people, notes, status });
-          await Promise.all([reopenSlot(), loadDay(state.date)]);
-        }
-      });
-
-      tr.appendChild(tdFirst);
-      tr.appendChild(tdLast);
-      tr.appendChild(tdParty);
-      tr.appendChild(tdStatus);
-      tr.appendChild(tdPhone);
-      tr.appendChild(tdActions);
-      drawerTableBody.appendChild(tr);
-    }
+  if (action === "arrived") {
+    const id = String(reservation?.id ?? "");
+    if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
+    if (!db.markArrived) ctx.throw(Status.NotImplemented, "markArrived not implemented yet");
+    result = await db.markArrived(id);
   }
 
-  async function patchSlot(action, reservation) {
-    const body = {
-      action,
-      date: state.date,
-      time: state.drawer.time,
-      reservation,
-    };
-    const res = await fetch(
-      `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/slot`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify(body),
-      }
-    );
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    return await res.json();
-  }
+  json(ctx, { ok: true, result });
+});
 
-  async function reopenSlot() {
-    await openSlot(state.date, state.drawer.time);
-  }
+// JSON — חיפוש ליום
+ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ctx) => {
+  const { rid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
 
-  // Add customer
-  if (btnAdd) {
-    btnAdd.addEventListener("click", async () => {
-      if (!state.drawer.time) return;
-      const firstName = prompt("First name") || "";
-      const lastName = prompt("Last name") || "";
-      const phone = prompt("Phone") || "";
-      const people = Number(prompt("Party size", "2") || 2);
-      const notes = prompt("Notes") || "";
-      const status = "approved";
+  const date = ctx.request.url.searchParams.get("date");
+  const qraw = ctx.request.url.searchParams.get("q") ?? "";
+  const q = qraw.trim().toLowerCase();
 
-      if (!firstName || !lastName || !people) return;
+  if (!isISODate(date) || !q) ctx.throw(Status.BadRequest, "Bad date or empty query");
 
-      await patchSlot("create", { firstName, lastName, phone, people, notes, status });
-      await Promise.all([reopenSlot(), loadDay(state.date)]);
-    });
-  }
+  const db = await import("../database.ts");
+  const reservations: Reservation[] = (await db.listReservationsByRestaurantAndDate?.(rid, date!)) ?? [];
 
-  // Drawer events
-  if (drawerClose) {
-    drawerClose.addEventListener("click", () => drawer && drawer.classList.remove("open"));
-  }
-  if (drawer) {
-    drawer.addEventListener("click", (ev) => {
-      if (ev.target === drawer) drawer.classList.remove("open");
-    });
-  }
-  if (drawerSearch) {
-    drawerSearch.addEventListener("input", renderDrawerTable);
-  }
+  const matches = reservations.filter((r: any) => {
+    const f = String(r.firstName ?? "").toLowerCase();
+    const l = String(r.lastName ?? "").toLowerCase();
+    return f.includes(q) || l.includes(q);
+  });
 
-  // Day search — highlight is simple; true filtering happens inside the drawer per slot
-  if (daySearch) {
-    daySearch.addEventListener("input", renderSlots);
-  }
+  json(ctx, {
+    ok: true,
+    date,
+    q: qraw,
+    count: matches.length,
+    items: matches.map((it: any) => ({
+      id: it.id,
+      time: it.time,
+      firstName: it.firstName ?? "",
+      lastName: it.lastName ?? "",
+      people: Number(it.people ?? 0),
+      status: it.status ?? "",
+    })),
+  });
+});
 
-  // Date controls
-  if (btnPrev) btnPrev.addEventListener("click", () => loadDay(addDays(state.date, -1)));
-  if (btnNext) btnNext.addEventListener("click", () => loadDay(addDays(state.date, +1)));
-  if (dateLabel) {
-    dateLabel.addEventListener("click", () => {
-      if (datePicker && typeof datePicker.showPicker === "function") {
-        datePicker.showPicker();
-      } else if (datePicker) {
-        datePicker.focus();
-        datePicker.click();
-      }
-    });
-  }
-  if (datePicker) {
-    datePicker.addEventListener("change", () => loadDay(datePicker.value));
-  }
+// JSON — סיכום יומי
+ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (ctx) => {
+  const { rid } = ctx.params;
+  const r = await ensureOwnerAccess(ctx, rid);
 
-  // init
-  if (state.rid && state.date) {
-    loadDay(state.date).catch(console.error);
-  }
-})();
+  const date = ctx.request.url.searchParams.get("date");
+  const selected = isISODate(date) ? date! : todayISO();
+
+  const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
+  const openWinsRaw = openingWindowsForDate(r, selected); // ← מה-DB
+  const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
+  const timeline = buildDayTimeline(openWindows, slotMinutes);
+
+  const db = await import("../database.ts");
+  const reservations: Reservation[] =
+    (await db.listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
+
+  const occupancy = computeOccupancyForDay({
+    reservations,
+    timeline,
+    slotMinutes,
+    capacityPeople,
+    capacityTables,
+    defaultDurationMinutes: durationMinutes,
+    avgPeoplePerTable: (r as any).avgPeoplePerTable ?? 3,
+    deriveTables: (p: number, avg = 3) => Math.max(1, Math.ceil(p / Math.max(1, avg))),
+  });
+
+  const summary = summarizeDay(occupancy, reservations);
+  json(ctx, { ok: true, date: selected, ...summary });
+});
+
+export { ownerCalendarRouter };
+export default ownerCalendarRouter;
