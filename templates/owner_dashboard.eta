@@ -13,9 +13,11 @@
 
       <% if (it.restaurants && it.restaurants.length) { %>
         <ul class="list">
-          <% it.restaurants.forEach(function(r){ 
+          <% it.restaurants.forEach(function(r){
                const photos = Array.isArray(r.photos) ? r.photos : [];
                const first = photos.length ? photos[0] : null;
+               const peak = Number(r._peakOccupancyPct || 0);
+               const color = peak >= 80 ? 'red' : (peak >= 50 ? 'yellow' : 'green');
           %>
             <li class="item">
               <div class="meta" style="display:flex;gap:12px;align-items:flex-start">
@@ -27,9 +29,24 @@
                   <div class="title"><strong><%= r.name %></strong></div>
                   <div class="sub muted"><%= r.city %> • <%= r.address %></div>
                   <div class="sub muted">משך ישיבה: <%= (typeof r.serviceDurationMinutes === 'number' ? r.serviceDurationMinutes : 90) %> דק׳</div>
+
+                  <!-- KPI יומי קצר -->
+                  <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                    <span class="kpi">היום: <%= r._today %></span>
+                    <span class="kpi">הזמנות: <%= r._reservationsCount ?? 0 %></span>
+                    <span class="kpi">סועדים: <%= r._peopleToday ?? 0 %></span>
+                    <span class="kpi">Peak: <%= peak %>%</span>
+                  </div>
+
+                  <!-- Progress Occupancy -->
+                  <div class="bar" aria-label="Peak Occupancy" style="margin-top:6px">
+                    <div class="bar-fill <%= color %>" style="width:<%= Math.max(0, Math.min(100, peak)) %>%"></div>
+                  </div>
                 </div>
               </div>
+
               <div class="actions" style="display:flex;gap:8px;flex-wrap:wrap">
+                <a class="btn" href="<%= r._calendarUrl %>" target="_self" rel="nofollow">📅 Calendar יומי</a>
                 <a class="btn" href="/owner/restaurants/<%= r.id %>/edit" target="_self" rel="nofollow">עריכת פרטים</a>
                 <a class="btn" href="/owner/restaurants/<%= r.id %>/hours" target="_self" rel="nofollow">שעות פתיחה</a>
                 <a class="btn" href="/owner/restaurants/<%= r.id %>/photos" target="_self" rel="nofollow">תמונות</a>
@@ -139,5 +156,13 @@
   .btn.primary:hover{background:#0a5}
   .form input{width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:8px;margin-top:4px}
   .panel.card{height:100%}
+
+  /* KPIs + Progress bar */
+  .kpi{font-size:12px;color:#374151;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:4px 6px}
+  .bar{width:100%;height:10px;background:#f3f4f6;border-radius:999px;overflow:hidden}
+  .bar-fill{height:100%;background:#10b981}
+  .bar-fill.yellow{background:#f59e0b}
+  .bar-fill.red{background:#ef4444}
+
   @media (max-width:900px){ .grid{grid-template-columns:1fr} }
 </style>
