@@ -1,5 +1,5 @@
 // /public/js/owner_calendar.js
-// Owner Day Calendar — keep the exact layout; fill data & include phone & names.
+// Owner Day Calendar — keep the exact layout; fill data & include phone & names (with normalization).
 
 (function () {
   const $ = (sel, root) => (root || document).querySelector(sel);
@@ -45,15 +45,61 @@
     d.setDate(d.getDate() + delta);
     return toISO(d);
   };
+
+  const safe = (v, dash = "—") => {
+    const s = (v == null ? "" : String(v)).trim();
+    return s ? s : dash;
+  };
+
   const telLink = (p) => {
     const phone = String(p || "").trim();
-    return phone ? `<a href="tel:${phone.replace(/\s+/g,'')}">${phone}</a>` : "";
+    return phone ? `<a href="tel:${phone.replace(/\s+/g,'')}">${phone}</a>` : "—";
   };
 
   const colorClass = (pctRaw) => {
     const pct = Number.isFinite(+pctRaw) ? +pctRaw : 0;
     return pct >= 80 ? "barr" : pct >= 50 ? "bary" : "barg";
   };
+
+  // --- Normalizer: unify possible backend shapes ---
+  function normalizeItem(raw) {
+    const it = raw || {};
+
+    // possible alternate keys
+    const firstName =
+      it.firstName ?? it.first_name ?? it.givenName ?? it.given_name ?? "";
+    const lastName =
+      it.lastName ?? it.last_name ?? it.familyName ?? it.family_name ?? "";
+    const phone =
+      it.phone ?? it.phoneNumber ?? it.phone_number ?? it.mobile ?? it.tel ?? "";
+    const notes = it.notes ?? it.note ?? "";
+    const status = (it.status || it.state || "").toString();
+
+    let f = String(firstName || "").trim();
+    let l = String(lastName || "").trim();
+    let p = String(phone || "").trim();
+
+    // If we only have a full name
+    const full = String(it.name || it.fullName || it.full_name || it.guestName || "").trim();
+    if ((!f && !l) && full) {
+      const parts = full.split(/\s+/);
+      f = parts.shift() || "";
+      l = parts.join(" ");
+    }
+
+    // sanitize phone to digits + plus (no validation, just cleanup spacing)
+    p = p.replace(/[^\d+]/g, "").replace(/(\+)(?=.*\+)/g, "");
+
+    return {
+      id: it.id || it._id || it.reservationId || "",
+      firstName: f,
+      lastName: l,
+      phone: p,
+      people: Number(it.people ?? it.partySize ?? it.party_size ?? it.guests ?? 0) || 0,
+      status: status || "approved",
+      notes,
+    };
+  }
 
   async function getJSON(url) {
     const res = await fetch(url, { credentials: "same-origin" });
@@ -154,7 +200,10 @@
         date
       )}&time=${encodeURIComponent(time)}`
     );
-    state.drawer.items = Array.isArray(payload.items) ? payload.items : [];
+
+    // Normalize items for robust display
+    const rawItems = Array.isArray(payload.items) ? payload.items : [];
+    state.drawer.items = rawItems.map(normalizeItem);
 
     renderDrawerTable();
   }
@@ -168,7 +217,8 @@
       const f = String(it.firstName || "").toLowerCase();
       const l = String(it.lastName || "").toLowerCase();
       const p = String(it.phone || "").toLowerCase();
-      return f.includes(q) || l.includes(q) || p.includes(q); // ← גם לפי טלפון
+      const full = (f + " " + l).trim();
+      return f.includes(q) || l.includes(q) || p.includes(q) || full.includes(q);
     });
 
     // empty
@@ -188,16 +238,16 @@
       const tr = document.createElement("tr");
 
       const tdFirst = document.createElement("td");
-      tdFirst.textContent = it.firstName || "";
+      tdFirst.textContent = safe(it.firstName);
 
       const tdLast = document.createElement("td");
-      tdLast.textContent = it.lastName || "";
+      tdLast.textContent = safe(it.lastName);
 
       const tdParty = document.createElement("td");
       tdParty.textContent = String(it.people ?? 0);
 
       const tdStatus = document.createElement("td");
-      tdStatus.textContent = String(it.status || "");
+      tdStatus.textContent = safe(it.status, "");
 
       const tdPhone = document.createElement("td");
       tdPhone.innerHTML = telLink(it.phone);
@@ -216,7 +266,7 @@
         const act = b.getAttribute("data-act");
         if (act === "arrived") {
           await patchSlot("arrived", { id: it.id });
-          await Promise.all([reopenSlot(), loadDay(state.date)]); // ← רענון גם לגריד
+          await Promise.all([reopenSlot(), loadDay(state.date)]);
         } else if (act === "cancel") {
           if (!confirm("Cancel this reservation?")) return;
           await patchSlot("cancel", { id: it.id, reason: "" });
