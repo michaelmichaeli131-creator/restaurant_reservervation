@@ -9,12 +9,12 @@ import { debugLog } from "../lib/debug.ts";
 // שכבת נתונים
 import {
   getRestaurant,
-  openingWindowsForDate, // ← ייבוא מה-DB (תוקן)
+  openingWindowsForDate, // ← ייבוא מה-DB
   type Restaurant,
   type Reservation,
 } from "../database.ts";
 
-// Utilities קיימים בפרויקט
+// Utilities קיימים בפרויקט (קריאת body מותאמת Oak 17)
 import { readBody } from "./restaurants/_utils/body.ts";
 
 // שירותי טיימליין ותפוסה
@@ -23,7 +23,7 @@ import { computeOccupancyForDay, summarizeDay } from "../services/occupancy.ts";
 
 const ownerCalendarRouter = new Router();
 
-// ---------- Helpers ----------
+/* ---------------- Helpers ---------------- */
 function pad2(n: number) { return n.toString().padStart(2, "0"); }
 function todayISO(): string {
   const d = new Date();
@@ -64,7 +64,24 @@ function mapOpenWindowsForTimeline(wins: Array<{ open: string; close: string }>)
   return wins.map(w => ({ start: w.open as `${number}${number}:${number}${number}`, end: w.close as `${number}${number}:${number}${number}` }));
 }
 
-// ---------- Routes ----------
+/* ---- Enrichment for Customer drawer (fallback from 'note') ---- */
+function splitName(full?: string): { first: string; last: string } {
+  const s = String(full ?? "").trim().replace(/\s+/g, " ");
+  if (!s) return { first: "", last: "" };
+  const parts = s.split(" ");
+  const first = parts.shift() || "";
+  const last = parts.join(" ");
+  return { first, last };
+}
+function extractFromNote(note?: string): { name?: string; phone?: string } {
+  const t = String(note ?? "");
+  const mName = t.match(/\bName:\s*([^;]+)\b/i);
+  const mPhone = t.match(/\bPhone:\s*([^;]+)/i);
+  return { name: mName ? mName[1].trim() : undefined, phone: mPhone ? mPhone[1].trim() : undefined };
+}
+/* ---------------------------------------------------------------- */
+
+/* ---------------- Routes ---------------- */
 
 // HTML
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
@@ -91,12 +108,15 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const selected = isISODate(date) ? date! : todayISO();
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
-  const openWinsRaw = openingWindowsForDate(r, selected); // ← מה-DB
+
+  // הערה: ברוב המימושים הפונקציה מקבלת (restaurantId, date)
+  const openWinsRaw = await openingWindowsForDate(r.id, selected);
   const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
   const timeline = buildDayTimeline(openWindows, slotMinutes);
 
+  const db = await import("../database.ts");
   const reservations: Reservation[] =
-    (await (await import("../database.ts")).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
+    (await db.listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
 
   const occupancy = computeOccupancyForDay({
     reservations,
@@ -120,7 +140,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   });
 });
 
-// JSON — סלוט
+// JSON — סלוט (מגירת לקוחות)
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
@@ -131,27 +151,48 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
   const { slotMinutes, durationMinutes } = deriveCapacities(r);
   const range = slotRange(time!, durationMinutes, slotMinutes);
 
+  const db = await import("../database.ts");
   const items: Reservation[] =
-    (await (await import("../database.ts")).listReservationsCoveringSlot?.(rid, date!, time!, {
+    (await db.listReservationsCoveringSlot?.(rid, date!, time!, {
       slotMinutes,
       durationMinutes,
     })) ?? [];
+
+  // העשרה משדה note כאשר חסרים first/last/phone
+  const enriched = items.map((it: any) => {
+    let first = String(it.firstName ?? "");
+    let last  = String(it.lastName ?? "");
+    let phone = String(it.phone ?? "");
+    const notes = it.note ?? it.notes ?? "";
+
+    if ((!first || !last || !phone) && notes) {
+      const ext = extractFromNote(String(notes));
+      if ((!first || !last) && ext.name) {
+        const s = splitName(ext.name);
+        if (!first) first = s.first;
+        if (!last)  last  = s.last;
+      }
+      if (!phone && ext.phone) phone = ext.phone;
+    }
+
+    return {
+      id: it.id,
+      firstName: first,
+      lastName: last,
+      phone,
+      people: Number(it.people ?? 0),
+      status: it.status ?? "approved",
+      notes,
+      at: it.time ?? time,
+    };
+  });
 
   json(ctx, {
     ok: true,
     date,
     time,
     range,
-    items: items.map((it) => ({
-      id: (it as any).id,
-      firstName: (it as any).firstName ?? "",
-      lastName: (it as any).lastName ?? "",
-      phone: (it as any).phone ?? "",
-      people: Number((it as any).people ?? 0),
-      status: (it as any).status ?? "approved",
-      notes: (it as any).note ?? (it as any).notes ?? "",
-      at: (it as any).time ?? time,
-    })),
+    items: enriched,
   });
 });
 
@@ -272,7 +313,9 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
   const selected = isISODate(date) ? date! : todayISO();
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
-  const openWinsRaw = openingWindowsForDate(r, selected); // ← מה-DB
+
+  // הערה: ברוב המימושים הפונקציה מקבלת (restaurantId, date)
+  const openWinsRaw = await openingWindowsForDate(r.id, selected);
   const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
   const timeline = buildDayTimeline(openWindows, slotMinutes);
 
