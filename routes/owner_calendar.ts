@@ -6,18 +6,15 @@ import { render } from "../lib/view.ts";
 import { requireOwner } from "../lib/auth.ts";
 import { debugLog } from "../lib/debug.ts";
 
-// שכבת נתונים
 import {
   getRestaurant,
-  openingWindowsForDate, // ← כמו בקוד שעבד: נקרא עם r ולא עם r.id
+  openingWindowsForDate,
   type Restaurant,
   type Reservation,
 } from "../database.ts";
 
-// Utilities קיימים בפרויקט
 import { readBody } from "./restaurants/_utils/body.ts";
 
-// שירותי טיימליין ותפוסה
 import { buildDayTimeline, slotRange } from "../services/timeline.ts";
 import { computeOccupancyForDay, summarizeDay } from "../services/occupancy.ts";
 
@@ -38,7 +35,7 @@ function json(ctx: any, data: unknown, status = Status.OK) {
 }
 
 async function ensureOwnerAccess(ctx: any, rid: string): Promise<Restaurant> {
-  const user = await requireOwner(ctx); // זורק אם אין גישה
+  const user = await requireOwner(ctx);
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound, "Restaurant not found");
   if (r.ownerId !== user.id && (r as any).userId !== user.id) {
@@ -59,12 +56,10 @@ function deriveCapacities(r: Restaurant) {
   return { capacityPeople, capacityTables, slotMinutes, durationMinutes, avgPeoplePerTable };
 }
 
-// ממיר {open,close} → {start,end} לשירות ה-timeline
 function mapOpenWindowsForTimeline(wins: Array<{ open: string; close: string }>) {
   return wins.map(w => ({ start: w.open as `${number}${number}:${number}${number}`, end: w.close as `${number}${number}:${number}${number}` }));
 }
 
-/* ---- Enrichment for Customer drawer (fallback from 'note') ---- */
 function splitName(full?: string): { first: string; last: string } {
   const s = String(full ?? "").trim().replace(/\s+/g, " ");
   if (!s) return { first: "", last: "" };
@@ -80,7 +75,7 @@ function extractFromNote(note?: string): { name?: string; phone?: string } {
   return { name: mName ? mName[1].trim() : undefined, phone: mPhone ? mPhone[1].trim() : undefined };
 }
 
-/* ---------- קריאת גוף קשיחה יותר (JSON→readBody→querystring) ---------- */
+/* ---------- קריאת גוף קשיחה יותר (JSON → readBody → queryparams) ---------- */
 async function readActionBody(ctx: any): Promise<any> {
   const ct = (ctx.request.headers.get("content-type") || "").toLowerCase();
   const native = (ctx.request as any).originalRequest
@@ -112,24 +107,36 @@ async function handleSlotAction(ctx: any) {
   await ensureOwnerAccess(ctx, rid);
 
   const body = await readActionBody(ctx);
-  const action = String(body?.action ?? "").trim();
+  // debug log קודם לבדוק את מה שהתקבל
+  debugLog("owner_calendar", "Body received in handleSlotAction", { body });
+
+  let action = String(body?.action ?? "").trim();
+  // נרמול אפשרויות שונות שה־frontend עשוי לשלוח
+  const normalized = (
+    action === "add" || action === "new" ? "create"
+    : action === "edit" ? "update"
+    : action === "cancel" ? "cancel"
+    : action === "arrived" ? "arrived"
+    : action
+  );
+
   const date = String(body?.date ?? "");
   const time = String(body?.time ?? "");
   const reservation = body?.reservation ?? {};
 
-  if (!["create", "update", "cancel", "arrived"].includes(action)) {
-    ctx.throw(Status.BadRequest, "Unknown action");
+  if (!["create", "update", "cancel", "arrived"].includes(normalized)) {
+    ctx.throw(Status.BadRequest, `Unknown action: ${action}`);
   }
   if (!isISODate(date) || !isHHMM(time)) {
     ctx.throw(Status.BadRequest, "Bad date/time");
   }
 
-  debugLog("owner_calendar", "SLOT ACTION", { rid, action, date, time });
+  debugLog("owner_calendar", "SLOT ACTION", { rid, action, normalized, date, time });
 
   const db = await import("../database.ts");
   let result: any = null;
 
-  if (action === "create") {
+  if (normalized === "create") {
     const payload = {
       firstName: String(reservation?.firstName ?? "").trim(),
       lastName : String(reservation?.lastName  ?? "").trim(),
@@ -142,12 +149,11 @@ async function handleSlotAction(ctx: any) {
     if (!payload.firstName || !payload.lastName || !payload.people) {
       ctx.throw(Status.BadRequest, "Missing fields");
     }
-    // שימוש בפונקציה הקיימת ב־DB (createReservation). אם createManualReservation קיים — אפשר להחליף חזרה.
     if (!(db as any).createReservation) ctx.throw(Status.NotImplemented, "createReservation not implemented yet");
     result = await (db as any).createReservation(rid, payload);
   }
 
-  if (action === "update") {
+  if (normalized === "update") {
     const id = String(reservation?.id ?? "");
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
     const patch: Partial<Reservation> = {
@@ -162,14 +168,14 @@ async function handleSlotAction(ctx: any) {
     result = await (db as any).updateReservationFields(id, patch);
   }
 
-  if (action === "cancel") {
+  if (normalized === "cancel") {
     const id = String(reservation?.id ?? "");
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
     if (!(db as any).cancelReservation) ctx.throw(Status.NotImplemented, "cancelReservation not implemented yet");
     result = await (db as any).cancelReservation(id, String(reservation?.reason ?? ""));
   }
 
-  if (action === "arrived") {
+  if (normalized === "arrived") {
     const id = String(reservation?.id ?? "");
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
     if (!(db as any).markArrived) ctx.throw(Status.NotImplemented, "markArrived not implemented yet");
@@ -198,7 +204,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
   });
 });
 
-// JSON — יום (מחזיר סלוטים רק בשעות פתיחה — כמו שעבד בעבר)
+// JSON — יום
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
@@ -207,10 +213,9 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
 
-  // ⚠️ חשוב: בדיוק כמו בקוד שעבד — הפונקציה מקבלת את האובייקט r (לא r.id), ואין await
-  const openWinsRaw = openingWindowsForDate(r, selected); // ← מה-DB
+  const openWinsRaw = openingWindowsForDate(r, selected);
   const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
-  const timeline = buildDayTimeline(openWindows, slotMinutes); // timeline רק לטווחי פתיחה
+  const timeline = buildDayTimeline(openWindows, slotMinutes);
 
   const db = await import("../database.ts");
   const reservations: Reservation[] =
@@ -230,15 +235,15 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   json(ctx, {
     ok: true,
     date: selected,
-    openWindows: openWinsRaw, // מחזירים במבנה {open,close} ל-UI
+    openWindows: openWinsRaw,
     slotMinutes,
     capacityPeople,
     capacityTables,
-    slots: occupancy, // ← כבר מכיל רק סלוטים בתוך שעות פתיחה
+    slots: occupancy,
   });
 });
 
-// JSON — סלוט (מגירת לקוחות + העשרה משדה note)
+// JSON — סלוט
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
@@ -293,16 +298,15 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
   });
 });
 
-// JSON — פעולות סלוט: create/update/cancel/arrived
+// JSON — פעולות סלוט
 ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
   await handleSlotAction(ctx);
 });
-// תאימות גם ל־POST (יש פרונט־אנדים ששולחים POST כברירת מחדל)
 ownerCalendarRouter.post("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
   await handleSlotAction(ctx);
 });
 
-// JSON — חיפוש ליום
+// JSON — חיפוש
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ctx) => {
   const { rid } = ctx.params;
   await ensureOwnerAccess(ctx, rid);
@@ -348,8 +352,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
 
-  // כמו בקוד שעבד: משתמשים ב-r (לא r.id), ובונים timeline רק מחלונות פתיחה
-  const openWinsRaw = openingWindowsForDate(r, selected); // ← מה-DB
+  const openWinsRaw = openingWindowsForDate(r, selected);
   const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
   const timeline = buildDayTimeline(openWindows, slotMinutes);
 
