@@ -1,4 +1,5 @@
-// קוד מתוקן של owner_calendar.ts עם התאמה ל־readBody שלך
+// /src/routes/owner_calendar.ts
+// ניהול תפוסה יומי — Calendar לבעלים: יום/סלוט/חיפוש/סיכום + פעולות סלוט
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -13,12 +14,12 @@ import {
 } from "../database.ts";
 
 import { readBody } from "./restaurants/_utils/body.ts";
-
 import { buildDayTimeline, slotRange } from "../services/timeline.ts";
 import { computeOccupancyForDay, summarizeDay } from "../services/occupancy.ts";
 
 const ownerCalendarRouter = new Router();
 
+/* ---------------- Helpers ---------------- */
 function pad2(n: number) { return n.toString().padStart(2, "0"); }
 function todayISO(): string {
   const d = new Date();
@@ -31,7 +32,6 @@ function json(ctx: any, data: unknown, status = Status.OK) {
   ctx.response.type = "application/json; charset=utf-8";
   ctx.response.body = data;
 }
-
 async function ensureOwnerAccess(ctx: any, rid: string): Promise<Restaurant> {
   const user = await requireOwner(ctx);
   const r = await getRestaurant(rid);
@@ -41,7 +41,6 @@ async function ensureOwnerAccess(ctx: any, rid: string): Promise<Restaurant> {
   }
   return r as Restaurant;
 }
-
 function deriveCapacities(r: Restaurant) {
   const capacityPeople = Math.max(1, Number((r as any).capacity ?? 0));
   const avgPeoplePerTable = Number((r as any).avgPeoplePerTable ?? 3);
@@ -53,11 +52,12 @@ function deriveCapacities(r: Restaurant) {
   const durationMinutes = Number((r as any).serviceDurationMinutes ?? (r as any).reservationDurationMinutes ?? 120);
   return { capacityPeople, capacityTables, slotMinutes, durationMinutes, avgPeoplePerTable };
 }
-
+// {open,close} -> {start,end} לטיימליין
 function mapOpenWindowsForTimeline(wins: Array<{ open: string; close: string }>) {
   return wins.map(w => ({ start: w.open as `${number}${number}:${number}${number}`, end: w.close as `${number}${number}:${number}${number}` }));
 }
 
+/* ---- Enrichment from note ---- */
 function splitName(full?: string): { first: string; last: string } {
   const s = String(full ?? "").trim().replace(/\s+/g, " ");
   if (!s) return { first: "", last: "" };
@@ -73,37 +73,32 @@ function extractFromNote(note?: string): { name?: string; phone?: string } {
   return { name: mName ? mName[1].trim() : undefined, phone: mPhone ? mPhone[1].trim() : undefined };
 }
 
-/* ---------- קריאת פעולה + התאמה ל־readBody שלך ---------- */
+/* ---------- Body parser wrapper (uses your readBody) ---------- */
 async function readActionBody(ctx: any): Promise<any> {
-  // ניסיון JSON / form / text דרך pickNative / oak
-  let rb: any;
   try {
-    rb = await readBody(ctx);
+    const { payload, dbg } = await readBody(ctx);
+    debugLog("owner_calendar", "readBody payload & dbg", { payload, dbg });
+    return payload || {};
   } catch (e) {
-    debugLog("owner_calendar", "readBody threw", { error: e.toString() });
-    rb = { payload: {}, dbg: {} };
+    debugLog("owner_calendar", "readBody threw", { error: String(e) });
+    return {};
   }
-  const payload = rb?.payload ?? {};
-  const dbg = rb?.dbg;
-  debugLog("owner_calendar", "readBody payload & dbg", { payload, dbg });
-
-  return payload;
 }
 
-/* ---------- Handler עם הדיבאגים וה־payload הנכון ---------- */
+/* ---------- Unified Slot Action Handler ---------- */
 async function handleSlotAction(ctx: any) {
   const { rid } = ctx.params;
   await ensureOwnerAccess(ctx, rid);
 
   const method = ctx.request.method;
-  const ct = ctx.request.headers.get("content-type");
+  const ct = ctx.request.headers.get("content-type") || "";
   debugLog("owner_calendar", "handleSlotAction ENTER", { rid, method, contentType: ct });
 
   const body = await readActionBody(ctx);
   debugLog("owner_calendar", "Body (payload) after readActionBody", { body });
 
   let action = String(body?.action ?? "").trim();
-
+  // aliases
   if (!action && typeof body === "object") {
     const alias = (body as any).type ?? (body as any).op ?? (body as any).mode;
     if (alias && typeof alias === "string") {
@@ -111,14 +106,12 @@ async function handleSlotAction(ctx: any) {
       debugLog("owner_calendar", "Alias used for action", { alias });
     }
   }
-
-  const normalized = (
-    action === "add" || action === "new" ? "create"
-    : action === "edit" ? "update"
-    : action === "cancel" ? "cancel"
-    : action === "arrived" ? "arrived"
-    : action
-  );
+  const normalized =
+    action === "add" || action === "new" ? "create" :
+    action === "edit" ? "update" :
+    action === "cancel" ? "cancel" :
+    action === "arrived" ? "arrived" :
+    action;
 
   const date = String(body?.date ?? "");
   const time = String(body?.time ?? "");
@@ -132,8 +125,6 @@ async function handleSlotAction(ctx: any) {
   if (!isISODate(date) || !isHHMM(time)) {
     ctx.throw(Status.BadRequest, "Bad date/time");
   }
-
-  debugLog("owner_calendar", "Proceeding SLOT ACTION", { rid, normalized, date, time });
 
   const db = await import("../database.ts");
   let result: any = null;
@@ -152,8 +143,9 @@ async function handleSlotAction(ctx: any) {
     if (!payload.firstName || !payload.lastName || !payload.people) {
       ctx.throw(Status.BadRequest, "Missing fields for create");
     }
-    if (!(db as any).createReservation) ctx.throw(Status.NotImplemented, "createReservation not implemented yet");
-    result = await (db as any).createReservation(rid, payload);
+    const createFn = (db as any).createReservation ?? (db as any).createManualReservation;
+    if (!createFn) ctx.throw(Status.NotImplemented, "createReservation not implemented yet");
+    result = await createFn(rid, payload);
   } else if (normalized === "update") {
     const id = String(reservation?.id ?? "");
     debugLog("owner_calendar", "update id & patch", { id, reservation });
@@ -173,7 +165,7 @@ async function handleSlotAction(ctx: any) {
     debugLog("owner_calendar", "cancel id", { id });
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
     if (!(db as any).cancelReservation) ctx.throw(Status.NotImplemented, "cancelReservation not implemented yet");
-    result = await (db as any).cancelReservation(id, String(reservation?.reason ?? ""));
+    result = await (db as any).cancelReservation(id, String(reservation?.reason ?? "")); // reason optional
   } else if (normalized === "arrived") {
     const id = String(reservation?.id ?? "");
     debugLog("owner_calendar", "arrived id", { id });
@@ -183,11 +175,12 @@ async function handleSlotAction(ctx: any) {
   }
 
   debugLog("owner_calendar", "Slot action result", { result });
-
   json(ctx, { ok: true, result });
 }
 
 /* ---------------- Routes ---------------- */
+
+// HTML
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
@@ -202,6 +195,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
   });
 });
 
+// JSON — יום
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
@@ -210,12 +204,14 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
 
+  // בדיוק כמו בקוד שעבד: מקבלים r (לא r.id)
   const openWinsRaw = openingWindowsForDate(r, selected);
   const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
   const timeline = buildDayTimeline(openWindows, slotMinutes);
 
   const db = await import("../database.ts");
-  const reservations: Reservation[] = (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
+  const reservations: Reservation[] =
+    (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
 
   const occupancy = computeOccupancyForDay({
     reservations,
@@ -225,7 +221,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
     capacityTables,
     defaultDurationMinutes: durationMinutes,
     avgPeoplePerTable: (r as any).avgPeoplePerTable ?? 3,
-    deriveTables: (p: number, avg = 3) => Math.max(1, Math.ceil(p / Math.max(1, avg))),
+    deriveTables: (people: number, avg = 3) => Math.max(1, Math.ceil(people / Math.max(1, avg))),
   });
 
   json(ctx, {
@@ -239,6 +235,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   });
 });
 
+// JSON — סלוט (עם range + העשרת פרטי לקוח מה־note)
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
@@ -250,10 +247,11 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
   const range = slotRange(time!, durationMinutes, slotMinutes);
 
   const db = await import("../database.ts");
-  const items: Reservation[] = (await (db as any).listReservationsCoveringSlot?.(rid, date!, time!, {
-    slotMinutes,
-    durationMinutes,
-  })) ?? [];
+  const items: Reservation[] =
+    (await (db as any).listReservationsCoveringSlot?.(rid, date!, time!, {
+      slotMinutes,
+      durationMinutes,
+    })) ?? [];
 
   const enriched = items.map((it: any) => {
     let first = String(it.firstName ?? "");
@@ -292,6 +290,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
   });
 });
 
+// JSON — פעולות סלוט
 ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
   await handleSlotAction(ctx);
 });
@@ -299,20 +298,26 @@ ownerCalendarRouter.post("/owner/restaurants/:rid/calendar/slot", async (ctx) =>
   await handleSlotAction(ctx);
 });
 
+// JSON — חיפוש ליום
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ctx) => {
   const { rid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+
   const date = ctx.request.url.searchParams.get("date");
   const qraw = ctx.request.url.searchParams.get("q") ?? "";
   const q = qraw.trim().toLowerCase();
+
   if (!isISODate(date) || !q) ctx.throw(Status.BadRequest, "Bad date or empty query");
 
   const db = await import("../database.ts");
   const reservations: Reservation[] = (await (db as any).listReservationsByRestaurantAndDate?.(rid, date!)) ?? [];
+
   const matches = reservations.filter((r: any) => {
     const f = String(r.firstName ?? "").toLowerCase();
     const l = String(r.lastName ?? "").toLowerCase();
     return f.includes(q) || l.includes(q);
   });
+
   json(ctx, {
     ok: true,
     date,
@@ -329,6 +334,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
   });
 });
 
+// JSON — סיכום יומי
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
@@ -337,12 +343,15 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
   const selected = isISODate(date) ? date! : todayISO();
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
+
+  // כמו בקוד שעבד: r (לא r.id), ו-timeline רק מחלונות פתיחה
   const openWinsRaw = openingWindowsForDate(r, selected);
   const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
   const timeline = buildDayTimeline(openWindows, slotMinutes);
 
   const db = await import("../database.ts");
-  const reservations: Reservation[] = (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
+  const reservations: Reservation[] =
+    (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
 
   const occupancy = computeOccupancyForDay({
     reservations,
