@@ -77,9 +77,9 @@ async function readActionBody(ctx: any): Promise<any> {
   // 1) attempt JSON
   try {
     const bodyReader = ctx.request.body({ type: "json" });
-    debugLog("owner_calendar", "readActionBody: bodyReader.type", { type: (bodyReader as any).type });
+    debugLog("owner_calendar", "readActionBody: bodyReader.type", { type: (bodyReader as any)?.type });
     if (bodyReader) {
-      const val = await bodyReader.value;
+      const val = await (bodyReader as any).value;
       debugLog("owner_calendar", "readActionBody: val from JSON reader", { val });
       if (val && typeof val === "object" && Object.keys(val).length > 0) {
         return val;
