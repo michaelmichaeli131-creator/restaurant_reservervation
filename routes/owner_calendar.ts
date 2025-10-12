@@ -9,13 +9,13 @@ import { debugLog } from "../lib/debug.ts";
 // שכבת נתונים
 import {
   getRestaurant,
-  openingWindowsForDate,
+  openingWindowsForDate, // ← ייבוא מה-DB (תוקן)
   type Restaurant,
   type Reservation,
 } from "../database.ts";
 
 // Utilities קיימים בפרויקט
-import { readBody as readBodyUtil } from "./restaurants/_utils/body.ts";
+import { readBody } from "./restaurants/_utils/body.ts";
 
 // שירותי טיימליין ותפוסה
 import { buildDayTimeline, slotRange } from "../services/timeline.ts";
@@ -23,170 +23,22 @@ import { computeOccupancyForDay, summarizeDay } from "../services/occupancy.ts";
 
 const ownerCalendarRouter = new Router();
 
-/* ---------------- Helpers ---------------- */
+// ---------- Helpers ----------
 function pad2(n: number) { return n.toString().padStart(2, "0"); }
 function todayISO(): string {
   const d = new Date();
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
+function isISODate(s?: string | null): s is string { return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s); }
+function isHHMM(s?: string | null): s is string { return !!s && /^\d{2}:\d{2}$/.test(s); }
 function json(ctx: any, data: unknown, status = Status.OK) {
   ctx.response.status = status;
   ctx.response.type = "application/json; charset=utf-8";
   ctx.response.body = data;
 }
-function lower(s?: string) { return String(s ?? "").trim().toLowerCase(); }
 
-/** נרמול שעה: תומך ב-"7:30", "07.30", "19:30:00", "2025-10-12T19:30", "T19:30" וכו' → "HH:mm" */
-function coerceHHmm(raw?: unknown): string {
-  let s = String(raw ?? "").trim();
-  if (!s) return "";
-  // חתוך ISO date-time לקטע השעה
-  const mIso = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::\d{2})?$/);
-  if (mIso) return `${mIso[4]}:${mIso[5]}`;
-  // "T19:30" / " t19:30 "
-  const mT = s.match(/T(\d{1,2}):(\d{2})/i);
-  if (mT) s = `${mT[1]}:${mT[2]}`;
-
-  // "07.30" → "07:30"
-  if (/^\d{1,2}\.\d{2}$/.test(s)) s = s.replace(".", ":");
-  // "19:30:00" → "19:30"
-  const hms = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
-  if (!hms) return "";
-  const h = Math.max(0, Math.min(23, Number(hms[1])));
-  const mi = Math.max(0, Math.min(59, Number(hms[2])));
-  return `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
-}
-
-/** נרמול תאריך: תומך גם ב-ISO datetime "YYYY-MM-DDTHH:mm(:ss)" → "YYYY-MM-DD" */
-function coerceISODate(raw?: unknown): string {
-  const s = String(raw ?? "").trim();
-  if (!s) return "";
-  // אם נתון מלא עם זמן — נקח רק את החלק הראשון
-  const mFull = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (mFull) {
-    const y = Number(mFull[1]), mon = Number(mFull[2]), d = Number(mFull[3]);
-    if (y >= 1900 && mon >= 1 && mon <= 12 && d >= 1 && d <= 31) {
-      return `${String(y)}-${String(mon).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    }
-  }
-  // נסה לפרסר ל-Date ואז לפלוט Y-M-D מקומי
-  const dt = new Date(s);
-  if (!isNaN(dt.getTime())) {
-    return `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`;
-  }
-  return "";
-}
-
-function isISODate(s?: string | null): s is string {
-  return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
-}
-function isHHMM(s?: string | null): s is string {
-  return !!s && /^\d{2}:\d{2}$/.test(s ?? "");
-}
-
-/** פענוח גוף לבקשות — עמיד ל-Content-Type ומייצר דיפולטים סבירים */
-async function readActionPayload(ctx: any): Promise<{
-  action: string;
-  date: string;
-  time: string;
-  reservation: Record<string, unknown>;
-}> {
-  const url = new URL(ctx.request.url);
-  const qs = url.searchParams;
-
-  let body: any = null;
-  try { body = await readBodyUtil(ctx); } catch { /* נמשיך */ }
-
-  if (!body || typeof body !== "object" || Object.keys(body).length === 0) {
-    const ct = lower(ctx.request.headers.get("content-type"));
-    try {
-      if (ct.includes("application/json")) {
-        body = await ctx.request.json();
-      } else if (ct.includes("application/x-www-form-urlencoded")) {
-        const txt = await ctx.request.text();
-        const sp = new URLSearchParams(txt);
-        body = Object.fromEntries(sp.entries());
-      } else if (ct.includes("multipart/form-data")) {
-        const fd = await ctx.request.formData();
-        const obj: Record<string, unknown> = {};
-        for (const [k, v] of fd.entries()) obj[k] = v;
-        body = obj;
-      } else {
-        const txt = await ctx.request.text().catch(() => "");
-        body = txt ? (JSON.parse(txt) as any) : {};
-      }
-    } catch { body = {}; }
-  }
-
-  const actionRaw =
-    body?.action ?? qs.get("action") ?? body?.op ?? body?.cmd ?? body?.type ?? "";
-
-  const actionMap: Record<string, string> = {
-    add: "create",
-    create: "create",
-    new: "create",
-    save: "update",
-    upsert: "update",
-    update: "update",
-    edit: "update",
-    cancel: "cancel",
-    delete: "cancel",
-    remove: "cancel",
-    arrived: "arrived",
-    checkin: "arrived",
-    check_in: "arrived",
-    checkin_ok: "arrived",
-  };
-
-  const reservation: Record<string, unknown> =
-    (typeof body?.reservation === "object" && body?.reservation)
-      ? (body.reservation as Record<string, unknown>)
-      : (body as Record<string, unknown>);
-
-  // איסוף מועמדים ל-date/time מכל מקום הגיוני
-  const dateCandidate =
-    body?.date ??
-    reservation?.date ??
-    qs.get("date") ??
-    reservation?.["datetime"] ??
-    body?.datetime ??
-    "";
-
-  const timeCandidate =
-    body?.time ??
-    reservation?.time ??
-    (reservation as any)?.at ??
-    qs.get("time") ??
-    "";
-
-  // נרמול
-  const dateNorm = coerceISODate(dateCandidate);
-  const timeNorm = coerceHHmm(timeCandidate);
-
-  const action = actionMap[lower(String(actionRaw))] || lower(String(actionRaw));
-
-  return { action, date: dateNorm, time: timeNorm, reservation };
-}
-
-/* ---- Enrichment for Customer drawer (fallback from 'note') ---- */
-function splitName(full?: string): { first: string; last: string } {
-  const s = String(full ?? "").trim().replace(/\s+/g, " ");
-  if (!s) return { first: "", last: "" };
-  const parts = s.split(" ");
-  const first = parts.shift() || "";
-  const last = parts.join(" ");
-  return { first, last };
-}
-function extractFromNote(note?: string): { name?: string; phone?: string } {
-  const t = String(note ?? "");
-  const mName = t.match(/\bName:\s*([^;]+)\b/i);
-  const mPhone = t.match(/\bPhone:\s*([^;]+)/i);
-  return { name: mName ? mName[1].trim() : undefined, phone: mPhone ? mPhone[1].trim() : undefined };
-}
-
-/* ---------------- Access & capacities ---------------- */
 async function ensureOwnerAccess(ctx: any, rid: string): Promise<Restaurant> {
-  const user = await requireOwner(ctx);
+  const user = await requireOwner(ctx); // זורק אם אין גישה
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound, "Restaurant not found");
   if (r.ownerId !== user.id && (r as any).userId !== user.id) {
@@ -212,14 +64,14 @@ function mapOpenWindowsForTimeline(wins: Array<{ open: string; close: string }>)
   return wins.map(w => ({ start: w.open as `${number}${number}:${number}${number}`, end: w.close as `${number}${number}:${number}${number}` }));
 }
 
-/* ---------------- Routes ---------------- */
+// ---------- Routes ----------
 
 // HTML
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
   const date = ctx.request.url.searchParams.get("date");
-  const selected = date && isISODate(coerceISODate(date)) ? coerceISODate(date)! : todayISO();
+  const selected = isISODate(date) ? date! : todayISO();
 
   debugLog("owner_calendar", "GET /calendar", { rid, selected });
 
@@ -231,22 +83,20 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
   });
 });
 
-// JSON — יום (סלוטים רק בשעות פתיחה)
+// JSON — יום
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
   const date = ctx.request.url.searchParams.get("date");
-  const selected = date && isISODate(coerceISODate(date)) ? coerceISODate(date)! : todayISO();
+  const selected = isISODate(date) ? date! : todayISO();
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
-
-  const openWinsRaw = openingWindowsForDate(r, selected);
+  const openWinsRaw = openingWindowsForDate(r, selected); // ← מה-DB
   const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
   const timeline = buildDayTimeline(openWindows, slotMinutes);
 
-  const db = await import("../database.ts");
   const reservations: Reservation[] =
-    (await db.listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
+    (await (await import("../database.ts")).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
 
   const occupancy = computeOccupancyForDay({
     reservations,
@@ -262,7 +112,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   json(ctx, {
     ok: true,
     date: selected,
-    openWindows: openWinsRaw,
+    openWindows: openWinsRaw, // מחזירים במבנה {open,close} ל-UI
     slotMinutes,
     capacityPeople,
     capacityTables,
@@ -270,185 +120,76 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   });
 });
 
-// JSON — סלוט (מגירת לקוחות + העשרה משדה note)
+// JSON — סלוט
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
-  const dateRaw = ctx.request.url.searchParams.get("date");
-  const timeRaw = ctx.request.url.searchParams.get("time");
-
-  const date = coerceISODate(dateRaw);
-  const time = coerceHHmm(timeRaw);
-
+  const date = ctx.request.url.searchParams.get("date");
+  const time = ctx.request.url.searchParams.get("time");
   if (!isISODate(date) || !isHHMM(time)) ctx.throw(Status.BadRequest, "Bad date/time");
 
   const { slotMinutes, durationMinutes } = deriveCapacities(r);
   const range = slotRange(time!, durationMinutes, slotMinutes);
 
-  const db = await import("../database.ts");
   const items: Reservation[] =
-    (await db.listReservationsCoveringSlot?.(rid, date!, time!, {
+    (await (await import("../database.ts")).listReservationsCoveringSlot?.(rid, date!, time!, {
       slotMinutes,
       durationMinutes,
     })) ?? [];
 
-  const enriched = items.map((it: any) => {
-    let first = String(it.firstName ?? "");
-    let last  = String(it.lastName ?? "");
-    let phone = String(it.phone ?? "");
-    const notes = it.note ?? it.notes ?? "";
-
-    if ((!first || !last || !phone) && notes) {
-      const ext = extractFromNote(String(notes));
-      if ((!first || !last) && ext.name) {
-        const s = splitName(ext.name);
-        if (!first) first = s.first;
-        if (!last)  last  = s.last;
-      }
-      if (!phone && ext.phone) phone = ext.phone;
-    }
-
-    return {
-      id: it.id,
-      firstName: first,
-      lastName: last,
-      phone,
-      people: Number(it.people ?? 0),
-      status: it.status ?? "approved",
-      notes,
-      at: it.time ?? time,
-    };
+  json(ctx, {
+    ok: true,
+    date,
+    time,
+    range,
+    items: items.map((it) => ({
+      id: (it as any).id,
+      firstName: (it as any).firstName ?? "",
+      lastName: (it as any).lastName ?? "",
+      phone: (it as any).phone ?? "",
+      people: Number((it as any).people ?? 0),
+      status: (it as any).status ?? "approved",
+      notes: (it as any).note ?? (it as any).notes ?? "",
+      at: (it as any).time ?? time,
+    })),
   });
-
-  json(ctx, { ok: true, date, time, range, items: enriched });
 });
 
-/* ===================== יצירה פשוטה ב-POST (ברירת מחדל create) ===================== */
-ownerCalendarRouter.post("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
+// 🔗 NEW: Redirect מסלוט למסך ההזמנה הציבורי
+// דוגמה: GET /owner/restaurants/:rid/calendar/slot/reserve?date=2025-10-14&time=19:30
+ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot/reserve", async (ctx) => {
   const { rid } = ctx.params;
   await ensureOwnerAccess(ctx, rid);
 
-  const { date, time, reservation } = await readActionPayload(ctx);
+  const date = ctx.request.url.searchParams.get("date");
+  const time = ctx.request.url.searchParams.get("time");
 
-  if (!isISODate(date) || !isHHMM(time)) ctx.throw(Status.BadRequest, "Bad date/time");
-
-  const payload = {
-    firstName: String((reservation as any)?.firstName ?? "").trim(),
-    lastName: String((reservation as any)?.lastName ?? "").trim(),
-    phone: String((reservation as any)?.phone ?? "").trim(),
-    people: Number((reservation as any)?.people ?? 0),
-    note: String((reservation as any)?.notes ?? (reservation as any)?.note ?? "").trim(),
-    status: String((reservation as any)?.status ?? "approved"),
-    date, time, source: "owner",
-  };
-
-  if (!payload.firstName || !payload.lastName || !payload.people) {
-    ctx.throw(Status.BadRequest, "Missing fields");
+  if (!isISODate(date) || !isHHMM(time)) {
+    ctx.throw(Status.BadRequest, "Bad date/time");
   }
 
-  const db = await import("../database.ts");
-
-  let created: any;
-  if (typeof (db as any).createManualReservation === "function") {
-    created = await (db as any).createManualReservation(rid, {
-      firstName: payload.firstName,
-      lastName: payload.lastName,
-      phone: payload.phone,
-      people: payload.people,
-      notes: payload.note,
-      status: payload.status,
-      date, time,
-    });
-  } else if (typeof (db as any).createReservation === "function") {
-    created = await (db as any).createReservation({
-      id: crypto.randomUUID(),
-      restaurantId: rid,
-      userId: `manual:${rid}`,
-      date, time,
-      people: payload.people,
-      note: payload.note,
-      status: "confirmed",
-      firstName: payload.firstName,
-      lastName: payload.lastName,
-      phone: payload.phone,
-      durationMinutes: 120,
-      createdAt: Date.now(),
-    } as Reservation);
-  } else {
-    ctx.throw(Status.NotImplemented, "createReservation is not available in database.ts");
-  }
-
-  json(ctx, {
-    ok: true,
-    item: {
-      id: created?.id ?? created?.reservationId ?? created?.key ?? crypto.randomUUID?.(),
-      firstName: payload.firstName,
-      lastName: payload.lastName,
-      phone: payload.phone,
-      people: payload.people,
-      status: payload.status,
-      notes: payload.note,
-      at: time,
-      date,
-    },
-  });
+  const target = `/restaurants/${encodeURIComponent(rid)}/reserve?date=${encodeURIComponent(date!)}&time=${encodeURIComponent(time!)}`;
+  ctx.response.status = Status.Found; // 302
+  ctx.response.headers.set("Location", target);
+  json(ctx, { ok: true, redirect: target }, Status.Found); // אופציונלי: גוף עזר לדיבוג
 });
 
-/* ===================== PATCH: יצירה/עדכון/ביטול/הגעה ===================== */
-function inferAction(
-  explicitAction: string,
-  reservation: Record<string, unknown>,
-  method?: string,
-): "create" | "update" | "cancel" | "arrived" {
-  const r: any = reservation || {};
-  const hasId = !!r.id && String(r.id).trim().length > 0;
-  const hasAnyCustomerField =
-    !!(String(r.firstName ?? "").trim() ||
-       String(r.lastName ?? "").trim() ||
-       String(r.phone ?? "").trim() ||
-       Number(r.people ?? 0) > 0);
-
-  const raw = lower(String(r.status ?? explicitAction ?? ""));
-  const wantsCancel = ["cancel", "cancelled", "canceled"].includes(raw) || r.cancel === true;
-  const wantsArrived = ["arrived", "checkin", "check_in"].includes(raw) || r.arrived === true || r.checkin === true;
-
-  let act = lower(explicitAction) as any;
-  if (wantsCancel) act = "cancel";
-  else if (wantsArrived) act = "arrived";
-
-  if (!act) {
-    if (hasId) act = "update";
-    else if (method === "PATCH") act = "create";
-  }
-  if (!act && !hasId && hasAnyCustomerField) act = "create";
-  if (!act) act = "create";
-  return act;
-}
-
+// JSON — פעולות סלוט: create/update/cancel/arrived
 ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
   const { rid } = ctx.params;
   await ensureOwnerAccess(ctx, rid);
 
-  let { action, date, time, reservation } = await readActionPayload(ctx);
-  action = inferAction(action, reservation, "PATCH");
+  const body = await readBody(ctx).catch(() => ({}));
+  const action = String(body?.action ?? "").trim();
+  const date = String(body?.date ?? "");
+  const time = String(body?.time ?? "");
+  const reservation = body?.reservation ?? {};
 
   if (!["create", "update", "cancel", "arrived"].includes(action)) {
-    debugLog("owner_calendar", "PATCH invalid action", { action, date, time, keys: Object.keys(reservation || {}) });
-    action = "create";
+    ctx.throw(Status.BadRequest, "Unknown action");
   }
-
   if (!isISODate(date) || !isHHMM(time)) {
-    // ניסיון אחרון: אולי נשלח date/time בתוך note כתאריך-זמן מלא — ננסה לחלץ
-    const maybeNote = String((reservation as any)?.note ?? (reservation as any)?.notes ?? "");
-    const mDate = maybeNote.match(/(\d{4}-\d{2}-\d{2})/);
-    const mTime = maybeNote.match(/\b(\d{1,2}):(\d{2})\b/);
-    const coercedDate = isISODate(date) ? date : (mDate ? coerceISODate(mDate[1]) : "");
-    const coercedTime = isHHMM(time) ? time : (mTime ? coerceHHmm(`${mTime[1]}:${mTime[2]}`) : "");
-    if (!isISODate(coercedDate) || !isHHMM(coercedTime)) {
-      ctx.throw(Status.BadRequest, "Bad date/time");
-    }
-    date = coercedDate;
-    time = coercedTime;
+    ctx.throw(Status.BadRequest, "Bad date/time");
   }
 
   debugLog("owner_calendar", "PATCH /slot", { rid, action, date, time });
@@ -458,74 +199,48 @@ ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) =
 
   if (action === "create") {
     const payload = {
-      firstName: String((reservation as any)?.firstName ?? "").trim(),
-      lastName: String((reservation as any)?.lastName ?? "").trim(),
-      phone: String((reservation as any)?.phone ?? "").trim(),
-      people: Number((reservation as any)?.people ?? 0),
-      note: String((reservation as any)?.notes ?? (reservation as any)?.note ?? "").trim(),
-      status: String((reservation as any)?.status ?? "approved"),
-      date, time, source: "owner",
+      firstName: String(reservation?.firstName ?? "").trim(),
+      lastName: String(reservation?.lastName ?? "").trim(),
+      phone: String(reservation?.phone ?? "").trim(),
+      people: Number(reservation?.people ?? 0),
+      notes: String(reservation?.notes ?? reservation?.note ?? "").trim(),
+      status: String(reservation?.status ?? "approved"),
+      date, time,
     };
     if (!payload.firstName || !payload.lastName || !payload.people) {
       ctx.throw(Status.BadRequest, "Missing fields");
     }
-    if (typeof (db as any).createManualReservation === "function") {
-      result = await (db as any).createManualReservation(rid, {
-        firstName: payload.firstName,
-        lastName: payload.lastName,
-        phone: payload.phone,
-        people: payload.people,
-        notes: payload.note,
-        status: payload.status,
-        date, time,
-      });
-    } else if (typeof (db as any).createReservation === "function") {
-      result = await (db as any).createReservation({
-        id: crypto.randomUUID(),
-        restaurantId: rid,
-        userId: `manual:${rid}`,
-        date, time,
-        people: payload.people,
-        note: payload.note,
-        status: "confirmed",
-        firstName: payload.firstName,
-        lastName: payload.lastName,
-        phone: payload.phone,
-        durationMinutes: 120,
-        createdAt: Date.now(),
-      } as Reservation);
-    } else {
-      ctx.throw(Status.NotImplemented, "createReservation is not available in database.ts");
-    }
+    if (!db.createManualReservation) ctx.throw(Status.NotImplemented, "createManualReservation not implemented yet");
+    result = await db.createManualReservation(rid, payload);
   }
 
   if (action === "update") {
-    const id = String((reservation as any)?.id ?? "");
+    const id = String(reservation?.id ?? "");
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
     const patch: Partial<Reservation> = {
-      firstName: (reservation as any)?.firstName,
-      lastName: (reservation as any)?.lastName,
-      phone: (reservation as any)?.phone,
-      people: (reservation as any)?.people ? Number((reservation as any)?.people) : undefined,
-      note: (reservation as any)?.notes ?? (reservation as any)?.note,
-      status: (reservation as any)?.status,
+      firstName: reservation?.firstName,
+      lastName: reservation?.lastName,
+      phone: reservation?.phone,
+      people: reservation?.people ? Number(reservation?.people) : undefined,
+      note: reservation?.notes ?? reservation?.note,
+      status: reservation?.status,
     } as any;
-    if (!(db as any).updateReservationFields) ctx.throw(Status.NotImplemented, "updateReservationFields not implemented yet");
-    result = await (db as any).updateReservationFields(id, patch);
+    if (!db.updateReservationFields) ctx.throw(Status.NotImplemented, "updateReservationFields not implemented yet");
+    result = await db.updateReservationFields(id, patch);
   }
 
   if (action === "cancel") {
-    const id = String((reservation as any)?.id ?? "");
+    const id = String(reservation?.id ?? "");
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
-    if (!(db as any).cancelReservation) ctx.throw(Status.NotImplemented, "cancelReservation not implemented yet");
-    result = await (db as any).cancelReservation(id, String((reservation as any)?.reason ?? ""));
+    if (!db.cancelReservation) ctx.throw(Status.NotImplemented, "cancelReservation not implemented yet");
+    result = await db.cancelReservation(id, String(reservation?.reason ?? ""));
   }
 
   if (action === "arrived") {
-    const id = String((reservation as any)?.id ?? "");
+    const id = String(reservation?.id ?? "");
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
-    if (!(db as any).markArrived) ctx.throw(Status.NotImplemented, "markArrived not implemented yet");
-    result = await (db as any).markArrived(id);
+    if (!db.markArrived) ctx.throw(Status.NotImplemented, "markArrived not implemented yet");
+    result = await db.markArrived(id);
   }
 
   json(ctx, { ok: true, result });
@@ -536,8 +251,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
   const { rid } = ctx.params;
   await ensureOwnerAccess(ctx, rid);
 
-  const dateRaw = ctx.request.url.searchParams.get("date");
-  const date = coerceISODate(dateRaw);
+  const date = ctx.request.url.searchParams.get("date");
   const qraw = ctx.request.url.searchParams.get("q") ?? "";
   const q = qraw.trim().toLowerCase();
 
@@ -573,12 +287,11 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
 
-  const dateRaw = ctx.request.url.searchParams.get("date");
-  const selected = dateRaw && isISODate(coerceISODate(dateRaw)) ? coerceISODate(dateRaw)! : todayISO();
+  const date = ctx.request.url.searchParams.get("date");
+  const selected = isISODate(date) ? date! : todayISO();
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
-
-  const openWinsRaw = openingWindowsForDate(r, selected);
+  const openWinsRaw = openingWindowsForDate(r, selected); // ← מה-DB
   const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
   const timeline = buildDayTimeline(openWindows, slotMinutes);
 
