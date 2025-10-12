@@ -9,7 +9,7 @@ import { debugLog } from "../lib/debug.ts";
 // שכבת נתונים
 import {
   getRestaurant,
-  openingWindowsForDate, // כמו בקוד שעבד: נקרא עם r ולא עם r.id
+  openingWindowsForDate,
   type Restaurant,
   type Reservation,
 } from "../database.ts";
@@ -79,10 +79,13 @@ async function readActionPayload(ctx: any): Promise<{
     add: "create",
     create: "create",
     new: "create",
+    save: "update",
+    upsert: "update",
     update: "update",
     edit: "update",
     cancel: "cancel",
     delete: "cancel",
+    remove: "cancel",
     arrived: "arrived",
     checkin: "arrived",
     check_in: "arrived",
@@ -93,10 +96,11 @@ async function readActionPayload(ctx: any): Promise<{
   const date = String(body?.date ?? qs.get("date") ?? "").trim();
   const time = String(body?.time ?? qs.get("time") ?? "").trim();
 
+  // חלק מהקליינטים שולחים את כל השדות בשורש הגוף, לא תחת reservation
   const reservation =
     (typeof body?.reservation === "object" && body?.reservation)
       ? (body.reservation as Record<string, unknown>)
-      : body;
+      : (body as Record<string, unknown>);
 
   return { action, date, time, reservation };
 }
@@ -164,7 +168,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
   });
 });
 
-// JSON — יום (מחזיר סלוטים רק בשעות פתיחה — כמו שעבד בעבר)
+// JSON — יום (סלוטים רק בשעות פתיחה)
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
@@ -173,9 +177,9 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
 
-  const openWinsRaw = openingWindowsForDate(r, selected); // ← מה-DB (כמו שעבד)
+  const openWinsRaw = openingWindowsForDate(r, selected);
   const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
-  const timeline = buildDayTimeline(openWindows, slotMinutes); // timeline רק לטווחי פתיחה
+  const timeline = buildDayTimeline(openWindows, slotMinutes);
 
   const db = await import("../database.ts");
   const reservations: Reservation[] =
@@ -249,13 +253,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
     };
   });
 
-  json(ctx, {
-    ok: true,
-    date,
-    time,
-    range,
-    items: enriched,
-  });
+  json(ctx, { ok: true, date, time, range, items: enriched });
 });
 
 /* ===================== יצירה פשוטה ב-POST (ברירת מחדל create) ===================== */
@@ -265,9 +263,7 @@ ownerCalendarRouter.post("/owner/restaurants/:rid/calendar/slot", async (ctx) =>
 
   const { date, time, reservation } = await readActionPayload(ctx);
 
-  if (!isISODate(date) || !isHHMM(time)) {
-    ctx.throw(Status.BadRequest, "Bad date/time");
-  }
+  if (!isISODate(date) || !isHHMM(time)) ctx.throw(Status.BadRequest, "Bad date/time");
 
   const payload = {
     firstName: String((reservation as any)?.firstName ?? "").trim(),
@@ -276,9 +272,7 @@ ownerCalendarRouter.post("/owner/restaurants/:rid/calendar/slot", async (ctx) =>
     people: Number((reservation as any)?.people ?? 0),
     note: String((reservation as any)?.notes ?? (reservation as any)?.note ?? "").trim(),
     status: String((reservation as any)?.status ?? "approved"),
-    date,
-    time,
-    source: "owner",
+    date, time, source: "owner",
   };
 
   if (!payload.firstName || !payload.lastName || !payload.people) {
@@ -296,8 +290,7 @@ ownerCalendarRouter.post("/owner/restaurants/:rid/calendar/slot", async (ctx) =>
       people: payload.people,
       notes: payload.note,
       status: payload.status,
-      date,
-      time,
+      date, time,
     });
   } else if (typeof (db as any).createReservation === "function") {
     created = await (db as any).createReservation({
@@ -335,29 +328,42 @@ ownerCalendarRouter.post("/owner/restaurants/:rid/calendar/slot", async (ctx) =>
 });
 
 /* ===================== PATCH: יצירה/עדכון/ביטול/הגעה ===================== */
-/** אינפרנס פעולה כשלא נשלח action — כדי להיפטר מ-"Unknown action" */
+/** אינפרנס פעולה — דיפולט אגרסיבי יותר ל-"create" כדי למנוע Unknown action */
 function inferAction(
-  action: string,
+  explicitAction: string,
   reservation: Record<string, unknown>,
-): "create" | "update" | "cancel" | "arrived" | "" {
-  let act = action ? (action as any) : "";
-
+  method?: string,
+): "create" | "update" | "cancel" | "arrived" {
   const r: any = reservation || {};
-  const hasId = !!r.id;
-  const hasNames = !!(r.firstName || r.lastName);
-  const hasPeople = Number(r.people) > 0;
+  const hasId = !!r.id && String(r.id).trim().length > 0;
+  const hasAnyCustomerField =
+    !!(String(r.firstName ?? "").trim() ||
+       String(r.lastName ?? "").trim() ||
+       String(r.phone ?? "").trim() ||
+       Number(r.people ?? 0) > 0);
 
-  const raw = lower(String(r.status ?? r.action ?? ""));
+  const raw = lower(String(r.status ?? explicitAction ?? ""));
   const wantsCancel = ["cancel", "cancelled", "canceled"].includes(raw) || r.cancel === true;
   const wantsArrived = ["arrived", "checkin", "check_in"].includes(raw) || r.arrived === true || r.checkin === true;
 
+  // 1) אם נשלח מפורש — כבד אותו אם אפשר
+  let act = lower(explicitAction) as any;
+  if (wantsCancel) act = "cancel";
+  else if (wantsArrived) act = "arrived";
+
+  // 2) לא נשלח? — כלל אצבע:
   if (!act) {
-    if (wantsCancel) act = "cancel";
-    else if (wantsArrived) act = "arrived";
-    else if (!hasId && hasNames && hasPeople) act = "create";
-    else if (hasId) act = "update";
+    if (hasId) act = "update";
+    else if (method === "PATCH") act = "create"; // ← דיפולט: יצירה
   }
-  return (act as any);
+
+  // 3) אם עדיין לא נקבע — ועדיין אין id אבל יש שדות לקוח → create
+  if (!act && !hasId && hasAnyCustomerField) act = "create";
+
+  // 4) חסם סופי — אם לא הצלחנו להסיק, נעדיף create ולא נשאיר ריק
+  if (!act) act = "create";
+
+  return act;
 }
 
 ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
@@ -365,11 +371,13 @@ ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) =
   await ensureOwnerAccess(ctx, rid);
 
   let { action, date, time, reservation } = await readActionPayload(ctx);
-  action = inferAction(action, reservation);
+  const inferred = inferAction(action, reservation, "PATCH");
+  action = inferred;
 
   if (!["create", "update", "cancel", "arrived"].includes(action)) {
     debugLog("owner_calendar", "PATCH invalid action", { action, date, time, keys: Object.keys(reservation || {}) });
-    ctx.throw(Status.BadRequest, "Unknown action");
+    // במקום לזרוק — ניפול ל-create כדי לעזור לקליינט לא תקני
+    action = "create";
   }
   if (!isISODate(date) || !isHHMM(time)) {
     ctx.throw(Status.BadRequest, "Bad date/time");
@@ -388,9 +396,7 @@ ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) =
       people: Number((reservation as any)?.people ?? 0),
       note: String((reservation as any)?.notes ?? (reservation as any)?.note ?? "").trim(),
       status: String((reservation as any)?.status ?? "approved"),
-      date,
-      time,
-      source: "owner",
+      date, time, source: "owner",
     };
     if (!payload.firstName || !payload.lastName || !payload.people) {
       ctx.throw(Status.BadRequest, "Missing fields");
@@ -403,8 +409,7 @@ ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) =
         people: payload.people,
         notes: payload.note,
         status: payload.status,
-        date,
-        time,
+        date, time,
       });
     } else if (typeof (db as any).createReservation === "function") {
       result = await (db as any).createReservation({
@@ -504,8 +509,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
 
-  // כמו בקוד שעבד: משתמשים ב-r (לא r.id), ובונים timeline רק מחלונות פתיחה
-  const openWinsRaw = openingWindowsForDate(r, selected); // ← מה-DB
+  const openWinsRaw = openingWindowsForDate(r, selected);
   const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
   const timeline = buildDayTimeline(openWindows, slotMinutes);
 
