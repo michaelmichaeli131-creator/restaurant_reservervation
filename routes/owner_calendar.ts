@@ -155,25 +155,6 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
   });
 });
 
-// 🔗 NEW: Redirect מסלוט למסך ההזמנה הציבורי
-// דוגמה: GET /owner/restaurants/:rid/calendar/slot/reserve?date=2025-10-14&time=19:30
-ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot/reserve", async (ctx) => {
-  const { rid } = ctx.params;
-  await ensureOwnerAccess(ctx, rid);
-
-  const date = ctx.request.url.searchParams.get("date");
-  const time = ctx.request.url.searchParams.get("time");
-
-  if (!isISODate(date) || !isHHMM(time)) {
-    ctx.throw(Status.BadRequest, "Bad date/time");
-  }
-
-  const target = `/restaurants/${encodeURIComponent(rid)}/reserve?date=${encodeURIComponent(date!)}&time=${encodeURIComponent(time!)}`;
-  ctx.response.status = Status.Found; // 302
-  ctx.response.headers.set("Location", target);
-  json(ctx, { ok: true, redirect: target }, Status.Found); // אופציונלי: גוף עזר לדיבוג
-});
-
 // JSON — פעולות סלוט: create/update/cancel/arrived
 ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
   const { rid } = ctx.params;
