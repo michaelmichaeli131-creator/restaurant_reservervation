@@ -5,15 +5,16 @@
   const $ = (sel, root) => (root || document).querySelector(sel);
   const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
 
+  const boot = (window.__OC__ && typeof window.__OC__ === "object") ? window.__OC__ : {};
   const state = {
-    rid: (window.__OC__ && __OC__.rid) || "",
-    date: (window.__OC__ && __OC__.date) || "",
+    rid: boot.rid || "",
+    date: boot.date || "",
     slots: [],
     caps: { people: 0, tables: 0, step: 15 },
     drawer: { time: null, items: [], filter: "" },
   };
 
-  // Elements
+  // Elements (guard against null)
   const dateLabel = $("#date-label");
   const datePicker = $("#datePicker");
   const btnPrev = $("#btn-prev");
@@ -49,7 +50,10 @@
     return phone ? `<a href="tel:${phone.replace(/\s+/g,'')}">${phone}</a>` : "";
   };
 
-  const colorClass = (pct) => (pct >= 80 ? "barr" : pct >= 50 ? "bary" : "barg");
+  const colorClass = (pctRaw) => {
+    const pct = Number.isFinite(+pctRaw) ? +pctRaw : 0;
+    return pct >= 80 ? "barr" : pct >= 50 ? "bary" : "barg";
+  };
 
   async function getJSON(url) {
     const res = await fetch(url, { credentials: "same-origin" });
@@ -58,6 +62,7 @@
   }
 
   async function loadDay(dateISO) {
+    if (!slotsWrap) return;
     // Day payload
     const day = await getJSON(
       `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day?date=${encodeURIComponent(
@@ -65,43 +70,48 @@
       )}`
     );
     state.date = day.date || dateISO;
-    datePicker.value = state.date;
-    dateLabel.textContent = state.date;
+    if (datePicker) datePicker.value = state.date;
+    if (dateLabel) dateLabel.textContent = state.date;
 
     // Caps line
     state.caps.people = Number(day.capacityPeople || 0);
     state.caps.tables = Number(day.capacityTables || 0);
     state.caps.step = Number(day.slotMinutes || 15);
-    capLine.textContent = `Capacity: People ${state.caps.people} • Tables ${state.caps.tables} • Step: ${state.caps.step}`;
+    if (capLine) {
+      capLine.textContent = `Capacity: People ${state.caps.people} • Tables ${state.caps.tables} • Step: ${state.caps.step}`;
+    }
 
     // Slots
     state.slots = Array.isArray(day.slots) ? day.slots : [];
     renderSlots();
 
     // Summary
-    try {
-      const sum = await getJSON(
-        `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day/summary?date=${encodeURIComponent(
-          state.date
-        )}`
-      );
-      summaryBox.textContent = `Daily Summary — reservations ${sum.totalReservations || 0} • guests ${sum.totalGuests || 0} • peak ${sum.peakOccupancy || 0}%`;
-    } catch {
-      summaryBox.textContent = "";
+    if (summaryBox) {
+      try {
+        const sum = await getJSON(
+          `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day/summary?date=${encodeURIComponent(
+            state.date
+          )}`
+        );
+        summaryBox.textContent = `Daily Summary — reservations ${sum.totalReservations || 0} • guests ${sum.totalGuests || 0} • peak ${sum.peakOccupancy || 0}%`;
+      } catch {
+        summaryBox.textContent = "";
+      }
     }
   }
 
   function renderSlots() {
+    if (!slotsWrap) return;
+
     // clear existing rows except header
     $$(".oc-row", slotsWrap)
       .filter((el) => !el.classList.contains("oc-th"))
       .forEach((el) => el.remove());
 
-    const q = (daySearch.value || "").trim().toLowerCase();
+    const q = (daySearch && daySearch.value || "").trim().toLowerCase();
     const byName = q.length > 0;
 
     state.slots.forEach((s) => {
-      // if day search is active, we fetch slot items live and decide highlight later when opening drawer.
       const row = document.createElement("div");
       row.className = "oc-row";
       row.dataset.time = s.time;
@@ -111,8 +121,8 @@
 
       const colOcc = document.createElement("div");
       const bar = document.createElement("div");
-      bar.className = colorClass(Number(s.percent));
-      bar.style.width = Math.max(0, Math.min(100, Number(s.percent))) + "%";
+      bar.className = colorClass(s.percent);
+      bar.style.width = Math.max(0, Math.min(100, Number(s.percent || 0))) + "%";
       colOcc.appendChild(bar);
 
       const colInfo = document.createElement("div");
@@ -125,7 +135,7 @@
 
       row.addEventListener("click", () => openSlot(state.date, s.time));
 
-      // Simple highlight if name search is active → add dashed border (will refine after opening)
+      // Simple highlight if name search is active → visual hint (actual filtering inside drawer)
       if (byName) row.style.outline = "1px dashed #c7d2fe";
 
       slotsWrap.appendChild(row);
@@ -133,8 +143,8 @@
   }
 
   async function openSlot(date, time) {
-    drawer.classList.add("open");
-    drawerTitle.textContent = `Customers — ${time}`;
+    if (drawer) drawer.classList.add("open");
+    if (drawerTitle) drawerTitle.textContent = `Customers — ${time}`;
     state.drawer.time = time;
     state.drawer.items = [];
     state.drawer.filter = "";
@@ -146,17 +156,19 @@
     );
     state.drawer.items = Array.isArray(payload.items) ? payload.items : [];
 
-    // Apply drawer search (if any)
     renderDrawerTable();
   }
 
   function renderDrawerTable() {
-    const q = (drawerSearch.value || "").trim().toLowerCase();
+    if (!drawerTableBody) return;
+
+    const q = (drawerSearch && drawerSearch.value || "").trim().toLowerCase();
     const items = state.drawer.items.filter((it) => {
       if (!q) return true;
       const f = String(it.firstName || "").toLowerCase();
       const l = String(it.lastName || "").toLowerCase();
-      return f.includes(q) || l.includes(q);
+      const p = String(it.phone || "").toLowerCase();
+      return f.includes(q) || l.includes(q) || p.includes(q); // ← גם לפי טלפון
     });
 
     // empty
@@ -198,18 +210,17 @@
         <button class="btn sm warn" data-act="cancel">Cancel</button>
       `;
 
-      // Actions
       tdActions.addEventListener("click", async (ev) => {
         const b = ev.target.closest && ev.target.closest("button[data-act]");
         if (!b) return;
         const act = b.getAttribute("data-act");
         if (act === "arrived") {
           await patchSlot("arrived", { id: it.id });
-          await reopenSlot();
+          await Promise.all([reopenSlot(), loadDay(state.date)]); // ← רענון גם לגריד
         } else if (act === "cancel") {
           if (!confirm("Cancel this reservation?")) return;
           await patchSlot("cancel", { id: it.id, reason: "" });
-          await reopenSlot();
+          await Promise.all([reopenSlot(), loadDay(state.date)]);
         } else if (act === "edit") {
           const firstName = prompt("First name", it.firstName || "") || "";
           const lastName = prompt("Last name", it.lastName || "") || "";
@@ -217,10 +228,8 @@
           const people = Number(prompt("Party size", String(it.people || 0)) || 0);
           const notes = prompt("Notes", it.notes || "") || "";
           const status = prompt("Status (invited/approved/arrived/cancelled)", it.status || "approved") || "approved";
-          await patchSlot("update", {
-            id: it.id, firstName, lastName, phone, people, notes, status
-          });
-          await reopenSlot();
+          await patchSlot("update", { id: it.id, firstName, lastName, phone, people, notes, status });
+          await Promise.all([reopenSlot(), loadDay(state.date)]);
         }
       });
 
@@ -255,41 +264,61 @@
   }
 
   async function reopenSlot() {
-    // reload current slot & re-render
     await openSlot(state.date, state.drawer.time);
   }
 
   // Add customer
-  btnAdd.addEventListener("click", async () => {
-    if (!state.drawer.time) return;
-    const firstName = prompt("First name") || "";
-    const lastName = prompt("Last name") || "";
-    const phone = prompt("Phone") || "";
-    const people = Number(prompt("Party size", "2") || 2);
-    const notes = prompt("Notes") || "";
-    const status = "approved";
+  if (btnAdd) {
+    btnAdd.addEventListener("click", async () => {
+      if (!state.drawer.time) return;
+      const firstName = prompt("First name") || "";
+      const lastName = prompt("Last name") || "";
+      const phone = prompt("Phone") || "";
+      const people = Number(prompt("Party size", "2") || 2);
+      const notes = prompt("Notes") || "";
+      const status = "approved";
 
-    if (!firstName || !lastName || !people) return;
+      if (!firstName || !lastName || !people) return;
 
-    await patchSlot("create", { firstName, lastName, phone, people, notes, status });
-    await reopenSlot();
-  });
+      await patchSlot("create", { firstName, lastName, phone, people, notes, status });
+      await Promise.all([reopenSlot(), loadDay(state.date)]);
+    });
+  }
 
   // Drawer events
-  drawerClose.addEventListener("click", () => drawer.classList.remove("open"));
-  drawer.addEventListener("click", (ev) => {
-    if (ev.target === drawer) drawer.classList.remove("open");
-  });
-  drawerSearch.addEventListener("input", renderDrawerTable);
+  if (drawerClose) {
+    drawerClose.addEventListener("click", () => drawer && drawer.classList.remove("open"));
+  }
+  if (drawer) {
+    drawer.addEventListener("click", (ev) => {
+      if (ev.target === drawer) drawer.classList.remove("open");
+    });
+  }
+  if (drawerSearch) {
+    drawerSearch.addEventListener("input", renderDrawerTable);
+  }
 
   // Day search — highlight is simple; true filtering happens inside the drawer per slot
-  daySearch.addEventListener("input", renderSlots);
+  if (daySearch) {
+    daySearch.addEventListener("input", renderSlots);
+  }
 
   // Date controls
-  btnPrev.addEventListener("click", () => loadDay(addDays(state.date, -1)));
-  btnNext.addEventListener("click", () => loadDay(addDays(state.date, +1)));
-  dateLabel.addEventListener("click", () => datePicker.showPicker && datePicker.showPicker());
-  datePicker.addEventListener("change", () => loadDay(datePicker.value));
+  if (btnPrev) btnPrev.addEventListener("click", () => loadDay(addDays(state.date, -1)));
+  if (btnNext) btnNext.addEventListener("click", () => loadDay(addDays(state.date, +1)));
+  if (dateLabel) {
+    dateLabel.addEventListener("click", () => {
+      if (datePicker && typeof datePicker.showPicker === "function") {
+        datePicker.showPicker();
+      } else if (datePicker) {
+        datePicker.focus();
+        datePicker.click();
+      }
+    });
+  }
+  if (datePicker) {
+    datePicker.addEventListener("change", () => loadDay(datePicker.value));
+  }
 
   // init
   if (state.rid && state.date) {
