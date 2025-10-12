@@ -29,8 +29,6 @@ function todayISO(): string {
   const d = new Date();
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
-function isISODate(s?: string | null): s is string { return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s); }
-function isHHMM(s?: string | null): s is string { return !!s && /^\d{2}:\d{2}$/.test(s ?? ""); }
 function json(ctx: any, data: unknown, status = Status.OK) {
   ctx.response.status = status;
   ctx.response.type = "application/json; charset=utf-8";
@@ -38,7 +36,55 @@ function json(ctx: any, data: unknown, status = Status.OK) {
 }
 function lower(s?: string) { return String(s ?? "").trim().toLowerCase(); }
 
-/** פענוח גוף לבקשות יצירה/עדכון — עמיד לכל Content-Type + fallback ל-querystring */
+/** נרמול שעה: תומך ב-"7:30", "07.30", "19:30:00", "2025-10-12T19:30", "T19:30" וכו' → "HH:mm" */
+function coerceHHmm(raw?: unknown): string {
+  let s = String(raw ?? "").trim();
+  if (!s) return "";
+  // חתוך ISO date-time לקטע השעה
+  const mIso = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::\d{2})?$/);
+  if (mIso) return `${mIso[4]}:${mIso[5]}`;
+  // "T19:30" / " t19:30 "
+  const mT = s.match(/T(\d{1,2}):(\d{2})/i);
+  if (mT) s = `${mT[1]}:${mT[2]}`;
+
+  // "07.30" → "07:30"
+  if (/^\d{1,2}\.\d{2}$/.test(s)) s = s.replace(".", ":");
+  // "19:30:00" → "19:30"
+  const hms = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!hms) return "";
+  const h = Math.max(0, Math.min(23, Number(hms[1])));
+  const mi = Math.max(0, Math.min(59, Number(hms[2])));
+  return `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
+}
+
+/** נרמול תאריך: תומך גם ב-ISO datetime "YYYY-MM-DDTHH:mm(:ss)" → "YYYY-MM-DD" */
+function coerceISODate(raw?: unknown): string {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  // אם נתון מלא עם זמן — נקח רק את החלק הראשון
+  const mFull = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (mFull) {
+    const y = Number(mFull[1]), mon = Number(mFull[2]), d = Number(mFull[3]);
+    if (y >= 1900 && mon >= 1 && mon <= 12 && d >= 1 && d <= 31) {
+      return `${String(y)}-${String(mon).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+  }
+  // נסה לפרסר ל-Date ואז לפלוט Y-M-D מקומי
+  const dt = new Date(s);
+  if (!isNaN(dt.getTime())) {
+    return `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`;
+  }
+  return "";
+}
+
+function isISODate(s?: string | null): s is string {
+  return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+function isHHMM(s?: string | null): s is string {
+  return !!s && /^\d{2}:\d{2}$/.test(s ?? "");
+}
+
+/** פענוח גוף לבקשות — עמיד ל-Content-Type ומייצר דיפולטים סבירים */
 async function readActionPayload(ctx: any): Promise<{
   action: string;
   date: string;
@@ -92,17 +138,34 @@ async function readActionPayload(ctx: any): Promise<{
     checkin_ok: "arrived",
   };
 
-  const action = actionMap[lower(String(actionRaw))] || lower(String(actionRaw));
-  const date = String(body?.date ?? qs.get("date") ?? "").trim();
-  const time = String(body?.time ?? qs.get("time") ?? "").trim();
-
-  // חלק מהקליינטים שולחים את כל השדות בשורש הגוף, לא תחת reservation
-  const reservation =
+  const reservation: Record<string, unknown> =
     (typeof body?.reservation === "object" && body?.reservation)
       ? (body.reservation as Record<string, unknown>)
       : (body as Record<string, unknown>);
 
-  return { action, date, time, reservation };
+  // איסוף מועמדים ל-date/time מכל מקום הגיוני
+  const dateCandidate =
+    body?.date ??
+    reservation?.date ??
+    qs.get("date") ??
+    reservation?.["datetime"] ??
+    body?.datetime ??
+    "";
+
+  const timeCandidate =
+    body?.time ??
+    reservation?.time ??
+    (reservation as any)?.at ??
+    qs.get("time") ??
+    "";
+
+  // נרמול
+  const dateNorm = coerceISODate(dateCandidate);
+  const timeNorm = coerceHHmm(timeCandidate);
+
+  const action = actionMap[lower(String(actionRaw))] || lower(String(actionRaw));
+
+  return { action, date: dateNorm, time: timeNorm, reservation };
 }
 
 /* ---- Enrichment for Customer drawer (fallback from 'note') ---- */
@@ -156,7 +219,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
   const date = ctx.request.url.searchParams.get("date");
-  const selected = isISODate(date) ? date! : todayISO();
+  const selected = date && isISODate(coerceISODate(date)) ? coerceISODate(date)! : todayISO();
 
   debugLog("owner_calendar", "GET /calendar", { rid, selected });
 
@@ -173,7 +236,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
   const date = ctx.request.url.searchParams.get("date");
-  const selected = isISODate(date) ? date! : todayISO();
+  const selected = date && isISODate(coerceISODate(date)) ? coerceISODate(date)! : todayISO();
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
 
@@ -211,8 +274,12 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
-  const date = ctx.request.url.searchParams.get("date");
-  const time = ctx.request.url.searchParams.get("time");
+  const dateRaw = ctx.request.url.searchParams.get("date");
+  const timeRaw = ctx.request.url.searchParams.get("time");
+
+  const date = coerceISODate(dateRaw);
+  const time = coerceHHmm(timeRaw);
+
   if (!isISODate(date) || !isHHMM(time)) ctx.throw(Status.BadRequest, "Bad date/time");
 
   const { slotMinutes, durationMinutes } = deriveCapacities(r);
@@ -328,7 +395,6 @@ ownerCalendarRouter.post("/owner/restaurants/:rid/calendar/slot", async (ctx) =>
 });
 
 /* ===================== PATCH: יצירה/עדכון/ביטול/הגעה ===================== */
-/** אינפרנס פעולה — דיפולט אגרסיבי יותר ל-"create" כדי למנוע Unknown action */
 function inferAction(
   explicitAction: string,
   reservation: Record<string, unknown>,
@@ -346,23 +412,16 @@ function inferAction(
   const wantsCancel = ["cancel", "cancelled", "canceled"].includes(raw) || r.cancel === true;
   const wantsArrived = ["arrived", "checkin", "check_in"].includes(raw) || r.arrived === true || r.checkin === true;
 
-  // 1) אם נשלח מפורש — כבד אותו אם אפשר
   let act = lower(explicitAction) as any;
   if (wantsCancel) act = "cancel";
   else if (wantsArrived) act = "arrived";
 
-  // 2) לא נשלח? — כלל אצבע:
   if (!act) {
     if (hasId) act = "update";
-    else if (method === "PATCH") act = "create"; // ← דיפולט: יצירה
+    else if (method === "PATCH") act = "create";
   }
-
-  // 3) אם עדיין לא נקבע — ועדיין אין id אבל יש שדות לקוח → create
   if (!act && !hasId && hasAnyCustomerField) act = "create";
-
-  // 4) חסם סופי — אם לא הצלחנו להסיק, נעדיף create ולא נשאיר ריק
   if (!act) act = "create";
-
   return act;
 }
 
@@ -371,16 +430,25 @@ ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) =
   await ensureOwnerAccess(ctx, rid);
 
   let { action, date, time, reservation } = await readActionPayload(ctx);
-  const inferred = inferAction(action, reservation, "PATCH");
-  action = inferred;
+  action = inferAction(action, reservation, "PATCH");
 
   if (!["create", "update", "cancel", "arrived"].includes(action)) {
     debugLog("owner_calendar", "PATCH invalid action", { action, date, time, keys: Object.keys(reservation || {}) });
-    // במקום לזרוק — ניפול ל-create כדי לעזור לקליינט לא תקני
     action = "create";
   }
+
   if (!isISODate(date) || !isHHMM(time)) {
-    ctx.throw(Status.BadRequest, "Bad date/time");
+    // ניסיון אחרון: אולי נשלח date/time בתוך note כתאריך-זמן מלא — ננסה לחלץ
+    const maybeNote = String((reservation as any)?.note ?? (reservation as any)?.notes ?? "");
+    const mDate = maybeNote.match(/(\d{4}-\d{2}-\d{2})/);
+    const mTime = maybeNote.match(/\b(\d{1,2}):(\d{2})\b/);
+    const coercedDate = isISODate(date) ? date : (mDate ? coerceISODate(mDate[1]) : "");
+    const coercedTime = isHHMM(time) ? time : (mTime ? coerceHHmm(`${mTime[1]}:${mTime[2]}`) : "");
+    if (!isISODate(coercedDate) || !isHHMM(coercedTime)) {
+      ctx.throw(Status.BadRequest, "Bad date/time");
+    }
+    date = coercedDate;
+    time = coercedTime;
   }
 
   debugLog("owner_calendar", "PATCH /slot", { rid, action, date, time });
@@ -468,7 +536,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
   const { rid } = ctx.params;
   await ensureOwnerAccess(ctx, rid);
 
-  const date = ctx.request.url.searchParams.get("date");
+  const dateRaw = ctx.request.url.searchParams.get("date");
+  const date = coerceISODate(dateRaw);
   const qraw = ctx.request.url.searchParams.get("q") ?? "";
   const q = qraw.trim().toLowerCase();
 
@@ -504,8 +573,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
 
-  const date = ctx.request.url.searchParams.get("date");
-  const selected = isISODate(date) ? date! : todayISO();
+  const dateRaw = ctx.request.url.searchParams.get("date");
+  const selected = dateRaw && isISODate(coerceISODate(dateRaw)) ? coerceISODate(dateRaw)! : todayISO();
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
 
