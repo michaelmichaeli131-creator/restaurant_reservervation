@@ -9,15 +9,15 @@ import { debugLog } from "../lib/debug.ts";
 // שכבת נתונים
 import {
   getRestaurant,
+  openingWindowsForDate, // ← ייבוא מה-DB (תוקן)
   type Restaurant,
   type Reservation,
 } from "../database.ts";
 
 // Utilities קיימים בפרויקט
 import { readBody } from "./restaurants/_utils/body.ts";
-import { openingWindowsForDate } from "./restaurants/_utils/hours.ts";
 
-// שירותי טיימליין ותפוסה (קבצים שנצרף להלן)
+// שירותי טיימליין ותפוסה
 import { buildDayTimeline, slotRange } from "../services/timeline.ts";
 import { computeOccupancyForDay, summarizeDay } from "../services/occupancy.ts";
 
@@ -41,10 +41,10 @@ async function ensureOwnerAccess(ctx: any, rid: string): Promise<Restaurant> {
   const user = await requireOwner(ctx); // זורק אם אין גישה
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound, "Restaurant not found");
-  if (r.ownerId !== user.id && r.userId !== user.id) {
+  if (r.ownerId !== user.id && (r as any).userId !== user.id) {
     ctx.throw(Status.Forbidden, "Not your restaurant");
   }
-  return r;
+  return r as Restaurant;
 }
 
 function deriveCapacities(r: Restaurant) {
@@ -55,8 +55,13 @@ function deriveCapacities(r: Restaurant) {
     capacityTables = Math.max(1, Math.ceil(capacityPeople / Math.max(1, avgPeoplePerTable)));
   }
   const slotMinutes = Number((r as any).slotIntervalMinutes ?? 15);
-  const durationMinutes = Number((r as any).reservationDurationMinutes ?? 120);
+  const durationMinutes = Number((r as any).serviceDurationMinutes ?? (r as any).reservationDurationMinutes ?? 120);
   return { capacityPeople, capacityTables, slotMinutes, durationMinutes, avgPeoplePerTable };
+}
+
+// ממיר {open,close} → {start,end} לשירות ה-timeline
+function mapOpenWindowsForTimeline(wins: Array<{ open: string; close: string }>) {
+  return wins.map(w => ({ start: w.open as `${number}${number}:${number}${number}`, end: w.close as `${number}${number}:${number}${number}` }));
 }
 
 // ---------- Routes ----------
@@ -86,7 +91,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const selected = isISODate(date) ? date! : todayISO();
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
-  const openWindows = openingWindowsForDate((r as any).weeklySchedule, selected) || [];
+  const openWinsRaw = openingWindowsForDate(r, selected); // ← מה-DB
+  const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
   const timeline = buildDayTimeline(openWindows, slotMinutes);
 
   const reservations: Reservation[] =
@@ -106,7 +112,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   json(ctx, {
     ok: true,
     date: selected,
-    openWindows,
+    openWindows: openWinsRaw, // מחזירים במבנה {open,close} ל-UI
     slotMinutes,
     capacityPeople,
     capacityTables,
@@ -143,7 +149,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
       phone: (it as any).phone ?? "",
       people: Number((it as any).people ?? 0),
       status: (it as any).status ?? "approved",
-      notes: (it as any).notes ?? "",
+      notes: (it as any).note ?? (it as any).notes ?? "",
       at: (it as any).time ?? time,
     })),
   });
@@ -178,7 +184,7 @@ ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) =
       lastName: String(reservation?.lastName ?? "").trim(),
       phone: String(reservation?.phone ?? "").trim(),
       people: Number(reservation?.people ?? 0),
-      notes: String(reservation?.notes ?? "").trim(),
+      notes: String(reservation?.notes ?? reservation?.note ?? "").trim(),
       status: String(reservation?.status ?? "approved"),
       date, time,
     };
@@ -197,7 +203,7 @@ ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) =
       lastName: reservation?.lastName,
       phone: reservation?.phone,
       people: reservation?.people ? Number(reservation?.people) : undefined,
-      notes: reservation?.notes,
+      note: reservation?.notes ?? reservation?.note,
       status: reservation?.status,
     } as any;
     if (!db.updateReservationFields) ctx.throw(Status.NotImplemented, "updateReservationFields not implemented yet");
@@ -266,7 +272,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
   const selected = isISODate(date) ? date! : todayISO();
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
-  const openWindows = openingWindowsForDate((r as any).weeklySchedule, selected) || [];
+  const openWinsRaw = openingWindowsForDate(r, selected); // ← מה-DB
+  const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
   const timeline = buildDayTimeline(openWindows, slotMinutes);
 
   const db = await import("../database.ts");
