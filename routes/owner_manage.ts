@@ -29,7 +29,6 @@ const ownerManageRouter = new Router();
 /* ───────────────────────── דשבורד בעלים ───────────────────────── */
 
 ownerManageRouter.get("/owner/manage", async (ctx) => {
-  // שמירה על דפוס האפליקציה: הפונקציה מחזירה false אם אין הרשאה וכבר כתבה תגובה
   if (!requireOwner(ctx)) return;
 
   const user = (ctx.state as any)?.user;
@@ -38,7 +37,6 @@ ownerManageRouter.get("/owner/manage", async (ctx) => {
 
   const date = ctx.request.url.searchParams.get("date") || todayISO();
 
-  // מביאים סטטוסים יומיים (מס' הזמנות, סועדים, Peak Occupancy) + קישור ל-Calendar
   const restaurants = await Promise.all(mine.map(async (r) => {
     const reservations = await listReservationsFor(r.id, date);
     const peopleToday = reservations.reduce((acc, x) => acc + (x.people || 0), 0);
@@ -48,7 +46,6 @@ ownerManageRouter.get("/owner/manage", async (ctx) => {
     const capacity = Math.max(1, Number(r.capacity || 0));
     const peakPct = Math.min(100, Math.round((peakUsed / capacity) * 100));
 
-    // Normalize photos so template can use .dataUrl if נשלח כמחרוזת
     const photos = Array.isArray(r.photos) ? r.photos : [];
     const normPhotos = photos.map((p: any) =>
       typeof p === "string" ? { dataUrl: p, alt: "" } : p
@@ -65,7 +62,8 @@ ownerManageRouter.get("/owner/manage", async (ctx) => {
     };
   }));
 
-  await render(ctx, "owner_manage", {
+  // ⬅️ שינוי כאן: טעינת תבנית owner_dashboard (כי זה השם שהדבקת)
+  await render(ctx, "owner_dashboard", {
     title: "דשבורד בעלים",
     page: "owner_manage",
     user,
@@ -116,11 +114,10 @@ ownerManageRouter.get("/owner/restaurants/:id/edit/save", async (ctx) => {
 
   const sp = ctx.request.url.searchParams;
 
-  // ניקוי וגבולות בסיסיים
   const getStr = (key: string, min = 0, max = 1000) => {
-    if (!sp.has(key)) return undefined; // לא לגעת בשדה אם לא נשלח
+    if (!sp.has(key)) return undefined;
     const v = trim(sp.get(key));
-    if (v.length < min) return "";       // ערך קצר מדי → נחשב ריק
+    if (v.length < min) return "";
     return v.slice(0, max);
   };
 
@@ -146,7 +143,6 @@ ownerManageRouter.get("/owner/restaurants/:id/edit/save", async (ctx) => {
 // POST: תאימות לאחור — מפנים למסלול ה-GET בלי לנסות לקרוא body
 ownerManageRouter.post("/owner/restaurants/:id/edit", async (ctx) => {
   const id = ctx.params.id!;
-  // אם במקרה הגיעו query params, נשמר אותם; אחרת פשוט נכוון למסך השמירה
   const sp = ctx.request.url.searchParams;
   const qs = sp.toString();
   ctx.response.status = Status.SeeOther;
