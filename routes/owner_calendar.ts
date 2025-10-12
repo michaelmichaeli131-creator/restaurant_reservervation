@@ -79,7 +79,105 @@ function extractFromNote(note?: string): { name?: string; phone?: string } {
   const mPhone = t.match(/\bPhone:\s*([^;]+)/i);
   return { name: mName ? mName[1].trim() : undefined, phone: mPhone ? mPhone[1].trim() : undefined };
 }
-/* ---------------------------------------------------------------- */
+
+/* ---------- קריאת גוף קשיחה יותר (JSON→readBody→querystring) ---------- */
+async function readActionBody(ctx: any): Promise<any> {
+  const ct = (ctx.request.headers.get("content-type") || "").toLowerCase();
+  const native = (ctx.request as any).originalRequest
+             || (ctx.request as any).request
+             || (ctx.request as any).raw
+             || (ctx.request as any);
+  let body: any = {};
+  try {
+    if (/\bapplication\/json\b/.test(ct) && native && typeof native.json === "function") {
+      const j = await native.json();
+      if (j && typeof j === "object") body = j;
+    }
+  } catch {
+    // ignore
+  }
+  if (!body || typeof body !== "object" || Object.keys(body).length === 0) {
+    try { body = await readBody(ctx); } catch { body = {}; }
+  }
+  const sp = ctx.request.url.searchParams;
+  if ((!body || !body.action) && sp.has("action")) body = { ...body, action: sp.get("action") };
+  if ((!body || !body.date) && sp.has("date")) body = { ...body, date: sp.get("date") };
+  if ((!body || !body.time) && sp.has("time")) body = { ...body, time: sp.get("time") };
+  return body || {};
+}
+
+/* ---------- Handler משותף לפעולות סלוט (create/update/cancel/arrived) ---------- */
+async function handleSlotAction(ctx: any) {
+  const { rid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+
+  const body = await readActionBody(ctx);
+  const action = String(body?.action ?? "").trim();
+  const date = String(body?.date ?? "");
+  const time = String(body?.time ?? "");
+  const reservation = body?.reservation ?? {};
+
+  if (!["create", "update", "cancel", "arrived"].includes(action)) {
+    ctx.throw(Status.BadRequest, "Unknown action");
+  }
+  if (!isISODate(date) || !isHHMM(time)) {
+    ctx.throw(Status.BadRequest, "Bad date/time");
+  }
+
+  debugLog("owner_calendar", "SLOT ACTION", { rid, action, date, time });
+
+  const db = await import("../database.ts");
+  let result: any = null;
+
+  if (action === "create") {
+    const payload = {
+      firstName: String(reservation?.firstName ?? "").trim(),
+      lastName : String(reservation?.lastName  ?? "").trim(),
+      phone    : String(reservation?.phone     ?? "").trim(),
+      people   : Math.max(1, Number(reservation?.people ?? 1)),
+      note     : String(reservation?.notes ?? reservation?.note ?? "").trim(),
+      status   : String(reservation?.status ?? "approved"),
+      date, time,
+    };
+    if (!payload.firstName || !payload.lastName || !payload.people) {
+      ctx.throw(Status.BadRequest, "Missing fields");
+    }
+    // שימוש בפונקציה הקיימת ב־DB (createReservation). אם createManualReservation קיים — אפשר להחליף חזרה.
+    if (!(db as any).createReservation) ctx.throw(Status.NotImplemented, "createReservation not implemented yet");
+    result = await (db as any).createReservation(rid, payload);
+  }
+
+  if (action === "update") {
+    const id = String(reservation?.id ?? "");
+    if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
+    const patch: Partial<Reservation> = {
+      firstName: reservation?.firstName,
+      lastName : reservation?.lastName,
+      phone    : reservation?.phone,
+      people   : reservation?.people ? Number(reservation?.people) : undefined,
+      note     : reservation?.notes ?? reservation?.note,
+      status   : reservation?.status,
+    } as any;
+    if (!(db as any).updateReservationFields) ctx.throw(Status.NotImplemented, "updateReservationFields not implemented yet");
+    result = await (db as any).updateReservationFields(id, patch);
+  }
+
+  if (action === "cancel") {
+    const id = String(reservation?.id ?? "");
+    if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
+    if (!(db as any).cancelReservation) ctx.throw(Status.NotImplemented, "cancelReservation not implemented yet");
+    result = await (db as any).cancelReservation(id, String(reservation?.reason ?? ""));
+  }
+
+  if (action === "arrived") {
+    const id = String(reservation?.id ?? "");
+    if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
+    if (!(db as any).markArrived) ctx.throw(Status.NotImplemented, "markArrived not implemented yet");
+    result = await (db as any).markArrived(id);
+  }
+
+  json(ctx, { ok: true, result });
+}
 
 /* ---------------- Routes ---------------- */
 
@@ -116,7 +214,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
 
   const db = await import("../database.ts");
   const reservations: Reservation[] =
-    (await db.listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
+    (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
 
   const occupancy = computeOccupancyForDay({
     reservations,
@@ -153,7 +251,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
 
   const db = await import("../database.ts");
   const items: Reservation[] =
-    (await db.listReservationsCoveringSlot?.(rid, date!, time!, {
+    (await (db as any).listReservationsCoveringSlot?.(rid, date!, time!, {
       slotMinutes,
       durationMinutes,
     })) ?? [];
@@ -197,74 +295,11 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
 
 // JSON — פעולות סלוט: create/update/cancel/arrived
 ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
-  const { rid } = ctx.params;
-  await ensureOwnerAccess(ctx, rid);
-
-  const body = await readBody(ctx).catch(() => ({}));
-  const action = String(body?.action ?? "").trim();
-  const date = String(body?.date ?? "");
-  const time = String(body?.time ?? "");
-  const reservation = body?.reservation ?? {};
-
-  if (!["create", "update", "cancel", "arrived"].includes(action)) {
-    ctx.throw(Status.BadRequest, "Unknown action");
-  }
-  if (!isISODate(date) || !isHHMM(time)) {
-    ctx.throw(Status.BadRequest, "Bad date/time");
-  }
-
-  debugLog("owner_calendar", "PATCH /slot", { rid, action, date, time });
-
-  const db = await import("../database.ts");
-  let result: any = null;
-
-  if (action === "create") {
-    const payload = {
-      firstName: String(reservation?.firstName ?? "").trim(),
-      lastName: String(reservation?.lastName ?? "").trim(),
-      phone: String(reservation?.phone ?? "").trim(),
-      people: Number(reservation?.people ?? 0),
-      notes: String(reservation?.notes ?? reservation?.note ?? "").trim(),
-      status: String(reservation?.status ?? "approved"),
-      date, time,
-    };
-    if (!payload.firstName || !payload.lastName || !payload.people) {
-      ctx.throw(Status.BadRequest, "Missing fields");
-    }
-    if (!db.createManualReservation) ctx.throw(Status.NotImplemented, "createManualReservation not implemented yet");
-    result = await db.createManualReservation(rid, payload);
-  }
-
-  if (action === "update") {
-    const id = String(reservation?.id ?? "");
-    if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
-    const patch: Partial<Reservation> = {
-      firstName: reservation?.firstName,
-      lastName: reservation?.lastName,
-      phone: reservation?.phone,
-      people: reservation?.people ? Number(reservation?.people) : undefined,
-      note: reservation?.notes ?? reservation?.note,
-      status: reservation?.status,
-    } as any;
-    if (!db.updateReservationFields) ctx.throw(Status.NotImplemented, "updateReservationFields not implemented yet");
-    result = await db.updateReservationFields(id, patch);
-  }
-
-  if (action === "cancel") {
-    const id = String(reservation?.id ?? "");
-    if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
-    if (!db.cancelReservation) ctx.throw(Status.NotImplemented, "cancelReservation not implemented yet");
-    result = await db.cancelReservation(id, String(reservation?.reason ?? ""));
-  }
-
-  if (action === "arrived") {
-    const id = String(reservation?.id ?? "");
-    if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
-    if (!db.markArrived) ctx.throw(Status.NotImplemented, "markArrived not implemented yet");
-    result = await db.markArrived(id);
-  }
-
-  json(ctx, { ok: true, result });
+  await handleSlotAction(ctx);
+});
+// תאימות גם ל־POST (יש פרונט־אנדים ששולחים POST כברירת מחדל)
+ownerCalendarRouter.post("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
+  await handleSlotAction(ctx);
 });
 
 // JSON — חיפוש ליום
@@ -279,7 +314,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
   if (!isISODate(date) || !q) ctx.throw(Status.BadRequest, "Bad date or empty query");
 
   const db = await import("../database.ts");
-  const reservations: Reservation[] = (await db.listReservationsByRestaurantAndDate?.(rid, date!)) ?? [];
+  const reservations: Reservation[] = (await (db as any).listReservationsByRestaurantAndDate?.(rid, date!)) ?? [];
 
   const matches = reservations.filter((r: any) => {
     const f = String(r.firstName ?? "").toLowerCase();
@@ -320,7 +355,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
 
   const db = await import("../database.ts");
   const reservations: Reservation[] =
-    (await db.listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
+    (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
 
   const occupancy = computeOccupancyForDay({
     reservations,
