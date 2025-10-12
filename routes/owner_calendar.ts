@@ -38,24 +38,19 @@ function json(ctx: any, data: unknown, status = Status.OK) {
 }
 function lower(s?: string) { return String(s ?? "").trim().toLowerCase(); }
 
-/** פענוח קשיח של גוף הבקשה לכל סוגי ה-Content-Type + נפילה לאחור ל-querystring */
+/** פענוח גוף לבקשות יצירה/עדכון — עמיד לכל Content-Type + fallback ל-querystring */
 async function readActionPayload(ctx: any): Promise<{
   action: string;
   date: string;
   time: string;
   reservation: Record<string, unknown>;
-  raw: any;
 }> {
   const url = new URL(ctx.request.url);
   const qs = url.searchParams;
 
-  // נסה קודם את util אם קיים
   let body: any = null;
-  try {
-    body = await readBodyUtil(ctx);
-  } catch { /* נמשיך לפענוח ידני */ }
+  try { body = await readBodyUtil(ctx); } catch { /* נמשיך */ }
 
-  // אם לא חזר / ריק — פענוח ידני לפי Content-Type
   if (!body || typeof body !== "object" || Object.keys(body).length === 0) {
     const ct = lower(ctx.request.headers.get("content-type"));
     try {
@@ -71,28 +66,14 @@ async function readActionPayload(ctx: any): Promise<{
         for (const [k, v] of fd.entries()) obj[k] = v;
         body = obj;
       } else {
-        // ננסה גם קריאת טקסט פשוטה
         const txt = await ctx.request.text().catch(() => "");
-        if (txt) {
-          try { body = JSON.parse(txt); } catch { body = {}; }
-        } else {
-          body = {};
-        }
+        body = txt ? (JSON.parse(txt) as any) : {};
       }
-    } catch {
-      // כלום — נשען על querystring בלבד
-      body = {};
-    }
+    } catch { body = {}; }
   }
 
-  // איסוף שדות מרכזיים עם fallback ל-querystring
   const actionRaw =
-    body?.action ??
-    qs.get("action") ??
-    body?.op ??
-    body?.cmd ??
-    body?.type ??
-    "";
+    body?.action ?? qs.get("action") ?? body?.op ?? body?.cmd ?? body?.type ?? "";
 
   const actionMap: Record<string, string> = {
     add: "create",
@@ -108,34 +89,37 @@ async function readActionPayload(ctx: any): Promise<{
     checkin_ok: "arrived",
   };
 
-  const actionNorm = actionMap[lower(String(actionRaw))] || lower(String(actionRaw));
+  const action = actionMap[lower(String(actionRaw))] || lower(String(actionRaw));
+  const date = String(body?.date ?? qs.get("date") ?? "").trim();
+  const time = String(body?.time ?? qs.get("time") ?? "").trim();
 
-  const date =
-    String(body?.date ?? qs.get("date") ?? "").trim();
-
-  const time =
-    String(body?.time ?? qs.get("time") ?? "").trim();
-
-  // reservation יכול להגיע או כשדה עליון או תחת body.reservation
   const reservation =
-    (typeof body?.reservation === "object" && body?.reservation) ?
-      body.reservation as Record<string, unknown> :
-      body;
+    (typeof body?.reservation === "object" && body?.reservation)
+      ? (body.reservation as Record<string, unknown>)
+      : body;
 
-  debugLog("owner_calendar", "PATCH readActionPayload", {
-    ct: ctx.request.headers.get("content-type"),
-    keys: Object.keys(body || {}),
-    actionRaw,
-    actionNorm,
-    date,
-    time,
-  });
-
-  return { action: actionNorm, date, time, reservation, raw: body };
+  return { action, date, time, reservation };
 }
 
+/* ---- Enrichment for Customer drawer (fallback from 'note') ---- */
+function splitName(full?: string): { first: string; last: string } {
+  const s = String(full ?? "").trim().replace(/\s+/g, " ");
+  if (!s) return { first: "", last: "" };
+  const parts = s.split(" ");
+  const first = parts.shift() || "";
+  const last = parts.join(" ");
+  return { first, last };
+}
+function extractFromNote(note?: string): { name?: string; phone?: string } {
+  const t = String(note ?? "");
+  const mName = t.match(/\bName:\s*([^;]+)\b/i);
+  const mPhone = t.match(/\bPhone:\s*([^;]+)/i);
+  return { name: mName ? mName[1].trim() : undefined, phone: mPhone ? mPhone[1].trim() : undefined };
+}
+
+/* ---------------- Access & capacities ---------------- */
 async function ensureOwnerAccess(ctx: any, rid: string): Promise<Restaurant> {
-  const user = await requireOwner(ctx); // זורק אם אין גישה
+  const user = await requireOwner(ctx);
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound, "Restaurant not found");
   if (r.ownerId !== user.id && (r as any).userId !== user.id) {
@@ -161,23 +145,6 @@ function mapOpenWindowsForTimeline(wins: Array<{ open: string; close: string }>)
   return wins.map(w => ({ start: w.open as `${number}${number}:${number}${number}`, end: w.close as `${number}${number}:${number}${number}` }));
 }
 
-/* ---- Enrichment for Customer drawer (fallback from 'note') ---- */
-function splitName(full?: string): { first: string; last: string } {
-  const s = String(full ?? "").trim().replace(/\s+/g, " ");
-  if (!s) return { first: "", last: "" };
-  const parts = s.split(" ");
-  const first = parts.shift() || "";
-  const last = parts.join(" ");
-  return { first, last };
-}
-function extractFromNote(note?: string): { name?: string; phone?: string } {
-  const t = String(note ?? "");
-  const mName = t.match(/\bName:\s*([^;]+)\b/i);
-  const mPhone = t.match(/\bPhone:\s*([^;]+)/i);
-  return { name: mName ? mName[1].trim() : undefined, phone: mPhone ? mPhone[1].trim() : undefined };
-}
-/* ---------------------------------------------------------------- */
-
 /* ---------------- Routes ---------------- */
 
 // HTML
@@ -197,7 +164,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
   });
 });
 
-// JSON — יום (טווחי פתיחה בלבד)
+// JSON — יום (מחזיר סלוטים רק בשעות פתיחה — כמו שעבד בעבר)
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
@@ -206,9 +173,9 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
 
-  const openWinsRaw = openingWindowsForDate(r, selected); // ← כמו שעבד אצלך
+  const openWinsRaw = openingWindowsForDate(r, selected); // ← מה-DB (כמו שעבד)
   const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
-  const timeline = buildDayTimeline(openWindows, slotMinutes);
+  const timeline = buildDayTimeline(openWindows, slotMinutes); // timeline רק לטווחי פתיחה
 
   const db = await import("../database.ts");
   const reservations: Reservation[] =
@@ -291,12 +258,114 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
   });
 });
 
-// JSON — פעולות סלוט: create/update/cancel/arrived (עם פענוח חכם של action)
+/* ===================== יצירה פשוטה ב-POST (ברירת מחדל create) ===================== */
+ownerCalendarRouter.post("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
+  const { rid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+
+  const { date, time, reservation } = await readActionPayload(ctx);
+
+  if (!isISODate(date) || !isHHMM(time)) {
+    ctx.throw(Status.BadRequest, "Bad date/time");
+  }
+
+  const payload = {
+    firstName: String((reservation as any)?.firstName ?? "").trim(),
+    lastName: String((reservation as any)?.lastName ?? "").trim(),
+    phone: String((reservation as any)?.phone ?? "").trim(),
+    people: Number((reservation as any)?.people ?? 0),
+    note: String((reservation as any)?.notes ?? (reservation as any)?.note ?? "").trim(),
+    status: String((reservation as any)?.status ?? "approved"),
+    date,
+    time,
+    source: "owner",
+  };
+
+  if (!payload.firstName || !payload.lastName || !payload.people) {
+    ctx.throw(Status.BadRequest, "Missing fields");
+  }
+
+  const db = await import("../database.ts");
+
+  let created: any;
+  if (typeof (db as any).createManualReservation === "function") {
+    created = await (db as any).createManualReservation(rid, {
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      phone: payload.phone,
+      people: payload.people,
+      notes: payload.note,
+      status: payload.status,
+      date,
+      time,
+    });
+  } else if (typeof (db as any).createReservation === "function") {
+    created = await (db as any).createReservation({
+      id: crypto.randomUUID(),
+      restaurantId: rid,
+      userId: `manual:${rid}`,
+      date, time,
+      people: payload.people,
+      note: payload.note,
+      status: "confirmed",
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      phone: payload.phone,
+      durationMinutes: 120,
+      createdAt: Date.now(),
+    } as Reservation);
+  } else {
+    ctx.throw(Status.NotImplemented, "createReservation is not available in database.ts");
+  }
+
+  json(ctx, {
+    ok: true,
+    item: {
+      id: created?.id ?? created?.reservationId ?? created?.key ?? crypto.randomUUID?.(),
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      phone: payload.phone,
+      people: payload.people,
+      status: payload.status,
+      notes: payload.note,
+      at: time,
+      date,
+    },
+  });
+});
+
+/* ===================== PATCH: יצירה/עדכון/ביטול/הגעה ===================== */
+/** אינפרנס פעולה כשלא נשלח action — כדי להיפטר מ-"Unknown action" */
+function inferAction(
+  action: string,
+  reservation: Record<string, unknown>,
+): "create" | "update" | "cancel" | "arrived" | "" {
+  let act = action ? (action as any) : "";
+
+  const r: any = reservation || {};
+  const hasId = !!r.id;
+  const hasNames = !!(r.firstName || r.lastName);
+  const hasPeople = Number(r.people) > 0;
+
+  const raw = lower(String(r.status ?? r.action ?? ""));
+  const wantsCancel = ["cancel", "cancelled", "canceled"].includes(raw) || r.cancel === true;
+  const wantsArrived = ["arrived", "checkin", "check_in"].includes(raw) || r.arrived === true || r.checkin === true;
+
+  if (!act) {
+    if (wantsCancel) act = "cancel";
+    else if (wantsArrived) act = "arrived";
+    else if (!hasId && hasNames && hasPeople) act = "create";
+    else if (hasId) act = "update";
+  }
+  return (act as any);
+}
+
 ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
   const { rid } = ctx.params;
   await ensureOwnerAccess(ctx, rid);
 
-  const { action, date, time, reservation } = await readActionPayload(ctx);
+  let { action, date, time, reservation } = await readActionPayload(ctx);
+  action = inferAction(action, reservation);
 
   if (!["create", "update", "cancel", "arrived"].includes(action)) {
     debugLog("owner_calendar", "PATCH invalid action", { action, date, time, keys: Object.keys(reservation || {}) });
@@ -323,18 +392,35 @@ ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) =
       time,
       source: "owner",
     };
-
     if (!payload.firstName || !payload.lastName || !payload.people) {
       ctx.throw(Status.BadRequest, "Missing fields");
     }
-
-    const hasManual = typeof (db as any).createManualReservation === "function";
-    const hasCreate = typeof (db as any).createReservation === "function";
-
-    if (hasManual) {
-      result = await (db as any).createManualReservation(rid, payload);
-    } else if (hasCreate) {
-      result = await (db as any).createReservation(rid, payload);
+    if (typeof (db as any).createManualReservation === "function") {
+      result = await (db as any).createManualReservation(rid, {
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        phone: payload.phone,
+        people: payload.people,
+        notes: payload.note,
+        status: payload.status,
+        date,
+        time,
+      });
+    } else if (typeof (db as any).createReservation === "function") {
+      result = await (db as any).createReservation({
+        id: crypto.randomUUID(),
+        restaurantId: rid,
+        userId: `manual:${rid}`,
+        date, time,
+        people: payload.people,
+        note: payload.note,
+        status: "confirmed",
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        phone: payload.phone,
+        durationMinutes: 120,
+        createdAt: Date.now(),
+      } as Reservation);
     } else {
       ctx.throw(Status.NotImplemented, "createReservation is not available in database.ts");
     }
@@ -418,7 +504,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
 
-  const openWinsRaw = openingWindowsForDate(r, selected); // ← כמו שעבד
+  // כמו בקוד שעבד: משתמשים ב-r (לא r.id), ובונים timeline רק מחלונות פתיחה
+  const openWinsRaw = openingWindowsForDate(r, selected); // ← מה-DB
   const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
   const timeline = buildDayTimeline(openWindows, slotMinutes);
 
