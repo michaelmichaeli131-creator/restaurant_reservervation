@@ -10,12 +10,16 @@
   <!-- Header -->
   <div class="oc-header">
     <div class="wrap">
-      <!-- היה: Restaurant Name • Admin -->
       <div class="oc-title"><%= it.restaurant && it.restaurant.name ? it.restaurant.name : it.title %></div>
       <div class="oc-date-nav">
         <button id="btn-prev" aria-label="Previous day">◀</button>
         <div class="date-label" id="date-label">—</div>
         <button id="btn-next" aria-label="Next day">▶</button>
+
+        <!-- כפתור קפיצה לתאריך -->
+        <button id="btn-jump" aria-label="Jump to date" class="oc-jump">📅 בחר תאריך</button>
+
+        <!-- ה־picker נשאר נסתר; נפתח ע״י הכפתור -->
         <input type="date" id="datePicker" style="display:none" value="<%= it.date %>"/>
       </div>
       <div class="oc-spacer"></div>
@@ -74,8 +78,27 @@
 
   <script src="/static/js/owner_calendar.js" defer></script>
   <script>
-    // העברת פרמטרים ראשוניים ל-JS
+    // פרמטרים ל-JS הקיים
     window.__OC__ = { rid: "<%= it.rid %>", date: "<%= it.date %>" };
+
+    // לוגיקת "קפיצה לתאריך" — עצמאית ולא פוגעת ב-prev/next הקיימים
+    (function () {
+      const btnJump = document.getElementById('btn-jump');
+      const picker = document.getElementById('datePicker');
+
+      if (btnJump && picker) {
+        btnJump.addEventListener('click', () => picker.showPicker ? picker.showPicker() : picker.click());
+
+        picker.addEventListener('change', () => {
+          const v = picker.value; // YYYY-MM-DD
+          if (!v) return;
+          // שמירה על הנתיב הנוכחי והחלפת פרמטר date בלבד
+          const url = new URL(window.location.href);
+          url.searchParams.set('date', v);
+          window.location.href = url.toString();
+        });
+      }
+    })();
   </script>
 </body>
 </html>
