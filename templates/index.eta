@@ -3,19 +3,17 @@
 <section class="hero">
   <div class="hero-bg"></div>
   <div class="hero-inner">
-    <h1 class="hero-title"><%= it.t?.heroTitle || 'Reserve a Table at a Restaurant' %></h1>
-    <p class="hero-sub"><%= it.t?.heroSub || 'Book a table easily and quickly online' %></p>
+    <h1 class="hero-title"><%= (it.t && it.t.heroTitle) ? it.t.heroTitle : 'Reserve a Table at a Restaurant' %></h1>
+    <p class="hero-sub"><%= (it.t && it.t.heroSub) ? it.t.heroSub : 'Book a table easily and quickly online' %></p>
 
-    <!-- עוטף יחיד כדי למקם את קופסת האוטוקומפליט יחסית לטופס -->
     <div class="ac-wrap" style="position:relative; width:100%; max-width:980px">
-      <!-- חשוב: נשארים ב-"/" ושומרים search=1 כדי לשמר את הפיצ׳ר של תוצאות בדף הראשי -->
+      <!-- נשמר: חיפוש ב-root עם search=1 כדי להציג תוצאות בדף -->
       <form id="search-form" class="search-bar" method="GET" action="/">
         <input type="hidden" name="search" value="1"/>
 
         <div class="field with-icon" style="min-width:220px">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 4h-3a1 1 0 0 0-1 1v3h2V6h2V4zM8 4H5v2h2v2h2V5a1 1 0 0 0-1-1zM19 18h-2v-2h-2v3a1 1 0 0 0 1 1h3v-2zM7 16H5v2h3a1 1 0 0 0 1-1v-3H7v2z"/></svg>
-          <!-- שומרים id="q" כדי שהאוטוקומפליט יעבוד בדיוק כמו בקוד הישן -->
-          <input name="q" id="q" type="search" placeholder="<%= it.t?.placeholder || 'חפש מסעדה / עיר / סוג מטבח' %>" value="<%= it.q || '' %>">
+          <input name="q" id="q" type="search" placeholder="<%= (it.t && it.t.placeholder) ? it.t.placeholder : 'חפש מסעדה / עיר / סוג מטבח' %>" value="<%= it.q || '' %>">
         </div>
 
         <div class="field with-icon">
@@ -28,34 +26,39 @@
           <input name="time" id="time" type="time" step="900" value="<%= it.time || '' %>">
         </div>
 
-        <button class="btn primary search-btn" type="submit"><%= it.t?.search || 'Search' %></button>
+        <button class="btn primary search-btn" type="submit"><%= (it.t && it.t.search) ? it.t.search : 'Search' %></button>
       </form>
 
-      <!-- קופסת הצעות לאוטוקומפליט (נשמרה) -->
+      <!-- קופסת הצעות לאוטוקומפליט (נשמרה מהעמוד הישן) -->
       <div id="ac-list" class="ac-list" hidden></div>
     </div>
   </div>
 </section>
 
 <%
-  // נשמר הלוגיקה המקורית: מציגים תוצאות כשיש search=1 או כשיש q
-  const showResults = (it.search === "1") || ((it.q || "").trim().length);
+  var _q = (it.q || "");
+  var showResults = (it.search === "1") || (_q.trim().length > 0);
 %>
 
 <% if (showResults) { %>
-  <!-- תוצאות חיפוש בפריסת כרטיסים חדשה (שומר על ניווט / תמונה / תג אישור) -->
   <section class="section">
     <h2 class="section-title">תוצאות</h2>
-
     <% if (!it.restaurants || !it.restaurants.length) { %>
       <p class="muted">לא נמצאו תוצאות.</p>
     <% } else { %>
       <div class="cards">
-        <% it.restaurants.forEach(r => {
-             const _photos = Array.isArray(r.photos)
-               ? r.photos.map(p => (typeof p === 'string' ? p : p?.dataUrl)).filter(Boolean)
-               : [];
-             const cover = r.coverUrl || _photos[0] || "/public/img/placeholder-restaurant.jpg";
+        <% 
+          var list = it.restaurants || [];
+          for (var i=0; i<list.length; i++){
+            var r = list[i];
+            var _photos = Array.isArray(r && r.photos) ? r.photos : [];
+            var ss = [];
+            for (var j=0; j<_photos.length; j++){
+              var p = _photos[j];
+              ss.push(typeof p === 'string' ? p : (p && p.dataUrl));
+            }
+            ss = ss.filter(Boolean);
+            var cover = (r && r.coverUrl) || ss[0] || "/public/img/placeholder-restaurant.jpg";
         %>
           <a class="card" href="/restaurants/<%= r.id %>" aria-label="פתח <%= r.name %>">
             <div class="card-img" style="background-image:url('<%= cover %>')"></div>
@@ -67,183 +70,184 @@
               <% } %>
             </div>
           </a>
-        <% }) %>
+        <% } /* for */ %>
       </div>
     <% } %>
   </section>
 <% } else { %>
-  <!-- מצב ברירת מחדל: הצגת Recommended -->
   <section class="section">
-    <h2 class="section-title"><%= it.t?.recommended || 'Recommended Restaurants' %></h2>
+    <h2 class="section-title"><%= (it.t && it.t.recommended) ? it.t.recommended : 'Recommended Restaurants' %></h2>
     <div class="cards">
-      <% (it.recommended || []).forEach(function(r){ %>
-        <a class="card" href="/restaurants/<%= r.id %>">
-          <div class="card-img" style="background-image:url('<%= r.coverUrl || '/public/img/placeholder-restaurant.jpg' %>')"></div>
+      <%
+        var rec = it.recommended || [];
+        for (var k=0; k<rec.length; k++){
+          var rr = rec[k];
+          var cover2 = (rr && rr.coverUrl) || "/public/img/placeholder-restaurant.jpg";
+      %>
+        <a class="card" href="/restaurants/<%= rr.id %>">
+          <div class="card-img" style="background-image:url('<%= cover2 %>')"></div>
           <div class="card-body">
-            <h3 class="card-title"><%= r.name %></h3>
-            <p class="card-meta"><%= r.cuisine || '' %> · <%= r.city || '' %></p>
+            <h3 class="card-title"><%= rr.name %></h3>
+            <p class="card-meta"><%= rr.cuisine || '' %> · <%= rr.city || '' %></p>
           </div>
         </a>
-      <% }) %>
+      <% } /* for */ %>
     </div>
 
-    <% if (!it.recommended || it.recommended.length === 0) { %>
+    <% if (!rec.length) { %>
       <p class="muted" style="margin-top:16px">אין כרגע מסעדות מומלצות להצגה.</p>
     <% } %>
   </section>
 <% } %>
 
-<% it.scripts = (it.scripts || []).concat(['/public/js/home.js']); %>
+<% 
+  it.scripts = (it.scripts || []);
+  it.scripts.push('/public/js/home.js');
+%>
 
 <script>
-/* ======= אוטוקומפליט – נשמר מהעמוד הישן, הותאם למיקום החדש ======= */
+/* ======= אוטוקומפליט – נשמר מהעמוד הישן, מותאם למיקום החדש ======= */
 (function(){
-  const input = document.getElementById('q');
-  const box   = document.getElementById('ac-list');
-  const MAX  = 8;
-  const PLACEHOLDER = "/static/placeholder.png";
+  var input = document.getElementById('q');
+  var box   = document.getElementById('ac-list');
+  var MAX   = 8;
+  var PLACEHOLDER = "/static/placeholder.png";
 
-  let aborter = null;
-  let items = [];       // [{id,name,city,address,thumb}]
-  let active = -1;      // אינדקס מוצע שנבחר במקלדת
+  var aborter = null;
+  var items = [];       // [{id,name,city,address,thumb}]
+  var active = -1;      // אינדקס מוצע שנבחר במקלדת
 
-  const debounce = (fn, ms=180) => {
-    let t = null;
-    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
-  };
-
-  const normPhotos = (photos) => {
-    const arr = Array.isArray(photos) ? photos : [];
-    const ss  = arr.map(p => (typeof p === 'string' ? p : p?.dataUrl)).filter(Boolean);
-    return ss;
-  };
-
-  function hide() {
-    box.hidden = true;
-    box.innerHTML = "";
-    active = -1;
-  }
-  function show() {
-    if (!box.innerHTML.trim()) { box.hidden = true; return; }
-    box.hidden = false;
+  function debounce(fn, ms){
+    var t = null;
+    return function(){
+      var args = arguments;
+      clearTimeout(t);
+      t = setTimeout(function(){ fn.apply(null, args); }, ms || 180);
+    };
   }
 
-  function render() {
-    if (!items.length) { hide(); return; }
-    box.innerHTML = items.map((r, i) => `
-      <div class="ac-item${i===active ? ' is-active' : ''}" data-idx="${i}" role="option" aria-selected="${i===active}">
-        <img class="ac-thumb" src="${r.thumb || PLACEHOLDER}" alt="תמונה של ${r.name}"/>
-        <div class="ac-meta">
-          <div class="ac-title">${escapeHtml(r.name)}</div>
-          <div class="ac-sub">${escapeHtml(r.city)} · ${escapeHtml(r.address)}</div>
-        </div>
-      </div>
-    `).join("");
+  function normPhotos(photos){
+    var arr = Array.isArray(photos) ? photos : [];
+    var out = [];
+    for (var i=0;i<arr.length;i++){
+      var p = arr[i];
+      out.push(typeof p === 'string' ? p : (p && p.dataUrl));
+    }
+    return out.filter(Boolean);
+  }
+
+  function hide(){ box.hidden = true; box.innerHTML = ""; active = -1; }
+  function show(){ if (!box.innerHTML.trim()) { box.hidden = true; return; } box.hidden = false; }
+
+  function render(){
+    if (!items.length){ hide(); return; }
+    var html = "";
+    for (var i=0;i<items.length;i++){
+      var r = items[i];
+      html += '<div class="ac-item'+(i===active?' is-active':'')+'" data-idx="'+i+'" role="option" aria-selected="'+(i===active)+'">'
+           +  '<img class="ac-thumb" src="'+(r.thumb || PLACEHOLDER)+'" alt="תמונה של '+escapeHtml(r.name)+'"/>'
+           +  '<div class="ac-meta">'
+           +    '<div class="ac-title">'+escapeHtml(r.name)+'</div>'
+           +    '<div class="ac-sub">'+escapeHtml(r.city)+' · '+escapeHtml(r.address)+'</div>'
+           +  '</div></div>';
+    }
+    box.innerHTML = html;
     show();
   }
 
-  function escapeHtml(s) {
-    return String(s ?? "")
+  function escapeHtml(s){
+    return String(s || "")
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
-  async function search(q) {
-    if (!q || !q.trim()) { items = []; render(); return; }
+  async function search(q){
+    if (!q || !q.trim()){ items = []; render(); return; }
 
-    // בטל בקשה קודמת
-    try { aborter?.abort(); } catch {}
+    try { if (aborter) aborter.abort(); } catch(e){}
     aborter = new AbortController();
 
-    const url = new URL('/api/restaurants', window.location.origin);
+    var url = new URL('/api/restaurants', window.location.origin);
     url.searchParams.set('q', q);
     url.searchParams.set('approved', '1');
 
     try {
-      const res = await fetch(url.toString(), { signal: aborter.signal, headers: { 'Accept':'application/json' }});
+      var res = await fetch(url.toString(), { signal: aborter.signal, headers: { 'Accept':'application/json' }});
       if (!res.ok) throw new Error('http '+res.status);
-      const data = await res.json();
-      items = (Array.isArray(data) ? data : []).slice(0, MAX).map(r => {
-        const ps = normPhotos(r.photos);
-        return {
-          id: r.id,
-          name: r.name || "",
-          city: r.city || "",
-          address: r.address || "",
-          thumb: ps[0] || PLACEHOLDER,
-        };
-      });
+      var data = await res.json();
+      var arr = Array.isArray(data) ? data.slice(0, MAX) : [];
+      var out = [];
+      for (var i=0;i<arr.length;i++){
+        var rr = arr[i];
+        var ps = normPhotos(rr.photos);
+        out.push({
+          id: rr.id,
+          name: rr.name || "",
+          city: rr.city || "",
+          address: rr.address || "",
+          thumb: ps[0] || PLACEHOLDER
+        });
+      }
+      items = out;
       active = -1;
       render();
-    } catch(e) {
-      if (e?.name === 'AbortError') return;
+    } catch(e){
+      if (e && e.name === 'AbortError') return;
       console.warn('[ac] fetch failed:', e);
       items = []; render();
     }
   }
 
-  const onInput = debounce((ev) => {
-    const q = ev.target.value || "";
-    if (q.trim().length < 1) { items = []; render(); return; }
+  var onInput = debounce(function(ev){
+    var q = ev.target.value || "";
+    if (q.trim().length < 1){ items = []; render(); return; }
     search(q);
   }, 150);
 
-  input.addEventListener('input', onInput);
-
-  input.addEventListener('keydown', (ev) => {
-    if (box.hidden) return;
-    const K = ev.key;
-    if (K === 'ArrowDown') {
-      ev.preventDefault();
-      if (!items.length) return;
-      active = (active + 1) % items.length;
-      render();
-    } else if (K === 'ArrowUp') {
-      ev.preventDefault();
-      if (!items.length) return;
-      active = (active - 1 + items.length) % items.length;
-      render();
-    } else if (K === 'Enter') {
-      if (active >= 0 && active < items.length) {
-        ev.preventDefault();
-        go(items[active]);
+  if (input){
+    input.addEventListener('input', onInput);
+    input.addEventListener('keydown', function(ev){
+      if (box.hidden) return;
+      var K = ev.key;
+      if (K === 'ArrowDown'){
+        ev.preventDefault(); if (!items.length) return; active = (active + 1) % items.length; render();
+      } else if (K === 'ArrowUp'){
+        ev.preventDefault(); if (!items.length) return; active = (active - 1 + items.length) % items.length; render();
+      } else if (K === 'Enter'){
+        if (active >= 0 && active < items.length){ ev.preventDefault(); go(items[active]); }
+      } else if (K === 'Escape'){
+        hide();
       }
-    } else if (K === 'Escape') {
-      hide();
-    }
-  });
-
-  function go(row) {
-    if (!row || !row.id) return;
-    // מעבר לעמוד מסעדה (נשמר)
-    window.location.href = `/restaurants/${encodeURIComponent(row.id)}?date=${new Date().toISOString().slice(0,10)}`;
+    });
   }
 
-  // סגירת התיבה בלחיצה מחוץ
-  document.addEventListener('click', (e) => {
+  function go(row){
+    if (!row || !row.id) return;
+    window.location.href = '/restaurants/'+encodeURIComponent(row.id)+'?date='+new Date().toISOString().slice(0,10);
+  }
+
+  document.addEventListener('click', function(e){
     if (!box.contains(e.target) && e.target !== input) hide();
   });
 
-  // פתיחה ראשונית אם יש ערך
-  if ((input.value || "").trim()) {
+  if (input && (input.value || "").trim()){
     search(input.value.trim());
   }
 
-  // סגירה כשמאבדים פוקוס (עם דילי קטן כדי לא לבטל קליק)
-  let blurTimer = null;
-  input.addEventListener('blur', () => {
-    blurTimer = setTimeout(() => hide(), 120);
-  });
-  input.addEventListener('focus', () => {
-    clearTimeout(blurTimer);
-    if (items.length) show();
-    else if (input.value.trim()) search(input.value.trim());
-  });
+  var blurTimer = null;
+  if (input){
+    input.addEventListener('blur', function(){ blurTimer = setTimeout(hide, 120); });
+    input.addEventListener('focus', function(){
+      clearTimeout(blurTimer);
+      if (items.length) show();
+      else if (input.value.trim()) search(input.value.trim());
+    });
+  }
 })();
 </script>
 
 <style>
-  /* מיקום קופסת ההצעות ביחס לשורת החיפוש החדשה */
+  /* התאמות אוטוקומפליט למראה הכהה */
   .ac-wrap { position: relative; }
   .ac-list {
     position: absolute;
@@ -258,16 +262,10 @@
     overflow-y: auto;
     padding: 6px;
   }
-  .ac-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px; border-radius: 8px; cursor: pointer;
-  }
+  .ac-item { display:flex; align-items:center; gap:10px; padding:8px; border-radius:8px; cursor:pointer; }
   .ac-item:hover, .ac-item.is-active { background: rgba(255,255,255,.05); }
-  .ac-thumb {
-    width: 44px; height: 44px; object-fit: cover;
-    border-radius: 8px; border: 1px solid var(--bd); flex: 0 0 44px;
-  }
-  .ac-meta { min-width: 0; }
-  .ac-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ac-sub { font-size: .9rem; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ac-thumb { width:44px; height:44px; object-fit:cover; border-radius:8px; border:1px solid var(--bd); flex:0 0 44px; }
+  .ac-meta { min-width:0; }
+  .ac-title { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ac-sub { font-size:.9rem; color:var(--ink-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 </style>
