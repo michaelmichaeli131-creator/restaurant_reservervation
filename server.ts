@@ -20,6 +20,7 @@ import {
   isHttpError,
   Status,
 } from "jsr:@oak/oak";
+import { send } from "jsr:@oak/oak/send"; // ← חדש: נדרש להגשת /public/*
 
 import { render } from "./lib/view.ts";
 import sessionMiddleware from "./lib/session.ts";
@@ -180,6 +181,19 @@ app.use(async (ctx, next) => {
 
 // --- 🔎 Request logger המפורט שלך — ממוקם מוקדם כדי לעטוף הכל ---
 app.use(requestLogger());
+
+/* --- Static files (/public/* -> src/public/*) — חדש --- */
+app.use(async (ctx, next) => {
+  const p = ctx.request.url.pathname;
+  if (p.startsWith("/public/")) {
+    await send(ctx, p, {
+      // כך /public/css/spotbook.css ממופה פיזית ל src/public/css/spotbook.css
+      root: `${Deno.cwd()}/src`,
+    });
+    return; // לא להמשיך לראוטרים
+  }
+  await next();
+});
 
 // --- Static files (/static/* -> public/*) ---
 app.use(async (ctx, next) => {
