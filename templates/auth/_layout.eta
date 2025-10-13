@@ -1,67 +1,38 @@
+
+
 <!doctype html>
-<html lang="<%= it.lang || 'he' %>" dir="<%= it.dir || 'rtl' %>">
+<html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title><%= it.title ? it.title + ' · SpotBook' : 'SpotBook' %></title>
-
-  <!-- שמירת תאימות לעיצוב הישן -->
+  <title><%= it.title || "GeoTable" %></title>
   <link rel="stylesheet" href="/static/styles.css"/>
-
-  <!-- עיצוב כהה חדש של SpotBook -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/public/css/spotbook.css"/>
-
-  <%~ it.head || '' %>
 </head>
-<body class="sb-body">
-  <header class="sb-header">
-    <div class="sb-container" style="display:flex;align-items:center;gap:12px">
-      <a class="brand" href="/">
-        <span class="logo-dot" aria-hidden="true"></span>
-        <span class="brand-text">SpotBook</span>
-      </a>
-
-      <nav class="sb-nav" style="margin-inline-start:auto">
+<body>
+  <header class="site-header">
+    <div class="container row">
+      <a class="brand" href="/">GeoTable</a>
+      <nav class="nav">
         <% if (it.user) { %>
-          <!-- כפתור ניהול למסעדות (כמו במקור: לכל משתמש מחובר) -->
-          <a class="btn primary" href="/owner">פתח/י מסעדה / ניהול</a>
-
-          <!-- תצוגת משתמש (שם + אימייל) -->
-          <span class="user" style="color:var(--ink-muted)">
-            מחובר/ת:
-            <strong><%= it.user.firstName %> <%= it.user.lastName %></strong>
-            (<%= it.user.email %>)
-          </span>
-
-          <a class="btn ghost" href="/auth/logout">התנתקות</a>
+          <span class="user">מחובר/ת: <strong><%= it.user.firstName %> <%= it.user.lastName %></strong> (<%= it.user.email %>)</span>
+          <a class="btn" href="/auth/logout">התנתקות</a>
         <% } else { %>
-          <a class="btn ghost" href="/auth/login">התחברות</a>
-          <a class="btn" style="border-color:transparent;background:var(--brand);color:var(--brand-ink)" href="/auth/register">הרשמה</a>
+          <a class="btn" href="/auth/login">התחברות</a>
+          <a class="btn outline" href="/auth/register">הרשמה</a>
         <% } %>
-
-        <!-- קישור Admin נשמר -->
-        <a class="btn ghost" href="/admin/login">Admin</a>
+        <a class="btn secondary" href="/admin/login">Admin</a>
       </nav>
     </div>
   </header>
 
-  <main class="sb-container">
+  <main class="container">
     <%~ it.body %>
   </main>
 
-  <footer class="sb-footer">
-    <p>© <%= new Date().getFullYear() %> SpotBook · כל הזכויות שמורות</p>
+  <footer class="site-footer container muted">
+    <small>© <%= new Date().getFullYear() %> GeoTable</small>
   </footer>
 
-  <!-- שמירת תאימות לסקריפט הישן -->
   <script src="/static/app.js" defer></script>
-
-  <!-- הזרקת סקריפטים נוספים לפי דף -->
-  <% if (it.scripts) { it.scripts.forEach(function(src){ %>
-    <script src="<%= src %>" type="module"></script>
-  <% }) } %>
 </body>
 </html>
