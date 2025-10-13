@@ -57,7 +57,7 @@ function mapOpenWindowsForTimeline(wins: Array<{ open: string; close: string }>)
   return wins.map(w => ({ start: w.open as `${number}${number}:${number}${number}`, end: w.close as `${number}${number}:${number}${number}` }));
 }
 
-/* ---- Enrichment from note ---- */
+/* ---- Enrichment from note / names ---- */
 function splitName(full?: string): { first: string; last: string } {
   const s = String(full ?? "").trim().replace(/\s+/g, " ");
   if (!s) return { first: "", last: "" };
@@ -85,10 +85,22 @@ async function readActionBody(ctx: any): Promise<any> {
   }
 }
 
+/* ---------- DB create resolver (try multiple fn names) ---------- */
+function pickCreateFn(db: any) {
+  return (
+    db?.createReservation ||
+    db?.createManualReservation ||
+    db?.createReservationAtTime ||
+    db?.addReservation ||
+    db?.insertReservation ||
+    null
+  );
+}
+
 /* ---------- Unified Slot Action Handler ---------- */
 async function handleSlotAction(ctx: any) {
   const { rid } = ctx.params;
-  await ensureOwnerAccess(ctx, rid);
+  const r = await ensureOwnerAccess(ctx, rid);
 
   const method = ctx.request.method;
   const ct = ctx.request.headers.get("content-type") || "";
@@ -98,8 +110,7 @@ async function handleSlotAction(ctx: any) {
   debugLog("owner_calendar", "Body (payload) after readActionBody", { body });
 
   let action = String(body?.action ?? "").trim();
-
-  // aliases (+ תמיכה ב-querystring כגיבוי)
+  // aliases
   if (!action && typeof body === "object") {
     const alias = (body as any).type ?? (body as any).op ?? (body as any).mode;
     if (alias && typeof alias === "string") {
@@ -107,14 +118,6 @@ async function handleSlotAction(ctx: any) {
       debugLog("owner_calendar", "Alias used for action", { alias });
     }
   }
-  if (!action) {
-    const qsAction = ctx.request.url.searchParams.get("action") || "";
-    if (qsAction) {
-      action = qsAction.trim();
-      debugLog("owner_calendar", "Action from querystring", { action });
-    }
-  }
-
   const normalized =
     action === "add" || action === "new" ? "create" :
     action === "edit" ? "update" :
@@ -122,9 +125,8 @@ async function handleSlotAction(ctx: any) {
     action === "arrived" ? "arrived" :
     action;
 
-  // date/time גם מה־querystring כגיבוי
-  const date = String(body?.date ?? ctx.request.url.searchParams.get("date") ?? "");
-  const time = String(body?.time ?? ctx.request.url.searchParams.get("time") ?? "");
+  const date = String(body?.date ?? "");
+  const time = String(body?.time ?? "");
 
   // אם reservation הגיע כמחרוזת (למשל דרך querystring או text), נפרק ל־object
   let reservation: any = (body as any)?.reservation ?? {};
@@ -151,22 +153,71 @@ async function handleSlotAction(ctx: any) {
   let result: any = null;
 
   if (normalized === "create") {
-    const payload = {
-      firstName: String(reservation?.firstName ?? "").trim(),
-      lastName : String(reservation?.lastName  ?? "").trim(),
-      phone    : String(reservation?.phone     ?? "").trim(),
-      people   : Math.max(1, Number(reservation?.people ?? 1)),
-      note     : String(reservation?.notes ?? reservation?.note ?? "").trim(),
-      status   : String(reservation?.status ?? "approved"),
-      date, time,
-    };
-    debugLog("owner_calendar", "create payload", { payload });
-    if (!payload.firstName || !payload.lastName || !payload.people) {
-      ctx.throw(Status.BadRequest, "Missing fields for create");
+    // קבל גם fullName / name / customerName
+    const fallbackName = (reservation?.fullName ?? reservation?.name ?? reservation?.customerName ?? "").toString().trim();
+    let firstName = (reservation?.firstName ?? "").toString().trim();
+    let lastName  = (reservation?.lastName  ?? "").toString().trim();
+
+    if ((!firstName || !lastName) && fallbackName) {
+      const s = splitName(fallbackName);
+      if (!firstName) firstName = s.first;
+      if (!lastName)  lastName  = s.last;
     }
-    const createFn = (db as any).createReservation ?? (db as any).createManualReservation;
-    if (!createFn) ctx.throw(Status.NotImplemented, "createReservation not implemented yet");
+
+    // העשרה משדה note אם יש
+    const noteRaw = (reservation?.notes ?? reservation?.note ?? "").toString().trim();
+    if ((!firstName || !lastName || !reservation?.phone) && noteRaw) {
+      const ext = extractFromNote(noteRaw);
+      if ((!firstName || !lastName) && ext.name) {
+        const s = splitName(ext.name);
+        if (!firstName) firstName = s.first;
+        if (!lastName)  lastName  = s.last;
+      }
+      if (!reservation?.phone && ext.phone) reservation.phone = ext.phone;
+    }
+
+    const { durationMinutes } = deriveCapacities(r);
+    const user = (ctx.state as any)?.user;
+
+    const payload: Record<string, unknown> = {
+      // מזער דרישות — אבל עדיין שומר על סדר
+      firstName: firstName,
+      lastName : lastName,
+      phone    : (reservation?.phone ?? "").toString().trim(),
+      people   : Math.max(1, Number(reservation?.people ?? 1)),
+      note     : noteRaw,
+      status   : (reservation?.status ?? "approved").toString(),
+
+      // שדות שה־DB נוטה לצפות להם / מקלים על שליפה אחר־כך:
+      restaurantId: rid,
+      date,
+      time,
+      datetime: `${date}T${time}`,
+      durationMinutes,
+      source: "owner-manual",
+      channel: "owner",
+      createdBy: user?.id ?? null,
+    };
+
+    // אם עדיין חסר שם לגמרי — אל תכשיל: תן ברירת מחדל "Walk-in"
+    if (!payload.firstName && !payload.lastName) {
+      payload.firstName = "Walk-in";
+      payload.lastName = "";
+    }
+
+    // בדיקה רכה — רק people>0
+    if (!payload.people || Number.isNaN(payload.people as number)) {
+      ctx.throw(Status.BadRequest, "Invalid people");
+    }
+
+    debugLog("owner_calendar", "create payload (final)", { payload });
+
+    const createFn = pickCreateFn(db as any);
+    if (!createFn) {
+      ctx.throw(Status.NotImplemented, "No createReservation function found in database.ts");
+    }
     result = await createFn(rid, payload);
+    debugLog("owner_calendar", "create result", { result });
   } else if (normalized === "update") {
     const id = String(reservation?.id ?? "");
     debugLog("owner_calendar", "update id & patch", { id, reservation });
