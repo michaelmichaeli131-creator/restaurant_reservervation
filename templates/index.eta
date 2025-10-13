@@ -6,36 +6,31 @@
     <h1 class="hero-title"><%= (it.t && it.t.heroTitle) ? it.t.heroTitle : 'Reserve a Table at a Restaurant' %></h1>
     <p class="hero-sub"><%= (it.t && it.t.heroSub) ? it.t.heroSub : 'Book a table easily and quickly online' %></p>
 
+    <!-- עוטף יחיד כדי למקם את תיבת האוטוקומפליט יחסית לטופס -->
     <div class="ac-wrap" style="position:relative; width:100%; max-width:980px">
-      <!-- נשמר: חיפוש ב-root עם search=1 כדי להציג תוצאות בדף -->
+      <!-- שומרים: חיפוש ב-root עם search=1 כדי להציג תוצאות בדף הבית -->
       <form id="search-form" class="search-bar" method="GET" action="/">
         <input type="hidden" name="search" value="1"/>
 
-        <div class="field with-icon" style="min-width:220px">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 4h-3a1 1 0 0 0-1 1v3h2V6h2V4zM8 4H5v2h2v2h2V5a1 1 0 0 0-1-1zM19 18h-2v-2h-2v3a1 1 0 0 0 1 1h3v-2zM7 16H5v2h3a1 1 0 0 0 1-1v-3H7v2z"/></svg>
+        <!-- נשאר רק שדה החיפוש (q) כדי לא לאבד אוטוקומפליט/לוגיקה קיימת -->
+        <div class="field with-icon" style="min-width:260px; flex:1">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M19 4h-3a1 1 0 0 0-1 1v3h2V6h2V4zM8 4H5v2h2v2h2V5a1 1 0 0 0-1-1zM19 18h-2v-2h-2v3a1 1 0 0 0 1 1h3v-2zM7 16H5v2h3a1 1 0 0 0 1-1v-3H7v2z"/>
+          </svg>
           <input name="q" id="q" type="search" placeholder="<%= (it.t && it.t.placeholder) ? it.t.placeholder : 'חפש מסעדה / עיר / סוג מטבח' %>" value="<%= it.q || '' %>">
-        </div>
-
-        <div class="field with-icon">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11h5v5H7z"/><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 6h14V5H5v4z"/></svg>
-          <input name="date" id="date" type="date" value="<%= it.date || '' %>">
-        </div>
-
-        <div class="field with-icon">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5l4 2"/></svg>
-          <input name="time" id="time" type="time" step="900" value="<%= it.time || '' %>">
         </div>
 
         <button class="btn primary search-btn" type="submit"><%= (it.t && it.t.search) ? it.t.search : 'Search' %></button>
       </form>
 
-      <!-- קופסת הצעות לאוטוקומפליט (נשמרה מהעמוד הישן) -->
+      <!-- תיבת הצעות לאוטוקומפליט (נשמרה במלואה) -->
       <div id="ac-list" class="ac-list" hidden></div>
     </div>
   </div>
 </section>
 
 <%
+  // נשמר: מציגים תוצאות כשיש search=1 או כשיש q כלשהו
   var _q = (it.q || "");
   var showResults = (it.search === "1") || (_q.trim().length > 0);
 %>
@@ -43,6 +38,7 @@
 <% if (showResults) { %>
   <section class="section">
     <h2 class="section-title">תוצאות</h2>
+
     <% if (!it.restaurants || !it.restaurants.length) { %>
       <p class="muted">לא נמצאו תוצאות.</p>
     <% } else { %>
@@ -70,11 +66,12 @@
               <% } %>
             </div>
           </a>
-        <% } /* for */ %>
+        <% } %>
       </div>
     <% } %>
   </section>
 <% } else { %>
+  <!-- מצב ברירת מחדל: רשימת מומלצות (אם השרת מזין it.recommended) -->
   <section class="section">
     <h2 class="section-title"><%= (it.t && it.t.recommended) ? it.t.recommended : 'Recommended Restaurants' %></h2>
     <div class="cards">
@@ -91,7 +88,7 @@
             <p class="card-meta"><%= rr.cuisine || '' %> · <%= rr.city || '' %></p>
           </div>
         </a>
-      <% } /* for */ %>
+      <% } %>
     </div>
 
     <% if (!rec.length) { %>
@@ -100,13 +97,14 @@
   </section>
 <% } %>
 
-<% 
+<%
+  // שמירה על הזרקת סקריפטים קיימת
   it.scripts = (it.scripts || []);
   it.scripts.push('/public/js/home.js');
 %>
 
 <script>
-/* ======= אוטוקומפליט – נשמר מהעמוד הישן, מותאם למיקום החדש ======= */
+/* ======= אוטוקומפליט – כל הפיצ'רים נשמרו: debounce, keyboard nav, mouse, blur/focus, escape ======= */
 (function(){
   var input = document.getElementById('q');
   var box   = document.getElementById('ac-list');
@@ -116,6 +114,7 @@
   var aborter = null;
   var items = [];       // [{id,name,city,address,thumb}]
   var active = -1;      // אינדקס מוצע שנבחר במקלדת
+  var blurTimer = null;
 
   function debounce(fn, ms){
     var t = null;
@@ -164,7 +163,8 @@
   async function search(q){
     if (!q || !q.trim()){ items = []; render(); return; }
 
-    try { if (aborter) aborter.abort(); } catch(e){}
+    // בטל בקשה קודמת
+    try { aborter?.abort(); } catch {}
     aborter = new AbortController();
 
     var url = new URL('/api/restaurants', window.location.origin);
@@ -185,7 +185,7 @@
           name: rr.name || "",
           city: rr.city || "",
           address: rr.address || "",
-          thumb: ps[0] || PLACEHOLDER
+          thumb: ps[0] || PLACEHOLDER,
         });
       }
       items = out;
@@ -206,6 +206,8 @@
 
   if (input){
     input.addEventListener('input', onInput);
+
+    // ניווט מקלדת
     input.addEventListener('keydown', function(ev){
       if (box.hidden) return;
       var K = ev.key;
@@ -219,23 +221,8 @@
         hide();
       }
     });
-  }
 
-  function go(row){
-    if (!row || !row.id) return;
-    window.location.href = '/restaurants/'+encodeURIComponent(row.id)+'?date='+new Date().toISOString().slice(0,10);
-  }
-
-  document.addEventListener('click', function(e){
-    if (!box.contains(e.target) && e.target !== input) hide();
-  });
-
-  if (input && (input.value || "").trim()){
-    search(input.value.trim());
-  }
-
-  var blurTimer = null;
-  if (input){
+    // blur/focus כדי לא לאבד קליק
     input.addEventListener('blur', function(){ blurTimer = setTimeout(hide, 120); });
     input.addEventListener('focus', function(){
       clearTimeout(blurTimer);
@@ -243,11 +230,36 @@
       else if (input.value.trim()) search(input.value.trim());
     });
   }
+
+  function go(row){
+    if (!row || !row.id) return;
+    // ניווט לעמוד מסעדה (נשמר כבעבר)
+    window.location.href = '/restaurants/'+encodeURIComponent(row.id)+'?date='+new Date().toISOString().slice(0,10);
+  }
+
+  // קליק על פריט הצעה
+  box.addEventListener('mousedown', function(ev){
+    ev.preventDefault(); // לא לאבד פוקוס לפני הניווט
+    var el = ev.target.closest('.ac-item');
+    if (!el) return;
+    var i = Number(el.getAttribute('data-idx') || -1);
+    if (i >= 0 && i < items.length) go(items[i]);
+  });
+
+  // סגירה בלחיצה מחוץ
+  document.addEventListener('click', function(e){
+    if (!box.contains(e.target) && e.target !== input) hide();
+  });
+
+  // פתיחה ראשונית אם יש ערך
+  if (input && (input.value || "").trim()){
+    search(input.value.trim());
+  }
 })();
 </script>
 
 <style>
-  /* התאמות אוטוקומפליט למראה הכהה */
+  /* התאמות אוטוקומפליט למראה הכהה – נשמרות */
   .ac-wrap { position: relative; }
   .ac-list {
     position: absolute;
