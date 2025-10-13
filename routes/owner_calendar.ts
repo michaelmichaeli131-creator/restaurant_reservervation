@@ -63,15 +63,35 @@ async function ensureOwnerAccess(ctx: any, rawRid: string): Promise<Restaurant> 
     ctx.throw(Status.NotFound, "Restaurant not found");
   }
 
-  const ownerId = (r as any).ownerId ?? null;
-  const userId  = (r as any).userId  ?? null;
-  const isAdmin = !!(user as any)?.isAdmin;
+  // ----- הרשאות גמישות יותר -----
+  const uid = String(user?.id ?? "");
+  const ownerId = (r as any).ownerId != null ? String((r as any).ownerId) : "";
+  const rUserId  = (r as any).userId  != null ? String((r as any).userId)  : "";
+  const managers: string[] = Array.isArray((r as any).managerIds)
+    ? (r as any).managerIds.map((x: any) => String(x))
+    : [];
+  const isAdmin = !!(user as any)?.isAdmin || String((user as any)?.role ?? "").toLowerCase() === "admin";
 
-  if (isAdmin || ownerId === user.id || userId === user.id) {
+  const unclaimed = !ownerId && !rUserId && managers.length === 0; // מסעדה "לא משויכת" — נאפשר ב־dev
+  const isManager = managers.includes(uid);
+  const owned = ownerId === uid || rUserId === uid;
+
+  if (isAdmin || owned || isManager || unclaimed) {
+    if (unclaimed) {
+      debugLog("owner_calendar", "Access allowed (unclaimed restaurant in dev/demo)", { rid: (r as any).id, uid });
+    }
     return r as Restaurant;
   }
 
-  debugLog("owner_calendar", "Forbidden: restaurant not owned by user", { rid, userId: user?.id, ownerId, rUserId: userId, isAdmin });
+  debugLog("owner_calendar", "Forbidden: restaurant not owned by user", {
+    ridRequested: rid,
+    ridResolved: (r as any).id,
+    uid,
+    ownerId,
+    rUserId,
+    managers,
+    isAdmin,
+  });
   ctx.throw(Status.Forbidden, "Not your restaurant");
 }
 
@@ -221,7 +241,6 @@ async function handleSlotAction(ctx: any) {
     const { durationMinutes } = deriveCapacities(r);
     const user = (ctx.state as any)?.user;
 
-    // === PAYLOAD — שימוש ב־internalRid כדי להבטיח אינדוקס נכון ===
     const payload: Record<string, unknown> = {
       firstName,
       lastName,
@@ -241,7 +260,6 @@ async function handleSlotAction(ctx: any) {
       channel: "owner",
       createdBy: user?.id ?? null,
 
-      // אליאסים נפוצים (בטוח לא מזיק)
       reservation_date: date,
       res_date: date,
       time_display: time,
@@ -321,7 +339,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
   });
 });
 
-// JSON — יום (מסנן סטטוסים לא פעילים כדי שהצבעים יתעדכנו אחרי cancel)
+// JSON — יום
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
@@ -473,7 +491,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
   });
 });
 
-// JSON — סיכום יומי (אותו סינון סטטוסים)
+// JSON — סיכום יומי
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
