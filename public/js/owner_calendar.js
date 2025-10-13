@@ -2,19 +2,23 @@
 (function () {
   "use strict";
 
+  /* ========== DOM helpers ========== */
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
+  /* ========== Boot / State ========== */
   const init = window.__OC__ || {};
   const state = {
     rid: init.rid || getRidFromPath(),
-    date: init.date || todayISO(),
+    date: init.date || todayISO(),                  // YYYY-MM-DD selected day
     day: null,
     summary: null,
     drawer: { open: false, time: null, items: [] },
     sse: { es: null, retryMs: 1500, pollTimer: null },
+    cal: { year: 0, month: 0 },                     // sidebar month view (0-11)
   };
 
+  /* ========== Elements ========== */
   const datePicker = $("#datePicker");
   const dateLabel = $("#date-label");
   const btnPrev = $("#btn-prev");
@@ -31,6 +35,18 @@
   const drawerTableBody = $("#drawer-table tbody");
   const btnAdd = $("#btn-add");
 
+  // Sidebar calendar/search/summary
+  const calTitle = $("#cal-title");
+  const calBody  = $("#cal-body");
+  const calWk    = $("#cal-weekdays");
+  const calPrev  = $("#cal-prev");
+  const calNext  = $("#cal-next");
+  const sideSearch = $("#sideSearch");
+  const sideSumBox = $("#day-summary-box");
+  const sideSumText = $("#day-summary-text");
+  const sideSumBar  = $("#day-summary-bar");
+
+  /* ========== Utils ========== */
   function getRidFromPath() {
     const parts = location.pathname.split("/").filter(Boolean);
     const i = parts.indexOf("restaurants");
@@ -55,11 +71,19 @@
   }
   function setOpen(el, on) { el.classList.toggle("open", !!on); }
   function addDays(iso, days) {
-    const d = new Date(iso);
-    d.setDate(d.getDate() + days);
+    const [y,m,d] = iso.split("-").map(Number);
+    const dt = new Date(y, m-1, d);
+    dt.setDate(dt.getDate() + days);
     const p = (n) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
   }
+  function isoToDate(iso){
+    const m = String(iso||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(!m) return new Date();
+    return new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+  }
+  function ymd(d){ const p=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+  function debounce(fn, ms) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; }
 
   async function fetchJSON(url, opts = {}) {
     const res = await fetch(url, {
@@ -82,6 +106,7 @@
     return data;
   }
 
+  /* ========== Header / lines ========== */
   function renderHeaderLine() {
     if (!state.day) {
       if (dateLabel) dateLabel.textContent = "—";
@@ -149,8 +174,11 @@
       <div><b>Avg Occupancy:</b> People ${fmt(s.avgOccupancyPeople)}% · Tables ${fmt(s.avgOccupancyTables)}%</div>
       <div><b>Peak:</b> ${s.peakSlot || "-"} (${fmt(s.peakOccupancy)}%) · <b>Cancelled:</b> ${fmt(s.cancelled)} · <b>No-Show:</b> ${fmt(s.noShow)}</div>
     `;
+    // עדכון הסיכום הקומפקטי בסיידבר
+    updateSidebarSummary(s);
   }
 
+  /* ========== Drawer ========== */
   function renderDrawer(items) {
     if (!drawerTableBody) return;
     drawerTableBody.innerHTML = "";
@@ -194,7 +222,6 @@
       return `<span class="badge cancelled">Cancelled</span>`;
     return `<span class="badge booked">${escapeHTML(status || "Booked")}</span>`;
   }
-
   function escapeHTML(s) {
     return String(s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   }
@@ -218,12 +245,26 @@
     return `${h}:${String(M).padStart(2, "0")} ${ampm}`;
   }
 
+  /* ========== Data loading ========== */
   async function loadDay() {
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day?date=${encodeURIComponent(state.date)}`;
     state.day = await fetchJSON(url);
     renderHeaderLine();
     rowHeader();
     renderSlots();
+    // רענון תאריך בתווית/פיקר
+    if (datePicker) datePicker.value = state.date;
+    if (dateLabel) {
+      const d = isoToDate(state.date);
+      dateLabel.textContent = d.toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+    }
+    // רענון היומן החודשי אם חודש התצוגה לא תואם את התאריך הנבחר
+    const d = isoToDate(state.date);
+    if (state.cal.year !== d.getFullYear() || state.cal.month !== d.getMonth()) {
+      state.cal.year = d.getFullYear();
+      state.cal.month = d.getMonth();
+    }
+    buildCalendar(state.cal.year, state.cal.month);
   }
   async function loadSummary() {
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day/summary?date=${encodeURIComponent(state.date)}`;
@@ -264,7 +305,6 @@
         body,
       });
     }
-
     await Promise.all([loadSlot(), loadDay(), loadSummary()]);
   }
 
@@ -276,7 +316,6 @@
     const phone  = prompt("Phone (optional):") || "";
     const people = Math.max(1, parseInt(prompt("Party size:", "2") || "2", 10));
     const notes  = prompt("Notes (optional):") || "";
-    // אם לא נשלח סטטוס — נקבע booked; עדיין נספר בתפוסה כי הוא לא מבוטל
     await slotAction("create", { firstName, lastName, phone, people, notes, status: "booked" });
   }
 
@@ -298,7 +337,7 @@
     if (first && first.time) openDrawer(first.time);
   }
 
-  /* ---------- SSE wiring ---------- */
+  /* ========== SSE ========== */
   function connectSSE() {
     cleanupSSE();
 
@@ -351,7 +390,93 @@
     }, 15000);
   }
 
+  /* ========== Sidebar: Monthly Calendar ========== */
+  // week days header (Sun..Sat)
+  if (calWk) calWk.innerHTML = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => `<th>${d}</th>`).join("");
+
+  function buildCalendar(year, month) {
+    if (!calBody || !calTitle) return;
+
+    // Title
+    const ref = new Date(year, month, 1);
+    calTitle.textContent = ref.toLocaleDateString(undefined, { year:"numeric", month:"long" });
+
+    // First visible cell starts at prev Sunday
+    const first = new Date(year, month, 1);
+    const start = new Date(first);
+    start.setDate(1 - first.getDay());
+
+    // marks
+    const selected = isoToDate(state.date);
+    const today = new Date(); today.setHours(0,0,0,0);
+
+    // 6 rows * 7 columns
+    const rows = [];
+    let cur = new Date(start);
+    for (let r=0; r<6; r++){
+      const tds = [];
+      for (let c=0; c<7; c++){
+        const inMonth = (cur.getMonth() === month);
+        const isSel = (cur.getFullYear()===selected.getFullYear() &&
+                       cur.getMonth()===selected.getMonth() &&
+                       cur.getDate()===selected.getDate());
+        const isToday = (cur.getFullYear()===today.getFullYear() &&
+                         cur.getMonth()===today.getMonth() &&
+                         cur.getDate()===today.getDate());
+
+        const classes = [
+          inMonth ? "" : "out",
+          isToday ? "today" : "",
+          isSel ? "sel" : ""
+        ].filter(Boolean).join(" ");
+
+        const label = cur.getDate();
+        const iso = ymd(cur);
+        tds.push(`<td><button class="${classes}" data-iso="${iso}" title="${iso}">${label}</button></td>`);
+        cur.setDate(cur.getDate()+1);
+      }
+      rows.push(`<tr>${tds.join("")}</tr>`);
+    }
+    calBody.innerHTML = rows.join("");
+
+    // Bind clicks
+    $$("button", calBody).forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const iso = btn.getAttribute("data-iso");
+        if (!iso) return;
+        state.date = iso;
+        await Promise.all([loadDay(), loadSummary()]);
+        connectSSE();
+      });
+    });
+  }
+
+  if (calPrev) calPrev.addEventListener("click", () => {
+    let {year, month} = state.cal;
+    month--; if (month<0){ month=11; year--; }
+    state.cal = {year, month};
+    buildCalendar(year, month);
+  });
+  if (calNext) calNext.addEventListener("click", () => {
+    let {year, month} = state.cal;
+    month++; if (month>11){ month=0; year++; }
+    state.cal = {year, month};
+    buildCalendar(year, month);
+  });
+
+  /* ========== Sidebar: Daily Summary compact ========== */
+  function updateSidebarSummary(s) {
+    if (!sideSumBox || !sideSumText || !sideSumBar || !s) return;
+    const pct = Math.max(0, Math.min(100, Math.round(s.occupancyPct || 0)));
+    const ppl = s.people ?? s.totalGuests ?? 0;
+    const tbl = s.tables ?? 0;
+    sideSumText.textContent = `People ${fmt(ppl)} · Tables ${fmt(tbl)} · ${pct}%`;
+    sideSumBar.style.width = `${pct}%`;
+  }
+
+  /* ========== Wire controls ========== */
   function wire() {
+    // Top bar: prev/next/datePicker
     if (btnPrev) btnPrev.addEventListener("click", async () => {
       state.date = addDays(state.date, -1);
       if (datePicker) datePicker.value = state.date;
@@ -369,8 +494,17 @@
       await Promise.all([loadDay(), loadSummary()]);
       connectSSE();
     });
+
+    // Search (header legacy + sidebar unified)
     if (daySearch) daySearch.addEventListener("input", debounce(() => searchInDay(daySearch.value), 250));
-    if (drawerClose) drawerClose.addEventListener("click", () => { if (drawer) setOpen(drawer, false); state.drawer.open = false; state.drawer.time = null; });
+    if (sideSearch) sideSearch.addEventListener("input", debounce(() => {
+      const v = sideSearch.value || "";
+      if (daySearch) daySearch.value = v; // להזרים לוגיקה קיימת אם נשענת על קלט זה
+      searchInDay(v);
+    }, 250));
+
+    // Drawer
+    if (drawerClose) drawerClose.addEventListener("click", () => { closeDrawer(); });
     if (btnAdd) btnAdd.addEventListener("click", createManual);
     if (drawerSearch) drawerSearch.addEventListener("input", () => {
       const q = drawerSearch.value.trim().toLowerCase();
@@ -380,11 +514,18 @@
     });
   }
 
-  function debounce(fn, ms) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; }
+  /* ========== Init ========== */
+  function initMonthFromSelected() {
+    const d = isoToDate(state.date);
+    state.cal.year = d.getFullYear();
+    state.cal.month = d.getMonth();
+  }
 
   async function initApp() {
     if (datePicker) datePicker.value = state.date;
+    initMonthFromSelected();
     wire();
+    buildCalendar(state.cal.year, state.cal.month);
     await Promise.all([loadDay(), loadSummary()]);
     connectSSE();
   }
