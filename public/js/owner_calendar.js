@@ -1,4 +1,4 @@
-// /public/js/owner_calendar.js
+// /static/js/owner_calendar.js
 (function () {
   "use strict";
 
@@ -92,15 +92,15 @@
   /* ---------- Rendering ---------- */
   function renderHeaderLine() {
     if (!state.day) {
-      dateLabel && (dateLabel.textContent = "—");
-      capLine && (capLine.textContent = "");
+      if (dateLabel) dateLabel.textContent = "—";
+      if (capLine) capLine.textContent = "";
       return;
     }
     const d = new Date(state.date + "T00:00:00");
     const weekday = d.toLocaleDateString("en-US", { weekday: "short" });
     const long = d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-    dateLabel && (dateLabel.textContent = `${weekday}, ${long}`);
-    capLine && (capLine.textContent = `Capacity: People ${state.day.capacityPeople} • Tables ${state.day.capacityTables} • Step: ${state.day.slotMinutes}m`);
+    if (dateLabel) dateLabel.textContent = `${weekday}, ${long}`;
+    if (capLine) capLine.textContent = `Capacity: People ${state.day.capacityPeople} • Tables ${state.day.capacityTables} • Step: ${state.day.slotMinutes}m`;
   }
 
   function rowHeader() {
@@ -209,13 +209,13 @@
   /* ---------- Drawer ---------- */
   function openDrawer(hhmm) {
     state.drawer.time = hhmm;
-    drawerTitle && (drawerTitle.textContent = `Customers ${toAMPM(hhmm)}`);
-    drawer && setOpen(drawer, true);
+    if (drawerTitle) drawerTitle.textContent = `Customers ${toAMPM(hhmm)}`;
+    if (drawer) setOpen(drawer, true);
     state.drawer.open = true;
     loadSlot();
   }
   function closeDrawer() {
-    drawer && setOpen(drawer, false);
+    if (drawer) setOpen(drawer, false);
     state.drawer.open = false;
     state.drawer.time = null;
   }
@@ -255,7 +255,7 @@
       action,
       date: state.date,
       time: state.drawer.time,
-      reservation: JSON.stringify(reservation), // גם ב-QS
+      reservation: JSON.stringify(reservation),
     };
     const qs = new URLSearchParams(baseQs);
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/slot?${qs.toString()}`;
@@ -264,10 +264,9 @@
       action,
       date: state.date,
       time: state.drawer.time,
-      reservation, // וגם ב-BODY כאובייקט
+      reservation,
     });
 
-    // 1) מנסים PATCH
     try {
       await fetchJSON(url, {
         method: "PATCH",
@@ -275,7 +274,6 @@
         body,
       });
     } catch (e) {
-      // 2) fallback ל-POST (חלק מהפרוקסים/חומות חוסמים PATCH)
       await fetchJSON(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -320,24 +318,24 @@
   }
 
   function wire() {
-    btnPrev && btnPrev.addEventListener("click", async () => {
+    if (btnPrev) btnPrev.addEventListener("click", async () => {
       state.date = addDays(state.date, -1);
-      datePicker && (datePicker.value = state.date);
+      if (datePicker) datePicker.value = state.date;
       await Promise.all([loadDay(), loadSummary()]);
     });
-    btnNext && btnNext.addEventListener("click", async () => {
+    if (btnNext) btnNext.addEventListener("click", async () => {
       state.date = addDays(state.date, +1);
-      datePicker && (datePicker.value = state.date);
+      if (datePicker) datePicker.value = state.date;
       await Promise.all([loadDay(), loadSummary()]);
     });
-    datePicker && datePicker.addEventListener("change", async () => {
+    if (datePicker) datePicker.addEventListener("change", async () => {
       state.date = datePicker.value;
       await Promise.all([loadDay(), loadSummary()]);
     });
-    daySearch && daySearch.addEventListener("input", debounce(() => searchInDay(daySearch.value), 250));
-    drawerClose && drawerClose.addEventListener("click", closeDrawer);
-    btnAdd && btnAdd.addEventListener("click", createManual);
-    drawerSearch && drawerSearch.addEventListener("input", () => {
+    if (daySearch) daySearch.addEventListener("input", debounce(() => searchInDay(daySearch.value), 250));
+    if (drawerClose) drawerClose.addEventListener("click", closeDrawer);
+    if (btnAdd) btnAdd.addEventListener("click", createManual);
+    if (drawerSearch) drawerSearch.addEventListener("input", () => {
       const q = drawerSearch.value.trim().toLowerCase();
       $$("#drawer-table tbody tr").forEach((tr) => {
         tr.style.display = tr.textContent.toLowerCase().includes(q) ? "" : "none";
@@ -348,7 +346,7 @@
   function debounce(fn, ms) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; }
 
   async function initApp() {
-    datePicker && (datePicker.value = state.date);
+    if (datePicker) datePicker.value = state.date;
     wire();
     await Promise.all([loadDay(), loadSummary()]);
   }
