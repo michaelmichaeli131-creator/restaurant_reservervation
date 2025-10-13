@@ -1,0 +1,50 @@
+<% layout("_layout", it) %>
+
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-inner">
+    <h1 class="hero-title"><%= it.t?.heroTitle || 'Reserve a Table at a Restaurant' %></h1>
+    <p class="hero-sub"><%= it.t?.heroSub || 'Book a table easily and quickly online' %></p>
+
+    <form id="search-form" class="search-bar" method="GET" action="/restaurants">
+      <div class="field with-icon">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 4h-3a1 1 0 0 0-1 1v3h2V6h2V4zM8 4H5v2h2v2h2V5a1 1 0 0 0-1-1zM19 18h-2v-2h-2v3a1 1 0 0 0 1 1h3v-2zM7 16H5v2h3a1 1 0 0 0 1-1v-3H7v2z"/></svg>
+        <input name="q" id="q" type="search" placeholder="<%= it.t?.placeholder || 'חפש מסעדה / עיר / סוג מטבח' %>" value="<%= it.q || '' %>">
+      </div>
+
+      <div class="field with-icon">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11h5v5H7z"/><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 6h14V5H5v4z"/></svg>
+        <input name="date" id="date" type="date" value="<%= it.date || '' %>">
+      </div>
+
+      <div class="field with-icon">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5l4 2"/></svg>
+        <input name="time" id="time" type="time" step="900" value="<%= it.time || '' %>">
+      </div>
+
+      <button class="btn primary search-btn" type="submit"><%= it.t?.search || 'Search' %></button>
+    </form>
+  </div>
+</section>
+
+<section class="section">
+  <h2 class="section-title"><%= it.t?.recommended || 'Recommended Restaurants' %></h2>
+
+  <div class="cards">
+    <% (it.recommended || []).forEach(function(r){ %>
+      <a class="card" href="/restaurants/<%= r.id %>">
+        <div class="card-img" style="background-image:url('<%= r.coverUrl || '/public/img/placeholder-restaurant.jpg' %>')"></div>
+        <div class="card-body">
+          <h3 class="card-title"><%= r.name %></h3>
+          <p class="card-meta"><%= r.cuisine || '' %> · <%= r.city || '' %></p>
+        </div>
+      </a>
+    <% }) %>
+  </div>
+
+  <% if (!it.recommended || it.recommended.length === 0) { %>
+    <p class="muted" style="margin-top:16px">אין כרגע מסעדות מומלצות להצגה.</p>
+  <% } %>
+</section>
+
+<% it.scripts = (it.scripts || []).concat(['/public/js/home.js']); %>
