@@ -6,54 +6,61 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/static/css/owner_calendar.css" />
   <style>
-    /* פריסה דו-עמודתית בסיסית בלי לשנות CSS קיים */
-    .oc-layout {
-      display: grid;
-      grid-template-columns: 320px 1fr;
-      gap: 16px;
-      align-items: start;
-      padding: 16px;
+    /* פריסה עם אזורי גריד כדי לקבע שמאל/ימין גם ב-RTL */
+    .oc-layout{
+      display:grid;
+      grid-template-areas: "sidebar main";
+      grid-template-columns: 360px minmax(820px,1fr); /* Sidebar רחב ונוחות קריאה; הטבלה רחבה יותר */
+      gap:16px;
+      align-items:start;
+      padding:16px;
     }
-    @media (max-width: 900px) {
-      .oc-layout { grid-template-columns: 1fr; }
+    @media (max-width: 1100px){
+      .oc-layout{ grid-template-columns: 320px 1fr; }
     }
-    .oc-sidebar {
-      background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
-      padding: 12px;
+    @media (max-width: 900px){
+      .oc-layout{
+        grid-template-areas:
+          "sidebar"
+          "main";
+        grid-template-columns: 1fr;
+      }
     }
-    .oc-section-title {
-      font-weight: 600; margin: 8px 0 12px;
+
+    .oc-sidebar{
+      grid-area:sidebar;
+      background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;
     }
-    /* יומן חודשי קטן */
-    .mini-cal { user-select: none; }
-    .mini-cal .hdr {
-      display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+    .oc-panel{
+      grid-area:main;
+      overflow:auto; /* כדי לאפשר גלילה אופקית אם המסך צר */
     }
-    .mini-cal .hdr .nav {
-      display: flex; gap: 8px;
+
+    /* הגדלת רוחב/נראות הטבלה */
+    .oc-slots{
+      min-width: 900px;              /* מוודא שהטבלה רחבה ומאווררת */
     }
-    .mini-cal .hdr button {
-      border: 1px solid #e5e7eb; background: #fafafa; border-radius: 8px; padding: 6px 10px; cursor: pointer;
-    }
-    .mini-cal table { width: 100%; border-collapse: collapse; }
-    .mini-cal th, .mini-cal td {
-      text-align: center; padding: 6px 0; width: 14.285%;
-    }
-    .mini-cal th { color:#6b7280; font-weight: 600; }
-    .mini-cal td button {
-      width: 34px; height: 34px; line-height: 34px; border-radius: 8px; border: none; background: transparent; cursor: pointer;
-    }
-    .mini-cal td .out { opacity: .35; }
-    .mini-cal td .today { outline: 2px solid #e5e7eb; border-radius: 8px; }
-    .mini-cal td .sel { background: #111827; color: #fff; }
-    /* חיפוש בסיידבר */
-    .oc-side-search { width: 100%; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 10px; }
-    /* סיכום יומי קצר */
-    .oc-day-summary { margin-top: 14px; font-size: 14px; color:#111827; }
-    .oc-day-summary .bar {
-      height: 8px; background:#f3f4f6; border-radius: 999px; overflow: hidden; margin: 8px 0;
-    }
-    .oc-day-summary .bar > div { height: 100%; background: #f59e0b; width: 0%; transition: width .2s; }
+
+    .oc-section-title{font-weight:600;margin:8px 0 12px;}
+
+    /* יומן חודשי קטן (כמו קודם) */
+    .mini-cal{user-select:none}
+    .mini-cal .hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+    .mini-cal .hdr .nav{display:flex;gap:8px}
+    .mini-cal .hdr button{border:1px solid #e5e7eb;background:#fafafa;border-radius:8px;padding:6px 10px;cursor:pointer}
+    .mini-cal table{width:100%;border-collapse:collapse}
+    .mini-cal th,.mini-cal td{text-align:center;padding:6px 0;width:14.285%}
+    .mini-cal th{color:#6b7280;font-weight:600}
+    .mini-cal td button{width:34px;height:34px;line-height:34px;border-radius:8px;border:none;background:transparent;cursor:pointer}
+    .mini-cal td .out{opacity:.35}
+    .mini-cal td .today{outline:2px solid #e5e7eb;border-radius:8px}
+    .mini-cal td .sel{background:#111827;color:#fff}
+
+    /* חיפוש בסיידבר + סיכום */
+    .oc-side-search{width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px}
+    .oc-day-summary{margin-top:14px;font-size:14px;color:#111827}
+    .oc-day-summary .bar{height:8px;background:#f3f4f6;border-radius:999px;overflow:hidden;margin:8px 0}
+    .oc-day-summary .bar>div{height:100%;background:#f59e0b;width:0%;transition:width .2s}
   </style>
 </head>
 <body>
@@ -65,27 +72,24 @@
         <button id="btn-prev" aria-label="Previous day">◀</button>
         <div class="date-label" id="date-label">—</div>
         <button id="btn-next" aria-label="Next day">▶</button>
-
-        <!-- קפיצה לתאריך ספציפי -->
         <button id="btn-jump" aria-label="Jump to date" class="oc-jump">📅 בחר תאריך</button>
         <input type="date" id="datePicker" style="display:none" value="<%= it.date %>"/>
       </div>
       <div class="oc-spacer"></div>
-      <!-- נשאיר את חיפוש-היום פה מינימלית אם מישהו משתמש; בפועל יש גם בסיידבר -->
+      <!-- חיפוש עליון הושתק – יש בסיידבר -->
       <div class="oc-search" style="display:none">
         <input type="search" id="daySearch" placeholder="Search name"/>
       </div>
     </div>
   </div>
 
-  <!-- Layout: Sidebar (שמאל) + Timeline (ימין) -->
+  <!-- Layout -->
   <main class="oc-main">
     <div class="oc-layout">
-      <!-- Sidebar -->
+      <!-- Sidebar (שמאל) -->
       <aside class="oc-sidebar" id="sidebar">
         <div class="oc-section-title">Calendar</div>
         <div class="mini-cal" id="mini-cal">
-          <!-- ימולא ע״י JS -->
           <div class="hdr">
             <div class="nav">
               <button id="cal-prev" aria-label="Prev month">‹</button>
@@ -94,9 +98,7 @@
             <div class="title" id="cal-title">—</div>
           </div>
           <table>
-            <thead>
-              <tr id="cal-weekdays"></tr>
-            </thead>
+            <thead><tr id="cal-weekdays"></tr></thead>
             <tbody id="cal-body"></tbody>
           </table>
         </div>
@@ -111,7 +113,7 @@
         </div>
       </aside>
 
-      <!-- Right: Day/Timeline -->
+      <!-- Panel (ימין) -->
       <section class="oc-panel">
         <header>
           <div class="oc-cap" id="cap-line">Capacity: People — • Tables — • Step: —</div>
@@ -135,7 +137,7 @@
     </div>
   </main>
 
-  <!-- Right Drawer -->
+  <!-- Drawer -->
   <aside class="oc-drawer" id="drawer">
     <header>
       <div class="title" id="drawer-title">Customers</div>
@@ -159,7 +161,6 @@
 
   <script src="/static/js/owner_calendar.js" defer></script>
   <script>
-    // פרמטרים ל-JS
     window.__OC__ = { rid: "<%= it.rid %>", date: "<%= it.date %>" };
 
     // "בחר תאריך" עליון
