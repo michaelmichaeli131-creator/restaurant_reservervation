@@ -9,6 +9,7 @@ import { debugLog } from "../lib/debug.ts";
 import {
   getRestaurant,
   openingWindowsForDate,
+  listRestaurants,            // ← נוסיף לחיפוש fallback
   type Restaurant,
   type Reservation,
 } from "../database.ts";
@@ -32,15 +33,53 @@ function json(ctx: any, data: unknown, status = Status.OK) {
   ctx.response.type = "application/json; charset=utf-8";
   ctx.response.body = data;
 }
-async function ensureOwnerAccess(ctx: any, rid: string): Promise<Restaurant> {
+
+/** בדיקת הרשאות + מציאת מסעדה עם fallback חכם */
+async function ensureOwnerAccess(ctx: any, rawRid: string): Promise<Restaurant> {
   const user = await requireOwner(ctx);
-  const r = await getRestaurant(rid);
-  if (!r) ctx.throw(Status.NotFound, "Restaurant not found");
-  if (r.ownerId !== user.id && (r as any).userId !== user.id) {
-    ctx.throw(Status.Forbidden, "Not your restaurant");
+  const rid = decodeURIComponent(String(rawRid ?? "")).trim();
+  if (!rid) ctx.throw(Status.BadRequest, "Missing restaurant id (rid)");
+
+  // ניסיון 1: לפי getRestaurant (לרוב UUID)
+  let r = await getRestaurant(rid) as Restaurant | null;
+
+  // ניסיון 2: fallback – חיפוש לפי slug/שם/מזהה חלקי
+  if (!r) {
+    try {
+      const all = await listRestaurants();
+      const ridLower = rid.toLowerCase();
+
+      // עדיפות: slug מדויק
+      r = all.find((x: any) => String(x.slug ?? "").toLowerCase() === ridLower) as Restaurant | undefined as any;
+
+      // אח״כ: id שמתחיל ב־rid (קיצורי מזהה)
+      if (!r) r = all.find((x: any) => String(x.id ?? "").toLowerCase().startsWith(ridLower)) as Restaurant | undefined as any;
+
+      // לבסוף: שם מדויק/כולל
+      if (!r) r = all.find((x: any) => String(x.name ?? "").toLowerCase() === ridLower) as Restaurant | undefined as any;
+      if (!r) r = all.find((x: any) => String(x.name ?? "").toLowerCase().includes(ridLower)) as Restaurant | undefined as any;
+    } catch (e) {
+      debugLog("owner_calendar", "fallback listRestaurants failed", { error: String(e) });
+    }
   }
-  return r as Restaurant;
+
+  if (!r) {
+    debugLog("owner_calendar", "Restaurant not found", { rid, userId: user?.id });
+    ctx.throw(Status.NotFound, "Restaurant not found");
+  }
+
+  const ownerId = (r as any).ownerId ?? null;
+  const userId  = (r as any).userId  ?? null;
+  const isAdmin = !!(user as any)?.isAdmin;
+
+  if (isAdmin || ownerId === user.id || userId === user.id) {
+    return r as Restaurant;
+  }
+
+  debugLog("owner_calendar", "Forbidden: restaurant not owned by user", { rid, userId: user?.id, ownerId, rUserId: userId, isAdmin });
+  ctx.throw(Status.Forbidden, "Not your restaurant");
 }
+
 function deriveCapacities(r: Restaurant) {
   const capacityPeople = Math.max(1, Number((r as any).capacity ?? 0));
   const avgPeoplePerTable = Number((r as any).avgPeoplePerTable ?? 3);
@@ -72,7 +111,7 @@ function extractFromNote(note?: string): { name?: string; phone?: string } {
   return { name: mName ? mName[1].trim() : undefined, phone: mPhone ? mPhone[1].trim() : undefined };
 }
 
-/* ---------- Body parser wrapper (uses your readBody) ---------- */
+/* ---------- Body parser wrapper ---------- */
 async function readActionBody(ctx: any): Promise<any> {
   try {
     const { payload, dbg } = await readBody(ctx);
@@ -103,11 +142,7 @@ async function tryCreateWithVariants(
   time: string,
   payload: Record<string, unknown>,
 ) {
-  // 1) Try shape (rid, payload)
-  try {
-    return await createFn(rid, { ...payload, date, time });
-  } catch (_e) {}
-  // 2) Try shape (payload) only
+  try { return await createFn(rid, { ...payload, date, time }); } catch (_e) {}
   try {
     return await createFn({
       id: crypto.randomUUID(),
@@ -117,15 +152,11 @@ async function tryCreateWithVariants(
       time,
     });
   } catch (_e) {}
-  // 3) Try (rid, date, time, payload)
-  try {
-    return await createFn(rid, date, time, payload);
-  } catch (_e) {}
+  try { return await createFn(rid, date, time, payload); } catch (_e) {}
   throw new Error("No compatible createReservation signature");
 }
 
 function activeStatuses(): Set<string> {
-  // כולל גם "confirmed" (createManualReservation בדאטאבייס שומר ברירת מחדל confirmed)
   return new Set(["approved","confirmed","booked","arrived","invited"]);
 }
 
@@ -142,9 +173,7 @@ async function handleSlotAction(ctx: any) {
   let action = String(body?.action ?? "").trim();
   if (!action && typeof body === "object") {
     const alias = (body as any).type ?? (body as any).op ?? (body as any).mode;
-    if (alias && typeof alias === "string") {
-      action = alias.trim();
-    }
+    if (alias && typeof alias === "string") action = alias.trim();
   }
   const normalized =
     action === "add" || action === "new" ? "create" :
@@ -159,7 +188,6 @@ async function handleSlotAction(ctx: any) {
   if (!isISODate(date)) ctx.throw(Status.BadRequest, "Invalid or missing date");
   if (!isHHMM(time)) ctx.throw(Status.BadRequest, "Invalid or missing time");
 
-  // normalize reservation payload
   const reservation = (body?.reservation ?? body?.data ?? body) as any;
   const fallbackName = String(reservation?.name ?? reservation?.fullName ?? "").trim();
 
@@ -185,7 +213,6 @@ async function handleSlotAction(ctx: any) {
   const { durationMinutes } = deriveCapacities(r);
   const user = (ctx.state as any)?.user;
 
-  // Build payload (with common aliases)
   const payload: Record<string, unknown> = {
     firstName,
     lastName,
@@ -195,14 +222,12 @@ async function handleSlotAction(ctx: any) {
     date,
     time,
     durationMinutes,
-    restaurantId: rid,
+    restaurantId: (r as any).id ?? rid,
     userId   : reservation?.userId ?? user?.id ?? `manual:${rid}`,
     status   : (reservation?.status ?? (reservation?.approved ? "approved" : "invited")).toString().toLowerCase(),
   };
 
-  // cleanup: ensure required fields sane
   if (!payload.firstName && !payload.lastName) {
-    // avoid empty names (UI can still show phone/note)
     payload.firstName = "Guest";
     payload.lastName = "";
   }
@@ -218,8 +243,9 @@ async function handleSlotAction(ctx: any) {
     if (!createFn) ctx.throw(Status.NotImplemented, "No createReservation function found in database.ts");
 
     try {
-      result = await tryCreateWithVariants(createFn, rid, r, date, time, payload);
+      result = await tryCreateWithVariants(createFn, (r as any).id ?? rid, r, date, time, payload);
     } catch (_e) {
+      debugLog("owner_calendar", "create failed", { rid, date, time, payload });
       ctx.throw(Status.InternalServerError, "Create reservation failed");
     }
 
@@ -272,7 +298,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
 
   const db = await import("../database.ts");
   const reservations: Reservation[] =
-    (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
+    (await (db as any).listReservationsByRestaurantAndDate?.((r as any).id, selected)) ?? [];
 
   const effective = reservations.filter((rv: any) =>
     activeStatuses().has(String(rv?.status ?? "approved").toLowerCase())
@@ -317,7 +343,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
 
   const db = await import("../database.ts");
   const reservations: Reservation[] =
-    (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
+    (await (db as any).listReservationsByRestaurantAndDate?.((r as any).id, selected)) ?? [];
 
   const effective = reservations.filter((rv: any) =>
     activeStatuses().has(String(rv?.status ?? "approved").toLowerCase())
@@ -349,12 +375,11 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/time", async (ctx) => 
   const range = Math.max(15, Math.min(240, Number(rangeStr) || 60));
 
   const db = await import("../database.ts");
-  const items: Reservation[] = (await (db as any).listReservationsCoveringSlot?.(rid, date, time, {
+  const items: Reservation[] = (await (db as any).listReservationsCoveringSlot?.((r as any).id, date, time, {
     slotMinutes: Math.max(15, Number((r as any).slotIntervalMinutes ?? 15)),
     durationMinutes: Math.max(15, Number((r as any).serviceDurationMinutes ?? 120)),
   })) ?? [];
 
-  // enrich for UI
   const enriched = items.map((it) => {
     const name = [it.firstName, it.lastName].filter(Boolean).join(" ").trim();
     const phone = (it as any).phone || "";
@@ -370,13 +395,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/time", async (ctx) => 
     };
   });
 
-  json(ctx, {
-    ok: true,
-    date,
-    time,
-    range,
-    items: enriched,
-  });
+  json(ctx, { ok: true, date, time, range, items: enriched });
 });
 
 /* ---------- JSON: slot actions ---------- */
@@ -404,7 +423,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
 
   const db = await import("../database.ts");
   const reservations: Reservation[] =
-    (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
+    (await (db as any).listReservationsByRestaurantAndDate?.((r as any).id, selected)) ?? [];
 
   const effective = reservations.filter((rv: any) =>
     activeStatuses().has(String(rv?.status ?? "approved").toLowerCase())
