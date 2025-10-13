@@ -55,6 +55,14 @@ function json(ctx: any, data: unknown, status = Status.OK) {
   ctx.response.body = data;
 }
 
+/** סטטוסים */
+const ACTIVE_STATUSES = new Set(["approved","booked","arrived","invited","confirmed"]);
+const INACTIVE_STATUSES = new Set(["cancelled","canceled","no-show","noshow","rejected","declined"]);
+function isInactiveStatus(s: string | undefined | null) {
+  const v = String(s ?? "").trim().toLowerCase();
+  return INACTIVE_STATUSES.has(v);
+}
+
 /** בדיקת הרשאות + מציאת מסעדה עם fallback חכם (UUID/slug/שם/מזהה-חלקי) */
 async function ensureOwnerAccess(ctx: any, rawRid: string): Promise<Restaurant> {
   const user = await requireOwner(ctx);
@@ -165,10 +173,10 @@ function pickCreateFn(db: any) {
     null
   );
 }
-async function tryCreateWithVariants(fn: Function, rid: string, r: Restaurant, date: string, time: string, payload: Record<string, unknown>) {
+async function tryCreateWithVariants(fn: Function, rid: string, _r: Restaurant, date: string, time: string, payload: Record<string, unknown>) {
   const variants = [
     () => fn(rid, { ...payload, date, time }),
-    () => fn({ id: crypto.randomUUID(), restaurantId: rid, ...payload, date, time }),
+    () => fn({ restaurantId: rid, ...payload, date, time }),
     () => fn(rid, date, time, payload),
   ];
   let lastErr: unknown = null;
@@ -176,10 +184,6 @@ async function tryCreateWithVariants(fn: Function, rid: string, r: Restaurant, d
     try { return await v(); } catch (e) { lastErr = e; }
   }
   throw lastErr ?? new Error("createReservation failed for all variants");
-}
-
-function activeStatuses(): Set<string> {
-  return new Set(["approved","booked","arrived","invited","confirmed"]);
 }
 
 /* ---------- Unified Slot Action Handler ---------- */
@@ -275,6 +279,10 @@ async function handleSlotAction(ctx: any) {
       time_display: time,
       timeDisplay: time,
       reservationTime: time,
+
+      // רמזים ל-DAL (אם יש בדיקת קיבולת פנימית)
+      activeOnlyForCapacity: true,      // ספר רק ACTIVE
+      ignoreCancelledForCapacity: true, // תתעלם ממבוטלים
     };
 
     if (!payload.firstName && !payload.lastName) {
@@ -298,7 +306,6 @@ async function handleSlotAction(ctx: any) {
     }
     debugLog("owner_calendar", "create result", { result });
 
-    // <<< NEW: push SSE so occupancy updates immediately >>>
     ssePush(internalRid, date, "reservation_create", { time });
 
   } else if (normalized === "update") {
@@ -312,6 +319,13 @@ async function handleSlotAction(ctx: any) {
       note     : reservation?.notes ?? reservation?.note,
       status   : reservation?.status,
     } as any;
+
+    // אם הסטטוס התעדכן ללא־פעיל — אפס אנשים כדי לשחרר קיבולת גם אם ה-DAL לא מסנן
+    if (isInactiveStatus(patch.status as any)) {
+      (patch as any).people = 0;
+      (patch as any).cancelledAt = new Date().toISOString();
+    }
+
     if (!(db as any).updateReservationFields) ctx.throw(Status.NotImplemented, "updateReservationFields not implemented yet");
     result = await (db as any).updateReservationFields(id, patch);
 
@@ -320,8 +334,24 @@ async function handleSlotAction(ctx: any) {
   } else if (normalized === "cancel") {
     const id = String(reservation?.id ?? "");
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
-    if (!(db as any).cancelReservation) ctx.throw(Status.NotImplemented, "cancelReservation not implemented yet");
-    result = await (db as any).cancelReservation(id, String(reservation?.reason ?? ""));
+
+    // 1) ביטול לוגי (אם קיים) – ייתכן שמעדכן רק סטטוס
+    if ((db as any).cancelReservation) {
+      result = await (db as any).cancelReservation(id, String(reservation?.reason ?? ""));
+    } else {
+      // אם אין cancelReservation – נבצע עדכון שדות
+      if (!(db as any).updateReservationFields) ctx.throw(Status.NotImplemented, "cancelReservation/updateReservationFields not implemented yet");
+      result = await (db as any).updateReservationFields(id, { status: "cancelled" } as any);
+    }
+
+    // 2) תקנון: אפס אנשים כדי לשחרר קיבולת גם אם חישוב הקיבולת בצד ה-DB לא מסנן סטטוסים
+    try {
+      if ((db as any).updateReservationFields) {
+        await (db as any).updateReservationFields(id, { people: 0, cancelledAt: new Date().toISOString() } as any);
+      }
+    } catch (e) {
+      debugLog("owner_calendar", "post-cancel people=0 failed (non-fatal)", { error: String(e) });
+    }
 
     ssePush(internalRid, date, "reservation_cancel", { time });
 
@@ -375,7 +405,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
     (await (db as any).listReservationsByRestaurantAndDate?.(internalRid, selected)) ?? [];
 
   const effective = reservations.filter((rv: any) =>
-    activeStatuses().has(String(rv?.status ?? "approved").toLowerCase())
+    ACTIVE_STATUSES.has(String(rv?.status ?? "approved").toLowerCase())
   );
 
   const occupancy = computeOccupancyForDay({
@@ -421,6 +451,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
     })) ?? [];
 
   const enriched = items.map((it: any) => {
+    // אם סטטוס לא-פעיל, נכפה people=0 כדי שלא ייספר בפירוט הסלוט
+    const inactive = isInactiveStatus(it?.status);
     let first = String(it.firstName ?? "");
     let last  = String(it.lastName ?? "");
     let phone = String(it.phone ?? "");
@@ -441,20 +473,14 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
       firstName: first,
       lastName: last,
       phone,
-      people: Number(it.people ?? 0),
+      people: Number(inactive ? 0 : (it.people ?? 0)),
       status: it.status ?? "approved",
       notes,
       at: it.time ?? time,
     };
   });
 
-  json(ctx, {
-    ok: true,
-    date,
-    time,
-    range,
-    items: enriched,
-  });
+  json(ctx, { ok: true, date, time, range, items: enriched });
 });
 
 // JSON — פעולות סלוט (תומך PATCH ו-POST)
@@ -526,7 +552,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
     (await (db as any).listReservationsByRestaurantAndDate?.(internalRid, selected)) ?? [];
 
   const effective = reservations.filter((rv: any) =>
-    activeStatuses().has(String(rv?.status ?? "approved").toLowerCase())
+    ACTIVE_STATUSES.has(String(rv?.status ?? "approved").toLowerCase())
   );
 
   const occupancy = computeOccupancyForDay({
@@ -544,7 +570,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
   json(ctx, { ok: true, date: selected, ...summary });
 });
 
-/* -------------- NEW: SSE endpoint -------------- */
+/* -------------- SSE endpoint -------------- */
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/events", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
@@ -584,9 +610,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/events", async (ctx) =
         try { controller.close(); } catch {}
       });
     },
-    cancel() {
-      /* stream closed by client */
-    },
+    cancel() { /* client closed */ },
   });
   ctx.response.body = body;
 });
