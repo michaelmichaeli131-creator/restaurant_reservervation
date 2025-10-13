@@ -291,6 +291,7 @@
       await Promise.all([loadSlot(), loadDay(), loadSummary()]);
     } catch (err) {
       alert(err.message || String(err));
+      console.error("slotAction failed", { action, reservation, error: err });
       throw err;
     }
   }

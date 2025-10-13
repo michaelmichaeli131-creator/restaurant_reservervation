@@ -188,23 +188,36 @@ async function handleSlotAction(ctx: any) {
     const { durationMinutes } = deriveCapacities(r);
     const user = (ctx.state as any)?.user;
 
+    // === PAYLOAD עם אליאסים נפוצים כדי להתאים לשליפות קיימות ===
     const payload: Record<string, unknown> = {
+      // בסיס
       firstName,
       lastName,
       phone    : (reservation?.phone ?? "").toString().trim(),
       people   : Math.max(1, Number(reservation?.people ?? 1)),
       note     : noteRaw,
       status   : (reservation?.status ?? "approved").toString(),
+
+      // הקשרים
       restaurantId: rid,
       date,
       time,
       datetime: `${date}T${time}`,
+      startsAt: `${date}T${time}`,           // אליאס נפוץ
       durationMinutes,
       source: "owner-manual",
       channel: "owner",
       createdBy: user?.id ?? null,
+
+      // אליאסים לשדות שה-DAL שלך אולי מצפה להם
+      reservation_date: date,
+      res_date: date,
+      time_display: time,
+      timeDisplay: time,
+      reservationTime: time,
     };
 
+    // ברירת מחדל לשם ריק
     if (!payload.firstName && !payload.lastName) {
       payload.firstName = "Walk-in";
       payload.lastName = "";
@@ -294,7 +307,6 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const reservations: Reservation[] =
     (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
 
-  // ✨ חשוב: מחשבים תפוסה רק מסטטוסים פעילים
   const active = new Set(["approved","booked","arrived","invited"]);
   const effective = reservations.filter((rv: any) =>
     active.has(String(rv?.status ?? "approved").toLowerCase())
