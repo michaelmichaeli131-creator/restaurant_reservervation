@@ -1,80 +1,111 @@
 <!doctype html>
 <html lang="he" dir="rtl">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8"/>
   <title><%= it.title %></title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="/static/css/owner_calendar.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0b1020;color:#e5ecff}
+    .wrap{max-width:1000px;margin:24px auto;padding:0 16px}
+    header h1{margin:0 0 8px 0;font-size:22px}
+    .muted{color:#9fb0d1}
+    .grid{display:grid;grid-template-columns:280px 1fr;gap:16px}
+    .card{background:#131a33;border:1px solid #1e2a52;border-radius:14px;padding:12px}
+    .slot{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:10px;margin-bottom:8px;background:#0f1731;border:1px solid #1a2550}
+    .slot strong{letter-spacing:0.5px}
+    .btn{cursor:pointer;border:1px solid #2a3a78;background:#1a2550;border-radius:10px;padding:6px 10px;color:#e5ecff}
+    .btn:hover{filter:brightness(1.1)}
+    .row{display:flex;gap:8px;align-items:center}
+    .list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+    .item{padding:8px 10px;border-radius:10px;background:#0f1731;border:1px solid #1a2550}
+    .drawer{position:sticky;top:12px}
+    label{font-size:12px;color:#9fb0d1}
+    input,select{width:100%;padding:8px;border-radius:10px;border:1px solid #30407c;background:#0f1731;color:#e5ecff}
+    .danger{border-color:#a33}
+    .ok{color:#9ff59f}
+  </style>
 </head>
 <body>
-  <!-- Header -->
-  <div class="oc-header">
-    <div class="wrap">
-      <div class="oc-title">Restaurant Name • Admin</div>
-      <div class="oc-date-nav">
-        <button id="btn-prev" aria-label="Previous day">◀</button>
-        <div class="date-label" id="date-label">—</div>
-        <button id="btn-next" aria-label="Next day">▶</button>
-        <input type="date" id="datePicker" style="display:none" value="<%= it.date %>"/>
-      </div>
-      <div class="oc-spacer"></div>
-      <div class="oc-search">
-        <input type="search" id="daySearch" placeholder="Search name"/>
-      </div>
+  <div class="wrap">
+    <header>
+      <h1>ניהול תפוסה יומי — <%= it.restaurant.name %></h1>
+      <p class="muted">תאריך: <span id="oc-date-text"><%= it.date %></span></p>
+    </header>
+
+    <div id="oc"
+         data-rid="<%= it.rid || it.restaurant.id %>"
+         data-date="<%= it.date %>"
+         class="grid">
+
+      <!-- Drawer / Add -->
+      <aside class="card drawer">
+        <h3 style="margin-top:0">הוספת לקוח לסלוט</h3>
+        <form id="oc-add-form">
+          <div class="row">
+            <div style="flex:1">
+              <label>שם פרטי</label>
+              <input id="oc-first" autocomplete="off" />
+            </div>
+            <div style="flex:1">
+              <label>שם משפחה</label>
+              <input id="oc-last" autocomplete="off" />
+            </div>
+          </div>
+          <div class="row">
+            <div style="flex:1">
+              <label>טלפון</label>
+              <input id="oc-phone" autocomplete="off" />
+            </div>
+            <div style="width:110px">
+              <label>אנשים</label>
+              <input id="oc-people" type="number" min="1" value="2" />
+            </div>
+          </div>
+          <div class="row">
+            <div style="flex:1">
+              <label>סטטוס</label>
+              <select id="oc-status">
+                <option value="approved" selected>מאושר</option>
+                <option value="invited">מוזמן</option>
+                <option value="booked">הוזמן</option>
+                <option value="confirmed">Confirmed</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label>הערות (לא חובה)</label>
+            <input id="oc-note" placeholder="Name: ...; Phone: ...;" />
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button type="submit" class="btn">+ הוסף</button>
+            <span id="oc-add-msg" class="muted"></span>
+          </div>
+
+          <input type="hidden" id="oc-time" value="" />
+        </form>
+      </aside>
+
+      <!-- Day timeline & slots -->
+      <main>
+        <section class="card">
+          <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px">
+            <strong>סלוטים</strong>
+            <div class="row">
+              <input id="oc-date" type="date" value="<%= it.date %>" />
+              <button id="oc-refresh" class="btn">רענן</button>
+            </div>
+          </div>
+          <div id="oc-slots" class="list"></div>
+        </section>
+
+        <section class="card" style="margin-top:12px">
+          <strong>סיכום יומי</strong>
+          <div id="oc-summary" class="list"></div>
+        </section>
+      </main>
     </div>
   </div>
 
-  <!-- Main -->
-  <main class="oc-main">
-    <!-- Left: Day/Timeline -->
-    <section class="oc-panel">
-      <header>
-        <div class="oc-cap" id="cap-line">Capacity: People — • Tables — • Step: —</div>
-      </header>
-
-      <div class="oc-slots" id="slots">
-        <div class="oc-row oc-th">
-          <div>Time</div>
-          <div>Occupancy</div>
-          <div class="oc-info">People • Tables • %</div>
-        </div>
-        <!-- rows injected by JS -->
-      </div>
-
-      <div class="oc-hint">Hint: Click a slot to manage customers</div>
-
-      <div class="oc-summary" id="summary">
-        Daily Summary — loading…
-      </div>
-    </section>
-  </main>
-
-  <!-- Right Drawer -->
-  <aside class="oc-drawer" id="drawer">
-    <header>
-      <div class="title" id="drawer-title">Customers</div>
-      <button class="close" id="drawer-close">✕</button>
-    </header>
-    <div class="toolbar">
-      <input type="search" id="drawer-search" placeholder="Search name in this slot"/>
-      <button class="btn primary" id="btn-add">＋ Add customer</button>
-    </div>
-    <div class="body">
-      <table class="tbl" id="drawer-table">
-        <thead>
-          <tr>
-            <th>First Name</th><th>Last Name</th><th>Party sz</th><th>Status</th><th>Phone</th><th></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </aside>
-
-  <script src="/static/js/owner_calendar.js" defer></script>
-  <script>
-    // העברת פרמטרים ראשוניים ל-JS
-    window.__OC__ = { rid: "<%= it.rid %>", date: "<%= it.date %>" };
-  </script>
+  <script src="/public/js/owner_calendar.js" defer></script>
 </body>
 </html>
