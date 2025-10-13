@@ -6,17 +6,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/static/css/owner_calendar.css" />
   <style>
-    /* פריסה עם אזורי גריד כדי לקבע שמאל/ימין גם ב-RTL */
+    /* פריסה: Sidebar משמאל, Panel מימין — גם תחת RTL */
     .oc-layout{
+      direction: ltr; /* חשוב: מונע היפוך RTL באזור הזה בלבד */
       display:grid;
       grid-template-areas: "sidebar main";
-      grid-template-columns: 360px minmax(820px,1fr); /* Sidebar רחב ונוחות קריאה; הטבלה רחבה יותר */
+      grid-template-columns: 400px minmax(1100px, 1fr);
       gap:16px;
       align-items:start;
       padding:16px;
     }
+    @media (max-width: 1240px){
+      .oc-layout{ grid-template-columns: 360px minmax(980px, 1fr); }
+    }
     @media (max-width: 1100px){
-      .oc-layout{ grid-template-columns: 320px 1fr; }
+      .oc-layout{ grid-template-columns: 320px minmax(860px, 1fr); }
     }
     @media (max-width: 900px){
       .oc-layout{
@@ -33,17 +37,17 @@
     }
     .oc-panel{
       grid-area:main;
-      overflow:auto; /* כדי לאפשר גלילה אופקית אם המסך צר */
+      overflow:auto; /* גלילה אופקית במסכים צרים */
     }
 
-    /* הגדלת רוחב/נראות הטבלה */
+    /* הגדלת הטבלה בפועל */
     .oc-slots{
-      min-width: 900px;              /* מוודא שהטבלה רחבה ומאווררת */
+      min-width: 1100px;         /* ← הגדלנו (אפשר לשנות ל-1200/1300 לפי הצורך) */
     }
 
     .oc-section-title{font-weight:600;margin:8px 0 12px;}
 
-    /* יומן חודשי קטן (כמו קודם) */
+    /* יומן חודשי קטן */
     .mini-cal{user-select:none}
     .mini-cal .hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
     .mini-cal .hdr .nav{display:flex;gap:8px}
@@ -76,7 +80,6 @@
         <input type="date" id="datePicker" style="display:none" value="<%= it.date %>"/>
       </div>
       <div class="oc-spacer"></div>
-      <!-- חיפוש עליון הושתק – יש בסיידבר -->
       <div class="oc-search" style="display:none">
         <input type="search" id="daySearch" placeholder="Search name"/>
       </div>
