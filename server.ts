@@ -182,15 +182,15 @@ app.use(async (ctx, next) => {
 // --- 🔎 Request logger המפורט שלך — ממוקם מוקדם כדי לעטוף הכל ---
 app.use(requestLogger());
 
-/* --- Static files (/public/* -> src/public/*) — חדש --- */
+/* --- Static files (/public/* -> <CWD>/public/*) --- */
 app.use(async (ctx, next) => {
   const p = ctx.request.url.pathname;
   if (p.startsWith("/public/")) {
     await send(ctx, p, {
-      // כך /public/css/spotbook.css ממופה פיזית ל src/public/css/spotbook.css
-      root: `${Deno.cwd()}/src`,
+      // אם ה־CWD שלך כבר /src, זה יכוון ל-/src/public/...
+      root: Deno.cwd(),
     });
-    return; // לא להמשיך לראוטרים
+    return;
   }
   await next();
 });
