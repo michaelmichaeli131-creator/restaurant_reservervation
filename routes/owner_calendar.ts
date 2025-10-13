@@ -1,5 +1,5 @@
 // /src/routes/owner_calendar.ts
-// ניהול תפוסה יומי — Calendar לבעלים: יום/סלוט/חיפוש/סיכום + פעולות סלוט
+// ניהול תפוסה יומי — Calendar לבעלים: יום/סלוט/חיפוש/סיכום + פעולות סלוט + SSE updates
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -19,6 +19,27 @@ import { buildDayTimeline, slotRange } from "../services/timeline.ts";
 import { computeOccupancyForDay, summarizeDay } from "../services/occupancy.ts";
 
 const ownerCalendarRouter = new Router();
+
+/* ---------------- SSE Broker (in-memory) ---------------- */
+type SseClient = {
+  id: string;
+  rid: string;
+  date: string;
+  send: (evt: string, data: unknown) => void;
+  close: () => void;
+};
+const sseClients = new Set<SseClient>();
+
+function ssePush(rid: string, date: string, evt: string, data: Record<string, unknown>) {
+  const payload = JSON.stringify({ rid, date, ...data });
+  let fanout = 0;
+  for (const c of sseClients) {
+    if (c.rid === rid && c.date === date) {
+      try { c.send(evt, payload); fanout++; } catch { /* ignore */ }
+    }
+  }
+  debugLog("owner_calendar", "SSE push", { evt, rid, date, fanout });
+}
 
 /* ---------------- Helpers ---------------- */
 function pad2(n: number) { return n.toString().padStart(2, "0"); }
@@ -40,7 +61,7 @@ async function ensureOwnerAccess(ctx: any, rawRid: string): Promise<Restaurant> 
   const rid = decodeURIComponent(String(rawRid ?? "")).trim();
   if (!rid) ctx.throw(Status.BadRequest, "Missing restaurant id (rid)");
 
-  // 1) ניסיון ישיר (לרוב UUID)
+  // 1) ניסיון ישיר
   let r = await getRestaurant(rid) as Restaurant | null;
 
   // 2) fallback: slug/שם/מזהה-חלקי
@@ -48,50 +69,27 @@ async function ensureOwnerAccess(ctx: any, rawRid: string): Promise<Restaurant> 
     try {
       const all = await listRestaurants();
       const ridLower = rid.toLowerCase();
-
-      r = all.find((x: any) => String(x.slug ?? "").toLowerCase() === ridLower) as any;
-      if (!r) r = all.find((x: any) => String(x.id ?? "").toLowerCase().startsWith(ridLower)) as any;
-      if (!r) r = all.find((x: any) => String(x.name ?? "").toLowerCase() === ridLower) as any;
-      if (!r) r = all.find((x: any) => String(x.name ?? "").toLowerCase().includes(ridLower)) as any;
+      r = all.find((x: any) => String(x.slug ?? "").toLowerCase() === ridLower) as any
+        || all.find((x: any) => String(x.id ?? "").toLowerCase().startsWith(ridLower)) as any
+        || all.find((x: any) => String(x.name ?? "").toLowerCase() === ridLower) as any
+        || all.find((x: any) => String(x.name ?? "").toLowerCase().includes(ridLower)) as any;
     } catch (e) {
       debugLog("owner_calendar", "fallback listRestaurants failed", { error: String(e) });
     }
   }
 
-  if (!r) {
-    debugLog("owner_calendar", "Restaurant not found", { rid, userId: user?.id });
-    ctx.throw(Status.NotFound, "Restaurant not found");
-  }
+  if (!r) ctx.throw(Status.NotFound, "Restaurant not found");
 
-  // ----- הרשאות גמישות יותר -----
   const uid = String(user?.id ?? "");
   const ownerId = (r as any).ownerId != null ? String((r as any).ownerId) : "";
   const rUserId  = (r as any).userId  != null ? String((r as any).userId)  : "";
-  const managers: string[] = Array.isArray((r as any).managerIds)
-    ? (r as any).managerIds.map((x: any) => String(x))
-    : [];
+  const managers: string[] = Array.isArray((r as any).managerIds) ? (r as any).managerIds.map((x: any) => String(x)) : [];
   const isAdmin = !!(user as any)?.isAdmin || String((user as any)?.role ?? "").toLowerCase() === "admin";
-
-  const unclaimed = !ownerId && !rUserId && managers.length === 0; // מסעדה "לא משויכת" — נאפשר ב־dev
+  const unclaimed = !ownerId && !rUserId && managers.length === 0;
   const isManager = managers.includes(uid);
   const owned = ownerId === uid || rUserId === uid;
 
-  if (isAdmin || owned || isManager || unclaimed) {
-    if (unclaimed) {
-      debugLog("owner_calendar", "Access allowed (unclaimed restaurant in dev/demo)", { rid: (r as any).id, uid });
-    }
-    return r as Restaurant;
-  }
-
-  debugLog("owner_calendar", "Forbidden: restaurant not owned by user", {
-    ridRequested: rid,
-    ridResolved: (r as any).id,
-    uid,
-    ownerId,
-    rUserId,
-    managers,
-    isAdmin,
-  });
+  if (isAdmin || owned || isManager || unclaimed) return r as Restaurant;
   ctx.throw(Status.Forbidden, "Not your restaurant");
 }
 
@@ -126,16 +124,34 @@ function extractFromNote(note?: string): { name?: string; phone?: string } {
   return { name: mName ? mName[1].trim() : undefined, phone: mPhone ? mPhone[1].trim() : undefined };
 }
 
-/* ---------- Body parser wrapper (uses your readBody) ---------- */
+/* ---------- Body parser wrapper (BODY + QUERY fallback) ---------- */
 async function readActionBody(ctx: any): Promise<any> {
+  const sp = ctx.request.url.searchParams;
+  const q: Record<string, unknown> = {};
+  if (sp.has("action")) q.action = sp.get("action")!;
+  if (sp.has("date"))   q.date   = sp.get("date")!;
+  if (sp.has("time"))   q.time   = sp.get("time")!;
+  if (sp.has("reservation")) {
+    const raw = sp.get("reservation")!;
+    try { q.reservation = JSON.parse(raw); } catch { q.reservation = raw; }
+  }
+
+  let body: any = {};
   try {
-    const { payload, dbg } = await readBody(ctx);
-    debugLog("owner_calendar", "readBody payload & dbg", { payload, dbg });
-    return payload || {};
+    const rb = await readBody(ctx);
+    const payload = rb?.payload ?? rb ?? {};
+    if (typeof payload === "string") {
+      try { body = JSON.parse(payload); } catch { body = { reservation: payload }; }
+    } else if (payload && typeof payload === "object") {
+      body = payload;
+    }
   } catch (e) {
     debugLog("owner_calendar", "readBody threw", { error: String(e) });
-    return {};
   }
+
+  const merged = { ...q, ...body };
+  debugLog("owner_calendar", "merged payload (query+body)", merged);
+  return merged;
 }
 
 /* ---------- DB create resolver ---------- */
@@ -162,6 +178,10 @@ async function tryCreateWithVariants(fn: Function, rid: string, r: Restaurant, d
   throw lastErr ?? new Error("createReservation failed for all variants");
 }
 
+function activeStatuses(): Set<string> {
+  return new Set(["approved","booked","arrived","invited","confirmed"]);
+}
+
 /* ---------- Unified Slot Action Handler ---------- */
 async function handleSlotAction(ctx: any) {
   const { rid } = ctx.params;
@@ -173,15 +193,11 @@ async function handleSlotAction(ctx: any) {
   debugLog("owner_calendar", "handleSlotAction ENTER", { rid, internalRid, method, contentType: ct });
 
   const body = await readActionBody(ctx);
-  debugLog("owner_calendar", "Body (payload) after readActionBody", { body });
 
   let action = String(body?.action ?? "").trim();
   if (!action && typeof body === "object") {
     const alias = (body as any).type ?? (body as any).op ?? (body as any).mode;
-    if (alias && typeof alias === "string") {
-      action = alias.trim();
-      debugLog("owner_calendar", "Alias used for action", { alias });
-    }
+    if (alias && typeof alias === "string") action = alias.trim();
   }
   const normalized =
     action === "add" || action === "new" ? "create" :
@@ -196,16 +212,10 @@ async function handleSlotAction(ctx: any) {
   // reservation may arrive as string
   let reservation: any = (body as any)?.reservation ?? {};
   if (typeof reservation === "string") {
-    try {
-      reservation = JSON.parse(reservation);
-      debugLog("owner_calendar", "reservation parsed from string", { reservation });
-    } catch (e) {
-      debugLog("owner_calendar", "reservation parse failed", { error: String(e), raw: (body as any).reservation });
-      reservation = {};
-    }
+    try { reservation = JSON.parse(reservation); } catch { reservation = {}; }
   }
 
-  debugLog("owner_calendar", "Parsed action info", { action, normalized, date, time, reservation });
+  debugLog("owner_calendar", "Parsed action", { action, normalized, date, time, reservation });
 
   if (!["create", "update", "cancel", "arrived"].includes(normalized)) {
     ctx.throw(Status.BadRequest, `Unknown action: ${action}`);
@@ -288,9 +298,11 @@ async function handleSlotAction(ctx: any) {
     }
     debugLog("owner_calendar", "create result", { result });
 
+    // <<< NEW: push SSE so occupancy updates immediately >>>
+    ssePush(internalRid, date, "reservation_create", { time });
+
   } else if (normalized === "update") {
     const id = String(reservation?.id ?? "");
-    debugLog("owner_calendar", "update id & patch", { id, reservation });
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
     const patch: Partial<Reservation> = {
       firstName: reservation?.firstName,
@@ -303,19 +315,23 @@ async function handleSlotAction(ctx: any) {
     if (!(db as any).updateReservationFields) ctx.throw(Status.NotImplemented, "updateReservationFields not implemented yet");
     result = await (db as any).updateReservationFields(id, patch);
 
+    ssePush(internalRid, date, "reservation_update", { time });
+
   } else if (normalized === "cancel") {
     const id = String(reservation?.id ?? "");
-    debugLog("owner_calendar", "cancel id", { id });
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
     if (!(db as any).cancelReservation) ctx.throw(Status.NotImplemented, "cancelReservation not implemented yet");
     result = await (db as any).cancelReservation(id, String(reservation?.reason ?? ""));
 
+    ssePush(internalRid, date, "reservation_cancel", { time });
+
   } else if (normalized === "arrived") {
     const id = String(reservation?.id ?? "");
-    debugLog("owner_calendar", "arrived id", { id });
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
     if (!(db as any).markArrived) ctx.throw(Status.NotImplemented, "markArrived not implemented yet");
     result = await (db as any).markArrived(id);
+
+    ssePush(internalRid, date, "reservation_arrived", { time });
   }
 
   debugLog("owner_calendar", "Slot action result", { result });
@@ -358,9 +374,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const reservations: Reservation[] =
     (await (db as any).listReservationsByRestaurantAndDate?.(internalRid, selected)) ?? [];
 
-  const active = new Set(["approved","booked","arrived","invited","confirmed"]);
   const effective = reservations.filter((rv: any) =>
-    active.has(String(rv?.status ?? "approved").toLowerCase())
+    activeStatuses().has(String(rv?.status ?? "approved").toLowerCase())
   );
 
   const occupancy = computeOccupancyForDay({
@@ -442,7 +457,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
   });
 });
 
-// JSON — פעולות סלוט
+// JSON — פעולות סלוט (תומך PATCH ו-POST)
 ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
   await handleSlotAction(ctx);
 });
@@ -510,9 +525,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
   const reservations: Reservation[] =
     (await (db as any).listReservationsByRestaurantAndDate?.(internalRid, selected)) ?? [];
 
-  const active = new Set(["approved","booked","arrived","invited","confirmed"]);
   const effective = reservations.filter((rv: any) =>
-    active.has(String(rv?.status ?? "approved").toLowerCase())
+    activeStatuses().has(String(rv?.status ?? "approved").toLowerCase())
   );
 
   const occupancy = computeOccupancyForDay({
@@ -528,6 +542,53 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
 
   const summary = summarizeDay(occupancy, reservations);
   json(ctx, { ok: true, date: selected, ...summary });
+});
+
+/* -------------- NEW: SSE endpoint -------------- */
+ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/events", async (ctx) => {
+  const { rid } = ctx.params;
+  const r = await ensureOwnerAccess(ctx, rid);
+  const internalRid = (r as any).id ?? rid;
+
+  const date = ctx.request.url.searchParams.get("date");
+  const selected = isISODate(date) ? date! : todayISO();
+
+  ctx.response.status = 200;
+  ctx.response.headers.set("Content-Type", "text/event-stream; charset=utf-8");
+  ctx.response.headers.set("Cache-Control", "no-cache");
+  ctx.response.headers.set("Connection", "keep-alive");
+
+  const body = new ReadableStream({
+    start(controller) {
+      const enc = new TextEncoder();
+      const send = (evt: string, data: unknown) => {
+        controller.enqueue(enc.encode(`event: ${evt}\n`));
+        controller.enqueue(enc.encode(`data: ${typeof data === "string" ? data : JSON.stringify(data)}\n\n`));
+      };
+      const client: SseClient = {
+        id: crypto.randomUUID(),
+        rid: internalRid,
+        date: selected,
+        send,
+        close: () => controller.close(),
+      };
+      sseClients.add(client);
+
+      // hello + heartbeat
+      send("hello", JSON.stringify({ rid: internalRid, date: selected, ts: Date.now() }));
+      const t = setInterval(() => send("ping", Date.now()), 25000);
+
+      ctx.request.signal.addEventListener("abort", () => {
+        clearInterval(t);
+        sseClients.delete(client);
+        try { controller.close(); } catch {}
+      });
+    },
+    cancel() {
+      /* stream closed by client */
+    },
+  });
+  ctx.response.body = body;
 });
 
 export { ownerCalendarRouter };

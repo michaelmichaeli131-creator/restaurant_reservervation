@@ -14,6 +14,7 @@
     day: null,
     summary: null,
     drawer: { open: false, time: null, items: [] },
+    sse: { es: null, retryMs: 1500, pollTimer: null },
   };
 
   /* ---------- DOM ---------- */
@@ -140,9 +141,7 @@
       c3.textContent = `People ${fmt(s.people)} · Tables ${fmt(s.tables)} · ${s.percent}%`;
 
       row.title = `People: ${s.people}/${state.day.capacityPeople} • Tables: ${s.tables}/${state.day.capacityTables} • ${s.percent}%`;
-      row.appendChild(c1);
-      row.appendChild(c2);
-      row.appendChild(c3);
+      row.appendChild(c1); row.appendChild(c2); row.appendChild(c3);
 
       row.addEventListener("click", () => openDrawer(s.time));
       frag.appendChild(row);
@@ -153,10 +152,7 @@
   function renderSummary() {
     if (!summaryRoot) return;
     const s = state.summary;
-    if (!s) {
-      summaryRoot.textContent = "Daily Summary — loading…";
-      return;
-    }
+    if (!s) { summaryRoot.textContent = "Daily Summary — loading…"; return; }
     summaryRoot.innerHTML = `
       <div><b>Total Reservations:</b> ${fmt(s.totalReservations)} · <b>Total Guests:</b> ${fmt(s.totalGuests)}</div>
       <div><b>Avg Occupancy:</b> People ${fmt(s.avgOccupancyPeople)}% · Tables ${fmt(s.avgOccupancyTables)}%</div>
@@ -260,12 +256,7 @@
     const qs = new URLSearchParams(baseQs);
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/slot?${qs.toString()}`;
 
-    const body = JSON.stringify({
-      action,
-      date: state.date,
-      time: state.drawer.time,
-      reservation,
-    });
+    const body = JSON.stringify({ action, date: state.date, time: state.drawer.time, reservation });
 
     try {
       await fetchJSON(url, {
@@ -284,15 +275,15 @@
     await Promise.all([loadSlot(), loadDay(), loadSummary()]);
   }
 
-  /* ---------- Manual create flow (simple prompts UI) ---------- */
+  /* ---------- Manual create (simple prompts) ---------- */
   async function createManual() {
     if (!state.drawer.time) return;
     const firstName = prompt("First name:") || "";
     const lastName  = prompt("Last name:") || "";
     if (!firstName && !lastName) return;
-    const phone = prompt("Phone (optional):") || "";
+    const phone  = prompt("Phone (optional):") || "";
     const people = Math.max(1, parseInt(prompt("Party size:", "2") || "2", 10));
-    const notes = prompt("Notes (optional):") || "";
+    const notes  = prompt("Notes (optional):") || "";
     await slotAction("create", { firstName, lastName, phone, people, notes, status: "approved" });
   }
 
@@ -317,20 +308,89 @@
     if (first && first.time) openDrawer(first.time);
   }
 
+  /* ---------- SSE wiring (auto refresh on create/update/cancel/arrived) ---------- */
+  function connectSSE() {
+    cleanupSSE();
+
+    const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/events?date=${encodeURIComponent(state.date)}`;
+    let es;
+    try {
+      es = new EventSource(url, { withCredentials: true });
+    } catch (e) {
+      schedulePolling();
+      return;
+    }
+    state.sse.es = es;
+
+    const onRefresh = (e) => {
+      try {
+        const data = JSON.parse(e.data || "{}");
+        // מרעננים את היום/סיכום תמיד, ואת המגירה רק אם ה-time תואם
+        Promise.all([loadDay(), loadSummary()]).then(() => {
+          const t = data.time;
+          if (state.drawer.open && t && state.drawer.time === t) loadSlot();
+        });
+      } catch { /* ignore */ }
+    };
+
+    es.addEventListener("hello", () => { /* connected */ });
+    es.addEventListener("ping", () => { /* heartbeat */ });
+
+    es.addEventListener("reservation_create", onRefresh);
+    es.addEventListener("reservation_update", onRefresh);
+    es.addEventListener("reservation_cancel", onRefresh);
+    es.addEventListener("reservation_arrived", onRefresh);
+
+    es.onerror = () => {
+      cleanupSSE();
+      scheduleReconnect();
+    };
+  }
+
+  function cleanupSSE() {
+    if (state.sse.es) {
+      try { state.sse.es.close(); } catch {}
+      state.sse.es = null;
+    }
+    if (state.sse.pollTimer) {
+      clearInterval(state.sse.pollTimer);
+      state.sse.pollTimer = null;
+    }
+  }
+
+  function scheduleReconnect() {
+    // fallback: ננסה להתחבר מחדש, ואם לא — נתחיל polling עדין
+    setTimeout(() => {
+      try { connectSSE(); } catch { schedulePolling(); }
+    }, state.sse.retryMs);
+  }
+
+  function schedulePolling() {
+    cleanupSSE();
+    // Polling עדין — רק את היום/סיכום כל 15 שניות
+    state.sse.pollTimer = setInterval(() => {
+      Promise.all([loadDay(), loadSummary()]).catch(() => {});
+    }, 15000);
+  }
+
+  /* ---------- Wire & Boot ---------- */
   function wire() {
     if (btnPrev) btnPrev.addEventListener("click", async () => {
       state.date = addDays(state.date, -1);
       if (datePicker) datePicker.value = state.date;
       await Promise.all([loadDay(), loadSummary()]);
+      connectSSE();
     });
     if (btnNext) btnNext.addEventListener("click", async () => {
       state.date = addDays(state.date, +1);
       if (datePicker) datePicker.value = state.date;
       await Promise.all([loadDay(), loadSummary()]);
+      connectSSE();
     });
     if (datePicker) datePicker.addEventListener("change", async () => {
       state.date = datePicker.value;
       await Promise.all([loadDay(), loadSummary()]);
+      connectSSE();
     });
     if (daySearch) daySearch.addEventListener("input", debounce(() => searchInDay(daySearch.value), 250));
     if (drawerClose) drawerClose.addEventListener("click", closeDrawer);
@@ -349,6 +409,7 @@
     if (datePicker) datePicker.value = state.date;
     wire();
     await Promise.all([loadDay(), loadSummary()]);
+    connectSSE();
   }
 
   document.addEventListener("DOMContentLoaded", initApp);
