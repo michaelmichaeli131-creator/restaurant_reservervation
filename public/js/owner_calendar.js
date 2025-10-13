@@ -2,11 +2,9 @@
 (function () {
   "use strict";
 
-  /* ---------- Shortcuts ---------- */
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-  /* ---------- State ---------- */
   const init = window.__OC__ || {};
   const state = {
     rid: init.rid || getRidFromPath(),
@@ -17,7 +15,6 @@
     sse: { es: null, retryMs: 1500, pollTimer: null },
   };
 
-  /* ---------- DOM ---------- */
   const datePicker = $("#datePicker");
   const dateLabel = $("#date-label");
   const btnPrev = $("#btn-prev");
@@ -34,7 +31,6 @@
   const drawerTableBody = $("#drawer-table tbody");
   const btnAdd = $("#btn-add");
 
-  /* ---------- Utils ---------- */
   function getRidFromPath() {
     const parts = location.pathname.split("/").filter(Boolean);
     const i = parts.indexOf("restaurants");
@@ -48,9 +44,7 @@
     const p = (n) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   }
-  function fmt(n) {
-    return new Intl.NumberFormat("en-US").format(n);
-  }
+  function fmt(n) { return new Intl.NumberFormat("en-US").format(n); }
   function color(p) {
     if (p >= 80) return getCSS("--danger");
     if (p >= 50) return getCSS("--warn");
@@ -59,9 +53,7 @@
   function getCSS(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
-  function setOpen(el, on) {
-    el.classList.toggle("open", !!on);
-  }
+  function setOpen(el, on) { el.classList.toggle("open", !!on); }
   function addDays(iso, days) {
     const d = new Date(iso);
     d.setDate(d.getDate() + days);
@@ -90,7 +82,6 @@
     return data;
   }
 
-  /* ---------- Rendering ---------- */
   function renderHeaderLine() {
     if (!state.day) {
       if (dateLabel) dateLabel.textContent = "—";
@@ -191,22 +182,16 @@
 
   function badge(status) {
     const s = String(status || "").toLowerCase();
-    // מיפוי ידידותי — לא מציגים Approved כברירת מחדל
-    if (s === "pending" || s === "request" || s === "requested" || s === "tentative") {
+    if (s === "new")        return `<span class="badge booked">New</span>`;
+    if (s === "pending" || s === "request" || s === "requested" || s === "tentative")
       return `<span class="badge booked">Pending</span>`;
-    }
-    if (s === "booked" || s === "hold" || s === "on-hold" || s === "invited") {
+    if (s === "booked" || s === "hold" || s === "on-hold" || s === "invited")
       return `<span class="badge booked">Booked</span>`;
-    }
-    if (s === "confirmed" || s === "approved") {
-      return `<span class="badge approved">Confirmed</span>`;
-    }
-    if (s === "arrived") {
-      return `<span class="badge arrived">Arrived</span>`;
-    }
-    if (s === "cancelled" || s === "canceled" || s === "rejected" || s === "declined") {
+    if (s === "approved")   return `<span class="badge approved">Approved</span>`;
+    if (s === "confirmed")  return `<span class="badge approved">Confirmed</span>`;
+    if (s === "arrived")    return `<span class="badge arrived">Arrived</span>`;
+    if (s === "cancelled" || s === "canceled" || s === "rejected" || s === "declined")
       return `<span class="badge cancelled">Cancelled</span>`;
-    }
     return `<span class="badge booked">${escapeHTML(status || "Booked")}</span>`;
   }
 
@@ -214,7 +199,6 @@
     return String(s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   }
 
-  /* ---------- Drawer ---------- */
   function openDrawer(hhmm) {
     state.drawer.time = hhmm;
     if (drawerTitle) drawerTitle.textContent = `Customers ${toAMPM(hhmm)}`;
@@ -234,7 +218,6 @@
     return `${h}:${String(M).padStart(2, "0")} ${ampm}`;
   }
 
-  /* ---------- Data ---------- */
   async function loadDay() {
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day?date=${encodeURIComponent(state.date)}`;
     state.day = await fetchJSON(url);
@@ -255,7 +238,6 @@
     renderDrawer(state.drawer.items);
   }
 
-  /* ---------- Unified slot action sender (QS + BODY, PATCH→POST fallback) ---------- */
   async function slotAction(action, reservation = {}) {
     if (!state.drawer.time) return;
 
@@ -267,7 +249,6 @@
     };
     const qs = new URLSearchParams(baseQs);
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/slot?${qs.toString()}`;
-
     const body = JSON.stringify({ action, date: state.date, time: state.drawer.time, reservation });
 
     try {
@@ -287,7 +268,6 @@
     await Promise.all([loadSlot(), loadDay(), loadSummary()]);
   }
 
-  /* ---------- Manual create (simple prompts) ---------- */
   async function createManual() {
     if (!state.drawer.time) return;
     const firstName = prompt("First name:") || "";
@@ -296,12 +276,9 @@
     const phone  = prompt("Phone (optional):") || "";
     const people = Math.max(1, parseInt(prompt("Party size:", "2") || "2", 10));
     const notes  = prompt("Notes (optional):") || "";
-    // סטטוס הזמנה ידנית = booked (לא approved)
+    // אם לא נשלח סטטוס — נקבע booked; עדיין נספר בתפוסה כי הוא לא מבוטל
     await slotAction("create", { firstName, lastName, phone, people, notes, status: "booked" });
   }
-
-  async function cancelRes(id)   { if (!confirm("Cancel this reservation?")) return; await slotAction("cancel", { id }); }
-  async function markArrived(id) { await slotAction("arrived", { id }); }
 
   async function searchInDay(q) {
     if (!q) {
@@ -359,20 +336,12 @@
   }
 
   function cleanupSSE() {
-    if (state.sse.es) {
-      try { state.sse.es.close(); } catch {}
-      state.sse.es = null;
-    }
-    if (state.sse.pollTimer) {
-      clearInterval(state.sse.pollTimer);
-      state.sse.pollTimer = null;
-    }
+    if (state.sse.es) { try { state.sse.es.close(); } catch {} state.sse.es = null; }
+    if (state.sse.pollTimer) { clearInterval(state.sse.pollTimer); state.sse.pollTimer = null; }
   }
 
   function scheduleReconnect() {
-    setTimeout(() => {
-      try { connectSSE(); } catch { schedulePolling(); }
-    }, state.sse.retryMs);
+    setTimeout(() => { try { connectSSE(); } catch { schedulePolling(); } }, state.sse.retryMs);
   }
 
   function schedulePolling() {
@@ -382,7 +351,6 @@
     }, 15000);
   }
 
-  /* ---------- Wire & Boot ---------- */
   function wire() {
     if (btnPrev) btnPrev.addEventListener("click", async () => {
       state.date = addDays(state.date, -1);
@@ -402,7 +370,7 @@
       connectSSE();
     });
     if (daySearch) daySearch.addEventListener("input", debounce(() => searchInDay(daySearch.value), 250));
-    if (drawerClose) drawerClose.addEventListener("click", closeDrawer);
+    if (drawerClose) drawerClose.addEventListener("click", () => { if (drawer) setOpen(drawer, false); state.drawer.open = false; state.drawer.time = null; });
     if (btnAdd) btnAdd.addEventListener("click", createManual);
     if (drawerSearch) drawerSearch.addEventListener("input", () => {
       const q = drawerSearch.value.trim().toLowerCase();

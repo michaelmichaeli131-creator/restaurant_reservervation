@@ -55,27 +55,22 @@ function json(ctx: any, data: unknown, status = Status.OK) {
   ctx.response.body = data;
 }
 
-/** סטטוסים */
-const ACTIVE_STATUSES = new Set([
-  "approved","confirmed","booked","invited","arrived",
-  "pending","request","requested","hold","on-hold","tentative"
-]);
-const INACTIVE_STATUSES = new Set(["cancelled","canceled","no-show","noshow","rejected","declined"]);
-function isInactiveStatus(s: string | undefined | null) {
-  const v = String(s ?? "").trim().toLowerCase();
-  return INACTIVE_STATUSES.has(v);
+/** סטטוסים — כל מה שלא "מבוטל" נספר בתפוסה */
+const INACTIVE_STATUSES = new Set(["cancelled","canceled","rejected","declined","no-show","noshow"]);
+function normStatus(s: unknown) { return String(s ?? "").trim().toLowerCase(); }
+function isInactiveStatus(s: unknown) { return INACTIVE_STATUSES.has(normStatus(s)); }
+function isActiveStatus(s: unknown) {
+  const v = normStatus(s);
+  return v !== "" && !INACTIVE_STATUSES.has(v); // new/approved/booked/confirmed/pending/invited/arrived/... כולם פעילים
 }
 
-/** בדיקת הרשאות + מציאת מסעדה עם fallback חכם (UUID/slug/שם/מזהה-חלקי) */
+/** בדיקת הרשאות + fallback לזהות מסעדה */
 async function ensureOwnerAccess(ctx: any, rawRid: string): Promise<Restaurant> {
   const user = await requireOwner(ctx);
   const rid = decodeURIComponent(String(rawRid ?? "")).trim();
   if (!rid) ctx.throw(Status.BadRequest, "Missing restaurant id (rid)");
 
-  // 1) ניסיון ישיר
   let r = await getRestaurant(rid) as Restaurant | null;
-
-  // 2) fallback: slug/שם/מזהה-חלקי
   if (!r) {
     try {
       const all = await listRestaurants();
@@ -91,11 +86,11 @@ async function ensureOwnerAccess(ctx: any, rawRid: string): Promise<Restaurant> 
 
   if (!r) ctx.throw(Status.NotFound, "Restaurant not found");
 
-  const uid = String(user?.id ?? "");
+  const uid = String((await requireOwner(ctx))?.id ?? "");
   const ownerId = (r as any).ownerId != null ? String((r as any).ownerId) : "";
   const rUserId  = (r as any).userId  != null ? String((r as any).userId)  : "";
   const managers: string[] = Array.isArray((r as any).managerIds) ? (r as any).managerIds.map((x: any) => String(x)) : [];
-  const isAdmin = !!(user as any)?.isAdmin || String((user as any)?.role ?? "").toLowerCase() === "admin";
+  const isAdmin = !!(ctx.state?.user?.isAdmin) || String(ctx.state?.user?.role ?? "").toLowerCase() === "admin";
   const unclaimed = !ownerId && !rUserId && managers.length === 0;
   const isManager = managers.includes(uid);
   const owned = ownerId === uid || rUserId === uid;
@@ -135,19 +130,15 @@ function extractFromNote(note?: string): { name?: string; phone?: string } {
   return { name: mName ? mName[1].trim() : undefined, phone: mPhone ? mPhone[1].trim() : undefined };
 }
 function pickCustomerFirstLastPhone(it: any) {
-  // מסלולי נתונים נפוצים: customer, contact, fullName/name/customerName, phone/tel/mobile
   let first = String(it?.firstName ?? it?.customer?.firstName ?? it?.contact?.firstName ?? "");
   let last  = String(it?.lastName  ?? it?.customer?.lastName  ?? it?.contact?.lastName  ?? "");
-  let phone =
-    String(it?.phone ?? it?.customer?.phone ?? it?.contact?.phone ?? it?.tel ?? it?.mobile ?? "");
-
+  let phone = String(it?.phone ?? it?.customer?.phone ?? it?.contact?.phone ?? it?.tel ?? it?.mobile ?? "");
   const full = String(it?.fullName ?? it?.name ?? it?.customerName ?? "");
   if ((!first || !last) && full) {
     const s = splitName(full);
     if (!first) first = s.first;
     if (!last)  last  = s.last;
   }
-
   const notes = it?.note ?? it?.notes ?? "";
   if ((!first || !last || !phone) && notes) {
     const ext = extractFromNote(String(notes));
@@ -158,7 +149,6 @@ function pickCustomerFirstLastPhone(it: any) {
     }
     if (!phone && ext.phone) phone = ext.phone;
   }
-
   return { firstName: first, lastName: last, phone };
 }
 
@@ -272,9 +262,9 @@ async function handleSlotAction(ctx: any) {
     const { durationMinutes } = deriveCapacities(r);
     const user = (ctx.state as any)?.user;
 
-    // ברירת מחדל לסטטוס: הזמנה ידנית = "booked" (ולא approved)
+    // אל תיקח "approved" כברירת־מחדל אם נשלח סטטוס — שמור על הסטטוס שנשלח (new/approved/pending/...)
     const rawStatus = (reservation?.status ?? "").toString().trim().toLowerCase();
-    const status = rawStatus || "booked";
+    const status = rawStatus || "booked"; // ברירת־מחדל רק אם לא נשלח כלל
 
     const payload: Record<string, unknown> = {
       firstName,
@@ -301,6 +291,7 @@ async function handleSlotAction(ctx: any) {
       timeDisplay: time,
       reservationTime: time,
 
+      // רמזים ל-DAL (אם יש בדיקת קיבולת פנימית)
       activeOnlyForCapacity: true,
       ignoreCancelledForCapacity: true,
     };
@@ -342,7 +333,8 @@ async function handleSlotAction(ctx: any) {
       status   : reservation?.status,
     } as any;
 
-    if (isInactiveStatus(patch.status as any)) {
+    // אם הסטטוס הפך ל"מבוטל" — אפס אנשים כדי לשחרר קיבולת
+    if (isInactiveStatus(patch.status)) {
       (patch as any).people = 0;
       (patch as any).cancelledAt = new Date().toISOString();
     }
@@ -363,7 +355,6 @@ async function handleSlotAction(ctx: any) {
       result = await (db as any).updateReservationFields(id, { status: "cancelled" } as any);
     }
 
-    // אפס אנשים כדי לשחרר קיבולת גם אם DAL לא מסנן סטטוסים
     try {
       if ((db as any).updateReservationFields) {
         await (db as any).updateReservationFields(id, { people: 0, cancelledAt: new Date().toISOString() } as any);
@@ -423,9 +414,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const reservations: Reservation[] =
     (await (db as any).listReservationsByRestaurantAndDate?.(internalRid, selected)) ?? [];
 
-  const effective = reservations.filter((rv: any) =>
-    ACTIVE_STATUSES.has(String(rv?.status ?? "approved").toLowerCase())
-  );
+  // כל סטטוס שאינו בסטטוסי ביטול = פעיל
+  const effective = reservations.filter((rv: any) => isActiveStatus(rv?.status));
 
   const occupancy = computeOccupancyForDay({
     reservations: effective,
@@ -449,7 +439,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   });
 });
 
-// JSON — סלוט (עם range + העשרת פרטי לקוח מה־note)
+// JSON — סלוט
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
@@ -472,13 +462,12 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
   const enriched = items.map((it: any) => {
     const inactive = isInactiveStatus(it?.status);
     const picked = pickCustomerFirstLastPhone(it);
-
     return {
       id: it.id,
       firstName: picked.firstName,
       lastName : picked.lastName,
       phone    : picked.phone,
-      people   : Number(inactive ? 0 : (it.people ?? 0)),
+      people   : Number(inactive ? 0 : (it.people ?? 0)), // לא מבוטלים = נספרים
       status   : it.status ?? "booked",
       notes    : it.note ?? it.notes ?? "",
       at       : it.time ?? time,
@@ -488,7 +477,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
   json(ctx, { ok: true, date, time, range, items: enriched });
 });
 
-// JSON — פעולות סלוט (תומך PATCH ו-POST)
+// JSON — פעולות סלוט
 ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
   await handleSlotAction(ctx);
 });
@@ -560,9 +549,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
   const reservations: Reservation[] =
     (await (db as any).listReservationsByRestaurantAndDate?.(internalRid, selected)) ?? [];
 
-  const effective = reservations.filter((rv: any) =>
-    ACTIVE_STATUSES.has(String(rv?.status ?? "approved").toLowerCase())
-  );
+  const effective = reservations.filter((rv: any) => isActiveStatus(rv?.status));
 
   const occupancy = computeOccupancyForDay({
     reservations: effective,
