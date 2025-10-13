@@ -6,34 +6,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/static/css/owner_calendar.css" />
   <style>
-    /* מוודא חד-משמעית: Sidebar בשמאל, Panel בימין */
+    /* פריסה: Panel (טבלה) בימין, Sidebar (יומן) בשמאל — גם תחת RTL */
     .oc-layout{
-      direction: ltr !important;          /* מבטל היפוך RTL בקונטיינר הזה בלבד */
-      display: grid !important;            /* כפייה על גריד גם אם יש flex חיצוני */
-      grid-template-columns: 360px minmax(980px, 1fr) !important;
-      grid-template-rows: auto;
-      grid-column-gap: 16px; grid-row-gap: 16px;
-      align-items: start; padding: 16px;
+      direction: ltr !important;
+      display:grid !important;
+      grid-template-columns: 360px minmax(980px,1fr);
+      gap:16px; align-items:start; padding:16px;
     }
-    /* מציבים מפורשות את הטורים כדי לעקוף כל כלל חיצוני */
-    .oc-sidebar{ grid-column: 1 / 2 !important; grid-row: 1 !important; }
-    .oc-panel  { grid-column: 2 / 3 !important; grid-row: 1 !important; }
-
+    .oc-sidebar{ grid-column:1/2 !important; background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px; }
+    .oc-panel  { grid-column:2/3 !important; overflow:auto; }
     @media (max-width: 900px){
-      .oc-layout{
-        grid-template-columns: 1fr !important;
-        grid-template-rows: auto auto;
-      }
-      .oc-sidebar{ grid-column: 1 / -1 !important; grid-row: 2 !important; }
-      .oc-panel  { grid-column: 1 / -1 !important; grid-row: 1 !important; }
+      .oc-layout{ grid-template-columns: 1fr !important; }
+      .oc-sidebar{ grid-column:1/-1 !important; grid-row:2 !important; }
+      .oc-panel  { grid-column:1/-1 !important; grid-row:1 !important; }
     }
 
-    .oc-panel{ overflow:auto; }
-    .oc-slots{ min-width: 980px; } /* גודל הטבלה נשאר כמו שביקשת */
-
-    .oc-sidebar{
-      background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;
-    }
+    .oc-slots{ min-width: 980px; }
     .oc-section-title{font-weight:600;margin:8px 0 12px;}
 
     /* יומן חודשי */
@@ -54,9 +42,36 @@
     .oc-day-summary .bar{height:8px;background:#f3f4f6;border-radius:999px;overflow:hidden;margin:8px 0}
     .oc-day-summary .bar>div{height:100%;background:#f59e0b;width:0%;transition:width .2s}
 
-    /* שורת תאריך + חיפוש למעלה */
-    .oc-date-nav{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-    .oc-top-search{ width: 220px; }
+    /* סרגל עליון: תאריך + חיפוש מעוצב */
+    .oc-date-nav{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .oc-searchbox{
+      position: relative; display:flex; align-items:center;
+      border:1px solid #e5e7eb; background:#fbfbfc;
+      border-radius:12px; padding-inline:12px; min-height:38px;
+      transition: box-shadow .15s ease, border-color .15s ease, background .15s ease;
+    }
+    .oc-searchbox:hover{ background:#f7f7fb; }
+    .oc-searchbox:focus-within{
+      border-color:#cbd5e1;
+      box-shadow: 0 0 0 3px rgba(14,165,233,.15);
+      background:#fff;
+    }
+    .oc-searchbox .icon{
+      width:18px; height:18px; opacity:.6; flex:0 0 auto;
+      margin-inline-end:8px; /* תומך RTL/LTR */
+      display:inline-block;
+    }
+    .oc-searchbox input{
+      border:0; outline:0; background:transparent;
+      width:220px; max-width:42vw; font-size:14px; padding:6px 0;
+      color:#0f172a;
+    }
+    .oc-searchbox input::placeholder{ color:#94a3b8; }
+
+    /* התאמות קטנות למסכים צרים */
+    @media (max-width:600px){
+      .oc-searchbox input{ width:160px; }
+    }
   </style>
 </head>
 <body>
@@ -70,7 +85,18 @@
         <button id="btn-next" aria-label="Next day">▶</button>
         <button id="btn-jump" aria-label="Jump to date" class="oc-jump">📅 בחר תאריך</button>
         <input type="date" id="datePicker" style="display:none" value="<%= it.date %>"/>
-        <input type="search" id="daySearch" class="oc-top-search" placeholder="Search name"/>
+
+        <!-- שדה חיפוש מעוצב ליד התאריך -->
+        <label class="oc-searchbox" for="daySearch" aria-label="Search in day">
+          <span class="icon" aria-hidden="true">
+            <!-- SVG זכוכית מגדלת -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="7"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </span>
+          <input type="search" id="daySearch" placeholder="Search name"/>
+        </label>
       </div>
     </div>
   </div>
