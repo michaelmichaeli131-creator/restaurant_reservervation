@@ -1,5 +1,5 @@
 // /src/routes/owner_calendar.ts
-// ניהול תפוסה יומי — Calendar לבעלים: יום/סלוט/חיפוש/סיכום + פעולות סלוט
+// ניהול תפוסה יומי — Calendar לבעלים: יום/סלוט/חיפוש/סיכום + פעולות סלוט + SSE events
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -18,6 +18,37 @@ import { buildDayTimeline, slotRange } from "../services/timeline.ts";
 import { computeOccupancyForDay, summarizeDay } from "../services/occupancy.ts";
 
 const ownerCalendarRouter = new Router();
+
+/* ---------------- SSE infra (in-memory) ---------------- */
+type SSEClient = {
+  id: string;
+  rid: string;
+  date: string;
+  send: (event: string, data: unknown) => void;
+  close: () => void;
+};
+const channels = new Map<string, Set<SSEClient>>(); // key = `${rid}|${date}`
+
+function chanKey(rid: string, date: string) {
+  return `${rid}|${date}`;
+}
+function sseFormat(event: string, data?: unknown) {
+  const lines = [`event: ${event}`];
+  if (data !== undefined) {
+    const payload = typeof data === "string" ? data : JSON.stringify(data);
+    lines.push(`data: ${payload}`);
+  }
+  lines.push("", ""); // שתי שורות ריקות כדי לסיים אירוע
+  return lines.join("\n");
+}
+function broadcast(rid: string, date: string, event: string, data?: unknown) {
+  const set = channels.get(chanKey(rid, date));
+  if (!set || set.size === 0) return;
+  const msg = sseFormat(event, data);
+  for (const c of set) {
+    try { c.send(event, data); } catch { /* ignore */ }
+  }
+}
 
 /* ---------------- Helpers ---------------- */
 function pad2(n: number) { return n.toString().padStart(2, "0"); }
@@ -268,6 +299,9 @@ async function handleSlotAction(ctx: any) {
     }
     debugLog("owner_calendar", "create result", { result });
 
+    // שדרוג: שידור SSE ללקוחות הדף
+    broadcast(rid, date, "reservation_create", { time, date, rid, id: result?.id ?? null });
+
   } else if (normalized === "update") {
     const id = String(reservation?.id ?? "");
     debugLog("owner_calendar", "update id & patch", { id, reservation });
@@ -283,6 +317,8 @@ async function handleSlotAction(ctx: any) {
     if (!(db as any).updateReservationFields) ctx.throw(Status.NotImplemented, "updateReservationFields not implemented yet");
     result = await (db as any).updateReservationFields(id, patch);
 
+    broadcast(rid, date, "reservation_update", { time, date, rid, id });
+
   } else if (normalized === "cancel") {
     const id = String(reservation?.id ?? "");
     debugLog("owner_calendar", "cancel id", { id });
@@ -290,12 +326,16 @@ async function handleSlotAction(ctx: any) {
     if (!(db as any).cancelReservation) ctx.throw(Status.NotImplemented, "cancelReservation not implemented yet");
     result = await (db as any).cancelReservation(id, String(reservation?.reason ?? ""));
 
+    broadcast(rid, date, "reservation_cancel", { time, date, rid, id });
+
   } else if (normalized === "arrived") {
     const id = String(reservation?.id ?? "");
     debugLog("owner_calendar", "arrived id", { id });
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
     if (!(db as any).markArrived) ctx.throw(Status.NotImplemented, "markArrived not implemented yet");
     result = await (db as any).markArrived(id);
+
+    broadcast(rid, date, "reservation_arrived", { time, date, rid, id });
   }
 
   debugLog("owner_calendar", "Slot action result", { result });
@@ -503,6 +543,57 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
 
   const summary = summarizeDay(occupancy, reservations);
   json(ctx, { ok: true, date: selected, ...summary });
+});
+
+/* ---------- SSE endpoint ---------- */
+ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/events", async (ctx) => {
+  const { rid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+  const date = ctx.request.url.searchParams.get("date");
+  const selected = isISODate(date) ? date! : todayISO();
+
+  ctx.response.status = Status.OK;
+  ctx.response.headers.set("Content-Type", "text/event-stream; charset=utf-8");
+  ctx.response.headers.set("Cache-Control", "no-cache, no-transform");
+  ctx.response.headers.set("Connection", "keep-alive");
+
+  // יוצרים Stream סשן
+  const stream = new ReadableStream({
+    start(controller) {
+      const id = crypto.randomUUID();
+      const key = chanKey(rid, selected);
+
+      const send = (event: string, data: unknown) => {
+        controller.enqueue(new TextEncoder().encode(sseFormat(event, data)));
+      };
+      const close = () => {
+        try { controller.close(); } catch { /* ignore */ }
+      };
+
+      const client: SSEClient = { id, rid, date: selected, send, close };
+      if (!channels.has(key)) channels.set(key, new Set());
+      channels.get(key)!.add(client);
+
+      // hello + pingים
+      send("hello", { rid, date: selected, id });
+      const pingTimer = setInterval(() => send("ping", { t: Date.now() }), 25000);
+
+      // ניקוי כשנסגר
+      (ctx.request as any).raw?.signal?.addEventListener?.("abort", () => {
+        clearInterval(pingTimer);
+        channels.get(key)?.delete(client);
+      });
+      (ctx.response as any).raw?.signal?.addEventListener?.("abort", () => {
+        clearInterval(pingTimer);
+        channels.get(key)?.delete(client);
+      });
+    },
+    cancel() {
+      // הדפדפן סגר — אין צורך לעשות עוד משהו, ה־abort מאזין כבר מחק את הלקוח
+    },
+  });
+
+  ctx.response.body = stream;
 });
 
 export { ownerCalendarRouter };
