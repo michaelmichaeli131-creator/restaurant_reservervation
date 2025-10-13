@@ -52,7 +52,6 @@ function deriveCapacities(r: Restaurant) {
   const durationMinutes = Number((r as any).serviceDurationMinutes ?? (r as any).reservationDurationMinutes ?? 120);
   return { capacityPeople, capacityTables, slotMinutes, durationMinutes, avgPeoplePerTable };
 }
-// {open,close} -> {start,end} לטיימליין
 function mapOpenWindowsForTimeline(wins: Array<{ open: string; close: string }>) {
   return wins.map(w => ({ start: w.open as `${number}${number}:${number}${number}`, end: w.close as `${number}${number}:${number}${number}` }));
 }
@@ -85,7 +84,7 @@ async function readActionBody(ctx: any): Promise<any> {
   }
 }
 
-/* ---------- DB create resolver (try multiple fn names) ---------- */
+/* ---------- DB create resolver ---------- */
 function pickCreateFn(db: any) {
   return (
     db?.createReservation ||
@@ -95,6 +94,20 @@ function pickCreateFn(db: any) {
     db?.insertReservation ||
     null
   );
+}
+async function tryCreateWithVariants(fn: Function, rid: string, r: Restaurant, date: string, time: string, payload: Record<string, unknown>) {
+  const variants = [
+    () => fn(rid, payload),
+    () => fn(r, payload),
+    () => fn(rid, date, time, payload),
+    () => fn(r, date, time, payload),
+    () => fn({ rid, restaurant: r, date, time, ...payload }),
+  ];
+  let lastErr: unknown = null;
+  for (const v of variants) {
+    try { return await v(); } catch (e) { lastErr = e; }
+  }
+  throw lastErr ?? new Error("createReservation failed for all variants");
 }
 
 /* ---------- Unified Slot Action Handler ---------- */
@@ -110,7 +123,6 @@ async function handleSlotAction(ctx: any) {
   debugLog("owner_calendar", "Body (payload) after readActionBody", { body });
 
   let action = String(body?.action ?? "").trim();
-  // aliases
   if (!action && typeof body === "object") {
     const alias = (body as any).type ?? (body as any).op ?? (body as any).mode;
     if (alias && typeof alias === "string") {
@@ -128,7 +140,7 @@ async function handleSlotAction(ctx: any) {
   const date = String(body?.date ?? "");
   const time = String(body?.time ?? "");
 
-  // אם reservation הגיע כמחרוזת (למשל דרך querystring או text), נפרק ל־object
+  // reservation may arrive as string
   let reservation: any = (body as any)?.reservation ?? {};
   if (typeof reservation === "string") {
     try {
@@ -153,18 +165,15 @@ async function handleSlotAction(ctx: any) {
   let result: any = null;
 
   if (normalized === "create") {
-    // קבל גם fullName / name / customerName
     const fallbackName = (reservation?.fullName ?? reservation?.name ?? reservation?.customerName ?? "").toString().trim();
     let firstName = (reservation?.firstName ?? "").toString().trim();
     let lastName  = (reservation?.lastName  ?? "").toString().trim();
-
     if ((!firstName || !lastName) && fallbackName) {
       const s = splitName(fallbackName);
       if (!firstName) firstName = s.first;
       if (!lastName)  lastName  = s.last;
     }
 
-    // העשרה משדה note אם יש
     const noteRaw = (reservation?.notes ?? reservation?.note ?? "").toString().trim();
     if ((!firstName || !lastName || !reservation?.phone) && noteRaw) {
       const ext = extractFromNote(noteRaw);
@@ -180,15 +189,12 @@ async function handleSlotAction(ctx: any) {
     const user = (ctx.state as any)?.user;
 
     const payload: Record<string, unknown> = {
-      // מזער דרישות — אבל עדיין שומר על סדר
-      firstName: firstName,
-      lastName : lastName,
+      firstName,
+      lastName,
       phone    : (reservation?.phone ?? "").toString().trim(),
       people   : Math.max(1, Number(reservation?.people ?? 1)),
       note     : noteRaw,
       status   : (reservation?.status ?? "approved").toString(),
-
-      // שדות שה־DB נוטה לצפות להם / מקלים על שליפה אחר־כך:
       restaurantId: rid,
       date,
       time,
@@ -199,13 +205,10 @@ async function handleSlotAction(ctx: any) {
       createdBy: user?.id ?? null,
     };
 
-    // אם עדיין חסר שם לגמרי — אל תכשיל: תן ברירת מחדל "Walk-in"
     if (!payload.firstName && !payload.lastName) {
       payload.firstName = "Walk-in";
       payload.lastName = "";
     }
-
-    // בדיקה רכה — רק people>0
     if (!payload.people || Number.isNaN(payload.people as number)) {
       ctx.throw(Status.BadRequest, "Invalid people");
     }
@@ -213,11 +216,16 @@ async function handleSlotAction(ctx: any) {
     debugLog("owner_calendar", "create payload (final)", { payload });
 
     const createFn = pickCreateFn(db as any);
-    if (!createFn) {
-      ctx.throw(Status.NotImplemented, "No createReservation function found in database.ts");
+    if (!createFn) ctx.throw(Status.NotImplemented, "No createReservation function found in database.ts");
+
+    try {
+      result = await tryCreateWithVariants(createFn, rid, r, date, time, payload);
+    } catch (e) {
+      debugLog("owner_calendar", "create failed (all variants)", { error: String(e) });
+      ctx.throw(Status.InternalServerError, "Create reservation failed");
     }
-    result = await createFn(rid, payload);
     debugLog("owner_calendar", "create result", { result });
+
   } else if (normalized === "update") {
     const id = String(reservation?.id ?? "");
     debugLog("owner_calendar", "update id & patch", { id, reservation });
@@ -232,12 +240,14 @@ async function handleSlotAction(ctx: any) {
     } as any;
     if (!(db as any).updateReservationFields) ctx.throw(Status.NotImplemented, "updateReservationFields not implemented yet");
     result = await (db as any).updateReservationFields(id, patch);
+
   } else if (normalized === "cancel") {
     const id = String(reservation?.id ?? "");
     debugLog("owner_calendar", "cancel id", { id });
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
     if (!(db as any).cancelReservation) ctx.throw(Status.NotImplemented, "cancelReservation not implemented yet");
-    result = await (db as any).cancelReservation(id, String(reservation?.reason ?? "")); // reason optional
+    result = await (db as any).cancelReservation(id, String(reservation?.reason ?? ""));
+
   } else if (normalized === "arrived") {
     const id = String(reservation?.id ?? "");
     debugLog("owner_calendar", "arrived id", { id });
@@ -267,7 +277,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
   });
 });
 
-// JSON — יום
+// JSON — יום (מסנן סטטוסים לא פעילים כדי שהצבעים יתעדכנו אחרי cancel)
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
@@ -276,7 +286,6 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
 
-  // בדיוק כמו בקוד שעבד: מקבלים r (לא r.id)
   const openWinsRaw = openingWindowsForDate(r, selected);
   const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
   const timeline = buildDayTimeline(openWindows, slotMinutes);
@@ -285,8 +294,14 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const reservations: Reservation[] =
     (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
 
+  // ✨ חשוב: מחשבים תפוסה רק מסטטוסים פעילים
+  const active = new Set(["approved","booked","arrived","invited"]);
+  const effective = reservations.filter((rv: any) =>
+    active.has(String(rv?.status ?? "approved").toLowerCase())
+  );
+
   const occupancy = computeOccupancyForDay({
-    reservations,
+    reservations: effective,
     timeline,
     slotMinutes,
     capacityPeople,
@@ -406,7 +421,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
   });
 });
 
-// JSON — סיכום יומי
+// JSON — סיכום יומי (אותו סינון סטטוסים)
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
@@ -416,7 +431,6 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
 
-  // כמו בקוד שעבד: r (לא r.id), ו-timeline רק מחלונות פתיחה
   const openWinsRaw = openingWindowsForDate(r, selected);
   const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
   const timeline = buildDayTimeline(openWindows, slotMinutes);
@@ -425,8 +439,13 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
   const reservations: Reservation[] =
     (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
 
+  const active = new Set(["approved","booked","arrived","invited"]);
+  const effective = reservations.filter((rv: any) =>
+    active.has(String(rv?.status ?? "approved").toLowerCase())
+  );
+
   const occupancy = computeOccupancyForDay({
-    reservations,
+    reservations: effective,
     timeline,
     slotMinutes,
     capacityPeople,
