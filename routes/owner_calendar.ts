@@ -1,5 +1,5 @@
 // /src/routes/owner_calendar.ts
-// ניהול תפוסה יומי — Calendar לבעלים: יום/סלוט/חיפוש/סיכום + פעולות סלוט + SSE updates
+// ניהול תפוסה יומי — Calendar לבעלים: יום/סלוט/חיפוש/סיכום + פעולות סלוט
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -9,7 +9,6 @@ import { debugLog } from "../lib/debug.ts";
 import {
   getRestaurant,
   openingWindowsForDate,
-  listRestaurants,
   type Restaurant,
   type Reservation,
 } from "../database.ts";
@@ -19,27 +18,6 @@ import { buildDayTimeline, slotRange } from "../services/timeline.ts";
 import { computeOccupancyForDay, summarizeDay } from "../services/occupancy.ts";
 
 const ownerCalendarRouter = new Router();
-
-/* ---------------- SSE Broker (in-memory) ---------------- */
-type SseClient = {
-  id: string;
-  rid: string;
-  date: string;
-  send: (evt: string, data: unknown) => void;
-  close: () => void;
-};
-const sseClients = new Set<SseClient>();
-
-function ssePush(rid: string, date: string, evt: string, data: Record<string, unknown>) {
-  const payload = JSON.stringify({ rid, date, ...data });
-  let fanout = 0;
-  for (const c of sseClients) {
-    if (c.rid === rid && c.date === date) {
-      try { c.send(evt, payload); fanout++; } catch { /* ignore */ }
-    }
-  }
-  debugLog("owner_calendar", "SSE push", { evt, rid, date, fanout });
-}
 
 /* ---------------- Helpers ---------------- */
 function pad2(n: number) { return n.toString().padStart(2, "0"); }
@@ -54,51 +32,15 @@ function json(ctx: any, data: unknown, status = Status.OK) {
   ctx.response.type = "application/json; charset=utf-8";
   ctx.response.body = data;
 }
-
-/** סטטוסים — כל מה שלא "מבוטל" נספר בתפוסה */
-const INACTIVE_STATUSES = new Set(["cancelled","canceled","rejected","declined","no-show","noshow"]);
-function normStatus(s: unknown) { return String(s ?? "").trim().toLowerCase(); }
-function isInactiveStatus(s: unknown) { return INACTIVE_STATUSES.has(normStatus(s)); }
-function isActiveStatus(s: unknown) {
-  const v = normStatus(s);
-  return v !== "" && !INACTIVE_STATUSES.has(v); // new/approved/booked/confirmed/pending/invited/arrived/... כולם פעילים
-}
-
-/** בדיקת הרשאות + fallback לזהות מסעדה */
-async function ensureOwnerAccess(ctx: any, rawRid: string): Promise<Restaurant> {
+async function ensureOwnerAccess(ctx: any, rid: string): Promise<Restaurant> {
   const user = await requireOwner(ctx);
-  const rid = decodeURIComponent(String(rawRid ?? "")).trim();
-  if (!rid) ctx.throw(Status.BadRequest, "Missing restaurant id (rid)");
-
-  let r = await getRestaurant(rid) as Restaurant | null;
-  if (!r) {
-    try {
-      const all = await listRestaurants();
-      const ridLower = rid.toLowerCase();
-      r = all.find((x: any) => String(x.slug ?? "").toLowerCase() === ridLower) as any
-        || all.find((x: any) => String(x.id ?? "").toLowerCase().startsWith(ridLower)) as any
-        || all.find((x: any) => String(x.name ?? "").toLowerCase() === ridLower) as any
-        || all.find((x: any) => String(x.name ?? "").toLowerCase().includes(ridLower)) as any;
-    } catch (e) {
-      debugLog("owner_calendar", "fallback listRestaurants failed", { error: String(e) });
-    }
-  }
-
+  const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound, "Restaurant not found");
-
-  const uid = String((await requireOwner(ctx))?.id ?? "");
-  const ownerId = (r as any).ownerId != null ? String((r as any).ownerId) : "";
-  const rUserId  = (r as any).userId  != null ? String((r as any).userId)  : "";
-  const managers: string[] = Array.isArray((r as any).managerIds) ? (r as any).managerIds.map((x: any) => String(x)) : [];
-  const isAdmin = !!(ctx.state?.user?.isAdmin) || String(ctx.state?.user?.role ?? "").toLowerCase() === "admin";
-  const unclaimed = !ownerId && !rUserId && managers.length === 0;
-  const isManager = managers.includes(uid);
-  const owned = ownerId === uid || rUserId === uid;
-
-  if (isAdmin || owned || isManager || unclaimed) return r as Restaurant;
-  ctx.throw(Status.Forbidden, "Not your restaurant");
+  if (r.ownerId !== user.id && (r as any).userId !== user.id) {
+    ctx.throw(Status.Forbidden, "Not your restaurant");
+  }
+  return r as Restaurant;
 }
-
 function deriveCapacities(r: Restaurant) {
   const capacityPeople = Math.max(1, Number((r as any).capacity ?? 0));
   const avgPeoplePerTable = Number((r as any).avgPeoplePerTable ?? 3);
@@ -114,7 +56,7 @@ function mapOpenWindowsForTimeline(wins: Array<{ open: string; close: string }>)
   return wins.map(w => ({ start: w.open as `${number}${number}:${number}${number}`, end: w.close as `${number}${number}:${number}${number}` }));
 }
 
-/* ---- Name/Phone enrichment ---- */
+/* ---- Enrichment from note / names ---- */
 function splitName(full?: string): { first: string; last: string } {
   const s = String(full ?? "").trim().replace(/\s+/g, " ");
   if (!s) return { first: "", last: "" };
@@ -129,79 +71,69 @@ function extractFromNote(note?: string): { name?: string; phone?: string } {
   const mPhone = t.match(/\bPhone:\s*([^;]+)/i);
   return { name: mName ? mName[1].trim() : undefined, phone: mPhone ? mPhone[1].trim() : undefined };
 }
-function pickCustomerFirstLastPhone(it: any) {
-  let first = String(it?.firstName ?? it?.customer?.firstName ?? it?.contact?.firstName ?? "");
-  let last  = String(it?.lastName  ?? it?.customer?.lastName  ?? it?.contact?.lastName  ?? "");
-  let phone = String(it?.phone ?? it?.customer?.phone ?? it?.contact?.phone ?? it?.tel ?? it?.mobile ?? "");
-  const full = String(it?.fullName ?? it?.name ?? it?.customerName ?? "");
-  if ((!first || !last) && full) {
-    const s = splitName(full);
-    if (!first) first = s.first;
-    if (!last)  last  = s.last;
-  }
-  const notes = it?.note ?? it?.notes ?? "";
-  if ((!first || !last || !phone) && notes) {
-    const ext = extractFromNote(String(notes));
-    if ((!first || !last) && ext.name) {
-      const s = splitName(ext.name);
-      if (!first) first = s.first;
-      if (!last)  last  = s.last;
-    }
-    if (!phone && ext.phone) phone = ext.phone;
-  }
-  return { firstName: first, lastName: last, phone };
-}
 
-/* ---------- Body parser wrapper (BODY + QUERY fallback) ---------- */
+/* ---------- Body parser wrapper (uses your readBody) ---------- */
 async function readActionBody(ctx: any): Promise<any> {
-  const sp = ctx.request.url.searchParams;
-  const q: Record<string, unknown> = {};
-  if (sp.has("action")) q.action = sp.get("action")!;
-  if (sp.has("date"))   q.date   = sp.get("date")!;
-  if (sp.has("time"))   q.time   = sp.get("time")!;
-  if (sp.has("reservation")) {
-    const raw = sp.get("reservation")!;
-    try { q.reservation = JSON.parse(raw); } catch { q.reservation = raw; }
-  }
-
-  let body: any = {};
   try {
-    const rb = await readBody(ctx);
-    const payload = rb?.payload ?? rb ?? {};
-    if (typeof payload === "string") {
-      try { body = JSON.parse(payload); } catch { body = { reservation: payload }; }
-    } else if (payload && typeof payload === "object") {
-      body = payload;
-    }
+    const { payload, dbg } = await readBody(ctx);
+    debugLog("owner_calendar", "readBody payload & dbg", { payload, dbg });
+    return payload || {};
   } catch (e) {
     debugLog("owner_calendar", "readBody threw", { error: String(e) });
+    return {};
   }
-
-  const merged = { ...q, ...body };
-  debugLog("owner_calendar", "merged payload (query+body)", merged);
-  return merged;
 }
 
 /* ---------- DB create resolver ---------- */
 function pickCreateFn(db: any) {
   return (
-    db?.createReservation ||
     db?.createManualReservation ||
     db?.createReservationAtTime ||
     db?.addReservation ||
     db?.insertReservation ||
+    db?.createReservation ||
     null
   );
 }
-async function tryCreateWithVariants(fn: Function, rid: string, _r: Restaurant, date: string, time: string, payload: Record<string, unknown>) {
-  const variants = [
-    () => fn(rid, { ...payload, date, time }),
-    () => fn({ restaurantId: rid, ...payload, date, time }),
-    () => fn(rid, date, time, payload),
-  ];
+
+async function tryCreateWithVariants(fn: Function, rid: string, r: Restaurant, date: string, time: string, payload: Record<string, unknown>) {
+  // התאמת חתימות לפונקציות יצירה שונות
+  const fnName = String((fn as any)?.name || "");
+  const notes = (payload as any).notes ?? (payload as any).note ?? "";
+  const manualData = {
+    firstName: String((payload as any).firstName ?? ""),
+    lastName : String((payload as any).lastName  ?? ""),
+    phone    : String((payload as any).phone     ?? ""),
+    people   : Number((payload as any).people ?? 1),
+    notes    : String(notes ?? ""),
+    date,
+    time,
+    status   : String((payload as any).status ?? "booked"),
+  };
+
+  const variants: Array<() => Promise<any>> = [];
+
+  // 1) createManualReservation(rid, data)
+  variants.push(() => {
+    if (fnName === "createManualReservation") {
+      return (fn as any)(rid, manualData);
+    }
+    return (fn as any)(rid, manualData);
+  });
+
+  // 2) createReservationAtTime(rid, date, time, payload)
+  variants.push(() => (fn as any)(rid, date, time, payload));
+
+  // 3) add/insert-like: (rid, payload) או (rid, {...payload, date, time})
+  variants.push(() => (fn as any)(rid, payload));
+  variants.push(() => (fn as any)(rid, { ...payload, date, time }));
+
+  // 4) generic object: fn({restaurantId: rid, date, time, ...payload})
+  variants.push(() => (fn as any)({ restaurantId: rid, date, time, ...payload }));
+
   let lastErr: unknown = null;
-  for (const v of variants) {
-    try { return await v(); } catch (e) { lastErr = e; }
+  for (const call of variants) {
+    try { return await call(); } catch (e) { lastErr = e; }
   }
   throw lastErr ?? new Error("createReservation failed for all variants");
 }
@@ -210,18 +142,21 @@ async function tryCreateWithVariants(fn: Function, rid: string, _r: Restaurant, 
 async function handleSlotAction(ctx: any) {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
-  const internalRid = (r as any).id ?? rid;
 
   const method = ctx.request.method;
   const ct = ctx.request.headers.get("content-type") || "";
-  debugLog("owner_calendar", "handleSlotAction ENTER", { rid, internalRid, method, contentType: ct });
+  debugLog("owner_calendar", "handleSlotAction ENTER", { rid, method, contentType: ct });
 
   const body = await readActionBody(ctx);
+  debugLog("owner_calendar", "Body (payload) after readActionBody", { body });
 
   let action = String(body?.action ?? "").trim();
   if (!action && typeof body === "object") {
     const alias = (body as any).type ?? (body as any).op ?? (body as any).mode;
-    if (alias && typeof alias === "string") action = alias.trim();
+    if (alias && typeof alias === "string") {
+      action = alias.trim();
+      debugLog("owner_calendar", "Alias used for action", { alias });
+    }
   }
   const normalized =
     action === "add" || action === "new" ? "create" :
@@ -236,10 +171,16 @@ async function handleSlotAction(ctx: any) {
   // reservation may arrive as string
   let reservation: any = (body as any)?.reservation ?? {};
   if (typeof reservation === "string") {
-    try { reservation = JSON.parse(reservation); } catch { reservation = {}; }
+    try {
+      reservation = JSON.parse(reservation);
+      debugLog("owner_calendar", "reservation parsed from string", { reservation });
+    } catch (e) {
+      debugLog("owner_calendar", "reservation parse failed", { error: String(e), raw: (body as any).reservation });
+      reservation = {};
+    }
   }
 
-  debugLog("owner_calendar", "Parsed action", { action, normalized, date, time, reservation });
+  debugLog("owner_calendar", "Parsed action info", { action, normalized, date, time, reservation });
 
   if (!["create", "update", "cancel", "arrived"].includes(normalized)) {
     ctx.throw(Status.BadRequest, `Unknown action: ${action}`);
@@ -252,50 +193,60 @@ async function handleSlotAction(ctx: any) {
   let result: any = null;
 
   if (normalized === "create") {
-    const picked = pickCustomerFirstLastPhone(reservation);
-    let firstName = (reservation?.firstName ?? picked.firstName ?? "").toString().trim();
-    let lastName  = (reservation?.lastName  ?? picked.lastName  ?? "").toString().trim();
-    let phone     = (reservation?.phone     ?? picked.phone     ?? "").toString().trim();
+    const fallbackName = (reservation?.fullName ?? reservation?.name ?? reservation?.customerName ?? "").toString().trim();
+    let firstName = (reservation?.firstName ?? "").toString().trim();
+    let lastName  = (reservation?.lastName  ?? "").toString().trim();
+    if ((!firstName || !lastName) && fallbackName) {
+      const s = splitName(fallbackName);
+      if (!firstName) firstName = s.first;
+      if (!lastName)  lastName  = s.last;
+    }
 
     const noteRaw = (reservation?.notes ?? reservation?.note ?? "").toString().trim();
+    if ((!firstName || !lastName || !reservation?.phone) && noteRaw) {
+      const ext = extractFromNote(noteRaw);
+      if ((!firstName || !lastName) && ext.name) {
+        const s = splitName(ext.name);
+        if (!firstName) firstName = s.first;
+        if (!lastName)  lastName  = s.last;
+      }
+      if (!reservation?.phone && ext.phone) reservation.phone = ext.phone;
+    }
 
     const { durationMinutes } = deriveCapacities(r);
     const user = (ctx.state as any)?.user;
 
-    // אל תיקח "approved" כברירת־מחדל אם נשלח סטטוס — שמור על הסטטוס שנשלח (new/approved/pending/...)
-    const rawStatus = (reservation?.status ?? "").toString().trim().toLowerCase();
-    const status = rawStatus || "booked"; // ברירת־מחדל רק אם לא נשלח כלל
-
+    // === PAYLOAD עם אליאסים נפוצים כדי להתאים לשליפות קיימות ===
     const payload: Record<string, unknown> = {
+      // בסיס
       firstName,
       lastName,
-      phone,
+      phone    : (reservation?.phone ?? "").toString().trim(),
       people   : Math.max(1, Number(reservation?.people ?? 1)),
       note     : noteRaw,
-      status,
+      notes    : noteRaw,
+      status   : (reservation?.status ?? "approved").toString(),
 
-      restaurantId: internalRid,
+      // הקשרים
+      restaurantId: rid,
       date,
       time,
       datetime: `${date}T${time}`,
-      startsAt: `${date}T${time}`,
+      startsAt: `${date}T${time}`,           // אליאס נפוץ
       durationMinutes,
-
       source: "owner-manual",
       channel: "owner",
       createdBy: user?.id ?? null,
 
+      // אליאסים לשדות שה-DAL שלך אולי מצפה להם
       reservation_date: date,
       res_date: date,
       time_display: time,
       timeDisplay: time,
       reservationTime: time,
-
-      // רמזים ל-DAL (אם יש בדיקת קיבולת פנימית)
-      activeOnlyForCapacity: true,
-      ignoreCancelledForCapacity: true,
     };
 
+    // ברירת מחדל לשם ריק
     if (!payload.firstName && !payload.lastName) {
       payload.firstName = "Walk-in";
       payload.lastName = "";
@@ -310,68 +261,41 @@ async function handleSlotAction(ctx: any) {
     if (!createFn) ctx.throw(Status.NotImplemented, "No createReservation function found in database.ts");
 
     try {
-      result = await tryCreateWithVariants(createFn, internalRid, r, date, time, payload);
+      result = await tryCreateWithVariants(createFn, rid, r, date, time, payload);
     } catch (e) {
       debugLog("owner_calendar", "create failed (all variants)", { error: String(e) });
+      ctx.throw(Status.InternalServerError, "Create reservation failed");
     }
-    if (!result) ctx.throw(Status.InternalServerError, "Create reservation failed");
     debugLog("owner_calendar", "create result", { result });
-
-    ssePush(internalRid, date, "reservation_create", { time });
 
   } else if (normalized === "update") {
     const id = String(reservation?.id ?? "");
+    debugLog("owner_calendar", "update id & patch", { id, reservation });
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
-
-    const picked = pickCustomerFirstLastPhone(reservation);
     const patch: Partial<Reservation> = {
-      firstName: reservation?.firstName ?? picked.firstName,
-      lastName : reservation?.lastName  ?? picked.lastName,
-      phone    : reservation?.phone     ?? picked.phone,
+      firstName: reservation?.firstName,
+      lastName : reservation?.lastName,
+      phone    : reservation?.phone,
       people   : reservation?.people ? Number(reservation?.people) : undefined,
       note     : reservation?.notes ?? reservation?.note,
       status   : reservation?.status,
     } as any;
-
-    // אם הסטטוס הפך ל"מבוטל" — אפס אנשים כדי לשחרר קיבולת
-    if (isInactiveStatus(patch.status)) {
-      (patch as any).people = 0;
-      (patch as any).cancelledAt = new Date().toISOString();
-    }
-
     if (!(db as any).updateReservationFields) ctx.throw(Status.NotImplemented, "updateReservationFields not implemented yet");
     result = await (db as any).updateReservationFields(id, patch);
 
-    ssePush(internalRid, date, "reservation_update", { time });
-
   } else if (normalized === "cancel") {
     const id = String(reservation?.id ?? "");
+    debugLog("owner_calendar", "cancel id", { id });
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
-
-    if ((db as any).cancelReservation) {
-      result = await (db as any).cancelReservation(id, String(reservation?.reason ?? ""));
-    } else {
-      if (!(db as any).updateReservationFields) ctx.throw(Status.NotImplemented, "cancelReservation/updateReservationFields not implemented yet");
-      result = await (db as any).updateReservationFields(id, { status: "cancelled" } as any);
-    }
-
-    try {
-      if ((db as any).updateReservationFields) {
-        await (db as any).updateReservationFields(id, { people: 0, cancelledAt: new Date().toISOString() } as any);
-      }
-    } catch (e) {
-      debugLog("owner_calendar", "post-cancel people=0 failed (non-fatal)", { error: String(e) });
-    }
-
-    ssePush(internalRid, date, "reservation_cancel", { time });
+    if (!(db as any).cancelReservation) ctx.throw(Status.NotImplemented, "cancelReservation not implemented yet");
+    result = await (db as any).cancelReservation(id, String(reservation?.reason ?? ""));
 
   } else if (normalized === "arrived") {
     const id = String(reservation?.id ?? "");
+    debugLog("owner_calendar", "arrived id", { id });
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
     if (!(db as any).markArrived) ctx.throw(Status.NotImplemented, "markArrived not implemented yet");
     result = await (db as any).markArrived(id);
-
-    ssePush(internalRid, date, "reservation_arrived", { time });
   }
 
   debugLog("owner_calendar", "Slot action result", { result });
@@ -389,18 +313,16 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
 
   await render(ctx, "owner_calendar.eta", {
     title: "ניהול תפוסה יומי",
-    rid: (r as any).id ?? rid,
+    rid,
     date: selected,
-    restaurant: { id: (r as any).id, name: (r as any).name ?? "Restaurant" },
+    restaurant: { id: r.id, name: (r as any).name ?? "Restaurant" },
   });
 });
 
-// JSON — יום
+// JSON — יום (מסנן סטטוסים לא פעילים כדי שהצבעים יתעדכנו אחרי cancel)
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
-  const internalRid = (r as any).id ?? rid;
-
   const date = ctx.request.url.searchParams.get("date");
   const selected = isISODate(date) ? date! : todayISO();
 
@@ -412,10 +334,10 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
 
   const db = await import("../database.ts");
   const reservations: Reservation[] =
-    (await (db as any).listReservationsByRestaurantAndDate?.(internalRid, selected)) ?? [];
+    (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
 
-  // כל סטטוס שאינו בסטטוסי ביטול = פעיל
-  const effective = reservations.filter((rv: any) => isActiveStatus(rv?.status));
+  const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow"]);
+  const effective = reservations.filter((rv: any) => !inactive.has(String(rv?.status ?? "").toLowerCase()));
 
   const occupancy = computeOccupancyForDay({
     reservations: effective,
@@ -439,12 +361,10 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   });
 });
 
-// JSON — סלוט
+// JSON — סלוט (עם range + העשרת פרטי לקוח מה־note)
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
-  const internalRid = (r as any).id ?? rid;
-
   const date = ctx.request.url.searchParams.get("date");
   const time = ctx.request.url.searchParams.get("time");
   if (!isISODate(date) || !isHHMM(time)) ctx.throw(Status.BadRequest, "Bad date/time");
@@ -454,27 +374,49 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
 
   const db = await import("../database.ts");
   const items: Reservation[] =
-    (await (db as any).listReservationsCoveringSlot?.(internalRid, date!, time!, {
+    (await (db as any).listReservationsCoveringSlot?.(rid, date!, time!, {
       slotMinutes,
       durationMinutes,
     })) ?? [];
 
   const enriched = items.map((it: any) => {
-    const inactive = isInactiveStatus(it?.status);
-    const picked = pickCustomerFirstLastPhone(it);
+    let first = String(it.firstName ?? "");
+    let last  = String(it.lastName ?? "");
+    let phone = String(it.phone ?? "");
+    const notes = it.note ?? it.notes ?? "";
+
+    if ((!first || !last || !phone) && notes) {
+      const ext = extractFromNote(String(notes));
+      if ((!first || !last) && ext.name) {
+        const s = splitName(ext.name);
+        if (!first) first = s.first;
+        if (!last)  last  = s.last;
+      }
+      if (!phone && ext.phone) phone = ext.phone;
+    }
+
+    const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow"]);
+    const people = inactive.has(String(it.status ?? "").toLowerCase()) ? 0 : Number(it.people ?? 0);
+
     return {
       id: it.id,
-      firstName: picked.firstName,
-      lastName : picked.lastName,
-      phone    : picked.phone,
-      people   : Number(inactive ? 0 : (it.people ?? 0)), // לא מבוטלים = נספרים
-      status   : it.status ?? "booked",
-      notes    : it.note ?? it.notes ?? "",
-      at       : it.time ?? time,
+      firstName: first,
+      lastName: last,
+      phone,
+      people,
+      status: it.status ?? "approved",
+      notes,
+      at: it.time ?? time,
     };
   });
 
-  json(ctx, { ok: true, date, time, range, items: enriched });
+  json(ctx, {
+    ok: true,
+    date,
+    time,
+    range,
+    items: enriched,
+  });
 });
 
 // JSON — פעולות סלוט
@@ -488,8 +430,7 @@ ownerCalendarRouter.post("/owner/restaurants/:rid/calendar/slot", async (ctx) =>
 // JSON — חיפוש ליום
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ctx) => {
   const { rid } = ctx.params;
-  const r = await ensureOwnerAccess(ctx, rid);
-  const internalRid = (r as any).id ?? rid;
+  await ensureOwnerAccess(ctx, rid);
 
   const date = ctx.request.url.searchParams.get("date");
   const qraw = ctx.request.url.searchParams.get("q") ?? "";
@@ -498,14 +439,13 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
   if (!isISODate(date) || !q) ctx.throw(Status.BadRequest, "Bad date or empty query");
 
   const db = await import("../database.ts");
-  const reservations: Reservation[] = (await (db as any).listReservationsByRestaurantAndDate?.(internalRid, date!)) ?? [];
+  const reservations: Reservation[] = (await (db as any).listReservationsByRestaurantAndDate?.(rid, date!)) ?? [];
 
-  const matches = reservations.filter((rr: any) => {
-    const picked = pickCustomerFirstLastPhone(rr);
-    const f = String(picked.firstName ?? "").toLowerCase();
-    const l = String(picked.lastName ?? "").toLowerCase();
-    const phone = String(picked.phone ?? "").toLowerCase();
-    const note = String(rr.note ?? rr.notes ?? "").toLowerCase();
+  const matches = reservations.filter((r: any) => {
+    const f = String(r.firstName ?? "").toLowerCase();
+    const l = String(r.lastName ?? "").toLowerCase();
+    const phone = String(r.phone ?? "").toLowerCase();
+    const note = String(r.note ?? r.notes ?? "").toLowerCase();
     return f.includes(q) || l.includes(q) || phone.includes(q) || note.includes(q);
   });
 
@@ -514,27 +454,23 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
     date,
     q: qraw,
     count: matches.length,
-    items: matches.map((it: any) => {
-      const picked = pickCustomerFirstLastPhone(it);
-      return {
-        id: it.id,
-        time: it.time,
-        firstName: picked.firstName ?? "",
-        lastName: picked.lastName ?? "",
-        people: Number(it.people ?? 0),
-        status: it.status ?? "",
-        phone: picked.phone ?? "",
-        note: it.note ?? it.notes ?? "",
-      };
-    }),
+    items: matches.map((it: any) => ({
+      id: it.id,
+      time: it.time,
+      firstName: it.firstName ?? "",
+      lastName: it.lastName ?? "",
+      people: Number(it.people ?? 0),
+      status: it.status ?? "",
+      phone: it.phone ?? "",
+      note: it.note ?? it.notes ?? "",
+    })),
   });
 });
 
-// JSON — סיכום יומי
+// JSON — סיכום יומי (אותו סינון סטטוסים)
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
-  const internalRid = (r as any).id ?? rid;
 
   const date = ctx.request.url.searchParams.get("date");
   const selected = isISODate(date) ? date! : todayISO();
@@ -547,9 +483,12 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
 
   const db = await import("../database.ts");
   const reservations: Reservation[] =
-    (await (db as any).listReservationsByRestaurantAndDate?.(internalRid, selected)) ?? [];
+    (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
 
-  const effective = reservations.filter((rv: any) => isActiveStatus(rv?.status));
+  const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow"]);
+  const effective = reservations.filter((rv: any) =>
+    !inactive.has(String(rv?.status ?? "").toLowerCase())
+  );
 
   const occupancy = computeOccupancyForDay({
     reservations: effective,
@@ -564,51 +503,6 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
 
   const summary = summarizeDay(occupancy, reservations);
   json(ctx, { ok: true, date: selected, ...summary });
-});
-
-/* -------------- SSE endpoint -------------- */
-ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/events", async (ctx) => {
-  const { rid } = ctx.params;
-  const r = await ensureOwnerAccess(ctx, rid);
-  const internalRid = (r as any).id ?? rid;
-
-  const date = ctx.request.url.searchParams.get("date");
-  const selected = isISODate(date) ? date! : todayISO();
-
-  ctx.response.status = 200;
-  ctx.response.headers.set("Content-Type", "text/event-stream; charset=utf-8");
-  ctx.response.headers.set("Cache-Control", "no-cache");
-  ctx.response.headers.set("Connection", "keep-alive");
-
-  const body = new ReadableStream({
-    start(controller) {
-      const enc = new TextEncoder();
-      const send = (evt: string, data: unknown) => {
-        controller.enqueue(enc.encode(`event: ${evt}\n`));
-        controller.enqueue(enc.encode(`data: ${typeof data === "string" ? data : JSON.stringify(data)}\n\n`));
-      };
-      const client: SseClient = {
-        id: crypto.randomUUID(),
-        rid: internalRid,
-        date: selected,
-        send,
-        close: () => controller.close(),
-      };
-      sseClients.add(client);
-
-      // hello + heartbeat
-      send("hello", JSON.stringify({ rid: internalRid, date: selected, ts: Date.now() }));
-      const t = setInterval(() => send("ping", Date.now()), 25000);
-
-      ctx.request.signal.addEventListener("abort", () => {
-        clearInterval(t);
-        sseClients.delete(client);
-        try { controller.close(); } catch {}
-      });
-    },
-    cancel() { /* client closed */ },
-  });
-  ctx.response.body = body;
 });
 
 export { ownerCalendarRouter };
