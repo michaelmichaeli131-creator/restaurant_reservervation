@@ -10,7 +10,8 @@
   <!-- Header -->
   <div class="oc-header">
     <div class="wrap">
-      <div class="oc-title">Restaurant Name • Admin</div>
+      <!-- היה: Restaurant Name • Admin -->
+      <div class="oc-title"><%= it.restaurant && it.restaurant.name ? it.restaurant.name : it.title %></div>
       <div class="oc-date-nav">
         <button id="btn-prev" aria-label="Previous day">◀</button>
         <div class="date-label" id="date-label">—</div>
