@@ -6,38 +6,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/static/css/owner_calendar.css" />
   <style>
-    /* פריסה: Panel (טבלה) בימין, Sidebar (יומן) בשמאל — גם תחת RTL */
+    /* מוודא חד-משמעית: Sidebar בשמאל, Panel בימין */
     .oc-layout{
-      direction: ltr; /* כדי לקבע את מיקום העמודות */
-      display:grid;
-      grid-template-areas: "sidebar main";
-      grid-template-columns: 360px minmax(980px,1fr);
-      gap:16px;
-      align-items:start;
-      padding:16px;
+      direction: ltr !important;          /* מבטל היפוך RTL בקונטיינר הזה בלבד */
+      display: grid !important;            /* כפייה על גריד גם אם יש flex חיצוני */
+      grid-template-columns: 360px minmax(980px, 1fr) !important;
+      grid-template-rows: auto;
+      grid-column-gap: 16px; grid-row-gap: 16px;
+      align-items: start; padding: 16px;
     }
+    /* מציבים מפורשות את הטורים כדי לעקוף כל כלל חיצוני */
+    .oc-sidebar{ grid-column: 1 / 2 !important; grid-row: 1 !important; }
+    .oc-panel  { grid-column: 2 / 3 !important; grid-row: 1 !important; }
+
     @media (max-width: 900px){
       .oc-layout{
-        grid-template-areas:
-          "main"
-          "sidebar";
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr !important;
+        grid-template-rows: auto auto;
       }
+      .oc-sidebar{ grid-column: 1 / -1 !important; grid-row: 2 !important; }
+      .oc-panel  { grid-column: 1 / -1 !important; grid-row: 1 !important; }
     }
 
-    .oc-panel{ grid-area:main; overflow:auto; }
+    .oc-panel{ overflow:auto; }
+    .oc-slots{ min-width: 980px; } /* גודל הטבלה נשאר כמו שביקשת */
+
     .oc-sidebar{
-      grid-area:sidebar;
-      background:#fff;
-      border:1px solid #e5e7eb;
-      border-radius:12px;
-      padding:12px;
+      background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;
     }
-
-    .oc-slots{ min-width: 980px; }
     .oc-section-title{font-weight:600;margin:8px 0 12px;}
 
-    /* עיצוב היומן */
+    /* יומן חודשי */
     .mini-cal{user-select:none}
     .mini-cal .hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
     .mini-cal .hdr .nav{display:flex;gap:8px}
@@ -55,7 +54,7 @@
     .oc-day-summary .bar{height:8px;background:#f3f4f6;border-radius:999px;overflow:hidden;margin:8px 0}
     .oc-day-summary .bar>div{height:100%;background:#f59e0b;width:0%;transition:width .2s}
 
-    /* שורת תאריך + חיפוש */
+    /* שורת תאריך + חיפוש למעלה */
     .oc-date-nav{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
     .oc-top-search{ width: 220px; }
   </style>
@@ -71,7 +70,6 @@
         <button id="btn-next" aria-label="Next day">▶</button>
         <button id="btn-jump" aria-label="Jump to date" class="oc-jump">📅 בחר תאריך</button>
         <input type="date" id="datePicker" style="display:none" value="<%= it.date %>"/>
-        <!-- חיפוש ליד התאריכים -->
         <input type="search" id="daySearch" class="oc-top-search" placeholder="Search name"/>
       </div>
     </div>
@@ -80,7 +78,7 @@
   <!-- Layout -->
   <main class="oc-main">
     <div class="oc-layout">
-      <!-- Sidebar (שמאל) -->
+      <!-- Sidebar (שמאל בפועל) -->
       <aside class="oc-sidebar" id="sidebar">
         <div class="oc-section-title">Calendar</div>
         <div class="mini-cal" id="mini-cal">
@@ -104,7 +102,7 @@
         </div>
       </aside>
 
-      <!-- Panel (ימין) -->
+      <!-- Panel (ימין בפועל) -->
       <section class="oc-panel">
         <header>
           <div class="oc-cap" id="cap-line">Capacity: People — • Tables — • Step: —</div>
@@ -116,6 +114,7 @@
             <div>Occupancy</div>
             <div class="oc-info">People • Tables • %</div>
           </div>
+          <!-- rows injected by JS -->
         </div>
 
         <div class="oc-hint">Hint: Click a slot to manage customers</div>
