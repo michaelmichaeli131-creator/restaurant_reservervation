@@ -6,18 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/static/css/owner_calendar.css" />
   <style>
-    /* פריסה: Panel (טבלה) בשמאל, Sidebar (יומן) בימין — גם תחת RTL */
+    /* פריסה: Panel (טבלה) בימין, Sidebar (יומן) בשמאל — גם תחת RTL */
     .oc-layout{
-      direction: ltr; /* מייצב מיקומים פיזית: העמודה הראשונה משמאל */
+      direction: ltr; /* כדי לקבע את מיקום העמודות */
       display:grid;
-      grid-template-areas: "main sidebar";
-      grid-template-columns: minmax(980px, 1fr) 360px; /* טבלה מעט קטנה יותר + סיידבר */
+      grid-template-areas: "sidebar main";
+      grid-template-columns: 360px minmax(980px,1fr);
       gap:16px;
       align-items:start;
       padding:16px;
-    }
-    @media (max-width: 1100px){
-      .oc-layout{ grid-template-columns: minmax(900px, 1fr) 320px; }
     }
     @media (max-width: 900px){
       .oc-layout{
@@ -31,15 +28,16 @@
     .oc-panel{ grid-area:main; overflow:auto; }
     .oc-sidebar{
       grid-area:sidebar;
-      background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:12px;
+      padding:12px;
     }
 
-    /* טבלה מעט צרה יותר, עדיין נוחה */
     .oc-slots{ min-width: 980px; }
-
     .oc-section-title{font-weight:600;margin:8px 0 12px;}
 
-    /* יומן חודשי קטן */
+    /* עיצוב היומן */
     .mini-cal{user-select:none}
     .mini-cal .hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
     .mini-cal .hdr .nav{display:flex;gap:8px}
@@ -52,17 +50,14 @@
     .mini-cal td .today{outline:2px solid #e5e7eb;border-radius:8px}
     .mini-cal td .sel{background:#111827;color:#fff}
 
-    /* סיכום יומי בסיידבר */
+    /* סיכום יומי */
     .oc-day-summary{margin-top:14px;font-size:14px;color:#111827}
     .oc-day-summary .bar{height:8px;background:#f3f4f6;border-radius:999px;overflow:hidden;margin:8px 0}
     .oc-day-summary .bar>div{height:100%;background:#f59e0b;width:0%;transition:width .2s}
 
-    /* יישור אלמנטים בראש העמוד */
-    .oc-date-nav{ display:flex; align-items:center; gap:8px; }
+    /* שורת תאריך + חיפוש */
+    .oc-date-nav{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
     .oc-top-search{ width: 220px; }
-    @media (max-width: 600px){
-      .oc-top-search{ width: 160px; }
-    }
   </style>
 </head>
 <body>
@@ -76,40 +71,16 @@
         <button id="btn-next" aria-label="Next day">▶</button>
         <button id="btn-jump" aria-label="Jump to date" class="oc-jump">📅 בחר תאריך</button>
         <input type="date" id="datePicker" style="display:none" value="<%= it.date %>"/>
-
-        <!-- חיפוש הועבר למעלה ליד בחירת התאריך -->
+        <!-- חיפוש ליד התאריכים -->
         <input type="search" id="daySearch" class="oc-top-search" placeholder="Search name"/>
       </div>
-      <div class="oc-spacer"></div>
     </div>
   </div>
 
   <!-- Layout -->
   <main class="oc-main">
     <div class="oc-layout">
-      <!-- Panel (שמאל) -->
-      <section class="oc-panel">
-        <header>
-          <div class="oc-cap" id="cap-line">Capacity: People — • Tables — • Step: —</div>
-        </header>
-
-        <div class="oc-slots" id="slots">
-          <div class="oc-row oc-th">
-            <div>Time</div>
-            <div>Occupancy</div>
-            <div class="oc-info">People • Tables • %</div>
-          </div>
-          <!-- rows injected by JS -->
-        </div>
-
-        <div class="oc-hint">Hint: Click a slot to manage customers</div>
-
-        <div class="oc-summary" id="summary">
-          Daily Summary — loading…
-        </div>
-      </section>
-
-      <!-- Sidebar (ימין) -->
+      <!-- Sidebar (שמאל) -->
       <aside class="oc-sidebar" id="sidebar">
         <div class="oc-section-title">Calendar</div>
         <div class="mini-cal" id="mini-cal">
@@ -132,6 +103,27 @@
           <div class="bar"><div id="day-summary-bar"></div></div>
         </div>
       </aside>
+
+      <!-- Panel (ימין) -->
+      <section class="oc-panel">
+        <header>
+          <div class="oc-cap" id="cap-line">Capacity: People — • Tables — • Step: —</div>
+        </header>
+
+        <div class="oc-slots" id="slots">
+          <div class="oc-row oc-th">
+            <div>Time</div>
+            <div>Occupancy</div>
+            <div class="oc-info">People • Tables • %</div>
+          </div>
+        </div>
+
+        <div class="oc-hint">Hint: Click a slot to manage customers</div>
+
+        <div class="oc-summary" id="summary">
+          Daily Summary — loading…
+        </div>
+      </section>
     </div>
   </main>
 
