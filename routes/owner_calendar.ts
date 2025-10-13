@@ -56,7 +56,10 @@ function json(ctx: any, data: unknown, status = Status.OK) {
 }
 
 /** סטטוסים */
-const ACTIVE_STATUSES = new Set(["approved","booked","arrived","invited","confirmed"]);
+const ACTIVE_STATUSES = new Set([
+  "approved","confirmed","booked","invited","arrived",
+  "pending","request","requested","hold","on-hold","tentative"
+]);
 const INACTIVE_STATUSES = new Set(["cancelled","canceled","no-show","noshow","rejected","declined"]);
 function isInactiveStatus(s: string | undefined | null) {
   const v = String(s ?? "").trim().toLowerCase();
@@ -116,7 +119,7 @@ function mapOpenWindowsForTimeline(wins: Array<{ open: string; close: string }>)
   return wins.map(w => ({ start: w.open as `${number}${number}:${number}${number}`, end: w.close as `${number}${number}:${number}${number}` }));
 }
 
-/* ---- Enrichment from note / names ---- */
+/* ---- Name/Phone enrichment ---- */
 function splitName(full?: string): { first: string; last: string } {
   const s = String(full ?? "").trim().replace(/\s+/g, " ");
   if (!s) return { first: "", last: "" };
@@ -130,6 +133,33 @@ function extractFromNote(note?: string): { name?: string; phone?: string } {
   const mName = t.match(/\bName:\s*([^;]+)\b/i);
   const mPhone = t.match(/\bPhone:\s*([^;]+)/i);
   return { name: mName ? mName[1].trim() : undefined, phone: mPhone ? mPhone[1].trim() : undefined };
+}
+function pickCustomerFirstLastPhone(it: any) {
+  // מסלולי נתונים נפוצים: customer, contact, fullName/name/customerName, phone/tel/mobile
+  let first = String(it?.firstName ?? it?.customer?.firstName ?? it?.contact?.firstName ?? "");
+  let last  = String(it?.lastName  ?? it?.customer?.lastName  ?? it?.contact?.lastName  ?? "");
+  let phone =
+    String(it?.phone ?? it?.customer?.phone ?? it?.contact?.phone ?? it?.tel ?? it?.mobile ?? "");
+
+  const full = String(it?.fullName ?? it?.name ?? it?.customerName ?? "");
+  if ((!first || !last) && full) {
+    const s = splitName(full);
+    if (!first) first = s.first;
+    if (!last)  last  = s.last;
+  }
+
+  const notes = it?.note ?? it?.notes ?? "";
+  if ((!first || !last || !phone) && notes) {
+    const ext = extractFromNote(String(notes));
+    if ((!first || !last) && ext.name) {
+      const s = splitName(ext.name);
+      if (!first) first = s.first;
+      if (!last)  last  = s.last;
+    }
+    if (!phone && ext.phone) phone = ext.phone;
+  }
+
+  return { firstName: first, lastName: last, phone };
 }
 
 /* ---------- Body parser wrapper (BODY + QUERY fallback) ---------- */
@@ -232,36 +262,27 @@ async function handleSlotAction(ctx: any) {
   let result: any = null;
 
   if (normalized === "create") {
-    const fallbackName = (reservation?.fullName ?? reservation?.name ?? reservation?.customerName ?? "").toString().trim();
-    let firstName = (reservation?.firstName ?? "").toString().trim();
-    let lastName  = (reservation?.lastName  ?? "").toString().trim();
-    if ((!firstName || !lastName) && fallbackName) {
-      const s = splitName(fallbackName);
-      if (!firstName) firstName = s.first;
-      if (!lastName)  lastName  = s.last;
-    }
+    const picked = pickCustomerFirstLastPhone(reservation);
+    let firstName = (reservation?.firstName ?? picked.firstName ?? "").toString().trim();
+    let lastName  = (reservation?.lastName  ?? picked.lastName  ?? "").toString().trim();
+    let phone     = (reservation?.phone     ?? picked.phone     ?? "").toString().trim();
 
     const noteRaw = (reservation?.notes ?? reservation?.note ?? "").toString().trim();
-    if ((!firstName || !lastName || !reservation?.phone) && noteRaw) {
-      const ext = extractFromNote(noteRaw);
-      if ((!firstName || !lastName) && ext.name) {
-        const s = splitName(ext.name);
-        if (!firstName) firstName = s.first;
-        if (!lastName)  lastName  = s.last;
-      }
-      if (!reservation?.phone && ext.phone) reservation.phone = ext.phone;
-    }
 
     const { durationMinutes } = deriveCapacities(r);
     const user = (ctx.state as any)?.user;
 
+    // ברירת מחדל לסטטוס: הזמנה ידנית = "booked" (ולא approved)
+    const rawStatus = (reservation?.status ?? "").toString().trim().toLowerCase();
+    const status = rawStatus || "booked";
+
     const payload: Record<string, unknown> = {
       firstName,
       lastName,
-      phone    : (reservation?.phone ?? "").toString().trim(),
+      phone,
       people   : Math.max(1, Number(reservation?.people ?? 1)),
       note     : noteRaw,
-      status   : (reservation?.status ?? "approved").toString(),
+      status,
 
       restaurantId: internalRid,
       date,
@@ -280,9 +301,8 @@ async function handleSlotAction(ctx: any) {
       timeDisplay: time,
       reservationTime: time,
 
-      // רמזים ל-DAL (אם יש בדיקת קיבולת פנימית)
-      activeOnlyForCapacity: true,      // ספר רק ACTIVE
-      ignoreCancelledForCapacity: true, // תתעלם ממבוטלים
+      activeOnlyForCapacity: true,
+      ignoreCancelledForCapacity: true,
     };
 
     if (!payload.firstName && !payload.lastName) {
@@ -302,8 +322,8 @@ async function handleSlotAction(ctx: any) {
       result = await tryCreateWithVariants(createFn, internalRid, r, date, time, payload);
     } catch (e) {
       debugLog("owner_calendar", "create failed (all variants)", { error: String(e) });
-      ctx.throw(Status.InternalServerError, "Create reservation failed");
     }
+    if (!result) ctx.throw(Status.InternalServerError, "Create reservation failed");
     debugLog("owner_calendar", "create result", { result });
 
     ssePush(internalRid, date, "reservation_create", { time });
@@ -311,16 +331,17 @@ async function handleSlotAction(ctx: any) {
   } else if (normalized === "update") {
     const id = String(reservation?.id ?? "");
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
+
+    const picked = pickCustomerFirstLastPhone(reservation);
     const patch: Partial<Reservation> = {
-      firstName: reservation?.firstName,
-      lastName : reservation?.lastName,
-      phone    : reservation?.phone,
+      firstName: reservation?.firstName ?? picked.firstName,
+      lastName : reservation?.lastName  ?? picked.lastName,
+      phone    : reservation?.phone     ?? picked.phone,
       people   : reservation?.people ? Number(reservation?.people) : undefined,
       note     : reservation?.notes ?? reservation?.note,
       status   : reservation?.status,
     } as any;
 
-    // אם הסטטוס התעדכן ללא־פעיל — אפס אנשים כדי לשחרר קיבולת גם אם ה-DAL לא מסנן
     if (isInactiveStatus(patch.status as any)) {
       (patch as any).people = 0;
       (patch as any).cancelledAt = new Date().toISOString();
@@ -335,16 +356,14 @@ async function handleSlotAction(ctx: any) {
     const id = String(reservation?.id ?? "");
     if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
 
-    // 1) ביטול לוגי (אם קיים) – ייתכן שמעדכן רק סטטוס
     if ((db as any).cancelReservation) {
       result = await (db as any).cancelReservation(id, String(reservation?.reason ?? ""));
     } else {
-      // אם אין cancelReservation – נבצע עדכון שדות
       if (!(db as any).updateReservationFields) ctx.throw(Status.NotImplemented, "cancelReservation/updateReservationFields not implemented yet");
       result = await (db as any).updateReservationFields(id, { status: "cancelled" } as any);
     }
 
-    // 2) תקנון: אפס אנשים כדי לשחרר קיבולת גם אם חישוב הקיבולת בצד ה-DB לא מסנן סטטוסים
+    // אפס אנשים כדי לשחרר קיבולת גם אם DAL לא מסנן סטטוסים
     try {
       if ((db as any).updateReservationFields) {
         await (db as any).updateReservationFields(id, { people: 0, cancelledAt: new Date().toISOString() } as any);
@@ -451,32 +470,18 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
     })) ?? [];
 
   const enriched = items.map((it: any) => {
-    // אם סטטוס לא-פעיל, נכפה people=0 כדי שלא ייספר בפירוט הסלוט
     const inactive = isInactiveStatus(it?.status);
-    let first = String(it.firstName ?? "");
-    let last  = String(it.lastName ?? "");
-    let phone = String(it.phone ?? "");
-    const notes = it.note ?? it.notes ?? "";
-
-    if ((!first || !last || !phone) && notes) {
-      const ext = extractFromNote(String(notes));
-      if ((!first || !last) && ext.name) {
-        const s = splitName(ext.name);
-        if (!first) first = s.first;
-        if (!last)  last  = s.last;
-      }
-      if (!phone && ext.phone) phone = ext.phone;
-    }
+    const picked = pickCustomerFirstLastPhone(it);
 
     return {
       id: it.id,
-      firstName: first,
-      lastName: last,
-      phone,
-      people: Number(inactive ? 0 : (it.people ?? 0)),
-      status: it.status ?? "approved",
-      notes,
-      at: it.time ?? time,
+      firstName: picked.firstName,
+      lastName : picked.lastName,
+      phone    : picked.phone,
+      people   : Number(inactive ? 0 : (it.people ?? 0)),
+      status   : it.status ?? "booked",
+      notes    : it.note ?? it.notes ?? "",
+      at       : it.time ?? time,
     };
   });
 
@@ -507,9 +512,10 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
   const reservations: Reservation[] = (await (db as any).listReservationsByRestaurantAndDate?.(internalRid, date!)) ?? [];
 
   const matches = reservations.filter((rr: any) => {
-    const f = String(rr.firstName ?? "").toLowerCase();
-    const l = String(rr.lastName ?? "").toLowerCase();
-    const phone = String(rr.phone ?? "").toLowerCase();
+    const picked = pickCustomerFirstLastPhone(rr);
+    const f = String(picked.firstName ?? "").toLowerCase();
+    const l = String(picked.lastName ?? "").toLowerCase();
+    const phone = String(picked.phone ?? "").toLowerCase();
     const note = String(rr.note ?? rr.notes ?? "").toLowerCase();
     return f.includes(q) || l.includes(q) || phone.includes(q) || note.includes(q);
   });
@@ -519,16 +525,19 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
     date,
     q: qraw,
     count: matches.length,
-    items: matches.map((it: any) => ({
-      id: it.id,
-      time: it.time,
-      firstName: it.firstName ?? "",
-      lastName: it.lastName ?? "",
-      people: Number(it.people ?? 0),
-      status: it.status ?? "",
-      phone: it.phone ?? "",
-      note: it.note ?? it.notes ?? "",
-    })),
+    items: matches.map((it: any) => {
+      const picked = pickCustomerFirstLastPhone(it);
+      return {
+        id: it.id,
+        time: it.time,
+        firstName: picked.firstName ?? "",
+        lastName: picked.lastName ?? "",
+        people: Number(it.people ?? 0),
+        status: it.status ?? "",
+        phone: picked.phone ?? "",
+        note: it.note ?? it.notes ?? "",
+      };
+    }),
   });
 });
 

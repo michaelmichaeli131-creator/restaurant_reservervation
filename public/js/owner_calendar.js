@@ -190,14 +190,26 @@
   }
 
   function badge(status) {
-    const s = String(status).toLowerCase();
-    let cls = "approved", txt = "Approved";
-    if (s === "booked" || s === "invited") { cls = "booked"; txt = s === "booked" ? "Booked" : "Invited"; }
-    if (s === "arrived") { cls = "arrived"; txt = "Arrived"; }
-    if (s === "cancelled") { cls = "cancelled"; txt = "Cancelled"; }
-    if (s === "confirmed") { cls = "approved"; txt = "Confirmed"; }
-    return `<span class="badge ${cls}">${txt}</span>`;
+    const s = String(status || "").toLowerCase();
+    // מיפוי ידידותי — לא מציגים Approved כברירת מחדל
+    if (s === "pending" || s === "request" || s === "requested" || s === "tentative") {
+      return `<span class="badge booked">Pending</span>`;
+    }
+    if (s === "booked" || s === "hold" || s === "on-hold" || s === "invited") {
+      return `<span class="badge booked">Booked</span>`;
+    }
+    if (s === "confirmed" || s === "approved") {
+      return `<span class="badge approved">Confirmed</span>`;
+    }
+    if (s === "arrived") {
+      return `<span class="badge arrived">Arrived</span>`;
+    }
+    if (s === "cancelled" || s === "canceled" || s === "rejected" || s === "declined") {
+      return `<span class="badge cancelled">Cancelled</span>`;
+    }
+    return `<span class="badge booked">${escapeHTML(status || "Booked")}</span>`;
   }
+
   function escapeHTML(s) {
     return String(s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   }
@@ -284,7 +296,8 @@
     const phone  = prompt("Phone (optional):") || "";
     const people = Math.max(1, parseInt(prompt("Party size:", "2") || "2", 10));
     const notes  = prompt("Notes (optional):") || "";
-    await slotAction("create", { firstName, lastName, phone, people, notes, status: "approved" });
+    // סטטוס הזמנה ידנית = booked (לא approved)
+    await slotAction("create", { firstName, lastName, phone, people, notes, status: "booked" });
   }
 
   async function cancelRes(id)   { if (!confirm("Cancel this reservation?")) return; await slotAction("cancel", { id }); }
@@ -308,7 +321,7 @@
     if (first && first.time) openDrawer(first.time);
   }
 
-  /* ---------- SSE wiring (auto refresh on create/update/cancel/arrived) ---------- */
+  /* ---------- SSE wiring ---------- */
   function connectSSE() {
     cleanupSSE();
 
@@ -325,7 +338,6 @@
     const onRefresh = (e) => {
       try {
         const data = JSON.parse(e.data || "{}");
-        // מרעננים את היום/סיכום תמיד, ואת המגירה רק אם ה-time תואם
         Promise.all([loadDay(), loadSummary()]).then(() => {
           const t = data.time;
           if (state.drawer.open && t && state.drawer.time === t) loadSlot();
@@ -333,9 +345,8 @@
       } catch { /* ignore */ }
     };
 
-    es.addEventListener("hello", () => { /* connected */ });
-    es.addEventListener("ping", () => { /* heartbeat */ });
-
+    es.addEventListener("hello", () => {});
+    es.addEventListener("ping", () => {});
     es.addEventListener("reservation_create", onRefresh);
     es.addEventListener("reservation_update", onRefresh);
     es.addEventListener("reservation_cancel", onRefresh);
@@ -359,7 +370,6 @@
   }
 
   function scheduleReconnect() {
-    // fallback: ננסה להתחבר מחדש, ואם לא — נתחיל polling עדין
     setTimeout(() => {
       try { connectSSE(); } catch { schedulePolling(); }
     }, state.sse.retryMs);
@@ -367,7 +377,6 @@
 
   function schedulePolling() {
     cleanupSSE();
-    // Polling עדין — רק את היום/סיכום כל 15 שניות
     state.sse.pollTimer = setInterval(() => {
       Promise.all([loadDay(), loadSummary()]).catch(() => {});
     }, 15000);
