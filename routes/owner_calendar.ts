@@ -98,7 +98,8 @@ async function handleSlotAction(ctx: any) {
   debugLog("owner_calendar", "Body (payload) after readActionBody", { body });
 
   let action = String(body?.action ?? "").trim();
-  // aliases
+
+  // aliases (+ תמיכה ב-querystring כגיבוי)
   if (!action && typeof body === "object") {
     const alias = (body as any).type ?? (body as any).op ?? (body as any).mode;
     if (alias && typeof alias === "string") {
@@ -106,6 +107,14 @@ async function handleSlotAction(ctx: any) {
       debugLog("owner_calendar", "Alias used for action", { alias });
     }
   }
+  if (!action) {
+    const qsAction = ctx.request.url.searchParams.get("action") || "";
+    if (qsAction) {
+      action = qsAction.trim();
+      debugLog("owner_calendar", "Action from querystring", { action });
+    }
+  }
+
   const normalized =
     action === "add" || action === "new" ? "create" :
     action === "edit" ? "update" :
@@ -113,8 +122,9 @@ async function handleSlotAction(ctx: any) {
     action === "arrived" ? "arrived" :
     action;
 
-  const date = String(body?.date ?? "");
-  const time = String(body?.time ?? "");
+  // date/time גם מה־querystring כגיבוי
+  const date = String(body?.date ?? ctx.request.url.searchParams.get("date") ?? "");
+  const time = String(body?.time ?? ctx.request.url.searchParams.get("time") ?? "");
 
   // אם reservation הגיע כמחרוזת (למשל דרך querystring או text), נפרק ל־object
   let reservation: any = (body as any)?.reservation ?? {};
