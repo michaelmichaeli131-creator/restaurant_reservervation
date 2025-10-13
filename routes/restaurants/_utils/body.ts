@@ -155,6 +155,17 @@ export async function readBody(ctx: any): Promise<{ payload: Record<string, unkn
     if ((out as any)[k] === undefined || (out as any)[k] === null || (out as any)[k] === "") (out as any)[k] = v;
   }
 
+  // ✅ במידה ו-reservation הגיע כמחרוזת (למשל דרך querystring) — נפרק ל-JSON
+  try {
+    const maybeRes = (out as any).reservation;
+    if (typeof maybeRes === "string" && maybeRes.trim().length) {
+      (out as any).reservation = JSON.parse(maybeRes);
+      phase("querystring.reservation.parsed", (out as any).reservation);
+    }
+  } catch (e) {
+    phase("querystring.reservation.parse.error", String(e));
+  }
+
   phase("keys", Object.keys(out));
   return { payload: out, dbg };
 }

@@ -115,7 +115,18 @@ async function handleSlotAction(ctx: any) {
 
   const date = String(body?.date ?? "");
   const time = String(body?.time ?? "");
-  const reservation = body?.reservation ?? {};
+
+  // אם reservation הגיע כמחרוזת (למשל דרך querystring או text), נפרק ל־object
+  let reservation: any = (body as any)?.reservation ?? {};
+  if (typeof reservation === "string") {
+    try {
+      reservation = JSON.parse(reservation);
+      debugLog("owner_calendar", "reservation parsed from string", { reservation });
+    } catch (e) {
+      debugLog("owner_calendar", "reservation parse failed", { error: String(e), raw: (body as any).reservation });
+      reservation = {};
+    }
+  }
 
   debugLog("owner_calendar", "Parsed action info", { action, normalized, date, time, reservation });
 
