@@ -129,3 +129,84 @@ body.sb-body{
 .ac-meta { min-width:0; }
 .ac-title { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .ac-sub { font-size:.9rem; color:var(--ink-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* ===== Mobile-first polish ===== */
+
+/* בסיס: אל תקטינו טקסט מתחת ל-16px במובייל כדי למנוע zoom על פוקוס */
+html { -webkit-text-size-adjust: 100%; }
+
+/* מרווחים בטוחים (Notch) */
+body.sb-body {
+  padding-left: max(0px, env(safe-area-inset-left));
+  padding-right: max(0px, env(safe-area-inset-right));
+}
+
+/* כותרת קומפקטית יותר במסכים צרים */
+@media (max-width: 640px){
+  .sb-header { padding: 10px 12px; }
+  .brand-text { font-size: 15px; }
+  .btn { padding: 8px 12px; }
+}
+
+/* Hero מותאם – פחות גובה, טקסט קריא */
+@media (max-width: 640px){
+  .hero-bg { height: 260px; }
+  .hero-inner { padding: 16px; }
+  .hero-title { font-size: clamp(22px, 6.2vw, 30px); }
+  .hero-sub { font-size: 14px; margin-bottom: 16px; }
+}
+
+/* שורת החיפוש: מלא רוחב; הכפתור בשורה נפרדת (100%) במסכים צרים */
+@media (max-width: 640px){
+  .search-bar {
+    border-radius: 16px;
+    padding: 8px;
+    gap: 8px;
+    max-width: none; /* תן לזה למלא את הרוחב */
+  }
+  .search-bar .field { flex: 1 1 100%; }
+  .search-bar input[type="search"] { font-size: 16px; height: 44px; } /* 16px למניעת zoom */
+  .search-btn { width: 100%; height: 46px; }
+}
+
+/* אוטוקומפליט: צמוד טוב לאינפוט, קליקים גדולים, לא נחתך */
+@media (max-width: 640px){
+  .ac-wrap { position: relative; }
+  .ac-list {
+    inset-inline: 0 0;   /* הדבק לקצוות */
+    top: calc(100% + 6px);
+    max-height: 60vh;    /* אל תגלוש מחוץ למסך */
+    padding: 4px;
+  }
+  .ac-item { padding: 10px; gap: 12px; }
+  .ac-thumb { width: 48px; height: 48px; }
+  .ac-title { font-size: 15px; }
+  .ac-sub { font-size: 13px; }
+}
+
+/* כרטיסי מסעדות: טור בודד, תמונה 4:3, טקסט נשבר */
+@media (max-width: 1024px){
+  .cards { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px){
+  .cards { grid-template-columns: 1fr; gap: 12px; }
+  .card-img { aspect-ratio: 4 / 3; }
+  .card-body { padding: 10px; }
+  .card-title { font-size: 16px; }
+  .card-meta { font-size: 13px; }
+}
+
+/* פוטר קומפקטי במובייל */
+@media (max-width: 640px){
+  .sb-footer { margin: 24px auto 16px; padding-top: 12px; }
+}
+
+/* מגע נעים – אל תדלגו על hover transitions אבל קצרו אותם במובייל */
+@media (hover: none){
+  .card:hover { transform: none; box-shadow: none; }
+}
+
+/* אנימציות עדינות רק כשלא מוגדר reduced-motion */
+@media (prefers-reduced-motion: reduce){
+  * { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}

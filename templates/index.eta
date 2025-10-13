@@ -9,7 +9,7 @@
     <!-- עוטף יחיד כדי למקם את תיבת האוטוקומפליט יחסית לטופס -->
     <div class="ac-wrap" style="position:relative; width:100%; max-width:980px">
       <!-- שומרים: חיפוש ב-root עם search=1 כדי להציג תוצאות בדף הבית -->
-      <form id="search-form" class="search-bar" method="GET" action="/">
+      <form id="search-form" class="search-bar" method="GET" action="/" role="search" aria-label="חיפוש מסעדות">
         <input type="hidden" name="search" value="1"/>
 
         <!-- נשאר רק שדה החיפוש (q) כדי לא לאבד אוטוקומפליט/לוגיקה קיימת -->
@@ -17,14 +17,21 @@
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M19 4h-3a1 1 0 0 0-1 1v3h2V6h2V4zM8 4H5v2h2v2h2V5a1 1 0 0 0-1-1zM19 18h-2v-2h-2v3a1 1 0 0 0 1 1h3v-2zM7 16H5v2h3a1 1 0 0 0 1-1v-3H7v2z"/>
           </svg>
-          <input name="q" id="q" type="search" placeholder="<%= (it.t && it.t.placeholder) ? it.t.placeholder : 'חפש מסעדה / עיר / סוג מטבח' %>" value="<%= it.q || '' %>">
+          <input
+            name="q" id="q" type="search"
+            inputmode="search" enterkeyhint="search" autocomplete="on"
+            placeholder="<%= (it.t && it.t.placeholder) ? it.t.placeholder : 'חפש מסעדה / עיר / סוג מטבח' %>"
+            aria-label="חפש מסעדה, עיר או סוג מטבח"
+            value="<%= it.q || '' %>">
         </div>
 
-        <button class="btn primary search-btn" type="submit"><%= (it.t && it.t.search) ? it.t.search : 'Search' %></button>
+        <button class="btn primary search-btn" type="submit">
+          <%= (it.t && it.t.search) ? it.t.search : 'Search' %>
+        </button>
       </form>
 
       <!-- תיבת הצעות לאוטוקומפליט (נשמרה במלואה) -->
-      <div id="ac-list" class="ac-list" hidden></div>
+      <div id="ac-list" class="ac-list" role="listbox" aria-label="הצעות חיפוש" hidden></div>
     </div>
   </div>
 </section>
@@ -104,7 +111,7 @@
 %>
 
 <script>
-/* ======= אוטוקומפליט – כל הפיצ'רים נשמרו: debounce, keyboard nav, mouse, blur/focus, escape ======= */
+/* ======= אוטוקומפליט – debounce, keyboard nav, mouse, blur/focus, escape (ללא פגיעה בפיצ'רים) ======= */
 (function(){
   var input = document.getElementById('q');
   var box   = document.getElementById('ac-list');
@@ -135,16 +142,16 @@
     return out.filter(Boolean);
   }
 
-  function hide(){ box.hidden = true; box.innerHTML = ""; active = -1; }
-  function show(){ if (!box.innerHTML.trim()) { box.hidden = true; return; } box.hidden = false; }
+  function hide(){ box.hidden = true; box.innerHTML = ""; active = -1; input && input.setAttribute('aria-expanded','false'); }
+  function show(){ if (!box.innerHTML.trim()) { box.hidden = true; return; } box.hidden = false; input && input.setAttribute('aria-expanded','true'); }
 
   function render(){
     if (!items.length){ hide(); return; }
     var html = "";
     for (var i=0;i<items.length;i++){
       var r = items[i];
-      html += '<div class="ac-item'+(i===active?' is-active':'')+'" data-idx="'+i+'" role="option" aria-selected="'+(i===active)+'">'
-           +  '<img class="ac-thumb" src="'+(r.thumb || PLACEHOLDER)+'" alt="תמונה של '+escapeHtml(r.name)+'"/>'
+      html += '<div class="ac-item'+(i===active?' is-active':'')+'" role="option" aria-selected="'+(i===active)+'" data-idx="'+i+'">'
+           +  '<img class="ac-thumb" src="'+(r.thumb || PLACEHOLDER)+'" alt=""/>'
            +  '<div class="ac-meta">'
            +    '<div class="ac-title">'+escapeHtml(r.name)+'</div>'
            +    '<div class="ac-sub">'+escapeHtml(r.city)+' · '+escapeHtml(r.address)+'</div>'
@@ -163,7 +170,6 @@
   async function search(q){
     if (!q || !q.trim()){ items = []; render(); return; }
 
-    // בטל בקשה קודמת
     try { aborter?.abort(); } catch {}
     aborter = new AbortController();
 
@@ -205,6 +211,12 @@
   }, 150);
 
   if (input){
+    // נגישות בסיסית לשדה
+    input.setAttribute('role','combobox');
+    input.setAttribute('aria-autocomplete','list');
+    input.setAttribute('aria-expanded','false');
+    input.setAttribute('aria-controls','ac-list');
+
     input.addEventListener('input', onInput);
 
     // ניווט מקלדת
