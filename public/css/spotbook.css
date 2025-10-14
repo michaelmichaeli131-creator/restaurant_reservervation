@@ -219,11 +219,11 @@ body.sb-body {
   width:auto;
   object-fit:contain;
 }
-.sb-header .sb-container{ min-height:66px; }
+.sb-header .sb-container{ min-height:90px; }
 
 @media (min-width: 768px){
   .brand-logo{ height:56px; } /* דסקטופ: מעט גדול יותר */
-  .sb-header .sb-container{ min-height:74px; }
+  .sb-header .sb-container{ min-height:90px; }
 }
 
 @media (max-width: 360px){
