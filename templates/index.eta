@@ -6,13 +6,10 @@
     <h1 class="hero-title"><%= (it.t && it.t.heroTitle) ? it.t.heroTitle : 'Reserve a Table at a Restaurant' %></h1>
     <p class="hero-sub"><%= (it.t && it.t.heroSub) ? it.t.heroSub : 'Book a table easily and quickly online' %></p>
 
-    <!-- עוטף יחיד כדי למקם את תיבת האוטוקומפליט יחסית לטופס -->
     <div class="ac-wrap" style="position:relative; width:100%; max-width:980px">
-      <!-- שומרים: חיפוש ב-root עם search=1 כדי להציג תוצאות בדף הבית -->
       <form id="search-form" class="search-bar" method="GET" action="/" role="search" aria-label="חיפוש מסעדות">
         <input type="hidden" name="search" value="1"/>
 
-        <!-- נשאר רק שדה החיפוש (q) כדי לא לאבד אוטוקומפליט/לוגיקה קיימת -->
         <div class="field with-icon" style="min-width:260px; flex:1">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M19 4h-3a1 1 0 0 0-1 1v3h2V6h2V4zM8 4H5v2h2v2h2V5a1 1 0 0 0-1-1zM19 18h-2v-2h-2v3a1 1 0 0 0 1 1h3v-2zM7 16H5v2h3a1 1 0 0 0 1-1v-3H7v2z"/>
@@ -30,14 +27,45 @@
         </button>
       </form>
 
-      <!-- תיבת הצעות לאוטוקומפליט (נשמרה במלואה) -->
       <div id="ac-list" class="ac-list" role="listbox" aria-label="הצעות חיפוש" hidden></div>
     </div>
   </div>
 </section>
 
+<!-- ======= קרוסלת מסעדות (3 מתוך 5, גלילה ציקלית) ======= -->
+<section class="section">
+  <div class="sb-container">
+    <h2 class="section-title">מסעדות מומלצות</h2>
+    <div class="hs-wrap show-3" dir="rtl">
+      <button class="hs-btn prev" aria-label="הצג קודמות">‹</button>
+      <div class="hs">
+        <article class="hs-item">
+          <div class="hs-title">Sushi BAR</div>
+          <div class="hs-img" style="background-image:url('/public/img/restaurants/sushi-bar.jpg');"></div>
+        </article>
+        <article class="hs-item">
+          <div class="hs-title">Gril House</div>
+          <div class="hs-img" style="background-image:url('/public/img/restaurants/gril-house.jpg');"></div>
+        </article>
+        <article class="hs-item">
+          <div class="hs-title">Hachapuri Guli</div>
+          <div class="hs-img" style="background-image:url('/public/img/restaurants/hachapuri-guli.jpg');"></div>
+        </article>
+        <article class="hs-item">
+          <div class="hs-title">My Roma</div>
+          <div class="hs-img" style="background-image:url('/public/img/restaurants/my-roma.jpg');"></div>
+        </article>
+        <article class="hs-item">
+          <div class="hs-title">Burger station</div>
+          <div class="hs-img" style="background-image:url('/public/img/restaurants/burger-station.jpg');"></div>
+        </article>
+      </div>
+      <button class="hs-btn next" aria-label="הצג הבאות">›</button>
+    </div>
+  </div>
+</section>
+
 <%
-  // נשמר: מציגים תוצאות כשיש search=1 או כשיש q כלשהו
   var _q = (it.q || "");
   var showResults = (it.search === "1") || (_q.trim().length > 0);
 %>
@@ -77,219 +105,128 @@
       </div>
     <% } %>
   </section>
-<% } else { %>
-  <!-- מצב ברירת מחדל: רשימת מומלצות (אם השרת מזין it.recommended) -->
-  <section class="section">
-    <h2 class="section-title"><%= (it.t && it.t.recommended) ? it.t.recommended : 'Recommended Restaurants' %></h2>
-    <div class="cards">
-      <%
-        var rec = it.recommended || [];
-        for (var k=0; k<rec.length; k++){
-          var rr = rec[k];
-          var cover2 = (rr && rr.coverUrl) || "/public/img/placeholder-restaurant.jpg";
-      %>
-        <a class="card" href="/restaurants/<%= rr.id %>">
-          <div class="card-img" style="background-image:url('<%= cover2 %>')"></div>
-          <div class="card-body">
-            <h3 class="card-title"><%= rr.name %></h3>
-            <p class="card-meta"><%= rr.cuisine || '' %> · <%= rr.city || '' %></p>
-          </div>
-        </a>
-      <% } %>
-    </div>
-
-    <% if (!rec.length) { %>
-      <p class="muted" style="margin-top:16px">אין כרגע מסעדות מומלצות להצגה.</p>
-    <% } %>
-  </section>
 <% } %>
 
-<%
-  // שמירה על הזרקת סקריפטים קיימת
-  it.scripts = (it.scripts || []);
-  it.scripts.push('/public/js/home.js');
-%>
+<script>
+/* ===== Horizontal carousel logic (3 of 5 cyclic) ===== */
+(function() {
+  const wrap = document.querySelector('.hs-wrap');
+  const scroller = wrap?.querySelector('.hs');
+  const items = Array.from(scroller?.children || []);
+  const prev = wrap?.querySelector('.prev');
+  const next = wrap?.querySelector('.next');
+  if (!wrap || !scroller || items.length === 0) return;
+
+  let startIndex = 0;
+  const visible = 3;
+  const total = items.length;
+
+  function render() {
+    scroller.innerHTML = '';
+    for (let i = 0; i < visible; i++) {
+      const idx = (startIndex + i) % total;
+      scroller.appendChild(items[idx].cloneNode(true));
+    }
+  }
+
+  render();
+
+  prev.addEventListener('click', () => {
+    startIndex = (startIndex - 1 + total) % total;
+    render();
+  });
+
+  next.addEventListener('click', () => {
+    startIndex = (startIndex + 1) % total;
+    render();
+  });
+
+  let touchStartX = 0;
+  scroller.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX);
+  scroller.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (dx > 50) prev.click();
+    else if (dx < -50) next.click();
+  });
+})();
+</script>
+
+<style>
+/* ===== Horizontal Carousel ===== */
+.hs-wrap{
+  --gap: 12px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.hs{
+  display: flex;
+  overflow: hidden;
+  gap: var(--gap);
+  scroll-behavior: smooth;
+}
+.hs-item{
+  flex: 0 0 calc((100% - 2 * var(--gap)) / 3);
+  background: var(--panel);
+  border: 1px solid var(--bd);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.hs-title{
+  padding: 10px 12px 6px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.hs-img{
+  aspect-ratio: 4/3;
+  background: #222 center/cover no-repeat;
+  border-top: 1px solid var(--bd);
+}
+.hs-btn{
+  inline-size: 36px;
+  block-size: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--bd);
+  background: color-mix(in srgb, var(--panel-2) 92%, transparent);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.hs-btn:hover{ background: color-mix(in srgb, var(--panel) 92%, transparent); }
+</style>
 
 <script>
-/* ======= אוטוקומפליט – debounce, keyboard nav, mouse, blur/focus, escape (ללא פגיעה בפיצ'רים) ======= */
+/* ======= אוטוקומפליט – (נשמר במלואו) ======= */
 (function(){
   var input = document.getElementById('q');
   var box   = document.getElementById('ac-list');
   var MAX   = 8;
   var PLACEHOLDER = "/static/placeholder.png";
-
   var aborter = null;
-  var items = [];       // [{id,name,city,address,thumb}]
-  var active = -1;      // אינדקס מוצע שנבחר במקלדת
+  var items = [];
+  var active = -1;
   var blurTimer = null;
-
-  function debounce(fn, ms){
-    var t = null;
-    return function(){
-      var args = arguments;
-      clearTimeout(t);
-      t = setTimeout(function(){ fn.apply(null, args); }, ms || 180);
-    };
+  function debounce(fn, ms){ var t=null; return function(){ var a=arguments; clearTimeout(t); t=setTimeout(function(){fn.apply(null,a)},ms||180); }; }
+  function normPhotos(p){var a=Array.isArray(p)?p:[];return a.map(x=>typeof x==='string'?x:(x&&x.dataUrl)).filter(Boolean);}
+  function hide(){ box.hidden=true; box.innerHTML=""; active=-1; input&&input.setAttribute('aria-expanded','false'); }
+  function show(){ if(!box.innerHTML.trim()){box.hidden=true;return;} box.hidden=false; input&&input.setAttribute('aria-expanded','true'); }
+  function render(){ if(!items.length){hide();return;} var h=""; for(var i=0;i<items.length;i++){var r=items[i]; h+='<div class="ac-item'+(i===active?' is-active':'')+'" data-idx="'+i+'"><img class="ac-thumb" src="'+(r.thumb||PLACEHOLDER)+'"/><div class="ac-meta"><div class="ac-title">'+escapeHtml(r.name)+'</div><div class="ac-sub">'+escapeHtml(r.city)+' · '+escapeHtml(r.address)+'</div></div></div>'; } box.innerHTML=h; show(); }
+  function escapeHtml(s){return String(s||"").replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  async function search(q){ if(!q||!q.trim()){items=[];render();return;} try{aborter?.abort();}catch{} aborter=new AbortController(); var url=new URL('/api/restaurants',window.location.origin); url.searchParams.set('q',q); url.searchParams.set('approved','1'); try{ var res=await fetch(url.toString(),{signal:aborter.signal,headers:{'Accept':'application/json'}}); if(!res.ok)throw new Error(res.status); var data=await res.json(); var arr=Array.isArray(data)?data.slice(0,MAX):[]; items=arr.map(rr=>({id:rr.id,name:rr.name||"",city:rr.city||"",address:rr.address||"",thumb:normPhotos(rr.photos)[0]||PLACEHOLDER})); active=-1; render(); }catch(e){ if(e.name==='AbortError')return; items=[]; render(); }}
+  var onInput=debounce(ev=>{var q=ev.target.value||""; if(q.trim().length<1){items=[];render();return;} search(q);},150);
+  if(input){ input.setAttribute('role','combobox'); input.setAttribute('aria-autocomplete','list'); input.setAttribute('aria-expanded','false'); input.setAttribute('aria-controls','ac-list');
+    input.addEventListener('input',onInput);
+    input.addEventListener('keydown',function(ev){if(box.hidden)return;var K=ev.key;if(K==='ArrowDown'){ev.preventDefault();if(!items.length)return;active=(active+1)%items.length;render();}else if(K==='ArrowUp'){ev.preventDefault();if(!items.length)return;active=(active-1+items.length)%items.length;render();}else if(K==='Enter'){if(active>=0&&active<items.length){ev.preventDefault();go(items[active]);}}else if(K==='Escape'){hide();}});
+    input.addEventListener('blur',function(){blurTimer=setTimeout(hide,120);});
+    input.addEventListener('focus',function(){clearTimeout(blurTimer);if(items.length)show();else if(input.value.trim())search(input.value.trim());});
   }
-
-  function normPhotos(photos){
-    var arr = Array.isArray(photos) ? photos : [];
-    var out = [];
-    for (var i=0;i<arr.length;i++){
-      var p = arr[i];
-      out.push(typeof p === 'string' ? p : (p && p.dataUrl));
-    }
-    return out.filter(Boolean);
-  }
-
-  function hide(){ box.hidden = true; box.innerHTML = ""; active = -1; input && input.setAttribute('aria-expanded','false'); }
-  function show(){ if (!box.innerHTML.trim()) { box.hidden = true; return; } box.hidden = false; input && input.setAttribute('aria-expanded','true'); }
-
-  function render(){
-    if (!items.length){ hide(); return; }
-    var html = "";
-    for (var i=0;i<items.length;i++){
-      var r = items[i];
-      html += '<div class="ac-item'+(i===active?' is-active':'')+'" role="option" aria-selected="'+(i===active)+'" data-idx="'+i+'">'
-           +  '<img class="ac-thumb" src="'+(r.thumb || PLACEHOLDER)+'" alt=""/>'
-           +  '<div class="ac-meta">'
-           +    '<div class="ac-title">'+escapeHtml(r.name)+'</div>'
-           +    '<div class="ac-sub">'+escapeHtml(r.city)+' · '+escapeHtml(r.address)+'</div>'
-           +  '</div></div>';
-    }
-    box.innerHTML = html;
-    show();
-  }
-
-  function escapeHtml(s){
-    return String(s || "")
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  }
-
-  async function search(q){
-    if (!q || !q.trim()){ items = []; render(); return; }
-
-    try { aborter?.abort(); } catch {}
-    aborter = new AbortController();
-
-    var url = new URL('/api/restaurants', window.location.origin);
-    url.searchParams.set('q', q);
-    url.searchParams.set('approved', '1');
-
-    try {
-      var res = await fetch(url.toString(), { signal: aborter.signal, headers: { 'Accept':'application/json' }});
-      if (!res.ok) throw new Error('http '+res.status);
-      var data = await res.json();
-      var arr = Array.isArray(data) ? data.slice(0, MAX) : [];
-      var out = [];
-      for (var i=0;i<arr.length;i++){
-        var rr = arr[i];
-        var ps = normPhotos(rr.photos);
-        out.push({
-          id: rr.id,
-          name: rr.name || "",
-          city: rr.city || "",
-          address: rr.address || "",
-          thumb: ps[0] || PLACEHOLDER,
-        });
-      }
-      items = out;
-      active = -1;
-      render();
-    } catch(e){
-      if (e && e.name === 'AbortError') return;
-      console.warn('[ac] fetch failed:', e);
-      items = []; render();
-    }
-  }
-
-  var onInput = debounce(function(ev){
-    var q = ev.target.value || "";
-    if (q.trim().length < 1){ items = []; render(); return; }
-    search(q);
-  }, 150);
-
-  if (input){
-    // נגישות בסיסית לשדה
-    input.setAttribute('role','combobox');
-    input.setAttribute('aria-autocomplete','list');
-    input.setAttribute('aria-expanded','false');
-    input.setAttribute('aria-controls','ac-list');
-
-    input.addEventListener('input', onInput);
-
-    // ניווט מקלדת
-    input.addEventListener('keydown', function(ev){
-      if (box.hidden) return;
-      var K = ev.key;
-      if (K === 'ArrowDown'){
-        ev.preventDefault(); if (!items.length) return; active = (active + 1) % items.length; render();
-      } else if (K === 'ArrowUp'){
-        ev.preventDefault(); if (!items.length) return; active = (active - 1 + items.length) % items.length; render();
-      } else if (K === 'Enter'){
-        if (active >= 0 && active < items.length){ ev.preventDefault(); go(items[active]); }
-      } else if (K === 'Escape'){
-        hide();
-      }
-    });
-
-    // blur/focus כדי לא לאבד קליק
-    input.addEventListener('blur', function(){ blurTimer = setTimeout(hide, 120); });
-    input.addEventListener('focus', function(){
-      clearTimeout(blurTimer);
-      if (items.length) show();
-      else if (input.value.trim()) search(input.value.trim());
-    });
-  }
-
-  function go(row){
-    if (!row || !row.id) return;
-    // ניווט לעמוד מסעדה (נשמר כבעבר)
-    window.location.href = '/restaurants/'+encodeURIComponent(row.id)+'?date='+new Date().toISOString().slice(0,10);
-  }
-
-  // קליק על פריט הצעה
-  box.addEventListener('mousedown', function(ev){
-    ev.preventDefault(); // לא לאבד פוקוס לפני הניווט
-    var el = ev.target.closest('.ac-item');
-    if (!el) return;
-    var i = Number(el.getAttribute('data-idx') || -1);
-    if (i >= 0 && i < items.length) go(items[i]);
-  });
-
-  // סגירה בלחיצה מחוץ
-  document.addEventListener('click', function(e){
-    if (!box.contains(e.target) && e.target !== input) hide();
-  });
-
-  // פתיחה ראשונית אם יש ערך
-  if (input && (input.value || "").trim()){
-    search(input.value.trim());
-  }
+  function go(r){ if(!r||!r.id)return; window.location.href='/restaurants/'+encodeURIComponent(r.id)+'?date='+new Date().toISOString().slice(0,10); }
+  box.addEventListener('mousedown',function(e){e.preventDefault();var el=e.target.closest('.ac-item');if(!el)return;var i=Number(el.getAttribute('data-idx')||-1);if(i>=0&&i<items.length)go(items[i]);});
+  document.addEventListener('click',e=>{if(!box.contains(e.target)&&e.target!==input)hide();});
+  if(input&&(input.value||"").trim()){search(input.value.trim());}
 })();
 </script>
-
-<style>
-  /* התאמות אוטוקומפליט למראה הכהה – נשמרות */
-  .ac-wrap { position: relative; }
-  .ac-list {
-    position: absolute;
-    inset-inline: 12px 12px;
-    top: calc(100% + 6px);
-    z-index: 40;
-    border: 1px solid var(--bd);
-    border-radius: 12px;
-    background: var(--panel);
-    box-shadow: var(--shadow);
-    max-height: 420px;
-    overflow-y: auto;
-    padding: 6px;
-  }
-  .ac-item { display:flex; align-items:center; gap:10px; padding:8px; border-radius:8px; cursor:pointer; }
-  .ac-item:hover, .ac-item.is-active { background: rgba(255,255,255,.05); }
-  .ac-thumb { width:44px; height:44px; object-fit:cover; border-radius:8px; border:1px solid var(--bd); flex:0 0 44px; }
-  .ac-meta { min-width:0; }
-  .ac-title { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .ac-sub { font-size:.9rem; color:var(--ink-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-</style>

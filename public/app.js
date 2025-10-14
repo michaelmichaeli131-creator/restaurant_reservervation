@@ -259,4 +259,49 @@
       console.debug("[app.js] init error", err);
     }
   });
+
+// ===== Restaurant Carousel (Cyclic 3-of-5) =====
+(function() {
+  const wrap = document.querySelector('.hs-wrap');
+  const scroller = wrap?.querySelector('.hs');
+  const items = Array.from(scroller?.children || []);
+  const prev = wrap?.querySelector('.prev');
+  const next = wrap?.querySelector('.next');
+  if (!wrap || !scroller || items.length === 0) return;
+
+  let startIndex = 0;
+  const visible = 3;
+  const total = items.length;
+
+  function render() {
+    scroller.innerHTML = '';
+    for (let i = 0; i < visible; i++) {
+      const idx = (startIndex + i) % total;
+      scroller.appendChild(items[idx].cloneNode(true));
+    }
+  }
+  render();
+
+  prev.addEventListener('click', () => {
+    startIndex = (startIndex - 1 + total) % total;
+    render();
+  });
+  next.addEventListener('click', () => {
+    startIndex = (startIndex + 1) % total;
+    render();
+  });
+
+  // Swipe for mobile
+  let touchStartX = 0;
+  scroller.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX);
+  scroller.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (dx > 50) prev.click();
+    else if (dx < -50) next.click();
+  });
 })();
+
+})();
+
+
+
