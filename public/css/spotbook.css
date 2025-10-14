@@ -268,7 +268,7 @@ body.sb-body {
 /* ------ Logo sizing (responsive) ------ */
 .brand-logo{
   display:block;
-  height:48px;      /* מובייל/ברירת מחדל */
+  height:60px;      /* מובייל/ברירת מחדל */
   width:auto;
   object-fit:contain;
 }
@@ -279,7 +279,7 @@ body.sb-body {
 
 /* טאבלט + דסקטופ: הגדלה אלגנטית */
 @media (min-width: 768px){
-  .brand-logo{ height:60px; }
+  .brand-logo{ height:80px; }
   .sb-header .sb-container{ min-height:74px; }
 }
 
