@@ -196,10 +196,11 @@ body.sb-body {
   grid-template-columns: 1fr auto;
   grid-template-areas:
     "brand actions"
-    "user  actions";
+    "user  user";          /* ← המשתמש עכשיו תופס את כל השורה */
   align-items:center;
   gap:10px 12px;
 }
+
 .brand{ grid-area: brand; }
 .sb-actions{ grid-area: actions; display:flex; align-items:center; gap:8px; }
 
