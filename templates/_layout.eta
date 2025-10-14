@@ -21,7 +21,7 @@
     <div class="sb-container" style="display:flex;align-items:center;gap:12px">
       <!-- לוגו חדש במקום טיפוגרפיה -->
       <a class="brand" href="/" style="display:flex;align-items:center;gap:8px;text-decoration:none">
-        <img src="/public/img/logo-spotbook.svg" alt="SpotBook Logo" style="height:38px;width:auto;object-fit:contain"/>
+        <img src="/public/img/logo-spotbook.png" alt="SpotBook Logo" style="height:38px;width:auto;object-fit:contain"/>
         <noscript><span class="brand-text" style="color:var(--ink)">SpotBook</span></noscript>
       </a>
 
