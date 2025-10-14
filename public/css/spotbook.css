@@ -286,3 +286,8 @@ body.sb-body {
 }
 .hs-btn:hover{ background: color-mix(in srgb, var(--panel) 92%, transparent); }
 
+@media (max-width: 640px){
+  .hs-item{
+    flex: 0 0 100%;   /* כרטיס אחד לכל רוחב */
+  }
+}

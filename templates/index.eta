@@ -32,7 +32,7 @@
   </div>
 </section>
 
-<!-- ======= קרוסלת מסעדות (3 מתוך 5, גלילה ציקלית) ======= -->
+<!-- ======= קרוסלת מסעדות (ציקלית) – 3 בפריסה רגילה, 1 במובייל ======= -->
 <section class="section">
   <div class="sb-container">
     <h2 class="section-title">מסעדות מומלצות</h2>
@@ -108,7 +108,7 @@
 <% } %>
 
 <script>
-/* ===== Horizontal carousel logic (3 of 5 cyclic) ===== */
+/* ===== Horizontal carousel logic (Cyclic: 3 desktop/tablet, 1 mobile) ===== */
 (function() {
   const wrap = document.querySelector('.hs-wrap');
   const scroller = wrap?.querySelector('.hs');
@@ -117,8 +117,15 @@
   const next = wrap?.querySelector('.next');
   if (!wrap || !scroller || items.length === 0) return;
 
+  // כמה מוצגים – 3 רגיל, 1 במובייל
+  const mql = window.matchMedia('(max-width: 640px)');
+  let visible = mql.matches ? 1 : 3;
+  (mql.addEventListener || mql.addListener).call(mql, 'change' in mql ? 'change' : 'addListener', (e) => {
+    visible = e.matches ? 1 : 3;
+    render();
+  });
+
   let startIndex = 0;
-  const visible = 3;
   const total = items.length;
 
   function render() {
@@ -141,8 +148,9 @@
     render();
   });
 
+  // החלקת אצבע במובייל
   let touchStartX = 0;
-  scroller.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX);
+  scroller.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX, {passive:true});
   scroller.addEventListener('touchend', e => {
     const dx = e.changedTouches[0].clientX - touchStartX;
     if (dx > 50) prev.click();
@@ -168,6 +176,7 @@
   scroll-behavior: smooth;
 }
 .hs-item{
+  /* ברירת מחדל: שליש רוחב – בדיוק 3 פריטים */
   flex: 0 0 calc((100% - 2 * var(--gap)) / 3);
   background: var(--panel);
   border: 1px solid var(--bd);
@@ -197,6 +206,13 @@
   cursor: pointer;
 }
 .hs-btn:hover{ background: color-mix(in srgb, var(--panel) 92%, transparent); }
+
+/* מובייל: כרטיס אחד בלבד לאורך כל הרוחב */
+@media (max-width: 640px){
+  .hs-item{
+    flex: 0 0 100%;
+  }
+}
 </style>
 
 <script>
@@ -214,19 +230,53 @@
   function normPhotos(p){var a=Array.isArray(p)?p:[];return a.map(x=>typeof x==='string'?x:(x&&x.dataUrl)).filter(Boolean);}
   function hide(){ box.hidden=true; box.innerHTML=""; active=-1; input&&input.setAttribute('aria-expanded','false'); }
   function show(){ if(!box.innerHTML.trim()){box.hidden=true;return;} box.hidden=false; input&&input.setAttribute('aria-expanded','true'); }
-  function render(){ if(!items.length){hide();return;} var h=""; for(var i=0;i<items.length;i++){var r=items[i]; h+='<div class="ac-item'+(i===active?' is-active':'')+'" data-idx="'+i+'"><img class="ac-thumb" src="'+(r.thumb||PLACEHOLDER)+'"/><div class="ac-meta"><div class="ac-title">'+escapeHtml(r.name)+'</div><div class="ac-sub">'+escapeHtml(r.city)+' · '+escapeHtml(r.address)+'</div></div></div>'; } box.innerHTML=h; show(); }
+  function render(){ if(!items.length){hide();return;} var h=""; for(var i=0;i<items.length;i++){var r=items[i]; h+='<div class="ac-item'+(i===active?' is-active':'')+'" data-idx="'+i+'"><img class="ac-thumb" src="'+(r.thumb||PLACEHOLDER)+'" alt=""/><div class="ac-meta"><div class="ac-title">'+escapeHtml(r.name)+'</div><div class="ac-sub">'+escapeHtml(r.city)+' · '+escapeHtml(r.address)+'</div></div></div>'; } box.innerHTML=h; show(); }
   function escapeHtml(s){return String(s||"").replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
-  async function search(q){ if(!q||!q.trim()){items=[];render();return;} try{aborter?.abort();}catch{} aborter=new AbortController(); var url=new URL('/api/restaurants',window.location.origin); url.searchParams.set('q',q); url.searchParams.set('approved','1'); try{ var res=await fetch(url.toString(),{signal:aborter.signal,headers:{'Accept':'application/json'}}); if(!res.ok)throw new Error(res.status); var data=await res.json(); var arr=Array.isArray(data)?data.slice(0,MAX):[]; items=arr.map(rr=>({id:rr.id,name:rr.name||"",city:rr.city||"",address:rr.address||"",thumb:normPhotos(rr.photos)[0]||PLACEHOLDER})); active=-1; render(); }catch(e){ if(e.name==='AbortError')return; items=[]; render(); }}
+  async function search(q){ if(!q||!q.trim()){items=[];render();return;} try{aborter?.abort();}catch{} aborter=new AbortController(); var url=new URL('/api/restaurants',window.location.origin); url.searchParams.set('q',q); url.searchParams.set('approved','1'); try{ var res=await fetch(url.toString(),{signal:aborter.signal,headers:{'Accept':'application/json'}}); if(!res.ok)throw new Error('http '+res.status); var data=await res.json(); var arr=Array.isArray(data)?data.slice(0,MAX):[]; items=arr.map(rr=>({id:rr.id,name:rr.name||"",city:rr.city||"",address:rr.address||"",thumb:normPhotos(rr.photos)[0]||PLACEHOLDER})); active=-1; render(); }catch(e){ if(e.name==='AbortError')return; items=[]; render(); }}
   var onInput=debounce(ev=>{var q=ev.target.value||""; if(q.trim().length<1){items=[];render();return;} search(q);},150);
-  if(input){ input.setAttribute('role','combobox'); input.setAttribute('aria-autocomplete','list'); input.setAttribute('aria-expanded','false'); input.setAttribute('aria-controls','ac-list');
+  if(input){
+    input.setAttribute('role','combobox');
+    input.setAttribute('aria-autocomplete','list');
+    input.setAttribute('aria-expanded','false');
+    input.setAttribute('aria-controls','ac-list');
+
     input.addEventListener('input',onInput);
-    input.addEventListener('keydown',function(ev){if(box.hidden)return;var K=ev.key;if(K==='ArrowDown'){ev.preventDefault();if(!items.length)return;active=(active+1)%items.length;render();}else if(K==='ArrowUp'){ev.preventDefault();if(!items.length)return;active=(active-1+items.length)%items.length;render();}else if(K==='Enter'){if(active>=0&&active<items.length){ev.preventDefault();go(items[active]);}}else if(K==='Escape'){hide();}});
-    input.addEventListener('blur',function(){blurTimer=setTimeout(hide,120);});
-    input.addEventListener('focus',function(){clearTimeout(blurTimer);if(items.length)show();else if(input.value.trim())search(input.value.trim());});
+    input.addEventListener('keydown',function(ev){
+      if (box.hidden) return;
+      var K=ev.key;
+      if (K==='ArrowDown'){ev.preventDefault(); if(!items.length)return; active=(active+1)%items.length; render();}
+      else if (K==='ArrowUp'){ev.preventDefault(); if(!items.length)return; active=(active-1+items.length)%items.length; render();}
+      else if (K==='Enter'){ if(active>=0&&active<items.length){ ev.preventDefault(); go(items[active]); } }
+      else if (K==='Escape'){ hide(); }
+    });
+
+    input.addEventListener('blur',function(){ blurTimer=setTimeout(hide,120); });
+    input.addEventListener('focus',function(){
+      clearTimeout(blurTimer);
+      if (items.length) show();
+      else if ((input.value||'').trim()) search(input.value.trim());
+    });
   }
-  function go(r){ if(!r||!r.id)return; window.location.href='/restaurants/'+encodeURIComponent(r.id)+'?date='+new Date().toISOString().slice(0,10); }
-  box.addEventListener('mousedown',function(e){e.preventDefault();var el=e.target.closest('.ac-item');if(!el)return;var i=Number(el.getAttribute('data-idx')||-1);if(i>=0&&i<items.length)go(items[i]);});
-  document.addEventListener('click',e=>{if(!box.contains(e.target)&&e.target!==input)hide();});
-  if(input&&(input.value||"").trim()){search(input.value.trim());}
+
+  function go(row){
+    if (!row || !row.id) return;
+    window.location.href = '/restaurants/'+encodeURIComponent(row.id)+'?date='+new Date().toISOString().slice(0,10);
+  }
+
+  box.addEventListener('mousedown',function(e){
+    e.preventDefault();
+    var el=e.target.closest('.ac-item');
+    if(!el) return;
+    var i=Number(el.getAttribute('data-idx')||-1);
+    if(i>=0&&i<items.length) go(items[i]);
+  });
+
+  document.addEventListener('click',e=>{
+    if (!box.contains(e.target) && e.target!==input) hide();
+  });
+
+  if (input && (input.value||'').trim()){
+    search(input.value.trim());
+  }
 })();
 </script>
