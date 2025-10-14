@@ -215,7 +215,7 @@ body.sb-body {
 /* ------ Logo sizing (responsive) ------ */
 .brand-logo{
   display:block;
-  height:90px;      /* מובייל/ברירת מחדל — נעים לעין */
+  height:120px;      /* מובייל/ברירת מחדל — נעים לעין */
   width:auto;
   object-fit:contain;
 }
