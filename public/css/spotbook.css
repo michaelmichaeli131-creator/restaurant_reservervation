@@ -254,6 +254,8 @@ body.sb-body {
   overflow: hidden;
   gap: var(--gap);
   scroll-behavior: smooth;
+  touch-action: pan-x;      /* חשוב למובייל */
+  -ms-touch-action: pan-x;
 }
 .hs-item{
   flex: 0 0 calc((100% - 2 * var(--gap)) / 3);
