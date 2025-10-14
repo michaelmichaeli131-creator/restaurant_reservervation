@@ -18,32 +18,30 @@
 </head>
 <body class="sb-body">
   <header class="sb-header">
-    <div class="sb-container" style="display:flex;align-items:center;gap:12px">
-      <!-- לוגו חדש במקום טיפוגרפיה -->
-      <a class="brand" href="/" style="display:flex;align-items:center;gap:8px;text-decoration:none">
+    <div class="sb-container sb-header-row">
+      <!-- לוגו -->
+      <a class="brand" href="/" aria-label="SpotBook">
         <img class="brand-logo" src="/public/img/logo-spotbook.png" alt="SpotBook Logo"/>
-        <noscript><span class="brand-text" style="color:var(--ink)">SpotBook</span></noscript>
       </a>
 
-      <nav class="sb-nav" style="margin-inline-start:auto">
+      <!-- טקסט משתמש מתחת ללוגו (תמיד מוצג) -->
+      <% if (it.user) { %>
+      <div class="user-mobile">
+        מחובר/ת:
+        <strong><%= [it.user.firstName, it.user.lastName].filter(Boolean).join(" ") %></strong>
+      </div>
+      <% } %>
+
+      <!-- פעולות (ניהול / התחברות / התנתקות / אדמין) -->
+      <nav class="sb-actions" aria-label="Main actions">
         <% if (it.user) { %>
-          <!-- כפתור ניהול למסעדות -->
-          <a class="btn primary" href="/owner">נהל מסעדה</a>
-
-          <!-- תצוגת משתמש (שם פרטי + שם משפחה בלבד) -->
-          <span class="user" style="color:var(--ink-muted)">
-            מחובר/ת:
-            <strong><%= [it.user.firstName, it.user.lastName].filter(Boolean).join(" ") %></strong>
-          </span>
-
-          <a class="btn ghost" href="/auth/logout">התנתקות</a>
+          <a class="btn primary btn-manage" href="/owner">נהל מסעדה</a>
+          <a class="btn ghost btn-logout" href="/auth/logout">התנתקות</a>
         <% } else { %>
           <a class="btn ghost" href="/auth/login">התחברות</a>
           <a class="btn" style="border-color:transparent;background:var(--brand);color:var(--brand-ink)" href="/auth/register">הרשמה</a>
         <% } %>
-
-        <!-- קישור Admin נשמר -->
-        <a class="btn ghost" href="/admin/login">Admin</a>
+        <a class="btn ghost btn-admin" href="/admin/login">Admin</a>
       </nav>
     </div>
   </header>
