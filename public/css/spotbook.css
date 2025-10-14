@@ -210,3 +210,57 @@ body.sb-body {
 @media (prefers-reduced-motion: reduce){
   * { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
+
+/* ====== הוספות קריטיות למובייל בהדר (מה ששוחחַנו) ====== */
+.sb-header-row{
+  display:grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "brand actions"
+    "user  actions";
+  align-items:center;
+  gap:10px 12px;
+}
+.brand{ grid-area: brand; }
+.sb-actions{ grid-area: actions; display:flex; align-items:center; gap:8px; }
+.user-mobile{ grid-area: user; display:none; color:var(--ink-muted); }
+.user-desktop{ margin-inline-start: 12px; color:var(--ink-muted); }
+.user .email{ display:none !important; } /* ליתר ביטחון – אל תציג אימייל אם נשאר */
+
+@media (min-width: 641px){
+  /* בדסקטופ: חזרה לשורה אחת, טקסט המשתמש ליד הניווט */
+  .sb-header-row{
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas: "brand user actions";
+  }
+  .user-mobile{ display:none; }
+  .user-desktop{ display:block; }
+}
+
+@media (max-width: 640px){
+  /* במובייל: הצג את שורת המשתמש מתחת למותג; פעולות בימין */
+  .user-mobile{ display:block; font-size:14px; }
+  .user-desktop{ display:none; }
+
+  .sb-actions .btn{ padding:8px 12px; }
+  .btn-admin, .btn-logout{ display:inline-flex; }
+
+  /* שמור על 'ניהול' אבל במסכים קטנים מאוד הסתר כדי לא לגלוש */
+  @media (max-width: 480px){
+    .btn-manage{ display:none; }
+  }
+
+  /* RTL – שמירה על יישור נכון */
+  html[dir="rtl"] .sb-header-row{
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "brand actions"
+      "user  actions";
+  }
+}
+
+/* מונע גלישה של כפתורים זעירים ביותר */
+@media (max-width: 360px){
+  .sb-actions .btn{ padding:8px 10px; font-size:14px; }
+  .brand-text{ font-size:16px; }
+}
