@@ -24,7 +24,7 @@
         <img class="brand-logo" src="/public/img/logo-spotbook.png" alt="SpotBook Logo"/>
       </a>
 
-      <!-- טקסט משתמש מתחת ללוגו (תמיד מוצג) -->
+      <!-- שורת המשתמש: מתחת ללוגו בפועל -->
       <% if (it.user) { %>
       <div class="user-mobile">
         מחובר/ת:

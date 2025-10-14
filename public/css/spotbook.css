@@ -32,7 +32,6 @@ body.sb-body{
   border-bottom:1px solid var(--bd);
 }
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink)}
-.logo-dot{width:14px;height:14px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 4px rgba(59,130,246,.18)}
 .brand-text{font-weight:800;letter-spacing:.2px}
 .sb-nav{display:flex;align-items:center;gap:10px}
 .nav-link{color:var(--ink);opacity:.9;text-decoration:none;padding:8px 10px;border-radius:999px}
@@ -131,51 +130,39 @@ body.sb-body{
 .ac-sub { font-size:.9rem; color:var(--ink-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
 /* ===== Mobile-first polish ===== */
-
-/* בסיס: אל תקטינו טקסט מתחת ל-16px במובייל כדי למנוע zoom על פוקוס */
 html { -webkit-text-size-adjust: 100%; }
-
-/* מרווחים בטוחים (Notch) */
 body.sb-body {
   padding-left: max(0px, env(safe-area-inset-left));
   padding-right: max(0px, env(safe-area-inset-right));
 }
-
-/* כותרת קומפקטית יותר במסכים צרים */
 @media (max-width: 640px){
   .sb-header { padding: 10px 12px; }
   .brand-text { font-size: 15px; }
   .btn { padding: 8px 12px; }
 }
-
-/* Hero מותאם – פחות גובה, טקסט קריא */
 @media (max-width: 640px){
   .hero-bg { height: 260px; }
   .hero-inner { padding: 16px; }
   .hero-title { font-size: clamp(22px, 6.2vw, 30px); }
   .hero-sub { font-size: 14px; margin-bottom: 16px; }
 }
-
-/* שורת החיפוש: מלא רוחב; הכפתור בשורה נפרדת (100%) במסכים צרים */
 @media (max-width: 640px){
   .search-bar {
     border-radius: 16px;
     padding: 8px;
     gap: 8px;
-    max-width: none; /* תן לזה למלא את הרוחב */
+    max-width: none;
   }
   .search-bar .field { flex: 1 1 100%; }
-  .search-bar input[type="search"] { font-size: 16px; height: 44px; } /* 16px למניעת zoom */
+  .search-bar input[type="search"] { font-size: 16px; height: 44px; }
   .search-btn { width: 100%; height: 46px; }
 }
-
-/* אוטוקומפליט: צמוד טוב לאינפוט, קליקים גדולים, לא נחתך */
 @media (max-width: 640px){
   .ac-wrap { position: relative; }
   .ac-list {
-    inset-inline: 0 0;   /* הדבק לקצוות */
+    inset-inline: 0 0;
     top: calc(100% + 6px);
-    max-height: 60vh;    /* אל תגלוש מחוץ למסך */
+    max-height: 60vh;
     padding: 4px;
   }
   .ac-item { padding: 10px; gap: 12px; }
@@ -183,8 +170,6 @@ body.sb-body {
   .ac-title { font-size: 15px; }
   .ac-sub { font-size: 13px; }
 }
-
-/* כרטיסי מסעדות: טור בודד, תמונה 4:3, טקסט נשבר */
 @media (max-width: 1024px){
   .cards { grid-template-columns: repeat(2, 1fr); }
 }
@@ -195,23 +180,17 @@ body.sb-body {
   .card-title { font-size: 16px; }
   .card-meta { font-size: 13px; }
 }
-
-/* פוטר קומפקטי במובייל */
 @media (max-width: 640px){
   .sb-footer { margin: 24px auto 16px; padding-top: 12px; }
 }
-
-/* מגע נעים – אל תדלגו על hover transitions אבל קצרו אותם במובייל */
 @media (hover: none){
   .card:hover { transform: none; box-shadow: none; }
 }
-
-/* אנימציות עדינות רק כשלא מוגדר reduced-motion */
 @media (prefers-reduced-motion: reduce){
   * { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
 
-/* ====== מבנה הדר: Grid כדי שהמשתמש יופיע מתחת ללוגו ====== */
+/* ====== הדר כ־Grid: המשתמש מתחת ללוגו ====== */
 .sb-header-row{
   display:grid;
   grid-template-columns: 1fr auto;
@@ -224,43 +203,29 @@ body.sb-body {
 .brand{ grid-area: brand; }
 .sb-actions{ grid-area: actions; display:flex; align-items:center; gap:8px; }
 
-/* מציגים תמיד את הטקסט מתחת ללוגו בכל הגדלים */
-.user-mobile{ grid-area: user; display:block; color:var(--ink-muted); font-size:14px; line-height:1.3; }
-.user-desktop{ display:none; } /* לא משתמשים בתצוגה צדית */
-
-@media (max-width: 640px){
-  .sb-actions .btn{ padding:8px 12px; }
-  .btn-admin, .btn-logout{ display:inline-flex; }
-  @media (max-width: 480px){
-    .btn-manage{ display:none; }
-  }
-}
-
-/* מונע גלישה של כפתורים זעירים ביותר */
-@media (max-width: 360px){
-  .sb-actions .btn{ padding:8px 10px; font-size:14px; }
-  .brand-text{ font-size:16px; }
+/* מציגים תמיד את הטקסט מתחת ללוגו */
+.user-mobile{
+  grid-area: user;
+  display:block;
+  color:var(--ink-muted);
+  font-size:14px;
+  line-height:1.3;
 }
 
 /* ------ Logo sizing (responsive) ------ */
 .brand-logo{
   display:block;
-  height:90px;      /* גודל התחלתי – ניתן להקטין ל-40–60px לפי טעמך */
+  height:48px;      /* מובייל/ברירת מחדל — נעים לעין */
   width:auto;
   object-fit:contain;
 }
+.sb-header .sb-container{ min-height:66px; }
 
-.sb-header .sb-container{
-  min-height:66px;
-}
-
-/* טאבלט + דסקטופ: הגדלה */
 @media (min-width: 768px){
-  .brand-logo{ height:100px; }
+  .brand-logo{ height:56px; } /* דסקטופ: מעט גדול יותר */
   .sb-header .sb-container{ min-height:74px; }
 }
 
-/* מסכים קטנים במיוחד */
 @media (max-width: 360px){
   .brand-logo{ height:44px; }
 }
