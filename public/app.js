@@ -270,7 +270,7 @@
   if (!wrap || !scroller || items.length === 0) return;
 
   let startIndex = 0;
-  const visible = 3;
+  const visible = 5;
   const total = items.length;
 
   function render() {
