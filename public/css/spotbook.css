@@ -215,15 +215,15 @@ body.sb-body {
 /* ------ Logo sizing (responsive) ------ */
 .brand-logo{
   display:block;
-  height:48px;      /* מובייל/ברירת מחדל — נעים לעין */
+  height:90px;      /* מובייל/ברירת מחדל — נעים לעין */
   width:auto;
   object-fit:contain;
 }
-.sb-header .sb-container{ min-height:90px; }
+.sb-header .sb-container{ min-height:66px; }
 
 @media (min-width: 768px){
   .brand-logo{ height:56px; } /* דסקטופ: מעט גדול יותר */
-  .sb-header .sb-container{ min-height:90px; }
+  .sb-header .sb-container{ min-height:74px; }
 }
 
 @media (max-width: 360px){
