@@ -229,3 +229,20 @@ body.sb-body {
 @media (max-width: 360px){
   .brand-logo{ height:44px; }
 }
+
+.brand-logo {
+  display:block;
+  height:80px;    /* גודל כללי */
+  width:auto;
+  object-fit:contain;
+}
+.sb-header .sb-container{ min-height:90px; }
+
+@media (min-width: 768px){
+  .brand-logo{ height:100px; } /* דסקטופ */
+}
+
+@media (max-width: 360px){
+  .brand-logo{ height:60px; }  /* מובייל ממש קטן */
+}
+
