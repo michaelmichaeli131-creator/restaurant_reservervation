@@ -264,3 +264,27 @@ body.sb-body {
   .sb-actions .btn{ padding:8px 10px; font-size:14px; }
   .brand-text{ font-size:16px; }
 }
+
+/* ------ Logo sizing (responsive) ------ */
+.brand-logo{
+  display:block;
+  height:48px;      /* מובייל/ברירת מחדל */
+  width:auto;
+  object-fit:contain;
+}
+
+.sb-header .sb-container{
+  min-height:66px;
+}
+
+/* טאבלט + דסקטופ: הגדלה אלגנטית */
+@media (min-width: 768px){
+  .brand-logo{ height:60px; }
+  .sb-header .sb-container{ min-height:74px; }
+}
+
+/* מסכים קטנים במיוחד */
+@media (max-width: 360px){
+  .brand-logo{ height:44px; }
+}
+
