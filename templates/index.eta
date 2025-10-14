@@ -32,7 +32,7 @@
   </div>
 </section>
 
-<!-- ======= קרוסלת מסעדות (ציקלית) – 3 בפריסה רגילה, 1 במובייל ======= -->
+<!-- ======= קרוסלת מסעדות (ציקלית) – 3 בדסקטופ/טאבלט, 1 במובייל ======= -->
 <section class="section">
   <div class="sb-container">
     <h2 class="section-title">מסעדות מומלצות</h2>
@@ -109,54 +109,78 @@
 
 <script>
 /* ===== Horizontal carousel logic (Cyclic: 3 desktop/tablet, 1 mobile) ===== */
-(function() {
+document.addEventListener('DOMContentLoaded', function () {
   const wrap = document.querySelector('.hs-wrap');
   const scroller = wrap?.querySelector('.hs');
-  const items = Array.from(scroller?.children || []);
   const prev = wrap?.querySelector('.prev');
   const next = wrap?.querySelector('.next');
-  if (!wrap || !scroller || items.length === 0) return;
+  if (!wrap || !scroller) return;
 
-  // כמה מוצגים – 3 רגיל, 1 במובייל
+  // שמור את רשימת הפריטים המקורית (5)
+  const originalItems = Array.from(scroller.children);
+  if (!originalItems.length) return;
+
+  // חישוב כמות נראית לפי מדיה
   const mql = window.matchMedia('(max-width: 640px)');
   let visible = mql.matches ? 1 : 3;
-  (mql.addEventListener || mql.addListener).call(mql, 'change' in mql ? 'change' : 'addListener', (e) => {
+
+  const onMqlChange = (e) => {
     visible = e.matches ? 1 : 3;
     render();
-  });
+  };
+  if (mql.addEventListener) mql.addEventListener('change', onMqlChange);
+  else if (mql.addListener) mql.addListener(onMqlChange); // Safari ישנים
 
   let startIndex = 0;
-  const total = items.length;
+  const total = originalItems.length;
 
   function render() {
     scroller.innerHTML = '';
     for (let i = 0; i < visible; i++) {
       const idx = (startIndex + i) % total;
-      scroller.appendChild(items[idx].cloneNode(true));
+      scroller.appendChild(originalItems[idx].cloneNode(true));
     }
   }
 
-  render();
-
-  prev.addEventListener('click', () => {
+  function goPrev() {
     startIndex = (startIndex - 1 + total) % total;
     render();
-  });
-
-  next.addEventListener('click', () => {
+  }
+  function goNext() {
     startIndex = (startIndex + 1) % total;
     render();
-  });
+  }
 
-  // החלקת אצבע במובייל
+  // אתחול
+  render();
+
+  // חצים
+  prev?.addEventListener('click', goPrev);
+  next?.addEventListener('click', goNext);
+
+  // גלילת טאצ'/גלגלת:
+  // א. החלקה באצבע
   let touchStartX = 0;
-  scroller.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX, {passive:true});
-  scroller.addEventListener('touchend', e => {
+  scroller.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+  }, { passive: true });
+
+  scroller.addEventListener('touchend', (e) => {
     const dx = e.changedTouches[0].clientX - touchStartX;
-    if (dx > 50) prev.click();
-    else if (dx < -50) next.click();
-  });
-})();
+    if (dx > 50) goPrev();
+    else if (dx < -50) goNext();
+  }, { passive: true });
+
+  // ב. גלגלת/טאצ'פד בדסקטופ (כולל two-finger swipe ב־Mac)
+  scroller.addEventListener('wheel', (e) => {
+    // מונעים גלילה אנכית של העמוד תוך כדי מחווה אופקית
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      e.preventDefault();
+      if (e.deltaX > 0 || e.deltaY > 0) goNext();
+      else goPrev();
+    }
+  }, { passive: false });
+});
 </script>
 
 <style>
@@ -171,12 +195,14 @@
 }
 .hs{
   display: flex;
-  overflow: hidden;
+  overflow: hidden;          /* אין גלילה טבעית – אנחנו שולטים לוגית */
   gap: var(--gap);
   scroll-behavior: smooth;
+  touch-action: pan-x;       /* מאפשר מחוות אופקיות במובייל */
+  -ms-touch-action: pan-x;
 }
 .hs-item{
-  /* ברירת מחדל: שליש רוחב – בדיוק 3 פריטים */
+  /* בדסקטופ/טאבלט: שליש רוחב → בדיוק 3 פריטים */
   flex: 0 0 calc((100% - 2 * var(--gap)) / 3);
   background: var(--panel);
   border: 1px solid var(--bd);
@@ -207,11 +233,9 @@
 }
 .hs-btn:hover{ background: color-mix(in srgb, var(--panel) 92%, transparent); }
 
-/* מובייל: כרטיס אחד בלבד לאורך כל הרוחב */
+/* מובייל: כרטיס אחד לרוחב מלא */
 @media (max-width: 640px){
-  .hs-item{
-    flex: 0 0 100%;
-  }
+  .hs-item{ flex: 0 0 100%; }
 }
 </style>
 
