@@ -215,7 +215,7 @@ body.sb-body {
 /* ------ Logo sizing (responsive) ------ */
 .brand-logo{
   display:block;
-  height:800px;      /* גודל הלוגו נשמר */
+  height:70px;      /* גודל הלוגו נשמר */
   width:auto;
   object-fit:contain;
 }
@@ -228,7 +228,7 @@ body.sb-body {
 }
 
 @media (min-width: 768px){
-  .brand-logo{ height:80px; }
+  .brand-logo{ height:70px; }
   .sb-header .sb-container{
     min-height:0;
     padding:8px 16px;
