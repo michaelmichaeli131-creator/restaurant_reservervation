@@ -219,7 +219,7 @@ body.sb-body {
   width:auto;
   object-fit:contain;
 }
-.sb-header .sb-container{ min-height:100x; }
+.sb-header .sb-container{ min-height:100px; }
 
 @media (min-width: 768px){
   .brand-logo{ height:56px; } /* דסקטופ: מעט גדול יותר */
