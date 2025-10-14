@@ -26,8 +26,8 @@
 
       <nav class="sb-nav" style="margin-inline-start:auto">
         <% if (it.user) { %>
-          <!-- כפתור ניהול למסעדות (כמו במקור: לכל משתמש מחובר) -->
-          <a class="btn primary" href="/owner">פתח/י מסעדה / ניהול</a>
+          <!-- כפתור ניהול למסעדות -->
+          <a class="btn primary" href="/owner">נהל מסעדה</a>
 
           <!-- תצוגת משתמש (שם פרטי + שם משפחה בלבד) -->
           <span class="user" style="color:var(--ink-muted)">
