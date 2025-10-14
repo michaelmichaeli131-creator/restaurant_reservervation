@@ -222,7 +222,7 @@ body.sb-body {
 .sb-header .sb-container{ min-height:100px; }
 
 @media (min-width: 768px){
-  .brand-logo{ height:56px; } /* דסקטופ: מעט גדול יותר */
+  .brand-logo{ height:120px; } /* דסקטופ: מעט גדול יותר */
   .sb-header .sb-container{ min-height:74px; }
 }
 
