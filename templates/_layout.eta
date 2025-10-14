@@ -29,11 +29,10 @@
           <!-- כפתור ניהול למסעדות (כמו במקור: לכל משתמש מחובר) -->
           <a class="btn primary" href="/owner">פתח/י מסעדה / ניהול</a>
 
-          <!-- תצוגת משתמש (שם + אימייל) -->
+          <!-- תצוגת משתמש (שם פרטי + שם משפחה בלבד) -->
           <span class="user" style="color:var(--ink-muted)">
             מחובר/ת:
-            <strong><%= it.user.firstName %> <%= it.user.lastName %></strong>
-            (<%= it.user.email %>)
+            <strong><%= [it.user.firstName, it.user.lastName].filter(Boolean).join(" ") %></strong>
           </span>
 
           <a class="btn ghost" href="/auth/logout">התנתקות</a>
