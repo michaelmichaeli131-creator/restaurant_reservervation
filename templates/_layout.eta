@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/public/css/spotbook.css"/>
+  <link rel="stylesheet" href="/public/css/spotbook.css?v=<%= Date.now() %>"/>
 
   <%~ it.head || '' %>
 </head>
@@ -21,7 +21,7 @@
     <div class="sb-container" style="display:flex;align-items:center;gap:12px">
       <!-- לוגו חדש במקום טיפוגרפיה -->
       <a class="brand" href="/" style="display:flex;align-items:center;gap:8px;text-decoration:none">
-        <img src="/public/img/logo-spotbook.png" alt="SpotBook Logo" style="height:38px;width:auto;object-fit:contain"/>
+        <img class="brand-logo" src="/public/img/logo-spotbook.png" alt="SpotBook Logo"/>
         <noscript><span class="brand-text" style="color:var(--ink)">SpotBook</span></noscript>
       </a>
 
