@@ -1,94 +1,130 @@
 <% layout("_layout", it) %>
-<main class="container">
-  <header class="page-header">
-    <h1>הזמנה אושרה ✔</h1>
-    <p class="muted">תודה שהזמנת ב־<strong><%= it.restaurant.name %></strong>.</p>
-  </header>
 
-  <section class="card">
-    <h2 style="margin-top:0">פרטי הזמנה</h2>
-    <dl class="details">
-      <div class="row">
-        <dt>מסעדה</dt>
-        <dd><%= it.restaurant.name %></dd>
+<section class="confirm">
+  <div class="hero">
+    <div class="icon">✓</div>
+    <h1 class="title">הזמנה מאושרת</h1>
+    <% if (it.restaurant && it.restaurant.name) { %>
+      <p class="muted">למסעדה <strong><%= it.restaurant.name %></strong></p>
+    <% } %>
+  </div>
+
+  <div class="grid">
+    <!-- תקציר -->
+    <article class="card">
+      <h2 class="h2">תקציר</h2>
+      <ul class="kv">
+        <% if (it.reservation && (it.reservation.date || it.reservation.time)) { %>
+          <li><span>תאריך ושעה</span><span><%= it.reservation.date || '' %><%~ it.reservation.time ? ' · ' + it.reservation.time : '' %></span></li>
+        <% } %>
+        <% if (it.reservation && (it.reservation.size || it.reservation.guests)) { %>
+          <li><span>סועדים</span><span><%= it.reservation.size || it.reservation.guests %></span></li>
+        <% } %>
+        <% if (it.reservation && (it.reservation.name || it.reservation.contactName)) { %>
+          <li><span>שם המזמין/ה</span><span><%= it.reservation.name || it.reservation.contactName %></span></li>
+        <% } %>
+        <% if (it.reservation && it.reservation.notes) { %>
+          <li class="notes"><span>הערות</span><span class="pre"><%= it.reservation.notes %></span></li>
+        <% } %>
+      </ul>
+
+      <div class="actions">
+        <% if (it.links && it.links.details) { %><a class="btn" href="<%= it.links.details %>">צפייה בפרטי ההזמנה</a><% } %>
+        <% if (it.links && it.links.cancel) { %>
+          <form class="inline" method="post" action="<%= it.links.cancel %>" onsubmit="return confirm('לבטל את ההזמנה?')">
+            <button class="btn danger" type="submit">ביטול</button>
+          </form>
+        <% } %>
       </div>
-      <div class="row">
-        <dt>כתובת</dt>
-        <dd><%= it.restaurant.city %> · <%= it.restaurant.address %></dd>
-      </div>
-      <div class="row">
-        <dt>תאריך</dt>
-        <dd><%= it.date %></dd>
-      </div>
-      <div class="row">
-        <dt>শעה</dt>
-        <dd><%= it.time %></dd>
-      </div>
-      <div class="row">
-        <dt>סועדים</dt>
-        <dd><%= it.people %></dd>
-      </div>
-      <div class="row">
-        <dt>שם לקוח</dt>
-        <dd><%= it.customerName %></dd>
-      </div>
-      <div class="row">
-        <dt>נייד</dt>
-        <dd><%= it.customerPhone %></dd>
-      </div>
-      <div class="row">
-        <dt>אימייל</dt>
-        <dd><%= it.customerEmail %></dd>
-      </div>
-      <% if (it.note) { %>
-      <div class="row">
-        <dt>הערות</dt>
-        <dd><%= it.note %></dd>
-      </div>
+    </article>
+
+    <!-- QR + יומן + ניווט -->
+    <aside class="stack">
+      <% if ((it.qr && it.qr.src) || (it.reservation && it.reservation.id)) { %>
+      <article class="card">
+        <h3 class="h3">קוד הזמנה</h3>
+        <div class="qr">
+          <% if (it.qr && it.qr.src) { %>
+            <img src="<%= it.qr.src %>" alt="QR להזמנה" width="160" height="160" />
+          <% } else { %>
+            <img src="/qr?text=<%= encodeURIComponent(String(it.reservation.id)) %>" alt="QR להזמנה" width="160" height="160" />
+          <% } %>
+        </div>
+        <div class="muted small" dir="ltr">#<%= (it.reservation && it.reservation.id) || '' %></div>
+      </article>
       <% } %>
-      <div class="row">
-        <dt>מס׳ הזמנה</dt>
-        <dd><code><%= it.reservationId %></code></dd>
-      </div>
-    </dl>
 
-    <div class="cta">
-      <!-- כפתור חזרה לדף המסעדה -->
-      <a class="btn" href="/restaurants/<%= it.restaurant.id %>">חזרה לעמוד המסעדה</a>
+      <% if (it.calendar && (it.calendar.ics || it.calendar.google || it.calendar.apple)) { %>
+      <article class="card">
+        <h3 class="h3">הוסף ליומן</h3>
+        <div class="row chips">
+          <% if (it.calendar.ics) { %><a class="chip" href="<%= it.calendar.ics %>">ICS</a><% } %>
+          <% if (it.calendar.google) { %><a class="chip" href="<%= it.calendar.google %>" target="_blank" rel="noopener">Google</a><% } %>
+          <% if (it.calendar.apple) { %><a class="chip" href="<%= it.calendar.apple %>">Apple</a><% } %>
+        </div>
+      </article>
+      <% } %>
 
-      <!-- כפתור עריכה: חזרה לשלב 1 עם כל ה-query (כולל people) -->
-      <a class="btn secondary"
-         href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
-        עריכת תאריך/שעה/סועדים
-      </a>
+      <% if (it.restaurant && (it.restaurant.phone || it.restaurant.map || it.restaurant.website)) { %>
+      <article class="card">
+        <h3 class="h3">איך מגיעים?</h3>
+        <ul class="list">
+          <% if (it.restaurant.phone) { %><li><a href="tel:<%= it.restaurant.phone %>">📞 <span dir="ltr"><%= it.restaurant.phone %></span></a></li><% } %>
+          <% if (it.restaurant.website) { %><li><a href="<%= it.restaurant.website %>" target="_blank" rel="noopener">🌐 אתר המסעדה</a></li><% } %>
+          <% if (it.restaurant.map) { %><li><a href="<%= it.restaurant.map %>" target="_blank" rel="noopener">🗺️ נווט עם מפות</a></li><% } %>
+        </ul>
+      </article>
+      <% } %>
+    </aside>
+  </div>
 
-      <!-- עמוד ראשי -->
-      <a class="btn secondary" href="/">חזרה לעמוד הראשי</a>
-    </div>
-
-    <p class="muted" style="margin-top:12px">
-      קיבלת אימייל עם פרטי ההזמנה. נתראה!
-    </p>
-  </section>
-
-  <% if (it.restaurant.description) { %>
-    <section class="card">
-      <h2 style="margin-top:0">על המסעדה</h2>
-      <p><%= it.restaurant.description %></p>
-    </section>
-  <% } %>
-</main>
+  <!-- CTA לחזרה למסעדה / המשך גלישה -->
+  <div class="cta">
+    <% if (it.links && it.links.restaurant) { %>
+      <a class="btn lg" href="<%= it.links.restaurant %>">חזרה לדף המסעדה</a>
+    <% } else { %>
+      <a class="btn lg" href="/">חזרה לאתר</a>
+    <% } %>
+  </div>
+</section>
 
 <style>
-  .container{max-width:900px;margin:24px auto;padding:0 16px}
-  .card{border:1px solid #eee;border-radius:12px;padding:16px;margin-bottom:18px}
-  .muted{color:#777}
-  .details{margin:0}
-  .row{display:grid;grid-template-columns:160px 1fr;gap:8px;padding:6px 0;border-bottom:1px dashed #eee}
-  .row:last-child{border-bottom:none}
-  dt{font-weight:600}
-  dd{margin:0}
-  .btn{background:#111;color:#fff;border:none;border-radius:12px;padding:8px 12px;cursor:pointer;text-decoration:none;display:inline-block}
-  .btn.secondary{background:#555}
-  .cta{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  :root{--bd:#222834;--panel:#12151b;--panel2:#161a21;--ink:#e6e9ef;--ink-dim:#98a2b3}
+
+  .confirm{max-width:900px;margin:0 auto;display:grid;gap:14px}
+  .hero{display:grid;justify-items:center;gap:8px;margin-top:6px}
+  .icon{inline-size:52px;block-size:52px;border-radius:50%;display:grid;place-items:center;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.35);font-weight:800}
+  .title{margin:0}
+  .muted{color:var(--ink-dim)}
+
+  .grid{display:grid;grid-template-columns:2fr 1fr;gap:12px}
+  @media (max-width:900px){.grid{grid-template-columns:1fr}}
+
+  .card{background:linear-gradient(180deg, rgba(22,26,33,.9), rgba(16,19,25,.94));border:1px solid var(--bd);border-radius:14px;padding:12px}
+  .h2{margin:0 0 8px;font-size:18px}
+  .h3{margin:0 0 8px;font-size:16px}
+
+  .kv{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  .kv li{display:grid;grid-template-columns:140px 1fr;gap:10px}
+  .kv li>span:first-child{color:var(--ink-dim);font-size:12px}
+  .pre{white-space:pre-wrap}
+
+  .actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;border:1px solid #2a3040;background:transparent;color:var(--ink);font-weight:600;text-decoration:none}
+  .btn:hover{transform:translateY(-1px)}
+  .btn.danger{border-color:rgba(239,68,68,.45);color:#fecaca}
+  .btn.lg{padding:10px 16px;border-radius:12px}
+
+  .stack{display:grid;gap:12px}
+  .qr{display:flex;justify-content:center;margin:6px 0}
+
+  .list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+  .list a{color:var(--ink);text-decoration:none}
+  .list a:hover{text-decoration:underline}
+
+  .chips{gap:6px}
+  .chip{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;border:1px solid #2a3040;text-decoration:none;color:var(--ink)}
+  .chip:hover{transform:translateY(-1px)}
+
+  .cta{display:grid;justify-items:center;margin-top:4px}
 </style>

@@ -1,104 +1,231 @@
-<!-- templates/restaurant_detail.eta -->
-<h1><%= it.r.name %></h1>
-<p><%= it.r.city %> · <%= it.r.address %></p>
+<% layout("_layout", it) %>
 
-<% if (it.r.photos && it.r.photos.length) { %>
-  <div class="gallery">
-    <% it.r.photos.forEach((p)=>{ %>
-      <img class="photo" src="<%= p %>" alt="<%= it.r.name %>" loading="lazy"/>
-    <% }) %>
+<section class="r-detail">
+  <!-- Hero -->
+  <header class="hero">
+    <div class="cover" style="background-image:url('<%= it.restaurant?.cover || "/public/img/hero-restaurant-dark.jpg" %>')"></div>
+    <div class="hero-inner">
+      <div class="head">
+        <h1 class="title"><%= it.restaurant?.name || 'מסעדה' %></h1>
+        <% if (it.restaurant && (it.restaurant.city || it.restaurant.address)) { %>
+          <div class="sub muted"><%= [it.restaurant.city, it.restaurant.address].filter(Boolean).join(' · ') %></div>
+        <% } %>
+      </div>
+      <div class="meta">
+        <% if (it.restaurant?.cuisine) { %><span class="pill"><%= it.restaurant.cuisine %></span><% } %>
+        <% if (it.restaurant?.priceLevel) { %><span class="pill">₪<%= it.restaurant.priceLevel %></span><% } %>
+        <% if (it.restaurant?.rating) { %><span class="pill">★ <%= it.restaurant.rating %></span><% } %>
+      </div>
+    </div>
+  </header>
+
+  <!-- Grid -->
+  <div class="grid">
+    <!-- הזמנה -->
+    <article class="card">
+      <h2 class="h2">הזמנה</h2>
+      <form class="resv-form" method="post" action="<%= (it.links && it.links.reserve) || '/reservations' %>">
+        <% if (it.restaurant?.id) { %><input type="hidden" name="rid" value="<%= it.restaurant.id %>"><% } %>
+        <div class="row">
+          <label>
+            <span>תאריך</span>
+            <input type="date" name="date" value="<%= it.defaultDate || '' %>" required>
+          </label>
+          <label>
+            <span>שעה</span>
+            <input type="time" name="time" value="<%= it.defaultTime || '' %>" required step="<%= it.slotStepSeconds || 900 %>">
+          </label>
+          <label>
+            <span>מס’ סועדים</span>
+            <input type="number" min="1" max="<%= it.restaurant?.capacity || 50 %>" step="1" name="size" value="<%= it.defaultSize || 2 %>" required>
+          </label>
+        </div>
+        <% if (it.presetSlots && it.presetSlots.length) { %>
+          <div class="slots">
+            <% it.presetSlots.forEach(s => { %>
+              <button class="chip" name="time" value="<%= s %>" type="submit"><%= s %></button>
+            <% }) %>
+          </div>
+        <% } %>
+        <label class="block">
+          <span>הערות</span>
+          <textarea name="notes" rows="3" placeholder="אלרגיות, העדפות ישיבה וכו’"><%= it.defaultNotes || '' %></textarea>
+        </label>
+        <div class="actions">
+          <button class="btn" type="submit">בדיקת זמינות / הזמנה</button>
+          <% if (it.links?.ownerCalendar && it.user?.role === 'owner') { %>
+            <a class="btn secondary" href="<%= it.links.ownerCalendar %>">לוח בעלים</a>
+          <% } %>
+        </div>
+        <% if (it.policy?.cancellation) { %>
+          <p class="muted small">מדיניות ביטול: <%= it.policy.cancellation %></p>
+        <% } %>
+      </form>
+    </article>
+
+    <!-- פרטי מקום -->
+    <aside class="stack">
+      <% if (it.restaurant?.description) { %>
+      <article class="card">
+        <h3 class="h3">על המסעדה</h3>
+        <p class="muted"><%= it.restaurant.description %></p>
+      </article>
+      <% } %>
+
+      <% if (it.restaurant && (it.restaurant.phone || it.restaurant.website || it.restaurant.map)) { %>
+      <article class="card">
+        <h3 class="h3">יצירת קשר</h3>
+        <ul class="list">
+          <% if (it.restaurant.phone) { %><li><a href="tel:<%= it.restaurant.phone %>">📞 <span dir="ltr"><%= it.restaurant.phone %></span></a></li><% } %>
+          <% if (it.restaurant.website) { %><li><a href="<%= it.restaurant.website %>" target="_blank" rel="noopener">🌐 אתר</a></li><% } %>
+          <% if (it.restaurant.map) { %><li><a href="<%= it.restaurant.map %>" target="_blank" rel="noopener">🗺️ מפה/ניווט</a></li><% } %>
+        </ul>
+      </article>
+      <% } %>
+
+      <% if (it.restaurant?.hours && it.restaurant.hours.length) { %>
+      <article class="card">
+        <h3 class="h3">שעות פתיחה</h3>
+        <ul class="hours">
+          <% it.restaurant.hours.forEach(h => { %>
+            <li><span><%= h.day %></span><span class="muted"><%= h.open %>–<%= h.close %></span></li>
+          <% }) %>
+        </ul>
+      </article>
+      <% } %>
+
+      <% if (it.restaurant?.amenities && it.restaurant.amenities.length) { %>
+      <article class="card">
+        <h3 class="h3">מה תמצאו במקום</h3>
+        <div class="tags">
+          <% it.restaurant.amenities.forEach(a => { %>
+            <span class="tag"><%= a %></span>
+          <% }) %>
+        </div>
+      </article>
+      <% } %>
+    </aside>
   </div>
-<% } %>
 
-<!-- בחירת תאריך (נשמר) -->
-<form method="get" action="/restaurants/<%= it.r.id %>" class="form inline">
-  <label>תאריך:
-    <input type="date" name="date" value="<%= it.date %>"/>
-  </label>
-  <button class="btn" type="submit">רענון</button>
-</form>
+  <!-- גלריה -->
+  <% if (it.restaurant?.photos && it.restaurant.photos.length) { %>
+  <section class="photos">
+    <h2 class="h2">תמונות</h2>
+    <div class="gallery">
+      <% it.restaurant.photos.forEach(src => { %>
+        <img class="ph" src="<%= src %>" alt="">
+      <% }) %>
+    </div>
+  </section>
+  <% } %>
 
-<% if (it.error) { %><p class="error"><%= it.error %></p><% } %>
-<% if (it.success) { %><p class="success"><%= it.success %></p><% } %>
+  <!-- תפריט -->
+  <% if (it.menu && it.menu.length) { %>
+  <section class="menu">
+    <h2 class="h2">תפריט</h2>
+    <div class="menu-grid">
+      <% it.menu.forEach(section => { %>
+        <article class="m-sec">
+          <h3 class="h3"><%= section.title %></h3>
+          <ul class="m-list">
+            <% (section.items||[]).forEach(item => { %>
+              <li>
+                <div class="m-title"><%= item.name %></div>
+                <% if (item.desc) { %><div class="m-desc muted"><%= item.desc %></div><% } %>
+                <% if (item.price) { %><div class="m-price">₪<%= item.price %></div><% } %>
+              </li>
+            <% }) %>
+          </ul>
+        </article>
+      <% }) %>
+    </div>
+  </section>
+  <% } %>
 
-<!-- בדיקת זמינות (שלב 1: כאן מותר לערוך מס' סועדים) -->
-<section class="card" style="margin-top:12px">
-  <h2>בדיקת זמינות</h2>
-  <form id="checkForm" class="form inline" onsubmit="return false;">
-    <label>שעה:
-      <input type="time" id="checkTime" value="<%= it.time || '19:00' %>" required>
-    </label>
-    <label>מס' סועדים:
-      <input type="number" id="checkPeople" value="<%= it.people || 2 %>" min="1" required>
-    </label>
-    <button class="btn" id="checkBtn" type="button">בדוק</button>
-  </form>
-  <div id="checkResult" class="muted" style="margin-top:8px"></div>
+  <!-- ביקורות -->
+  <% if (it.reviews && it.reviews.length) { %>
+  <section class="reviews">
+    <h2 class="h2">ביקורות</h2>
+    <ul class="rev-list">
+      <% it.reviews.forEach(rv => { %>
+        <li class="rev">
+          <div class="rev-hd">
+            <strong><%= rv.author || 'אורח' %></strong>
+            <% if (rv.rating) { %><span class="pill">★ <%= rv.rating %></span><% } %>
+            <% if (rv.date) { %><span class="muted small"><%= rv.date %></span><% } %>
+          </div>
+          <% if (rv.text) { %><p class="muted"><%= rv.text %></p><% } %>
+        </li>
+      <% }) %>
+    </ul>
+  </section>
+  <% } %>
 </section>
 
-<!-- טופס הזמנה (שלב 2: מס' סועדים מוצג + נשלח כ-hidden בלבד) -->
-<section class="card" style="margin-top:12px">
-  <h2>הזמנה</h2>
-  <form method="post" action="/restaurants/<%= it.r.id %>/reserve" class="form grid">
-    <input type="hidden" name="date" value="<%= it.date %>"/>
+<style>
+  :root{--bd:#23293a;--panel:#12151b;--panel2:#161a21;--ink:#e6e9ef;--ink-dim:#9aa3b2;--brand:#3b82f6}
 
-    <label>שעה
-      <input type="time" name="time" value="<%= it.time || '19:00' %>" required />
-    </label>
+  .r-detail{max-width:1100px;margin:0 auto;display:grid;gap:16px}
+  .hero{position:relative;border-radius:18px;overflow:hidden;border:1px solid var(--bd)}
+  .cover{height:260px;background:#0b0f17 center/cover no-repeat;filter:saturate(95%)}
+  .hero-inner{position:absolute;inset:0;display:grid;align-content:end;padding:14px;background:linear-gradient(180deg,transparent 40%,rgba(0,0,0,.45))}
+  .head{display:flex;flex-direction:column;gap:6px}
+  .title{margin:0;font-size:26px}
+  .muted{color:var(--ink-dim)}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid #334155;border-radius:999px;font-size:12px;background:rgba(255,255,255,.03)}
+  .meta{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 
-    <!-- הצגה בלבד + hidden במקום שדה לעריכה -->
-    <div>
-      <strong>מס' סועדים:</strong>
-      <span><%= it.people || 2 %></span>
-      <input type="hidden" name="people" value="<%= it.people || 2 %>"/>
-    </div>
+  .grid{display:grid;grid-template-columns:2fr 1fr;gap:12px}
+  @media (max-width:980px){.grid{grid-template-columns:1fr}}
 
-    <label style="grid-column: 1 / -1">הערות להזמנה (אופציונלי)
-      <textarea name="note" rows="3" placeholder="אלרגיות, העדפות ישיבה..."><%= it.note || '' %></textarea>
-    </label>
+  .card{background:linear-gradient(180deg, rgba(22,26,33,.9), rgba(16,19,25,.94));border:1px solid var(--bd);border-radius:14px;padding:12px}
+  .h2{margin:0 0 8px;font-size:18px}
+  .h3{margin:0 0 8px;font-size:16px}
 
-    <div style="grid-column: 1 / -1">
-      <button class="btn" type="submit">בצע הזמנה</button>
-    </div>
-  </form>
-</section>
-
-<script>
-(function(){
-  const btn = document.getElementById('checkBtn');
-  const res = document.getElementById('checkResult');
-  const t = document.getElementById('checkTime');
-  const p = document.getElementById('checkPeople');
-
-  if (btn && res && t && p) {
-    btn.addEventListener('click', async () => {
-      const time = (t.value || '').trim();
-      const people = Number(p.value || 1);
-      const date = new URLSearchParams(location.search).get('date') || '<%= it.date %>';
-      if (!date || !time) {
-        res.textContent = 'נא לבחור תאריך ושעה';
-        return;
-      }
-      res.textContent = 'בודק זמינות...';
-      try {
-        const r = await fetch(`/api/restaurants/<%= it.r.id %>/check`, {
-          method: 'POST',
-          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-          body: JSON.stringify({ date, time, people })
-        });
-        const data = await r.json().catch(()=>null);
-        if (r.ok && data && data.ok) {
-          res.textContent = 'יש זמינות! אפשר לבצע הזמנה.';
-        } else {
-          const sug = (data && data.suggestions && data.suggestions.length)
-            ? ' הצעות: ' + data.suggestions.join(', ')
-            : '';
-          res.textContent = 'אין זמינות בזמן המבוקש.' + sug;
-        }
-      } catch (e) {
-        res.textContent = 'שגיאה בבדיקה. נסה שוב.';
-      }
-    });
+  .resv-form .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .resv-form label{display:grid;gap:6px}
+  .resv-form input,.resv-form textarea{
+    background:var(--panel2);color:var(--ink);border:1px solid var(--bd);border-radius:10px;padding:8px 10px
   }
-})();
-</script>
+  .resv-form textarea{resize:vertical}
+  .resv-form .block{margin-top:8px}
+  .slots{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+  .chip{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;border:1px solid #2a3040;background:transparent;color:var(--ink);cursor:pointer}
+  .chip:hover{transform:translateY(-1px)}
+  .actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;border:1px solid #2a3040;background:transparent;color:var(--ink);font-weight:600;text-decoration:none}
+  .btn.secondary{opacity:.9}
+  .btn:hover{transform:translateY(-1px)}
+
+  .stack{display:grid;gap:12px}
+  .list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+  .list a{color:var(--ink);text-decoration:none}
+  .list a:hover{text-decoration:underline}
+  .hours{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+  .hours li{display:flex;align-items:center;justify-content:space-between;border-bottom:1px dashed rgba(255,255,255,.06);padding:4px 0}
+
+  .tags{display:flex;gap:6px;flex-wrap:wrap}
+  .tag{padding:6px 10px;border:1px solid #2a3040;border-radius:999px}
+
+  .photos{display:grid;gap:8px}
+  .gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .ph{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;border:1px solid var(--bd);background:#0b0f17}
+  @media (max-width:760px){.gallery{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:520px){.gallery{grid-template-columns:1fr}}
+
+  .menu{display:grid;gap:10px}
+  .menu-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .m-sec{background:linear-gradient(180deg, rgba(22,26,33,.9), rgba(16,19,25,.94));border:1px solid var(--bd);border-radius:14px;padding:10px}
+  .m-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  .m-title{font-weight:700}
+  .m-desc{font-size:13px}
+  .m-price{margin-inline-start:auto}
+  @media (max-width:980px){.menu-grid{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:640px){.menu-grid{grid-template-columns:1fr}}
+
+  .reviews{display:grid;gap:8px}
+  .rev-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  .rev{border:1px solid var(--bd);border-radius:14px;padding:10px;background:var(--panel)}
+  .rev-hd{display:flex;gap:8px;align-items:center}
+  .small{font-size:12px}
+</style>
