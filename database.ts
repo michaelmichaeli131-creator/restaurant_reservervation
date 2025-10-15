@@ -741,22 +741,27 @@ export async function activateUser(id: string) {
   return await setUserActive(id, true);
 }
 
-export async function listUsersWithRestaurants() {
+export async function listUsersWithRestaurants(onlyApproved: boolean = false) {
   const users = await listUsers();
-  const restaurants = await listRestaurants();
+  const restaurants = await listRestaurants("", onlyApproved);
   return users.map(u => ({
     ...u,
     restaurants: restaurants.filter(r => r.ownerId === u.id),
   }));
 }
 
-export async function listRestaurantsWithOwners() {
-  const restaurants = await listRestaurants();
-  return await Promise.all(restaurants.map(async r => ({
-    ...r,
-    owner: await getUserById(r.ownerId),
-  })));
+
+// מציג מסעדות + בעלים. ברירת־המחדל: כולל גם ממתינות (onlyApproved=false)
+export async function listRestaurantsWithOwners(q: string = "", onlyApproved: boolean = false) {
+  const restaurants = await listRestaurants(q, onlyApproved);
+  return await Promise.all(
+    restaurants.map(async (r) => ({
+      ...r,
+      owner: r.ownerId ? await getUserById(r.ownerId) : null,
+    })),
+  );
 }
+
 
 /** מחיקת מסעדה כולל הזמנות ואינדקסים */
 export async function deleteRestaurantCascade(restaurantId: string): Promise<number> {
