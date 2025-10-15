@@ -209,4 +209,66 @@ img{display:block;max-width:100%}
   .oc-row{ grid-template-columns: 66px 1fr 78px; gap:6px; padding:7px 8px; }
   .oc-info{ font-size:0.8rem; }
 }
+/* === FORCE COMPACT MIDDLE PANEL & TABLE === */
+
+/* מצמצם את מינימום רוחב הפאנל האמצעי (במקום 980px) */
+.oc-layout{
+  grid-template-columns: 300px minmax(740px, 1fr) !important;
+}
+
+/* מבטל/מצמצם את ה-min-width של רשימת הסלוטים */
+.oc-slots{
+  min-width: 740px !important;  /* או אפילו: min-width: 0 !important; */
+  font-size: 0.9rem !important;
+}
+
+/* טבלת השורות – קטנה יותר, עם ספציפיות גבוהה ו-!important */
+.oc-panel .oc-row{
+  grid-template-columns: 66px 1fr 76px !important; /* היה 90px 1fr 110px */
+  gap: 6px !important;
+  padding: 6px 8px !important;
+  min-height: 30px !important;
+}
+.oc-panel .oc-th{
+  padding: 6px 8px !important;
+  font-size: 0.9rem !important;
+}
+.oc-panel .oc-time{
+  font-weight: 700 !important;
+  font-size: 0.9rem !important;
+}
+.oc-panel .oc-info{
+  font-size: 0.78rem !important;
+}
+
+/* בר התפוסה – כבר קיצרנו; כאן גם גובה ושוליים קצרים */
+.oc-panel .oc-bar{
+  height: 7px !important;       /* היה 10/12px */
+  margin-top: 1px !important;
+}
+.oc-panel .oc-bar .fill{
+  transform: scaleX(0.58) !important; /* השאר כמו אצלך (קיצור ×1.7) */
+}
+
+/* כותרת טבלת הסלוטים */
+.oc-panel header{
+  padding: 10px 12px !important;
+}
+.oc-cap{ font-size: 0.88rem !important; }
+
+/* מובייל: עוד יותר צפוף */
+@media (max-width: 720px){
+  .oc-layout{
+    grid-template-columns: 1fr !important;
+  }
+  .oc-panel .oc-row{
+    grid-template-columns: 60px 1fr 70px !important;
+    gap: 6px !important;
+    padding: 6px 8px !important;
+  }
+  .oc-slots{
+    min-width: 0 !important;
+  }
+}
+
 
