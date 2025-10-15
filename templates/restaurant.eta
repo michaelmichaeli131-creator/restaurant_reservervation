@@ -22,7 +22,7 @@
     const PEOPLE_INIT = Math.max(1, Number(it.people || 2) || 2);
   %>
 
-  <!-- Hero -->
+  <!-- Hero (נשאר גדול) -->
   <section class="hero card" aria-label="תמונה ראשית">
     <img
       src="<%= hero %>"
@@ -32,8 +32,8 @@
     />
   </section>
 
-  <!-- שלב 1: בחירת זמן/תאריך/סועדים -->
-  <section class="card" id="step-1">
+  <!-- שלב 1 -->
+  <section class="card">
     <h2 class="h2">הזמנת מקום — שלב 1</h2>
 
     <% if (it.conflict) { %>
@@ -42,7 +42,6 @@
       </div>
     <% } %>
 
-    <!-- שים לב: זה אותו טופס סופי; רק את שלב 2 נציג/נסתיר פרוגרסיבית -->
     <form id="reserve-form"
           class="form-grid"
           action="/restaurants/<%= it.restaurant.id %>/reserve"
@@ -67,44 +66,13 @@
           <div class="time-options" id="time-options" hidden role="listbox"></div>
         </div>
         <input type="hidden" id="time" name="time" value="<%= it.time || '' %>"/>
-        <small class="muted">שעות בתדירות <span id="step-label"><%= SLOT_STEP %></span> דקות (רק בתוך שעות הפתיחה של המסעדה)</small>
+        <small class="muted">שעות בתדירות <span id="step-label"><%= SLOT_STEP %></span> דקות (בתוך שעות הפתיחה)</small>
       </div>
 
       <div class="form-actions">
-        <!-- במקום לשלוח – עוברים לשלב 2 -->
-        <button type="button" id="to-step-2" class="btn primary">המשך לשלב פרטים</button>
+        <button type="submit" class="btn primary">המשך לשלב פרטים</button>
         <button type="button" id="check-btn" class="btn ghost" data-rid="<%= it.restaurant.id %>">בדוק זמינות</button>
       </div>
-
-      <!-- שלב 2: פרטי קשר + הערות (מוסתר עד לחיצה) -->
-      <fieldset id="step-2" class="step2" hidden>
-        <legend class="h2">שלב 2 — פרטי יצירת קשר</legend>
-
-        <div class="form-row">
-          <label for="name"><span>שם המזמין/ה</span></label>
-          <input id="name" name="name" type="text" autocomplete="name" placeholder="שם פרטי ומשפחה" required />
-        </div>
-
-        <div class="form-row">
-          <label for="phone"><span>טלפון</span></label>
-          <input id="phone" name="phone" type="tel" dir="ltr" autocomplete="tel" placeholder="05x-xxxxxxx" required />
-        </div>
-
-        <div class="form-row">
-          <label for="email"><span>אימייל</span></label>
-          <input id="email" name="email" type="email" dir="ltr" autocomplete="email" placeholder="name@example.com" required />
-        </div>
-
-        <div class="form-row" style="grid-column:1 / -1">
-          <label for="notes"><span>הערות</span></label>
-          <textarea id="notes" name="notes" rows="3" placeholder="אלרגיות, העדפות ישיבה וכו’"></textarea>
-        </div>
-
-        <div class="form-actions">
-          <button type="submit" class="btn primary">אישור הזמנה</button>
-          <button type="button" id="back-to-step-1" class="btn ghost">חזרה לשלב 1</button>
-        </div>
-      </fieldset>
     </form>
   </section>
 
@@ -153,7 +121,7 @@
   <% } %>
 </main>
 
-<!-- *** הזרקת נתונים מהשרת (כולל rid) *** -->
+<!-- *** נתונים מהשרת *** -->
 <meta id="srv-data"
   data-rid="<%= it.restaurant.id %>"
   data-weekly='<%= JSON.stringify(it.restaurant?.weeklySchedule ?? it.restaurant?.openingHours ?? it.restaurant?.hours ?? it.restaurant?.open_hours ?? null) %>'
@@ -181,10 +149,6 @@
     const stepLabel = document.getElementById("step-label");
     const meta = document.getElementById("srv-data");
 
-    const toStep2Btn = document.getElementById("to-step-2");
-    const backBtn = document.getElementById("back-to-step-1");
-    const step2 = document.getElementById("step-2");
-
     const parseJSON = (s) => { try { return JSON.parse(s); } catch { return null; } };
     const RID = meta?.dataset.rid || "";
     const FALLBACK_WEEKLY = parseJSON(meta?.dataset.weekly ?? "null");
@@ -192,25 +156,6 @@
     let STEP_MIN = Math.max(1, parseInt(parseJSON(meta?.dataset.step ?? "15") ?? 15, 10) || 15);
     if (stepLabel) stepLabel.textContent = String(STEP_MIN);
 
-    /* ====== Step Flow ====== */
-    toStep2Btn?.addEventListener("click", () => {
-      const dateVal = (dateInput.value || "").trim();
-      const timeVal = (hiddenInput.value || "").trim();
-      const pplVal  = Math.max(1, parseInt((peopleInput.value || "1"), 10) || 1);
-      if (!dateVal || !timeVal || !pplVal) {
-        alert("נא לבחור תאריך, שעה ומספר סועדים לפני המשך.");
-        return;
-      }
-      step2.hidden = false;
-      step2.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-
-    backBtn?.addEventListener("click", () => {
-      step2.hidden = true;
-      document.getElementById("step-1").scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-
-    /* ====== Time building (כמו בקוד שלך) ====== */
     const pad2 = (n) => String(n).padStart(2, "0");
     const toMin = (hhmm) => {
       const m = (hhmm || "").match(/^(\d{1,2}):(\d{2})$/);
@@ -335,7 +280,6 @@
       });
     }
 
-    /* פתיחה/בחירה של רשימת שעות */
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -350,6 +294,7 @@
         btn.setAttribute("aria-expanded","true");
       }
     });
+
     document.addEventListener("click", (e) => {
       if (!btn.contains(e.target) && !opts.contains(e.target)) {
         if (!opts.hidden) {
@@ -358,6 +303,7 @@
         }
       }
     });
+
     opts.addEventListener("click", (ev) => {
       const el = ev.target?.closest?.(".time-option");
       if (!el || el.getAttribute("aria-disabled")==="true") return;
@@ -365,14 +311,14 @@
       if (!v) return;
       btn.textContent = v + " ";
       const arr = document.createElement("span");
-      arr.className = "arrow"; arr.textContent = "▾";
+      arr.className = "arrow";
+      arr.textContent = "▾";
       btn.appendChild(arr);
       hiddenInput.value = v;
       opts.hidden = true;
       btn.setAttribute("aria-expanded", "false");
     });
 
-    /* שינוי תאריך → טען שעות מחדש ושמור עקביות */
     dateInput.addEventListener("change", () => {
       const prev = hiddenInput.value;
       const d = dateInput.value || new Date().toISOString().slice(0,10);
@@ -384,37 +330,20 @@
             hiddenInput.value = "";
             btn.textContent = "בחר שעה ";
             const arr = document.createElement("span");
-            arr.className = "arrow"; arr.textContent = "▾";
+            arr.className = "arrow";
+            arr.textContent = "▾";
             btn.appendChild(arr);
           }
         }, 0);
       }
     });
 
-    /* INIT */
     (function initTimeForInitialDate(){
       const initDate = dateInput.value || new Date().toISOString().slice(0,10);
       rebuildTimeOptionsFor(initDate);
     })();
 
-    /* שליחת טופס (סופי) — מוסיף גם query לקריאה נוחה */
-    form.addEventListener("submit", (ev) => {
-      const dateVal = (dateInput.value || "").trim();
-      const timeVal = (hiddenInput.value || "").trim();
-      const pplVal  = Math.max(1, parseInt((peopleInput.value || "1"), 10) || 1);
-      if (!dateVal || !timeVal) {
-        ev.preventDefault();
-        alert("נא לבחור תאריך ושעה");
-        return;
-      }
-      const u = new URL(form.action, window.location.origin);
-      u.searchParams.set("date", dateVal);
-      u.searchParams.set("time", timeVal);
-      u.searchParams.set("people", String(pplVal));
-      form.action = u.pathname + u.search;
-    });
-
-    /* בדיקת זמינות + הצעות סביב השעה (שומר על הפיצ'ר המקורי) */
+    // "בדוק זמינות" + הצעות סביב השעה
     const checkBtn = document.getElementById("check-btn");
     checkBtn?.addEventListener("click", async () => {
       const date = (dateInput.value || "").trim();
@@ -457,7 +386,6 @@
           arr.className = "arrow"; arr.textContent = "▾";
           btn.appendChild(arr);
           card.hidden = true;
-          document.getElementById("to-step-2")?.focus();
         };
         box.appendChild(b);
       });
@@ -488,6 +416,7 @@
   .hero-head .title{ margin:0 0 4px; letter-spacing:.2px }
   .muted{ color:var(--ink-muted) }
 
+  /* Hero stays large */
   .hero-img{ width:100%; height:320px; object-fit:cover;
              border-radius:14px; border:1px solid var(--bd); background:#0b0f17 }
   @media (max-width:860px){ .hero-img{ height:240px } }
@@ -536,16 +465,18 @@
   .slot{ padding:8px 12px; border:1px solid var(--bd); border-radius:12px; background:var(--panel2); cursor:pointer }
   .slot:hover{ background:rgba(255,255,255,.04) }
 
+  /* Menu */
   .menu-list{ list-style:none; margin:0; padding:0; display:grid; gap:10px }
   .menu-item{ border-bottom:1px dashed rgba(255,255,255,.06); padding-bottom:10px }
   .mi-row{ display:flex; align-items:center; justify-content:space-between; gap:10px }
   .mi-price{ color:#bfe0ff }
   .mi-desc{ margin-top:4px }
 
+  /* Photos (קטן יותר לפי בקשתך) */
+  .photo-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:10px }
+  .photo-grid img{ width:100%; height:110px; object-fit:cover; border-radius:12px; border:1px solid var(--bd); background:#0b0f17 }
+
   @media (max-width:860px){
     .form-grid{ grid-template-columns:1fr }
   }
-
-  /* שלב 2 בלוק */
-  .step2{ margin-top:14px; padding-top:6px; border-top:1px solid rgba(255,255,255,.06) }
 </style>

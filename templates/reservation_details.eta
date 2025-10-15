@@ -1,194 +1,159 @@
 <% layout("_layout", it) %>
-
-<section class="resv">
-  <header class="resv-hd">
-    <div class="brand">
-      <% if (it.restaurant && it.restaurant.cover) { %>
-        <div class="cover" style="background-image:url('<%= it.restaurant.cover %>')"></div>
+<main class="container sb-rest">
+  <header class="page-header card hero-head">
+    <div class="hd-text">
+      <h1 class="title">פרטי הזמנה — <%= it.restaurant.name %></h1>
+      <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+      <% if (it.restaurant.phone) { %>
+        <p class="muted" dir="ltr">טלפון: <%= it.restaurant.phone %></p>
       <% } %>
-      <div class="meta">
-        <h1 class="title"><%= (it.restaurant && it.restaurant.name) || 'הזמנה' %></h1>
-        <% if (it.restaurant && (it.restaurant.city || it.restaurant.address)) { %>
-          <div class="sub muted">
-            <%= [it.restaurant.city, it.restaurant.address].filter(Boolean).join(" · ") %>
-          </div>
-        <% } %>
-      </div>
-      <div class="status">
-        <span class="badge <%= it.reservation && it.reservation.status === 'cancelled' ? 'bad' : 'good' %>">
-          <%= it.reservation && it.reservation.status === 'cancelled' ? 'בוטלה' : 'מאושרת' %>
-        </span>
-      </div>
     </div>
   </header>
 
-  <div class="grid">
-    <!-- פרטי הזמנה -->
-    <article class="card">
-      <h2 class="h2">פרטי ההזמנה</h2>
-      <dl class="dl">
-        <% if (it.reservation && (it.reservation.date || it.reservation.time || it.reservation.slot)) { %>
-          <div class="row">
-            <dt>תאריך ושעה</dt>
-            <dd>
-              <%= it.reservation.date || '' %>
-              <%~ (it.reservation.time ? ' · ' + it.reservation.time : '') %>
-              <%~ (it.reservation.slot ? ' · שולחן לשעה ' + it.reservation.slot + ' ד׳' : '') %>
-            </dd>
-          </div>
-        <% } %>
+  <section class="card">
+    <h2 class="h2">שלב 2 — פרטי לקוח</h2>
 
-        <% if (it.reservation && (it.reservation.size || it.reservation.guests)) { %>
-          <div class="row">
-            <dt>כמות סועדים</dt>
-            <dd><%= it.reservation.size || it.reservation.guests %></dd>
-          </div>
-        <% } %>
+    <div class="summary">
+      <div><strong>תאריך:</strong> <span id="sum-date"><%= it.date %></span></div>
+      <div><strong>שעה:</strong> <span id="sum-time"><%= it.time %></span></div>
+      <div><strong>מס׳ סועדים:</strong> <span id="sum-people"><%= it.people %></span></div>
+      <div><strong>מסעדה:</strong> <%= it.restaurant.name %></div>
+    </div>
 
-        <% if (it.reservation && (it.reservation.name || it.reservation.contactName)) { %>
-          <div class="row">
-            <dt>שם המזמין/ה</dt>
-            <dd><%= it.reservation.name || it.reservation.contactName %></dd>
-          </div>
-        <% } %>
+    <form id="details-form"
+          class="form-grid"
+          action="/restaurants/<%= it.restaurant.id %>/confirm"
+          method="post" novalidate>
+      <!-- ערכי שלב 1 (נעולים) -->
+      <input type="hidden" name="date" value="<%= it.date %>"/>
+      <input type="hidden" name="time" value="<%= it.time %>"/>
+      <input type="hidden" id="hidden-people" name="people" value="<%= it.people %>"/>
 
-        <% if (it.reservation && (it.reservation.phone || it.reservation.contactPhone)) { %>
-          <div class="row">
-            <dt>טלפון</dt>
-            <dd dir="ltr"><%= it.reservation.phone || it.reservation.contactPhone %></dd>
-          </div>
-        <% } %>
-
-        <% if (it.reservation && it.reservation.email) { %>
-          <div class="row">
-            <dt>אימייל</dt>
-            <dd dir="ltr"><%= it.reservation.email %></dd>
-          </div>
-        <% } %>
-
-        <% if (it.reservation && it.reservation.notes) { %>
-          <div class="row">
-            <dt>הערות</dt>
-            <dd class="pre"><%= it.reservation.notes %></dd>
-          </div>
-        <% } %>
-      </dl>
-
-      <div class="actions">
-        <% if (!it.reservation || it.reservation.status !== 'cancelled') { %>
-          <% if (it.links && it.links.edit) { %><a class="btn" href="<%= it.links.edit %>">עריכת הזמנה</a><% } %>
-          <% if (it.links && it.links.cancel) { %>
-            <form class="inline" method="post" action="<%= it.links.cancel %>" onsubmit="return confirm('לבטל את ההזמנה?')">
-              <button class="btn danger" type="submit">ביטול הזמנה</button>
-            </form>
-          <% } %>
-        <% } else { %>
-          <% if (it.links && it.links.rebook) { %><a class="btn" href="<%= it.links.rebook %>">הזמנה חדשה</a><% } %>
-        <% } %>
+      <!-- פרטי לקוח -->
+      <div class="form-row">
+        <label for="name"><span>שם מלא</span></label>
+        <input id="name" name="name" type="text" required autocomplete="name"
+               placeholder="שם פרטי ושם משפחה"/>
       </div>
-    </article>
 
-    <!-- כרטיסים משלימים -->
-    <aside class="stack">
-      <!-- כרטיס QR / קבלה -->
-      <% if ((it.qr && it.qr.src) || (it.reservation && it.reservation.id)) { %>
-      <article class="card">
-        <h3 class="h3">קוד הזמנה</h3>
-        <div class="qr">
-          <% if (it.qr && it.qr.src) { %>
-            <img src="<%= it.qr.src %>" alt="QR להזמנה" width="160" height="160" />
-          <% } else { %>
-            <img src="/qr?text=<%= encodeURIComponent(String(it.reservation.id)) %>" alt="QR להזמנה" width="160" height="160" />
-          <% } %>
-        </div>
-        <div class="muted small" dir="ltr">#<%= (it.reservation && it.reservation.id) || '' %></div>
-      </article>
-      <% } %>
-
-      <!-- הוסף ליומן -->
-      <% if (it.calendar && (it.calendar.ics || it.calendar.google || it.calendar.apple)) { %>
-      <article class="card">
-        <h3 class="h3">הוסף ליומן</h3>
-        <div class="row chips">
-          <% if (it.calendar.ics) { %><a class="chip" href="<%= it.calendar.ics %>">ICS</a><% } %>
-          <% if (it.calendar.google) { %><a class="chip" href="<%= it.calendar.google %>" target="_blank" rel="noopener">Google</a><% } %>
-          <% if (it.calendar.apple) { %><a class="chip" href="<%= it.calendar.apple %>">Apple</a><% } %>
-        </div>
-      </article>
-      <% } %>
-
-      <!-- יצירת קשר / ניווט -->
-      <% if (it.restaurant && (it.restaurant.phone || it.restaurant.map || it.restaurant.website)) { %>
-      <article class="card">
-        <h3 class="h3">יצירת קשר</h3>
-        <ul class="list">
-          <% if (it.restaurant.phone) { %><li><a href="tel:<%= it.restaurant.phone %>">📞 <span dir="ltr"><%= it.restaurant.phone %></span></a></li><% } %>
-          <% if (it.restaurant.website) { %><li><a href="<%= it.restaurant.website %>" target="_blank" rel="noopener">🌐 אתר המסעדה</a></li><% } %>
-          <% if (it.restaurant.map) { %><li><a href="<%= it.restaurant.map %>" target="_blank" rel="noopener">🗺️ נווט עם מפות</a></li><% } %>
-        </ul>
-      </article>
-      <% } %>
-    </aside>
-  </div>
-
-  <!-- גלריית תמונות (אם קיימת) -->
-  <% if (it.restaurant && it.restaurant.photos && it.restaurant.photos.length) { %>
-    <section class="photos">
-      <h2 class="h2">מהמקום</h2>
-      <div class="gallery">
-        <% it.restaurant.photos.forEach(src => { %>
-          <img class="ph" src="<%= src %>" alt="">
-        <% }) %>
+      <div class="form-row">
+        <label for="phone"><span>נייד</span></label>
+        <input id="phone" name="phone" type="tel" required inputmode="tel"
+               placeholder="050-1234567"/>
       </div>
+
+      <div class="form-row">
+        <label for="email"><span>אימייל</span></label>
+        <input id="email" name="email" type="email" dir="ltr" inputmode="email"
+               autocomplete="email" autocapitalize="off" spellcheck="false"
+               placeholder="you@example.com" required />
+        <small class="muted">נשלח אליך אישור הזמנה</small>
+      </div>
+
+      <div class="form-row" style="grid-column: 1 / -1">
+        <label for="note"><span>הערות ובקשות מיוחדות (אופציונלי)</span></label>
+        <textarea id="note" name="note" rows="3" maxlength="500"
+                  placeholder="אלרגיות, עדיפות למיקום, חגיגה, כסא תינוק..."></textarea>
+        <small class="muted">עד 500 תווים</small>
+      </div>
+
+      <!-- הצגה בלבד של הסועדים לאימות -->
+      <div class="form-row">
+        <label><span>מספר סועדים</span></label>
+        <div class="readonly-box"><%= it.people %></div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn primary">אשר הזמנה</button>
+        <a class="btn ghost" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
+          חזרה לשינוי שעה/תאריך
+        </a>
+      </div>
+    </form>
+  </section>
+
+  <% if (it.restaurant.description) { %>
+    <section class="card">
+      <h2 class="h2">על המסעדה</h2>
+      <p class="muted"><%= it.restaurant.description %></p>
     </section>
   <% } %>
-</section>
+</main>
+
+<script>
+  (function(){
+    // נרמול אימיילים (BIDI וכו') כדי לשפר שליחת מייל
+    const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+    const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
+    function normalizeEmail(s) {
+      s = (s || "").toString();
+      s = s.replace(BIDI, "");
+      s = s.replace(/＠/g, "@").replace(/．/g, ".");
+      s = s.replace(ZSP, " ").trim();
+      s = s.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
+      return s.toLowerCase();
+    }
+    const emailEl = document.getElementById('email');
+    if (emailEl) {
+      emailEl.addEventListener('blur', () => {
+        emailEl.value = normalizeEmail(emailEl.value);
+      });
+    }
+
+    // שמירה על עקביות התקציר
+    const hiddenPeople = document.getElementById('hidden-people');
+    const sumP = document.getElementById('sum-people');
+    if (hiddenPeople && sumP) {
+      sumP.textContent = hiddenPeople.value || sumP.textContent;
+    }
+  })();
+</script>
 
 <style>
-  :root{--bd:#222834;--panel:#12151b;--panel2:#161a21;--ink:#e6e9ef;--ink-dim:#98a2b3;--ok:#22c55e;--bad:#ef4444}
+  :root{
+    --bg:#0e1116; --panel:#121622; --panel2:#171b29; --ink:#e6e8ef; --ink-muted:#9aa3b2;
+    --bd:#23293a; --brand:#3b82f6; --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  body.sb-body{
+    background: radial-gradient(1200px 600px at 80% -100px, rgba(65,84,255,.18), transparent),
+                radial-gradient(700px 400px at -20% 10%, rgba(19,190,255,.12), transparent),
+                var(--bg);
+    color:var(--ink);
+  }
+  .container.sb-rest { max-width: 900px; margin: 18px auto; padding: 0 16px; }
 
-  .resv{max-width:1100px;margin:0 auto;display:grid;gap:14px}
-  .resv-hd .brand{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center}
-  .cover{inline-size:72px; block-size:72px; border-radius:14px; border:1px solid var(--bd); background:#0b0f17 center/cover no-repeat}
-  .title{margin:0}
-  .muted{color:var(--ink-dim)}
-  .status{display:flex;align-items:center}
-  .badge{padding:5px 8px;border-radius:999px;border:1px solid #334155;font-size:12px}
-  .badge.good{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.35)}
-  .badge.bad{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35)}
+  .card{ background:linear-gradient(180deg, rgba(22,26,33,.9), rgba(16,19,25,.94));
+         border:1px solid var(--bd); border-radius:var(--radius);
+         padding:14px; margin-bottom:16px; box-shadow:var(--shadow); }
 
-  .grid{display:grid;grid-template-columns:2fr 1fr;gap:12px}
-  @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  .hero-head .title{ margin:0 0 4px }
+  .muted{ color:var(--ink-muted) }
 
-  .card{background:linear-gradient(180deg, rgba(22,26,33,.9), rgba(16,19,25,.94));border:1px solid var(--bd);border-radius:14px;padding:12px}
-  .h2{margin:0 0 8px;font-size:18px}
-  .h3{margin:0 0 8px;font-size:16px}
+  .h2{ margin:0 0 10px; font-size:20px }
 
-  .dl{display:grid;gap:8px;margin:0}
-  .dl .row{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:start}
-  .dl dt{color:var(--ink-dim);font-size:12px}
-  .dl dd{margin:0}
-  .pre{white-space:pre-wrap}
+  .summary {
+    display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px;
+    color: var(--ink-muted);
+  }
 
-  .actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;border:1px solid #2a3040;background:transparent;color:var(--ink);font-weight:600;text-decoration:none}
-  .btn:hover{transform:translateY(-1px)}
-  .btn.danger{border-color:rgba(239,68,68,.45);color:#fecaca}
+  .form-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px }
+  .form-row{ display:flex; flex-direction:column; gap:6px }
+  .form-row input, .form-row textarea{
+    background:var(--panel2); color:var(--ink); border:1px solid var(--bd);
+    border-radius:12px; padding:10px 12px; outline:none;
+  }
+  .form-row input:focus, .form-row textarea:focus{ box-shadow:0 0 0 3px rgba(59,130,246,.25); border-color:rgba(59,130,246,.45) }
+  .readonly-box {
+    padding:10px 12px; border:1px dashed var(--bd); border-radius:12px; background:var(--panel2);
+  }
 
-  .stack{display:grid;gap:12px}
-  .qr{display:flex;justify-content:center;margin:6px 0}
+  .form-actions{ grid-column:1 / -1; display:flex; gap:10px; flex-wrap:wrap; margin-top:6px }
+  .btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px;
+        border-radius:999px; padding:10px 16px; border:1px solid var(--bd);
+        cursor:pointer; text-decoration:none; color:var(--ink); background:transparent; }
+  .btn.primary{ background:var(--brand); border-color:transparent; color:#fff; box-shadow:0 6px 18px rgba(59,130,246,.35) }
+  .btn.ghost{ background:transparent }
+  .btn:hover{ filter:brightness(1.05) }
 
-  .list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
-  .list a{color:var(--ink);text-decoration:none}
-  .list a:hover{text-decoration:underline}
-
-  .chips{gap:6px}
-  .chip{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;border:1px solid #2a3040;text-decoration:none;color:var(--ink)}
-  .chip:hover{transform:translateY(-1px)}
-
-  .photos{display:grid;gap:8px}
-  .gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-  .ph{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;border:1px solid var(--bd);background:#0b0f17}
-  @media (max-width:720px){.gallery{grid-template-columns:repeat(2,1fr)}}
-  @media (max-width:520px){.gallery{grid-template-columns:1fr}}
+  @media (max-width:760px){ .form-grid{ grid-template-columns:1fr } }
 </style>
