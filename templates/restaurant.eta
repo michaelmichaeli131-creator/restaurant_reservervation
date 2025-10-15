@@ -1,450 +1,100 @@
 <% layout("_layout", it) %>
-<main class="container">
-  <header class="page-header">
-    <h1><%= it.restaurant.name %></h1>
-    <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
-    <% if (it.restaurant.phone) { %>
-      <p class="muted">טלפון: <%= it.restaurant.phone %></p>
-    <% } %>
+
+<section class="r-list">
+  <header class="tools">
+    <h1>מסעדות</h1>
+    <form class="filters" method="get" action="/restaurants">
+      <input type="search" name="q" value="<%= it.q || '' %>" placeholder="חיפוש לפי שם/עיר/סוג מטבח">
+      <select name="city">
+        <option value="">כל הערים</option>
+        <% (it.cities || []).forEach(c => { %>
+          <option value="<%= c %>" <%= it.city===c ? 'selected':'' %>><%= c %></option>
+        <% }) %>
+      </select>
+      <select name="cuisine">
+        <option value="">כל המטבחים</option>
+        <% (it.cuisines || []).forEach(c => { %>
+          <option value="<%= c %>" <%= it.cuisine===c ? 'selected':'' %>><%= c %></option>
+        <% }) %>
+      </select>
+      <button class="btn" type="submit">סינון</button>
+      <% if (it.q || it.city || it.cuisine) { %>
+        <a class="btn secondary" href="/restaurants">ניקוי</a>
+      <% } %>
+    </form>
   </header>
 
-  <%
-    const _photos = Array.isArray(it.restaurant.photos)
-      ? it.restaurant.photos.map(p => (typeof p === 'string' ? p : p?.dataUrl)).filter(Boolean)
-      : [];
-    const staticPrefix = it.staticPrefix || "/static";
-    const PLACEHOLDER = staticPrefix + "/placeholder.png";
-    const hero = _photos[0] || PLACEHOLDER;
-
-    const SLOT_STEP = it.restaurant?.slotIntervalMinutes || it.slotIntervalMinutes || 15;
-    const PEOPLE_INIT = Math.max(1, Number(it.people || 2) || 2);
-  %>
-
-  <!-- Hero -->
-  <section class="hero card" aria-label="תמונה ראשית">
-    <img
-      src="<%= hero %>"
-      alt="תמונה ראשית של <%= it.restaurant.name %>"
-      class="hero-img"
-      onerror="this.src='<%= PLACEHOLDER %>'"
-    />
-  </section>
-
-  <section class="card">
-    <h2 style="margin-top:0">הזמנת מקום — שלב 1</h2>
-
-    <% if (it.conflict) { %>
-      <div class="alert warn" role="alert">
-        אין זמינות בשעה שבחרת. בחר/י שעה אחרת מהרשימה להלן.
-      </div>
-    <% } %>
-
-    <form id="reserve-form"
-          class="form-grid"
-          action="/restaurants/<%= it.restaurant.id %>/reserve"
-          method="post" novalidate>
-      <div class="form-row">
-        <label for="date">תאריך</label>
-        <input id="date" name="date" type="date" required value="<%= it.date || '' %>"/>
-      </div>
-
-      <div class="form-row">
-        <label for="people">מס׳ סועדים</label>
-        <input id="people" name="people" type="number" min="1" step="1" required value="<%= PEOPLE_INIT %>"/>
-      </div>
-
-      <div class="form-row time-row">
-        <label for="time-display">שעה</label>
-        <div class="time-dropdown-wrapper">
-          <button type="button" class="time-dropdown-btn" id="time-display" aria-haspopup="listbox" aria-expanded="false">
-            <%= it.time || "בחר שעה" %>
-            <span class="arrow">▾</span>
-          </button>
-          <div class="time-options" id="time-options" hidden role="listbox"></div>
-        </div>
-        <input type="hidden" id="time" name="time" value="<%= it.time || '' %>"/>
-        <small class="muted">שעות בתדירות <span id="step-label"><%= SLOT_STEP %></span> דקות (רק בתוך שעות הפתיחה של המסעדה)</small>
-      </div>
-
-      <div class="form-actions">
-        <button type="submit" class="btn">המשך לשלב הבא</button>
-        <button type="button" id="check-btn" class="btn secondary" data-rid="<%= it.restaurant.id %>">בדוק זמינות</button>
-      </div>
-    </form>
-  </section>
-
-  <section class="card" id="around-card" hidden>
-    <h3 style="margin-top:0">שעות זמינות סביב המועד שבחרת (±2 שעות)</h3>
-    <div id="around-slots" class="slots"></div>
-    <small class="muted">לחיצה על שעה מעתיקה לשדה השעה.</small>
-  </section>
-
-  <% if (it.restaurant.description) { %>
-    <section class="card">
-      <h2 style="margin-top:0">על המסעדה</h2>
-      <p><%= it.restaurant.description %></p>
-    </section>
+  <% const list = it.restaurants || it.items || []; %>
+  <% if (list.length === 0) { %>
+    <div class="empty card">
+      <h3 class="h3">לא נמצאו תוצאות</h3>
+      <p class="muted">נסה/י לשנות מילות חיפוש או פילטרים.</p>
+    </div>
+  <% } else { %>
+    <div class="grid">
+      <% list.forEach(r => { %>
+        <a class="card r" href="/restaurants/<%= r.id %>">
+          <div class="img" style="background-image:url('<%= r.cover || "/public/img/hero-restaurant-dark.jpg" %>')"></div>
+          <div class="body">
+            <div class="row">
+              <div class="name"><%= r.name %></div>
+              <% if (r.rating) { %><div class="pill">★ <%= r.rating %></div><% } %>
+            </div>
+            <div class="meta muted">
+              <%= [r.city, r.address].filter(Boolean).join(' · ') %>
+            </div>
+            <div class="tags">
+              <% if (r.cuisine) { %><span class="tag"><%= r.cuisine %></span><% } %>
+              <% if (r.priceLevel) { %><span class="tag">₪<%= r.priceLevel %></span><% } %>
+              <% if (r.approved === false) { %><span class="tag warn">ממתינה</span><% } %>
+            </div>
+          </div>
+        </a>
+      <% }) %>
+    </div>
   <% } %>
 
-  <% if (it.restaurant.menu && it.restaurant.menu.length) { %>
-    <section class="card">
-      <h2 style="margin-top:0">תפריט</h2>
-      <ul class="menu-list">
-        <% it.restaurant.menu.forEach(item => { %>
-          <li>
-            <strong><%= item.name %></strong>
-            <% if (item.price != null) { %> — <span class="muted"><%= item.price %> ₪</span><% } %>
-            <% if (item.desc) { %><br/><span class="muted"><%= item.desc %></span><% } %>
-          </li>
-        <% }) %>
-      </ul>
-    </section>
+  <% if (it.page && it.pages && it.pages > 1) { %>
+    <nav class="pager" aria-label="ניווט עמודים">
+      <% for (let p = 1; p <= it.pages; p++) { %>
+        <a class="pg <%= p===it.page ? 'on':'' %>" href="/restaurants?page=<%= p %><%= it.q ? '&q='+encodeURIComponent(it.q):'' %><%= it.city ? '&city='+encodeURIComponent(it.city):'' %><%= it.cuisine ? '&cuisine='+encodeURIComponent(it.cuisine):'' %>"><%= p %></a>
+      <% } %>
+    </nav>
   <% } %>
-
-  <% if (_photos.length > 0) { %>
-    <section class="card">
-      <h2 style="margin-top:0">תמונות</h2>
-      <div class="photo-grid">
-        <% _photos.forEach(src => { %>
-          <img src="<%= src %>" alt="תמונה של המסעדה" loading="lazy" onerror="this.src='<%= PLACEHOLDER %>'"/>
-        <% }) %>
-      </div>
-    </section>
-  <% } %>
-</main>
-
-<!-- *** הזרקת נתונים מהשרת (כולל rid) *** -->
-<meta id="srv-data"
-  data-rid="<%= it.restaurant.id %>"
-  data-weekly='<%= JSON.stringify(it.restaurant?.weeklySchedule ?? it.restaurant?.openingHours ?? it.restaurant?.hours ?? it.restaurant?.open_hours ?? null) %>'
-  data-windows='<%= JSON.stringify(it.openingWindows ?? null) %>'
-  data-step='<%= JSON.stringify(it.restaurant?.slotIntervalMinutes ?? it.slotIntervalMinutes ?? 15) %>'>
-
-<script>
-  (function () {
-    const meta = document.getElementById("srv-data");
-    console.debug("SRV weeklySchedule:", meta?.dataset.weekly ?? "(missing)");
-    console.debug("SRV openingWindows(today):", meta?.dataset.windows ?? "(missing)");
-    console.debug("SRV slotIntervalMinutes:", meta?.dataset.step ?? "(missing)");
-    console.debug("SRV rid:", meta?.dataset.rid ?? "(missing)");
-  })();
-</script>
-
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const btn = document.getElementById("time-display");
-    const opts = document.getElementById("time-options");
-    const hiddenInput = document.getElementById("time");
-    const form = document.getElementById("reserve-form");
-    const dateInput = document.getElementById("date");
-    const peopleInput = document.getElementById("people");
-    const stepLabel = document.getElementById("step-label");
-    const meta = document.getElementById("srv-data");
-
-    const parseJSON = (s) => { try { return JSON.parse(s); } catch { return null; } };
-    const RID = meta?.dataset.rid || "";
-    const FALLBACK_WEEKLY = parseJSON(meta?.dataset.weekly ?? "null");
-    const FALLBACK_WINDOWS_TODAY = parseJSON(meta?.dataset.windows ?? "null");
-    let STEP_MIN = Math.max(1, parseInt(parseJSON(meta?.dataset.step ?? "15") ?? 15, 10) || 15);
-    if (stepLabel) stepLabel.textContent = String(STEP_MIN);
-
-    const pad2 = (n) => String(n).padStart(2, "0");
-    const toMin = (hhmm) => {
-      const m = (hhmm || "").match(/^(\d{1,2}):(\d{2})$/);
-      if (!m) return null;
-      const h = Math.min(23, Math.max(0, parseInt(m[1], 10)));
-      const mi = Math.min(59, Math.max(0, parseInt(m[2], 10)));
-      return h * 60 + mi;
-    };
-    const fromMin = (mins) => `${pad2(Math.floor(mins/60))}:${pad2(mins%60)}`;
-    const roundToStepUp = (mins) => {
-      const step = Math.max(1, STEP_MIN);
-      const rem = mins % step;
-      return rem ? mins + (step - rem) : mins;
-    };
-
-    async function fetchOpeningForDate(rid, dateStr) {
-      const url = `/restaurants/${encodeURIComponent(rid)}/opening?date=${encodeURIComponent(dateStr)}`;
-      const res = await fetch(url, { headers: { "Accept": "application/json" }, cache: "no-store" });
-      if (!res.ok) throw new Error("opening_fetch_failed");
-      return res.json();
-    }
-
-    function buildOptionsFromWindows(windows, step) {
-      const frag = document.createDocumentFragment();
-      let count = 0;
-      for (const w of windows) {
-        const s = toMin(w.open), e = toMin(w.close);
-        if (s == null || e == null) continue;
-        for (let m = roundToStepUp(s); m + step <= e; m += step) {
-          const hhmm = fromMin(m);
-          const div = document.createElement("div");
-          div.className = "time-option";
-          div.setAttribute("role","option");
-          div.dataset.value = hhmm;
-          div.textContent = hhmm;
-          frag.appendChild(div);
-          count++;
-        }
-      }
-      return { frag, count };
-    }
-
-    function fallbackRangesFor(dateStr) {
-      const d = new Date(dateStr || Date.now());
-      if (isNaN(d.getTime())) return [[0, 24*60-1]];
-      const dow = d.getDay();
-
-      if (Array.isArray(FALLBACK_WINDOWS_TODAY) && FALLBACK_WINDOWS_TODAY.length) {
-        const arr = FALLBACK_WINDOWS_TODAY
-          .map(w => [toMin(w.open), toMin(w.close)])
-          .filter(([a,b]) => Number.isFinite(a) && Number.isFinite(b))
-          .map(([a,b]) => b <= a ? [a, 24*60-1] : [a,b]);
-        if (arr.length) return arr;
-      }
-      if (!FALLBACK_WEEKLY) return [[0, 24*60-1]];
-
-      const dayDef = FALLBACK_WEEKLY[dow] ?? FALLBACK_WEEKLY[String(dow)] ?? null;
-      if (!dayDef) return [[0, 24*60-1]];
-
-      const toM = (s) => {
-        const m = (s || "").match(/^(\d{1,2}):(\d{2})$/);
-        if (!m) return null;
-        return Math.min(23, Math.max(0, +m[1])) * 60 + Math.min(59, Math.max(0, +m[2]));
-      };
-      const items = (Array.isArray(dayDef) ? dayDef : [dayDef]).map(item => {
-        let s=null,e=null;
-        if (typeof item === "string") {
-          const m = item.match(/^\s*(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})\s*$/);
-          if (m) { s=m[1]; e=m[2]; }
-        } else if (item && typeof item === "object") {
-          s=item.open ?? item.start ?? item.from ?? item.begin;
-          e=item.close ?? item.end  ?? item.to   ?? item.finish;
-        } else if (Array.isArray(item) && item.length>=2) {
-          s=item[0]; e=item[1];
-        }
-        const a = toM(s), b = toM(e);
-        if (a==null || b==null) return null;
-        return b <= a ? [a, 24*60-1] : [a,b];
-      }).filter(Boolean);
-
-      if (!items.length) return [[0, 24*60-1]];
-      return items.sort((A,B)=>A[0]-B[0]);
-    }
-
-    function rebuildTimeOptionsFor(dateStr) {
-      opts.innerHTML = "";
-      const rid = RID;
-      if (!rid) return;
-
-      fetchOpeningForDate(rid, dateStr).then(data => {
-        const windows = Array.isArray(data?.openingWindows) && data.openingWindows.length
-          ? data.openingWindows : [];
-
-        STEP_MIN = Math.max(1, parseInt(data?.slotIntervalMinutes ?? STEP_MIN, 10) || STEP_MIN);
-        if (stepLabel) stepLabel.textContent = String(STEP_MIN);
-
-        const { frag, count } = buildOptionsFromWindows(windows, Math.max(1, STEP_MIN));
-        if (count === 0) {
-          const empty = document.createElement("div");
-          empty.className = "time-option";
-          empty.setAttribute("aria-disabled","true");
-          empty.textContent = "המסעדה סגורה ביום זה";
-          opts.appendChild(empty);
-        } else {
-          opts.appendChild(frag);
-        }
-        console.debug("GT(API): built time options", { date: dateStr, count, step: STEP_MIN, windows });
-      }).catch(() => {
-        const ranges = fallbackRangesFor(dateStr);
-        const windows = ranges.map(([a,b]) => ({ open: fromMin(a), close: fromMin(b) }));
-        const { frag, count } = buildOptionsFromWindows(windows, Math.max(1, STEP_MIN));
-        if (count === 0) {
-          const empty = document.createElement("div");
-          empty.className = "time-option";
-          empty.setAttribute("aria-disabled","true");
-          empty.textContent = "המסעדה סגורה ביום זה";
-          opts.appendChild(empty);
-        } else {
-          opts.appendChild(frag);
-        }
-        console.debug("GT(FALLBACK): built time options", { date: dateStr, count, step: STEP_MIN, ranges });
-      });
-    }
-
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const openNow = !opts.hidden;
-      if (openNow) {
-        opts.hidden = true;
-        btn.setAttribute("aria-expanded","false");
-      } else {
-        const d = dateInput.value || new Date().toISOString().slice(0,10);
-        rebuildTimeOptionsFor(d);
-        opts.hidden = false;
-        btn.setAttribute("aria-expanded","true");
-      }
-    });
-
-    document.addEventListener("click", (e) => {
-      if (!btn.contains(e.target) && !opts.contains(e.target)) {
-        if (!opts.hidden) {
-          opts.hidden = true;
-          btn.setAttribute("aria-expanded","false");
-        }
-      }
-    });
-
-    opts.addEventListener("click", (ev) => {
-      const el = ev.target?.closest?.(".time-option");
-      if (!el || el.getAttribute("aria-disabled")==="true") return;
-      const v = el.dataset.value;
-      if (!v) return;
-      btn.textContent = v + " ";
-      const arr = document.createElement("span");
-      arr.className = "arrow";
-      arr.textContent = "▾";
-      btn.appendChild(arr);
-      hiddenInput.value = v;
-      opts.hidden = true;
-      btn.setAttribute("aria-expanded", "false");
-      console.debug("GT: time selected", v);
-    });
-
-    dateInput.addEventListener("change", () => {
-      const prev = hiddenInput.value;
-      const d = dateInput.value || new Date().toISOString().slice(0,10);
-      rebuildTimeOptionsFor(d);
-      if (prev) {
-        setTimeout(() => {
-          const stillExists = !!opts.querySelector(`.time-option[data-value="${prev}"]`);
-          if (!stillExists) {
-            hiddenInput.value = "";
-            btn.textContent = "בחר שעה ";
-            const arr = document.createElement("span");
-            arr.className = "arrow";
-            arr.textContent = "▾";
-            btn.appendChild(arr);
-          }
-        }, 0);
-      }
-    });
-
-    (function initTimeForInitialDate(){
-      const initDate = dateInput.value || new Date().toISOString().slice(0,10);
-      rebuildTimeOptionsFor(initDate);
-    })();
-
-    form.addEventListener("submit", (ev) => {
-      const dateVal = (dateInput.value || "").trim();
-      const timeVal = (hiddenInput.value || "").trim();
-      const pplVal  = Math.max(1, parseInt((peopleInput.value || "1"), 10) || 1);
-      if (!dateVal || !timeVal) {
-        ev.preventDefault();
-        alert("נא לבחור תאריך ושעה");
-        return;
-      }
-      const u = new URL(form.action, window.location.origin);
-      u.searchParams.set("date", dateVal);
-      u.searchParams.set("time", timeVal);
-      u.searchParams.set("people", String(pplVal));
-      form.action = u.pathname + u.search;
-    });
-
-    // "בדוק זמינות" + הצעות סביב השעה — שולח גם people
-    const checkBtn = document.getElementById("check-btn");
-    checkBtn?.addEventListener("click", async () => {
-      const date = (dateInput.value || "").trim();
-      const time = (hiddenInput.value || "").trim();
-      const people = Math.max(1, parseInt((peopleInput.value || "1"), 10) || 1);
-      if (!date || !time) {
-        alert("נא לבחור תאריך ושעה");
-        return;
-      }
-      const rid = checkBtn.dataset.rid;
-      const resp = await fetch(`/api/restaurants/${encodeURIComponent(rid)}/check`, {
-        method: "POST",
-        headers: { "Accept": "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify({ date, time, people }),
-      });
-      const data = await resp.json().catch(()=>null);
-      if (resp.ok && data && data.ok) renderAround([]);
-      else renderAround(data?.suggestions || []);
-    });
-  });
-
-  function renderAround(slots) {
-    const card = document.getElementById("around-card");
-    const box = document.getElementById("around-slots");
-    const hiddenInput = document.getElementById("time");
-    const btn = document.getElementById("time-display");
-
-    box.innerHTML = "";
-    if (Array.isArray(slots) && slots.length) {
-      card.hidden = false;
-      slots.slice(0, 8).forEach(t => {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "slot";
-        b.textContent = t;
-        b.onclick = () => {
-          hiddenInput.value = t;
-          btn.textContent = t + " ";
-          const arr = document.createElement("span");
-          arr.className = "arrow"; arr.textContent = "▾";
-          btn.appendChild(arr);
-          card.hidden = true;
-        };
-        box.appendChild(b);
-      });
-    } else {
-      card.hidden = true;
-    }
-  }
-</script>
+</section>
 
 <style>
-  .container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
-  .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 24px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
-  .page-header h1 { margin: 0 0 6px; }
-  .muted { color: #6b7280; }
+  :root{--bd:#23293a;--panel:#12151b;--panel2:#161a21;--ink:#e6e9ef;--ink-dim:#9aa3b2}
 
-  .hero-img { width: 100%; height: 260px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; }
+  .r-list{max-width:1100px;margin:0 auto;display:grid;gap:14px}
+  .tools{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  h1{margin:0;font-size:22px}
+  .filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .filters input,.filters select{background:var(--panel2);color:var(--ink);border:1px solid var(--bd);border-radius:10px;padding:8px 10px}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;border:1px solid #2a3040;background:transparent;color:var(--ink);font-weight:600;text-decoration:none}
+  .btn.secondary{opacity:.9}
+  .btn:hover{transform:translateY(-1px)}
 
-  .form-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
-  .form-row { display: flex; flex-direction: column; position: relative; }
-  .form-row.time-row { grid-column: 1 / -1; }
-  .time-dropdown-wrapper { position: relative; width: 100%; }
-  .time-dropdown-btn { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e0; border-radius: 6px; background: #fff; text-align: left; font-size: 1rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-  .time-options { position: absolute; top: calc(100% + 4px); left: 0; right: 0; max-height: 240px; overflow-y: auto; border: 1px solid #cbd5e0; border-radius: 6px; background: #fff; z-index: 1000; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-  .time-option { padding: 8px 12px; cursor: pointer; }
-  .time-option[aria-disabled="true"] { color: #999; cursor: default; }
-  .time-option:hover { background: #f0f0ff; }
-  .arrow { margin-left: 8px; color: #666; }
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  @media (max-width:980px){.grid{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:600px){.grid{grid-template-columns:1fr}}
 
-  .form-row label { margin-bottom: 4px; color: #333; font-weight: 500; }
-  .form-row input { padding: 10px 12px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 1rem; transition: border-color 0.2s; }
-  .form-row input:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.3); }
-  .form-actions { grid-column: 1 / -1; display: flex; gap: 12px; margin-top: 16px; }
-  .btn { padding: 10px 16px; border: none; border-radius: 6px; background-color: #667eea; color: #fff; cursor: pointer; transition: background-color 0.2s; }
-  .btn:hover { background-color: #5a67d8; }
-  .btn.secondary { background-color: #a0aec0; }
-  .btn.secondary:hover { background-color: #718096; }
-  .alert.warn { background: #fff5f5; border: 1px solid #fed7d7; color: #c53030; padding: 12px; border-radius: 6px; margin-bottom: 12px; }
+  .card.r{display:flex;flex-direction:column;border:1px solid var(--bd);border-radius:14px;overflow:hidden;background:var(--panel);text-decoration:none;color:inherit;transition:transform .15s ease, box-shadow .15s ease}
+  .card.r:hover{transform:translateY(-2px);box-shadow:0 16px 38px rgba(0,0,0,.28)}
+  .img{aspect-ratio:4/3;background:#0b0f17 center/cover no-repeat;border-bottom:1px solid var(--bd)}
+  .body{padding:10px;display:grid;gap:6px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .name{font-weight:800}
+  .pill{padding:3px 6px;border:1px solid #334155;border-radius:999px;font-size:11px}
+  .meta{font-size:12px}
+  .tags{display:flex;gap:6px;flex-wrap:wrap}
+  .tag{padding:4px 8px;border:1px solid #2a3040;border-radius:999px;font-size:12px}
+  .tag.warn{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.35)}
 
-  .slots { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-  .slot { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; background: #f7fafc; cursor: pointer; transition: background-color 0.2s; }
-  .slot:hover { background: #edf2f7; }
+  .empty.card{border:1px solid var(--bd);border-radius:14px;padding:14px;background:var(--panel)}
+  .h3{margin:0 0 6px}
 
-  .menu-list { list-style: none; margin: 0; padding: 0; }
-  .menu-list li { padding: 8px 0; border-bottom: 1px dashed #eee; }
-
-  .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 10px; }
-  .photo-grid img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; }
-
-  @media (max-width: 860px) {
-    .form-grid { grid-template-columns: 1fr; }
-    .hero-img { height: 200px; }
-  }
+  .pager{display:flex;gap:6px;justify-content:center;padding:6px}
+  .pg{padding:7px 10px;border:1px solid #2a3040;border-radius:10px;color:var(--ink);text-decoration:none}
+  .pg.on{background:rgba(125,211,252,.12);border-color:rgba(125,211,252,.4)}
 </style>
