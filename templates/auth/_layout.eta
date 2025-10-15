@@ -3,23 +3,20 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <meta name="color-scheme" content="dark light">
   <title><%= it.title ? it.title + ' · SpotBook' : 'SpotBook' %></title>
 
-  <!-- טען את העיצוב הישן רק אם זה לא אדמין -->
-  <% if (!it.admin) { %>
-    <link rel="stylesheet" href="/static/styles.css?v=<%= it.BUILD_TAG || '' %>"/>
-  <% } %>
+  <!-- שמירת תאימות לעיצוב הישן -->
+  <link rel="stylesheet" href="/static/styles.css"/>
 
-  <!-- עיצוב כהה חדש של SpotBook (נטען תמיד ואחרון) -->
+  <!-- עיצוב כהה חדש של SpotBook -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/public/css/spotbook.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
+  <link rel="stylesheet" href="/public/css/spotbook.css?v=<%= Date.now() %>"/>
 
   <%~ it.head || '' %>
 </head>
-<body class="sb-body<%= it.admin ? ' admin' : '' %>" data-theme="<%= it.admin ? 'dark' : 'auto' %>">
+<body class="sb-body">
   <header class="sb-header">
     <div class="sb-container sb-header-row">
       <!-- לוגו -->
@@ -57,8 +54,8 @@
     <p>© <%= new Date().getFullYear() %> SpotBook · כל הזכויות שמורות</p>
   </footer>
 
-  <!-- סקריפט ישן (אם צריך), עם גרסה -->
-  <script src="/static/app.js?v=<%= it.BUILD_TAG || '' %>" defer></script>
+  <!-- שמירת תאימות לסקריפט הישן -->
+  <script src="/static/app.js" defer></script>
 
   <!-- הזרקת סקריפטים נוספים לפי דף -->
   <% if (it.scripts) { it.scripts.forEach(function(src){ %>
