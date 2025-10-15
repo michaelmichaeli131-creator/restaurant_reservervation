@@ -4,74 +4,193 @@
   <meta charset="utf-8" />
   <title><%= it.title %></title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- קובץ הלוגיקה/בסיס קיים שלך -->
   <link rel="stylesheet" href="/static/css/owner_calendar.css" />
+
   <style>
-    /* פריסה: Panel (טבלה) בימין, Sidebar (יומן) בשמאל — גם תחת RTL */
+    /* ===== SpotBook Luxury Dark – Skins only (No feature changes) ===== */
+    :root{
+      --bg:#0b1120;
+      --panel:#111827;
+      --panel-2:#0f172a;
+      --bd:#1f2937;
+      --ink:#e5e7eb;
+      --ink-muted:#9aa3b2;
+
+      --brand:#3b82f6;
+      --brand-ink:#fff;
+      --ok:#10b981;
+      --warn:#f59e0b;
+      --danger:#ef4444;
+
+      --radius:16px;
+      --radius-sm:12px;
+
+      --shadow-lg: 0 20px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.02);
+      --shadow-md: 0 10px 26px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.02);
+    }
+
+    html,body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
+
+    /* Header */
+    .oc-header{background:linear-gradient(180deg, rgba(17,24,39,.8), rgba(17,24,39,.35)); border-bottom:1px solid var(--bd)}
+    .oc-header .wrap{max-width:1280px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .oc-title{font-weight:800;letter-spacing:.2px}
+
+    /* Date nav + search */
+    .oc-date-nav{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .oc-date-nav .date-label{padding:6px 10px;background:color-mix(in srgb, var(--panel) 86%, transparent); border:1px solid var(--bd); border-radius:10px}
+    .oc-date-nav button{appearance:none;border:1px solid var(--bd); background: color-mix(in srgb, var(--panel-2) 92%, transparent); color:var(--ink); border-radius:10px; padding:8px 10px; cursor:pointer; transition:transform .08s ease, filter .12s ease, box-shadow .12s ease}
+    .oc-date-nav button:hover{transform:translateY(-1px)}
+    .oc-jump{border-color:transparent !important; background:var(--brand) !important; color:#fff !important; box-shadow:0 8px 24px rgba(59,130,246,.28)}
+
+    /* חיפוש יומי */
+    .oc-searchbox{
+      position: relative; display:flex; align-items:center;
+      border:1px solid var(--bd); background:color-mix(in srgb, var(--panel-2) 92%, transparent);
+      border-radius:12px; padding-inline:12px; min-height:38px;
+      transition: box-shadow .15s ease, border-color .15s ease, background .15s ease;
+    }
+    .oc-searchbox:hover{ background:color-mix(in srgb, var(--panel) 92%, transparent); }
+    .oc-searchbox:focus-within{
+      border-color: color-mix(in srgb, var(--brand) 60%, var(--bd));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent);
+      background: #0b1327;
+    }
+    .oc-searchbox .icon{ width:18px; height:18px; opacity:.7; flex:0 0 auto; margin-inline-end:8px; color:var(--ink-muted) }
+    .oc-searchbox input{
+      border:0; outline:0; background:transparent; color:var(--ink);
+      width:220px; max-width:42vw; font-size:14px; padding:6px 0;
+    }
+    .oc-searchbox input::placeholder{ color:#94a3b8; }
+    @media (max-width:600px){ .oc-searchbox input{ width:160px; } }
+
+    /* ===== Layout: Sidebar + Panel (keeping LTR grid as in original) ===== */
+    .oc-main{max-width:1400px;margin:0 auto}
     .oc-layout{
       direction: ltr !important;
       display:grid !important;
       grid-template-columns: 360px minmax(980px,1fr);
       gap:16px; align-items:start; padding:16px;
     }
-    .oc-sidebar{ grid-column:1/2 !important; background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px; }
-    .oc-panel  { grid-column:2/3 !important; overflow:auto; }
     @media (max-width: 900px){
       .oc-layout{ grid-template-columns: 1fr !important; }
-      .oc-sidebar{ grid-column:1/-1 !important; grid-row:2 !important; }
-      .oc-panel  { grid-column:1/-1 !important; grid-row:1 !important; }
     }
 
-    .oc-slots{ min-width: 980px; }
-    .oc-section-title{font-weight:600;margin:8px 0 12px;}
+    /* Sidebar (Calendar card) */
+    .oc-sidebar{
+      grid-column:1/2 !important;
+      background:var(--panel);
+      border:1px solid var(--bd);
+      border-radius:var(--radius);
+      padding:14px;
+      box-shadow:var(--shadow-md);
+      color:var(--ink);
+    }
+    @media (max-width: 900px){
+      .oc-sidebar{ grid-column:1/-1 !important; grid-row:2 !important; }
+    }
+    .oc-section-title{font-weight:800;margin:6px 0 12px; color:var(--ink)}
 
-    /* יומן חודשי */
+    /* Mini calendar */
     .mini-cal{user-select:none}
     .mini-cal .hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
     .mini-cal .hdr .nav{display:flex;gap:8px}
-    .mini-cal .hdr button{border:1px solid #e5e7eb;background:#fafafa;border-radius:8px;padding:6px 10px;cursor:pointer}
+    .mini-cal .hdr button{border:1px solid var(--bd);background:color-mix(in srgb, var(--panel-2) 92%, transparent);color:var(--ink);border-radius:10px;padding:6px 10px;cursor:pointer}
+    .mini-cal .hdr button:hover{transform:translateY(-1px)}
+    .mini-cal .title{color:var(--ink);font-weight:700}
     .mini-cal table{width:100%;border-collapse:collapse}
     .mini-cal th,.mini-cal td{text-align:center;padding:6px 0;width:14.285%}
-    .mini-cal th{color:#6b7280;font-weight:600}
-    .mini-cal td button{width:34px;height:34px;line-height:34px;border-radius:8px;border:none;background:transparent;cursor:pointer}
+    .mini-cal th{color:var(--ink-muted);font-weight:700}
+    .mini-cal td button{width:34px;height:34px;line-height:34px;border-radius:10px;border:1px solid transparent;background:transparent;color:var(--ink);cursor:pointer;transition:background .12s ease, border-color .12s ease}
+    .mini-cal td button:hover{background:color-mix(in srgb, var(--panel) 86%, transparent); border-color:var(--bd)}
     .mini-cal td .out{opacity:.35}
-    .mini-cal td .today{outline:2px solid #e5e7eb;border-radius:8px}
-    .mini-cal td .sel{background:#111827;color:#fff}
+    .mini-cal td .today{outline:2px solid var(--bd); border-radius:10px}
+    .mini-cal td .sel{background:var(--brand);color:#fff}
 
-    /* סיכום יומי */
-    .oc-day-summary{margin-top:14px;font-size:14px;color:#111827}
-    .oc-day-summary .bar{height:8px;background:#f3f4f6;border-radius:999px;overflow:hidden;margin:8px 0}
-    .oc-day-summary .bar>div{height:100%;background:#f59e0b;width:0%;transition:width .2s}
+    /* Sidebar daily summary */
+    .oc-day-summary{margin-top:14px;font-size:14px;color:var(--ink)}
+    .oc-day-summary .bar{height:8px;background:#1f2937;border-radius:999px;overflow:hidden;margin:8px 0}
+    .oc-day-summary .bar>div{height:100%;background:var(--warn);width:0%;transition:width .2s}
 
-    /* סרגל עליון: תאריך + חיפוש מעוצב */
-    .oc-date-nav{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-    .oc-searchbox{
-      position: relative; display:flex; align-items:center;
-      border:1px solid #e5e7eb; background:#fbfbfc;
-      border-radius:12px; padding-inline:12px; min-height:38px;
-      transition: box-shadow .15s ease, border-color .15s ease, background .15s ease;
+    /* Panel (Slots) */
+    .oc-panel{
+      grid-column:2/3 !important;
+      overflow:auto;
+      background:var(--panel);
+      border:1px solid var(--bd);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow-lg);
+      padding:12px;
     }
-    .oc-searchbox:hover{ background:#f7f7fb; }
-    .oc-searchbox:focus-within{
-      border-color:#cbd5e1;
-      box-shadow: 0 0 0 3px rgba(14,165,233,.15);
-      background:#fff;
+    @media (max-width: 900px){
+      .oc-panel{ grid-column:1/-1 !important; grid-row:1 !important; }
     }
-    .oc-searchbox .icon{
-      width:18px; height:18px; opacity:.6; flex:0 0 auto;
-      margin-inline-end:8px; /* תומך RTL/LTR */
-      display:inline-block;
-    }
-    .oc-searchbox input{
-      border:0; outline:0; background:transparent;
-      width:220px; max-width:42vw; font-size:14px; padding:6px 0;
-      color:#0f172a;
-    }
-    .oc-searchbox input::placeholder{ color:#94a3b8; }
+    .oc-cap{ color:var(--ink-muted); font-size:.95rem; margin:6px 4px 10px }
 
-    /* התאמות קטנות למסכים צרים */
-    @media (max-width:600px){
-      .oc-searchbox input{ width:160px; }
+    .oc-slots{ min-width: 980px; }
+    .oc-row{ display:grid; grid-template-columns: 160px 1fr 260px; gap:10px; align-items:center;
+             border-bottom:1px solid var(--bd); padding:10px 8px }
+    .oc-row:hover{ background: color-mix(in srgb, var(--panel-2) 84%, transparent); }
+    .oc-th{ background: color-mix(in srgb, var(--panel-2) 88%, transparent); border-radius:12px; font-weight:700 }
+    .oc-info{ color:var(--ink-muted) }
+
+    .oc-hint{ color:var(--ink-muted); font-size:.9rem; margin:12px 4px }
+    .oc-summary{ margin:12px 4px; background: color-mix(in srgb, var(--panel-2) 86%, transparent); border:1px solid var(--bd); border-radius:12px; padding:12px }
+
+    /* Drawer (Manage customers) */
+    .oc-drawer{
+      position: fixed; inset-inline-end: 0; top: 0; bottom: 0; width: min(560px, 90vw);
+      background: var(--panel-2); color:var(--ink);
+      border-inline-start: 1px solid var(--bd);
+      transform: translateX(100%); transition: transform .25s ease;
+      display:flex; flex-direction:column; z-index: 60; box-shadow: -20px 0 60px rgba(0,0,0,.4);
     }
+    .oc-drawer.open{ transform: translateX(0); }
+    .oc-drawer header{ display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--bd) }
+    .oc-drawer .title{ font-weight:800 }
+    .oc-drawer .close{
+      appearance:none; border:1px solid var(--bd); background:transparent; color:var(--ink);
+      border-radius:10px; padding:6px 10px; cursor:pointer;
+    }
+    .oc-drawer .toolbar{
+      padding:10px 16px; display:flex; gap:8px; align-items:center; border-bottom:1px solid var(--bd);
+    }
+    .oc-drawer .toolbar input[type="search"]{
+      flex:1; min-width:0; background:#0b1327; color:var(--ink); border:1px solid var(--bd); border-radius:10px; padding:8px 10px;
+      outline:none; transition:border-color .15s ease, box-shadow .15s ease;
+    }
+    .oc-drawer .toolbar input[type="search"]:focus{
+      border-color: color-mix(in srgb, var(--brand) 55%, var(--bd));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 20%, transparent);
+    }
+    .oc-drawer .btn{
+      appearance:none; border:0; border-radius:12px; padding:10px 12px; font-weight:800; cursor:pointer;
+      transition: transform .08s ease, box-shadow .12s ease;
+    }
+    .oc-drawer .btn.primary{ background:var(--brand); color:#fff; }
+    .oc-drawer .btn.primary:hover{ transform: translateY(-1px); box-shadow:0 10px 24px rgba(59,130,246,.28) }
+
+    .oc-drawer .body{ padding:12px 16px; overflow:auto; }
+    .tbl{ width:100%; border-collapse: collapse; }
+    .tbl th,.tbl td{ border-bottom:1px solid var(--bd); padding:.55rem .5rem; text-align:center }
+    .tbl th{ color:var(--ink-muted); font-weight:700 }
+
+    /* “Buttons live” – generic */
+    .btn-live{
+      display:inline-flex; align-items:center; justify-content:center; gap:8px;
+      padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
+      border:1px solid var(--bd); background:transparent; color:var(--ink); font-weight:800;
+      transition: transform .08s ease, filter .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+    .btn-live:hover{ transform: translateY(-1px); }
+    .btn-live.primary{ background: var(--brand); color: var(--brand-ink); border-color: transparent; box-shadow: 0 8px 24px rgba(59,130,246,.28) }
+    .btn-live.ghost{ background: color-mix(in srgb, var(--panel-2) 90%, transparent) }
+    .btn-live.ghost:hover{ background: color-mix(in srgb, var(--panel) 92%, transparent) }
+    .btn-live.danger{ background: var(--danger); color:#fff; border-color: transparent }
+
+    /* Override minimal tokens from original light theme to dark without changing structure */
+    .muted{ color:var(--ink-muted) }
   </style>
 </head>
 <body>
@@ -80,10 +199,10 @@
     <div class="wrap">
       <div class="oc-title"><%= it.restaurant && it.restaurant.name ? it.restaurant.name : it.title %></div>
       <div class="oc-date-nav">
-        <button id="btn-prev" aria-label="Previous day">◀</button>
+        <button id="btn-prev" aria-label="Previous day" class="btn-live ghost">◀</button>
         <div class="date-label" id="date-label">—</div>
-        <button id="btn-next" aria-label="Next day">▶</button>
-        <button id="btn-jump" aria-label="Jump to date" class="oc-jump">📅 בחר תאריך</button>
+        <button id="btn-next" aria-label="Next day" class="btn-live ghost">▶</button>
+        <button id="btn-jump" aria-label="Jump to date" class="btn-live primary">📅 בחר תאריך</button>
         <input type="date" id="datePicker" style="display:none" value="<%= it.date %>"/>
 
         <!-- שדה חיפוש מעוצב ליד התאריך -->
@@ -174,6 +293,7 @@
     </div>
   </aside>
 
+  <!-- קובץ הסקריפט הקיים שלך נשאר ללא שינוי -->
   <script src="/static/js/owner_calendar.js" defer></script>
   <script>
     window.__OC__ = { rid: "<%= it.rid %>", date: "<%= it.date %>" };
