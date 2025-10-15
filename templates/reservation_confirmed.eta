@@ -1,12 +1,12 @@
 <% layout("_layout", it) %>
-<main class="container">
+<main class="container sb-rest">
   <header class="page-header">
     <h1>הזמנה אושרה ✔</h1>
     <p class="muted">תודה שהזמנת ב־<strong><%= it.restaurant.name %></strong>.</p>
   </header>
 
   <section class="card">
-    <h2 style="margin-top:0">פרטי הזמנה</h2>
+    <h2 class="card-title">פרטי הזמנה</h2>
     <dl class="details">
       <div class="row">
         <dt>מסעדה</dt>
@@ -21,7 +21,7 @@
         <dd><%= it.date %></dd>
       </div>
       <div class="row">
-        <dt>শעה</dt>
+        <dt>שעה</dt>
         <dd><%= it.time %></dd>
       </div>
       <div class="row">
@@ -38,7 +38,7 @@
       </div>
       <div class="row">
         <dt>אימייל</dt>
-        <dd><%= it.customerEmail %></dd>
+        <dd dir="ltr"><%= it.customerEmail %></dd>
       </div>
       <% if (it.note) { %>
       <div class="row">
@@ -48,47 +48,100 @@
       <% } %>
       <div class="row">
         <dt>מס׳ הזמנה</dt>
-        <dd><code><%= it.reservationId %></code></dd>
+        <dd><code class="code"><%= it.reservationId %></code></dd>
       </div>
     </dl>
 
     <div class="cta">
       <!-- כפתור חזרה לדף המסעדה -->
-      <a class="btn" href="/restaurants/<%= it.restaurant.id %>">חזרה לעמוד המסעדה</a>
+      <a class="btn primary" href="/restaurants/<%= it.restaurant.id %>">חזרה לעמוד המסעדה</a>
 
       <!-- כפתור עריכה: חזרה לשלב 1 עם כל ה-query (כולל people) -->
-      <a class="btn secondary"
+      <a class="btn ghost"
          href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
         עריכת תאריך/שעה/סועדים
       </a>
 
       <!-- עמוד ראשי -->
-      <a class="btn secondary" href="/">חזרה לעמוד הראשי</a>
+      <a class="btn ghost" href="/">חזרה לעמוד הראשי</a>
     </div>
 
-    <p class="muted" style="margin-top:12px">
-      קיבלת אימייל עם פרטי ההזמנה. נתראה!
+    <p class="muted tip">
+      נשלח אליך אימייל עם פרטי ההזמנה. נתראה!
     </p>
   </section>
 
   <% if (it.restaurant.description) { %>
     <section class="card">
-      <h2 style="margin-top:0">על המסעדה</h2>
+      <h2 class="card-title">על המסעדה</h2>
       <p><%= it.restaurant.description %></p>
     </section>
   <% } %>
 </main>
 
 <style>
-  .container{max-width:900px;margin:24px auto;padding:0 16px}
-  .card{border:1px solid #eee;border-radius:12px;padding:16px;margin-bottom:18px}
-  .muted{color:#777}
-  .details{margin:0}
-  .row{display:grid;grid-template-columns:160px 1fr;gap:8px;padding:6px 0;border-bottom:1px dashed #eee}
-  .row:last-child{border-bottom:none}
-  dt{font-weight:600}
-  dd{margin:0}
-  .btn{background:#111;color:#fff;border:none;border-radius:12px;padding:8px 12px;cursor:pointer;text-decoration:none;display:inline-block}
-  .btn.secondary{background:#555}
-  .cta{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  /* ===== תואם SpotBook (כהה יוקרתי) – ללא שינוי לוגיקה/פיצ'רים ===== */
+  :root{
+    --bg:#0e1116; --panel:#121622; --panel-2:#171b29; --ink:#e6e8ef; --ink-muted:#9aa3b2;
+    --bd:#23293a; --brand:#3b82f6; --brand-ink:#fff; --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35);
+    --max:1100px;
+  }
+  .sb-rest.container{ max-width: var(--max); margin:24px auto; padding:0 16px }
+  .page-header h1{ margin:0 0 6px; letter-spacing:.2px }
+  .muted{ color: var(--ink-muted) }
+
+  /* כרטיס */
+  .card{
+    background: var(--panel);
+    border:1px solid var(--bd);
+    border-radius:18px;
+    padding:18px;
+    margin-bottom:18px;
+    color: var(--ink);
+    box-shadow: var(--shadow);
+  }
+  .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
+
+  /* רשימת פרטים (DL) */
+  .details{ margin:0 }
+  .row{
+    display:grid; grid-template-columns: 140px 1fr; gap:10px;
+    padding:10px 0; border-bottom:1px dashed rgba(255,255,255,.08);
+  }
+  .row:last-child{ border-bottom:none }
+  dt{ font-weight:700; color: var(--ink); opacity:.9 }
+  dd{ margin:0; color: var(--ink) }
+  .code{
+    background: color-mix(in srgb, var(--panel-2) 88%, transparent);
+    border:1px solid var(--bd);
+    border-radius:10px; padding:2px 6px; font-family: ui-monospace,Consolas,monospace;
+  }
+
+  /* כפתורים “חיים” */
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
+    border:1px solid var(--bd); background:transparent; color: var(--ink); font-weight:700;
+    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover{ transform: translateY(-1px) }
+  .btn.primary{
+    background: var(--brand); color: var(--brand-ink); border-color: transparent;
+    box-shadow: 0 8px 24px rgba(59,130,246,.35);
+  }
+  .btn.ghost{
+    background: color-mix(in srgb, var(--panel-2) 92%, transparent);
+  }
+  .btn.ghost:hover{
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+  }
+  .cta{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px }
+
+  .tip{ margin-top:12px }
+
+  /* מובייל */
+  @media (max-width:640px){
+    .row{ grid-template-columns: 1fr; gap:6px }
+    dt{ opacity:.7 }
+  }
 </style>
