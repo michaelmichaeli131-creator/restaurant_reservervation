@@ -1,68 +1,42 @@
 <!doctype html>
-<html lang="<%= it.lang || 'he' %>" dir="<%= it.dir || 'rtl' %>">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <meta name="color-scheme" content="dark light">
-  <title><%= it.title ? it.title + ' · SpotBook' : 'SpotBook' %></title>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <title><%= it.title || "GeoTable" %></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="nav">
+        <a class="brand" href="/">GeoTable</a>
 
-  <!-- טען את העיצוב הישן רק אם זה לא אדמין -->
-  <% if (!it.admin) { %>
-    <link rel="stylesheet" href="/static/styles.css?v=<%= it.BUILD_TAG || '' %>"/>
-  <% } %>
+        <div class="nav-links">
+          <% if (it.user && it.user.role === "owner") { %>
+            <a class="link" href="/owner">אזור מנהלים</a>
+          <% } %>
 
-  <!-- עיצוב כהה חדש של SpotBook (נטען תמיד ואחרון) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/public/css/spotbook.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
-
-  <%~ it.head || '' %>
-</head>
-<body class="sb-body<%= it.admin ? ' admin' : '' %>" data-theme="<%= it.admin ? 'dark' : 'auto' %>">
-  <header class="sb-header">
-    <div class="sb-container sb-header-row">
-      <!-- לוגו -->
-      <a class="brand" href="/" aria-label="SpotBook">
-        <img class="brand-logo" src="/public/img/logo-spotbook.png" alt="SpotBook Logo"/>
-      </a>
-
-      <!-- שורת המשתמש: מתחת ללוגו בפועל -->
-      <% if (it.user) { %>
-      <div class="user-mobile">
-        מחובר/ת:
-        <strong><%= [it.user.firstName, it.user.lastName].filter(Boolean).join(" ") %></strong>
-      </div>
-      <% } %>
-
-      <!-- פעולות (ניהול / התחברות / התנתקות / אדמין) -->
-      <nav class="sb-actions" aria-label="Main actions">
-        <% if (it.user) { %>
-          <a class="btn primary btn-manage" href="/owner">נהל מסעדה</a>
-          <a class="btn ghost btn-logout" href="/auth/logout">התנתקות</a>
-        <% } else { %>
-          <a class="btn ghost" href="/auth/login">התחברות</a>
-          <a class="btn" style="border-color:transparent;background:var(--brand);color:var(--brand-ink)" href="/auth/register">הרשמה</a>
-        <% } %>
-        <a class="btn ghost btn-admin" href="/admin/login">Admin</a>
+          <% if (it.user) { %>
+            <span class="user-chip">
+              שלום, <strong><%= it.user.firstName || it.user.username || it.user.email %></strong>
+            </span>
+            <form class="inline" method="post" action="/logout">
+              <button class="btn secondary" type="submit">התנתקות</button>
+            </form>
+          <% } else { %>
+            <a class="link" href="/login">התחברות</a>
+            <a class="link" href="/signup">הרשמה</a>
+          <% } %>
+        </div>
       </nav>
-    </div>
-  </header>
+    </header>
 
-  <main class="sb-container">
-    <%~ it.body %>
-  </main>
+    <main class="container">
+      <%~ it.body %>
+    </main>
 
-  <footer class="sb-footer">
-    <p>© <%= new Date().getFullYear() %> SpotBook · כל הזכויות שמורות</p>
-  </footer>
-
-  <!-- סקריפט ישן (אם צריך), עם גרסה -->
-  <script src="/static/app.js?v=<%= it.BUILD_TAG || '' %>" defer></script>
-
-  <!-- הזרקת סקריפטים נוספים לפי דף -->
-  <% if (it.scripts) { it.scripts.forEach(function(src){ %>
-    <script src="<%= src %>" type="module"></script>
-  <% }) } %>
-</body>
+    <footer class="site-footer">
+      <small>© <%= new Date().getFullYear() %> GeoTable</small>
+    </footer>
+  </body>
 </html>
