@@ -1,296 +1,228 @@
-# File: templates/restaurant_detail.eta
 <% layout("_layout", it) %>
-
-<main class="sb-container sb-page">
-  <header class="rd-hero">
-    <div class="rd-hero-media">
-      <% if (it.r.photos && it.r.photos.length) { %>
-        <img src="<%= it.r.photos[0] %>" alt="<%= it.r.name %>" class="rd-hero-img" loading="eager" />
-      <% } else { %>
-        <div class="rd-hero-placeholder" aria-hidden="true"></div>
-      <% } %>
-    </div>
-    <div class="rd-hero-info">
-      <h1 class="rd-title"><%= it.r.name %></h1>
-      <p class="rd-meta"><%= it.r.city %> · <%= it.r.address %></p>
-
-      <form class="rd-search" method="get" action="/restaurants/<%= it.r.id %>">
-        <input type="hidden" name="rid" value="<%= it.r.id %>" />
-        <label class="sr-only" for="date">בחר תאריך</label>
-        <input id="date" type="date" name="date" value="<%= it.date || '' %>" required />
-        <label class="sr-only" for="people">מס׳ סועדים</label>
-        <input id="people" type="number" min="1" step="1" name="people" value="<%= it.people || 2 %>"/>
-        <button class="btn primary" type="submit">בדוק זמינות</button>
-      </form>
-
-      <% if (it.status) { %>
-        <div class="rd-status rd-status-<%= it.status.kind %>">
-          <%= it.status.message %>
-        </div>
-      <% } %>
-    </div>
-  </header>
-
-  <% if (it.r.photos && it.r.photos.length > 1) { %>
-  <section class="rd-gallery" aria-label="גלריית תמונות">
-    <% it.r.photos.slice(1).forEach((p)=>{ %>
-      <img class="rd-photo" src="<%= p %>" alt="<%= it.r.name %>" loading="lazy"/>
-    <% }) %>
-  </section>
-  <% } %>
-
-  <section class="rd-availability">
-    <h2 class="section-title">זמינות</h2>
-    <% if (it.slots && it.slots.length) { %>
-      <div class="slot-grid">
-        <% it.slots.forEach(function(s){ %>
-          <form method="post" action="/restaurants/<%= it.r.id %>/reserve" class="slot">
-            <input type="hidden" name="rid" value="<%= it.r.id %>" />
-            <input type="hidden" name="date" value="<%= s.date %>" />
-            <input type="hidden" name="time" value="<%= s.time %>" />
-            <input type="hidden" name="people" value="<%= it.people || 2 %>" />
-            <button class="btn ghost" type="submit"><%= s.time %></button>
-          </form>
-        <% }) %>
-      </div>
-    <% } else { %>
-      <p class="muted">אין זמינות לתאריך שנבחר. נסו תאריך אחר.</p>
-    <% } %>
-  </section>
-
-  <section class="rd-about">
-    <h2 class="section-title">אודות</h2>
-    <p class="rd-desc"><%= it.r.description || 'תיאור המסעדה יוצג כאן.' %></p>
-  </section>
-</main>
-
-<% it.scripts = (it.scripts||[]).concat(['/public/js/rd.js']); %>
-
-
-# File: public/js/rd.js
-(function(){
-  // עדינות: גלריה אופקית במובייל
-  const g = document.querySelector('.rd-gallery');
-  if(g){ g.addEventListener('wheel', (e)=>{ if(Math.abs(e.deltaY)>Math.abs(e.deltaX)){ g.scrollLeft += e.deltaY; e.preventDefault(); } }, {passive:false}); }
-})();
-
-
-# File: templates/reservation_manage.eta
-<% layout("_layout", it) %>
-<main class="sb-container sb-page">
+<main class="container">
   <header class="page-header">
-    <h1 class="pg-title">ניהול הזמנה</h1>
-    <p class="muted">צפייה/עדכון/ביטול</p>
-  </header>
-
-  <section class="card">
-    <div class="rm-grid">
-      <div>
-        <h2 class="section-title">פרטי הזמנה</h2>
-        <dl class="kv">
-          <div><dt>מסעדה</dt><dd><%= it.res.restaurantName %></dd></div>
-          <div><dt>תאריך</dt><dd><%= it.res.date %></dd></div>
-          <div><dt>שעה</dt><dd><%= it.res.time %></dd></div>
-          <div><dt>מס׳ אנשים</dt><dd><%= it.res.people %></dd></div>
-          <div><dt>סטטוס</dt><dd><span class="badge <%= it.res.status %>"><%= it.res.status %></span></dd></div>
-        </dl>
-      </div>
-
-      <form method="post" action="/reservation/manage" class="rm-form">
-        <input type="hidden" name="rid" value="<%= it.res.restaurantId %>"/>
-        <input type="hidden" name="id" value="<%= it.res.id %>"/>
-        <label>עדכון מס׳ אנשים
-          <input name="people" type="number" min="1" step="1" value="<%= it.res.people %>" />
-        </label>
-        <div class="actions">
-          <button class="btn" name="action" value="update">עדכן</button>
-          <button class="btn danger" name="action" value="cancel">בטל הזמנה</button>
-        </div>
-      </form>
-    </div>
-  </section>
-
-  <% if (it.token) { %>
-    <p class="muted" style="margin-top:16px">קישור לעריכה נשלח גם במייל. שמרו אותו לשינויים עתידיים.</p>
-  <% } %>
-</main>
-
-
-# File: templates/owner_hours.eta
-<% layout("_layout", it) %>
-<main class="sb-container sb-page">
-  <header class="page-header">
-    <h1 class="pg-title">שעות פתיחה — <%= it.restaurant.name %></h1>
+    <h1>פרטי הזמנה — <%= it.restaurant.name %></h1>
     <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+    <% if (it.restaurant.phone) { %>
+      <p class="muted">טלפון: <%= it.restaurant.phone %></p>
+    <% } %>
   </header>
 
-  <% if (it.saved) { %>
-    <div class="alert ok">✓ השעות נשמרו בהצלחה</div>
-  <% } %>
-
   <section class="card">
-    <!-- שימו לב: אנחנו שומרים ב-GET כדי לעקוף בעיות body ב-Oak בגרסה שלך -->
-    <form class="form-grid" action="/owner/restaurants/<%= it.restaurant.id %>/hours" method="get">
-      <input type="hidden" name="rid" value="<%= it.restaurant.id %>" />
+    <h2 style="margin-top:0">שלב 2 — פרטי לקוח</h2>
+
+    <div class="summary">
+      <div><strong>תאריך:</strong> <span id="sum-date"><%= it.date %></span></div>
+      <div><strong>שעה:</strong> <span id="sum-time"><%= it.time %></span></div>
+      <div><strong>מס׳ סועדים:</strong> <span id="sum-people"><%= it.people %></span></div>
+      <div><strong>מסעדה:</strong> <%= it.restaurant.name %></div>
+    </div>
+
+    <form id="details-form"
+          class="form-grid"
+          action="/restaurants/<%= it.restaurant.id %>/confirm"
+          method="post" novalidate>
+      <!-- תאריך ושעה נעולים בשלב הזה -->
+      <input type="hidden" name="date" value="<%= it.date %>"/>
+      <input type="hidden" name="time" value="<%= it.time %>"/>
+      <!-- מס' סועדים נעול בשלב הזה -->
+      <input type="hidden" id="hidden-people" name="people" value="<%= it.people %>"/>
 
       <div class="form-row">
-        <label for="capacity">קיבולת מקסימלית (אדם)</label>
-        <input id="capacity" name="capacity" type="number" min="1" step="1" value="<%= it.restaurant.capacity || 40 %>"/>
+        <label for="name">שם מלא</label>
+        <input id="name" name="name" type="text" required autocomplete="name"
+               placeholder="שם פרטי ושם משפחה"/>
       </div>
 
       <div class="form-row">
-        <label for="slot">גריד סלוטים (דקות)</label>
-        <input id="slot" name="slot" type="number" min="5" step="5" value="<%= it.restaurant.slotIntervalMinutes || 15 %>"/>
+        <label for="phone">נייד</label>
+        <input id="phone" name="phone" type="tel" required inputmode="tel"
+               placeholder="050-1234567"/>
       </div>
 
-      <div class="oh-table" role="table" aria-label="הגדרת שעות שבועיות">
-        <div class="oh-head" role="row">
-          <div role="columnheader">יום</div>
-          <div role="columnheader">פתיחה</div>
-          <div role="columnheader">סגירה</div>
-          <div role="columnheader">סגור</div>
-        </div>
-        <% const days = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"]; %>
-        <% for (let i=0;i<7;i++){ const row = it.restaurant.weeklySchedule && it.restaurant.weeklySchedule[i]; %>
-          <div class="oh-row" role="row">
-            <div role="cell"><%= days[i] %></div>
-            <div role="cell">
-              <input type="time" name="open_<%= i %>" value="<%= row && row.open ? row.open : '' %>"/>
-            </div>
-            <div role="cell">
-              <input type="time" name="close_<%= i %>" value="<%= row && row.close ? row.close : '' %>"/>
-            </div>
-            <div role="cell">
-              <label class="switch">
-                <input type="checkbox" name="closed_<%= i %>" <%= row && row.closed ? 'checked' : '' %> />
-                <span class="slider"></span>
-              </label>
-            </div>
-          </div>
-        <% } %>
+      <div class="form-row">
+        <label for="email">אימייל</label>
+        <input id="email" name="email" type="email" dir="ltr" inputmode="email"
+               autocomplete="email" autocapitalize="off" spellcheck="false"
+               placeholder="you@example.com" required />
+        <small class="muted">נשלח אליך אישור הזמנה</small>
       </div>
 
-      <div class="actions">
-        <button class="btn primary" type="submit" name="save" value="1">שמור</button>
+      <!-- תיבת הערות/בקשות מיוחדות (אופציונלי) -->
+      <div class="form-row" style="grid-column: 1 / -1">
+        <label for="note">הערות ובקשות מיוחדות (אופציונלי)</label>
+        <textarea id="note" name="note" rows="3" maxlength="500"
+                  placeholder="אלרגיות, עדיפות למיקום, חגיגה, כסא תינוק..."></textarea>
+        <small class="muted">עד 500 תווים</small>
+      </div>
+
+      <!-- הצגת מס' הסועדים לתקציר/וידוא (ללא עריכה) -->
+      <div class="form-row">
+        <label>מספר סועדים</label>
+        <div class="readonly-box"><%= it.people %></div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn">אשר הזמנה</button>
+        <a class="btn secondary" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
+          חזרה לשינוי שעה/תאריך
+        </a>
       </div>
     </form>
   </section>
 
-  <section class="card" style="margin-top:16px">
-    <h2 class="section-title">תצוגה מקדימה (Occupancy Grid)</h2>
-    <p class="muted">מבוסס על הגדרות למעלה — לצורכי בדיקה מהירה.</p>
-    <div id="oh-preview" class="oh-preview"></div>
+  <section class="card" id="conflict-card" hidden>
+    <h3 style="margin-top:0">אין זמינות במועד שבחרת</h3>
+    <p>בחר/י אחד מן הזמנים הזמינים בקרבת השעה שביקשת (±2 שעות):</p>
+    <div id="suggest-slots" class="slots"></div>
+    <small class="muted">לחיצה על שעה תעדכן את השעה בטופס ותאפשר לשליחה מחדש.</small>
   </section>
+
+  <% if (it.restaurant.description) { %>
+    <section class="card">
+      <h2 style="margin-top:0">על המסעדה</h2>
+      <p><%= it.restaurant.description %></p>
+    </section>
+  <% } %>
 </main>
 
-<% it.scripts = (it.scripts||[]).concat(['/public/js/owner_hours_ui.js']); %>
+<script>
+  (function(){
+    const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+    const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
+    function normalizeEmail(s) {
+      s = (s || "").toString();
+      s = s.replace(BIDI, "");
+      s = s.replace(/＠/g, "@").replace(/．/g, ".");
+      s = s.replace(ZSP, " ").trim();
+      s = s.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
+      return s.toLowerCase();
+    }
+    const emailEl = document.getElementById('email');
+    if (emailEl) {
+      emailEl.addEventListener('blur', () => {
+        emailEl.value = normalizeEmail(emailEl.value);
+      });
+    }
 
+    // שמירה על עקביות התקציר עם ה-hidden (במקום קלט ניתן לעריכה)
+    const hiddenPeople = document.getElementById('hidden-people');
+    const sumP = document.getElementById('sum-people');
+    if (hiddenPeople && sumP) {
+      sumP.textContent = hiddenPeople.value || sumP.textContent;
+    }
+  })();
 
-# File: public/js/owner_hours_ui.js
-(function(){
-  const $ = (s, r=document) => r.querySelector(s);
-  const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
-  const root = document;
+  (function () {
+    const form = document.getElementById('details-form');
+    if (!form) return;
+    form.addEventListener('submit', function (ev) {
+      try {
+        if (!form.checkValidity()) return;
+        if (form.hasAttribute('data-force-post')) return;
 
-  function toMins(hhmm){ if(!hhmm) return null; const [h,m]=hhmm.split(':').map(Number); return h*60+m; }
+        ev.preventDefault();
+        const sp = new URLSearchParams();
+        const fd = new FormData(form);
 
-  function renderPreview(){
-    const slot = Number($('#slot')?.value||15);
-    const wrap = $('#oh-preview'); if(!wrap) return; wrap.innerHTML='';
-    const days = ['א','ב','ג','ד','ה','ו','ש'];
-
-    const table = document.createElement('div');
-    table.className = 'grid-mini';
-
-    for(let d=0; d<7; d++){
-      const row = document.createElement('div');
-      row.className = 'grid-mini-row';
-      const label = document.createElement('div'); label.className='grid-mini-day'; label.textContent=days[d]; row.appendChild(label);
-
-      const open = $(`[name="open_${d}"]`)?.value;
-      const close = $(`[name="close_${d}"]`)?.value;
-      const closed = $(`[name="closed_${d}"]`)?.checked;
-
-      if(closed || !open || !close){
-        const cell = document.createElement('div'); cell.className='grid-mini-closed'; cell.textContent='סגור'; row.appendChild(cell);
-      } else {
-        const start = toMins(open), end = toMins(close);
-        for(let t=start; t<end; t+=slot){
-          const cell = document.createElement('button');
-          cell.type='button';
-          cell.className='grid-mini-cell';
-          cell.title=`${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;
-          cell.textContent='';
-          row.appendChild(cell);
+        // נשלח את כל הערכים (כולל note ו-people הנעול)
+        for (const [k, v] of fd.entries()) {
+          if (typeof v === 'string') sp.append(k, v);
         }
+
+        const to = new URL(form.getAttribute('action') || window.location.href, window.location.origin);
+        to.search = sp.toString();
+        window.location.assign(to.toString());
+      } catch (e) {
+        console.warn('[details-form] redirect-as-GET failed, falling back to POST:', e);
       }
-      table.appendChild(row);
-    }
-    wrap.appendChild(table);
+    }, { passive: false });
+  })();
+</script>
+
+<style>
+  .container {
+    max-width: 900px;
+    margin: 24px auto;
+    padding: 0 16px;
   }
-
-  root.addEventListener('change', (e)=>{
-    if(e.target && (e.target.matches('[name^="open_"]')||e.target.matches('[name^="close_"]')||e.target.matches('[name^="closed_"]')||e.target.matches('#slot'))){
-      renderPreview();
+  .card {
+    border: 1px solid #eee;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 18px;
+  }
+  .muted { color: #777; }
+  .summary {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .form-row {
+    display: flex;
+    flex-direction: column;
+  }
+  .form-row label {
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .form-row input, .form-row textarea {
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 1rem;
+  }
+  .readonly-box {
+    padding: 8px 10px;
+    border: 1px dashed #ccc;
+    border-radius: 6px;
+    background: #fafafa;
+    font-size: 1rem;
+  }
+  .form-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .btn {
+    background: #111;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  .btn.secondary {
+    background: #555;
+  }
+  #conflict-card {
+    border-color: #ffccc7;
+  }
+  .slots {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .slot {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    background: #fafafa;
+    cursor: pointer;
+  }
+  .slot:hover {
+    background: #f0f0ff;
+  }
+  @media (max-width:760px) {
+    .form-grid {
+      grid-template-columns: 1fr;
     }
-  });
-
-  document.addEventListener('DOMContentLoaded', renderPreview);
-})();
-
-
-# File: public/css/spotbook.css  (append at end)
-/* ====== Luxury Dark – pages refinements ====== */
-.sb-page{padding-block:24px}
-.section-title{font-size:18px;font-weight:700;margin:0 0 12px}
-.card{background:var(--panel);border:1px solid var(--bd);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
-.badge{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid var(--bd);font-size:12px}
-.badge.confirmed{background:#1f5135;border-color:#246b44;color:#c7f7de}
-.badge.pending{background:#413a20;border-color:#6b5e2a;color:#f6e9b5}
-.badge.canceled{background:#4b2323;border-color:#7a3434;color:#ffd1d1}
-
-/* Restaurant detail */
-.rd-hero{display:grid;gap:16px;grid-template-columns:1fr;align-items:end}
-.rd-hero-media{aspect-ratio:16/9;overflow:hidden;border-radius:var(--radius);background:var(--panel-2)}
-.rd-hero-img{width:100%;height:100%;object-fit:cover;display:block}
-.rd-hero-placeholder{width:100%;height:100%;background:linear-gradient(180deg,#1b2133,#121622)}
-.rd-hero-info{display:flex;flex-direction:column;gap:12px}
-.rd-title{margin:0;font-size:28px}
-.rd-meta{margin:0;color:var(--ink-muted)}
-.rd-search{display:flex;gap:8px;flex-wrap:wrap}
-.rd-search input{background:var(--panel-2);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;color:var(--ink)}
-.rd-status{margin-top:4px;padding:8px 10px;border-radius:10px;background:var(--panel-2);border:1px dashed var(--bd)}
-.rd-gallery{display:flex;gap:8px;overflow:auto;padding:2px;margin-top:8px}
-.rd-photo{height:120px;border-radius:12px;object-fit:cover}
-.slot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px}
-.slot .btn{width:100%}
-.rd-about .rd-desc{color:var(--ink)}
-
-/* Owner Hours */
-.oh-table{display:grid;gap:8px}
-.oh-head,.oh-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:center}
-.switch{position:relative;display:inline-flex;width:46px;height:26px}
-.switch input{opacity:0;width:0;height:0}
-.slider{position:absolute;inset:0;background:#2a3246;border-radius:999px;border:1px solid var(--bd)}
-.slider:before{content:"";position:absolute;top:3px;right:3px;width:20px;height:20px;background:#8a93a6;border-radius:50%;transition:transform .2s}
-.switch input:checked + .slider{background:#3352a3}
-.switch input:checked + .slider:before{transform:translateX(-20px)}
-
-.grid-mini{display:flex;flex-direction:column;gap:6px;margin-top:8px}
-.grid-mini-row{display:grid;grid-template-columns:28px 1fr;gap:6px;align-items:center}
-.grid-mini-day{color:var(--ink-muted);text-align:center}
-.grid-mini-closed{background:#2b2331;border:1px dashed #4b3a55;border-radius:8px;padding:6px 8px;text-align:center}
-.grid-mini-cell{border:1px solid var(--bd);background:var(--panel-2);border-radius:6px;min-width:18px;min-height:18px}
-
-/* Reservation Manage */
-.rm-grid{display:grid;gap:16px}
-.kv{display:grid;gap:8px}
-.kv > div{display:grid;grid-template-columns:120px 1fr;gap:8px}
-.rm-form{display:grid;gap:10px}
-.rm-form input{background:var(--panel-2);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;color:var(--ink)}
-.alert.ok{background:#0f3b2a;border:1px solid #1a5a41;color:#b6f3dd;border-radius:10px;padding:10px}
-
-/* Responsive */
-@media (min-width: 900px){
-  .rd-hero{grid-template-columns: 1.3fr 1fr}
-}
+  }
+</style>
