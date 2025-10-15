@@ -1,266 +1,221 @@
 <% layout("_layout", it) %>
-
 <main class="container sb-rest">
   <header class="page-header">
-    <h1><%= it.r.name %></h1>
-    <p class="muted"><%= it.r.city %> · <%= it.r.address %></p>
+    <h1>פרטי הזמנה — <%= it.restaurant.name %></h1>
+    <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+    <% if (it.restaurant.phone) { %>
+      <p class="muted">טלפון: <%= it.restaurant.phone %></p>
+    <% } %>
   </header>
 
-  <% if (it.r.photos && it.r.photos.length) { %>
-    <section class="card">
-      <h2 class="card-title">תמונות</h2>
-      <div class="photo-grid">
-        <% it.r.photos.forEach((p)=>{ %>
-          <img class="photo" src="<%= p %>" alt="<%= it.r.name %>" loading="lazy" onerror="this.style.opacity='.3'"/>
-        <% }) %>
+  <section class="card">
+    <h2 class="card-title">שלב 2 — פרטי לקוח</h2>
+
+    <div class="summary">
+      <div><strong>תאריך:</strong> <span id="sum-date"><%= it.date %></span></div>
+      <div><strong>שעה:</strong> <span id="sum-time"><%= it.time %></span></div>
+      <div><strong>מס׳ סועדים:</strong> <span id="sum-people"><%= it.people %></span></div>
+      <div><strong>מסעדה:</strong> <%= it.restaurant.name %></div>
+    </div>
+
+    <form id="details-form"
+          class="form-grid"
+          action="/restaurants/<%= it.restaurant.id %>/confirm"
+          method="post" novalidate>
+      <!-- תאריך ושעה נעולים בשלב הזה -->
+      <input type="hidden" name="date" value="<%= it.date %>"/>
+      <input type="hidden" name="time" value="<%= it.time %>"/>
+      <!-- מס' סועדים נעול בשלב הזה -->
+      <input type="hidden" id="hidden-people" name="people" value="<%= it.people %>"/>
+
+      <div class="form-row">
+        <label for="name">שם מלא</label>
+        <input id="name" name="name" type="text" required autocomplete="name"
+               placeholder="שם פרטי ושם משפחה"/>
       </div>
+
+      <div class="form-row">
+        <label for="phone">נייד</label>
+        <input id="phone" name="phone" type="tel" required inputmode="tel"
+               placeholder="050-1234567"/>
+      </div>
+
+      <div class="form-row">
+        <label for="email">אימייל</label>
+        <input id="email" name="email" type="email" dir="ltr" inputmode="email"
+               autocomplete="email" autocapitalize="off" spellcheck="false"
+               placeholder="you@example.com" required />
+        <small class="muted">נשלח אליך אישור הזמנה</small>
+      </div>
+
+      <!-- תיבת הערות/בקשות מיוחדות (אופציונלי) -->
+      <div class="form-row" style="grid-column: 1 / -1">
+        <label for="note">הערות ובקשות מיוחדות (אופציונלי)</label>
+        <textarea id="note" name="note" rows="3" maxlength="500"
+                  placeholder="אלרגיות, עדיפות למיקום, חגיגה, כסא תינוק..."></textarea>
+        <small class="muted">עד 500 תווים</small>
+      </div>
+
+      <!-- הצגת מס' הסועדים לתקציר/וידוא (ללא עריכה) -->
+      <div class="form-row">
+        <label>מספר סועדים</label>
+        <div class="readonly-box"><%= it.people %></div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn primary">אשר הזמנה</button>
+        <a class="btn ghost" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
+          חזרה לשינוי שעה/תאריך
+        </a>
+      </div>
+    </form>
+  </section>
+
+  <section class="card" id="conflict-card" hidden>
+    <h3 class="card-title">אין זמינות במועד שבחרת</h3>
+    <p class="muted">בחר/י אחד מן הזמנים הזמינים בקרבת השעה שביקשת (±2 שעות):</p>
+    <div id="suggest-slots" class="slots"></div>
+    <small class="muted">לחיצה על שעה תעדכן את השעה בטופס ותאפשר לשליחה מחדש.</small>
+  </section>
+
+  <% if (it.restaurant.description) { %>
+    <section class="card">
+      <h2 class="card-title">על המסעדה</h2>
+      <p><%= it.restaurant.description %></p>
     </section>
   <% } %>
-
-  <!-- בחירת תאריך (נשמר) -->
-  <section class="card">
-    <h2 class="card-title">בחירת תאריך</h2>
-    <form method="get" action="/restaurants/<%= it.r.id %>" class="toolbar inline">
-      <label class="fld">
-        <span>תאריך</span>
-        <input type="date" name="date" value="<%= it.date %>"/>
-      </label>
-      <button class="btn primary sm" type="submit">רענון</button>
-    </form>
-
-    <% if (it.error) { %><p class="alert warn"><%= it.error %></p><% } %>
-    <% if (it.success) { %><p class="alert ok"><%= it.success %></p><% } %>
-  </section>
-
-  <!-- בדיקת זמינות (שלב 1) -->
-  <section class="card">
-    <h2 class="card-title">בדיקת זמינות</h2>
-    <form id="checkForm" class="form inline" onsubmit="return false;">
-      <label class="fld">
-        <span>שעה</span>
-        <input type="time" id="checkTime" value="<%= it.time || '19:00' %>" required>
-      </label>
-      <label class="fld">
-        <span>מס' סועדים</span>
-        <input type="number" id="checkPeople" value="<%= it.people || 2 %>" min="1" required>
-      </label>
-      <button class="btn ghost sm" id="checkBtn" type="button">בדוק</button>
-    </form>
-
-    <!-- תוצאה תמציתית בלבד -->
-    <div id="checkResult" class="muted" style="margin-top:10px"></div>
-
-    <!-- הצעות חלופיות — יוצגו רק אם באמת אין זמינות -->
-    <div id="suggestionsWrap" hidden style="margin-top:10px">
-      <div id="sugSlots" class="slots"></div>
-    </div>
-  </section>
-
-  <!-- טופס הזמנה (שלב 2) -->
-  <section class="card">
-    <h2 class="card-title">הזמנה</h2>
-    <form method="post" action="/restaurants/<%= it.r.id %>/reserve" class="form-grid">
-      <input type="hidden" name="date" value="<%= it.date %>"/>
-
-      <div class="form-row">
-        <label>שעה
-          <input type="time" name="time" value="<%= it.time || '19:00' %>" required />
-        </label>
-      </div>
-
-      <!-- הצגה בלבד + hidden במקום שדה לעריכה -->
-      <div class="form-row">
-        <label>מס' סועדים</label>
-        <div class="readonly-box"><%= it.people || 2 %></div>
-        <input type="hidden" name="people" value="<%= it.people || 2 %>"/>
-      </div>
-
-      <label class="form-row" style="grid-column:1 / -1">הערות להזמנה (אופציונלי)
-        <textarea name="note" rows="3" placeholder="אלרגיות, העדפות ישיבה..."><%= it.note || '' %></textarea>
-      </label>
-
-      <div class="form-actions" style="grid-column:1 / -1">
-        <button class="btn primary sm" type="submit">בצע הזמנה</button>
-      </div>
-    </form>
-  </section>
 </main>
 
 <script>
-(function(){
-  const btn = document.getElementById('checkBtn');
-  const res = document.getElementById('checkResult');
-  const t = document.getElementById('checkTime');
-  const p = document.getElementById('checkPeople');
-  const sugWrap = document.getElementById('suggestionsWrap');
-  const sugSlots = document.getElementById('sugSlots');
-
-  function renderSuggestions(list){
-    // מציג רק אם באמת יש הצעות כשאין זמינות
-    if (Array.isArray(list) && list.length){
-      sugSlots.innerHTML = '';
-      list.slice(0, 8).forEach(hhmm=>{
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'slot';
-        b.textContent = hhmm;
-        b.onclick = () => {
-          t.value = hhmm;        // מעדכן את שדה השעה של שלב 1
-          res.textContent = '';  // מנקה הודעה
-          sugWrap.hidden = true; // מסתיר הצעות אחרי בחירה
-        };
-        sugSlots.appendChild(b);
-      });
-      sugWrap.hidden = false;
-    } else {
-      sugWrap.hidden = true;
+  (function(){
+    const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+    const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
+    function normalizeEmail(s) {
+      s = (s || "").toString();
+      s = s.replace(BIDI, "");
+      s = s.replace(/＠/g, "@").replace(/．/g, ".");
+      s = s.replace(ZSP, " ").trim();
+      s = s.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
+      return s.toLowerCase();
     }
-  }
+    const emailEl = document.getElementById('email');
+    if (emailEl) {
+      emailEl.addEventListener('blur', () => {
+        emailEl.value = normalizeEmail(emailEl.value);
+      });
+    }
 
-  if (btn && res && t && p) {
-    btn.addEventListener('click', async () => {
-      const time = (t.value || '').trim();
-      const people = Number(p.value || 1);
-      const date = new URLSearchParams(location.search).get('date') || '<%= it.date %>';
-      if (!date || !time) {
-        res.textContent = 'נא לבחור תאריך ושעה';
-        sugWrap.hidden = true;
-        return;
-      }
-      res.textContent = 'בודק זמינות...';
-      sugWrap.hidden = true;
+    // שמירה על עקביות התקציר עם ה-hidden (במקום קלט ניתן לעריכה)
+    const hiddenPeople = document.getElementById('hidden-people');
+    const sumP = document.getElementById('sum-people');
+    if (hiddenPeople && sumP) {
+      sumP.textContent = hiddenPeople.value || sumP.textContent;
+    }
+  })();
 
+  (function () {
+    const form = document.getElementById('details-form');
+    if (!form) return;
+    form.addEventListener('submit', function (ev) {
       try {
-        const r = await fetch(`/api/restaurants/<%= it.r.id %>/check`, {
-          method: 'POST',
-          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-          body: JSON.stringify({ date, time, people })
-        });
-        const data = await r.json().catch(()=>null);
+        if (!form.checkValidity()) return;
+        if (form.hasAttribute('data-force-post')) return;
 
-        if (r.ok && data && data.ok) {
-          res.textContent = 'יש זמינות! אפשר לבצע הזמנה.';
-          renderSuggestions([]); // מסתיר הצעות
-        } else {
-          // מציג רק משפט קצר + הצעות (אם קיימות). בלי הטקסט הארוך.
-          res.textContent = 'אין זמינות בזמן המבוקש.';
-          renderSuggestions((data && data.suggestions) ? data.suggestions : []);
+        ev.preventDefault();
+        const sp = new URLSearchParams();
+        const fd = new FormData(form);
+
+        // נשלח את כל הערכים (כולל note ו-people הנעול)
+        for (const [k, v] of fd.entries()) {
+          if (typeof v === 'string') sp.append(k, v);
         }
+
+        const to = new URL(form.getAttribute('action') || window.location.href, window.location.origin);
+        to.search = sp.toString();
+        window.location.assign(to.toString());
       } catch (e) {
-        res.textContent = 'שגיאה בבדיקה. נסה שוב.';
-        sugWrap.hidden = true;
+        console.warn('[details-form] redirect-as-GET failed, falling back to POST:', e);
       }
-    });
-  }
-})();
+    }, { passive: false });
+  })();
 </script>
 
 <style>
-  /* ===== מסגרת כללית ===== */
-  .sb-rest.container { max-width: var(--max, 1100px); margin: 24px auto; padding: 0 16px; }
-  .page-header h1 { margin: 0 0 6px; letter-spacing:.2px }
-  .muted { color: var(--ink-muted, #9aa3b2); }
+  /* ===== תואם SpotBook (כהה יוקרתי) – ללא שינוי פיצ'רים ===== */
+  .sb-rest.container{ max-width: var(--max, 1100px); margin:24px auto; padding:0 16px; }
+  .page-header h1{ margin:0 0 6px; letter-spacing:.2px }
+  .muted{ color: var(--ink-muted, #9aa3b2); }
 
-  /* ===== כרטיסים ===== */
+  /* כרטיסים */
   .card{
     background: var(--panel, #121622);
-    border: 1px solid var(--bd, #222834);
-    border-radius: 18px;
-    padding: 18px;
-    margin-bottom: 18px;
-    box-shadow: var(--shadow, 0 10px 30px rgba(0,0,0,.35));
+    border:1px solid var(--bd, #222834);
+    border-radius:18px; padding:18px; margin-bottom:18px;
     color: var(--ink, #e6e8ef);
+    box-shadow: var(--shadow, 0 10px 30px rgba(0,0,0,.35));
   }
   .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
 
-  /* ===== שדות וטפסים ===== */
-  .toolbar{ display:flex; gap:10px; align-items:end; flex-wrap:wrap }
-  .fld{ display:flex; flex-direction:column; gap:6px; min-width: 220px }
-  .fld > span{ font-size:12px; color: var(--ink-muted, #9aa3b2) }
+  /* Summary קומפקטי */
+  .summary{ display:flex; flex-wrap:wrap; gap:12px; margin:4px 0 12px }
+  .summary > div{
+    background: color-mix(in srgb, var(--panel-2, #171b29) 92%, transparent);
+    border:1px solid var(--bd, #23293a);
+    border-radius:10px; padding:8px 10px; font-size:14px;
+  }
 
-  .form-grid{ display:grid; grid-template-columns: repeat(2,1fr); gap: 14px; }
+  /* טפסים */
+  .form-grid{ display:grid; grid-template-columns: repeat(2,1fr); gap:14px }
   .form-row{ display:flex; flex-direction:column; gap:6px }
-  .form-row input, .form-row textarea,
-  .fld input {
+  .form-row label{ font-weight:500 }
+  .form-row input, .form-row textarea{
     background: var(--panel-2, #171b29);
     color: var(--ink, #e6e8ef);
     border:1px solid var(--bd, #23293a);
-    border-radius: 12px;
-    padding: 10px 12px;
-    font-size: 15px;
-    outline: none;
-    transition: box-shadow .15s ease, border-color .15s ease, transform .08s ease;
+    border-radius:12px; padding:10px 12px; font-size:15px;
+    outline:none; transition: box-shadow .15s ease, border-color .15s ease;
   }
-  .form-row input:focus, .form-row textarea:focus, .fld input:focus{
+  .form-row input:focus, .form-row textarea:focus{
     border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, var(--bd, #23293a));
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
   }
   .readonly-box{
-    padding: 10px 12px;
-    border:1px dashed var(--bd, #23293a);
-    border-radius:12px;
-    background: color-mix(in srgb, var(--panel-2) 92%, transparent);
+    padding:10px 12px; border:1px dashed var(--bd, #23293a);
+    border-radius:12px; background: color-mix(in srgb, var(--panel-2) 92%, transparent);
   }
-  .form-actions{ display:flex; gap:10px; flex-wrap:wrap; }
 
-  /* ===== כפתורים ===== */
+  /* כפתורים “חיים” */
   .btn{
     display:inline-flex; align-items:center; justify-content:center; gap:8px;
-    border-radius:12px; padding:10px 14px; cursor:pointer; text-decoration:none;
-    border:1px solid var(--bd, #23293a); font-weight:700;
-    background: transparent; color: var(--ink, #e6e8ef);
+    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
+    border:1px solid var(--bd, #23293a); background:transparent;
+    color: var(--ink, #e6e8ef); font-weight:700;
     transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
-    font-size: 15px;
   }
   .btn:hover{ transform: translateY(-1px); }
   .btn.primary{
-    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff);
-    border-color: transparent;
+    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
     box-shadow: 0 8px 24px rgba(59,130,246,.35);
   }
-  .btn.ghost{ background: color-mix(in srgb, var(--panel-2) 92%, transparent); }
-  .btn.ghost:hover{ background: color-mix(in srgb, var(--panel) 92%, transparent); }
-
-  /* גודל קטן יותר לכפתורים (להחיל גם בדף פרטי הזמנה) */
-  .btn.sm{ padding: 8px 12px; font-size: 14px; border-radius: 10px; }
-
-  /* ===== התראות ===== */
-  .alert{
-    border-radius:12px; padding:12px 14px; margin: 10px 0 0;
-    border:1px solid var(--bd, #23293a);
-    background: var(--panel-2, #171b29);
+  .btn.ghost{
+    background: color-mix(in srgb, var(--panel-2, #171b29) 92%, transparent);
   }
-  .alert.warn{
-    border-color: rgba(239,68,68,.42);
-    background: linear-gradient(180deg, rgba(239,68,68,.12), transparent);
-    color: #fecaca;
-  }
-  .alert.ok{
-    border-color: rgba(34,197,94,.35);
-    background: linear-gradient(180deg, rgba(34,197,94,.12), transparent);
-    color: #bbf7d0;
-  }
+  .btn.ghost:hover{ background: color-mix(in srgb, var(--panel, #121622) 92%, transparent); }
 
-  /* ===== הצעות (רק כשאין זמינות) ===== */
-  .slots{ display:flex; flex-wrap:wrap; gap:8px }
+  .form-actions{ display:flex; gap:10px; flex-wrap:wrap }
+
+  /* התראת קונפליקט + הצעות */
+  #conflict-card{ border-color: rgba(239,68,68,.35) }
+  .slots{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px }
   .slot{
-    padding: 8px 12px; border:1px solid var(--bd, #23293a);
-    border-radius:10px; background: color-mix(in srgb, var(--panel-2) 92%, transparent);
-    cursor:pointer; transition: transform .08s ease, background .12s ease;
-    color: var(--ink, #e6e8ef);
+    padding:8px 12px; border-radius:10px; cursor:pointer;
+    border:1px solid var(--bd, #23293a);
+    background: color-mix(in srgb, var(--panel-2, #171b29) 88%, transparent);
   }
-  .slot:hover{ transform: translateY(-1px); background: color-mix(in srgb, var(--panel) 92%, transparent); }
+  .slot:hover{ background: color-mix(in srgb, var(--panel, #121622) 88%, transparent); }
 
-  /* ===== גלריה — קטנה ועקבית ===== */
-  .photo-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap:10px }
-  .photo-grid .photo{
-    width:100%; height:100px; object-fit:cover;
-    border-radius:10px; border:1px solid var(--bd, #23293a);
-    background:#111;
-  }
-
-  @media (max-width: 860px){
-    .form-grid{ grid-template-columns:1fr; }
-    .photo-grid .photo{ height:90px; }
+  /* מובייל */
+  @media (max-width:760px){
+    .form-grid{ grid-template-columns:1fr }
   }
 </style>

@@ -25,14 +25,14 @@
         <span>תאריך</span>
         <input type="date" name="date" value="<%= it.date %>"/>
       </label>
-      <button class="btn primary sm" type="submit">רענון</button>
+      <button class="btn primary" type="submit">רענון</button>
     </form>
 
     <% if (it.error) { %><p class="alert warn"><%= it.error %></p><% } %>
     <% if (it.success) { %><p class="alert ok"><%= it.success %></p><% } %>
   </section>
 
-  <!-- בדיקת זמינות (שלב 1) -->
+  <!-- בדיקת זמינות (שלב 1: כאן מותר לערוך מס' סועדים) -->
   <section class="card">
     <h2 class="card-title">בדיקת זמינות</h2>
     <form id="checkForm" class="form inline" onsubmit="return false;">
@@ -44,19 +44,12 @@
         <span>מס' סועדים</span>
         <input type="number" id="checkPeople" value="<%= it.people || 2 %>" min="1" required>
       </label>
-      <button class="btn ghost sm" id="checkBtn" type="button">בדוק</button>
+      <button class="btn ghost" id="checkBtn" type="button">בדוק</button>
     </form>
-
-    <!-- תוצאה תמציתית בלבד -->
     <div id="checkResult" class="muted" style="margin-top:10px"></div>
-
-    <!-- הצעות חלופיות — יוצגו רק אם באמת אין זמינות -->
-    <div id="suggestionsWrap" hidden style="margin-top:10px">
-      <div id="sugSlots" class="slots"></div>
-    </div>
   </section>
 
-  <!-- טופס הזמנה (שלב 2) -->
+  <!-- טופס הזמנה (שלב 2: מס' סועדים מוצג + נשלח כ-hidden בלבד) -->
   <section class="card">
     <h2 class="card-title">הזמנה</h2>
     <form method="post" action="/restaurants/<%= it.r.id %>/reserve" class="form-grid">
@@ -80,7 +73,7 @@
       </label>
 
       <div class="form-actions" style="grid-column:1 / -1">
-        <button class="btn primary sm" type="submit">בצע הזמנה</button>
+        <button class="btn primary" type="submit">בצע הזמנה</button>
       </div>
     </form>
   </section>
@@ -92,30 +85,6 @@
   const res = document.getElementById('checkResult');
   const t = document.getElementById('checkTime');
   const p = document.getElementById('checkPeople');
-  const sugWrap = document.getElementById('suggestionsWrap');
-  const sugSlots = document.getElementById('sugSlots');
-
-  function renderSuggestions(list){
-    // מציג רק אם באמת יש הצעות כשאין זמינות
-    if (Array.isArray(list) && list.length){
-      sugSlots.innerHTML = '';
-      list.slice(0, 8).forEach(hhmm=>{
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'slot';
-        b.textContent = hhmm;
-        b.onclick = () => {
-          t.value = hhmm;        // מעדכן את שדה השעה של שלב 1
-          res.textContent = '';  // מנקה הודעה
-          sugWrap.hidden = true; // מסתיר הצעות אחרי בחירה
-        };
-        sugSlots.appendChild(b);
-      });
-      sugWrap.hidden = false;
-    } else {
-      sugWrap.hidden = true;
-    }
-  }
 
   if (btn && res && t && p) {
     btn.addEventListener('click', async () => {
@@ -124,12 +93,9 @@
       const date = new URLSearchParams(location.search).get('date') || '<%= it.date %>';
       if (!date || !time) {
         res.textContent = 'נא לבחור תאריך ושעה';
-        sugWrap.hidden = true;
         return;
       }
       res.textContent = 'בודק זמינות...';
-      sugWrap.hidden = true;
-
       try {
         const r = await fetch(`/api/restaurants/<%= it.r.id %>/check`, {
           method: 'POST',
@@ -137,18 +103,16 @@
           body: JSON.stringify({ date, time, people })
         });
         const data = await r.json().catch(()=>null);
-
         if (r.ok && data && data.ok) {
           res.textContent = 'יש זמינות! אפשר לבצע הזמנה.';
-          renderSuggestions([]); // מסתיר הצעות
         } else {
-          // מציג רק משפט קצר + הצעות (אם קיימות). בלי הטקסט הארוך.
-          res.textContent = 'אין זמינות בזמן המבוקש.';
-          renderSuggestions((data && data.suggestions) ? data.suggestions : []);
+          const sug = (data && data.suggestions && data.suggestions.length)
+            ? ' הצעות: ' + data.suggestions.join(', ')
+            : '';
+          res.textContent = 'אין זמינות בזמן המבוקש.' + sug;
         }
       } catch (e) {
         res.textContent = 'שגיאה בבדיקה. נסה שוב.';
-        sugWrap.hidden = true;
       }
     });
   }
@@ -210,7 +174,6 @@
     border:1px solid var(--bd, #23293a); font-weight:700;
     background: transparent; color: var(--ink, #e6e8ef);
     transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
-    font-size: 15px;
   }
   .btn:hover{ transform: translateY(-1px); }
   .btn.primary{
@@ -220,9 +183,6 @@
   }
   .btn.ghost{ background: color-mix(in srgb, var(--panel-2) 92%, transparent); }
   .btn.ghost:hover{ background: color-mix(in srgb, var(--panel) 92%, transparent); }
-
-  /* גודל קטן יותר לכפתורים (להחיל גם בדף פרטי הזמנה) */
-  .btn.sm{ padding: 8px 12px; font-size: 14px; border-radius: 10px; }
 
   /* ===== התראות ===== */
   .alert{
@@ -240,16 +200,6 @@
     background: linear-gradient(180deg, rgba(34,197,94,.12), transparent);
     color: #bbf7d0;
   }
-
-  /* ===== הצעות (רק כשאין זמינות) ===== */
-  .slots{ display:flex; flex-wrap:wrap; gap:8px }
-  .slot{
-    padding: 8px 12px; border:1px solid var(--bd, #23293a);
-    border-radius:10px; background: color-mix(in srgb, var(--panel-2) 92%, transparent);
-    cursor:pointer; transition: transform .08s ease, background .12s ease;
-    color: var(--ink, #e6e8ef);
-  }
-  .slot:hover{ transform: translateY(-1px); background: color-mix(in srgb, var(--panel) 92%, transparent); }
 
   /* ===== גלריה — קטנה ועקבית ===== */
   .photo-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap:10px }
