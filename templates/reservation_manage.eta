@@ -3,51 +3,127 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <title><%= it.title %></title>
+  <title><%= it.title || 'ניהול הזמנה · SpotBook' %></title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Rubik + עיצוב בסיס של האתר (אחידות מלאה) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/public/css/spotbook.css?v=<%= Date.now() %>"/>
+
   <style>
+    /* ===== SpotBook · כהה-יוקרתי (ללא שינוי לוגיקה/פיצ'רים) ===== */
     :root{
-      --bg:#f4f7fb;--card:#ffffff;--ink:#0f172a;--muted:#64748b;
-      --brand:#06b6d4;--brand-ink:#fff;--bd:#e2e8f0;--danger:#ef4444;--ok:#16a34a;
-      --radius:14px;
+      --bg:#0e1116; --ink:#e6e8ef; --ink-muted:#9aa3b2;
+      --panel:#121622; --panel-2:#171b29; --bd:#23293a;
+      --brand:#3b82f6; --brand-ink:#fff;
+      --ok:#22c55e; --danger:#ef4444; --warn:#fbbf24;
+      --radius:18px; --shadow:0 12px 36px rgba(0,0,0,.35);
+      --max:760px;
     }
     *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink)}
-    .wrap{max-width:760px;margin:24px auto;padding:0 16px}
-    .card{background:var(--card);border:1px solid var(--bd);border-radius:var(--radius);box-shadow:0 2px 8px rgba(0,0,0,.04)}
-    .head{padding:22px 20px 12px;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;gap:12px;align-items:center}
-    h1{margin:0;font-size:26px}
-    .muted{color:var(--muted)}
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--ink);
+      font-family: "Rubik", system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    }
+    a{color:inherit}
+
+    .wrap{max-width:var(--max); margin:24px auto; padding:0 16px}
+    .card{
+      background:var(--panel);
+      border:1px solid var(--bd);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .head{
+      padding:22px 20px 14px;
+      border-bottom:1px solid var(--bd);
+      display:flex; justify-content:space-between; gap:12px; align-items:center;
+    }
+    h1{margin:0; font-size:clamp(20px,3.6vw,26px); letter-spacing:.2px}
+    .muted{color:var(--ink-muted)}
     .body{padding:18px 20px}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
-    .pill{border:1px dashed var(--bd);border-radius:12px;padding:10px 12px;background:#fafcff}
-    .pill strong{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
-    .pill span{font-weight:700;letter-spacing:.3px}
-    .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
-    button,.btn{appearance:none;border:0;border-radius:999px;padding:10px 14px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block;transition:.15s ease}
-    .btn-brand{background:var(--brand);color:var(--brand-ink)}
-    .btn-brand:hover{filter:brightness(1.05)}
-    .btn-ghost{background:transparent;border:1px solid var(--bd);color:var(--ink)}
-    .btn-ghost:hover{background:#f8fafc}
-    .btn-danger{background:var(--danger);color:#fff}
-    .btn-danger:hover{filter:brightness(1.05)}
-    .btn[disabled],button[disabled]{opacity:.55;cursor:not-allowed;filter:none}
-    .hr{height:1px;background:var(--bd);margin:20px 0}
-    .success{color:var(--ok);font-weight:700;margin:10px 0 0}
-    .error{color:var(--danger);font-weight:700;margin:10px 0 0}
-    .restaurant{display:flex;gap:14px;align-items:center;margin-top:8px}
-    .restaurant img{width:60px;height:60px;object-fit:cover;border-radius:10px;border:1px solid var(--bd)}
-    .badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 10px;font-weight:700;font-size:12px;border:1px solid var(--bd);background:#fff}
-    .badge.new{border-color:#cbd5e1;background:#f8fafc}
-    .badge.confirmed{border-color:#bbf7d0;background:#f0fdf4;color:#065f46}
-    .badge.canceled{border-color:#fecaca;background:#fff1f2;color:#7f1d1d}
+
+    .restaurant{display:flex; gap:14px; align-items:center; margin-top:8px}
+    .restaurant img{
+      width:64px; height:64px; object-fit:cover; border-radius:12px;
+      border:1px solid var(--bd); background:var(--panel-2);
+    }
+
+    .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px}
+    .pill{
+      border:1px solid var(--bd);
+      border-radius:14px; padding:12px 14px;
+      background: color-mix(in srgb, var(--panel-2) 90%, transparent);
+    }
+    .pill strong{display:block; font-size:12px; color:var(--ink-muted); margin-bottom:6px}
+    .pill span{font-weight:800; letter-spacing:.3px}
+
+    .actions{display:flex; flex-wrap:wrap; gap:10px; margin-top:14px}
+
+    /* Buttons – “חיים” */
+    .btn, button{
+      appearance:none; border:1px solid var(--bd);
+      border-radius:999px; padding:10px 14px; font-weight:800; cursor:pointer;
+      text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:8px;
+      color:var(--ink); background:transparent;
+      transition: transform .08s ease, filter .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+    .btn:hover, button:hover{ transform: translateY(-1px) }
+
+    .btn-brand{
+      background:var(--brand); color:var(--brand-ink); border-color:transparent;
+      box-shadow:0 10px 28px rgba(59,130,246,.35);
+    }
+    .btn-ghost{
+      background: color-mix(in srgb, var(--panel-2) 90%, transparent);
+    }
+    .btn-ghost:hover{ background: color-mix(in srgb, var(--panel) 92%, transparent) }
+
+    .btn-danger{
+      background: color-mix(in srgb, var(--danger) 88%, black 12%);
+      color:#fff; border-color: transparent;
+      box-shadow:0 10px 28px rgba(239, 68, 68, .28);
+    }
+    .btn[disabled],button[disabled]{opacity:.5; cursor:not-allowed; transform:none; filter:none}
+
+    .hr{height:1px; background:var(--bd); margin:20px 0}
+
+    .success{color:var(--ok); font-weight:800; margin:10px 0 0}
+    .error{color:var(--danger); font-weight:800; margin:10px 0 0}
+
+    /* Status badge */
+    .badge{
+      display:inline-flex; align-items:center; gap:8px;
+      border-radius:999px; padding:8px 12px; font-weight:800; font-size:12px;
+      border:1px solid var(--bd); background: color-mix(in srgb, var(--panel-2) 92%, transparent);
+    }
+    .badge.new{ border-color:#94a3b8; background:rgba(148,163,184,.18); color:#e2e8f0 }
+    .badge.confirmed{ border-color:rgba(34,197,94,.45); background:rgba(34,197,94,.14); color:#86efac }
+    .badge.canceled{ border-color:rgba(239,68,68,.45); background:rgba(239,68,68,.12); color:#fecaca }
+
     /* Phone block */
-    .phone{margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-    .phone a.tel{color:#06b6d4;text-decoration:none;font-weight:700}
-    .copy-btn{background:#f1f5f9;border:1px solid var(--bd);color:#0f172a;border-radius:10px;padding:6px 10px;font-weight:600;cursor:pointer}
-    .copy-btn:hover{background:#e2e8f0}
-    .copied-badge{display:none;font-size:12px;color:var(--ok);font-weight:700}
+    .phone{margin-top:6px; display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+    .phone a.tel{ color:#7dd3fc; text-decoration:none; font-weight:800 }
+    .copy-btn{
+      background: color-mix(in srgb, var(--panel-2) 90%, transparent);
+      border:1px solid var(--bd); color:var(--ink);
+      border-radius:12px; padding:6px 10px; font-weight:700; cursor:pointer;
+      transition: background .12s ease, transform .08s ease;
+    }
+    .copy-btn:hover{ background: color-mix(in srgb, var(--panel) 92%, transparent); transform: translateY(-1px) }
+    .copied-badge{display:none; font-size:12px; color:var(--ok); font-weight:800}
     .copied .copied-badge{display:inline}
+
+    /* Responsive */
+    @media (max-width:480px){
+      .head{padding:18px 16px 12px}
+      .body{padding:16px}
+    }
   </style>
 </head>
 <body>
@@ -77,7 +153,7 @@
             <img src="<%= it.restaurant.photos[0] %>" alt="<%= it.restaurant.name %>" />
           <% } %>
           <div>
-            <div style="font-weight:700"><%= it.restaurant?.name || "מסעדה" %></div>
+            <div style="font-weight:800"><%= it.restaurant?.name || "מסעדה" %></div>
             <div class="muted"><%= it.restaurant?.address || "" %></div>
 
             <!-- טלפון: לחיץ לחיוג + כפתור העתקה -->
@@ -172,7 +248,7 @@
   </div>
 
   <script>
-    // העתקת מספר הטלפון ללוח
+    // העתקת מספר הטלפון ללוח (פיצ'ר נשמר 1:1)
     async function copyPhone(btn){
       try{
         const v = btn.getAttribute('data-phone') || '';
@@ -183,7 +259,7 @@
           setTimeout(()=>wrap.classList.remove('copied'), 1500);
         }
       }catch(e){
-        // fallback: בחר טקסט בקישור
+        // fallback: בחירת טקסט בקישור
         const tel = btn.previousElementSibling;
         if (tel && window.getSelection){
           const range = document.createRange();
