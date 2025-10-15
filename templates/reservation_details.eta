@@ -63,20 +63,38 @@
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn primary">אשר הזמנה</button>
-        <a class="btn ghost" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
+        <button type="submit" class="btn primary sm">אשר הזמנה</button>
+        <a class="btn ghost sm" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
           חזרה לשינוי שעה/תאריך
         </a>
       </div>
     </form>
   </section>
 
-  <section class="card" id="conflict-card" hidden>
-    <h3 class="card-title">אין זמינות במועד שבחרת</h3>
-    <p class="muted">בחר/י אחד מן הזמנים הזמינים בקרבת השעה שביקשת (±2 שעות):</p>
-    <div id="suggest-slots" class="slots"></div>
-    <small class="muted">לחיצה על שעה תעדכן את השעה בטופס ותאפשר לשליחה מחדש.</small>
-  </section>
+  <% 
+    const hasSuggestions = Array.isArray(it.suggestions) && it.suggestions.length > 0;
+    const showConflict = !!it.conflict || hasSuggestions;
+  %>
+  <% if (showConflict) { %>
+    <section class="card" id="conflict-card">
+      <h3 class="card-title">אין זמינות במועד שבחרת</h3>
+      <% if (hasSuggestions) { %>
+        <p class="muted">בחר/י אחד מן הזמנים הזמינים בקרבת השעה שביקשת (±2 שעות):</p>
+        <div id="suggest-slots" class="slots">
+          <% it.suggestions.forEach(t => { %>
+            <button type="button" class="slot" onclick="
+              (function(){
+                const url = new URL(window.location.href);
+                url.searchParams.set('time','<%= t %>');
+                window.location.href = url.toString();
+              })()
+            "><%= t %></button>
+          <% }) %>
+        </div>
+        <small class="muted">לחיצה על שעה תעדכן את השעה בטופס ותאפשר לשליחה מחדש.</small>
+      <% } %>
+    </section>
+  <% } %>
 
   <% if (it.restaurant.description) { %>
     <section class="card">
@@ -202,15 +220,23 @@
   }
   .btn.ghost:hover{ background: color-mix(in srgb, var(--panel, #121622) 92%, transparent); }
 
+  /* הקטנת הכפתורים הספציפיים בפעולות */
+  .form-actions .btn.sm{
+    padding:8px 12px;       /* קטן יותר */
+    border-radius:10px;
+    font-weight:700;
+  }
+
   .form-actions{ display:flex; gap:10px; flex-wrap:wrap }
 
-  /* התראת קונפליקט + הצעות */
+  /* התראת קונפליקט + הצעות (מופיע רק אם showConflict=true) */
   #conflict-card{ border-color: rgba(239,68,68,.35) }
   .slots{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px }
   .slot{
     padding:8px 12px; border-radius:10px; cursor:pointer;
     border:1px solid var(--bd, #23293a);
     background: color-mix(in srgb, var(--panel-2, #171b29) 88%, transparent);
+    color: var(--ink, #e6e8ef);
   }
   .slot:hover{ background: color-mix(in srgb, var(--panel, #121622) 88%, transparent); }
 
