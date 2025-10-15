@@ -186,20 +186,21 @@ function renderRestaurantRow(r: Restaurant, key: string) {
   </tr>`;
 }
 
-/** גרסה שמציגה גם בעלים (ותיקון סטטוס בעלים: isActive===false → מבוטל, אחרת פעיל) */
 function renderRestaurantRowWithOwner(
   r: Restaurant & { owner?: { id: string; firstName?: string; lastName?: string; email?: string; isActive?: boolean } | null },
   key: string,
 ) {
-  const ownerName = r.owner ? `${r.owner.firstName ?? ""} ${r.owner.lastName ?? ""}`.trim() || "—" : "—";
-  const ownerEmail = r.owner?.email || "—";
+  const ownerName  = r.owner ? `${r.owner.firstName ?? ""} ${r.owner.lastName ?? ""}`.trim() || "—" : "—";
+  const ownerEmail = r.owner?.email || ""; // נשמר ל-tooltip בלבד
   const ownerStatus = r.owner ? (r.owner.isActive === false ? "מבוטל" : "פעיל") : "—";
   const approved = r.approved ? "✅ מאושרת" : "⏳ ממתינה";
   const caps = `קיבולת: ${r.capacity ?? "-"} · סלוט: ${r.slotIntervalMinutes ?? "-"}ד' · שירות: ${r.serviceDurationMinutes ?? "-"}ד'`;
+
   return `
   <tr>
     <td><strong>${r.name}</strong><br/><small class="muted">${r.city} · ${r.address}</small></td>
-    <td>${ownerName}<br/><small class="muted" dir="ltr">${ownerEmail}</small></td>
+    <!-- מציגים רק שם; אימייל ב-title -->
+    <td title="${ownerEmail}">${ownerName}</td>
     <td>${ownerStatus}</td>
     <td>${approved}<br/><small class="muted">${caps}</small></td>
     <td>
@@ -214,14 +215,14 @@ function renderRestaurantRowWithOwner(
                </form>`
         }
         <a class="btn secondary" href="/restaurants/${r.id}" target="_blank" rel="noopener">דף מסעדה</a>
-        <form class="inline" method="post" action="/admin/restaurants/${r.id}/delete?key=${encodeURIComponent(key)}" onsubmit="return confirm('למחוק לצמיתות את &quot;${r.name}&quot; וכל ההזמנות שלה?')">
+        <form class="inline" method="post" action="/admin/restaurants/${r.id}/delete?key=${encodeURIComponent(key)}"
+              onsubmit="return confirm('למחוק לצמיתות את &quot;${r.name}&quot; וכל ההזמנות שלה?')">
           <button class="btn warn" type="submit">הסר</button>
         </form>
       </div>
     </td>
   </tr>`;
 }
-
 /* ================== router ================== */
 const adminRouter = new Router();
 
