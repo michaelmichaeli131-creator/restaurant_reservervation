@@ -181,3 +181,32 @@ body{
 
 .oc-spacer{flex:1}
 img{display:block;max-width:100%}
+
+
+/* === Compact table overrides === */
+.oc-slots{ font-size:0.93rem; }
+
+.oc-row{
+  grid-template-columns: 72px 1fr 88px; /* היה: 90px 1fr 110px */
+  gap:8px;                               /* היה: 12px */
+  padding:8px 10px;                      /* היה: 10px 14px */
+  min-height: 34px;                      /* שומר על נגישות בסיסית */
+}
+
+.oc-th{
+  padding:8px 10px;                      /* תואם שורות הגוף */
+  font-size:0.94rem;
+}
+
+.oc-time{ font-weight:700; font-size:0.92rem; } /* מעט יותר קומפקטי */
+.oc-info{ font-size:0.82rem; }                  /* טקסט העזר מצומצם */
+
+/* בר התפוסה כבר קוצר אצלך; מצמצם עוד קצת את הגובה למראה הדוק */
+.oc-bar{ height:8px; } /* היה: 10px */
+
+/* אם יש לך מצבי מובייל צרים – שומר על פריסה צפופה אך קריאה */
+@media (max-width:720px){
+  .oc-row{ grid-template-columns: 66px 1fr 78px; gap:6px; padding:7px 8px; }
+  .oc-info{ font-size:0.8rem; }
+}
+
