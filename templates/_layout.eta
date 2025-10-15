@@ -8,7 +8,7 @@
 
   <!-- טען את העיצוב הישן רק אם זה לא אדמין -->
   <% if (!it.admin) { %>
-    <link rel="stylesheet" href="/public/css/spotbook.css?v=<%= it.BUILD_TAG || '' %>"/>
+    <link rel="stylesheet" href="/static/styles.css?v=<%= it.BUILD_TAG || '' %>"/>
   <% } %>
 
   <!-- עיצוב כהה חדש של SpotBook (נטען תמיד ואחרון) -->
