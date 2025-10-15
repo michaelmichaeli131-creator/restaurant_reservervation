@@ -1,166 +1,199 @@
-<% layout("_layout", it) %>
-
-<section class="resv-mgr">
-  <header class="hd">
-    <div class="info">
-      <h1 class="title">ניהול הזמנה</h1>
-      <% if (it.restaurant?.name) { %>
-        <div class="muted">למסעדה <strong><%= it.restaurant.name %></strong></div>
-      <% } %>
-    </div>
-    <div class="status">
-      <span class="badge <%= it.reservation?.status==='cancelled' ? 'bad':'good' %>">
-        <%= it.reservation?.status==='cancelled' ? 'בוטלה' : 'פעילה' %>
-      </span>
-    </div>
-  </header>
-
-  <div class="grid">
-    <!-- טופס עריכה -->
-    <article class="card">
-      <h2 class="h2">עדכון פרטי ההזמנה</h2>
-      <form method="post" action="<%= (it.links && it.links.update) || '/reservations/update' %>">
-        <% if (it.reservation?.id) { %><input type="hidden" name="id" value="<%= it.reservation.id %>"><% } %>
-        <% if (it.restaurant?.id) { %><input type="hidden" name="rid" value="<%= it.restaurant.id %>"><% } %>
-
-        <div class="row">
-          <label>
-            <span>תאריך</span>
-            <input type="date" name="date" value="<%= it.reservation?.date || it.defaultDate || '' %>" required>
-          </label>
-          <label>
-            <span>שעה</span>
-            <input type="time" name="time" value="<%= it.reservation?.time || it.defaultTime || '' %>" required step="<%= it.slotStepSeconds || 900 %>">
-          </label>
-          <label>
-            <span>מס’ סועדים</span>
-            <input type="number" min="1" max="<%= it.restaurant?.capacity || 50 %>" step="1" name="size" value="<%= it.reservation?.size || it.reservation?.guests || 2 %>" required>
-          </label>
+<!-- /src/templates/reservation_manage.eta -->
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title><%= it.title %></title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#f4f7fb;--card:#ffffff;--ink:#0f172a;--muted:#64748b;
+      --brand:#06b6d4;--brand-ink:#fff;--bd:#e2e8f0;--danger:#ef4444;--ok:#16a34a;
+      --radius:14px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink)}
+    .wrap{max-width:760px;margin:24px auto;padding:0 16px}
+    .card{background:var(--card);border:1px solid var(--bd);border-radius:var(--radius);box-shadow:0 2px 8px rgba(0,0,0,.04)}
+    .head{padding:22px 20px 12px;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;gap:12px;align-items:center}
+    h1{margin:0;font-size:26px}
+    .muted{color:var(--muted)}
+    .body{padding:18px 20px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+    .pill{border:1px dashed var(--bd);border-radius:12px;padding:10px 12px;background:#fafcff}
+    .pill strong{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+    .pill span{font-weight:700;letter-spacing:.3px}
+    .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+    button,.btn{appearance:none;border:0;border-radius:999px;padding:10px 14px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block;transition:.15s ease}
+    .btn-brand{background:var(--brand);color:var(--brand-ink)}
+    .btn-brand:hover{filter:brightness(1.05)}
+    .btn-ghost{background:transparent;border:1px solid var(--bd);color:var(--ink)}
+    .btn-ghost:hover{background:#f8fafc}
+    .btn-danger{background:var(--danger);color:#fff}
+    .btn-danger:hover{filter:brightness(1.05)}
+    .btn[disabled],button[disabled]{opacity:.55;cursor:not-allowed;filter:none}
+    .hr{height:1px;background:var(--bd);margin:20px 0}
+    .success{color:var(--ok);font-weight:700;margin:10px 0 0}
+    .error{color:var(--danger);font-weight:700;margin:10px 0 0}
+    .restaurant{display:flex;gap:14px;align-items:center;margin-top:8px}
+    .restaurant img{width:60px;height:60px;object-fit:cover;border-radius:10px;border:1px solid var(--bd)}
+    .badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 10px;font-weight:700;font-size:12px;border:1px solid var(--bd);background:#fff}
+    .badge.new{border-color:#cbd5e1;background:#f8fafc}
+    .badge.confirmed{border-color:#bbf7d0;background:#f0fdf4;color:#065f46}
+    .badge.canceled{border-color:#fecaca;background:#fff1f2;color:#7f1d1d}
+    /* Phone block */
+    .phone{margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .phone a.tel{color:#06b6d4;text-decoration:none;font-weight:700}
+    .copy-btn{background:#f1f5f9;border:1px solid var(--bd);color:#0f172a;border-radius:10px;padding:6px 10px;font-weight:600;cursor:pointer}
+    .copy-btn:hover{background:#e2e8f0}
+    .copied-badge{display:none;font-size:12px;color:var(--ok);font-weight:700}
+    .copied .copied-badge{display:inline}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="head">
+        <div>
+          <h1>ניהול הזמנה</h1>
+          <div class="muted">מס׳ הזמנה: <code><%= it.reservation.id %></code></div>
         </div>
+        <%
+          const status = (it.reservation.status || 'new');
+          const statusLabel = status==='confirmed' ? 'מאושר'
+                              : status==='canceled' ? 'מבוטל'
+                              : 'חדש';
+        %>
+        <div class="badge <%= status %>">
+          <% if (status==='confirmed') { %>✓<% } else if (status==='canceled') { %>✗<% } else { %>•<% } %>
+          <span><%= statusLabel %></span>
+        </div>
+      </div>
 
-        <% if (it.presetSlots && it.presetSlots.length) { %>
-          <div class="slots">
-            <% it.presetSlots.forEach(s => { %>
-              <button class="chip" name="time" value="<%= s %>" type="submit"><%= s %></button>
-            <% }) %>
+      <div class="body">
+        <!-- פרטי מסעדה -->
+        <div class="restaurant">
+          <% if (it.restaurant && (it.restaurant.photos && it.restaurant.photos.length)) { %>
+            <img src="<%= it.restaurant.photos[0] %>" alt="<%= it.restaurant.name %>" />
+          <% } %>
+          <div>
+            <div style="font-weight:700"><%= it.restaurant?.name || "מסעדה" %></div>
+            <div class="muted"><%= it.restaurant?.address || "" %></div>
+
+            <!-- טלפון: לחיץ לחיוג + כפתור העתקה -->
+            <% if (it.restaurant?.phone) { 
+                 const phone = String(it.restaurant.phone);
+            %>
+              <div class="phone" id="phone-block">
+                <span>📞</span>
+                <a class="tel" href="tel:<%= phone %>"><%= phone %></a>
+                <button class="copy-btn" type="button" data-phone="<%= phone %>" onclick="copyPhone(this)">העתקה</button>
+                <span class="copied-badge" aria-live="polite">הועתק ✓</span>
+              </div>
+            <% } %>
           </div>
-        <% } %>
-
-        <label class="block">
-          <span>שם המזמין/ה</span>
-          <input type="text" name="name" value="<%= it.reservation?.name || it.reservation?.contactName || '' %>" placeholder="שם פרטי ומשפחה">
-        </label>
-        <div class="row">
-          <label>
-            <span>טלפון</span>
-            <input type="tel" dir="ltr" name="phone" value="<%= it.reservation?.phone || it.reservation?.contactPhone || '' %>">
-          </label>
-          <label>
-            <span>אימייל</span>
-            <input type="email" dir="ltr" name="email" value="<%= it.reservation?.email || '' %>">
-          </label>
         </div>
 
-        <label class="block">
-          <span>הערות</span>
-          <textarea name="notes" rows="3" placeholder="אלרגיות, העדפות ישיבה וכו’"><%= it.reservation?.notes || '' %></textarea>
-        </label>
+        <div class="hr"></div>
+
+        <!-- פרטי הזמנה -->
+        <div class="grid">
+          <div class="pill">
+            <strong>תאריך</strong>
+            <span><%= it.reservation.date %></span>
+          </div>
+          <div class="pill">
+            <strong>שעה</strong>
+            <span><%= it.reservation.time %></span>
+          </div>
+          <div class="pill">
+            <strong>מס׳ סועדים</strong>
+            <span><%= it.reservation.people %></span>
+          </div>
+          <div class="pill">
+            <strong>סטטוס</strong>
+            <span><%= statusLabel %></span>
+          </div>
+        </div>
+
+        <% if (it.flash?.ok) { %>
+          <p class="success">✓ <%= it.flash.ok %></p>
+        <% } %>
+        <% if (it.flash?.error) { %>
+          <p class="error">✗ <%= it.flash.error %></p>
+        <% } %>
 
         <div class="actions">
-          <button class="btn" type="submit">שמירה</button>
-          <% if (it.links?.cancel && it.reservation?.status!=='cancelled') { %>
-          <form class="inline" method="post" action="<%= it.links.cancel %>" onsubmit="return confirm('לבטל את ההזמנה?')">
-            <button class="btn danger" type="submit">ביטול הזמנה</button>
+          <!-- אישור הגעה (מופיע רק כשהוא אפשרי) -->
+          <% if (it.allowConfirm) { %>
+            <form method="post" action="/r/<%= it.token %>">
+              <input type="hidden" name="action" value="confirm">
+              <button
+                class="btn btn-brand"
+                type="submit"
+                name="action"
+                value="confirm"
+                formmethod="post"
+                formaction="/r/<%= it.token %>?action=confirm"
+              >מאשר/ת הגעה</button>
+            </form>
+          <% } %>
+
+          <!-- ביטול (תמיד זמין עד שההזמנה כבר בוטלה) -->
+          <form method="post" action="/r/<%= it.token %>" onsubmit="return <%= it.allowCancel ? 'confirm(&#39;לבטל את ההזמנה?&#39;)' : 'false' %>;">
+            <input type="hidden" name="action" value="cancel">
+            <button
+              class="btn btn-danger"
+              type="submit"
+              name="action"
+              value="cancel"
+              formmethod="post"
+              formaction="/r/<%= it.token %>?action=cancel"
+              <%= it.allowCancel ? '' : 'disabled aria-disabled="true"' %>
+            >
+              ביטול הזמנה
+            </button>
           </form>
+
+          <!-- רענון דף -->
+          <a class="btn btn-ghost" href="/r/<%= it.token %>">רענון</a>
+        </div>
+
+        <div class="hr"></div>
+
+        <p class="muted">
+          צריך עזרה? פנו אלינו עם מספר ההזמנה שמופיע למעלה.
+          <% if (it.restaurant?.phone) { %>
+            או חייגו אל <strong><a class="tel" href="tel:<%= it.restaurant.phone %>"><%= it.restaurant.phone %></a></strong>.
           <% } %>
-          <% if (it.links?.details) { %><a class="btn secondary" href="<%= it.links.details %>">צפייה בהזמנה</a><% } %>
-        </div>
-
-        <% if (it.policy?.change) { %>
-          <p class="muted small">מדיניות שינוי/ביטול: <%= it.policy.change %></p>
-        <% } %>
-      </form>
-    </article>
-
-    <!-- צד משלים -->
-    <aside class="stack">
-      <% if ((it.qr && it.qr.src) || it.reservation?.id) { %>
-      <article class="card">
-        <h3 class="h3">קוד הזמנה</h3>
-        <div class="qr">
-          <% if (it.qr?.src) { %>
-            <img src="<%= it.qr.src %>" alt="QR להזמנה" width="160" height="160">
-          <% } else { %>
-            <img src="/qr?text=<%= encodeURIComponent(String(it.reservation.id)) %>" alt="QR להזמנה" width="160" height="160">
-          <% } %>
-        </div>
-        <div class="muted small" dir="ltr">#<%= it.reservation?.id || '' %></div>
-      </article>
-      <% } %>
-
-      <% if (it.calendar && (it.calendar.ics || it.calendar.google || it.calendar.apple)) { %>
-      <article class="card">
-        <h3 class="h3">הוסף ליומן</h3>
-        <div class="row chips">
-          <% if (it.calendar.ics) { %><a class="chip" href="<%= it.calendar.ics %>">ICS</a><% } %>
-          <% if (it.calendar.google) { %><a class="chip" href="<%= it.calendar.google %>" target="_blank" rel="noopener">Google</a><% } %>
-          <% if (it.calendar.apple) { %><a class="chip" href="<%= it.calendar.apple %>">Apple</a><% } %>
-        </div>
-      </article>
-      <% } %>
-
-      <% if (it.restaurant && (it.restaurant.phone || it.restaurant.map || it.restaurant.website)) { %>
-      <article class="card">
-        <h3 class="h3">יצירת קשר</h3>
-        <ul class="list">
-          <% if (it.restaurant.phone) { %><li><a href="tel:<%= it.restaurant.phone %>">📞 <span dir="ltr"><%= it.restaurant.phone %></span></a></li><% } %>
-          <% if (it.restaurant.website) { %><li><a href="<%= it.restaurant.website %>" target="_blank" rel="noopener">🌐 אתר המסעדה</a></li><% } %>
-          <% if (it.restaurant.map) { %><li><a href="<%= it.restaurant.map %>" target="_blank" rel="noopener">🗺️ מפות</a></li><% } %>
-        </ul>
-      </article>
-      <% } %>
-    </aside>
+        </p>
+      </div>
+    </div>
   </div>
-</section>
 
-<style>
-  :root{--bd:#23293a;--panel:#12151b;--panel2:#161a21;--ink:#e6e9ef;--ink-dim:#9aa3b2}
-
-  .resv-mgr{max-width:1100px;margin:0 auto;display:grid;gap:16px}
-  .hd{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-  .title{margin:0}
-  .muted{color:var(--ink-dim)}
-  .badge{padding:5px 8px;border-radius:999px;border:1px solid #334155;font-size:12px}
-  .badge.good{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.35)}
-  .badge.bad{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35)}
-
-  .grid{display:grid;grid-template-columns:2fr 1fr;gap:12px}
-  @media (max-width:980px){.grid{grid-template-columns:1fr}}
-
-  .card{background:linear-gradient(180deg, rgba(22,26,33,.9), rgba(16,19,25,.94));border:1px solid var(--bd);border-radius:14px;padding:12px}
-  .h2{margin:0 0 8px;font-size:18px}
-  .h3{margin:0 0 8px;font-size:16px}
-
-  form .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-  form label{display:grid;gap:6px}
-  input, textarea{
-    background:var(--panel2);color:var(--ink);border:1px solid var(--bd);border-radius:10px;padding:8px 10px
-  }
-  textarea{resize:vertical}
-  .block{margin-top:8px}
-  .actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;border:1px solid #2a3040;background:transparent;color:var(--ink);font-weight:600;text-decoration:none}
-  .btn.secondary{opacity:.9}
-  .btn:hover{transform:translateY(-1px)}
-  .btn.danger{border-color:rgba(239,68,68,.45);color:#fecaca}
-
-  .slots{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
-  .chip{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;border:1px solid #2a3040;background:transparent;color:var(--ink);cursor:pointer}
-  .chip:hover{transform:translateY(-1px)}
-
-  .stack{display:grid;gap:12px}
-  .qr{display:flex;justify-content:center;margin:6px 0}
-  .list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
-  .list a{color:var(--ink);text-decoration:none}
-  .list a:hover{text-decoration:underline}
-</style>
+  <script>
+    // העתקת מספר הטלפון ללוח
+    async function copyPhone(btn){
+      try{
+        const v = btn.getAttribute('data-phone') || '';
+        await navigator.clipboard.writeText(v);
+        const wrap = btn.parentElement;
+        if (wrap){
+          wrap.classList.add('copied');
+          setTimeout(()=>wrap.classList.remove('copied'), 1500);
+        }
+      }catch(e){
+        // fallback: בחר טקסט בקישור
+        const tel = btn.previousElementSibling;
+        if (tel && window.getSelection){
+          const range = document.createRange();
+          range.selectNodeContents(tel);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      }
+    }
+  </script>
+</body>
+</html>

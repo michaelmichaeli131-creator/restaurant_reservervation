@@ -1,17 +1,15 @@
 <% layout("_layout", it) %>
-<main class="container sb-rest">
-  <header class="page-header card hero-head">
-    <div class="hd-text">
-      <h1 class="title">פרטי הזמנה — <%= it.restaurant.name %></h1>
-      <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
-      <% if (it.restaurant.phone) { %>
-        <p class="muted" dir="ltr">טלפון: <%= it.restaurant.phone %></p>
-      <% } %>
-    </div>
+<main class="container">
+  <header class="page-header">
+    <h1>פרטי הזמנה — <%= it.restaurant.name %></h1>
+    <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+    <% if (it.restaurant.phone) { %>
+      <p class="muted">טלפון: <%= it.restaurant.phone %></p>
+    <% } %>
   </header>
 
   <section class="card">
-    <h2 class="h2">שלב 2 — פרטי לקוח</h2>
+    <h2 style="margin-top:0">שלב 2 — פרטי לקוח</h2>
 
     <div class="summary">
       <div><strong>תאריך:</strong> <span id="sum-date"><%= it.date %></span></div>
@@ -24,65 +22,72 @@
           class="form-grid"
           action="/restaurants/<%= it.restaurant.id %>/confirm"
           method="post" novalidate>
-      <!-- ערכי שלב 1 (נעולים) -->
+      <!-- תאריך ושעה נעולים בשלב הזה -->
       <input type="hidden" name="date" value="<%= it.date %>"/>
       <input type="hidden" name="time" value="<%= it.time %>"/>
+      <!-- מס' סועדים נעול בשלב הזה -->
       <input type="hidden" id="hidden-people" name="people" value="<%= it.people %>"/>
 
-      <!-- פרטי לקוח -->
       <div class="form-row">
-        <label for="name"><span>שם מלא</span></label>
+        <label for="name">שם מלא</label>
         <input id="name" name="name" type="text" required autocomplete="name"
                placeholder="שם פרטי ושם משפחה"/>
       </div>
 
       <div class="form-row">
-        <label for="phone"><span>נייד</span></label>
+        <label for="phone">נייד</label>
         <input id="phone" name="phone" type="tel" required inputmode="tel"
                placeholder="050-1234567"/>
       </div>
 
       <div class="form-row">
-        <label for="email"><span>אימייל</span></label>
+        <label for="email">אימייל</label>
         <input id="email" name="email" type="email" dir="ltr" inputmode="email"
                autocomplete="email" autocapitalize="off" spellcheck="false"
                placeholder="you@example.com" required />
         <small class="muted">נשלח אליך אישור הזמנה</small>
       </div>
 
+      <!-- תיבת הערות/בקשות מיוחדות (אופציונלי) -->
       <div class="form-row" style="grid-column: 1 / -1">
-        <label for="note"><span>הערות ובקשות מיוחדות (אופציונלי)</span></label>
+        <label for="note">הערות ובקשות מיוחדות (אופציונלי)</label>
         <textarea id="note" name="note" rows="3" maxlength="500"
                   placeholder="אלרגיות, עדיפות למיקום, חגיגה, כסא תינוק..."></textarea>
         <small class="muted">עד 500 תווים</small>
       </div>
 
-      <!-- הצגה בלבד של הסועדים לאימות -->
+      <!-- הצגת מס' הסועדים לתקציר/וידוא (ללא עריכה) -->
       <div class="form-row">
-        <label><span>מספר סועדים</span></label>
+        <label>מספר סועדים</label>
         <div class="readonly-box"><%= it.people %></div>
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn primary">אשר הזמנה</button>
-        <a class="btn ghost" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
+        <button type="submit" class="btn">אשר הזמנה</button>
+        <a class="btn secondary" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
           חזרה לשינוי שעה/תאריך
         </a>
       </div>
     </form>
   </section>
 
+  <section class="card" id="conflict-card" hidden>
+    <h3 style="margin-top:0">אין זמינות במועד שבחרת</h3>
+    <p>בחר/י אחד מן הזמנים הזמינים בקרבת השעה שביקשת (±2 שעות):</p>
+    <div id="suggest-slots" class="slots"></div>
+    <small class="muted">לחיצה על שעה תעדכן את השעה בטופס ותאפשר לשליחה מחדש.</small>
+  </section>
+
   <% if (it.restaurant.description) { %>
     <section class="card">
-      <h2 class="h2">על המסעדה</h2>
-      <p class="muted"><%= it.restaurant.description %></p>
+      <h2 style="margin-top:0">על המסעדה</h2>
+      <p><%= it.restaurant.description %></p>
     </section>
   <% } %>
 </main>
 
 <script>
   (function(){
-    // נרמול אימיילים (BIDI וכו') כדי לשפר שליחת מייל
     const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
     const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
     function normalizeEmail(s) {
@@ -100,60 +105,124 @@
       });
     }
 
-    // שמירה על עקביות התקציר
+    // שמירה על עקביות התקציר עם ה-hidden (במקום קלט ניתן לעריכה)
     const hiddenPeople = document.getElementById('hidden-people');
     const sumP = document.getElementById('sum-people');
     if (hiddenPeople && sumP) {
       sumP.textContent = hiddenPeople.value || sumP.textContent;
     }
   })();
+
+  (function () {
+    const form = document.getElementById('details-form');
+    if (!form) return;
+    form.addEventListener('submit', function (ev) {
+      try {
+        if (!form.checkValidity()) return;
+        if (form.hasAttribute('data-force-post')) return;
+
+        ev.preventDefault();
+        const sp = new URLSearchParams();
+        const fd = new FormData(form);
+
+        // נשלח את כל הערכים (כולל note ו-people הנעול)
+        for (const [k, v] of fd.entries()) {
+          if (typeof v === 'string') sp.append(k, v);
+        }
+
+        const to = new URL(form.getAttribute('action') || window.location.href, window.location.origin);
+        to.search = sp.toString();
+        window.location.assign(to.toString());
+      } catch (e) {
+        console.warn('[details-form] redirect-as-GET failed, falling back to POST:', e);
+      }
+    }, { passive: false });
+  })();
 </script>
 
 <style>
-  :root{
-    --bg:#0e1116; --panel:#121622; --panel2:#171b29; --ink:#e6e8ef; --ink-muted:#9aa3b2;
-    --bd:#23293a; --brand:#3b82f6; --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35);
+  .container {
+    max-width: 900px;
+    margin: 24px auto;
+    padding: 0 16px;
   }
-  body.sb-body{
-    background: radial-gradient(1200px 600px at 80% -100px, rgba(65,84,255,.18), transparent),
-                radial-gradient(700px 400px at -20% 10%, rgba(19,190,255,.12), transparent),
-                var(--bg);
-    color:var(--ink);
+  .card {
+    border: 1px solid #eee;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 18px;
   }
-  .container.sb-rest { max-width: 900px; margin: 18px auto; padding: 0 16px; }
-
-  .card{ background:linear-gradient(180deg, rgba(22,26,33,.9), rgba(16,19,25,.94));
-         border:1px solid var(--bd); border-radius:var(--radius);
-         padding:14px; margin-bottom:16px; box-shadow:var(--shadow); }
-
-  .hero-head .title{ margin:0 0 4px }
-  .muted{ color:var(--ink-muted) }
-
-  .h2{ margin:0 0 10px; font-size:20px }
-
+  .muted { color: #777; }
   .summary {
-    display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px;
-    color: var(--ink-muted);
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
   }
-
-  .form-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px }
-  .form-row{ display:flex; flex-direction:column; gap:6px }
-  .form-row input, .form-row textarea{
-    background:var(--panel2); color:var(--ink); border:1px solid var(--bd);
-    border-radius:12px; padding:10px 12px; outline:none;
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
   }
-  .form-row input:focus, .form-row textarea:focus{ box-shadow:0 0 0 3px rgba(59,130,246,.25); border-color:rgba(59,130,246,.45) }
+  .form-row {
+    display: flex;
+    flex-direction: column;
+  }
+  .form-row label {
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .form-row input, .form-row textarea {
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 1rem;
+  }
   .readonly-box {
-    padding:10px 12px; border:1px dashed var(--bd); border-radius:12px; background:var(--panel2);
+    padding: 8px 10px;
+    border: 1px dashed #ccc;
+    border-radius: 6px;
+    background: #fafafa;
+    font-size: 1rem;
   }
-
-  .form-actions{ grid-column:1 / -1; display:flex; gap:10px; flex-wrap:wrap; margin-top:6px }
-  .btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px;
-        border-radius:999px; padding:10px 16px; border:1px solid var(--bd);
-        cursor:pointer; text-decoration:none; color:var(--ink); background:transparent; }
-  .btn.primary{ background:var(--brand); border-color:transparent; color:#fff; box-shadow:0 6px 18px rgba(59,130,246,.35) }
-  .btn.ghost{ background:transparent }
-  .btn:hover{ filter:brightness(1.05) }
-
-  @media (max-width:760px){ .form-grid{ grid-template-columns:1fr } }
+  .form-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .btn {
+    background: #111;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  .btn.secondary {
+    background: #555;
+  }
+  #conflict-card {
+    border-color: #ffccc7;
+  }
+  .slots {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .slot {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    background: #fafafa;
+    cursor: pointer;
+  }
+  .slot:hover {
+    background: #f0f0ff;
+  }
+  @media (max-width:760px) {
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>

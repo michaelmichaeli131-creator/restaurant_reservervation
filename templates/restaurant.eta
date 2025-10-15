@@ -1,13 +1,11 @@
 <% layout("_layout", it) %>
-<main class="container sb-rest">
-  <header class="page-header card hero-head">
-    <div class="hd-text">
-      <h1 class="title"><%= it.restaurant.name %></h1>
-      <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
-      <% if (it.restaurant.phone) { %>
-        <p class="muted" dir="ltr">טלפון: <%= it.restaurant.phone %></p>
-      <% } %>
-    </div>
+<main class="container">
+  <header class="page-header">
+    <h1><%= it.restaurant.name %></h1>
+    <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+    <% if (it.restaurant.phone) { %>
+      <p class="muted">טלפון: <%= it.restaurant.phone %></p>
+    <% } %>
   </header>
 
   <%
@@ -22,7 +20,7 @@
     const PEOPLE_INIT = Math.max(1, Number(it.people || 2) || 2);
   %>
 
-  <!-- Hero (נשאר גדול) -->
+  <!-- Hero -->
   <section class="hero card" aria-label="תמונה ראשית">
     <img
       src="<%= hero %>"
@@ -32,9 +30,8 @@
     />
   </section>
 
-  <!-- שלב 1 -->
   <section class="card">
-    <h2 class="h2">הזמנת מקום — שלב 1</h2>
+    <h2 style="margin-top:0">הזמנת מקום — שלב 1</h2>
 
     <% if (it.conflict) { %>
       <div class="alert warn" role="alert">
@@ -47,17 +44,17 @@
           action="/restaurants/<%= it.restaurant.id %>/reserve"
           method="post" novalidate>
       <div class="form-row">
-        <label for="date"><span>תאריך</span></label>
+        <label for="date">תאריך</label>
         <input id="date" name="date" type="date" required value="<%= it.date || '' %>"/>
       </div>
 
       <div class="form-row">
-        <label for="people"><span>מס׳ סועדים</span></label>
+        <label for="people">מס׳ סועדים</label>
         <input id="people" name="people" type="number" min="1" step="1" required value="<%= PEOPLE_INIT %>"/>
       </div>
 
       <div class="form-row time-row">
-        <label for="time-display"><span>שעה</span></label>
+        <label for="time-display">שעה</label>
         <div class="time-dropdown-wrapper">
           <button type="button" class="time-dropdown-btn" id="time-display" aria-haspopup="listbox" aria-expanded="false">
             <%= it.time || "בחר שעה" %>
@@ -66,43 +63,38 @@
           <div class="time-options" id="time-options" hidden role="listbox"></div>
         </div>
         <input type="hidden" id="time" name="time" value="<%= it.time || '' %>"/>
-        <small class="muted">שעות בתדירות <span id="step-label"><%= SLOT_STEP %></span> דקות (בתוך שעות הפתיחה)</small>
+        <small class="muted">שעות בתדירות <span id="step-label"><%= SLOT_STEP %></span> דקות (רק בתוך שעות הפתיחה של המסעדה)</small>
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn primary">המשך לשלב פרטים</button>
-        <button type="button" id="check-btn" class="btn ghost" data-rid="<%= it.restaurant.id %>">בדוק זמינות</button>
+        <button type="submit" class="btn">המשך לשלב הבא</button>
+        <button type="button" id="check-btn" class="btn secondary" data-rid="<%= it.restaurant.id %>">בדוק זמינות</button>
       </div>
     </form>
   </section>
 
-  <!-- הצעות סביב השעה -->
   <section class="card" id="around-card" hidden>
-    <h3 class="h3">שעות זמינות סביב המועד שבחרת (±2 שעות)</h3>
+    <h3 style="margin-top:0">שעות זמינות סביב המועד שבחרת (±2 שעות)</h3>
     <div id="around-slots" class="slots"></div>
     <small class="muted">לחיצה על שעה מעתיקה לשדה השעה.</small>
   </section>
 
   <% if (it.restaurant.description) { %>
     <section class="card">
-      <h2 class="h2">על המסעדה</h2>
-      <p class="muted"><%= it.restaurant.description %></p>
+      <h2 style="margin-top:0">על המסעדה</h2>
+      <p><%= it.restaurant.description %></p>
     </section>
   <% } %>
 
   <% if (it.restaurant.menu && it.restaurant.menu.length) { %>
     <section class="card">
-      <h2 class="h2">תפריט</h2>
+      <h2 style="margin-top:0">תפריט</h2>
       <ul class="menu-list">
         <% it.restaurant.menu.forEach(item => { %>
-          <li class="menu-item">
-            <div class="mi-row">
-              <strong class="mi-name"><%= item.name %></strong>
-              <% if (item.price != null) { %>
-                <span class="mi-price">₪<%= item.price %></span>
-              <% } %>
-            </div>
-            <% if (item.desc) { %><div class="mi-desc muted"><%= item.desc %></div><% } %>
+          <li>
+            <strong><%= item.name %></strong>
+            <% if (item.price != null) { %> — <span class="muted"><%= item.price %> ₪</span><% } %>
+            <% if (item.desc) { %><br/><span class="muted"><%= item.desc %></span><% } %>
           </li>
         <% }) %>
       </ul>
@@ -111,7 +103,7 @@
 
   <% if (_photos.length > 0) { %>
     <section class="card">
-      <h2 class="h2">תמונות</h2>
+      <h2 style="margin-top:0">תמונות</h2>
       <div class="photo-grid">
         <% _photos.forEach(src => { %>
           <img src="<%= src %>" alt="תמונה של המסעדה" loading="lazy" onerror="this.src='<%= PLACEHOLDER %>'"/>
@@ -121,7 +113,7 @@
   <% } %>
 </main>
 
-<!-- *** נתונים מהשרת *** -->
+<!-- *** הזרקת נתונים מהשרת (כולל rid) *** -->
 <meta id="srv-data"
   data-rid="<%= it.restaurant.id %>"
   data-weekly='<%= JSON.stringify(it.restaurant?.weeklySchedule ?? it.restaurant?.openingHours ?? it.restaurant?.hours ?? it.restaurant?.open_hours ?? null) %>'
@@ -317,6 +309,7 @@
       hiddenInput.value = v;
       opts.hidden = true;
       btn.setAttribute("aria-expanded", "false");
+      console.debug("GT: time selected", v);
     });
 
     dateInput.addEventListener("change", () => {
@@ -343,7 +336,23 @@
       rebuildTimeOptionsFor(initDate);
     })();
 
-    // "בדוק זמינות" + הצעות סביב השעה
+    form.addEventListener("submit", (ev) => {
+      const dateVal = (dateInput.value || "").trim();
+      const timeVal = (hiddenInput.value || "").trim();
+      const pplVal  = Math.max(1, parseInt((peopleInput.value || "1"), 10) || 1);
+      if (!dateVal || !timeVal) {
+        ev.preventDefault();
+        alert("נא לבחור תאריך ושעה");
+        return;
+      }
+      const u = new URL(form.action, window.location.origin);
+      u.searchParams.set("date", dateVal);
+      u.searchParams.set("time", timeVal);
+      u.searchParams.set("people", String(pplVal));
+      form.action = u.pathname + u.search;
+    });
+
+    // "בדוק זמינות" + הצעות סביב השעה — שולח גם people
     const checkBtn = document.getElementById("check-btn");
     checkBtn?.addEventListener("click", async () => {
       const date = (dateInput.value || "").trim();
@@ -396,87 +405,46 @@
 </script>
 
 <style>
-  :root{
-    --bg:#0e1116; --panel:#121622; --panel2:#171b29; --ink:#e6e8ef; --ink-muted:#9aa3b2;
-    --bd:#23293a; --brand:#3b82f6; --ok:#22c55e; --warn:#fbbf24; --danger:#ef4444;
-    --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35);
-  }
-  body.sb-body{
-    background: radial-gradient(1200px 600px at 80% -100px, rgba(65,84,255,.18), transparent),
-                radial-gradient(700px 400px at -20% 10%, rgba(19,190,255,.12), transparent),
-                var(--bg);
-    color:var(--ink);
-  }
-  .container.sb-rest{ max-width:1100px; margin:18px auto; padding:0 16px; }
+  .container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+  .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 24px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .page-header h1 { margin: 0 0 6px; }
+  .muted { color: #6b7280; }
 
-  .card{ background:linear-gradient(180deg, rgba(22,26,33,.9), rgba(16,19,25,.94));
-         border:1px solid var(--bd); border-radius:var(--radius);
-         padding:14px; margin-bottom:16px; box-shadow:var(--shadow); }
+  .hero-img { width: 100%; height: 260px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; }
 
-  .hero-head .title{ margin:0 0 4px; letter-spacing:.2px }
-  .muted{ color:var(--ink-muted) }
+  .form-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
+  .form-row { display: flex; flex-direction: column; position: relative; }
+  .form-row.time-row { grid-column: 1 / -1; }
+  .time-dropdown-wrapper { position: relative; width: 100%; }
+  .time-dropdown-btn { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e0; border-radius: 6px; background: #fff; text-align: left; font-size: 1rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .time-options { position: absolute; top: calc(100% + 4px); left: 0; right: 0; max-height: 240px; overflow-y: auto; border: 1px solid #cbd5e0; border-radius: 6px; background: #fff; z-index: 1000; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+  .time-option { padding: 8px 12px; cursor: pointer; }
+  .time-option[aria-disabled="true"] { color: #999; cursor: default; }
+  .time-option:hover { background: #f0f0ff; }
+  .arrow { margin-left: 8px; color: #666; }
 
-  /* Hero stays large */
-  .hero-img{ width:100%; height:320px; object-fit:cover;
-             border-radius:14px; border:1px solid var(--bd); background:#0b0f17 }
-  @media (max-width:860px){ .hero-img{ height:240px } }
+  .form-row label { margin-bottom: 4px; color: #333; font-weight: 500; }
+  .form-row input { padding: 10px 12px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 1rem; transition: border-color 0.2s; }
+  .form-row input:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.3); }
+  .form-actions { grid-column: 1 / -1; display: flex; gap: 12px; margin-top: 16px; }
+  .btn { padding: 10px 16px; border: none; border-radius: 6px; background-color: #667eea; color: #fff; cursor: pointer; transition: background-color 0.2s; }
+  .btn:hover { background-color: #5a67d8; }
+  .btn.secondary { background-color: #a0aec0; }
+  .btn.secondary:hover { background-color: #718096; }
+  .alert.warn { background: #fff5f5; border: 1px solid #fed7d7; color: #c53030; padding: 12px; border-radius: 6px; margin-bottom: 12px; }
 
-  .h2{ margin:0 0 10px; font-size:20px }
-  .h3{ margin:0 0 8px;  font-size:16px }
+  .slots { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .slot { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; background: #f7fafc; cursor: pointer; transition: background-color 0.2s; }
+  .slot:hover { background: #edf2f7; }
 
-  .form-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px }
-  .form-row{ display:flex; flex-direction:column; gap:6px }
-  .form-row.time-row{ grid-column:1 / -1 }
-  .form-row input{
-    background:var(--panel2); color:var(--ink); border:1px solid var(--bd);
-    border-radius:12px; padding:10px 12px; outline:none;
-  }
-  .form-row input:focus{ box-shadow:0 0 0 3px rgba(59,130,246,.25); border-color:rgba(59,130,246,.45) }
-  .form-actions{ grid-column:1 / -1; display:flex; gap:10px; flex-wrap:wrap; margin-top:4px }
+  .menu-list { list-style: none; margin: 0; padding: 0; }
+  .menu-list li { padding: 8px 0; border-bottom: 1px dashed #eee; }
 
-  .time-dropdown-wrapper{ position:relative; width:100% }
-  .time-dropdown-btn{
-    width:100%; padding:10px 12px; border:1px solid var(--bd); border-radius:12px;
-    background:var(--panel2); color:var(--ink); text-align:right; cursor:pointer;
-    display:flex; justify-content:space-between; align-items:center;
-  }
-  .time-options{
-    position:absolute; inset-inline:0 0; top:calc(100% + 6px); max-height:280px; overflow:auto;
-    border:1px solid var(--bd); border-radius:12px; background:var(--panel);
-    z-index:40; box-shadow:var(--shadow); padding:6px;
-  }
-  .time-option{ padding:8px 10px; border-radius:8px; cursor:pointer }
-  .time-option[aria-disabled="true"]{ color:var(--ink-muted); cursor:default }
-  .time-option:hover{ background:rgba(255,255,255,.05) }
-  .arrow{ opacity:.7 }
+  .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 10px; }
+  .photo-grid img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; }
 
-  .btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px;
-        border-radius:999px; padding:10px 16px; border:1px solid var(--bd);
-        cursor:pointer; text-decoration:none; color:var(--ink); background:transparent; }
-  .btn.primary{ background:var(--brand); border-color:transparent; color:#fff;
-                box-shadow:0 6px 18px rgba(59,130,246,.35) }
-  .btn.ghost{ background:transparent }
-  .btn:hover{ filter:brightness(1.05) }
-
-  .alert.warn{ background:rgba(251,191,36,.14); border:1px solid rgba(251,191,36,.45);
-               color:#fde68a; padding:12px; border-radius:12px; }
-
-  .slots{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px }
-  .slot{ padding:8px 12px; border:1px solid var(--bd); border-radius:12px; background:var(--panel2); cursor:pointer }
-  .slot:hover{ background:rgba(255,255,255,.04) }
-
-  /* Menu */
-  .menu-list{ list-style:none; margin:0; padding:0; display:grid; gap:10px }
-  .menu-item{ border-bottom:1px dashed rgba(255,255,255,.06); padding-bottom:10px }
-  .mi-row{ display:flex; align-items:center; justify-content:space-between; gap:10px }
-  .mi-price{ color:#bfe0ff }
-  .mi-desc{ margin-top:4px }
-
-  /* Photos (קטן יותר לפי בקשתך) */
-  .photo-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:10px }
-  .photo-grid img{ width:100%; height:110px; object-fit:cover; border-radius:12px; border:1px solid var(--bd); background:#0b0f17 }
-
-  @media (max-width:860px){
-    .form-grid{ grid-template-columns:1fr }
+  @media (max-width: 860px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .hero-img { height: 200px; }
   }
 </style>
