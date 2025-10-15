@@ -209,7 +209,7 @@ adminRouter.get("/admin", async (ctx) => {
 
   let rows: (Restaurant & { owner?: any | null })[];
   if (typeof listRestaurantsWithOwners === "function") {
-    rows = await listRestaurantsWithOwners(""); // עם בעלים
+    rows = await listRestaurantsWithOwners("",false); // עם בעלים
   } else {
     const basic = await listRestaurants("", /*onlyApproved*/ false);
     rows = basic as any;
