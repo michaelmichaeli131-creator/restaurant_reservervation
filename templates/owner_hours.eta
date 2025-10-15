@@ -1,12 +1,12 @@
 <% layout("_layout", it) %>
-<main class="container">
+<main class="sb-hours container">
   <header class="page-header">
     <h1>הגדרת שעות פתיחה — <%= it.restaurant.name %></h1>
     <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
   </header>
 
   <% if (it.saved) { %>
-    <div class="alert success" role="status" style="background:#e6ffea;border:1px solid #bde5b8;border-radius:8px;padding:10px;margin-bottom:12px">
+    <div class="alert success" role="status">
       ✓ השעות נשמרו בהצלחה
     </div>
   <% } %>
@@ -40,10 +40,10 @@
         </select>
       </div>
 
-      <hr style="grid-column:1/-1;border:none;border-top:1px solid #eee;margin:8px 0"/>
+      <hr class="sep" style="grid-column:1/-1"/>
 
-      <h3 style="margin:0 0 .5rem;grid-column:1/-1">שעות פתיחה שבועיות (24h)</h3>
-      <p class="muted" style="margin-top:0;grid-column:1/-1">
+      <h3 class="card-title" style="grid-column:1/-1">שעות פתיחה שבועיות (24h)</h3>
+      <p class="muted" style="grid-column:1/-1">
         בחרו שעות במרווחים של 15 דקות. כדי לסגור יום — סמנו "סגור".
       </p>
 
@@ -66,47 +66,49 @@
         function optSel(v, cur){ return v === cur ? "selected" : ""; }
       %>
 
-      <table class="table compact" style="width:100%;grid-column:1/-1">
-        <thead>
-          <tr><th>יום</th><th>פתיחה</th><th>סגירה</th><th style="text-align:center">סגור</th></tr>
-        </thead>
-        <tbody>
-          <% for (let d=0; d<7; d++) {
-               const row = dayData(d);
-               const isClosed = row == null;
-               const first = (Array.isArray(row) && row.length) ? row[0] : { open: "09:00", close: "22:00" };
-               const openVal = isClosed ? "" : first.open;
-               const closeVal = isClosed ? "" : first.close;
-          %>
-          <tr data-day="<%= d %>">
-            <td><strong><%= dayNames[d] %></strong></td>
-            <td>
-              <select name="w<%= d %>_open" class="open" <%= isClosed ? "disabled" : "" %>>
-                <option value="">—</option>
-                <% for (const t of timeOptions) { %>
-                  <option value="<%= t %>" <%= optSel(t, openVal) %>><%= t %></option>
-                <% } %>
-              </select>
-            </td>
-            <td>
-              <select name="w<%= d %>_close" class="close" <%= isClosed ? "disabled" : "" %>>
-                <option value="">—</option>
-                <% for (const t of timeOptions) { %>
-                  <option value="<%= t %>" <%= optSel(t, closeVal) %>><%= t %></option>
-                <% } %>
-              </select>
-            </td>
-            <td style="text-align:center">
-              <input type="checkbox" class="closed" name="w<%= d %>_closed" <%= isClosed ? "checked" : "" %> />
-            </td>
-          </tr>
-          <% } %>
-        </tbody>
-      </table>
+      <div class="table-wrap" style="grid-column:1/-1">
+        <table class="tbl compact">
+          <thead>
+            <tr><th>יום</th><th>פתיחה</th><th>סגירה</th><th style="text-align:center">סגור</th></tr>
+          </thead>
+          <tbody>
+            <% for (let d=0; d<7; d++) {
+                 const row = dayData(d);
+                 const isClosed = row == null;
+                 const first = (Array.isArray(row) && row.length) ? row[0] : { open: "09:00", close: "22:00" };
+                 const openVal = isClosed ? "" : first.open;
+                 const closeVal = isClosed ? "" : first.close;
+            %>
+            <tr data-day="<%= d %>">
+              <td class="day"><strong><%= dayNames[d] %></strong></td>
+              <td>
+                <select name="w<%= d %>_open" class="open" <%= isClosed ? "disabled" : "" %>>
+                  <option value="">—</option>
+                  <% for (const t of timeOptions) { %>
+                    <option value="<%= t %>" <%= optSel(t, openVal) %>><%= t %></option>
+                  <% } %>
+                </select>
+              </td>
+              <td>
+                <select name="w<%= d %>_close" class="close" <%= isClosed ? "disabled" : "" %>>
+                  <option value="">—</option>
+                  <% for (const t of timeOptions) { %>
+                    <option value="<%= t %>" <%= optSel(t, closeVal) %>><%= t %></option>
+                  <% } %>
+                </select>
+              </td>
+              <td style="text-align:center">
+                <input type="checkbox" class="closed" name="w<%= d %>_closed" <%= isClosed ? "checked" : "" %> />
+              </td>
+            </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
 
       <div class="form-actions" style="grid-column:1/-1">
-        <button type="submit" class="btn primary">שמירה</button>
-        <a class="btn secondary" href="/owner">חזרה לדשבורד</a>
+        <button type="submit" class="btn primary sm">שמירה</button>
+        <a class="btn ghost sm" href="/owner">חזרה לדשבורד</a>
       </div>
     </form>
   </section>
@@ -133,22 +135,93 @@
 </script>
 
 <style>
-.container{max-width:1000px;margin:0 auto;padding:0 16px}
-.card{border:1px solid #eee;border-radius:12px;padding:16px;margin:12px 0}
-.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-.form-row{display:flex;flex-direction:column}
-.form-row label{margin-bottom:4px;font-weight:600}
-.form-row input, .form-row select{padding:8px 10px;border:1px solid #ccc;border-radius:8px;font-size:1rem}
-.table.compact{border-collapse:collapse}
-.table.compact th,.table.compact td{padding:.45rem .5rem;border-bottom:1px solid #eee;text-align:center}
-.table.compact select{padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:0.95rem}
-.form-actions{display:flex;gap:.5rem;align-items:center;margin-top:12px}
-.btn{display:inline-block;background:#111;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;text-decoration:none}
-.btn:hover{background:#333}
-.btn.primary{background:#0b6}
-.btn.primary:hover{background:#0a5}
-.btn.secondary{background:#555}
-.btn.secondary:hover{background:#666}
-.muted{color:#777;font-size:.9rem}
-@media (max-width:760px){.form-grid{grid-template-columns:1fr}}
+  /* ===== תואם SpotBook: כהה־יוקרתי, ללא ויתור על פיצ'רים ===== */
+  .sb-hours.container{ max-width: 1000px; margin: 0 auto; padding: 0 16px }
+  .page-header h1{ margin:0 0 6px }
+  .muted{ color: var(--ink-muted, #9aa3b2) }
+
+  .alert.success{
+    background: color-mix(in srgb, #16a34a 12%, transparent);
+    border:1px solid color-mix(in srgb, #16a34a 45%, transparent);
+    color:#c5f2d3;
+    border-radius:12px; padding:10px 12px; margin: 10px 0 14px;
+  }
+
+  .card{
+    background: var(--panel, #121622);
+    border:1px solid var(--bd, #222834);
+    border-radius:18px; padding:18px; margin:12px 0 18px;
+    color: var(--ink, #e6e8ef);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  .card-title{ margin:0 0 .5rem; font-size: clamp(16px, 2.2vw, 20px) }
+
+  .sep{ height:1px; background:#23293a; border-radius:999px; margin:8px 0 }
+
+  /* טופס */
+  .form-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:14px }
+  .form-row{ display:flex; flex-direction:column; gap:6px }
+  .form-row label{ font-weight:600; font-size:14px }
+  .form-row input, .form-row select{
+    background:#171b29; color:#e6e8ef; border:1px solid #23293a;
+    border-radius:12px; padding:10px 12px; font-size:14px; outline:none;
+    transition: box-shadow .15s ease, border-color .15s ease;
+  }
+  .form-row input:focus, .form-row select:focus{
+    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
+  }
+
+  .form-actions{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px }
+
+  /* טבלה */
+  .table-wrap{
+    border:1px solid var(--bd, #222834); border-radius:14px; overflow:hidden;
+    background: #0f1320;
+  }
+  table.tbl{ width:100%; border-collapse:separate; border-spacing:0 }
+  .tbl thead th{
+    position:sticky; top:0; z-index:1;
+    background:#0c111b; color:#cbd5e1; text-align:center;
+    border-bottom:1px solid #23293a; padding:10px; font-size:12px;
+  }
+  .tbl tbody td{
+    padding:10px; border-bottom:1px solid rgba(255,255,255,.06); text-align:center;
+  }
+  .tbl tbody tr:hover{ background: rgba(255,255,255,.02) }
+  .tbl .day{ text-align:right }
+
+  .tbl select{
+    width:100%;
+    background:#171b29; color:#e6e8ef; border:1px solid #23293a;
+    border-radius:10px; padding:8px 10px; font-size:14px; outline:none;
+  }
+  .tbl select:focus{
+    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 18%, transparent);
+  }
+
+  /* כפתורים “חיים” */
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
+    border:1px solid var(--bd, #23293a); background:transparent;
+    color: var(--ink, #e6e8ef); font-weight:700;
+    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover{ transform: translateY(-1px); }
+  .btn.primary{
+    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
+    box-shadow: 0 8px 24px rgba(59,130,246,.35);
+  }
+  .btn.ghost{
+    background: color-mix(in srgb, var(--panel, #121622) 88%, transparent);
+  }
+  .btn.ghost:hover{ background: color-mix(in srgb, var(--panel, #121622) 94%, transparent); }
+  .btn.sm{ padding:8px 12px; border-radius:10px }
+
+  @media (max-width:760px){
+    .form-grid{ grid-template-columns:1fr }
+    .tbl thead{ position:static }
+  }
 </style>
