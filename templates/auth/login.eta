@@ -1,55 +1,48 @@
 <% layout("_layout", it) %>
 
-<section class="card" style="max-width:520px;margin:24px auto">
-  <header class="page-header">
-    <h1 style="margin:0 0 8px">התחברות</h1>
-    <p class="muted" style="margin:0">ברוך/ה הבא/ה</p>
-  </header>
 
-  <% if (it.error) { %>
-    <div class="alert error" role="alert" style="margin-top:12px">
-      <strong>שגיאה:</strong> <%= it.error %>
-    </div>
-  <% } %>
+<section class="card" aria-labelledby="login-title">
+<div class="hd">
+<h1 id="login-title">התחברות</h1>
+</div>
+<div class="bd">
+<% if (it.error) { %>
+<div class="alert err"><%= it.error %></div>
+<% } %>
+<% if (it.info) { %>
+<div class="alert ok"><%= it.info %></div>
+<% } %>
 
-  <form action="/auth/login" method="post" enctype="application/x-www-form-urlencoded"
-        id="login-form" class="form-grid" novalidate>
-    <div class="form-row" style="grid-column:1/-1">
-      <label for="email">אימייל</label>
-      <input id="email" name="email" type="email" dir="ltr" inputmode="email" required
-             autocomplete="username" autocapitalize="off" spellcheck="false"
-             placeholder="you@example.com" value="<%= it.prefill?.email || "" %>"/>
-    </div>
 
-    <div class="form-row" style="grid-column:1/-1">
-      <label for="password">סיסמה</label>
-      <input id="password" name="password" type="password" required autocomplete="current-password"
-             placeholder="הקלד/י סיסמה"/>
-    </div>
+<form class="f" action="/auth/login" method="post" novalidate>
+<input type="hidden" name="_csrf" value="<%= it.csrf || '' %>" />
 
-    <div class="form-row" style="grid-column:1/-1;align-items:flex-start;gap:6px">
-      <label style="display:flex;gap:8px;align-items:center;font-weight:500">
-        <input type="checkbox" name="remember" value="1"/>
-        זכור אותי (מכשיר זה)
-      </label>
-      <a href="/auth/forgot" class="muted" style="margin-inline-start:auto">שכחת סיסמה?</a>
-    </div>
 
-    <div class="form-actions" style="grid-column:1/-1;display:flex;gap:10px;margin-top:12px">
-      <button type="submit" class="btn">התחבר/י</button>
-      <a class="btn secondary" href="/auth/register">אין חשבון? הרשמה</a>
-    </div>
-  </form>
+<div class="row">
+<label for="email">אימייל</label>
+<input id="email" name="email" type="email" inputmode="email" autocomplete="email"
+placeholder="name@example.com" value="<%= it.email || '' %>" required />
+</div>
+
+
+<div class="row">
+<label for="password">סיסמה</label>
+<input id="password" name="password" type="password" autocomplete="current-password" required />
+</div>
+
+
+<div class="row" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+<label class="hint"><input type="checkbox" name="remember" value="1" /> זכור אותי</label>
+<a href="/auth/forgot" class="hint">שכחת סיסמה?</a>
+</div>
+
+
+<button class="btn" type="submit">התחבר/י</button>
+</form>
+</div>
+<div class="ft">
+<div class="links">
+חדש/ה כאן? <a href="/auth/register">פתיחת חשבון</a>
+</div>
+</div>
 </section>
-
-<style>
-  .card{border:1px solid #eee;border-radius:12px;padding:16px}
-  .muted{color:#777}
-  .form-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:14px}
-  .form-row{display:flex;flex-direction:column}
-  .form-row label{margin-bottom:4px;font-weight:600}
-  .form-row input{padding:8px 10px;border:1px solid #ccc;border-radius:10px;font-size:1rem}
-  .btn{background:#111;color:#fff;border:none;border-radius:10px;padding:8px 12px;cursor:pointer}
-  .btn.secondary{background:#555}
-  .alert.error{border:1px solid #ffb4ad;background:#ffeceb;border-radius:8px;padding:10px}
-</style>
