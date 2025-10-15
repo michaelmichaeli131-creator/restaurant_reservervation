@@ -1,21 +1,19 @@
 <% layout("_layout", it) %>
 
-<main class="container" style="max-width:980px;margin:24px auto">
-  <header class="page-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+<main class="sb-owner-edit container">
+  <header class="page-header head">
     <div>
-      <h1 style="margin:0 0 8px">עריכת פרטי המסעדה — <%= it.restaurant.name %></h1>
-      <p class="muted" style="margin:0"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+      <h1 class="h1">עריכת פרטי המסעדה — <%= it.restaurant.name %></h1>
+      <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
     </div>
-    <a class="btn" href="/owner">חזרה לדשבורד</a>
+    <a class="btn ghost sm" href="/owner">חזרה לדשבורד</a>
   </header>
 
   <% if (it.saved) { %>
-    <div class="alert success" role="status" style="background:#e6ffea;border:1px solid #bde5b8;border-radius:8px;padding:10px;margin-bottom:12px">
-      ✓ הפרטים נשמרו
-    </div>
+    <div class="alert success" role="status">✓ הפרטים נשמרו</div>
   <% } %>
 
-  <section class="card" style="margin-bottom:16px">
+  <section class="card">
     <!-- שמירה ב-GET ל-/edit/save כדי לעקוף קריאת גוף -->
     <form action="/owner/restaurants/<%= it.restaurant.id %>/edit/save" method="get" class="form-grid" novalidate>
       <div class="form-row">
@@ -34,46 +32,46 @@
         <label for="phone">טלפון</label>
         <input id="phone" name="phone" value="<%= it.restaurant.phone || "" %>" />
       </div>
-      <div class="form-row" style="grid-column:1/-1">
+      <div class="form-row full">
         <label for="description">תיאור (אופציונלי)</label>
-        <textarea id="description" name="description" rows="4" style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:8px"><%= it.restaurant.description || "" %></textarea>
+        <textarea id="description" name="description" rows="4"><%= it.restaurant.description || "" %></textarea>
       </div>
 
-      <div style="grid-column:1/-1;display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
-        <button class="btn primary" type="submit">שמור</button>
-        <a class="btn" href="/owner/restaurants/<%= it.restaurant.id %>/hours">שעות פתיחה</a>
+      <div class="form-actions full">
+        <button class="btn primary sm" type="submit">שמור</button>
+        <a class="btn ghost sm" href="/owner/restaurants/<%= it.restaurant.id %>/hours">שעות פתיחה</a>
       </div>
     </form>
   </section>
 
   <!-- ניהול תמונות ישירות מתוך מסך העריכה -->
   <section class="card">
-    <h3 style="margin-top:0">תמונות המסעדה</h3>
-    <p class="muted" style="margin-top:0">העלאת JPG/PNG/WebP (עד ~1.8MB לקובץ).</p>
+    <h3 class="card-title">תמונות המסעדה</h3>
+    <p class="muted">העלאת JPG/PNG/WebP (עד ~1.8MB לקובץ).</p>
 
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div class="uploader">
       <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple>
-      <button id="upload-btn" class="btn primary" type="button">העלה</button>
+      <button id="upload-btn" class="btn primary sm" type="button">העלה</button>
     </div>
 
-    <div id="preview" class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px"></div>
+    <div id="preview" class="grid preview-grid"></div>
 
-    <hr style="margin:16px 0;border:none;border-top:1px solid #eee">
+    <hr class="sep"/>
 
-    <h4 style="margin:0 0 8px">גלריה</h4>
-    <% 
+    <h4 class="card-subtitle">גלריה</h4>
+    <%
       const photos = Array.isArray(it.restaurant.photos) ? it.restaurant.photos : [];
     %>
     <% if (!photos.length) { %>
       <p class="muted">אין עדיין תמונות.</p>
     <% } else { %>
-      <div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
+      <div class="grid gallery-grid">
         <% photos.forEach(function(p){ %>
-          <figure class="photo-card" data-id="<%= p.id %>" style="border:1px solid #eee;border-radius:10px;padding:8px">
-            <img src="<%= p.dataUrl %>" alt="<%= p.alt || it.restaurant.name %>" style="width:100%;height:120px;object-fit:cover;border-radius:6px">
-            <figcaption style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
-              <input class="alt-edit" value="<%= p.alt || '' %>" placeholder="כיתוב" style="flex:1;min-width:0;margin-inline-end:8px;padding:6px;border:1px solid #ccc;border-radius:6px">
-              <button class="btn btn-danger btn-sm delete-btn" data-id="<%= p.id %>" type="button">מחיקה</button>
+          <figure class="photo-card" data-id="<%= p.id %>">
+            <img src="<%= p.dataUrl %>" alt="<%= p.alt || it.restaurant.name %>">
+            <figcaption class="caption">
+              <input class="alt-edit" value="<%= p.alt || '' %>" placeholder="כיתוב" />
+              <button class="btn danger sm delete-btn" data-id="<%= p.id %>" type="button">מחיקה</button>
             </figcaption>
           </figure>
         <% }) %>
@@ -104,12 +102,12 @@
     for (var i=0; i<files.length; i++) {
       var f = files[i];
       var url = URL.createObjectURL(f);
-      var div = document.createElement('div');
-      div.style.border = "1px solid #eee";
-      div.style.borderRadius = "8px";
-      div.style.padding = "6px";
-      div.innerHTML = '<img style="width:100%;height:120px;object-fit:cover;border-radius:6px" src="'+url+'"><input class="alt" placeholder="כיתוב לתמונה" style="margin-top:6px;width:100%;padding:6px;border:1px solid #ccc;border-radius:6px">';
-      preview.appendChild(div);
+      var card = document.createElement('div');
+      card.className = 'preview-card';
+      card.innerHTML =
+        '<img class="preview-img" src="'+url+'">' +
+        '<input class="alt" placeholder="כיתוב לתמונה">';
+      preview.appendChild(card);
     }
   });
 
@@ -177,14 +175,99 @@
 </script>
 
 <style>
-.container{max-width:1000px;margin:0 auto;padding:0 16px}
-.card{border:1px solid #eee;border-radius:12px;padding:16px;margin:12px 0;background:#fff}
-.muted{color:#777}
-.btn{display:inline-block;background:#111;color:#fff;border:none;border-radius:10px;padding:8px 12px;text-decoration:none;cursor:pointer}
-.btn.primary{background:#0b6}
-.btn-danger{background:#c0392b}
-.btn.btn-sm{padding:6px 8px;border-radius:8px;font-size:.9rem}
-.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-.form-row{display:flex;flex-direction:column}
-.form-row input, .form-row textarea{padding:8px 10px;border:1px solid #ccc;border-radius:8px;font-size:1rem}
+  /* ===== תואם SpotBook (כהה יוקרתי) – ללא שינוי פיצ'רים ===== */
+  .sb-owner-edit.container{ max-width: 1000px; margin: 24px auto; padding: 0 16px }
+  .head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 10px }
+  .h1{ margin:0 0 6px }
+  .muted{ color: var(--ink-muted, #9aa3b2) }
+
+  .alert.success{
+    background: color-mix(in srgb, #16a34a 12%, transparent);
+    border:1px solid color-mix(in srgb, #16a34a 45%, transparent);
+    color:#c5f2d3; border-radius:12px; padding:10px 12px; margin: 12px 0 14px;
+  }
+
+  .card{
+    background: var(--panel, #121622);
+    border:1px solid var(--bd, #222834);
+    border-radius:18px; padding:18px; margin:12px 0 18px;
+    color: var(--ink, #e6e8ef);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  .card-title{ margin:0 0 6px; font-size: clamp(16px, 2.2vw, 20px) }
+  .card-subtitle{ margin:0 0 8px }
+
+  /* טפסים */
+  .form-grid{ display:grid; grid-template-columns: repeat(2, 1fr); gap: 12px }
+  .form-row{ display:flex; flex-direction:column; gap:6px }
+  .form-row.full{ grid-column: 1 / -1 }
+  .form-row label{ font-weight:600 }
+  .form-row input, .form-row textarea{
+    background:#171b29; color:#e6e8ef; border:1px solid #23293a;
+    border-radius:12px; padding:10px 12px; font-size:15px; outline:none;
+    transition: box-shadow .15s ease, border-color .15s ease;
+  }
+  .form-row input:focus, .form-row textarea:focus{
+    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 22%, transparent);
+  }
+  .form-actions{ display:flex; gap:10px; flex-wrap:wrap }
+  .form-actions.full{ grid-column: 1 / -1 }
+
+  /* העלאה + תצוגה מקדימה */
+  .uploader{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:6px }
+  #file-input{
+    background:#171b29; color:#e6e8ef; border:1px solid #23293a; border-radius:12px;
+    padding:8px 10px; font-size:14px;
+  }
+  .sep{ margin:16px 0; border:none; border-top:1px solid #23293a }
+
+  .preview-grid{ grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:10px; margin-top:12px }
+  .preview-card{
+    border:1px solid #23293a; border-radius:12px; padding:8px;
+    background: color-mix(in srgb, #171b29 92%, transparent);
+  }
+  .preview-img{ width:100%; height:120px; object-fit:cover; border-radius:10px; border:1px solid #23293a; margin-bottom:6px }
+  .preview-card .alt{
+    width:100%; padding:8px 10px; border:1px solid #23293a; border-radius:10px; background:#0f1422; color:#e6e8ef;
+  }
+
+  /* גלריה קיימת */
+  .gallery-grid{ grid-template-columns:repeat(auto-fill, minmax(160px,1fr)); gap:12px }
+  .photo-card{
+    border:1px solid #23293a; border-radius:12px; padding:8px;
+    background: color-mix(in srgb, #171b29 92%, transparent);
+  }
+  .photo-card img{
+    width:100%; height:120px; object-fit:cover; border-radius:10px; border:1px solid #23293a
+  }
+  .caption{ display:flex; gap:8px; align-items:center; margin-top:6px }
+  .alt-edit{
+    flex:1; min-width:0; padding:8px 10px; border:1px solid #23293a; border-radius:10px;
+    background:#0f1422; color:#e6e8ef;
+  }
+
+  /* כפתורים “חיים” */
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
+    border:1px solid var(--bd, #23293a); background:transparent;
+    color: var(--ink, #e6e8ef); font-weight:700;
+    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover{ transform: translateY(-1px); }
+  .btn.primary{
+    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
+    box-shadow: 0 8px 24px rgba(59,130,246,.35);
+  }
+  .btn.ghost{
+    background: color-mix(in srgb, var(--panel, #121622) 88%, transparent);
+  }
+  .btn.ghost:hover{ background: color-mix(in srgb, var(--panel, #121622) 94%, transparent); }
+  .btn.danger{ background:#ef4444; color:#fff; border-color:transparent; }
+  .btn.sm{ padding:8px 12px; border-radius:10px; font-size:.95rem }
+
+  @media (max-width:760px){
+    .form-grid{ grid-template-columns: 1fr }
+  }
 </style>
