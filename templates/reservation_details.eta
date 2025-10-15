@@ -1,5 +1,5 @@
 <% layout("_layout", it) %>
-<main class="container">
+<main class="container sb-rest">
   <header class="page-header">
     <h1>פרטי הזמנה — <%= it.restaurant.name %></h1>
     <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
@@ -9,7 +9,7 @@
   </header>
 
   <section class="card">
-    <h2 style="margin-top:0">שלב 2 — פרטי לקוח</h2>
+    <h2 class="card-title">שלב 2 — פרטי לקוח</h2>
 
     <div class="summary">
       <div><strong>תאריך:</strong> <span id="sum-date"><%= it.date %></span></div>
@@ -63,8 +63,8 @@
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn">אשר הזמנה</button>
-        <a class="btn secondary" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
+        <button type="submit" class="btn primary">אשר הזמנה</button>
+        <a class="btn ghost" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
           חזרה לשינוי שעה/תאריך
         </a>
       </div>
@@ -72,15 +72,15 @@
   </section>
 
   <section class="card" id="conflict-card" hidden>
-    <h3 style="margin-top:0">אין זמינות במועד שבחרת</h3>
-    <p>בחר/י אחד מן הזמנים הזמינים בקרבת השעה שביקשת (±2 שעות):</p>
+    <h3 class="card-title">אין זמינות במועד שבחרת</h3>
+    <p class="muted">בחר/י אחד מן הזמנים הזמינים בקרבת השעה שביקשת (±2 שעות):</p>
     <div id="suggest-slots" class="slots"></div>
     <small class="muted">לחיצה על שעה תעדכן את השעה בטופס ותאפשר לשליחה מחדש.</small>
   </section>
 
   <% if (it.restaurant.description) { %>
     <section class="card">
-      <h2 style="margin-top:0">על המסעדה</h2>
+      <h2 class="card-title">על המסעדה</h2>
       <p><%= it.restaurant.description %></p>
     </section>
   <% } %>
@@ -141,88 +141,81 @@
 </script>
 
 <style>
-  .container {
-    max-width: 900px;
-    margin: 24px auto;
-    padding: 0 16px;
+  /* ===== תואם SpotBook (כהה יוקרתי) – ללא שינוי פיצ'רים ===== */
+  .sb-rest.container{ max-width: var(--max, 1100px); margin:24px auto; padding:0 16px; }
+  .page-header h1{ margin:0 0 6px; letter-spacing:.2px }
+  .muted{ color: var(--ink-muted, #9aa3b2); }
+
+  /* כרטיסים */
+  .card{
+    background: var(--panel, #121622);
+    border:1px solid var(--bd, #222834);
+    border-radius:18px; padding:18px; margin-bottom:18px;
+    color: var(--ink, #e6e8ef);
+    box-shadow: var(--shadow, 0 10px 30px rgba(0,0,0,.35));
   }
-  .card {
-    border: 1px solid #eee;
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 18px;
+  .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
+
+  /* Summary קומפקטי */
+  .summary{ display:flex; flex-wrap:wrap; gap:12px; margin:4px 0 12px }
+  .summary > div{
+    background: color-mix(in srgb, var(--panel-2, #171b29) 92%, transparent);
+    border:1px solid var(--bd, #23293a);
+    border-radius:10px; padding:8px 10px; font-size:14px;
   }
-  .muted { color: #777; }
-  .summary {
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
+
+  /* טפסים */
+  .form-grid{ display:grid; grid-template-columns: repeat(2,1fr); gap:14px }
+  .form-row{ display:flex; flex-direction:column; gap:6px }
+  .form-row label{ font-weight:500 }
+  .form-row input, .form-row textarea{
+    background: var(--panel-2, #171b29);
+    color: var(--ink, #e6e8ef);
+    border:1px solid var(--bd, #23293a);
+    border-radius:12px; padding:10px 12px; font-size:15px;
+    outline:none; transition: box-shadow .15s ease, border-color .15s ease;
   }
-  .form-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+  .form-row input:focus, .form-row textarea:focus{
+    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, var(--bd, #23293a));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
   }
-  .form-row {
-    display: flex;
-    flex-direction: column;
+  .readonly-box{
+    padding:10px 12px; border:1px dashed var(--bd, #23293a);
+    border-radius:12px; background: color-mix(in srgb, var(--panel-2) 92%, transparent);
   }
-  .form-row label {
-    margin-bottom: 4px;
-    font-weight: 500;
+
+  /* כפתורים “חיים” */
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
+    border:1px solid var(--bd, #23293a); background:transparent;
+    color: var(--ink, #e6e8ef); font-weight:700;
+    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
   }
-  .form-row input, .form-row textarea {
-    padding: 8px 10px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    font-size: 1rem;
+  .btn:hover{ transform: translateY(-1px); }
+  .btn.primary{
+    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
+    box-shadow: 0 8px 24px rgba(59,130,246,.35);
   }
-  .readonly-box {
-    padding: 8px 10px;
-    border: 1px dashed #ccc;
-    border-radius: 6px;
-    background: #fafafa;
-    font-size: 1rem;
+  .btn.ghost{
+    background: color-mix(in srgb, var(--panel-2, #171b29) 92%, transparent);
   }
-  .form-actions {
-    grid-column: 1 / -1;
-    display: flex;
-    gap: 10px;
-    margin-top: 16px;
+  .btn.ghost:hover{ background: color-mix(in srgb, var(--panel, #121622) 92%, transparent); }
+
+  .form-actions{ display:flex; gap:10px; flex-wrap:wrap }
+
+  /* התראת קונפליקט + הצעות */
+  #conflict-card{ border-color: rgba(239,68,68,.35) }
+  .slots{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px }
+  .slot{
+    padding:8px 12px; border-radius:10px; cursor:pointer;
+    border:1px solid var(--bd, #23293a);
+    background: color-mix(in srgb, var(--panel-2, #171b29) 88%, transparent);
   }
-  .btn {
-    background: #111;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    padding: 8px 12px;
-    cursor: pointer;
-  }
-  .btn.secondary {
-    background: #555;
-  }
-  #conflict-card {
-    border-color: #ffccc7;
-  }
-  .slots {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .slot {
-    padding: 6px 10px;
-    border-radius: 8px;
-    border: 1px solid #ddd;
-    background: #fafafa;
-    cursor: pointer;
-  }
-  .slot:hover {
-    background: #f0f0ff;
-  }
-  @media (max-width:760px) {
-    .form-grid {
-      grid-template-columns: 1fr;
-    }
+  .slot:hover{ background: color-mix(in srgb, var(--panel, #121622) 88%, transparent); }
+
+  /* מובייל */
+  @media (max-width:760px){
+    .form-grid{ grid-template-columns:1fr }
   }
 </style>
