@@ -56,6 +56,14 @@ body{
   display:grid; gap:16px; align-items:start; justify-items:start;
   grid-template-columns: 260px minmax(800px, 1fr) !important; /* מגדיל אמצעי שמאלה בלבד */
 }
+
+  width: min(1800px, 100%) !important;   /* ← תגדיל כאן ל-2000/2200px אם תרצה יותר */
+  max-width: 100%;
+  overflow-x: hidden;
+  justify-self: start;
+
+
+
 @media (max-width:900px){
   .oc-layout{ grid-template-columns:1fr !important; }
 }
