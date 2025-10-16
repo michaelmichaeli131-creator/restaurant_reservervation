@@ -48,7 +48,7 @@ body{
   display:grid; grid-template-columns:1fr; gap:16px; padding:0 8px 0 0;
 }
 @media (min-width:900px){
-  .oc-main{ grid-template-columns:1fr 1000px; } /* פאנל מרכזי + סיידבר */
+  .oc-main{ grid-template-columns:1fr 360px; } /* פאנל מרכזי + סיידבר */
 }
 
 .oc-layout{
@@ -197,7 +197,7 @@ body{
 .oc-row{ min-height:32px }
 @media (max-width:900px){
   .oc-row, .oc-th{
-    grid-template-columns: 56px 1fr clamp(90px, 26vw, 140px);
+    grid-template-columns: 56px 1fr clamp(90px, 26vw, 300px);
     gap:6px; padding:7px 8px;
   }
   .oc-info{ font-size:.84rem }
