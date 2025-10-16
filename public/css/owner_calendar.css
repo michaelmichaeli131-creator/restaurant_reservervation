@@ -457,5 +457,61 @@ img{display:block;max-width:100%}
 .oc-drawer .tbl,
 .oc-drawer .tbl th,
 .oc-drawer .tbl td{ text-align:left !important; direction:ltr !important; }
+/* === Force occupancy colors (OK/MID/HIGH) — works with classes OR attributes === */
+/* 1) עם מחלקות קיימות (.ok/.mid/.high) */
+.oc-bar .fill.ok  { background:linear-gradient(90deg, rgba(16,185,129,.85), rgba(16,185,129,1)) !important; } /* ירוק */
+.oc-bar .fill.mid { background:linear-gradient(90deg, rgba(245,158,11,.85), rgba(245,158,11,1)) !important; } /* כתום */
+.oc-bar .fill.high{ background:linear-gradient(90deg, rgba(239,68,68,.85), rgba(239,68,68,1)) !important; } /* אדום */
+
+/* 2) בלי מחלקות: לפי data-pct="0..100" על .fill או על .oc-row */
+.oc-bar .fill[data-pct^="0"],
+.oc-bar .fill[data-pct^="1"],
+.oc-bar .fill[data-pct^="2"],
+.oc-bar .fill[data-pct^="3"],
+.oc-bar .fill[data-pct^="4"],
+.oc-row[data-pct^="0"]  .oc-bar .fill,
+.oc-row[data-pct^="1"]  .oc-bar .fill,
+.oc-row[data-pct^="2"]  .oc-bar .fill,
+.oc-row[data-pct^="3"]  .oc-bar .fill,
+.oc-row[data-pct^="4"]  .oc-bar .fill{
+  background:linear-gradient(90deg, rgba(16,185,129,.85), rgba(16,185,129,1)) !important; /* ירוק */
+}
+
+.oc-bar .fill[data-pct^="5"],
+.oc-bar .fill[data-pct^="6"],
+.oc-bar .fill[data-pct^="7"],
+.oc-row[data-pct^="5"] .oc-bar .fill,
+.oc-row[data-pct^="6"] .oc-bar .fill,
+.oc-row[data-pct^="7"] .oc-bar .fill{
+  background:linear-gradient(90deg, rgba(245,158,11,.85), rgba(245,158,11,1)) !important; /* כתום */
+}
+
+.oc-bar .fill[data-pct^="8"],
+.oc-bar .fill[data-pct^="9"],
+.oc-bar .fill[data-pct="100"],
+.oc-row[data-pct^="8"]   .oc-bar .fill,
+.oc-row[data-pct^="9"]   .oc-bar .fill,
+.oc-row[data-pct="100"]  .oc-bar .fill{
+  background:linear-gradient(90deg, rgba(239,68,68,.85), rgba(239,68,68,1)) !important; /* אדום */
+}
+
+/* 3) תמיכה גם ב-aria-valuenow="0..100" (אם זה מה שה-JS מגדיר) */
+.oc-bar .fill[aria-valuenow^="0"],
+.oc-bar .fill[aria-valuenow^="1"],
+.oc-bar .fill[aria-valuenow^="2"],
+.oc-bar .fill[aria-valuenow^="3"],
+.oc-bar .fill[aria-valuenow^="4"]{
+  background:linear-gradient(90deg, rgba(16,185,129,.85), rgba(16,185,129,1)) !important;
+}
+.oc-bar .fill[aria-valuenow^="5"],
+.oc-bar .fill[aria-valuenow^="6"],
+.oc-bar .fill[aria-valuenow^="7"]{
+  background:linear-gradient(90deg, rgba(245,158,11,.85), rgba(245,158,11,1)) !important;
+}
+.oc-bar .fill[aria-valuenow^="8"],
+.oc-bar .fill[aria-valuenow^="9"],
+.oc-bar .fill[aria-valuenow="100"]{
+  background:linear-gradient(90deg, rgba(239,68,68,.85), rgba(239,68,68,1)) !important;
+}
 
 
