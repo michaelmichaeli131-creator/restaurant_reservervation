@@ -342,5 +342,120 @@ img{display:block;max-width:100%}
   text-align: left !important;
   direction: ltr !important;
 }
+/* === SpotBook Luxury Dark — Left aligned + Wider Live Table + Touch-animated Bars === */
+/* אין שינוי שמות מחלקות / פיצ'רים. דריסות בלבד. צבעים נשמרו כבעבר. */
+
+/* בסיס/יישור לשמאל */
+.oc-header .wrap,
+.oc-main,
+.oc-panel,
+.oc-slots,
+.oc-sidebar { direction:ltr !important; text-align:left !important; }
+.oc-panel, .oc-slots { min-width:0 !important; width:100% !important; overflow-x:hidden !important; }
+
+/* לייאאוט: יומן (שמאל), טבלה מרכזית (ימין) – שניהם מיושרים שמאלה */
+.oc-layout{
+  direction:ltr !important;
+  display:grid !important;
+  grid-template-columns:340px minmax(760px,1fr) !important;
+  gap:16px !important; align-items:start !important; justify-items:start !important;
+}
+.oc-sidebar{ grid-column:1/2 !important; width:100% !important; }
+.oc-panel  { grid-column:2/3 !important; width:100% !important; }
+
+/* מובייל: עמודה אחת, בלי גלילה לרוחב */
+@media (max-width:900px){
+  .oc-layout{ grid-template-columns:1fr !important; }
+  .oc-sidebar, .oc-panel { grid-column:1/-1 !important; }
+}
+
+/* ===== טבלת הסלוטים — “חיה” ורחבה קלות כך שהאינפו לא נחתך =====
+   עמודות: זמן | בר תפוסה (אלסטי) | אינפו (אלסטי מוגבל) — הסדר נשמר */
+.oc-row,
+.oc-th{
+  align-items:center;
+  grid-template-columns:64px minmax(520px,1fr) clamp(96px,18vw,140px) !important;
+  gap:10px !important;
+  padding:10px 12px !important;
+  min-height:36px !important;
+  font-size:.96rem !important;
+}
+.oc-th{
+  background:#0d1526 !important; color:#e8ebf3 !important;
+  font-weight:800 !important; padding-block:10px !important;
+}
+.oc-time{ font-weight:800 !important; color:#e8ebf3 !important; }
+.oc-info{
+  margin-inline-start:8px !important;
+  white-space:nowrap !important; overflow:hidden !important; text-overflow:ellipsis !important;
+  text-align:right !important;
+}
+
+/* ===== שנתות “חיות” (width:%), עם אנימציית תנועה/מגע ===== */
+.oc-bar{
+  width:100% !important; height:12px !important; border-radius:10px !important;
+  overflow:hidden !important; background:#0c1220 !important;
+  padding-inline:2px !important; /* 100% נראה “כמעט עד הקצה” */
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03) !important;
+  touch-action:manipulation; /* תגובה מהירה בטאץ' */
+}
+.oc-bar .fill{
+  /* אין scaleX — רוחב נקבע ב-width:% מהקוד שלך */
+  height:100% !important; width:var(--oc-w, auto);
+  max-width:100% !important; border-radius:8px !important;
+  transition: width .22s ease, transform .22s ease, filter .12s ease !important;
+  will-change: width, transform;
+  background:linear-gradient(90deg, rgba(59,130,246,.85), rgba(59,130,246,1)) !important; /* כחול ברירת מחדל */
+}
+/* שמירת צבעים קודמים — ירוק/כתום/אדום */
+.oc-bar .fill.ok  { background:linear-gradient(90deg, rgba(16,185,129,.85), rgba(16,185,129,1)) !important; } /* ירוק */
+.oc-bar .fill.mid { background:linear-gradient(90deg, rgba(245,158,11,.85), rgba(245,158,11,1)) !important; } /* כתום */
+.oc-bar .fill.high{ background:linear-gradient(90deg, rgba(239,68,68,.85), rgba(239,68,68,1)) !important; } /* אדום */
+
+/* “זזות כשנוגעים” — רטט/הדגשה קלה בלחיצה/פוקוס/האבר (מוביל ודסקטופ) */
+.oc-row:active .oc-bar .fill,
+.oc-row:focus-within .oc-bar .fill,
+.oc-row:hover .oc-bar .fill{
+  transform: translateX(0) scaleY(1.06);
+  filter: brightness(1.06);
+}
+@media (hover:none){ /* במכשירי טאץ' אנימציה מהירה יותר */
+  .oc-bar .fill{ transition-duration:.18s !important; }
+}
+
+/* נגישות: ללא אנימציה למעדיפים לצמצם תנועה */
+@media (prefers-reduced-motion:reduce){
+  .oc-bar .fill{ transition:none !important; }
+}
+
+/* ריווח מצב הובר לשורה */
+.oc-row{ transition: background .12s ease !important; }
+.oc-row:hover{ background:#0e1629 !important; }
+
+/* ===== בטיחות מול ה-Drawer — לא לדרוס הטבלה כשהוא פתוח =====
+   אם :has לא נתמך, החלף לסלקטור .drawer-open על body (עם שינוי ב-JS) */
+@media (min-width:900px){
+  body:has(.oc-drawer.open) .oc-main{ padding-inline-end:392px; }
+}
+
+/* ===== יומן שמאלי — שמאלה ונגיש ===== */
+.oc-sidebar .mini-cal,
+.oc-sidebar .oc-day-summary{ text-align:left !important; }
+
+/* ===== מובייל: אין גלילה לרוחב, האינפו עדיין נראה ===== */
+@media (max-width:900px){
+  .oc-row, .oc-th{
+    grid-template-columns:56px minmax(52vw,1fr) clamp(88px,26vw,150px) !important;
+    gap:8px !important; padding:9px 10px !important; min-height:34px !important;
+    font-size:.95rem !important;
+  }
+  .oc-bar{ height:14px !important; padding-inline:2px !important; }
+  .oc-slots{ min-width:0 !important; width:100% !important; }
+}
+
+/* ===== טבלת ה-Drawer — שמאלה במקרה RTL סביבתי ===== */
+.oc-drawer .tbl,
+.oc-drawer .tbl th,
+.oc-drawer .tbl td{ text-align:left !important; direction:ltr !important; }
 
 
