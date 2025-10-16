@@ -271,4 +271,73 @@ img{display:block;max-width:100%}
   }
 }
 
+/* === SpotBook Luxury Dark — Ultra-Compact table (×1.7 extra shrink) === */
+/* אין שינוי ב-ETA. להדביק בסוף הקובץ כדי לדרוס הגדרות קודמות. */
+
+/* פריסת הלייאאוט: מצמצם עוד את הטור האמצעי ומבטל min-widthים קשיחים */
+.oc-layout{
+  grid-template-columns: 260px minmax(600px, 1fr) !important;
+}
+.oc-panel{ overflow-x: hidden !important; min-width: 0 !important; }
+.oc-slots{ min-width: 0 !important; }  /* מבטל כל min-width שמייצר גלילה אופקית */
+
+/* טבלת הסלוטים: עוד יותר קומפקטית + עמודות "חיות" (אלסטיות) */
+.oc-panel .oc-row{
+  /* זמן | עמודת בר (אלסטית) | מידע: אלסטי מוגבל באמצעות clamp */
+  grid-template-columns: 58px 1fr clamp(60px, 12vw, 82px) !important;
+  gap: 6px !important;
+  padding: 5px 8px !important;
+  min-height: 28px !important;
+}
+.oc-panel .oc-th{
+  grid-template-columns: 58px 1fr clamp(60px, 12vw, 82px) !important;
+  padding: 6px 8px !important;
+  font-size: 0.88rem !important;
+}
+.oc-panel .oc-time{
+  font-weight: 800 !important;
+  font-size: 0.88rem !important;
+}
+.oc-panel .oc-info{
+  font-size: 0.78rem !important;
+  text-align: right !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* בר תפוסה: מקטינים עוד ×1.7 לעומת הקיצור הקודם (0.58 → ~0.34) + גובה קטן יותר */
+.oc-panel .oc-bar{
+  height: 6px !important;          /* היה 10 → 6 */
+  margin-top: 1px !important;
+  border-radius: 8px !important;
+}
+.oc-panel .oc-bar .fill{
+  transform-origin: left center !important;
+  transform: scaleX(0.34) !important;     /* קצר יותר ×1.7 מהמצב הקודם */
+  transition: transform .22s ease !important;
+}
+.oc-panel .oc-row:hover .oc-bar .fill{ transform: scaleX(0.38) !important; }
+
+/* כותרת הפאנל: קומפקטית */
+.oc-panel header{ padding: 8px 10px !important; }
+.oc-cap{ font-size: 0.86rem !important; color: var(--muted) !important; }
+
+/* רספונסיביות: במסכים צרים מצמצמים עוד קצת, בלי גלילה אופקית */
+@media (max-width: 900px){
+  .oc-layout{ grid-template-columns: 1fr !important; }
+}
+@media (max-width: 720px){
+  .oc-panel .oc-row{
+    grid-template-columns: 54px 1fr clamp(56px, 18vw, 74px) !important;
+    gap: 5px !important;
+    padding: 5px 8px !important;
+  }
+  .oc-panel .oc-th{
+    grid-template-columns: 54px 1fr clamp(56px, 18vw, 74px) !important;
+    font-size: 0.86rem !important;
+  }
+  .oc-panel .oc-time{ font-size: 0.86rem !important; }
+  .oc-panel .oc-info{ font-size: 0.76rem !important; }
+}
 
