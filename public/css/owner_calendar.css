@@ -222,3 +222,85 @@ img{display:block;max-width:100%}
   }
   .oc-info{ font-size:.78rem; }
 }
+/* === Fix: Mobile bars visible + left-align both tables + live bars === */
+
+/* יישור לשמאל/לתחילית של שתי הטבלאות */
+.oc-panel,
+.oc-slots,
+.oc-drawer .body,
+.tbl {
+  margin-inline-start: 0 !important;
+  margin-inline-end: auto !important;
+  justify-self: start !important;
+}
+
+/* אל תאפשרו גלילה אופקית / min-width חוסם */
+.oc-panel{ overflow-x: hidden !important; min-width: 0 !important; }
+.oc-slots{ min-width: 0 !important; width: 100% !important; }
+
+/* טבלת הסלוטים – עמודות אלסטיות, המידע צמוד לשנתות */
+.oc-row, .oc-th{
+  direction: ltr !important;               /* מספרים/אחוזים מוצגים נכון */
+  text-align: left !important;
+  align-items: center;
+  grid-template-columns: 56px minmax(280px, 1fr) clamp(60px, 12vw, 86px) !important;
+  gap: 6px !important;
+  padding: 6px 8px !important;
+}
+.oc-row > *, .oc-th > * { min-width: 0 !important; } /* מונע חיתוכים */
+
+/* שנתות חיות: רוחב נקבע רק לפי width:% מה-JS (אין scale) */
+.oc-bar{
+  width: 100% !important;
+  height: 10px !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+.oc-bar .fill{
+  transform: none !important;
+  width: var(--oc-w, auto);            /* אם ה-JS משתמש ב-style="width:XX%" זה ידרוס */
+  transition: width .18s ease !important;
+}
+
+/* הטקסט People • Tables • % צמוד לשנתות ולא “נבלע” */
+.oc-info{
+  font-size: .82rem !important;
+  color: var(--muted) !important;
+  margin-inline-start: 6px !important;     /* צמוד לשנתות */
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* מגירה: גם הטבלה פנימה מיושרת לשמאל/לתחילית */
+.oc-drawer .tbl,
+.oc-drawer .tbl th,
+.oc-drawer .tbl td{
+  text-align: left !important;
+  direction: ltr !important;
+}
+
+/* ===== Mobile tweaks ===== */
+@media (max-width: 720px){
+  /* לייאאוט חד־טורי, בלי גלילה לרוחב */
+  .oc-layout{ grid-template-columns: 1fr !important; }
+
+  /* נותנים לעמודת השנתות מינימום גדול כדי שתהיה “נראית” תמיד */
+  .oc-row, .oc-th{
+    grid-template-columns: 50px minmax(48vw, 1fr) clamp(56px, 22vw, 80px) !important;
+    gap: 4px !important;
+    padding: 6px 8px !important;
+  }
+
+  /* במובייל, שנתות קצת גבוהות יותר לנראות */
+  .oc-bar{ height: 12px !important; }
+  .oc-info{ font-size: .8rem !important; }
+}
+
+/* ===== מסכים בינוניים: עוד צמצום עדין, בלי לפגוע בקריאות ===== */
+@media (min-width: 721px) and (max-width: 999px){
+  .oc-row, .oc-th{
+    grid-template-columns: 54px minmax(360px, 1fr) clamp(60px, 14vw, 84px) !important;
+  }
+}
+
