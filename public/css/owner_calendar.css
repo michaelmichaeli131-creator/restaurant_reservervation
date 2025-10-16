@@ -1,4 +1,4 @@
-/* /public/css/owner_calendar.css — SpotBook Luxury Dark (shorter bars ×1.7) */
+/* /public/css/owner_calendar.css — SpotBook Luxury Dark (Ultra-Compact, Left Aligned) */
 
 :root{
   --bg:#0b1120;
@@ -50,12 +50,12 @@ body{
   background:#0b1327;outline:none;color:var(--ink);
   transition:box-shadow .15s ease,border-color .15s ease,background .15s ease;
 }
+.oc-search input[type="search"]::placeholder{color:#7b8796}
 .oc-search input[type="search"]:focus{
   border-color:color-mix(in srgb,var(--brand)60%,var(--bd));
   box-shadow:0 0 0 3px color-mix(in srgb,var(--brand)22%,transparent);
   background:#0b1327;
 }
-.oc-search input::placeholder{color:#7b8796}
 
 /* Date nav */
 .oc-date-nav{display:flex;align-items:center;gap:6px;}
@@ -70,50 +70,76 @@ body{
   background:#0f172a;color:var(--ink);
 }
 
-/* ===== Layout ===== */
+/* ===== Main layout ===== */
 .oc-main{
   max-width:1100px;margin:18px auto;
   display:grid;grid-template-columns:1fr;gap:16px;padding:0 16px;
 }
-@media(min-width:900px){.oc-main{grid-template-columns:1fr 380px;}}
-
-/* ===== Left panel (timeline) ===== */
-.oc-panel{
-  background:var(--card);border:1px solid var(--bd);border-radius:var(--radius);
-  overflow:hidden;box-shadow:var(--shadow-md);
+@media(min-width:900px){
+  .oc-main{grid-template-columns:1fr 380px;}
 }
-.oc-row{
-  display:grid;grid-template-columns:90px 1fr 110px;gap:12px;
-  padding:10px 14px;border-bottom:1px solid var(--bd);cursor:pointer;
-  transition:background .12s ease;
-}
-.oc-row:hover{background:#0e1629;}
-.oc-th{background:#0d1526;font-weight:800;color:#e8ebf3;border-bottom:1px solid var(--bd);}
-.oc-time{font-weight:800;color:#e8ebf3}
 
-/* ===== Occupancy bar (shortened by ×1.7) ===== */
+/* ===== Layout (panel+sidebar) — compact center panel without horizontal scroll ===== */
+.oc-layout{
+  /* sidebar ~260px | center min 600px and flexible */
+  grid-template-columns:260px minmax(600px,1fr) !important;
+}
+.oc-panel{ background:var(--card);border:1px solid var(--bd);border-radius:var(--radius);
+  overflow:hidden; box-shadow:var(--shadow-md); min-width:0 !important; }
+.oc-slots{ width:100%; min-width:0 !important; }
+
+/* ===== Panel header & hint ===== */
+.oc-panel header{
+  padding:8px 10px;border-bottom:1px solid var(--bd);
+  display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;
+}
+.oc-cap{ color:var(--muted);font-size:.86rem; }
+.oc-hint{
+  color:var(--muted);font-size:.9rem;padding:10px 16px;border-top:1px dashed var(--bd);
+}
+
+/* ===== Slots table-like list (Ultra-Compact, Left aligned, “live” columns) ===== */
+.oc-row,
+.oc-th{
+  direction:ltr;           /* מציג מספרים ואחוזים שמאלה/תקין */
+  text-align:left;         /* הכל לשמאל */
+  align-items:center;
+  display:grid;
+  grid-template-columns:56px 1fr clamp(62px,12vw,86px); /* Time | Bar | Info (elastic) */
+  gap:4px;
+  padding:6px 8px;
+  border-bottom:1px solid var(--bd);
+  cursor:pointer;
+}
+.oc-th{
+  background:#0d1526;font-weight:800;color:#e8ebf3;
+}
+.oc-row:hover{ background:#0e1629; }
+.oc-time{ font-weight:800; font-size:.88rem; color:#e8ebf3; }
+
+/* Occupancy bar — full width (no artificial scale), fills its grid column */
 .oc-bar{
-  position:relative;
-  height:10px; /* was 12px → reduced */
-  background:#0c1220;border-radius:10px;
-  overflow:hidden;margin-top:2px;
+  position:relative;height:10px;background:#0c1220;border-radius:8px;overflow:hidden;margin-top:0;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
 }
 .oc-bar .fill{
   height:100%;
-  width:0%;
-  transform-origin:left center;
-  transform:scaleX(0.58); /* shorten by 1.7× */
-  transform-box:fill-box;
+  /* width is set by JS as percentage — keep it! */
+  transform:none !important;
+  transition:width .18s ease;
   background:linear-gradient(90deg,rgba(59,130,246,.85),rgba(59,130,246,1));
-  transition:transform .25s ease;
 }
-.oc-row:hover .oc-bar .fill{transform:scaleX(0.63);}
-.oc-bar .fill.ok{background:linear-gradient(90deg,rgba(16,185,129,.85),rgba(16,185,129,1));}
-.oc-bar .fill.mid{background:linear-gradient(90deg,rgba(245,158,11,.85),rgba(245,158,11,1));}
-.oc-bar .fill.high{background:linear-gradient(90deg,rgba(239,68,68,.85),rgba(239,68,68,1));}
+.oc-bar .fill.ok{  background:linear-gradient(90deg,rgba(16,185,129,.85),rgba(16,185,129,1)); }
+.oc-bar .fill.mid{ background:linear-gradient(90deg,rgba(245,158,11,.85),rgba(245,158,11,1)); }
+.oc-bar .fill.high{background:linear-gradient(90deg,rgba(239,68,68,.85),rgba(239,68,68,1)); }
+.oc-row:hover .oc-bar .fill{ filter:brightness(1.05); }
 
-.oc-info{color:var(--muted);font-size:.9rem;text-align:right}
+/* Info (“People • Tables • %”) — tight to the bar, never swallowed */
+.oc-info{
+  font-size:.8rem; color:var(--muted);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  margin-inline-start:6px;
+}
 
 /* ===== Summary ===== */
 .oc-summary{
@@ -122,17 +148,16 @@ body{
 }
 .oc-summary b{color:#f3f4f6}
 
-/* ===== Drawer ===== */
+/* ===== Right drawer ===== */
 .oc-drawer{
   position:fixed;top:0;right:0;height:100%;width:380px;max-width:100%;
   background:var(--card);border-left:1px solid var(--bd);
   transform:translateX(100%);transition:transform .25s ease;z-index:1000;
-  display:flex;flex-direction:column;box-shadow:var(--shadow-lg);
+  display:flex;flex-direction:column; box-shadow:var(--shadow-lg);
 }
-.oc-drawer.open{transform:translateX(0);}
+.oc-drawer.open{transform:translateX(0)}
 .oc-drawer header{
-  padding:12px 14px;border-bottom:1px solid var(--bd);
-  display:flex;gap:8px;align-items:center;justify-content:space-between;
+  padding:12px 14px;border-bottom:1px solid var(--bd);display:flex;gap:8px;align-items:center;justify-content:space-between;
 }
 .oc-drawer header .title{font-weight:800}
 .oc-drawer header .close{
@@ -140,204 +165,60 @@ body{
   border-radius:10px;padding:6px 10px;cursor:pointer;
   transition:transform .08s ease;
 }
-.oc-drawer header .close:hover{transform:translateY(-1px);}
+.oc-drawer header .close:hover{ transform: translateY(-1px); }
 
-/* Drawer body + search + table */
 .oc-drawer .toolbar{
-  padding:10px 12px;border-bottom:1px solid var(--bd);
-  display:flex;gap:8px;align-items:center;
+  padding:10px 12px;border-bottom:1px solid var(--bd);display:flex;gap:8px;align-items:center;
 }
 .oc-drawer .toolbar input[type="search"]{
   flex:1;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;
-  background:#0b1327;color:var(--ink);
+  background:#0b1327;color:var(--ink);outline:none;
+  transition: box-shadow .15s ease, border-color .15s ease, background .15s ease;
 }
+.oc-drawer .toolbar input[type="search"]::placeholder{ color:#7b8796; }
+.oc-drawer .toolbar input[type="search"]:focus{
+  border-color: color-mix(in srgb, var(--brand) 60%, var(--bd));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent);
+  background:#0b1327;
+}
+
 .oc-drawer .body{padding:8px 12px;overflow:auto}
 .tbl{width:100%;border-collapse:collapse}
 .tbl th,.tbl td{padding:8px 6px;border-bottom:1px solid var(--bd);text-align:right}
 .tbl th{background:#0d1526;font-weight:800;color:#dbe1ea}
 
-/* Buttons */
+/* ===== Buttons ===== */
 .btn{
   border:1px solid var(--bd);background:#0f172a;color:var(--ink);
   border-radius:12px;padding:10px 12px;cursor:pointer;
-  transition:transform .08s ease,box-shadow .12s ease,background .12s ease;
+  transition: transform .08s ease, box-shadow .12s ease, background .12s ease, filter .12s ease;
 }
-.btn:hover{transform:translateY(-1px);}
+.btn:hover{ transform: translateY(-1px); }
 .btn.primary{
   background:var(--brand);border-color:var(--brand);color:#fff;
-  box-shadow:0 10px 24px rgba(59,130,246,.28);
+  box-shadow: 0 10px 24px rgba(59,130,246,.28);
 }
-.btn.warn{background:var(--danger);border-color:var(--danger);color:#fff;}
+.btn.warn{ background:var(--danger);border-color:var(--danger);color:#fff; }
 
-/* Status badges */
+/* ===== Badges ===== */
 .badge{
-  display:inline-block;padding:2px 8px;border-radius:999px;
-  font-size:.78rem;color:#0b1120;font-weight:800;border:1px solid transparent;
+  display:inline-block;padding:2px 8px;border-radius:999px;font-size:.78rem;color:#0b1120;
+  border:1px solid transparent; font-weight:800;
 }
-.badge.approved{background:color-mix(in srgb,var(--ok)90%,#fff 0%);color:#052e23;border-color:#064e3b}
-.badge.booked{background:color-mix(in srgb,var(--warn)90%,#fff 0%);color:#3b2502;border-color:#713f12}
-.badge.arrived{background:#22d3ee;color:#002a33;border-color:#0891b2}
-.badge.cancelled{background:color-mix(in srgb,var(--danger)90%,#fff 0%);color:#3f0005;border-color:#7f1d1d}
+.badge.approved{ background:color-mix(in srgb, var(--ok) 90%, #ffffff 0%); color:#052e23; border-color:#064e3b; }
+.badge.booked{   background:color-mix(in srgb, var(--warn) 90%, #ffffff 0%); color:#3b2502; border-color:#713f12; }
+.badge.arrived{  background:#22d3ee; color:#002a33; border-color:#0891b2; }
+.badge.cancelled{background:color-mix(in srgb, var(--danger) 90%, #ffffff 0%); color:#3f0005; border-color:#7f1d1d; }
 
 .oc-spacer{flex:1}
 img{display:block;max-width:100%}
 
-
-/* === Compact table overrides === */
-.oc-slots{ font-size:0.93rem; }
-
-.oc-row{
-  grid-template-columns: 72px 1fr 88px; /* היה: 90px 1fr 110px */
-  gap:8px;                               /* היה: 12px */
-  padding:8px 10px;                      /* היה: 10px 14px */
-  min-height: 34px;                      /* שומר על נגישות בסיסית */
-}
-
-.oc-th{
-  padding:8px 10px;                      /* תואם שורות הגוף */
-  font-size:0.94rem;
-}
-
-.oc-time{ font-weight:700; font-size:0.92rem; } /* מעט יותר קומפקטי */
-.oc-info{ font-size:0.82rem; }                  /* טקסט העזר מצומצם */
-
-/* בר התפוסה כבר קוצר אצלך; מצמצם עוד קצת את הגובה למראה הדוק */
-.oc-bar{ height:8px; } /* היה: 10px */
-
-/* אם יש לך מצבי מובייל צרים – שומר על פריסה צפופה אך קריאה */
+/* ===== Mobile tweaks (still no horizontal scroll) ===== */
 @media (max-width:720px){
-  .oc-row{ grid-template-columns: 66px 1fr 78px; gap:6px; padding:7px 8px; }
-  .oc-info{ font-size:0.8rem; }
-}
-/* === FORCE COMPACT MIDDLE PANEL & TABLE === */
-
-/* מצמצם את מינימום רוחב הפאנל האמצעי (במקום 980px) */
-.oc-layout{
-  grid-template-columns: 300px minmax(740px, 1fr) !important;
-}
-
-/* מבטל/מצמצם את ה-min-width של רשימת הסלוטים */
-.oc-slots{
-  min-width: 740px !important;  /* או אפילו: min-width: 0 !important; */
-  font-size: 0.9rem !important;
-}
-
-/* טבלת השורות – קטנה יותר, עם ספציפיות גבוהה ו-!important */
-.oc-panel .oc-row{
-  grid-template-columns: 66px 1fr 76px !important; /* היה 90px 1fr 110px */
-  gap: 6px !important;
-  padding: 6px 8px !important;
-  min-height: 30px !important;
-}
-.oc-panel .oc-th{
-  padding: 6px 8px !important;
-  font-size: 0.9rem !important;
-}
-.oc-panel .oc-time{
-  font-weight: 700 !important;
-  font-size: 0.9rem !important;
-}
-.oc-panel .oc-info{
-  font-size: 0.78rem !important;
-}
-
-/* בר התפוסה – כבר קיצרנו; כאן גם גובה ושוליים קצרים */
-.oc-panel .oc-bar{
-  height: 7px !important;       /* היה 10/12px */
-  margin-top: 1px !important;
-}
-.oc-panel .oc-bar .fill{
-  transform: scaleX(0.58) !important; /* השאר כמו אצלך (קיצור ×1.7) */
-}
-
-/* כותרת טבלת הסלוטים */
-.oc-panel header{
-  padding: 10px 12px !important;
-}
-.oc-cap{ font-size: 0.88rem !important; }
-
-/* מובייל: עוד יותר צפוף */
-@media (max-width: 720px){
-  .oc-layout{
-    grid-template-columns: 1fr !important;
+  .oc-layout{ grid-template-columns:1fr !important; }
+  .oc-row,.oc-th{
+    grid-template-columns:52px 1fr clamp(56px,18vw,72px);
+    gap:4px; padding:5px 8px;
   }
-  .oc-panel .oc-row{
-    grid-template-columns: 60px 1fr 70px !important;
-    gap: 6px !important;
-    padding: 6px 8px !important;
-  }
-  .oc-slots{
-    min-width: 0 !important;
-  }
+  .oc-info{ font-size:.78rem; }
 }
-
-/* === SpotBook Luxury Dark — Ultra-Compact table (×1.7 extra shrink) === */
-/* אין שינוי ב-ETA. להדביק בסוף הקובץ כדי לדרוס הגדרות קודמות. */
-
-/* פריסת הלייאאוט: מצמצם עוד את הטור האמצעי ומבטל min-widthים קשיחים */
-.oc-layout{
-  grid-template-columns: 260px minmax(600px, 1fr) !important;
-}
-.oc-panel{ overflow-x: hidden !important; min-width: 0 !important; }
-.oc-slots{ min-width: 0 !important; }  /* מבטל כל min-width שמייצר גלילה אופקית */
-
-/* טבלת הסלוטים: עוד יותר קומפקטית + עמודות "חיות" (אלסטיות) */
-.oc-panel .oc-row{
-  /* זמן | עמודת בר (אלסטית) | מידע: אלסטי מוגבל באמצעות clamp */
-  grid-template-columns: 58px 1fr clamp(60px, 12vw, 82px) !important;
-  gap: 6px !important;
-  padding: 5px 8px !important;
-  min-height: 28px !important;
-}
-.oc-panel .oc-th{
-  grid-template-columns: 58px 1fr clamp(60px, 12vw, 82px) !important;
-  padding: 6px 8px !important;
-  font-size: 0.88rem !important;
-}
-.oc-panel .oc-time{
-  font-weight: 800 !important;
-  font-size: 0.88rem !important;
-}
-.oc-panel .oc-info{
-  font-size: 0.78rem !important;
-  text-align: right !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-}
-
-/* בר תפוסה: מקטינים עוד ×1.7 לעומת הקיצור הקודם (0.58 → ~0.34) + גובה קטן יותר */
-.oc-panel .oc-bar{
-  height: 6px !important;          /* היה 10 → 6 */
-  margin-top: 1px !important;
-  border-radius: 8px !important;
-}
-.oc-panel .oc-bar .fill{
-  transform-origin: left center !important;
-  transform: scaleX(0.34) !important;     /* קצר יותר ×1.7 מהמצב הקודם */
-  transition: transform .22s ease !important;
-}
-.oc-panel .oc-row:hover .oc-bar .fill{ transform: scaleX(0.38) !important; }
-
-/* כותרת הפאנל: קומפקטית */
-.oc-panel header{ padding: 8px 10px !important; }
-.oc-cap{ font-size: 0.86rem !important; color: var(--muted) !important; }
-
-/* רספונסיביות: במסכים צרים מצמצמים עוד קצת, בלי גלילה אופקית */
-@media (max-width: 900px){
-  .oc-layout{ grid-template-columns: 1fr !important; }
-}
-@media (max-width: 720px){
-  .oc-panel .oc-row{
-    grid-template-columns: 54px 1fr clamp(56px, 18vw, 74px) !important;
-    gap: 5px !important;
-    padding: 5px 8px !important;
-  }
-  .oc-panel .oc-th{
-    grid-template-columns: 54px 1fr clamp(56px, 18vw, 74px) !important;
-    font-size: 0.86rem !important;
-  }
-  .oc-panel .oc-time{ font-size: 0.86rem !important; }
-  .oc-panel .oc-info{ font-size: 0.76rem !important; }
-}
-
