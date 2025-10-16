@@ -222,57 +222,101 @@ img{display:block;max-width:100%}
   }
   .oc-info{ font-size:.78rem; }
 }
-/* === Fix: Mobile bars visible + left-align both tables + live bars === */
+/* === SpotBook Luxury Dark — Larger Live Middle Table + Drawer-safe + Near-full bars === */
 
-/* יישור לשמאל/לתחילית של שתי הטבלאות */
+/* 1) הטבלה האמצעית: גדולה יותר, עמודות אלסטיות, מיושרת לשמאל/תחילית */
 .oc-panel,
-.oc-slots,
-.oc-drawer .body,
-.tbl {
-  margin-inline-start: 0 !important;
-  margin-inline-end: auto !important;
-  justify-self: start !important;
+.oc-slots { 
+  min-width: 0 !important; 
+  width: 100% !important; 
+  margin-inline: 0 !important; 
+  overflow-x: hidden !important;
 }
 
-/* אל תאפשרו גלילה אופקית / min-width חוסם */
-.oc-panel{ overflow-x: hidden !important; min-width: 0 !important; }
-.oc-slots{ min-width: 0 !important; width: 100% !important; }
-
-/* טבלת הסלוטים – עמודות אלסטיות, המידע צמוד לשנתות */
-.oc-row, .oc-th{
-  direction: ltr !important;               /* מספרים/אחוזים מוצגים נכון */
+/* זמן | בר תפוסה (אלסטי) | אינפו (אלסטי עם clamp) */
+.oc-row,
+.oc-th{
+  direction: ltr !important;
   text-align: left !important;
   align-items: center;
-  grid-template-columns: 56px minmax(280px, 1fr) clamp(60px, 12vw, 86px) !important;
-  gap: 6px !important;
-  padding: 6px 8px !important;
+  grid-template-columns: 64px minmax(420px, 1fr) clamp(76px, 13vw, 108px) !important;
+  gap: 10px !important;
+  padding: 10px 12px !important;
+  min-height: 36px !important;
+  /* קצת הגדלה של טיפוגרפיה */
+  font-size: .96rem !important;
 }
-.oc-row > *, .oc-th > * { min-width: 0 !important; } /* מונע חיתוכים */
+.oc-time{ font-weight: 800 !important; }
 
-/* שנתות חיות: רוחב נקבע רק לפי width:% מה-JS (אין scale) */
-.oc-bar{
-  width: 100% !important;
-  height: 10px !important;
-  border-radius: 8px !important;
-  overflow: hidden;
-}
-.oc-bar .fill{
-  transform: none !important;
-  width: var(--oc-w, auto);            /* אם ה-JS משתמש ב-style="width:XX%" זה ידרוס */
-  transition: width .18s ease !important;
-}
-
-/* הטקסט People • Tables • % צמוד לשנתות ולא “נבלע” */
+/* האינפו צמוד לבר ולא “נבלע” */
 .oc-info{
-  font-size: .82rem !important;
-  color: var(--muted) !important;
-  margin-inline-start: 6px !important;     /* צמוד לשנתות */
+  margin-inline-start: 8px !important;
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
+  text-align: right !important;
 }
 
-/* מגירה: גם הטבלה פנימה מיושרת לשמאל/לתחילית */
+/* 2) שנתות “חיות” על בסיס width:% (ללא scale), עם פנימיות שנותנת אפקט "כמעט עד הסוף" ב-100% */
+.oc-bar{
+  width: 100% !important;
+  height: 12px !important;              /* מעט גבוה יותר לקריאות */
+  border-radius: 10px !important;
+  overflow: hidden;
+  background: #0c1220;
+  /* padding פנימי מצמצם 2px מכל צד -> 100% נראה "כמעט עד הקצה" */
+  padding-inline: 2px;                   /* <-- זה המפתח ל"כמעט עד הסוף" */
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+}
+.oc-bar .fill{
+  /* חי לפי width:% כפי שה-JS שם (style="width:XX%") */
+  transform: none !important;
+  height: 100% !important;
+  width: var(--oc-w, auto);              /* inline style ינצח */
+  max-width: 100% !important;
+  transition: width .22s ease !important;
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(59,130,246,.85), rgba(59,130,246,1));
+}
+.oc-bar .fill.ok  { background: linear-gradient(90deg, rgba(16,185,129,.85), rgba(16,185,129,1)); }
+.oc-bar .fill.mid { background: linear-gradient(90deg, rgba(245,158,11,.85), rgba(245,158,11,1)); }
+.oc-bar .fill.high{ background: linear-gradient(90deg, rgba(239,68,68,.85), rgba(239,68,68,1)); }
+
+/* Hover קטן ונעים */
+.oc-row:hover { background: #0e1629; }
+.oc-row:hover .oc-bar .fill{ transition-duration: .16s; }
+
+/* 3) כש-Drawer פתוח — לא דורס את הטבלה: מפנים לו מקום בצד ימין במסכים רחבים
+   משתמשים ב:has הנתמך בדפדפנים מודרניים. אם אין תמיכה, פשוט ייראה כ־overlay (כמו קודם). */
+@media (min-width: 900px){
+  body:has(.oc-drawer.open) .oc-main{
+    padding-inline-end: 392px; /* רוחב drawer + מרווח קטן */
+  }
+}
+
+/* מובייל: עדיין “חי”, בלי גלילה לרוחב, והבר נשאר נראה */
+@media (max-width: 900px){
+  .oc-layout{ grid-template-columns: 1fr !important; }
+
+  .oc-row, .oc-th{
+    grid-template-columns: 56px minmax(52vw, 1fr) clamp(68px, 22vw, 96px) !important;
+    gap: 8px !important;
+    padding: 9px 10px !important;
+    min-height: 34px !important;
+    font-size: .94rem !important;
+  }
+
+  .oc-bar{ 
+    height: 14px !important;     /* מעט גבוה יותר כדי שהבר יבלוט במובייל */
+    padding-inline: 2px; 
+  }
+
+  /* מוודאים שאין min-width שיגרום לגלילה אופקית */
+  .oc-slots{ min-width: 0 !important; width: 100% !important; }
+}
+
+/* טבלת ה-Drawer: מיושרת שמאלה/תחילית ולא נדרסת */
+.oc-drawer .body{ overflow: auto; }
 .oc-drawer .tbl,
 .oc-drawer .tbl th,
 .oc-drawer .tbl td{
@@ -280,27 +324,12 @@ img{display:block;max-width:100%}
   direction: ltr !important;
 }
 
-/* ===== Mobile tweaks ===== */
-@media (max-width: 720px){
-  /* לייאאוט חד־טורי, בלי גלילה לרוחב */
-  .oc-layout{ grid-template-columns: 1fr !important; }
-
-  /* נותנים לעמודת השנתות מינימום גדול כדי שתהיה “נראית” תמיד */
-  .oc-row, .oc-th{
-    grid-template-columns: 50px minmax(48vw, 1fr) clamp(56px, 22vw, 80px) !important;
-    gap: 4px !important;
-    padding: 6px 8px !important;
-  }
-
-  /* במובייל, שנתות קצת גבוהות יותר לנראות */
-  .oc-bar{ height: 12px !important; }
-  .oc-info{ font-size: .8rem !important; }
+/* קוסמטיקה לכותרות */
+.oc-th{
+  background:#0d1526 !important;
+  color:#e8ebf3 !important;
+  font-weight: 800 !important;
+  padding-block: 10px !important;
 }
 
-/* ===== מסכים בינוניים: עוד צמצום עדין, בלי לפגוע בקריאות ===== */
-@media (min-width: 721px) and (max-width: 999px){
-  .oc-row, .oc-th{
-    grid-template-columns: 54px minmax(360px, 1fr) clamp(60px, 14vw, 84px) !important;
-  }
-}
 
