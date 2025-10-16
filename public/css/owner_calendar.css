@@ -1,4 +1,4 @@
-/* /public/css/owner_calendar.css — SpotBook Luxury Dark (compact, live bars, left aligned) */
+/* /public/css/owner_calendar.css — SpotBook Luxury Dark (left-anchored, live bars, no h-scroll) */
 
 /* ===== Theme ===== */
 :root{
@@ -9,132 +9,209 @@
   --shadow-md:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
   --shadow-lg:0 20px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.02);
 }
+
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  overflow-x:hidden; /* אין גלילה אופקית כלל */
+}
 
-/* ===== Header ===== */
-.oc-header{background:linear-gradient(180deg,rgba(17,24,39,.92),rgba(17,24,39,.66));border-bottom:1px solid var(--bd);box-shadow:var(--shadow-sm)}
-.oc-header .wrap{max-width:1100px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.oc-title{font-weight:800;font-size:1.05rem;padding:8px 12px;border-radius:10px;background:#0f172a;border:1px solid var(--bd)}
+/* ===== Header (ממוזז שמאלה) ===== */
+.oc-header{
+  background:linear-gradient(180deg,rgba(17,24,39,.92),rgba(17,24,39,.66));
+  border-bottom:1px solid var(--bd); box-shadow:var(--shadow-sm);
+}
+.oc-header .wrap{
+  max-width:1280px; margin-left:12px; margin-right:auto; /* שמאלה בלבד */
+  padding:12px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+}
+.oc-title{
+  font-weight:800; font-size:1.05rem; padding:8px 12px; border-radius:10px;
+  background:#0f172a; border:1px solid var(--bd);
+}
 .oc-date-nav{display:flex;align-items:center;gap:6px}
-.oc-date-nav button{border:1px solid var(--bd);background:#0f172a;color:var(--ink);border-radius:10px;padding:8px 10px;cursor:pointer;transition:transform .08s ease}
-.oc-date-nav button:hover{transform:translateY(-1px)}
-.oc-date-nav .date-label{font-weight:800;padding:8px 12px;border-radius:10px;border:1px solid var(--bd);background:#0f172a}
+.oc-date-nav button{
+  border:1px solid var(--bd); background:#0f172a; color:var(--ink);
+  border-radius:10px; padding:8px 10px; cursor:pointer; transition:transform .08s ease;
+}
+.oc-date-nav button:hover{ transform:translateY(-1px) }
+.oc-date-nav .date-label{
+  font-weight:800; padding:8px 12px; border-radius:10px; border:1px solid var(--bd);
+  background:#0f172a;
+}
 
-/* ===== Layout (שתי הטבלאות שמאלה/לכיוון ההתחלה) ===== */
-.oc-main{max-width:1100px;margin:18px auto;display:grid;grid-template-columns:1fr;gap:16px;padding:0 16px}
-@media (min-width:900px){ .oc-main{grid-template-columns:1fr 360px} } /* פאנל מרכזי + סיידבר */
-.oc-layout{direction:ltr !important;display:grid;grid-template-columns:260px minmax(720px,1fr) !important;gap:16px;align-items:start}
-@media (max-width:900px){ .oc-layout{grid-template-columns:1fr !important} }
+/* ===== Layout — שתי הטבלאות לשמאל, בלי מינימום קשיח ===== */
+.oc-main{
+  max-width:1280px; margin-left:12px; margin-right:auto; /* שמאלה בלבד */
+  display:grid; grid-template-columns:1fr; gap:16px; padding:0 8px 0 0;
+}
+@media (min-width:900px){
+  .oc-main{ grid-template-columns:1fr 360px; } /* פאנל מרכזי + סיידבר */
+}
 
-/* ===== Sidebar (calendar) ===== */
-.oc-sidebar{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;box-shadow:var(--shadow-sm);justify-self:start}
+.oc-layout{
+  direction:ltr !important; /* שומר מיקום “פאנל באמצע” מימין לסיידבר, אבל הכל “נשען” שמאלה */
+  display:grid; gap:16px; align-items:start; justify-items:start;
+  grid-template-columns: 260px minmax(720px, 1fr) !important; /* מגדיל אמצעי שמאלה בלבד */
+}
+@media (max-width:900px){
+  .oc-layout{ grid-template-columns:1fr !important; }
+}
+
+.oc-sidebar{
+  background:var(--card); border:1px solid var(--bd); border-radius:12px;
+  padding:12px; box-shadow:var(--shadow-sm); justify-self:start; max-width:100%;
+}
 
 /* ===== Middle panel (timeline table) ===== */
-.oc-panel{background:var(--card);border:1px solid var(--bd);border-radius:var(--radius);box-shadow:var(--shadow-md);overflow-x:hidden;min-width:0}
-.oc-panel header{padding:10px 12px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:8px}
-.oc-cap{color:var(--muted);font-size:.9rem}
+.oc-panel{
+  background:var(--card); border:1px solid var(--bd); border-radius:var(--radius);
+  box-shadow:var(--shadow-md); overflow-x:hidden; min-width:0; max-width:100%;
+  justify-self:start;
+}
+.oc-panel header{
+  padding:10px 12px; border-bottom:1px solid var(--bd);
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+}
+.oc-cap{ color:var(--muted); font-size:.9rem }
 
-/* אין min-width קשיח לרשימת הסלוטים כדי לא לגלול לרוחב */
-.oc-slots{min-width:0;font-size:.93rem}
+/* אין min-width קשיח => בלי גלילה אופקית */
+.oc-slots{ min-width:0 !important; font-size:.93rem }
 
-/* ===== Rows (elastic columns, left-leaning) ===== */
-/* זמן | בר תפוסה (אלסטי) | מידע (אלסטי מוגבל) */
-.oc-row{display:grid;grid-template-columns:58px 1fr clamp(80px, 14vw, 120px);gap:8px;padding:8px 10px;border-bottom:1px solid var(--bd);cursor:pointer;transition:background .12s ease;align-items:center}
-.oc-row:hover{background:#0e1629}
-.oc-th{grid-template-columns:58px 1fr clamp(80px, 14vw, 120px);background:#0d1526;font-weight:800;color:#e8ebf3;border-bottom:1px solid var(--bd)}
-.oc-time{font-weight:800;color:#e8ebf3;font-size:.94rem;text-align:left}
-.oc-info{color:var(--muted);font-size:.86rem;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* ===== Rows — עמודות “חיות” ואלסטיות ===== */
+/* זמן | בר תפוסה (אלסטי) | מידע (אלסטי מוגבל)  */
+.oc-row,
+.oc-th{
+  display:grid; align-items:center;
+  grid-template-columns: 62px 1fr clamp(96px, 16vw, 150px); /* יותר מקום למידע */
+  gap:8px; padding:8px 10px; border-bottom:1px solid var(--bd);
+}
+.oc-row{ cursor:pointer; transition:background .12s ease; }
+.oc-row:hover{ background:#0e1629 }
+.oc-th{
+  background:#0d1526; font-weight:800; color:#e8ebf3; border-bottom:1px solid var(--bd);
+}
+.oc-time{ font-weight:800; color:#e8ebf3; font-size:.95rem; text-align:left }
+.oc-info{
+  color:var(--muted); font-size:.88rem; text-align:left;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
 
-/* ===== Live Occupancy Bars (fill almost full on 100%) ===== */
-.oc-bar{position:relative;height:10px;background:#0c1220;border-radius:10px;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}
+/* ===== Live bars — זזות, מצבע ירוק/כתום/אדום, 100% ≈ מלא כמעט עד הסוף ===== */
+.oc-bar{
+  position:relative; height:12px; background:#0c1220; border-radius:10px;
+  overflow:hidden; box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
+}
 .oc-bar .fill{
   height:100%; width:0%;
   transition: width .28s ease, background .18s ease, transform .12s ease;
   will-change: width;
-  background:linear-gradient(90deg, rgba(59,130,246,.85), rgba(59,130,246,1)); /* ברירת מחדל אם אין סיווג */
+  background:linear-gradient(90deg, rgba(59,130,246,.85), rgba(59,130,246,1)); /* ברירת מחדל */
 }
-/* צבע ירוק/כתום/אדום לפי מחלקה */
-.oc-bar .fill.ok   { background:linear-gradient(90deg, rgba(16,185,129,.85), rgba(16,185,129,1)) }
-.oc-bar .fill.mid  { background:linear-gradient(90deg, rgba(245,158,11,.85), rgba(245,158,11,1)) }
-.oc-bar .fill.high { background:linear-gradient(90deg, rgba(239,68,68,.85), rgba(239,68,68,1)) }
-/* תמיכה אוטומטית בצבעים לפי אחוזים (data-pct/aria-valuenow על .fill או על .oc-row) */
+/* צבע לפי מחלקה (שומר על ירוק/כתום/אדום) */
+.oc-bar .fill.ok   { background:linear-gradient(90deg, rgba(16,185,129,.85), rgba(16,185,129,1)); }
+.oc-bar .fill.mid  { background:linear-gradient(90deg, rgba(245,158,11,.85), rgba(245,158,11,1)); }
+.oc-bar .fill.high { background:linear-gradient(90deg, rgba(239,68,68,.85), rgba(239,68,68,1)); }
+/* צבע אוטומטי לפי data-pct / aria-valuenow אם אין מחלקה */
 .oc-row[data-pct^="8"] .oc-bar .fill,
 .oc-row[data-pct^="9"] .oc-bar .fill,
 .oc-row[data-pct="100"] .oc-bar .fill,
 .oc-bar .fill[data-pct^="8"], .oc-bar .fill[data-pct^="9"], .oc-bar .fill[data-pct="100"],
-.oc-bar .fill[aria-valuenow^="8"], .oc-bar .fill[aria-valuenow^="9"], .oc-bar .fill[aria-valuenow="100"] { background:linear-gradient(90deg, rgba(239,68,68,.85), rgba(239,68,68,1)) }
+.oc-bar .fill[aria-valuenow^="8"], .oc-bar .fill[aria-valuenow^="9"], .oc-bar .fill[aria-valuenow="100"]{
+  background:linear-gradient(90deg, rgba(239,68,68,.85), rgba(239,68,68,1));
+}
 .oc-row[data-pct^="5"] .oc-bar .fill,
 .oc-row[data-pct^="6"] .oc-bar .fill,
 .oc-row[data-pct^="7"] .oc-bar .fill,
 .oc-bar .fill[data-pct^="5"], .oc-bar .fill[data-pct^="6"], .oc-bar .fill[data-pct^="7"],
-.oc-bar .fill[aria-valuenow^="5"], .oc-bar .fill[aria-valuenow^="6"], .oc-bar .fill[aria-valuenow^="7"] { background:linear-gradient(90deg, rgba(245,158,11,.85), rgba(245,158,11,1)) }
+.oc-bar .fill[aria-valuenow^="5"], .oc-bar .fill[aria-valuenow^="6"], .oc-bar .fill[aria-valuenow^="7"]{
+  background:linear-gradient(90deg, rgba(245,158,11,.85), rgba(245,158,11,1));
+}
 .oc-row[data-pct^="0"] .oc-bar .fill,
 .oc-row[data-pct^="1"] .oc-bar .fill,
 .oc-row[data-pct^="2"] .oc-bar .fill,
 .oc-row[data-pct^="3"] .oc-bar .fill,
 .oc-row[data-pct^="4"] .oc-bar .fill,
 .oc-bar .fill[data-pct^="0"], .oc-bar .fill[data-pct^="1"], .oc-bar .fill[data-pct^="2"], .oc-bar .fill[data-pct^="3"], .oc-bar .fill[data-pct^="4"],
-.oc-bar .fill[aria-valuenow^="0"], .oc-bar .fill[aria-valuenow^="1"], .oc-bar .fill[aria-valuenow^="2"], .oc-bar .fill[aria-valuenow^="3"], .oc-bar .fill[aria-valuenow^="4"] { background:linear-gradient(90deg, rgba(16,185,129,.85), rgba(16,185,129,1)) }
-/* 100% ממלא כמעט עד הסוף (מינימום מרווח חזותי זעיר) */
+.oc-bar .fill[aria-valuenow^="0"], .oc-bar .fill[aria-valuenow^="1"], .oc-bar .fill[aria-valuenow^="2"], .oc-bar .fill[aria-valuenow^="3"], .oc-bar .fill[aria-valuenow^="4"]{
+  background:linear-gradient(90deg, rgba(16,185,129,.85), rgba(16,185,129,1));
+}
+/* 100% = כמעט מלוא הרוחב (נשאר פדינג אופטי קטן) */
 .oc-bar .fill[data-pct="100"],
 .oc-bar .fill[aria-valuenow="100"]{ width:99.2% !important }
+/* תחושת “חיות” במגע/לחיצה — הגדלה קלה מיידית (אנימציה) */
+.oc-row:active .oc-bar .fill{ transform: scaleX(1.03); transform-origin:left }
 
-/* “חיות” בעת מגע/עכבר (תחושה אינטראקטיבית; הרוחב עצמו נקבע ע"י JS) */
-.oc-row:active .oc-bar .fill{ transform: translateY(-0.5px) }
-
-/* ===== Summary ===== */
-.oc-summary{padding:12px 12px;border-top:1px solid var(--bd);color:var(--muted);background:#0d1526}
-.oc-summary b{color:#f3f4f6}
-
-/* ===== Drawer (manual reservations table) ===== */
+/* ===== Drawer (לא נדרס) ===== */
 .oc-drawer{
-  position:fixed;top:0;right:0;height:100%;width:380px;max-width:100%;
-  background:var(--card);border-left:1px solid var(--bd);transform:translateX(100%);
-  transition:transform .25s ease;z-index:1000;display:flex;flex-direction:column;box-shadow:var(--shadow-lg)
+  position:fixed; top:0; right:0; height:100%; width:380px; max-width:100%;
+  background:var(--card); border-left:1px solid var(--bd);
+  transform:translateX(100%); transition:transform .25s ease; z-index:1000;
+  display:flex; flex-direction:column; box-shadow:var(--shadow-lg);
 }
-.oc-drawer.open{transform:translateX(0)}
-.oc-drawer header{padding:12px 14px;border-bottom:1px solid var(--bd);display:flex;gap:8px;align-items:center;justify-content:space-between}
-.oc-drawer header .title{font-weight:800}
-.oc-drawer header .close{border:1px solid var(--bd);background:#0f172a;color:var(--ink);border-radius:10px;padding:6px 10px;cursor:pointer;transition:transform .08s ease}
-.oc-drawer header .close:hover{transform:translateY(-1px)}
-.oc-drawer .toolbar{padding:10px 12px;border-bottom:1px solid var(--bd);display:flex;gap:8px;align-items:center}
-.oc-drawer .toolbar input[type="search"]{flex:1;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;background:#0b1327;color:var(--ink)}
-.oc-drawer .body{padding:8px 12px;overflow:auto}
-.tbl{width:100%;border-collapse:collapse}
-.tbl th,.tbl td{padding:8px 6px;border-bottom:1px solid var(--bd);text-align:left}
-.tbl th{background:#0d1526;font-weight:800;color:#dbe1ea}
+.oc-drawer.open{ transform:translateX(0) }
+.oc-drawer header{
+  padding:12px 14px; border-bottom:1px solid var(--bd);
+  display:flex; gap:8px; align-items:center; justify-content:space-between;
+}
+.oc-drawer header .title{ font-weight:800 }
+.oc-drawer header .close{
+  border:1px solid var(--bd); background:#0f172a; color:var(--ink);
+  border-radius:10px; padding:6px 10px; cursor:pointer; transition:transform .08s ease;
+}
+.oc-drawer header .close:hover{ transform:translateY(-1px) }
+.oc-drawer .toolbar{ padding:10px 12px; border-bottom:1px solid var(--bd); display:flex; gap:8px; align-items:center }
+.oc-drawer .toolbar input[type="search"]{
+  flex:1; padding:8px 10px; border:1px solid var(--bd); border-radius:10px; background:#0b1327; color:var(--ink);
+}
+.oc-drawer .body{ padding:8px 12px; overflow:auto }
+.tbl{ width:100%; border-collapse:collapse }
+.tbl th,.tbl td{ padding:8px 6px; border-bottom:1px solid var(--bd); text-align:left }
+.tbl th{ background:#0d1526; font-weight:800; color:#dbe1ea }
+
+/* כש-Drawer פתוח — מפנים לו מקום כך שלא ידרוס את הטבלה */
+@supports selector(:has(*)){
+  body:has(.oc-drawer.open) .oc-panel{ margin-right: clamp(280px, 32vw, 380px); }
+}
 
 /* ===== Buttons & Badges ===== */
-.btn{border:1px solid var(--bd);background:#0f172a;color:var(--ink);border-radius:12px;padding:10px 12px;cursor:pointer;transition:transform .08s ease, box-shadow .12s ease}
-.btn:hover{transform:translateY(-1px)}
-.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:0 10px 24px rgba(59,130,246,.28)}
-.btn.warn{background:var(--danger);border-color:var(--danger);color:#fff}
-.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.78rem;color:#0b1120;font-weight:800;border:1px solid transparent}
-.badge.approved{background:color-mix(in srgb, var(--ok) 90%, #fff 0%); color:#052e23; border-color:#064e3b}
-.badge.booked{background:color-mix(in srgb, var(--warn) 90%, #fff 0%); color:#3b2502; border-color:#713f12}
-.badge.arrived{background:#22d3ee; color:#002a33; border-color:#0891b2}
-.badge.cancelled{background:color-mix(in srgb, var(--danger) 90%, #fff 0%); color:#3f0005; border-color:#7f1d1d}
+.btn{ border:1px solid var(--bd); background:#0f172a; color:var(--ink);
+  border-radius:12px; padding:10px 12px; cursor:pointer;
+  transition:transform .08s ease, box-shadow .12s ease;
+}
+.btn:hover{ transform:translateY(-1px) }
+.btn.primary{ background:var(--brand); border-color:var(--brand); color:#fff; box-shadow:0 10px 24px rgba(59,130,246,.28) }
+.btn.warn{ background:var(--danger); border-color:var(--danger); color:#fff }
+.badge{
+  display:inline-block; padding:2px 8px; border-radius:999px;
+  font-size:.78rem; color:#0b1120; font-weight:800; border:1px solid transparent;
+}
+.badge.approved{ background:color-mix(in srgb, var(--ok) 90%, #fff 0%); color:#052e23; border-color:#064e3b }
+.badge.booked{   background:color-mix(in srgb, var(--warn) 90%, #fff 0%); color:#3b2502; border-color:#713f12 }
+.badge.arrived{  background:#22d3ee; color:#002a33; border-color:#0891b2 }
+.badge.cancelled{background:color-mix(in srgb, var(--danger) 90%, #fff 0%); color:#3f0005; border-color:#7f1d1d }
 
-/* ===== Compact tweaks (שומר קריאות, ללא גלילה אופקית) ===== */
-.oc-slots{font-size:.92rem}
-.oc-row{min-height:32px}
-.oc-th{padding:8px 10px}
+/* ===== Compact tweaks + Mobile (בלי גלילה, עדיין שמאלה) ===== */
+.oc-row{ min-height:32px }
 @media (max-width:900px){
-  .oc-row, .oc-th{grid-template-columns:54px 1fr clamp(70px, 22vw, 110px);gap:6px;padding:7px 8px}
-  .oc-info{font-size:.82rem}
-  .oc-bar{height:9px}
+  .oc-row, .oc-th{
+    grid-template-columns: 56px 1fr clamp(90px, 26vw, 140px);
+    gap:6px; padding:7px 8px;
+  }
+  .oc-info{ font-size:.84rem }
+  .oc-bar{ height:10px }
 }
 @media (max-width:640px){
-  .oc-row, .oc-th{grid-template-columns:50px 1fr clamp(66px, 26vw, 100px)}
-  .oc-info{font-size:.8rem}
-  .oc-bar{height:8px}
+  .oc-row, .oc-th{
+    grid-template-columns: 52px 1fr clamp(86px, 32vw, 132px);
+  }
+  .oc-info{ font-size:.82rem }
+  .oc-bar{ height:9px }
 }
 
-/* ===== Motion accessibility ===== */
+/* Motion accessibility */
 @media (prefers-reduced-motion: reduce){
-  .oc-bar .fill{transition:none}
-  .oc-drawer{transition:none}
-  .btn{transition:none}
+  .oc-bar .fill, .oc-drawer, .btn{ transition:none !important }
 }
