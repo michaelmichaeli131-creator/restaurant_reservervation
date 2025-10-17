@@ -47,8 +47,8 @@ body{
   max-width:1280px; margin-left:12px; margin-right:auto; /* שמאלה בלבד */
   display:grid; grid-template-columns:1fr; gap:16px; padding:0 8px 0 0;
 }
-@media (min-width:900px){
-  .oc-main{ grid-template-columns:1fr 500px; } /* פאנל מרכזי + סיידבר */
+@media (min-width:1500px){
+  .oc-main{ grid-template-columns:1fr 360px; } /* פאנל מרכזי + סיידבר */
 }
 
 .oc-layout{
