@@ -223,7 +223,7 @@ body{
   max-width: 100%;
   min-width: 0;
   overflow-x: hidden;
-  justify-self: center;                            /* עוד “ביטוח” למרכז */
+  justify-self: center;                            /* עוד “ביטוח” למרכז *//
 }
 
 /* במסכים צרים – תן לה פשוט 100% *//
