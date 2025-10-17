@@ -1,57 +1,113 @@
 <% layout("_layout", it) %>
 
-<section class="card verify-card" style="max-width:720px;margin:24px auto">
-  <header class="page-header" style="text-align:center">
-    <div class="icon-bubble info">✉️</div>
-    <h1 style="margin:8px 0 4px">אימות אימייל</h1>
-    <p class="muted" style="margin:0">כמעט סיימנו! רק לאשר את הכתובת</p>
-  </header>
+<main class="sb-auth container" aria-labelledby="verify-title">
+  <section class="card verify-card">
+    <header class="head center">
+      <span class="icon-bubble info" aria-hidden="true">✉️</span>
+      <h1 id="verify-title">אימות אימייל</h1>
+      <p class="muted sub">כמעט סיימנו! רק לאשר את הכתובת</p>
+    </header>
 
-  <% if (it.error) { %>
-    <div class="alert error" role="alert" style="margin-top:12px">
-      <strong>שגיאה:</strong> <%= it.error %>
-    </div>
-  <% } %>
-  <% if (it.info) { %>
-    <div class="alert info" role="status" style="margin-top:12px">
-      <%= it.info %>
-    </div>
-  <% } %>
-
-  <div class="verify-body">
-    <% if (it.email) { %>
-      <p style="margin:0 0 8px">שלחנו קישור אימות ל־<strong dir="ltr"><%= it.email %></strong>.</p>
-      <p class="muted" style="margin:0 0 16px">
-        לא הגיע? בדקו בתיקיית “ספאם/קידומי מכירות”. אפשר גם לשלוח שוב קישור:
-      </p>
-      <div class="actions">
-        <% if (it.resendUrl) { %>
-          <a class="btn" href="<%= it.resendUrl %>">שלחו שוב קישור</a>
-        <% } %>
-        <a class="btn secondary" href="/auth/login">חזרה להתחברות</a>
-      </div>
-    <% } else { %>
-      <p style="margin:0 0 16px">אנא בדקו את תיבת הדוא״ל ולחצו על הקישור שקיבלתם.</p>
-      <div class="actions">
-        <a class="btn secondary" href="/auth/login">חזרה להתחברות</a>
-      </div>
+    <% if (it.error) { %>
+      <p class="badge warn" role="alert">✗ <%= it.error %></p>
     <% } %>
-  </div>
-</section>
+    <% if (it.info) { %>
+      <p class="badge info" role="status">ℹ <%= it.info %></p>
+    <% } %>
+
+    <div class="verify-body">
+      <% if (it.email) { %>
+        <p class="lead">
+          שלחנו קישור אימות ל־<strong dir="ltr"><%= it.email %></strong>.
+        </p>
+        <p class="muted">
+          לא הגיע? בדקו בתיקיית “ספאם/קידומי מכירות”. אפשר גם לשלוח שוב קישור:
+        </p>
+
+        <div class="actions">
+          <% if (it.resendUrl) { %>
+            <a class="btn primary" href="<%= it.resendUrl %>">שלחו שוב קישור</a>
+          <% } %>
+          <a class="btn ghost" href="/auth/login">חזרה להתחברות</a>
+        </div>
+      <% } else { %>
+        <p class="lead">אנא בדקו את תיבת הדוא״ל ולחצו על הקישור שקיבלתם.</p>
+        <div class="actions">
+          <a class="btn ghost" href="/auth/login">חזרה להתחברות</a>
+        </div>
+      <% } %>
+    </div>
+  </section>
+</main>
 
 <style>
-  .card{border:1px solid #eee;border-radius:12px;padding:16px;background:#fff}
-  .muted{color:#777}
-  .btn{background:#111;color:#fff;border:none;border-radius:10px;padding:10px 14px;cursor:pointer;display:inline-block;text-decoration:none}
-  .btn.secondary{background:#555}
-  .alert{border-radius:8px;padding:10px}
-  .alert.error{border:1px solid #ffb4ad;background:#ffeceb}
-  .alert.info{border:1px solid #b3e5ff;background:#eef9ff}
-  .verify-card .icon-bubble{
-    width:54px;height:54px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
-    font-size:26px;margin:auto;background:#eef9ff;border:1px solid #b3e5ff
+  :root{
+    --bg:#0b1120; --card:#111827; --ink:#e5e7eb; --muted:#9aa3b2; --bd:#1f2937;
+    --brand:#3b82f6; --ok:#10b981; --warn:#f59e0b; --info:#38bdf8;
+    --radius:16px; --radius-sm:12px;
+    --shadow-md:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
   }
-  .verify-body{margin-top:14px}
-  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
-  @media (max-width:760px){ .actions{flex-direction:column} }
+
+  .sb-auth.container{ max-width:720px; margin:28px auto; padding:0 16px }
+  .card.verify-card{
+    background:var(--card); border:1px solid var(--bd); border-radius:var(--radius);
+    color:var(--ink); box-shadow:var(--shadow-md); padding:22px;
+  }
+
+  .head{ display:flex; flex-direction:column; align-items:flex-start; gap:8px; margin-bottom:6px }
+  .head.center{ align-items:center; text-align:center }
+  #verify-title{ margin:0; font-size:22px; letter-spacing:.2px }
+  .sub{ margin:0 }
+  .muted{ color:var(--muted) }
+  .lead{ margin:0 0 10px }
+
+  .icon-bubble{
+    width:56px; height:56px; border-radius:50%;
+    display:inline-flex; align-items:center; justify-content:center;
+    font-size:26px; background:#0b1327; border:1px solid var(--bd); color:#eaf6ff;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .icon-bubble.info{
+    background: color-mix(in srgb, var(--brand) 12%, #0b1327);
+    border-color: color-mix(in srgb, var(--brand) 55%, var(--bd));
+  }
+
+  /* Badges */
+  .badge{
+    display:inline-flex; align-items:center; gap:8px; padding:8px 12px;
+    border-radius:12px; font-weight:800; font-size:.92rem; border:1px solid transparent;
+    margin:10px 0 0;
+  }
+  .badge.warn{
+    background: color-mix(in srgb, var(--warn) 18%, #0d1526);
+    color: #ffedd5; border-color: color-mix(in srgb, var(--warn) 55%, var(--bd));
+  }
+  .badge.info{
+    background: color-mix(in srgb, var(--info) 18%, #0d1526);
+    color: #dff6ff; border-color: color-mix(in srgb, var(--info) 55%, var(--bd));
+  }
+
+  .verify-body{ margin-top:14px }
+
+  /* Actions & Buttons */
+  .actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px }
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    padding:10px 14px; border-radius:12px; border:1px solid var(--bd);
+    cursor:pointer; text-decoration:none; font-weight:800; color:var(--ink);
+    background:#0f172a; transition:transform .08s ease, filter .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover{ transform:translateY(-1px) }
+  .btn.primary{
+    background:var(--brand); border-color:var(--brand); color:#fff;
+    box-shadow:0 10px 24px rgba(59,130,246,.28);
+  }
+  .btn.ghost{
+    background:color-mix(in srgb, #0f172a 85%, transparent); color:var(--ink);
+  }
+
+  @media (max-width:520px){
+    .sb-auth.container{ margin:22px auto }
+    .actions{ flex-direction:column }
+  }
 </style>

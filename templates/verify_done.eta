@@ -1,30 +1,75 @@
 <% layout("_layout", it) %>
 
-<section class="card verify-card" style="max-width:720px;margin:24px auto">
-  <header class="page-header" style="text-align:center">
-    <div class="icon-bubble ok">✅</div>
-    <h1 style="margin:8px 0 4px">האימות הושלם!</h1>
-    <p class="muted" style="margin:0">החשבון שלך מוכן לשימוש</p>
-  </header>
+<main class="sb-auth container" aria-labelledby="verify-success-title">
+  <section class="card verify-card">
+    <header class="head center">
+      <span class="icon-bubble ok" aria-hidden="true">✅</span>
+      <h1 id="verify-success-title">האימות הושלם!</h1>
+      <p class="muted sub">החשבון שלך מוכן לשימוש</p>
+    </header>
 
-  <div style="text-align:center;margin-top:14px">
-    <p style="margin:0 0 16px">אפשר להמשיך אל הדף הראשי או לפתוח את אזור הניהול.</p>
-    <div class="actions" style="justify-content:center">
-      <a class="btn" href="/">מעבר לדף הראשי</a>
-      <a class="btn secondary" href="/dashboard">אל לוח הבקרה</a>
+    <div class="verify-body center">
+      <p class="lead">אפשר להמשיך אל הדף הראשי או לפתוח את אזור הניהול.</p>
+      <div class="actions">
+        <a class="btn primary" href="/">מעבר לדף הראשי</a>
+        <a class="btn ghost" href="/dashboard">אל לוח הבקרה</a>
+      </div>
     </div>
-  </div>
-</section>
+  </section>
+</main>
 
 <style>
-  .card{border:1px solid #eee;border-radius:12px;padding:16px;background:#fff}
-  .muted{color:#777}
-  .btn{background:#111;color:#fff;border:none;border-radius:10px;padding:10px 14px;cursor:pointer;display:inline-block;text-decoration:none}
-  .btn.secondary{background:#555}
-  .verify-card .icon-bubble{
-    width:54px;height:54px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
-    font-size:26px;margin:auto;background:#eaffea;border:1px solid #b9f0b9
+  :root{
+    --bg:#0b1120; --card:#111827; --ink:#e5e7eb; --muted:#9aa3b2; --bd:#1f2937;
+    --brand:#3b82f6; --ok:#10b981;
+    --radius:16px; --radius-sm:12px;
+    --shadow-md:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
   }
-  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
-  @media (max-width:760px){ .actions{flex-direction:column} }
+
+  .sb-auth.container{ max-width:720px; margin:28px auto; padding:0 16px }
+  .card.verify-card{
+    background:var(--card); border:1px solid var(--bd); border-radius:var(--radius);
+    color:var(--ink); box-shadow:var(--shadow-md); padding:26px;
+  }
+
+  .head{ display:flex; flex-direction:column; align-items:flex-start; gap:8px; margin-bottom:6px }
+  .head.center{ align-items:center; text-align:center }
+  #verify-success-title{ margin:0; font-size:22px; letter-spacing:.2px }
+  .sub{ margin:0 }
+  .muted{ color:var(--muted) }
+  .lead{ margin:0 0 10px; text-align:center }
+
+  .icon-bubble{
+    width:56px; height:56px; border-radius:50%;
+    display:inline-flex; align-items:center; justify-content:center;
+    font-size:26px; background:#0b1327; border:1px solid var(--bd); color:#eaf6ff;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .icon-bubble.ok{
+    background: color-mix(in srgb, var(--ok) 12%, #0b1327);
+    border-color: color-mix(in srgb, var(--ok) 55%, var(--bd));
+  }
+
+  .verify-body.center{ text-align:center; margin-top:16px }
+  .actions{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:12px }
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    padding:10px 14px; border-radius:12px; border:1px solid var(--bd);
+    cursor:pointer; text-decoration:none; font-weight:800; color:var(--ink);
+    background:#0f172a; transition:transform .08s ease, filter .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover{ transform:translateY(-1px) }
+  .btn.primary{
+    background:var(--brand); border-color:var(--brand); color:#fff;
+    box-shadow:0 10px 24px rgba(59,130,246,.28);
+  }
+  .btn.ghost{
+    background:color-mix(in srgb, #0f172a 85%, transparent); color:var(--ink);
+  }
+
+  @media (max-width:520px){
+    .sb-auth.container{ margin:22px auto }
+    .actions{ flex-direction:column }
+  }
 </style>

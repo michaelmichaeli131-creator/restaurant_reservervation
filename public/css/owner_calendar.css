@@ -54,7 +54,7 @@ body{
 .oc-layout{
   direction:ltr !important; /* שומר מיקום “פאנל באמצע” מימין לסיידבר, אבל הכל “נשען” שמאלה */
   display:grid; gap:16px; align-items:start; justify-items:start;
-  grid-template-columns: 260px minmax(1100px, 1fr) !important; /* מגדיל אמצעי שמאלה בלבד */
+  grid-template-columns: 260px minmax(1400px, 1fr) !important; /* מגדיל אמצעי שמאלה בלבד */
 }
 @media (max-width:900px){
   .oc-layout{ grid-template-columns:1fr !important; }
@@ -218,7 +218,7 @@ body{
 
 /* שולט רק על הטבלה האמצעית (timeline) */
 .oc-panel{
-  width: clamp(1100px, 74vw, 1500px) !important;  /* ← הגדל/הקטן כאן */
+  width: clamp(1100px, 74vw, 1300px) !important;  /* ← הגדל/הקטן כאן */
   margin-inline: auto !important;                 /* מרכז בתוך עמודה 2 */
   max-width: 100%;
   min-width: 0;
