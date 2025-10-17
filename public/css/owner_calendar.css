@@ -54,10 +54,10 @@ body{
 .oc-layout{
   direction:ltr !important; /* שומר מיקום “פאנל באמצע” מימין לסיידבר, אבל הכל “נשען” שמאלה */
   display:grid; gap:16px; align-items:start; justify-items:start;
-  grid-template-columns: 260px minmax(1400px, 1fr) !important; /* מגדיל אמצעי שמאלה בלבד */
+  grid-template-columns: 260px minmax(1100px, 1fr) !important; /* מגדיל אמצעי שמאלה בלבד */
 }
 @media (max-width:900px){
-  .oc-layout{ grid-template-columns:1fr !important; } 
+  .oc-layout{ grid-template-columns:1fr !important; }
 }
 
 .oc-sidebar{
@@ -223,10 +223,10 @@ body{
   max-width: 100%;
   min-width: 0;
   overflow-x: hidden;
-  justify-self: center;                            /* עוד “ביטוח” למרכז *//
+  justify-self: center;                            /* עוד “ביטוח” למרכז */
 }
 
-/* במסכים צרים – תן לה פשוט 100% *//
+/* במסכים צרים – תן לה פשוט 100% */
 @media (max-width: 900px){
   .oc-panel{ width:100% !important; margin-inline: 0 !important; justify-self: stretch; }
 }

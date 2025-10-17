@@ -1,48 +1,141 @@
 <% layout("_layout", it) %>
 
+<main class="sb-auth container" aria-labelledby="login-title">
+  <section class="card auth-card">
+    <header class="head">
+      <h1 id="login-title">התחברות</h1>
+      <% if (it.info) { %><p class="badge info" role="status">ℹ︎ <%= it.info %></p><% } %>
+      <% if (it.error) { %><p class="badge warn" role="alert">✗ <%= it.error %></p><% } %>
+    </header>
 
-<section class="card" aria-labelledby="login-title">
-<div class="hd">
-<h1 id="login-title">התחברות</h1>
-</div>
-<div class="bd">
-<% if (it.error) { %>
-<div class="alert err"><%= it.error %></div>
-<% } %>
-<% if (it.info) { %>
-<div class="alert ok"><%= it.info %></div>
-<% } %>
+    <form class="form" action="/auth/login" method="post" novalidate>
+      <input type="hidden" name="_csrf" value="<%= it.csrf || '' %>" />
 
+      <div class="form-row">
+        <label for="email">אימייל</label>
+        <input id="email" name="email" type="email" dir="ltr" inputmode="email" autocomplete="email"
+               autocapitalize="off" spellcheck="false"
+               placeholder="name@example.com" value="<%= it.email || '' %>" required />
+      </div>
 
-<form class="f" action="/auth/login" method="post" novalidate>
-<input type="hidden" name="_csrf" value="<%= it.csrf || '' %>" />
+      <div class="form-row">
+        <label for="password">סיסמה</label>
+        <div class="pw-wrap">
+          <input id="password" name="password" type="password" autocomplete="current-password" required />
+          <button class="pw-toggle" type="button" aria-label="הצג/הסתר סיסמה">👁</button>
+        </div>
+      </div>
 
+      <div class="form-row row-inline">
+        <label class="hint chk">
+          <input type="checkbox" name="remember" value="1" />
+          זכור אותי
+        </label>
+        <a href="/auth/forgot" class="hint">שכחת סיסמה?</a>
+      </div>
 
-<div class="row">
-<label for="email">אימייל</label>
-<input id="email" name="email" type="email" inputmode="email" autocomplete="email"
-placeholder="name@example.com" value="<%= it.email || '' %>" required />
-</div>
+      <div class="form-actions">
+        <button class="btn primary" type="submit">התחבר/י</button>
+      </div>
+    </form>
 
+    <footer class="ft">
+      <p class="links">חדש/ה כאן? <a href="/auth/register">פתיחת חשבון</a></p>
+    </footer>
+  </section>
+</main>
 
-<div class="row">
-<label for="password">סיסמה</label>
-<input id="password" name="password" type="password" autocomplete="current-password" required />
-</div>
+<script>
+  (function(){
+    // נירמול אימייל (מסיר bidi, רווחים מיוחדים, מוריד לאותיות קטנות)
+    const BIDI=/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, ZSP=/[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
+    function normalizeEmail(s){
+      s=(s||'')+''; s=s.replace(BIDI,'').replace(/＠/g,'@').replace(/．/g,'.');
+      s=s.replace(ZSP,' ').trim().replace(/^[<"'\s]+/,'').replace(/[>"'\s]+$/,'');
+      return s.toLowerCase();
+    }
+    const emailEl=document.getElementById('email');
+    if(emailEl){ emailEl.addEventListener('blur',()=>{ emailEl.value=normalizeEmail(emailEl.value); }); }
 
+    // הצג/הסתר סיסמה
+    document.addEventListener('click', (ev)=>{
+      const t=ev.target.closest('.pw-toggle'); if(!t) return;
+      const inp=t.previousElementSibling; if(!inp) return;
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+      t.classList.toggle('on', inp.type==='text');
+    }, {passive:true});
+  })();
+</script>
 
-<div class="row" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-<label class="hint"><input type="checkbox" name="remember" value="1" /> זכור אותי</label>
-<a href="/auth/forgot" class="hint">שכחת סיסמה?</a>
-</div>
+<style>
+  :root{
+    --bg:#0b1120; --card:#111827; --ink:#e5e7eb; --muted:#9aa3b2; --bd:#1f2937;
+    --brand:#3b82f6; --warn:#f59e0b; --ok:#10b981;
+    --radius:16px; --radius-sm:12px;
+    --shadow-md:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
+  }
 
+  .sb-auth.container{ max-width:520px; margin:28px auto; padding:0 16px; }
+  .auth-card.card{
+    background:var(--card); border:1px solid var(--bd); border-radius:var(--radius);
+    color:var(--ink); box-shadow:var(--shadow-md); padding:18px;
+  }
+  .head{ display:flex; align-items:center; gap:10px; justify-content:space-between; margin-bottom:10px }
+  #login-title{ margin:0; font-size:22px; letter-spacing:.2px }
+  .muted{ color:var(--muted) }
 
-<button class="btn" type="submit">התחבר/י</button>
-</form>
-</div>
-<div class="ft">
-<div class="links">
-חדש/ה כאן? <a href="/auth/register">פתיחת חשבון</a>
-</div>
-</div>
-</section>
+  /* הודעות */
+  .badge{
+    display:inline-flex; align-items:center; gap:8px; padding:6px 10px;
+    border-radius:999px; font-weight:800; font-size:.9rem; border:1px solid transparent;
+  }
+  .badge.warn{ background:color-mix(in srgb, var(--warn) 18%, #0d1526); color:#ffedd5; border-color:color-mix(in srgb, var(--warn) 55%, var(--bd)); }
+  .badge.info{ background:#0d1526; color:#cbd5e1; border-color:#233148; }
+
+  /* טופס */
+  .form{ margin-top:6px }
+  .form-row{ display:flex; flex-direction:column; gap:6px; margin-bottom:10px }
+  .form-row label{ font-weight:600 }
+  .form-row input{
+    background:#0b1327; color:var(--ink);
+    border:1px solid var(--bd); border-radius:12px; padding:10px 12px; font-size:15px; outline:0;
+    transition:border-color .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  .form-row input:focus{
+    border-color: color-mix(in srgb, var(--brand) 60%, var(--bd));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent);
+  }
+
+  .pw-wrap{ position:relative }
+  .pw-toggle{
+    position:absolute; inset-inline-end:8px; inset-block:0; margin:auto 0;
+    height:32px; min-width:36px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--bd); background:#0f172a; color:var(--ink);
+    border-radius:10px; cursor:pointer; transition:filter .12s ease, transform .08s ease;
+  }
+  .pw-toggle.on{ filter:brightness(1.12) }
+  .row-inline{ display:flex; align-items:center; justify-content:space-between; gap:10px }
+  .hint{ color:var(--muted); font-size:.92rem; display:flex; align-items:center; gap:8px }
+  .chk input{ inline-size:16px; block-size:16px }
+
+  .form-actions{ margin-top:6px; display:flex; gap:10px; flex-wrap:wrap }
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    padding:10px 14px; border-radius:12px; border:1px solid var(--bd);
+    cursor:pointer; text-decoration:none; font-weight:800; color:var(--ink);
+    background:#0f172a; transition:transform .08s ease, filter .12s ease;
+  }
+  .btn:hover{ transform:translateY(-1px) }
+  .btn.primary{
+    background:var(--brand); border-color:var(--brand); color:#fff;
+    box-shadow:0 10px 24px rgba(59,130,246,.28);
+  }
+
+  .ft{ margin-top:10px; padding-top:10px; border-top:1px solid var(--bd) }
+  .links{ color:var(--muted) }
+  .links a{ color:#c6d5ff; text-decoration:underline dotted }
+
+  @media (max-width:520px){
+    .sb-auth.container{ margin:22px auto }
+  }
+</style>

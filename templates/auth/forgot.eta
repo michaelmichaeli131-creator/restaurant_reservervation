@@ -1,47 +1,113 @@
 <% layout("_layout", it) %>
 
-<section class="card" style="max-width:520px;margin:24px auto">
-  <header class="page-header">
-    <h1 style="margin:0 0 8px">שחזור סיסמה</h1>
-    <p class="muted" style="margin:0">נשלח לך מייל עם קישור לאיפוס סיסמה</p>
-  </header>
+<main class="sb-auth container" aria-labelledby="forgot-title">
+  <section class="card auth-card">
+    <header class="head">
+      <div>
+        <h1 id="forgot-title">שחזור סיסמה</h1>
+        <p class="muted sub">נשלח לך מייל עם קישור לאיפוס סיסמה</p>
+      </div>
+    </header>
 
-  <% if (it.error) { %>
-    <div class="alert error" role="alert" style="margin-top:12px">
-      <strong>שגיאה:</strong> <%= it.error %>
-    </div>
-  <% } %>
+    <% if (it.error) { %>
+      <p class="badge warn" role="alert">✗ <%= it.error %></p>
+    <% } %>
 
-  <% if (it.ok) { %>
-    <div class="alert success" role="status" style="margin-top:12px">
-      <strong>הודעה נשלחה:</strong> בדוק/י את תיבת הדוא"ל.
-    </div>
-  <% } %>
+    <% if (it.ok) { %>
+      <p class="badge ok" role="status">✓ הודעה נשלחה — בדוק/י את תיבת הדוא״ל</p>
+    <% } %>
 
-  <form action="/auth/forgot" method="post" enctype="application/x-www-form-urlencoded"
-        id="forgot-form" class="form-grid" novalidate>
-    <div class="form-row" style="grid-column:1/-1">
-      <label for="email">אימייל לחשבון</label>
-      <input id="email" name="email" type="email" dir="ltr" inputmode="email" required
-             autocomplete="email" autocapitalize="off" spellcheck="false"
-             placeholder="you@example.com" value="<%= it.prefill?.email || "" %>"/>
-    </div>
+    <form action="/auth/forgot" method="post" enctype="application/x-www-form-urlencoded"
+          id="forgot-form" class="form" novalidate>
+      <div class="form-row">
+        <label for="email">אימייל לחשבון</label>
+        <input id="email" name="email" type="email" dir="ltr" inputmode="email" required
+               autocomplete="email" autocapitalize="off" spellcheck="false"
+               placeholder="you@example.com" value="<%= it.prefill?.email || "" %>"/>
+      </div>
 
-    <div class="form-actions" style="grid-column:1/-1;display:flex;gap:10px;margin-top:12px">
-      <button type="submit" class="btn">שלחו לי קישור</button>
-      <a class="btn secondary" href="/auth/login">חזרה להתחברות</a>
-    </div>
-  </form>
-</section>
+      <div class="form-actions">
+        <button type="submit" class="btn primary">שלחו לי קישור</button>
+        <a class="btn ghost" href="/auth/login">חזרה להתחברות</a>
+      </div>
+    </form>
+  </section>
+</main>
+
+<script>
+  (function(){
+    // נירמול אימייל (מסיר bidi/רווחים מיוחדים וממיר ל-lowercase)
+    const BIDI=/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, ZSP=/[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
+    function normalizeEmail(s){
+      s=(s||'')+''; s=s.replace(BIDI,'').replace(/＠/g,'@').replace(/．/g,'.');
+      s=s.replace(ZSP,' ').trim().replace(/^[<"'\s]+/,'').replace(/[>"'\s]+$/,'');
+      return s.toLowerCase();
+    }
+    const emailEl=document.getElementById('email');
+    if(emailEl){ emailEl.addEventListener('blur',()=>{ emailEl.value=normalizeEmail(emailEl.value); }); }
+  })();
+</script>
 
 <style>
-  .card{border:1px solid #eee;border-radius:12px;padding:16px}
-  .muted{color:#777}
-  .form-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:14px}
-  .form-row{display:flex;flex-direction:column}
-  .form-row input{padding:8px 10px;border:1px solid #ccc;border-radius:10px;font-size:1rem}
-  .btn{background:#111;color:#fff;border:none;border-radius:10px;padding:8px 12px;cursor:pointer}
-  .btn.secondary{background:#555}
-  .alert.error{border:1px solid #ffb4ad;background:#ffeceb;border-radius:8px;padding:10px}
-  .alert.success{border:1px solid #c6f6d5;background:#f0fff4;border-radius:8px;padding:10px}
+  :root{
+    --bg:#0b1120; --card:#111827; --ink:#e5e7eb; --muted:#9aa3b2; --bd:#1f2937;
+    --brand:#3b82f6; --ok:#10b981; --warn:#f59e0b;
+    --radius:16px; --radius-sm:12px;
+    --shadow-md:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
+  }
+
+  .sb-auth.container{ max-width:520px; margin:28px auto; padding:0 16px }
+  .auth-card.card{
+    background:var(--card); border:1px solid var(--bd); border-radius:var(--radius);
+    color:var(--ink); box-shadow:var(--shadow-md); padding:18px;
+  }
+
+  .head{ display:flex; align-items:flex-end; justify-content:space-between; gap:10px; margin-bottom:8px }
+  #forgot-title{ margin:0; font-size:22px; letter-spacing:.2px }
+  .sub{ margin:.25rem 0 0; }
+
+  .muted{ color:var(--muted) }
+
+  /* Alerts / Badges */
+  .badge{
+    display:inline-flex; align-items:center; gap:8px; padding:8px 12px;
+    border-radius:12px; font-weight:800; font-size:.92rem; border:1px solid transparent;
+    margin:8px 0;
+  }
+  .badge.warn{ background:color-mix(in srgb, var(--warn) 18%, #0d1526); color:#ffedd5; border-color:color-mix(in srgb, var(--warn) 55%, var(--bd)); }
+  .badge.ok  { background:color-mix(in srgb, var(--ok) 16%, #0d1526);  color:#d1fae5; border-color:color-mix(in srgb, var(--ok) 55%, var(--bd)); }
+
+  /* Form */
+  .form{ margin-top:10px }
+  .form-row{ display:flex; flex-direction:column; gap:6px; margin-bottom:10px }
+  .form-row label{ font-weight:600 }
+  .form-row input{
+    background:#0b1327; color:var(--ink);
+    border:1px solid var(--bd); border-radius:12px; padding:10px 12px; font-size:15px; outline:0;
+    transition:border-color .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  .form-row input:focus{
+    border-color: color-mix(in srgb, var(--brand) 60%, var(--bd));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent);
+  }
+
+  .form-actions{ margin-top:6px; display:flex; gap:10px; flex-wrap:wrap }
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    padding:10px 14px; border-radius:12px; border:1px solid var(--bd);
+    cursor:pointer; text-decoration:none; font-weight:800; color:var(--ink);
+    background:#0f172a; transition:transform .08s ease, filter .12s ease;
+  }
+  .btn:hover{ transform:translateY(-1px) }
+  .btn.primary{
+    background:var(--brand); border-color:var(--brand); color:#fff;
+    box-shadow:0 10px 24px rgba(59,130,246,.28);
+  }
+  .btn.ghost{
+    background:color-mix(in srgb, #0f172a 85%, transparent); color:var(--ink);
+  }
+
+  @media (max-width:520px){
+    .sb-auth.container{ margin:22px auto }
+  }
 </style>
