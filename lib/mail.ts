@@ -5,6 +5,7 @@
 // **שיפורים**: כפתור ניהול הזמנה עם קישור ישיר (manageUrl),
 // אנטי-קליפינג בג'ימייל (תוכן ייחודי גלוי), וטקסט/HTML ברורים.
 // **הוספה**: תמיכה ב־note (הערות) להצגה גם ללקוח וגם לבעל המסעדה.
+// **עדכון מיתוג**: עיצוב Luxury Dark בהתאם לאתר (צבעים וגראפיקה בלבד).
 
 /* ======================= ENV ======================= */
 const ENV = {
@@ -78,7 +79,7 @@ async function sendViaResend(p: MailParams) {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
@@ -102,7 +103,7 @@ function logDry(label: string, p: MailParams) {
 }
 
 /* ======================= Public send wrapper ======================= */
-async function sendMailAny(p: MailParams) {
+export async function sendMailAny(p: MailParams) {
   // אוכפים from תקין כבר עכשיו — אם חסר קונפיג, נכשיל במקום "לנחש"
   try {
     ensureFrom();
@@ -134,7 +135,7 @@ async function sendMailAny(p: MailParams) {
 }
 
 /* --------- Backward-compatible helper (string 'to') ---------- */
-async function sendMail(
+export async function sendMail(
   to: string | string[],
   subject: string,
   html: string,
@@ -152,35 +153,54 @@ async function sendMail(
   });
 }
 
-/* =================== תבניות מעוצבות =================== */
+/* =================== תבניות מעוצבות (Luxury Dark) =================== */
 
 // צבעים/סגנונות בסיס (inline כדי שיעבוד ברוב הקליינטים)
 const palette = {
-  bg: "#f4f7fb",
-  card: "#06b6d4", // טורקיז
-  text: "#0f172a",
-  sub: "#475569", // כהה יותר למניעת "טמון"/קליפינג
-  btn: "#06b6d4",
-  btnText: "#ffffff",
-  white: "#ffffff",
-  border: "#e2e8f0",
+  // רקע מסביב לכרטיס + הכרטיס עצמו בסגנון האתר
+  bg: "#0b1120",        // רקע כללי כהה
+  surface: "#0f172a",   // פני השטח מאחורי הכרטיס
+  card: "#111827",      // כרטיס/פאנל (כהה יותר)
+  text: "#e5e7eb",      // טקסט ראשי
+  sub: "#9aa3b2",       // טקסט משני
+  btn: "#3b82f6",       // כפתור עיקרי (Brand Blue)
+  btnText: "#ffffff",   // טקסט על כפתור
+  white: "#0f172a",     // "לבן" כהה לכרטיסים פנימיים
+  border: "#1f2937",    // קווי מסגרת כהים
+  link: "#93c5fd",      // קישורים בהירים יותר על כהה
 };
 
+// עטיפה בסיסית — טבלה מרכזית 640px, RTL, כהה
 const baseWrapStart = `
-  <div dir="rtl" style="background:${palette.bg};padding:32px 0;">
-    <table align="center" role="presentation" width="100%" style="max-width:640px;margin:auto;background:${palette.white};border:1px solid ${palette.border};border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,.04);font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:${palette.text};line-height:1.6">
-      <tr><td style="padding:28px 28px 8px;">
-        <h1 style="margin:0 0 4px;font-size:28px;font-weight:800;letter-spacing:.2px;">`;
+  <div dir="rtl" style="background:${palette.bg};padding:28px 0;">
+    <table align="center" role="presentation" width="100%" style="
+      max-width:640px;margin:auto;background:${palette.card};
+      border:1px solid ${palette.border};border-radius:16px;
+      box-shadow:0 2px 24px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
+      font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+      color:${palette.text}; line-height:1.6;">
+      <tr>
+        <td style="padding:22px 24px 6px;border-bottom:1px solid ${palette.border};background:${palette.surface}">
+          <h1 style="margin:0;font-size:26px;font-weight:800;letter-spacing:.2px;">`;
 const baseWrapMid = `</h1>
-        <p style="margin:0 0 16px;color:${palette.sub};font-size:16px;">`;
+          <p style="margin:6px 0 0;color:${palette.sub};font-size:15px;">`;
 const baseWrapEndHead = `</p>
-      </td></tr>
-      <tr><td style="padding:0 28px 24px;">
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:18px 24px 22px;">
 `;
 const baseWrapClose = `
-        <p style="margin:24px 0 0;color:${palette.sub};font-size:12px;">האימייל נשלח אוטומטית. אין להשיב להודעה זו.</p>
-      </td></tr>
+          <p style="margin:24px 0 0;color:${palette.sub};font-size:12px;">
+            האִימייל נשלח אוטומטית. אין להשיב להודעה זו.
+          </p>
+        </td>
+      </tr>
     </table>
+    <!-- preheader (מוסתר) למקדמי פתיחה -->
+    <div style="display:none !important;visibility:hidden;opacity:0;overflow:hidden;height:0;width:0;line-height:0;">
+      הודעת GeoTable – פעולה מהירה בלחיצה על הכפתור למטה
+    </div>
   </div>
 `;
 
@@ -215,9 +235,9 @@ function noteAsHtml(note?: string | null): string {
     .replace(/>/g, "&gt;");
   const withBr = esc.replace(/\n/g, "<br/>");
   return `
-    <div style="margin-top:14px;border:1px solid ${palette.border};border-radius:10px;background:#fafafa;padding:10px 12px;">
-      <div style="font-weight:700;margin-bottom:6px;">הערות/בקשות הלקוח:</div>
-      <div style="white-space:pre-wrap;line-height:1.5">${withBr}</div>
+    <div style="margin-top:14px;border:1px solid ${palette.border};border-radius:12px;background:${palette.surface};padding:12px 14px;">
+      <div style="font-weight:800;margin-bottom:6px;color:${palette.text}">הערות/בקשות הלקוח:</div>
+      <div style="white-space:pre-wrap;line-height:1.5;color:${palette.sub}">${withBr}</div>
     </div>
   `;
 }
@@ -231,10 +251,16 @@ export async function sendVerifyEmail(to: string, token: string) {
   const link = buildUrl(`/auth/verify?token=${encodeURIComponent(token)}`);
   const html = `
 ${baseWrapStart}ברוכים הבאים ל-GeoTable${baseWrapMid}נשאר רק לאמת את כתובת הדוא״ל שלך.${baseWrapEndHead}
-  <div style="text-align:center;margin:8px 0 20px;">
-    <a href="${link}" style="display:inline-block;background:${palette.btn};color:${palette.btnText};padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:600;">אימות חשבון</a>
+  <div style="text-align:center;margin:16px 0 18px;">
+    <a href="${link}" style="
+      display:inline-block;background:${palette.btn};color:${palette.btnText};
+      padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;">
+      אימות חשבון
+    </a>
   </div>
-  <p style="margin:0;color:${palette.sub};font-size:14px;word-break:break-all">או הדבק/י ידנית: <a href="${link}">${link}</a></p>
+  <p style="margin:0;color:${palette.sub};font-size:14px;word-break:break-all">
+    או הדבק/י ידנית: <a href="${link}" style="color:${palette.link}">${link}</a>
+  </p>
 ${baseWrapClose}
   `;
   return await sendMail(to, 'אימות כתובת דוא"ל – GeoTable', html);
@@ -244,11 +270,17 @@ ${baseWrapClose}
 export async function sendResetEmail(to: string, token: string) {
   const link = buildUrl(`/auth/reset?token=${encodeURIComponent(token)}`);
   const html = `
-${baseWrapStart}איפוס סיסמה${baseWrapMid}בבקשה לחצי/לחץ על הכפתור כדי להגדיר סיסמה חדשה.${baseWrapEndHead}
-  <div style="text-align:center;margin:8px 0 20px;">
-    <a href="${link}" style="display:inline-block;background:${palette.btn};color:${palette.btnText};padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:600;">איפוס סיסמה</a>
+${baseWrapStart}איפוס סיסמה${baseWrapMid}לחצי/לחץ על הכפתור כדי להגדיר סיסמה חדשה.${baseWrapEndHead}
+  <div style="text-align:center;margin:16px 0 18px;">
+    <a href="${link}" style="
+      display:inline-block;background:${palette.btn};color:${palette.btnText};
+      padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;">
+      איפוס סיסמה
+    </a>
   </div>
-  <p style="margin:0;color:${palette.sub};font-size:14px;word-break:break-all">קישור ישיר: <a href="${link}">${link}</a></p>
+  <p style="margin:0;color:${palette.sub};font-size:14px;word-break:break-all">
+    קישור ישיר: <a href="${link}" style="color:${palette.link}">${link}</a>
+  </p>
 ${baseWrapClose}
   `;
   return await sendMail(to, "שחזור סיסמה – GeoTable", html);
@@ -288,24 +320,33 @@ export async function sendReservationEmail(opts: {
     "";
 
   const detailsCard = `
-    <div style="background:${palette.card};color:#fff;border-radius:16px;padding:18px 16px;max-width:460px;margin:10px auto 8px;">
-      <table role="presentation" width="100%" style="border-collapse:collapse;color:#fff;">
+    <div style="
+      background:${palette.surface};color:${palette.text};
+      border-radius:16px;padding:16px 14px;max-width:520px;margin:10px auto 6px;
+      border:1px solid ${palette.border};">
+      <table role="presentation" width="100%" style="border-collapse:collapse;color:${palette.text}">
         <tr>
           <td style="width:33%;text-align:center;">
-            <div style="opacity:.95;font-size:14px;">יום / ת׳</div>
+            <div style="opacity:.8;font-size:13px;color:${palette.sub}">יום / ת׳</div>
             <div style="font-size:20px;font-weight:800;letter-spacing:.3px;">${dayShort} ${dm}</div>
           </td>
           <td style="width:33%;text-align:center;">
-            <div style="opacity:.95;font-size:14px;">בשעה</div>
+            <div style="opacity:.8;font-size:13px;color:${palette.sub}">בשעה</div>
             <div style="font-size:20px;font-weight:800;letter-spacing:.3px;">${time}</div>
           </td>
           <td style="width:33%;text-align:center;">
-            <div style="opacity:.95;font-size:14px;">אורחים</div>
+            <div style="opacity:.8;font-size:13px;color:${palette.sub}">אורחים</div>
             <div style="font-size:20px;font-weight:800;letter-spacing:.3px;">${people}</div>
           </td>
         </tr>
       </table>
-      ${shortId ? `<div style="margin-top:8px;text-align:center;font-size:12px;opacity:.9;">קוד הזמנה: <strong style="letter-spacing:.4px;">${shortId}</strong></div>` : ""}
+      ${
+        shortId
+          ? `<div style="margin-top:8px;text-align:center;font-size:12px;color:${palette.sub}">
+               קוד הזמנה: <strong style="letter-spacing:.4px;color:${palette.text}">${shortId}</strong>
+             </div>`
+          : ""
+      }
     </div>
   `;
 
@@ -318,7 +359,7 @@ ${baseWrapStart}${restaurantName}${baseWrapMid}פרטי ההזמנה שלך. נ�
   <div style="padding:6px 4px 0;">
     ${customerName ? `<p style="margin:8px 0 0;">שלום ${customerName},</p>` : ""}
     <p style="margin:8px 0 0;">🎉 הזמנתך נקלטה. נשמח לאשר הגעה כמה דקות לפני.</p>
-    <p style="margin:6px 0 0;">🚗 להגעתכם נוח יותר לחנות בחניון הקרוב לפי הכתובת. חניה מוזלת ללקוחות המסעדה החל משעה 18:00 בסופי שבוע.</p>
+    <p style="margin:6px 0 0;">🚗 חניה מוזלת ללקוחות המסעדה בסופי שבוע החל מ-18:00.</p>
     <p style="margin:6px 0 0;">⏱️ השולחן ישמר 15 דקות.</p>
     <p style="margin:6px 0 0;">מחכים לראותכם ❤️</p>
   </div>
@@ -328,14 +369,24 @@ ${baseWrapStart}${restaurantName}${baseWrapMid}פרטי ההזמנה שלך. נ�
   <div style="text-align:center;margin:16px 0 0;">
     ${
       manageUrl
-        ? `<a href="${manageUrl}" style="display:inline-block;background:${palette.btn};color:${palette.btnText};padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:700;">ניהול ההזמנה (אישור/ביטול/שינוי)</a>`
-        : `<a href="${buildUrl("/")}" style="display:inline-block;background:${palette.btn};color:${palette.btnText};padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:700;">דף המסעדה</a>`
+        ? `<a href="${manageUrl}" style="
+              display:inline-block;background:${palette.btn};color:${palette.btnText};
+              padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;">
+              ניהול ההזמנה (אישור/ביטול/שינוי)
+           </a>`
+        : `<a href="${buildUrl("/")}" style="
+              display:inline-block;background:${palette.btn};color:${palette.btnText};
+              padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;">
+              דף המסעדה
+           </a>`
     }
   </div>
 
   ${
     manageUrl
-      ? `<p style="margin:14px 0 0;color:${palette.sub};font-size:14px;word-break:break-all">קישור ישיר: <a href="${manageUrl}">${manageUrl}</a></p>`
+      ? `<p style="margin:14px 0 0;color:${palette.sub};font-size:14px;word-break:break-all">
+           קישור ישיר: <a href="${manageUrl}" style="color:${palette.link}">${manageUrl}</a>
+         </p>`
       : ""
   }
 ${baseWrapClose}
@@ -395,8 +446,12 @@ export async function notifyOwnerEmail(opts: {
 
   const html = `
 ${baseWrapStart}התקבלה הזמנה חדשה${baseWrapMid}${restaurantName}${baseWrapEndHead}
-  <div style="background:${palette.card};color:#fff;border-radius:14px;padding:14px 16px;">
-    <p style="margin:0;"><strong>תאריך:</strong> ${date} · <strong>שעה:</strong> ${time} · <strong>סועדים:</strong> ${people}</p>
+  <div style="
+    background:${palette.surface};border:1px solid ${palette.border};
+    color:${palette.text};border-radius:14px;padding:12px 14px;">
+    <p style="margin:0;">
+      <strong>תאריך:</strong> ${date} · <strong>שעה:</strong> ${time} · <strong>סועדים:</strong> ${people}
+    </p>
   </div>
   <div style="margin-top:12px;">
     <p style="margin:0;"><strong>שם הלקוח:</strong> ${customerName}</p>
@@ -439,14 +494,22 @@ export async function sendReminderEmail(opts: {
 
   const html = `
 ${baseWrapStart}תזכורת להזמנה${baseWrapMid}${restaurantName}${baseWrapEndHead}
-  <div style="background:${palette.card};color:#fff;border-radius:16px;padding:16px;">
-    <p style="margin:0;"><strong>תאריך:</strong> ${date} · <strong>שעה:</strong> ${time} · <strong>סועדים:</strong> ${people}</p>
+  <div style="
+    background:${palette.surface};border:1px solid ${palette.border};
+    color:${palette.text};border-radius:16px;padding:14px;">
+    <p style="margin:0;">
+      <strong>תאריך:</strong> ${date} · <strong>שעה:</strong> ${time} · <strong>סועדים:</strong> ${people}
+    </p>
   </div>
   <div style="margin-top:12px;">
     ${customerName ? `<p style="margin:0;">שלום ${customerName},</p>` : ""}
     <p style="margin:6px 0 0;">נא אשר/י הגעה בלחיצה:</p>
-    <div style="text-align:center;margin:10px 0 0;">
-      <a href="${link}" style="display:inline-block;background:${palette.btn};color:${palette.btnText};padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:600;">אישור הגעה</a>
+    <div style="text-align:center;margin:12px 0 0;">
+      <a href="${link}" style="
+        display:inline-block;background:${palette.btn};color:${palette.btnText};
+        padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;">
+        אישור הגעה
+      </a>
     </div>
   </div>
 ${baseWrapClose}
