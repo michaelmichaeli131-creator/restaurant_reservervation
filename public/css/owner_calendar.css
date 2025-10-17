@@ -45,7 +45,7 @@ body{
 /* ===== Layout — שתי הטבלאות לשמאל, בלי מינימום קשיח ===== */
 .oc-main{
   max-width:1800px; margin-left:12px; margin-right:auto; /* שמאלה בלבד */
-  display:grid; grid-template-columns:1fr; gap:16px; padding:0 8px 0 0;
+  display:grid; grid-template-columns:1fr; gap:32px; padding:0 8px 0 0;
 }
 @media (min-width:900px){
   .oc-main{ grid-template-columns:1fr 360px; } /* פאנל מרכזי + סיידבר */
