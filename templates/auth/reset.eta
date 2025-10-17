@@ -1,14 +1,118 @@
 <% layout("_layout", it) %>
-<section class="card" style="max-width:520px">
-  <h1 style="margin-top:0">איפוס סיסמה</h1>
-  <% if (it.error) { %><p class="badge warn"><%= it.error %></p><% } %>
-  <form method="post" action="/auth/reset">
-    <input type="hidden" name="token" value="<%= it.token || '' %>"/>
-    <label><span>סיסמה חדשה</span><input type="password" name="password" required/></label>
-    <label><span>אימות סיסמה</span><input type="password" name="confirm" required/></label>
-    <div class="row" style="margin-top:8px">
-      <button class="btn" type="submit">שמור</button>
-      <a class="btn secondary" href="/auth/login">ביטול</a>
-    </div>
-  </form>
-</section>
+
+<main class="sb-auth container">
+  <section class="card auth-card">
+    <header class="head">
+      <h1>איפוס סיסמה</h1>
+      <% if (it.error) { %>
+        <p class="badge warn" role="alert">✗ <%= it.error %></p>
+      <% } %>
+    </header>
+
+    <form class="form" method="post" action="/auth/reset" novalidate>
+      <input type="hidden" name="token" value="<%= it.token || '' %>"/>
+
+      <label class="row">
+        <span>סיסמה חדשה</span>
+        <div class="pw-wrap">
+          <input type="password" name="password" required autocomplete="new-password" minlength="8" />
+          <button class="pw-toggle" type="button" aria-label="הצג/הסתר סיסמה">👁</button>
+        </div>
+        <small class="muted">לפחות 8 תווים</small>
+      </label>
+
+      <label class="row">
+        <span>אימות סיסמה</span>
+        <div class="pw-wrap">
+          <input type="password" name="confirm" required autocomplete="new-password" minlength="8" />
+          <button class="pw-toggle" type="button" aria-label="הצג/הסתר סיסמה">👁</button>
+        </div>
+      </label>
+
+      <div class="actions">
+        <button class="btn primary" type="submit">שמור</button>
+        <a class="btn ghost" href="/auth/login">ביטול</a>
+      </div>
+    </form>
+  </section>
+</main>
+
+<script>
+  // הצגת/הסתרת סיסמה (ללא תלות בספריות)
+  document.addEventListener('click', function (ev) {
+    const t = ev.target.closest('.pw-toggle');
+    if (!t) return;
+    const input = t.parentElement.querySelector('input');
+    if (!input) return;
+    input.type = input.type === 'password' ? 'text' : 'password';
+    t.classList.toggle('on', input.type === 'text');
+  }, { passive: true });
+</script>
+
+<style>
+  :root{
+    --bg:#0b1120; --card:#111827; --ink:#e5e7eb; --muted:#9aa3b2; --bd:#1f2937;
+    --brand:#3b82f6; --danger:#ef4444; --warn:#f59e0b;
+    --radius:16px; --radius-sm:12px;
+    --shadow-md:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .sb-auth.container{ max-width:520px; margin:28px auto; padding:0 16px; }
+  .auth-card.card{
+    background:var(--card); border:1px solid var(--bd); border-radius:var(--radius);
+    color:var(--ink); box-shadow:var(--shadow-md); padding:18px;
+  }
+  .head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px }
+  h1{ margin:0; font-size:22px; letter-spacing:.2px }
+  .muted{ color:var(--muted) }
+
+  /* תגיות התראה/אזהרה */
+  .badge{ display:inline-flex; align-items:center; gap:8px; padding:8px 10px; border-radius:999px; font-weight:800; font-size:.9rem; }
+  .badge.warn{ background:color-mix(in srgb, var(--warn) 18%, #0d1526); color:#ffedd5; border:1px solid color-mix(in srgb, var(--warn) 55%, var(--bd)); }
+
+  /* טופס */
+  .form{ display:grid; gap:12px; margin-top:8px }
+  .row{ display:flex; flex-direction:column; gap:6px }
+  .row > span{ font-weight:600 }
+  .pw-wrap{ position:relative; }
+  .pw-wrap input{
+    width:100%; background:#0b1327; color:var(--ink);
+    border:1px solid var(--bd); border-radius:12px; padding:12px 40px 12px 12px; outline:none;
+    transition:border-color .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  .pw-wrap input:focus{
+    border-color: color-mix(in srgb, var(--brand) 60%, var(--bd));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent);
+    background:#0b1327;
+  }
+  .pw-toggle{
+    position:absolute; inset-inline-end:8px; inset-block:0; margin:auto 0;
+    height:32px; min-width:36px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--bd); background:#0f172a; color:var(--ink);
+    border-radius:10px; cursor:pointer;
+  }
+  .pw-toggle.on{ filter:brightness(1.1) }
+
+  /* כפתורים */
+  .actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:6px }
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    padding:10px 14px; border-radius:12px; border:1px solid var(--bd);
+    cursor:pointer; text-decoration:none; font-weight:800; color:var(--ink);
+    background:#0f172a; transition:transform .08s ease, filter .12s ease;
+  }
+  .btn:hover{ transform:translateY(-1px) }
+  .btn.primary{
+    background:var(--brand); border-color:var(--brand); color:#fff;
+    box-shadow:0 10px 24px rgba(59,130,246,.28);
+  }
+  .btn.ghost{
+    background:color-mix(in srgb, #0f172a 80%, transparent); border-color:var(--bd);
+  }
+
+  /* מובייל */
+  @media (max-width:520px){
+    .sb-auth.container{ margin:22px auto }
+    .actions{ gap:8px }
+    .btn{ padding:10px 12px }
+  }
+</style>

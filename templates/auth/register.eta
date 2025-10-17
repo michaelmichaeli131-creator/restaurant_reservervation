@@ -1,102 +1,180 @@
 <% layout("_layout", it) %>
 
-<section class="card" style="max-width:720px;margin:24px auto">
-  <header class="page-header">
-    <h1 style="margin:0 0 8px">הרשמה</h1>
-    <p class="muted" style="margin:0">פתח/י חשבון חדש ל־GeoTable</p>
-  </header>
+<main class="sb-auth container">
+  <section class="card auth-card">
+    <header class="head">
+      <div>
+        <h1>הרשמה</h1>
+        <p class="muted">פתח/י חשבון חדש ל־GeoTable</p>
+      </div>
+      <% if (it.error) { %>
+        <p class="badge warn" role="alert">✗ <%= it.error %></p>
+      <% } %>
+    </header>
 
-  <% if (it.error) { %>
-    <div class="alert error" role="alert" style="margin-top:12px">
-      <strong>שגיאה:</strong> <%= it.error %>
-    </div>
-  <% } %>
+    <!-- שליחה כ-x-www-form-urlencoded (כמו במקור) -->
+    <form id="register-form"
+          class="form-grid"
+          action="/auth/register"
+          method="post"
+          enctype="application/x-www-form-urlencoded"
+          novalidate>
 
-  <!-- שליחה מפורשת כ-x-www-form-urlencoded -->
-  <form action="/auth/register" method="post" enctype="application/x-www-form-urlencoded"
-        id="register-form" class="form-grid" novalidate>
-    <div class="form-row">
-      <label for="firstName">שם פרטי</label>
-      <input id="firstName" name="firstName" type="text" required autocomplete="given-name"
-             placeholder="לדוגמה: דניאל" value="<%= it.prefill?.firstName || "" %>"/>
-    </div>
+      <div class="form-row">
+        <label for="firstName">שם פרטי</label>
+        <input id="firstName" name="firstName" type="text" required autocomplete="given-name"
+               placeholder="לדוגמה: דניאל" value="<%= it.prefill?.firstName || '' %>"/>
+      </div>
 
-    <div class="form-row">
-      <label for="lastName">שם משפחה</label>
-      <input id="lastName" name="lastName" type="text" required autocomplete="family-name"
-             placeholder="לדוגמה: כהן" value="<%= it.prefill?.lastName || "" %>"/>
-    </div>
+      <div class="form-row">
+        <label for="lastName">שם משפחה</label>
+        <input id="lastName" name="lastName" type="text" required autocomplete="family-name"
+               placeholder="לדוגמה: כהן" value="<%= it.prefill?.lastName || '' %>"/>
+      </div>
 
-    <div class="form-row">
-      <label for="email">אימייל</label>
-      <input id="email" name="email" type="email" dir="ltr" inputmode="email" required
-             autocomplete="email" autocapitalize="off" spellcheck="false"
-             placeholder="you@example.com" value="<%= it.prefill?.email || "" %>"/>
-    </div>
+      <div class="form-row" style="grid-column:1/-1">
+        <label for="email">אימייל</label>
+        <input id="email" name="email" type="email" dir="ltr" inputmode="email" required
+               autocomplete="email" autocapitalize="off" spellcheck="false"
+               placeholder="you@example.com" value="<%= it.prefill?.email || '' %>"/>
+        <small class="muted">נשתמש באימייל לצורך התחברות והתראות.</small>
+      </div>
 
-    <div class="form-row">
-      <label for="password">סיסמה</label>
-      <input id="password" name="password" type="password" required autocomplete="new-password"
-             minlength="6" placeholder="לפחות 6 תווים"/>
-    </div>
+      <div class="form-row">
+        <label for="password">סיסמה</label>
+        <div class="pw-wrap">
+          <input id="password" name="password" type="password" required autocomplete="new-password"
+                 minlength="6" placeholder="לפחות 6 תווים"/>
+          <button class="pw-toggle" type="button" aria-label="הצג/הסתר סיסמה">👁</button>
+        </div>
+      </div>
 
-    <!-- שם השדה חייב להיות confirm לפי ה-BE -->
-    <div class="form-row">
-      <label for="confirm">אימות סיסמה</label>
-      <input id="confirm" name="confirm" type="password" required autocomplete="new-password"
-             minlength="6" placeholder="הקלד/י שוב את הסיסמה"/>
-    </div>
+      <!-- שם השדה חייב להיות confirm לפי ה-BE -->
+      <div class="form-row">
+        <label for="confirm">אימות סיסמה</label>
+        <div class="pw-wrap">
+          <input id="confirm" name="confirm" type="password" required autocomplete="new-password"
+                 minlength="6" placeholder="הקלד/י שוב את הסיסמה"/>
+          <button class="pw-toggle" type="button" aria-label="הצג/הסתר סיסמה">👁</button>
+        </div>
+      </div>
 
-    <div class="form-row">
-      <label for="businessType">סוג העסק</label>
-      <select id="businessType" name="businessType" required>
-        <option value="" disabled selected hidden>בחר/י סוג עסק</option>
-        <option value="restaurant">מסעדה</option>
-        <option value="cafe">בית קפה</option>
-        <option value="bar">בר</option>
-        <option value="hotel">מלון / אירוח</option>
-        <option value="other">אחר</option>
-      </select>
-    </div>
+      <div class="form-row">
+        <label for="businessType">סוג העסק</label>
+        <select id="businessType" name="businessType" required>
+          <option value="" disabled <%= (it.prefill?.businessType ? '' : 'selected') %> hidden>בחר/י סוג עסק</option>
+          <option value="restaurant" <%= it.prefill?.businessType==='restaurant'?'selected':'' %>>מסעדה</option>
+          <option value="cafe"       <%= it.prefill?.businessType==='cafe'?'selected':'' %>>בית קפה</option>
+          <option value="bar"        <%= it.prefill?.businessType==='bar'?'selected':'' %>>בר</option>
+          <option value="hotel"      <%= it.prefill?.businessType==='hotel'?'selected':'' %>>מלון / אירוח</option>
+          <option value="other"      <%= it.prefill?.businessType==='other'?'selected':'' %>>אחר</option>
+        </select>
+      </div>
 
-    <div class="form-row">
-      <label for="phone">נייד (לא חובה)</label>
-      <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="050-1234567"
-             value="<%= it.prefill?.phone || "" %>"/>
-    </div>
+      <div class="form-row">
+        <label for="phone">נייד (לא חובה)</label>
+        <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="050-1234567"
+               value="<%= it.prefill?.phone || '' %>"/>
+      </div>
 
-    <div class="form-actions" style="grid-column:1/-1;display:flex;gap:10px;margin-top:12px">
-      <button type="submit" class="btn">הירשם/י</button>
-      <a class="btn secondary" href="/auth/login">יש כבר חשבון? התחברות</a>
-    </div>
-  </form>
-</section>
-
-<style>
-  .card{border:1px solid #eee;border-radius:12px;padding:16px}
-  .muted{color:#777}
-  .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
-  .form-row{display:flex;flex-direction:column}
-  .form-row label{margin-bottom:4px;font-weight:600}
-  .form-row input, .form-row select{padding:8px 10px;border:1px solid #ccc;border-radius:8px;font-size:1rem}
-  .btn{background:#111;color:#fff;border:none;border-radius:10px;padding:8px 12px;cursor:pointer}
-  .btn.secondary{background:#555}
-  .alert.error{border:1px solid #ffb4ad;background:#ffeceb;border-radius:8px;padding:10px}
-  @media (max-width:760px){.form-grid{grid-template-columns:1fr}}
-</style>
+      <div class="form-actions">
+        <button type="submit" class="btn primary">הירשם/י</button>
+        <a class="btn ghost" href="/auth/login">יש כבר חשבון? התחברות</a>
+      </div>
+    </form>
+  </section>
+</main>
 
 <script>
   (function(){
     const form = document.getElementById('register-form');
 
-    // ולידציה לקוח: דרישת התאמת סיסמאות
+    // נירמול אימייל (מסיר bidi, רווחים מוזרים, מוריד לאותיות קטנות)
+    const BIDI=/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, ZSP=/[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
+    function normalizeEmail(s){
+      s=(s||'')+''; s=s.replace(BIDI,'').replace(/＠/g,'@').replace(/．/g,'.');
+      s=s.replace(ZSP,' ').trim().replace(/^[<"'\s]+/,'').replace(/[>"'\s]+$/,'');
+      return s.toLowerCase();
+    }
+    const emailEl=document.getElementById('email');
+    if(emailEl){ emailEl.addEventListener('blur',()=>{ emailEl.value=normalizeEmail(emailEl.value); }); }
+
+    // הצגת/הסתרת סיסמה
+    document.addEventListener('click', function(ev){
+      const t=ev.target.closest('.pw-toggle'); if(!t) return;
+      const inp=t.parentElement.querySelector('input');
+      if(!inp) return;
+      inp.type = (inp.type === 'password') ? 'text' : 'password';
+      t.classList.toggle('on', inp.type==='text');
+    }, {passive:true});
+
+    // ולידציה לקוח: התאמת סיסמאות
     form.addEventListener('submit', (ev)=>{
-      const p = form.password?.value || "";
-      const c = form.confirm?.value || "";
-      if (p && c && p !== c) {
-        ev.preventDefault();
-        alert("הסיסמאות אינן תואמות");
-      }
+      const p=form.password?.value||'', c=form.confirm?.value||'';
+      if(p && c && p!==c){ ev.preventDefault(); alert('הסיסמאות אינן תואמות'); }
     }, {passive:false});
   })();
 </script>
+
+<style>
+  :root{
+    --bg:#0b1120; --card:#111827; --ink:#e5e7eb; --muted:#9aa3b2; --bd:#1f2937;
+    --brand:#3b82f6; --warn:#f59e0b;
+    --radius:16px; --radius-sm:12px;
+    --shadow-md:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
+  }
+
+  .sb-auth.container{ max-width:720px; margin:24px auto; padding:0 16px; }
+  .auth-card.card{
+    background:var(--card); border:1px solid var(--bd); border-radius:var(--radius);
+    color:var(--ink); box-shadow:var(--shadow-md); padding:18px;
+  }
+  .head{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:6px }
+  h1{ margin:0 0 6px; font-size:22px; letter-spacing:.2px }
+  .muted{ color:var(--muted) }
+
+  .badge{ display:inline-flex; align-items:center; gap:8px; padding:8px 10px; border-radius:999px; font-weight:800; font-size:.9rem; }
+  .badge.warn{ background:color-mix(in srgb, var(--warn) 18%, #0d1526); color:#ffedd5; border:1px solid color-mix(in srgb, var(--warn) 55%, var(--bd)); }
+
+  .form-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-top:12px }
+  .form-row{ display:flex; flex-direction:column; gap:6px }
+  .form-row label{ font-weight:600 }
+  .form-row input, .form-row select{
+    background:#0b1327; color:var(--ink);
+    border:1px solid var(--bd); border-radius:12px; padding:10px 12px; font-size:15px; outline:0;
+    transition:border-color .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  .form-row input:focus, .form-row select:focus{
+    border-color: color-mix(in srgb, var(--brand) 60%, var(--bd));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent);
+  }
+  .pw-wrap{ position:relative }
+  .pw-toggle{
+    position:absolute; inset-inline-end:8px; inset-block:0; margin:auto 0;
+    height:32px; min-width:36px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--bd); background:#0f172a; color:var(--ink);
+    border-radius:10px; cursor:pointer;
+  }
+  .pw-toggle.on{ filter:brightness(1.1) }
+
+  .form-actions{ grid-column:1/-1; display:flex; gap:10px; flex-wrap:wrap; margin-top:6px }
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    padding:10px 14px; border-radius:12px; border:1px solid var(--bd);
+    cursor:pointer; text-decoration:none; font-weight:800; color:var(--ink);
+    background:#0f172a; transition:transform .08s ease, filter .12s ease;
+  }
+  .btn:hover{ transform:translateY(-1px) }
+  .btn.primary{
+    background:var(--brand); border-color:var(--brand); color:#fff;
+    box-shadow:0 10px 24px rgba(59,130,246,.28);
+  }
+  .btn.ghost{ background:color-mix(in srgb,#0f172a 80%,transparent); border-color:var(--bd) }
+  .btn.secondary{ composes: btn ghost; } /* אם אין תמיכה ב-composes, אפשר להשאיר class="btn ghost" בתבנית */
+
+  @media (max-width:760px){
+    .form-grid{ grid-template-columns:1fr }
+    .sb-auth.container{ margin:20px auto }
+  }
+</style>
