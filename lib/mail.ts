@@ -163,8 +163,8 @@ const palette = {
   link: "#93c5fd",
 };
 
-// לוגו (מוגש מה- public): /img/logo-spotbook.png
-const logoUrl = buildUrl("/img/logo-spotbook.png");
+// לוגו (מוגש מה- public): 
+const logoUrl = buildUrl("https://michaelmich-restaurant-27.deno.dev/public/img/logo-spotbook.png");
 
 // עטיפה בסיסית — טבלה מרכזית 640px, RTL, כהה + לוגו בהדר
 const baseWrapStart = `
