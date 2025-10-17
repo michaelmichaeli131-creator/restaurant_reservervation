@@ -57,7 +57,7 @@ body{
   grid-template-columns: 260px minmax(1400px, 1fr) !important; /* מגדיל אמצעי שמאלה בלבד */
 }
 @media (max-width:900px){
-  .oc-layout{ grid-template-columns:1fr !important; }
+  .oc-layout{ grid-template-columns:1fr !important; } 
 }
 
 .oc-sidebar{
@@ -226,7 +226,7 @@ body{
   justify-self: center;                            /* עוד “ביטוח” למרכז */
 }
 
-/* במסכים צרים – תן לה פשוט 100% */
+/* במסכים צרים – תן לה פשוט 100% *//
 @media (max-width: 900px){
   .oc-panel{ width:100% !important; margin-inline: 0 !important; justify-self: stretch; }
 }
