@@ -47,23 +47,15 @@ body{
   max-width:1280px; margin-left:12px; margin-right:auto; /* שמאלה בלבד */
   display:grid; grid-template-columns:1fr; gap:16px; padding:0 8px 0 0;
 }
-@media (min-width:1500px){
+@media (min-width:900px){
   .oc-main{ grid-template-columns:1fr 360px; } /* פאנל מרכזי + סיידבר */
 }
 
 .oc-layout{
   direction:ltr !important; /* שומר מיקום “פאנל באמצע” מימין לסיידבר, אבל הכל “נשען” שמאלה */
   display:grid; gap:16px; align-items:start; justify-items:start;
-  grid-template-columns: 200px 1fr !important; /* מגדיל אמצעי שמאלה בלבד */
+  grid-template-columns: 260px minmax(720px, 1fr) !important; /* מגדיל אמצעי שמאלה בלבד */
 }
-
-  width: min(1500px, 150%) !important;   /* ← תגדיל כאן ל-2000/2200px אם תרצה יותר */
-  max-width: 150%;
-  overflow-x: hidden;
-  justify-self: start;
-
-
-
 @media (max-width:900px){
   .oc-layout{ grid-template-columns:1fr !important; }
 }
