@@ -54,7 +54,7 @@ body{
 .oc-layout{
   direction:ltr !important; /* שומר מיקום “פאנל באמצע” מימין לסיידבר, אבל הכל “נשען” שמאלה */
   display:grid; gap:16px; align-items:start; justify-items:start;
-  grid-template-columns: 200px minmax(720px, 1fr) !important; /* מגדיל אמצעי שמאלה בלבד */
+  grid-template-columns: 290px minmax(900px, 1fr) !important; /* מגדיל אמצעי שמאלה בלבד */
 }
 @media (max-width:900px){
   .oc-layout{ grid-template-columns:1fr !important; }
