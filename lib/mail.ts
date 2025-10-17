@@ -5,9 +5,9 @@
 // **שיפורים**: כפתור ניהול הזמנה עם קישור ישיר (manageUrl),
 // אנטי-קליפינג בג'ימייל (תוכן ייחודי גלוי), וטקסט/HTML ברורים.
 // **הוספה**: תמיכה ב־note (הערות) להצגה גם ללקוח וגם לבעל המסעדה.
-// **עדכון מיתוג**: עיצוב Luxury Dark + לוגו SpotBook בהדר.
+// **עדכון מיתוג**: עיצוב Luxury Dark בהתאם לאתר (צבעים וגראפיקה בלבד).
 
-//////////////////////////// ENV ////////////////////////////
+/* ======================= ENV ======================= */
 const ENV = {
   BASE_URL: (Deno.env.get("BASE_URL") || "").trim(),
   RESEND_API_KEY: (Deno.env.get("RESEND_API_KEY") || "").trim(),
@@ -15,8 +15,9 @@ const ENV = {
   DRY_RUN: (Deno.env.get("RESEND_DRY_RUN") || "").toLowerCase() === "1",
 };
 
-//////////////////////////// Utils //////////////////////////
+/* ======================= Utils ======================= */
 function ensureFrom(): string {
+  // חייבים MAIL_FROM עם @ ושאינו example.com
   if (!ENV.MAIL_FROM || !ENV.MAIL_FROM.includes("@")) {
     throw new Error(
       "MAIL_FROM is missing or invalid. Set MAIL_FROM to a verified address, e.g. 'SpotBook <no-reply@spotbook.rest>'."
@@ -44,10 +45,11 @@ type MailParams = {
   html: string;
   text?: string;
   headers?: Record<string, string>;
-  fromOverride?: string;
+  fromOverride?: string; // לשימוש נדיר, בד"כ לא צריך
 };
 
 function htmlToText(html: string): string {
+  // המרה גסה אך סבירה לטקסט
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<script[\s\S]*?<\/script>/gi, "")
@@ -100,8 +102,9 @@ function logDry(label: string, p: MailParams) {
   console.warn(`[mail][DRY] text:\n${p.text || htmlToText(p.html)}\n`);
 }
 
-///////////////////// Public send wrapper ///////////////////
+/* ======================= Public send wrapper ======================= */
 export async function sendMailAny(p: MailParams) {
+  // אוכפים from תקין כבר עכשיו — אם חסר קונפיג, נכשיל במקום "לנחש"
   try {
     ensureFrom();
   } catch (e) {
@@ -109,6 +112,7 @@ export async function sendMailAny(p: MailParams) {
     return { ok: false, reason: String(e) };
   }
 
+  // DRY_RUN מפורש או חסר מפתח API
   if (ENV.DRY_RUN || !ENV.RESEND_API_KEY) {
     logDry(ENV.DRY_RUN ? "RESEND_DRY_RUN=1" : "RESEND_API_KEY missing", p);
     return { ok: true, dryRun: true };
@@ -125,10 +129,12 @@ export async function sendMailAny(p: MailParams) {
   } catch (e) {
     const msg = String((e as any)?.message || e);
     console.error("[mail] Resend error:", msg);
+    // בכוונה לא נופלים ל-DRY כאן — זו תקלה שראוי לתקן (403/401/422 וכו')
     return { ok: false, reason: msg };
   }
 }
 
+/* --------- Backward-compatible helper (string 'to') ---------- */
 export async function sendMail(
   to: string | string[],
   subject: string,
@@ -147,26 +153,24 @@ export async function sendMail(
   });
 }
 
-///////////////// תבניות מעוצבות (Luxury Dark) /////////////////
+/* =================== תבניות מעוצבות (Luxury Dark) =================== */
 
 // צבעים/סגנונות בסיס (inline כדי שיעבוד ברוב הקליינטים)
 const palette = {
-  bg: "#0b1120",
-  surface: "#0f172a",
-  card: "#111827",
-  text: "#e5e7eb",
-  sub: "#9aa3b2",
-  btn: "#3b82f6",
-  btnText: "#ffffff",
-  white: "#0f172a",
-  border: "#1f2937",
-  link: "#93c5fd",
+  // רקע מסביב לכרטיס + הכרטיס עצמו בסגנון האתר
+  bg: "#0b1120",        // רקע כללי כהה
+  surface: "#0f172a",   // פני השטח מאחורי הכרטיס
+  card: "#111827",      // כרטיס/פאנל (כהה יותר)
+  text: "#e5e7eb",      // טקסט ראשי
+  sub: "#9aa3b2",       // טקסט משני
+  btn: "#3b82f6",       // כפתור עיקרי (Brand Blue)
+  btnText: "#ffffff",   // טקסט על כפתור
+  white: "#0f172a",     // "לבן" כהה לכרטיסים פנימיים
+  border: "#1f2937",    // קווי מסגרת כהים
+  link: "#93c5fd",      // קישורים בהירים יותר על כהה
 };
 
-// לוגו (מוגש מה- public): 
-const logoUrl = buildUrl("https://michaelmich-restaurant-27.deno.dev/public/img/logo-spotbook.png");
-
-// עטיפה בסיסית — טבלה מרכזית 640px, RTL, כהה + לוגו בהדר
+// עטיפה בסיסית — טבלה מרכזית 640px, RTL, כהה
 const baseWrapStart = `
   <div dir="rtl" style="background:${palette.bg};padding:28px 0;">
     <table align="center" role="presentation" width="100%" style="
@@ -176,20 +180,11 @@ const baseWrapStart = `
       font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
       color:${palette.text}; line-height:1.6;">
       <tr>
-        <td style="padding:18px 20px;border-bottom:1px solid ${palette.border};background:${palette.surface}">
-          <table role="presentation" width="100%" style="border-collapse:collapse;">
-            <tr>
-              <td style="vertical-align:middle;">
-                <h1 style="margin:0;font-size:26px;font-weight:800;letter-spacing:.2px;">`;
+        <td style="padding:22px 24px 6px;border-bottom:1px solid ${palette.border};background:${palette.surface}">
+          <h1 style="margin:0;font-size:26px;font-weight:800;letter-spacing:.2px;">`;
 const baseWrapMid = `</h1>
-                <p style="margin:6px 0 0;color:${palette.sub};font-size:15px;">`;
+          <p style="margin:6px 0 0;color:${palette.sub};font-size:15px;">`;
 const baseWrapEndHead = `</p>
-              </td>
-              <td style="width:64px;vertical-align:middle;text-align:left;">
-                <img src="${logoUrl}" alt="SpotBook" style="display:block;width:48px;height:auto;border:0;outline:none;text-decoration:none"/>
-              </td>
-            </tr>
-          </table>
         </td>
       </tr>
       <tr>
@@ -209,7 +204,7 @@ const baseWrapClose = `
   </div>
 `;
 
-// יום קצר ותאריך D/M
+// מחזיר יום קצר (א׳, ב׳, …, ש׳) ותאריך D/M
 function hebDayShort(d: Date) {
   const map = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
   return map[d.getDay()] || "";
@@ -220,9 +215,10 @@ function formatDM(dateStr: string) {
   return `${d}/${m}`;
 }
 
-//////////// Sanitizers for note (הערות) ////////////
+/* =============== Sanitizers for note (הערות) =============== */
 function sanitizeNoteRaw(raw?: string | null): string {
   const s = String(raw ?? "").replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "");
+  // להסיר תווי שליטה בעייתיים, להשאיר שורות/טאבים בסיסיים
   return s.replace(/[^\x09\x0A\x0D\x20-\x7E\u0590-\u05FF\u0600-\u06FF]/g, "").trim();
 }
 function clampNoteLen(s: string, max = 500): string {
@@ -232,7 +228,11 @@ function clampNoteLen(s: string, max = 500): string {
 function noteAsHtml(note?: string | null): string {
   const clean = clampNoteLen(sanitizeNoteRaw(note));
   if (!clean) return "";
-  const esc = clean.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // המרה פשוטה לשורות <br>
+  const esc = clean
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
   const withBr = esc.replace(/\n/g, "<br/>");
   return `
     <div style="margin-top:14px;border:1px solid ${palette.border};border-radius:12px;background:${palette.surface};padding:12px 14px;">
@@ -246,7 +246,7 @@ function noteAsText(note?: string | null): string {
   return clean ? `\nהערות הלקוח:\n${clean}\n` : "";
 }
 
-//////////////// אימות מייל אחרי הרשמה ////////////////
+/* =================== אימות מייל אחרי הרשמה =================== */
 export async function sendVerifyEmail(to: string, token: string) {
   const link = buildUrl(`/auth/verify?token=${encodeURIComponent(token)}`);
   const html = `
@@ -266,7 +266,7 @@ ${baseWrapClose}
   return await sendMail(to, 'אימות כתובת דוא"ל – GeoTable', html);
 }
 
-//////////////// קישור לשחזור סיסמה ////////////////
+/* =================== קישור לשחזור סיסמה =================== */
 export async function sendResetEmail(to: string, token: string) {
   const link = buildUrl(`/auth/reset?token=${encodeURIComponent(token)}`);
   const html = `
@@ -286,7 +286,7 @@ ${baseWrapClose}
   return await sendMail(to, "שחזור סיסמה – GeoTable", html);
 }
 
-//////////////// אישור הזמנה ללקוח ////////////////
+/* =================== אישור הזמנה ללקוח =================== */
 export async function sendReservationEmail(opts: {
   to: string;
   restaurantName: string;
@@ -294,18 +294,26 @@ export async function sendReservationEmail(opts: {
   time: string; // HH:mm
   people: number;
   customerName?: string;
-  manageUrl?: string; // כפתור ניהול ישיר
-  reservationId?: string; // לקליינט – אנטי קליפינג
-  note?: string | null; // הערות הלקוח
+  manageUrl?: string; // ← כפתור ניהול ישיר
+  reservationId?: string; // ← להצגה גלויה למניעת קליפינג בג'ימייל
+  note?: string | null; // ← חדש: הערות הלקוח
 }) {
   const {
-    to, restaurantName, date, time, people,
-    customerName, manageUrl, reservationId, note,
+    to,
+    restaurantName,
+    date,
+    time,
+    people,
+    customerName,
+    manageUrl,
+    reservationId,
+    note,
   } = opts;
-  const d = new Date(`${date}T12:00:00`);
+  const d = new Date(`${date}T12:00:00`); // להימנע מ-TZ edge
   const dayShort = isNaN(d.getTime()) ? "" : hebDayShort(d);
   const dm = formatDM(date);
 
+  // מזהה קצר לאנטי-קליפינג (גלוי ללקוח)
   const shortId =
     (reservationId && reservationId.slice(-6)) ||
     (manageUrl?.split("/").pop()?.replace(/[^a-zA-Z0-9]/g, "").slice(-6)) ||
@@ -410,7 +418,7 @@ ${baseWrapClose}
   });
 }
 
-//////////////// התראה לבעל המסעדה ////////////////
+/* =================== התראה לבעל המסעדה =================== */
 export async function notifyOwnerEmail(opts: {
   to: string | string[];
   restaurantName: string;
@@ -420,11 +428,18 @@ export async function notifyOwnerEmail(opts: {
   date: string;
   time: string;
   people: number;
-  note?: string | null;
+  note?: string | null; // ← חדש: העברת הערות לבעל המסעדה
 }) {
   const {
-    to, restaurantName, customerName, customerPhone, customerEmail,
-    date, time, people, note,
+    to,
+    restaurantName,
+    customerName,
+    customerPhone,
+    customerEmail,
+    date,
+    time,
+    people,
+    note,
   } = opts;
 
   const notesHtml = noteAsHtml(note);
@@ -461,7 +476,7 @@ ${baseWrapClose}
   });
 }
 
-//////////////// תזכורת (למשל יום לפני) ////////////////
+/* =================== תזכורת (למשל יום לפני) =================== */
 export async function sendReminderEmail(opts: {
   to: string | string[];
   confirmUrl: string;
@@ -473,7 +488,9 @@ export async function sendReminderEmail(opts: {
 }) {
   const { to, confirmUrl, restaurantName, date, time, people, customerName } =
     opts;
-  const link = confirmUrl.startsWith("http") ? confirmUrl : buildUrl(confirmUrl);
+  const link = confirmUrl.startsWith("http")
+    ? confirmUrl
+    : buildUrl(confirmUrl);
 
   const html = `
 ${baseWrapStart}תזכורת להזמנה${baseWrapMid}${restaurantName}${baseWrapEndHead}
