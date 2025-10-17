@@ -57,7 +57,7 @@ body{
   grid-template-columns: 260px 1fr !important; /* מגדיל אמצעי שמאלה בלבד */
 }
 
-  width: min(1800px, 100%) !important;   /* ← תגדיל כאן ל-2000/2200px אם תרצה יותר */
+  width: min(800px, 100%) !important;   /* ← תגדיל כאן ל-2000/2200px אם תרצה יותר */
   max-width: 100%;
   overflow-x: hidden;
   justify-self: start;
