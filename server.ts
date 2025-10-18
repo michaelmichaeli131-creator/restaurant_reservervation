@@ -412,7 +412,12 @@ app.use((ctx) => {
 
 // -------------------- GRACEFUL SHUTDOWN --------------------
 const controller = new AbortController();
-for (const s of ["SIGINT", "SIGTERM"] as const) {
+// Windows only supports SIGINT and SIGBREAK
+const signals = Deno.build.os === "windows"
+  ? ["SIGINT", "SIGBREAK"] as const
+  : ["SIGINT", "SIGTERM"] as const;
+
+for (const s of signals) {
   Deno.addSignalListener(s, () => {
     console.log(`\n[SHUTDOWN] Received ${s}, closing...`);
     controller.abort();

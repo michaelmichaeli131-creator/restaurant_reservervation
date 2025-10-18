@@ -3,7 +3,7 @@
 <section class="hero">
   <div class="hero-bg"></div>
   <div class="hero-inner">
-    <h1 class="hero-title"><%= (it.t && it.t.heroTitle) ? it.t.heroTitle : 'Reserve a Table at a Restaurant' %></h1>
+    <h1 class="hero-title"><%= (it.t && it.t.heroTitle) ? it.t.heroTitle : 'Reserve a Table at a Restaurant!' %></h1>
     <p class="hero-sub"><%= (it.t && it.t.heroSub) ? it.t.heroSub : 'Book a table easily and quickly online' %></p>
 
     <div class="ac-wrap" style="position:relative; width:100%; max-width:980px">

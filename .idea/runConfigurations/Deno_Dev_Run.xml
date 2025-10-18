@@ -1,0 +1,5 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Deno Dev (Run)" type="DenoConfigurationType" inputPath="$PROJECT_DIR$/server.ts" programParameters="--allow-net --allow-env --allow-read --unstable-kv --env-file=.env">
+    <method v="2" />
+  </configuration>
+</component>
