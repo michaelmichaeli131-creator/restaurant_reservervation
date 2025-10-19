@@ -1,17 +1,13 @@
 {
   "nav": {
     "admin": "Admin",
+    "manage": "Manage restaurant",
     "login": "Sign in",
     "logout": "Sign out",
+    "register": "Register",
     "language": "Language",
     "he": "Hebrew",
     "en": "English",
     "ka": "Georgian"
-  },
-  "common": {
-    "brand": "SpotBook",
-    "search": "Search",
-    "save": "Save",
-    "cancel": "Cancel"
   }
 }

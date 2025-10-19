@@ -1,17 +1,13 @@
 {
   "nav": {
     "admin": "ניהול",
+    "manage": "נהל מסעדה",
     "login": "התחברות",
     "logout": "התנתקות",
+    "register": "הרשמה",
     "language": "שפה",
     "he": "עברית",
     "en": "English",
     "ka": "ქართული"
-  },
-  "common": {
-    "brand": "SpotBook",
-    "search": "חיפוש",
-    "save": "שמירה",
-    "cancel": "ביטול"
   }
 }
