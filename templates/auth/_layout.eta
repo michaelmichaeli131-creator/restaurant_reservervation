@@ -3,20 +3,85 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="color-scheme" content="dark light">
   <title><%= it.title ? it.title + ' · SpotBook' : 'SpotBook' %></title>
 
-  <!-- שמירת תאימות לעיצוב הישן -->
-  <link rel="stylesheet" href="/static/styles.css"/>
+  <% if (!it.admin) { %>
+    <link rel="stylesheet" href="/static/styles.css?v=<%= it.BUILD_TAG || '' %>"/>
+  <% } %>
 
-  <!-- עיצוב כהה חדש של SpotBook -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/public/css/spotbook.css?v=<%= Date.now() %>"/>
+  <link rel="stylesheet" href="/public/css/spotbook.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
 
   <%~ it.head || '' %>
+
+  <style>
+    /* ===== Language button & menu (dark, blended) ===== */
+    .lang-switch { position: relative; display:inline-block; margin-inline-start:12px; }
+    .lang-btn {
+      display:inline-flex; align-items:center; justify-content:center;
+      width:36px; height:36px; border-radius:999px;
+      border:1px solid var(--bd,#2a2f3a);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      box-shadow: 0 2px 10px rgba(0,0,0,.18) inset, 0 1px 0 rgba(255,255,255,.05);
+      cursor:pointer; font-size:0; /* האייקון ב-::before */
+      transition: transform .12s ease, box-shadow .2s ease;
+    }
+    .lang-btn:hover { transform: translateY(-1px); }
+    .lang-btn::before{
+      content: "🌐"; /* סמל כדור הארץ בעדינות */
+      font-size: 18px; line-height: 1; filter: saturate(.9) contrast(1.1);
+      opacity:.9;
+    }
+
+    /* תפריט כהה שקוף עם blur */
+    .lang-menu {
+      position:absolute; top:120%; inset-inline-end:0;
+      min-width: 220px; padding:8px;
+      border:1px solid var(--bd,#2a2f3a);
+      border-radius:14px;
+      background: rgba(15,23,42,.65); /* night slate */
+      backdrop-filter: blur(10px);
+      box-shadow: 0 12px 30px rgba(0,0,0,.35);
+      z-index:60;
+    }
+    .lang-menu[hidden]{ display:none; }
+
+    .lang-menu .lang-item{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px; padding:10px 12px; border-radius:10px;
+      text-decoration:none; color:#e5edf7;
+      border:1px solid transparent;
+      transition: background .15s ease, border-color .15s ease;
+      font-weight:500; letter-spacing:.2px;
+    }
+    .lang-menu .lang-item .left { display:flex; align-items:center; gap:10px; }
+    .lang-menu .lang-item .code { opacity:.9; font-variant: all-small-caps; font-weight:700; }
+    .lang-menu .lang-item:hover{ background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.08); }
+
+    /* RTL flip fix */
+    html[dir="rtl"] .lang-menu{ inset-inline-start:0; inset-inline-end:auto; }
+
+    /* ===== Admin link at footer (small) ===== */
+    .admin-bottom {
+      text-align:center; padding:10px 0 0;
+    }
+    .admin-bottom a {
+      font-size:.85rem; color:var(--muted,#94a3b8); text-decoration:none;
+      border:1px solid transparent; border-radius:12px; padding:6px 10px;
+      transition: color .15s ease, background .15s ease, border-color .15s ease;
+    }
+    .admin-bottom a:hover {
+      color:var(--brand-ink,#fff);
+      background: rgba(255,255,255,.06);
+      border-color: var(--bd,#2a2f3a);
+    }
+  </style>
 </head>
-<body class="sb-body">
+
+<body class="sb-body<%= it.admin ? ' admin' : '' %>" data-theme="<%= it.admin ? 'dark' : 'auto' %>">
   <header class="sb-header">
     <div class="sb-container sb-header-row">
       <!-- לוגו -->
@@ -24,7 +89,7 @@
         <img class="brand-logo" src="/public/img/logo-spotbook.png" alt="SpotBook Logo"/>
       </a>
 
-      <!-- שורת המשתמש: מתחת ללוגו בפועל -->
+      <!-- משתמש מחובר (מובייל) -->
       <% if (it.user) { %>
       <div class="user-mobile">
         מחובר/ת:
@@ -32,7 +97,7 @@
       </div>
       <% } %>
 
-      <!-- פעולות (ניהול / התחברות / התנתקות / אדמין) -->
+      <!-- פעולות: שמירה מלאה על העיצוב הישן -->
       <nav class="sb-actions" aria-label="Main actions">
         <% if (it.user) { %>
           <a class="btn primary btn-manage" href="/owner">נהל מסעדה</a>
@@ -41,7 +106,26 @@
           <a class="btn ghost" href="/auth/login">התחברות</a>
           <a class="btn" style="border-color:transparent;background:var(--brand);color:var(--brand-ink)" href="/auth/register">הרשמה</a>
         <% } %>
-        <a class="btn ghost btn-admin" href="/admin/login">Admin</a>
+
+        <!-- כפתור שפה עגול במקום Admin -->
+        <div class="lang-switch">
+          <button class="lang-btn" type="button" aria-haspopup="true" aria-expanded="false" title="בחר שפה"></button>
+          <div class="lang-menu" hidden>
+            <!-- סדר: דגל אמריקאי ראשון, ואז HE EN GE לפי הבקשה -->
+            <a class="lang-item" href="/lang/en">
+              <div class="left"><span>🇺🇸</span><span>English</span></div>
+              <span class="code">EN</span>
+            </a>
+            <a class="lang-item" href="/lang/he">
+              <div class="left"><span>🇮🇱</span><span>עברית</span></div>
+              <span class="code">HE</span>
+            </a>
+            <a class="lang-item" href="/lang/ka">
+              <div class="left"><span>🇬🇪</span><span>ქართული</span></div>
+              <span class="code">GE</span>
+            </a>
+          </div>
+        </div>
       </nav>
     </div>
   </header>
@@ -50,14 +134,42 @@
     <%~ it.body %>
   </main>
 
+  <!-- Admin קטן בתחתית, ממש מעל הזכויות -->
+  <div class="admin-bottom">
+    <a href="/admin/login">Admin</a>
+  </div>
+
   <footer class="sb-footer">
     <p>© <%= new Date().getFullYear() %> SpotBook · כל הזכויות שמורות</p>
   </footer>
 
-  <!-- שמירת תאימות לסקריפט הישן -->
-  <script src="/static/app.js" defer></script>
+  <!-- סקריפט קיים -->
+  <script src="/static/app.js?v=<%= it.BUILD_TAG || '' %>" defer></script>
 
-  <!-- הזרקת סקריפטים נוספים לפי דף -->
+  <!-- פתיחה/סגירה של תפריט השפות -->
+  <script>
+    (function(){
+      const btn = document.querySelector('.lang-btn');
+      const menu = document.querySelector('.lang-menu');
+      if(!btn || !menu) return;
+
+      btn.addEventListener('click', ()=>{
+        const open = !menu.hasAttribute('hidden');
+        if(open) menu.setAttribute('hidden',''); else menu.removeAttribute('hidden');
+        btn.setAttribute('aria-expanded', String(!open));
+      });
+
+      document.addEventListener('click', (e)=>{
+        if (!menu.contains(e.target) && e.target !== btn) menu.setAttribute('hidden','');
+      });
+
+      document.addEventListener('keydown', (e)=>{
+        if (e.key === 'Escape') menu.setAttribute('hidden','');
+      });
+    })();
+  </script>
+
+  <!-- סקריפטים נוספים לפי דף -->
   <% if (it.scripts) { it.scripts.forEach(function(src){ %>
     <script src="<%= src %>" type="module"></script>
   <% }) } %>
