@@ -14,7 +14,7 @@
   <!-- עיצוב כהה חדש של SpotBook (נטען תמיד ואחרון) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <!-- הוספתי Fallback לגאורגית -->
+  <!-- Fallback לגאורגית לצד Rubik -->
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;800&family=Noto+Sans+Georgian:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/public/css/spotbook.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
 
@@ -26,7 +26,7 @@
     .lang-menu{position:absolute; top:115%; inset-inline-end:0; background:var(--card,#fff); border:1px solid var(--bd,#e2e8f0);
       border-radius:12px; padding:.35rem; min-width:180px; box-shadow:0 10px 30px rgba(0,0,0,.08); z-index:50}
     .lang-menu a{display:flex; align-items:center; gap:.5rem; padding:.5rem .6rem; border-radius:8px; text-decoration:none; color:inherit; white-space:nowrap}
-    .lang-menu a:hover{background:rgba(0,0,0,.06)}
+    .lang-menu a:hover{background:rgba(255,255,255,.06)}
     html[dir="rtl"] .lang-menu{inset-inline-start:0; inset-inline-end:auto;}
   </style>
 </head>
@@ -41,7 +41,7 @@
       <!-- שורת המשתמש: מתחת ללוגו בפועל -->
       <% if (it.user) { %>
       <div class="user-mobile">
-        מחובר/ת:
+        <span><%= it.t('nav.loggedInAs') || 'מחובר/ת:' %></span>
         <strong><%= [it.user.firstName, it.user.lastName].filter(Boolean).join(" ") %></strong>
       </div>
       <% } %>
@@ -55,15 +55,16 @@
           <a class="btn ghost" href="/auth/login"><%= it.t('nav.login') || 'התחברות' %></a>
           <a class="btn" style="border-color:transparent;background:var(--brand);color:var(--brand-ink)" href="/auth/register"><%= it.t('nav.register') || 'הרשמה' %></a>
         <% } %>
-        <a class="btn ghost btn-admin" href="/admin/login">Admin</a>
+
+        <a class="btn ghost btn-admin" href="/admin/login"><%= it.t('nav.admin') || 'Admin' %></a>
 
         <!-- מתג שפות (דגלים) -->
         <div class="lang-switch">
-          <button class="lang-btn" type="button" aria-haspopup="true" aria-expanded="false" title="<%= it.t('nav.language') %>">🌐</button>
+          <button class="lang-btn" type="button" aria-haspopup="true" aria-expanded="false" title="<%= it.t('nav.language') || 'Language' %>">🌐</button>
           <div class="lang-menu" hidden>
-            <a href="/lang/he" aria-label="עברית">🇮🇱 <%= it.t('nav.he') %></a>
-            <a href="/lang/en" aria-label="English">🇬🇧 <%= it.t('nav.en') %></a>
-            <a href="/lang/ka" aria-label="ქართული">🇬🇪 <%= it.t('nav.ka') %></a>
+            <a href="/lang/he" aria-label="עברית">🇮🇱 <%= it.t('nav.he') || 'עברית' %></a>
+            <a href="/lang/en" aria-label="English">🇬🇧 <%= it.t('nav.en') || 'English' %></a>
+            <a href="/lang/ka" aria-label="ქართული">🇬🇪 <%= it.t('nav.ka') || 'ქართული' %></a>
           </div>
         </div>
       </nav>
@@ -75,7 +76,7 @@
   </main>
 
   <footer class="sb-footer">
-    <p>© <%= new Date().getFullYear() %> SpotBook · כל הזכויות שמורות</p>
+    <p>© <%= new Date().getFullYear() %> SpotBook · <%= it.t('footer.rights') || 'כל הזכויות שמורות' %></p>
   </footer>
 
   <!-- סקריפט ישן (אם צריך), עם גרסה -->
@@ -87,12 +88,13 @@
     const btn = document.querySelector('.lang-btn');
     const menu = document.querySelector('.lang-menu');
     btn?.addEventListener('click', ()=> {
-      const open = menu.hasAttribute('hidden') === false;
-      if (open) menu.setAttribute('hidden',''); else menu.removeAttribute('hidden');
+      const open = menu && !menu.hasAttribute('hidden');
+      if (open) { menu.setAttribute('hidden',''); }
+      else { menu && menu.removeAttribute('hidden'); }
       btn.setAttribute('aria-expanded', String(!open));
     });
     document.addEventListener('click', (e)=>{
-      if (!menu) return;
+      if (!menu || !btn) return;
       if (!menu.contains(e.target) && e.target !== btn) menu.setAttribute('hidden','');
     });
     document.addEventListener('keydown', (e)=>{
