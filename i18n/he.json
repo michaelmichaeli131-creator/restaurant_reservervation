@@ -1,0 +1,17 @@
+{
+  "nav": {
+    "admin": "ניהול",
+    "login": "התחברות",
+    "logout": "התנתקות",
+    "language": "שפה",
+    "he": "עברית",
+    "en": "English",
+    "ka": "ქართული"
+  },
+  "common": {
+    "brand": "SpotBook",
+    "search": "חיפוש",
+    "save": "שמירה",
+    "cancel": "ביטול"
+  }
+}

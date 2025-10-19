@@ -1,0 +1,17 @@
+{
+  "nav": {
+    "admin": "Admin",
+    "login": "Sign in",
+    "logout": "Sign out",
+    "language": "Language",
+    "he": "Hebrew",
+    "en": "English",
+    "ka": "Georgian"
+  },
+  "common": {
+    "brand": "SpotBook",
+    "search": "Search",
+    "save": "Save",
+    "cancel": "Cancel"
+  }
+}

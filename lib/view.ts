@@ -3,6 +3,7 @@
 // ומספק fallback מפורט (HTML/JSON) במקרה כשל.
 // שדרוג: טעינת user אוטומטית מה־session אם לא קיים ב-ctx.state.user
 //        כך שהתבניות (לרבות ה-layout) יוכלו להציג "פתח/י מסעדה" כשמחוברים.
+// NEW:   הזרקת i18n לכל רינדור: lang/dir/t מתוך ctx.state (מ-middleware), עם ברירות מחדל.
 
 import { Eta } from "npm:eta@3.5.0";
 import type { Context } from "jsr:@oak/oak";
@@ -86,7 +87,7 @@ const CANDIDATES = candidatePaths();
 
 /**
  * בוחרים ספריית views לפי המועמדות הראשונות שנראות תקינות.
- * אם לא נמצאה — נעדיף ENV (אם ניתן), אחרת "/templates", ובדפדוף אחרון "./templates".
+ * אם לא נמצאה — נעדיף ENV (אם ניתן), אחרת "/templates".
  */
 const PICKED_VIEWS_DIR = (() => {
   for (const p of CANDIDATES) {
@@ -120,10 +121,15 @@ function escapeHtml(s: unknown) {
     .replaceAll("'", "&#39;");
 }
 
-function fallbackHtml(title: string, info: Record<string, unknown>) {
+function fallbackHtml(
+  title: string,
+  info: Record<string, unknown>,
+  lang = "he",
+  dir: "rtl" | "ltr" = lang === "he" ? "rtl" : "ltr",
+) {
   const safeTitle = title || "GeoTable";
   return `<!doctype html>
-<html lang="he" dir="rtl">
+<html lang="${escapeHtml(lang)}" dir="${escapeHtml(dir)}">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -179,7 +185,8 @@ async function ensureStateUser(ctx: Context): Promise<any | null> {
 /**
  * render(ctx, template, data)
  * - טוען user ל-ctx.state.user במידת הצורך (מה-session)
- * - אם Accept: application/json → מחזיר JSON (כולל user ב-payload)
+ * - מזריק i18n: lang/dir/t מ-ctx.state (או ברירות מחדל)
+ * - אם Accept: application/json → מחזיר JSON (כולל user ו-i18n ב-payload)
  * - אחרת: מרנדר תבנית Eta מתוך PICKED_VIEWS_DIR
  * - במקרה כשל: מחזיר fallback (JSON או HTML לפי Accept)
  */
@@ -189,7 +196,16 @@ export async function render(
   data: Record<string, unknown> = {},
 ): Promise<void> {
   const user = await ensureStateUser(ctx);
-  const payload = { ...data, user };
+
+  // ---- i18n state (מ-middleware/i18n.ts) עם ברירות מחדל אם אין ----
+  // deno-lint-ignore no-explicit-any
+  const stateAny = ctx.state as any;
+  const lang = stateAny?.lang ?? "he";
+  const dir: "rtl" | "ltr" = stateAny?.dir ?? (lang === "he" ? "rtl" : "ltr");
+  const t: (key: string, vars?: Record<string, unknown>) => string =
+    stateAny?.t ?? ((k: string) => `(${k})`);
+
+  const payload = { ...data, user, lang, dir, t };
 
   // JSON במפורש
   if (wantsJSON(ctx)) {
@@ -214,7 +230,7 @@ export async function render(
       views: PICKED_VIEWS_DIR,
       candidates: CANDIDATES,
       data,
-    });
+    }, lang, dir);
   } catch (err) {
     const reqId = (ctx.state as any)?.reqId ?? "-";
     console.warn(`[view ${reqId}] render failed for "${template}" (views="${PICKED_VIEWS_DIR}") → fallback:`, err);
@@ -228,6 +244,6 @@ export async function render(
     };
     // אם הלקוח הוא fetch רגיל בלי Accept: JSON — נחזיר HTML כדי שיהיה קריא בדפדפן.
     ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-    ctx.response.body = fallbackHtml(String(data?.title ?? template), info);
+    ctx.response.body = fallbackHtml(String(data?.title ?? template), info, lang, dir);
   }
 }

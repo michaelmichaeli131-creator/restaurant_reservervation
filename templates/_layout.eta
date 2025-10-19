@@ -14,10 +14,21 @@
   <!-- עיצוב כהה חדש של SpotBook (נטען תמיד ואחרון) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+  <!-- הוספתי Fallback לגאורגית -->
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;800&family=Noto+Sans+Georgian:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/public/css/spotbook.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
 
   <%~ it.head || '' %>
+  <style>
+    /* מתג שפות — סגנון מינימלי, לא תלוי ב-CSS אחר */
+    .lang-switch{position:relative; display:inline-block; margin-inline-start:12px}
+    .lang-btn{border:1px solid var(--bd,#e2e8f0); background:var(--card,#fff); padding:.4rem .6rem; border-radius:10px; cursor:pointer}
+    .lang-menu{position:absolute; top:115%; inset-inline-end:0; background:var(--card,#fff); border:1px solid var(--bd,#e2e8f0);
+      border-radius:12px; padding:.35rem; min-width:180px; box-shadow:0 10px 30px rgba(0,0,0,.08); z-index:50}
+    .lang-menu a{display:flex; align-items:center; gap:.5rem; padding:.5rem .6rem; border-radius:8px; text-decoration:none; color:inherit; white-space:nowrap}
+    .lang-menu a:hover{background:rgba(0,0,0,.06)}
+    html[dir="rtl"] .lang-menu{inset-inline-start:0; inset-inline-end:auto;}
+  </style>
 </head>
 <body class="sb-body<%= it.admin ? ' admin' : '' %>" data-theme="<%= it.admin ? 'dark' : 'auto' %>">
   <header class="sb-header">
@@ -35,16 +46,26 @@
       </div>
       <% } %>
 
-      <!-- פעולות (ניהול / התחברות / התנתקות / אדמין) -->
+      <!-- פעולות (ניהול / התחברות / התנתקות / אדמין) + מתג שפות -->
       <nav class="sb-actions" aria-label="Main actions">
         <% if (it.user) { %>
-          <a class="btn primary btn-manage" href="/owner">נהל מסעדה</a>
-          <a class="btn ghost btn-logout" href="/auth/logout">התנתקות</a>
+          <a class="btn primary btn-manage" href="/owner"><%= it.t('nav.manage') || 'נהל מסעדה' %></a>
+          <a class="btn ghost btn-logout" href="/auth/logout"><%= it.t('nav.logout') || 'התנתקות' %></a>
         <% } else { %>
-          <a class="btn ghost" href="/auth/login">התחברות</a>
-          <a class="btn" style="border-color:transparent;background:var(--brand);color:var(--brand-ink)" href="/auth/register">הרשמה</a>
+          <a class="btn ghost" href="/auth/login"><%= it.t('nav.login') || 'התחברות' %></a>
+          <a class="btn" style="border-color:transparent;background:var(--brand);color:var(--brand-ink)" href="/auth/register"><%= it.t('nav.register') || 'הרשמה' %></a>
         <% } %>
         <a class="btn ghost btn-admin" href="/admin/login">Admin</a>
+
+        <!-- מתג שפות (דגלים) -->
+        <div class="lang-switch">
+          <button class="lang-btn" type="button" aria-haspopup="true" aria-expanded="false" title="<%= it.t('nav.language') %>">🌐</button>
+          <div class="lang-menu" hidden>
+            <a href="/lang/he" aria-label="עברית">🇮🇱 <%= it.t('nav.he') %></a>
+            <a href="/lang/en" aria-label="English">🇬🇧 <%= it.t('nav.en') %></a>
+            <a href="/lang/ka" aria-label="ქართული">🇬🇪 <%= it.t('nav.ka') %></a>
+          </div>
+        </div>
       </nav>
     </div>
   </header>
@@ -59,6 +80,26 @@
 
   <!-- סקריפט ישן (אם צריך), עם גרסה -->
   <script src="/static/app.js?v=<%= it.BUILD_TAG || '' %>" defer></script>
+
+  <!-- סקריפט לפתיחת/סגירת מתג השפות -->
+  <script>
+  (function(){
+    const btn = document.querySelector('.lang-btn');
+    const menu = document.querySelector('.lang-menu');
+    btn?.addEventListener('click', ()=> {
+      const open = menu.hasAttribute('hidden') === false;
+      if (open) menu.setAttribute('hidden',''); else menu.removeAttribute('hidden');
+      btn.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e)=>{
+      if (!menu) return;
+      if (!menu.contains(e.target) && e.target !== btn) menu.setAttribute('hidden','');
+    });
+    document.addEventListener('keydown', (e)=>{
+      if (e.key === 'Escape') menu?.setAttribute('hidden','');
+    });
+  })();
+  </script>
 
   <!-- הזרקת סקריפטים נוספים לפי דף -->
   <% if (it.scripts) { it.scripts.forEach(function(src){ %>

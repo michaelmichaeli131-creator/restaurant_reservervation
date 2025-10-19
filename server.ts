@@ -40,6 +40,9 @@ import { requestLogger } from "./lib/log_mw.ts";
 import { diagRouter } from "./routes/diag.ts";
 import openingRouter from "./routes/opening.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
+import { i18n } from "./middleware/i18n.ts";
+import langRouter from "./routes/lang.ts";
+
 
 // ✅ חדש: ראוטר ניהול תפוסה יומי (Calendar/Timeline)
 import { ownerCalendarRouter } from "./routes/owner_calendar.ts";
@@ -353,6 +356,13 @@ app.use(async (ctx, next) => {
   );
   await next();
 });
+
+//language
+
+app.use(i18n);
+app.use(langRouter.routes());
+app.use(langRouter.allowedMethods());
+
 
 // אימות/משתמשים
 app.use(authRouter.routes());
