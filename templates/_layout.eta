@@ -14,20 +14,20 @@
   <!-- עיצוב כהה חדש של SpotBook (נטען תמיד ואחרון) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <!-- Fallback לגאורגית לצד Rubik -->
-  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;800&family=Noto+Sans+Georgian:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/public/css/spotbook.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
 
   <%~ it.head || '' %>
   <style>
-    /* מתג שפות — סגנון מינימלי, לא תלוי ב-CSS אחר */
-    .lang-switch{position:relative; display:inline-block; margin-inline-start:12px}
-    .lang-btn{border:1px solid var(--bd,#e2e8f0); background:var(--card,#fff); padding:.4rem .6rem; border-radius:10px; cursor:pointer}
-    .lang-menu{position:absolute; top:115%; inset-inline-end:0; background:var(--card,#fff); border:1px solid var(--bd,#e2e8f0);
-      border-radius:12px; padding:.35rem; min-width:180px; box-shadow:0 10px 30px rgba(0,0,0,.08); z-index:50}
-    .lang-menu a{display:flex; align-items:center; gap:.5rem; padding:.5rem .6rem; border-radius:8px; text-decoration:none; color:inherit; white-space:nowrap}
-    .lang-menu a:hover{background:rgba(255,255,255,.06)}
-    html[dir="rtl"] .lang-menu{inset-inline-start:0; inset-inline-end:auto;}
+    /* בלוק קטן לשפות מתחת ל-Admin */
+    .lang-under-admin{display:block; margin-top:8px; font-size:.9rem; opacity:.95}
+    .lang-under-admin .lang-label{margin-bottom:4px; color:var(--muted,#94a3b8); line-height:1.2}
+    .lang-under-admin .lang-links{display:flex; gap:10px; flex-wrap:wrap}
+    .lang-under-admin .lang-links a{
+      text-decoration:none; padding:4px 8px; border-radius:999px;
+      border:1px solid var(--bd,#2a2f3a); background:rgba(255,255,255,.03)
+    }
+    .lang-under-admin .lang-links a:hover{background:rgba(255,255,255,.07)}
   </style>
 </head>
 <body class="sb-body<%= it.admin ? ' admin' : '' %>" data-theme="<%= it.admin ? 'dark' : 'auto' %>">
@@ -41,30 +41,29 @@
       <!-- שורת המשתמש: מתחת ללוגו בפועל -->
       <% if (it.user) { %>
       <div class="user-mobile">
-        <span><%= it.t('nav.loggedInAs') || 'מחובר/ת:' %></span>
+        מחובר/ת:
         <strong><%= [it.user.firstName, it.user.lastName].filter(Boolean).join(" ") %></strong>
       </div>
       <% } %>
 
-      <!-- פעולות (ניהול / התחברות / התנתקות / אדמין) + מתג שפות -->
+      <!-- פעולות (ניהול / התחברות / התנתקות / אדמין) -->
       <nav class="sb-actions" aria-label="Main actions">
         <% if (it.user) { %>
-          <a class="btn primary btn-manage" href="/owner"><%= it.t('nav.manage') || 'נהל מסעדה' %></a>
-          <a class="btn ghost btn-logout" href="/auth/logout"><%= it.t('nav.logout') || 'התנתקות' %></a>
+          <a class="btn primary btn-manage" href="/owner">נהל מסעדה</a>
+          <a class="btn ghost btn-logout" href="/auth/logout">התנתקות</a>
         <% } else { %>
-          <a class="btn ghost" href="/auth/login"><%= it.t('nav.login') || 'התחברות' %></a>
-          <a class="btn" style="border-color:transparent;background:var(--brand);color:var(--brand-ink)" href="/auth/register"><%= it.t('nav.register') || 'הרשמה' %></a>
+          <a class="btn ghost" href="/auth/login">התחברות</a>
+          <a class="btn" style="border-color:transparent;background:var(--brand);color:var(--brand-ink)" href="/auth/register">הרשמה</a>
         <% } %>
+        <a class="btn ghost btn-admin" href="/admin/login">Admin</a>
 
-        <a class="btn ghost btn-admin" href="/admin/login"><%= it.t('nav.admin') || 'Admin' %></a>
-
-        <!-- מתג שפות (דגלים) -->
-        <div class="lang-switch">
-          <button class="lang-btn" type="button" aria-haspopup="true" aria-expanded="false" title="<%= it.t('nav.language') || 'Language' %>">🌐</button>
-          <div class="lang-menu" hidden>
-            <a href="/lang/he" aria-label="עברית">🇮🇱 <%= it.t('nav.he') || 'עברית' %></a>
-            <a href="/lang/en" aria-label="English">🇬🇧 <%= it.t('nav.en') || 'English' %></a>
-            <a href="/lang/ka" aria-label="ქართული">🇬🇪 <%= it.t('nav.ka') || 'ქართული' %></a>
+        <!-- שפות – מתחת ל-Admin, קישורים פשוטים -->
+        <div class="lang-under-admin">
+          <div class="lang-label">שפה:</div>
+          <div class="lang-links">
+            <a href="/lang/he" aria-label="עברית">🇮🇱 עברית</a>
+            <a href="/lang/en" aria-label="English">🇬🇧 English</a>
+            <a href="/lang/ka" aria-label="ქართული">🇬🇪 ქართული</a>
           </div>
         </div>
       </nav>
@@ -76,32 +75,11 @@
   </main>
 
   <footer class="sb-footer">
-    <p>© <%= new Date().getFullYear() %> SpotBook · <%= it.t('footer.rights') || 'כל הזכויות שמורות' %></p>
+    <p>© <%= new Date().getFullYear() %> SpotBook · כל הזכויות שמורות</p>
   </footer>
 
   <!-- סקריפט ישן (אם צריך), עם גרסה -->
   <script src="/static/app.js?v=<%= it.BUILD_TAG || '' %>" defer></script>
-
-  <!-- סקריפט לפתיחת/סגירת מתג השפות -->
-  <script>
-  (function(){
-    const btn = document.querySelector('.lang-btn');
-    const menu = document.querySelector('.lang-menu');
-    btn?.addEventListener('click', ()=> {
-      const open = menu && !menu.hasAttribute('hidden');
-      if (open) { menu.setAttribute('hidden',''); }
-      else { menu && menu.removeAttribute('hidden'); }
-      btn.setAttribute('aria-expanded', String(!open));
-    });
-    document.addEventListener('click', (e)=>{
-      if (!menu || !btn) return;
-      if (!menu.contains(e.target) && e.target !== btn) menu.setAttribute('hidden','');
-    });
-    document.addEventListener('keydown', (e)=>{
-      if (e.key === 'Escape') menu?.setAttribute('hidden','');
-    });
-  })();
-  </script>
 
   <!-- הזרקת סקריפטים נוספים לפי דף -->
   <% if (it.scripts) { it.scripts.forEach(function(src){ %>
