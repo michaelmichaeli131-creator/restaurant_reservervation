@@ -18,7 +18,7 @@
   <%~ it.head || '' %>
 
   <style>
-    /* ===== Language switch refined ===== */
+    /* ===== Language switch (blended dark, animated) ===== */
     .lang-switch { position: relative; display:inline-block; margin-inline-start:12px; }
     .lang-btn {
       display:inline-flex; align-items:center; justify-content:center;
@@ -30,7 +30,7 @@
       transition: background .15s ease, transform .15s ease;
     }
     .lang-btn:hover { background:rgba(255,255,255,.1); transform:translateY(-1px); }
-    .lang-btn::before{ content:"🌐"; font-size:18px; }
+    .lang-btn::before{ content:"🌐"; font-size:18px; line-height:1; }
 
     .lang-menu {
       position:absolute; top:115%; inset-inline-end:0;
@@ -39,18 +39,30 @@
       border-radius:12px; padding:6px; box-shadow:0 10px 25px rgba(0,0,0,.4);
       backdrop-filter: blur(10px);
       z-index:60; min-width:130px;
+
+      /* animation states */
+      opacity: 0; transform: translateY(-6px) scale(.98);
+      pointer-events: none;
+      transition: opacity .18s ease, transform .18s ease;
     }
-    .lang-menu[hidden]{ display:none; }
+    .lang-menu.open {
+      opacity:1; transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
 
     .lang-item {
-      display:flex; align-items:center; justify-content:space-between;
+      display:flex; align-items:center; justify-content:center;
+      gap:6px;
       color:#e2e8f0; padding:8px 10px; border-radius:8px;
       text-decoration:none; font-weight:600;
+      font-variant: all-small-caps;
+      font-family:"Rubik","Apple Color Emoji","Segoe UI Emoji",system-ui,sans-serif;
       transition: background .15s ease;
     }
     .lang-item:hover { background:rgba(255,255,255,.08); }
-    .lang-item .code { font-variant: all-small-caps; font-size:14px; }
-    .lang-item .flag { font-size:16px; margin-inline-start:4px; }
+    .lang-item .code { font-size:14px; line-height:1; }
+    .lang-item .flag { font-size:17px; line-height:1; margin-inline-start:2px; }
+
     html[dir="rtl"] .lang-menu { inset-inline-start:0; inset-inline-end:auto; }
 
     /* ===== Admin small bottom-right ===== */
@@ -69,6 +81,7 @@
       color:var(--brand-ink,#fff);
       background:rgba(255,255,255,.06);
       border-color:rgba(255,255,255,.1);
+      opacity:1;
     }
   </style>
 </head>
@@ -99,7 +112,7 @@
         <!-- Language switch -->
         <div class="lang-switch">
           <button class="lang-btn" type="button" aria-haspopup="true" aria-expanded="false" title="בחר שפה"></button>
-          <div class="lang-menu" hidden>
+          <div class="lang-menu" id="langMenu">
             <a class="lang-item" href="/lang/en"><span class="code">EN</span><span class="flag">🇺🇸</span></a>
             <a class="lang-item" href="/lang/he"><span class="code">HE</span><span class="flag">🇮🇱</span></a>
             <a class="lang-item" href="/lang/ka"><span class="code">GE</span><span class="flag">🇬🇪</span></a>
@@ -123,20 +136,22 @@
   <script src="/static/app.js?v=<%= it.BUILD_TAG || '' %>" defer></script>
   <script>
   (function(){
-    const btn = document.querySelector('.lang-btn');
-    const menu = document.querySelector('.lang-menu');
+    const btn  = document.querySelector('.lang-btn');
+    const menu = document.getElementById('langMenu');
     if(!btn || !menu) return;
 
-    btn.addEventListener('click', ()=>{
-      const open = !menu.hasAttribute('hidden');
-      if(open) menu.setAttribute('hidden',''); else menu.removeAttribute('hidden');
-      btn.setAttribute('aria-expanded', String(!open));
-    });
+    // toggle open/close with animation classes (no hidden)
+    function openMenu(){ menu.classList.add('open');  btn.setAttribute('aria-expanded','true'); }
+    function closeMenu(){ menu.classList.remove('open'); btn.setAttribute('aria-expanded','false'); }
+    function toggleMenu(){ menu.classList.contains('open') ? closeMenu() : openMenu(); }
+
+    btn.addEventListener('click', toggleMenu);
+
     document.addEventListener('click', (e)=>{
-      if (!menu.contains(e.target) && e.target !== btn) menu.setAttribute('hidden','');
+      if (!menu.contains(e.target) && e.target !== btn) closeMenu();
     });
     document.addEventListener('keydown', (e)=>{
-      if (e.key === 'Escape') menu.setAttribute('hidden','');
+      if (e.key === 'Escape') closeMenu();
     });
   })();
   </script>
