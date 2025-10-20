@@ -26,57 +26,53 @@
       border:1px solid var(--bd,#2a2f3a);
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
       box-shadow: 0 2px 10px rgba(0,0,0,.18) inset, 0 1px 0 rgba(255,255,255,.05);
-      cursor:pointer; font-size:0; /* האייקון ב-::before */
+      cursor:pointer; font-size:0;
       transition: transform .12s ease, box-shadow .2s ease;
     }
     .lang-btn:hover { transform: translateY(-1px); }
-    .lang-btn::before{
-      content: "🌐"; /* סמל כדור הארץ בעדינות */
-      font-size: 18px; line-height: 1; filter: saturate(.9) contrast(1.1);
-      opacity:.9;
-    }
+    .lang-btn::before{ content: "🌐"; font-size:18px; line-height:1; opacity:.9; }
 
-    /* תפריט כהה שקוף עם blur */
     .lang-menu {
       position:absolute; top:120%; inset-inline-end:0;
-      min-width: 220px; padding:8px;
+      min-width: 160px; padding:6px;
       border:1px solid var(--bd,#2a2f3a);
-      border-radius:14px;
-      background: rgba(15,23,42,.65); /* night slate */
+      border-radius:12px;
+      background: rgba(15,23,42,.70); /* כהה, עם שקיפות קלה */
       backdrop-filter: blur(10px);
       box-shadow: 0 12px 30px rgba(0,0,0,.35);
       z-index:60;
     }
     .lang-menu[hidden]{ display:none; }
 
-    .lang-menu .lang-item{
+    .lang-item{
       display:flex; align-items:center; justify-content:space-between;
-      gap:12px; padding:10px 12px; border-radius:10px;
-      text-decoration:none; color:#e5edf7;
-      border:1px solid transparent;
-      transition: background .15s ease, border-color .15s ease;
-      font-weight:500; letter-spacing:.2px;
+      padding:8px 10px; border-radius:9px; color:#e5edf7;
+      text-decoration:none; border:1px solid transparent; font-weight:600;
+      letter-spacing:.2px;
+      transition: background .15s ease, border-color .15s ease, opacity .15s ease;
     }
-    .lang-menu .lang-item .left { display:flex; align-items:center; gap:10px; }
-    .lang-menu .lang-item .code { opacity:.9; font-variant: all-small-caps; font-weight:700; }
-    .lang-menu .lang-item:hover{ background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.08); }
+    .lang-item:hover{ background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.10); }
+    .lang-item .code{ font-variant: all-small-caps; }
+    .lang-item .flag{ font-size:16px; margin-inline-start:8px; }
 
-    /* RTL flip fix */
     html[dir="rtl"] .lang-menu{ inset-inline-start:0; inset-inline-end:auto; }
 
-    /* ===== Admin link at footer (small) ===== */
-    .admin-bottom {
-      text-align:center; padding:10px 0 0;
+    /* ===== Admin קטן בתחתית ימין ===== */
+    .sb-footer { position: relative; }
+    .admin-bottom-right {
+      position: absolute; right: 16px; bottom: 34px;
+      font-size:.85rem; opacity:.8;
     }
-    .admin-bottom a {
-      font-size:.85rem; color:var(--muted,#94a3b8); text-decoration:none;
-      border:1px solid transparent; border-radius:12px; padding:6px 10px;
-      transition: color .15s ease, background .15s ease, border-color .15s ease;
+    .admin-bottom-right a{
+      color:var(--muted,#94a3b8); text-decoration:none;
+      padding:4px 8px; border-radius:10px; border:1px solid transparent;
+      transition: color .15s ease, background .15s ease, border-color .15s ease, opacity .15s ease;
     }
-    .admin-bottom a:hover {
+    .admin-bottom-right a:hover{
       color:var(--brand-ink,#fff);
-      background: rgba(255,255,255,.06);
-      border-color: var(--bd,#2a2f3a);
+      background:rgba(255,255,255,.06);
+      border-color:var(--bd,#2a2f3a);
+      opacity:1;
     }
   </style>
 </head>
@@ -89,7 +85,6 @@
         <img class="brand-logo" src="/public/img/logo-spotbook.png" alt="SpotBook Logo"/>
       </a>
 
-      <!-- משתמש מחובר (מובייל) -->
       <% if (it.user) { %>
       <div class="user-mobile">
         מחובר/ת:
@@ -97,7 +92,7 @@
       </div>
       <% } %>
 
-      <!-- פעולות: שמירה מלאה על העיצוב הישן -->
+      <!-- פעולות (העיצוב הישן נשמר) -->
       <nav class="sb-actions" aria-label="Main actions">
         <% if (it.user) { %>
           <a class="btn primary btn-manage" href="/owner">נהל מסעדה</a>
@@ -111,19 +106,10 @@
         <div class="lang-switch">
           <button class="lang-btn" type="button" aria-haspopup="true" aria-expanded="false" title="בחר שפה"></button>
           <div class="lang-menu" hidden>
-            <!-- סדר: דגל אמריקאי ראשון, ואז HE EN GE לפי הבקשה -->
-            <a class="lang-item" href="/lang/en">
-              <div class="left"><span>🇺🇸</span><span>English</span></div>
-              <span class="code">EN</span>
-            </a>
-            <a class="lang-item" href="/lang/he">
-              <div class="left"><span>🇮🇱</span><span>עברית</span></div>
-              <span class="code">HE</span>
-            </a>
-            <a class="lang-item" href="/lang/ka">
-              <div class="left"><span>🇬🇪</span><span>ქართული</span></div>
-              <span class="code">GE</span>
-            </a>
+            <!-- קוד ואז דגל: EN 🇺🇸, HE 🇮🇱, GE 🇬🇪 -->
+            <a class="lang-item" href="/lang/en"><span class="code">EN</span><span class="flag">🇺🇸</span></a>
+            <a class="lang-item" href="/lang/he"><span class="code">HE</span><span class="flag">🇮🇱</span></a>
+            <a class="lang-item" href="/lang/ka"><span class="code">GE</span><span class="flag">🇬🇪</span></a>
           </div>
         </div>
       </nav>
@@ -134,19 +120,15 @@
     <%~ it.body %>
   </main>
 
-  <!-- Admin קטן בתחתית, ממש מעל הזכויות -->
-  <div class="admin-bottom">
-    <a href="/admin/login">Admin</a>
-  </div>
-
   <footer class="sb-footer">
+    <!-- Admin קטן, בצד ימין למטה, לא בולט -->
+    <div class="admin-bottom-right">
+      <a href="/admin/login">Admin</a>
+    </div>
     <p>© <%= new Date().getFullYear() %> SpotBook · כל הזכויות שמורות</p>
   </footer>
 
-  <!-- סקריפט קיים -->
   <script src="/static/app.js?v=<%= it.BUILD_TAG || '' %>" defer></script>
-
-  <!-- פתיחה/סגירה של תפריט השפות -->
   <script>
     (function(){
       const btn = document.querySelector('.lang-btn');
@@ -162,14 +144,12 @@
       document.addEventListener('click', (e)=>{
         if (!menu.contains(e.target) && e.target !== btn) menu.setAttribute('hidden','');
       });
-
       document.addEventListener('keydown', (e)=>{
         if (e.key === 'Escape') menu.setAttribute('hidden','');
       });
     })();
   </script>
 
-  <!-- סקריפטים נוספים לפי דף -->
   <% if (it.scripts) { it.scripts.forEach(function(src){ %>
     <script src="<%= src %>" type="module"></script>
   <% }) } %>
