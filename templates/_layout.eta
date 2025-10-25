@@ -56,6 +56,7 @@
       transition:background .15s ease;
     }
     .lang-item:hover { background:rgba(255,255,255,.08); }
+    .lang-item.active { background:rgba(255,255,255,.12); }
 
     html[dir="rtl"] .lang-menu { inset-inline-start:0; inset-inline-end:auto; }
 
@@ -89,27 +90,27 @@
 
       <% if (it.user) { %>
       <div class="user-mobile">
-        מחובר/ת:
+        <%= it.t ? it.t('nav.signedin') : 'מחובר/ת:' %>
         <strong><%= [it.user.firstName, it.user.lastName].filter(Boolean).join(" ") %></strong>
       </div>
       <% } %>
 
       <nav class="sb-actions" aria-label="Main actions">
         <% if (it.user) { %>
-          <a class="btn primary btn-manage" href="/owner">נהל מסעדה</a>
-          <a class="btn ghost btn-logout" href="/auth/logout">התנתקות</a>
+          <a class="btn primary btn-manage" href="/owner"><%= it.t ? it.t('nav.manage') : 'נהל מסעדה' %></a>
+          <a class="btn ghost btn-logout" href="/auth/logout"><%= it.t ? it.t('nav.logout') : 'התנתקות' %></a>
         <% } else { %>
-          <a class="btn ghost" href="/auth/login">התחברות</a>
-          <a class="btn" style="border-color:transparent;background:var(--brand);color:var(--brand-ink)" href="/auth/register">הרשמה</a>
+          <a class="btn ghost" href="/auth/login"><%= it.t ? it.t('nav.login') : 'התחברות' %></a>
+          <a class="btn" style="border-color:transparent;background:var(--brand);color:var(--brand-ink)" href="/auth/register"><%= it.t ? it.t('nav.register') : 'הרשמה' %></a>
         <% } %>
 
         <!-- Language switch -->
         <div class="lang-switch">
-          <button class="lang-btn" type="button" aria-haspopup="true" aria-expanded="false" title="בחר שפה"></button>
-          <div class="lang-menu" id="langMenu">
-            <a class="lang-item" href="/lang/en">EN</a>
-            <a class="lang-item" href="/lang/ka">GE</a>
-            <a class="lang-item" href="/lang/he">HE</a>
+          <button class="lang-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="langMenu" title="<%= it.t ? it.t('nav.language') : 'בחר שפה' %>"></button>
+          <div class="lang-menu" id="langMenu" role="menu">
+            <a class="lang-item <%= (it.lang==='en'?'active':'') %>" href="/lang/en" role="menuitem">EN</a>
+            <a class="lang-item <%= (it.lang==='ka'?'active':'') %>" href="/lang/ka" role="menuitem">GE</a>
+            <a class="lang-item <%= (it.lang==='he'?'active':'') %>" href="/lang/he" role="menuitem">HE</a>
           </div>
         </div>
       </nav>
@@ -122,25 +123,31 @@
 
   <footer class="sb-footer">
     <div class="admin-bottom-right">
-      <a href="/admin/login">Admin</a>
+      <a href="/admin/login"><%= it.t ? it.t('nav.admin') : 'Admin' %></a>
     </div>
-    <p>© <%= new Date().getFullYear() %> SpotBook · כל הזכויות שמורות</p>
+    <p>© <%= new Date().getFullYear() %> SpotBook · <%= it.t ? it.t('footer.rights') : 'כל הזכויות שמורות' %></p>
   </footer>
 
   <script src="/static/app.js?v=<%= it.BUILD_TAG || '' %>" defer></script>
   <script>
   (function(){
-    const btn  = document.querySelector('.lang-btn');
-    const menu = document.getElementById('langMenu');
-    if(!btn || !menu) return;
+    function ready(fn){ if(document.readyState!=='loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
+    ready(function(){
+      const btn  = document.querySelector('.lang-btn');
+      const menu = document.getElementById('langMenu');
+      if(!btn || !menu) return;
 
-    function openMenu(){ menu.classList.add('open');  btn.setAttribute('aria-expanded','true'); }
-    function closeMenu(){ menu.classList.remove('open'); btn.setAttribute('aria-expanded','false'); }
-    function toggleMenu(){ menu.classList.contains('open') ? closeMenu() : openMenu(); }
+      function openMenu(){ menu.classList.add('open');  btn.setAttribute('aria-expanded','true'); }
+      function closeMenu(){ menu.classList.remove('open'); btn.setAttribute('aria-expanded','false'); }
+      function toggleMenu(e){ e?.stopPropagation(); menu.classList.contains('open') ? closeMenu() : openMenu(); }
 
-    btn.addEventListener('click', toggleMenu);
-    document.addEventListener('click', (e)=>{ if(!menu.contains(e.target)&&e.target!==btn) closeMenu(); });
-    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeMenu(); });
+      btn.addEventListener('click', toggleMenu);
+      btn.addEventListener('touchstart', toggleMenu, { passive: true });
+
+      document.addEventListener('click', (e)=>{ if(!menu.contains(e.target) && e.target!==btn) closeMenu(); });
+      document.addEventListener('touchstart', (e)=>{ if(!menu.contains(e.target) && e.target!==btn) closeMenu(); }, { passive: true });
+      document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeMenu(); });
+    });
   })();
   </script>
 

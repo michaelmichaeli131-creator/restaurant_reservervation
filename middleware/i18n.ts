@@ -1,18 +1,54 @@
-import type { Context } from "jsr:@oak/oak";
+// /src/middleware/i18n.ts
+import type { Context, Middleware } from "jsr:@oak/oak";
 
-const SUPPORTED = ["he", "en", "ka"] as const;
-type Locale = typeof SUPPORTED[number];
+export const SUPPORTED = ["he", "en", "ka"] as const;
+export type Locale = typeof SUPPORTED[number];
+
 const DEFAULT: Locale = "he";
 const DIR: Record<Locale, "rtl" | "ltr"> = { he: "rtl", en: "ltr", ka: "ltr" };
 
+const NODE_ENV = Deno.env.get("NODE_ENV") ?? "production";
+const IS_PROD = NODE_ENV === "production";
+
+/** Cache מילונים בזיכרון (רק בפרודקשן) */
 const cache = new Map<Locale, Record<string, unknown>>();
 
-async function loadDict(locale: Locale) {
-  if (cache.has(locale)) return cache.get(locale)!;
-  const txt = await Deno.readTextFile(`./i18n/${locale}.json`);
-  const dict = JSON.parse(txt);
-  cache.set(locale, dict);
-  return dict;
+/** נתיב תיקיית המילונים (עמיד יחסית לפריסה ול־CWD) */
+function dictPath(locale: Locale): string {
+  // קודם כל נסה יחסית לקובץ הזה
+  try {
+    return new URL(`../i18n/${locale}.json`, import.meta.url).pathname;
+  } catch {
+    // fallback ל־CWD
+    return `./i18n/${locale}.json`;
+  }
+}
+
+/** קריאת מילון מקובץ JSON עם cache בפרודקשן ו־hot-reload בדיבוג */
+async function loadDict(locale: Locale): Promise<Record<string, unknown>> {
+  if (IS_PROD && cache.has(locale)) return cache.get(locale)!;
+  const path = dictPath(locale);
+  try {
+    const txt = await Deno.readTextFile(path);
+    const dict = JSON.parse(txt) as Record<string, unknown>;
+    if (IS_PROD) cache.set(locale, dict);
+    return dict;
+  } catch (err) {
+    console.warn(`[i18n] failed to load ${path} →`, err);
+    // נפילה לברירת מחדל אם זה לא הוא עצמו
+    if (locale !== DEFAULT) {
+      try {
+        const fallbackTxt = await Deno.readTextFile(dictPath(DEFAULT));
+        const fallback = JSON.parse(fallbackTxt) as Record<string, unknown>;
+        if (IS_PROD) cache.set(DEFAULT, fallback);
+        return fallback;
+      } catch {
+        // לבסוף – מילון ריק
+        return {};
+      }
+    }
+    return {};
+  }
 }
 
 function getPath(obj: any, path: string, fallback?: string) {
@@ -23,36 +59,107 @@ function interpolate(s: string, vars?: Record<string, unknown>) {
   return !vars ? s : s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? `{${k}}`));
 }
 
-export async function i18n(ctx: Context, next: () => Promise<unknown>) {
-  // קדימות: פרמטר בקשה ?lang= / ואז cookie / ואז Accept-Language / ואז ברירת מחדל
+/** נירמול קוד שפה ל־SUPPORTED */
+function norm(code?: string | null): Locale {
+  const c = (code || "").toLowerCase().slice(0, 2);
+  return (SUPPORTED as readonly string[]).includes(c) ? (c as Locale) : DEFAULT;
+}
+
+/** פענוח Accept-Language בסיסי (בחירת שפה מועדפת הנתמכת אצלנו) */
+function fromAcceptLanguage(header: string | null): Locale | undefined {
+  if (!header) return undefined;
+  const raw = header.toLowerCase();
+
+  // ניקח עדיפויות פשוטות: אם יש he → he; אם יש en → en; אם יש ka → ka.
+  if (raw.includes("he")) return "he";
+  if (raw.includes("en")) return "en";
+  if (raw.includes("ka")) return "ka";
+  return undefined;
+}
+
+/** שמירת שפה ב־cookie (גם lang וגם sb_lang לתאימות) */
+async function persistLangCookie(ctx: Context, lang: Locale) {
+  const cookieOpts = {
+    httpOnly: false,
+    sameSite: "Lax" as const,
+    secure: true,
+    path: "/",
+    maxAge: 60 * 60 * 24 * 180, // 180 ימים
+  };
+  await ctx.cookies.set("lang", lang, cookieOpts);
+  await ctx.cookies.set("sb_lang", lang, cookieOpts);
+}
+
+/** ניסיון קריאת שפה מה־session אם קיים */
+async function getLangFromSession(ctx: Context): Promise<string | null> {
+  try {
+    // deno-lint-ignore no-explicit-any
+    const session = (ctx.state as any)?.session;
+    return session ? await session.get("lang") : null;
+  } catch {
+    return null;
+  }
+}
+
+/** כתיבה ל־session (לא חובה אם אין session) */
+async function setLangToSession(ctx: Context, lang: Locale) {
+  try {
+    // deno-lint-ignore no-explicit-any
+    const session = (ctx.state as any)?.session;
+    await session?.set("lang", lang);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** ה־middleware הראשי */
+export const i18n: Middleware = async (ctx, next) => {
+  // קדימות: ?lang= → cookie (lang/sb_lang) → session → Accept-Language → DEFAULT
   const q = ctx.request.url.searchParams.get("lang") || "";
-  let lang = (q && SUPPORTED.includes(q as Locale) ? q : ctx.cookies.get("sb_lang")) as Locale | undefined;
+
+  let lang: Locale | undefined;
+
+  if (q) {
+    lang = norm(q);
+  } else {
+    const fromCookie = (await ctx.cookies.get("lang")) ?? (await ctx.cookies.get("sb_lang"));
+    if (fromCookie) lang = norm(fromCookie);
+  }
 
   if (!lang) {
-    const al = (ctx.request.headers.get("accept-language") || "").toLowerCase();
-    lang = al.includes("he") ? "he" : "en";
+    const fromSess = await getLangFromSession(ctx);
+    if (fromSess) lang = norm(fromSess);
   }
-  if (!SUPPORTED.includes(lang!)) lang = DEFAULT;
 
-  const dict = await loadDict(lang!);
+  if (!lang) {
+    const fromAL = fromAcceptLanguage(ctx.request.headers.get("accept-language"));
+    lang = fromAL ?? DEFAULT;
+  }
 
-  (ctx.state as any).lang = lang!;
-  (ctx.state as any).dir = DIR[lang!];
+  // טען מילון
+  const dict = await loadDict(lang);
+
+  // הזרקה ל־state
+  // deno-lint-ignore no-explicit-any
+  (ctx.state as any).lang = lang;
+  // אפשר לאפשר override עתידי של dir דרך state, אחרת מחושב מהשפה
+  // deno-lint-ignore no-explicit-any
+  (ctx.state as any).dir = (ctx.state as any).dir ?? DIR[lang];
+  // deno-lint-ignore no-explicit-any
   (ctx.state as any).t = (key: string, vars?: Record<string, unknown>) => {
     const raw = getPath(dict, key, `(${key})`);
     return typeof raw === "string" ? interpolate(raw, vars) : String(raw);
   };
 
-  // אם הגיעה בקשה עם ?lang=... נשמור קבוע בעוגיה (כדי שיהיה חוצה־דפים)
-  if (q && SUPPORTED.includes(q as Locale)) {
-    ctx.cookies.set("sb_lang", lang!, {
-      httpOnly: false,
-      sameSite: "Lax",
-      secure: true,
-      path: "/",
-      maxAge: 60 * 60 * 24 * 180 // 180 ימים
-    });
+  // אם הגיעה בקשה עם ?lang=... — נעדכן cookie ו־session לשימור
+  if (q) {
+    await persistLangCookie(ctx, lang);
+    await setLangToSession(ctx, lang);
+  } else {
+    // אם אין cookie בכלל — נבצע ייצוב (שימושי בפעם הראשונה)
+    const hasCookie = (await ctx.cookies.get("lang")) ?? (await ctx.cookies.get("sb_lang"));
+    if (!hasCookie) await persistLangCookie(ctx, lang);
   }
 
   await next();
-}
+};
