@@ -1,15 +1,27 @@
 {
-  "heroTitle": "הזמנת שולחן במסעדה",
-  "heroSub": "הזמן שולחן בקלות ובמהירות אונליין",
-  "placeholder": "חפש מסעדה / עיר / סוג מטבח",
-  "search": "חיפוש",
-  "resultsTitle": "תוצאות",
-  "noResults": "לא נמצאו תוצאות.",
-  "recommendedTitle": "מסעדות מומלצות",
-  "carouselPrev": "הצג קודמות",
-  "carouselNext": "הצג הבאות",
-  "pendingBadge": "ממתינה לאישור",
-  "ariaSearch": "חיפוש מסעדות",
-  "ariaSearchPlaceholder": "חפש מסעדה, עיר או סוג מטבח",
-  "ariaOpenRestaurant": "פתח {name}"
+  "home": {
+    "hero": {
+      "title": "הזמנת שולחן במסעדה",
+      "sub": "הזמן שולחן בקלות ובמהירות אונליין"
+    },
+    "search": {
+      "placeholder": "חפש מסעדה / עיר / סוג מטבח",
+      "aria": "חיפוש מסעדות",
+      "input_aria": "חפש מסעדה, עיר או סוג מטבח",
+      "cta": "חיפוש",
+      "suggestions_aria": "הצעות חיפוש"
+    },
+    "results": {
+      "title": "תוצאות",
+      "empty": "לא נמצאו תוצאות.",
+      "open_label": "פתח {name}",
+      "badge_pending": "ממתינה לאישור",
+      "badge_pending_title": "טרם אושרה"
+    },
+    "featured": {
+      "title": "מסעדות מומלצות",
+      "prev_aria": "הצג קודמות",
+      "next_aria": "הצג הבאות"
+    }
+  }
 }
