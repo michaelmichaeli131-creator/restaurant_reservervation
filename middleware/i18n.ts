@@ -77,12 +77,26 @@ function fromAcceptLanguage(header: string | null): Locale | undefined {
   return undefined;
 }
 
+// helper לקבוע אם הבקשה מאובטחת (HTTPS/מאחורי פרוקסי)
+function isSecure(ctx: Context): boolean {
+  // oak לעיתים מגדיר secure, ובפרוקסי נבדוק x-forwarded-proto
+  // @ts-ignore - oak עשוי לא להקליד secure
+  if ((ctx.request as any).secure) return true;
+  const xf = ctx.request.headers.get("x-forwarded-proto");
+  if (xf && xf.toLowerCase() === "https") return true;
+  try {
+    return ctx.request.url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 /** שמירת שפה ב־cookie (גם lang וגם sb_lang לתאימות) */
 async function persistLangCookie(ctx: Context, lang: Locale) {
   const cookieOpts = {
     httpOnly: false,
     sameSite: "Lax" as const,
-    secure: true,
+    secure: isSecure(ctx), // ← במקום true קשיח
     path: "/",
     maxAge: 60 * 60 * 24 * 180, // 180 ימים
   };

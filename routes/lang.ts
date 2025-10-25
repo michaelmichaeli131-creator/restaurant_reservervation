@@ -16,6 +16,18 @@ type Locale = typeof SUPPORTED[number];
 
 const router = new Router();
 
+// helper לזיהוי אם הבקשה מאובטחת (HTTPS/מאחורי פרוקסי)
+function isSecure(ctx: any): boolean {
+  if (ctx.request?.secure) return true;
+  const xf = ctx.request?.headers.get("x-forwarded-proto");
+  if (xf && xf.toLowerCase() === "https") return true;
+  try {
+    return ctx.request.url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 router.get("/lang/:code", async (ctx) => {
   const code = (ctx.params.code || "").toLowerCase() as Locale;
   const back = ctx.request.headers.get("referer") || "/";
@@ -29,7 +41,7 @@ router.get("/lang/:code", async (ctx) => {
   const cookieOpts = {
     httpOnly: false,
     sameSite: "Lax" as const,
-    secure: true,
+    secure: isSecure(ctx), // חשוב: לא לכפות secure ב-HTTP בפיתוח
     path: "/",
     maxAge: 60 * 60 * 24 * 180, // 180 ימים
   };
