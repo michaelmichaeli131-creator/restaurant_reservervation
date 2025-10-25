@@ -12,72 +12,103 @@ const IS_PROD = NODE_ENV === "production";
 
 /** Cache בזיכרון (פר־שפה ועמוד) */
 const cache = new Map<string, Record<string, unknown>>();
+
+/** בניית מפתח cache */
 function cacheKey(locale: Locale, page?: string) {
   return `${locale}::${page || "-"}`;
 }
 
-/* ---------- נתיבי קבצים ---------- */
-function filePath(rel: string) {
-  try { return new URL(rel, import.meta.url).pathname; }
-  catch { return rel.replace(/^\.\.\//, "./"); }
-}
-
-/** נתיב לקובץ מילון כללי: i18n/<locale>.json */
+/** נתיב לקובץ מילון כללי */
 function baseDictPath(locale: Locale): string {
-  return filePath(`../i18n/${locale}.json`);
-}
-
-/** מועמדים לקובץ מילון עמוד */
-function pageDictCandidates(page: string, locale: Locale): string[] {
-  return [
-    filePath(`../i18n/${page}.${locale}.json`),   // A: i18n/home.he.json
-    filePath(`../i18n/${locale}/${page}.json`),   // B: i18n/he/home.json
-    filePath(`../i18n/${page}/${locale}.json`),   // C: i18n/home/he.json
-  ];
-}
-
-/* ---------- I/O ---------- */
-async function tryReadJson(path: string): Promise<Record<string, unknown> | null> {
   try {
-    const txt = await Deno.readTextFile(path);
-    return JSON.parse(txt) as Record<string, unknown>;
+    return new URL(`../i18n/${locale}.json`, import.meta.url).pathname;
   } catch {
-    return null;
+    return `./i18n/${locale}.json`;
   }
 }
 
-/* ---------- Merge helpers ---------- */
-/** מיזוג עומק ללא דריסה (לא מחליף ערכים קיימים; רק משלים חסרים) */
-function deepMergeNoOverwrite<T extends Record<string, unknown>>(base: T, extra: Record<string, unknown>): T {
-  for (const [k, v] of Object.entries(extra)) {
-    const bv = base[k];
-    if (
-      v && typeof v === "object" && !Array.isArray(v) &&
-      bv && typeof bv === "object" && !Array.isArray(bv)
-    ) {
-      // @ts-ignore - two objects
-      base[k] = deepMergeNoOverwrite(bv as Record<string, unknown>, v as Record<string, unknown>);
-    } else if (bv === undefined) {
-      // @ts-ignore - fill only if missing
-      base[k] = v;
+/** נתיב לקובץ מילון עמוד: i18n/pages/<page>.<locale>.json  ← (תיקון חשוב) */
+function pageDictPath(page: string, locale: Locale): string {
+  try {
+    return new URL(`../i18n/pages/${page}.${locale}.json`, import.meta.url).pathname; // ✅ כולל pages/
+  } catch {
+    return `./i18n/pages/${page}.${locale}.json`; // ✅ fallback עם pages/
+  }
+}
+
+/** shallow merge ללא דריסה: מוסיף מפתחות שחסרים בלבד */
+function mergeNoOverwrite<T extends Record<string, unknown>>(base: T, extra: Record<string, unknown>): T {
+  for (const k of Object.keys(extra)) {
+    if (base[k] === undefined) {
+      // @ts-ignore
+      base[k] = extra[k];
     }
-    // אם יש כבר ערך ב-base – לא נוגעים (אין דריסה)
   }
   return base;
 }
 
-/* ---------- Utils ---------- */
-function getPath(obj: any, path: string, fallback?: string) {
-  const v = path.split(".").reduce((o, k) => (o ? o[k] : undefined), obj);
-  return v ?? fallback ?? `(${path})`;
+/** קריאת מילון: בסיסי + ייעודי לעמוד, עם cache בפרודקשן */
+async function loadDict(locale: Locale, page?: string): Promise<Record<string, unknown>> {
+  const ckey = cacheKey(locale, page);
+  if (IS_PROD && cache.has(ckey)) return cache.get(ckey)!;
+
+  // --- בסיסי ---
+  let baseDict: Record<string, unknown> = {};
+  const basePath = baseDictPath(locale);
+  try {
+    const txt = await Deno.readTextFile(basePath);
+    baseDict = JSON.parse(txt) as Record<string, unknown>;
+  } catch (err) {
+    console.warn(`[i18n] failed to load base dict ${basePath} →`, err);
+    if (locale !== DEFAULT) {
+      // fallback לבסיס בעברית
+      try {
+        const fbTxt = await Deno.readTextFile(baseDictPath(DEFAULT));
+        baseDict = JSON.parse(fbTxt) as Record<string, unknown>;
+      } catch {
+        baseDict = {};
+      }
+    }
+  }
+
+  // --- עמוד (אופציונלי) ---
+  let pageDict: Record<string, unknown> = {};
+  if (page) {
+    const pPath = pageDictPath(page, locale);
+    try {
+      const pTxt = await Deno.readTextFile(pPath);
+      pageDict = JSON.parse(pTxt) as Record<string, unknown>;
+    } catch {
+      // אין מילון לעמוד – ממשיכים בלי להפיל.
+      // console.info(`[i18n] no page dict for ${pPath}`);
+    }
+
+    // לא לדרוס את המילון הכללי:
+    mergeNoOverwrite(baseDict, pageDict);
+
+    // זמינות גם תחת t('page.*') אם תרצה שימוש מפורש
+    (baseDict as any).page = pageDict;
+  }
+
+  if (IS_PROD) cache.set(ckey, baseDict);
+  return baseDict;
 }
+
+function getPath(obj: any, path: string, fallback?: string) {
+  return path.split(".").reduce((o, k) => (o ? o[k] : undefined), obj) ?? fallback ?? `(${path})`;
+}
+
 function interpolate(s: string, vars?: Record<string, unknown>) {
   return !vars ? s : s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? `{${k}}`));
 }
+
+/** נירמול קוד שפה ל־SUPPORTED */
 function norm(code?: string | null): Locale {
   const c = (code || "").toLowerCase().slice(0, 2);
   return (SUPPORTED as readonly string[]).includes(c) ? (c as Locale) : DEFAULT;
 }
+
+/** Accept-Language בסיסי */
 function fromAcceptLanguage(header: string | null): Locale | undefined {
   if (!header) return undefined;
   const raw = header.toLowerCase();
@@ -86,18 +117,30 @@ function fromAcceptLanguage(header: string | null): Locale | undefined {
   if (raw.includes("ka")) return "ka";
   return undefined;
 }
+
+// זיהוי אם הבקשה מאובטחת (HTTPS/מאחורי פרוקסי)
 function isSecure(ctx: Context): boolean {
-  // @ts-ignore - Oak לפעמים לא מקליד secure
+  // @ts-ignore oak עשוי לא להקליד secure
   if ((ctx.request as any).secure) return true;
   const xf = ctx.request.headers.get("x-forwarded-proto");
   if (xf && xf.toLowerCase() === "https") return true;
-  try { return ctx.request.url.protocol === "https:"; } catch { return false; }
+  try {
+    return ctx.request.url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 /** שמירת שפה ב־cookie (גם lang וגם sb_lang) עם Fallback */
 async function persistLangCookie(ctx: Context, lang: Locale) {
-  const base = { httpOnly: false, sameSite: "Lax" as const, path: "/", maxAge: 60 * 60 * 24 * 180 };
+  const base = {
+    httpOnly: false,
+    sameSite: "Lax" as const,
+    path: "/",
+    maxAge: 60 * 60 * 24 * 180, // 180 ימים
+  };
   const firstTry = { ...base, secure: isSecure(ctx) };
+
   try {
     await ctx.cookies.set("lang", lang, firstTry);
     await ctx.cookies.set("sb_lang", lang, firstTry);
@@ -113,20 +156,26 @@ async function persistLangCookie(ctx: Context, lang: Locale) {
   }
 }
 
-/** ניסיון קריאת/כתיבת שפה מה־session אם קיים */
+/** ניסיון קריאת שפה מה־session אם קיים */
 async function getLangFromSession(ctx: Context): Promise<string | null> {
   try {
     // deno-lint-ignore no-explicit-any
     const session = (ctx.state as any)?.session;
     return session ? await session.get("lang") : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
+
+/** כתיבה ל־session (לא חובה אם אין session) */
 async function setLangToSession(ctx: Context, lang: Locale) {
   try {
     // deno-lint-ignore no-explicit-any
     const session = (ctx.state as any)?.session;
     await session?.set("lang", lang);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 /** מיפוי URL → שם עמוד לטעינת מילון ייעודי */
@@ -142,69 +191,36 @@ function pageFromPath(pathname: string, hinted?: string): string {
   return "common";
 }
 
-/* ---------- טעינת מילון עם Fallbacks חכמים ---------- */
-async function loadDict(locale: Locale, page?: string): Promise<Record<string, unknown>> {
-  const ckey = cacheKey(locale, page);
-  if (IS_PROD && cache.has(ckey)) return cache.get(ckey)!;
-
-  // 1) בסיס (שפה נוכחית; אם אין – ברירת־מחדל)
-  let baseDict = await tryReadJson(baseDictPath(locale)) ?? {};
-  if (!Object.keys(baseDict).length && locale !== DEFAULT) {
-    const fb = await tryReadJson(baseDictPath(DEFAULT));
-    if (fb) baseDict = fb;
-  }
-
-  // 2) עמוד (שפה נוכחית → אם חסר אז ברירת־מחדל), ו-Merge ללא דריסה
-  let pageDict: Record<string, unknown> = {};
-  if (page) {
-    // נסה מועמדים בשפה הנוכחית
-    for (const p of pageDictCandidates(page, locale)) {
-      const data = await tryReadJson(p);
-      if (data) { pageDict = data; break; }
-    }
-    // אם לא נמצא, נסה את ברירת־המחדל
-    if (!Object.keys(pageDict).length && locale !== DEFAULT) {
-      for (const p of pageDictCandidates(page, DEFAULT)) {
-        const data = await tryReadJson(p);
-        if (data) { pageDict = data; break; }
-      }
-    }
-
-    // מיזוג עומק *ללא דריסה* לתוך הבסיס
-    baseDict = deepMergeNoOverwrite(baseDict, pageDict);
-    // וגם זמינות כ- t('page.*')
-    (baseDict as any).page = pageDict;
-  }
-
-  if (IS_PROD) cache.set(ckey, baseDict);
-  return baseDict;
-}
-
-/* ---------- ה־middleware הראשי ---------- */
+/** ה־middleware הראשי */
 export const i18n: Middleware = async (ctx, next) => {
   // קדימות: ?lang= → cookie (lang/sb_lang) → session → Accept-Language → DEFAULT
   const q = ctx.request.url.searchParams.get("lang") || "";
 
   let lang: Locale | undefined;
-  if (q) lang = norm(q);
-  else {
+
+  if (q) {
+    lang = norm(q);
+  } else {
     const fromCookie = (await ctx.cookies.get("lang")) ?? (await ctx.cookies.get("sb_lang"));
     if (fromCookie) lang = norm(fromCookie);
   }
+
   if (!lang) {
     const fromSess = await getLangFromSession(ctx);
     if (fromSess) lang = norm(fromSess);
   }
+
   if (!lang) {
     const fromAL = fromAcceptLanguage(ctx.request.headers.get("accept-language"));
     lang = fromAL ?? DEFAULT;
   }
 
-  // שם עמוד (אפשר גם לרמוז ידנית לפני ה־i18n: ctx.state.page = 'home')
+  // זיהוי שם עמוד (אפשר גם לרמוז ידנית לפני ה־i18n: ctx.state.page = 'home' למשל)
   // deno-lint-ignore no-explicit-any
   const hintedPage = (ctx.state as any)?.page as string | undefined;
   const page = pageFromPath(ctx.request.url.pathname, hintedPage);
 
+  // טען מילון: בסיסי + ייעודי לעמוד (ללא דריסה, וזמין גם תחת t.page)
   const dict = await loadDict(lang, page);
 
   // הזרקה ל־state
@@ -215,7 +231,6 @@ export const i18n: Middleware = async (ctx, next) => {
   // deno-lint-ignore no-explicit-any
   (ctx.state as any).t = (key: string, vars?: Record<string, unknown>) => {
     const raw = getPath(dict, key, `(${key})`);
-    if (raw === `(${key})`) console.warn(`[i18n] missing key: ${key} (page=${page}, lang=${lang})`);
     return typeof raw === "string" ? interpolate(raw, vars) : String(raw);
   };
 
@@ -224,6 +239,7 @@ export const i18n: Middleware = async (ctx, next) => {
     await persistLangCookie(ctx, lang);
     await setLangToSession(ctx, lang);
   } else {
+    // אם אין cookie בכלל — נבצע ייצוב (שימושי בפעם הראשונה)
     const hasCookie = (await ctx.cookies.get("lang")) ?? (await ctx.cookies.get("sb_lang"));
     if (!hasCookie) await persistLangCookie(ctx, lang);
   }
