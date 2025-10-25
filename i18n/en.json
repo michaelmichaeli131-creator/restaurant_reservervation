@@ -1,10 +1,10 @@
 {
   "nav": {
-    "admin": "Admin",
     "manage": "Manage restaurant",
-    "login": "Sign in",
-    "logout": "Sign out",
-    "register": "Register",
+    "logout": "Logout",
+    "signedin": "Signed in",
+    "login": "Log in",
+    "register": "Sign up",
     "language": "Language",
     "he": "Hebrew",
     "en": "English",

@@ -1,11 +1,11 @@
 {
   "nav": {
-    "admin": "ניהול",
     "manage": "נהל מסעדה",
-    "login": "התחברות",
-    "logout": "התנתקות",
-    "register": "הרשמה",
-    "language": "שפה",
+    "logout": "התנתק",
+    "signedin": "מחובר/ת",
+    "login": "התחבר",
+    "register": "הרשם",
+    "language": "בחר שפה",
     "he": "עברית",
     "en": "English",
     "ka": "ქართული"

@@ -90,7 +90,7 @@
 
       <% if (it.user) { %>
       <div class="user-mobile">
-        <%= it.t ? it.t('nav.signedin') : 'מחובר/ת:' %>
+        <%= it.t ? it.t('nav.signedin') : 'מחובר/ת' %>:
         <strong><%= [it.user.firstName, it.user.lastName].filter(Boolean).join(" ") %></strong>
       </div>
       <% } %>
@@ -98,10 +98,10 @@
       <nav class="sb-actions" aria-label="Main actions">
         <% if (it.user) { %>
           <a class="btn primary btn-manage" href="/owner"><%= it.t ? it.t('nav.manage') : 'נהל מסעדה' %></a>
-          <a class="btn ghost btn-logout" href="/auth/logout"><%= it.t ? it.t('nav.logout') : 'התנתקות' %></a>
+          <a class="btn ghost btn-logout" href="/auth/logout"><%= it.t ? it.t('nav.logout') : 'התנתק' %></a>
         <% } else { %>
-          <a class="btn ghost" href="/auth/login"><%= it.t ? it.t('nav.login') : 'התחברות' %></a>
-          <a class="btn" style="border-color:transparent;background:var(--brand);color:var(--brand-ink)" href="/auth/register"><%= it.t ? it.t('nav.register') : 'הרשמה' %></a>
+          <a class="btn ghost" href="/auth/login"><%= it.t ? it.t('nav.login') : 'התחבר' %></a>
+          <a class="btn" style="border-color:transparent;background:var(--brand);color:var(--brand-ink)" href="/auth/register"><%= it.t ? it.t('nav.register') : 'הרשם' %></a>
         <% } %>
 
         <!-- Language switch -->
@@ -123,9 +123,9 @@
 
   <footer class="sb-footer">
     <div class="admin-bottom-right">
-      <a href="/admin/login"><%= it.t ? it.t('nav.admin') : 'Admin' %></a>
+      <a href="/admin/login"><%= it.t ? (it.t('nav.admin') || 'Admin') : 'Admin' %></a>
     </div>
-    <p>© <%= new Date().getFullYear() %> SpotBook · <%= it.t ? it.t('footer.rights') : 'כל הזכויות שמורות' %></p>
+    <p>© <%= new Date().getFullYear() %> SpotBook · <%= it.t ? (it.t('footer.rights') || 'כל הזכויות שמורות') : 'כל הזכויות שמורות' %></p>
   </footer>
 
   <script src="/static/app.js?v=<%= it.BUILD_TAG || '' %>" defer></script>
