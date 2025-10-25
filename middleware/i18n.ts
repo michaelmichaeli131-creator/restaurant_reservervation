@@ -15,11 +15,9 @@ const cache = new Map<Locale, Record<string, unknown>>();
 
 /** נתיב תיקיית המילונים (עמיד יחסית לפריסה ול־CWD) */
 function dictPath(locale: Locale): string {
-  // קודם כל נסה יחסית לקובץ הזה
   try {
     return new URL(`../i18n/${locale}.json`, import.meta.url).pathname;
   } catch {
-    // fallback ל־CWD
     return `./i18n/${locale}.json`;
   }
 }
@@ -35,7 +33,6 @@ async function loadDict(locale: Locale): Promise<Record<string, unknown>> {
     return dict;
   } catch (err) {
     console.warn(`[i18n] failed to load ${path} →`, err);
-    // נפילה לברירת מחדל אם זה לא הוא עצמו
     if (locale !== DEFAULT) {
       try {
         const fallbackTxt = await Deno.readTextFile(dictPath(DEFAULT));
@@ -43,7 +40,6 @@ async function loadDict(locale: Locale): Promise<Record<string, unknown>> {
         if (IS_PROD) cache.set(DEFAULT, fallback);
         return fallback;
       } catch {
-        // לבסוף – מילון ריק
         return {};
       }
     }
@@ -65,12 +61,10 @@ function norm(code?: string | null): Locale {
   return (SUPPORTED as readonly string[]).includes(c) ? (c as Locale) : DEFAULT;
 }
 
-/** פענוח Accept-Language בסיסי (בחירת שפה מועדפת הנתמכת אצלנו) */
+/** פענוח Accept-Language בסיסי */
 function fromAcceptLanguage(header: string | null): Locale | undefined {
   if (!header) return undefined;
   const raw = header.toLowerCase();
-
-  // ניקח עדיפויות פשוטות: אם יש he → he; אם יש en → en; אם יש ka → ka.
   if (raw.includes("he")) return "he";
   if (raw.includes("en")) return "en";
   if (raw.includes("ka")) return "ka";
@@ -79,7 +73,6 @@ function fromAcceptLanguage(header: string | null): Locale | undefined {
 
 // helper לקבוע אם הבקשה מאובטחת (HTTPS/מאחורי פרוקסי)
 function isSecure(ctx: Context): boolean {
-  // oak לעיתים מגדיר secure, ובפרוקסי נבדוק x-forwarded-proto
   // @ts-ignore - oak עשוי לא להקליד secure
   if ((ctx.request as any).secure) return true;
   const xf = ctx.request.headers.get("x-forwarded-proto");
@@ -91,17 +84,31 @@ function isSecure(ctx: Context): boolean {
   }
 }
 
-/** שמירת שפה ב־cookie (גם lang וגם sb_lang לתאימות) */
+/** שמירת שפה ב־cookie (גם lang וגם sb_lang) עם Fallback */
 async function persistLangCookie(ctx: Context, lang: Locale) {
-  const cookieOpts = {
+  const base = {
     httpOnly: false,
     sameSite: "Lax" as const,
-    secure: isSecure(ctx), // ← במקום true קשיח
     path: "/",
     maxAge: 60 * 60 * 24 * 180, // 180 ימים
   };
-  await ctx.cookies.set("lang", lang, cookieOpts);
-  await ctx.cookies.set("sb_lang", lang, cookieOpts);
+  const firstTry = { ...base, secure: isSecure(ctx) };
+
+  try {
+    await ctx.cookies.set("lang", lang, firstTry);
+    await ctx.cookies.set("sb_lang", lang, firstTry);
+  } catch (err) {
+    // אם נכשל עקב חיבור לא מוצפן, נסה מחדש עם secure:false
+    try {
+      const secondTry = { ...base, secure: false };
+      await ctx.cookies.set("lang", lang, secondTry);
+      await ctx.cookies.set("sb_lang", lang, secondTry);
+      console.warn("[i18n] secure cookie failed over HTTP, retried with secure:false");
+    } catch (err2) {
+      console.error("[i18n] failed to set cookies even after fallback:", err2);
+      // לא מפילים את הבקשה — ממשיכים
+    }
+  }
 }
 
 /** ניסיון קריאת שפה מה־session אם קיים */
@@ -156,7 +163,6 @@ export const i18n: Middleware = async (ctx, next) => {
   // הזרקה ל־state
   // deno-lint-ignore no-explicit-any
   (ctx.state as any).lang = lang;
-  // אפשר לאפשר override עתידי של dir דרך state, אחרת מחושב מהשפה
   // deno-lint-ignore no-explicit-any
   (ctx.state as any).dir = (ctx.state as any).dir ?? DIR[lang];
   // deno-lint-ignore no-explicit-any
