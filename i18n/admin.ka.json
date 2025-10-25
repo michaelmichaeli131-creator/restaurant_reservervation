@@ -1,0 +1,27 @@
+{
+  "kpi": {
+    "restaurantsTotal": "რესტორნები — სულ",
+    "approved": "დამტკიცებული",
+    "pending": "მოლოდინში",
+    "users": "მომხმარებლები",
+    "readyHint": "საიტზე გამოსაჩენად მზადაა",
+    "ownersAndDiners": "მფლობელები + მსგემელი"
+  },
+  "links": {
+    "restaurantsList": "რესტრონების სია",
+    "approveNow": "დამტკიცება ახლა",
+    "ownerCalendar": "მფლობელის კალენდარი",
+    "view": "ნახვა",
+    "goHome": "მთავარ გვერდზე",
+    "manageRestaurants": "რესტორნების მართვა",
+    "approvePending": "მოლოდინის რესტორნების დამტკიცება"
+  },
+  "quickActions": {
+    "title": "სწრაფი ქმედებები"
+  },
+  "latest": {
+    "title": "ახლახან დამატებული",
+    "approved": "დამტკიცებული",
+    "pending": "მოლოდინში"
+  }
+}

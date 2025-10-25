@@ -1,0 +1,15 @@
+{
+  "heroTitle": "დაჯავშნეთ მაგიდა რესტორანში",
+  "heroSub": "წამებში დაჯავშნეთ ონლაინ",
+  "placeholder": "ძებნა — რესტორანი / ქალაქი / სამზარეულო",
+  "search": "ძებნა",
+  "resultsTitle": "შედეგები",
+  "noResults": "შედეგები ვერ მოიძებნა.",
+  "recommendedTitle": "რეკომენდებული რესტორნები",
+  "carouselPrev": "წინა",
+  "carouselNext": "შემდეგი",
+  "pendingBadge": "მოსანიჭებელია",
+  "ariaSearch": "რესტორნების ძებნა",
+  "ariaSearchPlaceholder": "მოძებნეთ რესტორანი, ქალაქი ან სამზარეულო",
+  "ariaOpenRestaurant": "გახსნა {name}"
+}

@@ -1,0 +1,15 @@
+{
+  "heroTitle": "הזמנת שולחן במסעדה",
+  "heroSub": "הזמן שולחן בקלות ובמהירות אונליין",
+  "placeholder": "חפש מסעדה / עיר / סוג מטבח",
+  "search": "חיפוש",
+  "resultsTitle": "תוצאות",
+  "noResults": "לא נמצאו תוצאות.",
+  "recommendedTitle": "מסעדות מומלצות",
+  "carouselPrev": "הצג קודמות",
+  "carouselNext": "הצג הבאות",
+  "pendingBadge": "ממתינה לאישור",
+  "ariaSearch": "חיפוש מסעדות",
+  "ariaSearchPlaceholder": "חפש מסעדה, עיר או סוג מטבח",
+  "ariaOpenRestaurant": "פתח {name}"
+}

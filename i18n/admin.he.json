@@ -1,0 +1,27 @@
+{
+  "kpi": {
+    "restaurantsTotal": "מסעדות — סה\"כ",
+    "approved": "מאושרות",
+    "pending": "ממתינות לאישור",
+    "users": "משתמשים",
+    "readyHint": "מוכנות להצגה באתר",
+    "ownersAndDiners": "בעלים + סועדים"
+  },
+  "links": {
+    "restaurantsList": "לרשימת המסעדות",
+    "approveNow": "לאשר עכשיו",
+    "ownerCalendar": "לוח בעלים",
+    "view": "צפייה",
+    "goHome": "לדף הראשי",
+    "manageRestaurants": "ניהול מסעדות",
+    "approvePending": "אשר מסעדות ממתינות"
+  },
+  "quickActions": {
+    "title": "פעולות מהירות"
+  },
+  "latest": {
+    "title": "נוספו לאחרונה",
+    "approved": "מאושרת",
+    "pending": "ממתינה"
+  }
+}

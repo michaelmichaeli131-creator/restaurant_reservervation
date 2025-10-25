@@ -1,0 +1,27 @@
+{
+  "kpi": {
+    "restaurantsTotal": "Restaurants — Total",
+    "approved": "Approved",
+    "pending": "Pending",
+    "users": "Users",
+    "readyHint": "Ready to appear on site",
+    "ownersAndDiners": "Owners + Diners"
+  },
+  "links": {
+    "restaurantsList": "View all restaurants",
+    "approveNow": "Approve now",
+    "ownerCalendar": "Owner calendar",
+    "view": "View",
+    "goHome": "Go to homepage",
+    "manageRestaurants": "Manage restaurants",
+    "approvePending": "Approve pending restaurants"
+  },
+  "quickActions": {
+    "title": "Quick Actions"
+  },
+  "latest": {
+    "title": "Recently Added",
+    "approved": "Approved",
+    "pending": "Pending"
+  }
+}

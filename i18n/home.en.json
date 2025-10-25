@@ -1,0 +1,15 @@
+{
+  "heroTitle": "Reserve a Table at a Restaurant",
+  "heroSub": "Book a table easily and quickly online",
+  "placeholder": "Search restaurant / city / cuisine",
+  "search": "Search",
+  "resultsTitle": "Results",
+  "noResults": "No results found.",
+  "recommendedTitle": "Recommended Restaurants",
+  "carouselPrev": "Show previous",
+  "carouselNext": "Show next",
+  "pendingBadge": "Pending approval",
+  "ariaSearch": "Search restaurants",
+  "ariaSearchPlaceholder": "Search a restaurant, city or cuisine",
+  "ariaOpenRestaurant": "Open {name}"
+}
