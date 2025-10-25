@@ -1,13 +1,14 @@
 {
   "nav": {
-    "manage": "Manage restaurant",
+    "manage": "Manage Restaurant",
     "logout": "Logout",
     "signedin": "Signed in",
-    "login": "Log in",
-    "register": "Sign up",
-    "language": "Language",
-    "he": "Hebrew",
-    "en": "English",
-    "ka": "Georgian"
+    "login": "Login",
+    "register": "Register",
+    "admin": "Admin",
+    "language": "Choose language"
+  },
+  "footer": {
+    "rights": "All rights reserved"
   }
 }
