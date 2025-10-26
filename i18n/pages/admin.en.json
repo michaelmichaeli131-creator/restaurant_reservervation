@@ -81,3 +81,22 @@
     }
   }
 }
+{
+  "admin": {
+    "reset": {
+      "title": "Admin Actions (Reset)",
+      "btn": {
+        "restaurants": "Reset all restaurants",
+        "reservations": "Reset all reservations",
+        "users": "Reset all users",
+        "all": "Reset everything"
+      },
+      "more_tools": "More tools…"
+    },
+    "tabs": {
+      "restaurants": "Restaurants",
+      "users": "Users",
+      "tools": "Tools"
+    }
+  }
+}
