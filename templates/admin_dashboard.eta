@@ -1,59 +1,78 @@
 <% layout("_layout", it) %>
 
+<!-- ===== Admin local header (logo + language switch) ===== -->
+<section class="admin-localbar">
+  <div class="admin-localbar-inner">
+    <a class="brand mini" href="/" aria-label="SpotBook">
+      <img class="brand-logo-mini" src="/public/img/logo-spotbook.png" alt="SpotBook Logo"/>
+      <span class="brand-text-mini">SpotBook</span>
+    </a>
+
+    <div class="lang-switch">
+      <button class="lang-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="langMenuAdmin" title="<%= it.t ? it.t('nav.language') : 'Choose language' %>"></button>
+      <div class="lang-menu" id="langMenuAdmin" role="menu">
+        <a class="lang-item <%= (it.lang==='en'?'active':'') %>" href="/lang/en" role="menuitem">EN</a>
+        <a class="lang-item <%= (it.lang==='ka'?'active':'') %>" href="/lang/ka" role="menuitem">GE</a>
+        <a class="lang-item <%= (it.lang==='he'?'active':'') %>" href="/lang/he" role="menuitem">HE</a>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="dash">
   <div class="grid">
     <article class="kpi">
-      <div class="kpi-hd">מסעדות — סה"כ</div>
+      <div class="kpi-hd"><%= (it.t && it.t('admin.kpi.restaurants_total')) || 'מסעדות — סה\"כ' %></div>
       <div class="kpi-val"><%= (it.metrics && it.metrics.restaurants_total) || it.restaurantsTotal || 0 %></div>
-      <div class="kpi-ft"><a href="/admin/restaurants">לרשימת המסעדות</a></div>
+      <div class="kpi-ft"><a href="/admin/restaurants"><%= (it.t && it.t('admin.links.restaurants_list')) || 'לרשימת המסעדות' %></a></div>
     </article>
 
     <article class="kpi">
-      <div class="kpi-hd">מאושרות</div>
+      <div class="kpi-hd"><%= (it.t && it.t('admin.kpi.approved')) || 'מאושרות' %></div>
       <div class="kpi-val ok"><%= (it.metrics && it.metrics.restaurants_approved) || it.approvedCount || 0 %></div>
-      <div class="kpi-ft hint">מוכנות להצגה באתר</div>
+      <div class="kpi-ft hint"><%= (it.t && it.t('admin.hints.approved_ready')) || 'מוכנות להצגה באתר' %></div>
     </article>
 
     <article class="kpi">
-      <div class="kpi-hd">ממתינות לאישור</div>
+      <div class="kpi-hd"><%= (it.t && it.t('admin.kpi.pending')) || 'ממתינות לאישור' %></div>
       <div class="kpi-val warn"><%= (it.metrics && it.metrics.restaurants_pending) || it.pendingCount || 0 %></div>
-      <div class="kpi-ft"><a href="/admin/restaurants?status=pending">לאשר עכשיו</a></div>
+      <div class="kpi-ft"><a href="/admin/restaurants?status=pending"><%= (it.t && it.t('admin.links.approve_now')) || 'לאשר עכשיו' %></a></div>
     </article>
 
     <article class="kpi">
-      <div class="kpi-hd">משתמשים</div>
+      <div class="kpi-hd"><%= (it.t && it.t('admin.kpi.users')) || 'משתמשים' %></div>
       <div class="kpi-val"><%= (it.metrics && it.metrics.users_total) || it.usersTotal || 0 %></div>
-      <div class="kpi-ft hint">בעלים + סועדים</div>
+      <div class="kpi-ft hint"><%= (it.t && it.t('admin.hints.users_types')) || 'בעלים + סועדים' %></div>
     </article>
   </div>
 
   <div class="panel">
     <div class="panel-hd">
-      <h2>פעולות מהירות</h2>
+      <h2><%= (it.t && it.t('admin.quick_actions.title')) || 'פעולות מהירות' %></h2>
     </div>
     <div class="panel-bd quick">
-      <a class="btn" href="/admin/restaurants?status=pending">אשר מסעדות ממתינות</a>
-      <a class="btn secondary" href="/admin/restaurants">ניהול מסעדות</a>
-      <a class="btn secondary" href="/">לדף הראשי</a>
+      <a class="btn" href="/admin/restaurants?status=pending"><%= (it.t && it.t('admin.quick_actions.approve_pending')) || 'אשר מסעדות ממתינות' %></a>
+      <a class="btn secondary" href="/admin/restaurants"><%= (it.t && it.t('admin.quick_actions.manage_restaurants')) || 'ניהול מסעדות' %></a>
+      <a class="btn secondary" href="/"><%= (it.t && it.t('admin.quick_actions.back_home')) || 'לדף הראשי' %></a>
     </div>
   </div>
 
   <% if (it.latest && it.latest.restaurants && it.latest.restaurants.length) { %>
   <div class="panel">
-    <div class="panel-hd"><h2>נוספו לאחרונה</h2></div>
+    <div class="panel-hd"><h2><%= (it.t && it.t('admin.latest.title')) || 'נוספו לאחרונה' %></h2></div>
     <div class="panel-bd">
       <ul class="recent">
         <% it.latest.restaurants.forEach(r => { %>
           <li>
             <div class="title"><%= r.name %></div>
             <div class="meta">
-              <span class="badge <%= r.approved ? 'good' : 'pending' %>"><%= r.approved ? 'מאושרת' : 'ממתינה' %></span>
+              <span class="badge <%= r.approved ? 'good' : 'pending' %>"><%= r.approved ? ((it.t && it.t('admin.badges.approved')) || 'מאושרת') : ((it.t && it.t('admin.badges.pending')) || 'ממתינה') %></span>
               <span><%= r.city || '-' %></span>
               <span class="dim"><%= r.createdAt || '' %></span>
             </div>
             <div class="actions">
-              <a href="/restaurants/<%= r.id %>">צפייה</a>
-              <a href="/owner/calendar?rid=<%= r.id %>">לוח בעלים</a>
+              <a href="/restaurants/<%= r.id %>"><%= (it.t && it.t('admin.actions.view')) || 'צפייה' %></a>
+              <a href="/owner/calendar?rid=<%= r.id %>"><%= (it.t && it.t('admin.actions.owner_calendar')) || 'לוח בעלים' %></a>
             </div>
           </li>
         <% }) %>
@@ -65,16 +84,16 @@
 
 <style>
   :root{--bd:#222834;--panel:#12151b;--panel2:#161a21;--ink:#e6e9ef;--ink-dim:#98a2b3;--ok:#22c55e;--warn:#fbbf24}
-  .dash{width:100%;max-width:1100px;margin:0 auto;display:grid;gap:14px}               /* ↓ קומפקט */
-  .grid{display:grid;gap:10px;grid-template-columns:repeat(4,1fr)}                      /* ↓ קומפקט */
+  .dash{width:100%;max-width:1100px;margin:0 auto;display:grid;gap:14px}
+  .grid{display:grid;gap:10px;grid-template-columns:repeat(4,1fr)}
 
   .kpi{
     background:linear-gradient(180deg, rgba(22,26,33,.9), rgba(16,19,25,.9));
-    border:1px solid var(--bd);border-radius:14px;padding:12px;                         /* ↓ padding/radius */
-    box-shadow:0 6px 22px rgba(0,0,0,.22);                                              /* ↓ shadow */
+    border:1px solid var(--bd);border-radius:14px;padding:12px;
+    box-shadow:0 6px 22px rgba(0,0,0,.22);
   }
   .kpi-hd{font-size:12px;color:var(--ink-dim)}
-  .kpi-val{font-size:24px;font-weight:800;margin:4px 0 2px}                             /* ↓ font-size/margins */
+  .kpi-val{font-size:24px;font-weight:800;margin:4px 0 2px}
   .kpi-val.ok{color:var(--ok)}
   .kpi-val.warn{color:var(--warn)}
   .kpi-ft{font-size:12px;color:var(--ink-dim)}
@@ -83,31 +102,103 @@
     background:linear-gradient(180deg, rgba(22,26,33,.85), rgba(18,21,27,.92));
     border:1px solid var(--bd);border-radius:14px;overflow:hidden
   }
-  .panel-hd{padding:10px 12px;border-bottom:1px solid var(--bd)}                        /* ↓ padding */
-  .panel-hd h2{margin:0;font-size:15px}                                                 /* ↓ font */
-  .panel-bd{padding:12px}                                                                /* ↓ padding */
-  .quick{display:flex;flex-wrap:wrap;gap:8px}                                           /* ↓ gap */
+  .panel-hd{padding:10px 12px;border-bottom:1px solid var(--bd)}
+  .panel-hd h2{margin:0;font-size:15px}
+  .panel-bd{padding:12px}
+  .quick{display:flex;flex-wrap:wrap;gap:8px}
 
   .btn{
-    display:inline-flex;align-items:center;gap:6px;padding:7px 10px;                    /* ↓ padding/gap */
+    display:inline-flex;align-items:center;gap:6px;padding:7px 10px;
     border-radius:10px;border:1px solid #2a3040;background:transparent;color:var(--ink);
     font-weight:600
   }
   .btn:hover{transform:translateY(-1px)}
   .btn.secondary{opacity:.9}
 
-  .recent{list-style:none;margin:0;padding:0;display:grid;gap:6px}                      /* ↓ gap */
+  .recent{list-style:none;margin:0;padding:0;display:grid;gap:6px}
   .recent li{
     display:flex;align-items:center;gap:10px;justify-content:space-between;
-    padding:8px 10px;border:1px solid var(--bd);border-radius:10px;background:var(--panel2) /* ↓ padd/radius */
+    padding:8px 10px;border:1px solid var(--bd);border-radius:10px;background:var(--panel2)
   }
   .recent .title{font-weight:700}
-  .recent .meta{display:flex;gap:8px;align-items:center;color:var(--ink-dim);font-size:12px} /* ↓ gap */
+  .recent .meta{display:flex;gap:8px;align-items:center;color:var(--ink-dim);font-size:12px}
   .dim{opacity:.7}
-  .badge{padding:3px 6px;border-radius:999px;font-size:11px;border:1px solid #334155}   /* ↓ badge */
+  .badge{padding:3px 6px;border-radius:999px;font-size:11px;border:1px solid #334155}
   .badge.good{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.35)}
   .badge.pending{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.35)}
 
   @media (max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:520px){.grid{grid-template-columns:1fr}}
+
+  /* --- Local admin header --- */
+  .admin-localbar{margin:8px 0 12px}
+  .admin-localbar-inner{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:12px; padding:8px 12px;
+    background:linear-gradient(180deg, rgba(22,26,33,.85), rgba(18,21,27,.92));
+    border:1px solid var(--bd); border-radius:14px;
+  }
+  .brand.mini{display:inline-flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink)}
+  .brand-logo-mini{height:36px;width:auto;display:block}
+  .brand-text-mini{font-weight:800;letter-spacing:.2px}
+
+  /* Reuse same minimal lang switch styles (match layout) */
+  .lang-switch { position: relative; display:inline-block; }
+  .lang-btn {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:36px; height:36px; border-radius:999px;
+    border:1px solid rgba(255,255,255,.12);
+    background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+    cursor:pointer;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.25);
+    transition: background .15s ease, transform .15s ease;
+  }
+  .lang-btn:hover { background:rgba(255,255,255,.1); transform:translateY(-1px); }
+  .lang-btn::before{ content:"🌐"; font-size:18px; line-height:1; }
+
+  .lang-menu {
+    position:absolute; top:110%; inset-inline-end:0;
+    background: rgba(15,23,42,.85);
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:10px; padding:4px;
+    box-shadow:0 6px 20px rgba(0,0,0,.35);
+    backdrop-filter: blur(10px);
+    z-index:60; min-width:90px;
+    opacity:0; transform:translateY(-5px) scale(.97);
+    pointer-events:none;
+    transition:opacity .15s ease, transform .15s ease;
+  }
+  .lang-menu.open { opacity:1; transform:translateY(0) scale(1); pointer-events:auto; }
+
+  .lang-item {
+    display:block; text-align:center;
+    color:#e2e8f0; padding:6px 0;
+    border-radius:6px;
+    text-decoration:none; font-weight:600;
+    font-variant: all-small-caps;
+    font-family:"Rubik",sans-serif;
+    transition:background .15s ease;
+  }
+  .lang-item:hover { background:rgba(255,255,255,.08); }
+  .lang-item.active { background:rgba(255,255,255,.12); }
 </style>
+
+<script>
+  // Local language menu (admin bar)
+  (function(){
+    function ready(fn){ if(document.readyState!=='loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
+    ready(function(){
+      const btn  = document.querySelector('.admin-localbar .lang-btn');
+      const menu = document.getElementById('langMenuAdmin');
+      if(!btn || !menu) return;
+      function openMenu(){ menu.classList.add('open');  btn.setAttribute('aria-expanded','true'); }
+      function closeMenu(){ menu.classList.remove('open'); btn.setAttribute('aria-expanded','false'); }
+      function toggleMenu(e){ e?.stopPropagation(); menu.classList.contains('open') ? closeMenu() : openMenu(); }
+      btn.addEventListener('click', toggleMenu);
+      btn.addEventListener('touchstart', toggleMenu, { passive: true });
+      document.addEventListener('click', (e)=>{ if(!menu.contains(e.target) && e.target!==btn) closeMenu(); });
+      document.addEventListener('touchstart', (e)=>{ if(!menu.contains(e.target) && e.target!==btn) closeMenu(); }, { passive: true });
+      document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeMenu(); });
+    });
+  })();
+</script>
