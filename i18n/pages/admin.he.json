@@ -1,22 +1,5 @@
 {
   "admin": {
-    "reset": {
-      "title": "פעולות אדמין (Reset)",
-      "btn": {
-        "restaurants": "איפוס כל המסעדות",
-        "reservations": "איפוס כל ההזמנות",
-        "users": "איפוס כל המשתמשים",
-        "all": "איפוס כולל (הכול)"
-      },
-      "more_tools": "עוד כלים…"
-    },
-    "tabs": {
-      "restaurants": "מסעדות",
-      "users": "משתמשים",
-      "tools": "כלים"
-    }
-  }ת
-  "admin": {
     "app": { "title": "SpotBook · לוח אדמין" },
     "header": { "brand": "SpotBook · Admin", "badge": "ADMIN" },
     "login": {
@@ -98,4 +81,3 @@
     }
   }
 }
-
