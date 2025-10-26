@@ -1,4 +1,7 @@
 {
+  "common": {
+    "none": "אין"
+  },
   "admin": {
     "app": { "title": "SpotBook · לוח אדמין" },
     "header": { "brand": "SpotBook · Admin", "badge": "ADMIN" },
@@ -11,13 +14,13 @@
 
     "login": {
       "title": "כניסת אדמין",
-      "desc": "הזן/ני את מפתח האדמין (ADMIN_SECRET) שהוגדר ב־Environment Variables.",
+      "desc": "הזן/ני את מפתח האדמין (ADMIN_SECRET) שהוגדר במשתני הסביבה.",
       "key_label": "מפתח אדמין",
       "key_placeholder": "הדבק כאן את המפתח",
       "submit": "כניסה"
     },
 
-    "key_masked": "Key",
+    "key_masked": "מפתח מוסתר",
 
     "reset": {
       "title": "פעולות אדמין (Reset)",
@@ -27,10 +30,10 @@
         "tools": "כלים"
       },
       "btn": {
-        "restaurants": "איפוס כל המסעדות",
-        "reservations": "איפוס כל ההזמנות",
-        "users": "איפוס כל המשתמשים",
-        "all": "איפוס כולל (הכול)"
+        "restaurants": "אפס מסעדות",
+        "reservations": "אפס הזמנות",
+        "users": "אפס משתמשים",
+        "all": "אפס הכל"
       },
       "more_tools": "עוד כלים…"
     },
@@ -47,7 +50,10 @@
       }
     },
 
-    "status": { "approved": "מאושרת", "pending": "ממתינה" },
+    "status": {
+      "approved": "מאושרת",
+      "pending": "ממתינה"
+    },
     "owner": { "active": "פעיל", "inactive": "מבוטל" },
 
     "row": {
@@ -58,43 +64,43 @@
     },
 
     "actions": {
-      "approve": "אישור",
-      "disable": "השבתה",
+      "approve": "אשר",
+      "disable": "השבת",
       "enable": "הפעל",
       "restaurant_page": "דף מסעדה",
-      "remove": "הסר",
-      "back_dashboard": "חזרה לדשבורד",
+      "remove": "מחק",
+      "back_dashboard": "חזרה ללוח הראשי",
       "back_tools": "חזרה לכלים"
     },
 
     "confirm": {
       "delete_restaurant": "למחוק לצמיתות את \"{name}\" וכל ההזמנות שלה?",
-      "reset_all": "איפוס כללי: משתמשים + מסעדות + הזמנות. להמשיך?",
+      "reset_all": "לאפס הכול? משתמשים + מסעדות + הזמנות. להמשיך?",
       "reset_restaurants": "לאפס את כל המסעדות? הפעולה בלתי הפיכה!",
       "reset_reservations": "לאפס את כל ההזמנות?",
-      "reset_users": "לאפס את כל המשתמשים? זה ימחק גם בעלי מסעדות!"
+      "reset_users": "לאפס את כל המשתמשים?"
     },
 
     "tools": {
-      "title": "Admin · כלים",
-      "desc": "אפשר להריץ איפוסים דרך הקישורים הבאים (תופיע בקשת אישור).",
-      "reset_only_reservations": "אפס רק הזמנות",
-      "reset_only_restaurants": "אפס רק מסעדות",
-      "reset_only_users": "אפס רק משתמשים",
+      "title": "כלי אדמין",
+      "desc": "ניתן לבצע איפוסים דרך הקישורים הבאים:",
+      "reset_reservations": "אפס הזמנות",
+      "reset_restaurants": "אפס מסעדות",
+      "reset_users": "אפס משתמשים",
       "reset_all": "אפס הכל"
     },
 
     "done": {
-      "title": "הושלם",
+      "title": "בוצע",
       "reset_done": "בוצע איפוס: {what}",
       "back_tools": "חזרה לכלים",
-      "back_dashboard": "חזרה לדשבורד"
+      "back_dashboard": "חזרה ללוח"
     },
 
     "users": {
       "title": "ניהול משתמשים",
       "active": "משתמשים פעילים ({n})",
-      "inactive": "משתמשים מבוטלים ({n})",
+      "inactive": "משתמשים לא פעילים ({n})",
       "th": {
         "user": "משתמש",
         "role": "תפקיד",
@@ -103,10 +109,10 @@
         "actions": "פעולות"
       },
       "activate": "הפעל",
-      "deactivate": "בטל",
+      "deactivate": "השבת",
       "delete": "מחק",
       "none": "אין",
-      "not_implemented": "הפיצ׳ר הזה מחייב listUsersWithRestaurants ב־database.ts."
+      "not_implemented": "הפונקציה דורשת listUsersWithRestaurants ב־database.ts."
     }
   }
 }

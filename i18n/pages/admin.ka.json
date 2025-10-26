@@ -1,4 +1,7 @@
 {
+  "common": {
+    "none": "არ არის"
+  },
   "admin": {
     "app": { "title": "SpotBook · ადმინისტრატორი" },
     "header": { "brand": "SpotBook · Admin", "badge": "ADMIN" },
@@ -11,25 +14,25 @@
 
     "login": {
       "title": "ადმინისტრატორის შესვლა",
-      "desc": "შეიყვანეთ ADMIN_SECRET, რომელიც განისაზღვრა გარემოს ცვლადებში.",
+      "desc": "შეიყვანეთ ADMIN_SECRET, რომელიც განსაზღვრულია გარემოს ცვლადებში.",
       "key_label": "ადმინის გასაღები",
       "key_placeholder": "ჩასვით გასაღები აქ",
       "submit": "შესვლა"
     },
 
-    "key_masked": "Key",
+    "key_masked": "გასაღები დამალულია",
 
     "reset": {
       "title": "ადმინის ქმედებები (Reset)",
       "tabs": {
-        "restaurants": "רესტორნები",
+        "restaurants": "რესტორნები",
         "users": "მომხმარებლები",
         "tools": "ხელსაწყოები"
       },
       "btn": {
-        "restaurants": "ყველა რესტორნის განულება",
-        "reservations": "ყველა ჯავშნის განულება",
-        "users": "ყველა მომხმარებლის განულება",
+        "restaurants": "რესტორნების განულება",
+        "reservations": "ჯავშნების განულება",
+        "users": "მომხმარებლების განულება",
         "all": "ყველაფრის განულება"
       },
       "more_tools": "კიდევ ხელსაწყოები…"
@@ -47,7 +50,10 @@
       }
     },
 
-    "status": { "approved": "დამტკიცებული", "pending": "მოლოდინში" },
+    "status": {
+      "approved": "დამტკიცებული",
+      "pending": "მოლოდინში"
+    },
     "owner": { "active": "აქტიური", "inactive": "გათიშული" },
 
     "row": {
@@ -68,25 +74,25 @@
     },
 
     "confirm": {
-      "delete_restaurant": "წავშალოთ სამუდამოდ „{name}“ და მისი ყველა ჯავშანი?",
-      "reset_all": "გავანულოთ ყველაფერი: მომხმარებლები + რესტორნები + ჯავშნები?",
-      "reset_restaurants": "გავანულოთ ყველა რესტორნი? შეუქცევადია!",
+      "delete_restaurant": "წავშალოთ სამუდამოდ {name} და მისი ყველა ჯავშანი?",
+      "reset_all": "გავანულოთ ყველაფერი?",
+      "reset_restaurants": "გავანულოთ ყველა რესტორნი?",
       "reset_reservations": "გავანულოთ ყველა ჯავშანი?",
-      "reset_users": "გავანულოთ ყველა მომხმარებელი? ეს ასევე წაშლის რესტორნების მფლობელებს!"
+      "reset_users": "გავანულოთ ყველა მომხმარებელი?"
     },
 
     "tools": {
-      "title": "Admin · ხელსაწყოები",
-      "desc": "ქვემოთ მოცემული ბმულებით შეგიძლიათ გაუშვათ reset-ები (დადასტურება დაგჭირდებათ).",
-      "reset_only_reservations": "მხოლოდ ჯავშნების განულება",
-      "reset_only_restaurants": "მხოლოდ რესტორნების განულება",
-      "reset_only_users": "მხოლოდ მომხმარებლების განულება",
+      "title": "ადმინის ხელსაწყოები",
+      "desc": "ქვემოთ მოცემული ბმულებით შეგიძლიათ განახორციელოთ reset-ები.",
+      "reset_reservations": "ჯავშნების განულება",
+      "reset_restaurants": "რესტორნების განულება",
+      "reset_users": "მომხმარებლების განულება",
       "reset_all": "ყველაფრის განულება"
     },
 
     "done": {
       "title": "დასრულებულია",
-      "reset_done": "განულება შესრულდა: {what}",
+      "reset_done": "განულება დასრულდა: {what}",
       "back_tools": "დაბრუნება ხელსაწყოებში",
       "back_dashboard": "დაბრუნება დაფაზე"
     },
@@ -106,7 +112,7 @@
       "deactivate": "გათიშვა",
       "delete": "წაშლა",
       "none": "არ არის",
-      "not_implemented": "ეს ფუნქცია საჭიროა listUsersWithRestaurants ფაილში database.ts."
+      "not_implemented": "ეს ფუნქცია მოითხოვს listUsersWithRestaurants-ს database.ts-ში."
     }
   }
 }

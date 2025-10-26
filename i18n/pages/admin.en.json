@@ -1,4 +1,7 @@
 {
+  "common": {
+    "none": "None"
+  },
   "admin": {
     "app": { "title": "SpotBook · Admin Console" },
     "header": { "brand": "SpotBook · Admin", "badge": "ADMIN" },
@@ -11,13 +14,13 @@
 
     "login": {
       "title": "Admin Login",
-      "desc": "Enter the ADMIN_SECRET that was set in your environment variables.",
+      "desc": "Enter the ADMIN_SECRET defined in your environment variables.",
       "key_label": "Admin key",
       "key_placeholder": "Paste the key here",
       "submit": "Sign in"
     },
 
-    "key_masked": "Key",
+    "key_masked": "Key masked",
 
     "reset": {
       "title": "Admin Actions (Reset)",
@@ -27,10 +30,10 @@
         "tools": "Tools"
       },
       "btn": {
-        "restaurants": "Reset all restaurants",
-        "reservations": "Reset all reservations",
-        "users": "Reset all users",
-        "all": "Reset everything"
+        "restaurants": "Reset restaurants",
+        "reservations": "Reset reservations",
+        "users": "Reset users",
+        "all": "Reset all"
       },
       "more_tools": "More tools…"
     },
@@ -47,8 +50,11 @@
       }
     },
 
-    "status": { "approved": "Approved", "pending": "Pending" },
-    "owner": { "active": "Active", "inactive": "Disabled" },
+    "status": {
+      "approved": "Approved",
+      "pending": "Pending"
+    },
+    "owner": { "active": "Active", "inactive": "Inactive" },
 
     "row": {
       "capacity": "Capacity",
@@ -68,25 +74,25 @@
     },
 
     "confirm": {
-      "delete_restaurant": "Permanently delete \"{name}\" and all its reservations?",
-      "reset_all": "Reset everything: users + restaurants + reservations. Continue?",
-      "reset_restaurants": "Reset all restaurants? This cannot be undone!",
+      "delete_restaurant": "Delete \"{name}\" and all its reservations permanently?",
+      "reset_all": "Reset everything: users + restaurants + reservations?",
+      "reset_restaurants": "Reset all restaurants? This action cannot be undone!",
       "reset_reservations": "Reset all reservations?",
-      "reset_users": "Reset all users? This will also delete restaurant owners!"
+      "reset_users": "Reset all users?"
     },
 
     "tools": {
-      "title": "Admin · Tools",
-      "desc": "You can trigger resets using the links below (you will be asked to confirm).",
-      "reset_only_reservations": "Reset reservations only",
-      "reset_only_restaurants": "Reset restaurants only",
-      "reset_only_users": "Reset users only",
+      "title": "Admin Tools",
+      "desc": "Use the links below to run reset operations (confirmation required).",
+      "reset_reservations": "Reset reservations",
+      "reset_restaurants": "Reset restaurants",
+      "reset_users": "Reset users",
       "reset_all": "Reset everything"
     },
 
     "done": {
       "title": "Done",
-      "reset_done": "Reset executed: {what}",
+      "reset_done": "Reset complete: {what}",
       "back_tools": "Back to tools",
       "back_dashboard": "Back to dashboard"
     },
@@ -106,7 +112,7 @@
       "deactivate": "Deactivate",
       "delete": "Delete",
       "none": "None",
-      "not_implemented": "This feature requires listUsersWithRestaurants in database.ts."
+      "not_implemented": "This requires listUsersWithRestaurants in database.ts."
     }
   }
 }
