@@ -1,10 +1,23 @@
 {
   "admin": {
     "app": { "title": "SpotBook · Admin Console" },
-    "header": {
-      "brand": "SpotBook · Admin",
-      "badge": "ADMIN"
+    "header": { "brand": "SpotBook · Admin", "badge": "ADMIN" },
+
+    "tabs": {
+      "restaurants": "Restaurants",
+      "users": "Users",
+      "tools": "Tools"
     },
+
+    "login": {
+      "title": "Admin Login",
+      "desc": "Enter the ADMIN_SECRET that was set in your environment variables.",
+      "key_label": "Admin key",
+      "key_placeholder": "Paste the key here",
+      "submit": "Sign in"
+    },
+
+    "key_masked": "Key",
 
     "reset": {
       "title": "Admin Actions (Reset)",

@@ -1,10 +1,23 @@
 {
   "admin": {
     "app": { "title": "SpotBook · לוח אדמין" },
-    "header": {
-      "brand": "SpotBook · Admin",
-      "badge": "ADMIN"
+    "header": { "brand": "SpotBook · Admin", "badge": "ADMIN" },
+
+    "tabs": {
+      "restaurants": "מסעדות",
+      "users": "משתמשים",
+      "tools": "כלים"
     },
+
+    "login": {
+      "title": "כניסת אדמין",
+      "desc": "הזן/ני את מפתח האדמין (ADMIN_SECRET) שהוגדר ב־Environment Variables.",
+      "key_label": "מפתח אדמין",
+      "key_placeholder": "הדבק כאן את המפתח",
+      "submit": "כניסה"
+    },
+
+    "key_masked": "Key",
 
     "reset": {
       "title": "פעולות אדמין (Reset)",

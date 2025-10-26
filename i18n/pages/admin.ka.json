@@ -1,15 +1,28 @@
 {
   "admin": {
     "app": { "title": "SpotBook · ადმინისტრატორი" },
-    "header": {
-      "brand": "SpotBook · Admin",
-      "badge": "ADMIN"
+    "header": { "brand": "SpotBook · Admin", "badge": "ADMIN" },
+
+    "tabs": {
+      "restaurants": "რესტორნები",
+      "users": "მომხმარებლები",
+      "tools": "ხელსაწყოები"
     },
+
+    "login": {
+      "title": "ადმინისტრატორის შესვლა",
+      "desc": "შეიყვანეთ ADMIN_SECRET, რომელიც განისაზღვრა გარემოს ცვლადებში.",
+      "key_label": "ადმინის გასაღები",
+      "key_placeholder": "ჩასვით გასაღები აქ",
+      "submit": "შესვლა"
+    },
+
+    "key_masked": "Key",
 
     "reset": {
       "title": "ადმინის ქმედებები (Reset)",
       "tabs": {
-        "restaurants": "რესტორნები",
+        "restaurants": "רესტორნები",
         "users": "მომხმარებლები",
         "tools": "ხელსაწყოები"
       },
@@ -57,7 +70,7 @@
     "confirm": {
       "delete_restaurant": "წავშალოთ სამუდამოდ „{name}“ და მისი ყველა ჯავშანი?",
       "reset_all": "გავანულოთ ყველაფერი: მომხმარებლები + რესტორნები + ჯავშნები?",
-      "reset_restaurants": "გავანულოთ ყველა რესტორანი? მოქმედება შეუქცევადია!",
+      "reset_restaurants": "გავანულოთ ყველა რესტორნი? შეუქცევადია!",
       "reset_reservations": "გავანულოთ ყველა ჯავშანი?",
       "reset_users": "გავანულოთ ყველა მომხმარებელი? ეს ასევე წაშლის რესტორნების მფლობელებს!"
     },
@@ -79,7 +92,7 @@
     },
 
     "users": {
-      "title": "მომხმარებელთა მართვა",
+      "title": "მომხმარებლების მართვა",
       "active": "აქტიური მომხმარებლები ({n})",
       "inactive": "გათიშული მომხმარებლები ({n})",
       "th": {
@@ -93,7 +106,7 @@
       "deactivate": "გათიშვა",
       "delete": "წაშლა",
       "none": "არ არის",
-      "not_implemented": "ეს ფუნქცია მოითხოვს listUsersWithRestaurants-ს ფაილში database.ts."
+      "not_implemented": "ეს ფუნქცია საჭიროა listUsersWithRestaurants ფაილში database.ts."
     }
   }
 }
