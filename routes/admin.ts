@@ -24,7 +24,7 @@ const BUILD_TAG = new Date().toISOString().slice(0, 19).replace("T", " ");
 type DBExtra = {
   listUsersWithRestaurants?: (q?: string) => Promise<any[]>;
   listRestaurantsWithOwners?: (
-    q?: string,
+    q: string,
   ) => Promise<(Restaurant & { owner?: any | null })[]>;
   setUserActive?: (userId: string, isActive: boolean) => Promise<boolean>;
   deleteUserCascade?: (userId: string) => Promise<boolean | number>;
@@ -268,7 +268,7 @@ function page(
       font-size: clamp(11px, 1.8vw, 13px);
     }
 
-    /* התאמות נקודתיות לשפות – אופציונלי (גאורגית לעיתים רחבה יותר) */
+    /* התאמות לשפה גאורגית אם צריך */
     html[data-lang="ka"] .tab,
     html[data-lang="ka"] .btn,
     html[data-lang="ka"] .pill { font-size: clamp(11px, 1.7vw, 13px); }
@@ -303,21 +303,16 @@ function page(
   </main>
 
   <script>
-    // חושפים הקשר גלובלי קצר־חיים ליצירת קישורי שפה
     (function(){ try { (globalThis).__oakCtx = {}; } catch(_){} })();
-
-    // Toggle לתפריט השפות
     (function(){
       const wrap = document.querySelector('.lang-switch-admin');
       if(!wrap) return;
       const btn  = wrap.querySelector('.lang-btn-admin');
       const menu = document.getElementById('langMenuAdmin');
       if(!btn || !menu) return;
-
       function openMenu(){ menu.classList.add('open');  btn.setAttribute('aria-expanded','true'); }
       function closeMenu(){ menu.classList.remove('open'); btn.setAttribute('aria-expanded','false'); }
       function toggleMenu(e){ e?.stopPropagation(); menu.classList.contains('open') ? closeMenu() : openMenu(); }
-
       btn.addEventListener('click', toggleMenu);
       document.addEventListener('click', (e)=>{ if(!menu.contains(e.target) && e.target!==btn) closeMenu(); });
       document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeMenu(); });
@@ -450,7 +445,8 @@ adminRouter.get("/admin", async (ctx) => {
   const tables = (withOwners: boolean) => `
     <div class="grid">
       <section class="card">
-        <h2 style="margin-top:0">${t("admin.tables.pending_title","ממתינות לאישור")} (${pending.length})</h2>
+        <!-- הוסר המניין -->
+        <h2 style="margin-top:0">${t("admin.tables.pending_title","ממתינות לאישור")}</h2>
         ${
           pending.length === 0
             ? `<p class="muted">${t("admin.tables.pending_empty","אין מסעדות ממתינות כרגע.")}</p>`
@@ -471,7 +467,8 @@ adminRouter.get("/admin", async (ctx) => {
       </section>
 
       <section class="card">
-        <h2 style="margin-top:0">${t("admin.tables.approved_title","מאושרות")} (${approved.length})</h2>
+        <!-- הוסר המניין -->
+        <h2 style="margin-top:0">${t("admin.tables.approved_title","מאושרות")}</h2>
         ${
           approved.length === 0
             ? `<p class="muted">${t("admin.tables.approved_empty","עוד לא אושרו מסעדות.")}</p>`
@@ -621,10 +618,7 @@ adminRouter.post("/admin/restaurants/:id/approve", async (ctx) => {
   await updateRestaurant(id, { approved: true });
   const key = getAdminKey(ctx)!;
   ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set(
-    "Location",
-    `/admin?key=${encodeURIComponent(key)}`,
-  );
+  ctx.response.headers.set("Location", `/admin?key=${encodeURIComponent(key)}`);
 });
 
 adminRouter.post("/admin/restaurants/:id/unapprove", async (ctx) => {
@@ -640,10 +634,7 @@ adminRouter.post("/admin/restaurants/:id/unapprove", async (ctx) => {
   await updateRestaurant(id, { approved: false });
   const key = getAdminKey(ctx)!;
   ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set(
-    "Location",
-    `/admin?key=${encodeURIComponent(key)}`,
-  );
+  ctx.response.headers.set("Location", `/admin?key=${encodeURIComponent(key)}`);
 });
 
 /* --- הסרה מהאתר (Cascade) --- */
@@ -704,20 +695,15 @@ adminRouter.get("/admin/users", async (ctx) => {
   const inactive = users.filter((u: any) => u.isActive === false);
 
   const rows = (list: any[]) =>
-    list
-      .map(
-        (u) => `
+    list.map(
+      (u) => `
     <tr>
       <td><strong>${u.firstName ?? ""} ${u.lastName ?? ""}</strong><br/><small class="muted" dir="ltr">${u.email}</small></td>
       <td>${u.role ?? "user"} <span class="badge">${u.provider ?? "local"}</span></td>
       <td>${u.isActive === false ? "❌ " + t("admin.owner.inactive","מבוטל") : "✅ " + t("admin.owner.active","פעיל")}</td>
       <td>${
         u.restaurants?.length
-          ? u.restaurants
-              .map((r: any) =>
-                `<div><a href="/restaurants/${r.id}" target="_blank" rel="noopener">${r.name}</a></div>`,
-              )
-              .join("")
+          ? u.restaurants.map((r: any) => `<div><a href="/restaurants/${r.id}" target="_blank" rel="noopener">${r.name}</a></div>`).join("")
           : `<span class="muted">${t("common.none","אין")}</span>`
       }</td>
       <td>
@@ -736,12 +722,11 @@ adminRouter.get("/admin/users", async (ctx) => {
         </form>
       </td>
     </tr>`,
-      )
-      .join("");
+    ).join("");
 
   const body = `
   <section class="card" style="margin-bottom:20px">
-    <div class="row" style="justify-content:space-between;align-items:center">
+    <div class="row" style="justify-content:space-between;alignים:center">
       <h2 style="margin:0">${t("admin.users.title","ניהול משתמשים")}</h2>
       <div class="tabs">
         <a class="tab" href="/admin?key=${encodeURIComponent(key)}">${t("admin.tabs.restaurants","מסעדות")}</a>
@@ -753,7 +738,8 @@ adminRouter.get("/admin/users", async (ctx) => {
 
   <div class="grid">
     <section class="card">
-      <h3 style="margin-top:0">${t("admin.users.active","משתמשים פעילים")} (${active.length})</h3>
+      <!-- הוסר המניין -->
+      <h3 style="margin-top:0">${t("admin.users.active","משתמשים פעילים")}</h3>
       ${
         active.length === 0
           ? `<p class="muted">${t("admin.users.no_active","אין משתמשים פעילים.")}</p>`
@@ -765,7 +751,8 @@ adminRouter.get("/admin/users", async (ctx) => {
     </section>
 
     <section class="card">
-      <h3 style="margin-top:0">${t("admin.users.inactive","משתמשים מבוטלים")} (${inactive.length})</h3>
+      <!-- הוסר המניין -->
+      <h3 style="margin-top:0">${t("admin.users.inactive","משתמשים מבוטלים")}</h3>
       ${
         inactive.length === 0
           ? `<p class="muted">${t("admin.users.no_inactive","אין משתמשים מבוטלים.")}</p>`
@@ -793,10 +780,7 @@ adminRouter.post("/admin/users/:id/deactivate", async (ctx) => {
   await setUserActive(id, false);
   const key = getAdminKey(ctx)!;
   ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set(
-    "Location",
-    `/admin/users?key=${encodeURIComponent(key)}`,
-  );
+  ctx.response.headers.set("Location", `/admin/users?key=${encodeURIComponent(key)}`);
 });
 
 adminRouter.post("/admin/users/:id/activate", async (ctx) => {
@@ -812,10 +796,7 @@ adminRouter.post("/admin/users/:id/activate", async (ctx) => {
   await setUserActive(id, true);
   const key = getAdminKey(ctx)!;
   ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set(
-    "Location",
-    `/admin/users?key=${encodeURIComponent(key)}`,
-  );
+  ctx.response.headers.set("Location", `/admin/users?key=${encodeURIComponent(key)}`);
 });
 
 /** מחיקת משתמש (Cascade) — אופציונלי */
@@ -832,10 +813,7 @@ adminRouter.post("/admin/users/:id/delete", async (ctx) => {
   await deleteUserCascade(id);
   const key = getAdminKey(ctx)!;
   ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set(
-    "Location",
-    `/admin/users?key=${encodeURIComponent(key)}`,
-  );
+  ctx.response.headers.set("Location", `/admin/users?key=${encodeURIComponent(key)}`);
 });
 
 export { adminRouter };
