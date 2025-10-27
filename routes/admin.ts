@@ -75,7 +75,9 @@ function setNoStore(ctx: any) {
 function tr(ctx: any, key: string, fallback: string, vars?: Record<string, unknown>): string {
   const t = (ctx.state as any)?.t as ((k: string, v?: any) => string) | undefined;
   try {
-    return t ? t(key, vars) : fallback.replace(/\{(\w+)\}/g, (_, k) => String(vars?.[k] ?? `{${k}}`));
+    const res = t ? t(key, vars) : undefined;
+    const base = (typeof res === "string" && res.length) ? res : fallback;
+    return base.replace(/\{(\w+)\}/g, (_, k) => String(vars?.[k] ?? `{${k}}`));
   } catch {
     return fallback.replace(/\{(\w+)\}/g, (_, k) => String(vars?.[k] ?? `{${k}}`));
   }
@@ -424,7 +426,8 @@ adminRouter.get("/admin/login", (ctx) => {
     </form>
   </div>`;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-  ctx.response.body = page(ctx, { title: t("admin.login.head","כניסת אדמין"), body });
+  // תיקון key לטעות כתיב: dashboard (ולא dashborad)
+  ctx.response.body = page(ctx, { title: t("admin.head.dashboard","לוח בקרה · Admin"), body });
 });
 
 /** דשבורד אדמין (מסעדות, ואם אפשר — גם בעלים) */
@@ -450,7 +453,8 @@ adminRouter.get("/admin", async (ctx) => {
   const tables = (withOwners: boolean) => `
     <div class="grid">
       <section class="card">
-        <h2 style="margin-top:0">${t("admin.tables.pending_title","ממתינות לאישור")} (${pending.length})</h2>
+        <!-- מציגים ספירה עם placeholder ב-i18n כדי למנוע טקסט ({count}) כפול -->
+        <h2 style="margin-top:0">${t("admin.tables.pending_title","ממתינות לאישור ({count})", { count: pending.length })}</h2>
         ${
           pending.length === 0
             ? `<p class="muted">${t("admin.tables.pending_empty","אין מסעדות ממתינות כרגע.")}</p>`
@@ -471,7 +475,7 @@ adminRouter.get("/admin", async (ctx) => {
       </section>
 
       <section class="card">
-        <h2 style="margin-top:0">${t("admin.tables.approved_title","מאושרות")} (${approved.length})</h2>
+        <h2 style="margin-top:0">${t("admin.tables.approved_title","מאושרות ({count})", { count: approved.length })}</h2>
         ${
           approved.length === 0
             ? `<p class="muted">${t("admin.tables.approved_empty","עוד לא אושרו מסעדות.")}</p>`
@@ -521,6 +525,7 @@ adminRouter.get("/admin", async (ctx) => {
   ${tables(typeof listRestaurantsWithOwners === "function")}
   `;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
+  // תיקון key לטעות כתיב: dashboard (ולא dashborad)
   ctx.response.body = page(ctx, { title: t("admin.head.dashboard","לוח בקרה · Admin"), body, key });
 });
 
@@ -549,7 +554,8 @@ adminRouter.get("/admin/tools", (ctx) => {
     </ul>
   </div>`;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-  ctx.response.body = page(ctx, { title: t("admin.head.tools","Admin · Reset"), body, key });
+  // גם כאן דואגים ל-dashboard
+  ctx.response.body = page(ctx, { title: t("admin.head.dashboard","לוח בקרה · Admin"), body, key });
 });
 
 /* --- Reset: GET (אישור) + POST (ביצוע) --- */
@@ -695,7 +701,8 @@ adminRouter.get("/admin/users", async (ctx) => {
         </div>
       </div>`;
     ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-    ctx.response.body = page(ctx, { title: t("admin.users.head_disabled","Admin · Users (disabled)"), body, key });
+    // גם כאן, נשמור על dashboard תקין
+    ctx.response.body = page(ctx, { title: t("admin.head.dashboard","לוח בקרה · Admin"), body, key });
     return;
   }
 
@@ -753,7 +760,7 @@ adminRouter.get("/admin/users", async (ctx) => {
 
   <div class="grid">
     <section class="card">
-      <h3 style="margin-top:0">${t("admin.users.active","משתמשים פעילים")} (${active.length})</h3>
+      <h3 style="margin-top:0">${t("admin.users.active","משתמשים פעילים ({count})", { count: active.length })}</h3>
       ${
         active.length === 0
           ? `<p class="muted">${t("admin.users.no_active","אין משתמשים פעילים.")}</p>`
@@ -765,7 +772,7 @@ adminRouter.get("/admin/users", async (ctx) => {
     </section>
 
     <section class="card">
-      <h3 style="margin-top:0">${t("admin.users.inactive","משתמשים מבוטלים")} (${inactive.length})</h3>
+      <h3 style="margin-top:0">${t("admin.users.inactive","משתמשים מבוטלים ({count})", { count: inactive.length })}</h3>
       ${
         inactive.length === 0
           ? `<p class="muted">${t("admin.users.no_inactive","אין משתמשים מבוטלים.")}</p>`
@@ -777,7 +784,8 @@ adminRouter.get("/admin/users", async (ctx) => {
     </section>
   </div>`;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-  ctx.response.body = page(ctx, { title: t("admin.users.head","Admin · Users"), body, key });
+  // גם כאן, מקפידים על dashboard נכון
+  ctx.response.body = page(ctx, { title: t("admin.head.dashboard","לוח בקרה · Admin"), body, key });
 });
 
 adminRouter.post("/admin/users/:id/deactivate", async (ctx) => {
