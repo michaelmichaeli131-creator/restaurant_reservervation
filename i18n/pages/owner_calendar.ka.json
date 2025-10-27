@@ -1,0 +1,40 @@
+{
+  "owner": {
+    "calendar": {
+      "head": "მფლობელის კალენდარი · SpotBook",
+      "title": "მფლობელის კალენდარი",
+      "prev_day_aria": "წინა დღე",
+      "next_day_aria": "შემდეგი დღე",
+      "jump_to_date_aria": "თარიღზე გადასვლა",
+      "pick_date": "აირჩიე თარიღი",
+      "search_day_aria": "ძებნა მიმდინარე დღეში",
+      "search_placeholder": "ძებნა სახელით",
+      "sidebar": {
+        "calendar": "კალენდარი",
+        "daily_summary": "დღიური შეჯამება"
+      },
+      "loading": "იტვირთება…",
+      "cap_line": "ტევადობა: სტუმრები — • მაგიდები — • ნაბიჯი: —",
+      "th": {
+        "time": "დრო",
+        "occupancy": "დაკავება",
+        "people_tables_pct": "სტუმრები • მაგიდები • %"
+      },
+      "hint": "შენიშვნა: დააჭირე სლოტს კლიენტების სამართავად",
+      "daily_summary_loading": "დღიური შეჯამება — იტვირთება…",
+      "drawer": {
+        "title": "კლიენტები",
+        "close": "დახურვა",
+        "search_placeholder": "ძებნა ამ სლოტში",
+        "add_customer": "კლიენტის დამატება"
+      },
+      "tbl": {
+        "first_name": "სახელი",
+        "last_name": "გვარი",
+        "party_size": "ჯგუფის ზომა",
+        "status": "სტატუსი",
+        "phone": "ტელეფონი"
+      }
+    }
+  }
+}
