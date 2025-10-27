@@ -1,4 +1,5 @@
 {
+  "nav": { "language": "Language" },
   "owner": {
     "calendar": {
       "head": "Owner Calendar · SpotBook",
@@ -9,10 +10,7 @@
       "pick_date": "Pick a date",
       "search_day_aria": "Search in current day",
       "search_placeholder": "Search name",
-      "sidebar": {
-        "calendar": "Calendar",
-        "daily_summary": "Daily Summary"
-      },
+      "sidebar": { "calendar": "Calendar", "daily_summary": "Daily Summary" },
       "loading": "loading…",
       "cap_line": "Capacity: People — • Tables — • Step: —",
       "th": {

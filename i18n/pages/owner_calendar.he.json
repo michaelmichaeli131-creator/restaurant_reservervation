@@ -1,4 +1,5 @@
 {
+  "nav": { "language": "בחר שפה" },
   "owner": {
     "calendar": {
       "head": "יומן בעלים · SpotBook",
@@ -9,10 +10,7 @@
       "pick_date": "בחר תאריך",
       "search_day_aria": "חיפוש ביום הנוכחי",
       "search_placeholder": "חפש שם",
-      "sidebar": {
-        "calendar": "לוח שנה",
-        "daily_summary": "סיכום יומי"
-      },
+      "sidebar": { "calendar": "לוח שנה", "daily_summary": "סיכום יומי" },
       "loading": "טוען…",
       "cap_line": "קיבולת: סועדים — • שולחנות — • צעד: —",
       "th": {

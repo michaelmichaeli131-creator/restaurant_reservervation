@@ -1,4 +1,5 @@
 {
+  "nav": { "language": "ენა" },
   "owner": {
     "calendar": {
       "head": "მფლობელის კალენდარი · SpotBook",
@@ -9,10 +10,7 @@
       "pick_date": "აირჩიე თარიღი",
       "search_day_aria": "ძებნა მიმდინარე დღეში",
       "search_placeholder": "ძებნა სახელით",
-      "sidebar": {
-        "calendar": "კალენდარი",
-        "daily_summary": "დღიური შეჯამება"
-      },
+      "sidebar": { "calendar": "კალენდარი", "daily_summary": "დღიური შეჯამება" },
       "loading": "იტვირთება…",
       "cap_line": "ტევადობა: სტუმრები — • მაგიდები — • ნაბიჯი: —",
       "th": {
