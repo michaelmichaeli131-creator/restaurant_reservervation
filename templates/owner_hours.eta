@@ -1,13 +1,16 @@
 <% layout("_layout", it) %>
+<% /* tt: תרגום עם fallback אמיתי גם כש-it.t מחזיר "(key)" */ %>
+<% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
+
 <main class="sb-hours container">
   <header class="page-header">
-    <h1>הגדרת שעות פתיחה — <%= it.restaurant.name %></h1>
+    <h1><%= tt('owner.hours.head','הגדרת שעות פתיחה') %> — <%= it.restaurant.name %></h1>
     <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
   </header>
 
   <% if (it.saved) { %>
     <div class="alert success" role="status">
-      ✓ השעות נשמרו בהצלחה
+      <%= tt('owner.hours.alert.saved','✓ השעות נשמרו בהצלחה') %>
     </div>
   <% } %>
 
@@ -15,19 +18,19 @@
     <!-- שמירה ב-GET כדי לעקוף פרסינג גוף -->
     <form class="form-grid" action="/owner/restaurants/<%= it.restaurant.id %>/hours/save" method="get" novalidate>
       <div class="form-row">
-        <label for="capacity">קיבולת מקסימלית בו־זמנית</label>
+        <label for="capacity"><%= tt('owner.hours.form.capacity','קיבולת מקסימלית בו־זמנית') %></label>
         <input id="capacity" name="capacity" type="number" min="1" step="1"
                value="<%= typeof it.restaurant.capacity === 'number' ? it.restaurant.capacity : 20 %>" />
       </div>
 
       <div class="form-row">
-        <label for="slotIntervalMinutes">גריד סלוטים (דקות)</label>
+        <label for="slotIntervalMinutes"><%= tt('owner.hours.form.slot_interval','גריד סלוטים (דקות)') %></label>
         <input id="slotIntervalMinutes" name="slotIntervalMinutes" type="number" min="5" max="180" step="5"
                value="<%= typeof it.restaurant.slotIntervalMinutes === 'number' ? it.restaurant.slotIntervalMinutes : 15 %>" />
       </div>
 
       <div class="form-row">
-        <label for="serviceDurationMinutes">משך ישיבה (דקות)</label>
+        <label for="serviceDurationMinutes"><%= tt('owner.hours.form.service_duration','משך ישיבה (דקות)') %></label>
         <select id="serviceDurationMinutes" name="serviceDurationMinutes">
           <% 
             const d = it.restaurant.serviceDurationMinutes ?? 90;
@@ -35,24 +38,32 @@
             function sel(x){ return x === d ? "selected" : ""; }
           %>
           <% for (const x of opts) { %>
-            <option value="<%= x %>" <%= sel(x) %>><%= x %> דק'</option>
+            <option value="<%= x %>" <%= sel(x) %>><%= it.t ? it.t('owner.hours.form.duration_option',{x}) : (x+' דק\'') %></option>
           <% } %>
         </select>
       </div>
 
       <hr class="sep" style="grid-column:1/-1"/>
 
-      <h3 class="card-title" style="grid-column:1/-1">שעות פתיחה שבועיות (24h)</h3>
+      <h3 class="card-title" style="grid-column:1/-1"><%= tt('owner.hours.weekly.title','שעות פתיחה שבועיות (24h)') %></h3>
       <p class="muted" style="grid-column:1/-1">
-        בחרו שעות במרווחים של 15 דקות. כדי לסגור יום — סמנו "סגור".
+        <%= tt('owner.hours.weekly.hint','בחרו שעות במרווחים של 15 דקות. כדי לסגור יום — סמנו "סגור".') %>
       </p>
 
       <%
-        const dayNames = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
-        function dayData(d) {
-          const ws = it.restaurant && it.restaurant.weeklySchedule ? it.restaurant.weeklySchedule[d] : undefined;
+        const dayNames = [
+          tt('owner.hours.days.0','ראשון'),
+          tt('owner.hours.days.1','שני'),
+          tt('owner.hours.days.2','שלישי'),
+          tt('owner.hours.days.3','רביעי'),
+          tt('owner.hours.days.4','חמישי'),
+          tt('owner.hours.days.5','שישי'),
+          tt('owner.hours.days.6','שבת'),
+        ];
+        function dayData(di) {
+          const ws = it.restaurant && it.restaurant.weeklySchedule ? it.restaurant.weeklySchedule[di] : undefined;
           if (typeof ws !== "undefined") return ws;
-          const oh = it.restaurant && it.restaurant.openingHours ? it.restaurant.openingHours[d] : undefined;
+          const oh = it.restaurant && it.restaurant.openingHours ? it.restaurant.openingHours[di] : undefined;
           return oh;
         }
         const timeOptions = [];
@@ -69,20 +80,25 @@
       <div class="table-wrap" style="grid-column:1/-1">
         <table class="tbl compact">
           <thead>
-            <tr><th>יום</th><th>פתיחה</th><th>סגירה</th><th style="text-align:center">סגור</th></tr>
+            <tr>
+              <th><%= tt('owner.hours.tbl.day','יום') %></th>
+              <th><%= tt('owner.hours.tbl.open','פתיחה') %></th>
+              <th><%= tt('owner.hours.tbl.close','סגירה') %></th>
+              <th style="text-align:center"><%= tt('owner.hours.tbl.closed','סגור') %></th>
+            </tr>
           </thead>
           <tbody>
-            <% for (let d=0; d<7; d++) {
-                 const row = dayData(d);
+            <% for (let di=0; di<7; di++) {
+                 const row = dayData(di);
                  const isClosed = row == null;
                  const first = (Array.isArray(row) && row.length) ? row[0] : { open: "09:00", close: "22:00" };
                  const openVal = isClosed ? "" : first.open;
                  const closeVal = isClosed ? "" : first.close;
             %>
-            <tr data-day="<%= d %>">
-              <td class="day"><strong><%= dayNames[d] %></strong></td>
+            <tr data-day="<%= di %>">
+              <td class="day"><strong><%= dayNames[di] %></strong></td>
               <td>
-                <select name="w<%= d %>_open" class="open" <%= isClosed ? "disabled" : "" %>>
+                <select name="w<%= di %>_open" class="open" <%= isClosed ? "disabled" : "" %> aria-label="<%= tt('owner.hours.aria.open','בחר שעת פתיחה') %>">
                   <option value="">—</option>
                   <% for (const t of timeOptions) { %>
                     <option value="<%= t %>" <%= optSel(t, openVal) %>><%= t %></option>
@@ -90,7 +106,7 @@
                 </select>
               </td>
               <td>
-                <select name="w<%= d %>_close" class="close" <%= isClosed ? "disabled" : "" %>>
+                <select name="w<%= di %>_close" class="close" <%= isClosed ? "disabled" : "" %> aria-label="<%= tt('owner.hours.aria.close','בחר שעת סגירה') %>">
                   <option value="">—</option>
                   <% for (const t of timeOptions) { %>
                     <option value="<%= t %>" <%= optSel(t, closeVal) %>><%= t %></option>
@@ -98,7 +114,7 @@
                 </select>
               </td>
               <td style="text-align:center">
-                <input type="checkbox" class="closed" name="w<%= d %>_closed" <%= isClosed ? "checked" : "" %> />
+                <input type="checkbox" class="closed" name="w<%= di %>_closed" <%= isClosed ? "checked" : "" %> aria-label="<%= tt('owner.hours.aria.closed_toggle','סגירה ליום זה') %>" />
               </td>
             </tr>
             <% } %>
@@ -107,8 +123,8 @@
       </div>
 
       <div class="form-actions" style="grid-column:1/-1">
-        <button type="submit" class="btn primary sm">שמירה</button>
-        <a class="btn ghost sm" href="/owner">חזרה לדשבורד</a>
+        <button type="submit" class="btn primary sm"><%= tt('owner.hours.btn.save','שמירה') %></button>
+        <a class="btn ghost sm" href="/owner"><%= tt('owner.hours.btn.back','חזרה לדשבורד') %></a>
       </div>
     </form>
   </section>
