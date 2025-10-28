@@ -351,7 +351,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
   const date = ctx.request.url.searchParams.get("date");
   const selected = isISODate(date) ? date! : todayISO();
 
-  await render(ctx, "owner_calendar.eta", {
+  await render(ctx, "owner_calendar", {
+    page: "owner_calendar",                // ✅ חשוב לטעינת src/i18n/pages/owner_calendar.<lang>.json
     title: "ניהול תפוסה יומי",
     rid,
     date: selected,
