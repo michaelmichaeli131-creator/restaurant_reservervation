@@ -1,10 +1,14 @@
 <% layout("_layout", it) %>
+
+<% /* tt: תרגום עם fallback אמיתי גם כש-it.t מחזיר "(key)" */ %>
+<% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
+
 <main class="container sb-rest">
   <header class="page-header">
     <h1><%= it.restaurant.name %></h1>
     <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
     <% if (it.restaurant.phone) { %>
-      <p class="muted">טלפון: <%= it.restaurant.phone %></p>
+      <p class="muted"><%= tt('restaurant.header.phone','טלפון:') %> <%= it.restaurant.phone %></p>
     <% } %>
   </header>
 
@@ -21,21 +25,21 @@
   %>
 
   <!-- Hero -->
-  <section class="hero card" aria-label="תמונה ראשית">
+  <section class="hero card" aria-label="<%= tt('restaurant.hero.aria','תמונה ראשית') %>">
     <img
       src="<%= hero %>"
-      alt="תמונה ראשית של <%= it.restaurant.name %>"
+      alt="<%= tt('restaurant.hero.alt','תמונה ראשית של') %> <%= it.restaurant.name %>"
       class="hero-img"
       onerror="this.src='<%= PLACEHOLDER %>'"
     />
   </section>
 
   <section class="card">
-    <h2 class="card-title">הזמנת מקום — שלב 1</h2>
+    <h2 class="card-title"><%= tt('restaurant.form.title','הזמנת מקום — שלב 1') %></h2>
 
     <% if (it.conflict) { %>
       <div class="alert warn" role="alert">
-        אין זמינות בשעה שבחרת. בחר/י שעה אחרת מהרשימה להלן.
+        <%= tt('restaurant.form.conflict','אין זמינות בשעה שבחרת. בחר/י שעה אחרת מהרשימה להלן.') %>
       </div>
     <% } %>
 
@@ -44,58 +48,62 @@
           action="/restaurants/<%= it.restaurant.id %>/reserve"
           method="post" novalidate>
       <div class="form-row">
-        <label for="date">תאריך</label>
+        <label for="date"><%= tt('restaurant.form.date','תאריך') %></label>
         <input id="date" name="date" type="date" required value="<%= it.date || '' %>"/>
       </div>
 
       <div class="form-row">
-        <label for="people">מס׳ סועדים</label>
+        <label for="people"><%= tt('restaurant.form.people','מס׳ סועדים') %></label>
         <input id="people" name="people" type="number" min="1" step="1" required value="<%= PEOPLE_INIT %>"/>
       </div>
 
       <div class="form-row time-row">
-        <label for="time-display">שעה</label>
+        <label for="time-display"><%= tt('restaurant.form.time','שעה') %></label>
         <div class="time-dropdown-wrapper">
           <button type="button" class="time-dropdown-btn" id="time-display" aria-haspopup="listbox" aria-expanded="false">
-            <%= it.time || "בחר שעה" %>
+            <%= it.time || tt('restaurant.form.pick_time','בחר שעה') %>
             <span class="arrow">▾</span>
           </button>
           <div class="time-options" id="time-options" hidden role="listbox"></div>
         </div>
         <input type="hidden" id="time" name="time" value="<%= it.time || '' %>"/>
-        <small class="muted">שעות בתדירות <span id="step-label"><%= SLOT_STEP %></span> דקות (רק בתוך שעות הפתיחה של המסעדה)</small>
+        <small class="muted">
+          <%= tt('restaurant.form.step_hint_prefix','שעות בתדירות') %>
+          <span id="step-label"><%= SLOT_STEP %></span>
+          <%= tt('restaurant.form.step_hint_suffix',"דקות (רק בתוך שעות הפתיחה של המסעדה)") %>
+        </small>
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn primary">המשך לשלב הבא</button>
-        <button type="button" id="check-btn" class="btn ghost" data-rid="<%= it.restaurant.id %>">בדוק זמינות</button>
+        <button type="submit" class="btn primary"><%= tt('restaurant.form.next','המשך לשלב הבא') %></button>
+        <button type="button" id="check-btn" class="btn ghost" data-rid="<%= it.restaurant.id %>"><%= tt('restaurant.form.check','בדוק זמינות') %></button>
       </div>
     </form>
   </section>
 
   <section class="card" id="around-card" hidden>
-    <h3 class="card-title">שעות זמינות סביב המועד שבחרת (±2 שעות)</h3>
+    <h3 class="card-title"><%= tt('restaurant.around.title','שעות זמינות סביב המועד שבחרת (±2 שעות)') %></h3>
     <div id="around-slots" class="slots"></div>
-    <small class="muted">לחיצה על שעה מעתיקה לשדה השעה.</small>
+    <small class="muted"><%= tt('restaurant.around.hint','לחיצה על שעה מעתיקה לשדה השעה.') %></small>
   </section>
 
   <% if (it.restaurant.description) { %>
     <section class="card">
-      <h2 class="card-title">על המסעדה</h2>
+      <h2 class="card-title"><%= tt('restaurant.about.title','על המסעדה') %></h2>
       <p class="copy"><%= it.restaurant.description %></p>
     </section>
   <% } %>
 
   <% if (it.restaurant.menu && it.restaurant.menu.length) { %>
     <section class="card">
-      <h2 class="card-title">תפריט</h2>
+      <h2 class="card-title"><%= tt('restaurant.menu.title','תפריט') %></h2>
       <ul class="menu-list">
         <% it.restaurant.menu.forEach(item => { %>
           <li class="menu-item">
             <div class="mi-row">
               <strong class="mi-name"><%= item.name %></strong>
               <% if (item.price != null) { %>
-                <span class="mi-price"><%= item.price %> ₪</span>
+                <span class="mi-price"><%= item.price %> <%= tt('restaurant.menu.currency','₪') %></span>
               <% } %>
             </div>
             <% if (item.desc) { %><div class="mi-desc muted"><%= item.desc %></div><% } %>
@@ -107,10 +115,10 @@
 
   <% if (_photos.length > 0) { %>
     <section class="card">
-      <h2 class="card-title">תמונות</h2>
+      <h2 class="card-title"><%= tt('restaurant.photos.title','תמונות') %></h2>
       <div class="photo-grid">
         <% _photos.forEach(src => { %>
-          <img src="<%= src %>" alt="תמונה של המסעדה" loading="lazy" onerror="this.src='<%= PLACEHOLDER %>'"/>
+          <img src="<%= src %>" alt="<%= tt('restaurant.photos.alt','תמונה של המסעדה') %>" loading="lazy" onerror="this.src='<%= PLACEHOLDER %>'"/>
         <% }) %>
       </div>
     </section>
@@ -219,7 +227,7 @@
       const items = (Array.isArray(dayDef) ? dayDef : [dayDef]).map(item => {
         let s=null,e=null;
         if (typeof item === "string") {
-          const m = item.match(/^\s*(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\ד{2})\s*$/);
+          const m = item.match(/^\s*(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})\s*$/);
           if (m) { s=m[1]; e=m[2]; }
         } else if (item && typeof item === "object") {
           s=item.open ?? item.start ?? item.from ?? item.begin;
@@ -253,7 +261,7 @@
           const empty = document.createElement("div");
           empty.className = "time-option";
           empty.setAttribute("aria-disabled","true");
-          empty.textContent = "המסעדה סגורה ביום זה";
+          empty.textContent = "<%= tt('restaurant.form.closed','המסעדה סגורה ביום זה') %>";
           opts.appendChild(empty);
         } else {
           opts.appendChild(frag);
@@ -267,7 +275,7 @@
           const empty = document.createElement("div");
           empty.className = "time-option";
           empty.setAttribute("aria-disabled","true");
-          empty.textContent = "המסעדה סגורה ביום זה";
+          empty.textContent = "<%= tt('restaurant.form.closed','המסעדה סגורה ביום זה') %>";
           opts.appendChild(empty);
         } else {
           opts.appendChild(frag);
@@ -325,7 +333,7 @@
           const stillExists = !!opts.querySelector(`.time-option[data-value="${prev}"]`);
           if (!stillExists) {
             hiddenInput.value = "";
-            btn.textContent = "בחר שעה ";
+            btn.textContent = "<%= tt('restaurant.form.pick_time','בחר שעה') %> ";
             const arr = document.createElement("span");
             arr.className = "arrow";
             arr.textContent = "▾";
@@ -340,14 +348,14 @@
       rebuildTimeOptionsFor(initDate);
     })();
 
-    // משאיר את ההתנהגות הקיימת – בניית querystring ושינוי action (פיצ'ר קיים)
+    // שמירת מבנה querystring על ה-submit (פיצ'ר קיים)
     form.addEventListener("submit", (ev) => {
       const dateVal = (dateInput.value || "").trim();
       const timeVal = (hiddenInput.value || "").trim();
       const pplVal  = Math.max(1, parseInt((peopleInput.value || "1"), 10) || 1);
       if (!dateVal || !timeVal) {
         ev.preventDefault();
-        alert("נא לבחור תאריך ושעה");
+        alert("<%= tt('restaurant.form.missing','נא לבחור תאריך ושעה') %>");
         return;
       }
       const u = new URL(form.action, window.location.origin);
@@ -364,7 +372,7 @@
       const time = (hiddenInput.value || "").trim();
       const people = Math.max(1, parseInt((peopleInput.value || "1"), 10) || 1);
       if (!date || !time) {
-        alert("נא לבחור תאריך ושעה");
+        alert("<%= tt('restaurant.form.missing','נא לבחור תאריך ושעה') %>");
         return;
       }
       const rid = checkBtn.dataset.rid;
@@ -430,7 +438,7 @@
   /* ===== Hero ===== */
   .hero-img{
     width: 100%;
-    height: 260px; /* נשאר גדול */
+    height: 260px;
     object-fit: cover;
     border-radius: 14px;
     border: 1px solid var(--bd, #23293a);
@@ -530,7 +538,7 @@
     border:1px solid var(--bd, #23293a);
     background: var(--panel-2, #171b29);
     color: var(--ink); cursor:pointer;
-    transition: transform .08s ease, filter .12s ease;
+    transition: transform .08s ease, filter .12s.ease;
   }
   .slot:hover{ transform: translateY(-1px); filter: brightness(1.05); }
 
@@ -550,7 +558,7 @@
   }
   .mi-desc{ margin-top:6px }
 
-  /* ===== גלריה תחתונה קטנה יותר ===== */
+  /* ===== גלריה ===== */
   .photo-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap:10px }
   .photo-grid img{
     width:100%; height:100px; object-fit:cover;
@@ -563,5 +571,3 @@
     .photo-grid img{ height:90px; }
   }
 </style>
-
-

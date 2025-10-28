@@ -1,0 +1,27 @@
+{
+  "restaurant": {
+    "header": { "phone": "Phone:" },
+    "hero": { "aria": "Hero image", "alt": "Hero of" },
+    "form": {
+      "title": "Reserve a Table — Step 1",
+      "conflict": "No availability at the selected time. Please pick another time below.",
+      "date": "Date",
+      "people": "Guests",
+      "time": "Time",
+      "pick_time": "Pick a time",
+      "step_hint_prefix": "Times every",
+      "step_hint_suffix": "minutes (within the restaurant’s opening hours)",
+      "next": "Continue",
+      "check": "Check availability",
+      "closed": "The restaurant is closed on this day",
+      "missing": "Please select date and time"
+    },
+    "around": {
+      "title": "Available times around your choice (±2h)",
+      "hint": "Click a time to copy it to the field."
+    },
+    "about": { "title": "About the Restaurant" },
+    "menu": { "title": "Menu", "currency": "₪" },
+    "photos": { "title": "Photos", "alt": "Restaurant photo" }
+  }
+}
