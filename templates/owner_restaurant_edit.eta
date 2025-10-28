@@ -1,77 +1,80 @@
 <% layout("_layout", it) %>
 
+<% /* tt: תרגום עם fallback אמיתי גם כש-it.t מחזיר "(key)" */ %>
+<% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
+
 <main class="sb-owner-edit container">
   <header class="page-header head">
     <div>
-      <h1 class="h1">עריכת פרטי המסעדה — <%= it.restaurant.name %></h1>
+      <h1 class="h1"><%= tt('owner.edit.title','עריכת פרטי המסעדה') %> — <%= it.restaurant.name %></h1>
       <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
     </div>
-    <a class="btn ghost sm" href="/owner">חזרה לדשבורד</a>
+    <a class="btn ghost sm" href="/owner"><%= tt('owner.common.back_to_dashboard','חזרה לדשבורד') %></a>
   </header>
 
   <% if (it.saved) { %>
-    <div class="alert success" role="status">✓ הפרטים נשמרו</div>
+    <div class="alert success" role="status">✓ <%= tt('owner.edit.saved_ok','הפרטים נשמרו') %></div>
   <% } %>
 
   <section class="card">
     <!-- שמירה ב-GET ל-/edit/save כדי לעקוף קריאת גוף -->
     <form action="/owner/restaurants/<%= it.restaurant.id %>/edit/save" method="get" class="form-grid" novalidate>
       <div class="form-row">
-        <label for="name">שם</label>
+        <label for="name"><%= tt('owner.edit.fields.name','שם') %></label>
         <input id="name" name="name" value="<%= it.restaurant.name %>" required />
       </div>
       <div class="form-row">
-        <label for="city">עיר</label>
+        <label for="city"><%= tt('owner.edit.fields.city','עיר') %></label>
         <input id="city" name="city" value="<%= it.restaurant.city %>" required />
       </div>
       <div class="form-row">
-        <label for="address">כתובת</label>
+        <label for="address"><%= tt('owner.edit.fields.address','כתובת') %></label>
         <input id="address" name="address" value="<%= it.restaurant.address %>" required />
       </div>
       <div class="form-row">
-        <label for="phone">טלפון</label>
+        <label for="phone"><%= tt('owner.edit.fields.phone','טלפון') %></label>
         <input id="phone" name="phone" value="<%= it.restaurant.phone || "" %>" />
       </div>
       <div class="form-row full">
-        <label for="description">תיאור (אופציונלי)</label>
+        <label for="description"><%= tt('owner.edit.fields.description','תיאור (אופציונלי)') %></label>
         <textarea id="description" name="description" rows="4"><%= it.restaurant.description || "" %></textarea>
       </div>
 
       <div class="form-actions full">
-        <button class="btn primary sm" type="submit">שמור</button>
-        <a class="btn ghost sm" href="/owner/restaurants/<%= it.restaurant.id %>/hours">שעות פתיחה</a>
+        <button class="btn primary sm" type="submit"><%= tt('owner.edit.actions.save','שמור') %></button>
+        <a class="btn ghost sm" href="/owner/restaurants/<%= it.restaurant.id %>/hours"><%= tt('owner.edit.actions.hours','שעות פתיחה') %></a>
       </div>
     </form>
   </section>
 
   <!-- ניהול תמונות ישירות מתוך מסך העריכה -->
   <section class="card">
-    <h3 class="card-title">תמונות המסעדה</h3>
-    <p class="muted">העלאת JPG/PNG/WebP (עד ~1.8MB לקובץ).</p>
+    <h3 class="card-title"><%= tt('owner.edit.photos.title','תמונות המסעדה') %></h3>
+    <p class="muted"><%= tt('owner.edit.photos.hint','העלאת JPG/PNG/WebP (עד ~1.8MB לקובץ).') %></p>
 
     <div class="uploader">
-      <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple>
-      <button id="upload-btn" class="btn primary sm" type="button">העלה</button>
+      <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple aria-label="<%= tt('owner.edit.photos.input_aria','בחירת קבצי תמונה') %>">
+      <button id="upload-btn" class="btn primary sm" type="button"><%= tt('owner.edit.photos.upload_btn','העלה') %></button>
     </div>
 
-    <div id="preview" class="grid preview-grid"></div>
+    <div id="preview" class="grid preview-grid" aria-live="polite"></div>
 
     <hr class="sep"/>
 
-    <h4 class="card-subtitle">גלריה</h4>
+    <h4 class="card-subtitle"><%= tt('owner.edit.photos.gallery','גלריה') %></h4>
     <%
       const photos = Array.isArray(it.restaurant.photos) ? it.restaurant.photos : [];
     %>
     <% if (!photos.length) { %>
-      <p class="muted">אין עדיין תמונות.</p>
+      <p class="muted"><%= tt('owner.edit.photos.empty','אין עדיין תמונות.') %></p>
     <% } else { %>
       <div class="grid gallery-grid">
         <% photos.forEach(function(p){ %>
           <figure class="photo-card" data-id="<%= p.id %>">
             <img src="<%= p.dataUrl %>" alt="<%= p.alt || it.restaurant.name %>">
             <figcaption class="caption">
-              <input class="alt-edit" value="<%= p.alt || '' %>" placeholder="כיתוב" />
-              <button class="btn danger sm delete-btn" data-id="<%= p.id %>" type="button">מחיקה</button>
+              <input class="alt-edit" value="<%= p.alt || '' %>" placeholder="<%= tt('owner.edit.photos.alt_placeholder','כיתוב') %>" />
+              <button class="btn danger sm delete-btn" data-id="<%= p.id %>" type="button"><%= tt('owner.edit.photos.delete_btn','מחיקה') %></button>
             </figcaption>
           </figure>
         <% }) %>
@@ -105,15 +108,15 @@
       var card = document.createElement('div');
       card.className = 'preview-card';
       card.innerHTML =
-        '<img class="preview-img" src="'+url+'">' +
-        '<input class="alt" placeholder="כיתוב לתמונה">';
+        '<img class="preview-img" src="'+url+'" alt="<%= tt('owner.edit.photos.preview_alt','תצוגה מקדימה') %>">' +
+        '<input class="alt" placeholder="<%= tt('owner.edit.photos.alt_placeholder','כיתוב לתמונה') %>">';
       preview.appendChild(card);
     }
   });
 
   uploadBtn.addEventListener('click', async function(){
     var files = Array.from(fileInput.files || []);
-    if (!files.length) { alert('לא נבחרו קבצים'); return; }
+    if (!files.length) { alert('<%= tt('owner.edit.photos.no_files','לא נבחרו קבצים') %>'); return; }
 
     var images = [];
     var cards = Array.from(preview.children);
@@ -124,7 +127,7 @@
       var alt = cards[i]?.querySelector('.alt')?.value || '';
       images.push({ dataUrl: dataUrl, alt: alt });
     }
-    if (!images.length) { alert('הקבצים גדולים מדי או לא תקינים'); return; }
+    if (!images.length) { alert('<%= tt('owner.edit.photos.too_big_or_bad','הקבצים גדולים מדי או לא תקינים') %>'); return; }
 
     try {
       var res = await fetch('/owner/restaurants/'+encodeURIComponent(rid)+'/photos/upload', {
@@ -134,15 +137,15 @@
       });
       if (!res.ok) {
         var txt = await res.text().catch(function(){ return ""; });
-        alert('העלאה נכשלה: ' + res.status + '\n' + txt);
+        alert('<%= tt('owner.edit.photos.upload_failed','העלאה נכשלה') %>: ' + res.status + '\n' + txt);
         return;
       }
       var data = await res.json();
       if (data.ok) { location.reload(); }
-      else { alert('העלאה נכשלה'); }
+      else { alert('<%= tt('owner.edit.photos.upload_failed','העלאה נכשלה') %>'); }
     } catch (e) {
       console.error(e);
-      alert('שגיאת רשת');
+      alert('<%= tt('owner.edit.photos.net_err','שגיאת רשת') %>');
     }
   });
 
@@ -152,7 +155,7 @@
     if (!btn) return;
     var pid = btn.getAttribute('data-id');
     if (!pid) return;
-    if (!confirm('למחוק תמונה זו?')) return;
+    if (!confirm('<%= tt('owner.edit.photos.confirm_delete','למחוק תמונה זו?') %>')) return;
 
     try {
       var res = await fetch('/owner/restaurants/'+encodeURIComponent(rid)+'/photos/delete', {
@@ -160,7 +163,7 @@
         headers: { "Content-Type": "application/json", "Accept":"application/json" },
         body: JSON.stringify({ id: pid }),
       });
-      if (!res.ok) { alert('מחיקה נכשלה'); return; }
+      if (!res.ok) { alert('<%= tt('owner.edit.photos.delete_failed','מחיקה נכשלה') %>'); return; }
       var data = await res.json();
       if (data.ok) {
         var card = document.querySelector('.photo-card[data-id="'+pid+'"]');
@@ -168,7 +171,7 @@
       }
     } catch (e) {
       console.error(e);
-      alert('שגיאת רשת');
+      alert('<%= tt('owner.edit.photos.net_err','שגיאת רשת') %>');
     }
   });
 })();
@@ -222,7 +225,7 @@
   }
   .sep{ margin:16px 0; border:none; border-top:1px solid #23293a }
 
-  .preview-grid{ grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:10px; margin-top:12px }
+  .preview-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:10px; margin-top:12px }
   .preview-card{
     border:1px solid #23293a; border-radius:12px; padding:8px;
     background: color-mix(in srgb, #171b29 92%, transparent);
@@ -233,7 +236,7 @@
   }
 
   /* גלריה קיימת */
-  .gallery-grid{ grid-template-columns:repeat(auto-fill, minmax(160px,1fr)); gap:12px }
+  .gallery-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(160px,1fr)); gap:12px }
   .photo-card{
     border:1px solid #23293a; border-radius:12px; padding:8px;
     background: color-mix(in srgb, #171b29 92%, transparent);
@@ -253,7 +256,7 @@
     padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
     border:1px solid var(--bd, #23293a); background:transparent;
     color: var(--ink, #e6e8ef); font-weight:700;
-    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
+    transition: transform .08s ease, filter .12s ease, box-shadow .12s.ease;
   }
   .btn:hover{ transform: translateY(-1px); }
   .btn.primary{
