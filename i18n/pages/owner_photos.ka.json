@@ -1,0 +1,24 @@
+{
+  "owner": {
+    "photos": {
+      "title": "ფოტოები",
+      "back_to_dashboard": "დაბრუნება დაფაზე",
+      "saved_ok": "წარმატებით შეინახა",
+      "upload_title": "ატვირთეთ ფოტო (ავტომატური შემცირება)",
+      "upload_hint": "JPG/PNG/WebP — ვეცდებით დავაკუმშოთ ~64KB-მდე.",
+      "input_aria": "აირჩიეთ სურათის ფაილი",
+      "upload_btn": "ატვირთვა",
+      "upload_btn_aria": "ფოტოს ატვირთვა",
+      "preview_alt": "წინასწარი ნახვა",
+      "gallery": "გალერეა",
+      "empty": "ფოტოები ჯერ არ არის.",
+      "delete_btn": "წაშლა",
+      "delete_btn_aria": "ფოტოს წაშლა",
+      "pick_first": "ჯერ აირჩიეთ ფოტო",
+      "upload_err": "ატვირთვის შეცდომა",
+      "save_err": "შენახვის შეცდომა",
+      "confirm_delete": "წავშალო ეს ფოტო?",
+      "delete_err": "წაშლა ვერ შესრულდა"
+    }
+  }
+}

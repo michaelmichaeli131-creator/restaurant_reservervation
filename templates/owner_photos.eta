@@ -1,44 +1,47 @@
 <% layout("_layout", it) %>
 
+<% /* tt: תרגום עם fallback אמיתי גם כש-it.t מחזיר "(key)" */ %>
+<% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
+
 <main class="sb-photos container">
   <header class="page-header head">
     <div>
-      <h1 class="h1">תמונות — <%= it.restaurant.name %></h1>
+      <h1 class="h1"><%= tt('owner.photos.title','תמונות') %> — <%= it.restaurant.name %></h1>
       <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
     </div>
-    <a class="btn ghost sm" href="/owner">חזרה לדשבורד</a>
+    <a class="btn ghost sm" href="/owner"><%= tt('owner.photos.back_to_dashboard','חזרה לדשבורד') %></a>
   </header>
 
   <% if (it.saved) { %>
-    <div class="alert success" role="status">✓ נשמר בהצלחה</div>
+    <div class="alert success" role="status">✓ <%= tt('owner.photos.saved_ok','נשמר בהצלחה') %></div>
   <% } %>
 
   <section class="card">
-    <h3 class="card-title">העלאת תמונה (מוקטנת אוטומטית)</h3>
-    <p class="muted">JPG/PNG/WebP — ננסה לכווץ כדי להתאים למגבלת המערכת (~64KB).</p>
+    <h3 class="card-title"><%= tt('owner.photos.upload_title','העלאת תמונה (מוקטנת אוטומטית)') %></h3>
+    <p class="muted"><%= tt('owner.photos.upload_hint','JPG/PNG/WebP — ננסה לכווץ כדי להתאים למגבלת המערכת (~64KB).') %></p>
 
     <div class="uploader">
-      <input id="photo-input" class="file" type="file" accept="image/png,image/jpeg,image/webp">
-      <button id="upload-btn" class="btn primary sm" type="button">העלה</button>
+      <input id="photo-input" class="file" type="file" accept="image/png,image/jpeg,image/webp" aria-label="<%= tt('owner.photos.input_aria','בחירת קובץ תמונה') %>">
+      <button id="upload-btn" class="btn primary sm" type="button" aria-label="<%= tt('owner.photos.upload_btn_aria','העלה תמונה') %>"><%= tt('owner.photos.upload_btn','העלה') %></button>
     </div>
 
-    <div id="preview" class="preview"></div>
+    <div id="preview" class="preview" aria-live="polite"></div>
   </section>
 
   <section class="card">
-    <h3 class="card-title">גלריה</h3>
+    <h3 class="card-title"><%= tt('owner.photos.gallery','גלריה') %></h3>
     <%
       const photos = Array.isArray(it.restaurant.photos) ? it.restaurant.photos : [];
     %>
     <% if (!photos.length) { %>
-      <p class="muted">אין עדיין תמונות.</p>
+      <p class="muted"><%= tt('owner.photos.empty','אין עדיין תמונות.') %></p>
     <% } else { %>
       <div class="grid">
         <% photos.forEach(function(p){ %>
           <figure class="photo-card" data-id="<%= p.id %>">
             <img src="<%= p.dataUrl %>" alt="<%= p.alt || it.restaurant.name %>">
             <figcaption class="caption">
-              <button class="btn danger sm delete-btn" data-id="<%= p.id %>" type="button">🗑 מחיקה</button>
+              <button class="btn danger sm delete-btn" data-id="<%= p.id %>" type="button" aria-label="<%= tt('owner.photos.delete_btn_aria','מחק תמונה') %>">🗑 <%= tt('owner.photos.delete_btn','מחיקה') %></button>
             </figcaption>
           </figure>
         <% }) %>
@@ -59,7 +62,7 @@
     const f = fileInput.files && fileInput.files[0];
     if (!f) return;
     const url = URL.createObjectURL(f);
-    preview.innerHTML = '<img src="'+url+'" class="preview-img">';
+    preview.innerHTML = '<img src="'+url+'" class="preview-img" alt="<%= tt('owner.photos.preview_alt','תצוגה מקדימה') %>">';
   });
 
   async function shrinkToUnder(targetBytes, file) {
@@ -97,7 +100,7 @@
 
   uploadBtn.addEventListener('click', async () => {
     const f = fileInput.files && fileInput.files[0];
-    if (!f) return alert("בחר/י תמונה קודם");
+    if (!f) return alert("<%= tt('owner.photos.pick_first','בחר/י תמונה קודם') %>");
 
     const targetBytes = 60 * 1024; // ~60KB
     let blob = f;
@@ -113,13 +116,13 @@
     });
 
     if (!res.ok) {
-      const txt = await res.text().catch(()=>"");
-      alert("שגיאה בהעלאה: " + res.status + "\\n" + txt);
+      const txt = await res.text().catch(()=> "");
+      alert("<%= tt('owner.photos.upload_err','שגיאה בהעלאה') %>: " + res.status + "\\n" + txt);
       return;
     }
     const data = await res.json();
     if (data.ok) location.reload();
-    else alert("שגיאה בשמירה");
+    else alert("<%= tt('owner.photos.save_err','שגיאה בשמירה') %>");
   });
 
   document.addEventListener('click', async (ev) => {
@@ -127,14 +130,14 @@
     if (!btn) return;
     const pid = btn.getAttribute('data-id');
     if (!pid) return;
-    if (!confirm('למחוק תמונה זו?')) return;
+    if (!confirm('<%= tt('owner.photos.confirm_delete','למחוק תמונה זו?') %>')) return;
 
     const res = await fetch(`/owner/restaurants/${encodeURIComponent(rid)}/photos/delete`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: pid }),
     });
-    if (!res.ok) return alert('מחיקה נכשלה');
+    if (!res.ok) return alert('<%= tt('owner.photos.delete_err','מחיקה נכשלה') %>');
     const data = await res.json();
     if (data.ok) document.querySelector('.photo-card[data-id="'+pid+'"]')?.remove();
   });

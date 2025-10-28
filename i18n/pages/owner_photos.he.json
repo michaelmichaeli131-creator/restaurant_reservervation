@@ -1,0 +1,24 @@
+{
+  "owner": {
+    "photos": {
+      "title": "תמונות",
+      "back_to_dashboard": "חזרה לדשבורד",
+      "saved_ok": "נשמר בהצלחה",
+      "upload_title": "העלאת תמונה (מוקטנת אוטומטית)",
+      "upload_hint": "JPG/PNG/WebP — ננסה לכווץ כדי להתאים למגבלת המערכת (~64KB).",
+      "input_aria": "בחירת קובץ תמונה",
+      "upload_btn": "העלה",
+      "upload_btn_aria": "העלה תמונה",
+      "preview_alt": "תצוגה מקדימה",
+      "gallery": "גלריה",
+      "empty": "אין עדיין תמונות.",
+      "delete_btn": "מחיקה",
+      "delete_btn_aria": "מחק תמונה",
+      "pick_first": "בחר/י תמונה קודם",
+      "upload_err": "שגיאה בהעלאה",
+      "save_err": "שגיאה בשמירה",
+      "confirm_delete": "למחוק תמונה זו?",
+      "delete_err": "מחיקה נכשלה"
+    }
+  }
+}
