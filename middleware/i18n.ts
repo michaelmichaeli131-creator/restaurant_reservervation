@@ -27,25 +27,41 @@ function baseDictPath(locale: Locale): string {
   }
 }
 
-/** נתיב לקובץ מילון עמוד: i18n/pages/<page>.<locale>.json  ← (תיקון חשוב) */
+/** נתיב לקובץ מילון עמוד: i18n/pages/<page>.<locale>.json */
 function pageDictPath(page: string, locale: Locale): string {
   try {
-    return new URL(`../i18n/pages/${page}.${locale}.json`, import.meta.url).pathname; // ✅ כולל pages/
+    return new URL(`../i18n/pages/${page}.${locale}.json`, import.meta.url).pathname;
   } catch {
-    return `./i18n/pages/${page}.${locale}.json`; // ✅ fallback עם pages/
+    return `./i18n/pages/${page}.${locale}.json`;
   }
 }
 
-/** shallow merge ללא דריסה: מוסיף מפתחות שחסרים בלבד */
-function mergeNoOverwrite<T extends Record<string, unknown>>(base: T, extra: Record<string, unknown>): T {
+/* ===================== Deep merge (no overwrite) ===================== */
+/** בדיקה לאובייקט "פשוט" (לא מערך) */
+function isPlainObject(x: unknown): x is Record<string, unknown> {
+  return !!x && typeof x === "object" && !Array.isArray(x);
+}
+
+/**
+ * ממזג אל base רק מפתחות שחסרים בו, באופן רקורסיבי.
+ * אם קיים מפתח ב-base – לא נדרוס אותו; אבל אם זה אובייקט – נמשיך למזג לעומק.
+ */
+function deepMergeNoOverwrite<T extends Record<string, unknown>>(
+  base: T,
+  extra: Record<string, unknown>,
+): T {
   for (const k of Object.keys(extra)) {
-    if (base[k] === undefined) {
-      // @ts-ignore
-      base[k] = extra[k];
+    const bv = (base as any)[k];
+    const ev = (extra as any)[k];
+    if (bv === undefined) {
+      (base as any)[k] = ev;
+    } else if (isPlainObject(bv) && isPlainObject(ev)) {
+      deepMergeNoOverwrite(bv, ev);
     }
   }
   return base;
 }
+/* ==================================================================== */
 
 /** קריאת מילון: בסיסי + ייעודי לעמוד, עם cache בפרודקשן */
 async function loadDict(locale: Locale, page?: string): Promise<Record<string, unknown>> {
@@ -83,8 +99,8 @@ async function loadDict(locale: Locale, page?: string): Promise<Record<string, u
       // console.info(`[i18n] no page dict for ${pPath}`);
     }
 
-    // לא לדרוס את המילון הכללי:
-    mergeNoOverwrite(baseDict, pageDict);
+    // לא לדרוס את המילון הכללי (מיזוג עמוק ללא דריסה):
+    deepMergeNoOverwrite(baseDict as Record<string, unknown>, pageDict);
 
     // זמינות גם תחת t('page.*') אם תרצה שימוש מפורש
     (baseDict as any).page = pageDict;
@@ -183,7 +199,7 @@ function pageFromPath(pathname: string, hinted?: string): string {
   if (hinted && hinted.trim()) return hinted.trim();
   if (pathname === "/") return "home";
   if (pathname.startsWith("/admin")) return "admin";
-  if (pathname.startsWith("/owner/calendar")) return "owner_calendar"; 
+  if (pathname.startsWith("/owner/calendar")) return "owner_calendar";
   if (pathname.startsWith("/owner")) return "owner";
   if (pathname.startsWith("/restaurants")) return "restaurant";
   if (pathname.startsWith("/auth")) return "auth";
