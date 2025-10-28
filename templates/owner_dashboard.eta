@@ -1,16 +1,33 @@
 <% layout("_layout", it) %>
 
-<section class="sb-owner container">
+<%
+// tt: תרגום עם fallback אמיתי (אם it.t מחזיר "(key)" או מחרוזת ריקה)
+function tt(k, fb){
+  try{
+    if (it && typeof it.t==='function'){
+      const s = it.t(k);
+      if(!s || s===k || s===`(${k})`) return fb;
+      return s;
+    }
+  }catch(e){}
+  return fb;
+}
+%>
+
+<section class="sb-owner container" aria-label="<%= tt('owner.dashboard.aria_section','דשבורד בעלים') %>">
   <div class="card">
     <header class="owner-hd">
-      <h1>דשבורד בעלים</h1>
-      <span class="muted">שלום, <strong><%= it.user?.firstName || it.user?.username || "בעלים" %></strong></span>
+      <h1><%= tt('owner.dashboard.title','דשבורד בעלים') %></h1>
+      <span class="muted">
+        <%= tt('owner.dashboard.hello','שלום') %>,
+        <strong><%= it.user?.firstName || it.user?.username || tt('owner.dashboard.owner_fallback','בעלים') %></strong>
+      </span>
     </header>
 
     <div class="owner-grid">
       <!-- רשימת מסעדות -->
       <div class="panel card">
-        <h2 class="card-title">המסעדות שלי</h2>
+        <h2 class="card-title"><%= tt('owner.dashboard.my_restaurants','המסעדות שלי') %></h2>
 
         <% if (it.restaurants && it.restaurants.length) { %>
           <ul class="list">
@@ -32,76 +49,90 @@
                   <% } %>
                   <div class="meta-body">
                     <div class="title"><strong><%= r.name %></strong></div>
-                    <div class="sub muted"><%= r.city %> • <%= r.address %></div>
-                    <div class="sub muted">משך ישיבה: <%= (typeof r.serviceDurationMinutes === 'number' ? r.serviceDurationMinutes : 90) %> דק׳</div>
+                    <div class="sub muted">
+                      <%= r.city %> • <%= r.address %>
+                    </div>
+                    <div class="sub muted">
+                      <%= tt('owner.dashboard.seat_duration','משך ישיבה') %>:
+                      <%= (typeof r.serviceDurationMinutes === 'number' ? r.serviceDurationMinutes : 90) %>
+                      <%= tt('owner.dashboard.minutes_short','דק׳') %>
+                    </div>
 
                     <!-- KPI יומי קצר -->
-                    <div class="kpis">
-                      <span class="kpi">היום: <%= r._today %></span>
-                      <span class="kpi">הזמנות: <%= r._reservationsCount ?? 0 %></span>
-                      <span class="kpi">סועדים: <%= r._peopleToday ?? 0 %></span>
+                    <div class="kpis" aria-label="<%= tt('owner.dashboard.today_kpis','מדדי היום') %>">
+                      <span class="kpi"><%= tt('owner.dashboard.today','היום') %>: <%= r._today %></span>
+                      <span class="kpi"><%= tt('owner.dashboard.kpi_reservations','הזמנות') %>: <%= r._reservationsCount ?? 0 %></span>
+                      <span class="kpi"><%= tt('owner.dashboard.kpi_people','סועדים') %>: <%= r._peopleToday ?? 0 %></span>
                       <span class="kpi">Peak: <%= peak %>%</span>
                     </div>
 
                     <!-- Progress Occupancy -->
-                    <div class="bar" aria-label="Peak Occupancy">
+                    <div class="bar" aria-label="<%= tt('owner.dashboard.peak_aria','תפוסת שיא') %>">
                       <div class="bar-fill <%= color %>" style="width:<%= Math.max(0, Math.min(100, peak)) %>%"></div>
                     </div>
                   </div>
                 </div>
 
                 <div class="actions">
-                  <a class="btn ghost" href="<%= r._calendarUrl %>" target="_self" rel="nofollow">📅 Calendar יומי</a>
-                  <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/edit" target="_self" rel="nofollow">עריכת פרטים</a>
-                  <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/hours" target="_self" rel="nofollow">שעות פתיחה</a>
-                  <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/photos" target="_self" rel="nofollow">תמונות</a>
+                  <a class="btn ghost" href="<%= r._calendarUrl %>" target="_self" rel="nofollow">📅 <%= tt('owner.dashboard.btn_calendar','Calendar יומי') %></a>
+                  <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/edit"   target="_self" rel="nofollow"><%= tt('owner.dashboard.btn_edit','עריכת פרטים') %></a>
+                  <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/hours"  target="_self" rel="nofollow"><%= tt('owner.dashboard.btn_hours','שעות פתיחה') %></a>
+                  <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/photos" target="_self" rel="nofollow"><%= tt('owner.dashboard.btn_photos','תמונות') %></a>
                 </div>
               </li>
             <% }) %>
           </ul>
         <% } else { %>
-          <p class="muted">עדיין אין לך מסעדות.</p>
+          <p class="muted"><%= tt('owner.dashboard.no_restaurants','עדיין אין לך מסעדות.') %></p>
         <% } %>
       </div>
 
       <!-- פתיחת מסעדה חדשה -->
       <div class="panel card">
-        <h2 class="card-title">פתח/י מסעדה חדשה</h2>
+        <h2 class="card-title"><%= tt('owner.dashboard.open_new_title','פתח/י מסעדה חדשה') %></h2>
 
         <!-- נשאר POST קלאסי; התמונות יועמסו אוטומטית אחרי יצירה דרך localStorage -->
         <form action="/owner/restaurant/new" method="post" class="form" id="create-restaurant-form">
-          <label>שם מסעדה
-            <input name="name" required placeholder="לדוגמה: פסטה דל סול">
+          <label>
+            <%= tt('owner.dashboard.form.name','שם מסעדה') %>
+            <input name="name" required placeholder="<%= tt('owner.dashboard.form.name_ph','לדוגמה: פסטה דל סול') %>">
           </label>
 
-          <label>עיר
-            <input name="city" required placeholder="תל אביב">
+          <label>
+            <%= tt('owner.dashboard.form.city','עיר') %>
+            <input name="city" required placeholder="<%= tt('owner.dashboard.form.city_ph','תל אביב') %>">
           </label>
 
-          <label>כתובת
-            <input name="address" required placeholder="אבן גבירול 12">
+          <label>
+            <%= tt('owner.dashboard.form.address','כתובת') %>
+            <input name="address" required placeholder="<%= tt('owner.dashboard.form.address_ph','אבן גבירול 12') %>">
           </label>
 
-          <label>טלפון (לא חובה)
-            <input name="phone" placeholder="03-1234567">
+          <label>
+            <%= tt('owner.dashboard.form.phone','טלפון (לא חובה)') %>
+            <input name="phone" placeholder="<%= tt('owner.dashboard.form.phone_ph','03-1234567') %>">
           </label>
 
-          <label>משך ישיבה (דקות)
-            <input name="serviceDurationMinutes" type="number" min="30" step="15" value="120">
+          <label>
+            <%= tt('owner.dashboard.form.duration','משך ישיבה (דקות)') %>
+            <input name="serviceDurationMinutes" type="number" min="30" step="15" value="120" inputmode="numeric">
           </label>
 
           <div class="sep"></div>
 
-          <label>תמונות למסעדה (אופציונלי בשלב יצירה)
+          <label>
+            <%= tt('owner.dashboard.form.photos','תמונות למסעדה (אופציונלי בשלב יצירה)') %>
             <input id="create-files" type="file" accept="image/png,image/jpeg,image/webp" multiple>
           </label>
-          <small class="muted">הקבצים יועלו אוטומטית למסעדה החדשה אחרי היצירה.</small>
+          <small class="muted"><%= tt('owner.dashboard.form.photos_hint','הקבצים יועלו אוטומטית למסעדה החדשה אחרי היצירה.') %></small>
 
-          <button class="btn primary sm" type="submit" style="margin-top:10px">שמירה ויצירה</button>
+          <button class="btn primary sm" type="submit" style="margin-top:10px">
+            <%= tt('owner.dashboard.form.submit','שמירה ויצירה') %>
+          </button>
         </form>
 
         <p class="muted" style="margin-top:8px">
-          לאחר יצירה ניתן לעדכן שעות פתיחה, פרטים, ותמונות במסך “עריכת פרטים” או “תמונות”.
+          <%= tt('owner.dashboard.after_create_hint','לאחר יצירה ניתן לעדכן שעות פתיחה, פרטים, ותמונות במסך “עריכת פרטים” או “תמונות”.') %>
         </p>
       </div>
     </div>
