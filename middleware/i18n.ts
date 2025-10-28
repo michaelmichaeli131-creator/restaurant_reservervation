@@ -183,6 +183,7 @@ function pageFromPath(pathname: string, hinted?: string): string {
   if (hinted && hinted.trim()) return hinted.trim();
   if (pathname === "/") return "home";
   if (pathname.startsWith("/admin")) return "admin";
+  if (pathname.startsWith("/owner/calendar")) return "owner_calendar"; 
   if (pathname.startsWith("/owner")) return "owner";
   if (pathname.startsWith("/restaurants")) return "restaurant";
   if (pathname.startsWith("/auth")) return "auth";
