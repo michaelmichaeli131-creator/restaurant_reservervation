@@ -135,12 +135,15 @@ export async function detailsGet(ctx: any) {
 
   const photos = photoStrings(restaurant.photos);
 
-  await render(ctx, "reservation_details", {
-    page: "reservation_details",
-    title: `פרטי הזמנה — ${restaurant.name}`,
-    restaurant: { ...restaurant, photos, openingHours: restaurant.weeklySchedule },
-    date, time, people
-  });
+await render(ctx, "reserve_details", {
+  title: "פרטי הזמנה",
+  restaurant,
+  date,
+  time,
+  people,
+  page: "details",
+  lang: ctx.state.lang || "he",
+});
 }
 
 export async function confirmGet(ctx: any) {
