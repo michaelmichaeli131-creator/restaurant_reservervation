@@ -13,7 +13,7 @@ import { readBody, extractDateAndTime } from "./_utils/body.ts";
 import { isWithinSchedule, hasScheduleForDate, getWindowsForDate, suggestionsWithinSchedule } from "./_utils/hours.ts";
 import { normalizePlain, sanitizeEmailMinimal, sanitizeNote, isValidEmailStrict } from "./_utils/rtl.ts";
 import { asOk, photoStrings } from "./_utils/misc.ts";
-import { makeT } from "../../lib/i18n.ts"; // ✅ i18n
+import { makeT } from "../../middleware/i18n.ts"; // ✅ i18n
 
 /** נגזרת שפה: query ?lang= / cookie 'lang' / Accept-Language / he */
 function getLang(ctx: any): string {
