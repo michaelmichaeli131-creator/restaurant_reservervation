@@ -2,7 +2,7 @@
 import { Status } from "jsr:@oak/oak";
 import {
   checkAvailability, createReservation, getRestaurant, getUserById,
-  type Reservation, type WeeklySchedule
+  type Reservation,
 } from "../../database.ts";
 import { render } from "../../lib/view.ts";
 import { sendReservationEmail, notifyOwnerEmail } from "../../lib/mail.ts";
@@ -13,6 +13,20 @@ import { readBody, extractDateAndTime } from "./_utils/body.ts";
 import { isWithinSchedule, hasScheduleForDate, getWindowsForDate, suggestionsWithinSchedule } from "./_utils/hours.ts";
 import { normalizePlain, sanitizeEmailMinimal, sanitizeNote, isValidEmailStrict } from "./_utils/rtl.ts";
 import { asOk, photoStrings } from "./_utils/misc.ts";
+import { makeT } from "../../lib/i18n.ts"; // ✅ i18n
+
+/** נגזרת שפה: query ?lang= / cookie 'lang' / Accept-Language / he */
+function getLang(ctx: any): string {
+  const q = ctx.request.url.searchParams.get("lang");
+  if (q) return q;
+  const c = ctx.cookies?.get?.("lang");
+  if (c) return c;
+  const al = ctx.request.headers.get("accept-language") || "";
+  if (/^en/i.test(al)) return "en";
+  if (/^ka/i.test(al)) return "ka";
+  if (/^he/i.test(al)) return "he";
+  return "he";
+}
 
 export async function checkApi(ctx: any) {
   const rid = String(ctx.params.id ?? "");
@@ -135,18 +149,18 @@ export async function detailsGet(ctx: any) {
 
   const photos = photoStrings(restaurant.photos);
 
-await render(ctx, "reservation_details", {
-  page: "details",
-  title: `פרטי הזמנה — ${restaurant.name}`,
-  restaurant: { ...restaurant, photos, openingHours: restaurant.weeklySchedule },
-  date,
-  time,
-  people,
-  lang: ctx.state.lang,    // אופציונלי ל-layout
-  dir: ctx.state.dir,      // אופציונלי ל-layout
-  t: ctx.state.t, // ✅ חשוב כדי שהתבנית תוכל להשתמש ב־it.t()
-});
+  // ✅ i18n
+  const lang = getLang(ctx);
+  const page = "details";
+  const t = await makeT(page, lang);
 
+  await render(ctx, "reservation_details", {
+    page, lang, t,
+    title: `${t("details.header.title", "פרטי הזמנה")} — ${restaurant.name}`,
+    restaurant: { ...restaurant, photos, openingHours: restaurant.weeklySchedule },
+    date, time, people,
+    dir: ctx.state?.dir, // אופציונלי ל-layout
+  });
 }
 
 export async function confirmGet(ctx: any) {
@@ -243,14 +257,17 @@ export async function confirmGet(ctx: any) {
     final: customerEmail,
   });
 
-  await sendReservationEmail({
-    to: customerEmail,
-    restaurantName: restaurant.name,
-    date, time, people,
-    customerName,
-    manageUrl,
-    reservationId: reservation.id,
-  }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
+  // ✅ שליחת מייל ללקוח רק אם יש אימייל
+  if (customerEmail) {
+    await sendReservationEmail({
+      to: customerEmail,
+      restaurantName: restaurant.name,
+      date, time, people,
+      customerName,
+      manageUrl,
+      reservationId: reservation.id,
+    }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
+  }
 
   const owner = await getUserById(restaurant.ownerId).catch(() => null);
   if (owner?.email) {
@@ -270,9 +287,14 @@ export async function confirmGet(ctx: any) {
 
   const photos = photoStrings(restaurant.photos);
 
+  // ✅ i18n
+  const lang = getLang(ctx);
+  const page = "confirm";
+  const t = await makeT(page, lang);
+
   await render(ctx, "reservation_confirmed", {
-    page: "reservation_confirmed",
-    title: "הזמנה אושרה",
+    page, lang, t,
+    title: `${t("confirm.header.title","הזמנה אושרה ✔")} — ${restaurant.name}`,
     restaurant: { ...restaurant, photos },
     date, time, people,
     customerName, customerPhone, customerEmail,
@@ -374,12 +396,15 @@ export async function confirmPost(ctx: any) {
     final: customerEmail,
   });
 
-  await sendReservationEmail({
-    to: customerEmail,
-    restaurantName: restaurant.name,
-    date, time, people,
-    customerName,
-  }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
+  // ✅ מייל ללקוח רק אם יש אימייל
+  if (customerEmail) {
+    await sendReservationEmail({
+      to: customerEmail,
+      restaurantName: restaurant.name,
+      date, time, people,
+      customerName,
+    }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
+  }
 
   const owner = await getUserById(restaurant.ownerId).catch(() => null);
   if (owner?.email) {
@@ -395,10 +420,14 @@ export async function confirmPost(ctx: any) {
 
   const photos = photoStrings(restaurant.photos);
 
+  // ✅ i18n
+  const lang = getLang(ctx);
+  const page = "confirm";
+  const t = await makeT(page, lang);
+
   await render(ctx, "reservation_confirmed", {
-    page: "reservation_confirmed",
-    lang,t,
-    title: "הזמנה אושרה",
+    page, lang, t,
+    title: `${t("confirm.header.title","הזמנה אושרה ✔")} — ${restaurant.name}`,
     restaurant: { ...restaurant, photos },
     date, time, people,
     customerName, customerPhone, customerEmail,
