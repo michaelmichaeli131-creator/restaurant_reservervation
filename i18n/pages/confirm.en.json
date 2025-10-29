@@ -1,0 +1,20 @@
+{
+  "confirm.header.title": "Reservation Confirmed ✔",
+  "confirm.header.subtitle": "Thanks for booking at ",
+  "confirm.details.title": "Reservation Details",
+  "confirm.details.restaurant": "Restaurant",
+  "confirm.details.address": "Address",
+  "confirm.details.date": "Date",
+  "confirm.details.time": "Time",
+  "confirm.details.people": "Guests",
+  "confirm.details.customerName": "Customer Name",
+  "confirm.details.customerPhone": "Mobile",
+  "confirm.details.customerEmail": "Email",
+  "confirm.details.note": "Notes",
+  "confirm.details.id": "Reservation ID",
+  "confirm.actions.backToRestaurant": "Back to restaurant page",
+  "confirm.actions.edit": "Edit date/time/guests",
+  "confirm.actions.home": "Back to home",
+  "confirm.footer.emailSent": "We've emailed you the reservation details. See you soon!",
+  "confirm.about.title": "About the restaurant"
+}

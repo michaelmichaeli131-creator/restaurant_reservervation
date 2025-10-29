@@ -1,86 +1,90 @@
 <% layout("_layout", it) %>
+
+<% /* tt: תרגום עם fallback אמיתי גם כש-it.t מחזיר "(key)" */ %>
+<% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
+
 <main class="container sb-rest">
   <header class="page-header">
-    <h1>הזמנה אושרה ✔</h1>
-    <p class="muted">תודה שהזמנת ב־<strong><%= it.restaurant.name %></strong>.</p>
+    <h1><%= tt('confirm.header.title','הזמנה אושרה ✔') %></h1>
+    <p class="muted"><%= tt('confirm.header.subtitle','תודה שהזמנת ב־') %><strong><%= it.restaurant.name %></strong>.</p>
   </header>
 
   <section class="card">
-    <h2 class="card-title">פרטי הזמנה</h2>
+    <h2 class="card-title"><%= tt('confirm.details.title','פרטי הזמנה') %></h2>
     <dl class="details">
       <div class="row">
-        <dt>מסעדה</dt>
+        <dt><%= tt('confirm.details.restaurant','מסעדה') %></dt>
         <dd><%= it.restaurant.name %></dd>
       </div>
       <div class="row">
-        <dt>כתובת</dt>
+        <dt><%= tt('confirm.details.address','כתובת') %></dt>
         <dd><%= it.restaurant.city %> · <%= it.restaurant.address %></dd>
       </div>
       <div class="row">
-        <dt>תאריך</dt>
+        <dt><%= tt('confirm.details.date','תאריך') %></dt>
         <dd><%= it.date %></dd>
       </div>
       <div class="row">
-        <dt>שעה</dt>
+        <dt><%= tt('confirm.details.time','שעה') %></dt>
         <dd><%= it.time %></dd>
       </div>
       <div class="row">
-        <dt>סועדים</dt>
+        <dt><%= tt('confirm.details.people','סועדים') %></dt>
         <dd><%= it.people %></dd>
       </div>
       <div class="row">
-        <dt>שם לקוח</dt>
+        <dt><%= tt('confirm.details.customerName','שם לקוח') %></dt>
         <dd><%= it.customerName %></dd>
       </div>
       <div class="row">
-        <dt>נייד</dt>
+        <dt><%= tt('confirm.details.customerPhone','נייד') %></dt>
         <dd><%= it.customerPhone %></dd>
       </div>
       <div class="row">
-        <dt>אימייל</dt>
+        <dt><%= tt('confirm.details.customerEmail','אימייל') %></dt>
         <dd dir="ltr"><%= it.customerEmail %></dd>
       </div>
       <% if (it.note) { %>
       <div class="row">
-        <dt>הערות</dt>
+        <dt><%= tt('confirm.details.note','הערות') %></dt>
         <dd><%= it.note %></dd>
       </div>
       <% } %>
       <div class="row">
-        <dt>מס׳ הזמנה</dt>
+        <dt><%= tt('confirm.details.id','מס׳ הזמנה') %></dt>
         <dd><code class="code"><%= it.reservationId %></code></dd>
       </div>
     </dl>
 
     <div class="cta">
-      <!-- כפתור חזרה לדף המסעדה -->
-      <a class="btn primary" href="/restaurants/<%= it.restaurant.id %>">חזרה לעמוד המסעדה</a>
-
-      <!-- כפתור עריכה: חזרה לשלב 1 עם כל ה-query (כולל people) -->
-      <a class="btn ghost"
-         href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
-        עריכת תאריך/שעה/סועדים
+      <a class="btn primary" href="/restaurants/<%= it.restaurant.id %>">
+        <%= tt('confirm.actions.backToRestaurant','חזרה לעמוד המסעדה') %>
       </a>
 
-      <!-- עמוד ראשי -->
-      <a class="btn ghost" href="/">חזרה לעמוד הראשי</a>
+      <a class="btn ghost"
+         href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
+        <%= tt('confirm.actions.edit','עריכת תאריך/שעה/סועדים') %>
+      </a>
+
+      <a class="btn ghost" href="/">
+        <%= tt('confirm.actions.home','חזרה לעמוד הראשי') %>
+      </a>
     </div>
 
     <p class="muted tip">
-      נשלח אליך אימייל עם פרטי ההזמנה. נתראה!
+      <%= tt('confirm.footer.emailSent','נשלח אליך אימייל עם פרטי ההזמנה. נתראה!') %>
     </p>
   </section>
 
   <% if (it.restaurant.description) { %>
     <section class="card">
-      <h2 class="card-title">על המסעדה</h2>
+      <h2 class="card-title"><%= tt('confirm.about.title','על המסעדה') %></h2>
       <p><%= it.restaurant.description %></p>
     </section>
   <% } %>
 </main>
 
 <style>
-  /* ===== תואם SpotBook (כהה יוקרתי) – ללא שינוי לוגיקה/פיצ'רים ===== */
   :root{
     --bg:#0e1116; --panel:#121622; --panel-2:#171b29; --ink:#e6e8ef; --ink-muted:#9aa3b2;
     --bd:#23293a; --brand:#3b82f6; --brand-ink:#fff; --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35);
@@ -90,7 +94,6 @@
   .page-header h1{ margin:0 0 6px; letter-spacing:.2px }
   .muted{ color: var(--ink-muted) }
 
-  /* כרטיס */
   .card{
     background: var(--panel);
     border:1px solid var(--bd);
@@ -102,7 +105,6 @@
   }
   .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
 
-  /* רשימת פרטים (DL) */
   .details{ margin:0 }
   .row{
     display:grid; grid-template-columns: 140px 1fr; gap:10px;
@@ -117,7 +119,6 @@
     border-radius:10px; padding:2px 6px; font-family: ui-monospace,Consolas,monospace;
   }
 
-  /* כפתורים “חיים” */
   .btn{
     display:inline-flex; align-items:center; justify-content:center; gap:8px;
     padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
@@ -136,10 +137,8 @@
     background: color-mix(in srgb, var(--panel) 92%, transparent);
   }
   .cta{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px }
-
   .tip{ margin-top:12px }
 
-  /* מובייל */
   @media (max-width:640px){
     .row{ grid-template-columns: 1fr; gap:6px }
     dt{ opacity:.7 }
