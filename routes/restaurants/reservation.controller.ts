@@ -14,7 +14,7 @@ import { isWithinSchedule, hasScheduleForDate, getWindowsForDate, suggestionsWit
 import { normalizePlain, sanitizeEmailMinimal, sanitizeNote, isValidEmailStrict } from "./_utils/rtl.ts";
 import { asOk, photoStrings } from "./_utils/misc.ts";
 
-/** זיהוי שפה בסיסי אם ה-middleware לא הגדיר */
+/* ====================== i18n helpers ====================== */
 function getLang(ctx: any): string {
   const q = ctx.request.url.searchParams.get("lang");
   if (q) return q;
@@ -26,13 +26,15 @@ function getLang(ctx: any): string {
   if (/^he/i.test(al)) return "he";
   return "he";
 }
-/** מחזיר פונקציית תרגום — או זו שמוזרקת ע״י ה-middleware או fallback */
 function getT(ctx: any): (k: string, fb?: string) => string {
   const t = ctx.state?.t;
   if (typeof t === "function") return t;
   return (_k: string, fb?: string) => (fb ?? "");
 }
+function getDir(lang: string): "rtl" | "ltr" { return lang === "he" ? "rtl" : "ltr"; }
+function appendLang(u: URL, lang: string) { if (lang) u.searchParams.set("lang", lang); return u; }
 
+/* ====================== API: availability check ====================== */
 export async function checkApi(ctx: any) {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -80,6 +82,7 @@ export async function checkApi(ctx: any) {
   }
 }
 
+/* ====================== POST /restaurants/:id/reserve ====================== */
 export async function reservePost(ctx: any) {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -89,9 +92,15 @@ export async function reservePost(ctx: any) {
   const { date, time } = extractDateAndTime(ctx, payload);
   const people = toIntLoose((payload as any).people) ?? 2;
 
+  // i18n context & optional cookie
+  const lang = ctx.state?.lang ?? getLang(ctx);
+  if (ctx.request.url.searchParams.has("lang")) {
+    await ctx.cookies?.set?.("lang", lang, { httpOnly: false, sameSite: "Lax", maxAge: 60 * 60 * 24 * 365 });
+  }
+
   const within = isWithinSchedule(restaurant.weeklySchedule, date, time);
   debugLog("[restaurants][POST reserve] before-redirect", {
-    rid, date, time, within,
+    rid, date, time, within, body_ct: dbg.ct,
     weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : []
   });
 
@@ -111,6 +120,7 @@ export async function reservePost(ctx: any) {
     url.searchParams.set("date", date);
     url.searchParams.set("time", time);
     url.searchParams.set("people", String(people));
+    appendLang(url, lang);
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", url.pathname + url.search);
     return;
@@ -125,6 +135,7 @@ export async function reservePost(ctx: any) {
     url.searchParams.set("date", date);
     url.searchParams.set("time", time);
     url.searchParams.set("people", String(people));
+    appendLang(url, lang);
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", url.pathname + url.search);
     return;
@@ -134,10 +145,12 @@ export async function reservePost(ctx: any) {
   u.searchParams.set("date", date);
   u.searchParams.set("time", time);
   u.searchParams.set("people", String(people));
+  appendLang(u, lang);
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set("Location", u.pathname + u.search);
 }
 
+/* ====================== GET /restaurants/:id/details ====================== */
 export async function detailsGet(ctx: any) {
   const id = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(id);
@@ -154,20 +167,21 @@ export async function detailsGet(ctx: any) {
 
   const photos = photoStrings(restaurant.photos);
 
-  // i18n דרך ה-middleware (עם fallback)
+  // i18n context
   const lang = ctx.state?.lang ?? getLang(ctx);
   const t = getT(ctx);
+  const dir = ctx.state?.dir ?? getDir(lang);
 
   await render(ctx, "reservation_details", {
     page: "details",
-    lang, t,
+    lang, dir, t,
     title: `${t("details.header.title","פרטי הזמנה")} — ${restaurant.name}`,
     restaurant: { ...restaurant, photos, openingHours: restaurant.weeklySchedule },
     date, time, people,
-    dir: ctx.state?.dir,
   });
 }
 
+/* ====================== GET /restaurants/:id/confirm ====================== */
 export async function confirmGet(ctx: any) {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -291,13 +305,13 @@ export async function confirmGet(ctx: any) {
 
   const photos = photoStrings(restaurant.photos);
 
-  // i18n דרך ה-middleware (עם fallback)
   const lang = ctx.state?.lang ?? getLang(ctx);
   const t = getT(ctx);
+  const dir = ctx.state?.dir ?? getDir(lang);
 
   await render(ctx, "reservation_confirmed", {
     page: "confirm",
-    lang, t,
+    lang, dir, t,
     title: `${t("confirm.header.title","הזמנה אושרה ✔")} — ${restaurant.name}`,
     restaurant: { ...restaurant, photos },
     date, time, people,
@@ -307,6 +321,7 @@ export async function confirmGet(ctx: any) {
   });
 }
 
+/* ====================== POST /restaurants/:id/confirm ====================== */
 export async function confirmPost(ctx: any) {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -423,13 +438,13 @@ export async function confirmPost(ctx: any) {
 
   const photos = photoStrings(restaurant.photos);
 
-  // i18n דרך ה-middleware (עם fallback)
   const lang = ctx.state?.lang ?? getLang(ctx);
   const t = getT(ctx);
+  const dir = ctx.state?.dir ?? getDir(lang);
 
   await render(ctx, "reservation_confirmed", {
     page: "confirm",
-    lang, t,
+    lang, dir, t,
     title: `${t("confirm.header.title","הזמנה אושרה ✔")} — ${restaurant.name}`,
     restaurant: { ...restaurant, photos },
     date, time, people,
