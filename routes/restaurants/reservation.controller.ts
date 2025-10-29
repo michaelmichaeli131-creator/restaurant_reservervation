@@ -142,6 +142,8 @@ await render(ctx, "reservation_details", {
   date,
   time,
   people,
+  lang: ctx.state.lang,    // אופציונלי ל-layout
+  dir: ctx.state.dir,      // אופציונלי ל-layout
   t: ctx.state.t, // ✅ חשוב כדי שהתבנית תוכל להשתמש ב־it.t()
 });
 
