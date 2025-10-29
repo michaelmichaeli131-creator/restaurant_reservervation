@@ -13,9 +13,8 @@ import { readBody, extractDateAndTime } from "./_utils/body.ts";
 import { isWithinSchedule, hasScheduleForDate, getWindowsForDate, suggestionsWithinSchedule } from "./_utils/hours.ts";
 import { normalizePlain, sanitizeEmailMinimal, sanitizeNote, isValidEmailStrict } from "./_utils/rtl.ts";
 import { asOk, photoStrings } from "./_utils/misc.ts";
-import { makeT } from "../../middleware/i18n.ts"; // ✅ i18n
 
-/** נגזרת שפה: query ?lang= / cookie 'lang' / Accept-Language / he */
+/** זיהוי שפה בסיסי אם ה-middleware לא הגדיר */
 function getLang(ctx: any): string {
   const q = ctx.request.url.searchParams.get("lang");
   if (q) return q;
@@ -26,6 +25,12 @@ function getLang(ctx: any): string {
   if (/^ka/i.test(al)) return "ka";
   if (/^he/i.test(al)) return "he";
   return "he";
+}
+/** מחזיר פונקציית תרגום — או זו שמוזרקת ע״י ה-middleware או fallback */
+function getT(ctx: any): (k: string, fb?: string) => string {
+  const t = ctx.state?.t;
+  if (typeof t === "function") return t;
+  return (_k: string, fb?: string) => (fb ?? "");
 }
 
 export async function checkApi(ctx: any) {
@@ -149,17 +154,17 @@ export async function detailsGet(ctx: any) {
 
   const photos = photoStrings(restaurant.photos);
 
-  // ✅ i18n
-  const lang = getLang(ctx);
-  const page = "details";
-  const t = await makeT(page, lang);
+  // i18n דרך ה-middleware (עם fallback)
+  const lang = ctx.state?.lang ?? getLang(ctx);
+  const t = getT(ctx);
 
   await render(ctx, "reservation_details", {
-    page, lang, t,
-    title: `${t("details.header.title", "פרטי הזמנה")} — ${restaurant.name}`,
+    page: "details",
+    lang, t,
+    title: `${t("details.header.title","פרטי הזמנה")} — ${restaurant.name}`,
     restaurant: { ...restaurant, photos, openingHours: restaurant.weeklySchedule },
     date, time, people,
-    dir: ctx.state?.dir, // אופציונלי ל-layout
+    dir: ctx.state?.dir,
   });
 }
 
@@ -257,7 +262,6 @@ export async function confirmGet(ctx: any) {
     final: customerEmail,
   });
 
-  // ✅ שליחת מייל ללקוח רק אם יש אימייל
   if (customerEmail) {
     await sendReservationEmail({
       to: customerEmail,
@@ -287,13 +291,13 @@ export async function confirmGet(ctx: any) {
 
   const photos = photoStrings(restaurant.photos);
 
-  // ✅ i18n
-  const lang = getLang(ctx);
-  const page = "confirm";
-  const t = await makeT(page, lang);
+  // i18n דרך ה-middleware (עם fallback)
+  const lang = ctx.state?.lang ?? getLang(ctx);
+  const t = getT(ctx);
 
   await render(ctx, "reservation_confirmed", {
-    page, lang, t,
+    page: "confirm",
+    lang, t,
     title: `${t("confirm.header.title","הזמנה אושרה ✔")} — ${restaurant.name}`,
     restaurant: { ...restaurant, photos },
     date, time, people,
@@ -396,7 +400,6 @@ export async function confirmPost(ctx: any) {
     final: customerEmail,
   });
 
-  // ✅ מייל ללקוח רק אם יש אימייל
   if (customerEmail) {
     await sendReservationEmail({
       to: customerEmail,
@@ -420,13 +423,13 @@ export async function confirmPost(ctx: any) {
 
   const photos = photoStrings(restaurant.photos);
 
-  // ✅ i18n
-  const lang = getLang(ctx);
-  const page = "confirm";
-  const t = await makeT(page, lang);
+  // i18n דרך ה-middleware (עם fallback)
+  const lang = ctx.state?.lang ?? getLang(ctx);
+  const t = getT(ctx);
 
   await render(ctx, "reservation_confirmed", {
-    page, lang, t,
+    page: "confirm",
+    lang, t,
     title: `${t("confirm.header.title","הזמנה אושרה ✔")} — ${restaurant.name}`,
     restaurant: { ...restaurant, photos },
     date, time, people,
