@@ -25,11 +25,11 @@
     <form id="details-form"
           class="form-grid"
           action="/restaurants/<%= it.restaurant.id %>/confirm"
-          method="post" novalidate>
+          method="post">
 
       <!-- נעול בשלב זה -->
       <input type="hidden" name="date" value="<%= it.date %>"/>
-      <input type="hidden" name="time" value("<%= it.time %>"/>
+      <input type="hidden" name="time" value="<%= it.time %>"/>
       <input type="hidden" id="hidden-people" name="people" value="<%= it.people %>"/>
 
       <div class="form-row">
@@ -109,14 +109,14 @@
 <script>
   (function(){
     // נרמול אימייל (מסיר bidi, מרחבים, תווים דומים)
-    const BIDI = /[\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]/g;
-    const ZSP  = /[\\s\\u00A0\\u1680\\u180E\\u2000-\\u200A\\u202F\\u205F\\u3000]+/g;
+    const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+    const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
     function normalizeEmail(s) {
       s = (s || "").toString();
       s = s.replace(BIDI, "");
       s = s.replace(/＠/g, "@").replace(/．/g, ".");
       s = s.replace(ZSP, " ").trim();
-      s = s.replace(/^[<"'\\s]+/, "").replace(/[>"'\\s]+$/, "");
+      s = s.replace(/^[<"'\s]+/, "").replace(/[>"'\s]+$/, "");
       return s.toLowerCase();
     }
     const emailEl = document.getElementById('email');
@@ -124,20 +124,27 @@
       emailEl.addEventListener('blur', () => { emailEl.value = normalizeEmail(emailEl.value); });
     }
 
-    // סינתון התקציר עם hidden people
+    // סנכרון התקציר עם hidden people
     const hiddenPeople = document.getElementById('hidden-people');
     const sumP = document.getElementById('sum-people');
     if (hiddenPeople && sumP) sumP.textContent = hiddenPeople.value || sumP.textContent;
   })();
 
-  // שמירה על הטריק: המרה ל-GET עם querystring (אם אפשר) כדי לעקוף parsing של גוף
+  // המרה ל-GET עם querystring כדי לעקוף parsing של גוף בצד שרת
   (function () {
     const form = document.getElementById('details-form');
     if (!form) return;
+
     form.addEventListener('submit', function (ev) {
       try {
-        if (!form.checkValidity()) return;            // דפדפן יעצור אם שדות חסרים
-        if (form.hasAttribute('data-force-post')) return; // לא לעקוף אם ביקשת במפורש POST
+        // אם חסר שדה חובה — נעצור ושליחת הדפדפן תציג אינדיקציה
+        if (!form.checkValidity()) {
+          ev.preventDefault();
+          return;
+        }
+
+        // אם הוספת data-force-post במפורש — לא נבצע המרה
+        if (form.hasAttribute('data-force-post')) return;
 
         ev.preventDefault();
         const sp = new URLSearchParams();
