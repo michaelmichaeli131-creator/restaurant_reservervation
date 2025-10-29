@@ -309,16 +309,16 @@ export async function confirmGet(ctx: any) {
   const t = getT(ctx);
   const dir = ctx.state?.dir ?? getDir(lang);
 
-  await render(ctx, "reservation_confirmed", {
-    page: "confirm",
-    lang, dir, t,
-    title: `${t("confirm.header.title","הזמנה אושרה ✔")} — ${restaurant.name}`,
-    restaurant: { ...restaurant, photos },
-    date, time, people,
-    customerName, customerPhone, customerEmail,
-    reservationId: reservation.id,
-    note: customerNote,
-  });
+await render(ctx, "reservation_confirmed", {
+  page: "confirm",
+  lang, dir, t,
+  title: `${t("confirm.header.title","הזמנה אושרה ✔")} — ${restaurant.name}`,
+  restaurant: { ...restaurant, photos },
+  date, time, people,
+  customerName, customerPhone, customerEmail,
+  reservationId: reservation.id,
+  note: customerNote,
+});
 }
 
 /* ====================== POST /restaurants/:id/confirm ====================== */
