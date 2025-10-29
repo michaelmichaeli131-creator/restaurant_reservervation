@@ -397,6 +397,7 @@ export async function confirmPost(ctx: any) {
 
   await render(ctx, "reservation_confirmed", {
     page: "reservation_confirmed",
+    lang,t,
     title: "הזמנה אושרה",
     restaurant: { ...restaurant, photos },
     date, time, people,
