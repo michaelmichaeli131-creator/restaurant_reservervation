@@ -65,7 +65,7 @@ ownerManageRouter.get("/owner/manage", async (ctx) => {
   // ⬅️ שינוי כאן: טעינת תבנית owner_dashboard (כי זה השם שהדבקת)
   await render(ctx, "owner_dashboard", {
     title: "דשבורד בעלים",
-    page: "owner_manage",
+    page: "owner_dashboard",
     user,
     restaurants,
   });

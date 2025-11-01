@@ -1,0 +1,14 @@
+{
+  "nav": {
+    "manage": "Manage Restaurant",
+    "logout": "Logout",
+    "signedin": "Signed in",
+    "login": "Login",
+    "register": "Register",
+    "admin": "Admin",
+    "language": "Choose language"
+  },
+  "footer": {
+    "rights": "All rights reserved"
+  }
+}

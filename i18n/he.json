@@ -1,0 +1,14 @@
+{
+  "nav": {
+    "manage": "נהל מסעדה",
+    "logout": "התנתק",
+    "signedin": "מחובר/ת",
+    "login": "התחבר",
+    "register": "הרשם",
+    "admin": "Admin",
+    "language": "בחר שפה"
+  },
+  "footer": {
+    "rights": "כל הזכויות שמורות"
+  }
+}

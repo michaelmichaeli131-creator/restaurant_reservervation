@@ -20,7 +20,7 @@ import {
   isHttpError,
   Status,
 } from "jsr:@oak/oak";
-import { send } from "jsr:@oak/oak/send"; // ← חדש: נדרש להגשת /public/*
+import { send } from "jsr:@oak/oak/send";
 
 import { render } from "./lib/view.ts";
 import sessionMiddleware from "./lib/session.ts";
@@ -40,6 +40,8 @@ import { requestLogger } from "./lib/log_mw.ts";
 import { diagRouter } from "./routes/diag.ts";
 import openingRouter from "./routes/opening.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
+import { i18n } from "./middleware/i18n.ts";
+import langRouter from "./routes/lang.ts";
 
 // ✅ חדש: ראוטר ניהול תפוסה יומי (Calendar/Timeline)
 import { ownerCalendarRouter } from "./routes/owner_calendar.ts";
@@ -69,6 +71,7 @@ function getClientIp(ctx: any): string | undefined {
   return (ctx.request as any).ip;
 }
 function isHttps(ctx: any): boolean {
+  // @ts-ignore oak adds .secure in some runtimes
   if ((ctx.request as any).secure) return true;
   if (TRUST_PROXY) {
     const proto = ctx.request.headers.get("x-forwarded-proto");
@@ -115,6 +118,8 @@ app.use(async (ctx, next) => {
 app.use(async (ctx, next) => {
   ctx.response.headers.set(
     "Content-Security-Policy",
+    // אם תרצה לאפשר גופנים מ-googlefonts הוסף:
+    // "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';"
     "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';",
   );
   ctx.response.headers.set("X-Frame-Options", "DENY");
@@ -225,6 +230,12 @@ app.use(async (ctx, next) => {
     ctx.response.headers.set("Expires", "0");
   }
 });
+
+// -------------------- i18n FIRST (חשוב!) --------------------
+// ✅ i18n וה־/lang חייבים לבוא לפני כל ראוטר שמרנדר HTML
+app.use(i18n);
+app.use(langRouter.routes());
+app.use(langRouter.allowedMethods());
 
 // -------------------- ROOT ROUTER (inline) --------------------
 const root = new Router();

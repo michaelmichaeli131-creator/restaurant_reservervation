@@ -10,7 +10,7 @@ import {
   resetUsers,
   resetAll,
   deleteRestaurantCascade,
-  // יכולות אופציונליות — נטענות דינמית
+  // אופציונלי — ייטען דינמית אם קיים:
   // listUsersWithRestaurants,
   // listRestaurantsWithOwners,
   // setUserActive,
@@ -18,12 +18,14 @@ import {
 } from "../database.ts";
 
 const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
-const BUILD_TAG = new Date().toISOString().slice(0,19).replace("T"," ");
+const BUILD_TAG = new Date().toISOString().slice(0, 19).replace("T", " ");
 
 /* ================== טעינה דינמית של יכולות אופציונליות מה-DB ================== */
 type DBExtra = {
   listUsersWithRestaurants?: (q?: string) => Promise<any[]>;
-  listRestaurantsWithOwners?: (q?: string) => Promise<(Restaurant & { owner?: any | null })[]>;
+  listRestaurantsWithOwners?: (
+    q?: string,
+  ) => Promise<(Restaurant & { owner?: any | null })[]>;
   setUserActive?: (userId: string, isActive: boolean) => Promise<boolean>;
   deleteUserCascade?: (userId: string) => Promise<boolean | number>;
 };
@@ -37,7 +39,7 @@ async function getDbExtra(): Promise<DBExtra> {
       listUsersWithRestaurants: mod.listUsersWithRestaurants,
       listRestaurantsWithOwners: mod.listRestaurantsWithOwners,
       setUserActive: mod.setUserActive,
-      deleteUserCascade: (mod as any).deleteUserCascade, // אופציונלי
+      deleteUserCascade: (mod as any).deleteUserCascade,
     };
   } catch {
     _dbExtraCache = {};
@@ -61,53 +63,164 @@ function assertAdmin(ctx: any): boolean {
   return true;
 }
 function setNoStore(ctx: any) {
-  ctx.response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  ctx.response.headers.set(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, max-age=0",
+  );
   ctx.response.headers.set("Pragma", "no-cache");
   ctx.response.headers.set("Expires", "0");
 }
 
-/** תבנית עמוד — גרסת Luxury Dark (ללא /static/styles.css) */
-function page(layout: { title: string; body: string; key?: string }) {
+/* ===== i18n helpers ===== */
+function tr(ctx: any, key: string, fallback: string, vars?: Record<string, unknown>): string {
+  const t = (ctx.state as any)?.t as ((k: string, v?: any) => string) | undefined;
+  try {
+    const res = t ? t(key, vars) : undefined;
+    const base = (typeof res === "string" && res.length) ? res : fallback;
+    return base.replace(/\{(\w+)\}/g, (_, k) => String(vars?.[k] ?? `{${k}}`));
+  } catch {
+    return fallback.replace(/\{(\w+)\}/g, (_, k) => String(vars?.[k] ?? `{${k}}`));
+  }
+}
+function langDir(ctx: any): { lang: string; dir: "rtl" | "ltr" } {
+  const lang = (ctx.state as any)?.lang ?? "he";
+  const dir = (ctx.state as any)?.dir ?? (lang === "he" ? "rtl" : "ltr");
+  return { lang, dir };
+}
+function currentUrl(ctx: any): string {
+  const u = ctx.request.url;
+  return u.pathname + u.search;
+}
+function langLink(ctx: any, code: "he" | "en" | "ka") {
+  const ret = currentUrl(ctx);
+  return `/lang/${code}?redirect=${encodeURIComponent(ret)}`;
+}
+
+/** תבנית עמוד — מקבלת i18n (lang/dir) וכוללת מתג שפה; עיצוב רובסטי למניעת טקסט קטוע */
+function page(
+  ctx: any,
+  layout: { title: string; body: string; key?: string },
+) {
   const keyMasked = (layout.key ?? "").replace(/./g, "•");
+  const { lang, dir } = langDir(ctx);
+  const t = (k: string, fb: string, v?: Record<string, unknown>) => tr(ctx, k, fb, v);
+
   return `<!doctype html>
-<html lang="he" dir="rtl">
+<html lang="${lang}" dir="${dir}" data-lang="${lang}">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="color-scheme" content="dark light">
   <title>${layout.title}</title>
 
-  <!-- עיצוב כהה חדש של SpotBook (תמיד נטען) -->
+  <!-- SpotBook core styles -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/public/css/spotbook.css?v=${encodeURIComponent(BUILD_TAG)}"/>
 
-  <!-- סגנונות משלימים לאדמין: נשענים על טוקני spotbook.css (--bg, --panel, --bd, --ink, --ink-dim וכו') -->
+  <!-- סגנונות משלימים ל־Admin (רובסטי לשפות/מסכים שונים) -->
   <style>
-    :root{ --warn:#ef4444; --ok:#22c55e; --ink-dim:#98a2b3; }
-    body.sb-body.admin{ margin:0; font-family:'Rubik',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; color:var(--ink); }
-    .wrap{ max-width:1100px; margin:0 auto; padding:0 16px; }
+    :root{
+      --warn:#ef4444; --ok:#22c55e; --ink-dim:#98a2b3;
+      --wrap-max: 1200px;
+    }
+    body.sb-body.admin{
+      margin:0;
+      font-family:'Rubik',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+      color:var(--ink);
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+    .wrap{ max-width:var(--wrap-max); margin:0 auto; padding:0 18px; }
 
     /* Appbar */
-    .appbar{ position:sticky; top:0; z-index:40; background:linear-gradient(180deg, rgba(10,13,18,.9), rgba(10,13,18,.6)); backdrop-filter:saturate(140%) blur(8px); border-bottom:1px solid var(--bd); }
-    .appbar .row{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; }
-    .brand{ display:flex; align-items:center; gap:10px; color:var(--ink); text-decoration:none; }
-    .brand .dot{ width:10px; height:10px; border-radius:999px; background:#7dd3fc; box-shadow:0 0 20px rgba(125,211,252,.9); }
-    .brand .name{ font-weight:800; letter-spacing:.3px; }
+    .appbar{
+      position:sticky; top:0; z-index:40;
+      background:linear-gradient(180deg, rgba(10,13,18,.9), rgba(10,13,18,.6));
+      backdrop-filter:saturate(140%) blur(8px);
+      border-bottom:1px solid var(--bd);
+    }
+    .appbar .row{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px; padding:10px 0; flex-wrap:wrap;
+    }
+    .brand{
+      display:flex; align-items:center; gap:10px; color:var(--ink);
+      text-decoration:none; white-space:nowrap; min-width: 0;
+    }
+    .brand .name{
+      font-weight:800; letter-spacing:.3px;
+      font-size: clamp(14px, 2.2vw, 18px);
+    }
+    .brand-logo-sm{ height:28px; width:auto; object-fit:contain; flex:0 0 auto; }
 
-    /* Generic blocks */
+    .pill{ display:inline-block; background:rgba(125,211,252,.12);
+      border:1px solid rgba(125,211,252,.35); border-radius:999px;
+      padding:4px 10px; font-size: clamp(11px, 1.6vw, 12px); }
+
+    .hdr-right{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+
+    /* Lang switch */
+    .lang-switch-admin{ position: relative; display:inline-block; }
+    .lang-btn-admin{
+      display:inline-flex; align-items:center; justify-content:center;
+      width:36px; height:36px; border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+      cursor:pointer; box-shadow: inset 0 2px 6px rgba(0,0,0,.25);
+      transition: background .15s ease, transform .15s ease;
+    }
+    .lang-btn-admin:hover { background:rgba(255,255,255,.1); transform:translateY(-1px); }
+    .lang-btn-admin::before{ content:"🌐"; font-size:18px; line-height:1; }
+    .lang-menu-admin{
+      position:absolute; top:110%; inset-inline-end:0;
+      background: rgba(15,23,42,.92);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:10px; padding:4px;
+      box-shadow:0 6px 20px rgba(0,0,0,.35);
+      backdrop-filter: blur(10px);
+      z-index:60; min-width:140px;
+      opacity:0; transform:translateY(-5px) scale(.97);
+      pointer-events:none;
+      transition:opacity .15s ease, transform .15s ease;
+    }
+    .lang-menu-admin.open { opacity:1; transform:translateY(0) scale(1); pointer-events:auto; }
+    .lang-item-admin{
+      display:block; text-align:center; color:#e2e8f0; padding:8px 10px; border-radius:6px;
+      text-decoration:none; font-weight:700; font-family:"Rubik",sans-serif;
+      transition:background .15s ease; font-size: clamp(12px, 1.8vw, 14px);
+    }
+    .lang-item-admin:hover { background:rgba(255,255,255,.08); }
+    .lang-item-admin.active { background:rgba(255,255,255,.12); }
+
+    /* Blocks */
     .muted{ color:var(--ink-dim); }
-    .pill{ display:inline-block; background:rgba(125,211,252,.12); border:1px solid rgba(125,211,252,.35); border-radius:999px; padding:4px 10px; font-size:12px; }
-    .debug{ background:rgba(251,191,36,.12); border:1px solid rgba(251,191,36,.35); padding:8px 12px; border-radius:10px; color:#e9d5ff; margin:12px 0; }
+    .debug{
+      background:rgba(251,191,36,.12); border:1px solid rgba(251,191,36,.35);
+      padding:8px 12px; border-radius:10px; color:#e9d5ff; margin:12px 0;
+      font-size: clamp(11px, 1.8vw, 13px);
+    }
     .grid{ display:grid; grid-template-columns:1fr 1fr; gap:18px; }
     @media (max-width:1000px){ .grid{ grid-template-columns:1fr; } }
 
     /* Card */
-    .card{ border:1px solid var(--bd); border-radius:16px; padding:16px; background:linear-gradient(180deg, rgba(22,26,33,.9), rgba(16,19,25,.94)); box-shadow:0 8px 30px rgba(0,0,0,.25); }
+    .card{
+      border:1px solid var(--bd); border-radius:16px;
+      padding: clamp(12px, 2.2vw, 16px);
+      background:linear-gradient(180deg, rgba(22,26,33,.9), rgba(16,19,25,.94));
+      box-shadow:0 8px 30px rgba(0,0,0,.25);
+    }
+    .card h2{ font-size: clamp(16px, 2.6vw, 20px); margin: 0 0 6px; }
+    .card h3{ font-size: clamp(15px, 2.4vw, 18px); margin: 0 0 6px; }
 
     /* Buttons */
-    .btn{ display:inline-block; background:linear-gradient(180deg,#a5e8ff,#7dd3fc); color:#00121a; border-radius:12px; padding:8px 12px; text-decoration:none; border:1px solid transparent; cursor:pointer; font-weight:700; }
+    .btn{
+      display:inline-block; background:linear-gradient(180deg,#a5e8ff,#7dd3fc);
+      color:#00121a; border-radius:12px; padding:8px 12px; text-decoration:none;
+      border:1px solid transparent; cursor:pointer; font-weight:700;
+      font-size: clamp(12px, 1.8vw, 14px);
+    }
     .btn:hover{ filter:brightness(.98); transform:translateY(-1px); }
     .btn.secondary{ background:transparent; color:var(--ink); border-color:#2a3040; }
     .btn.ghost{ background:transparent; color:var(--ink); border-color:transparent; }
@@ -115,53 +228,114 @@ function page(layout: { title: string; body: string; key?: string }) {
     .btn:disabled{ opacity:.6; cursor:not-allowed; }
 
     /* Tabs */
-    .tabs{ display:flex; gap:6px; margin:12px 0; }
-    .tab{ padding:8px 12px; border:1px solid #2a3040; border-radius:12px; text-decoration:none; color:var(--ink); background:transparent; }
+    .tabs{ display:flex; gap:6px; margin:12px 0; flex-wrap:wrap; }
+    .tab{
+      padding:6px 10px; border:1px solid #2a3040; border-radius:12px;
+      text-decoration:none; color:var(--ink); background:transparent;
+      font-size: clamp(12px, 1.8vw, 14px);
+    }
     .tab.active{ background:rgba(125,211,252,.12); border-color:rgba(125,211,252,.4); }
 
-    /* Tables */
-    table{ width:100%; border-collapse:separate; border-spacing:0; margin-top:12px; }
-    thead th{ position:sticky; top:0; background:rgba(9,12,16,.9); backdrop-filter:blur(6px); border-bottom:1px solid var(--bd); text-align:right; padding:10px; font-size:12px; color:var(--ink-dim); }
-    td{ padding:10px; border-bottom:1px solid rgba(255,255,255,.06); vertical-align:top; text-align:right; }
+    /* Tables — prevent truncation */
+    table{ width:100%; border-collapse:separate; border-spacing:0; margin-top:12px; table-layout:auto; }
+    thead th{
+      position:sticky; top:0; background:rgba(9,12,16,.9); backdrop-filter:blur(6px);
+      border-bottom:1px solid var(--bd); text-align:${dir === "rtl" ? "right" : "left"};
+      padding:10px; font-size: clamp(12px, 1.8vw, 13px); color:var(--ink-dim); white-space: normal;
+    }
+    td{
+      padding:10px; border-bottom:1px solid rgba(255,255,255,.06);
+      vertical-align:top; text-align:${dir === "rtl" ? "right" : "left"};
+      white-space: normal; word-break: break-word; overflow-wrap: anywhere;
+      font-size: clamp(12px, 1.9vw, 14px);
+    }
     tbody tr:hover{ background:rgba(255,255,255,.02); }
 
     /* Forms */
     .row{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
     input[type="password"], input[type="text"]{
       border:1px solid var(--bd); border-radius:10px; padding:8px 10px; width:280px; max-width:100%;
-      background:var(--panel); color:var(--ink);
+      background:var(--panel); color:var(--ink); font-size: clamp(12px, 1.8vw, 14px);
     }
     form.inline{ display:inline; }
 
     /* Badges / code */
-    .badge{ display:inline-block; background:rgba(125,211,252,.12); border:1px solid rgba(125,211,252,.35); border-radius:8px; padding:2px 8px; font-size:12px; margin-inline-start:6px; }
-    .code{ font-family:ui-monospace,Consolas,monospace; background:#0f1319; border:1px solid var(--bd); border-radius:10px; padding:8px 10px; display:inline-block; color:var(--ink); }
+    .badge{
+      display:inline-block; background:rgba(125,211,252,.12); border:1px solid rgba(125,211,252,.35);
+      border-radius:8px; padding:2px 8px; font-size: clamp(10px, 1.6vw, 12px); margin-inline-start:6px;
+    }
+    .code{
+      font-family:ui-monospace,Consolas,monospace; background:#0f1319; border:1px solid var(--bd);
+      border-radius:10px; padding:8px 10px; display:inline-block; color:var(--ink);
+      font-size: clamp(11px, 1.8vw, 13px);
+    }
+
+    /* התאמות נקודתיות לשפות – אופציונלי (גאורגית לעיתים רחבה יותר) */
+    html[data-lang="ka"] .tab,
+    html[data-lang="ka"] .btn,
+    html[data-lang="ka"] .pill { font-size: clamp(11px, 1.7vw, 13px); }
   </style>
 </head>
 <body class="sb-body admin">
   <header class="appbar">
     <div class="wrap row">
       <a class="brand" href="/" aria-label="SpotBook">
-        <span class="dot" aria-hidden="true"></span>
-        <span class="name">SpotBook · Admin</span>
+        <img class="brand-logo-sm" src="/public/img/logo-spotbook.png" alt="SpotBook"/>
+        <span class="name">SpotBook · ${t("nav.admin", "Admin")}</span>
       </a>
-      <span class="pill">ADMIN</span>
+      <div class="hdr-right">
+        <span class="pill">ADMIN</span>
+        <!-- מתג שפה ל־Admin (עם שמירת redirect) -->
+        <div class="lang-switch-admin">
+          <button class="lang-btn-admin" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="langMenuAdmin" title="${t("nav.language","בחר שפה")}"></button>
+          <div class="lang-menu-admin" id="langMenuAdmin" role="menu">
+            <a class="lang-item-admin ${(lang==='en')?'active':''}" href="${langLink((globalThis as any).__oakCtx || ctx, 'en')}" role="menuitem">EN</a>
+            <a class="lang-item-admin ${(lang==='ka')?'active':''}" href="${langLink((globalThis as any).__oakCtx || ctx, 'ka')}" role="menuitem">GE</a>
+            <a class="lang-item-admin ${(lang==='he')?'active':''}" href="${langLink((globalThis as any).__oakCtx || ctx, 'he')}" role="menuitem">HE</a>
+          </div>
+        </div>
+      </div>
     </div>
   </header>
 
   <main class="wrap" style="margin-top:16px">
     <div class="debug">Build: ${BUILD_TAG}</div>
     ${layout.body}
-    <div class="muted" style="margin-top:18px">Key: ${keyMasked}</div>
+    <div class="muted" style="margin-top:18px">${t("admin.key_masked","Key")}: ${keyMasked}</div>
   </main>
+
+  <script>
+    // חושפים הקשר גלובלי קצר־חיים ליצירת קישורי שפה
+    (function(){ try { (globalThis).__oakCtx = {}; } catch(_){} })();
+
+    // Toggle לתפריט השפות
+    (function(){
+      const wrap = document.querySelector('.lang-switch-admin');
+      if(!wrap) return;
+      const btn  = wrap.querySelector('.lang-btn-admin');
+      const menu = document.getElementById('langMenuAdmin');
+      if(!btn || !menu) return;
+
+      function openMenu(){ menu.classList.add('open');  btn.setAttribute('aria-expanded','true'); }
+      function closeMenu(){ menu.classList.remove('open'); btn.setAttribute('aria-expanded','false'); }
+      function toggleMenu(e){ e?.stopPropagation(); menu.classList.contains('open') ? closeMenu() : openMenu(); }
+
+      btn.addEventListener('click', toggleMenu);
+      document.addEventListener('click', (e)=>{ if(!menu.contains(e.target) && e.target!==btn) closeMenu(); });
+      document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeMenu(); });
+    })();
+  </script>
 </body>
 </html>`;
 }
 
 /* שורת מסעדה בסיסית */
-function renderRestaurantRow(r: Restaurant, key: string) {
-  const approved = r.approved ? "✅ מאושרת" : "⏳ ממתינה";
-  const caps = `קיבולת: ${r.capacity ?? "-"} · סלוט: ${r.slotIntervalMinutes ?? "-"}ד' · שירות: ${r.serviceDurationMinutes ?? "-"}ד'`;
+function renderRestaurantRow(ctx: any, r: Restaurant, key: string) {
+  const t = (k: string, fb: string, v?: Record<string, unknown>) => tr(ctx, k, fb, v);
+  const approved = r.approved
+    ? `✅ ${t("admin.status.approved","מאושרת")}`
+    : `⏳ ${t("admin.status.pending","ממתינה")}`;
+  const caps = `${t("admin.row.capacity","קיבולת")}: ${r.capacity ?? "-"} · ${t("admin.row.slot","סלוט")}: ${r.slotIntervalMinutes ?? "-"}${t("admin.row.minutes","ד'")} · ${t("admin.row.service","שירות")}: ${r.serviceDurationMinutes ?? "-"}${t("admin.row.minutes","ד'")}`;
   return `
   <tr>
     <td><strong>${r.name}</strong><br/><small class="muted">${r.city} · ${r.address}</small></td>
@@ -171,15 +345,16 @@ function renderRestaurantRow(r: Restaurant, key: string) {
         ${
           r.approved
             ? `<form class="inline" method="post" action="/admin/restaurants/${r.id}/unapprove?key=${encodeURIComponent(key)}">
-                 <button class="btn secondary" type="submit">השבתה (Unapprove)</button>
+                 <button class="btn secondary" type="submit">${t("admin.actions.unapprove","השבתה (Unapprove)")}</button>
                </form>`
             : `<form class="inline" method="post" action="/admin/restaurants/${r.id}/approve?key=${encodeURIComponent(key)}">
-                 <button class="btn" type="submit">אישור</button>
+                 <button class="btn" type="submit">${t("admin.actions.approve","אישור")}</button>
                </form>`
         }
-        <a class="btn secondary" href="/restaurants/${r.id}" target="_blank" rel="noopener">פתח דף מסעדה</a>
-        <form class="inline" method="post" action="/admin/restaurants/${r.id}/delete?key=${encodeURIComponent(key)}" onsubmit="return confirm('למחוק לצמיתות את &quot;${r.name}&quot; וכל ההזמנות שלה?')">
-          <button class="btn warn" type="submit">הסר מהאתר</button>
+        <a class="btn secondary" href="/restaurants/${r.id}" target="_blank" rel="noopener">${t("admin.actions.open_restaurant","פתח דף מסעדה")}</a>
+        <form class="inline" method="post" action="/admin/restaurants/${r.id}/delete?key=${encodeURIComponent(key)}"
+              onsubmit="return confirm('${t("admin.confirm.delete_restaurant","למחוק לצמיתות את")} &quot;${r.name}&quot; ${t("admin.confirm.and_reservations","וכל ההזמנות שלה?")}')">
+          <button class="btn warn" type="submit">${t("admin.actions.remove_from_site","הסר מהאתר")}</button>
         </form>
       </div>
     </td>
@@ -187,19 +362,28 @@ function renderRestaurantRow(r: Restaurant, key: string) {
 }
 
 function renderRestaurantRowWithOwner(
-  r: Restaurant & { owner?: { id: string; firstName?: string; lastName?: string; email?: string; isActive?: boolean } | null },
+  ctx: any,
+  r: Restaurant & {
+    owner?: { id: string; firstName?: string; lastName?: string; email?: string; isActive?: boolean } | null;
+  },
   key: string,
 ) {
-  const ownerName  = r.owner ? `${r.owner.firstName ?? ""} ${r.owner.lastName ?? ""}`.trim() || "—" : "—";
-  const ownerEmail = r.owner?.email || ""; // נשמר ל-tooltip בלבד
-  const ownerStatus = r.owner ? (r.owner.isActive === false ? "מבוטל" : "פעיל") : "—";
-  const approved = r.approved ? "✅ מאושרת" : "⏳ ממתינה";
-  const caps = `קיבולת: ${r.capacity ?? "-"} · סלוט: ${r.slotIntervalMinutes ?? "-"}ד' · שירות: ${r.serviceDurationMinutes ?? "-"}ד'`;
+  const t = (k: string, fb: string, v?: Record<string, unknown>) => tr(ctx, k, fb, v);
+  const ownerName = r.owner
+    ? `${r.owner.firstName ?? ""} ${r.owner.lastName ?? ""}`.trim() || "—"
+    : "—";
+  const ownerEmail = r.owner?.email || "";
+  const ownerStatus = r.owner
+    ? (r.owner.isActive === false ? t("admin.owner.inactive","מבוטל") : t("admin.owner.active","פעיל"))
+    : "—";
+  const approved = r.approved
+    ? `✅ ${t("admin.status.approved","מאושרת")}`
+    : `⏳ ${t("admin.status.pending","ממתינה")}`;
+  const caps = `${t("admin.row.capacity","קיבולת")}: ${r.capacity ?? "-"} · ${t("admin.row.slot","סלוט")}: ${r.slotIntervalMinutes ?? "-"}${t("admin.row.minutes","ד'")} · ${t("admin.row.service","שירות")}: ${r.serviceDurationMinutes ?? "-"}${t("admin.row.minutes","ד'")}`;
 
   return `
   <tr>
     <td><strong>${r.name}</strong><br/><small class="muted">${r.city} · ${r.address}</small></td>
-    <!-- מציגים רק שם; אימייל ב-title -->
     <td title="${ownerEmail}">${ownerName}</td>
     <td>${ownerStatus}</td>
     <td>${approved}<br/><small class="muted">${caps}</small></td>
@@ -208,39 +392,42 @@ function renderRestaurantRowWithOwner(
         ${
           r.approved
             ? `<form class="inline" method="post" action="/admin/restaurants/${r.id}/unapprove?key=${encodeURIComponent(key)}">
-                 <button class="btn secondary" type="submit">השבתה</button>
+                 <button class="btn secondary" type="submit">${t("admin.actions.disable","השבתה")}</button>
                </form>`
             : `<form class="inline" method="post" action="/admin/restaurants/${r.id}/approve?key=${encodeURIComponent(key)}">
-                 <button class="btn" type="submit">אישור</button>
+                 <button class="btn" type="submit">${t("admin.actions.approve","אישור")}</button>
                </form>`
         }
-        <a class="btn secondary" href="/restaurants/${r.id}" target="_blank" rel="noopener">דף מסעדה</a>
+        <a class="btn secondary" href="/restaurants/${r.id}" target="_blank" rel="noopener">${t("admin.actions.restaurant_page","דף מסעדה")}</a>
         <form class="inline" method="post" action="/admin/restaurants/${r.id}/delete?key=${encodeURIComponent(key)}"
-              onsubmit="return confirm('למחוק לצמיתות את &quot;${r.name}&quot; וכל ההזמנות שלה?')">
-          <button class="btn warn" type="submit">הסר</button>
+              onsubmit="return confirm('${t("admin.confirm.delete_restaurant","למחוק לצמיתות את")} &quot;${r.name}&quot; ${t("admin.confirm.and_reservations","וכל ההזמנות שלה?")}')">
+          <button class="btn warn" type="submit">${t("admin.actions.remove","הסר")}</button>
         </form>
       </div>
     </td>
   </tr>`;
 }
+
 /* ================== router ================== */
 const adminRouter = new Router();
 
 /** כניסת אדמין */
 adminRouter.get("/admin/login", (ctx) => {
   setNoStore(ctx);
+  const t = (k: string, fb: string, v?: Record<string, unknown>) => tr(ctx, k, fb, v);
   const body = `
   <div class="card" style="max-width:520px">
-    <h2 style="margin-top:0">כניסת אדמין</h2>
-    <p class="muted">הזן/ני את מפתח האדמין (ADMIN_SECRET) שהוגדר ב־Environment Variables.</p>
+    <h2 style="margin-top:0">${t("admin.login.title","כניסת אדמין")}</h2>
+    <p class="muted">${t("admin.login.desc","הזן/ני את מפתח האדמין (ADMIN_SECRET) שהוגדר ב־Environment Variables.")}</p>
     <form method="get" action="/admin">
-      <label for="key">מפתח אדמין</label><br/>
-      <input id="key" name="key" type="password" placeholder="הדבק כאן את המפתח" required/>
-      <button class="btn" type="submit" style="margin-inline-start:8px">כניסה</button>
+      <label for="key">${t("admin.login.key_label","מפתח אדמין")}</label><br/>
+      <input id="key" name="key" type="password" placeholder="${t("admin.login.key_placeholder","הדבק כאן את המפתח")}" required/>
+      <button class="btn" type="submit" style="margin-inline-start:8px">${t("admin.login.submit","כניסה")}</button>
     </form>
   </div>`;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-  ctx.response.body = page({ title: "כניסת אדמין", body });
+  // תיקון key לטעות כתיב: dashboard (ולא dashborad)
+  ctx.response.body = page(ctx, { title: t("admin.head.dashboard","לוח בקרה · Admin"), body });
 });
 
 /** דשבורד אדמין (מסעדות, ואם אפשר — גם בעלים) */
@@ -248,12 +435,13 @@ adminRouter.get("/admin", async (ctx) => {
   if (!assertAdmin(ctx)) return;
   setNoStore(ctx);
   const key = getAdminKey(ctx)!;
+  const t = (k: string, fb: string, v?: Record<string, unknown>) => tr(ctx, k, fb, v);
 
   const { listRestaurantsWithOwners } = await getDbExtra();
 
   let rows: (Restaurant & { owner?: any | null })[];
   if (typeof listRestaurantsWithOwners === "function") {
-    rows = await listRestaurantsWithOwners(""); // עם בעלים
+    rows = await listRestaurantsWithOwners("");
   } else {
     const basic = await listRestaurants("", /*onlyApproved*/ false);
     rows = basic as any;
@@ -265,18 +453,21 @@ adminRouter.get("/admin", async (ctx) => {
   const tables = (withOwners: boolean) => `
     <div class="grid">
       <section class="card">
-        <h2 style="margin-top:0">ממתינות לאישור (${pending.length})</h2>
+        <!-- מציגים ספירה עם placeholder ב-i18n כדי למנוע טקסט ({count}) כפול -->
+        <h2 style="margin-top:0">${t("admin.tables.pending_title","ממתינות לאישור ({count})", { count: pending.length })}</h2>
         ${
           pending.length === 0
-            ? `<p class="muted">אין מסעדות ממתינות כרגע.</p>`
+            ? `<p class="muted">${t("admin.tables.pending_empty","אין מסעדות ממתינות כרגע.")}</p>`
             : `<table>
                 <thead><tr>
-                  <th>מסעדה</th>${withOwners ? "<th>בעלים</th><th>סטטוס בעלים</th>" : ""}
-                  <th>סטטוס</th><th>פעולות</th>
+                  <th>${t("admin.tables.th.restaurant","מסעדה")}</th>${withOwners ? `<th>${t("admin.tables.th.owner","בעלים")}</th><th>${t("admin.tables.th.owner_status","סטטוס בעלים")}</th>` : ""}
+                  <th>${t("admin.tables.th.status","סטטוס")}</th><th>${t("admin.tables.th.actions","פעולות")}</th>
                 </tr></thead>
                 <tbody>${
                   pending.map((r) =>
-                    withOwners ? renderRestaurantRowWithOwner(r as any, key) : renderRestaurantRow(r as any, key)
+                    withOwners
+                      ? renderRestaurantRowWithOwner(ctx, r as any, key)
+                      : renderRestaurantRow(ctx, r as any, key)
                   ).join("")
                 }</tbody>
               </table>`
@@ -284,18 +475,20 @@ adminRouter.get("/admin", async (ctx) => {
       </section>
 
       <section class="card">
-        <h2 style="margin-top:0">מאושרות (${approved.length})</h2>
+        <h2 style="margin-top:0">${t("admin.tables.approved_title","מאושרות ({count})", { count: approved.length })}</h2>
         ${
           approved.length === 0
-            ? `<p class="muted">עוד לא אושרו מסעדות.</p>`
+            ? `<p class="muted">${t("admin.tables.approved_empty","עוד לא אושרו מסעדות.")}</p>`
             : `<table>
                 <thead><tr>
-                  <th>מסעדה</th>${withOwners ? "<th>בעלים</th><th>סטטוס בעלים</th>" : ""}
-                  <th>סטטוס</th><th>פעולות</th>
+                  <th>${t("admin.tables.th.restaurant","מסעדה")}</th>${withOwners ? `<th>${t("admin.tables.th.owner","בעלים")}</th><th>${t("admin.tables.th.owner_status","סטטוס בעלים")}</th>` : ""}
+                  <th>${t("admin.tables.th.status","סטטוס")}</th><th>${t("admin.tables.th.actions","פעולות")}</th>
                 </tr></thead>
                 <tbody>${
                   approved.map((r) =>
-                    withOwners ? renderRestaurantRowWithOwner(r as any, key) : renderRestaurantRow(r as any, key)
+                    withOwners
+                      ? renderRestaurantRowWithOwner(ctx, r as any, key)
+                      : renderRestaurantRow(ctx, r as any, key)
                   ).join("")
                 }</tbody>
               </table>`
@@ -306,33 +499,34 @@ adminRouter.get("/admin", async (ctx) => {
   const body = `
   <section class="card" style="margin-bottom:20px">
     <div class="row" style="justify-content:space-between;align-items:center">
-      <h2 style="margin:0;color:#7dd3fc">פעולות אדמין (Reset)</h2>
+      <h2 style="margin:0;color:#7dd3fc">${t("admin.reset.title","פעולות אדמין (Reset)")}</h2>
       <div class="tabs">
-        <a class="tab active" href="/admin?key=${encodeURIComponent(key)}">מסעדות</a>
-        <a class="tab" href="/admin/users?key=${encodeURIComponent(key)}">משתמשים</a>
-        <a class="tab" href="/admin/tools?key=${encodeURIComponent(key)}">כלים</a>
+        <a class="tab active" href="/admin?key=${encodeURIComponent(key)}">${t("admin.tabs.restaurants","מסעדות")}</a>
+        <a class="tab" href="/admin/users?key=${encodeURIComponent(key)}">${t("admin.tabs.users","משתמשים")}</a>
+        <a class="tab" href="/admin/tools?key=${encodeURIComponent(key)}">${t("admin.tabs.tools","כלים")}</a>
       </div>
     </div>
     <div class="row" style="margin-top:6px">
       <form method="post" action="/admin/reset?what=restaurants&confirm=1&key=${encodeURIComponent(key)}">
-        <button type="submit" class="btn warn" onclick="return confirm('לאפס את כל המסעדות? הפעולה בלתי הפיכה!')">איפוס כל המסעדות</button>
+        <button type="submit" class="btn warn" onclick="return confirm('${t("admin.reset.confirm.restaurants","לאפס את כל המסעדות? הפעולה בלתי הפיכה!")}')">${t("admin.reset.btn.restaurants","איפוס כל המסעדות")}</button>
       </form>
       <form method="post" action="/admin/reset?what=reservations&confirm=1&key=${encodeURIComponent(key)}">
-        <button type="submit" class="btn warn" onclick="return confirm('לאפס את כל ההזמנות?')">איפוס כל ההזמנות</button>
+        <button type="submit" class="btn warn" onclick="return confirm('${t("admin.reset.confirm.reservations","לאפס את כל ההזמנות?")}')">${t("admin.reset.btn.reservations","איפוס כל ההזמנות")}</button>
       </form>
       <form method="post" action="/admin/reset?what=users&confirm=1&key=${encodeURIComponent(key)}">
-        <button type="submit" class="btn warn" onclick="return confirm('לאפס את כל המשתמשים? שים לב: זה ימחק גם בעלי מסעדות!')">איפוס כל המשתמשים</button>
+        <button type="submit" class="btn warn" onclick="return confirm('${t("admin.reset.confirm.users","לאפס את כל המשתמשים? שים לב: זה ימחק גם בעלי מסעדות!")}')">${t("admin.reset.btn.users","איפוס כל המשתמשים")}</button>
       </form>
       <form method="post" action="/admin/reset?what=all&confirm=1&key=${encodeURIComponent(key)}">
-        <button type="submit" class="btn warn" onclick="return confirm('איפוס כללי: משתמשים + מסעדות + הזמנות. להמשיך?')">איפוס כולל (הכול)</button>
+        <button type="submit" class="btn warn" onclick="return confirm('${t("admin.reset.confirm.all","איפוס כללי: משתמשים + מסעדות + הזמנות. להמשיך?")}')">${t("admin.reset.btn.all","איפוס כולל (הכול)")}</button>
       </form>
-      <a class="btn ghost" href="/admin/tools?key=${encodeURIComponent(key)}">עוד כלים…</a>
+      <a class="btn ghost" href="/admin/tools?key=${encodeURIComponent(key)}">${t("admin.reset.more_tools","עוד כלים…")}</a>
     </div>
   </section>
   ${tables(typeof listRestaurantsWithOwners === "function")}
   `;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-  ctx.response.body = page({ title: "לוח בקרה · Admin", body, key });
+  // תיקון key לטעות כתיב: dashboard (ולא dashborad)
+  ctx.response.body = page(ctx, { title: t("admin.head.dashboard","לוח בקרה · Admin"), body, key });
 });
 
 /** עמוד כלים */
@@ -340,26 +534,28 @@ adminRouter.get("/admin/tools", (ctx) => {
   if (!assertAdmin(ctx)) return;
   setNoStore(ctx);
   const key = getAdminKey(ctx)!;
+  const t = (k: string, fb: string, v?: Record<string, unknown>) => tr(ctx, k, fb, v);
   const body = `
   <div class="card">
     <div class="row" style="justify-content:space-between;align-items:center">
-      <h2 style="margin-top:0">Reset · כלי אדמין</h2>
+      <h2 style="margin-top:0">${t("admin.tools.title","Reset · כלי אדמין")}</h2>
       <div class="tabs">
-        <a class="tab" href="/admin?key=${encodeURIComponent(key)}">מסעדות</a>
-        <a class="tab" href="/admin/users?key=${encodeURIComponent(key)}">משתמשים</a>
-        <a class="tab active" href="/admin/tools?key=${encodeURIComponent(key)}">כלים</a>
+        <a class="tab" href="/admin?key=${encodeURIComponent(key)}">${t("admin.tabs.restaurants","מסעדות")}</a>
+        <a class="tab" href="/admin/users?key=${encodeURIComponent(key)}">${t("admin.tabs.users","משתמשים")}</a>
+        <a class="tab active" href="/admin/tools?key=${encodeURIComponent(key)}">${t("admin.tabs.tools","כלים")}</a>
       </div>
     </div>
-    <p class="muted">אפשר להריץ איפוסים דרך הקישורים הבאים (תופיע בקשת אישור).</p>
+    <p class="muted">${t("admin.tools.desc","אפשר להריץ איפוסים דרך הקישורים הבאים (תופיע בקשת אישור).")}</p>
     <ul>
-      <li><a class="btn warn" href="/admin/reset?what=reservations&key=${encodeURIComponent(key)}">אפס רק הזמנות</a></li>
-      <li><a class="btn warn" href="/admin/reset?what=restaurants&key=${encodeURIComponent(key)}">אפס רק מסעדות</a></li>
-      <li><a class="btn warn" href="/admin/reset?what=users&key=${encodeURIComponent(key)}">אפס רק משתמשים</a></li>
-      <li><a class="btn warn" href="/admin/reset?what=all&key=${encodeURIComponent(key)}">אפס הכל</a></li>
+      <li><a class="btn warn" href="/admin/reset?what=reservations&key=${encodeURIComponent(key)}">${t("admin.tools.reset_reservations","אפס רק הזמנות")}</a></li>
+      <li><a class="btn warn" href="/admin/reset?what=restaurants&key=${encodeURIComponent(key)}">${t("admin.tools.reset_restaurants","אפס רק מסעדות")}</a></li>
+      <li><a class="btn warn" href="/admin/reset?what=users&key=${encodeURIComponent(key)}">${t("admin.tools.reset_users","אפס רק משתמשים")}</a></li>
+      <li><a class="btn warn" href="/admin/reset?what=all&key=${encodeURIComponent(key)}">${t("admin.tools.reset_all","אפס הכל")}</a></li>
     </ul>
   </div>`;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-  ctx.response.body = page({ title: "Admin · Reset", body, key });
+  // גם כאן דואגים ל-dashboard
+  ctx.response.body = page(ctx, { title: t("admin.head.dashboard","לוח בקרה · Admin"), body, key });
 });
 
 /* --- Reset: GET (אישור) + POST (ביצוע) --- */
@@ -368,6 +564,7 @@ async function handleReset(ctx: any) {
   setNoStore(ctx);
   const key = getAdminKey(ctx)!;
   const url = ctx.request.url;
+  const t = (k: string, fb: string, v?: Record<string, unknown>) => tr(ctx, k, fb, v);
   const what = (url.searchParams.get("what") ?? "").toLowerCase();
   const confirm = url.searchParams.get("confirm") === "1";
 
@@ -387,31 +584,31 @@ async function handleReset(ctx: any) {
   if (!confirm && ctx.request.method === "GET") {
     const body = `
       <div class="card" style="max-width:680px">
-        <h2 style="margin-top:0">אישור פעולה</h2>
-        <p>האם לאפס את: <strong>${what}</strong>?</p>
+        <h2 style="margin-top:0">${t("admin.confirm.title","אישור פעולה")}</h2>
+        <p>${t("admin.confirm.reset_prefix","האם לאפס את")}: <strong>${what}</strong>?</p>
         <div class="row">
-          <a class="btn warn" href="/admin/reset?what=${encodeURIComponent(what)}&confirm=1&key=${encodeURIComponent(key)}">אשר מחיקה</a>
-          <a class="btn secondary" href="/admin/tools?key=${encodeURIComponent(key)}">ביטול</a>
+          <a class="btn warn" href="/admin/reset?what=${encodeURIComponent(what)}&confirm=1&key=${encodeURIComponent(key)}">${t("admin.confirm.confirm_delete","אשר מחיקה")}</a>
+          <a class="btn secondary" href="/admin/tools?key=${encodeURIComponent(key)}">${t("common.cancel","ביטול")}</a>
         </div>
       </div>`;
     ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-    ctx.response.body = page({ title: "אישור מחיקה · Admin", body, key });
+    ctx.response.body = page(ctx, { title: t("admin.confirm.head","אישור מחיקה · Admin"), body, key });
     return;
   }
 
   const result = await actions[what]();
   const body = `
     <div class="card" style="max-width:720px">
-      <h2 style="margin-top:0">הושלם</h2>
-      <p>בוצע איפוס: <strong>${what}</strong></p>
+      <h2 style="margin-top:0">${t("admin.done.title","הושלם")}</h2>
+      <p>${t("admin.done.did_reset","בוצע איפוס")}: <strong>${what}</strong></p>
       <pre class="code" style="white-space:pre-wrap">${JSON.stringify(result, null, 2)}</pre>
       <div class="row" style="margin-top:10px">
-        <a class="btn" href="/admin/tools?key=${encodeURIComponent(key)}">חזרה לכלים</a>
-        <a class="btn secondary" href="/admin?key=${encodeURIComponent(key)}">חזרה לדשבורד</a>
+        <a class="btn" href="/admin/tools?key=${encodeURIComponent(key)}">${t("admin.done.back_tools","חזרה לכלים")}</a>
+        <a class="btn secondary" href="/admin?key=${encodeURIComponent(key)}">${t("admin.done.back_dashboard","חזרה לדשבורד")}</a>
       </div>
     </div>`;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-  ctx.response.body = page({ title: "הושלם · Reset", body, key });
+  ctx.response.body = page(ctx, { title: t("admin.done.head","הושלם · Reset"), body, key });
 }
 adminRouter.get("/admin/reset", handleReset);
 adminRouter.post("/admin/reset", handleReset);
@@ -422,11 +619,18 @@ adminRouter.post("/admin/restaurants/:id/approve", async (ctx) => {
   setNoStore(ctx);
   const id = ctx.params.id!;
   const r = await getRestaurant(id);
-  if (!r) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
+  if (!r) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Restaurant not found";
+    return;
+  }
   await updateRestaurant(id, { approved: true });
   const key = getAdminKey(ctx)!;
   ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", `/admin?key=${encodeURIComponent(key)}`);
+  ctx.response.headers.set(
+    "Location",
+    `/admin?key=${encodeURIComponent(key)}`,
+  );
 });
 
 adminRouter.post("/admin/restaurants/:id/unapprove", async (ctx) => {
@@ -434,35 +638,47 @@ adminRouter.post("/admin/restaurants/:id/unapprove", async (ctx) => {
   setNoStore(ctx);
   const id = ctx.params.id!;
   const r = await getRestaurant(id);
-  if (!r) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
+  if (!r) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Restaurant not found";
+    return;
+  }
   await updateRestaurant(id, { approved: false });
   const key = getAdminKey(ctx)!;
   ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", `/admin?key=${encodeURIComponent(key)}`);
+  ctx.response.headers.set(
+    "Location",
+    `/admin?key=${encodeURIComponent(key)}`,
+  );
 });
 
-/* --- הסרה מהאתר (מחיקה מלאה) --- */
+/* --- הסרה מהאתר (Cascade) --- */
 adminRouter.post("/admin/restaurants/:id/delete", async (ctx) => {
   if (!assertAdmin(ctx)) return;
   setNoStore(ctx);
   const id = ctx.params.id!;
   const r = await getRestaurant(id);
-  if (!r) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
+  if (!r) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Restaurant not found";
+    return;
+  }
 
   const result = await deleteRestaurantCascade(id);
   const key = getAdminKey(ctx)!;
+  const t = (k: string, fb: string, v?: Record<string, unknown>) => tr(ctx, k, fb, v);
 
   const body = `
     <div class="card" style="max-width:720px">
-      <h2 style="margin-top:0">הוסרה מהאתר</h2>
-      <p>המסעדה <strong>${r.name}</strong> נמחקה מהמערכת, כולל ההזמנות שלה.</p>
+      <h2 style="margin-top:0">${t("admin.delete.title","הוסרה מהאתר")}</h2>
+      <p>${t("admin.delete.msg","המסעדה")} <strong>${r.name}</strong> ${t("admin.delete.msg_tail","נמחקה מהמערכת, כולל ההזמנות שלה.")}</p>
       <pre class="code" style="white-space:pre-wrap">${JSON.stringify(result, null, 2)}</pre>
       <div class="row" style="margin-top:10px">
-        <a class="btn" href="/admin?key=${encodeURIComponent(key)}">חזרה לדשבורד</a>
+        <a class="btn" href="/admin?key=${encodeURIComponent(key)}">${t("admin.delete.back_dashboard","חזרה לדשבורד")}</a>
       </div>
     </div>`;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-  ctx.response.body = page({ title: "הוסרה מהאתר", body, key });
+  ctx.response.body = page(ctx, { title: t("admin.delete.head","הוסרה מהאתר"), body, key });
 });
 
 /* ========= Users Admin ========= */
@@ -470,95 +686,106 @@ adminRouter.get("/admin/users", async (ctx) => {
   if (!assertAdmin(ctx)) return;
   setNoStore(ctx);
   const key = getAdminKey(ctx)!;
+  const t = (k: string, fb: string, v?: Record<string, unknown>) => tr(ctx, k, fb, v);
 
   const { listUsersWithRestaurants } = await getDbExtra();
   if (typeof listUsersWithRestaurants !== "function") {
     const body = `
       <div class="card" style="max-width:720px">
-        <h2 style="margin-top:0">ניהול משתמשים</h2>
-        <p class="muted">הפיצ’ר הזה מחייב פונקציה <code class="code">listUsersWithRestaurants</code> ב־<code class="code">database.ts</code>.</p>
-        <p class="muted">הוסף/י את הייצוא ואז טען/י שוב את העמוד.</p>
+        <h2 style="margin-top:0">${t("admin.users.title","ניהול משתמשים")}</h2>
+        <p class="muted">${t("admin.users.disabled","הפיצ’ר הזה מחייב פונקציה")} <code class="code">listUsersWithRestaurants</code> ${t("admin.users.in","ב־")} <code class="code">database.ts</code>.</p>
+        <p class="muted">${t("admin.users.add_and_reload","הוסף/י את הייצוא ואז טען/י שוב את העמוד.")}</p>
         <div class="row" style="margin-top:10px">
-          <a class="btn" href="/admin?key=${encodeURIComponent(key)}">חזרה למסעדות</a>
-          <a class="btn secondary" href="/admin/tools?key=${encodeURIComponent(key)}">כלים</a>
+          <a class="btn" href="/admin?key=${encodeURIComponent(key)}">${t("admin.tabs.restaurants","מסעדות")}</a>
+          <a class="btn secondary" href="/admin/tools?key=${encodeURIComponent(key)}">${t("admin.tabs.tools","כלים")}</a>
         </div>
       </div>`;
     ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-    ctx.response.body = page({ title: "Admin · Users (disabled)", body, key });
+    // גם כאן, נשמור על dashboard תקין
+    ctx.response.body = page(ctx, { title: t("admin.head.dashboard","לוח בקרה · Admin"), body, key });
     return;
   }
 
-  const users = await listUsersWithRestaurants(); // [{...user, restaurants: []}]
+  const users = await listUsersWithRestaurants();
   const active = users.filter((u: any) => u.isActive !== false);
   const inactive = users.filter((u: any) => u.isActive === false);
 
-  const rows = (list: any[]) => list.map(u => `
+  const rows = (list: any[]) =>
+    list
+      .map(
+        (u) => `
     <tr>
       <td><strong>${u.firstName ?? ""} ${u.lastName ?? ""}</strong><br/><small class="muted" dir="ltr">${u.email}</small></td>
       <td>${u.role ?? "user"} <span class="badge">${u.provider ?? "local"}</span></td>
-      <td>${u.isActive === false ? "❌ מבוטל" : "✅ פעיל"}</td>
+      <td>${u.isActive === false ? "❌ " + t("admin.owner.inactive","מבוטל") : "✅ " + t("admin.owner.active","פעיל")}</td>
       <td>${
         u.restaurants?.length
-          ? u.restaurants.map((r:any)=>`<div><a href="/restaurants/${r.id}" target="_blank" rel="noopener">${r.name}</a></div>`).join("")
-          : `<span class="muted">אין</span>`
+          ? u.restaurants
+              .map((r: any) =>
+                `<div><a href="/restaurants/${r.id}" target="_blank" rel="noopener">${r.name}</a></div>`,
+              )
+              .join("")
+          : `<span class="muted">${t("common.none","אין")}</span>`
       }</td>
       <td>
         ${
           u.isActive === false
             ? `<form class="inline" method="post" action="/admin/users/${u.id}/activate?key=${encodeURIComponent(key)}">
-                 <button class="btn" type="submit">הפעל</button>
+                 <button class="btn" type="submit">${t("admin.users.activate","הפעל")}</button>
                </form>`
-            : `<form class="inline" method="post" action="/admin/users/${u.id}/deactivate?key=${encodeURIComponent(key)}" onsubmit="return confirm('לבטל את המשתמש ${u.email}?')">
-                 <button class="btn secondary" type="submit">בטל</button>
+            : `<form class="inline" method="post" action="/admin/users/${u.id}/deactivate?key=${encodeURIComponent(key)}" onsubmit="return confirm('${t("admin.users.confirm_deactivate","לבטל את המשתמש")} ${u.email}?')">
+                 <button class="btn secondary" type="submit">${t("admin.users.deactivate","בטל")}</button>
                </form>`
         }
         <form class="inline" method="post" action="/admin/users/${u.id}/delete?key=${encodeURIComponent(key)}"
-              onsubmit="return confirm('מחיקת משתמש תמחק גם את כל המסעדות וההזמנות שבבעלותו. להמשיך?')">
-          <button class="btn warn" type="submit">מחק</button>
+              onsubmit="return confirm('${t("admin.users.confirm_delete","מחיקת משתמש תמחק גם את כל המסעדות וההזמנות שבבעלותו. להמשיך?")}')">
+          <button class="btn warn" type="submit">${t("admin.users.delete","מחק")}</button>
         </form>
       </td>
-    </tr>
-  `).join("");
+    </tr>`,
+      )
+      .join("");
 
   const body = `
   <section class="card" style="margin-bottom:20px">
     <div class="row" style="justify-content:space-between;align-items:center">
-      <h2 style="margin:0">ניהול משתמשים</h2>
+      <h2 style="margin:0">${t("admin.users.title","ניהול משתמשים")}</h2>
       <div class="tabs">
-        <a class="tab" href="/admin?key=${encodeURIComponent(key)}">מסעדות</a>
-        <a class="tab active" href="/admin/users?key=${encodeURIComponent(key)}">משתמשים</a>
-        <a class="tab" href="/admin/tools?key=${encodeURIComponent(key)}">כלים</a>
+        <a class="tab" href="/admin?key=${encodeURIComponent(key)}">${t("admin.tabs.restaurants","מסעדות")}</a>
+        <a class="tab active" href="/admin/users?key=${encodeURIComponent(key)}">${t("admin.tabs.users","משתמשים")}</a>
+        <a class="tab" href="/admin/tools?key=${encodeURIComponent(key)}">${t("admin.tabs.tools","כלים")}</a>
       </div>
     </div>
   </section>
 
   <div class="grid">
     <section class="card">
-      <h3 style="margin-top:0">משתמשים פעילים (${active.length})</h3>
+      <h3 style="margin-top:0">${t("admin.users.active","משתמשים פעילים ({count})", { count: active.length })}</h3>
       ${
         active.length === 0
-          ? `<p class="muted">אין משתמשים פעילים.</p>`
+          ? `<p class="muted">${t("admin.users.no_active","אין משתמשים פעילים.")}</p>`
           : `<table>
-              <thead><tr><th>משתמש</th><th>תפקיד</th><th>סטטוס</th><th>מסעדות</th><th>פעולות</th></tr></thead>
+              <thead><tr><th>${t("admin.users.th.user","משתמש")}</th><th>${t("admin.users.th.role","תפקיד")}</th><th>${t("admin.users.th.status","סטטוס")}</th><th>${t("admin.users.th.restaurants","מסעדות")}</th><th>${t("admin.users.th.actions","פעולות")}</th></tr></thead>
               <tbody>${rows(active)}</tbody>
             </table>`
       }
     </section>
 
     <section class="card">
-      <h3 style="margin-top:0">משתמשים מבוטלים (${inactive.length})</h3>
+      <h3 style="margin-top:0">${t("admin.users.inactive","משתמשים מבוטלים ({count})", { count: inactive.length })}</h3>
       ${
         inactive.length === 0
-          ? `<p class="muted">אין משתמשים מבוטלים.</p>`
+          ? `<p class="muted">${t("admin.users.no_inactive","אין משתמשים מבוטלים.")}</p>`
           : `<table>
-              <thead><tr><th>משתמש</th><th>תפקיד</th><th>סטטוס</th><th>מסעדות</th><th>פעולות</th></tr></thead>
+              <thead><tr><th>${t("admin.users.th.user","משתמש")}</th><th>${t("admin.users.th.role","תפקיד")}</th><th>${t("admin.users.th.status","סטטוס")}</th><th>${t("admin.users.th.restaurants","מסעדות")}</th><th>${t("admin.users.th.actions","פעולות")}</th></tr></thead>
               <tbody>${rows(inactive)}</tbody>
             </table>`
       }
     </section>
   </div>`;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-  ctx.response.body = page({ title: "Admin · Users", body, key });
+  // גם כאן, מקפידים על dashboard נכון
+  ctx.response.body = page(ctx, { title: t("admin.head.dashboard","לוח בקרה · Admin"), body, key });
 });
 
 adminRouter.post("/admin/users/:id/deactivate", async (ctx) => {
@@ -574,7 +801,10 @@ adminRouter.post("/admin/users/:id/deactivate", async (ctx) => {
   await setUserActive(id, false);
   const key = getAdminKey(ctx)!;
   ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", `/admin/users?key=${encodeURIComponent(key)}`);
+  ctx.response.headers.set(
+    "Location",
+    `/admin/users?key=${encodeURIComponent(key)}`,
+  );
 });
 
 adminRouter.post("/admin/users/:id/activate", async (ctx) => {
@@ -590,10 +820,13 @@ adminRouter.post("/admin/users/:id/activate", async (ctx) => {
   await setUserActive(id, true);
   const key = getAdminKey(ctx)!;
   ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", `/admin/users?key=${encodeURIComponent(key)}`);
+  ctx.response.headers.set(
+    "Location",
+    `/admin/users?key=${encodeURIComponent(key)}`,
+  );
 });
 
-/** מחיקת משתמש (Cascade) — אופציונלי; רץ רק אם הוגדר ב-DB */
+/** מחיקת משתמש (Cascade) — אופציונלי */
 adminRouter.post("/admin/users/:id/delete", async (ctx) => {
   if (!assertAdmin(ctx)) return;
   setNoStore(ctx);
@@ -607,7 +840,10 @@ adminRouter.post("/admin/users/:id/delete", async (ctx) => {
   await deleteUserCascade(id);
   const key = getAdminKey(ctx)!;
   ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", `/admin/users?key=${encodeURIComponent(key)}`);
+  ctx.response.headers.set(
+    "Location",
+    `/admin/users?key=${encodeURIComponent(key)}`,
+  );
 });
 
 export { adminRouter };

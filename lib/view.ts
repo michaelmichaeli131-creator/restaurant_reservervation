@@ -3,47 +3,28 @@
 // ומספק fallback מפורט (HTML/JSON) במקרה כשל.
 // שדרוג: טעינת user אוטומטית מה־session אם לא קיים ב-ctx.state.user
 //        כך שהתבניות (לרבות ה-layout) יוכלו להציג "פתח/י מסעדה" כשמחוברים.
+// NEW:   הזרקת i18n לכל רינדור: lang/dir/t מתוך ctx.state (מ-middleware), עם ברירות מחדל.
+// NEW2:  תמיכה במילוני עמודים לפי it.page → /i18n/pages/<page>.<lang>.json, עם קדימות מעל המילון הכללי.
 
 import { Eta } from "npm:eta@3.5.0";
 import type { Context } from "jsr:@oak/oak";
 import { getUserById } from "../database.ts";
 
 // --------- איתור ספריית התבניות ---------
-// מאפשר override דרך ENV (TEMPLATES_DIR או VIEWS_DIR)
 const ENV_DIR =
   Deno.env.get("TEMPLATES_DIR") ??
   Deno.env.get("VIEWS_DIR") ??
   "";
 
-/**
- * בניית רשימת מועמדות לספריית תבניות:
- * - ENV override
- * - נתיבים אבסולוטיים נפוצים (הפריסה שלך משתמשת בהם)
- * - נתיבים יחסיים לסביבת הפעלה/לקובץ (שיפור עמידות ב-Deploy/Local)
- */
 function candidatePaths(): string[] {
-  // 1) ENV override
   const p0 = ENV_DIR || "";
-
-  // 2) שורש הפרויקט (אבסולוטי, כפי שמשמש אצלך)
   const p1 = "/templates";
   const p2 = "/src/templates";
-
-  // 3) יחסית לקובץ הזה (עשוי להיכשל בחלק מהפריסות — נעטוף ב-try)
-  let p3 = "";
-  let p4 = "";
-  try {
-    p3 = new URL("../../templates", import.meta.url).pathname;
-  } catch {}
-  try {
-    p4 = new URL("../templates", import.meta.url).pathname;
-  } catch {}
-
-  // 4) אופציות יחסיות לסביבת הריצה (לתמיכה ב-local run / Deno Deploy)
+  let p3 = "", p4 = "";
+  try { p3 = new URL("../../templates", import.meta.url).pathname; } catch {}
+  try { p4 = new URL("../templates", import.meta.url).pathname; } catch {}
   const p5 = "./templates";
   const p6 = "templates";
-
-  // הסר כפילויות וריקים
   return Array.from(new Set([p0, p1, p2, p3, p4, p5, p6].filter(Boolean)));
 }
 
@@ -51,8 +32,6 @@ function dirJoin(a: string, b: string) {
   return (a.replace(/\/+$/, "") + "/" + b.replace(/^\/+/, "")).replace(/\/+/g, "/");
 }
 
-// בדיקת "נראות" תיקיית תבניות ללא listDir:
-// נבדוק קבצים נפוצים — מספיק שאחד קיים.
 const PROBES = [
   "_layout.eta",
   "index.eta",
@@ -61,33 +40,22 @@ const PROBES = [
   "auth/register.eta",
 ];
 
-/**
- * בדיקת קיום "סבירה" גם בסביבות שבהן statSync לא זמין לכל נתיב.
- * ב-Deno Deploy לעיתים נתיבים מסוימים לא ניתנים לבדיקה; נחזיר false בשקט.
- */
 function dirLooksLikeViews(dir: string): boolean {
   // deno-lint-ignore no-explicit-any
   const statSync = (Deno as any).statSync?.bind(Deno);
   if (!statSync) return false;
-
   for (const rel of PROBES) {
     try {
       const full = dirJoin(dir, rel);
-      statSync(full); // יזרוק אם לא קיים
+      statSync(full);
       return true;
-    } catch {
-      // המשך לבדוק קובץ הבא
-    }
+    } catch {}
   }
   return false;
 }
 
 const CANDIDATES = candidatePaths();
 
-/**
- * בוחרים ספריית views לפי המועמדות הראשונות שנראות תקינות.
- * אם לא נמצאה — נעדיף ENV (אם ניתן), אחרת "/templates", ובדפדוף אחרון "./templates".
- */
 const PICKED_VIEWS_DIR = (() => {
   for (const p of CANDIDATES) {
     if (dirLooksLikeViews(p)) return p;
@@ -97,17 +65,16 @@ const PICKED_VIEWS_DIR = (() => {
 
 // --------- Eta instance ---------
 const eta = new Eta({
-  views: PICKED_VIEWS_DIR, // נתיב קבוע (לפי הבחירה למעלה)
-  cache: true,             // אפשר לשנות ל-false בזמן דיבוג
+  views: PICKED_VIEWS_DIR,
+  cache: true,
   async: true,
-  useWith: true,           // מאפשר שימוש ב-it ישירות בתבניות
+  useWith: true,
   autoEscape: true,
 });
 
 // --------- Helpers ---------
 function wantsJSON(ctx: Context) {
   const acc = ctx.request.headers.get("accept")?.toLowerCase() ?? "";
-  // אם הלקוח ביקש JSON במפורש, או שזה XHR/fetch שמצפה JSON
   return acc.includes("application/json") || acc.includes("json");
 }
 
@@ -120,10 +87,15 @@ function escapeHtml(s: unknown) {
     .replaceAll("'", "&#39;");
 }
 
-function fallbackHtml(title: string, info: Record<string, unknown>) {
+function fallbackHtml(
+  title: string,
+  info: Record<string, unknown>,
+  lang = "he",
+  dir: "rtl" | "ltr" = lang === "he" ? "rtl" : "ltr",
+) {
   const safeTitle = title || "GeoTable";
   return `<!doctype html>
-<html lang="he" dir="rtl">
+<html lang="${escapeHtml(lang)}" dir="${escapeHtml(dir)}">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -149,49 +121,105 @@ function fallbackHtml(title: string, info: Record<string, unknown>) {
 </html>`;
 }
 
-/**
- * מנסה לטעון את המשתמש מה-session אם לא קיים ב-ctx.state.user
- * ההנחה: middleware של session מאחסן userId תחת ctx.state.session / ctx.state.session.get("userId")
- */
 async function ensureStateUser(ctx: Context): Promise<any | null> {
-  // אם כבר קיים user ב-state – לא נוגעים
   // deno-lint-ignore no-explicit-any
   const stateAny = ctx.state as any;
   if (stateAny?.user) return stateAny.user;
-
   try {
     const session = stateAny?.session;
     const userId = session && (await session.get?.("userId"));
     if (userId) {
       const user = await getUserById(String(userId));
       if (user) {
-        stateAny.user = user; // נשמור לזמן חיי הבקשה
+        stateAny.user = user;
         return user;
       }
     }
-  } catch {
-    // מתעלמים – לא חוסם
+  } catch {}
+  return null;
+}
+
+// --- i18n Page-dict helpers ---
+type Dict = Record<string, unknown>;
+
+function getPath(obj: any, path: string): unknown {
+  if (!obj) return undefined;
+  return path.split(".").reduce((o, k) => (o && typeof o === "object" ? o[k] : undefined), obj);
+}
+
+function interpolate(s: string, vars?: Record<string, unknown>) {
+  return !vars ? s : s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? `{${k}}`));
+}
+
+function pageDictFile(page: string, lang: string): string[] {
+  // ננסה כמה וריאציות יחסיות לקובץ הזה ואל ה־CWD
+  const arr: string[] = [];
+  try { arr.push(new URL(`../i18n/pages/${page}.${lang}.json`, import.meta.url).pathname); } catch {}
+  try { arr.push(new URL(`../../i18n/pages/${page}.${lang}.json`, import.meta.url).pathname); } catch {}
+  arr.push(`./i18n/pages/${page}.${lang}.json`);
+  arr.push(`i18n/pages/${page}.${lang}.json`);
+  return Array.from(new Set(arr));
+}
+
+async function tryLoadJson(paths: string[]): Promise<Dict | null> {
+  for (const p of paths) {
+    try {
+      const txt = await Deno.readTextFile(p);
+      const obj = JSON.parse(txt) as Dict;
+      return obj;
+    } catch {
+      // continue
+    }
   }
   return null;
 }
 
-// --------- Public API ---------
 /**
- * render(ctx, template, data)
- * - טוען user ל-ctx.state.user במידת הצורך (מה-session)
- * - אם Accept: application/json → מחזיר JSON (כולל user ב-payload)
- * - אחרת: מרנדר תבנית Eta מתוך PICKED_VIEWS_DIR
- * - במקרה כשל: מחזיר fallback (JSON או HTML לפי Accept)
+ * בונה פונקציית t שמעניקה קדימות למילון-עמוד (אם קיים),
+ * ואז נופלת ל-t הבסיסית שמגיע מה־middleware.
  */
+function makePageAwareT(baseT: (k: string, v?: Record<string, unknown>) => string, pageDict: Dict | null) {
+  return (key: string, vars?: Record<string, unknown>) => {
+    if (pageDict) {
+      const hit = getPath(pageDict, key);
+      if (typeof hit === "string") return interpolate(hit, vars);
+    }
+    return baseT(key, vars);
+  };
+}
+
+// --------- Public API ---------
 export async function render(
   ctx: Context,
   template: string,
   data: Record<string, unknown> = {},
 ): Promise<void> {
   const user = await ensureStateUser(ctx);
-  const payload = { ...data, user };
 
-  // JSON במפורש
+  // deno-lint-ignore no-explicit-any
+  const stateAny = ctx.state as any;
+  const lang = stateAny?.lang ?? "he";
+  const dir: "rtl" | "ltr" = stateAny?.dir ?? (lang === "he" ? "rtl" : "ltr");
+  const baseT: (key: string, vars?: Record<string, unknown>) => string =
+    stateAny?.t ?? ((k: string) => `(${k})`);
+
+  // נסה לטעון מילון-עמוד (אם ניתן להסיק page מהדאטה)
+  // מוסכמה: אם data.page === "home" נטען /i18n/pages/home.<lang>.json
+  // אם לא הועבר page, ננסה לגזור מהשם "index" -> "home"
+  const pageNs =
+    (typeof data.page === "string" && data.page) ||
+    (template === "index" ? "home" : "");
+
+  let pageDict: Dict | null = null;
+  if (pageNs) {
+    pageDict = await tryLoadJson(pageDictFile(pageNs, lang));
+  }
+
+  // פונקציית תרגום שנותנת קדימות למילון העמוד
+  const t = makePageAwareT(baseT, pageDict);
+
+  const payload = { ...data, user, lang, dir, t };
+
   if (wantsJSON(ctx)) {
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.body = JSON.stringify(payload, null, 2);
@@ -199,14 +227,12 @@ export async function render(
   }
 
   try {
-    // Eta v3: renderAsync(name, data) עם views שהוגדר.
     const html = await eta.renderAsync(template, payload);
     if (typeof html === "string") {
       ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
       ctx.response.body = html;
       return;
     }
-    // רינדור ריק → fallback
     console.warn(`[view] empty render for "${template}". views="${PICKED_VIEWS_DIR}"`);
     ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
     ctx.response.body = fallbackHtml(String(data?.title ?? template), {
@@ -214,7 +240,7 @@ export async function render(
       views: PICKED_VIEWS_DIR,
       candidates: CANDIDATES,
       data,
-    });
+    }, lang, dir);
   } catch (err) {
     const reqId = (ctx.state as any)?.reqId ?? "-";
     console.warn(`[view ${reqId}] render failed for "${template}" (views="${PICKED_VIEWS_DIR}") → fallback:`, err);
@@ -226,8 +252,7 @@ export async function render(
       candidates: CANDIDATES,
       data,
     };
-    // אם הלקוח הוא fetch רגיל בלי Accept: JSON — נחזיר HTML כדי שיהיה קריא בדפדפן.
     ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-    ctx.response.body = fallbackHtml(String(data?.title ?? template), info);
+    ctx.response.body = fallbackHtml(String(data?.title ?? template), info, lang, dir);
   }
 }

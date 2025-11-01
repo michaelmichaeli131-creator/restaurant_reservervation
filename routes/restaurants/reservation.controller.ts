@@ -2,7 +2,7 @@
 import { Status } from "jsr:@oak/oak";
 import {
   checkAvailability, createReservation, getRestaurant, getUserById,
-  type Reservation, type WeeklySchedule
+  type Reservation,
 } from "../../database.ts";
 import { render } from "../../lib/view.ts";
 import { sendReservationEmail, notifyOwnerEmail } from "../../lib/mail.ts";
@@ -14,6 +14,27 @@ import { isWithinSchedule, hasScheduleForDate, getWindowsForDate, suggestionsWit
 import { normalizePlain, sanitizeEmailMinimal, sanitizeNote, isValidEmailStrict } from "./_utils/rtl.ts";
 import { asOk, photoStrings } from "./_utils/misc.ts";
 
+/* ====================== i18n helpers ====================== */
+function getLang(ctx: any): string {
+  const q = ctx.request.url.searchParams.get("lang");
+  if (q) return q;
+  const c = ctx.cookies?.get?.("lang");
+  if (c) return c;
+  const al = ctx.request.headers.get("accept-language") || "";
+  if (/^en/i.test(al)) return "en";
+  if (/^ka/i.test(al)) return "ka";
+  if (/^he/i.test(al)) return "he";
+  return "he";
+}
+function getT(ctx: any): (k: string, fb?: string) => string {
+  const t = ctx.state?.t;
+  if (typeof t === "function") return t;
+  return (_k: string, fb?: string) => (fb ?? "");
+}
+function getDir(lang: string): "rtl" | "ltr" { return lang === "he" ? "rtl" : "ltr"; }
+function appendLang(u: URL, lang: string) { if (lang) u.searchParams.set("lang", lang); return u; }
+
+/* ====================== API: availability check ====================== */
 export async function checkApi(ctx: any) {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -61,6 +82,7 @@ export async function checkApi(ctx: any) {
   }
 }
 
+/* ====================== POST /restaurants/:id/reserve ====================== */
 export async function reservePost(ctx: any) {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -70,9 +92,15 @@ export async function reservePost(ctx: any) {
   const { date, time } = extractDateAndTime(ctx, payload);
   const people = toIntLoose((payload as any).people) ?? 2;
 
+  // i18n context & optional cookie
+  const lang = ctx.state?.lang ?? getLang(ctx);
+  if (ctx.request.url.searchParams.has("lang")) {
+    await ctx.cookies?.set?.("lang", lang, { httpOnly: false, sameSite: "Lax", maxAge: 60 * 60 * 24 * 365 });
+  }
+
   const within = isWithinSchedule(restaurant.weeklySchedule, date, time);
   debugLog("[restaurants][POST reserve] before-redirect", {
-    rid, date, time, within,
+    rid, date, time, within, body_ct: dbg.ct,
     weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : []
   });
 
@@ -92,6 +120,7 @@ export async function reservePost(ctx: any) {
     url.searchParams.set("date", date);
     url.searchParams.set("time", time);
     url.searchParams.set("people", String(people));
+    appendLang(url, lang);
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", url.pathname + url.search);
     return;
@@ -106,6 +135,7 @@ export async function reservePost(ctx: any) {
     url.searchParams.set("date", date);
     url.searchParams.set("time", time);
     url.searchParams.set("people", String(people));
+    appendLang(url, lang);
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", url.pathname + url.search);
     return;
@@ -115,10 +145,12 @@ export async function reservePost(ctx: any) {
   u.searchParams.set("date", date);
   u.searchParams.set("time", time);
   u.searchParams.set("people", String(people));
+  appendLang(u, lang);
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set("Location", u.pathname + u.search);
 }
 
+/* ====================== GET /restaurants/:id/details ====================== */
 export async function detailsGet(ctx: any) {
   const id = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(id);
@@ -135,14 +167,21 @@ export async function detailsGet(ctx: any) {
 
   const photos = photoStrings(restaurant.photos);
 
+  // i18n context
+  const lang = ctx.state?.lang ?? getLang(ctx);
+  const t = getT(ctx);
+  const dir = ctx.state?.dir ?? getDir(lang);
+
   await render(ctx, "reservation_details", {
-    page: "reservation_details",
-    title: `פרטי הזמנה — ${restaurant.name}`,
+    page: "details",
+    lang, dir, t,
+    title: `${t("details.header.title","פרטי הזמנה")} — ${restaurant.name}`,
     restaurant: { ...restaurant, photos, openingHours: restaurant.weeklySchedule },
-    date, time, people
+    date, time, people,
   });
 }
 
+/* ====================== GET /restaurants/:id/confirm ====================== */
 export async function confirmGet(ctx: any) {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -237,14 +276,16 @@ export async function confirmGet(ctx: any) {
     final: customerEmail,
   });
 
-  await sendReservationEmail({
-    to: customerEmail,
-    restaurantName: restaurant.name,
-    date, time, people,
-    customerName,
-    manageUrl,
-    reservationId: reservation.id,
-  }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
+  if (customerEmail) {
+    await sendReservationEmail({
+      to: customerEmail,
+      restaurantName: restaurant.name,
+      date, time, people,
+      customerName,
+      manageUrl,
+      reservationId: reservation.id,
+    }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
+  }
 
   const owner = await getUserById(restaurant.ownerId).catch(() => null);
   if (owner?.email) {
@@ -264,17 +305,23 @@ export async function confirmGet(ctx: any) {
 
   const photos = photoStrings(restaurant.photos);
 
-  await render(ctx, "reservation_confirmed", {
-    page: "reservation_confirmed",
-    title: "הזמנה אושרה",
-    restaurant: { ...restaurant, photos },
-    date, time, people,
-    customerName, customerPhone, customerEmail,
-    reservationId: reservation.id,
-    note: customerNote,
-  });
+  const lang = ctx.state?.lang ?? getLang(ctx);
+  const t = getT(ctx);
+  const dir = ctx.state?.dir ?? getDir(lang);
+
+await render(ctx, "reservation_confirmed", {
+  page: "confirm",
+  lang, dir, t,
+  title: `${t("confirm.header.title","הזמנה אושרה ✔")} — ${restaurant.name}`,
+  restaurant: { ...restaurant, photos },
+  date, time, people,
+  customerName, customerPhone, customerEmail,
+  reservationId: reservation.id,
+  note: customerNote,
+});
 }
 
+/* ====================== POST /restaurants/:id/confirm ====================== */
 export async function confirmPost(ctx: any) {
   const rid = String(ctx.params.id ?? "");
   const restaurant = await getRestaurant(rid);
@@ -368,12 +415,14 @@ export async function confirmPost(ctx: any) {
     final: customerEmail,
   });
 
-  await sendReservationEmail({
-    to: customerEmail,
-    restaurantName: restaurant.name,
-    date, time, people,
-    customerName,
-  }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
+  if (customerEmail) {
+    await sendReservationEmail({
+      to: customerEmail,
+      restaurantName: restaurant.name,
+      date, time, people,
+      customerName,
+    }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
+  }
 
   const owner = await getUserById(restaurant.ownerId).catch(() => null);
   if (owner?.email) {
@@ -389,9 +438,14 @@ export async function confirmPost(ctx: any) {
 
   const photos = photoStrings(restaurant.photos);
 
+  const lang = ctx.state?.lang ?? getLang(ctx);
+  const t = getT(ctx);
+  const dir = ctx.state?.dir ?? getDir(lang);
+
   await render(ctx, "reservation_confirmed", {
-    page: "reservation_confirmed",
-    title: "הזמנה אושרה",
+    page: "confirm",
+    lang, dir, t,
+    title: `${t("confirm.header.title","הזמנה אושרה ✔")} — ${restaurant.name}`,
     restaurant: { ...restaurant, photos },
     date, time, people,
     customerName, customerPhone, customerEmail,

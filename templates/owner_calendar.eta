@@ -1,8 +1,12 @@
 <!doctype html>
-<html lang="he" dir="rtl">
+<html lang="<%= it.lang %>" dir="<%= it.dir %>">
 <head>
   <meta charset="utf-8" />
-  <title><%= it.title %></title>
+  <title>
+    <% /* tt: תרגום עם fallback אמיתי גם כש-it.t מחזיר "(key)" */ %>
+    <% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
+    <%= (it.title && it.title.trim().length) ? it.title : tt('owner.calendar.head','יומן בעלים · SpotBook') %>
+  </title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- קובץ הלוגיקה/בסיס קיים שלך -->
   <link rel="stylesheet" href="/static/css/owner_calendar.css" />
@@ -35,7 +39,40 @@
     /* Header */
     .oc-header{background:linear-gradient(180deg, rgba(17,24,39,.8), rgba(17,24,39,.35)); border-bottom:1px solid var(--bd)}
     .oc-header .wrap{max-width:1280px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-    .oc-title{font-weight:800;letter-spacing:.2px}
+    .oc-title{font-weight:800;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+    /* Lang switch (כפתור 🌐) */
+    .lang-switch{ position: relative; display:inline-block; }
+    .lang-btn{
+      display:inline-flex; align-items:center; justify-content:center;
+      width:36px; height:36px; border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+      cursor:pointer; box-shadow: inset 0 2px 6px rgba(0,0,0,.25);
+      transition: background .15s ease, transform .15s ease;
+    }
+    .lang-btn:hover { background:rgba(255,255,255,.1); transform:translateY(-1px); }
+    .lang-btn::before{ content:"🌐"; font-size:18px; line-height:1; }
+    .lang-menu{
+      position:absolute; top:110%; inset-inline-end:0;
+      background: rgba(15,23,42,.92);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:10px; padding:4px;
+      box-shadow:0 6px 20px rgba(0,0,0,.35);
+      backdrop-filter: blur(10px);
+      z-index:60; min-width:140px;
+      opacity:0; transform:translateY(-5px) scale(.97);
+      pointer-events:none;
+      transition:opacity .15s ease, transform .15s ease;
+    }
+    .lang-menu.open { opacity:1; transform:translateY(0) scale(1); pointer-events:auto; }
+    .lang-item{
+      display:block; text-align:center; color:#e2e8f0; padding:8px 10px; border-radius:6px;
+      text-decoration:none; font-weight:700; font-family:"Rubik",sans-serif;
+      transition:background .15s ease; font-size: 14px;
+    }
+    .lang-item:hover { background:rgba(255,255,255,.08); }
+    .lang-item.active { background:rgba(255,255,255,.12); }
 
     /* Date nav + search */
     .oc-date-nav{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
@@ -197,16 +234,34 @@
   <!-- Header -->
   <div class="oc-header">
     <div class="wrap">
-      <div class="oc-title"><%= it.restaurant && it.restaurant.name ? it.restaurant.name : it.title %></div>
+      <div class="oc-title">
+        <%= (it.restaurant && it.restaurant.name) ? it.restaurant.name : tt('owner.calendar.title','יומן בעלים') %>
+      </div>
+
+      <!-- מתג שפה (כדור הארץ) -->
+      <div class="lang-switch">
+        <button class="lang-btn" id="langBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="langMenu" title="<%= tt('nav.language','בחר שפה') %>"></button>
+        <div class="lang-menu" id="langMenu" role="menu">
+          <a class="lang-item <%= (it.lang==='en')?'active':'' %>" href="#" data-lang="en" role="menuitem">EN</a>
+          <a class="lang-item <%= (it.lang==='ka')?'active':'' %>" href="#" data-lang="ka" role="menuitem">GE</a>
+          <a class="lang-item <%= (!it.lang || it.lang==='he')?'active':'' %>" href="#" data-lang="he" role="menuitem">HE</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Secondary row: date & search -->
+  <div class="oc-header">
+    <div class="wrap">
       <div class="oc-date-nav">
-        <button id="btn-prev" aria-label="Previous day" class="btn-live ghost">◀</button>
+        <button id="btn-prev" aria-label="<%= tt('owner.calendar.prev_day_aria','יום קודם') %>" class="btn-live ghost">◀</button>
         <div class="date-label" id="date-label">—</div>
-        <button id="btn-next" aria-label="Next day" class="btn-live ghost">▶</button>
-        <button id="btn-jump" aria-label="Jump to date" class="btn-live primary">📅 בחר תאריך</button>
+        <button id="btn-next" aria-label="<%= tt('owner.calendar.next_day_aria','יום הבא') %>" class="btn-live ghost">▶</button>
+        <button id="btn-jump" aria-label="<%= tt('owner.calendar.jump_to_date_aria','קפיצה לתאריך') %>" class="btn-live primary oc-jump">📅 <%= tt('owner.calendar.pick_date','בחר תאריך') %></button>
         <input type="date" id="datePicker" style="display:none" value="<%= it.date %>"/>
 
         <!-- שדה חיפוש מעוצב ליד התאריך -->
-        <label class="oc-searchbox" for="daySearch" aria-label="Search in day">
+        <label class="oc-searchbox" for="daySearch" aria-label="<%= tt('owner.calendar.search_day_aria','חיפוש ביום הנוכחי') %>">
           <span class="icon" aria-hidden="true">
             <!-- SVG זכוכית מגדלת -->
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -214,7 +269,7 @@
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
           </span>
-          <input type="search" id="daySearch" placeholder="Search name"/>
+          <input type="search" id="daySearch" placeholder="<%= tt('owner.calendar.search_placeholder','חפש שם') %>"/>
         </label>
       </div>
     </div>
@@ -225,12 +280,12 @@
     <div class="oc-layout">
       <!-- Sidebar (שמאל בפועל) -->
       <aside class="oc-sidebar" id="sidebar">
-        <div class="oc-section-title">Calendar</div>
+        <div class="oc-section-title"><%= tt('owner.calendar.sidebar.calendar','לוח שנה') %></div>
         <div class="mini-cal" id="mini-cal">
           <div class="hdr">
             <div class="nav">
-              <button id="cal-prev" aria-label="Prev month">‹</button>
-              <button id="cal-next" aria-label="Next month">›</button>
+              <button id="cal-prev" aria-label="<%= tt('owner.calendar.prev_month','חודש קודם') %>">‹</button>
+              <button id="cal-next" aria-label="<%= tt('owner.calendar.next_month','חודש הבא') %>">›</button>
             </div>
             <div class="title" id="cal-title">—</div>
           </div>
@@ -240,9 +295,9 @@
           </table>
         </div>
 
-        <div class="oc-section-title" style="margin-top:16px">Daily Summary</div>
+        <div class="oc-section-title" style="margin-top:16px"><%= tt('owner.calendar.sidebar.daily_summary','סיכום יומי') %></div>
         <div class="oc-day-summary" id="day-summary-box">
-          <div id="day-summary-text">loading…</div>
+          <div id="day-summary-text"><%= tt('owner.calendar.loading','טוען…') %></div>
           <div class="bar"><div id="day-summary-bar"></div></div>
         </div>
       </aside>
@@ -250,22 +305,24 @@
       <!-- Panel (ימין בפועל) -->
       <section class="oc-panel">
         <header>
-          <div class="oc-cap" id="cap-line">Capacity: People — • Tables — • Step: —</div>
+          <div class="oc-cap" id="cap-line">
+            <%= tt('owner.calendar.cap_line','קיבולת: סועדים — • שולחנות — • צעד: —') %>
+          </div>
         </header>
 
         <div class="oc-slots" id="slots">
           <div class="oc-row oc-th">
-            <div>Time</div>
-            <div>Occupancy</div>
-            <div class="oc-info">People • Tables • %</div>
+            <div><%= tt('owner.calendar.th.time','שעה') %></div>
+            <div><%= tt('owner.calendar.th.occupancy','תפוסה') %></div>
+            <div class="oc-info"><%= tt('owner.calendar.th.people_tables_pct','סועדים • שולחנות • %') %></div>
           </div>
           <!-- rows injected by JS -->
         </div>
 
-        <div class="oc-hint">Hint: Click a slot to manage customers</div>
+        <div class="oc-hint"><%= tt('owner.calendar.hint','רמז: לחץ על סלוט כדי לנהל לקוחות') %></div>
 
         <div class="oc-summary" id="summary">
-          Daily Summary — loading…
+          <%= tt('owner.calendar.daily_summary_loading','סיכום יומי — נטען…') %>
         </div>
       </section>
     </div>
@@ -274,18 +331,23 @@
   <!-- Drawer -->
   <aside class="oc-drawer" id="drawer">
     <header>
-      <div class="title" id="drawer-title">Customers</div>
-      <button class="close" id="drawer-close">✕</button>
+      <div class="title" id="drawer-title"><%= tt('owner.calendar.drawer.title','לקוחות') %></div>
+      <button class="close" id="drawer-close" aria-label="<%= tt('owner.calendar.drawer.close','סגור') %>">✕</button>
     </header>
     <div class="toolbar">
-      <input type="search" id="drawer-search" placeholder="Search name in this slot"/>
-      <button class="btn primary" id="btn-add">＋ Add customer</button>
+      <input type="search" id="drawer-search" placeholder="<%= tt('owner.calendar.drawer.search_placeholder','חפש שם בסלוט זה') %>"/>
+      <button class="btn primary" id="btn-add">＋ <%= tt('owner.calendar.drawer.add_customer','הוסף לקוח') %></button>
     </div>
     <div class="body">
       <table class="tbl" id="drawer-table">
         <thead>
           <tr>
-            <th>First Name</th><th>Last Name</th><th>Party sz</th><th>Status</th><th>Phone</th><th></th>
+            <th><%= tt('owner.calendar.tbl.first_name','שם פרטי') %></th>
+            <th><%= tt('owner.calendar.tbl.last_name','שם משפחה') %></th>
+            <th><%= tt('owner.calendar.tbl.party_size','גודל קבוצה') %></th>
+            <th><%= tt('owner.calendar.tbl.status','סטטוס') %></th>
+            <th><%= tt('owner.calendar.tbl.phone','טלפון') %></th>
+            <th></th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -310,6 +372,29 @@
           url.searchParams.set('date', v);
           window.location.href = url.toString();
         });
+      }
+    })();
+
+    // Toggle לתפריט שפה + בניית קישורי /lang/<code>?redirect=<current>
+    (function(){
+      const btn  = document.getElementById('langBtn');
+      const menu = document.getElementById('langMenu');
+      if(!btn || !menu) return;
+
+      function openM(){ menu.classList.add('open');  btn.setAttribute('aria-expanded','true'); }
+      function closeM(){ menu.classList.remove('open'); btn.setAttribute('aria-expanded','false'); }
+      function toggleM(e){ e?.stopPropagation(); menu.classList.contains('open') ? closeM() : openM(); }
+
+      btn.addEventListener('click', toggleM);
+      document.addEventListener('click', (e)=>{ if(!menu.contains(e.target) && e.target!==btn) closeM(); });
+      document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeM(); });
+
+      // בונים href-ים בזמן ריצה
+      const cur = location.pathname + location.search;
+      for (const a of menu.querySelectorAll('.lang-item')) {
+        const code = a.getAttribute('data-lang');
+        if (!code) continue;
+        a.setAttribute('href', `/lang/${code}?redirect=${encodeURIComponent(cur)}`);
       }
     })();
   </script>

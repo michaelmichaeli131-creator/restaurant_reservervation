@@ -1,85 +1,87 @@
 <% layout("_layout", it) %>
+
+<% /* tt: תרגום עם fallback אמיתי גם כש-it.t מחזיר "(key)" */ %>
+<% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
+
 <main class="container sb-rest">
   <header class="page-header">
-    <h1>פרטי הזמנה — <%= it.restaurant.name %></h1>
+    <h1><%= tt('details.header.title','פרטי הזמנה') %> — <%= it.restaurant.name %></h1>
     <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
     <% if (it.restaurant.phone) { %>
-      <p class="muted">טלפון: <%= it.restaurant.phone %></p>
+      <p class="muted"><%= tt('details.header.phoneLabel','טלפון:') %> <%= it.restaurant.phone %></p>
     <% } %>
   </header>
 
   <section class="card">
-    <h2 class="card-title">שלב 2 — פרטי לקוח</h2>
+    <h2 class="card-title"><%= tt('details.form.stepTitle','שלב 2 — פרטי לקוח') %></h2>
 
     <div class="summary">
-      <div><strong>תאריך:</strong> <span id="sum-date"><%= it.date %></span></div>
-      <div><strong>שעה:</strong> <span id="sum-time"><%= it.time %></span></div>
-      <div><strong>מס׳ סועדים:</strong> <span id="sum-people"><%= it.people %></span></div>
-      <div><strong>מסעדה:</strong> <%= it.restaurant.name %></div>
+      <div><strong><%= tt('details.summary.date','תאריך:') %></strong> <span id="sum-date"><%= it.date %></span></div>
+      <div><strong><%= tt('details.summary.time','שעה:') %></strong> <span id="sum-time"><%= it.time %></span></div>
+      <div><strong><%= tt('details.summary.people','מס׳ סועדים:') %></strong> <span id="sum-people"><%= it.people %></span></div>
+      <div><strong><%= tt('details.summary.restaurant','מסעדה:') %></strong> <%= it.restaurant.name %></div>
     </div>
 
     <form id="details-form"
           class="form-grid"
           action="/restaurants/<%= it.restaurant.id %>/confirm"
-          method="post" novalidate>
-      <!-- תאריך ושעה נעולים בשלב הזה -->
+          method="post">
+
+      <!-- נעול בשלב זה -->
       <input type="hidden" name="date" value="<%= it.date %>"/>
       <input type="hidden" name="time" value="<%= it.time %>"/>
-      <!-- מס' סועדים נעול בשלב הזה -->
       <input type="hidden" id="hidden-people" name="people" value="<%= it.people %>"/>
 
       <div class="form-row">
-        <label for="name">שם מלא</label>
+        <label for="name"><%= tt('details.form.name','שם מלא') %></label>
         <input id="name" name="name" type="text" required autocomplete="name"
-               placeholder="שם פרטי ושם משפחה"/>
+               placeholder="<%= tt('details.form.namePh','שם פרטי ושם משפחה') %>"/>
       </div>
 
       <div class="form-row">
-        <label for="phone">נייד</label>
+        <label for="phone"><%= tt('details.form.phone','נייד') %></label>
         <input id="phone" name="phone" type="tel" required inputmode="tel"
-               placeholder="050-1234567"/>
+               placeholder="<%= tt('details.form.phonePh','050-1234567') %>"/>
       </div>
 
       <div class="form-row">
-        <label for="email">אימייל</label>
+        <label for="email"><%= tt('details.form.email','אימייל') %></label>
         <input id="email" name="email" type="email" dir="ltr" inputmode="email"
                autocomplete="email" autocapitalize="off" spellcheck="false"
                placeholder="you@example.com" required />
-        <small class="muted">נשלח אליך אישור הזמנה</small>
+        <small class="muted"><%= tt('details.form.emailHint','נשלח אליך אישור הזמנה') %></small>
       </div>
 
-      <!-- תיבת הערות/בקשות מיוחדות (אופציונלי) -->
       <div class="form-row" style="grid-column: 1 / -1">
-        <label for="note">הערות ובקשות מיוחדות (אופציונלי)</label>
+        <label for="note"><%= tt('details.form.note','הערות ובקשות מיוחדות (אופציונלי)') %></label>
         <textarea id="note" name="note" rows="3" maxlength="500"
-                  placeholder="אלרגיות, עדיפות למיקום, חגיגה, כסא תינוק..."></textarea>
-        <small class="muted">עד 500 תווים</small>
+                  placeholder="<%= tt('details.form.notePh','אלרגיות, עדיפות למיקום, חגיגה, כסא תינוק...') %>"></textarea>
+        <small class="muted"><%= tt('details.form.noteLimit','עד 500 תווים') %></small>
       </div>
 
-      <!-- הצגת מס' הסועדים לתקציר/וידוא (ללא עריכה) -->
       <div class="form-row">
-        <label>מספר סועדים</label>
+        <label><%= tt('details.form.peopleReadOnly','מספר סועדים') %></label>
         <div class="readonly-box"><%= it.people %></div>
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn primary sm">אשר הזמנה</button>
+        <button type="submit" class="btn primary sm"><%= tt('details.actions.confirm','אשר הזמנה') %></button>
         <a class="btn ghost sm" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
-          חזרה לשינוי שעה/תאריך
+          <%= tt('details.actions.back','חזרה לשינוי שעה/תאריך') %>
         </a>
       </div>
     </form>
   </section>
 
-  <% 
+  <%
     const hasSuggestions = Array.isArray(it.suggestions) && it.suggestions.length > 0;
     const showConflict = !!it.conflict || hasSuggestions;
   %>
   <% if (showConflict) { %>
     <section class="card" id="conflict-card">
-      <h3 class="card-title">אין זמינות במועד שבחרת</h3>
+      <h3 class="card-title"><%= tt('details.conflict.title','אין זמינות במועד שבחרת') %></h3>
       <% if (hasSuggestions) { %>
-        <p class="muted">בחר/י אחד מן הזמנים הזמינים בקרבת השעה שביקשת (±2 שעות):</p>
+        <p class="muted"><%= tt('details.conflict.suggestHint','בחר/י אחד מן הזמנים הזמינים בקרבת השעה שביקשת (±2 שעות):') %></p>
         <div id="suggest-slots" class="slots">
           <% it.suggestions.forEach(t => { %>
             <button type="button" class="slot" onclick="
@@ -91,14 +93,14 @@
             "><%= t %></button>
           <% }) %>
         </div>
-        <small class="muted">לחיצה על שעה תעדכן את השעה בטופס ותאפשר לשליחה מחדש.</small>
+        <small class="muted"><%= tt('details.conflict.copyHint','לחיצה על שעה תעדכן את השעה בטופס ותאפשר לשליחה מחדש.') %></small>
       <% } %>
     </section>
   <% } %>
 
   <% if (it.restaurant.description) { %>
     <section class="card">
-      <h2 class="card-title">על המסעדה</h2>
+      <h2 class="card-title"><%= tt('details.about.title','על המסעדה') %></h2>
       <p><%= it.restaurant.description %></p>
     </section>
   <% } %>
@@ -106,6 +108,7 @@
 
 <script>
   (function(){
+    // נרמול אימייל (מסיר bidi, מרחבים, תווים דומים)
     const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
     const ZSP  = /[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
     function normalizeEmail(s) {
@@ -118,35 +121,35 @@
     }
     const emailEl = document.getElementById('email');
     if (emailEl) {
-      emailEl.addEventListener('blur', () => {
-        emailEl.value = normalizeEmail(emailEl.value);
-      });
+      emailEl.addEventListener('blur', () => { emailEl.value = normalizeEmail(emailEl.value); });
     }
 
-    // שמירה על עקביות התקציר עם ה-hidden (במקום קלט ניתן לעריכה)
+    // סנכרון התקציר עם hidden people
     const hiddenPeople = document.getElementById('hidden-people');
     const sumP = document.getElementById('sum-people');
-    if (hiddenPeople && sumP) {
-      sumP.textContent = hiddenPeople.value || sumP.textContent;
-    }
+    if (hiddenPeople && sumP) sumP.textContent = hiddenPeople.value || sumP.textContent;
   })();
 
+  // המרה ל-GET עם querystring כדי לעקוף parsing של גוף בצד שרת
   (function () {
     const form = document.getElementById('details-form');
     if (!form) return;
+
     form.addEventListener('submit', function (ev) {
       try {
-        if (!form.checkValidity()) return;
+        // אם חסר שדה חובה — נעצור ושליחת הדפדפן תציג אינדיקציה
+        if (!form.checkValidity()) {
+          ev.preventDefault();
+          return;
+        }
+
+        // אם הוספת data-force-post במפורש — לא נבצע המרה
         if (form.hasAttribute('data-force-post')) return;
 
         ev.preventDefault();
         const sp = new URLSearchParams();
         const fd = new FormData(form);
-
-        // נשלח את כל הערכים (כולל note ו-people הנעול)
-        for (const [k, v] of fd.entries()) {
-          if (typeof v === 'string') sp.append(k, v);
-        }
+        for (const [k, v] of fd.entries()) { if (typeof v === 'string') sp.append(k, v); }
 
         const to = new URL(form.getAttribute('action') || window.location.href, window.location.origin);
         to.search = sp.toString();
@@ -164,7 +167,6 @@
   .page-header h1{ margin:0 0 6px; letter-spacing:.2px }
   .muted{ color: var(--ink-muted, #9aa3b2); }
 
-  /* כרטיסים */
   .card{
     background: var(--panel, #121622);
     border:1px solid var(--bd, #222834);
@@ -174,7 +176,6 @@
   }
   .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
 
-  /* Summary קומפקטי */
   .summary{ display:flex; flex-wrap:wrap; gap:12px; margin:4px 0 12px }
   .summary > div{
     background: color-mix(in srgb, var(--panel-2, #171b29) 92%, transparent);
@@ -182,7 +183,6 @@
     border-radius:10px; padding:8px 10px; font-size:14px;
   }
 
-  /* טפסים */
   .form-grid{ display:grid; grid-template-columns: repeat(2,1fr); gap:14px }
   .form-row{ display:flex; flex-direction:column; gap:6px }
   .form-row label{ font-weight:500 }
@@ -202,7 +202,6 @@
     border-radius:12px; background: color-mix(in srgb, var(--panel-2) 92%, transparent);
   }
 
-  /* כפתורים “חיים” */
   .btn{
     display:inline-flex; align-items:center; justify-content:center; gap:8px;
     padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
@@ -220,16 +219,8 @@
   }
   .btn.ghost:hover{ background: color-mix(in srgb, var(--panel, #121622) 92%, transparent); }
 
-  /* הקטנת הכפתורים הספציפיים בפעולות */
-  .form-actions .btn.sm{
-    padding:8px 12px;       /* קטן יותר */
-    border-radius:10px;
-    font-weight:700;
-  }
-
   .form-actions{ display:flex; gap:10px; flex-wrap:wrap }
 
-  /* התראת קונפליקט + הצעות (מופיע רק אם showConflict=true) */
   #conflict-card{ border-color: rgba(239,68,68,.35) }
   .slots{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px }
   .slot{
@@ -240,7 +231,6 @@
   }
   .slot:hover{ background: color-mix(in srgb, var(--panel, #121622) 88%, transparent); }
 
-  /* מובייל */
   @media (max-width:760px){
     .form-grid{ grid-template-columns:1fr }
   }

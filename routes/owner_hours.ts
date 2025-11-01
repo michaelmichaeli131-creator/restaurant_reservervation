@@ -96,6 +96,7 @@ ownerHoursRouter.get("/owner/restaurants/:id/hours", async (ctx) => {
 
   const saved = ctx.request.url.searchParams.get("saved") === "1";
   await render(ctx, "owner_hours.eta", {
+  page: "owner_hours",  
     restaurant: r,
     saved,
     dayLabels: DAY_LABELS,
