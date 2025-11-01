@@ -77,6 +77,25 @@
       </div>
     </form>
   </section>
+
+  <!-- ביקורות -->
+  <section class="card">
+    <div class="reviews-header">
+      <div>
+        <h2 class="card-title">ביקורות</h2>
+        <% if (it.r.reviewCount && it.r.averageRating) { %>
+          <div class="rating-summary">
+            <span class="stars"><%= '★'.repeat(Math.round(it.r.averageRating)) %><%= '☆'.repeat(5 - Math.round(it.r.averageRating)) %></span>
+            <span class="rating-text"><%= it.r.averageRating.toFixed(1) %> (<%= it.r.reviewCount %> ביקורות)</span>
+          </div>
+        <% } %>
+      </div>
+    </div>
+
+    <div id="reviews-container" class="reviews-list">
+      <p class="muted">טוען ביקורות...</p>
+    </div>
+  </section>
 </main>
 
 <script>
@@ -115,6 +134,55 @@
         res.textContent = 'שגיאה בבדיקה. נסה שוב.';
       }
     });
+  }
+})();
+
+// Load reviews
+(async function(){
+  const container = document.getElementById('reviews-container');
+  if (!container) return;
+
+  try {
+    const res = await fetch('/api/restaurants/<%= it.r.id %>/reviews?limit=20');
+    if (!res.ok) throw new Error('Failed to load');
+
+    const reviews = await res.json();
+
+    if (!reviews.length) {
+      container.innerHTML = '<p class="muted">אין ביקורות עדיין. היה הראשון לכתוב ביקורת!</p>';
+      return;
+    }
+
+    let html = '';
+    reviews.forEach(review => {
+      const userName = review.user ? `${review.user.firstName} ${review.user.lastName}` : 'אנונימי';
+      const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating);
+      const date = new Date(review.createdAt).toLocaleDateString('he-IL');
+
+      html += `
+        <div class="review-item">
+          <div class="review-header">
+            <div>
+              <strong class="review-author">${userName}</strong>
+              <span class="review-stars">${stars}</span>
+            </div>
+            <span class="review-date">${date}</span>
+          </div>
+          ${review.comment ? `<p class="review-comment">${review.comment}</p>` : ''}
+          ${review.ownerReply ? `
+            <div class="owner-reply">
+              <strong>תגובת הבעלים:</strong>
+              <p>${review.ownerReply}</p>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  } catch (e) {
+    console.error('Failed to load reviews:', e);
+    container.innerHTML = '<p class="muted">שגיאה בטעינת ביקורות</p>';
   }
 })();
 </script>
@@ -208,6 +276,31 @@
     border-radius:10px; border:1px solid var(--bd, #23293a);
     background:#111;
   }
+
+  /* ===== ביקורות ===== */
+  .reviews-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px }
+  .rating-summary{ display:flex; align-items:center; gap:8px; margin-top:4px }
+  .stars{ color:#fbbf24; font-size:18px }
+  .rating-text{ color:var(--ink-muted); font-size:14px }
+
+  .reviews-list{ display:flex; flex-direction:column; gap:16px }
+  .review-item{
+    padding:14px; border-radius:12px; border:1px solid var(--bd, #23293a);
+    background: color-mix(in srgb, var(--panel-2) 92%, transparent);
+  }
+  .review-header{ display:flex; justify-content:space-between; align-items:start; margin-bottom:8px }
+  .review-author{ color:var(--ink); font-size:15px }
+  .review-stars{ color:#fbbf24; margin-left:8px; font-size:14px }
+  .review-date{ color:var(--ink-muted); font-size:13px }
+  .review-comment{ margin:8px 0 0; color:var(--ink); line-height:1.5 }
+
+  .owner-reply{
+    margin-top:12px; padding:10px; border-left:3px solid var(--brand, #3b82f6);
+    background: color-mix(in srgb, var(--brand) 8%, transparent);
+    border-radius:8px;
+  }
+  .owner-reply strong{ color:var(--brand); display:block; margin-bottom:4px; font-size:13px }
+  .owner-reply p{ margin:0; color:var(--ink); line-height:1.5; font-size:14px }
 
   @media (max-width: 860px){
     .form-grid{ grid-template-columns:1fr; }

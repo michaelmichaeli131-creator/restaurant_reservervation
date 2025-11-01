@@ -42,6 +42,7 @@ import openingRouter from "./routes/opening.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
 import { i18n } from "./middleware/i18n.ts";
 import langRouter from "./routes/lang.ts";
+import reviewsRouter from "./routes/reviews.ts";
 
 // ✅ חדש: ראוטר ניהול תפוסה יומי (Calendar/Timeline)
 import { ownerCalendarRouter } from "./routes/owner_calendar.ts";
@@ -404,6 +405,10 @@ app.use(diagRouter.allowedMethods());
 // ראוטרים ציבוריים של מסעדות - אחרון כי הכי כללי
 app.use(restaurantsRouter.routes());
 app.use(restaurantsRouter.allowedMethods());
+
+// Reviews API
+app.use(reviewsRouter.routes());
+app.use(reviewsRouter.allowedMethods());
 
 // ראוטר שורש נוסף
 app.use(rootRouter.routes());

@@ -40,6 +40,30 @@
         <textarea id="description" name="description" rows="4"><%= it.restaurant.description || "" %></textarea>
       </div>
 
+      <div class="form-row full">
+        <label for="categories"><%= tt('owner.edit.fields.categories','סוגי מטבח') %></label>
+        <select id="categories" name="categories" multiple size="6" style="background:#171b29; color:#e6e8ef; border:1px solid #23293a; border-radius:12px; padding:10px 12px;">
+          <option value="italian" <%= (it.restaurant.kitchenCategories || []).includes('italian') ? 'selected' : '' %>>🍝 Italian</option>
+          <option value="asian" <%= (it.restaurant.kitchenCategories || []).includes('asian') ? 'selected' : '' %>>🍜 Asian</option>
+          <option value="japanese" <%= (it.restaurant.kitchenCategories || []).includes('japanese') ? 'selected' : '' %>>🍣 Japanese</option>
+          <option value="chinese" <%= (it.restaurant.kitchenCategories || []).includes('chinese') ? 'selected' : '' %>>🥡 Chinese</option>
+          <option value="indian" <%= (it.restaurant.kitchenCategories || []).includes('indian') ? 'selected' : '' %>>🍛 Indian</option>
+          <option value="mediterranean" <%= (it.restaurant.kitchenCategories || []).includes('mediterranean') ? 'selected' : '' %>>🫒 Mediterranean</option>
+          <option value="american" <%= (it.restaurant.kitchenCategories || []).includes('american') ? 'selected' : '' %>>🍔 American</option>
+          <option value="mexican" <%= (it.restaurant.kitchenCategories || []).includes('mexican') ? 'selected' : '' %>>🌮 Mexican</option>
+          <option value="french" <%= (it.restaurant.kitchenCategories || []).includes('french') ? 'selected' : '' %>>🥐 French</option>
+          <option value="steakhouse" <%= (it.restaurant.kitchenCategories || []).includes('steakhouse') ? 'selected' : '' %>>🥩 Steakhouse</option>
+          <option value="seafood" <%= (it.restaurant.kitchenCategories || []).includes('seafood') ? 'selected' : '' %>>🦞 Seafood</option>
+          <option value="vegetarian" <%= (it.restaurant.kitchenCategories || []).includes('vegetarian') ? 'selected' : '' %>>🥗 Vegetarian</option>
+          <option value="vegan" <%= (it.restaurant.kitchenCategories || []).includes('vegan') ? 'selected' : '' %>>🌱 Vegan</option>
+          <option value="cafe" <%= (it.restaurant.kitchenCategories || []).includes('cafe') ? 'selected' : '' %>>☕ Cafe</option>
+          <option value="bakery" <%= (it.restaurant.kitchenCategories || []).includes('bakery') ? 'selected' : '' %>>🥖 Bakery</option>
+          <option value="fast_food" <%= (it.restaurant.kitchenCategories || []).includes('fast_food') ? 'selected' : '' %>>🍟 Fast Food</option>
+          <option value="other" <%= (it.restaurant.kitchenCategories || []).includes('other') ? 'selected' : '' %>>🍽️ Other</option>
+        </select>
+        <small class="muted" style="margin-top: 4px;"><%= tt('owner.edit.fields.categories_hint','החזק Ctrl/Cmd לבחירת מספר קטגוריות') %></small>
+      </div>
+
       <div class="form-actions full">
         <button class="btn primary sm" type="submit"><%= tt('owner.edit.actions.save','שמור') %></button>
         <a class="btn ghost sm" href="/owner/restaurants/<%= it.restaurant.id %>/hours"><%= tt('owner.edit.actions.hours','שעות פתיחה') %></a>
