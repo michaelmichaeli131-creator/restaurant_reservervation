@@ -1,0 +1,113 @@
+<% layout("_layout", it) %>
+
+<main class="success-page container">
+  <div class="success-card">
+    <div class="success-icon">✓</div>
+    <h1 class="title">תודה על הביקורת!</h1>
+    <p class="message">הביקורת שלך נשלחה בהצלחה ותופיע בדף המסעדה.</p>
+
+    <% if (it.restaurant) { %>
+      <div class="actions">
+        <a href="/restaurants/<%= it.restaurant.id %>" class="btn primary">
+          חזרה לדף המסעדה
+        </a>
+        <a href="/" class="btn ghost">
+          לדף הבית
+        </a>
+      </div>
+    <% } %>
+  </div>
+</main>
+
+<style>
+.success-page.container {
+  max-width: 500px;
+  margin: 60px auto;
+  padding: 0 16px;
+}
+
+.success-card {
+  background: var(--panel, #121622);
+  border: 1px solid var(--bd, #222834);
+  border-radius: 18px;
+  padding: 48px 32px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+
+.success-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  font-size: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  box-shadow: 0 8px 24px rgba(16,185,129,.35);
+}
+
+.title {
+  margin: 0 0 16px;
+  font-size: clamp(24px, 3vw, 32px);
+  color: var(--ink, #e6e8ef);
+}
+
+.message {
+  margin: 0 0 32px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--ink-muted, #9aa3b2);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  border: 1px solid var(--bd, #23293a);
+}
+
+.btn.primary {
+  background: var(--brand, #3b82f6);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 8px 24px rgba(59,130,246,.35);
+}
+
+.btn.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(59,130,246,.45);
+}
+
+.btn.ghost {
+  background: color-mix(in srgb, var(--panel-2, #171b29) 92%, transparent);
+  color: var(--ink, #e6e8ef);
+}
+
+.btn.ghost:hover {
+  background: color-mix(in srgb, var(--panel, #121622) 92%, transparent);
+}
+
+@media (max-width: 640px) {
+  .success-card {
+    padding: 32px 24px;
+  }
+}
+</style>

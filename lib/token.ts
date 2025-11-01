@@ -129,3 +129,76 @@ export function buildManageUrl(origin: string, token: string): string {
   const base = origin.replace(/\/+$/, "");
   return `${base}/r/${encodeURIComponent(token)}`;
 }
+
+/* -------------------- Review Tokens -------------------- */
+
+export type ReviewTokenPayload = {
+  v: number;              // token version
+  reservationId: string;  // ID of the reservation being reviewed
+  restaurantId: string;   // ID of the restaurant
+  userId: string;         // ID of the customer
+  exp: number;            // expiration timestamp (ms)
+};
+
+/**
+ * Create a signed token for leaving a review.
+ * @param reservationId The reservation ID
+ * @param restaurantId The restaurant ID
+ * @param userId The customer's user ID
+ * @param expiresInDays Validity period in days (default 7)
+ */
+export async function makeReviewToken(
+  reservationId: string,
+  restaurantId: string,
+  userId: string,
+  expiresInDays: number = 7,
+): Promise<string> {
+  const payload: ReviewTokenPayload = {
+    v: TOKEN_VERSION,
+    reservationId,
+    restaurantId,
+    userId,
+    exp: Date.now() + Math.max(1, expiresInDays) * 24 * 60 * 60 * 1000,
+  };
+  const p = b64urlEncode(JSON.stringify(payload));
+  const s = await hmacSign(p);
+  return `${p}.${s}`;
+}
+
+/**
+ * Verify review token and return payload if valid, otherwise null.
+ * Checks signature, version, and expiration (with clock skew tolerance).
+ */
+export async function verifyReviewToken(token: string): Promise<ReviewTokenPayload | null> {
+  try {
+    const [p, s] = token.split(".");
+    if (!p || !s) return null;
+
+    // Verify signature using constant-time comparison via WebCrypto
+    const ok = await hmacVerify(p, s);
+    if (!ok) return null;
+
+    const payload = JSON.parse(b64urlDecodeToString(p)) as ReviewTokenPayload;
+
+    // Basic schema validation
+    if (!payload || typeof payload !== "object") return null;
+    if (payload.v !== TOKEN_VERSION) return null;
+    if (!payload.reservationId || typeof payload.reservationId !== "string") return null;
+    if (!payload.restaurantId || typeof payload.restaurantId !== "string") return null;
+    if (!payload.userId || typeof payload.userId !== "string") return null;
+    if (typeof payload.exp !== "number") return null;
+
+    // Check expiration with grace period for clock skew
+    if (Date.now() - CLOCK_SKEW_MS > payload.exp) return null;
+
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+/** Helper: build review URL from token and origin */
+export function buildReviewUrl(origin: string, token: string): string {
+  const base = origin.replace(/\/+$/, "");
+  return `${base}/review/${encodeURIComponent(token)}`;
+}

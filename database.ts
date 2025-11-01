@@ -1351,3 +1351,18 @@ export async function updateRestaurantCategories(id: string, categories: Kitchen
 
   return await updateRestaurant(id, { kitchenCategories: validCategories });
 }
+
+/* ─────────────────────── Review Token Tracking ─────────────────────── */
+
+/** Mark a review token as used (prevents reuse) */
+export async function markReviewTokenUsed(reservationId: string): Promise<void> {
+  await kv.set(toKey("review_token_used", reservationId), {
+    usedAt: now(),
+  });
+}
+
+/** Check if a review token has already been used */
+export async function isReviewTokenUsed(reservationId: string): Promise<boolean> {
+  const entry = await kv.get(toKey("review_token_used", reservationId));
+  return entry.value !== null;
+}

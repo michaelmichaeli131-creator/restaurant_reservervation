@@ -1,0 +1,300 @@
+<% layout("_layout", it) %>
+
+<main class="review-page container">
+  <div class="review-card">
+    <header class="review-header">
+      <h1 class="title">כיצד היה הביקור שלך?</h1>
+      <div class="restaurant-info">
+        <h2 class="restaurant-name"><%= it.restaurant.name %></h2>
+        <p class="visit-date">ביקור ב-<%= new Date(it.reservation.date).toLocaleDateString('he-IL') %></p>
+      </div>
+    </header>
+
+    <% if (it.error) { %>
+      <div class="alert error">
+        <%= it.error %>
+      </div>
+    <% } %>
+
+    <form method="POST" action="/review/<%= it.token %>" class="review-form">
+      <!-- Star Rating -->
+      <div class="rating-section">
+        <label class="label">דירוג</label>
+        <div class="star-rating" id="star-rating">
+          <input type="radio" name="rating" value="5" id="star5" required>
+          <label for="star5" class="star" data-rating="5">★</label>
+
+          <input type="radio" name="rating" value="4" id="star4">
+          <label for="star4" class="star" data-rating="4">★</label>
+
+          <input type="radio" name="rating" value="3" id="star3">
+          <label for="star3" class="star" data-rating="3">★</label>
+
+          <input type="radio" name="rating" value="2" id="star2">
+          <label for="star2" class="star" data-rating="2">★</label>
+
+          <input type="radio" name="rating" value="1" id="star1">
+          <label for="star1" class="star" data-rating="1">★</label>
+        </div>
+        <p class="rating-text" id="rating-text">בחר דירוג</p>
+      </div>
+
+      <!-- Comment (Optional) -->
+      <div class="form-group">
+        <label for="comment" class="label">ספר לנו עוד (אופציונלי)</label>
+        <textarea
+          id="comment"
+          name="comment"
+          rows="5"
+          placeholder="מה אהבת? מה ניתן לשפר?"
+          maxlength="1000"
+        ></textarea>
+        <p class="hint">עד 1000 תווים</p>
+      </div>
+
+      <!-- Submit Button -->
+      <div class="form-actions">
+        <button type="submit" class="btn primary large">שלח ביקורת</button>
+      </div>
+    </form>
+  </div>
+</main>
+
+<script>
+// Star rating interaction
+(function() {
+  const container = document.getElementById('star-rating');
+  const ratingText = document.getElementById('rating-text');
+  const stars = container.querySelectorAll('.star');
+  const inputs = container.querySelectorAll('input[type="radio"]');
+
+  const ratingLabels = {
+    1: '⭐ גרוע',
+    2: '⭐⭐ לא טוב',
+    3: '⭐⭐⭐ בסדר',
+    4: '⭐⭐⭐⭐ טוב',
+    5: '⭐⭐⭐⭐⭐ מעולה!'
+  };
+
+  // Highlight stars on hover
+  stars.forEach(star => {
+    star.addEventListener('mouseenter', function() {
+      const rating = parseInt(this.dataset.rating);
+      highlightStars(rating);
+      ratingText.textContent = ratingLabels[rating];
+    });
+  });
+
+  container.addEventListener('mouseleave', function() {
+    const selected = container.querySelector('input[type="radio"]:checked');
+    if (selected) {
+      const rating = parseInt(selected.value);
+      highlightStars(rating);
+      ratingText.textContent = ratingLabels[rating];
+    } else {
+      highlightStars(0);
+      ratingText.textContent = 'בחר דירוג';
+    }
+  });
+
+  // Handle click
+  inputs.forEach(input => {
+    input.addEventListener('change', function() {
+      const rating = parseInt(this.value);
+      highlightStars(rating);
+      ratingText.textContent = ratingLabels[rating];
+    });
+  });
+
+  function highlightStars(rating) {
+    stars.forEach(star => {
+      const starRating = parseInt(star.dataset.rating);
+      if (starRating <= rating) {
+        star.classList.add('active');
+      } else {
+        star.classList.remove('active');
+      }
+    });
+  }
+})();
+</script>
+
+<style>
+.review-page.container {
+  max-width: 600px;
+  margin: 40px auto;
+  padding: 0 16px;
+}
+
+.review-card {
+  background: var(--panel, #121622);
+  border: 1px solid var(--bd, #222834);
+  border-radius: 18px;
+  padding: 32px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+
+.review-header {
+  text-align: center;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--bd, #222834);
+}
+
+.title {
+  margin: 0 0 16px;
+  font-size: clamp(22px, 3vw, 28px);
+  color: var(--ink, #e6e8ef);
+}
+
+.restaurant-info {
+  margin-top: 12px;
+}
+
+.restaurant-name {
+  margin: 0 0 6px;
+  font-size: clamp(18px, 2.5vw, 22px);
+  color: var(--brand, #3b82f6);
+}
+
+.visit-date {
+  margin: 0;
+  color: var(--ink-muted, #9aa3b2);
+  font-size: 15px;
+}
+
+.alert.error {
+  background: linear-gradient(180deg, rgba(239,68,68,.12), transparent);
+  border: 1px solid rgba(239,68,68,.42);
+  color: #fecaca;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 24px;
+}
+
+.review-form {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.rating-section {
+  text-align: center;
+}
+
+.label {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--ink, #e6e8ef);
+}
+
+.star-rating {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: center;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.star-rating input[type="radio"] {
+  display: none;
+}
+
+.star {
+  font-size: 48px;
+  color: var(--bd, #222834);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.star:hover,
+.star.active {
+  color: #fbbf24;
+  transform: scale(1.1);
+}
+
+.rating-text {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--brand, #3b82f6);
+  margin-top: 12px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group textarea {
+  background: var(--panel-2, #171b29);
+  color: var(--ink, #e6e8ef);
+  border: 1px solid var(--bd, #23293a);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-group textarea:focus {
+  border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, var(--bd, #23293a));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 22%, transparent);
+}
+
+.hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-muted, #9aa3b2);
+}
+
+.form-actions {
+  margin-top: 8px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 24px;
+  border-radius: 12px;
+  border: none;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.btn.primary {
+  background: var(--brand, #3b82f6);
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(59,130,246,.35);
+}
+
+.btn.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(59,130,246,.45);
+}
+
+.btn.large {
+  width: 100%;
+  padding: 14px 24px;
+  font-size: 18px;
+}
+
+@media (max-width: 640px) {
+  .review-card {
+    padding: 24px 20px;
+  }
+
+  .star {
+    font-size: 40px;
+  }
+}
+</style>

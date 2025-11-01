@@ -43,6 +43,7 @@ import { reservationPortal } from "./routes/reservation_portal.ts";
 import { i18n } from "./middleware/i18n.ts";
 import langRouter from "./routes/lang.ts";
 import reviewsRouter from "./routes/reviews.ts";
+import reviewPortalRouter from "./routes/review_portal.ts";
 
 // ✅ חדש: ראוטר ניהול תפוסה יומי (Calendar/Timeline)
 import { ownerCalendarRouter } from "./routes/owner_calendar.ts";
@@ -409,6 +410,10 @@ app.use(restaurantsRouter.allowedMethods());
 // Reviews API
 app.use(reviewsRouter.routes());
 app.use(reviewsRouter.allowedMethods());
+
+// Review Portal (token-based review submission)
+app.use(reviewPortalRouter.routes());
+app.use(reviewPortalRouter.allowedMethods());
 
 // ראוטר שורש נוסף
 app.use(rootRouter.routes());
