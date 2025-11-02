@@ -48,6 +48,9 @@ import reviewPortalRouter from "./routes/review_portal.ts";
 // ✅ חדש: ראוטר ניהול תפוסה יומי (Calendar/Timeline)
 import { ownerCalendarRouter } from "./routes/owner_calendar.ts";
 
+// ✅ Floor plan management
+import { ownerFloorRouter } from "./routes/owner_floor.ts";
+
 // -------------------- ENV --------------------
 const PORT = Number(Deno.env.get("PORT") ?? "8000");
 const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
@@ -414,6 +417,10 @@ app.use(reviewsRouter.allowedMethods());
 // Review Portal (token-based review submission)
 app.use(reviewPortalRouter.routes());
 app.use(reviewPortalRouter.allowedMethods());
+
+// Floor plan management
+app.use(ownerFloorRouter.routes());
+app.use(ownerFloorRouter.allowedMethods());
 
 // ראוטר שורש נוסף
 app.use(rootRouter.routes());

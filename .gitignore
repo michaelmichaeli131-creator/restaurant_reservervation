@@ -25,3 +25,9 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Node modules (client)
+client/node_modules/
+
+# Vite build output
+public/dist/
