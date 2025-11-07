@@ -40,9 +40,8 @@ import { requestLogger } from "./lib/log_mw.ts";
 import { diagRouter } from "./routes/diag.ts";
 import openingRouter from "./routes/opening.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
-import { i18n } from "./middleware/i18n.ts";
-const i18n = (i18nModule as any).i18n ?? i18nModule;
-app.use(i18n);
+import i18nModule from "./middleware/i18n.ts";
+
 
 import langRouter from "./routes/lang.ts";
 
@@ -368,6 +367,9 @@ app.use(async (ctx, next) => {
   await next();
 });
 
+
+const i18n = (i18nModule as any).i18n ?? i18nModule;
+app.use(i18n);
 // אימות/משתמשים
 app.use(authRouter.routes());
 app.use(authRouter.allowedMethods());
@@ -415,6 +417,8 @@ app.use(rootRouter.allowedMethods());
 // hours
 app.use(openingRouter.routes());
 app.use(openingRouter.allowedMethods());
+
+
 
 // --- 404 (כללי) ---
 app.use((ctx) => {
