@@ -41,8 +41,6 @@ import { diagRouter } from "./routes/diag.ts";
 import openingRouter from "./routes/opening.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
 import i18nModule from "./middleware/i18n.ts";
-
-
 import langRouter from "./routes/lang.ts";
 
 // ✅ חדש: ראוטר ניהול תפוסה יומי (Calendar/Timeline)
@@ -234,8 +232,11 @@ app.use(async (ctx, next) => {
 });
 
 // -------------------- i18n FIRST (חשוב!) --------------------
+// הפקה בטוחה של המידלוור (תומך גם ב-export default וגם ב-named)
+const i18nMw = (i18nModule as any).i18n ?? i18nModule;
+
 // ✅ i18n וה־/lang חייבים לבוא לפני כל ראוטר שמרנדר HTML
-app.use(i18n);
+app.use(i18nMw);
 app.use(langRouter.routes());
 app.use(langRouter.allowedMethods());
 
@@ -367,9 +368,6 @@ app.use(async (ctx, next) => {
   await next();
 });
 
-
-const i18n = (i18nModule as any).i18n ?? i18nModule;
-app.use(i18n);
 // אימות/משתמשים
 app.use(authRouter.routes());
 app.use(authRouter.allowedMethods());
@@ -417,8 +415,6 @@ app.use(rootRouter.allowedMethods());
 // hours
 app.use(openingRouter.routes());
 app.use(openingRouter.allowedMethods());
-
-
 
 // --- 404 (כללי) ---
 app.use((ctx) => {
