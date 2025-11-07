@@ -65,13 +65,16 @@ const palette = {
 
 /** ספק הדוא״ל — RESEND (כמו שהיה), עם אפשרות Dry-Run בלוגים */
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const RESEND_FROM = Deno.env.get("RESEND_FROM") ?? "SpotBook <noreply@spotbook.rest>";
+const RESEND_FROM = (Deno.env.get("RESEND_FROM") ?? "SpotBook <noreply@spotbook.rest>").trim();
 const NODE_ENV = Deno.env.get("NODE_ENV") ?? "production";
-const DRY_RUN = Deno.env.get("RESEND_DRY_RUN") === "1" || NODE_ENV !== "production";
+const DRY_RUN = (Deno.env.get("RESEND_DRY_RUN") === "1") || NODE_ENV !== "production";
 
 async function sendMailAny(opts: { to: string; subject: string; html: string; text?: string }) {
   if (DRY_RUN || !RESEND_API_KEY) {
-    console.log("[mail:dry-run]", JSON.stringify(opts, null, 2));
+    console.warn("[mail:dry-run]", {
+      to: opts.to, subject: opts.subject,
+      previewText: (opts.text ?? "").slice(0, 200)
+    });
     return { ok: true, dryRun: true };
   }
   const res = await fetch("https://api.resend.com/emails", {
@@ -85,7 +88,7 @@ async function sendMailAny(opts: { to: string; subject: string; html: string; te
       to: opts.to,
       subject: opts.subject,
       html: opts.html,
-      text: opts.text ?? "",
+      text: opts.text ?? htmlToText(opts.html),
     }),
   });
   if (!res.ok) {
@@ -98,7 +101,7 @@ async function sendMailAny(opts: { to: string; subject: string; html: string; te
 /** עזרי תצוגת תאריך */
 function formatDM(isoDate: string): string {
   // YYYY-MM-DD → D/M
-  const [y, m, d] = isoDate.split("-").map(Number);
+  const [y, m, d] = (isoDate || "").split("-").map(Number);
   if (!y || !m || !d) return isoDate;
   return `${d}/${m}`;
 }
@@ -153,8 +156,7 @@ function renderReservationCard(opts: {
     ${hello ? `<p style="margin:0 0 6px 0;">${hello}</p>` : ""}
     <p style="margin:0 0 16px 0;color:${palette.sub}">${lead}</p>
 
-    <div style="
-      border:1px solid ${palette.border};border-radius:14px;overflow:hidden;">
+    <div style="border:1px solid ${palette.border};border-radius:14px;overflow:hidden;">
       <div style="display:flex;gap:0;">
         <div style="flex:1;padding:14px 16px;border-inline-end:1px solid ${palette.border}">
           <div style="opacity:.8;font-size:13px;color:${palette.sub}">${MAIL_I18N.dayLabel[L]}</div>
@@ -170,7 +172,7 @@ function renderReservationCard(opts: {
         </div>
       </div>
       <div style="height:1px;background:${palette.border}"></div>
-      <div style="padding:12px 16px;font-weight:700">${opts.restaurantName}</div>
+      <div style="padding:12px 16px;font-weight:700">${escapeHtml(opts.restaurantName)}</div>
       ${
         opts.note
           ? `<div style="padding:0 16px 16px;opacity:.9;">
@@ -206,6 +208,37 @@ function escapeHtml(s: string) {
     .replaceAll(`"`, "&quot;");
 }
 
+/** המרה בסיסית ל־plain text */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/h\d>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/* =======================================================================
+   עזר קטן: ודא ש־?lang=... מוזרק ל־manageUrl אם ניתן
+   ======================================================================= */
+function withLang(url?: string, lang?: Lang): string | undefined {
+  if (!url) return url;
+  if (!lang) return url;
+  try {
+    const u = new URL(url, "http://local");
+    u.searchParams.set("lang", lang);
+    // אם היה URL מוחלט – נשמור אותו; אם יחסי, נחזיר path+query
+    if (/^https?:\/\//i.test(url)) return u.toString();
+    return `${u.pathname}${u.search}`;
+  } catch {
+    // במקרה של URL לא תקין — נחזיר כמות שהוא
+    return url;
+  }
+}
+
 /* =======================================================================
    API ציבורי
    ======================================================================= */
@@ -226,6 +259,8 @@ export async function sendReservationEmail(opts: {
   const L = normLang(opts.lang);
   const subject = MAIL_I18N.confirmedSubject[L](opts.restaurantName);
 
+  const manageUrlL = withLang(opts.manageUrl, L);
+
   const html = renderReservationCard({
     lang: L,
     restaurantName: opts.restaurantName,
@@ -233,14 +268,16 @@ export async function sendReservationEmail(opts: {
     time: opts.time,
     people: opts.people,
     customerName: opts.customerName,
-    manageUrl: opts.manageUrl,
+    manageUrl: manageUrlL,
     note: opts.note ?? null,
   });
 
-  const text =
-    `${subject}\n` +
-    `${MAIL_I18N.date[L]}: ${opts.date} | ${MAIL_I18N.time[L]}: ${opts.time} | ${MAIL_I18N.guests[L]}: ${opts.people}\n` +
-    (opts.manageUrl ? `${MAIL_I18N.manageCta[L]}: ${opts.manageUrl}\n` : "");
+  const textLines = [
+    subject,
+    `${MAIL_I18N.date[L]}: ${opts.date} | ${MAIL_I18N.time[L]}: ${opts.time} | ${MAIL_I18N.guests[L]}: ${opts.people}`,
+    manageUrlL ? `${MAIL_I18N.manageCta[L]}: ${manageUrlL}` : "",
+  ].filter(Boolean);
+  const text = textLines.join("\n");
 
   return await sendMailAny({ to: opts.to, subject, html, text });
 }
@@ -257,6 +294,7 @@ export async function sendReminderEmail(opts: {
 }) {
   const L = normLang(opts.lang);
   const subject = MAIL_I18N.reminderSubject[L];
+  const manageUrlL = withLang(opts.manageUrl, L);
 
   const html = renderReservationCard({
     lang: L,
@@ -264,13 +302,15 @@ export async function sendReminderEmail(opts: {
     date: opts.date,
     time: opts.time,
     people: opts.people,
-    manageUrl: opts.manageUrl,
+    manageUrl: manageUrlL,
   });
 
-  const text =
-    `${subject}\n` +
-    `${MAIL_I18N.date[L]}: ${opts.date} | ${MAIL_I18N.time[L]}: ${opts.time} | ${MAIL_I18N.guests[L]}: ${opts.people}\n` +
-    (opts.manageUrl ? `${MAIL_I18N.manageCta[L]}: ${opts.manageUrl}\n` : "");
+  const textLines = [
+    subject,
+    `${MAIL_I18N.date[L]}: ${opts.date} | ${MAIL_I18N.time[L]}: ${opts.time} | ${MAIL_I18N.guests[L]}: ${opts.people}`,
+    manageUrlL ? `${MAIL_I18N.manageCta[L]}: ${manageUrlL}` : "",
+  ].filter(Boolean);
+  const text = textLines.join("\n");
 
   return await sendMailAny({ to: opts.to, subject, html, text });
 }
