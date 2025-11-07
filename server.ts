@@ -40,7 +40,7 @@ import { requestLogger } from "./lib/log_mw.ts";
 import { diagRouter } from "./routes/diag.ts";
 import openingRouter from "./routes/opening.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
-import { i18n } from "./middleware/i18n.ts";
+import i18nModule from "./middleware/i18n.ts";
 import langRouter from "./routes/lang.ts";
 import reviewsRouter from "./routes/reviews.ts";
 import reviewPortalRouter from "./routes/review_portal.ts";
@@ -237,8 +237,11 @@ app.use(async (ctx, next) => {
 });
 
 // -------------------- i18n FIRST (חשוב!) --------------------
+// הפקה בטוחה של המידלוור (תומך גם ב-export default וגם ב-named)
+const i18nMw = (i18nModule as any).i18n ?? i18nModule;
+
 // ✅ i18n וה־/lang חייבים לבוא לפני כל ראוטר שמרנדר HTML
-app.use(i18n);
+app.use(i18nMw);
 app.use(langRouter.routes());
 app.use(langRouter.allowedMethods());
 
