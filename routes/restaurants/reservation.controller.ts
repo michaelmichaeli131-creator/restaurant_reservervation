@@ -244,6 +244,7 @@ export async function confirmGet(ctx: any) {
     return;
   }
 
+  // --- יצירת הזמנה ושמירתה ---
   const user = (ctx.state as any)?.user ?? null;
   const userId: string = user?.id ?? `guest:${crypto.randomUUID().slice(0, 8)}`;
   const reservationNote = [
@@ -266,14 +267,19 @@ export async function confirmGet(ctx: any) {
   };
   await createReservation(reservation);
 
-  const token = await makeReservationToken(reservation.id, customerEmail);
+  // --- שפה/קישורי ניהול (רב-לשוני) ---
+  const lang = ctx.state?.lang ?? getLang(ctx);
   const origin = (Deno.env.get("APP_BASE_URL") || Deno.env.get("BASE_URL") || `${ctx.request.url.protocol}//${ctx.request.url.host}`).replace(/\/+$/, "");
-  const manageUrl = `${origin}/r/${encodeURIComponent(token)}`;
+  const token = await makeReservationToken(reservation.id, customerEmail);
+  const manageUrlBase = new URL(`/r/${encodeURIComponent(token)}`, origin);
+  appendLang(manageUrlBase, lang);
+  const manageUrl = manageUrlBase.toString();
 
   debugLog("[mail.to][GET confirm] about to sendReservationEmail", {
     reservationId: reservation.id,
     raw: emailRaw,
     final: customerEmail,
+    lang,
   });
 
   if (customerEmail) {
@@ -284,6 +290,8 @@ export async function confirmGet(ctx: any) {
       customerName,
       manageUrl,
       reservationId: reservation.id,
+      note: customerNote,
+      lang, // ← חשוב: מייל לפי שפת ההקלקה
     }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
   }
 
@@ -305,20 +313,19 @@ export async function confirmGet(ctx: any) {
 
   const photos = photoStrings(restaurant.photos);
 
-  const lang = ctx.state?.lang ?? getLang(ctx);
   const t = getT(ctx);
   const dir = ctx.state?.dir ?? getDir(lang);
 
-await render(ctx, "reservation_confirmed", {
-  page: "confirm",
-  lang, dir, t,
-  title: `${t("confirm.header.title","הזמנה אושרה ✔")} — ${restaurant.name}`,
-  restaurant: { ...restaurant, photos },
-  date, time, people,
-  customerName, customerPhone, customerEmail,
-  reservationId: reservation.id,
-  note: customerNote,
-});
+  await render(ctx, "reservation_confirmed", {
+    page: "confirm",
+    lang, dir, t,
+    title: `${t("confirm.header.title","הזמנה אושרה ✔")} — ${restaurant.name}`,
+    restaurant: { ...restaurant, photos },
+    date, time, people,
+    customerName, customerPhone, customerEmail,
+    reservationId: reservation.id,
+    note: customerNote,
+  });
 }
 
 /* ====================== POST /restaurants/:id/confirm ====================== */
@@ -387,6 +394,7 @@ export async function confirmPost(ctx: any) {
     return;
   }
 
+  // --- יצירת הזמנה ושמירתה ---
   const user = (ctx.state as any)?.user ?? null;
   const userId: string = user?.id ?? `guest:${crypto.randomUUID().slice(0, 8)}`;
   const reservationNote = [
@@ -409,10 +417,19 @@ export async function confirmPost(ctx: any) {
   };
   await createReservation(reservation);
 
+  // --- שפה/קישורי ניהול (רב-לשוני) ---
+  const lang = ctx.state?.lang ?? getLang(ctx);
+  const origin = (Deno.env.get("APP_BASE_URL") || Deno.env.get("BASE_URL") || `${ctx.request.url.protocol}//${ctx.request.url.host}`).replace(/\/+$/, "");
+  const token = await makeReservationToken(reservation.id, customerEmail);
+  const manageUrlBase = new URL(`/r/${encodeURIComponent(token)}`, origin);
+  appendLang(manageUrlBase, lang);
+  const manageUrl = manageUrlBase.toString();
+
   debugLog("[mail.to][POST confirm] about to sendReservationEmail", {
     reservationId: reservation.id,
     raw: emailRaw,
     final: customerEmail,
+    lang,
   });
 
   if (customerEmail) {
@@ -421,6 +438,10 @@ export async function confirmPost(ctx: any) {
       restaurantName: restaurant.name,
       date, time, people,
       customerName,
+      manageUrl,
+      reservationId: reservation.id,
+      note: customerNote,
+      lang, // ← חשוב: מייל לפי שפת ההקלקה
     }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
   }
 
@@ -438,7 +459,6 @@ export async function confirmPost(ctx: any) {
 
   const photos = photoStrings(restaurant.photos);
 
-  const lang = ctx.state?.lang ?? getLang(ctx);
   const t = getT(ctx);
   const dir = ctx.state?.dir ?? getDir(lang);
 
