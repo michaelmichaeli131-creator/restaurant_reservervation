@@ -59,18 +59,30 @@
     h1{margin:0; font-size:clamp(20px,3.6vw,26px); letter-spacing:.2px}
     .muted{color:var(--ink-muted)}
 
-    .langbar{
-      display:flex; align-items:center; gap:8px;
-      background: color-mix(in srgb, var(--panel-2) 92%, transparent);
-      border:1px solid var(--bd); border-radius:999px; padding:6px 8px;
-      font-weight:800;
+    /* === לשונית שפה בסגנון "כדור הארץ" === */
+    .langbar{ position:relative; display:flex; align-items:center; }
+    .lang-btn{
+      background:color-mix(in srgb, var(--panel-2) 92%, transparent);
+      border:1px solid var(--bd);
+      border-radius:50%;
+      width:36px; height:36px;
+      display:inline-flex; align-items:center; justify-content:center;
+      font-size:18px; line-height:1; color:var(--ink);
+      cursor:pointer; transition:filter .12s ease, transform .08s ease;
     }
-    .langbar a{
-      padding:4px 8px; border-radius:999px; opacity:.9;
+    .lang-btn:hover{ transform:translateY(-1px); }
+    .lang-menu{
+      display:none; position:absolute; top:120%; inset-inline-end:0;
+      background:var(--panel-2); border:1px solid var(--bd); border-radius:12px;
+      box-shadow:0 10px 24px rgba(0,0,0,.35); padding:6px 0; min-width:160px; z-index:10;
     }
-    .langbar a.active{
-      background: var(--brand); color: var(--brand-ink);
-      box-shadow: 0 6px 18px rgba(59,130,246,.35);
+    .langbar.open .lang-menu{ display:block; }
+    .lang-menu a{
+      display:block; padding:8px 14px; color:var(--ink); font-weight:700; text-decoration:none;
+    }
+    .lang-menu a:hover,
+    .lang-menu a.active{
+      background:var(--brand); color:var(--brand-ink);
     }
 
     .body{padding:18px 20px}
@@ -136,18 +148,21 @@
           </div>
         </div>
 
-        <!-- צד ימין: badge סטטוס + בורר שפה -->
+        <!-- צד ימין: badge סטטוס + בורר שפה (כדור הארץ) -->
         <div style="display:flex; align-items:center; gap:10px;">
           <div class="badge <%= status %>">
             <% if (status==='confirmed') { %>✓<% } else if (status==='canceled') { %>✗<% } else { %>•<% } %>
             <span><%= statusLabel %></span>
           </div>
 
-          <nav class="langbar" aria-label="<%= tt('common.lang.switch','בחירת שפה') %>">
-            <a href="<%= path + qHe %>" class="<%= lang==='he'?'active':'' %>">HE</a>
-            <a href="<%= path + qEn %>" class="<%= lang==='en'?'active':'' %>">EN</a>
-            <a href="<%= path + qKa %>" class="<%= lang==='ka'?'active':'' %>">KA</a>
-          </nav>
+          <div class="langbar" aria-label="<%= tt('common.lang.switch','שנה שפה') %>">
+            <button class="lang-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="<%= tt('common.lang.switch','שנה שפה') %>">🌐</button>
+            <div class="lang-menu" role="menu">
+              <a role="menuitem" href="<%= path + qHe %>" class="<%= lang==='he'?'active':'' %>">עברית</a>
+              <a role="menuitem" href="<%= path + qEn %>" class="<%= lang==='en'?'active':'' %>">English</a>
+              <a role="menuitem" href="<%= path + qKa %>" class="<%= lang==='ka'?'active':'' %>">ქართული</a>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -272,6 +287,23 @@
         }
       }
     }
+
+    // פתיחה/סגירה של תפריט השפות (כדור הארץ)
+    document.addEventListener('click', function(e){
+      const btn = e.target.closest('.lang-btn');
+      const bars = document.querySelectorAll('.langbar');
+      if(btn){
+        const bar = btn.closest('.langbar');
+        const isOpen = bar.classList.contains('open');
+        bars.forEach(b=>b.classList.remove('open'));
+        bar.classList.toggle('open', !isOpen);
+        btn.setAttribute('aria-expanded', String(!isOpen));
+        e.stopPropagation();
+      }else{
+        bars.forEach(b=>b.classList.remove('open'));
+        document.querySelectorAll('.lang-btn[aria-expanded="true"]').forEach(b=>b.setAttribute('aria-expanded','false'));
+      }
+    }, {passive:true});
   </script>
 </body>
 </html>
