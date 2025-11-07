@@ -63,6 +63,19 @@
         "submit": "Sign up",
         "back": "Already have an account? Log in"
       }
+    },
+	  "reset": {
+      "title": "Reset password",
+      "form": {
+        "password": "New password",
+        "passwordHint": "At least 8 characters",
+        "confirm": "Confirm password",
+        "pwToggleAria": "Show/Hide password"
+      },
+      "actions": {
+        "save": "Save",
+        "cancel": "Cancel"
+      }
     }
   }
 }
