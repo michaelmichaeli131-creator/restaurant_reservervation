@@ -1,20 +1,29 @@
 {
-  "confirm.header.title": "ჯავშანი დადასტურებულია ✔",
-  "confirm.header.subtitle": "გმადლობთ, რომ დაჯავშნეთ — ",
-  "confirm.details.title": "ჯავშნის დეტალები",
-  "confirm.details.restaurant": "რესტორანი",
-  "confirm.details.address": "მისამართი",
-  "confirm.details.date": "თარიღი",
-  "confirm.details.time": "დრო",
-  "confirm.details.people": "სტუმრების რაოდენობა",
-  "confirm.details.customerName": "კლიენტის სახელი",
-  "confirm.details.customerPhone": "მობილური",
-  "confirm.details.customerEmail": "ელფოსტა",
-  "confirm.details.note": "შენიშვნა",
-  "confirm.details.id": "ჯავშნის ნომერი",
-  "confirm.actions.backToRestaurant": "დაბრუნება რესტორნის გვერდზე",
-  "confirm.actions.edit": "თარიღის/დროის/სტუმრების რედაქტირება",
-  "confirm.actions.home": "დაბრუნება მთავარ გვერდზე",
-  "confirm.footer.emailSent": "ჯავშნის დეტალები გამოგიგზავნეთ ელფოსტით. გელოდებით!",
-  "confirm.about.title": "რესტორანის შესახებ"
+  "confirm": {
+    "header": {
+      "title": "ჯავშანი დადასტურებულია ✔",
+      "subtitle": "გმადლობთ დაჯავშნისთვის — "
+    },
+    "details": {
+      "title": "ჯავშნის დეტალები",
+      "restaurant": "რესტორანი",
+      "address": "მისამართი",
+      "date": "თარიღი",
+      "time": "დრო",
+      "people": "სტუმრები",
+      "customerName": "კლიენტის სახელი",
+      "customerPhone": "ტელეფონი",
+      "customerEmail": "ელ-ფოსტა",
+      "note": "შენიშვნები",
+      "id": "ჯავშნის ID"
+    },
+    "actions": {
+      "backToRestaurant": "დაბრუნება რესტორნის გვერდზე",
+      "edit": "თარიღის/დროის/სტუმრების რედაქტირება",
+      "home": "დაბრუნება მთავარ გვერდზე"
+    },
+    "footer": {
+      "emailSent": "დადასტურების წერილი გამოგზავნილია. გელით!"
+    }
+  }
 }

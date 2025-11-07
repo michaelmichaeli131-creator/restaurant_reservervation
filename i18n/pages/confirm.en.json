@@ -1,20 +1,29 @@
 {
-  "confirm.header.title": "Reservation Confirmed ✔",
-  "confirm.header.subtitle": "Thanks for booking at ",
-  "confirm.details.title": "Reservation Details",
-  "confirm.details.restaurant": "Restaurant",
-  "confirm.details.address": "Address",
-  "confirm.details.date": "Date",
-  "confirm.details.time": "Time",
-  "confirm.details.people": "Guests",
-  "confirm.details.customerName": "Customer Name",
-  "confirm.details.customerPhone": "Phone",
-  "confirm.details.customerEmail": "Email",
-  "confirm.details.note": "Notes",
-  "confirm.details.id": "Reservation ID",
-  "confirm.actions.backToRestaurant": "Back to restaurant",
-  "confirm.actions.edit": "Edit date/time/guests",
-  "confirm.actions.home": "Back to home",
-  "confirm.footer.emailSent": "An email with your reservation details has been sent. See you soon!",
-  "confirm.about.title": "About the restaurant"
+  "confirm": {
+    "header": {
+      "title": "Reservation Confirmed ✔",
+      "subtitle": "Thanks for booking at "
+    },
+    "details": {
+      "title": "Reservation Details",
+      "restaurant": "Restaurant",
+      "address": "Address",
+      "date": "Date",
+      "time": "Time",
+      "people": "Guests",
+      "customerName": "Customer Name",
+      "customerPhone": "Phone",
+      "customerEmail": "Email",
+      "note": "Notes",
+      "id": "Reservation ID"
+    },
+    "actions": {
+      "backToRestaurant": "Back to Restaurant",
+      "edit": "Edit Date/Time/Guests",
+      "home": "Back to Home"
+    },
+    "footer": {
+      "emailSent": "A confirmation email was sent to you. See you soon!"
+    }
+  }
 }
