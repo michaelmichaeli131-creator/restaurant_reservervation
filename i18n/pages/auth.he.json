@@ -15,5 +15,23 @@
         "back": "חזרה להתחברות"
       }
     }
+	"login": {
+      "title": "התחברות",
+      "form": {
+        "email": "אימייל",
+        "emailPh": "name@example.com",
+        "password": "סיסמה",
+        "pwToggleAria": "הצג/הסתר סיסמה",
+        "remember": "זכור אותי"
+      },
+      "links": {
+        "forgot": "שכחת סיסמה?",
+        "newHere": "חדש/ה כאן?",
+        "register": "פתיחת חשבון"
+      },
+      "actions": {
+        "submit": "התחבר/י"
+      }
+    }
   }
 }

@@ -1,6 +1,7 @@
 {
   "auth": {
     "forgot": {
+		
       "title": "Reset Password",
       "subtitle": "We’ll email you a link to reset your password",
       "alerts": {
@@ -13,6 +14,24 @@
       "actions": {
         "send": "Send me a link",
         "back": "Back to login"
+      }
+    }
+	    "login": {
+      "title": "Log in",
+      "form": {
+        "email": "Email",
+        "emailPh": "name@example.com",
+        "password": "Password",
+        "pwToggleAria": "Show/Hide password",
+        "remember": "Remember me"
+      },
+      "links": {
+        "forgot": "Forgot password?",
+        "newHere": "New here?",
+        "register": "Create an account"
+      },
+      "actions": {
+        "submit": "Log in"
       }
     }
   }

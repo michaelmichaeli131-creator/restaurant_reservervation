@@ -15,5 +15,23 @@
         "back": "დაბრუნება ავტორიზაციაზე"
       }
     }
+	 "login": {
+      "title": "შესვლა",
+      "form": {
+        "email": "ელ-ფოსტა",
+        "emailPh": "name@example.com",
+        "password": "პაროლი",
+        "pwToggleAria": "პაროლის ჩვენება/დამალვა",
+        "remember": "დამიმახსოვრე"
+      },
+      "links": {
+        "forgot": "დაგავიწყდა პაროლი?",
+        "newHere": "ახალი ხარ აქ?",
+        "register": "ანგარიშის შექმნა"
+      },
+      "actions": {
+        "submit": "შესვლა"
+      }
+    }
   }
 }
