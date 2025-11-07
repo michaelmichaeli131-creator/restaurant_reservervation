@@ -1,0 +1,19 @@
+{
+  "auth": {
+    "forgot": {
+      "title": "Reset Password",
+      "subtitle": "We’ll email you a link to reset your password",
+      "alerts": {
+        "ok": "Message sent — please check your inbox"
+      },
+      "form": {
+        "emailLabel": "Account email",
+        "emailPh": "you@example.com"
+      },
+      "actions": {
+        "send": "Send me a link",
+        "back": "Back to login"
+      }
+    }
+  }
+}

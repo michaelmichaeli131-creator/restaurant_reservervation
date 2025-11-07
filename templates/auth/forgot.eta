@@ -1,11 +1,14 @@
 <% layout("_layout", it) %>
 
+<% /* tt: תרגום עם fallback אמיתי גם כש-it.t מחזיר "(key)" */ %>
+<% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
+
 <main class="sb-auth container" aria-labelledby="forgot-title">
   <section class="card auth-card">
     <header class="head">
       <div>
-        <h1 id="forgot-title">שחזור סיסמה</h1>
-        <p class="muted sub">נשלח לך מייל עם קישור לאיפוס סיסמה</p>
+        <h1 id="forgot-title"><%= tt('auth.forgot.title','שחזור סיסמה') %></h1>
+        <p class="muted sub"><%= tt('auth.forgot.subtitle','נשלח לך מייל עם קישור לאיפוס סיסמה') %></p>
       </div>
     </header>
 
@@ -14,21 +17,22 @@
     <% } %>
 
     <% if (it.ok) { %>
-      <p class="badge ok" role="status">✓ הודעה נשלחה — בדוק/י את תיבת הדוא״ל</p>
+      <p class="badge ok" role="status">✓ <%= tt('auth.forgot.alerts.ok','הודעה נשלחה — בדוק/י את תיבת הדוא״ל') %></p>
     <% } %>
 
     <form action="/auth/forgot" method="post" enctype="application/x-www-form-urlencoded"
           id="forgot-form" class="form" novalidate>
       <div class="form-row">
-        <label for="email">אימייל לחשבון</label>
+        <label for="email"><%= tt('auth.forgot.form.emailLabel','אימייל לחשבון') %></label>
         <input id="email" name="email" type="email" dir="ltr" inputmode="email" required
                autocomplete="email" autocapitalize="off" spellcheck="false"
-               placeholder="you@example.com" value="<%= it.prefill?.email || "" %>"/>
+               placeholder="<%= tt('auth.forgot.form.emailPh','you@example.com') %>"
+               value="<%= it.prefill?.email || '' %>"/>
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn primary">שלחו לי קישור</button>
-        <a class="btn ghost" href="/auth/login">חזרה להתחברות</a>
+        <button type="submit" class="btn primary"><%= tt('auth.forgot.actions.send','שלחו לי קישור') %></button>
+        <a class="btn ghost" href="/auth/login"><%= tt('auth.forgot.actions.back','חזרה להתחברות') %></a>
       </div>
     </form>
   </section>
