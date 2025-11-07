@@ -1,0 +1,40 @@
+{
+  "common": {
+    "lang": { "switch": "Language" }
+  },
+  "manage": {
+    "title": "Manage Reservation · SpotBook",
+    "header": {
+      "title": "Manage Reservation",
+      "resId": "Reservation ID:"
+    },
+    "status": {
+      "new": "New",
+      "confirmed": "Confirmed",
+      "canceled": "Canceled"
+    },
+    "restaurant": {
+      "fallback": "Restaurant"
+    },
+    "details": {
+      "date": "Date",
+      "time": "Time",
+      "people": "Guests",
+      "status": "Status"
+    },
+    "actions": {
+      "copy": "Copy",
+      "copied": "Copied ✓",
+      "confirm": "Confirm attendance",
+      "cancel": "Cancel reservation",
+      "refresh": "Refresh"
+    },
+    "confirm": {
+      "cancel": "Cancel this reservation?"
+    },
+    "help": {
+      "text": "Need help? Contact us with the reservation number above.",
+      "orCall": "or call"
+    }
+  }
+}

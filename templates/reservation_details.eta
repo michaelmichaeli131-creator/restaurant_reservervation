@@ -26,7 +26,6 @@
           class="form-grid"
           action="/restaurants/<%= it.restaurant.id %>/confirm"
           method="post">
-
       <!-- נעול בשלב זה -->
       <input type="hidden" name="date" value="<%= it.date %>"/>
       <input type="hidden" name="time" value="<%= it.time %>"/>

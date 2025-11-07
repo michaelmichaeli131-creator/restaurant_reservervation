@@ -1,10 +1,13 @@
 <% layout("_layout", it) %>
 
+<% /* tt: תרגום עם fallback אמיתי גם כש-it.t מחזיר "(key)" */ %>
+<% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
+
 <main class="sb-auth container" aria-labelledby="login-title">
   <section class="card auth-card">
     <header class="head">
-      <h1 id="login-title">התחברות</h1>
-      <% if (it.info) { %><p class="badge info" role="status">ℹ︎ <%= it.info %></p><% } %>
+      <h1 id="login-title"><%= tt('auth.login.title','התחברות') %></h1>
+      <% if (it.info)  { %><p class="badge info" role="status">ℹ︎ <%= it.info %></p><% } %>
       <% if (it.error) { %><p class="badge warn" role="alert">✗ <%= it.error %></p><% } %>
     </header>
 
@@ -12,35 +15,36 @@
       <input type="hidden" name="_csrf" value="<%= it.csrf || '' %>" />
 
       <div class="form-row">
-        <label for="email">אימייל</label>
+        <label for="email"><%= tt('auth.login.form.email','אימייל') %></label>
         <input id="email" name="email" type="email" dir="ltr" inputmode="email" autocomplete="email"
                autocapitalize="off" spellcheck="false"
-               placeholder="name@example.com" value="<%= it.email || '' %>" required />
+               placeholder="<%= tt('auth.login.form.emailPh','name@example.com') %>"
+               value="<%= it.email || '' %>" required />
       </div>
 
       <div class="form-row">
-        <label for="password">סיסמה</label>
+        <label for="password"><%= tt('auth.login.form.password','סיסמה') %></label>
         <div class="pw-wrap">
           <input id="password" name="password" type="password" autocomplete="current-password" required />
-          <button class="pw-toggle" type="button" aria-label="הצג/הסתר סיסמה">👁</button>
+          <button class="pw-toggle" type="button" aria-label="<%= tt('auth.login.form.pwToggleAria','הצג/הסתר סיסמה') %>">👁</button>
         </div>
       </div>
 
       <div class="form-row row-inline">
         <label class="hint chk">
           <input type="checkbox" name="remember" value="1" />
-          זכור אותי
+          <%= tt('auth.login.form.remember','זכור אותי') %>
         </label>
-        <a href="/auth/forgot" class="hint">שכחת סיסמה?</a>
+        <a href="/auth/forgot" class="hint"><%= tt('auth.login.links.forgot','שכחת סיסמה?') %></a>
       </div>
 
       <div class="form-actions">
-        <button class="btn primary" type="submit">התחבר/י</button>
+        <button class="btn primary" type="submit"><%= tt('auth.login.actions.submit','התחבר/י') %></button>
       </div>
     </form>
 
     <footer class="ft">
-      <p class="links">חדש/ה כאן? <a href="/auth/register">פתיחת חשבון</a></p>
+      <p class="links"><%= tt('auth.login.links.newHere','חדש/ה כאן?') %> <a href="/auth/register"><%= tt('auth.login.links.register','פתיחת חשבון') %></a></p>
     </footer>
   </section>
 </main>
@@ -99,7 +103,7 @@
   .form-row input{
     background:#0b1327; color:var(--ink);
     border:1px solid var(--bd); border-radius:12px; padding:10px 12px; font-size:15px; outline:0;
-    transition:border-color .15s ease, box-shadow .15s ease, background .15s ease;
+    transition:border-color .15s.ease, box-shadow .15s ease, background .15s ease;
   }
   .form-row input:focus{
     border-color: color-mix(in srgb, var(--brand) 60%, var(--bd));
@@ -123,7 +127,7 @@
     display:inline-flex; align-items:center; justify-content:center;
     padding:10px 14px; border-radius:12px; border:1px solid var(--bd);
     cursor:pointer; text-decoration:none; font-weight:800; color:var(--ink);
-    background:#0f172a; transition:transform .08s ease, filter .12s ease;
+    background:#0f172a; transition:transform .08s ease, filter .12s.ease;
   }
   .btn:hover{ transform:translateY(-1px) }
   .btn.primary{

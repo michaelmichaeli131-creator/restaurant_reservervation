@@ -1,11 +1,16 @@
 // src/lib/mail.ts
 // שליחת אימיילים דרך Resend עם אכיפה על MAIL_FROM תקין,
 // תמיכת DRY-RUN נשלטת, ולוגים ברורים.
-// כולל תבניות HTML מעוצבות (RTL) לאימות, איפוס, אישור הזמנה ועוד.
-// **שיפורים**: כפתור ניהול הזמנה עם קישור ישיר (manageUrl),
-// אנטי-קליפינג בג'ימייל (תוכן ייחודי גלוי), וטקסט/HTML ברורים.
-// **הוספה**: תמיכה ב־note (הערות) להצגה גם ללקוח וגם לבעל המסעדה.
-// **עדכון מיתוג**: עיצוב Luxury Dark בהתאם לאתר (צבעים וגראפיקה בלבד).
+// כולל תבניות HTML מעוצבות (Luxury Dark) ותמיכה מלאה ברב־לשוניות (he/en/ka)
+// בהתאם לשפת ההקלקה/הקשר הנשלחת לפונקציות.
+//
+// **פיצ'רים עיקריים**
+// - כפתור ניהול הזמנה עם קישור ישיר (manageUrl) + הזרקת ?lang=...
+// - אנטי-קליפינג בג'ימייל (תוכן מזהה גלוי)
+// - טקסט/HTML תואמי שפה, כולל כיווניות dir=rtl/ltr
+// - הצגת הערות הלקוח (note) גם במייל הלקוח וגם במייל הבעלים
+// - verify/reset/reminder/reservation/owner notifications רב־לשוניים (ברירת מחדל he)
+// - עטיפה אחידה בסגנון כהה יוקרתי התואם לאתר
 
 /* ======================= ENV ======================= */
 const ENV = {
@@ -14,6 +19,117 @@ const ENV = {
   MAIL_FROM: (Deno.env.get("MAIL_FROM") || "").trim(), // חובה: דומיין מאומת
   DRY_RUN: (Deno.env.get("RESEND_DRY_RUN") || "").toLowerCase() === "1",
 };
+
+/* ======================= Lang / i18n ======================= */
+type Lang = "he" | "en" | "ka";
+const SUPPORTED: Lang[] = ["he", "en", "ka"];
+function normLang(l?: string | null): Lang {
+  const v = String(l || "").toLowerCase();
+  return (SUPPORTED as string[]).includes(v) ? (v as Lang) : "he";
+}
+function dirByLang(l: Lang): "rtl" | "ltr" {
+  return l === "he" ? "rtl" : "ltr";
+}
+
+const I18N = {
+  brand: { he: "SpotBook", en: "SpotBook", ka: "SpotBook" },
+  // generic labels
+  hello: { he: "שלום", en: "Hello", ka: "გამარჯობა" },
+  date: { he: "תאריך", en: "Date", ka: "თარიღი" },
+  time: { he: "שעה", en: "Time", ka: "დრო" },
+  guests: { he: "אורחים", en: "Guests", ka: "სტუმრები" },
+  dayLabel: { he: "יום / ת׳", en: "Day / D/M", ka: "დღე / D/M" },
+  noteTitle: { he: "הערות/בקשות הלקוח:", en: "Customer notes/requests:", ka: "კლიენტის შენიშვნები/მოთხოვნები:" },
+  manageCta: { he: "ניהול ההזמנה (אישור/ביטול/שינוי)", en: "Manage reservation (confirm/cancel/reschedule)", ka: "ჯავშნის მართვა (დადასტ./გაუქმ./დროის შეცვლა)" },
+  directLink: { he: "קישור ישיר", en: "Direct link", ka: "პირდაპირი ბმული" },
+  footerAuto: {
+    he: "האימייל נשלח אוטומטית. אין להשיב להודעה זו.",
+    en: "This email was sent automatically. Please do not reply.",
+    ka: "ეს წერილი ავტომატურად გაიგზავნა. გთხოვთ, არ უპასუხოთ."
+  },
+  // subjects & leads
+  verifyTitle: { he: "ברוכים הבאים ל-GeoTable", en: "Welcome to GeoTable", ka: "მოგესალმებათ GeoTable" },
+  verifyLead: { he: "נשאר רק לאמת את כתובת הדוא״ל שלך.", en: "Please verify your email address to continue.", ka: "გთხოვთ, დაადასტუროთ ელფოსტა." },
+  verifyCta: { he: "אימות חשבון", en: "Verify account", ka: "ანგარიშის დადასტურება" },
+  verifySubject: {
+    he: `אימות כתובת דוא"ל – GeoTable`,
+    en: `Email verification — GeoTable`,
+    ka: `ელფოსტის დადასტურება — GeoTable`,
+  },
+
+  resetTitle: { he: "איפוס סיסמה", en: "Reset password", ka: "პაროლის აღდგენა" },
+  resetLead: { he: "לחצי/לחץ על הכפתור כדי להגדיר סיסמה חדשה.", en: "Click the button to set a new password.", ka: "დააჭირეთ ღილაკს ახალი პაროლის დასაყენებლად." },
+  resetCta: { he: "איפוס סיסמה", en: "Reset password", ka: "პაროლის აღდგენა" },
+  resetSubject: {
+    he: "שחזור סיסמה – GeoTable",
+    en: "Password reset — GeoTable",
+    ka: "პაროლის აღდგენა — GeoTable",
+  },
+
+  reservationLead: {
+    he: "פרטי ההזמנה שלך. ניתן לאשר/לבטל/לשנות מועד דרך הקישור למטה.",
+    en: "Your reservation details. You can confirm/cancel/reschedule via the link below.",
+    ka: "ჯავშნის დეტალები. შეგიძლიათ დადასტურება/გაუქმება/დროის შეცვლა ქვემოთ მოცემული ბმით."
+  },
+  reservationSubject: {
+    he: (r: string) => `אישור הזמנה – ${r}`,
+    en: (r: string) => `Reservation confirmed — ${r}`,
+    ka: (r: string) => `ჯავშანი დადასტურებულია — ${r}`,
+  },
+  reservationBodyLines: {
+    he: [
+      "🎉 הזמנתך נקלטה. נשמח לאשר הגעה כמה דקות לפני.",
+      "🚗 חניה מוזלת ללקוחות המסעדה בסופי שבוע החל מ-18:00.",
+      "⏱️ השולחן יישמר 15 דקות.",
+      "מחכים לראותכם ❤️",
+    ],
+    en: [
+      "🎉 Your reservation was received. Please confirm your arrival a few minutes in advance.",
+      "🚗 Discounted parking for restaurant guests on weekends from 18:00.",
+      "⏱️ Your table will be held for 15 minutes.",
+      "See you soon ❤️",
+    ],
+    ka: [
+      "🎉 თქვენი ჯავშანი მიღებულია. გთხოვთ, დაევიდასტუროთ მოსვლა რამდენიმე წუთით ადრე.",
+      "🚗 შეღავათიანი პარკინგი შაბათ-კვირას 18:00-დან.",
+      "⏱️ მაგიდა შენახულია 15 წუთით.",
+      "გელოდებით ❤️",
+    ],
+  },
+
+  ownerNewTitle: { he: "התקבלה הזמנה חדשה", en: "New reservation received", ka: "ახალი ჯავშანი მიიღეს" },
+  ownerSubject: {
+    he: (r: string) => `הזמנה חדשה – ${r}`,
+    en: (r: string) => `New reservation — ${r}`,
+    ka: (r: string) => `ახალი ჯავშანი — ${r}`,
+  },
+
+  reminderTitle: { he: "תזכורת להזמנה", en: "Reservation reminder", ka: "შეხსენება ჯავშანზე" },
+  reminderLead: { he: "נא אשר/י הגעה בלחיצה:", en: "Please confirm your attendance:", ka: "გთხოვთ, დაადასტუროთ მოსვლა:" },
+  reminderCta: { he: "אישור הגעה", en: "Confirm attendance", ka: "მოსვლის დადასტურება" },
+  reminderSubject: {
+    he: "תזכורת להזמנה – נא אשר/י הגעה",
+    en: "Reservation reminder — please confirm",
+    ka: "შეხსენება — გთხოვთ, დაადასტუროთ",
+  },
+};
+
+function t<K extends keyof typeof I18N>(k: K, l: Lang): (typeof I18N)[K][Lang] {
+  // @ts-ignore
+  const v = I18N[k][l];
+  // @ts-ignore
+  return v ?? I18N[k]["he"];
+}
+
+function weekdayShortByLang(l: Lang, d: Date): string {
+  try {
+    const locale = l === "he" ? "he-IL" : l === "ka" ? "ka-GE" : "en-US";
+    return new Intl.DateTimeFormat(locale, { weekday: "short" }).format(d);
+  } catch {
+    const en = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    return en[d.getDay()] || "";
+  }
+}
 
 /* ======================= Utils ======================= */
 function ensureFrom(): string {
@@ -32,11 +148,19 @@ function ensureFrom(): string {
   return ENV.MAIL_FROM;
 }
 
-function buildUrl(path: string) {
+function buildUrl(path: string, lang?: Lang) {
   const base = ENV.BASE_URL.replace(/\/+$/, "");
   const p = path.startsWith("/") ? path : `/${path}`;
-  if (!base) return p; // בפיתוח – יחסי
-  return `${base}${p}`;
+  const url = base ? `${base}${p}` : p;
+  if (!lang) return url;
+  try {
+    const u = new URL(url, "http://local");
+    u.searchParams.set("lang", lang);
+    const out = base ? u.toString() : `${u.pathname}${u.search}`;
+    return out;
+  } catch {
+    return url;
+  }
 }
 
 type MailParams = {
@@ -45,11 +169,10 @@ type MailParams = {
   html: string;
   text?: string;
   headers?: Record<string, string>;
-  fromOverride?: string; // לשימוש נדיר, בד"כ לא צריך
+  fromOverride?: string;
 };
 
 function htmlToText(html: string): string {
-  // המרה גסה אך סבירה לטקסט
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<script[\s\S]*?<\/script>/gi, "")
@@ -104,7 +227,6 @@ function logDry(label: string, p: MailParams) {
 
 /* ======================= Public send wrapper ======================= */
 export async function sendMailAny(p: MailParams) {
-  // אוכפים from תקין כבר עכשיו — אם חסר קונפיג, נכשיל במקום "לנחש"
   try {
     ensureFrom();
   } catch (e) {
@@ -112,7 +234,6 @@ export async function sendMailAny(p: MailParams) {
     return { ok: false, reason: String(e) };
   }
 
-  // DRY_RUN מפורש או חסר מפתח API
   if (ENV.DRY_RUN || !ENV.RESEND_API_KEY) {
     logDry(ENV.DRY_RUN ? "RESEND_DRY_RUN=1" : "RESEND_API_KEY missing", p);
     return { ok: true, dryRun: true };
@@ -129,7 +250,6 @@ export async function sendMailAny(p: MailParams) {
   } catch (e) {
     const msg = String((e as any)?.message || e);
     console.error("[mail] Resend error:", msg);
-    // בכוונה לא נופלים ל-DRY כאן — זו תקלה שראוי לתקן (403/401/422 וכו')
     return { ok: false, reason: msg };
   }
 }
@@ -153,26 +273,25 @@ export async function sendMail(
   });
 }
 
-/* =================== תבניות מעוצבות (Luxury Dark) =================== */
-
-// צבעים/סגנונות בסיס (inline כדי שיעבוד ברוב הקליינטים)
+/* =================== עיצוב Luxury Dark =================== */
 const palette = {
-  // רקע מסביב לכרטיס + הכרטיס עצמו בסגנון האתר
-  bg: "#0b1120",        // רקע כללי כהה
-  surface: "#0f172a",   // פני השטח מאחורי הכרטיס
-  card: "#111827",      // כרטיס/פאנל (כהה יותר)
-  text: "#e5e7eb",      // טקסט ראשי
-  sub: "#9aa3b2",       // טקסט משני
-  btn: "#3b82f6",       // כפתור עיקרי (Brand Blue)
-  btnText: "#ffffff",   // טקסט על כפתור
-  white: "#0f172a",     // "לבן" כהה לכרטיסים פנימיים
-  border: "#1f2937",    // קווי מסגרת כהים
-  link: "#93c5fd",      // קישורים בהירים יותר על כהה
+  bg: "#0b1120",
+  surface: "#0f172a",
+  card: "#111827",
+  text: "#e5e7eb",
+  sub: "#9aa3b2",
+  btn: "#3b82f6",
+  btnText: "#ffffff",
+  border: "#1f2937",
+  link: "#93c5fd",
 };
 
-// עטיפה בסיסית — טבלה מרכזית 640px, RTL, כהה
-const baseWrapStart = `
-  <div dir="rtl" style="background:${palette.bg};padding:28px 0;">
+function baseWrap(htmlInner: string, lang: Lang) {
+  const dir = dirByLang(lang);
+  const brand = t("brand", lang);
+  const footer = t("footerAuto", lang);
+  return `
+  <div dir="${dir}" style="background:${palette.bg};padding:28px 0;">
     <table align="center" role="presentation" width="100%" style="
       max-width:640px;margin:auto;background:${palette.card};
       border:1px solid ${palette.border};border-radius:16px;
@@ -181,112 +300,100 @@ const baseWrapStart = `
       color:${palette.text}; line-height:1.6;">
       <tr>
         <td style="padding:22px 24px 6px;border-bottom:1px solid ${palette.border};background:${palette.surface}">
-          <h1 style="margin:0;font-size:26px;font-weight:800;letter-spacing:.2px;">`;
-const baseWrapMid = `</h1>
-          <p style="margin:6px 0 0;color:${palette.sub};font-size:15px;">`;
-const baseWrapEndHead = `</p>
+          <h1 style="margin:0;font-size:26px;font-weight:800;letter-spacing:.2px;">${brand}</h1>
+          <p style="margin:6px 0 0;color:${palette.sub};font-size:15px;">reservation@spotbook.rest</p>
         </td>
       </tr>
       <tr>
         <td style="padding:18px 24px 22px;">
-`;
-const baseWrapClose = `
-          <p style="margin:24px 0 0;color:${palette.sub};font-size:12px;">
-            האִימייל נשלח אוטומטית. אין להשיב להודעה זו.
-          </p>
+          ${htmlInner}
+          <p style="margin:24px 0 0;color:${palette.sub};font-size:12px;">${footer}</p>
         </td>
       </tr>
     </table>
-    <!-- preheader (מוסתר) למקדמי פתיחה -->
     <div style="display:none !important;visibility:hidden;opacity:0;overflow:hidden;height:0;width:0;line-height:0;">
-      הודעת GeoTable – פעולה מהירה בלחיצה על הכפתור למטה
+      ${brand} — ${footer}
     </div>
-  </div>
-`;
-
-// מחזיר יום קצר (א׳, ב׳, …, ש׳) ותאריך D/M
-function hebDayShort(d: Date) {
-  const map = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
-  return map[d.getDay()] || "";
+  </div>`;
 }
-function formatDM(dateStr: string) {
-  const [y, m, d] = (dateStr || "").split("-").map(Number);
-  if (!y || !m || !d) return dateStr || "";
+
+function formatDM(iso: string) {
+  const [y, m, d] = (iso || "").split("-").map(Number);
+  if (!y || !m || !d) return iso || "";
   return `${d}/${m}`;
 }
 
 /* =============== Sanitizers for note (הערות) =============== */
 function sanitizeNoteRaw(raw?: string | null): string {
   const s = String(raw ?? "").replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "");
-  // להסיר תווי שליטה בעייתיים, להשאיר שורות/טאבים בסיסיים
   return s.replace(/[^\x09\x0A\x0D\x20-\x7E\u0590-\u05FF\u0600-\u06FF]/g, "").trim();
 }
 function clampNoteLen(s: string, max = 500): string {
-  if (s.length <= max) return s;
-  return s.slice(0, max - 1) + "…";
+  return s.length <= max ? s : s.slice(0, max - 1) + "…";
 }
-function noteAsHtml(note?: string | null): string {
+function noteAsHtml(note?: string | null, lang: Lang = "he"): string {
+  const title = t("noteTitle", lang);
   const clean = clampNoteLen(sanitizeNoteRaw(note));
   if (!clean) return "";
-  // המרה פשוטה לשורות <br>
-  const esc = clean
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  const esc = clean.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const withBr = esc.replace(/\n/g, "<br/>");
   return `
     <div style="margin-top:14px;border:1px solid ${palette.border};border-radius:12px;background:${palette.surface};padding:12px 14px;">
-      <div style="font-weight:800;margin-bottom:6px;color:${palette.text}">הערות/בקשות הלקוח:</div>
+      <div style="font-weight:800;margin-bottom:6px;color:${palette.text}">${title}</div>
       <div style="white-space:pre-wrap;line-height:1.5;color:${palette.sub}">${withBr}</div>
-    </div>
-  `;
+    </div>`;
 }
-function noteAsText(note?: string | null): string {
+function noteAsText(note?: string | null, lang: Lang = "he"): string {
+  const title = t("noteTitle", lang);
   const clean = clampNoteLen(sanitizeNoteRaw(note));
-  return clean ? `\nהערות הלקוח:\n${clean}\n` : "";
+  return clean ? `\n${title}\n${clean}\n` : "";
 }
 
-/* =================== אימות מייל אחרי הרשמה =================== */
-export async function sendVerifyEmail(to: string, token: string) {
-  const link = buildUrl(`/auth/verify?token=${encodeURIComponent(token)}`);
-  const html = `
-${baseWrapStart}ברוכים הבאים ל-GeoTable${baseWrapMid}נשאר רק לאמת את כתובת הדוא״ל שלך.${baseWrapEndHead}
-  <div style="text-align:center;margin:16px 0 18px;">
-    <a href="${link}" style="
-      display:inline-block;background:${palette.btn};color:${palette.btnText};
-      padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;">
-      אימות חשבון
-    </a>
-  </div>
-  <p style="margin:0;color:${palette.sub};font-size:14px;word-break:break-all">
-    או הדבק/י ידנית: <a href="${link}" style="color:${palette.link}">${link}</a>
-  </p>
-${baseWrapClose}
-  `;
-  return await sendMail(to, 'אימות כתובת דוא"ל – GeoTable', html);
+/* =================== Verify Email =================== */
+export async function sendVerifyEmail(to: string, token: string, lang?: string | null) {
+  const L = normLang(lang);
+  const link = buildUrl(`/auth/verify?token=${encodeURIComponent(token)}`, L);
+  const html = baseWrap(`
+    <h2 style="margin:0 0 8px 0;font-size:20px;font-weight:800;">${t("verifyTitle", L)}</h2>
+    <p style="margin:0 0 12px 0;color:${palette.sub};">${t("verifyLead", L)}</p>
+    <div style="text-align:center;margin:16px 0 18px;">
+      <a href="${link}" style="
+        display:inline-block;background:${palette.btn};color:${palette.btnText};
+        padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;">
+        ${t("verifyCta", L)}
+      </a>
+    </div>
+    <p style="margin:0;color:${palette.sub};font-size:14px;word-break:break-all">
+      ${t("directLink", L)}: <a href="${link}" style="color:${palette.link}">${link}</a>
+    </p>
+  `, L);
+
+  return await sendMail(to, t("verifySubject", L), html);
 }
 
-/* =================== קישור לשחזור סיסמה =================== */
-export async function sendResetEmail(to: string, token: string) {
-  const link = buildUrl(`/auth/reset?token=${encodeURIComponent(token)}`);
-  const html = `
-${baseWrapStart}איפוס סיסמה${baseWrapMid}לחצי/לחץ על הכפתור כדי להגדיר סיסמה חדשה.${baseWrapEndHead}
-  <div style="text-align:center;margin:16px 0 18px;">
-    <a href="${link}" style="
-      display:inline-block;background:${palette.btn};color:${palette.btnText};
-      padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;">
-      איפוס סיסמה
-    </a>
-  </div>
-  <p style="margin:0;color:${palette.sub};font-size:14px;word-break:break-all">
-    קישור ישיר: <a href="${link}" style="color:${palette.link}">${link}</a>
-  </p>
-${baseWrapClose}
-  `;
-  return await sendMail(to, "שחזור סיסמה – GeoTable", html);
+/* =================== Reset Email =================== */
+export async function sendResetEmail(to: string, token: string, lang?: string | null) {
+  const L = normLang(lang);
+  const link = buildUrl(`/auth/reset?token=${encodeURIComponent(token)}`, L);
+  const html = baseWrap(`
+    <h2 style="margin:0 0 8px 0;font-size:20px;font-weight:800;">${t("resetTitle", L)}</h2>
+    <p style="margin:0 0 12px 0;color:${palette.sub};">${t("resetLead", L)}</p>
+    <div style="text-align:center;margin:16px 0 18px;">
+      <a href="${link}" style="
+        display:inline-block;background:${palette.btn};color:${palette.btnText};
+        padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;">
+        ${t("resetCta", L)}
+      </a>
+    </div>
+    <p style="margin:0;color:${palette.sub};font-size:14px;word-break:break-all">
+      ${t("directLink", L)}: <a href="${link}" style="color:${palette.link}">${link}</a>
+    </p>
+  `, L);
+
+  return await sendMail(to, t("resetSubject", L), html);
 }
 
-/* =================== אישור הזמנה ללקוח =================== */
+/* =================== Reservation Confirmation (Customer) =================== */
 export async function sendReservationEmail(opts: {
   to: string;
   restaurantName: string;
@@ -294,26 +401,34 @@ export async function sendReservationEmail(opts: {
   time: string; // HH:mm
   people: number;
   customerName?: string;
-  manageUrl?: string; // ← כפתור ניהול ישיר
-  reservationId?: string; // ← להצגה גלויה למניעת קליפינג בג'ימייל
-  note?: string | null; // ← חדש: הערות הלקוח
+  manageUrl?: string;      // קישור לניהול — יוזר
+  reservationId?: string;  // לאנטי-קליפינג
+  note?: string | null;    // הערות הלקוח
+  lang?: string | null;    // שפת המייל
 }) {
+  const L = normLang(opts.lang);
   const {
-    to,
-    restaurantName,
-    date,
-    time,
-    people,
-    customerName,
-    manageUrl,
-    reservationId,
-    note,
+    to, restaurantName, date, time, people,
+    customerName, reservationId, note,
   } = opts;
-  const d = new Date(`${date}T12:00:00`); // להימנע מ-TZ edge
-  const dayShort = isNaN(d.getTime()) ? "" : hebDayShort(d);
+
+  // הבטחת ?lang בקישור הניהול אם קיים
+  const manageUrl =
+    opts.manageUrl
+      ? ((): string => {
+          try {
+            const u = new URL(opts.manageUrl, "http://local");
+            u.searchParams.set("lang", L);
+            const base = ENV.BASE_URL ? u.toString() : `${u.pathname}${u.search}`;
+            return base;
+          } catch { return opts.manageUrl!; }
+        })()
+      : undefined;
+
+  const d = new Date(`${date}T12:00:00`);
+  const dayShort = isNaN(d.getTime()) ? "" : weekdayShortByLang(L, d);
   const dm = formatDM(date);
 
-  // מזהה קצר לאנטי-קליפינג (גלוי ללקוח)
   const shortId =
     (reservationId && reservationId.slice(-6)) ||
     (manageUrl?.split("/").pop()?.replace(/[^a-zA-Z0-9]/g, "").slice(-6)) ||
@@ -327,15 +442,15 @@ export async function sendReservationEmail(opts: {
       <table role="presentation" width="100%" style="border-collapse:collapse;color:${palette.text}">
         <tr>
           <td style="width:33%;text-align:center;">
-            <div style="opacity:.8;font-size:13px;color:${palette.sub}">יום / ת׳</div>
+            <div style="opacity:.8;font-size:13px;color:${palette.sub}">${t("dayLabel", L)}</div>
             <div style="font-size:20px;font-weight:800;letter-spacing:.3px;">${dayShort} ${dm}</div>
           </td>
           <td style="width:33%;text-align:center;">
-            <div style="opacity:.8;font-size:13px;color:${palette.sub}">בשעה</div>
+            <div style="opacity:.8;font-size:13px;color:${palette.sub}">${t("time", L)}</div>
             <div style="font-size:20px;font-weight:800;letter-spacing:.3px;">${time}</div>
           </td>
           <td style="width:33%;text-align:center;">
-            <div style="opacity:.8;font-size:13px;color:${palette.sub}">אורחים</div>
+            <div style="opacity:.8;font-size:13px;color:${palette.sub}">${t("guests", L)}</div>
             <div style="font-size:20px;font-weight:800;letter-spacing:.3px;">${people}</div>
           </td>
         </tr>
@@ -343,72 +458,57 @@ export async function sendReservationEmail(opts: {
       ${
         shortId
           ? `<div style="margin-top:8px;text-align:center;font-size:12px;color:${palette.sub}">
-               קוד הזמנה: <strong style="letter-spacing:.4px;color:${palette.text}">${shortId}</strong>
+               ID: <strong style="letter-spacing:.4px;color:${palette.text}">${shortId}</strong>
              </div>`
           : ""
       }
+    </div>`;
+
+  const lines = I18N.reservationBodyLines[L] ?? I18N.reservationBodyLines.he;
+  const notesHtml = noteAsHtml(note, L);
+
+  const html = baseWrap(`
+    <h2 style="margin:0 0 8px 0;font-size:20px;font-weight:800;">${restaurantName}</h2>
+    <p style="margin:0 0 12px 0;color:${palette.sub};">${t("reservationLead", L)}</p>
+    ${detailsCard}
+    <div style="padding:6px 4px 0;">
+      ${customerName ? `<p style="margin:8px 0 0;">${t("hello", L)} ${customerName},</p>` : ""}
+      ${lines.map((x) => `<p style="margin:6px 0 0;">${x}</p>`).join("")}
     </div>
-  `;
-
-  const notesHtml = noteAsHtml(note);
-
-  const html = `
-${baseWrapStart}${restaurantName}${baseWrapMid}פרטי ההזמנה שלך. ניתן לאשר/לבטל/לשנות מועד דרך הקישור למטה.${baseWrapEndHead}
-  ${detailsCard}
-
-  <div style="padding:6px 4px 0;">
-    ${customerName ? `<p style="margin:8px 0 0;">שלום ${customerName},</p>` : ""}
-    <p style="margin:8px 0 0;">🎉 הזמנתך נקלטה. נשמח לאשר הגעה כמה דקות לפני.</p>
-    <p style="margin:6px 0 0;">🚗 חניה מוזלת ללקוחות המסעדה בסופי שבוע החל מ-18:00.</p>
-    <p style="margin:6px 0 0;">⏱️ השולחן ישמר 15 דקות.</p>
-    <p style="margin:6px 0 0;">מחכים לראותכם ❤️</p>
-  </div>
-
-  ${notesHtml}
-
-  <div style="text-align:center;margin:16px 0 0;">
+    ${notesHtml}
+    <div style="text-align:center;margin:16px 0 0;">
+      ${
+        manageUrl
+          ? `<a href="${manageUrl}" style="
+                display:inline-block;background:${palette.btn};color:${palette.btnText};
+                padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;">
+                ${t("manageCta", L)}
+             </a>`
+          : ""
+      }
+    </div>
     ${
       manageUrl
-        ? `<a href="${manageUrl}" style="
-              display:inline-block;background:${palette.btn};color:${palette.btnText};
-              padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;">
-              ניהול ההזמנה (אישור/ביטול/שינוי)
-           </a>`
-        : `<a href="${buildUrl("/")}" style="
-              display:inline-block;background:${palette.btn};color:${palette.btnText};
-              padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;">
-              דף המסעדה
-           </a>`
+        ? `<p style="margin:14px 0 0;color:${palette.sub};font-size:14px;word-break:break-all">
+             ${t("directLink", L)}: <a href="${manageUrl}" style="color:${palette.link}">${manageUrl}</a>
+           </p>`
+        : ""
     }
-  </div>
-
-  ${
-    manageUrl
-      ? `<p style="margin:14px 0 0;color:${palette.sub};font-size:14px;word-break:break-all">
-           קישור ישיר: <a href="${manageUrl}" style="color:${palette.link}">${manageUrl}</a>
-         </p>`
-      : ""
-  }
-${baseWrapClose}
-  `;
+  `, L);
 
   const text = [
-    `${restaurantName} – אישור הזמנה`,
-    customerName ? `שלום ${customerName},` : "",
-    `תאריך: ${date} | שעה: ${time} | סועדים: ${people}`,
-    shortId ? `קוד הזמנה: ${shortId}` : "",
-    "🎉 הזמנתך נקלטה. השולחן ישמר 15 דקות. חניה מוזלת בסופי שבוע מ-18:00.",
-    noteAsText(note).trim(),
-    manageUrl
-      ? `ניהול ההזמנה (אישור/ביטול/שינוי): ${manageUrl}`
-      : `לפרטים: ${buildUrl("/")}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+    t("reservationSubject", L)(restaurantName),
+    customerName ? `${t("hello", L)} ${customerName},` : "",
+    `${t("date", L)}: ${date} | ${t("time", L)}: ${time} | ${t("guests", L)}: ${people}`,
+    shortId ? `ID: ${shortId}` : "",
+    ...(I18N.reservationBodyLines[L] ?? I18N.reservationBodyLines.he),
+    noteAsText(note, L).trim(),
+    manageUrl ? `${t("manageCta", L)}: ${manageUrl}` : "",
+  ].filter(Boolean).join("\n");
 
   return await sendMailAny({
     to,
-    subject: `אישור הזמנה – ${restaurantName}`,
+    subject: t("reservationSubject", L)(restaurantName),
     html,
     text,
     headers: {
@@ -418,7 +518,7 @@ ${baseWrapClose}
   });
 }
 
-/* =================== התראה לבעל המסעדה =================== */
+/* =================== Owner Notification =================== */
 export async function notifyOwnerEmail(opts: {
   to: string | string[];
   restaurantName: string;
@@ -428,99 +528,95 @@ export async function notifyOwnerEmail(opts: {
   date: string;
   time: string;
   people: number;
-  note?: string | null; // ← חדש: העברת הערות לבעל המסעדה
+  note?: string | null;
+  lang?: string | null; // אם יש לכם העדפת שפה לבעלים
 }) {
+  const L = normLang(opts.lang);
   const {
-    to,
-    restaurantName,
-    customerName,
-    customerPhone,
-    customerEmail,
-    date,
-    time,
-    people,
-    note,
+    to, restaurantName, customerName, customerPhone, customerEmail,
+    date, time, people, note,
   } = opts;
 
-  const notesHtml = noteAsHtml(note);
+  const notesHtml = noteAsHtml(note, L);
 
-  const html = `
-${baseWrapStart}התקבלה הזמנה חדשה${baseWrapMid}${restaurantName}${baseWrapEndHead}
-  <div style="
-    background:${palette.surface};border:1px solid ${palette.border};
-    color:${palette.text};border-radius:14px;padding:12px 14px;">
-    <p style="margin:0;">
-      <strong>תאריך:</strong> ${date} · <strong>שעה:</strong> ${time} · <strong>סועדים:</strong> ${people}
-    </p>
-  </div>
-  <div style="margin-top:12px;">
-    <p style="margin:0;"><strong>שם הלקוח:</strong> ${customerName}</p>
-    <p style="margin:0;"><strong>נייד:</strong> ${customerPhone || "-"}</p>
-    <p style="margin:0;"><strong>אימייל:</strong> ${customerEmail || "-"}</p>
-  </div>
-  ${notesHtml}
-${baseWrapClose}
-  `;
+  const html = baseWrap(`
+    <h2 style="margin:0 0 8px 0;font-size:20px;font-weight:800;">${t("ownerNewTitle", L)}</h2>
+    <p style="margin:0 0 10px 0;color:${palette.sub};">${restaurantName}</p>
+    <div style="background:${palette.surface};border:1px solid ${palette.border};
+      color:${palette.text};border-radius:14px;padding:12px 14px;">
+      <p style="margin:0;">
+        <strong>${t("date", L)}:</strong> ${date} · <strong>${t("time", L)}:</strong> ${time} · <strong>${t("guests", L)}:</strong> ${people}
+      </p>
+    </div>
+    <div style="margin-top:12px;">
+      <p style="margin:0;"><strong>${t("hello", L)}:</strong> ${customerName}</p>
+      <p style="margin:0;"><strong>Phone:</strong> ${customerPhone || "-"}</p>
+      <p style="margin:0;"><strong>Email:</strong> ${customerEmail || "-"}</p>
+    </div>
+    ${notesHtml}
+  `, L);
 
   const text =
-    `התקבלה הזמנה חדשה – ${restaurantName}\n` +
-    `תאריך: ${date} | שעה: ${time} | סועדים: ${people}\n` +
-    `לקוח: ${customerName} | נייד: ${customerPhone || "-"} | אימייל: ${customerEmail || "-"}\n` +
-    (noteAsText(note) || "");
+    `${t("ownerNewTitle", L)} — ${restaurantName}\n` +
+    `${t("date", L)}: ${date} | ${t("time", L)}: ${time} | ${t("guests", L)}: ${people}\n` +
+    `Customer: ${customerName} | Phone: ${customerPhone || "-"} | Email: ${customerEmail || "-"}\n` +
+    (noteAsText(note, L) || "");
 
   return await sendMailAny({
     to,
-    subject: `הזמנה חדשה – ${restaurantName}`,
+    subject: (I18N.ownerSubject[L] ?? I18N.ownerSubject.he)(restaurantName),
     html,
     text,
   });
 }
 
-/* =================== תזכורת (למשל יום לפני) =================== */
+/* =================== Reminder =================== */
 export async function sendReminderEmail(opts: {
   to: string | string[];
-  confirmUrl: string;
+  confirmUrl: string;      // קישור אישור/ניהול
   restaurantName: string;
   date: string;
   time: string;
   people: number;
   customerName?: string;
+  lang?: string | null;
 }) {
-  const { to, confirmUrl, restaurantName, date, time, people, customerName } =
-    opts;
-  const link = confirmUrl.startsWith("http")
-    ? confirmUrl
-    : buildUrl(confirmUrl);
+  const L = normLang(opts.lang);
+  const link = buildUrl(
+    opts.confirmUrl.startsWith("http") ? opts.confirmUrl : opts.confirmUrl,
+    L
+  );
 
-  const html = `
-${baseWrapStart}תזכורת להזמנה${baseWrapMid}${restaurantName}${baseWrapEndHead}
-  <div style="
-    background:${palette.surface};border:1px solid ${palette.border};
-    color:${palette.text};border-radius:16px;padding:14px;">
-    <p style="margin:0;">
-      <strong>תאריך:</strong> ${date} · <strong>שעה:</strong> ${time} · <strong>סועדים:</strong> ${people}
-    </p>
-  </div>
-  <div style="margin-top:12px;">
-    ${customerName ? `<p style="margin:0;">שלום ${customerName},</p>` : ""}
-    <p style="margin:6px 0 0;">נא אשר/י הגעה בלחיצה:</p>
-    <div style="text-align:center;margin:12px 0 0;">
-      <a href="${link}" style="
-        display:inline-block;background:${palette.btn};color:${palette.btnText};
-        padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;">
-        אישור הגעה
-      </a>
+  const html = baseWrap(`
+    <h2 style="margin:0 0 8px 0;font-size:20px;font-weight:800;">${t("reminderTitle", L)}</h2>
+    <p style="margin:0 0 10px 0;color:${palette.sub};">${opts.restaurantName}</p>
+    <div style="background:${palette.surface};border:1px solid ${palette.border};
+      color:${palette.text};border-radius:16px;padding:14px;">
+      <p style="margin:0;">
+        <strong>${t("date", L)}:</strong> ${opts.date} · <strong>${t("time", L)}:</strong> ${opts.time} · <strong>${t("guests", L)}:</strong> ${opts.people}
+      </p>
     </div>
-  </div>
-${baseWrapClose}
-  `;
+    <div style="margin-top:12px;">
+      ${opts.customerName ? `<p style="margin:0;">${t("hello", L)} ${opts.customerName},</p>` : ""}
+      <p style="margin:6px 0 0;">${t("reminderLead", L)}</p>
+      <div style="text-align:center;margin:12px 0 0;">
+        <a href="${link}" style="
+          display:inline-block;background:${palette.btn};color:${palette.btnText};
+          padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;">
+          ${t("reminderCta", L)}
+        </a>
+      </div>
+    </div>
+  `, L);
+
   const text =
-    `תזכורת להזמנה – ${restaurantName}\n` +
-    `תאריך: ${date} | שעה: ${time} | סועדים: ${people}\n` +
-    `אישור הגעה: ${link}`;
+    `${t("reminderTitle", L)} — ${opts.restaurantName}\n` +
+    `${t("date", L)}: ${opts.date} | ${t("time", L)}: ${opts.time} | ${t("guests", L)}: ${opts.people}\n` +
+    `${t("reminderCta", L)}: ${link}`;
+
   return await sendMailAny({
-    to,
-    subject: "תזכורת להזמנה – נא אשר/י הגעה",
+    to: opts.to,
+    subject: t("reminderSubject", L),
     html,
     text,
   });
