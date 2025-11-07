@@ -3,6 +3,7 @@
   "specifiers": {
     "jsr:@oak/commons@1": "1.0.1",
     "jsr:@oak/oak@*": "17.1.6",
+    "jsr:@oak/oak@17": "17.1.6",
     "jsr:@std/assert@1": "1.0.15",
     "jsr:@std/bytes@1": "1.0.6",
     "jsr:@std/crypto@1": "1.0.5",

@@ -2,7 +2,7 @@
 // Floor plan management for restaurant owners
 
 import { Router } from "@oak/oak";
-import { requireOwner } from "../middleware/auth.ts";
+import { requireOwner } from "../lib/auth.ts";
 import { kv } from "../database.ts";
 import { render } from "../lib/view.ts";
 
