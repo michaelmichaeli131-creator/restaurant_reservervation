@@ -41,6 +41,9 @@ import { diagRouter } from "./routes/diag.ts";
 import openingRouter from "./routes/opening.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
 import { i18n } from "./middleware/i18n.ts";
+const i18n = (i18nModule as any).i18n ?? i18nModule;
+app.use(i18n);
+
 import langRouter from "./routes/lang.ts";
 
 // ✅ חדש: ראוטר ניהול תפוסה יומי (Calendar/Timeline)
