@@ -33,6 +33,36 @@
       "actions": {
         "submit": "Log in"
       }
+    } ,
+    "register": {
+      "title": "Sign up",
+      "subtitle": "Create a new GeoTable account",
+      "form": {
+        "firstName": "First name",
+        "firstNamePh": "e.g. Daniel",
+        "lastName": "Last name",
+        "lastNamePh": "e.g. Cohen",
+        "email": "Email",
+        "emailHint": "We'll use this email for login and notifications.",
+        "password": "Password",
+        "passwordPh": "At least 6 characters",
+        "confirm": "Confirm password",
+        "confirmPh": "Re-enter your password",
+        "pwToggleAria": "Show/Hide password",
+        "businessType": "Business type",
+        "chooseType": "Choose business type",
+        "optRestaurant": "Restaurant",
+        "optCafe": "Cafe",
+        "optBar": "Bar",
+        "optHotel": "Hotel / Hospitality",
+        "optOther": "Other",
+        "phone": "Phone (optional)",
+        "phonePh": "050-1234567"
+      },
+      "actions": {
+        "submit": "Sign up",
+        "back": "Already have an account? Log in"
+      }
     }
   }
 }

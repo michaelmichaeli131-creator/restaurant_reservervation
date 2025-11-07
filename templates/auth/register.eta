@@ -1,11 +1,14 @@
 <% layout("_layout", it) %>
 
+<% /* tt = תרגום עם fallback אמיתי */ %>
+<% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s=it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
+
 <main class="sb-auth container">
   <section class="card auth-card">
     <header class="head">
       <div>
-        <h1>הרשמה</h1>
-        <p class="muted">פתח/י חשבון חדש ל־GeoTable</p>
+        <h1><%= tt('auth.register.title','הרשמה') %></h1>
+        <p class="muted"><%= tt('auth.register.subtitle','פתח/י חשבון חדש ל־GeoTable') %></p>
       </div>
       <% if (it.error) { %>
         <p class="badge warn" role="alert">✗ <%= it.error %></p>
@@ -21,65 +24,65 @@
           novalidate>
 
       <div class="form-row">
-        <label for="firstName">שם פרטי</label>
+        <label for="firstName"><%= tt('auth.register.form.firstName','שם פרטי') %></label>
         <input id="firstName" name="firstName" type="text" required autocomplete="given-name"
-               placeholder="לדוגמה: דניאל" value="<%= it.prefill?.firstName || '' %>"/>
+               placeholder="<%= tt('auth.register.form.firstNamePh','לדוגמה: דניאל') %>" value="<%= it.prefill?.firstName || '' %>"/>
       </div>
 
       <div class="form-row">
-        <label for="lastName">שם משפחה</label>
+        <label for="lastName"><%= tt('auth.register.form.lastName','שם משפחה') %></label>
         <input id="lastName" name="lastName" type="text" required autocomplete="family-name"
-               placeholder="לדוגמה: כהן" value="<%= it.prefill?.lastName || '' %>"/>
+               placeholder="<%= tt('auth.register.form.lastNamePh','לדוגמה: כהן') %>" value="<%= it.prefill?.lastName || '' %>"/>
       </div>
 
       <div class="form-row" style="grid-column:1/-1">
-        <label for="email">אימייל</label>
+        <label for="email"><%= tt('auth.register.form.email','אימייל') %></label>
         <input id="email" name="email" type="email" dir="ltr" inputmode="email" required
                autocomplete="email" autocapitalize="off" spellcheck="false"
-               placeholder="you@example.com" value="<%= it.prefill?.email || '' %>"/>
-        <small class="muted">נשתמש באימייל לצורך התחברות והתראות.</small>
+               placeholder="<%= tt('auth.register.form.emailPh','you@example.com') %>" value="<%= it.prefill?.email || '' %>"/>
+        <small class="muted"><%= tt('auth.register.form.emailHint','נשתמש באימייל לצורך התחברות והתראות.') %></small>
       </div>
 
       <div class="form-row">
-        <label for="password">סיסמה</label>
+        <label for="password"><%= tt('auth.register.form.password','סיסמה') %></label>
         <div class="pw-wrap">
           <input id="password" name="password" type="password" required autocomplete="new-password"
-                 minlength="6" placeholder="לפחות 6 תווים"/>
-          <button class="pw-toggle" type="button" aria-label="הצג/הסתר סיסמה">👁</button>
+                 minlength="6" placeholder="<%= tt('auth.register.form.passwordPh','לפחות 6 תווים') %>"/>
+          <button class="pw-toggle" type="button" aria-label="<%= tt('auth.register.form.pwToggleAria','הצג/הסתר סיסמה') %>">👁</button>
         </div>
       </div>
 
       <!-- שם השדה חייב להיות confirm לפי ה-BE -->
       <div class="form-row">
-        <label for="confirm">אימות סיסמה</label>
+        <label for="confirm"><%= tt('auth.register.form.confirm','אימות סיסמה') %></label>
         <div class="pw-wrap">
           <input id="confirm" name="confirm" type="password" required autocomplete="new-password"
-                 minlength="6" placeholder="הקלד/י שוב את הסיסמה"/>
-          <button class="pw-toggle" type="button" aria-label="הצג/הסתר סיסמה">👁</button>
+                 minlength="6" placeholder="<%= tt('auth.register.form.confirmPh','הקלד/י שוב את הסיסמה') %>"/>
+          <button class="pw-toggle" type="button" aria-label="<%= tt('auth.register.form.pwToggleAria','הצג/הסתר סיסמה') %>">👁</button>
         </div>
       </div>
 
       <div class="form-row">
-        <label for="businessType">סוג העסק</label>
+        <label for="businessType"><%= tt('auth.register.form.businessType','סוג העסק') %></label>
         <select id="businessType" name="businessType" required>
-          <option value="" disabled <%= (it.prefill?.businessType ? '' : 'selected') %> hidden>בחר/י סוג עסק</option>
-          <option value="restaurant" <%= it.prefill?.businessType==='restaurant'?'selected':'' %>>מסעדה</option>
-          <option value="cafe"       <%= it.prefill?.businessType==='cafe'?'selected':'' %>>בית קפה</option>
-          <option value="bar"        <%= it.prefill?.businessType==='bar'?'selected':'' %>>בר</option>
-          <option value="hotel"      <%= it.prefill?.businessType==='hotel'?'selected':'' %>>מלון / אירוח</option>
-          <option value="other"      <%= it.prefill?.businessType==='other'?'selected':'' %>>אחר</option>
+          <option value="" disabled <%= (it.prefill?.businessType ? '' : 'selected') %> hidden><%= tt('auth.register.form.chooseType','בחר/י סוג עסק') %></option>
+          <option value="restaurant" <%= it.prefill?.businessType==='restaurant'?'selected':'' %>><%= tt('auth.register.form.optRestaurant','מסעדה') %></option>
+          <option value="cafe"       <%= it.prefill?.businessType==='cafe'?'selected':'' %>><%= tt('auth.register.form.optCafe','בית קפה') %></option>
+          <option value="bar"        <%= it.prefill?.businessType==='bar'?'selected':'' %>><%= tt('auth.register.form.optBar','בר') %></option>
+          <option value="hotel"      <%= it.prefill?.businessType==='hotel'?'selected':'' %>><%= tt('auth.register.form.optHotel','מלון / אירוח') %></option>
+          <option value="other"      <%= it.prefill?.businessType==='other'?'selected':'' %>><%= tt('auth.register.form.optOther','אחר') %></option>
         </select>
       </div>
 
       <div class="form-row">
-        <label for="phone">נייד (לא חובה)</label>
-        <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="050-1234567"
+        <label for="phone"><%= tt('auth.register.form.phone','נייד (לא חובה)') %></label>
+        <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="<%= tt('auth.register.form.phonePh','050-1234567') %>"
                value="<%= it.prefill?.phone || '' %>"/>
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn primary">הירשם/י</button>
-        <a class="btn ghost" href="/auth/login">יש כבר חשבון? התחברות</a>
+        <button type="submit" class="btn primary"><%= tt('auth.register.actions.submit','הירשם/י') %></button>
+        <a class="btn ghost" href="/auth/login"><%= tt('auth.register.actions.back','יש כבר חשבון? התחברות') %></a>
       </div>
     </form>
   </section>
@@ -111,7 +114,10 @@
     // ולידציה לקוח: התאמת סיסמאות
     form.addEventListener('submit', (ev)=>{
       const p=form.password?.value||'', c=form.confirm?.value||'';
-      if(p && c && p!==c){ ev.preventDefault(); alert('הסיסמאות אינן תואמות'); }
+      if(p && c && p!==c){
+        ev.preventDefault();
+        alert(<%= JSON.stringify(it.t ? it.t('auth.register.errors.mismatch','הסיסמאות אינן תואמות') : 'הסיסמאות אינן תואמות') %>);
+      }
     }, {passive:false});
   })();
 </script>

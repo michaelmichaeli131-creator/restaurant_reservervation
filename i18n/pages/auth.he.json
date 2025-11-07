@@ -32,6 +32,36 @@
       "actions": {
         "submit": "התחבר/י"
       }
+    },
+    "register": {
+      "title": "הרשמה",
+      "subtitle": "פתח/י חשבון חדש ל־GeoTable",
+      "form": {
+        "firstName": "שם פרטי",
+        "firstNamePh": "לדוגמה: דניאל",
+        "lastName": "שם משפחה",
+        "lastNamePh": "לדוגמה: כהן",
+        "email": "אימייל",
+        "emailHint": "נשתמש באימייל לצורך התחברות והתראות.",
+        "password": "סיסמה",
+        "passwordPh": "לפחות 6 תווים",
+        "confirm": "אימות סיסמה",
+        "confirmPh": "הקלד/י שוב את הסיסמה",
+        "pwToggleAria": "הצג/הסתר סיסמה",
+        "businessType": "סוג העסק",
+        "chooseType": "בחר/י סוג עסק",
+        "optRestaurant": "מסעדה",
+        "optCafe": "בית קפה",
+        "optBar": "בר",
+        "optHotel": "מלון / אירוח",
+        "optOther": "אחר",
+        "phone": "נייד (לא חובה)",
+        "phonePh": "050-1234567"
+      },
+      "actions": {
+        "submit": "הירשם/י",
+        "back": "יש כבר חשבון? התחברות"
+      }
     }
   }
 }
