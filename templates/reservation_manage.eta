@@ -1,148 +1,153 @@
 <!-- /src/templates/reservation_manage.eta -->
 <!doctype html>
-<html lang="he" dir="rtl">
+<%
+  /* tt: תרגום עם fallback אמיתי */
+  function tt(k, fb){ try{ if(it && typeof it.t==='function'){ const s=it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; }
+  const lang = it.lang || 'he';
+  const dir  = it.dir  || (lang === 'he' || lang === 'ar' ? 'rtl' : 'ltr');
+  const token = it.token || '';
+  const path  = `/r/${token}`;
+  const qHe   = `?lang=he`;
+  const qEn   = `?lang=en`;
+  const qKa   = `?lang=ka`;
+  const logo  = it.logoUrl || '/public/img/spotbook-logo.svg';
+  const title = it.title || tt('manage.title','ניהול הזמנה · SpotBook');
+  const status = (it.reservation?.status || 'new');
+  const statusLabel = status==='confirmed'
+    ? tt('manage.status.confirmed','מאושר')
+    : status==='canceled'
+      ? tt('manage.status.canceled','מבוטל')
+      : tt('manage.status.new','חדש');
+%>
+<html lang="<%= lang %>" dir="<%= dir %>">
 <head>
   <meta charset="utf-8" />
-  <title><%= it.title || 'ניהול הזמנה · SpotBook' %></title>
+  <title><%= title %></title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- Rubik + עיצוב בסיס של האתר (אחידות מלאה) -->
+  <!-- Rubik + CSS הראשי -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/public/css/spotbook.css?v=<%= Date.now() %>"/>
 
   <style>
-    /* ===== SpotBook · כהה-יוקרתי (ללא שינוי לוגיקה/פיצ'רים) ===== */
+    /* ===== SpotBook · כהה-יוקרתי ===== */
     :root{
       --bg:#0e1116; --ink:#e6e8ef; --ink-muted:#9aa3b2;
       --panel:#121622; --panel-2:#171b29; --bd:#23293a;
       --brand:#3b82f6; --brand-ink:#fff;
       --ok:#22c55e; --danger:#ef4444; --warn:#fbbf24;
-      --radius:18px; --shadow:0 12px 36px rgba(0,0,0,.35);
-      --max:760px;
+      --radius:18px; --shadow:0 12px 36px rgba(0,0,0,.35); --max:760px;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
       margin:0; background:var(--bg); color:var(--ink);
-      font-family: "Rubik", system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      font-family:"Rubik",system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
       -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
     }
-    a{color:inherit}
-
+    a{color:inherit; text-decoration:none}
     .wrap{max-width:var(--max); margin:24px auto; padding:0 16px}
-    .card{
-      background:var(--panel);
-      border:1px solid var(--bd);
-      border-radius:var(--radius);
-      box-shadow:var(--shadow);
-      overflow:hidden;
-    }
+    .card{ background:var(--panel); border:1px solid var(--bd); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+
     .head{
-      padding:22px 20px 14px;
-      border-bottom:1px solid var(--bd);
+      padding:22px 20px 14px; border-bottom:1px solid var(--bd);
       display:flex; justify-content:space-between; gap:12px; align-items:center;
     }
+    .head-left{display:flex; gap:12px; align-items:center}
+    .logo{height:28px; width:auto; display:block}
     h1{margin:0; font-size:clamp(20px,3.6vw,26px); letter-spacing:.2px}
     .muted{color:var(--ink-muted)}
-    .body{padding:18px 20px}
 
-    .restaurant{display:flex; gap:14px; align-items:center; margin-top:8px}
-    .restaurant img{
-      width:64px; height:64px; object-fit:cover; border-radius:12px;
-      border:1px solid var(--bd); background:var(--panel-2);
+    .langbar{
+      display:flex; align-items:center; gap:8px;
+      background: color-mix(in srgb, var(--panel-2) 92%, transparent);
+      border:1px solid var(--bd); border-radius:999px; padding:6px 8px;
+      font-weight:800;
     }
+    .langbar a{
+      padding:4px 8px; border-radius:999px; opacity:.9;
+    }
+    .langbar a.active{
+      background: var(--brand); color: var(--brand-ink);
+      box-shadow: 0 6px 18px rgba(59,130,246,.35);
+    }
+
+    .body{padding:18px 20px}
+    .restaurant{display:flex; gap:14px; align-items:center; margin-top:8px}
+    .restaurant img{ width:64px; height:64px; object-fit:cover; border-radius:12px; border:1px solid var(--bd); background:var(--panel-2); }
 
     .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px}
-    .pill{
-      border:1px solid var(--bd);
-      border-radius:14px; padding:12px 14px;
-      background: color-mix(in srgb, var(--panel-2) 90%, transparent);
-    }
+    .pill{ border:1px solid var(--bd); border-radius:14px; padding:12px 14px; background: color-mix(in srgb, var(--panel-2) 90%, transparent); }
     .pill strong{display:block; font-size:12px; color:var(--ink-muted); margin-bottom:6px}
     .pill span{font-weight:800; letter-spacing:.3px}
 
     .actions{display:flex; flex-wrap:wrap; gap:10px; margin-top:14px}
 
-    /* Buttons – “חיים” */
     .btn, button{
-      appearance:none; border:1px solid var(--bd);
-      border-radius:999px; padding:10px 14px; font-weight:800; cursor:pointer;
-      text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:8px;
+      appearance:none; border:1px solid var(--bd); border-radius:999px; padding:10px 14px;
+      font-weight:800; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:8px;
       color:var(--ink); background:transparent;
       transition: transform .08s ease, filter .12s ease, box-shadow .12s ease, background .12s ease;
     }
     .btn:hover, button:hover{ transform: translateY(-1px) }
-
-    .btn-brand{
-      background:var(--brand); color:var(--brand-ink); border-color:transparent;
-      box-shadow:0 10px 28px rgba(59,130,246,.35);
-    }
-    .btn-ghost{
-      background: color-mix(in srgb, var(--panel-2) 90%, transparent);
-    }
+    .btn-brand{ background:var(--brand); color:var(--brand-ink); border-color:transparent; box-shadow:0 10px 28px rgba(59,130,246,.35); }
+    .btn-ghost{ background: color-mix(in srgb, var(--panel-2) 90%, transparent); }
     .btn-ghost:hover{ background: color-mix(in srgb, var(--panel) 92%, transparent) }
-
-    .btn-danger{
-      background: color-mix(in srgb, var(--danger) 88%, black 12%);
-      color:#fff; border-color: transparent;
-      box-shadow:0 10px 28px rgba(239, 68, 68, .28);
-    }
+    .btn-danger{ background: color-mix(in srgb, var(--danger) 88%, black 12%); color:#fff; border-color: transparent; box-shadow:0 10px 28px rgba(239, 68, 68, .28); }
     .btn[disabled],button[disabled]{opacity:.5; cursor:not-allowed; transform:none; filter:none}
 
     .hr{height:1px; background:var(--bd); margin:20px 0}
-
     .success{color:var(--ok); font-weight:800; margin:10px 0 0}
     .error{color:var(--danger); font-weight:800; margin:10px 0 0}
 
-    /* Status badge */
-    .badge{
-      display:inline-flex; align-items:center; gap:8px;
-      border-radius:999px; padding:8px 12px; font-weight:800; font-size:12px;
-      border:1px solid var(--bd); background: color-mix(in srgb, var(--panel-2) 92%, transparent);
-    }
+    .badge{ display:inline-flex; align-items:center; gap:8px; border-radius:999px; padding:8px 12px; font-weight:800; font-size:12px; border:1px solid var(--bd); background: color-mix(in srgb, var(--panel-2) 92%, transparent); }
     .badge.new{ border-color:#94a3b8; background:rgba(148,163,184,.18); color:#e2e8f0 }
     .badge.confirmed{ border-color:rgba(34,197,94,.45); background:rgba(34,197,94,.14); color:#86efac }
     .badge.canceled{ border-color:rgba(239,68,68,.45); background:rgba(239,68,68,.12); color:#fecaca }
 
-    /* Phone block */
     .phone{margin-top:6px; display:flex; align-items:center; gap:10px; flex-wrap:wrap}
     .phone a.tel{ color:#7dd3fc; text-decoration:none; font-weight:800 }
-    .copy-btn{
-      background: color-mix(in srgb, var(--panel-2) 90%, transparent);
-      border:1px solid var(--bd); color:var(--ink);
-      border-radius:12px; padding:6px 10px; font-weight:700; cursor:pointer;
-      transition: background .12s ease, transform .08s ease;
-    }
+    .copy-btn{ background: color-mix(in srgb, var(--panel-2) 90%, transparent); border:1px solid var(--bd); color:var(--ink); border-radius:12px; padding:6px 10px; font-weight:700; cursor:pointer; transition: background .12s ease, transform .08s ease; }
     .copy-btn:hover{ background: color-mix(in srgb, var(--panel) 92%, transparent); transform: translateY(-1px) }
     .copied-badge{display:none; font-size:12px; color:var(--ok); font-weight:800}
     .copied .copied-badge{display:inline}
 
-    /* Responsive */
     @media (max-width:480px){
       .head{padding:18px 16px 12px}
       .body{padding:16px}
     }
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <div class="card">
       <div class="head">
-        <div>
-          <h1>ניהול הזמנה</h1>
-          <div class="muted">מס׳ הזמנה: <code><%= it.reservation.id %></code></div>
+        <!-- צד שמאל: לוגו + כותרת -->
+        <div class="head-left">
+          <img class="logo" src="<%= logo %>" alt="SpotBook" onerror="this.style.display='none'"/>
+          <div>
+            <h1><%= tt('manage.header.title','ניהול הזמנה') %></h1>
+            <div class="muted">
+              <%= tt('manage.header.resId','מס׳ הזמנה:') %>
+              <code><%= it.reservation.id %></code>
+            </div>
+          </div>
         </div>
-        <%
-          const status = (it.reservation.status || 'new');
-          const statusLabel = status==='confirmed' ? 'מאושר'
-                              : status==='canceled' ? 'מבוטל'
-                              : 'חדש';
-        %>
-        <div class="badge <%= status %>">
-          <% if (status==='confirmed') { %>✓<% } else if (status==='canceled') { %>✗<% } else { %>•<% } %>
-          <span><%= statusLabel %></span>
+
+        <!-- צד ימין: badge סטטוס + בורר שפה -->
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="badge <%= status %>">
+            <% if (status==='confirmed') { %>✓<% } else if (status==='canceled') { %>✗<% } else { %>•<% } %>
+            <span><%= statusLabel %></span>
+          </div>
+
+          <nav class="langbar" aria-label="<%= tt('common.lang.switch','בחירת שפה') %>">
+            <a href="<%= path + qHe %>" class="<%= lang==='he'?'active':'' %>">HE</a>
+            <a href="<%= path + qEn %>" class="<%= lang==='en'?'active':'' %>">EN</a>
+            <a href="<%= path + qKa %>" class="<%= lang==='ka'?'active':'' %>">KA</a>
+          </nav>
         </div>
       </div>
 
@@ -153,18 +158,14 @@
             <img src="<%= it.restaurant.photos[0] %>" alt="<%= it.restaurant.name %>" />
           <% } %>
           <div>
-            <div style="font-weight:800"><%= it.restaurant?.name || "מסעדה" %></div>
+            <div style="font-weight:800"><%= it.restaurant?.name || tt('manage.restaurant.fallback','מסעדה') %></div>
             <div class="muted"><%= it.restaurant?.address || "" %></div>
-
-            <!-- טלפון: לחיץ לחיוג + כפתור העתקה -->
-            <% if (it.restaurant?.phone) { 
-                 const phone = String(it.restaurant.phone);
-            %>
+            <% if (it.restaurant?.phone) { const phone = String(it.restaurant.phone); %>
               <div class="phone" id="phone-block">
                 <span>📞</span>
                 <a class="tel" href="tel:<%= phone %>"><%= phone %></a>
-                <button class="copy-btn" type="button" data-phone="<%= phone %>" onclick="copyPhone(this)">העתקה</button>
-                <span class="copied-badge" aria-live="polite">הועתק ✓</span>
+                <button class="copy-btn" type="button" data-phone="<%= phone %>" onclick="copyPhone(this)"><%= tt('manage.actions.copy','העתקה') %></button>
+                <span class="copied-badge" aria-live="polite"><%= tt('manage.actions.copied','הועתק ✓') %></span>
               </div>
             <% } %>
           </div>
@@ -175,19 +176,19 @@
         <!-- פרטי הזמנה -->
         <div class="grid">
           <div class="pill">
-            <strong>תאריך</strong>
+            <strong><%= tt('manage.details.date','תאריך') %></strong>
             <span><%= it.reservation.date %></span>
           </div>
           <div class="pill">
-            <strong>שעה</strong>
+            <strong><%= tt('manage.details.time','שעה') %></strong>
             <span><%= it.reservation.time %></span>
           </div>
           <div class="pill">
-            <strong>מס׳ סועדים</strong>
+            <strong><%= tt('manage.details.people','מס׳ סועדים') %></strong>
             <span><%= it.reservation.people %></span>
           </div>
           <div class="pill">
-            <strong>סטטוס</strong>
+            <strong><%= tt('manage.details.status','סטטוס') %></strong>
             <span><%= statusLabel %></span>
           </div>
         </div>
@@ -200,9 +201,9 @@
         <% } %>
 
         <div class="actions">
-          <!-- אישור הגעה (מופיע רק כשהוא אפשרי) -->
+          <!-- אישור הגעה (מותנה) -->
           <% if (it.allowConfirm) { %>
-            <form method="post" action="/r/<%= it.token %>">
+            <form method="post" action="<%= path %>">
               <input type="hidden" name="action" value="confirm">
               <button
                 class="btn btn-brand"
@@ -210,13 +211,14 @@
                 name="action"
                 value="confirm"
                 formmethod="post"
-                formaction="/r/<%= it.token %>?action=confirm"
-              >מאשר/ת הגעה</button>
+                formaction="<%= path %>?action=confirm">
+                <%= tt('manage.actions.confirm','מאשר/ת הגעה') %>
+              </button>
             </form>
           <% } %>
 
-          <!-- ביטול (תמיד זמין עד שההזמנה כבר בוטלה) -->
-          <form method="post" action="/r/<%= it.token %>" onsubmit="return <%= it.allowCancel ? 'confirm(&#39;לבטל את ההזמנה?&#39;)' : 'false' %>;">
+          <!-- ביטול -->
+          <form method="post" action="<%= path %>" onsubmit="return <%= it.allowCancel ? `confirm('${tt('manage.confirm.cancel','לבטל את ההזמנה?')}')` : 'false' %>;">
             <input type="hidden" name="action" value="cancel">
             <button
               class="btn btn-danger"
@@ -224,23 +226,23 @@
               name="action"
               value="cancel"
               formmethod="post"
-              formaction="/r/<%= it.token %>?action=cancel"
-              <%= it.allowCancel ? '' : 'disabled aria-disabled="true"' %>
-            >
-              ביטול הזמנה
+              formaction="<%= path %>?action=cancel"
+              <%= it.allowCancel ? '' : 'disabled aria-disabled="true"' %>>
+              <%= tt('manage.actions.cancel','ביטול הזמנה') %>
             </button>
           </form>
 
-          <!-- רענון דף -->
-          <a class="btn btn-ghost" href="/r/<%= it.token %>">רענון</a>
+          <!-- רענון -->
+          <a class="btn btn-ghost" href="<%= path %>"><%= tt('manage.actions.refresh','רענון') %></a>
         </div>
 
         <div class="hr"></div>
 
         <p class="muted">
-          צריך עזרה? פנו אלינו עם מספר ההזמנה שמופיע למעלה.
+          <%= tt('manage.help.text','צריך עזרה? פנו אלינו עם מספר ההזמנה שמופיע למעלה.') %>
           <% if (it.restaurant?.phone) { %>
-            או חייגו אל <strong><a class="tel" href="tel:<%= it.restaurant.phone %>"><%= it.restaurant.phone %></a></strong>.
+            <%= tt('manage.help.orCall','או חייגו אל') %>
+            <strong><a class="tel" href="tel:<%= it.restaurant.phone %>"><%= it.restaurant.phone %></a></strong>.
           <% } %>
         </p>
       </div>
@@ -259,7 +261,7 @@
           setTimeout(()=>wrap.classList.remove('copied'), 1500);
         }
       }catch(e){
-        // fallback: בחירת טקסט בקישור
+        // fallback: בחירת הטקסט בקישור
         const tel = btn.previousElementSibling;
         if (tel && window.getSelection){
           const range = document.createRange();
