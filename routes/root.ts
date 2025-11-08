@@ -1,7 +1,7 @@
 // src/routes/root.ts
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
-import { listRestaurants } from "../database.ts";
+import { listRestaurants, listRestaurantsByCategory, type KitchenCategory } from "../database.ts";
 
 const rootRouter = new Router();
 
@@ -21,9 +21,18 @@ rootRouter.get("/", async (ctx) => {
 
   const q = ctx.request.url.searchParams.get("q") ?? "";
   const search = ctx.request.url.searchParams.get("search") ?? "";
+  const category = ctx.request.url.searchParams.get("category") ?? "";
   let restaurants: any[] = [];
 
-  if (search === "1" || (q && q.trim())) {
+  if (category && category.trim()) {
+    // Filter by category
+    const items = await listRestaurantsByCategory(category as KitchenCategory, true);
+    restaurants = items.map((r) => ({
+      ...r,
+      photos: photoStrings(r.photos),
+    }));
+  } else if (search === "1" || (q && q.trim())) {
+    // Text search
     const items = await listRestaurants(q, true);
     restaurants = items.map((r) => ({
       ...r,
@@ -36,6 +45,7 @@ rootRouter.get("/", async (ctx) => {
     page: "home",
     q,
     search,
+    category,
     restaurants,
   });
 });

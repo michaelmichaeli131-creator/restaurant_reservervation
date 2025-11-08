@@ -102,12 +102,18 @@
     const f = fileInput.files && fileInput.files[0];
     if (!f) return alert("<%= tt('owner.photos.pick_first','בחר/י תמונה קודם') %>");
 
-    const targetBytes = 60 * 1024; // ~60KB
+    console.log('[upload] Original file:', f.name, f.type, f.size, 'bytes');
+
+    // R2 supports unlimited size - only compress if VERY large
+    const targetBytes = 5 * 1024 * 1024; // 5 MB (reasonable limit for web)
     let blob = f;
     if (f.size > targetBytes) {
+      console.log('[upload] File too large, compressing...');
       try { blob = await shrinkToUnder(targetBytes, f) || f; }
       catch(e){ console.warn("shrink failed", e); }
     }
+
+    console.log('[upload] Sending blob:', blob.type, blob.size, 'bytes');
 
     const res = await fetch(`/owner/restaurants/${encodeURIComponent(rid)}/photos/upload`, {
       method: "POST",

@@ -134,6 +134,14 @@ ownerManageRouter.get("/owner/restaurants/:id/edit/save", async (ctx) => {
   if (typeof phone !== "undefined") patch.phone = phone || "";
   if (typeof description !== "undefined") patch.description = description || "";
 
+  // Handle categories (multi-select)
+  if (sp.has("categories")) {
+    const categories = sp.getAll("categories").filter(Boolean);
+    if (categories.length > 0) {
+      patch.kitchenCategories = categories as any;
+    }
+  }
+
   await updateRestaurant(id, patch);
 
   ctx.response.status = Status.SeeOther;

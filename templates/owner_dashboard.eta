@@ -78,6 +78,7 @@ function tt(k, fb){
                   <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/edit"   target="_self" rel="nofollow"><%= tt('owner.dashboard.btn_edit','עריכת פרטים') %></a>
                   <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/hours"  target="_self" rel="nofollow"><%= tt('owner.dashboard.btn_hours','שעות פתיחה') %></a>
                   <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/photos" target="_self" rel="nofollow"><%= tt('owner.dashboard.btn_photos','תמונות') %></a>
+                  <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/floor" target="_self" rel="nofollow">🍽️ <%= tt('owner.dashboard.btn_floor','סידור שולחנות') %></a>
                 </div>
               </li>
             <% }) %>

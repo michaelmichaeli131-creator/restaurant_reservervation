@@ -1,11 +1,12 @@
 // src/routes/owner_photos.ts
-// העלאת תמונות: שומר dataURL קטן ב-KV (חייב <~64KB)
+// העלאת תמונות: עם Cloudflare R2 (unlimited size) או fallback ל-base64 (60KB)
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
 import { getRestaurant, updateRestaurant } from "../database.ts";
 import { requireOwner } from "../lib/auth.ts";
 import { debugLog } from "../lib/debug.ts";
+import { R2_ENABLED, uploadImageToR2, deleteImageFromR2, generatePhotoPath, extractPathFromUrl } from "../lib/r2.ts";
 
 type PhotoItem = { id: string; dataUrl: string; alt?: string };
 
@@ -110,7 +111,7 @@ function bytesToBase64(u8: Uint8Array): string {
 
 /** קבועים ללוגיקת גודל/סוג */
 const MAX_DATAURL_LENGTH = 60 * 1024; // ~60KB כולל prefix (KV value budget)
-const MAX_BYTES = 100 * 1024;         // failsafe על גוף הבקשה (client-side אמור כבר לכווץ)
+const MAX_BYTES = 10 * 1024 * 1024;   // 10MB max upload (R2 supports much more, but reasonable web limit)
 const MIME_RE = /^image\/(png|jpeg|webp)$/i;
 
 // ---------------- GET: דף התמונות ----------------
@@ -196,19 +197,32 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
   }
 
   try {
-    const base64 = bytesToBase64(bytes);
-    const dataUrl = `data:${contentType};base64,${base64}`;
+    const pid = crypto.randomUUID();
+    let photoUrl: string;
 
-    if (dataUrl.length > MAX_DATAURL_LENGTH) {
-      ctx.response.status = Status.BadRequest;
-      ctx.response.body =
-        "התמונה עדיין גדולה מדי לשמירה. נסו תמונה קטנה יותר/מכווצת, או עברו לאחסון קבצים (S3/GCS).";
-      return;
+    // Use R2 if configured, otherwise fallback to base64
+    if (R2_ENABLED) {
+      // Upload to Cloudflare R2 (unlimited size!)
+      const path = generatePhotoPath(id, pid, contentType);
+      photoUrl = await uploadImageToR2(bytes, contentType, path);
+      debugLog(`[photos] ✅ Uploaded to R2: ${photoUrl}`);
+    } else {
+      // Fallback: base64 in KV (limited to 60 KB)
+      const base64 = bytesToBase64(bytes);
+      const dataUrl = `data:${contentType};base64,${base64}`;
+
+      if (dataUrl.length > MAX_DATAURL_LENGTH) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body =
+          "התמונה עדיין גדולה מדי לשמירה. נסו תמונה קטנה יותר/מכווצת, או הגדירו Cloudflare R2 ב-.env";
+        return;
+      }
+
+      photoUrl = dataUrl;
+      debugLog(`[photos] ✅ Using base64 fallback (${dataUrl.length} bytes)`);
     }
 
-    const pid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const newPhoto: PhotoItem = { id: pid, dataUrl };
-
+    const newPhoto: PhotoItem = { id: pid, dataUrl: photoUrl };
     const prev = normalizePhotos(r.photos);
     const next = [...prev, newPhoto];
 
@@ -216,9 +230,15 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
 
     ctx.response.status = Status.OK;
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok: true, added: 1, total: next.length, id: pid });
+    ctx.response.body = JSON.stringify({
+      ok: true,
+      added: 1,
+      total: next.length,
+      id: pid,
+      r2: R2_ENABLED
+    });
   } catch (e) {
-    debugLog("[photos][upload] base64 encode/save failed:", String(e));
+    debugLog("[photos][upload] failed:", String(e));
     ctx.response.status = Status.InternalServerError;
     ctx.response.body = "Failed processing image.";
   }
@@ -258,12 +278,27 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/delete", async (ctx) => {
   }
 
   const prev = normalizePhotos(r.photos);
+  const photoToDelete = prev.find((p: PhotoItem) => p.id === pid);
   const next = prev.filter((p: PhotoItem) => p.id !== pid);
 
   if (next.length === prev.length) {
     ctx.response.status = Status.NotFound;
     ctx.response.body = JSON.stringify({ ok: false, error: "not_found" });
     return;
+  }
+
+  // If photo is in R2 (not base64), delete from R2
+  if (R2_ENABLED && photoToDelete && photoToDelete.dataUrl.startsWith("https://")) {
+    try {
+      const r2Path = extractPathFromUrl(photoToDelete.dataUrl);
+      if (r2Path) {
+        await deleteImageFromR2(r2Path);
+        debugLog(`[photos] 🗑️ Deleted from R2: ${r2Path}`);
+      }
+    } catch (e) {
+      debugLog(`[photos] ⚠️ R2 delete failed (continuing anyway):`, String(e));
+      // Continue even if R2 delete fails - remove from DB
+    }
   }
 
   await updateRestaurant(id, { photos: next } as any);

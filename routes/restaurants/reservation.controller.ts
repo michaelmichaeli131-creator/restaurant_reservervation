@@ -306,6 +306,8 @@ export async function confirmGet(ctx: any) {
       date,
       time,
       people,
+      // אפשר להעביר גם lang אם תרצה שמייל בעלים יהיה באותה שפה:
+      // lang,
     }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
   } else {
     console.log("[mail] owner email not found; skipping owner notification");
@@ -452,6 +454,8 @@ export async function confirmPost(ctx: any) {
       restaurantName: restaurant.name,
       customerName, customerPhone, customerEmail,
       date, time, people,
+      // אפשר להעביר גם lang אם תרצה שהמייל לבעלים יישלח באותה שפה:
+      // lang,
     }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
   } else {
     console.log("[mail] owner email not found; skipping owner notification");

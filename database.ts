@@ -23,6 +23,12 @@ export interface OpeningWindow { open: string; close: string; } // "HH:mm"
 // אפשר גם לתמוך במערכים מרובים לכל יום בהמשך; כרגע חלון יחיד ליום:
 export type WeeklySchedule = Partial<Record<DayOfWeek, OpeningWindow | null>>;
 
+export type KitchenCategory =
+  | "italian" | "asian" | "japanese" | "chinese" | "indian"
+  | "mediterranean" | "american" | "mexican" | "french"
+  | "steakhouse" | "seafood" | "vegetarian" | "vegan"
+  | "cafe" | "bakery" | "fast_food" | "other";
+
 export interface Restaurant {
   id: string;
   ownerId: string;
@@ -39,6 +45,9 @@ export interface Restaurant {
   weeklySchedule?: WeeklySchedule;  // הגבלת פתיחה (אופציונלי)
   photos?: string[];
   approved?: boolean;               // דורש אישור אדמין
+  kitchenCategories?: KitchenCategory[]; // סוגי מטבח
+  averageRating?: number;           // ממוצע דירוגים (מחושב)
+  reviewCount?: number;             // מספר ביקורות
   createdAt: number;
 }
 
@@ -59,6 +68,19 @@ export interface Reservation {
     | "new" | "confirmed" | "canceled" | "completed" | "blocked" | "rescheduled"
     | "approved" | "arrived" | "cancelled"; // תמיכה בשתי האיותים והסטטוסים החדשים
   createdAt: number;
+}
+
+export interface Review {
+  id: string;
+  restaurantId: string;
+  userId: string;
+  reservationId: string;  // קישור להזמנה שהושלמה
+  rating: number;         // 1-5 כוכבים
+  comment?: string;       // ביקורת טקסט (אופציונלי)
+  createdAt: number;
+  // תגובת הבעלים (אופציונלי)
+  ownerReply?: string;
+  ownerRepliedAt?: number;
 }
 
 // KV יחיד לכל התהליכים
@@ -359,6 +381,7 @@ export async function createRestaurant(r: {
   menu?: Array<{ name: string; price?: number; desc?: string }>;
   capacity?: number; slotIntervalMinutes?: number; serviceDurationMinutes?: number;
   weeklySchedule?: WeeklySchedule; photos?: string[]; approved?: boolean;
+  kitchenCategories?: KitchenCategory[];
 }): Promise<Restaurant> {
   const restaurant: Restaurant = {
     ...r,
@@ -372,6 +395,9 @@ export async function createRestaurant(r: {
     serviceDurationMinutes: r.serviceDurationMinutes ?? 120,
     weeklySchedule: r.weeklySchedule,
     approved: !!r.approved,
+    kitchenCategories: r.kitchenCategories ?? ["other"],
+    averageRating: 0,
+    reviewCount: 0,
     createdAt: now(),
   };
 
@@ -380,6 +406,11 @@ export async function createRestaurant(r: {
     .set(toKey("restaurant_by_owner", restaurant.ownerId, restaurant.id), 1)
     .set(toKey("restaurant_name", lower(restaurant.name), restaurant.id), 1)
     .set(toKey("restaurant_city", lower(restaurant.city), restaurant.id), 1);
+
+  // Index by categories
+  for (const cat of restaurant.kitchenCategories ?? []) {
+    tx.set(toKey("restaurant_by_category", cat, restaurant.id), 1);
+  }
 
   const res = await tx.commit();
   if (!res.ok) throw new Error("create_restaurant_race");
@@ -421,6 +452,24 @@ export async function updateRestaurant(id: string, patch: Partial<Restaurant>) {
   if (patch.city && lower(patch.city) !== lower(prev.city)) {
     tx.delete(toKey("restaurant_city", lower(prev.city), id))
       .set(toKey("restaurant_city", lower(patch.city), id), 1);
+  }
+
+  // Update category indices if categories changed
+  if (patch.kitchenCategories) {
+    const prevCats = prev.kitchenCategories ?? [];
+    const nextCats = next.kitchenCategories ?? [];
+    // Remove old category indices
+    for (const cat of prevCats) {
+      if (!nextCats.includes(cat)) {
+        tx.delete(toKey("restaurant_by_category", cat, id));
+      }
+    }
+    // Add new category indices
+    for (const cat of nextCats) {
+      if (!prevCats.includes(cat)) {
+        tx.set(toKey("restaurant_by_category", cat, id), 1);
+      }
+    }
   }
 
   const res = await tx.commit();
@@ -1108,4 +1157,212 @@ export async function cancelReservation(id: string, reason?: string): Promise<Re
 export async function markArrived(id: string, at?: Date): Promise<Reservation | null> {
   const arrivalNote = at ? `arrived at ${at.toISOString()}` : undefined;
   return await updateReservationFields(id, { status: "arrived", note: arrivalNote });
+}
+
+/* ─────────────────────── Reviews ─────────────────────── */
+
+/** יצירת ביקורת חדשה */
+export async function createReview(r: Omit<Review, "id" | "createdAt">): Promise<Review> {
+  const id = crypto.randomUUID();
+  const review: Review = {
+    id,
+    ...r,
+    rating: Math.max(1, Math.min(5, r.rating)), // בטוח 1-5
+    createdAt: now(),
+  };
+
+  const tx = kv.atomic()
+    .set(toKey("review", id), review)
+    .set(toKey("review_by_restaurant", r.restaurantId, id), 1)
+    .set(toKey("review_by_user", r.userId, id), 1)
+    .set(toKey("review_by_reservation", r.reservationId), id); // למנוע כפילויות
+
+  const res = await tx.commit();
+  if (!res.ok) throw new Error("create_review_race");
+
+  // Update restaurant rating (async, don't block)
+  updateRestaurantRating(r.restaurantId).catch(() => {});
+
+  return review;
+}
+
+/** קבלת ביקורת לפי ID */
+export async function getReview(id: string): Promise<Review | null> {
+  return (await kv.get<Review>(toKey("review", id))).value ?? null;
+}
+
+/** רשימת ביקורות למסעדה */
+export async function listReviewsByRestaurant(restaurantId: string, limit = 50): Promise<Review[]> {
+  const reviews: Review[] = [];
+  for await (const row of kv.list({ prefix: toKey("review_by_restaurant", restaurantId) })) {
+    const id = row.key[row.key.length - 1] as string;
+    const review = await getReview(id);
+    if (review) reviews.push(review);
+    if (reviews.length >= limit) break;
+  }
+  reviews.sort((a, b) => b.createdAt - a.createdAt); // חדש -> ישן
+  return reviews;
+}
+
+/** רשימת ביקורות של משתמש */
+export async function listReviewsByUser(userId: string): Promise<Review[]> {
+  const reviews: Review[] = [];
+  for await (const row of kv.list({ prefix: toKey("review_by_user", userId) })) {
+    const id = row.key[row.key.length - 1] as string;
+    const review = await getReview(id);
+    if (review) reviews.push(review);
+  }
+  reviews.sort((a, b) => b.createdAt - a.createdAt);
+  return reviews;
+}
+
+/** בדיקה אם משתמש כבר כתב ביקורת להזמנה */
+export async function hasUserReviewedReservation(reservationId: string): Promise<boolean> {
+  const entry = await kv.get(toKey("review_by_reservation", reservationId));
+  return entry.value !== null;
+}
+
+/** בדיקה אם משתמש זכאי לכתוב ביקורת */
+export async function canUserReview(userId: string, restaurantId: string, reservationId: string): Promise<boolean> {
+  // בדוק שההזמנה קיימת ושייכת למשתמש
+  const reservation = await getReservationById(reservationId);
+  if (!reservation || reservation.userId !== userId || reservation.restaurantId !== restaurantId) {
+    return false;
+  }
+
+  // בדוק שההזמנה הושלמה
+  const status = (reservation.status ?? "").toLowerCase();
+  if (status !== "completed" && status !== "arrived") {
+    return false;
+  }
+
+  // בדוק שעבר יום לפחות מהביקור
+  const visitDate = new Date(`${reservation.date}T${reservation.time}:00`);
+  const oneDayAgo = now() - (24 * 60 * 60 * 1000);
+  if (visitDate.getTime() > oneDayAgo) {
+    return false;
+  }
+
+  // בדוק שלא עברו 30 יום
+  const thirtyDaysAgo = now() - (30 * 24 * 60 * 60 * 1000);
+  if (visitDate.getTime() < thirtyDaysAgo) {
+    return false;
+  }
+
+  // בדוק שעוד לא כתב ביקורת
+  return !(await hasUserReviewedReservation(reservationId));
+}
+
+/** חישוב ממוצע דירוגים */
+export async function getAverageRating(restaurantId: string): Promise<{ avg: number; count: number }> {
+  const reviews = await listReviewsByRestaurant(restaurantId, 1000);
+  if (!reviews.length) return { avg: 0, count: 0 };
+
+  const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
+  const avg = sum / reviews.length;
+
+  return { avg: Math.round(avg * 10) / 10, count: reviews.length };
+}
+
+/** עדכון דירוג מסעדה (denormalized למהירות) */
+export async function updateRestaurantRating(restaurantId: string): Promise<void> {
+  const { avg, count } = await getAverageRating(restaurantId);
+  const restaurant = await getRestaurant(restaurantId);
+  if (restaurant) {
+    await updateRestaurant(restaurantId, {
+      averageRating: avg,
+      reviewCount: count,
+    });
+  }
+}
+
+/** הוספת תגובת בעלים */
+export async function addOwnerReply(reviewId: string, reply: string): Promise<Review | null> {
+  const review = await getReview(reviewId);
+  if (!review) return null;
+
+  const updated: Review = {
+    ...review,
+    ownerReply: reply.trim(),
+    ownerRepliedAt: now(),
+  };
+
+  await kv.set(toKey("review", reviewId), updated);
+  return updated;
+}
+
+/* ─────────────────────── Kitchen Categories ─────────────────────── */
+
+/** רשימת מסעדות לפי קטגוריה */
+export async function listRestaurantsByCategory(category: KitchenCategory, onlyApproved = true): Promise<Restaurant[]> {
+  const restaurants: Restaurant[] = [];
+  const seen = new Set<string>();
+
+  for await (const row of kv.list({ prefix: toKey("restaurant_by_category", category) })) {
+    const id = row.key[row.key.length - 1] as string;
+    if (seen.has(id)) continue;
+    seen.add(id);
+
+    const r = await getRestaurant(id);
+    if (r && (!onlyApproved || r.approved)) {
+      restaurants.push(r);
+    }
+  }
+
+  restaurants.sort((a, b) => (b.averageRating ?? 0) - (a.averageRating ?? 0) || b.createdAt - a.createdAt);
+  return restaurants;
+}
+
+/** קטגוריות פופולריות (מספר מסעדות לכל קטגוריה) */
+export async function getPopularCategories(): Promise<Array<{ category: KitchenCategory; count: number }>> {
+  const counts = new Map<KitchenCategory, Set<string>>();
+
+  // Scan all category indices
+  for await (const row of kv.list({ prefix: toKey("restaurant_by_category") })) {
+    const cat = row.key[1] as KitchenCategory;
+    const rid = row.key[2] as string;
+
+    if (!counts.has(cat)) {
+      counts.set(cat, new Set());
+    }
+    counts.get(cat)!.add(rid);
+  }
+
+  const result = Array.from(counts.entries()).map(([category, rids]) => ({
+    category,
+    count: rids.size,
+  }));
+
+  result.sort((a, b) => b.count - a.count);
+  return result;
+}
+
+/** עדכון קטגוריות של מסעדה */
+export async function updateRestaurantCategories(id: string, categories: KitchenCategory[]): Promise<Restaurant | null> {
+  const validCategories = categories.filter(c =>
+    ["italian", "asian", "japanese", "chinese", "indian", "mediterranean",
+     "american", "mexican", "french", "steakhouse", "seafood", "vegetarian",
+     "vegan", "cafe", "bakery", "fast_food", "other"].includes(c)
+  );
+
+  if (!validCategories.length) {
+    validCategories.push("other");
+  }
+
+  return await updateRestaurant(id, { kitchenCategories: validCategories });
+}
+
+/* ─────────────────────── Review Token Tracking ─────────────────────── */
+
+/** Mark a review token as used (prevents reuse) */
+export async function markReviewTokenUsed(reservationId: string): Promise<void> {
+  await kv.set(toKey("review_token_used", reservationId), {
+    usedAt: now(),
+  });
+}
+
+/** Check if a review token has already been used */
+export async function isReviewTokenUsed(reservationId: string): Promise<boolean> {
+  const entry = await kv.get(toKey("review_token_used", reservationId));
+  return entry.value !== null;
 }

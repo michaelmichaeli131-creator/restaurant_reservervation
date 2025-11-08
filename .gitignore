@@ -1,0 +1,33 @@
+# Environment variables (secrets!)
+.env
+
+# Deno KV database files
+*.db
+kv_data/
+
+# IDE - IntelliJ IDEA
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/usage.statistics.xml
+.idea/shelf/
+.idea/httpRequests/
+.idea/dataSources/
+.idea/dataSources.local.xml
+.idea/mavenHomeManager.xml
+
+# Crash dumps
+*.stackdump
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Node modules (client)
+client/node_modules/
+
+# Vite build output
+public/dist/

@@ -1,6 +1,8 @@
 {
   "tasks": {
-    "dev": "deno run --allow-net --allow-env --allow-read --unstable-kv --env-file=.env server.ts",
+    "dev": "deno run --allow-net --allow-env --allow-read --allow-sys --unstable-kv --env-file=.env server.ts",
+    "dev:client": "cd client && npm run dev",
+    "build:client": "cd client && npm run build",
     "fmt": "deno fmt",
     "lint": "deno lint"
   },
@@ -8,6 +10,7 @@
     "@oak/oak": "jsr:@oak/oak@^17",
     "@eta/eta": "npm:eta@^3",
     "@deno/kv-oauth": "jsr:@deno/kv-oauth@^0.11",
-    "bcrypt": "https://deno.land/x/bcrypt@v0.4.1/mod.ts"
+    "bcrypt": "https://deno.land/x/bcrypt@v0.4.1/mod.ts",
+    "@aws-sdk/client-s3": "npm:@aws-sdk/client-s3@^3"
   }
 }

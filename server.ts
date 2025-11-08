@@ -40,11 +40,19 @@ import { requestLogger } from "./lib/log_mw.ts";
 import { diagRouter } from "./routes/diag.ts";
 import openingRouter from "./routes/opening.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
+
+// 🔧 שינוי קטן וחשוב: טעינה בטוחה של ה-i18n (תומך גם default וגם named)
 import i18nModule from "./middleware/i18n.ts";
+
 import langRouter from "./routes/lang.ts";
+import reviewsRouter from "./routes/reviews.ts";
+import reviewPortalRouter from "./routes/review_portal.ts";
 
 // ✅ חדש: ראוטר ניהול תפוסה יומי (Calendar/Timeline)
 import { ownerCalendarRouter } from "./routes/owner_calendar.ts";
+
+// ✅ Floor plan management
+import { ownerFloorRouter } from "./routes/owner_floor.ts";
 
 // -------------------- ENV --------------------
 const PORT = Number(Deno.env.get("PORT") ?? "8000");
@@ -102,10 +110,10 @@ app.use(async (ctx, next) => {
     const reqId = (ctx.state as any).reqId;
     if (isHttpError(err)) {
       console.error(
-        `[ERR ${reqId}] ${err.status} ${err.message}\n${err.stack ?? ""}`,
+        `[ERR ${reqId}] ${err.status} ${err.message}\n${(err as any).stack ?? ""}`,
       );
       ctx.response.status = err.status;
-      ctx.response.body = err.expose ? err.message : "Internal Server Error";
+      ctx.response.body = (err as any).expose ? (err as any).message : "Internal Server Error";
     } else {
       console.error(`[ERR ${reqId}] UNCAUGHT:`, (err as any)?.stack ?? err);
       ctx.response.status = 500;
@@ -408,6 +416,18 @@ app.use(diagRouter.allowedMethods());
 app.use(restaurantsRouter.routes());
 app.use(restaurantsRouter.allowedMethods());
 
+// Reviews API
+app.use(reviewsRouter.routes());
+app.use(reviewsRouter.allowedMethods());
+
+// Review Portal (token-based review submission)
+app.use(reviewPortalRouter.routes());
+app.use(reviewPortalRouter.allowedMethods());
+
+// Floor plan management
+app.use(ownerFloorRouter.routes());
+app.use(ownerFloorRouter.allowedMethods());
+
 // ראוטר שורש נוסף
 app.use(rootRouter.routes());
 app.use(rootRouter.allowedMethods());
@@ -426,7 +446,12 @@ app.use((ctx) => {
 
 // -------------------- GRACEFUL SHUTDOWN --------------------
 const controller = new AbortController();
-for (const s of ["SIGINT", "SIGTERM"] as const) {
+// Windows only supports SIGINT and SIGBREAK
+const signals = Deno.build.os === "windows"
+  ? ["SIGINT", "SIGBREAK"] as const
+  : ["SIGINT", "SIGTERM"] as const;
+
+for (const s of signals) {
   Deno.addSignalListener(s, () => {
     console.log(`\n[SHUTDOWN] Received ${s}, closing...`);
     controller.abort();

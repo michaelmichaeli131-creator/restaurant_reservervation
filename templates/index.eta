@@ -3,7 +3,7 @@
 <section class="hero">
   <div class="hero-bg"></div>
   <div class="hero-inner">
-    <h1 class="hero-title"><%= (it.t && it.t('home.hero.title')) || 'Reserve a Table at a Restaurant' %></h1>
+    <h1 class="hero-title"><%= (it.t && it.t('home.hero.title')) || 'Reserve a Table at a Restaurant!' %></h1>
     <p class="hero-sub"><%= (it.t && it.t('home.hero.sub')) || 'Book a table easily and quickly online' %></p>
 
     <div class="ac-wrap" style="position:relative; width:100%; max-width:980px">
@@ -29,12 +29,24 @@
 
       <div id="ac-list" class="ac-list" role="listbox" aria-label="<%= (it.t && it.t('home.search.suggestions_aria')) || 'הצעות חיפוש' %>" hidden></div>
     </div>
+
+    <!-- Category Filter Chips -->
+    <div class="category-chips">
+      <a href="/" class="chip <%= !it.category ? 'active' : '' %>">🍽️ הכל</a>
+      <a href="/?category=italian" class="chip <%= it.category === 'italian' ? 'active' : '' %>">🍝 Italian</a>
+      <a href="/?category=asian" class="chip <%= it.category === 'asian' ? 'active' : '' %>">🍜 Asian</a>
+      <a href="/?category=japanese" class="chip <%= it.category === 'japanese' ? 'active' : '' %>">🍣 Japanese</a>
+      <a href="/?category=steakhouse" class="chip <%= it.category === 'steakhouse' ? 'active' : '' %>">🥩 Steakhouse</a>
+      <a href="/?category=mediterranean" class="chip <%= it.category === 'mediterranean' ? 'active' : '' %>">🫒 Mediterranean</a>
+      <a href="/?category=cafe" class="chip <%= it.category === 'cafe' ? 'active' : '' %>">☕ Cafe</a>
+      <a href="/?category=vegetarian" class="chip <%= it.category === 'vegetarian' ? 'active' : '' %>">🥗 Vegetarian</a>
+    </div>
   </div>
 </section>
 
 <%
   var _q = (it.q || "");
-  var showResults = (it.search === "1") || (_q.trim().length > 0);
+  var showResults = (it.search === "1") || (_q.trim().length > 0) || (it.category && it.category.trim().length > 0);
 %>
 
 <!-- ===== תוצאות חיפוש ===== -->
@@ -68,6 +80,19 @@
               <div class="card-body">
                 <h3 class="card-title"><%= r.name %></h3>
                 <p class="card-meta"><%= r.city %> · <%= r.address %></p>
+                <% if (r.kitchenCategories && r.kitchenCategories.length) { %>
+                  <div class="category-tags">
+                    <% r.kitchenCategories.slice(0, 3).forEach(function(cat){ %>
+                      <span class="cat-tag"><%= cat %></span>
+                    <% }); %>
+                  </div>
+                <% } %>
+                <% if (r.averageRating && r.reviewCount) { %>
+                  <div class="rating-badge">
+                    <span class="stars">★</span>
+                    <span><%= r.averageRating.toFixed(1) %> (<%= r.reviewCount %>)</span>
+                  </div>
+                <% } %>
                 <% if (!r.approved) { %>
                   <span class="badge warn" title="<%= (it.t && it.t('home.results.badge_pending_title')) || 'טרם אושרה' %>" style="display:inline-block;margin-top:6px;padding:4px 8px;border-radius:999px;background:#fff5f5;color:#c53030;border:1px solid #fed7d7;font-size:.85rem;">
                     <%= (it.t && it.t('home.results.badge_pending')) || 'ממתינה לאישור' %>
@@ -176,6 +201,42 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 
 <style>
+/* ===== Category Filter Chips ===== */
+.category-chips{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 16px;
+  padding: 0 16px;
+}
+.chip{
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--bd, #23293a);
+  background: var(--panel-2, #171b29);
+  color: var(--ink, #e6e8ef);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.chip:hover{
+  background: var(--panel, #121622);
+  border-color: var(--brand, #3b82f6);
+  transform: translateY(-1px);
+}
+.chip.active{
+  background: var(--brand, #3b82f6);
+  border-color: var(--brand, #3b82f6);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
 /* ===== Horizontal Carousel ===== */
 .hs-wrap{
   --gap: 12px;
@@ -227,6 +288,36 @@ document.addEventListener('DOMContentLoaded', function () {
 /* מובייל: כרטיס אחד */
 @media (max-width: 640px){
   .hs-item{ flex: 0 0 100%; }
+}
+
+/* ===== Category Tags & Rating Badge ===== */
+.category-tags{
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.cat-tag{
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--brand, #3b82f6) 15%, transparent);
+  color: var(--brand, #3b82f6);
+  border: 1px solid color-mix(in srgb, var(--brand, #3b82f6) 25%, transparent);
+  text-transform: capitalize;
+  font-weight: 500;
+}
+.rating-badge{
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--ink-muted, #9aa3b2);
+}
+.rating-badge .stars{
+  color: #fbbf24;
+  font-size: 14px;
 }
 </style>
 
