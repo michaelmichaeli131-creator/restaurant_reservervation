@@ -7,7 +7,7 @@ import {
   createEmailVerifyToken, consumeEmailVerifyToken
 } from "../database.ts";
 import { render } from "../lib/view.ts";
-import { sanitizeEmailMinimal, isValidEmailStrict, normalizePlain } from "./restaurants/_utils/rtl.ts";
+import { sanitizeEmailMinimal, isValidEmailStrict, normalizePlain } from "./routes/restaurants/_utils/rtl.ts";
 import { debugLog } from "../lib/debug.ts";
 import { sendVerifyEmail, sendResetEmail } from "../lib/mail.ts";
 import { hashPassword, verifyPassword } from "../lib/auth.ts";
