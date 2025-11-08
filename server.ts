@@ -32,7 +32,7 @@ import { adminRouter } from "./routes/admin.ts";
 import rootRouter from "./routes/root.ts";
 import ownerCapacityRouter from "./routes/owner_capacity.ts";
 import { listRestaurants, getUserById } from "./database.ts";
-import { sendVerifyEmail } from "./lib/mail_wrapper.ts";
+import { sendVerifyEmail } from "./lib/mail_wrappers.ts";
 import ownerManageRouter from "./routes/owner_manage.ts";
 import { ownerHoursRouter } from "./routes/owner_hours.ts";
 import ownerPhotosRouter from "./routes/owner_photos.ts";
