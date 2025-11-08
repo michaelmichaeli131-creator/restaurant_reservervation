@@ -2,6 +2,7 @@
 
 <% /* tt: תרגום עם fallback אמיתי גם כש-it.t מחזיר "(key)" */ %>
 <% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
+<% const _lang = (it.lang || 'he'); %>
 
 <main class="sb-auth container" aria-labelledby="forgot-title">
   <section class="card auth-card">
@@ -16,12 +17,15 @@
       <p class="badge warn" role="alert">✗ <%= it.error %></p>
     <% } %>
 
-    <% if (it.ok) { %>
+    <% if (it.ok || it.sent) { %>
       <p class="badge ok" role="status">✓ <%= tt('auth.forgot.alerts.ok','הודעה נשלחה — בדוק/י את תיבת הדוא״ל') %></p>
     <% } %>
 
     <form action="/auth/forgot" method="post" enctype="application/x-www-form-urlencoded"
           id="forgot-form" class="form" novalidate>
+      <!-- נשמר את השפה בבקשת ה-POST כדי שהמייל יישלח ב-en/ka כשצריך -->
+      <input type="hidden" name="lang" value="<%= _lang %>"/>
+
       <div class="form-row">
         <label for="email"><%= tt('auth.forgot.form.emailLabel','אימייל לחשבון') %></label>
         <input id="email" name="email" type="email" dir="ltr" inputmode="email" required
@@ -32,7 +36,9 @@
 
       <div class="form-actions">
         <button type="submit" class="btn primary"><%= tt('auth.forgot.actions.send','שלחו לי קישור') %></button>
-        <a class="btn ghost" href="/auth/login"><%= tt('auth.forgot.actions.back','חזרה להתחברות') %></a>
+        <a class="btn ghost" href="/auth/login?lang=<%= encodeURIComponent(_lang) %>">
+          <%= tt('auth.forgot.actions.back','חזרה להתחברות') %>
+        </a>
       </div>
     </form>
   </section>
