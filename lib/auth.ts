@@ -1,299 +1,191 @@
-// /src/routes/auth.ts
-// Auth routes (login/register/verify/forgot/reset) עם תמיכה מלאה ב־i18n למיילים.
-// שינוי מרכזי: העברת lang לכל שליחת מייל (sendVerifyEmail / sendResetEmail).
+// /src/lib/mail.ts
+// ------------------------------------------------------------------
+// sendVerifyEmail & sendResetEmail עם תמיכה בשפות: he / en / ka
+// - מנסה להשתמש ב-mail_wrapper.ts או mail_wrappers.ts (sendEmail)
+// - אחרת: fallback ללוג בלבד כדי למנוע קריסה בדיפלוי
+// - בניית Subject/Body לפי lang
+// ------------------------------------------------------------------
 
-import { Router, Status } from "jsr:@oak/oak";
-import { render } from "../lib/view.ts";
-import {
-  createUser,
-  findUserByEmail,
-  getUserById,
-  setEmailVerified,
-  createVerifyToken,
-  useVerifyToken,
-  createResetToken,
-  useResetToken,
-  updateUserPassword,
-} from "../database.ts";
+type Lang = "he" | "en" | "ka";
 
-import { hashPassword, verifyPassword } from "../lib/auth.ts";
+// ===== Transport discovery =====
+type SendEmailFn = (opts: {
+  to: string;
+  subject: string;
+  html?: string;
+  text?: string;
+}) => Promise<unknown>;
 
-// ⚠️ חשוב: שומר על אותו מודול מיילים אצלך (mail.ts)
-import { sendVerifyEmail, sendResetEmail } from "../lib/mail.ts";
+let sendEmail: SendEmailFn | null = null;
 
-// ========= helpers =========
-function getLang(ctx: any): string {
-  // מיישר קו עם ה-middleware: state.lang ← קודם, אח"כ URL, אח"כ cookie/Accept-Language
-  const st = ctx.state?.lang;
-  if (st) return st;
-  const q = ctx.request.url.searchParams.get("lang");
-  if (q) return q;
-  const c = ctx.cookies?.get?.("lang");
-  if (c) return c;
-  const al = ctx.request.headers.get("accept-language") || "";
-  if (/^en/i.test(al)) return "en";
-  if (/^ka/i.test(al)) return "ka";
-  if (/^he/i.test(al)) return "he";
-  return "he";
-}
+async function discoverTransport() {
+  if (sendEmail) return sendEmail;
+  try {
+    // נסה mail_wrapper.ts
+    // deno-lint-ignore no-var
+    const m1 = await import("./mail_wrapper.ts").catch(() => null as any);
+    if (m1?.sendEmail) {
+      sendEmail = m1.sendEmail as SendEmailFn;
+      return sendEmail;
+    }
+  } catch { /* ignore */ }
 
-function setLangCookieIfPresent(ctx: any, lang: string) {
-  // אם יש ?lang בבקשה — נשמור cookie (כמו בשאר הראוטרים אצלך)
-  if (ctx.request.url.searchParams.has("lang")) {
-    ctx.cookies?.set?.("lang", lang, {
-      httpOnly: false,
-      sameSite: "Lax",
-      maxAge: 60 * 60 * 24 * 365,
+  try {
+    // לפעמים נקרא mail_wrappers.ts אצלך
+    const m2 = await import("./mail_wrappers.ts").catch(() => null as any);
+    if (m2?.sendEmail) {
+      sendEmail = m2.sendEmail as SendEmailFn;
+      return sendEmail;
+    }
+  } catch { /* ignore */ }
+
+  // Fallback: לוג בלבד (לא נכשלים)
+  sendEmail = async (opts) => {
+    console.log("[MAIL:DRY-RUN]", {
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html?.slice(0, 2000) ?? "",
+      text: opts.text?.slice(0, 2000) ?? "",
     });
+    return { ok: true, dryRun: true };
+  };
+  return sendEmail;
+}
+
+function baseUrl(): string {
+  const app = Deno.env.get("APP_BASE_URL") || Deno.env.get("BASE_URL");
+  if (app) return app.replace(/\/+$/, "");
+  return ""; // ייקח מה־client בצד המקבל אם צריך
+}
+
+function tVerify(lang: Lang) {
+  switch (lang) {
+    case "en":
+      return {
+        subject: "Verify your email · SpotBook",
+        title: "Confirm your email",
+        cta: "Verify email",
+        note: "If you didn't request this, you can ignore this email.",
+      };
+    case "ka":
+      return {
+        subject: "დაადასტურეთ თქვენი ელფოსტა · SpotBook",
+        title: "დაადასტურეთ ელფოსტა",
+        cta: "ელფოსტის დადასტურება",
+        note: "თუ ეს მოთხოვნა თქვენგან არ იყო, უბრალოდ დააიგნორეთ ამ წერილი.",
+      };
+    default:
+      return {
+        subject: "אימות כתובת מייל · SpotBook",
+        title: "אשר/י את כתובת המייל שלך",
+        cta: "אימות מייל",
+        note: "אם לא ביקשת זאת, ניתן להתעלם מהודעה זו.",
+      };
   }
 }
 
-const router = new Router();
-
-// ========= Login =========
-router.get("/auth/login", async (ctx) => {
-  const lang = getLang(ctx);
-  const t = ctx.state?.t ?? ((_: string, fb?: string) => fb ?? "");
-  await render(ctx, "login", {
-    page: "login",
-    lang,
-    dir: lang === "he" ? "rtl" : "ltr",
-    t,
-    title: t("auth.login.title", "התחברות"),
-  });
-});
-
-router.post("/auth/login", async (ctx) => {
-  const lang = getLang(ctx);
-  setLangCookieIfPresent(ctx, lang);
-
-  const body = await ctx.request.body({ type: "form" }).value;
-  const email = String(body.get("email") || "").trim().toLowerCase();
-  const password = String(body.get("password") || "");
-
-  const user = await findUserByEmail(email);
-  if (!user || !user.passwordHash) {
-    ctx.response.status = Status.Unauthorized;
-    ctx.response.body = "Invalid credentials";
-    return;
+function tReset(lang: Lang) {
+  switch (lang) {
+    case "en":
+      return {
+        subject: "Reset your password · SpotBook",
+        title: "Password reset",
+        cta: "Set a new password",
+        note: "If you didn't request this, you can ignore this email.",
+      };
+    case "ka":
+      return {
+        subject: "პაროლის აღდგენა · SpotBook",
+        title: "პაროლის აღდგენა",
+        cta: "ახალი პაროლის დაყენება",
+        note: "თუ ეს მოთხოვნა თქვენგან არ იყო, უბრალოდ დააიგნორეთ ამ წერილი.",
+      };
+    default:
+      return {
+        subject: "איפוס סיסמה · SpotBook",
+        title: "איפוס סיסמה",
+        cta: "הגדרת סיסמה חדשה",
+        note: "אם לא ביקשת זאת, ניתן להתעלם מהודעה זו.",
+      };
   }
-  const ok = await verifyPassword(password, user.passwordHash);
-  if (!ok) {
-    ctx.response.status = Status.Unauthorized;
-    ctx.response.body = "Invalid credentials";
-    return;
-  }
+}
 
-  // session
-  try {
-    const session = (ctx.state as any).session;
-    if (session) {
-      await session.set("userId", user.id);
-    }
-  } catch { /* ignore */ }
+function htmlShell(title: string, inner: string) {
+  // קונטיינר פשוט; אפשר להחליף ל־template ה־ETA שלך בהמשך
+  return `<!doctype html>
+<html dir="auto"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escapeHtml(title)}</title></head>
+<body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.5;color:#111;background:#fafafa;padding:24px">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #eee;border-radius:12px;overflow:hidden">
+    <div style="padding:20px 24px">
+      ${inner}
+    </div>
+  </div>
+  <div style="max-width:560px;margin:12px auto 0;text-align:center;color:#666;font-size:12px">
+    SpotBook · This message was sent automatically.
+  </div>
+</body></html>`;
+}
 
-  const redirect = String(body.get("redirect") || "/");
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", redirect);
-});
+function escapeHtml(s: string) {
+  return String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
 
-// ========= Register =========
-router.get("/auth/register", async (ctx) => {
-  const lang = getLang(ctx);
-  const t = ctx.state?.t ?? ((_: string, fb?: string) => fb ?? "");
-  await render(ctx, "register", {
-    page: "register",
-    lang,
-    dir: lang === "he" ? "rtl" : "ltr",
-    t,
-    title: t("auth.register.title", "הרשמה"),
-  });
-});
+function makeBtn(href: string, label: string) {
+  const safeHref = escapeHtml(href);
+  const safeLabel = escapeHtml(label);
+  return `<a href="${safeHref}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:10px 16px;border-radius:8px">${safeLabel}</a>`;
+}
 
-router.post("/auth/register", async (ctx) => {
-  const lang = getLang(ctx);
-  setLangCookieIfPresent(ctx, lang);
+// --------------------------- Public API -----------------------------
 
-  const body = await ctx.request.body({ type: "form" }).value;
-  const email = String(body.get("email") || "").trim().toLowerCase();
-  const firstName = String(body.get("firstName") || "").trim();
-  const lastName = String(body.get("lastName") || "").trim();
-  const password = String(body.get("password") || "");
+/** אימות מייל בהרשמה — כולל lang */
+export async function sendVerifyEmail(to: string, token: string, lang: string = "he") {
+  const L = (["he", "en", "ka"] as const).includes(lang as any) ? (lang as Lang) : "he";
+  const dict = tVerify(L);
 
-  const existing = await findUserByEmail(email);
-  if (existing) {
-    ctx.response.status = Status.Conflict;
-    ctx.response.body = "email_exists";
-    return;
-  }
+  const origin = baseUrl();
+  const link = origin
+    ? `${origin}/auth/verify?token=${encodeURIComponent(token)}&lang=${encodeURIComponent(L)}`
+    : `/auth/verify?token=${encodeURIComponent(token)}&lang=${encodeURIComponent(L)}`;
 
-  const passwordHash = password ? await hashPassword(password) : undefined;
+  const html = htmlShell(dict.title, `
+    <h1 style="margin:0 0 12px">${escapeHtml(dict.title)}</h1>
+    <p>${escapeHtml("Click the button to finish verifying your email address.")}</p>
+    <p>${makeBtn(link, dict.cta)}</p>
+    <p style="color:#666;font-size:12px;margin-top:16px">${escapeHtml(dict.note)}</p>
+  `);
 
-  const user = await createUser({
-    email,
-    firstName,
-    lastName,
-    passwordHash,
-    role: "owner",     // שומר כפי שהיה אצלך כברירת־מחדל
-    provider: "local",
-  });
+  const text = `${dict.title}\n\n${link}\n\n${dict.note}\n`;
 
-  // שליחת מייל אימות *בשפת המשתמש*
-  try {
-    const token = await createVerifyToken(user.id, user.email);
-    await sendVerifyEmail(user.email, token, lang); // ← העברת lang
-  } catch (e) {
-    console.warn("[auth.register] sendVerifyEmail failed:", e);
-  }
+  const tx = await discoverTransport();
+  await tx({ to, subject: dict.subject, html, text });
+}
 
-  // התחברות אוטומטית (אופציונלי – משאיר כפי שנהגת)
-  try {
-    const session = (ctx.state as any).session;
-    if (session) await session.set("userId", user.id);
-  } catch { /* ignore */ }
+/** איפוס סיסמה — כולל lang */
+export async function sendResetEmail(to: string, token: string, lang: string = "he") {
+  const L = (["he", "en", "ka"] as const).includes(lang as any) ? (lang as Lang) : "he";
+  const dict = tReset(L);
 
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", "/");
-});
+  const origin = baseUrl();
+  const link = origin
+    ? `${origin}/auth/reset?token=${encodeURIComponent(token)}&lang=${encodeURIComponent(L)}`
+    : `/auth/reset?token=${encodeURIComponent(token)}&lang=${encodeURIComponent(L)}`;
 
-// ========= Email Verify =========
-router.get("/auth/verify", async (ctx) => {
-  const lang = getLang(ctx);
-  setLangCookieIfPresent(ctx, lang);
+  const html = htmlShell(dict.title, `
+    <h1 style="margin:0 0 12px">${escapeHtml(dict.title)}</h1>
+    <p>${escapeHtml("Click the button below to set a new password.")}</p>
+    <p>${makeBtn(link, dict.cta)}</p>
+    <p style="color:#666;font-size:12px;margin-top:16px">${escapeHtml(dict.note)}</p>
+  `);
 
-  const token = ctx.request.url.searchParams.get("token") || "";
-  if (!token) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "missing token";
-    return;
-  }
-  const used = await useVerifyToken(token);
-  if (!used) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "invalid_or_used_token";
-    return;
-  }
+  const text = `${dict.title}\n\n${link}\n\n${dict.note}\n`;
 
-  const user = await getUserById(used.userId);
-  if (!user) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "user_not_found";
-    return;
-  }
-
-  await setEmailVerified(user.id);
-
-  // אפשר להכניס התחברות אם לא מחוברים
-  try {
-    const session = (ctx.state as any).session;
-    if (session) await session.set("userId", user.id);
-  } catch { /* ignore */ }
-
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", "/");
-});
-
-// ========= Forgot password =========
-router.get("/auth/forgot", async (ctx) => {
-  const lang = getLang(ctx);
-  const t = ctx.state?.t ?? ((_: string, fb?: string) => fb ?? "");
-  await render(ctx, "forgot_password", {
-    page: "forgot",
-    lang,
-    dir: lang === "he" ? "rtl" : "ltr",
-    t,
-    title: t("auth.forgot.title", "שחזור סיסמה"),
-  });
-});
-
-router.post("/auth/forgot", async (ctx) => {
-  const lang = getLang(ctx);
-  setLangCookieIfPresent(ctx, lang);
-
-  const body = await ctx.request.body({ type: "form" }).value;
-  const email = String(body.get("email") || "").trim().toLowerCase();
-
-  const user = await findUserByEmail(email);
-  if (user) {
-    try {
-      const token = await createResetToken(user.id);
-      // השינוי הקריטי: מעבירים lang כדי שהמייל יצא בשפה הנכונה
-      await sendResetEmail(email, token, lang);
-    } catch (e) {
-      console.warn("[auth.forgot] sendResetEmail failed:", e);
-      // לא חושפים שגיאת מייל למשתמש קצה
-    }
-  }
-
-  // לא חושפים אם המשתמש קיים או לא
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", "/auth/forgot?sent=1");
-});
-
-// ========= Reset password (via token) =========
-router.get("/auth/reset", async (ctx) => {
-  const lang = getLang(ctx);
-  const t = ctx.state?.t ?? ((_: string, fb?: string) => fb ?? "");
-  const token = ctx.request.url.searchParams.get("token") || "";
-  await render(ctx, "reset_password", {
-    page: "reset",
-    lang,
-    dir: lang === "he" ? "rtl" : "ltr",
-    t,
-    title: t("auth.reset.title", "איפוס סיסמה"),
-    token,
-  });
-});
-
-router.post("/auth/reset", async (ctx) => {
-  const lang = getLang(ctx);
-  setLangCookieIfPresent(ctx, lang);
-
-  const body = await ctx.request.body({ type: "form" }).value;
-  const token = String(body.get("token") || "");
-  const password = String(body.get("password") || "");
-
-  if (!token || !password) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "missing token or password";
-    return;
-  }
-
-  const used = await useResetToken(token);
-  if (!used) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "invalid_or_expired_token";
-    return;
-  }
-
-  const user = await getUserById(used.userId);
-  if (!user) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "user_not_found";
-    return;
-  }
-
-  const passwordHash = await hashPassword(password);
-  await updateUserPassword(user.id, passwordHash);
-
-  // אופציונלי: לחבר את המשתמש מיד אחרי האיפוס
-  try {
-    const session = (ctx.state as any).session;
-    if (session) await session.set("userId", user.id);
-  } catch { /* ignore */ }
-
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", "/?reset=ok");
-});
-
-// ========= Logout =========
-router.post("/auth/logout", async (ctx) => {
-  try {
-    const session = (ctx.state as any).session;
-    if (session) await session.set("userId", null);
-  } catch { /* ignore */ }
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", "/");
-});
-
-export const authRouter = router;
+  const tx = await discoverTransport();
+  await tx({ to, subject: dict.subject, html, text });
+}
