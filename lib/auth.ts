@@ -18,7 +18,7 @@ import {
 
 import { hashPassword, verifyPassword } from "../lib/auth.ts";
 
-// ⚠️ חשוב: שומר על אותו מודול מיילים אצלך (mail.ts) – אין שינוי בשם/מיקום
+// ⚠️ חשוב: שומר על אותו מודול מיילים אצלך (mail.ts)
 import { sendVerifyEmail, sendResetEmail } from "../lib/mail.ts";
 
 // ========= helpers =========
@@ -138,7 +138,7 @@ router.post("/auth/register", async (ctx) => {
     provider: "local",
   });
 
-  // שליחת מייל אימות *בשפת המשתמש* (השינוי החשוב)
+  // שליחת מייל אימות *בשפת המשתמש*
   try {
     const token = await createVerifyToken(user.id, user.email);
     await sendVerifyEmail(user.email, token, lang); // ← העברת lang
