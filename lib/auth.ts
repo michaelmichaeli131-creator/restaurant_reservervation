@@ -19,8 +19,10 @@ import { sendVerifyEmail, sendResetEmail } from "../lib/mail.ts";
 
 const router = new Router();
 
-/* ---------- הוספה: עוזרי שפה, זהים ל־reservation.controller ---------- */
+/* ---------- עוזרי שפה (כמו ב-reservation.controller) ---------- */
 type Lang = "he" | "en" | "ka";
+function isValidLang(x: unknown): x is Lang { return x === "he" || x === "en" || x === "ka"; } // ✅ NEW
+
 function getLang(ctx: any): Lang {
   const q = ctx.request.url.searchParams.get("lang");
   if (q && /^(he|en|ka)\b/i.test(q)) return q.toLowerCase() as Lang;
@@ -53,8 +55,14 @@ router.post("/auth/register", async (ctx) => {
   const lastName = String(form.get("lastName") ?? "").trim();
   const password = String(form.get("password") ?? "");
 
-  const lang = getLang(ctx);
-  rememberLangIfQuery(ctx, lang);
+  // ✅ NEW: אם הטופס כולל hidden name="lang" — הוא מנצח (כדי לעבוד גם בלי ?lang=)
+  const formLangRaw = String(form.get("lang") ?? "").toLowerCase();
+  const lang: Lang = isValidLang(formLangRaw) ? formLangRaw as Lang : getLang(ctx);
+  if (isValidLang(formLangRaw)) {
+    ctx.cookies?.set?.("lang", lang, { httpOnly: false, sameSite: "Lax", maxAge: 60 * 60 * 24 * 365 }); // זוכר העדפה מהטופס
+  } else {
+    rememberLangIfQuery(ctx, lang);
+  }
 
   if (!email || !password) {
     ctx.response.status = Status.BadRequest;
@@ -155,8 +163,14 @@ router.post("/auth/forgot", async (ctx) => {
   const form = await ctx.request.body({ type: "form" }).value;
   const email = String(form.get("email") ?? "").trim();
 
-  const lang = getLang(ctx);
-  rememberLangIfQuery(ctx, lang);
+  // ✅ NEW: מכבד גם lang שמגיע כ-hidden בטופס
+  const formLangRaw = String(form.get("lang") ?? "").toLowerCase();
+  const lang: Lang = isValidLang(formLangRaw) ? formLangRaw as Lang : getLang(ctx);
+  if (isValidLang(formLangRaw)) {
+    ctx.cookies?.set?.("lang", lang, { httpOnly: false, sameSite: "Lax", maxAge: 60 * 60 * 24 * 365 });
+  } else {
+    rememberLangIfQuery(ctx, lang);
+  }
 
   if (!email) {
     ctx.response.status = Status.BadRequest;
@@ -167,7 +181,6 @@ router.post("/auth/forgot", async (ctx) => {
   // לא מדליפים אם יש/אין משתמש – מתנהגים כאילו נשלח
   if (user) {
     const token = await createResetToken(user.id);
-    // ← כאן היה חסר lang; עכשיו מעבירים
     await sendResetEmail(email, token, lang).catch((e) =>
       console.warn("[mail] sendResetEmail failed:", e)
     );
