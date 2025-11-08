@@ -1,34 +1,43 @@
-// src/lib/mail_wrappers.ts
-// עטיפות נוחות לשימוש: שולחות מייל אימות/שחזור עם lang מה-ctx (או cookie / accept-language)
-// כך לא צריך לשנות את לוגיקת הראוטרים, רק את הקריאה לשליחת המייל.
+// /src/lib/mail_wrappers.ts
+// שכבת wrapper דקה מעל mail.ts:
+// - אם מועבר ctx: נחלץ ממנו שפה (he/en/ka)
+// - אם מועברת מחרוזת שפה: נשתמש בה ישירות
+// - אם לא הועבר כלום: ברירת מחדל "he"
+// בנוסף: מייצא בדיוק את אותם שמות שהקוד שלך מצפה להם (sendVerifyEmail, sendResetEmail),
+// וגם re-export לפונקציות האחרות כדי שתוכל לייבא אותן מהקובץ הזה אם תרצה.
 
-import { sendVerifyEmail, sendResetEmail } from "./mail.ts";
+import {
+  sendVerifyEmail as _sendVerifyEmail,
+  sendResetEmail as _sendResetEmail,
+  sendReservationEmail,
+  notifyOwnerEmail,
+  sendReminderEmail,
+} from "./mail.ts";
 
-/* ====== זיהוי שפה עקבי ====== */
-function getLangFromCtx(ctx: any): "he" | "en" | "ka" {
-  // 1) state.lang מה-middleware/i18n.ts שלך
-  const st = ctx?.state;
-  if (st && typeof st.lang === "string") {
-    const v = st.lang.toLowerCase();
-    if (v === "he" || v === "en" || v === "ka") return v;
-  }
+type MaybeCtx = any;
+type Lang = "he" | "en" | "ka";
 
-  // 2) שאילתא
+function normLang(l?: string | null): Lang {
+  const v = String(l || "").toLowerCase();
+  return v === "en" || v === "ka" ? (v as Lang) : "he";
+}
+
+function langFromCtx(ctx?: MaybeCtx): Lang {
+  // 1) ctx.state.lang (אם יש i18n middleware)
+  const s1 = ctx?.state?.lang;
+  if (s1) return normLang(s1);
+
+  // 2) ?lang=... מה-URL
   try {
-    const q = ctx?.request?.url?.searchParams?.get?.("lang");
-    if (q) {
-      const v = String(q).toLowerCase();
-      if (v === "he" || v === "en" || v === "ka") return v as any;
-    }
+    const sp = ctx?.request?.url?.searchParams;
+    const s2 = sp?.get?.("lang");
+    if (s2) return normLang(s2);
   } catch {}
 
   // 3) cookie "lang"
   try {
-    const c = ctx?.cookies?.get?.("lang");
-    if (c) {
-      const v = String(c).toLowerCase();
-      if (v === "he" || v === "en" || v === "ka") return v as any;
-    }
+    const s3 = ctx?.cookies?.get?.("lang");
+    if (s3) return normLang(s3);
   } catch {}
 
   // 4) Accept-Language
@@ -42,21 +51,37 @@ function getLangFromCtx(ctx: any): "he" | "en" | "ka" {
   return "he";
 }
 
-/* ====== עטיפות ציבוריות ====== */
-export async function sendVerifyEmailWithCtx(
-  ctx: any,
+/** שלח מייל אימות משתמש. מקבל:
+ *  - (to, token, langString?)
+ *  - (to, token, ctx?)  ← נשלפת שפה מהקונטקסט
+ */
+export async function sendVerifyEmail(
   to: string,
   token: string,
+  langOrCtx?: string | null | MaybeCtx,
 ) {
-  const lang = getLangFromCtx(ctx);
-  return await sendVerifyEmail(to, token, lang);
+  const L =
+    typeof langOrCtx === "string" || langOrCtx == null
+      ? normLang(langOrCtx as string | null | undefined)
+      : langFromCtx(langOrCtx);
+  return await _sendVerifyEmail(to, token, L);
 }
 
-export async function sendResetEmailWithCtx(
-  ctx: any,
+/** שלח מייל שחזור סיסמה. חתימה זהה ל-verify:
+ *  - (to, token, langString?)
+ *  - (to, token, ctx?)
+ */
+export async function sendResetEmail(
   to: string,
   token: string,
+  langOrCtx?: string | null | MaybeCtx,
 ) {
-  const lang = getLangFromCtx(ctx);
-  return await sendResetEmail(to, token, lang);
+  const L =
+    typeof langOrCtx === "string" || langOrCtx == null
+      ? normLang(langOrCtx as string | null | undefined)
+      : langFromCtx(langOrCtx);
+  return await _sendResetEmail(to, token, L);
 }
+
+// אם תרצה לייבא מכאן גם את השאר:
+export { sendReservationEmail, notifyOwnerEmail, sendReminderEmail } from "./mail.ts";
