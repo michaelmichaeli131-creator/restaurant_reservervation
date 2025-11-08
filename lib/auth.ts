@@ -1,233 +1,60 @@
-// /src/routes/auth.ts
-import { Router, Status } from "jsr:@oak/oak";
-import { render } from "../lib/view.ts";
-import {
-  createUser,
-  findUserByEmail,
-  findUserByUsername,
-  getUserById,
-  setEmailVerified,
-  createVerifyToken,
-  useVerifyToken,
-  createResetToken,
-  useResetToken,
-  updateUserPassword,
-} from "../database.ts";
-import { hashPassword, verifyPassword } from "../lib/auth.ts";
-// נשאר עם המימוש הרב־לשוני הקיים שלך ב-mail.ts
-import { sendVerifyEmail, sendResetEmail } from "../lib/mail.ts";
+// lib/auth.ts
+const ITERATIONS = 120_000;
+const KEY_LEN = 32;
+const ALGO = "SHA-256";
 
-const router = new Router();
+function toUint8(s: string) { return new TextEncoder().encode(s); }
 
-/* ---------- עוזרי שפה (כמו ב-reservation.controller) ---------- */
-type Lang = "he" | "en" | "ka";
-function isValidLang(x: unknown): x is Lang { return x === "he" || x === "en" || x === "ka"; } // ✅ NEW
-
-function getLang(ctx: any): Lang {
-  const q = ctx.request.url.searchParams.get("lang");
-  if (q && /^(he|en|ka)\b/i.test(q)) return q.toLowerCase() as Lang;
-  const c = ctx.cookies?.get?.("lang");
-  if (c && /^(he|en|ka)\b/i.test(c)) return c.toLowerCase() as Lang;
-  const al = ctx.request.headers.get("accept-language") || "";
-  if (/^en/i.test(al)) return "en";
-  if (/^ka/i.test(al)) return "ka";
-  if (/^he/i.test(al)) return "he";
-  return "he";
+function b64url(buf: ArrayBuffer | Uint8Array): string {
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  let bin = ""; for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  const b64 = btoa(bin);
+  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
-function rememberLangIfQuery(ctx: any, lang: Lang) {
-  if (ctx.request.url.searchParams.has("lang")) {
-    ctx.cookies?.set?.("lang", lang, { httpOnly: false, sameSite: "Lax", maxAge: 60 * 60 * 24 * 365 });
-  }
+function fromB64url(s: string): Uint8Array {
+  const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4);
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
-/* -------------------------------------------------------------------- */
 
-// GET /auth/register
-router.get("/auth/register", async (ctx) => {
-  await render(ctx, "auth_register", { page: "register", title: "Sign up" });
-});
+async function pbkdf2(password: string, salt: Uint8Array, iterations = ITERATIONS, length = KEY_LEN) {
+  const key = await crypto.subtle.importKey("raw", toUint8(password), { name: "PBKDF2" }, false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: ALGO, salt, iterations }, key, length * 8);
+  return new Uint8Array(bits);
+}
+function constTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false; let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= (a[i] ^ b[i]);
+  return diff === 0;
+}
 
-// POST /auth/register
-router.post("/auth/register", async (ctx) => {
-  const form = await ctx.request.body({ type: "form" }).value;
-  const email = String(form.get("email") ?? "").trim();
-  const username = String(form.get("username") ?? "").trim();
-  const firstName = String(form.get("firstName") ?? "").trim();
-  const lastName = String(form.get("lastName") ?? "").trim();
-  const password = String(form.get("password") ?? "");
+export async function hashPassword(plain: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const dk = await pbkdf2(plain, salt);
+  return `pbkdf2$${ITERATIONS}$${b64url(salt)}$${b64url(dk)}`;
+}
+export async function verifyPassword(plain: string, stored: string): Promise<boolean> {
+  try {
+    const [scheme, iterStr, saltB64, hashB64] = stored.split("$");
+    if (scheme !== "pbkdf2") return false;
+    const iterations = parseInt(iterStr, 10);
+    if (!iterations || !saltB64 || !hashB64) return false;
+    const salt = fromB64url(saltB64);
+    const expected = fromB64url(hashB64);
+    const got = await pbkdf2(plain, salt, iterations, expected.length);
+    return constTimeEqual(got, expected);
+  } catch { return false; }
+}
 
-  // ✅ NEW: אם הטופס כולל hidden name="lang" — הוא מנצח (כדי לעבוד גם בלי ?lang=)
-  const formLangRaw = String(form.get("lang") ?? "").toLowerCase();
-  const lang: Lang = isValidLang(formLangRaw) ? formLangRaw as Lang : getLang(ctx);
-  if (isValidLang(formLangRaw)) {
-    ctx.cookies?.set?.("lang", lang, { httpOnly: false, sameSite: "Lax", maxAge: 60 * 60 * 24 * 365 }); // זוכר העדפה מהטופס
-  } else {
-    rememberLangIfQuery(ctx, lang);
+export function requireAuth(ctx: any) {
+  if (!ctx.state.user) { ctx.response.redirect("/login"); return false; }
+  return true;
+}
+export function requireOwner(ctx: any) {
+  if (!ctx.state.user || ctx.state.user.role !== "owner") {
+    ctx.response.status = 403; ctx.response.body = "Forbidden"; return false;
   }
-
-  if (!email || !password) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "missing email/password";
-    return;
-  }
-
-  const exists =
-    (await findUserByEmail(email)) ||
-    (username ? await findUserByUsername(username) : null);
-  if (exists) {
-    ctx.response.status = Status.Conflict;
-    ctx.response.body = "user already exists";
-    return;
-  }
-
-  const passwordHash = await hashPassword(password);
-  const created = await createUser({
-    email,
-    username,
-    firstName,
-    lastName,
-    passwordHash,
-    role: "owner",
-    provider: "local",
-  });
-
-  // שלח אימות בשפה הנכונה
-  const token = await createVerifyToken(created.id, created.email);
-  await sendVerifyEmail(created.email, token, lang).catch((e) =>
-    console.warn("[mail] sendVerifyEmail failed:", e)
-  );
-
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", "/auth/login?sent=1");
-});
-
-// GET /auth/verify?token=...
-router.get("/auth/verify", async (ctx) => {
-  const token = ctx.request.url.searchParams.get("token") ?? "";
-  if (!token) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "missing token";
-    return;
-  }
-  const payload = await useVerifyToken(token);
-  if (!payload) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "invalid/expired token";
-    return;
-  }
-  await setEmailVerified(payload.userId);
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", "/auth/login?verified=1");
-});
-
-// GET /auth/login
-router.get("/auth/login", async (ctx) => {
-  await render(ctx, "auth_login", { page: "login", title: "Login" });
-});
-
-// POST /auth/login
-router.post("/auth/login", async (ctx) => {
-  const form = await ctx.request.body({ type: "form" }).value;
-  const emailOrUser = String(form.get("email") ?? "").trim();
-  const password = String(form.get("password") ?? "");
-
-  const user =
-    (await findUserByEmail(emailOrUser)) ||
-    (await findUserByUsername(emailOrUser));
-  if (!user || !user.passwordHash) {
-    ctx.response.status = Status.Unauthorized;
-    ctx.response.body = "invalid credentials";
-    return;
-  }
-  const ok = await verifyPassword(password, user.passwordHash);
-  if (!ok) {
-    ctx.response.status = Status.Unauthorized;
-    ctx.response.body = "invalid credentials";
-    return;
-  }
-
-  const session = (ctx.state as any).session;
-  if (session) {
-    await session.set("userId", user.id);
-  }
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", "/");
-});
-
-// GET /auth/forgot
-router.get("/auth/forgot", async (ctx) => {
-  await render(ctx, "auth_forgot", { page: "forgot", title: "Forgot password" });
-});
-
-// POST /auth/forgot
-router.post("/auth/forgot", async (ctx) => {
-  const form = await ctx.request.body({ type: "form" }).value;
-  const email = String(form.get("email") ?? "").trim();
-
-  // ✅ NEW: מכבד גם lang שמגיע כ-hidden בטופס
-  const formLangRaw = String(form.get("lang") ?? "").toLowerCase();
-  const lang: Lang = isValidLang(formLangRaw) ? formLangRaw as Lang : getLang(ctx);
-  if (isValidLang(formLangRaw)) {
-    ctx.cookies?.set?.("lang", lang, { httpOnly: false, sameSite: "Lax", maxAge: 60 * 60 * 24 * 365 });
-  } else {
-    rememberLangIfQuery(ctx, lang);
-  }
-
-  if (!email) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "missing email";
-    return;
-  }
-  const user = await findUserByEmail(email);
-  // לא מדליפים אם יש/אין משתמש – מתנהגים כאילו נשלח
-  if (user) {
-    const token = await createResetToken(user.id);
-    await sendResetEmail(email, token, lang).catch((e) =>
-      console.warn("[mail] sendResetEmail failed:", e)
-    );
-  }
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", "/auth/forgot?sent=1");
-});
-
-// GET /auth/reset?token=...
-router.get("/auth/reset", async (ctx) => {
-  const token = ctx.request.url.searchParams.get("token") ?? "";
-  if (!token) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "missing token";
-    return;
-  }
-  await render(ctx, "auth_reset", { page: "reset", title: "Reset password", token });
-});
-
-// POST /auth/reset
-router.post("/auth/reset", async (ctx) => {
-  const form = await ctx.request.body({ type: "form" }).value;
-  const token = String(form.get("token") ?? "");
-  const password = String(form.get("password") ?? "");
-  if (!token || !password) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "missing token/password";
-    return;
-  }
-  const payload = await useResetToken(token);
-  if (!payload) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "invalid/expired token";
-    return;
-  }
-  const hash = await hashPassword(password);
-  await updateUserPassword(payload.userId, hash);
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", "/auth/login?reset=1");
-});
-
-// GET /auth/logout
-router.get("/auth/logout", async (ctx) => {
-  const session = (ctx.state as any).session;
-  if (session) await session.set("userId", null);
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", "/");
-});
-
-export const authRouter = router;
+  return true;
+}
