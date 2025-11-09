@@ -1,8 +1,10 @@
 <% layout("_layout", it) %>
 
+<link rel="stylesheet" href="/static/dist/floor-index.css">
+
 <main class="floor-page">
   <div class="floor-container">
-    <div id="floor-app"></div>
+    <div id="root"></div>
   </div>
 </main>
 

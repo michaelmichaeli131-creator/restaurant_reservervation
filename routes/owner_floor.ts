@@ -40,8 +40,9 @@ interface FloorPlan {
 // GET /owner/restaurants/:id/floor - Floor plan editor page
 ownerFloorRouter.get(
   "/owner/restaurants/:id/floor",
-  requireOwner,
   async (ctx) => {
+    if (!requireOwner(ctx)) return;
+
     const restaurantId = ctx.params.id;
     if (!restaurantId) {
       ctx.response.status = 400;
@@ -61,7 +62,7 @@ ownerFloorRouter.get(
       return;
     }
 
-    ctx.response.body = await render("owner_floor", {
+    await render(ctx, "owner_floor", {
       user: owner,
       restaurantId,
       restaurant: restaurant.value,
@@ -74,8 +75,9 @@ ownerFloorRouter.get(
 // GET /api/floor-plans/:restaurantId - Get floor plan for restaurant
 ownerFloorRouter.get(
   "/api/floor-plans/:restaurantId",
-  requireOwner,
   async (ctx) => {
+    if (!requireOwner(ctx)) return;
+
     const restaurantId = ctx.params.restaurantId;
     if (!restaurantId) {
       ctx.response.status = 400;
@@ -112,8 +114,9 @@ ownerFloorRouter.get(
 // POST /api/floor-plans/:restaurantId - Save/update floor plan
 ownerFloorRouter.post(
   "/api/floor-plans/:restaurantId",
-  requireOwner,
   async (ctx) => {
+    if (!requireOwner(ctx)) return;
+
     const restaurantId = ctx.params.restaurantId;
     if (!restaurantId) {
       ctx.response.status = 400;

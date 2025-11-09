@@ -26,8 +26,6 @@ Thumbs.db
 *.log
 npm-debug.log*
 
-# Node modules (client)
+# Node modules (client) - too large to track
 client/node_modules/
-
-# Vite build output
-public/dist/
+client/dist/

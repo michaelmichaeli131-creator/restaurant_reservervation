@@ -2,7 +2,8 @@
   "tasks": {
     "dev": "deno run --allow-net --allow-env --allow-read --allow-sys --unstable-kv --env-file=.env server.ts",
     "dev:client": "cd client && npm run dev",
-    "build:client": "cd client && npm run build",
+    "build": "cd client && npm install && npm run build && echo '[BUILD] ✅ React app built to public/dist/'",
+    "start": "deno run --allow-net --allow-env --allow-read --allow-sys --unstable-kv --env-file=.env server.ts",
     "fmt": "deno fmt",
     "lint": "deno lint"
   },
