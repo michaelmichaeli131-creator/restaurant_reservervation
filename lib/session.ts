@@ -26,11 +26,9 @@ async function loadSession(sid: string): Promise<SessionData> {
   const v = await kv.get<SessionData>(["sess", sid]);
   return v.value ?? {};
 }
-
 async function saveSession(sid: string, data: SessionData) {
   await kv.set(["sess", sid], data);
 }
-
 async function destroySession(sid: string) {
   await kv.delete(["sess", sid]);
 }
@@ -70,13 +68,14 @@ export default async function sessionMiddleware(ctx: Context, next: () => Promis
   };
 
   // קביעת secure לעוגייה:
+  // ברירת מחדל — לפי isHttps(ctx); ניתן לאלץ עם COOKIE_SECURE=true/false
   const secure = isHttps(ctx);
 
   await ctx.cookies.set(cookieName, sid, {
     httpOnly: true,
     sameSite: "Lax",
     path: "/",
-    secure,
+    secure, // אם false — לא תיזרק השגיאה על חיבור לא מוצפן
   });
 
   try {
@@ -86,17 +85,4 @@ export default async function sessionMiddleware(ctx: Context, next: () => Promis
       await saveSession(sid!, {});
     }
   }
-}
-
-/**
- * Middleware להגנה על מסלולים: אם המשתמש לא מחובר (אין userId), מחזירים 401
- */
-export async function loginRequired(ctx: Context, next: () => Promise<unknown>) {
-  const userId = await ctx.state?.session?.get?.("userId");
-  if (!userId) {
-    ctx.response.status = 401;
-    ctx.response.body = { error: "Login required" };
-    return;
-  }
-  return await next();
 }
