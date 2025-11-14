@@ -17,7 +17,6 @@ import { sendVerifyEmail, sendResetEmail } from "../lib/mail.ts";
 import { hashPassword, verifyPassword } from "../lib/auth.ts";
 import { debugLog } from "../lib/debug.ts";
 import { loginRequired } from "../lib/session.ts";
-import { redirectWithBody } from "../lib/misc.ts";
 import { router as restaurantsRouter } from "./restaurants/index.ts";
 
 const authRouter = new Router();
