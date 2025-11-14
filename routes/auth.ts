@@ -1,4 +1,4 @@
-import { Router } from "jsr:@oak/router";
+import { Router } from "jsr:@oak/oak";
 import { Status } from "jsr:@oak/http_status";
 import {
   createUser,
