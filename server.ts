@@ -40,10 +40,14 @@ import { requestLogger } from "./lib/log_mw.ts";
 import { diagRouter } from "./routes/diag.ts";
 import openingRouter from "./routes/opening.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
+<<<<<<< HEAD
 
-// ✅ i18n – יבוא יחיד ונקי
+// 🔧 שינוי קטן וחשוב: טעינה בטוחה של ה-i18n (תומך גם default וגם named)
+import i18nModule from "./middleware/i18n.ts";
+
+=======
 import { i18n } from "./middleware/i18n.ts";
-
+>>>>>>> a494be5258819ee2b2179a5caa54e614839de9df
 import langRouter from "./routes/lang.ts";
 import reviewsRouter from "./routes/reviews.ts";
 import reviewPortalRouter from "./routes/review_portal.ts";
@@ -240,6 +244,7 @@ app.use(async (ctx, next) => {
 });
 
 // -------------------- i18n FIRST (חשוב!) --------------------
+// הפקה בטוחה של המידלוור (תומך גם ב-export default וגם ב-named)
 const i18nMw = i18n;
 
 // ✅ i18n וה־/lang חייבים לבוא לפני כל ראוטר שמרנדר HTML
