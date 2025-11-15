@@ -18,7 +18,7 @@ import {
   getUserById,
 } from "../database.ts";
 
-import { hashPassword, verifyPassword } from "../lib/crypto.ts";
+import { hashPassword, verifyPassword } from "../lib/auth.ts";
 import { render } from "../lib/view.ts";
 // עטיפות האימיילים עם תמיכה בשפה
 import { sendVerifyEmail, sendResetEmail } from "../lib/mail_wrappers.ts";
