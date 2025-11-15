@@ -2,18 +2,24 @@
   "auth": {
     "verify": {
       "title": "Email verification",
-      "subtitleBefore": "Almost done! Please confirm your email address.",
-      "subtitleAfter": "Your email has been verified! You can now sign in.",
+      "subtitleBefore": "Almost done! Just confirm your address",
+      "subtitleAfter": "Your email was verified successfully. You can sign in now.",
       "info": {
-        "before": "We’ve sent a verification link to your email. Click the link to complete your sign-up.",
-        "after": "Your email has been successfully verified. You can now sign in."
+        "before": "We sent a verification link to your email. Click the link to complete your registration.",
+        "after": "Your email was verified successfully. You can sign in now.",
+        "linkInvalid": "Invalid link.",
+        "linkInvalidOrExpired": "Invalid or expired link.",
+        "needEmail": "Please provide an email address.",
+        "maybeExists": "If this email exists in our system, we've sent a verification link.",
+        "alreadyVerified": "This account is already verified. You can log in.",
+        "resent": "A verification link has been sent to your email again."
       },
       "sentPrefix": "We’ve sent a verification link to ",
-      "spamHint": "Didn’t receive it? Please check your spam/promotion folders. You can also resend the link:",
-      "checkMailbox": "Please check your inbox and click the link we’ve just sent you.",
-      "afterLead": "Your email has been verified successfully. You can now log in to your account.",
-      "resend": "Resend verification link",
+      "spamHint": "Didn’t get it? Check your spam / promotions folder, or request a new link:",
+      "resend": "Send link again",
       "backToLogin": "Back to login",
+      "checkMailbox": "Please check your mailbox and click the link we sent.",
+      "afterLead": "Your email was verified successfully. You can now sign in with your account.",
       "goToLogin": "Go to login"
     }
   }

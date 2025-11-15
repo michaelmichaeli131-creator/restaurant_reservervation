@@ -165,7 +165,7 @@ authRouter.post("/auth/register", async (ctx) => {
     console.error("[auth.register] sendVerifyEmail failed:", e);
   }
 
-  // ❌ הורדנו info כדי שהטקסט יגיע מ-i18n (auth.verify.info.before)
+  // כאן אין info – הטקסט מגיע מ-i18n (auth.verify.info.before)
   await render(ctx, "verify_notice", {
     title: "בדיקת דוא״ל",
     page: "verify",
@@ -279,6 +279,7 @@ authRouter.get("/auth/verify", async (ctx) => {
     await render(ctx, "verify_notice", {
       title: "אימות דוא״ל",
       page: "verify",
+      infoKey: "auth.verify.info.linkInvalid",             // ⭐
       info: "קישור לא תקין",
     });
     return;
@@ -290,6 +291,7 @@ authRouter.get("/auth/verify", async (ctx) => {
     await render(ctx, "verify_notice", {
       title: "אימות דוא״ל",
       page: "verify",
+      infoKey: "auth.verify.info.linkInvalidOrExpired",    // ⭐
       info: "קישור לא תקין או שפג תוקף",
     });
     return;
@@ -297,7 +299,7 @@ authRouter.get("/auth/verify", async (ctx) => {
 
   await setEmailVerified(record.userId);
 
-  // ❌ גם כאן – אין info, כדי שהטקסט יבוא מ-i18n (auth.verify.info.after)
+  // כאן שוב אין info – הטקסט מגיע מ-i18n (auth.verify.info.after)
   await render(ctx, "verify_notice", {
     title: "אימות דוא״ל",
     page: "verify",
@@ -315,6 +317,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
     await render(ctx, "verify_notice", {
       title: "שליחת אימות",
       page: "verify",
+      infoKey: "auth.verify.info.needEmail",               // ⭐
       info: "נא לספק כתובת דוא״ל",
     });
     return;
@@ -326,6 +329,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
     await render(ctx, "verify_notice", {
       title: "שליחת אימות",
       page: "verify",
+      infoKey: "auth.verify.info.maybeExists",             // ⭐
       info: "אם הדוא״ל קיים במערכת – נשלח קישור אימות.",
     });
     return;
@@ -335,6 +339,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
     await render(ctx, "verify_notice", {
       title: "שליחת אימות",
       page: "verify",
+      infoKey: "auth.verify.info.alreadyVerified",         // ⭐
       info: "החשבון כבר מאומת. אפשר להתחבר.",
     });
     return;
@@ -351,6 +356,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
   await render(ctx, "verify_notice", {
     title: "שליחת אימות",
     page: "verify",
+    infoKey: "auth.verify.info.resent",                   // ⭐
     info: "קישור אימות נשלח מחדש לתיבת הדוא״ל.",
   });
 });
@@ -397,6 +403,7 @@ authRouter.post("/auth/forgot", async (ctx) => {
     title: "שכחתי סיסמה",
     page: "forgot",
     info: "אם הדוא״ל קיים במערכת, נשלח קישור לאיפוס סיסמה.",
+    // אפשר גם להוסיף infoKey אם תרצה, אבל נפתור את זה ב-ETA דרך i18n קבועה
   });
 });
 
