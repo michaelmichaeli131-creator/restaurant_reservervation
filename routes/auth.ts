@@ -1,159 +1,86 @@
 // src/routes/auth.ts
-// -------------------------------------------------------------
-// Auth routes: register / login / logout / verify / resend /
-// forgot / reset – מותאם ל-Deno Deploy + jsr:@oak/oak
-// בלי שימוש ישיר ב-ctx.request.body() / formData()
-// -------------------------------------------------------------
+// ----------------------
+// Auth routes: register, login, logout, verify, forgot/reset
+// בלי dal/, בלי phase, בלי rate_limit – רק מה שצריך באמת
+// ----------------------
 
 import { Router, Status } from "jsr:@oak/oak";
+
 import {
   createUser,
   findUserByEmail,
-  findUserByUsername,
   createVerifyToken,
-  useVerifyToken,
   createResetToken,
+  useVerifyToken,
   useResetToken,
+  setEmailVerified,
   updateUserPassword,
+  getUserById,
 } from "../database.ts";
+
+import { hashPassword, verifyPassword } from "../lib/crypto.ts";
 import { render } from "../lib/view.ts";
-import { sendVerifyEmail, sendResetEmail } from "../lib/mail.ts";
-import { authRateLimitByIP } from "../middleware/rate_limit.ts";
+// עטיפות האימיילים עם תמיכה בשפה
+import { sendVerifyEmail, sendResetEmail } from "../lib/mail_wrappers.ts";
 
 export const authRouter = new Router();
 
-/* -----------------------------------------------------------
- * phase – helper לוגים פשוט במקום ../lib/phase.ts
- * --------------------------------------------------------- */
-function phase(tag: string, payload?: unknown) {
-  try {
-    console.log(`[phase] ${tag}`, payload ?? "");
-  } catch {
-    // ignore
-  }
-}
+/* ---------------- Utils ---------------- */
 
-/* -----------------------------------------------------------
- * Helpers
- * --------------------------------------------------------- */
+const lower = (s: string) => s.trim().toLowerCase();
 
-function lower(s: string): string {
-  return (s ?? "").toString().trim().toLowerCase();
-}
-
-function randomPassword(len = 12): string {
-  const chars =
-    "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*_+-=";
-  let out = "";
-  const buf = new Uint8Array(len);
-  crypto.getRandomValues(buf);
-  for (let i = 0; i < len; i++) {
-    out += chars[buf[i] % chars.length];
-  }
-  return out;
-}
-
-function entriesToObject(
-  entries: Iterable<[string, string]>,
-): Record<string, string> {
-  const obj: Record<string, string> = {};
-  for (const [k, v] of entries) {
-    obj[k] = v;
-  }
-  return obj;
-}
-
-function getUnderlyingFetchRequest(ctx: any): Request | null {
-  const r =
-    (ctx?.request as any)?.originalRequest ??
-    (ctx?.request as any)?.raw ??
-    (ctx?.request as any)?.req ??
-    (ctx?.request as any)?.request ??
-    (ctx as any)?.request ??
-    (ctx as any)?.requestEvent?.request ??
-    null;
-  return r ?? null;
-}
-
-// קריאה מאוחדת לגוף – בלי ctx.request.body() ישירות
-async function readBody(
+/**
+ * קריאת form בצורה שתעבוד גם ב-Deno.serve וגם בגרסאות שונות של Oak
+ */
+async function readForm(
   ctx: any,
-): Promise<{ data: Record<string, unknown>; meta: Record<string, unknown> }> {
-  const meta: Record<string, unknown> = { ok: false };
-  const oakReq = (ctx as any).request;
-  const fetchReq = getUnderlyingFetchRequest(ctx);
+): Promise<Record<string, string>> {
+  const req: any = ctx.request as any;
 
-  const ctHeader =
-    fetchReq?.headers?.get("content-type") ??
-    oakReq?.headers?.get("content-type") ??
-    "";
-  const ct = ctHeader.split(";")[0].trim().toLowerCase();
-  meta["contentType"] = ct;
-
-  // 1) קודם נסה דרך Fetch Request (Deno Deploy)
-  if (fetchReq) {
-    try {
-      if (
-        ct === "application/x-www-form-urlencoded" ||
-        ct === "multipart/form-data"
-      ) {
-        if (typeof (fetchReq as any).formData === "function") {
-          const fd = await (fetchReq as any).formData();
-          const data = entriesToObject(fd.entries() as any);
-          meta.ok = true;
-          meta.via = "fetch:formData";
-          return { data, meta };
-        }
+  // ניסיון ראשון – להשתמש ב-Request.formData() המקורי
+  const rawReq: any = (req as any).originalRequest ?? req;
+  try {
+    if (typeof rawReq.formData === "function") {
+      const fd = await rawReq.formData();
+      const out: Record<string, string> = {};
+      for (const [k, v] of fd.entries()) {
+        out[k] = typeof v === "string" ? v : String(v);
       }
-      if (ct === "application/json") {
-        const json = await (fetchReq as any).json().catch(() => ({}));
-        meta.ok = true;
-        meta.via = "fetch:json";
-        return { data: json ?? {}, meta };
-      }
-      if (typeof (fetchReq as any).text === "function") {
-        const text = await (fetchReq as any).text();
-        meta.ok = true;
-        meta.via = "fetch:text";
-        if (ct === "application/x-www-form-urlencoded") {
-          const params = new URLSearchParams(text);
-          const data = entriesToObject(params.entries());
-          return { data, meta };
-        }
-        return { data: { raw: text }, meta };
-      }
-    } catch (e) {
-      meta.fetchError = String(e);
+      return out;
     }
+  } catch (e) {
+    console.warn("[auth.readForm] formData() failed", e);
   }
 
-  // 2) Fallback – Oak request.body() רק אם זו פונקציה
-  if (oakReq && typeof oakReq.body === "function") {
-    try {
-      const body = oakReq.body(); // Oak בוחר לבד
-      const val = await body.value;
-      meta.ok = true;
-      meta.via = `oak:body(${body.type})`;
-      if (body.type === "form" || body.type === "form-data") {
-        const data = entriesToObject((val as URLSearchParams).entries());
-        return { data, meta };
+  // fallback – עבור גרסאות Oak ישנות יותר עם request.body()
+  try {
+    if (typeof req.body === "function") {
+      const body = req.body({ type: "form" });
+      const form = await body.value;
+
+      const out: Record<string, string> = {};
+      if (form && typeof form.entries === "function") {
+        for (const [k, v] of form.entries()) {
+          out[k] = String(v);
+        }
+      } else if (form && typeof form === "object") {
+        for (const [k, v] of Object.entries(form)) {
+          out[k] = String(v);
+        }
       }
-      if (body.type === "json") {
-        return { data: val ?? {}, meta };
-      }
-      return { data: val ?? {}, meta };
-    } catch (e) {
-      meta.oakError = String(e);
+      return out;
     }
+  } catch (e) {
+    console.warn(
+      '[auth.readForm] body({ type: "form" }) failed',
+      e,
+    );
   }
 
-  // 3) אין כלום
-  return { data: {}, meta };
+  return {};
 }
 
-/* -----------------------------------------------------------
- * Register
- * --------------------------------------------------------- */
+/* ---------------- Register ---------------- */
 
 authRouter.get("/auth/register", async (ctx) => {
   await render(ctx, "auth/register", {
@@ -162,16 +89,15 @@ authRouter.get("/auth/register", async (ctx) => {
   });
 });
 
-authRouter.post("/auth/register", authRateLimitByIP, async (ctx) => {
-  const { data: b, meta } = await readBody(ctx);
-  phase("auth.register.input", { meta });
+authRouter.post("/auth/register", async (ctx) => {
+  const b = await readForm(ctx);
 
-  const firstName = String((b as any).firstName ?? "").trim();
-  const lastName = String((b as any).lastName ?? "").trim();
-  const email = lower(String((b as any).email ?? ""));
-  const password = String((b as any).password ?? "");
-  const businessType = String((b as any).businessType ?? "").trim();
-  const phone = String((b as any).phone ?? "").trim();
+  const firstName = String(b.firstName ?? "").trim();
+  const lastName = String(b.lastName ?? "").trim();
+  const email = lower(String(b.email ?? ""));
+  const password = String(b.password ?? "");
+  const businessType = String(b.businessType ?? "").trim();
+  const phone = String(b.phone ?? "").trim();
 
   if (!firstName || !lastName || !email || !password) {
     ctx.response.status = Status.BadRequest;
@@ -187,6 +113,7 @@ authRouter.post("/auth/register", authRateLimitByIP, async (ctx) => {
     });
     return;
   }
+
   if (password.length < 8) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/register", {
@@ -208,7 +135,7 @@ authRouter.post("/auth/register", authRateLimitByIP, async (ctx) => {
     await render(ctx, "auth/register", {
       title: "הרשמה",
       page: "register",
-      error: "קיים כבר משתמש עם כתובת דוא״ל זו",
+      error: "כתובת הדוא״ל כבר קיימת במערכת",
       firstName,
       lastName,
       email,
@@ -218,39 +145,27 @@ authRouter.post("/auth/register", authRateLimitByIP, async (ctx) => {
     return;
   }
 
-  const userPartial: any = {
+  const passwordHash = await hashPassword(password);
+
+  const created = await createUser({
     firstName,
     lastName,
     email,
-    businessType,
     phone,
-    provider: "local",
-    role: "owner",
-  };
-
-  const passwordHash = await crypto.subtle
-    .digest("SHA-256", new TextEncoder().encode(password))
-    .then((buf) =>
-      Array.from(new Uint8Array(buf))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("")
-    );
-
-  const created = await createUser({
-    ...userPartial,
+    businessType,
     passwordHash,
+    // ברירת מחדל – בעלים
+    role: "owner",
+    provider: "local",
   } as any);
 
-  phase("auth.register.created", { userId: created.id, email: created.email });
-
   const token = await createVerifyToken(created.id);
-  const lang = (ctx.state as any)?.lang ?? null;
+  const lang = (ctx.state?.lang as string | undefined) ?? "he";
 
   try {
     await sendVerifyEmail(created.email, token, lang);
-    phase("auth.register.verify.sent", { email: created.email });
   } catch (e) {
-    phase("auth.register.verify.error", { error: String(e) });
+    console.error("[auth.register] sendVerifyEmail failed:", e);
   }
 
   await render(ctx, "verify_notice", {
@@ -259,13 +174,12 @@ authRouter.post("/auth/register", authRateLimitByIP, async (ctx) => {
     info:
       "נשלח קישור אימות לכתובת הדוא״ל. יש ללחוץ על הקישור כדי להשלים את ההרשמה.",
     email: created.email,
-    resendUrl: `/auth/verify/resend?email=${encodeURIComponent(created.email)}`,
+    resendUrl:
+      `/auth/verify/resend?email=${encodeURIComponent(created.email)}`,
   });
 });
 
-/* -----------------------------------------------------------
- * Login / Logout
- * --------------------------------------------------------- */
+/* ---------------- Login ---------------- */
 
 authRouter.get("/auth/login", async (ctx) => {
   await render(ctx, "auth/login", {
@@ -274,27 +188,10 @@ authRouter.get("/auth/login", async (ctx) => {
   });
 });
 
-async function verifyPassword(
-  plain: string,
-  hashHex: string | null | undefined,
-): Promise<boolean> {
-  if (!hashHex) return false;
-  const enc = new TextEncoder();
-  const plainBuf = await crypto.subtle.digest("SHA-256", enc.encode(plain));
-  const plainHex = Array.from(new Uint8Array(plainBuf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  return plainHex === hashHex;
-}
-
 authRouter.post("/auth/login", async (ctx) => {
-  const { data: b, meta } = await readBody(ctx);
-  phase("auth.login.input", { meta });
-
-  const email = lower(String((b as any).email ?? ""));
-  const password = String((b as any).password ?? "");
-  const redirectParam = String((b as any).redirect ?? "") ||
-    ctx.request.url.searchParams.get("redirect") ?? "";
+  const b = await readForm(ctx);
+  const email = lower(String(b.email ?? ""));
+  const password = String(b.password ?? "");
 
   if (!email || !password) {
     ctx.response.status = Status.BadRequest;
@@ -307,7 +204,7 @@ authRouter.post("/auth/login", async (ctx) => {
   }
 
   const user = await findUserByEmail(email);
-  if (!user) {
+  if (!user || !user.passwordHash) {
     ctx.response.status = Status.Unauthorized;
     await render(ctx, "auth/login", {
       title: "התחברות",
@@ -318,12 +215,13 @@ authRouter.post("/auth/login", async (ctx) => {
   }
 
   if (!user.emailVerified) {
+    // שולחים אימייל אימות שוב ומונעים התחברות
     const token = await createVerifyToken(user.id);
-    const lang = (ctx.state as any)?.lang ?? null;
+    const lang = (ctx.state?.lang as string | undefined) ?? "he";
     try {
       await sendVerifyEmail(user.email, token, lang);
-    } catch {
-      // מתעלמים – עדיין נחסום
+    } catch (e) {
+      console.error("[auth.login] resend verify failed:", e);
     }
     ctx.response.status = Status.Forbidden;
     await render(ctx, "auth/login", {
@@ -336,7 +234,7 @@ authRouter.post("/auth/login", async (ctx) => {
     return;
   }
 
-  if ((user as any).isActive === false) {
+  if (user.isActive === false) {
     ctx.response.status = Status.Forbidden;
     await render(ctx, "auth/login", {
       title: "התחברות",
@@ -346,7 +244,8 @@ authRouter.post("/auth/login", async (ctx) => {
     return;
   }
 
-  if (!(await verifyPassword(password, (user as any).passwordHash))) {
+  const ok = await verifyPassword(password, user.passwordHash);
+  if (!ok) {
     ctx.response.status = Status.Unauthorized;
     await render(ctx, "auth/login", {
       title: "התחברות",
@@ -357,35 +256,28 @@ authRouter.post("/auth/login", async (ctx) => {
   }
 
   const session = (ctx.state as any).session;
-  if (session && typeof session.set === "function") {
+  if (session) {
     await session.set("userId", user.id);
   }
 
-  phase("auth.login.success", { userId: user.id, email: user.email });
-
-  const target =
-    redirectParam ||
-    ((user as any).role === "admin" ? "/admin" : "/owner");
-
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", target);
+  ctx.response.redirect(user.role === "admin" ? "/admin" : "/owner");
 });
+
+/* ---------------- Logout ---------------- */
 
 authRouter.post("/auth/logout", async (ctx) => {
   const session = (ctx.state as any).session;
-  if (session && typeof session.set === "function") {
-    await session.set("userId", null);
+  if (session) {
+    await session.destroy();
   }
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", "/");
+  ctx.response.redirect("/");
 });
 
-/* -----------------------------------------------------------
- * Email verify + resend
- * --------------------------------------------------------- */
+/* ---------------- Email verify ---------------- */
 
 authRouter.get("/auth/verify", async (ctx) => {
   const token = ctx.request.url.searchParams.get("token") ?? "";
+
   if (!token) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "verify_notice", {
@@ -396,8 +288,8 @@ authRouter.get("/auth/verify", async (ctx) => {
     return;
   }
 
-  const used = await useVerifyToken(token);
-  if (!used) {
+  const record = await useVerifyToken(token);
+  if (!record) {
     ctx.response.status = Status.NotFound;
     await render(ctx, "verify_notice", {
       title: "אימות דוא״ל",
@@ -407,10 +299,7 @@ authRouter.get("/auth/verify", async (ctx) => {
     return;
   }
 
-  phase("auth.verify.complete", {
-    userId: used.userId,
-    email: used.email,
-  });
+  await setEmailVerified(record.userId);
 
   await render(ctx, "verify_notice", {
     title: "אימות דוא״ל",
@@ -419,6 +308,8 @@ authRouter.get("/auth/verify", async (ctx) => {
     postVerify: true,
   });
 });
+
+/* ---------------- Resend verification ---------------- */
 
 authRouter.get("/auth/verify/resend", async (ctx) => {
   const emailParam = ctx.request.url.searchParams.get("email") ?? "";
@@ -435,6 +326,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
 
   const user = await findUserByEmail(email);
   if (!user) {
+    // לא חושפים אם המשתמש קיים
     await render(ctx, "verify_notice", {
       title: "שליחת אימות",
       page: "verify",
@@ -453,13 +345,11 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
   }
 
   const token = await createVerifyToken(user.id);
-  const lang = (ctx.state as any)?.lang ?? null;
-
+  const lang = (ctx.state?.lang as string | undefined) ?? "he";
   try {
     await sendVerifyEmail(user.email, token, lang);
-    phase("auth.verify.resend.sent", { email: user.email });
   } catch (e) {
-    phase("auth.verify.resend.error", { error: String(e) });
+    console.error("[auth.verify.resend] send failed:", e);
   }
 
   await render(ctx, "verify_notice", {
@@ -469,9 +359,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
   });
 });
 
-/* -----------------------------------------------------------
- * Forgot / Reset password
- * --------------------------------------------------------- */
+/* ---------------- Forgot / Reset password ---------------- */
 
 authRouter.get("/auth/forgot", async (ctx) => {
   await render(ctx, "auth/forgot", {
@@ -481,10 +369,9 @@ authRouter.get("/auth/forgot", async (ctx) => {
 });
 
 authRouter.post("/auth/forgot", async (ctx) => {
-  const { data: b, meta } = await readBody(ctx);
-  phase("auth.forgot.input", { meta });
+  const b = await readForm(ctx);
+  const email = lower(String(b.email ?? ""));
 
-  const email = lower(String((b as any).email ?? ""));
   if (!email) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/forgot", {
@@ -498,12 +385,11 @@ authRouter.post("/auth/forgot", async (ctx) => {
   const user = await findUserByEmail(email);
   if (user) {
     const token = await createResetToken(user.id);
-    const lang = (ctx.state as any)?.lang ?? null;
+    const lang = (ctx.state?.lang as string | undefined) ?? "he";
     try {
       await sendResetEmail(email, token, lang);
-      phase("auth.forgot.send", { email });
     } catch (e) {
-      phase("auth.forgot.send.error", { error: String(e) });
+      console.error("[auth.forgot] sendResetEmail failed:", e);
     }
   }
 
@@ -516,6 +402,7 @@ authRouter.post("/auth/forgot", async (ctx) => {
 
 authRouter.get("/auth/reset", async (ctx) => {
   const token = ctx.request.url.searchParams.get("token") ?? "";
+
   if (!token) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/reset", {
@@ -525,6 +412,7 @@ authRouter.get("/auth/reset", async (ctx) => {
     });
     return;
   }
+
   await render(ctx, "auth/reset", {
     title: "איפוס סיסמה",
     page: "reset",
@@ -533,13 +421,12 @@ authRouter.get("/auth/reset", async (ctx) => {
 });
 
 authRouter.post("/auth/reset", async (ctx) => {
-  const { data: b, meta } = await readBody(ctx);
-  phase("auth.reset.input", { meta });
+  const b = await readForm(ctx);
 
-  const token = String((b as any).token ?? "");
-  const pw = String((b as any).password ?? "");
+  const token = String(b.token ?? "");
+  const pw = String(b.password ?? "");
   const confirm = String(
-    (b as any).confirm ?? (b as any).passwordConfirm ?? "",
+    b.confirm ?? b.passwordConfirm ?? "",
   );
 
   if (!token || !pw || !confirm) {
@@ -552,6 +439,7 @@ authRouter.post("/auth/reset", async (ctx) => {
     });
     return;
   }
+
   if (pw !== confirm) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/reset", {
@@ -563,8 +451,8 @@ authRouter.post("/auth/reset", async (ctx) => {
     return;
   }
 
-  const used = await useResetToken(token);
-  if (!used) {
+  const record = await useResetToken(token);
+  if (!record) {
     ctx.response.status = Status.NotFound;
     await render(ctx, "auth/reset", {
       title: "איפוס סיסמה",
@@ -575,14 +463,20 @@ authRouter.post("/auth/reset", async (ctx) => {
     return;
   }
 
-  const newHashBuf = await crypto.subtle
-    .digest("SHA-256", new TextEncoder().encode(pw));
-  const newHashHex = Array.from(new Uint8Array(newHashBuf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  const user = await getUserById(record.userId);
+  if (!user) {
+    ctx.response.status = Status.NotFound;
+    await render(ctx, "auth/reset", {
+      title: "איפוס סיסמה",
+      page: "reset",
+      token,
+      error: "משתמש לא נמצא",
+    });
+    return;
+  }
 
-  await updateUserPassword(used.userId, newHashHex);
-  phase("auth.reset.success", { userId: used.userId, email: used.email });
+  const passwordHash = await hashPassword(pw);
+  await updateUserPassword(user.id, passwordHash);
 
   await render(ctx, "auth/reset", {
     title: "איפוס סיסמה",
@@ -590,5 +484,3 @@ authRouter.post("/auth/reset", async (ctx) => {
     success: true,
   });
 });
-
-// סוף קובץ
