@@ -18,10 +18,20 @@ import {
 } from "../database.ts";
 import { render } from "../lib/view.ts";
 import { sendVerifyEmail, sendResetEmail } from "../lib/mail.ts";
-import { phase } from "../lib/phase.ts";
 import { authRateLimitByIP } from "../middleware/rate_limit.ts";
 
 export const authRouter = new Router();
+
+/* -----------------------------------------------------------
+ * phase – helper לוגים פשוט במקום ../lib/phase.ts
+ * --------------------------------------------------------- */
+function phase(tag: string, payload?: unknown) {
+  try {
+    console.log(`[phase] ${tag}`, payload ?? "");
+  } catch {
+    // ignore
+  }
+}
 
 /* -----------------------------------------------------------
  * Helpers
@@ -54,7 +64,6 @@ function entriesToObject(
 }
 
 function getUnderlyingFetchRequest(ctx: any): Request | null {
-  // מנסה למצוא את ה-Request המקורי של Deno / Fetch
   const r =
     (ctx?.request as any)?.originalRequest ??
     (ctx?.request as any)?.raw ??
@@ -106,7 +115,6 @@ async function readBody(
         const text = await (fetchReq as any).text();
         meta.ok = true;
         meta.via = "fetch:text";
-        // ננסה לפרסר כ-urlencoded אם מתאים
         if (ct === "application/x-www-form-urlencoded") {
           const params = new URLSearchParams(text);
           const data = entriesToObject(params.entries());
@@ -122,7 +130,7 @@ async function readBody(
   // 2) Fallback – Oak request.body() רק אם זו פונקציה
   if (oakReq && typeof oakReq.body === "function") {
     try {
-      const body = oakReq.body(); // בלי פרמטרים – Oak בוחר לבד
+      const body = oakReq.body(); // Oak בוחר לבד
       const val = await body.value;
       meta.ok = true;
       meta.via = `oak:body(${body.type})`;
@@ -194,7 +202,6 @@ authRouter.post("/auth/register", authRateLimitByIP, async (ctx) => {
     return;
   }
 
-  // בדיקה שאין משתמש קיים
   const existing = await findUserByEmail(email);
   if (existing) {
     ctx.response.status = Status.BadRequest;
@@ -211,7 +218,6 @@ authRouter.post("/auth/register", authRateLimitByIP, async (ctx) => {
     return;
   }
 
-  // יצירת משתמש
   const userPartial: any = {
     firstName,
     lastName,
@@ -330,7 +336,7 @@ authRouter.post("/auth/login", async (ctx) => {
     return;
   }
 
-  if (user.isActive === false) {
+  if ((user as any).isActive === false) {
     ctx.response.status = Status.Forbidden;
     await render(ctx, "auth/login", {
       title: "התחברות",
@@ -350,7 +356,6 @@ authRouter.post("/auth/login", async (ctx) => {
     return;
   }
 
-  // שמירת userId בסשן – זה מה שהמידלוור ב-server.ts קורא
   const session = (ctx.state as any).session;
   if (session && typeof session.set === "function") {
     await session.set("userId", user.id);
@@ -360,7 +365,7 @@ authRouter.post("/auth/login", async (ctx) => {
 
   const target =
     redirectParam ||
-    (user.role === "admin" ? "/admin" : "/owner");
+    ((user as any).role === "admin" ? "/admin" : "/owner");
 
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set("Location", target);
@@ -402,7 +407,6 @@ authRouter.get("/auth/verify", async (ctx) => {
     return;
   }
 
-  // useVerifyToken כבר דואג לסמן את המשתמש כמאומת בבסיס הנתונים (לפי הקוד המקורי)
   phase("auth.verify.complete", {
     userId: used.userId,
     email: used.email,
