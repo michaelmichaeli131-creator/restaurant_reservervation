@@ -18,17 +18,23 @@ import { hashPassword, verifyPassword } from "../lib/auth.ts";
 import { debugLog } from "../lib/debug.ts";
 
 const router = new Router();
-
-// נייצא כמו במקור
 export { router as authRouter };
+
+/** Helper קטן לקריאת form ב-Oak */
+async function getForm(ctx: any): Promise<URLSearchParams> {
+  const body = ctx.request.body({ type: "form" });
+  const form = await body.value;
+  return form as URLSearchParams;
+}
 
 /* ---------------- Debug helpers ---------------- */
 
 router.get("/auth/debug/users", async (ctx) => {
-  // רק לדיבאג – אם יש לך קוד מקורי כאן תשאיר אותו, אני לא מוסיף לוגיקה חדשה
   ctx.response.status = Status.NotFound;
   ctx.response.body = "Not Implemented";
 });
+
+/* ---------------- Router ---------------- */
 
 /* --------- Register --------- */
 
@@ -40,14 +46,15 @@ router.get("/auth/register", async (ctx) => {
 });
 
 router.post("/auth/register", async (ctx) => {
-  const body = await ctx.request.formData();
-  const firstName = String(body.get("firstName") ?? "").trim();
-  const lastName = String(body.get("lastName") ?? "").trim();
-  const email = String(body.get("email") ?? "").trim().toLowerCase();
-  const password = String(body.get("password") ?? "");
-  const passwordConfirm = String(body.get("passwordConfirm") ?? "");
-  const businessType = String(body.get("businessType") ?? "").trim();
-  const phone = String(body.get("phone") ?? "").trim();
+  const form = await getForm(ctx);
+
+  const firstName = String(form.get("firstName") ?? "").trim();
+  const lastName = String(form.get("lastName") ?? "").trim();
+  const email = String(form.get("email") ?? "").trim().toLowerCase();
+  const password = String(form.get("password") ?? "");
+  const passwordConfirm = String(form.get("passwordConfirm") ?? "");
+  const businessType = String(form.get("businessType") ?? "").trim();
+  const phone = String(form.get("phone") ?? "").trim();
 
   const commonProps = {
     title: "הרשמה",
@@ -146,9 +153,11 @@ router.get("/auth/login", async (ctx) => {
 });
 
 router.post("/auth/login", async (ctx) => {
-  const body = await ctx.request.formData();
-  const email = String(body.get("email") ?? "").trim().toLowerCase();
-  const password = String(body.get("password") ?? "");
+  const form = await getForm(ctx);
+
+  const email = String(form.get("email") ?? "").trim().toLowerCase();
+  const password = String(form.get("password") ?? "");
+  const redirectParam = String(form.get("redirect") ?? "").trim();
 
   const commonProps = {
     title: "התחברות",
@@ -180,12 +189,11 @@ router.post("/auth/login", async (ctx) => {
     try {
       await sendVerifyEmail(user.email, token, (ctx.state as any).lang);
     } catch {
-      // מתעלמים – לא רוצים להפיל התחברות רק בגלל מייל
+      // לא מפילים בגלל כשל בשליחת מייל
     }
     await render(ctx, "auth/login", {
       ...commonProps,
-      error:
-        "נדרש אימות דוא״ל לפני התחברות. שלחנו לך קישור אימות נוסף.",
+      error: "נדרש אימות דוא״ל לפני התחברות. שלחנו לך קישור אימות נוסף.",
       verifyResend: true,
     });
     ctx.response.status = Status.Forbidden;
@@ -212,11 +220,12 @@ router.post("/auth/login", async (ctx) => {
   }
 
   const session = (ctx.state as any).session;
-  await session.set("userId", user.id);
-  debugLog("auth.login.success", { id: user.id, email: user.email });
+  if (session) {
+    await session.set("userId", user.id);
+  }
+  debugLog("auth.login.success", { userId: user.id, email: user.email });
 
-  const redirect =
-    String((body.get("redirect") ?? "")).trim() || "/owner";
+  const redirect = redirectParam || "/owner";
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set("Location", redirect);
 });
@@ -333,8 +342,8 @@ router.get("/auth/forgot", async (ctx) => {
 });
 
 router.post("/auth/forgot", async (ctx) => {
-  const body = await ctx.request.formData();
-  const email = String(body.get("email") ?? "").trim().toLowerCase();
+  const form = await getForm(ctx);
+  const email = String(form.get("email") ?? "").trim().toLowerCase();
 
   if (!email) {
     await render(ctx, "auth/forgot", {
@@ -383,11 +392,12 @@ router.get("/auth/reset", async (ctx) => {
 });
 
 router.post("/auth/reset", async (ctx) => {
-  const body = await ctx.request.formData();
-  const token = String(body.get("token") ?? "");
-  const password = String(body.get("password") ?? "");
+  const form = await getForm(ctx);
+
+  const token = String(form.get("token") ?? "");
+  const password = String(form.get("password") ?? "");
   const confirm =
-    String(body.get("confirm") ?? body.get("passwordConfirm") ?? "");
+    String(form.get("confirm") ?? form.get("passwordConfirm") ?? "");
 
   if (!token || !password || !confirm) {
     ctx.response.status = Status.BadRequest;
