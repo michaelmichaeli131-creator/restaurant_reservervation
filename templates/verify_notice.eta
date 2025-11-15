@@ -1,39 +1,143 @@
 <% layout("_layout", it) %>
 
+<%
+  /*
+    תרגומים לעמוד זה נמצאים בקבצים:
+      /i18n/pages/verify.he.json
+      /i18n/pages/verify.en.json
+      /i18n/pages/verify.ka.json
+
+    ומנוהלים תחת המפתחות:
+      auth.verify.*
+  */
+
+  /* tt: תרגום עם fallback אמיתי גם כש-it.t מחזיר "(key)" */
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t === 'function'){
+        const s = it.t(k);
+        if (!s || s === k || s === `(${k})`) return fb;
+        return s;
+      }
+    }catch(e){}
+    return fb;
+  }
+
+  const _lang       = it.lang || 'he';
+  const postVerify  = Boolean(it.postVerify); // true אחרי אימות מוצלח
+  const email       = it.email || '';
+  const hasError    = Boolean(it.error);
+  const hasInfo     = Boolean(it.info);
+
+  // נוודא שגם resendUrl שומר את פרמטר השפה
+  let resendHref = null;
+  if (it.resendUrl) {
+    const base = String(it.resendUrl);
+    if (base.includes("?")) {
+      resendHref = base + "&lang=" + encodeURIComponent(_lang);
+    } else {
+      resendHref = base + "?lang=" + encodeURIComponent(_lang);
+    }
+  }
+
+  const loginHref = "/auth/login?lang=" + encodeURIComponent(_lang);
+%>
+
 <main class="sb-auth container" aria-labelledby="verify-title">
   <section class="card verify-card">
     <header class="head center">
       <span class="icon-bubble info" aria-hidden="true">✉️</span>
-      <h1 id="verify-title">אימות אימייל</h1>
-      <p class="muted sub">כמעט סיימנו! רק לאשר את הכתובת</p>
+      <h1 id="verify-title">
+        <%= tt('auth.verify.title','אימות אימייל') %>
+      </h1>
+      <p class="muted sub">
+        <% if (postVerify) { %>
+          <%= tt('auth.verify.subtitleAfter','האימייל אומת בהצלחה! אפשר כעת להתחבר.') %>
+        <% } else { %>
+          <%= tt('auth.verify.subtitleBefore','כמעט סיימנו! רק לאשר את הכתובת') %>
+        <% } %>
+      </p>
     </header>
 
-    <% if (it.error) { %>
+    <% if (hasError) { %>
       <p class="badge warn" role="alert">✗ <%= it.error %></p>
     <% } %>
-    <% if (it.info) { %>
-      <p class="badge info" role="status">ℹ <%= it.info %></p>
+
+    <% if (!postVerify) { %>
+      <% if (hasInfo) { %>
+        <p class="badge info" role="status">
+          ℹ <%= it.info %>
+        </p>
+      <% } else { %>
+        <p class="badge info" role="status">
+          ℹ <%= tt(
+            'auth.verify.info.before',
+            'נשלח קישור אימות לכתובת הדוא״ל. יש ללחוץ על הקישור כדי להשלים את ההרשמה.'
+          ) %>
+        </p>
+      <% } %>
+    <% } else { %>
+      <% if (hasInfo) { %>
+        <p class="badge info" role="status">
+          ℹ <%= it.info %>
+        </p>
+      <% } else { %>
+        <p class="badge info" role="status">
+          ℹ <%= tt(
+            'auth.verify.info.after',
+            'האימייל אומת בהצלחה! אפשר כעת להתחבר.'
+          ) %>
+        </p>
+      <% } %>
     <% } %>
 
     <div class="verify-body">
-      <% if (it.email) { %>
+      <% if (!postVerify && email) { %>
         <p class="lead">
-          שלחנו קישור אימות ל־<strong dir="ltr"><%= it.email %></strong>.
+          <%= tt('auth.verify.sentPrefix','שלחנו קישור אימות ל־') %>
+          <strong dir="ltr"><%= email %></strong>.
         </p>
         <p class="muted">
-          לא הגיע? בדקו בתיקיית “ספאם/קידומי מכירות”. אפשר גם לשלוח שוב קישור:
+          <%= tt(
+            'auth.verify.spamHint',
+            'לא הגיע? בדקו בתיקיית “ספאם/קידומי מכירות”. אפשר גם לשלוח שוב קישור:'
+          ) %>
         </p>
 
         <div class="actions">
-          <% if (it.resendUrl) { %>
-            <a class="btn primary" href="<%= it.resendUrl %>">שלחו שוב קישור</a>
+          <% if (resendHref) { %>
+            <a class="btn primary" href="<%= resendHref %>">
+              <%= tt('auth.verify.resend','שלחו שוב קישור') %>
+            </a>
           <% } %>
-          <a class="btn ghost" href="/auth/login">חזרה להתחברות</a>
+          <a class="btn ghost" href="<%= loginHref %>">
+            <%= tt('auth.verify.backToLogin','חזרה להתחברות') %>
+          </a>
+        </div>
+      <% } else if (!postVerify && !email) { %>
+        <p class="lead">
+          <%= tt(
+            'auth.verify.checkMailbox',
+            'אנא בדקו את תיבת הדוא״ל ולחצו על הקישור שקיבלתם.'
+          ) %>
+        </p>
+        <div class="actions">
+          <a class="btn ghost" href="<%= loginHref %>">
+            <%= tt('auth.verify.backToLogin','חזרה להתחברות') %>
+          </a>
         </div>
       <% } else { %>
-        <p class="lead">אנא בדקו את תיבת הדוא״ל ולחצו על הקישור שקיבלתם.</p>
+        <!-- מצב אחרי אימות מוצלח -->
+        <p class="lead">
+          <%= tt(
+            'auth.verify.afterLead',
+            'האימייל אומת בהצלחה! אפשר כעת להתחבר עם המשתמש שלך.'
+          ) %>
+        </p>
         <div class="actions">
-          <a class="btn ghost" href="/auth/login">חזרה להתחברות</a>
+          <a class="btn primary" href="<%= loginHref %>">
+            <%= tt('auth.verify.goToLogin','היכנסו לחשבון') %>
+          </a>
         </div>
       <% } %>
     </div>

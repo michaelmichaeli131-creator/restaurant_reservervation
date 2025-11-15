@@ -1,0 +1,20 @@
+{
+  "auth": {
+    "verify": {
+      "title": "Email verification",
+      "subtitleBefore": "Almost done! Please confirm your email address.",
+      "subtitleAfter": "Your email has been verified! You can now sign in.",
+      "info": {
+        "before": "We’ve sent a verification link to your email. Click the link to complete your sign-up.",
+        "after": "Your email has been successfully verified. You can now sign in."
+      },
+      "sentPrefix": "We’ve sent a verification link to ",
+      "spamHint": "Didn’t receive it? Please check your spam/promotion folders. You can also resend the link:",
+      "checkMailbox": "Please check your inbox and click the link we’ve just sent you.",
+      "afterLead": "Your email has been verified successfully. You can now log in to your account.",
+      "resend": "Resend verification link",
+      "backToLogin": "Back to login",
+      "goToLogin": "Go to login"
+    }
+  }
+}
