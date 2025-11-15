@@ -165,11 +165,10 @@ authRouter.post("/auth/register", async (ctx) => {
     console.error("[auth.register] sendVerifyEmail failed:", e);
   }
 
+  // ❌ הורדנו info כדי שהטקסט יגיע מ-i18n (auth.verify.info.before)
   await render(ctx, "verify_notice", {
     title: "בדיקת דוא״ל",
     page: "verify",
-    info:
-      "נשלח קישור אימות לכתובת הדוא״ל. יש ללחוץ על הקישור כדי להשלים את ההרשמה.",
     email: created.email,
     resendUrl:
       `/auth/verify/resend?email=${encodeURIComponent(created.email)}`,
@@ -298,10 +297,10 @@ authRouter.get("/auth/verify", async (ctx) => {
 
   await setEmailVerified(record.userId);
 
+  // ❌ גם כאן – אין info, כדי שהטקסט יבוא מ-i18n (auth.verify.info.after)
   await render(ctx, "verify_notice", {
     title: "אימות דוא״ל",
     page: "verify",
-    info: "האימייל אומת בהצלחה! אפשר כעת להתחבר.",
     postVerify: true,
   });
 });
