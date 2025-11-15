@@ -1,95 +1,142 @@
 <% layout("_layout", it) %>
 
 <%
-// tt: תרגום עם fallback אמיתי גם כש-it.t מחזיר "(key)"
-function tt(k, fb){
-  try{
-    if (it && typeof it.t === 'function') {
-      const s = it.t(k);
-      if (!s || s === k || s === `(${k})`) return fb;
-      return s;
-    }
-  }catch(e){}
-  return fb;
-}
+  /*
+    תרגומים לעמוד זה נמצאים בקבצים:
+      /i18n/pages/verify.he.json
+      /i18n/pages/verify.en.json
+      /i18n/pages/verify.ka.json
 
-const lang = it.lang || 'he';
-const dir  = it.dir  || (lang === 'he' || lang === 'ar' ? 'rtl' : 'ltr');
+    ומנוהלים תחת המפתחות:
+      auth.verify.*
+  */
+
+  /* tt: תרגום עם fallback אמיתי גם כש-it.t מחזיר "(key)" */
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t === 'function'){
+        const s = it.t(k);
+        if (!s || s === k || s === `(${k})`) return fb;
+        return s;
+      }
+    }catch(e){}
+    return fb;
+  }
+
+  const _lang       = it.lang || 'he';
+  const postVerify  = Boolean(it.postVerify); // true אחרי אימות מוצלח
+  const email       = it.email || '';
+  const hasError    = Boolean(it.error);
+  const hasInfo     = Boolean(it.info);
+
+  // נוודא שגם resendUrl שומר את פרמטר השפה
+  let resendHref = null;
+  if (it.resendUrl) {
+    const base = String(it.resendUrl);
+    if (base.includes("?")) {
+      resendHref = base + "&lang=" + encodeURIComponent(_lang);
+    } else {
+      resendHref = base + "?lang=" + encodeURIComponent(_lang);
+    }
+  }
+
+  const loginHref = "/auth/login?lang=" + encodeURIComponent(_lang);
 %>
 
-<main class="sb-auth container" aria-labelledby="verify-title" dir="<%= dir %>">
+<main class="sb-auth container" aria-labelledby="verify-title">
   <section class="card verify-card">
     <header class="head center">
-      <div class="top-bar">
-        <span class="icon-bubble info" aria-hidden="true">✉️</span>
-        <div class="title-wrap">
-          <h1 id="verify-title">
-            <%= tt('auth.verify.title','אימות אימייל') %>
-          </h1>
-          <p class="muted sub">
-            <%= tt('auth.verify.subtitle','כמעט סיימנו! רק לאשר את הכתובת') %>
-          </p>
-        </div>
-
-        <!-- language switcher -->
-        <nav class="lang-switch" aria-label="Language switcher">
-          <a href="?lang=he" class="<%= lang==='he'?'active':'' %>">HE</a>
-          <a href="?lang=en" class="<%= lang==='en'?'active':'' %>">EN</a>
-          <a href="?lang=ka" class="<%= lang==='ka'?'active':'' %>">KA</a>
-        </nav>
-      </div>
+      <span class="icon-bubble info" aria-hidden="true">✉️</span>
+      <h1 id="verify-title">
+        <%= tt('auth.verify.title','אימות אימייל') %>
+      </h1>
+      <p class="muted sub">
+        <% if (postVerify) { %>
+          <%= tt('auth.verify.subtitleAfter','האימייל אומת בהצלחה! אפשר כעת להתחבר.') %>
+        <% } else { %>
+          <%= tt('auth.verify.subtitleBefore','כמעט סיימנו! רק לאשר את הכתובת') %>
+        <% } %>
+      </p>
     </header>
 
-    <% if (it.error) { %>
-      <p class="badge warn" role="alert">
-        ✗ <%= it.error %>
-      </p>
+    <% if (hasError) { %>
+      <p class="badge warn" role="alert">✗ <%= it.error %></p>
     <% } %>
 
-    <!-- ℹ האינפו העיקרי – מ-i18n בלבד -->
-    <% if (it.postVerify) { %>
-      <p class="badge info" role="status">
-        ℹ <%= tt('auth.verify.info.after','האימייל אומת בהצלחה! אפשר כעת להתחבר.') %>
-      </p>
+    <% if (!postVerify) { %>
+      <% if (hasInfo) { %>
+        <p class="badge info" role="status">
+          ℹ <%= it.info %>
+        </p>
+      <% } else { %>
+        <p class="badge info" role="status">
+          ℹ <%= tt(
+            'auth.verify.info.before',
+            'נשלח קישור אימות לכתובת הדוא״ל. יש ללחוץ על הקישור כדי להשלים את ההרשמה.'
+          ) %>
+        </p>
+      <% } %>
     <% } else { %>
-      <p class="badge info" role="status">
-        ℹ <%= tt('auth.verify.info.before','נשלח קישור אימות לכתובת הדוא״ל. יש ללחוץ על הקישור כדי להשלים את ההרשמה.') %>
-      </p>
+      <% if (hasInfo) { %>
+        <p class="badge info" role="status">
+          ℹ <%= it.info %>
+        </p>
+      <% } else { %>
+        <p class="badge info" role="status">
+          ℹ <%= tt(
+            'auth.verify.info.after',
+            'האימייל אומת בהצלחה! אפשר כעת להתחבר.'
+          ) %>
+        </p>
+      <% } %>
     <% } %>
 
     <div class="verify-body">
-      <% if (it.email) { %>
+      <% if (!postVerify && email) { %>
         <p class="lead">
-          <%= tt('auth.verify.lead.sent','שלחנו קישור אימות ל־') %>
-          <strong dir="ltr"><%= it.email %></strong>.
+          <%= tt('auth.verify.sentPrefix','שלחנו קישור אימות ל־') %>
+          <strong dir="ltr"><%= email %></strong>.
         </p>
         <p class="muted">
           <%= tt(
-            'auth.verify.tips.spam',
+            'auth.verify.spamHint',
             'לא הגיע? בדקו בתיקיית “ספאם/קידומי מכירות”. אפשר גם לשלוח שוב קישור:'
           ) %>
         </p>
 
         <div class="actions">
-          <% if (it.resendUrl) { %>
-            <a class="btn primary" href="<%= it.resendUrl %>">
-              <%= tt('auth.verify.actions.resend','שלחו שוב קישור') %>
+          <% if (resendHref) { %>
+            <a class="btn primary" href="<%= resendHref %>">
+              <%= tt('auth.verify.resend','שלחו שוב קישור') %>
             </a>
           <% } %>
-          <a class="btn ghost" href="/auth/login?lang=<%= encodeURIComponent(lang) %>">
-            <%= tt('auth.verify.actions.back','חזרה להתחברות') %>
+          <a class="btn ghost" href="<%= loginHref %>">
+            <%= tt('auth.verify.backToLogin','חזרה להתחברות') %>
           </a>
         </div>
-      <% } else { %>
+      <% } else if (!postVerify && !email) { %>
         <p class="lead">
           <%= tt(
-            'auth.verify.lead.generic',
+            'auth.verify.checkMailbox',
             'אנא בדקו את תיבת הדוא״ל ולחצו על הקישור שקיבלתם.'
           ) %>
         </p>
         <div class="actions">
-          <a class="btn ghost" href="/auth/login?lang=<%= encodeURIComponent(lang) %>">
-            <%= tt('auth.verify.actions.back','חזרה להתחברות') %>
+          <a class="btn ghost" href="<%= loginHref %>">
+            <%= tt('auth.verify.backToLogin','חזרה להתחברות') %>
+          </a>
+        </div>
+      <% } else { %>
+        <!-- מצב אחרי אימות מוצלח -->
+        <p class="lead">
+          <%= tt(
+            'auth.verify.afterLead',
+            'האימייל אומת בהצלחה! אפשר כעת להתחבר עם המשתמש שלך.'
+          ) %>
+        </p>
+        <div class="actions">
+          <a class="btn primary" href="<%= loginHref %>">
+            <%= tt('auth.verify.goToLogin','היכנסו לחשבון') %>
           </a>
         </div>
       <% } %>
@@ -111,47 +158,22 @@ const dir  = it.dir  || (lang === 'he' || lang === 'ar' ? 'rtl' : 'ltr');
     color:var(--ink); box-shadow:var(--shadow-md); padding:22px;
   }
 
-  .top-bar{
-    width:100%;
-    display:flex; align-items:center; justify-content:space-between;
-    gap:12px;
-  }
-
-  .title-wrap{
-    flex:1;
-    display:flex; flex-direction:column; align-items:flex-start; gap:4px;
-  }
-
-  .head{ margin-bottom:6px }
-  .head.center{ text-align:center }
+  .head{ display:flex; flex-direction:column; align-items:flex-start; gap:8px; margin-bottom:6px }
+  .head.center{ align-items:center; text-align:center }
   #verify-title{ margin:0; font-size:22px; letter-spacing:.2px }
   .sub{ margin:0 }
   .muted{ color:var(--muted) }
-  .lead{ margin:10px 0 }
+  .lead{ margin:0 0 10px }
 
   .icon-bubble{
     width:56px; height:56px; border-radius:50%;
     display:inline-flex; align-items:center; justify-content:center;
     font-size:26px; background:#0b1327; border:1px solid var(--bd); color:#eaf6ff;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
-    flex-shrink:0;
   }
   .icon-bubble.info{
     background: color-mix(in srgb, var(--brand) 12%, #0b1327);
     border-color: color-mix(in srgb, var(--brand) 55%, var(--bd));
-  }
-
-  /* Language switcher */
-  .lang-switch{
-    display:inline-flex; gap:6px; padding:4px;
-    background:#020617; border-radius:999px; border:1px solid #1e293b;
-  }
-  .lang-switch a{
-    font-size:.76rem; padding:4px 8px; border-radius:999px;
-    text-decoration:none; color:var(--muted); border:1px solid transparent;
-  }
-  .lang-switch a.active{
-    background:var(--brand); color:#fff; border-color:var(--brand);
   }
 
   /* Badges */

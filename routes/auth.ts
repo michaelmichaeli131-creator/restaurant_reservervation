@@ -1,7 +1,8 @@
 // src/routes/auth.ts
 // ----------------------
 // Auth routes: register, login, logout, verify, forgot/reset
-// בלי dal/, בלי phase, בלי rate_limit – רק מה שצריך באמת
+// ללא dal/, ללא phase, ללא rate_limit – רק מה שקיים בפועל בפרויקט שלך.
+// מותאם ל-Oak 17 + Deno Deploy.
 // ----------------------
 
 import { Router, Status } from "jsr:@oak/oak";
@@ -30,36 +31,22 @@ export const authRouter = new Router();
 const lower = (s: string) => s.trim().toLowerCase();
 
 /**
- * קריאת form בצורה שתעבוד גם ב-Deno.serve וגם בגרסאות שונות של Oak
+ * קריאת form בצורה שתעבוד גם עם Oak 17 (ctx.request.body.form())
+ * וגם עם סביבות אחרות (fallback ל-formData אם קיים).
  */
 async function readForm(ctx: any): Promise<Record<string, string>> {
   const req: any = ctx.request as any;
 
-  // ניסיון ראשון – להשתמש ב-Request.formData() המקורי
-  const rawReq: any = (req as any).originalRequest ?? req;
+  // 🔹 קודם כל – API החדש של Oak 17: ctx.request.body.form()
   try {
-    if (typeof rawReq.formData === "function") {
-      const fd = await rawReq.formData();
+    const body = req.body;
+    if (body && typeof body.form === "function") {
+      const form = await body.form();
       const out: Record<string, string> = {};
-      for (const [k, v] of fd.entries()) {
-        out[k] = typeof v === "string" ? v : String(v);
-      }
-      return out;
-    }
-  } catch (e) {
-    console.warn("[auth.readForm] formData() failed", e);
-  }
 
-  // fallback – עבור גרסאות Oak ישנות יותר עם request.body()
-  try {
-    if (typeof req.body === "function") {
-      const body = req.body({ type: "form" });
-      const form = await body.value;
-
-      const out: Record<string, string> = {};
       if (form && typeof form.entries === "function") {
         for (const [k, v] of form.entries()) {
-          out[k] = String(v);
+          out[k] = typeof v === "string" ? v : String(v);
         }
       } else if (form && typeof form === "object") {
         for (const [k, v] of Object.entries(form)) {
@@ -69,9 +56,25 @@ async function readForm(ctx: any): Promise<Record<string, string>> {
       return out;
     }
   } catch (e) {
-    console.warn('[auth.readForm] body({ type: "form" }) failed', e);
+    console.warn("[auth.readForm] body.form() failed", e);
   }
 
+  // 🔹 fallback – ניסיון להשתמש ב-Request.formData() אם יש originalRequest
+  try {
+    const rawReq: any = (req as any).originalRequest ?? req;
+    if (rawReq && typeof rawReq.formData === "function") {
+      const fd = await rawReq.formData();
+      const out: Record<string, string> = {};
+      for (const [k, v] of fd.entries()) {
+        out[k] = typeof v === "string" ? v : String(v);
+      }
+      return out;
+    }
+  } catch (e) {
+    console.warn("[auth.readForm] rawReq.formData() failed", e);
+  }
+
+  // אם שום דבר לא עבד – נחזיר אובייקט ריק
   return {};
 }
 
@@ -149,8 +152,7 @@ authRouter.post("/auth/register", async (ctx) => {
     phone,
     businessType,
     passwordHash,
-    // ברירת מחדל – בעלים
-    role: "owner",
+    role: "owner",   // ברירת מחדל – בעלים
     provider: "local",
   } as any);
 
@@ -163,14 +165,14 @@ authRouter.post("/auth/register", async (ctx) => {
     console.error("[auth.register] sendVerifyEmail failed:", e);
   }
 
-  // ⚠️ בלי info – הטקסט מגיע מ-i18n (auth.verify.info.before)
   await render(ctx, "verify_notice", {
     title: "בדיקת דוא״ל",
     page: "verify",
+    info:
+      "נשלח קישור אימות לכתובת הדוא״ל. יש ללחוץ על הקישור כדי להשלים את ההרשמה.",
     email: created.email,
-    resendUrl: `/auth/verify/resend?email=${encodeURIComponent(
-      created.email,
-    )}`,
+    resendUrl:
+      `/auth/verify/resend?email=${encodeURIComponent(created.email)}`,
   });
 });
 
@@ -222,7 +224,8 @@ authRouter.post("/auth/login", async (ctx) => {
     await render(ctx, "auth/login", {
       title: "התחברות",
       page: "login",
-      error: "נדרש אימות דוא״ל לפני התחברות. שלחנו לך קישור אימות נוסף.",
+      error:
+        "נדרש אימות דוא״ל לפני התחברות. שלחנו לך קישור אימות נוסף.",
       verifyResend: true,
     });
     return;
@@ -277,7 +280,7 @@ authRouter.get("/auth/verify", async (ctx) => {
     await render(ctx, "verify_notice", {
       title: "אימות דוא״ל",
       page: "verify",
-      error: "קישור לא תקין",
+      info: "קישור לא תקין",
     });
     return;
   }
@@ -288,17 +291,17 @@ authRouter.get("/auth/verify", async (ctx) => {
     await render(ctx, "verify_notice", {
       title: "אימות דוא״ל",
       page: "verify",
-      error: "קישור לא תקין או שפג תוקף",
+      info: "קישור לא תקין או שפג תוקף",
     });
     return;
   }
 
   await setEmailVerified(record.userId);
 
-  // ⚠️ בלי info – הטקסט מגיע מ-i18n (auth.verify.info.after)
   await render(ctx, "verify_notice", {
     title: "אימות דוא״ל",
     page: "verify",
+    info: "האימייל אומת בהצלחה! אפשר כעת להתחבר.",
     postVerify: true,
   });
 });
@@ -313,7 +316,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
     await render(ctx, "verify_notice", {
       title: "שליחת אימות",
       page: "verify",
-      error: "נא לספק כתובת דוא״ל",
+      info: "נא לספק כתובת דוא״ל",
     });
     return;
   }
@@ -356,15 +359,18 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
 /* ---------------- Forgot / Reset password ---------------- */
 
 authRouter.get("/auth/forgot", async (ctx) => {
+  const email = ctx.request.url.searchParams.get("email") ?? "";
   await render(ctx, "auth/forgot", {
     title: "שכחתי סיסמה",
     page: "forgot",
+    prefill: email ? { email } : undefined,
   });
 });
 
 authRouter.post("/auth/forgot", async (ctx) => {
   const b = await readForm(ctx);
-  const email = lower(String(b.email ?? ""));
+  const rawEmail = String(b.email ?? "");
+  const email = lower(rawEmail);
 
   if (!email) {
     ctx.response.status = Status.BadRequest;
@@ -372,6 +378,7 @@ authRouter.post("/auth/forgot", async (ctx) => {
       title: "שכחתי סיסמה",
       page: "forgot",
       error: "נא להזין דוא״ל",
+      prefill: { email: rawEmail }, // כדי שהשדה יישאר מלא
     });
     return;
   }
@@ -419,7 +426,9 @@ authRouter.post("/auth/reset", async (ctx) => {
 
   const token = String(b.token ?? "");
   const pw = String(b.password ?? "");
-  const confirm = String(b.confirm ?? b.passwordConfirm ?? "");
+  const confirm = String(
+    b.confirm ?? b.passwordConfirm ?? "",
+  );
 
   if (!token || !pw || !confirm) {
     ctx.response.status = Status.BadRequest;
