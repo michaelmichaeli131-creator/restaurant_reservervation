@@ -70,26 +70,11 @@ function tt(k, fb){
                     <div class="bar" aria-label="<%= tt('owner.dashboard.peak_aria','תפוסת שיא') %>">
                       <div class="bar-fill <%= color %>" style="width:<%= Math.max(0, Math.min(100, peak)) %>%"></div>
                     </div>
-
-                    <!-- כפתורי POS: תפריט / מלצר / מטבח -->
-                    <div class="actions" style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap">
-                      <a class="btn ghost" href="/owner/<%= r.id %>/menu">
-                        <span class="icon">🧾</span>
-                        עריכת תפריט
-                      </a>
-                      <a class="btn ghost" href="/waiter/<%= r.id %>/1" title="פתח ממשק מלצר לשולחן 1">
-                        <span class="icon">🍽️</span>
-                        מלצר (שולחן 1)
-                      </a>
-                      <a class="btn ghost" href="/kitchen/<%= r.id %>">
-                        <span class="icon">🧑‍🍳</span>
-                        מסך מטבח
-                      </a>
-                    </div>
                   </div>
                 </div>
 
-                <div class="actions">
+                <!-- פעולות כלליות (כמו קודם) -->
+                <div class="actions primary-actions">
                   <a class="btn ghost" href="<%= r._calendarUrl %>" target="_self" rel="nofollow">
                     <span class="icon">📅</span>
                     <%= tt('owner.dashboard.btn_calendar','Calendar יומי') %>
@@ -109,6 +94,22 @@ function tt(k, fb){
                   <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/floor" target="_self" rel="nofollow">
                     <span class="icon">🍽️</span>
                     <%= tt('owner.dashboard.btn_floor','סידור שולחנות') %>
+                  </a>
+                </div>
+
+                <!-- שורת POS – מתחת לסידור שולחנות, כפתורים “ארוכים” -->
+                <div class="actions pos-actions">
+                  <a class="btn ghost wide" href="/owner/<%= r.id %>/menu">
+                    <span class="icon">🧾</span>
+                    עריכת תפריט
+                  </a>
+                  <a class="btn ghost wide" href="/waiter/<%= r.id %>/1" title="פתח ממשק מלצר לשולחן 1">
+                    <span class="icon">🍽️</span>
+                    מלצר (שולחן 1)
+                  </a>
+                  <a class="btn ghost wide" href="/kitchen/<%= r.id %>">
+                    <span class="icon">🧑‍🍳</span>
+                    מסך מטבח
                   </a>
                 </div>
               </li>
@@ -246,7 +247,8 @@ function tt(k, fb){
   .list{list-style:none;padding:0;margin:0}
   .item{
     display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
-    border-top:1px solid rgba(255,255,255,.06);padding:14px 0
+    border-top:1px solid rgba(255,255,255,.06);padding:14px 0;
+    flex-direction:column;
   }
   .item:first-child{border-top:none;padding-top:0}
 
@@ -258,7 +260,7 @@ function tt(k, fb){
   .meta-body .title{font-size:16px}
   .meta-body .sub{font-size:12px}
 
-  .kpis{margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;alignיעס:center}
+  .kpis{margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .kpi{
     font-size:12px;color:#cbd5e1;
     background: rgba(148,163,184,.12);
@@ -301,7 +303,22 @@ function tt(k, fb){
   .btn.ghost:hover{ background: color-mix(in srgb, var(--panel, #121622) 94%, transparent); }
   .btn.sm{ padding:8px 12px; border-radius:10px }
 
-  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-inline-start:auto}
+  /* שורת אקשנים ראשית + POS */
+  .actions{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-top:8px;
+  }
+  .primary-actions{
+    justify-content:flex-start;
+  }
+  .pos-actions{
+    justify-content:flex-start;
+  }
+  .pos-actions .btn.wide{
+    min-width:180px;
+  }
 
   /* טפסים */
   .form label{ display:block; font-weight:600; font-size:14px; margin-top:8px }
@@ -319,5 +336,9 @@ function tt(k, fb){
 
   @media (max-width:900px){
     .owner-grid{grid-template-columns:1fr}
+    .pos-actions .btn.wide{
+      width:100%;
+      justify-content:center;
+    }
   }
 </style>
