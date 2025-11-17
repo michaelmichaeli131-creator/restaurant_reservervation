@@ -39,6 +39,7 @@ import ownerPhotosRouter from "./routes/owner_photos.ts";
 import { requestLogger } from "./lib/log_mw.ts";
 import { diagRouter } from "./routes/diag.ts";
 import openingRouter from "./routes/opening.ts";
+import posRouter from "./routes/pos.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
 <<<<<<< HEAD
 
@@ -418,6 +419,7 @@ app.use(diagRouter.allowedMethods());
 
 // ראוטרים ציבוריים של מסעדות - אחרון כי הכי כללי
 app.use(restaurantsRouter.routes());
+app.use(posRouter.routes());
 app.use(restaurantsRouter.allowedMethods());
 
 // Reviews API

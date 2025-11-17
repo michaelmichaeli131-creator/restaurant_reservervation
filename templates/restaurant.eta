@@ -123,6 +123,15 @@
       </div>
     </section>
   <% } %>
+
+  <section class="card">
+    <h3 class="card-title">תפריט</h3>
+    <div id="pos-menu" data-rid="<%= it.restaurant.id %>">
+      <p class="muted">טוען תפריט...</p>
+    </div>
+  </section>
+  <script type="module" src="/public/js/menu_embed.js"></script>
+
 </main>
 
 <!-- *** הזרקת נתונים מהשרת (כולל rid) *** -->

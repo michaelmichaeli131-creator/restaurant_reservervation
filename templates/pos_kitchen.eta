@@ -1,0 +1,17 @@
+
+<% layout("_layout", it) %>
+<main class="container">
+  <header class="page-header">
+    <h1>מטבח — <%= it.restaurant.name %></h1>
+  </header>
+
+  <section class="card">
+    <h2 class="card-title">הזמנות נכנסות</h2>
+    <table class="table">
+      <thead><tr><th>שולחן</th><th>מנה</th><th>כמות</th><th>סטטוס</th><th>פעולה</th></tr></thead>
+      <tbody id="orders"></tbody>
+    </table>
+  </section>
+</main>
+<script type="module" src="/public/js/pos_kitchen.js"></script>
+<script>window.POS_CTX = { rid: "<%= it.rid %>" };</script>

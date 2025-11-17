@@ -1,0 +1,72 @@
+
+<% layout("_layout", it) %>
+<main class="container">
+  <header class="page-header">
+    <h1>עריכת תפריט — <%= it.restaurant.name %></h1>
+    <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+  </header>
+
+  <section class="card">
+    <h2 class="card-title">קטגוריות</h2>
+    <ul class="list">
+      <% it.cats.forEach(c => { %>
+        <li class="item">
+          <strong><%= c.name_he || c.name_en || '(ללא שם)' %></strong>
+          <form method="post" action="/owner/<%= it.restaurant.id %>/menu/category/<%= c.id %>/delete" style="display:inline">
+            <button class="btn ghost" onclick="return confirm('למחוק קטגוריה?')">מחק</button>
+          </form>
+        </li>
+      <% }) %>
+    </ul>
+    <form method="post" action="/owner/<%= it.restaurant.id %>/menu/category" class="form row">
+      <label class="fld"><span>שם (EN)</span><input name="name_en" required></label>
+      <label class="fld"><span>שם (HE)</span><input name="name_he"></label>
+      <button class="btn">הוסף קטגוריה</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">מנות</h2>
+    <table class="table">
+      <thead><tr><th>שם</th><th>מחיר</th><th>יעד</th><th>קטגוריה</th><th></th></tr></thead>
+      <tbody>
+        <% it.items.forEach(m => { %>
+          <tr>
+            <td><%= m.name_he || m.name_en %></td>
+            <td><%= (m.price || 0).toFixed(2) %> ₪</td>
+            <td><%= m.destination %></td>
+            <td><%= (it.cats.find(c=>c.id===m.categoryId)?.name_he || it.cats.find(c=>c.id===m.categoryId)?.name_en || '-') %></td>
+            <td>
+              <form method="post" action="/owner/<%= it.restaurant.id %>/menu/item/<%= m.id %>/delete">
+                <button class="btn ghost">מחק</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+
+    <form method="post" action="/owner/<%= it.restaurant.id %>/menu/item" class="form row">
+      <label class="fld"><span>שם (EN)</span><input name="name_en" required></label>
+      <label class="fld"><span>שם (HE)</span><input name="name_he"></label>
+      <label class="fld"><span>מחיר (₪)</span><input name="price" type="number" step="0.01" required></label>
+      <label class="fld">
+        <span>יעד</span>
+        <select name="destination">
+          <option value="kitchen">מטבח</option>
+          <option value="bar">בר</option>
+        </select>
+      </label>
+      <label class="fld">
+        <span>קטגוריה</span>
+        <select name="categoryId">
+          <option value="">(ללא)</option>
+          <% it.cats.forEach(c => { %>
+            <option value="<%= c.id %>"><%= c.name_he || c.name_en %></option>
+          <% }) %>
+        </select>
+      </label>
+      <button class="btn">הוסף מנה</button>
+    </form>
+  </section>
+</main>

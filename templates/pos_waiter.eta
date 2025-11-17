@@ -1,0 +1,25 @@
+
+<% layout("_layout", it) %>
+<main class="container">
+  <header class="page-header">
+    <h1>מלצר · שולחן <%= it.table %> — <%= it.restaurant.name %></h1>
+  </header>
+
+  <section class="card">
+    <h2 class="card-title">תפריט</h2>
+    <ul id="menuList" class="list"></ul>
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">הזמנה לשולחן <%= it.table %></h2>
+    <table class="table">
+      <thead><tr><th>פריט</th><th>כמות</th><th>מחיר</th><th>סטטוס</th></tr></thead>
+      <tbody id="orderItems"></tbody>
+      <tfoot>
+        <tr><td colspan="2"></td><td><strong>סה״כ</strong></td><td><strong id="total">0.00 ₪</strong></td></tr>
+      </tfoot>
+    </table>
+  </section>
+</main>
+<script type="module" src="/public/js/pos_waiter.js"></script>
+<script>window.POS_CTX = { rid: "<%= it.rid %>", table: <%= it.table %> };</script>

@@ -69,6 +69,11 @@ function tt(k, fb){
                     <!-- Progress Occupancy -->
                     <div class="bar" aria-label="<%= tt('owner.dashboard.peak_aria','תפוסת שיא') %>">
                       <div class="bar-fill <%= color %>" style="width:<%= Math.max(0, Math.min(100, peak)) %>%"></div>
+                    
+                    <div class="actions">
+                      <a class="btn ghost" href="/owner/<%= r.id %>/menu">עריכת תפריט</a>
+                      <a class="btn ghost" href="/waiter/<%= r.id %>/1" title="פתח ממשק מלצר לשולחן 1">מלצר (שולחן 1)</a>
+                      <a class="btn ghost" href="/kitchen/<%= r.id %>">מסך מטבח</a>
                     </div>
                   </div>
                 </div>
