@@ -1,139 +1,196 @@
-
 // src/pos/pos_ws.ts
-import { Context } from "jsr:@oak/oak";
-import { listItems, addOrderItem, listOrderItemsForTable, updateOrderItemStatus } from "./pos_db.ts";
+// WebSocket ל-POS: סינכרון ריל-טיים בין מלצרים למטבח.
 
-type Role = "waiter" | "kitchen";
+import { Status, type Context } from "jsr:@oak/oak";
+import { kv } from "../database.ts";
+import type {
+  Order,
+  OrderItem,
+  OrderItemStatus,
+} from "./pos_db.ts";
+import { updateOrderItemStatus } from "./pos_db.ts";
 
-type WS = WebSocket & {
-  rid?: string;
-  role?: Role;
+interface PosClient {
+  ws: WebSocket;
+  restaurantId?: string;
+  role?: "waiter" | "kitchen";
   table?: number;
-};
+}
 
-// Simple channel maps per restaurant
-const waitersByRestaurantTable = new Map<string, Map<number, Set<WS>>>(); // rid -> table -> set
-const kitchensByRestaurant = new Map<string, Set<WS>>(); // rid -> set
+const clients = new Set<PosClient>();
 
+/** helper: שולח לכולם לפי predicate */
+function broadcast(
+  predicate: (c: PosClient) => boolean,
+  payload: unknown,
+) {
+  const data = JSON.stringify(payload);
+  for (const c of clients) {
+    try {
+      if (c.ws.readyState === WebSocket.OPEN && predicate(c)) {
+        c.ws.send(data);
+      }
+    } catch {
+      // נתעלם משגיאות של client מת
+    }
+  }
+}
+
+/** helper: מביא את כל ה-OrderItem הפעילים למסעדה (הזמנות פתוחות בלבד, לא cancelled) */
+async function loadActiveItemsForRestaurant(
+  restaurantId: string,
+): Promise<OrderItem[]> {
+  const out: OrderItem[] = [];
+
+  // כל ההזמנות למסעדה
+  for await (
+    const row of kv.list<Order>({
+      prefix: ["pos", "order", restaurantId],
+    })
+  ) {
+    const order = row.value;
+    if (!order || order.status !== "open") continue;
+
+    // כל ה-items של אותה הזמנה
+    for await (
+      const itemRow of kv.list<OrderItem>({
+        prefix: ["pos", "order_item", order.id],
+      })
+    ) {
+      const it = itemRow.value;
+      if (!it) continue;
+      if (it.status === "cancelled") continue;
+      out.push(it);
+    }
+  }
+
+  out.sort((a, b) => a.createdAt - b.createdAt);
+  return out;
+}
+
+/** handler הראשי ל-WebSocket */
 export async function handlePosSocket(ctx: Context) {
   if (!ctx.isUpgradable) {
-    ctx.throw(501);
+    ctx.throw(Status.BadRequest, "WebSocket upgrade required");
   }
-  const socket = ctx.upgrade() as WS;
-  const url = ctx.request.url;
-  const rid = url.searchParams.get("rid") || "";
-  const role = (url.searchParams.get("role") as Role) || undefined;
-  const tableStr = url.searchParams.get("table") || "";
-  const table = tableStr ? Number(tableStr) : undefined;
 
-  if (!rid || !role) {
-    socket.close(1008, "rid and role required");
-    return;
-  }
-  socket.rid = rid;
-  socket.role = role;
-  if (role === "waiter") {
-    if (!table || isNaN(table)) {
-      socket.close(1008, "table required for waiter");
+  const ws = ctx.upgrade();
+  const client: PosClient = { ws };
+  clients.add(client);
+
+  ws.onclose = () => {
+    clients.delete(client);
+  };
+
+  ws.onerror = () => {
+    clients.delete(client);
+  };
+
+  ws.onmessage = async (event) => {
+    let msg: any;
+    try {
+      msg = JSON.parse(String(event.data));
+    } catch {
       return;
     }
-    socket.table = table;
-    let tables = waitersByRestaurantTable.get(rid);
-    if (!tables) { tables = new Map(); waitersByRestaurantTable.set(rid, tables); }
-    let set = tables.get(table);
-    if (!set) { set = new Set(); tables.set(table, set); }
-    set.add(socket);
 
-    socket.onopen = async () => {
-      // initial payload: menu + current items
-      const menu = await listItems(rid);
-      socket.send(JSON.stringify({ event: "menu", menu }));
-      const items = await listOrderItemsForTable(rid, table);
-      socket.send(JSON.stringify({ event: "orderList", items }));
-    };
-  } else if (role === "kitchen") {
-    let set = kitchensByRestaurant.get(rid);
-    if (!set) { set = new Set(); kitchensByRestaurant.set(rid, set); }
-    set.add(socket);
+    const type = msg.type;
 
-    socket.onopen = async () => {
-      // initial payload: all current items across tables
-      // naive: collect items by iterating all waiter tables we track
-      const all: any[] = [];
-      const tables = waitersByRestaurantTable.get(rid);
-      if (tables) {
-        for (const [t, wsSet] of tables.entries()) {
-          const items = await listOrderItemsForTable(rid, t);
-          for (const it of items) all.push(it);
+    // --- הצטרפות של קליינט ---
+    if (type === "join") {
+      const role = msg.role === "kitchen"
+        ? "kitchen"
+        : msg.role === "waiter"
+        ? "waiter"
+        : undefined;
+      const restaurantId = String(msg.restaurantId ?? "");
+      const table = msg.table != null ? Number(msg.table) : undefined;
+
+      if (!role || !restaurantId) {
+        return;
+      }
+
+      client.role = role;
+      client.restaurantId = restaurantId;
+      if (role === "waiter" && typeof table === "number" && table > 0) {
+        client.table = table;
+      }
+
+      // למטבח – שולחים snapshot מלא של כל המנות הפעילות
+      if (role === "kitchen") {
+        try {
+          const items = await loadActiveItemsForRestaurant(restaurantId);
+          ws.send(
+            JSON.stringify({
+              type: "snapshot",
+              restaurantId,
+              items,
+            }),
+          );
+        } catch (e) {
+          console.error("snapshot error", e);
         }
       }
-      all.sort((a,b)=> a.createdAt - b.createdAt);
-      socket.send(JSON.stringify({ event: "orderList", items: all }));
-    };
-  }
 
-  socket.onmessage = async (ev) => {
-    try {
-      const data = JSON.parse(ev.data);
-      if (!data.event) return;
-      const rid = socket.rid!;
-      if (data.event === "place-order" && socket.role === "waiter") {
-        const { itemId, quantity } = data;
-        const menu = await listItems(rid);
-        const m = menu.find(m => m.id === itemId);
-        if (!m) return;
-        const { orderItem } = await addOrderItem({ restaurantId: rid, table: socket.table!, menuItem: m, quantity });
-        broadcastOrderAdded(rid, orderItem);
-      } else if (data.event === "update-status" && socket.role === "kitchen") {
-        const { orderId, id, status } = data;
-        const updated = await updateOrderItemStatus(id, orderId, status);
-        if (updated) {
-          broadcastOrderUpdated(rid, updated);
-        }
-      }
-    } catch (e) {
-      console.error("pos_ws message error", e);
+      return;
     }
-  };
 
-  socket.onclose = () => {
-    const rid = socket.rid!;
-    if (socket.role === "waiter") {
-      const tmap = waitersByRestaurantTable.get(rid);
-      if (tmap) {
-        const set = tmap.get(socket.table!);
-        if (set) {
-          set.delete(socket);
-          if (set.size === 0) tmap.delete(socket.table!);
-        }
+    // --- שינוי סטטוס של פריט (מהמטבח) ---
+    if (type === "set_status") {
+      const restaurantId = String(msg.restaurantId ?? "");
+      const orderItemId = String(msg.orderItemId ?? "");
+      const orderId = String(msg.orderId ?? "");
+      const next: OrderItemStatus = msg.status;
+
+      if (
+        !restaurantId || !orderItemId || !orderId ||
+        !["received", "in_progress", "ready", "served", "cancelled"]
+          .includes(next)
+      ) {
+        return;
       }
-    } else if (socket.role === "kitchen") {
-      const set = kitchensByRestaurant.get(rid);
-      if (set) set.delete(socket);
+
+      try {
+        const updated = await updateOrderItemStatus(
+          orderItemId,
+          orderId,
+          next,
+        );
+        if (!updated) return;
+
+        // 1) שולחים לכל ה-mitbach באותה מסעדה עדכון מלא על הפריט
+        broadcast(
+          (c) =>
+            c.role === "kitchen" &&
+            c.restaurantId === restaurantId,
+          {
+            type: "order_item_updated",
+            restaurantId,
+            item: updated,
+          },
+        );
+
+        // 2) לכל המלצרים של אותו שולחן באותה מסעדה – רק רמז לרענן/להתעדכן
+        broadcast(
+          (c) =>
+            c.role === "waiter" &&
+            c.restaurantId === restaurantId &&
+            c.table === updated.table,
+          {
+            type: "order_updated",
+            restaurantId,
+            table: updated.table,
+          },
+        );
+      } catch (e) {
+        console.error("set_status failed", e);
+      }
+
+      return;
     }
+
+    // בהמשך אפשר להוסיף:
+    // - type: "ping"
+    // - type: "close_order" (אם המטבח יסגור חשבון)
   };
-}
-
-function broadcastOrderAdded(rid: string, item: any) {
-  const msg = JSON.stringify({ event: "orderAdded", item });
-  // to kitchen
-  const kset = kitchensByRestaurant.get(rid);
-  if (kset) for (const s of kset) try { s.send(msg); } catch {}
-  // to waiters of that table
-  const tables = waitersByRestaurantTable.get(rid);
-  if (tables) {
-    const wset = tables.get(item.table);
-    if (wset) for (const s of wset) try { s.send(msg); } catch {}
-  }
-}
-
-function broadcastOrderUpdated(rid: string, updated: any) {
-  const msg = JSON.stringify({ event: "orderUpdated", item: { id: updated.id, orderId: updated.orderId, status: updated.status } });
-  const kset = kitchensByRestaurant.get(rid);
-  if (kset) for (const s of kset) try { s.send(msg); } catch {}
-  const tables = waitersByRestaurantTable.get(rid);
-  if (tables) {
-    const wset = tables.get(updated.table);
-    if (wset) for (const s of wset) try { s.send(msg); } catch {}
-  }
 }
