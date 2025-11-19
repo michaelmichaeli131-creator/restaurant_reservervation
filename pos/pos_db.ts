@@ -1,6 +1,5 @@
-
-// src/pos/pos_db.ts
-// Lightweight POS storage on top of Deno KV used by the project (imported from database.ts)
+// pos/pos_db.ts
+// Lightweight POS storage on top of Deno KV used by the project
 
 import { kv } from "../database.ts";
 
@@ -34,7 +33,12 @@ export interface MenuItem {
   createdAt: number;
 }
 
-export type OrderItemStatus = "received" | "in_progress" | "ready" | "served" | "cancelled";
+export type OrderItemStatus =
+  | "received"
+  | "in_progress"
+  | "ready"
+  | "served"
+  | "cancelled";
 
 export interface Order {
   id: string;
@@ -62,31 +66,70 @@ export interface OrderItem {
 
 /* ---------- KEYS ---------- */
 
-function kCategory(rid: string, id: string) { return ["pos","cat", rid, id] as Deno.KvKey; }
-function kCategoryPrefix(rid: string) { return ["pos","cat", rid] as Deno.KvKey; }
+function kCategory(rid: string, id: string) {
+  return ["pos", "cat", rid, id] as Deno.KvKey;
+}
+function kCategoryPrefix(rid: string) {
+  return ["pos", "cat", rid] as Deno.KvKey;
+}
 
-function kItem(rid: string, id: string) { return ["pos","item", rid, id] as Deno.KvKey; }
-function kItemPrefix(rid: string) { return ["pos","item", rid] as Deno.KvKey; }
+function kItem(rid: string, id: string) {
+  return ["pos", "item", rid, id] as Deno.KvKey;
+}
+function kItemPrefix(rid: string) {
+  return ["pos", "item", rid] as Deno.KvKey;
+}
 
-function kOrder(rid: string, oid: string) { return ["pos","order", rid, oid] as Deno.KvKey; }
-function kOrderPrefix(rid: string) { return ["pos","order", rid] as Deno.KvKey; }
+function kOrder(rid: string, oid: string) {
+  return ["pos", "order", rid, oid] as Deno.KvKey;
+}
+function kOrderPrefix(rid: string) {
+  return ["pos", "order", rid] as Deno.KvKey;
+}
 
-function kOrderByTable(rid: string, table: number) { return ["pos","order_by_table", rid, table] as Deno.KvKey; }
+function kOrderByTable(rid: string, table: number) {
+  return ["pos", "order_by_table", rid, table] as Deno.KvKey;
+}
+function kOrderByTablePrefix(rid: string) {
+  return ["pos", "order_by_table", rid] as Deno.KvKey;
+}
 
-function kOrderItem(oid: string, iid: string) { return ["pos","order_item", oid, iid] as Deno.KvKey; }
-function kOrderItemPrefix(oid: string) { return ["pos","order_item", oid] as Deno.KvKey; }
+function kOrderItem(oid: string, iid: string) {
+  return ["pos", "order_item", oid, iid] as Deno.KvKey;
+}
+function kOrderItemPrefix(oid: string) {
+  return ["pos", "order_item", oid] as Deno.KvKey;
+}
 
 /* ---------- Categories ---------- */
 
-export async function listCategories(restaurantId: string): Promise<MenuCategory[]> {
+export async function listCategories(
+  restaurantId: string,
+): Promise<MenuCategory[]> {
   const out: MenuCategory[] = [];
-  for await (const row of kv.list<MenuCategory>({ prefix: kCategoryPrefix(restaurantId) })) {
+  for await (
+    const row of kv.list<MenuCategory>({
+      prefix: kCategoryPrefix(restaurantId),
+    })
+  ) {
     if (row.value) out.push(row.value);
   }
-  out.sort((a,b)=> (a.sort ?? 0) - (b.sort ?? 0) || a.createdAt - b.createdAt);
+  out.sort(
+    (a, b) =>
+      (a.sort ?? 0) - (b.sort ?? 0) || a.createdAt - b.createdAt,
+  );
   return out;
 }
-export async function upsertCategory(cat: Partial<MenuCategory> & { restaurantId: string; name_en?: string; name_he?: string; name_ka?: string; id?: string }) {
+
+export async function upsertCategory(
+  cat: Partial<MenuCategory> & {
+    restaurantId: string;
+    name_en?: string;
+    name_he?: string;
+    name_ka?: string;
+    id?: string;
+  },
+) {
   const id = cat.id ?? crypto.randomUUID();
   const item: MenuCategory = {
     id,
@@ -101,6 +144,7 @@ export async function upsertCategory(cat: Partial<MenuCategory> & { restaurantId
   await kv.set(kCategory(cat.restaurantId, id), item);
   return item;
 }
+
 export async function deleteCategory(restaurantId: string, id: string) {
   await kv.delete(kCategory(restaurantId, id));
 }
@@ -109,13 +153,27 @@ export async function deleteCategory(restaurantId: string, id: string) {
 
 export async function listItems(restaurantId: string): Promise<MenuItem[]> {
   const out: MenuItem[] = [];
-  for await (const row of kv.list<MenuItem>({ prefix: kItemPrefix(restaurantId) })) {
+  for await (
+    const row of kv.list<MenuItem>({
+      prefix: kItemPrefix(restaurantId),
+    })
+  ) {
     if (row.value) out.push(row.value);
   }
-  out.sort((a,b)=> (a.createdAt - b.createdAt));
+  out.sort((a, b) => a.createdAt - b.createdAt);
   return out;
 }
-export async function upsertItem(it: Partial<MenuItem> & { restaurantId: string; name_en?: string; name_he?: string; price?: number; destination?: Destination; id?: string }) {
+
+export async function upsertItem(
+  it: Partial<MenuItem> & {
+    restaurantId: string;
+    name_en?: string;
+    name_he?: string;
+    price?: number;
+    destination?: Destination;
+    id?: string;
+  },
+) {
   const id = it.id ?? crypto.randomUUID();
   const item: MenuItem = {
     id,
@@ -136,13 +194,17 @@ export async function upsertItem(it: Partial<MenuItem> & { restaurantId: string;
   await kv.set(kItem(it.restaurantId, id), item);
   return item;
 }
+
 export async function deleteItem(restaurantId: string, id: string) {
   await kv.delete(kItem(restaurantId, id));
 }
 
 /* ---------- Orders ---------- */
 
-export async function getOrCreateOpenOrder(restaurantId: string, table: number): Promise<Order> {
+export async function getOrCreateOpenOrder(
+  restaurantId: string,
+  table: number,
+): Promise<Order> {
   const key = kOrderByTable(restaurantId, table);
   const cur = await kv.get<Order>(key);
   if (cur.value && cur.value.status === "open") return cur.value;
@@ -158,7 +220,6 @@ export async function getOrCreateOpenOrder(restaurantId: string, table: number):
     .set(key, order);
   const res = await tx.commit();
   if (!res.ok) {
-    // small retry
     const again = await kv.get<Order>(key);
     if (again.value) return again.value;
     throw new Error("failed_create_order");
@@ -171,8 +232,11 @@ export async function addOrderItem(params: {
   table: number;
   menuItem: MenuItem;
   quantity?: number;
-}): Promise<{ order: Order; orderItem: OrderItem; }> {
-  const order = await getOrCreateOpenOrder(params.restaurantId, params.table);
+}): Promise<{ order: Order; orderItem: OrderItem }> {
+  const order = await getOrCreateOpenOrder(
+    params.restaurantId,
+    params.table,
+  );
   const orderItem: OrderItem = {
     id: crypto.randomUUID(),
     orderId: order.id,
@@ -187,30 +251,69 @@ export async function addOrderItem(params: {
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
-  const tx = kv.atomic().set(kOrderItem(order.id, orderItem.id), orderItem);
+  const tx = kv.atomic().set(
+    kOrderItem(order.id, orderItem.id),
+    orderItem,
+  );
   const res = await tx.commit();
   if (!res.ok) throw new Error("failed_add_order_item");
   return { order, orderItem };
 }
 
-export async function listOrderItemsForTable(restaurantId: string, table: number): Promise<OrderItem[]> {
-  const order = await kv.get<Order>(kOrderByTable(restaurantId, table));
-  if (!order.value) return [];
+export async function listOrderItemsForTable(
+  restaurantId: string,
+  table: number,
+): Promise<OrderItem[]> {
+  const orderRow = await kv.get<Order>(
+    kOrderByTable(restaurantId, table),
+  );
+  if (!orderRow.value) return [];
+  const order = orderRow.value;
   const out: OrderItem[] = [];
-  for await (const row of kv.list<OrderItem>({ prefix: kOrderItemPrefix(order.value.id) })) {
+  for await (
+    const row of kv.list<OrderItem>({
+      prefix: kOrderItemPrefix(order.id),
+    })
+  ) {
     if (row.value) out.push(row.value);
   }
-  out.sort((a,b)=> a.createdAt - b.createdAt);
+  out.sort((a, b) => a.createdAt - b.createdAt);
   return out;
 }
 
-export async function updateOrderItemStatus(orderItemId: string, orderId: string, next: OrderItemStatus): Promise<OrderItem | null> {
+export async function updateOrderItemStatus(
+  orderItemId: string,
+  orderId: string,
+  next: OrderItemStatus,
+): Promise<OrderItem | null> {
   const key = kOrderItem(orderId, orderItemId);
   const row = await kv.get<OrderItem>(key);
   if (!row.value) return null;
   const cur = row.value;
-  const updated: OrderItem = { ...cur, status: next, updatedAt: Date.now() };
+  const updated: OrderItem = {
+    ...cur,
+    status: next,
+    updatedAt: Date.now(),
+  };
   const ok = await kv.atomic().check(row).set(key, updated).commit();
   if (!ok.ok) return null;
   return updated;
+}
+
+/** מחזיר את כל השולחנות עם הזמנה פתוחה למסעדה */
+export async function listOpenOrdersByRestaurant(
+  restaurantId: string,
+): Promise<{ table: number; order: Order }[]> {
+  const out: { table: number; order: Order }[] = [];
+  for await (
+    const row of kv.list<Order>({
+      prefix: kOrderByTablePrefix(restaurantId),
+    })
+  ) {
+    if (row.value && row.value.status === "open") {
+      out.push({ table: row.value.table, order: row.value });
+    }
+  }
+  out.sort((a, b) => a.table - b.table);
+  return out;
 }

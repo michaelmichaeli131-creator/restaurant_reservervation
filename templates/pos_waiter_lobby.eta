@@ -1,0 +1,79 @@
+<% layout("_layout", it) %>
+
+<main class="container">
+  <header class="page-header">
+    <h1>מסך מלצרים — <%= it.restaurant.name %></h1>
+    <p class="muted"><%= it.restaurant.city %> • <%= it.restaurant.address %></p>
+  </header>
+
+  <section class="card">
+    <h2 class="card-title">פתיחת שולחן חדש</h2>
+    <form id="open-table-form" class="form row" onsubmit="return false;">
+      <label class="fld">
+        <span>מספר שולחן</span>
+        <input id="table-number" type="number" min="1" inputmode="numeric" required placeholder="לדוגמה: 5">
+      </label>
+      <button class="btn primary" id="btn-open-table">פתח שולחן</button>
+    </form>
+    <p class="muted" style="margin-top:6px">
+      לאחר פתיחת שולחן תועבר למסך ההזמנה שלו (ריל־טיים מול המטבח).
+    </p>
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">שולחנות פתוחים כרגע</h2>
+    <% if (it.openTables && it.openTables.length) { %>
+      <ul class="list">
+        <% it.openTables.forEach(function(t){ %>
+          <li class="item">
+            <div>
+              <strong>שולחן <%= t.table %></strong>
+              <div class="muted" style="font-size:12px">
+                נפתח ב־<%= new Date(t.order.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) %>
+              </div>
+            </div>
+            <div class="actions">
+              <a class="btn ghost" href="/waiter/<%= it.rid %>/<%= t.table %>">
+                המשך הזמנה
+              </a>
+            </div>
+          </li>
+        <% }) %>
+      </ul>
+    <% } else { %>
+      <p class="muted">אין כרגע שולחנות פתוחים.</p>
+    <% } %>
+  </section>
+</main>
+
+<script>
+  (function(){
+    const rid = "<%= it.rid %>";
+    const input = document.getElementById("table-number");
+    const btn   = document.getElementById("btn-open-table");
+    const form  = document.getElementById("open-table-form");
+
+    function goToTable() {
+      const v = (input && input.value || "").trim();
+      const table = Number(v);
+      if (!v || isNaN(table) || table <= 0) {
+        input && input.focus();
+        return;
+      }
+      window.location.href = `/waiter/${encodeURIComponent(rid)}/${encodeURIComponent(table)}`;
+    }
+
+    if (btn) {
+      btn.addEventListener("click", function(ev){
+        ev.preventDefault();
+        goToTable();
+      });
+    }
+    if (form) {
+      form.addEventListener("submit", function(ev){
+        ev.preventDefault();
+        goToTable();
+      });
+    }
+  })();
+</script>

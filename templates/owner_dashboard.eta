@@ -103,9 +103,9 @@ function tt(k, fb){
                     <span class="icon">🧾</span>
                     עריכת תפריט
                   </a>
-                  <a class="btn ghost wide" href="/waiter/<%= r.id %>/1" title="פתח ממשק מלצר לשולחן 1">
+                  <a class="btn ghost wide" href="/waiter/<%= r.id %>">
                     <span class="icon">🍽️</span>
-                    מלצר (שולחן 1)
+                    מסך מלצרים
                   </a>
                   <a class="btn ghost wide" href="/kitchen/<%= r.id %>">
                     <span class="icon">🧑‍🍳</span>
@@ -124,7 +124,6 @@ function tt(k, fb){
       <div class="panel card">
         <h2 class="card-title"><%= tt('owner.dashboard.open_new_title','פתח/י מסעדה חדשה') %></h2>
 
-        <!-- נשאר POST קלאסי; התמונות יועמסו אוטומטית אחרי יצירה דרך localStorage -->
         <form action="/owner/restaurant/new" method="post" class="form" id="create-restaurant-form">
           <label>
             <%= tt('owner.dashboard.form.name','שם מסעדה') %>
@@ -173,7 +172,6 @@ function tt(k, fb){
 </section>
 
 <script>
-  // ניווט תקין בלחיצות
   document.addEventListener('click', function (ev) {
     var target = ev.target;
     if (!target) return;
@@ -184,7 +182,6 @@ function tt(k, fb){
     if (href.indexOf('/owner/') === 0) link.setAttribute('target', '_self');
   }, true);
 
-  // בשלב יצירת מסעדה: שומרים תמונות ב-localStorage ואז יועמסו אוטומטית בעמוד התמונות/העריכה
   (function(){
     var input = document.getElementById('create-files');
     var form = document.getElementById('create-restaurant-form');
@@ -201,17 +198,16 @@ function tt(k, fb){
     form.addEventListener('submit', async function(){
       try {
         var files = Array.from((input && input.files) || []);
-        if (!files.length) return; // אין תמונות — אין מה לשמור
+        if (!files.length) return;
         var images = [];
         for (var i=0; i<files.length; i++) {
           var f = files[i];
-          if (f.size > (1.8 * 1024 * 1024)) continue; // ~1.8MB
+          if (f.size > (1.8 * 1024 * 1024)) continue;
           var dataUrl = await readFileAsDataURL(f);
           images.push({ dataUrl: dataUrl, alt: '' });
         }
         if (images.length) {
           localStorage.setItem('pendingRestaurantPhotos', JSON.stringify(images));
-          // בצד השני (owner_photos / owner_restaurant_edit) נטען אוטומטית ונתחיל העלאה
         }
       } catch (e) {
         console.warn('failed to stash pending photos', e);
@@ -221,7 +217,6 @@ function tt(k, fb){
 </script>
 
 <style>
-  /* ===== מראה SpotBook כהה־יוקרתי, בלי לוותר על שום פיצ'ר ===== */
   .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
 
   .card{
@@ -243,10 +238,9 @@ function tt(k, fb){
     display:grid;grid-template-columns:1.2fr 1fr;gap:16px;margin-top:14px
   }
 
-  /* רשימת מסעדות */
   .list{list-style:none;padding:0;margin:0}
   .item{
-    display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
+    display:flex;align-items:flex-start;gap:14px;
     border-top:1px solid rgba(255,255,255,.06);padding:14px 0;
     flex-direction:column;
   }
@@ -268,13 +262,11 @@ function tt(k, fb){
     border-radius:10px;padding:4px 6px
   }
 
-  /* Progress bar */
   .bar{width:100%;height:10px;background:#0e1422;border-radius:999px;overflow:hidden;border:1px solid #1f2636;margin-top:6px}
   .bar-fill{height:100%;background:linear-gradient(90deg,#10b981,#34d399)}
   .bar-fill.yellow{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
   .bar-fill.red{background:linear-gradient(90deg,#ef4444,#f87171)}
 
-  /* אייקון בתוך כפתור – גודל אחיד */
   .btn .icon{
     width:18px;
     height:18px;
@@ -284,7 +276,6 @@ function tt(k, fb){
     font-size:16px;
   }
 
-  /* כפתורים “חיים” */
   .btn{
     display:inline-flex; align-items:center; justify-content:center; gap:8px;
     padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
@@ -303,7 +294,6 @@ function tt(k, fb){
   .btn.ghost:hover{ background: color-mix(in srgb, var(--panel, #121622) 94%, transparent); }
   .btn.sm{ padding:8px 12px; border-radius:10px }
 
-  /* שורת אקשנים ראשית + POS */
   .actions{
     display:flex;
     gap:8px;
@@ -320,7 +310,6 @@ function tt(k, fb){
     min-width:180px;
   }
 
-  /* טפסים */
   .form label{ display:block; font-weight:600; font-size:14px; margin-top:8px }
   .form input{
     width:100%;padding:10px 12px;margin-top:6px;
