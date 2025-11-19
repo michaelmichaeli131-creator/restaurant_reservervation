@@ -261,13 +261,19 @@ authRouter.post("/auth/login", async (ctx) => {
 
 /* ---------------- Logout ---------------- */
 
-authRouter.post("/auth/logout", async (ctx) => {
+async function doLogout(ctx: any) {
   const session = (ctx.state as any).session;
   if (session) {
     await session.destroy();
   }
   ctx.response.redirect("/");
-});
+}
+
+// תמיכה גם ב-POST (מכפתור/טופס) וגם ב-GET (מלינק פשוט)
+authRouter.post("/auth/logout", doLogout);
+authRouter.get("/auth/logout", doLogout);
+
+
 
 /* ---------------- Email verify ---------------- */
 
