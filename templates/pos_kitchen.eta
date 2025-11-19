@@ -1,17 +1,323 @@
-
 <% layout("_layout", it) %>
-<main class="container">
-  <header class="page-header">
-    <h1>מטבח — <%= it.restaurant.name %></h1>
+
+<%
+  const r   = it.restaurant;
+  const rid = it.rid;
+%>
+
+<main class="container pos-kitchen-page" dir="rtl">
+  <header class="page-header kitchen-header">
+    <div>
+      <h1>מסך מטבח — <%= r.name %></h1>
+      <p class="muted"><%= r.city %> • <%= r.address %></p>
+    </div>
+    <div class="header-actions">
+      <a class="btn ghost" href="/owner">⇐ חזרה לדשבורד בעלים</a>
+    </div>
   </header>
 
-  <section class="card">
-    <h2 class="card-title">הזמנות נכנסות</h2>
-    <table class="table">
-      <thead><tr><th>שולחן</th><th>מנה</th><th>כמות</th><th>סטטוס</th><th>פעולה</th></tr></thead>
-      <tbody id="orders"></tbody>
-    </table>
+  <section class="panel card kitchen-board" aria-label="הזמנות פעילות במטבח">
+    <h2 class="card-title">הזמנות פעילות</h2>
+    <p class="muted" style="font-size:12px;margin-bottom:6px">
+      לחיצה על כרטיס משנה את הסטטוס (התקבל → בהכנה → מוכן → הוגש).
+    </p>
+
+    <div id="kitchen-columns" class="kitchen-columns" data-rid="<%= rid %>">
+      <div class="kitchen-col" data-status="received">
+        <div class="col-head">התקבל</div>
+        <div class="col-body" id="col-received"></div>
+      </div>
+
+      <div class="kitchen-col" data-status="in_progress">
+        <div class="col-head">בהכנה</div>
+        <div class="col-body" id="col-in-progress"></div>
+      </div>
+
+      <div class="kitchen-col" data-status="ready">
+        <div class="col-head">מוכן</div>
+        <div class="col-body" id="col-ready"></div>
+      </div>
+
+      <div class="kitchen-col" data-status="served">
+        <div class="col-head">הוגש</div>
+        <div class="col-body" id="col-served"></div>
+      </div>
+    </div>
   </section>
 </main>
-<script type="module" src="/public/js/pos_kitchen.js"></script>
-<script>window.POS_CTX = { rid: "<%= it.rid %>" };</script>
+
+<script>
+  (function(){
+    const root = document.getElementById("kitchen-columns");
+    if (!root) return;
+    const rid = root.dataset.rid;
+    const proto = (location.protocol === "https:") ? "wss:" : "ws:";
+    const wsUrl = proto + "//" + location.host + "/ws/pos";
+
+    /** state מקומי של כל הפריטים */
+    const state = new Map(); // key = orderItemId, value = item
+
+    function render(){
+      const cols = {
+        received: document.getElementById("col-received"),
+        in_progress: document.getElementById("col-in-progress"),
+        ready: document.getElementById("col-ready"),
+        served: document.getElementById("col-served"),
+      };
+      Object.values(cols).forEach(c => { if (c) c.innerHTML = ""; });
+
+      const items = Array.from(state.values());
+      items.sort((a,b) => a.createdAt - b.createdAt);
+
+      for (const it of items){
+        if (!cols[it.status]) continue;
+        const div = document.createElement("div");
+        div.className = "ticket";
+        div.dataset.itemId = it.id;
+        div.dataset.orderId = it.orderId;
+        div.dataset.status = it.status;
+        div.dataset.table = it.table;
+        div.innerHTML = `
+          <div class="ticket-title">
+            שולחן ${it.table} • ${it.name}
+          </div>
+          <div class="ticket-meta">
+            כמות: ${it.quantity} • יעד: ${it.destination === 'bar' ? 'בר' : 'מטבח'}
+          </div>
+          <div class="ticket-time">
+            ${new Date(it.createdAt).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})}
+          </div>
+        `;
+        cols[it.status].appendChild(div);
+      }
+
+      // empty hints
+      for (const [key, col] of Object.entries(cols)){
+        if (!col) continue;
+        if (!col.children.length){
+          const p = document.createElement("p");
+          p.className = "muted small";
+          p.textContent = "אין פריטים.";
+          col.appendChild(p);
+        }
+      }
+    }
+
+    function applySnapshot(list){
+      state.clear();
+      if (Array.isArray(list)){
+        for (const it of list){
+          state.set(it.id, it);
+        }
+      }
+      render();
+    }
+
+    function upsertItem(it){
+      state.set(it.id, it);
+      render();
+    }
+
+    function removeItem(id){
+      state.delete(id);
+      render();
+    }
+
+    function nextStatus(current){
+      if (current === "received") return "in_progress";
+      if (current === "in_progress") return "ready";
+      if (current === "ready") return "served";
+      if (current === "served") return "served";
+      return current;
+    }
+
+    // שליחת שינוי סטטוס לשרת דרך WS (תתאם לפרוטוקול שלך)
+    function sendStatusChange(itemId, orderId, status){
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({
+        type: "set_status",
+        restaurantId: rid,
+        orderItemId: itemId,
+        orderId,
+        status
+      }));
+    }
+
+    // האזנה לקליקים על כרטיסים
+    root.addEventListener("click", function(ev){
+      const card = ev.target.closest(".ticket");
+      if (!card) return;
+      const id = card.dataset.itemId;
+      const orderId = card.dataset.orderId;
+      const current = card.dataset.status;
+      const next = nextStatus(current);
+      if (next === current) return;
+      sendStatusChange(id, orderId, next);
+      // אפשר גם לבצע אופטימיסטי:
+      const local = state.get(id);
+      if (local){
+        local.status = next;
+        local.updatedAt = Date.now();
+        state.set(id, local);
+        render();
+      }
+    });
+
+    let ws;
+    try{
+      ws = new WebSocket(wsUrl);
+    }catch(e){
+      console.error("WS connect failed", e);
+      return;
+    }
+
+    ws.addEventListener("open", () => {
+      ws.send(JSON.stringify({
+        type: "join",
+        role: "kitchen",
+        restaurantId: rid
+      }));
+    });
+
+    ws.addEventListener("message", (ev) => {
+      try{
+        const msg = JSON.parse(ev.data);
+
+        // דוגמאות – תתאים לפרוטוקול pos_ws.ts שלך:
+        if (msg.type === "snapshot" && msg.restaurantId === rid){
+          // msg.items = רשימה מלאה של OrderItem
+          applySnapshot(msg.items || []);
+        }
+        if (msg.type === "order_item" && msg.restaurantId === rid){
+          // פריט חדש
+          upsertItem(msg.item);
+        }
+        if (msg.type === "order_item_updated" && msg.restaurantId === rid){
+          upsertItem(msg.item);
+        }
+        if (msg.type === "order_item_removed" && msg.restaurantId === rid){
+          removeItem(msg.orderItemId);
+        }
+        if (msg.type === "order_closed" && msg.restaurantId === rid){
+          // אפשר לבחור להסיר כל הפריטים של השולחן מהמסך
+          const table = msg.table;
+          if (table != null){
+            for (const it of Array.from(state.values())){
+              if (it.table === table) state.delete(it.id);
+            }
+            render();
+          }
+        }
+      }catch(e){
+        console.warn("bad WS message", e);
+      }
+    });
+  })();
+</script>
+
+<style>
+  .pos-kitchen-page .kitchen-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:16px;
+  }
+  .pos-kitchen-page h1{
+    margin:0;
+    font-size:clamp(18px,2.6vw,24px);
+  }
+  .pos-kitchen-page .panel.card{
+    background: var(--panel,#020617);
+    border-radius:18px;
+    border:1px solid var(--bd,#1f2937);
+    box-shadow:0 18px 50px rgba(0,0,0,.5);
+    padding:14px 16px;
+  }
+
+  .kitchen-columns{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:10px;
+    margin-top:10px;
+  }
+  .kitchen-col{
+    background:rgba(15,23,42,0.85);
+    border-radius:14px;
+    border:1px solid rgba(30,64,175,0.6);
+    display:flex;
+    flex-direction:column;
+    min-height:220px;
+  }
+  .kitchen-col .col-head{
+    padding:6px 8px;
+    font-size:14px;
+    font-weight:600;
+    border-bottom:1px solid rgba(15,23,42,0.9);
+    background:linear-gradient(90deg,#1d4ed8,#22c55e);
+    -webkit-background-clip:text;
+    color:transparent;
+    text-align:center;
+  }
+  .kitchen-col .col-body{
+    flex:1;
+    padding:6px 6px 10px;
+    overflow-y:auto;
+  }
+
+  .ticket{
+    border-radius:10px;
+    border:1px solid rgba(30,64,175,0.7);
+    background:rgba(15,23,42,0.98);
+    padding:6px 7px;
+    margin-bottom:6px;
+    cursor:pointer;
+    font-size:13px;
+  }
+  .ticket:hover{
+    border-color:#22c55e;
+  }
+  .ticket-title{
+    font-weight:600;
+    margin-bottom:2px;
+  }
+  .ticket-meta{
+    font-size:12px;
+    color:var(--ink-muted,#9ca3af);
+    margin-bottom:2px;
+  }
+  .ticket-time{
+    font-size:11px;
+    color:var(--ink-muted,#9ca3af);
+  }
+
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    padding:8px 12px;
+    border-radius:12px;
+    border:1px solid var(--bd,#1f2937);
+    background:transparent;
+    color:var(--ink,#e5e7eb);
+    cursor:pointer;
+    text-decoration:none;
+  }
+  .btn.ghost{
+    background:rgba(15,23,42,0.7);
+  }
+
+  @media (max-width:1000px){
+    .kitchen-columns{
+      grid-template-columns:repeat(2,1fr);
+    }
+  }
+  @media (max-width:640px){
+    .kitchen-columns{
+      grid-template-columns:1fr;
+    }
+  }
+
+  .small{ font-size:11px; }
+</style>

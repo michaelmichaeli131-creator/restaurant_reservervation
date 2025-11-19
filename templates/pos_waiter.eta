@@ -1,25 +1,396 @@
-
 <% layout("_layout", it) %>
-<main class="container">
-  <header class="page-header">
-    <h1>מלצר · שולחן <%= it.table %> — <%= it.restaurant.name %></h1>
+
+<%
+  const r   = it.restaurant;
+  const rid = it.rid;
+  const tbl = it.table;
+  const items = it.orderItems || [];
+  const totals = it.totals || { itemsCount: 0, subtotal: 0 };
+%>
+
+<main class="container pos-waiter-page" dir="rtl">
+  <header class="page-header waiter-header">
+    <div class="title-block">
+      <h1>שולחן <%= tbl %> — <%= r.name %></h1>
+      <p class="muted"><%= r.city %> • <%= r.address %></p>
+    </div>
+
+    <div
+      id="bill-summary"
+      class="bill-summary"
+      data-rid="<%= rid %>"
+      data-table="<%= tbl %>"
+    >
+      <span id="bill-items"><%= totals.itemsCount %> פריטים</span>
+      <span>•</span>
+      <span id="bill-total"><%= totals.subtotal.toFixed(2) %> ₪</span>
+    </div>
+
+    <div class="header-actions">
+      <a class="btn ghost" href="/waiter/<%= rid %>">⇐ חזרה למסך מלצרים</a>
+    </div>
   </header>
 
-  <section class="card">
-    <h2 class="card-title">תפריט</h2>
-    <ul id="menuList" class="list"></ul>
-  </section>
+  <section class="waiter-layout">
+    <!-- צד שמאל: תפריט (מוזן מ-JS דרך /api/pos/menu/:rid) -->
+    <aside class="panel card menu-panel" aria-label="תפריט מנות">
+      <h2 class="card-title">תפריט</h2>
+      <p class="muted" style="font-size:12px">
+        בחר מנות מהתפריט כדי להוסיף להזמנה של השולחן.
+      </p>
+      <div id="menu-root" data-rid="<%= rid %>">
+        <!-- JS ימלא כאן את קטגוריות/מנות -->
+        <p class="muted">טוען תפריט…</p>
+      </div>
+    </aside>
 
-  <section class="card">
-    <h2 class="card-title">הזמנה לשולחן <%= it.table %></h2>
-    <table class="table">
-      <thead><tr><th>פריט</th><th>כמות</th><th>מחיר</th><th>סטטוס</th></tr></thead>
-      <tbody id="orderItems"></tbody>
-      <tfoot>
-        <tr><td colspan="2"></td><td><strong>סה״כ</strong></td><td><strong id="total">0.00 ₪</strong></td></tr>
-      </tfoot>
-    </table>
+    <!-- צד ימין: הזמנה פעילה -->
+    <section class="panel card order-panel" aria-label="הזמנה לשולחן">
+      <h2 class="card-title">הזמנה לשולחן <%= tbl %></h2>
+
+      <table class="order-table">
+        <thead>
+          <tr>
+            <th>מנה</th>
+            <th>כמות</th>
+            <th>יעד</th>
+            <th>סטטוס</th>
+            <th>סה״כ</th>
+            <th>פעולות</th>
+          </tr>
+        </thead>
+        <tbody id="order-items">
+          <% if (items.length) { %>
+            <% items.forEach(function(row){ %>
+              <tr
+                class="order-row status-<%= row.status %>"
+                data-order-id="<%= row.orderId %>"
+                data-item-id="<%= row.id %>"
+                data-qty="<%= row.quantity %>"
+                data-price="<%= row.unitPrice %>"
+              >
+                <td class="col-name">
+                  <div class="name-main"><%= row.name %></div>
+                  <div class="name-sub muted">
+                    נוצר ב־<%= new Date(row.createdAt).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'}) %>
+                  </div>
+                </td>
+                <td class="col-qty">x<%= row.quantity %></td>
+                <td class="col-dest">
+                  <%= row.destination === 'bar' ? 'בר' : 'מטבח' %>
+                </td>
+                <td class="col-status">
+                  <% if (row.status === 'received') { %>התקבל
+                  <% } else if (row.status === 'in_progress') { %>בהכנה
+                  <% } else if (row.status === 'ready') { %>מוכן
+                  <% } else if (row.status === 'served') { %>הוגש
+                  <% } else if (row.status === 'cancelled') { %>בוטל
+                  <% } else { %><%= row.status %><% } %>
+                </td>
+                <td class="col-total">
+                  <%= (row.unitPrice * row.quantity).toFixed(2) %> ₪
+                </td>
+                <td class="col-actions">
+                  <% if (row.status === 'cancelled') { %>
+                    <span class="muted">בוטל</span>
+                  <% } else { %>
+                    <button type="button" class="btn ghost btn-cancel-item">
+                      🗑 ביטול
+                    </button>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          <% } else { %>
+            <tr>
+              <td colspan="6">
+                <p class="muted" style="margin:6px 0">
+                  עדיין אין פריטים בהזמנה. בחר מנות מהתפריט משמאל.
+                </p>
+              </td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+
+      <div class="bill-actions">
+        <button type="button" id="btn-close-order" class="btn primary">
+          סגירת שולחן / הוצאת חשבון
+        </button>
+      </div>
+    </section>
   </section>
 </main>
-<script type="module" src="/public/js/pos_waiter.js"></script>
-<script>window.POS_CTX = { rid: "<%= it.rid %>", table: <%= it.table %> };</script>
+
+<!-- JS להזמנה: ביטול פריטים + סגירת שולחן + חישוב חשבון -->
+<script src="/public/js/pos_waiter.js?v=<%= it.BUILD_TAG || '' %>"></script>
+
+<!-- JS לתפריט אינטראקטיבי (אם עדיין אין לך, תוכל לממש לפי /api/pos/menu/:rid) -->
+<script>
+  (function(){
+    const root = document.getElementById("menu-root");
+    if (!root) return;
+    const rid = root.dataset.rid;
+    if (!rid) return;
+
+    async function loadMenu(){
+      try{
+        const res = await fetch(`/api/pos/menu/${encodeURIComponent(rid)}`);
+        if(!res.ok) throw new Error("menu fetch failed");
+        const items = await res.json();
+        renderMenu(items);
+      }catch(e){
+        root.innerHTML = '<p class="muted">שגיאה בטעינת התפריט.</p>';
+        console.error(e);
+      }
+    }
+
+    function renderMenu(items){
+      if(!Array.isArray(items) || !items.length){
+        root.innerHTML = '<p class="muted">אין מנות בתפריט כרגע.</p>';
+        return;
+      }
+      // קיבוץ לפי categoryId / ללא קטגוריה
+      const byCat = new Map();
+      for (const it of items){
+        const cid = it.categoryId || "__no_cat__";
+        if (!byCat.has(cid)) byCat.set(cid, []);
+        byCat.get(cid).push(it);
+      }
+
+      const frag = document.createElement("div");
+      byCat.forEach((list, cid) => {
+        const section = document.createElement("section");
+        section.className = "menu-section";
+        const title = document.createElement("h3");
+        title.className = "menu-section-title";
+        title.textContent = cid === "__no_cat__" ? "ללא קטגוריה" : (list[0].categoryName || "קטגוריה");
+        section.appendChild(title);
+
+        const grid = document.createElement("div");
+        grid.className = "menu-grid";
+        list.forEach((m) => {
+          if (m.outOfStock || m.isActive === false) return;
+          const card = document.createElement("button");
+          card.type = "button";
+          card.className = "menu-item-card";
+          card.dataset.menuItemId = m.id;
+          card.dataset.price = m.price;
+          card.innerHTML = `
+            <div class="menu-item-name">${m.name_he || m.name_en || 'מנה'}</div>
+            <div class="menu-item-desc muted">${m.desc_he || m.desc_en || ''}</div>
+            <div class="menu-item-footer">
+              <span class="price">${Number(m.price || 0).toFixed(2)} ₪</span>
+              <span class="dest">${m.destination === 'bar' ? 'בר' : 'מטבח'}</span>
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+
+        section.appendChild(grid);
+        frag.appendChild(section);
+      });
+
+      root.innerHTML = "";
+      root.appendChild(frag);
+    }
+
+    // כאן אתה יכול לחבר קריאה ל-API הוספת פריט (אם יש לך /api/pos/order-item/add)
+    root.addEventListener("click", function(ev){
+      const card = ev.target.closest(".menu-item-card");
+      if (!card) return;
+      // לדוגמה: dispatch customEvent, או קריאה ל-API נוסף שאתה כבר מימשת בצד השרת
+      // השארתי רק console.log כדי לא לשבור קוד קיים.
+      console.log("click menu item", card.dataset.menuItemId);
+    });
+
+    loadMenu();
+  })();
+</script>
+
+<!-- WebSocket לריל־טיים (לפי מה שתממש ב-pos_ws.ts) -->
+<script>
+  (function(){
+    const rid = "<%= rid %>";
+    const table = <%= Number(tbl) %>;
+    const proto = (location.protocol === "https:") ? "wss:" : "ws:";
+    const wsUrl = proto + "//" + location.host + "/ws/pos";
+
+    let ws;
+    try{
+      ws = new WebSocket(wsUrl);
+    }catch(e){
+      console.warn("WS not available", e);
+      return;
+    }
+
+    ws.addEventListener("open", () => {
+      // הודעת הצטרפות – תתאים לפרוטוקול pos_ws.ts שלך
+      ws.send(JSON.stringify({
+        type: "join",
+        role: "waiter",
+        restaurantId: rid,
+        table
+      }));
+    });
+
+    ws.addEventListener("message", (ev) => {
+      try{
+        const msg = JSON.parse(ev.data);
+        // דוגמה: אם השרת ישלח type: "refresh_table" או "order_updated" עבור שולחן
+        if (msg.type === "order_updated" && msg.restaurantId === rid && msg.table === table){
+          // הכי פשוט: ריענון העמוד כדי למשוך מצב עדכני
+          window.location.reload();
+        }
+        if (msg.type === "order_closed" && msg.restaurantId === rid && msg.table === table){
+          window.location.href = `/waiter/${encodeURIComponent(rid)}`;
+        }
+      }catch(e){
+        console.warn("bad WS message", e);
+      }
+    });
+  })();
+</script>
+
+<style>
+  .pos-waiter-page .waiter-header{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:16px;
+  }
+  .pos-waiter-page .title-block h1{
+    margin:0;
+    font-size:clamp(18px,2.6vw,24px);
+  }
+  .pos-waiter-page .bill-summary{
+    display:flex;
+    gap:6px;
+    align-items:center;
+    padding:6px 10px;
+    border-radius:999px;
+    background:rgba(15,23,42,0.9);
+    border:1px solid rgba(148,163,184,0.5);
+    font-size:14px;
+  }
+  .waiter-header .header-actions{
+    display:flex;
+    align-items:center;
+  }
+
+  .waiter-layout{
+    display:grid;
+    grid-template-columns:1.1fr 1.4fr;
+    gap:16px;
+  }
+
+  .panel.card{
+    background: var(--panel,#111827);
+    border:1px solid var(--bd,#1f2937);
+    border-radius:18px;
+    padding:14px 16px;
+    box-shadow:0 14px 40px rgba(0,0,0,.45);
+  }
+  .card-title{
+    margin:0 0 8px;
+    font-size:clamp(16px,2.2vw,20px);
+  }
+
+  .order-table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:8px;
+    font-size:14px;
+  }
+  .order-table th,
+  .order-table td{
+    border-bottom:1px solid rgba(255,255,255,.06);
+    padding:6px 4px;
+    text-align:right;
+  }
+  .order-table th{
+    font-weight:600;
+    color:var(--ink-muted,#9ca3af);
+  }
+  .order-table .col-name .name-main{ font-weight:600; }
+  .order-table .col-qty,
+  .order-table .col-total{
+    white-space:nowrap;
+  }
+
+  .bill-actions{
+    margin-top:10px;
+    display:flex;
+    justify-content:flex-start;
+  }
+
+  .menu-section{
+    margin-bottom:12px;
+  }
+  .menu-section-title{
+    font-size:14px;
+    margin:0 0 6px;
+    color:var(--ink-muted,#9ca3af);
+  }
+  .menu-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
+    gap:8px;
+  }
+  .menu-item-card{
+    border-radius:12px;
+    border:1px solid rgba(31,41,55,1);
+    background:rgba(15,23,42,0.9);
+    padding:8px;
+    cursor:pointer;
+    text-align:right;
+  }
+  .menu-item-card:hover{
+    border-color:rgba(59,130,246,0.7);
+  }
+  .menu-item-name{
+    font-size:14px;
+    font-weight:600;
+    margin-bottom:4px;
+  }
+  .menu-item-desc{
+    font-size:12px;
+    min-height:16px;
+  }
+  .menu-item-footer{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:4px;
+    font-size:12px;
+  }
+
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    padding:8px 12px;
+    border-radius:12px;
+    border:1px solid var(--bd,#1f2937);
+    background:transparent;
+    color:var(--ink,#e5e7eb);
+    cursor:pointer;
+    text-decoration:none;
+  }
+  .btn.primary{
+    background:#3b82f6;
+    border-color:#2563eb;
+    color:#fff;
+  }
+  .btn.ghost{
+    background:rgba(15,23,42,0.7);
+  }
+
+  @media (max-width:900px){
+    .waiter-layout{
+      grid-template-columns:1fr;
+    }
+  }
+</style>
