@@ -1,5 +1,5 @@
-// pos/pos_db.ts
-// Lightweight POS storage on top of Deno KV used by the project
+// src/pos/pos_db.ts
+// POS מינימלי על Deno KV: תפריט, הזמנות לשולחנות, פריטים, סיכומים, ביטולים וסגירה.
 
 import { kv } from "../database.ts";
 
@@ -64,41 +64,46 @@ export interface OrderItem {
   updatedAt: number;
 }
 
+export interface OrderTotals {
+  itemsCount: number; // כמה פריטים (כולל כמות)
+  subtotal: number;   // סה"כ לפני טיפ/מע"מ וכו'
+}
+
 /* ---------- KEYS ---------- */
 
-function kCategory(rid: string, id: string) {
-  return ["pos", "cat", rid, id] as Deno.KvKey;
+function kCategory(rid: string, id: string): Deno.KvKey {
+  return ["pos", "cat", rid, id];
 }
-function kCategoryPrefix(rid: string) {
-  return ["pos", "cat", rid] as Deno.KvKey;
-}
-
-function kItem(rid: string, id: string) {
-  return ["pos", "item", rid, id] as Deno.KvKey;
-}
-function kItemPrefix(rid: string) {
-  return ["pos", "item", rid] as Deno.KvKey;
+function kCategoryPrefix(rid: string): Deno.KvKey {
+  return ["pos", "cat", rid];
 }
 
-function kOrder(rid: string, oid: string) {
-  return ["pos", "order", rid, oid] as Deno.KvKey;
+function kItem(rid: string, id: string): Deno.KvKey {
+  return ["pos", "item", rid, id];
 }
-function kOrderPrefix(rid: string) {
-  return ["pos", "order", rid] as Deno.KvKey;
-}
-
-function kOrderByTable(rid: string, table: number) {
-  return ["pos", "order_by_table", rid, table] as Deno.KvKey;
-}
-function kOrderByTablePrefix(rid: string) {
-  return ["pos", "order_by_table", rid] as Deno.KvKey;
+function kItemPrefix(rid: string): Deno.KvKey {
+  return ["pos", "item", rid];
 }
 
-function kOrderItem(oid: string, iid: string) {
-  return ["pos", "order_item", oid, iid] as Deno.KvKey;
+function kOrder(rid: string, oid: string): Deno.KvKey {
+  return ["pos", "order", rid, oid];
 }
-function kOrderItemPrefix(oid: string) {
-  return ["pos", "order_item", oid] as Deno.KvKey;
+function kOrderPrefix(rid: string): Deno.KvKey {
+  return ["pos", "order", rid];
+}
+
+function kOrderByTable(rid: string, table: number): Deno.KvKey {
+  return ["pos", "order_by_table", rid, table];
+}
+function kOrderByTablePrefix(rid: string): Deno.KvKey {
+  return ["pos", "order_by_table", rid];
+}
+
+function kOrderItem(oid: string, iid: string): Deno.KvKey {
+  return ["pos", "order_item", oid, iid];
+}
+function kOrderItemPrefix(oid: string): Deno.KvKey {
+  return ["pos", "order_item", oid];
 }
 
 /* ---------- Categories ---------- */
@@ -129,7 +134,7 @@ export async function upsertCategory(
     name_ka?: string;
     id?: string;
   },
-) {
+): Promise<MenuCategory> {
   const id = cat.id ?? crypto.randomUUID();
   const item: MenuCategory = {
     id,
@@ -145,7 +150,10 @@ export async function upsertCategory(
   return item;
 }
 
-export async function deleteCategory(restaurantId: string, id: string) {
+export async function deleteCategory(
+  restaurantId: string,
+  id: string,
+): Promise<void> {
   await kv.delete(kCategory(restaurantId, id));
 }
 
@@ -173,7 +181,7 @@ export async function upsertItem(
     destination?: Destination;
     id?: string;
   },
-) {
+): Promise<MenuItem> {
   const id = it.id ?? crypto.randomUUID();
   const item: MenuItem = {
     id,
@@ -195,7 +203,10 @@ export async function upsertItem(
   return item;
 }
 
-export async function deleteItem(restaurantId: string, id: string) {
+export async function deleteItem(
+  restaurantId: string,
+  id: string,
+): Promise<void> {
   await kv.delete(kItem(restaurantId, id));
 }
 
@@ -281,6 +292,21 @@ export async function listOrderItemsForTable(
   return out;
 }
 
+/** סיכום חשבון לשולחן: כמה פריטים ומה הסכום הכולל (לא כולל פריטים שבוטלו) */
+export async function computeTotalsForTable(
+  restaurantId: string,
+  table: number,
+): Promise<OrderTotals> {
+  const items = await listOrderItemsForTable(restaurantId, table);
+  const active = items.filter((it) => it.status !== "cancelled");
+  const itemsCount = active.reduce((sum, it) => sum + it.quantity, 0);
+  const subtotal = active.reduce(
+    (sum, it) => sum + it.quantity * it.unitPrice,
+    0,
+  );
+  return { itemsCount, subtotal };
+}
+
 export async function updateOrderItemStatus(
   orderItemId: string,
   orderId: string,
@@ -300,6 +326,14 @@ export async function updateOrderItemStatus(
   return updated;
 }
 
+/** "מחיקת" פריט מההזמנה – בפועל מסמן כ-cancelled */
+export async function cancelOrderItem(
+  orderId: string,
+  orderItemId: string,
+): Promise<OrderItem | null> {
+  return await updateOrderItemStatus(orderItemId, orderId, "cancelled");
+}
+
 /** מחזיר את כל השולחנות עם הזמנה פתוחה למסעדה */
 export async function listOpenOrdersByRestaurant(
   restaurantId: string,
@@ -316,4 +350,33 @@ export async function listOpenOrdersByRestaurant(
   }
   out.sort((a, b) => a.table - b.table);
   return out;
+}
+
+/** סגירת הזמנה לשולחן: משנה סטטוס ל-closed ומסיר מפתח order_by_table */
+export async function closeOrderForTable(
+  restaurantId: string,
+  table: number,
+): Promise<Order | null> {
+  const byTableKey = kOrderByTable(restaurantId, table);
+  const byTableRow = await kv.get<Order>(byTableKey);
+  const cur = byTableRow.value;
+  if (!cur) return null;
+
+  const orderKey = kOrder(restaurantId, cur.id);
+  const orderRow = await kv.get<Order>(orderKey);
+  const base = orderRow.value ?? cur;
+
+  const updated: Order = {
+    ...base,
+    status: "closed",
+    closedAt: Date.now(),
+  };
+
+  const tx = kv.atomic()
+    .set(orderKey, updated)
+    .delete(byTableKey);
+
+  const res = await tx.commit();
+  if (!res.ok) return null;
+  return updated;
 }

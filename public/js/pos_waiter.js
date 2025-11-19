@@ -1,73 +1,110 @@
+// public/js/pos_waiter.js
+// לוגיקה בצד המלצר: חישוב חשבון, ביטול פריטים, וסגירת שולחן.
 
-const { rid, table } = (window.POS_CTX || {});
-const proto = location.protocol === "https:" ? "wss" : "ws";
-const ws = new WebSocket(`${proto}://${location.host}/ws/pos?role=waiter&rid=${encodeURIComponent(rid)}&table=${encodeURIComponent(table)}`);
+(function () {
+  const root = document.getElementById("bill-summary");
+  if (!root) return;
 
-const menuList = document.getElementById("menuList");
-const orderBody = document.getElementById("orderItems");
-const totalEl = document.getElementById("total");
+  const rid = root.dataset.rid;
+  const table = Number(root.dataset.table || "0");
 
-let total = 0;
-const itemsById = new Map();
+  const rowsContainer = document.getElementById("order-items");
+  const itemsSpan = document.getElementById("bill-items");
+  const totalSpan = document.getElementById("bill-total");
+  const btnClose = document.getElementById("btn-close-order");
 
-function addOrderRow(it) {
-  itemsById.set(it.id, it);
-  const tr = document.createElement("tr");
-  tr.id = `row-${it.id}`;
-  tr.innerHTML = `<td>${it.name}</td><td>${it.quantity}</td><td>${(it.unitPrice*it.quantity).toFixed(2)} ₪</td><td class="status">${formatStatus(it.status)}</td>`;
-  orderBody.appendChild(tr);
-  total += (it.unitPrice * it.quantity);
-  totalEl.textContent = `${total.toFixed(2)} ₪`;
-}
+  function recalcTotals() {
+    if (!rowsContainer) return;
+    const rows = Array.from(
+      rowsContainer.querySelectorAll("tr.order-row"),
+    );
+    let itemsCount = 0;
+    let subtotal = 0;
 
-function formatStatus(s) {
-  switch (s) {
-    case "received": return "התקבלה";
-    case "in_progress": return "בטיפול";
-    case "ready": return "מוכנה";
-    case "served": return "הוגשה";
-    default: return s;
-  }
-}
-
-ws.onmessage = (ev) => {
-  const msg = JSON.parse(ev.data);
-  if (msg.event === "menu") {
-    // Build menu list
-    menuList.innerHTML = "";
-    const cats = {}; // group by categoryId (simple)
-    msg.menu.forEach(m => {
-      const key = m.categoryId || "_";
-      (cats[key] ||= []).push(m);
+    rows.forEach((row) => {
+      if (row.classList.contains("status-cancelled")) return;
+      const qty = Number(row.dataset.qty || "0");
+      const price = Number(row.dataset.price || "0");
+      itemsCount += qty;
+      subtotal += qty * price;
     });
-    Object.values(cats).forEach(group => {
-      group.forEach(m => {
-        const li = document.createElement("li");
-        li.className = "item";
-        const title = document.createElement("span");
-        title.textContent = `${m.name_he || m.name_en} — ${(m.price||0).toFixed(2)} ₪ (${m.destination === 'bar' ? 'בר' : 'מטבח'})`;
-        const addBtn = document.createElement("button");
-        addBtn.className = "btn ghost";
-        addBtn.textContent = "הוסף";
-        addBtn.onclick = () => {
-          const qty = 1; // simple; can pop a prompt for quantity
-          ws.send(JSON.stringify({ event: "place-order", itemId: m.id, quantity: qty }));
-        };
-        li.appendChild(title);
-        li.appendChild(addBtn);
-        menuList.appendChild(li);
+
+    if (itemsSpan) itemsSpan.textContent = `${itemsCount} פריטים`;
+    if (totalSpan)
+      totalSpan.textContent = `${subtotal.toFixed(2)} ₪`;
+  }
+
+  async function cancelItem(row) {
+    const orderId = row.dataset.orderId;
+    const itemId = row.dataset.itemId;
+    if (!rid || !table || !orderId || !itemId) return;
+
+    try {
+      const res = await fetch("/api/pos/order-item/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId: rid,
+          table,
+          orderId,
+          orderItemId: itemId,
+        }),
       });
-    });
-  } else if (msg.event === "orderList") {
-    // initial list for this table
-    orderBody.innerHTML = "";
-    total = 0;
-    msg.items.forEach(addOrderRow);
-  } else if (msg.event === "orderAdded") {
-    addOrderRow(msg.item);
-  } else if (msg.event === "orderUpdated") {
-    const { id, status } = msg.item;
-    const row = document.getElementById(`row-${id}`);
-    if (row) row.querySelector(".status").textContent = formatStatus(status);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.ok) {
+        row.classList.add("status-cancelled");
+        const btn = row.querySelector(".btn-cancel-item");
+        if (btn) btn.remove();
+        const statusCell = row.querySelector("td:last-child");
+        if (statusCell) {
+          statusCell.textContent = "בוטל";
+          statusCell.classList.add("muted");
+        }
+        recalcTotals();
+      }
+    } catch (e) {
+      console.error("cancelItem failed", e);
+    }
   }
-};
+
+  async function closeOrder() {
+    if (!rid || !table) return;
+    try {
+      const res = await fetch("/api/pos/order/close", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurantId: rid, table }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.ok) {
+        // אחרי סגירה – חזרה למסך המלצרים
+        window.location.href = `/waiter/${encodeURIComponent(rid)}`;
+      }
+    } catch (e) {
+      console.error("closeOrder failed", e);
+    }
+  }
+
+  // האזנה לכפתורי "ביטול"
+  if (rowsContainer) {
+    rowsContainer.addEventListener("click", (ev) => {
+      const btn = ev.target.closest(".btn-cancel-item");
+      if (!btn) return;
+      const row = btn.closest("tr.order-row");
+      if (!row) return;
+      cancelItem(row);
+    });
+  }
+
+  if (btnClose) {
+    btnClose.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      closeOrder();
+    });
+  }
+
+  // חישוב ראשוני
+  recalcTotals();
+})();

@@ -1,4 +1,6 @@
-// routes/pos.ts
+// src/routes/pos.ts
+// ראוטים ל-POS: עריכת תפריט, מסך מלצרים, מסך מטבח, API לחשבון/ביטולים/סגירה.
+
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
 import { requireOwner } from "../lib/auth.ts";
@@ -11,12 +13,16 @@ import {
   upsertCategory,
   deleteCategory,
   listOpenOrdersByRestaurant,
+  listOrderItemsForTable,
+  computeTotalsForTable,
+  cancelOrderItem,
+  closeOrderForTable,
 } from "../pos/pos_db.ts";
-import { handlePosSocket } from "../pos/pos_ws.ts";
+import { handlePosSocket } from "../pos/pos_ws.ts"; // אם כבר יישמנו WS קודם
 
 export const posRouter = new Router();
 
-// --- WebSocket endpoint ---
+// --- WebSocket endpoint (אם אתה משתמש ב-WS לריל-טיים) ---
 posRouter.get("/ws/pos", handlePosSocket);
 
 // --- Owner menu editor ---
@@ -99,12 +105,23 @@ posRouter.get("/waiter/:rid", async (ctx) => {
 
   const open = await listOpenOrdersByRestaurant(rid);
 
+  const enriched: any[] = [];
+  for (const row of open) {
+    const totals = await computeTotalsForTable(rid, row.table);
+    enriched.push({
+      table: row.table,
+      order: row.order,
+      itemsCount: totals.itemsCount,
+      subtotal: totals.subtotal,
+    });
+  }
+
   await render(ctx, "pos_waiter_lobby", {
     page: "pos_waiter_lobby",
     title: `מסך מלצרים · ${r.name}`,
     restaurant: r,
     rid,
-    openTables: open,
+    openTables: enriched,
   });
 });
 
@@ -115,12 +132,17 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);
 
+  const items = await listOrderItemsForTable(rid, table);
+  const totals = await computeTotalsForTable(rid, table);
+
   await render(ctx, "pos_waiter", {
     page: "pos_waiter",
     title: `Waiter · Table ${table} · ${r.name}`,
     rid,
     table,
     restaurant: r,
+    orderItems: items,
+    totals,
   });
 });
 
@@ -147,6 +169,56 @@ posRouter.get("/api/pos/menu/:rid", async (ctx) => {
     "application/json; charset=utf-8",
   );
   ctx.response.body = JSON.stringify(items);
+});
+
+// --- API: ביטול פריט מההזמנה (מלצר) ---
+posRouter.post("/api/pos/order-item/cancel", async (ctx) => {
+  const body = await ctx.request.body.json();
+  const restaurantId = String(body.restaurantId ?? "");
+  const orderId = String(body.orderId ?? "");
+  const orderItemId = String(body.orderItemId ?? "");
+  const table = Number(body.table ?? 0);
+
+  if (!restaurantId || !orderId || !orderItemId || !table) {
+    ctx.throw(Status.BadRequest, "missing fields");
+  }
+
+  const updated = await cancelOrderItem(orderId, orderItemId);
+  const totals = await computeTotalsForTable(restaurantId, table);
+
+  ctx.response.headers.set(
+    "Content-Type",
+    "application/json; charset=utf-8",
+  );
+  ctx.response.body = JSON.stringify({
+    ok: !!updated,
+    item: updated,
+    totals,
+  });
+});
+
+// --- API: סגירת שולחן / חשבון ---
+posRouter.post("/api/pos/order/close", async (ctx) => {
+  const body = await ctx.request.body.json();
+  const restaurantId = String(body.restaurantId ?? "");
+  const table = Number(body.table ?? 0);
+
+  if (!restaurantId || !table) {
+    ctx.throw(Status.BadRequest, "missing fields");
+  }
+
+  const order = await closeOrderForTable(restaurantId, table);
+  const totals = await computeTotalsForTable(restaurantId, table);
+
+  ctx.response.headers.set(
+    "Content-Type",
+    "application/json; charset=utf-8",
+  );
+  ctx.response.body = JSON.stringify({
+    ok: !!order,
+    order,
+    totals,
+  });
 });
 
 export default posRouter;
