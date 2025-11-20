@@ -34,6 +34,9 @@
       totalSpan.textContent = `${subtotal.toFixed(2)} ₪`;
   }
 
+  // שיהיה זמין לסקריפט האחר בעמוד
+  window.sbRecalcBill = recalcTotals;
+
   async function cancelItem(row) {
     const orderId = row.dataset.orderId;
     const itemId = row.dataset.itemId;
@@ -56,7 +59,7 @@
         row.classList.add("status-cancelled");
         const btn = row.querySelector(".btn-cancel-item");
         if (btn) btn.remove();
-        const statusCell = row.querySelector("td:last-child");
+        const statusCell = row.querySelector("td.col-status");
         if (statusCell) {
           statusCell.textContent = "בוטל";
           statusCell.classList.add("muted");
@@ -79,7 +82,6 @@
       if (!res.ok) return;
       const data = await res.json();
       if (data.ok) {
-        // אחרי סגירה – חזרה למסך המלצרים
         window.location.href = `/waiter/${encodeURIComponent(rid)}`;
       }
     } catch (e) {

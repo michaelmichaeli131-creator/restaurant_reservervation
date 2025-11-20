@@ -172,6 +172,14 @@ export async function listItems(restaurantId: string): Promise<MenuItem[]> {
   return out;
 }
 
+export async function getItem(
+  restaurantId: string,
+  id: string,
+): Promise<MenuItem | null> {
+  const row = await kv.get<MenuItem>(kItem(restaurantId, id));
+  return row.value ?? null;
+}
+
 export async function upsertItem(
   it: Partial<MenuItem> & {
     restaurantId: string;
@@ -341,7 +349,7 @@ export async function listOpenOrdersByRestaurant(
   const out: { table: number; order: Order }[] = [];
   for await (
     const row of kv.list<Order>({
-      prefix: kOrderByTablePrefix(restaurantId),
+      prefix: kOrderPrefix(restaurantId),
     })
   ) {
     if (row.value && row.value.status === "open") {

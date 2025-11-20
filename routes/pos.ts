@@ -1,5 +1,5 @@
 // src/routes/pos.ts
-// ראוטים ל-POS: עריכת תפריט, מסך מלצרים, מסך מטבח, API לחשבון/ביטולים/סגירה.
+// ראוטים ל-POS: עריכת תפריט, מסך מלצרים, מסך מטבח, API לחשבון/ביטולים/סגירה/הוספה.
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -17,12 +17,19 @@ import {
   computeTotalsForTable,
   cancelOrderItem,
   closeOrderForTable,
+  addOrderItem,
+  getItem,
 } from "../pos/pos_db.ts";
-import { handlePosSocket } from "../pos/pos_ws.ts"; // אם כבר יישמנו WS קודם
+import {
+  handlePosSocket,
+  notifyOrderItemAdded,
+  notifyOrderItemUpdated,
+  notifyOrderClosed,
+} from "../pos/pos_ws.ts";
 
 export const posRouter = new Router();
 
-// --- WebSocket endpoint (אם אתה משתמש ב-WS לריל-טיים) ---
+// --- WebSocket endpoint ---
 posRouter.get("/ws/pos", handlePosSocket);
 
 // --- Owner menu editor ---
@@ -171,6 +178,44 @@ posRouter.get("/api/pos/menu/:rid", async (ctx) => {
   ctx.response.body = JSON.stringify(items);
 });
 
+// --- API: הוספת פריט להזמנה מצד המלצר ---
+posRouter.post("/api/pos/order-item/add", async (ctx) => {
+  const body = await ctx.request.body.json();
+  const restaurantId = String(body.restaurantId ?? "");
+  const table = Number(body.table ?? 0);
+  const menuItemId = String(body.menuItemId ?? "");
+  const quantity = Number(body.quantity ?? 1);
+
+  if (!restaurantId || !table || !menuItemId) {
+    ctx.throw(Status.BadRequest, "missing fields");
+  }
+
+  const menuItem = await getItem(restaurantId, menuItemId);
+  if (!menuItem) ctx.throw(Status.NotFound, "menuItem not found");
+
+  const { order, orderItem } = await addOrderItem({
+    restaurantId,
+    table,
+    menuItem,
+    quantity,
+  });
+  const totals = await computeTotalsForTable(restaurantId, table);
+
+  // תשדורת ריל־טיים למטבח ולמלצרים אחרים
+  notifyOrderItemAdded(orderItem);
+
+  ctx.response.headers.set(
+    "Content-Type",
+    "application/json; charset=utf-8",
+  );
+  ctx.response.body = JSON.stringify({
+    ok: true,
+    order,
+    item: orderItem,
+    totals,
+  });
+});
+
 // --- API: ביטול פריט מההזמנה (מלצר) ---
 posRouter.post("/api/pos/order-item/cancel", async (ctx) => {
   const body = await ctx.request.body.json();
@@ -185,6 +230,11 @@ posRouter.post("/api/pos/order-item/cancel", async (ctx) => {
 
   const updated = await cancelOrderItem(orderId, orderItemId);
   const totals = await computeTotalsForTable(restaurantId, table);
+
+  if (updated) {
+    // תשדורת ריל־טיים
+    notifyOrderItemUpdated(updated);
+  }
 
   ctx.response.headers.set(
     "Content-Type",
@@ -209,6 +259,11 @@ posRouter.post("/api/pos/order/close", async (ctx) => {
 
   const order = await closeOrderForTable(restaurantId, table);
   const totals = await computeTotalsForTable(restaurantId, table);
+
+  if (order) {
+    // תשדורת ריל־טיים למטבח ולמלצרים
+    notifyOrderClosed(restaurantId, table);
+  }
 
   ctx.response.headers.set(
     "Content-Type",

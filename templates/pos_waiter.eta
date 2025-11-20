@@ -39,7 +39,6 @@
         בחר מנות מהתפריט כדי להוסיף להזמנה של השולחן.
       </p>
       <div id="menu-root" data-rid="<%= rid %>">
-        <!-- JS ימלא כאן את קטגוריות/מנות -->
         <p class="muted">טוען תפריט…</p>
       </div>
     </aside>
@@ -102,7 +101,7 @@
               </tr>
             <% }) %>
           <% } else { %>
-            <tr>
+            <tr class="no-items-row">
               <td colspan="6">
                 <p class="muted" style="margin:6px 0">
                   עדיין אין פריטים בהזמנה. בחר מנות מהתפריט משמאל.
@@ -123,15 +122,16 @@
 </main>
 
 <!-- JS להזמנה: ביטול פריטים + סגירת שולחן + חישוב חשבון -->
-<script src="/public/js/pos_waiter.js?v=<%= it.BUILD_TAG || '' %>"></script>
+<script src="/public/js/pos_waiter.js?v="<%= it.BUILD_TAG || '' %>"></script>
 
-<!-- JS לתפריט אינטראקטיבי (אם עדיין אין לך, תוכל לממש לפי /api/pos/menu/:rid) -->
+<!-- JS לתפריט אינטראקטיבי + הוספת מנות -->
 <script>
   (function(){
     const root = document.getElementById("menu-root");
     if (!root) return;
     const rid = root.dataset.rid;
-    if (!rid) return;
+    const table = <%= Number(tbl) %>;
+    if (!rid || !table) return;
 
     async function loadMenu(){
       try{
@@ -150,7 +150,6 @@
         root.innerHTML = '<p class="muted">אין מנות בתפריט כרגע.</p>';
         return;
       }
-      // קיבוץ לפי categoryId / ללא קטגוריה
       const byCat = new Map();
       for (const it of items){
         const cid = it.categoryId || "__no_cat__";
@@ -176,6 +175,7 @@
           card.className = "menu-item-card";
           card.dataset.menuItemId = m.id;
           card.dataset.price = m.price;
+          card.dataset.dest = m.destination;
           card.innerHTML = `
             <div class="menu-item-name">${m.name_he || m.name_en || 'מנה'}</div>
             <div class="menu-item-desc muted">${m.desc_he || m.desc_en || ''}</div>
@@ -195,20 +195,94 @@
       root.appendChild(frag);
     }
 
-    // כאן אתה יכול לחבר קריאה ל-API הוספת פריט (אם יש לך /api/pos/order-item/add)
+    async function addItem(card){
+      const menuItemId = card.dataset.menuItemId;
+      if (!menuItemId) return;
+
+      try{
+        const res = await fetch("/api/pos/order-item/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            restaurantId: rid,
+            table,
+            menuItemId,
+            quantity: 1,
+          }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.ok) return;
+
+        const item = data.item;
+        const tbody = document.getElementById("order-items");
+        if (!tbody) return;
+
+        // אם יש שורת "אין פריטים" – נוריד אותה
+        const emptyRow = tbody.querySelector(".no-items-row");
+        if (emptyRow) emptyRow.remove();
+
+        const tr = document.createElement("tr");
+        tr.className = `order-row status-${item.status}`;
+        tr.dataset.orderId = item.orderId;
+        tr.dataset.itemId = item.id;
+        tr.dataset.qty = item.quantity;
+        tr.dataset.price = item.unitPrice;
+
+        const createdAt = new Date(item.createdAt);
+        const timeStr = createdAt.toLocaleTimeString('he-IL',{
+          hour:'2-digit',minute:'2-digit'
+        });
+
+        let statusLabel = "התקבל";
+        if (item.status === "in_progress") statusLabel = "בהכנה";
+        else if (item.status === "ready") statusLabel = "מוכן";
+        else if (item.status === "served") statusLabel = "הוגש";
+        else if (item.status === "cancelled") statusLabel = "בוטל";
+
+        tr.innerHTML = `
+          <td class="col-name">
+            <div class="name-main">${item.name}</div>
+            <div class="name-sub muted">
+              נוצר ב־${timeStr}
+            </div>
+          </td>
+          <td class="col-qty">x${item.quantity}</td>
+          <td class="col-dest">
+            ${item.destination === 'bar' ? 'בר' : 'מטבח'}
+          </td>
+          <td class="col-status">${statusLabel}</td>
+          <td class="col-total">
+            ${(item.unitPrice * item.quantity).toFixed(2)} ₪
+          </td>
+          <td class="col-actions">
+            <button type="button" class="btn ghost btn-cancel-item">
+              🗑 ביטול
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+
+        // עדכון חשבון בצד לקוח
+        if (window.sbRecalcBill) {
+          window.sbRecalcBill();
+        }
+      }catch(e){
+        console.error("addItem failed", e);
+      }
+    }
+
     root.addEventListener("click", function(ev){
       const card = ev.target.closest(".menu-item-card");
       if (!card) return;
-      // לדוגמה: dispatch customEvent, או קריאה ל-API נוסף שאתה כבר מימשת בצד השרת
-      // השארתי רק console.log כדי לא לשבור קוד קיים.
-      console.log("click menu item", card.dataset.menuItemId);
+      addItem(card);
     });
 
     loadMenu();
   })();
 </script>
 
-<!-- WebSocket לריל־טיים (לפי מה שתממש ב-pos_ws.ts) -->
+<!-- WebSocket לריל־טיים מהמטבח למלצר -->
 <script>
   (function(){
     const rid = "<%= rid %>";
@@ -225,7 +299,6 @@
     }
 
     ws.addEventListener("open", () => {
-      // הודעת הצטרפות – תתאים לפרוטוקול pos_ws.ts שלך
       ws.send(JSON.stringify({
         type: "join",
         role: "waiter",
@@ -237,12 +310,16 @@
     ws.addEventListener("message", (ev) => {
       try{
         const msg = JSON.parse(ev.data);
-        // דוגמה: אם השרת ישלח type: "refresh_table" או "order_updated" עבור שולחן
-        if (msg.type === "order_updated" && msg.restaurantId === rid && msg.table === table){
-          // הכי פשוט: ריענון העמוד כדי למשוך מצב עדכני
+        if (msg.type === "order_updated" &&
+            msg.restaurantId === rid &&
+            msg.table === table) {
+          // ריענון מצב השולחן (הסטטוסים מהמטבח)
           window.location.reload();
         }
-        if (msg.type === "order_closed" && msg.restaurantId === rid && msg.table === table){
+        if (msg.type === "order_closed" &&
+            msg.restaurantId === rid &&
+            msg.table === table) {
+          // אם מישהו (או המטבח) סגר את השולחן
           window.location.href = `/waiter/${encodeURIComponent(rid)}`;
         }
       }catch(e){

@@ -19,7 +19,8 @@
   <section class="panel card kitchen-board" aria-label="הזמנות פעילות במטבח">
     <h2 class="card-title">הזמנות פעילות</h2>
     <p class="muted" style="font-size:12px;margin-bottom:6px">
-      לחיצה על כרטיס משנה את הסטטוס (התקבל → בהכנה → מוכן → הוגש).
+      לחיצה על החצים בכל כרטיס משנה את הסטטוס:
+      קדימה (התקבל → בהכנה → מוכן → הוגש) או אחורה.
     </p>
 
     <div id="kitchen-columns" class="kitchen-columns" data-rid="<%= rid %>">
@@ -54,7 +55,6 @@
     const proto = (location.protocol === "https:") ? "wss:" : "ws:";
     const wsUrl = proto + "//" + location.host + "/ws/pos";
 
-    /** state מקומי של כל הפריטים */
     const state = new Map(); // key = orderItemId, value = item
 
     function render(){
@@ -77,6 +77,9 @@
         div.dataset.orderId = it.orderId;
         div.dataset.status = it.status;
         div.dataset.table = it.table;
+        const timeStr = new Date(it.createdAt).toLocaleTimeString('he-IL',{
+          hour:'2-digit',minute:'2-digit'
+        });
         div.innerHTML = `
           <div class="ticket-title">
             שולחן ${it.table} • ${it.name}
@@ -84,14 +87,17 @@
           <div class="ticket-meta">
             כמות: ${it.quantity} • יעד: ${it.destination === 'bar' ? 'בר' : 'מטבח'}
           </div>
-          <div class="ticket-time">
-            ${new Date(it.createdAt).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})}
+          <div class="ticket-bottom">
+            <div class="ticket-time">${timeStr}</div>
+            <div class="ticket-actions">
+              <button type="button" class="btn-ticket small btn-status-prev">⬅</button>
+              <button type="button" class="btn-ticket small btn-status-next">➡</button>
+            </div>
           </div>
         `;
         cols[it.status].appendChild(div);
       }
 
-      // empty hints
       for (const [key, col] of Object.entries(cols)){
         if (!col) continue;
         if (!col.children.length){
@@ -128,10 +134,19 @@
       if (current === "in_progress") return "ready";
       if (current === "ready") return "served";
       if (current === "served") return "served";
+      if (current === "cancelled") return "cancelled";
       return current;
     }
 
-    // שליחת שינוי סטטוס לשרת דרך WS (תתאם לפרוטוקול שלך)
+    function prevStatus(current){
+      if (current === "served") return "ready";
+      if (current === "ready") return "in_progress";
+      if (current === "in_progress") return "received";
+      if (current === "received") return "received";
+      if (current === "cancelled") return "cancelled";
+      return current;
+    }
+
     function sendStatusChange(itemId, orderId, status){
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
       ws.send(JSON.stringify({
@@ -143,24 +158,29 @@
       }));
     }
 
-    // האזנה לקליקים על כרטיסים
     root.addEventListener("click", function(ev){
+      const btnNext = ev.target.closest(".btn-status-next");
+      const btnPrev = ev.target.closest(".btn-status-prev");
       const card = ev.target.closest(".ticket");
       if (!card) return;
       const id = card.dataset.itemId;
       const orderId = card.dataset.orderId;
       const current = card.dataset.status;
-      const next = nextStatus(current);
-      if (next === current) return;
-      sendStatusChange(id, orderId, next);
-      // אפשר גם לבצע אופטימיסטי:
+      if (!id || !orderId || !current) return;
+
+      let target = current;
+      if (btnNext) target = nextStatus(current);
+      if (btnPrev) target = prevStatus(current);
+      if (target === current) return;
+
       const local = state.get(id);
       if (local){
-        local.status = next;
+        local.status = target;
         local.updatedAt = Date.now();
         state.set(id, local);
         render();
       }
+      sendStatusChange(id, orderId, target);
     });
 
     let ws;
@@ -183,13 +203,10 @@
       try{
         const msg = JSON.parse(ev.data);
 
-        // דוגמאות – תתאים לפרוטוקול pos_ws.ts שלך:
         if (msg.type === "snapshot" && msg.restaurantId === rid){
-          // msg.items = רשימה מלאה של OrderItem
           applySnapshot(msg.items || []);
         }
         if (msg.type === "order_item" && msg.restaurantId === rid){
-          // פריט חדש
           upsertItem(msg.item);
         }
         if (msg.type === "order_item_updated" && msg.restaurantId === rid){
@@ -199,7 +216,6 @@
           removeItem(msg.orderItemId);
         }
         if (msg.type === "order_closed" && msg.restaurantId === rid){
-          // אפשר לבחור להסיר כל הפריטים של השולחן מהמסך
           const table = msg.table;
           if (table != null){
             for (const it of Array.from(state.values())){
@@ -271,11 +287,8 @@
     background:rgba(15,23,42,0.98);
     padding:6px 7px;
     margin-bottom:6px;
-    cursor:pointer;
+    cursor:default;
     font-size:13px;
-  }
-  .ticket:hover{
-    border-color:#22c55e;
   }
   .ticket-title{
     font-weight:600;
@@ -286,9 +299,31 @@
     color:var(--ink-muted,#9ca3af);
     margin-bottom:2px;
   }
+  .ticket-bottom{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:2px;
+  }
   .ticket-time{
     font-size:11px;
     color:var(--ink-muted,#9ca3af);
+  }
+  .ticket-actions{
+    display:flex;
+    gap:4px;
+  }
+  .btn-ticket.small{
+    font-size:11px;
+    padding:2px 6px;
+    border-radius:999px;
+    border:1px solid rgba(30,64,175,0.8);
+    background:rgba(15,23,42,1);
+    color:#e5e7eb;
+    cursor:pointer;
+  }
+  .btn-ticket.small:hover{
+    border-color:#22c55e;
   }
 
   .btn{
