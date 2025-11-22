@@ -2,8 +2,8 @@
 
 <link rel="stylesheet" href="/static/dist/floor-index.css">
 
-<main class="floor-page">
-  <div class="floor-container">
+<main class="shift-page">
+  <div class="shift-container">
     <div id="root"></div>
   </div>
 </main>
@@ -11,7 +11,7 @@
 <script>
   // Pass page and restaurantId to React app before it loads
   window.__APP_CONFIG__ = {
-    page: 'floor',
+    page: 'shifts',
     restaurantId: '<%= it.restaurantId %>'
   };
 </script>
@@ -19,18 +19,19 @@
 <script type="module" src="/static/dist/floor-app.js"></script>
 
 <style>
-.floor-page {
+.shift-page {
   padding: 0;
   margin: 0;
   min-height: 100vh;
 }
 
-.floor-container {
+.shift-container {
   width: 100%;
-  height: 100vh;
+  height: 100%;
+  min-height: 100vh;
 }
 
-#floor-app {
+#root {
   width: 100%;
   height: 100%;
 }

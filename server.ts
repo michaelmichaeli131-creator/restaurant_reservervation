@@ -59,6 +59,9 @@ import { ownerCalendarRouter } from "./routes/owner_calendar.ts";
 // ✅ Floor plan management
 import { ownerFloorRouter } from "./routes/owner_floor.ts";
 
+// ✅ Shift management
+import { ownerShiftsRouter } from "./routes/owner_shifts.ts";
+
 // -------------------- ENV --------------------
 const PORT = Number(Deno.env.get("PORT") ?? "8000");
 const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
@@ -412,6 +415,9 @@ app.use(ownerRouter.allowedMethods());
 
 app.use(ownerPhotosRouter.routes());
 app.use(ownerPhotosRouter.allowedMethods());
+
+app.use(ownerShiftsRouter.routes());
+app.use(ownerShiftsRouter.allowedMethods());
 
 // debug/diag
 app.use(diagRouter.routes());

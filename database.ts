@@ -51,6 +51,63 @@ export interface Restaurant {
   createdAt: number;
 }
 
+// ========== SHIFT MANAGEMENT ==========
+export type StaffRole = "manager" | "chef" | "waiter" | "busser" | "host" | "bartender";
+
+export interface StaffMember {
+  id: string;
+  restaurantId: string;
+  userId: string;              // Link to User for login
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  role: StaffRole;
+  hourlyRate?: number;
+  status: "active" | "inactive" | "on_leave";
+  hireDate: number;
+  createdAt: number;
+}
+
+export interface ShiftTemplate {
+  id: string;
+  restaurantId: string;
+  name: string;               // e.g., "Morning", "Evening", "Closing"
+  startTime: string;          // "HH:mm"
+  endTime: string;            // "HH:mm"
+  daysOfWeek: DayOfWeek[];    // [1,2,3,4,5] = Mon-Fri
+  defaultStaffCount?: number;
+  createdAt: number;
+}
+
+export interface ShiftAssignment {
+  id: string;
+  restaurantId: string;
+  staffId: string;            // Link to StaffMember
+  shiftTemplateId?: string;   // Link to ShiftTemplate (optional)
+  date: string;               // YYYY-MM-DD
+  startTime: string;          // HH:mm
+  endTime: string;            // HH:mm
+  status: "scheduled" | "checked_in" | "checked_out" | "called_out" | "cancelled";
+  checkedInAt?: number;       // Timestamp
+  checkedOutAt?: number;      // Timestamp
+  checkInNotes?: string;
+  tablesAssigned?: string[];  // Floor plan table IDs
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface StaffAvailability {
+  id: string;
+  staffId: string;
+  restaurantId: string;
+  dayOfWeek: DayOfWeek;
+  available: boolean;
+  preferredShift?: "morning" | "afternoon" | "evening" | "closing";
+  notes?: string;
+  createdAt: number;
+}
+
 export interface Reservation {
   id: string;
   restaurantId: string;

@@ -95,9 +95,13 @@ function tt(k, fb){
                     <span class="icon">🍽️</span>
                     <%= tt('owner.dashboard.btn_floor','סידור שולחנות') %>
                   </a>
+                  <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/shifts" target="_self" rel="nofollow">
+                    <span class="icon">📅</span>
+                    <%= tt('owner.dashboard.btn_shifts','ניהול משמרות') %>
+                  </a>
                 </div>
 
-                <!-- שורת POS – מתחת לסידור שולחנות, כפתורים “ארוכים” -->
+                <!-- שורת POS – מתחת לסידור שולחנות, כפתורים "ארוכים" -->
                 <div class="actions pos-actions">
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/menu">
                     <span class="icon">🧾</span>
