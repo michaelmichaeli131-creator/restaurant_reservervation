@@ -27,6 +27,8 @@ interface ShiftBoardProps {
   restaurantId: string;
 }
 
+type ViewType = 'day' | 'week' | 'month';
+
 const ROLE_COLORS: Record<string, string> = {
   waiter: '#FF6B6B',
   chef: '#4ECDC4',
@@ -44,10 +46,34 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: '#FFCDD2',
 };
 
+// Helper functions
+const getMonday = (date: Date): Date => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  return new Date(d.setDate(diff));
+};
+
+const getWeekDates = (date: Date): Date[] => {
+  const monday = getMonday(date);
+  const dates: Date[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(d.getDate() + i);
+    dates.push(d);
+  }
+  return dates;
+};
+
+const formatDate = (date: Date): string => date.toISOString().split('T')[0];
+const formatDateDisplay = (date: Date): string => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const formatMonthYear = (date: Date): string => date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
 export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [shifts, setShifts] = useState<ShiftAssignment[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [viewType, setViewType] = useState<ViewType>('day');
   const [loading, setLoading] = useState(false);
   const [showAddStaffForm, setShowAddStaffForm] = useState(false);
   const [showAddShiftForm, setShowAddShiftForm] = useState(false);
@@ -56,17 +82,29 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
 
   useEffect(() => {
     loadData();
-  }, [selectedDate, restaurantId]);
+  }, [selectedDate, viewType, restaurantId]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [staffRes, shiftsRes] = await Promise.all([
-        fetch(`/api/restaurants/${restaurantId}/staff`),
-        fetch(`/api/restaurants/${restaurantId}/shifts?date=${selectedDate}`),
-      ]);
-
+      const staffRes = await fetch(`/api/restaurants/${restaurantId}/staff`);
       if (staffRes.ok) setStaff(await staffRes.json());
+
+      // Load shifts for the appropriate date range
+      let startDate = selectedDate;
+      let endDate = selectedDate;
+
+      if (viewType === 'week') {
+        const dates = getWeekDates(new Date(selectedDate));
+        startDate = formatDate(dates[0]);
+        endDate = formatDate(dates[6]);
+      } else if (viewType === 'month') {
+        const date = new Date(selectedDate);
+        startDate = formatDate(new Date(date.getFullYear(), date.getMonth(), 1));
+        endDate = formatDate(new Date(date.getFullYear(), date.getMonth() + 1, 0));
+      }
+
+      const shiftsRes = await fetch(`/api/restaurants/${restaurantId}/shifts?startDate=${startDate}&endDate=${endDate}`);
       if (shiftsRes.ok) setShifts(await shiftsRes.json());
     } catch (err) {
       console.error('Failed to load data:', err);
@@ -85,16 +123,12 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
       const res = await fetch(`/api/restaurants/${restaurantId}/staff`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...newStaff,
-          userId: newStaff.userId || crypto.randomUUID(),
-        }),
+        body: JSON.stringify(newStaff),
       });
-
       if (res.ok) {
-        await loadData();
         setNewStaff({ firstName: '', lastName: '', email: '', role: 'waiter', userId: '' });
         setShowAddStaffForm(false);
+        loadData();
       }
     } catch (err) {
       console.error('Failed to add staff:', err);
@@ -118,11 +152,10 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
           endTime: newShift.endTime,
         }),
       });
-
       if (res.ok) {
-        await loadData();
         setNewShift({ staffId: '', startTime: '09:00', endTime: '17:00' });
         setShowAddShiftForm(false);
+        loadData();
       }
     } catch (err) {
       console.error('Failed to add shift:', err);
@@ -131,13 +164,8 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
 
   const handleCheckIn = async (shiftId: string) => {
     try {
-      const res = await fetch(`/api/restaurants/${restaurantId}/shifts/${shiftId}/check-in`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-
-      if (res.ok) await loadData();
+      await fetch(`/api/restaurants/${restaurantId}/shifts/${shiftId}/check-in`, { method: 'POST' });
+      loadData();
     } catch (err) {
       console.error('Failed to check in:', err);
     }
@@ -145,330 +173,374 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
 
   const handleCheckOut = async (shiftId: string) => {
     try {
-      const res = await fetch(`/api/restaurants/${restaurantId}/shifts/${shiftId}/check-out`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-
-      if (res.ok) await loadData();
+      await fetch(`/api/restaurants/${restaurantId}/shifts/${shiftId}/check-out`, { method: 'POST' });
+      loadData();
     } catch (err) {
       console.error('Failed to check out:', err);
     }
   };
 
   const handleCancelShift = async (shiftId: string) => {
-    if (confirm('Cancel this shift?')) {
-      try {
-        const res = await fetch(`/api/restaurants/${restaurantId}/shifts/${shiftId}`, {
-          method: 'DELETE',
-        });
-
-        if (res.ok) await loadData();
-      } catch (err) {
-        console.error('Failed to cancel shift:', err);
-      }
+    try {
+      await fetch(`/api/restaurants/${restaurantId}/shifts/${shiftId}`, { method: 'DELETE' });
+      loadData();
+    } catch (err) {
+      console.error('Failed to cancel shift:', err);
     }
   };
 
-  const timeToMinutes = (time: string): number => {
-    const [hours, mins] = time.split(':').map(Number);
-    return hours * 60 + mins;
-  };
-
-  const minutesToTime = (mins: number): string => {
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-  };
-
-  const getStaffName = (staffId: string) => {
-    const s = staff.find(m => m.id === staffId);
-    return s ? `${s.firstName} ${s.lastName}` : 'Unknown';
-  };
-
-  const previousDate = () => {
+  const changeDate = (days: number) => {
     const d = new Date(selectedDate);
-    d.setDate(d.getDate() - 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    if (viewType === 'week') {
+      d.setDate(d.getDate() + days * 7);
+    } else if (viewType === 'month') {
+      d.setMonth(d.getMonth() + days);
+    } else {
+      d.setDate(d.getDate() + days);
+    }
+    setSelectedDate(formatDate(d));
   };
 
-  const nextDate = () => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
-  };
+  // Daily view component
+  const DayView = () => {
+    const date = new Date(selectedDate);
+    const dayShifts = shifts.filter(s => s.date === selectedDate);
+    const groupedShifts = new Map<string, ShiftAssignment[]>();
+    dayShifts.forEach(shift => {
+      if (!groupedShifts.has(shift.staffId)) groupedShifts.set(shift.staffId, []);
+      groupedShifts.get(shift.staffId)!.push(shift);
+    });
 
-  // Generate time slots (9am to 11pm)
-  const timeSlots = Array.from({ length: 15 }, (_, i) => {
-    const hour = 9 + i;
-    return { hour, time: `${String(hour).padStart(2, '0')}:00` };
-  });
+    const timeToMinutes = (time: string): number => {
+      const [h, m] = time.split(':').map(Number);
+      return h * 60 + m;
+    };
 
-  const DAY_START = 9 * 60; // 9am in minutes
-  const DAY_END = 23 * 60; // 11pm in minutes
+    const DAY_START = 9 * 60;
+    const DAY_END = 23 * 60;
+    const TOTAL_MINUTES = DAY_END - DAY_START;
 
-  return (
-    <div className="shift-board">
-      <header className="board-header">
-        <h1>📅 Shift Board</h1>
-        <div className="date-controls">
-          <button onClick={previousDate}>← Previous</button>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="date-picker"
-          />
-          <button onClick={nextDate}>Next →</button>
+    return (
+      <div className="shift-board day-view">
+        <div className="day-view-header">
+          <h2>{date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</h2>
         </div>
-      </header>
-
-      {loading && <div className="loading">Loading...</div>}
-
-      <div className="board-container">
-        {/* Left Sidebar - Staff List */}
-        <div className="staff-sidebar">
-          <div className="staff-header">
-            <h2>Staff ({staff.length})</h2>
-            <button className="btn-add" onClick={() => setShowAddStaffForm(!showAddStaffForm)}>
-              {showAddStaffForm ? '✕' : '+'}
-            </button>
+        <div className="day-timeline">
+          <div className="time-slots">
+            {Array.from({ length: 15 }, (_, i) => (
+              <div key={i} className="time-slot">{9 + i}:00</div>
+            ))}
           </div>
-
-          {showAddStaffForm && (
-            <div className="form-card">
-              <input
-                type="text"
-                placeholder="First name"
-                value={newStaff.firstName}
-                onChange={(e) => setNewStaff({ ...newStaff, firstName: e.target.value })}
-              />
-              <input
-                type="text"
-                placeholder="Last name"
-                value={newStaff.lastName}
-                onChange={(e) => setNewStaff({ ...newStaff, lastName: e.target.value })}
-              />
-              <input
-                type="email"
-                placeholder="Email"
-                value={newStaff.email}
-                onChange={(e) => setNewStaff({ ...newStaff, email: e.target.value })}
-              />
-              <select
-                value={newStaff.role}
-                onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value })}
-              >
-                <option value="waiter">Waiter</option>
-                <option value="chef">Chef</option>
-                <option value="manager">Manager</option>
-                <option value="busser">Busser</option>
-                <option value="host">Host</option>
-                <option value="bartender">Bartender</option>
-              </select>
-              <button className="btn-primary" onClick={handleAddStaff}>Add Staff</button>
-            </div>
-          )}
-
-          <div className="staff-list">
-            {staff.map((s) => (
-              <div
-                key={s.id}
-                className="staff-card"
-                style={{ borderLeftColor: ROLE_COLORS[s.role] || '#999' }}
-              >
-                <div className="staff-info">
-                  <strong>{s.firstName} {s.lastName}</strong>
-                  <small>{s.role}</small>
+          <div className="staff-rows">
+            {staff.map(member => (
+              <div key={member.id} className="staff-row">
+                <div className="staff-name" style={{ borderLeftColor: ROLE_COLORS[member.role] || '#999' }}>
+                  <span>{member.firstName} {member.lastName}</span>
+                  <small>{member.role}</small>
                 </div>
-                <span className="status-badge" style={{ backgroundColor: ROLE_COLORS[s.role] || '#999' }}>
-                  {s.status}
-                </span>
+                <div className="timeline-row">
+                  {(groupedShifts.get(member.id) || []).map(shift => {
+                    const startMins = timeToMinutes(shift.startTime);
+                    const endMins = timeToMinutes(shift.endTime);
+                    const left = ((startMins - DAY_START) / TOTAL_MINUTES) * 100;
+                    const width = ((endMins - startMins) / TOTAL_MINUTES) * 100;
+
+                    return (
+                      <div
+                        key={shift.id}
+                        className="shift-bar"
+                        style={{
+                          left: `${left}%`,
+                          width: `${width}%`,
+                          backgroundColor: ROLE_COLORS[shift.staffRole] || '#999',
+                          opacity: STATUS_COLORS[shift.status] ? 1 : 0.6,
+                        }}
+                        title={`${shift.startTime}-${shift.endTime} (${shift.status})`}
+                      >
+                        <span className="shift-time">{shift.startTime}-{shift.endTime}</span>
+                        <div className="shift-actions">
+                          {shift.status === 'scheduled' && (
+                            <button onClick={() => handleCheckIn(shift.id)} className="btn-checkin">Check In</button>
+                          )}
+                          {shift.status === 'checked_in' && (
+                            <button onClick={() => handleCheckOut(shift.id)} className="btn-checkout">Check Out</button>
+                          )}
+                          <button onClick={() => handleCancelShift(shift.id)} className="btn-cancel">Cancel</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ))}
           </div>
         </div>
+      </div>
+    );
+  };
 
-        {/* Main Timeline */}
-        <div className="timeline-container">
-          {/* Time Header */}
-          <div className="time-header">
-            <div className="staff-col-header"></div>
-            <div className="timeline-header">
-              {timeSlots.map((slot) => (
-                <div key={slot.time} className="time-slot-header">
-                  {slot.time}
-                </div>
-              ))}
-            </div>
+  // Weekly view component
+  const WeekView = () => {
+    const dates = getWeekDates(new Date(selectedDate));
+    const weekShifts = shifts.filter(s => {
+      const d = new Date(s.date);
+      return d >= dates[0] && d <= dates[6];
+    });
+
+    const groupedByStaffAndDate = new Map<string, Map<string, ShiftAssignment[]>>();
+    staff.forEach(m => {
+      groupedByStaffAndDate.set(m.id, new Map());
+      dates.forEach(d => {
+        const dateStr = formatDate(d);
+        groupedByStaffAndDate.get(m.id)!.set(dateStr, []);
+      });
+    });
+
+    weekShifts.forEach(shift => {
+      const staffMap = groupedByStaffAndDate.get(shift.staffId);
+      if (staffMap) {
+        const dayShifts = staffMap.get(shift.date) || [];
+        dayShifts.push(shift);
+        staffMap.set(shift.date, dayShifts);
+      }
+    });
+
+    return (
+      <div className="shift-board week-view">
+        <div className="week-header">
+          <h2>{formatDate(dates[0])} to {formatDate(dates[6])}</h2>
+        </div>
+        <div className="week-table">
+          <div className="week-row header-row">
+            <div className="staff-cell">Staff</div>
+            {dates.map(d => (
+              <div key={formatDate(d)} className="day-cell">
+                <div>{d.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                <div className="date-num">{formatDateDisplay(d)}</div>
+              </div>
+            ))}
           </div>
-
-          {/* Staff Rows with Shift Bars */}
-          <div className="timeline-rows">
-            {staff.length === 0 ? (
-              <div className="empty-state">No staff members. Add one to get started!</div>
-            ) : (
-              staff.map((s) => {
-                const staffShifts = shifts.filter(sh => sh.staffId === s.id);
+          {staff.map(member => (
+            <div key={member.id} className="week-row">
+              <div className="staff-cell">
+                <div className="staff-info" style={{ borderLeftColor: ROLE_COLORS[member.role] || '#999' }}>
+                  <span className="staff-name">{member.firstName} {member.lastName}</span>
+                  <span className="staff-role">{member.role}</span>
+                </div>
+              </div>
+              {dates.map(d => {
+                const dateStr = formatDate(d);
+                const dayShifts = groupedByStaffAndDate.get(member.id)?.get(dateStr) || [];
                 return (
-                  <div key={s.id} className="staff-row">
-                    <div className="staff-name-col">{s.firstName}</div>
-                    <div className="shifts-timeline">
-                      {/* Background grid */}
-                      {timeSlots.map((slot) => (
-                        <div key={slot.time} className="time-cell"></div>
-                      ))}
-
-                      {/* Shift bars */}
-                      {staffShifts.map((shift) => {
-                        const startMins = timeToMinutes(shift.startTime);
-                        const endMins = timeToMinutes(shift.endTime);
-                        const offsetLeft = ((startMins - DAY_START) / (DAY_END - DAY_START)) * 100;
-                        const width = ((endMins - startMins) / (DAY_END - DAY_START)) * 100;
-
-                        return (
-                          <div
-                            key={shift.id}
-                            className={`shift-bar shift-${shift.status}`}
-                            style={{
-                              left: `${offsetLeft}%`,
-                              width: `${width}%`,
-                              backgroundColor: ROLE_COLORS[shift.staffRole] || '#999',
-                              borderColor: STATUS_COLORS[shift.status] || '#ccc',
-                            }}
-                            title={`${shift.startTime}-${shift.endTime}`}
-                          >
-                            <div className="shift-bar-inner">
-                              <span className="time-text">
-                                {shift.startTime}
-                              </span>
-                              {shift.status === 'checked_in' && (
-                                <span className="check-in-badge">✓</span>
-                              )}
-                            </div>
-
-                            {/* Action buttons */}
-                            <div className="shift-actions">
-                              {shift.status === 'scheduled' && (
-                                <button
-                                  className="btn-action check-in"
-                                  onClick={() => handleCheckIn(shift.id)}
-                                  title="Check In"
-                                >
-                                  ✓
-                                </button>
-                              )}
-                              {shift.status === 'checked_in' && (
-                                <button
-                                  className="btn-action check-out"
-                                  onClick={() => handleCheckOut(shift.id)}
-                                  title="Check Out"
-                                >
-                                  ✗
-                                </button>
-                              )}
-                              {shift.status !== 'checked_out' && shift.status !== 'cancelled' && (
-                                <button
-                                  className="btn-action cancel"
-                                  onClick={() => handleCancelShift(shift.id)}
-                                  title="Cancel"
-                                >
-                                  ✕
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                  <div key={dateStr} className="day-cell">
+                    {dayShifts.map(shift => (
+                      <div
+                        key={shift.id}
+                        className="week-shift"
+                        style={{ backgroundColor: ROLE_COLORS[shift.staffRole] || '#999' }}
+                        title={`${shift.startTime}-${shift.endTime}`}
+                      >
+                        <small>{shift.startTime}-{shift.endTime}</small>
+                      </div>
+                    ))}
                   </div>
                 );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Right Sidebar - Actions */}
-        <div className="actions-sidebar">
-          <div className="actions-header">
-            <h2>Schedule</h2>
-            <button className="btn-add" onClick={() => setShowAddShiftForm(!showAddShiftForm)}>
-              {showAddShiftForm ? '✕' : '+'}
-            </button>
-          </div>
-
-          {showAddShiftForm && (
-            <div className="form-card">
-              <label>Select Staff</label>
-              <select
-                value={newShift.staffId}
-                onChange={(e) => setNewShift({ ...newShift, staffId: e.target.value })}
-              >
-                <option value="">-- Choose --</option>
-                {staff.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.firstName} {s.lastName} ({s.role})
-                  </option>
-                ))}
-              </select>
-
-              <label>Start</label>
-              <input
-                type="time"
-                value={newShift.startTime}
-                onChange={(e) => setNewShift({ ...newShift, startTime: e.target.value })}
-              />
-
-              <label>End</label>
-              <input
-                type="time"
-                value={newShift.endTime}
-                onChange={(e) => setNewShift({ ...newShift, endTime: e.target.value })}
-              />
-
-              <button className="btn-primary" onClick={handleAddShift}>
-                Schedule Shift
-              </button>
-            </div>
-          )}
-
-          {/* Coverage Summary */}
-          <div className="coverage-card">
-            <h3>Today's Coverage</h3>
-            <div className="coverage-stats">
-              <div className="stat">
-                <span className="stat-label">Total Shifts:</span>
-                <span className="stat-value">{shifts.length}</span>
-              </div>
-              <div className="stat">
-                <span className="stat-label">Checked In:</span>
-                <span className="stat-value">{shifts.filter(s => s.status === 'checked_in').length}</span>
-              </div>
-              <div className="stat">
-                <span className="stat-label">Scheduled:</span>
-                <span className="stat-value">{shifts.filter(s => s.status === 'scheduled').length}</span>
-              </div>
-            </div>
-
-            {/* Role breakdown */}
-            <div className="role-breakdown">
-              {Object.entries(ROLE_COLORS).map(([role, color]) => {
-                const count = shifts.filter(s => s.staffRole === role).length;
-                return count > 0 ? (
-                  <div key={role} className="role-stat">
-                    <span
-                      className="role-dot"
-                      style={{ backgroundColor: color }}
-                    ></span>
-                    <span>{role} ({count})</span>
-                  </div>
-                ) : null;
               })}
             </div>
-          </div>
+          ))}
         </div>
       </div>
+    );
+  };
+
+  // Monthly view component
+  const MonthView = () => {
+    const date = new Date(selectedDate);
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const prevLastDay = new Date(year, month, 0).getDate();
+
+    const days: (Date | null)[] = [];
+    for (let i = firstDay.getDay() - 1; i >= 0; i--) {
+      days.push(new Date(year, month - 1, prevLastDay - i));
+    }
+    for (let i = 1; i <= lastDay.getDate(); i++) {
+      days.push(new Date(year, month, i));
+    }
+    const remaining = 42 - days.length;
+    for (let i = 1; i <= remaining; i++) {
+      days.push(new Date(year, month + 1, i));
+    }
+
+    return (
+      <div className="shift-board month-view">
+        <div className="month-header">
+          <h2>{formatMonthYear(date)}</h2>
+        </div>
+        <div className="month-calendar">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+            <div key={day} className="day-header">{day}</div>
+          ))}
+          {days.map((d, i) => {
+            const dateStr = d ? formatDate(d) : '';
+            const dayShifts = d ? shifts.filter(s => s.date === dateStr) : [];
+            const isCurrentMonth = d && d.getMonth() === month;
+
+            return (
+              <div key={i} className={`month-day ${isCurrentMonth ? 'current' : 'other'}`}>
+                <div className="day-number">{d?.getDate()}</div>
+                <div className="shift-count">
+                  {dayShifts.length > 0 && (
+                    <>
+                      <div className="count-badge">{dayShifts.length} shifts</div>
+                      <div className="shift-dots">
+                        {staff.map(member => {
+                          const hasShift = dayShifts.some(s => s.staffId === member.id);
+                          return hasShift ? (
+                            <span
+                              key={member.id}
+                              className="dot"
+                              style={{ backgroundColor: ROLE_COLORS[member.role] || '#999' }}
+                              title={member.firstName}
+                            />
+                          ) : null;
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const currentDate = new Date(selectedDate);
+  const displayText = viewType === 'week'
+    ? `Week of ${formatDateDisplay(getWeekDates(currentDate)[0])}`
+    : viewType === 'month'
+    ? formatMonthYear(currentDate)
+    : currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  return (
+    <div className="shift-board-container">
+      <div className="board-header">
+        <div className="view-controls">
+          <button
+            className={`view-btn ${viewType === 'day' ? 'active' : ''}`}
+            onClick={() => setViewType('day')}
+          >
+            Day
+          </button>
+          <button
+            className={`view-btn ${viewType === 'week' ? 'active' : ''}`}
+            onClick={() => setViewType('week')}
+          >
+            Week
+          </button>
+          <button
+            className={`view-btn ${viewType === 'month' ? 'active' : ''}`}
+            onClick={() => setViewType('month')}
+          >
+            Month
+          </button>
+        </div>
+
+        <div className="date-controls">
+          <button onClick={() => changeDate(-1)}>← Prev</button>
+          <div className="current-date">{displayText}</div>
+          <button onClick={() => changeDate(1)}>Next →</button>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={e => setSelectedDate(e.target.value)}
+          />
+        </div>
+
+        <div className="action-buttons">
+          <button className="btn-primary" onClick={() => setShowAddStaffForm(!showAddStaffForm)}>
+            + Add Staff
+          </button>
+          <button className="btn-primary" onClick={() => setShowAddShiftForm(!showAddShiftForm)}>
+            + Add Shift
+          </button>
+        </div>
+      </div>
+
+      {showAddStaffForm && (
+        <div className="form-panel">
+          <h3>Add Staff Member</h3>
+          <input
+            type="text"
+            placeholder="First Name"
+            value={newStaff.firstName}
+            onChange={e => setNewStaff({ ...newStaff, firstName: e.target.value })}
+          />
+          <input
+            type="text"
+            placeholder="Last Name"
+            value={newStaff.lastName}
+            onChange={e => setNewStaff({ ...newStaff, lastName: e.target.value })}
+          />
+          <input
+            type="email"
+            placeholder="Email"
+            value={newStaff.email}
+            onChange={e => setNewStaff({ ...newStaff, email: e.target.value })}
+          />
+          <select value={newStaff.role} onChange={e => setNewStaff({ ...newStaff, role: e.target.value })}>
+            <option value="waiter">Waiter</option>
+            <option value="chef">Chef</option>
+            <option value="manager">Manager</option>
+            <option value="busser">Busser</option>
+            <option value="host">Host</option>
+            <option value="bartender">Bartender</option>
+          </select>
+          <button onClick={handleAddStaff} className="btn-primary">Save Staff</button>
+          <button onClick={() => setShowAddStaffForm(false)} className="btn-secondary">Cancel</button>
+        </div>
+      )}
+
+      {showAddShiftForm && (
+        <div className="form-panel">
+          <h3>Create Shift</h3>
+          <select
+            value={newShift.staffId}
+            onChange={e => setNewShift({ ...newShift, staffId: e.target.value })}
+          >
+            <option value="">Select Staff Member</option>
+            {staff.map(member => (
+              <option key={member.id} value={member.id}>
+                {member.firstName} {member.lastName}
+              </option>
+            ))}
+          </select>
+          <input
+            type="time"
+            value={newShift.startTime}
+            onChange={e => setNewShift({ ...newShift, startTime: e.target.value })}
+          />
+          <input
+            type="time"
+            value={newShift.endTime}
+            onChange={e => setNewShift({ ...newShift, endTime: e.target.value })}
+          />
+          <button onClick={handleAddShift} className="btn-primary">Create Shift</button>
+          <button onClick={() => setShowAddShiftForm(false)} className="btn-secondary">Cancel</button>
+        </div>
+      )}
+
+      {loading ? <p>Loading...</p> : (
+        <>
+          {viewType === 'day' && <DayView />}
+          {viewType === 'week' && <WeekView />}
+          {viewType === 'month' && <MonthView />}
+        </>
+      )}
     </div>
   );
 }
