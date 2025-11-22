@@ -5,10 +5,10 @@
   const rid = it.rid;
 %>
 
-<main class="container pos-kitchen-page" dir="rtl">
-  <header class="page-header kitchen-header">
+<main class="container pos-bar-page" dir="rtl">
+  <header class="page-header bar-header">
     <div>
-      <h1>מסך מטבח — <%= r.name %></h1>
+      <h1>מסך בר — <%= r.name %></h1>
       <p class="muted"><%= r.city %> • <%= r.address %></p>
     </div>
     <div class="header-actions">
@@ -16,27 +16,27 @@
     </div>
   </header>
 
-  <section class="panel card kitchen-board" aria-label="הזמנות פעילות במטבח">
-    <h2 class="card-title">הזמנות מטבח</h2>
+  <section class="panel card bar-board" aria-label="הזמנות בר פעילות">
+    <h2 class="card-title">הזמנות בבר</h2>
     <p class="muted" style="font-size:12px;margin-bottom:6px">
-      החצים משנים סטטוס: קדימה (התקבל → בהכנה → מוכן) או אחורה.<br>
-      סטטוס "הוגש" מתעדכן רק על ידי המלצר.
+      החצים משנים סטטוס משקאות: קדימה (התקבל → בהכנה → מוכן) או אחורה.<br>
+      סטטוס "הוגש" מתעדכן על ידי המלצר.
     </p>
 
-    <div id="kitchen-columns" class="kitchen-columns" data-rid="<%= rid %>">
-      <div class="kitchen-col" data-status="received">
+    <div id="bar-columns" class="bar-columns" data-rid="<%= rid %>">
+      <div class="bar-col" data-status="received">
         <div class="col-head">התקבל</div>
-        <div class="col-body" id="col-received"></div>
+        <div class="col-body" id="bar-col-received"></div>
       </div>
 
-      <div class="kitchen-col" data-status="in_progress">
+      <div class="bar-col" data-status="in_progress">
         <div class="col-head">בהכנה</div>
-        <div class="col-body" id="col-in-progress"></div>
+        <div class="col-body" id="bar-col-in-progress"></div>
       </div>
 
-      <div class="kitchen-col" data-status="ready">
+      <div class="bar-col" data-status="ready">
         <div class="col-head">מוכן</div>
-        <div class="col-body" id="col-ready"></div>
+        <div class="col-body" id="bar-col-ready"></div>
       </div>
     </div>
   </section>
@@ -44,24 +44,24 @@
 
 <script>
   (function(){
-    const root = document.getElementById("kitchen-columns");
+    const root = document.getElementById("bar-columns");
     if (!root) return;
     const rid = root.dataset.rid;
     const proto = (location.protocol === "https:") ? "wss:" : "ws:";
     const wsUrl = proto + "//" + location.host + "/ws/pos";
 
-    const state = new Map(); // orderItemId -> item
+    const state = new Map();
 
     function render(){
       const cols = {
-        received: document.getElementById("col-received"),
-        in_progress: document.getElementById("col-in-progress"),
-        ready: document.getElementById("col-ready"),
+        received: document.getElementById("bar-col-received"),
+        in_progress: document.getElementById("bar-col-in-progress"),
+        ready: document.getElementById("bar-col-ready"),
       };
       Object.values(cols).forEach(c => { if (c) c.innerHTML = ""; });
 
       const items = Array.from(state.values())
-        .filter(it => it.destination === "kitchen"); // רק מטבח
+        .filter(it => it.destination === "bar");
 
       items.sort((a,b) => a.createdAt - b.createdAt);
 
@@ -121,17 +121,11 @@
       render();
     }
 
-    function removeItem(id){
-      state.delete(id);
-      render();
-    }
-
     function nextStatus(current){
       if (current === "received") return "in_progress";
       if (current === "in_progress") return "ready";
-      if (current === "ready") return "ready";   // אין מעבר ל-served
+      if (current === "ready") return "ready";
       if (current === "served") return "served";
-      if (current === "cancelled") return "cancelled";
       return current;
     }
 
@@ -139,7 +133,6 @@
       if (current === "ready") return "in_progress";
       if (current === "in_progress") return "received";
       if (current === "received") return "received";
-      if (current === "served") return "ready"; // במקרה נדיר שנרצה להחזיר
       return current;
     }
 
@@ -190,7 +183,7 @@
     ws.addEventListener("open", () => {
       ws.send(JSON.stringify({
         type: "join",
-        role: "kitchen",
+        role: "bar",
         restaurantId: rid
       }));
     });
@@ -198,7 +191,6 @@
     ws.addEventListener("message", (ev) => {
       try{
         const msg = JSON.parse(ev.data);
-
         if (msg.type === "snapshot" && msg.restaurantId === rid){
           applySnapshot(msg.items || []);
         }
@@ -349,3 +341,4 @@
 
   .small{ font-size:11px; }
 </style>
+

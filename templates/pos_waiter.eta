@@ -32,7 +32,7 @@
   </header>
 
   <section class="waiter-layout">
-    <!-- צד שמאל: תפריט (מוזן מ-JS דרך /api/pos/menu/:rid) -->
+    <!-- תפריט -->
     <aside class="panel card menu-panel" aria-label="תפריט מנות">
       <h2 class="card-title">תפריט</h2>
       <p class="muted" style="font-size:12px">
@@ -43,7 +43,7 @@
       </div>
     </aside>
 
-    <!-- צד ימין: הזמנה פעילה -->
+    <!-- הזמנה -->
     <section class="panel card order-panel" aria-label="הזמנה לשולחן">
       <h2 class="card-title">הזמנה לשולחן <%= tbl %></h2>
 
@@ -92,10 +92,17 @@
                 <td class="col-actions">
                   <% if (row.status === 'cancelled') { %>
                     <span class="muted">בוטל</span>
+                  <% } else if (row.status === 'served') { %>
+                    <span class="muted">הוגש</span>
                   <% } else { %>
                     <button type="button" class="btn ghost btn-cancel-item">
                       🗑 ביטול
                     </button>
+                    <% if (row.status === 'ready' || row.status === 'in_progress') { %>
+                      <button type="button" class="btn ghost btn-mark-served" style="margin-inline-start:4px;">
+                        ✅ סמן הוגש
+                      </button>
+                    <% } %>
                   <% } %>
                 </td>
               </tr>
@@ -121,10 +128,9 @@
   </section>
 </main>
 
-<!-- JS להזמנה: ביטול פריטים + סגירת שולחן + חישוב חשבון -->
-<script src="/public/js/pos_waiter.js?v="<%= it.BUILD_TAG || '' %>"></script>
+<script src="/public/js/pos_waiter.js?v=<%= it.BUILD_TAG || '' %>"></script>
 
-<!-- JS לתפריט אינטראקטיבי + הוספת מנות -->
+<!-- תפריט אינטראקטיבי + הוספת מנות -->
 <script>
   (function(){
     const root = document.getElementById("menu-root");
@@ -218,7 +224,6 @@
         const tbody = document.getElementById("order-items");
         if (!tbody) return;
 
-        // אם יש שורת "אין פריטים" – נוריד אותה
         const emptyRow = tbody.querySelector(".no-items-row");
         if (emptyRow) emptyRow.remove();
 
@@ -234,12 +239,6 @@
           hour:'2-digit',minute:'2-digit'
         });
 
-        let statusLabel = "התקבל";
-        if (item.status === "in_progress") statusLabel = "בהכנה";
-        else if (item.status === "ready") statusLabel = "מוכן";
-        else if (item.status === "served") statusLabel = "הוגש";
-        else if (item.status === "cancelled") statusLabel = "בוטל";
-
         tr.innerHTML = `
           <td class="col-name">
             <div class="name-main">${item.name}</div>
@@ -251,7 +250,7 @@
           <td class="col-dest">
             ${item.destination === 'bar' ? 'בר' : 'מטבח'}
           </td>
-          <td class="col-status">${statusLabel}</td>
+          <td class="col-status">התקבל</td>
           <td class="col-total">
             ${(item.unitPrice * item.quantity).toFixed(2)} ₪
           </td>
@@ -259,11 +258,13 @@
             <button type="button" class="btn ghost btn-cancel-item">
               🗑 ביטול
             </button>
+            <button type="button" class="btn ghost btn-mark-served" style="margin-inline-start:4px;">
+              ✅ סמן הוגש
+            </button>
           </td>
         `;
         tbody.appendChild(tr);
 
-        // עדכון חשבון בצד לקוח
         if (window.sbRecalcBill) {
           window.sbRecalcBill();
         }
@@ -282,7 +283,7 @@
   })();
 </script>
 
-<!-- WebSocket לריל־טיים מהמטבח למלצר -->
+<!-- WS: עדכונים מהמטבח/בר למלצר -->
 <script>
   (function(){
     const rid = "<%= rid %>";
@@ -313,13 +314,11 @@
         if (msg.type === "order_updated" &&
             msg.restaurantId === rid &&
             msg.table === table) {
-          // ריענון מצב השולחן (הסטטוסים מהמטבח)
           window.location.reload();
         }
         if (msg.type === "order_closed" &&
             msg.restaurantId === rid &&
             msg.table === table) {
-          // אם מישהו (או המטבח) סגר את השולחן
           window.location.href = `/waiter/${encodeURIComponent(rid)}`;
         }
       }catch(e){
@@ -389,11 +388,6 @@
   .order-table th{
     font-weight:600;
     color:var(--ink-muted,#9ca3af);
-  }
-  .order-table .col-name .name-main{ font-weight:600; }
-  .order-table .col-qty,
-  .order-table .col-total{
-    white-space:nowrap;
   }
 
   .bill-actions{

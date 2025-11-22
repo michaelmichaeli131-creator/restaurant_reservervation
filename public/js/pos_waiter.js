@@ -1,5 +1,5 @@
 // public/js/pos_waiter.js
-// לוגיקה בצד המלצר: חישוב חשבון, ביטול פריטים, וסגירת שולחן.
+// לוגיקה בצד המלצר: חשבון, ביטול פריטים, סימון הוגש, סגירת שולחן.
 
 (function () {
   const root = document.getElementById("bill-summary");
@@ -34,7 +34,7 @@
       totalSpan.textContent = `${subtotal.toFixed(2)} ₪`;
   }
 
-  // שיהיה זמין לסקריפט האחר בעמוד
+  // שיהיה זמין לסקריפט המשלים
   window.sbRecalcBill = recalcTotals;
 
   async function cancelItem(row) {
@@ -57,8 +57,10 @@
       const data = await res.json();
       if (data.ok) {
         row.classList.add("status-cancelled");
-        const btn = row.querySelector(".btn-cancel-item");
-        if (btn) btn.remove();
+        const btnCancel = row.querySelector(".btn-cancel-item");
+        if (btnCancel) btnCancel.remove();
+        const btnServe = row.querySelector(".btn-mark-served");
+        if (btnServe) btnServe.remove();
         const statusCell = row.querySelector("td.col-status");
         if (statusCell) {
           statusCell.textContent = "בוטל";
@@ -68,6 +70,45 @@
       }
     } catch (e) {
       console.error("cancelItem failed", e);
+    }
+  }
+
+  async function markServed(row) {
+    const orderId = row.dataset.orderId;
+    const itemId = row.dataset.itemId;
+    if (!rid || !table || !orderId || !itemId) return;
+
+    try {
+      const res = await fetch("/api/pos/order-item/serve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId: rid,
+          table,
+          orderId,
+          orderItemId: itemId,
+        }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.ok) {
+        row.classList.remove(
+          "status-received",
+          "status-in_progress",
+          "status-ready",
+        );
+        row.classList.add("status-served");
+        const statusCell = row.querySelector("td.col-status");
+        if (statusCell) {
+          statusCell.textContent = "הוגש";
+        }
+        const btnServe = row.querySelector(".btn-mark-served");
+        if (btnServe) btnServe.remove();
+        // חשבון לא משתנה, אבל נחשב בכל זאת
+        recalcTotals();
+      }
+    } catch (e) {
+      console.error("markServed failed", e);
     }
   }
 
@@ -89,14 +130,18 @@
     }
   }
 
-  // האזנה לכפתורי "ביטול"
   if (rowsContainer) {
     rowsContainer.addEventListener("click", (ev) => {
-      const btn = ev.target.closest(".btn-cancel-item");
-      if (!btn) return;
-      const row = btn.closest("tr.order-row");
+      const cancelBtn = ev.target.closest(".btn-cancel-item");
+      const serveBtn = ev.target.closest(".btn-mark-served");
+      const row = ev.target.closest("tr.order-row");
       if (!row) return;
-      cancelItem(row);
+
+      if (cancelBtn) {
+        cancelItem(row);
+      } else if (serveBtn) {
+        markServed(row);
+      }
     });
   }
 
@@ -107,6 +152,5 @@
     });
   }
 
-  // חישוב ראשוני
   recalcTotals();
 })();

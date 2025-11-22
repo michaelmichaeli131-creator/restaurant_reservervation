@@ -1,5 +1,5 @@
 // src/pos/pos_ws.ts
-// WebSocket ל-POS: סינכרון ריל-טיים בין מלצרים למטבח.
+// WebSocket ל-POS: סינכרון ריל-טיים בין מלצרים, מטבח ובר.
 
 import { Status, type Context } from "jsr:@oak/oak";
 import { kv } from "../database.ts";
@@ -10,16 +10,17 @@ import type {
 } from "./pos_db.ts";
 import { updateOrderItemStatus } from "./pos_db.ts";
 
+type PosRole = "waiter" | "kitchen" | "bar";
+
 interface PosClient {
   ws: WebSocket;
   restaurantId?: string;
-  role?: "waiter" | "kitchen";
+  role?: PosRole;
   table?: number;
 }
 
 const clients = new Set<PosClient>();
 
-/** helper: שולח לכולם לפי predicate */
 function broadcast(
   predicate: (c: PosClient) => boolean,
   payload: unknown,
@@ -31,12 +32,12 @@ function broadcast(
         c.ws.send(data);
       }
     } catch {
-      // נתעלם משגיאות של client מת
+      // ignore dead clients
     }
   }
 }
 
-/** helper: מביא את כל ה-OrderItem הפעילים למסעדה (הזמנות פתוחות בלבד, לא cancelled) */
+// כל ה-OrderItem הפעילים (open orders, לא cancelled)
 async function loadActiveItemsForRestaurant(
   restaurantId: string,
 ): Promise<OrderItem[]> {
@@ -66,12 +67,14 @@ async function loadActiveItemsForRestaurant(
   return out;
 }
 
-/* ----- helpers ל-HTTP צד שרת (כדי לדחוף עדכונים ל-WS) ----- */
+/* ----- helpers ל-HTTP ----- */
 
 export function notifyOrderItemAdded(item: OrderItem) {
   const restaurantId = item.restaurantId;
   broadcast(
-    (c) => c.role === "kitchen" && c.restaurantId === restaurantId,
+    (c) =>
+      (c.role === "kitchen" || c.role === "bar") &&
+      c.restaurantId === restaurantId,
     {
       type: "order_item",
       restaurantId,
@@ -94,7 +97,9 @@ export function notifyOrderItemAdded(item: OrderItem) {
 export function notifyOrderItemUpdated(item: OrderItem) {
   const restaurantId = item.restaurantId;
   broadcast(
-    (c) => c.role === "kitchen" && c.restaurantId === restaurantId,
+    (c) =>
+      (c.role === "kitchen" || c.role === "bar") &&
+      c.restaurantId === restaurantId,
     {
       type: "order_item_updated",
       restaurantId,
@@ -141,7 +146,6 @@ export async function handlePosSocket(ctx: Context) {
   ws.onclose = () => {
     clients.delete(client);
   };
-
   ws.onerror = () => {
     clients.delete(client);
   };
@@ -156,19 +160,18 @@ export async function handlePosSocket(ctx: Context) {
 
     const type = msg.type;
 
-    // --- הצטרפות של קליינט ---
+    // --- join ---
     if (type === "join") {
-      const role = msg.role === "kitchen"
-        ? "kitchen"
-        : msg.role === "waiter"
-        ? "waiter"
-        : undefined;
+      const rawRole = String(msg.role ?? "");
       const restaurantId = String(msg.restaurantId ?? "");
       const table = msg.table != null ? Number(msg.table) : undefined;
 
-      if (!role || !restaurantId) {
-        return;
-      }
+      let role: PosRole | undefined;
+      if (rawRole === "waiter") role = "waiter";
+      else if (rawRole === "kitchen") role = "kitchen";
+      else if (rawRole === "bar") role = "bar";
+
+      if (!role || !restaurantId) return;
 
       client.role = role;
       client.restaurantId = restaurantId;
@@ -176,8 +179,8 @@ export async function handlePosSocket(ctx: Context) {
         client.table = table;
       }
 
-      // למטבח – שולחים snapshot מלא של כל המנות הפעילות
-      if (role === "kitchen") {
+      // snapshot למסכי מטבח/בר
+      if (role === "kitchen" || role === "bar") {
         try {
           const items = await loadActiveItemsForRestaurant(restaurantId);
           ws.send(
@@ -191,11 +194,10 @@ export async function handlePosSocket(ctx: Context) {
           console.error("snapshot error", e);
         }
       }
-
       return;
     }
 
-    // --- שינוי סטטוס של פריט (מהמטבח) ---
+    // --- שינוי סטטוס (בעיקר מהמטבח / אולי בר בעתיד) ---
     if (type === "set_status") {
       const restaurantId = String(msg.restaurantId ?? "");
       const orderItemId = String(msg.orderItemId ?? "");
@@ -217,7 +219,6 @@ export async function handlePosSocket(ctx: Context) {
           next,
         );
         if (!updated) return;
-        // החלפתי את ה-broadcast פה בקוראים ל-helper
         notifyOrderItemUpdated(updated);
       } catch (e) {
         console.error("set_status failed", e);
@@ -225,7 +226,5 @@ export async function handlePosSocket(ctx: Context) {
 
       return;
     }
-
-    // אפשר להרחיב בהמשך: ping, close_order וכו'
   };
 }
