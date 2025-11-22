@@ -11,7 +11,7 @@ export interface User {
   age?: number;
   businessType?: string;
   passwordHash?: string;
-  role: "user" | "owner";
+  role: "user" | "owner" | "manager" | "staff";
   provider: "local" | "google";
   emailVerified?: boolean;
   isActive?: boolean;               // ← חדש: סטטוס חשבון
@@ -80,11 +80,21 @@ export interface ShiftTemplate {
   createdAt: number;
 }
 
+export interface UserRestaurantRole {
+  id: string;
+  userId: string;
+  restaurantId: string;
+  role: "owner" | "manager" | "staff";  // Role per restaurant
+  assignedAt: number;
+  assignedBy?: string;  // User ID of who assigned this role
+}
+
 export interface ShiftAssignment {
   id: string;
   restaurantId: string;
   staffId: string;            // Link to StaffMember
   shiftTemplateId?: string;   // Link to ShiftTemplate (optional)
+  shiftManagerId?: string;    // Link to StaffMember who manages this shift
   date: string;               // YYYY-MM-DD
   startTime: string;          // HH:mm
   endTime: string;            // HH:mm

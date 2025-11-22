@@ -58,3 +58,15 @@ export function requireOwner(ctx: any) {
   }
   return true;
 }
+export function requireManager(ctx: any) {
+  if (!ctx.state.user || !["owner", "manager"].includes(ctx.state.user.role)) {
+    ctx.response.status = 403; ctx.response.body = "Forbidden"; return false;
+  }
+  return true;
+}
+export function requireStaff(ctx: any) {
+  if (!ctx.state.user || !["owner", "manager", "staff"].includes(ctx.state.user.role)) {
+    ctx.response.status = 403; ctx.response.body = "Forbidden"; return false;
+  }
+  return true;
+}

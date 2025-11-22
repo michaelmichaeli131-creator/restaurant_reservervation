@@ -24,6 +24,10 @@ import {
   setStaffAvailability,
   getStaffAvailability,
   getShiftStats,
+  assignUserRole,
+  getUserRestaurantRole,
+  listUsersByRestaurant,
+  removeUserRole,
 } from "../services/shift_service.ts";
 
 export const ownerShiftsRouter = new Router();
@@ -396,6 +400,96 @@ ownerShiftsRouter.get("/api/restaurants/:rid/shift-stats", async (ctx) => {
 
   const stats = await getShiftStats(rid, date);
   ctx.response.body = stats;
+});
+
+/* =================== RESTAURANT USER MANAGEMENT =================== */
+
+// List all managers and staff for a restaurant
+ownerShiftsRouter.get("/api/restaurants/:rid/users", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const rid = ctx.params.rid;
+
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant || (restaurant as any).ownerId !== ctx.state.user.id) {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = { error: "Forbidden" };
+    return;
+  }
+
+  const users = await listUsersByRestaurant(rid);
+  ctx.response.body = users;
+});
+
+// Assign a user as manager or staff for a restaurant
+ownerShiftsRouter.post("/api/restaurants/:rid/users/:userId/assign", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const rid = ctx.params.rid;
+  const userId = ctx.params.userId;
+
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant || (restaurant as any).ownerId !== ctx.state.user.id) {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = { error: "Forbidden" };
+    return;
+  }
+
+  const body = await ctx.request.body.json();
+  const { role } = body;
+
+  if (!role || !["manager", "staff"].includes(role)) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { error: "Invalid role. Must be 'manager' or 'staff'" };
+    return;
+  }
+
+  const urr = await assignUserRole({
+    userId,
+    restaurantId: rid,
+    role,
+    assignedBy: ctx.state.user.id,
+  });
+
+  ctx.response.body = urr;
+});
+
+// Get a user's role for a specific restaurant
+ownerShiftsRouter.get("/api/restaurants/:rid/users/:userId", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const rid = ctx.params.rid;
+  const userId = ctx.params.userId;
+
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant || (restaurant as any).ownerId !== ctx.state.user.id) {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = { error: "Forbidden" };
+    return;
+  }
+
+  const urr = await getUserRestaurantRole(userId, rid);
+  if (!urr) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = { error: "User role not found" };
+    return;
+  }
+
+  ctx.response.body = urr;
+});
+
+// Remove a user's role from a restaurant
+ownerShiftsRouter.delete("/api/restaurants/:rid/users/:userId", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const rid = ctx.params.rid;
+  const userId = ctx.params.userId;
+
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant || (restaurant as any).ownerId !== ctx.state.user.id) {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = { error: "Forbidden" };
+    return;
+  }
+
+  await removeUserRole(userId, rid);
+  ctx.response.body = { success: true };
 });
 
 export default ownerShiftsRouter;

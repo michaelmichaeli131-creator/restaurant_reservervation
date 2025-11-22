@@ -2,9 +2,17 @@
 // Shift management business logic
 
 import { kv } from "../database.ts";
-import type { StaffMember, ShiftTemplate, ShiftAssignment, StaffAvailability } from "../database.ts";
+import type { StaffMember, ShiftTemplate, ShiftAssignment, StaffAvailability, UserRestaurantRole } from "../database.ts";
 
 // =========== Key Helpers ===========
+
+function kUserRestaurantRole(userId: string, restaurantId: string): Deno.KvKey {
+  return ["user_restaurant_role", userId, restaurantId];
+}
+
+function kUserRestaurantRoleByRestaurant(restaurantId: string): Deno.KvKey {
+  return ["user_restaurant_role_by_restaurant", restaurantId];
+}
 
 function kStaff(restaurantId: string, staffId: string): Deno.KvKey {
   return ["staff", restaurantId, staffId];
@@ -335,4 +343,60 @@ export async function getShiftStats(
     scheduled,
     staffByRole,
   };
+}
+
+// =========== USER RESTAURANT ROLE OPERATIONS ===========
+
+export async function assignUserRole(data: {
+  userId: string;
+  restaurantId: string;
+  role: "owner" | "manager" | "staff";
+  assignedBy: string;
+}): Promise<UserRestaurantRole> {
+  const id = crypto.randomUUID();
+  const urr: UserRestaurantRole = {
+    id,
+    userId: data.userId,
+    restaurantId: data.restaurantId,
+    role: data.role,
+    assignedAt: Date.now(),
+    assignedBy: data.assignedBy,
+  };
+
+  const primaryKey = kUserRestaurantRole(data.userId, data.restaurantId);
+  const indexKey = [...kUserRestaurantRoleByRestaurant(data.restaurantId), id] as Deno.KvKey;
+
+  await kv.atomic()
+    .set(primaryKey, urr)
+    .set(indexKey, urr)
+    .commit();
+
+  return urr;
+}
+
+export async function getUserRestaurantRole(userId: string, restaurantId: string): Promise<UserRestaurantRole | null> {
+  const res = await kv.get(kUserRestaurantRole(userId, restaurantId));
+  return res.value as UserRestaurantRole | null;
+}
+
+export async function listUsersByRestaurant(restaurantId: string): Promise<UserRestaurantRole[]> {
+  const users: UserRestaurantRole[] = [];
+  const iter = kv.list({ prefix: kUserRestaurantRoleByRestaurant(restaurantId) });
+  for await (const res of iter) {
+    if (res.value) users.push(res.value as UserRestaurantRole);
+  }
+  return users;
+}
+
+export async function removeUserRole(userId: string, restaurantId: string): Promise<void> {
+  const urr = await getUserRestaurantRole(userId, restaurantId);
+  if (!urr) return;
+
+  const primaryKey = kUserRestaurantRole(userId, restaurantId);
+  const indexKey = [...kUserRestaurantRoleByRestaurant(restaurantId), urr.id] as Deno.KvKey;
+
+  await kv.atomic()
+    .delete(primaryKey)
+    .delete(indexKey)
+    .commit();
 }
