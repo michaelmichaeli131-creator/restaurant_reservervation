@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import FloorEditor from './components/FloorEditor';
-import ShiftScheduler from './components/ShiftScheduler';
+import ShiftBoard from './components/ShiftBoard';
 import './App.css';
 
 function App() {
@@ -16,7 +16,7 @@ function App() {
   if (page === 'shifts') {
     return (
       <div className="app shifts-app">
-        <ShiftScheduler restaurantId={restaurantId} />
+        <ShiftBoard restaurantId={restaurantId} />
       </div>
     );
   }
