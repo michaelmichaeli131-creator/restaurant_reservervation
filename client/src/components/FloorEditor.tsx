@@ -152,17 +152,27 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
       const response = await fetch(`/api/floor-plans/${restaurantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(floorPlan)
       });
 
       if (response.ok) {
         alert('✅ Floor plan saved successfully!');
       } else {
-        alert('❌ Failed to save floor plan');
+        const text = await response.text();
+        console.error('Save failed:', response.status, text);
+        let errorMsg = `Status ${response.status}`;
+        try {
+          const json = JSON.parse(text);
+          errorMsg = json.error || errorMsg;
+        } catch {
+          errorMsg = response.statusText || errorMsg;
+        }
+        alert(`❌ Failed to save floor plan: ${errorMsg}`);
       }
     } catch (err) {
       console.error('Save failed:', err);
-      alert('❌ Error saving floor plan');
+      alert(`❌ Error saving floor plan: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
