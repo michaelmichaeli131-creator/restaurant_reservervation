@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import FloorEditor from './components/FloorEditor';
 import ShiftBoard from './components/ShiftBoard';
+import RestaurantLiveView from './components/RestaurantLiveView';
 import './App.css';
 
 function App() {
@@ -46,10 +47,7 @@ function App() {
         {floorMode === 'edit' ? (
           <FloorEditor restaurantId={restaurantId} />
         ) : (
-          <div className="live-view-placeholder">
-            <p>Live view coming soon...</p>
-            <p className="muted">Real-time table status and orders</p>
-          </div>
+          <RestaurantLiveView restaurantId={restaurantId} />
         )}
       </main>
     </div>

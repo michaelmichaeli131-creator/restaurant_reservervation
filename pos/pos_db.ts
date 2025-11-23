@@ -2,6 +2,7 @@
 // POS מינימלי על Deno KV: תפריט, הזמנות לשולחנות, פריטים, סיכומים, ביטולים וסגירה.
 
 import { kv } from "../database.ts";
+import { getTableIdByNumber } from "../services/floor_service.ts";
 
 export type Destination = "kitchen" | "bar";
 
@@ -44,6 +45,8 @@ export interface Order {
   id: string;
   restaurantId: string;
   table: number;
+  floorTableId?: string;      // Link to floor plan table ID
+  sectionId?: string;         // Link to floor section
   status: "open" | "closed" | "cancelled";
   createdAt: number;
   closedAt?: number;
@@ -227,10 +230,15 @@ export async function getOrCreateOpenOrder(
   const key = kOrderByTable(restaurantId, table);
   const cur = await kv.get<Order>(key);
   if (cur.value && cur.value.status === "open") return cur.value;
+
+  // Look up floor table ID from table number
+  const floorTableId = await getTableIdByNumber(restaurantId, table);
+
   const order: Order = {
     id: crypto.randomUUID(),
     restaurantId,
     table,
+    floorTableId: floorTableId || undefined,  // Link to floor plan if available
     status: "open",
     createdAt: Date.now(),
   };
