@@ -21,6 +21,47 @@
   margin-bottom: 12px;
 }
 
+.sections-tabs {
+  border-bottom: 1px solid var(--bd);
+  padding-bottom: 16px;
+  margin-bottom: 8px;
+}
+
+.sections-tabs h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: var(--text);
+}
+
+.tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tab {
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--bd);
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.tab:hover {
+  border-color: var(--brand);
+  background: var(--bg);
+}
+
+.tab.active {
+  background: var(--brand);
+  color: white;
+  border-color: var(--brand);
+}
+
 .palette {
   display: flex;
   flex-direction: column;
@@ -144,6 +185,8 @@
   background: var(--bg);
   padding: 2px;
   border-radius: 8px;
+  overflow: visible;
+  position: relative;
 }
 
 .grid-cell {
@@ -153,6 +196,7 @@
   height: 60px;
   position: relative;
   transition: background 0.2s;
+  overflow: visible;
 }
 
 .grid-cell:hover {
@@ -173,6 +217,8 @@
   font-size: 11px;
   font-weight: 600;
   text-align: center;
+  z-index: 10;
+  pointer-events: auto;
 }
 
 .table:hover {

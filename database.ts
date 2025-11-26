@@ -11,7 +11,7 @@ export interface User {
   age?: number;
   businessType?: string;
   passwordHash?: string;
-  role: "user" | "owner";
+  role: "user" | "owner" | "manager" | "staff";
   provider: "local" | "google";
   emailVerified?: boolean;
   isActive?: boolean;               // ← חדש: סטטוס חשבון
@@ -48,6 +48,73 @@ export interface Restaurant {
   kitchenCategories?: KitchenCategory[]; // סוגי מטבח
   averageRating?: number;           // ממוצע דירוגים (מחושב)
   reviewCount?: number;             // מספר ביקורות
+  createdAt: number;
+}
+
+// ========== SHIFT MANAGEMENT ==========
+export type StaffRole = "manager" | "chef" | "waiter" | "busser" | "host" | "bartender";
+
+export interface StaffMember {
+  id: string;
+  restaurantId: string;
+  userId: string;              // Link to User for login
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  role: StaffRole;
+  hourlyRate?: number;
+  status: "active" | "inactive" | "on_leave";
+  hireDate: number;
+  createdAt: number;
+}
+
+export interface ShiftTemplate {
+  id: string;
+  restaurantId: string;
+  name: string;               // e.g., "Morning", "Evening", "Closing"
+  startTime: string;          // "HH:mm"
+  endTime: string;            // "HH:mm"
+  daysOfWeek: DayOfWeek[];    // [1,2,3,4,5] = Mon-Fri
+  defaultStaffCount?: number;
+  createdAt: number;
+}
+
+export interface UserRestaurantRole {
+  id: string;
+  userId: string;
+  restaurantId: string;
+  role: "owner" | "manager" | "staff";  // Role per restaurant
+  assignedAt: number;
+  assignedBy?: string;  // User ID of who assigned this role
+}
+
+export interface ShiftAssignment {
+  id: string;
+  restaurantId: string;
+  staffId: string;            // Link to StaffMember
+  shiftTemplateId?: string;   // Link to ShiftTemplate (optional)
+  shiftManagerId?: string;    // Link to StaffMember who manages this shift
+  date: string;               // YYYY-MM-DD
+  startTime: string;          // HH:mm
+  endTime: string;            // HH:mm
+  status: "scheduled" | "checked_in" | "checked_out" | "called_out" | "cancelled";
+  checkedInAt?: number;       // Timestamp
+  checkedOutAt?: number;      // Timestamp
+  checkInNotes?: string;
+  tablesAssigned?: string[];  // Floor plan table IDs
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface StaffAvailability {
+  id: string;
+  staffId: string;
+  restaurantId: string;
+  dayOfWeek: DayOfWeek;
+  available: boolean;
+  preferredShift?: "morning" | "afternoon" | "evening" | "closing";
+  notes?: string;
   createdAt: number;
 }
 

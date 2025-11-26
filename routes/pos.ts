@@ -3,7 +3,7 @@
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
-import { requireOwner } from "../lib/auth.ts";
+import { requireOwner, requireStaff } from "../lib/auth.ts";
 import { getRestaurant } from "../database.ts";
 import {
   listItems,
@@ -109,6 +109,7 @@ posRouter.post("/owner/:rid/menu/category/:id/delete", async (ctx) => {
 /* ------------ Waiter lobby ------------ */
 
 posRouter.get("/waiter/:rid", async (ctx) => {
+  if (!requireStaff(ctx)) return;
   const rid = ctx.params.rid!;
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);
@@ -138,6 +139,7 @@ posRouter.get("/waiter/:rid", async (ctx) => {
 /* ------------ Waiter table page ------------ */
 
 posRouter.get("/waiter/:rid/:table", async (ctx) => {
+  if (!requireStaff(ctx)) return;
   const rid = ctx.params.rid!;
   const table = Number(ctx.params.table!);
   const r = await getRestaurant(rid);
@@ -160,6 +162,7 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
 /* ------------ Kitchen & Bar dashboards ------------ */
 
 posRouter.get("/kitchen/:rid", async (ctx) => {
+  if (!requireStaff(ctx)) return;
   const rid = ctx.params.rid!;
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);
@@ -173,6 +176,7 @@ posRouter.get("/kitchen/:rid", async (ctx) => {
 });
 
 posRouter.get("/bar/:rid", async (ctx) => {
+  if (!requireStaff(ctx)) return;
   const rid = ctx.params.rid!;
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);

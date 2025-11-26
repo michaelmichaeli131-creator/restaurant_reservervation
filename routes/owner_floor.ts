@@ -2,9 +2,18 @@
 // Floor plan management for restaurant owners
 
 import { Router } from "@oak/oak";
-import { requireOwner } from "../lib/auth.ts";
-import { kv } from "../database.ts";
+import { requireOwner, requireStaff } from "../lib/auth.ts";
+import { kv, getRestaurant } from "../database.ts";
 import { render } from "../lib/view.ts";
+import {
+  computeAllTableStatuses,
+  setTableMappingsFromFloorPlan,
+  createFloorSection,
+  getFloorSection,
+  listFloorSections,
+  updateFloorSection,
+  deleteFloorSection,
+} from "../services/floor_service.ts";
 
 export const ownerFloorRouter = new Router();
 
@@ -16,12 +25,27 @@ function toKey(...parts: (string | number)[]): Deno.KvKey {
 interface FloorTable {
   id: string;
   name: string;
+  tableNumber: number;        // POS table number for lookup
+  sectionId?: string;         // Link to floor section
   gridX: number;
   gridY: number;
   spanX: number;
   spanY: number;
   seats: number;
   shape: "square" | "round" | "rect" | "booth";
+}
+
+// Live table status computed from orders
+interface TableStatus {
+  tableId: string;
+  tableNumber: number;
+  status: "empty" | "occupied" | "reserved" | "dirty";
+  guestCount?: number;
+  orderId?: string;
+  orderTotal?: number;
+  occupiedSince?: number;
+  itemsReady?: number;
+  itemsPending?: number;
 }
 
 interface FloorPlan {
@@ -72,7 +96,67 @@ ownerFloorRouter.get(
 
 /* =================== API Routes =================== */
 
-// GET /api/floor-plans/:restaurantId - Get floor plan for restaurant
+// POST /api/tables/:restaurantId/:tableId/status - Update table status
+ownerFloorRouter.post(
+  "/api/tables/:restaurantId/:tableId/status",
+  async (ctx) => {
+    if (!requireStaff(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    const tableId = ctx.params.tableId;
+    const user = ctx.state.user;
+
+    if (!restaurantId || !tableId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID or table ID" };
+      return;
+    }
+
+    const body = await ctx.request.body.json();
+    const { status } = body;
+
+    if (!status || !["empty", "occupied", "reserved", "dirty"].includes(status)) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Invalid status" };
+      return;
+    }
+
+    // Verify the restaurant exists
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant) {
+      ctx.response.status = 404;
+      ctx.response.body = { error: "Restaurant not found" };
+      return;
+    }
+
+    // Verify user has access (owner can access any, staff/manager can access their own)
+    if (user.role === "owner") {
+      // Owner can update any restaurant's tables
+    } else if (user.role === "manager" || user.role === "staff") {
+      // Manager/staff can only update tables at their assigned restaurant
+      // For now, allow if they're logged in (could enhance with restaurant assignment later)
+    } else {
+      ctx.response.status = 403;
+      ctx.response.body = { error: "Forbidden" };
+      return;
+    }
+
+    // Store table status update
+    const statusKey = toKey("table_status", restaurantId, tableId);
+    const statusData = {
+      tableId,
+      status,
+      updatedAt: Date.now(),
+      updatedBy: user.id,
+    };
+    await kv.set(statusKey, statusData);
+
+    ctx.response.status = 200;
+    ctx.response.body = { success: true, status: statusData };
+  }
+);
+
+// GET /api/floor-plans/:restaurantId - Get floor plan with live table statuses
 ownerFloorRouter.get(
   "/api/floor-plans/:restaurantId",
   async (ctx) => {
@@ -88,10 +172,8 @@ ownerFloorRouter.get(
     const owner = ctx.state.user;
 
     // Verify ownership
-    const restaurantKey = toKey("restaurant", restaurantId);
-    const restaurant = await kv.get(restaurantKey);
-
-    if (!restaurant.value || (restaurant.value as any).ownerId !== owner.id) {
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant || (restaurant as any).ownerId !== owner.id) {
       ctx.response.status = 403;
       ctx.response.body = { error: "Forbidden" };
       return;
@@ -99,19 +181,31 @@ ownerFloorRouter.get(
 
     // Get floor plan
     const floorPlanKey = toKey("floor_plan", restaurantId);
-    const floorPlan = await kv.get(floorPlanKey);
+    const floorPlanRes = await kv.get(floorPlanKey);
 
-    if (!floorPlan.value) {
+    if (!floorPlanRes.value) {
       ctx.response.status = 404;
       ctx.response.body = { error: "Floor plan not found" };
       return;
     }
 
-    ctx.response.body = floorPlan.value;
+    const floorPlan = floorPlanRes.value as FloorPlan;
+
+    // Compute live table statuses
+    const tableStatuses = await computeAllTableStatuses(
+      restaurantId,
+      floorPlan.tables
+    );
+
+    // Return floor plan with live statuses
+    ctx.response.body = {
+      ...floorPlan,
+      tableStatuses,
+    };
   }
 );
 
-// POST /api/floor-plans/:restaurantId - Save/update floor plan
+// POST /api/floor-plans/:restaurantId - Save/update floor plan with table mappings
 ownerFloorRouter.post(
   "/api/floor-plans/:restaurantId",
   async (ctx) => {
@@ -127,10 +221,8 @@ ownerFloorRouter.post(
     const owner = ctx.state.user;
 
     // Verify ownership
-    const restaurantKey = toKey("restaurant", restaurantId);
-    const restaurant = await kv.get(restaurantKey);
-
-    if (!restaurant.value || (restaurant.value as any).ownerId !== owner.id) {
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant || (restaurant as any).ownerId !== owner.id) {
       ctx.response.status = 403;
       ctx.response.body = { error: "Forbidden" };
       return;
@@ -143,6 +235,13 @@ ownerFloorRouter.post(
     if (!body.name || !body.gridRows || !body.gridCols || !Array.isArray(body.tables)) {
       ctx.response.status = 400;
       ctx.response.body = { error: "Invalid floor plan data" };
+      return;
+    }
+
+    // Validate that all tables have tableNumber
+    if (!body.tables.every((t: any) => t.id && typeof t.tableNumber === "number")) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "All tables must have id and tableNumber" };
       return;
     }
 
@@ -170,8 +269,164 @@ ownerFloorRouter.post(
     const indexKey = toKey("floor_plan_by_restaurant", restaurantId, floorPlan.id);
     await kv.set(indexKey, { id: floorPlan.id, name: floorPlan.name, updatedAt: now });
 
+    // Create table mappings (tableNumber → tableId) for POS lookup
+    await setTableMappingsFromFloorPlan(
+      restaurantId,
+      body.tables.map((t: any) => ({ id: t.id, tableNumber: t.tableNumber }))
+    );
+
+    // Compute and return live statuses
+    const tableStatuses = await computeAllTableStatuses(restaurantId, body.tables);
+
     ctx.response.status = 200;
-    ctx.response.body = { success: true, floorPlan };
+    ctx.response.body = {
+      success: true,
+      floorPlan,
+      tableStatuses,
+    };
+  }
+);
+
+/* =================== FLOOR SECTIONS =================== */
+
+// GET /api/floor-sections/:restaurantId - List all sections
+ownerFloorRouter.get(
+  "/api/floor-sections/:restaurantId",
+  async (ctx) => {
+    if (!requireOwner(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    if (!restaurantId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID" };
+      return;
+    }
+
+    const owner = ctx.state.user;
+
+    // Verify ownership
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant || (restaurant as any).ownerId !== owner.id) {
+      ctx.response.status = 403;
+      ctx.response.body = { error: "Forbidden" };
+      return;
+    }
+
+    const sections = await listFloorSections(restaurantId);
+    ctx.response.body = sections;
+  }
+);
+
+// POST /api/floor-sections/:restaurantId - Create section
+ownerFloorRouter.post(
+  "/api/floor-sections/:restaurantId",
+  async (ctx) => {
+    if (!requireOwner(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    if (!restaurantId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID" };
+      return;
+    }
+
+    const owner = ctx.state.user;
+
+    // Verify ownership
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant || (restaurant as any).ownerId !== owner.id) {
+      ctx.response.status = 403;
+      ctx.response.body = { error: "Forbidden" };
+      return;
+    }
+
+    const body = await ctx.request.body.json();
+    const { name, gridRows, gridCols, displayOrder } = body;
+
+    if (!name || !gridRows || !gridCols) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing required fields: name, gridRows, gridCols" };
+      return;
+    }
+
+    const section = await createFloorSection({
+      restaurantId,
+      name,
+      gridRows: Number(gridRows),
+      gridCols: Number(gridCols),
+      displayOrder: displayOrder ? Number(displayOrder) : 0,
+    });
+
+    ctx.response.status = 201;
+    ctx.response.body = section;
+  }
+);
+
+// PUT /api/floor-sections/:restaurantId/:sectionId - Update section
+ownerFloorRouter.put(
+  "/api/floor-sections/:restaurantId/:sectionId",
+  async (ctx) => {
+    if (!requireOwner(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    const sectionId = ctx.params.sectionId;
+
+    if (!restaurantId || !sectionId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID or section ID" };
+      return;
+    }
+
+    const owner = ctx.state.user;
+
+    // Verify ownership
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant || (restaurant as any).ownerId !== owner.id) {
+      ctx.response.status = 403;
+      ctx.response.body = { error: "Forbidden" };
+      return;
+    }
+
+    const body = await ctx.request.body.json();
+    const updated = await updateFloorSection(restaurantId, sectionId, body);
+
+    if (!updated) {
+      ctx.response.status = 404;
+      ctx.response.body = { error: "Section not found" };
+      return;
+    }
+
+    ctx.response.body = updated;
+  }
+);
+
+// DELETE /api/floor-sections/:restaurantId/:sectionId - Delete section
+ownerFloorRouter.delete(
+  "/api/floor-sections/:restaurantId/:sectionId",
+  async (ctx) => {
+    if (!requireOwner(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    const sectionId = ctx.params.sectionId;
+
+    if (!restaurantId || !sectionId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID or section ID" };
+      return;
+    }
+
+    const owner = ctx.state.user;
+
+    // Verify ownership
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant || (restaurant as any).ownerId !== owner.id) {
+      ctx.response.status = 403;
+      ctx.response.body = { error: "Forbidden" };
+      return;
+    }
+
+    await deleteFloorSection(restaurantId, sectionId);
+    ctx.response.body = { success: true };
   }
 );
 
