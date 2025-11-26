@@ -217,18 +217,21 @@
 </script>
 
 <style>
-  .pos-kitchen-page .kitchen-header{
+  /* Header כמו מטבח */
+  .pos-bar-page .bar-header{
     display:flex;
     align-items:center;
     justify-content:space-between;
     gap:12px;
     margin-bottom:16px;
   }
-  .pos-kitchen-page h1{
+  .pos-bar-page h1{
     margin:0;
     font-size:clamp(18px,2.6vw,24px);
   }
-  .pos-kitchen-page .panel.card{
+
+  /* Card כמו מטבח */
+  .pos-bar-page .panel.card{
     background: var(--panel,#020617);
     border-radius:18px;
     border:1px solid var(--bd,#1f2937);
@@ -236,13 +239,15 @@
     padding:14px 16px;
   }
 
-  .kitchen-columns{
+  /* ✅ אופקי: 3 עמודות */
+  .bar-columns{
     display:grid;
-    grid-template-columns:repeat(4,1fr);
+    grid-template-columns:repeat(3,1fr);
     gap:10px;
     margin-top:10px;
   }
-  .kitchen-col{
+
+  .bar-col{
     background:rgba(15,23,42,0.85);
     border-radius:14px;
     border:1px solid rgba(30,64,175,0.6);
@@ -250,7 +255,8 @@
     flex-direction:column;
     min-height:220px;
   }
-  .kitchen-col .col-head{
+
+  .bar-col .col-head{
     padding:6px 8px;
     font-size:14px;
     font-weight:600;
@@ -260,12 +266,14 @@
     color:transparent;
     text-align:center;
   }
-  .kitchen-col .col-body{
+
+  .bar-col .col-body{
     flex:1;
     padding:6px 6px 10px;
     overflow-y:auto;
   }
 
+  /* Tickets כמו מטבח */
   .ticket{
     border-radius:10px;
     border:1px solid rgba(30,64,175,0.7);
@@ -311,6 +319,7 @@
     border-color:#22c55e;
   }
 
+  /* Button כמו מטבח */
   .btn{
     display:inline-flex;
     align-items:center;
@@ -328,17 +337,17 @@
     background:rgba(15,23,42,0.7);
   }
 
+  /* Responsiveness כמו מטבח */
   @media (max-width:1000px){
-    .kitchen-columns{
+    .bar-columns{
       grid-template-columns:repeat(2,1fr);
     }
   }
   @media (max-width:640px){
-    .kitchen-columns{
+    .bar-columns{
       grid-template-columns:1fr;
     }
   }
 
   .small{ font-size:11px; }
 </style>
-
