@@ -7,10 +7,9 @@
 // - כותרות אבטחה (CSP בסיסי, HSTS ב-HTTPS, X-Frame-Options, X-Content-Type-Options וכו')
 // - כפיית HTTPS בפרודקשן (במיוחד עבור cookies מאובטחים)
 // - Session middleware (cookie) + טעינת משתמש ל-ctx.state.user
-// - Static files תחת /public אל /static
+// - Static files /public/*
 // - Root router: דף בית (תוצאות גם כשיש q, לא רק כשsearch=1), /__health, /__echo, /__mailtest, /__env
-// - חיבור כל הראוטרים: auth, restaurants, owner, admin, owner_capacity, owner_manage, owner_hours, owner_photos
-//   ✅ + owner_calendar (מערכת ניהול תפוסה – חדש)
+// - חיבור כל הראוטרים + owner_calendar + floor + shifts
 // - טיפול 404/405/OPTIONS, וכן graceful shutdown
 // -------------------------------------------------------------
 
@@ -41,14 +40,10 @@ import { diagRouter } from "./routes/diag.ts";
 import openingRouter from "./routes/opening.ts";
 import posRouter from "./routes/pos.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
-<<<<<<< HEAD
 
-// 🔧 שינוי קטן וחשוב: טעינה בטוחה של ה-i18n (תומך גם default וגם named)
-import i18nModule from "./middleware/i18n.ts";
+// ✅ i18n: טעינה בטוחה (תומך גם default וגם named export)
+import * as i18nModule from "./middleware/i18n.ts";
 
-=======
-import { i18n } from "./middleware/i18n.ts";
->>>>>>> a494be5258819ee2b2179a5caa54e614839de9df
 import langRouter from "./routes/lang.ts";
 import reviewsRouter from "./routes/reviews.ts";
 import reviewPortalRouter from "./routes/review_portal.ts";
@@ -134,8 +129,6 @@ app.use(async (ctx, next) => {
 app.use(async (ctx, next) => {
   ctx.response.headers.set(
     "Content-Security-Policy",
-    // אם תרצה לאפשר גופנים מ-googlefonts הוסף:
-    // "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';"
     "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';",
   );
   ctx.response.headers.set("X-Frame-Options", "DENY");
@@ -207,9 +200,9 @@ app.use(requestLogger());
 app.use(async (ctx, next) => {
   const p = ctx.request.url.pathname;
   if (p.startsWith("/public/")) {
-    await send(ctx, p, {
-      // אם ה־CWD שלך כבר /src, זה יכוון ל-/src/public/...
-      root: Deno.cwd(),
+    const rel = p.slice("/public/".length);
+    await send(ctx, rel, {
+      root: `${Deno.cwd()}/public`,
     });
     return;
   }
@@ -248,8 +241,15 @@ app.use(async (ctx, next) => {
 });
 
 // -------------------- i18n FIRST (חשוב!) --------------------
-// הפקה בטוחה של המידלוור (תומך גם ב-export default וגם ב-named)
-const i18nMw = i18n;
+const i18nMw =
+  (i18nModule as any).i18n ??
+  (i18nModule as any).default;
+
+if (typeof i18nMw !== "function") {
+  throw new Error(
+    "i18n middleware not found. Expected export const i18n or export default function in ./middleware/i18n.ts",
+  );
+}
 
 // ✅ i18n וה־/lang חייבים לבוא לפני כל ראוטר שמרנדר HTML
 app.use(i18nMw);
@@ -336,17 +336,14 @@ app.use(root.routes());
 app.use(root.allowedMethods());
 
 // -------------------- AUTH GATE (חדש) --------------------
-// חוסם גישה לאזורי בעלים/ניהול עד שהמשתמש גם מחובר,
-// גם אימת דוא"ל, וגם החשבון פעיל.
 app.use(async (ctx, next) => {
   const path = ctx.request.url.pathname;
 
-  // נתיבים שדורשים התחברות ובדיקות:
   const needsAuth =
     path.startsWith("/owner") ||
     path.startsWith("/dashboard") ||
     path.startsWith("/manage") ||
-    path.startsWith("/opening"); // אם זה אזור ניהול שעות
+    path.startsWith("/opening");
 
   if (!needsAuth) return await next();
 
@@ -378,9 +375,7 @@ app.use(async (ctx, next) => {
 
 // לוג קצר לכל בקשה (debug)
 app.use(async (ctx, next) => {
-  console.log(
-    `[DEBUG] incoming: ${ctx.request.method} ${ctx.request.url.pathname}`,
-  );
+  console.log(`[DEBUG] incoming: ${ctx.request.method} ${ctx.request.url.pathname}`);
   await next();
 });
 
@@ -392,12 +387,11 @@ app.use(authRouter.allowedMethods());
 app.use(reservationPortal.routes());
 app.use(reservationPortal.allowedMethods());
 
-// אדמין (מוגן עם ADMIN_SECRET בתוך הראוטר עצמו)
+// אדמין
 app.use(adminRouter.routes());
 app.use(adminRouter.allowedMethods());
 
-// ראוטרים לבעלים - הספציפיים ביותר קודם!
-// ✅ חדש: Calendar (ניהול תפוסה יומי)
+// ראוטרים לבעלים - הספציפיים ביותר קודם
 app.use(ownerCalendarRouter.routes());
 app.use(ownerCalendarRouter.allowedMethods());
 
@@ -419,14 +413,21 @@ app.use(ownerPhotosRouter.allowedMethods());
 app.use(ownerShiftsRouter.routes());
 app.use(ownerShiftsRouter.allowedMethods());
 
+// Floor plan management
+app.use(ownerFloorRouter.routes());
+app.use(ownerFloorRouter.allowedMethods());
+
 // debug/diag
 app.use(diagRouter.routes());
 app.use(diagRouter.allowedMethods());
 
-// ראוטרים ציבוריים של מסעדות - אחרון כי הכי כללי
+// ראוטרים ציבוריים של מסעדות
 app.use(restaurantsRouter.routes());
-app.use(posRouter.routes());
 app.use(restaurantsRouter.allowedMethods());
+
+// POS (כולל WS + מסכים)
+app.use(posRouter.routes());
+app.use(posRouter.allowedMethods());
 
 // Reviews API
 app.use(reviewsRouter.routes());
@@ -435,10 +436,6 @@ app.use(reviewsRouter.allowedMethods());
 // Review Portal (token-based review submission)
 app.use(reviewPortalRouter.routes());
 app.use(reviewPortalRouter.allowedMethods());
-
-// Floor plan management
-app.use(ownerFloorRouter.routes());
-app.use(ownerFloorRouter.allowedMethods());
 
 // ראוטר שורש נוסף
 app.use(rootRouter.routes());
@@ -458,7 +455,6 @@ app.use((ctx) => {
 
 // -------------------- GRACEFUL SHUTDOWN --------------------
 const controller = new AbortController();
-// Windows only supports SIGINT and SIGBREAK
 const signals = Deno.build.os === "windows"
   ? ["SIGINT", "SIGBREAK"] as const
   : ["SIGINT", "SIGTERM"] as const;
