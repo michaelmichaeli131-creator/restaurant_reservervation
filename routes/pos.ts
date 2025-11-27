@@ -5,6 +5,7 @@ import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
 import { requireOwner, requireStaff } from "../lib/auth.ts";
 import { getRestaurant } from "../database.ts";
+import { isTableSeated } from "../services/seating_service.ts";
 import {
   listItems,
   listCategories,
@@ -159,6 +160,21 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
   });
 });
 
+
+/* ------------ Waiter map (click table to open) ------------ */
+
+posRouter.get("/waiter-map/:rid", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const rid = ctx.params.rid!;
+  const r = await getRestaurant(rid);
+  if (!r) ctx.throw(Status.NotFound);
+  await render(ctx, "pos_waiter_map", {
+    page: "pos_waiter_map",
+    title: `מפת מסעדה · ${r.name}`,
+    rid,
+    restaurant: r,
+  });
+});
 /* ------------ Kitchen & Bar dashboards ------------ */
 
 posRouter.get("/kitchen/:rid", async (ctx) => {
@@ -203,7 +219,10 @@ posRouter.get("/api/pos/menu/:rid", async (ctx) => {
 
 /* ------------ API: waiter adds item ------------ */
 
+
 posRouter.post("/api/pos/order-item/add", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+
   const body = await ctx.request.body.json();
   const restaurantId = String(body.restaurantId ?? "");
   const table = Number(body.table ?? 0);
@@ -212,6 +231,11 @@ posRouter.post("/api/pos/order-item/add", async (ctx) => {
 
   if (!restaurantId || !table || !menuItemId) {
     ctx.throw(Status.BadRequest, "missing fields");
+  }
+
+  // Waiters can add only when table is seated by host
+  if (!(await isTableSeated(restaurantId, table))) {
+    ctx.throw(Status.Forbidden, "table_not_seated");
   }
 
   const menuItem = await getItem(restaurantId, menuItemId);
@@ -242,6 +266,7 @@ posRouter.post("/api/pos/order-item/add", async (ctx) => {
 /* ------------ API: cancel item (waiter) ------------ */
 
 posRouter.post("/api/pos/order-item/cancel", async (ctx) => {
+  if (!requireStaff(ctx)) return;
   const body = await ctx.request.body.json();
   const restaurantId = String(body.restaurantId ?? "");
   const orderId = String(body.orderId ?? "");
@@ -308,6 +333,7 @@ posRouter.post("/api/pos/order-item/serve", async (ctx) => {
 /* ------------ API: close order ------------ */
 
 posRouter.post("/api/pos/order/close", async (ctx) => {
+  if (!requireStaff(ctx)) return;
   const body = await ctx.request.body.json();
   const restaurantId = String(body.restaurantId ?? "");
   const table = Number(body.table ?? 0);

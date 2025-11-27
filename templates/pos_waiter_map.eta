@@ -1,0 +1,74 @@
+
+<% layout("_layout", it) %>
+
+<main class="container waiter-map-page">
+  <header class="page-header">
+    <h1>מפת מסעדה — <%= it.restaurant.name %></h1>
+    <p class="muted">לחיצה על שולחן תפוס תפתח את עמוד ההזמנה. רק המארחת יכולה להושיב.</p>
+  </header>
+  <div id="floor"></div>
+</main>
+
+<script>
+(function(){
+  const rid = "<%= it.rid %>";
+  async function loadFloor(){
+    const res = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}`);
+    if (!res.ok) return;
+    const plan = await res.json();
+    const holder = document.getElementById("floor");
+    holder.innerHTML = "";
+    const grid = document.createElement("div");
+    grid.className = "floor-grid";
+    grid.style.setProperty("--rows", plan.gridRows || 8);
+    grid.style.setProperty("--cols", plan.gridCols || 10);
+    holder.appendChild(grid);
+
+    // statuses
+    const sres = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}/statuses`);
+    const sjson = await sres.json();
+    const byNumber = new Map();
+    (sjson || []).forEach(s => byNumber.set(s.tableNumber, s));
+
+    plan.tables.forEach(t => {
+      const status = byNumber.get(t.tableNumber)?.status || "empty";
+      const btn = document.createElement("button");
+      btn.className = "table " + status;
+      btn.textContent = String(t.tableNumber);
+      btn.style.gridRow = (t.gridY+1) + " / span " + (t.spanY || 1);
+      btn.style.gridColumn = (t.gridX+1) + " / span " + (t.spanX || 1);
+      btn.addEventListener("click", () => {
+        if (status === "occupied") {
+          window.location.href = `/waiter/${encodeURIComponent(rid)}/${encodeURIComponent(t.tableNumber)}`;
+        } else {
+          alert("שולחן לא הושב עדיין. רק המארחת יכולה להושיב דרך מסך המארחת.");
+        }
+      });
+      grid.appendChild(btn);
+    });
+  }
+  loadFloor();
+  setInterval(loadFloor, 5000);
+})();
+</script>
+
+<style>
+.floor-grid{
+  display:grid;
+  grid-template-rows: repeat(var(--rows), 40px);
+  grid-template-columns: repeat(var(--cols), 40px);
+  gap:6px;
+  background: rgba(255,255,255,.03);
+  padding:6px; border-radius:8px;
+}
+.table{
+  border:1px solid rgba(255,255,255,.3);
+  backdrop-filter: blur(8px);
+  padding:8px; border-radius:8px;
+  font-weight:700;
+}
+.table.empty{ background:#2e7d32; }
+.table.occupied{ background:#c62828; }
+.table.reserved{ background:#f9a825; }
+.table.dirty{ background:#6a1b9a; }
+</style>

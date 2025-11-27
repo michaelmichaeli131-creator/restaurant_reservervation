@@ -427,6 +427,7 @@ app.use(restaurantsRouter.allowedMethods());
 
 // POS (כולל WS + מסכים)
 app.use(posRouter.routes());
+app.use(hostRouter.routes());
 app.use(posRouter.allowedMethods());
 
 // Reviews API

@@ -1,0 +1,138 @@
+
+<% layout("_layout", it) %>
+
+<main class="container host-page">
+  <header class="page-header">
+    <h1>מסך מארחת — <%= it.restaurant.name %></h1>
+    <p class="muted"><%= it.restaurant.city %> • <%= it.restaurant.address %></p>
+  </header>
+
+  <section class="grid">
+    <div class="col reservations">
+      <h2>הזמנות להיום</h2>
+      <ul id="resv-list" class="list"></ul>
+    </div>
+    <div class="col floor">
+      <h2>מפת המסעדה (חי)</h2>
+      <div id="floor"></div>
+      <p class="muted small">יש להקליק על שולחן פנוי לאחר בחירת הזמנה.</p>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+  const rid = "<%= it.rid %>";
+  const state = { selectedResId: null, floor: null, statuses: new Map() };
+
+  async function loadReservations(){
+    const res = await fetch(`/api/host/${encodeURIComponent(rid)}/reservations`);
+    const json = await res.json();
+    const ul = document.getElementById("resv-list");
+    ul.innerHTML = "";
+    json.reservations.forEach(r => {
+      const li = document.createElement("li");
+      li.className = "item";
+      li.innerHTML = \`
+        <label class="radio">
+          <input type="radio" name="resv" value="\${r.id}">
+          <strong>\${r.time}</strong> · \${r.name || "—"} · \${r.people} אורחים
+        </label>
+      \`;
+      li.querySelector("input").addEventListener("change", () => {
+        state.selectedResId = r.id;
+      });
+      ul.appendChild(li);
+    });
+  }
+
+  async function loadFloor(){
+    const res = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}`);
+    if (!res.ok) return;
+    const plan = await res.json();
+    const holder = document.getElementById("floor");
+    holder.innerHTML = "";
+    const grid = document.createElement("div");
+    grid.className = "floor-grid";
+    grid.style.setProperty("--rows", plan.gridRows || 8);
+    grid.style.setProperty("--cols", plan.gridCols || 10);
+    holder.appendChild(grid);
+
+    // statuses
+    const sres = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}/statuses`);
+    const sjson = await sres.json();
+    const byNumber = new Map();
+    (sjson || []).forEach(s => byNumber.set(s.tableNumber, s));
+
+    plan.tables.forEach(t => {
+      const btn = document.createElement("button");
+      const status = byNumber.get(t.tableNumber)?.status || "empty";
+      btn.className = "table " + status;
+      btn.textContent = String(t.tableNumber);
+      btn.style.gridRow = (t.gridY+1) + " / span " + (t.spanY || 1);
+      btn.style.gridColumn = (t.gridX+1) + " / span " + (t.spanX || 1);
+      btn.addEventListener("click", () => seatOnTable(t.tableNumber, status));
+      grid.appendChild(btn);
+    });
+  }
+
+  async function seatOnTable(tableNumber, status){
+    if (!state.selectedResId) { alert("בחר/י הזמנה תחילה"); return; }
+    if (status !== "empty"){ alert("אפשר להושיב רק לשולחן פנוי"); return; }
+    const r = confirm("להושיב הזמנה לשולחן " + tableNumber + "?");
+    if (!r) return;
+    const res = await fetch("/api/host/seat", {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({
+        restaurantId: rid,
+        reservationId: state.selectedResId,
+        table: tableNumber
+      })
+    });
+    if (res.ok) {
+      await loadReservations();
+      await loadFloor();
+      state.selectedResId = null;
+      const checked = document.querySelector('input[name="resv"]:checked');
+      if (checked) checked.checked = false;
+      alert("נפתח שולחן להזמנה");
+    } else {
+      const t = await res.text();
+      alert("שגיאה: " + t);
+    }
+  }
+
+  loadReservations();
+  loadFloor();
+  setInterval(loadFloor, 5000);
+})();
+</script>
+
+<style>
+.host-page .grid{ display:grid; grid-template-columns: 360px 1fr; gap:16px; }
+.host-page .list{ list-style:none; padding:0; margin:0; }
+.host-page .item{ padding:8px 0; border-top:1px solid rgba(255,255,255,.06); }
+.host-page .item:first-child{ border-top:none; }
+.host-page .radio{ display:flex; gap:8px; align-items:center; }
+.host-page .small{ font-size:12px; }
+
+.floor-grid{
+  display:grid;
+  grid-template-rows: repeat(var(--rows), 40px);
+  grid-template-columns: repeat(var(--cols), 40px);
+  gap:6px;
+  background: rgba(255,255,255,.03);
+  padding:6px; border-radius:8px;
+}
+.table{
+  border:1px solid rgba(255,255,255,.3);
+  backdrop-filter: blur(8px);
+  padding:8px; border-radius:8px;
+  font-weight:700;
+}
+.table.empty{ background:#2e7d32; }
+.table.occupied{ background:#c62828; }
+.table.reserved{ background:#f9a825; }
+.table.dirty{ background:#6a1b9a; }
+</style>

@@ -7,20 +7,11 @@
   </header>
 
   <section class="card">
-    <h2 class="card-title">פתיחת שולחן חדש</h2>
-    <form id="open-table-form" class="form row" onsubmit="return false;">
-      <label class="fld">
-        <span>מספר שולחן</span>
-        <input id="table-number" type="number" min="1" inputmode="numeric" required placeholder="לדוגמה: 5">
-      </label>
-      <button class="btn primary" id="btn-open-table">פתח שולחן</button>
-    </form>
-    <p class="muted" style="margin-top:6px">
-      לאחר פתיחת שולחן תועבר למסך ההזמנה שלו (ריל־טיים מול המטבח).
-    </p>
-  </section>
-
-  <section class="card">
+  <h2 class="card-title">עבודה דרך מפת המסעדה</h2>
+  <p>כדי לעבוד על שולחן, היכנס/י למפה ולחץ/י על שולחן <strong>תפוס</strong>.</p>
+  <p><a class="btn primary" href="/waiter-map/<%= it.rid %>">פתח מפת מסעדה</a></p>
+</section>
+<section class="card">
     <h2 class="card-title">שולחנות פתוחים כרגע</h2>
     <% if (it.openTables && it.openTables.length) { %>
       <ul class="list">
