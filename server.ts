@@ -38,7 +38,8 @@ import ownerPhotosRouter from "./routes/owner_photos.ts";
 import { requestLogger } from "./lib/log_mw.ts";
 import { diagRouter } from "./routes/diag.ts";
 import openingRouter from "./routes/opening.ts";
-import posRouter from "./routes/pos.ts";
+import { posRouter } from "./routes/pos.ts";
+import { hostRouter } from "./routes/host.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
 
 // ✅ i18n: טעינה בטוחה (תומך גם default וגם named export)
@@ -427,8 +428,11 @@ app.use(restaurantsRouter.allowedMethods());
 
 // POS (כולל WS + מסכים)
 app.use(posRouter.routes());
-app.use(hostRouter.routes());
 app.use(posRouter.allowedMethods());
+
+// Host (מארחת)
+app.use(hostRouter.routes());
+app.use(hostRouter.allowedMethods());
 
 // Reviews API
 app.use(reviewsRouter.routes());
