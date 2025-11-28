@@ -1,7 +1,6 @@
 <% layout("_layout", it) %>
 
 <%
-  // פונקציית תרגום עם fallback (כמו בדשבורד בעלים)
   function tt(k, fb){
     try{
       if (it && typeof it.t==='function'){
@@ -14,8 +13,6 @@
   }
 
   const restaurant = it.restaurant || {};
-  const sections = it.sections || [];
-  const statuses = it.statuses || [];
   const reservations = it.reservations || [];
 %>
 
@@ -59,7 +56,9 @@
     <div class="panel card">
       <h2>מפת המסעדה (חי)</h2>
       <p class="muted small">יש לבחור הזמנה, ואז להקליק על שולחן פנוי להושבה.</p>
-      <div id="floor" class="floor-wrapper"></div>
+      <div id="floor" class="floor-wrapper">
+        <!-- המפה תיטען דינמית ע"י JS -->
+      </div>
     </div>
   </section>
 </main>
@@ -67,20 +66,9 @@
 <script>
 (function(){
   const rid = "<%= it.rid %>";
-  const sections = <%- JSON.stringify(sections) %>;
-  const initialStatuses = <%- JSON.stringify(statuses) %>;
-
   const state = {
     selectedResId: null,
-    tableStatuses: new Map(), // key: tableNumber, value: status string
   };
-
-  // אתחול סטטוס משולחים מהשרת
-  initialStatuses.forEach(function(s){
-    if (s && typeof s.tableNumber !== 'undefined') {
-      state.tableStatuses.set(Number(s.tableNumber), s.status || 'empty');
-    }
-  });
 
   // בחירת הזמנה
   const resvList = document.getElementById("resv-list");
@@ -93,49 +81,71 @@
     });
   }
 
-  // ציור מפת הרצפה לפי sections + statuses מהשרת
-  function renderFloor(){
+  async function loadFloor(){
     const holder = document.getElementById("floor");
     if (!holder) return;
     holder.innerHTML = "";
 
-    if (!sections.length) {
-      const p = document.createElement("p");
-      p.className = "muted";
-      p.textContent = "לא הוגדרה מפת שולחנות למסעדה זו.";
-      holder.appendChild(p);
-      return;
-    }
+    try{
+      const res = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}`);
+      if (!res.ok) {
+        const p = document.createElement("p");
+        p.className = "muted";
+        p.textContent = "לא הוגדרה מפת שולחנות למסעדה זו.";
+        holder.appendChild(p);
+        return;
+      }
+      const plan = await res.json();
 
-    // כרגע נשתמש רק בסקשן הראשון (אפשר להרחיב בהמשך)
-    const sec = sections[0];
-    const gridRows = Number(sec.gridRows || 8);
-    const gridCols = Number(sec.gridCols || 10);
+      const gridRows = Number(plan.gridRows || 8);
+      const gridCols = Number(plan.gridCols || 10);
+      const tables = Array.isArray(plan.tables) ? plan.tables : [];
+      const tableStatuses = Array.isArray(plan.tableStatuses) ? plan.tableStatuses : [];
 
-    const grid = document.createElement("div");
-    grid.className = "floor-grid";
-    grid.style.setProperty("--rows", gridRows);
-    grid.style.setProperty("--cols", gridCols);
-    holder.appendChild(grid);
-
-    (sec.tables || []).forEach(function(t){
-      const num = Number(t.tableNumber);
-      const status = state.tableStatuses.get(num) || "empty";
-
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "table " + status;
-      btn.textContent = String(num);
-
-      btn.style.gridRow = (t.gridY + 1) + " / span " + (t.spanY || 1);
-      btn.style.gridColumn = (t.gridX + 1) + " / span " + (t.spanX || 1);
-
-      btn.addEventListener("click", function(){
-        onTableClick(num, status, btn);
+      const statusMap = new Map();
+      tableStatuses.forEach(function(s){
+        statusMap.set(Number(s.tableNumber), s.status || "empty");
       });
 
-      grid.appendChild(btn);
-    });
+      if (!tables.length) {
+        const p = document.createElement("p");
+        p.className = "muted";
+        p.textContent = "אין שולחנות מוגדרים במפת המסעדה.";
+        holder.appendChild(p);
+        return;
+      }
+
+      const grid = document.createElement("div");
+      grid.className = "floor-grid";
+      grid.style.setProperty("--rows", gridRows);
+      grid.style.setProperty("--cols", gridCols);
+      holder.appendChild(grid);
+
+      tables.forEach(function(t){
+        const num = Number(t.tableNumber);
+        const status = statusMap.get(num) || "empty";
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "table " + status;
+        btn.textContent = String(num);
+
+        btn.style.gridRow = (t.gridY + 1) + " / span " + (t.spanY || 1);
+        btn.style.gridColumn = (t.gridX + 1) + " / span " + (t.spanX || 1);
+
+        btn.addEventListener("click", function(){
+          onTableClick(num, status, btn);
+        });
+
+        grid.appendChild(btn);
+      });
+    }catch(e){
+      console.error(e);
+      const p = document.createElement("p");
+      p.className = "muted";
+      p.textContent = "שגיאה בטעינת מפת המסעדה.";
+      holder.appendChild(p);
+    }
   }
 
   async function onTableClick(tableNumber, status, btnEl){
@@ -165,14 +175,11 @@
         return;
       }
 
-      // עדכון סטטוס מקומי לשולחן הזה
-      state.tableStatuses.set(tableNumber, "occupied");
       if (btnEl) {
         btnEl.classList.remove("empty");
         btnEl.classList.add("occupied");
       }
-
-      // נקה בחירה של ההזמנה שהושבה
+      // איפוס בחירת הזמנה
       const selected = document.querySelector('input[name="resv"]:checked');
       if (selected) selected.checked = false;
       state.selectedResId = null;
@@ -184,23 +191,7 @@
     }
   }
 
-  renderFloor();
-
-  // (אופציונלי) ריענון סטטוסים כל כמה שניות אם תרצה להשתמש ב-API /statuses:
-  // setInterval(async function(){
-  //   try{
-  //     const res = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}/statuses`);
-  //     if (!res.ok) return;
-  //     const updated = await res.json();
-  //     state.tableStatuses.clear();
-  //     (updated || []).forEach(function(s){
-  //       state.tableStatuses.set(Number(s.tableNumber), s.status || 'empty');
-  //     });
-  //     renderFloor();
-  //   }catch(e){
-  //     console.warn("failed to refresh statuses", e);
-  //   }
-  // }, 5000);
+  loadFloor();
 })();
 </script>
 
