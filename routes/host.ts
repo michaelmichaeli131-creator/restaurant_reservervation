@@ -31,7 +31,7 @@ async function loadHostReservations(rid: string) {
   const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
   const all = await listReservationsFor(rid, date);
-  const list = (all ?? []); // בלי סינון סטטוס כרגע – ניקח הכל
+  const list = (all ?? []); // כרגע בלי סינון סטטוסים
 
   return list.map((res: any) => {
     const name = (res.firstName && res.lastName)
@@ -65,7 +65,7 @@ hostRouter.get("/host/:rid", async (ctx) => {
   // הזמנות להיום
   const reservations = await loadHostReservations(rid);
 
-  // מפת רצפה – משתמשים ב-Sections רק כדי להוציא טבלת שולחנות (grid)
+  // מפת רצפה
   const sections = await listFloorSections(rid);
   const tablesFlat: Array<{ id: string; tableNumber: number }> = [];
   for (const s of sections ?? []) {
@@ -82,11 +82,11 @@ hostRouter.get("/host/:rid", async (ctx) => {
     rid,
     sections,
     statuses,
-    reservations, // כבר בפורמט {id,time,people,name}
+    reservations,
   });
 });
 
-/** GET /api/host/:rid/reservations – מחזיר את רשימת ההזמנות להיום (אותה לוגיקה כמו בדף) */
+/** GET /api/host/:rid/reservations – רשימת הזמנות להיום */
 hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
   if (!requireStaff(ctx)) return;
 
@@ -107,28 +107,28 @@ hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
   ctx.response.body = { reservations };
 });
 
-/** POST /api/host/seat – הושבת הזמנה: מקבלת reservationId + table ומייצרת הזמנה פתוחה לשולחן */
+/** POST /api/host/seat – הושבת הזמנה: reservationId + table → הזמנה פתוחה לשולחן */
 hostRouter.post("/api/host/seat", async (ctx) => {
   if (!requireStaff(ctx)) return;
 
   const user = ctx.state.user;
-  // שוב – רק owner/manager, כדי שמלצר לא יוכל להושיב
+  // רק owner/manager, כדי שמלצר לא יוכל להושיב
   if (user.role !== "owner" && user.role !== "manager") {
     ctx.response.status = Status.Forbidden;
     ctx.response.body = "Forbidden";
     return;
   }
 
-  // קריאת הנתונים מהבקשה (תומך גם ב-JSON וגם ב-FormData)
-  const body = ctx.request.body();
+  // ✅ Oak 17: body הוא property, לא פונקציה
+  const body = ctx.request.body;
   let rid = "", reservationId = "", tableNumber = 0;
 
-  if (body.type === "json") {
+  if (body && body.type === "json") {
     const data = await body.value;
     rid = data.restaurantId?.toString() || data.rid?.toString() || "";
     reservationId = data.reservationId?.toString() || "";
     tableNumber = Number(data.table ?? data.tableNumber ?? 0);
-  } else if (body.type === "form" || body.type === "form-data") {
+  } else if (body && (body.type === "form" || body.type === "form-data")) {
     const form = await body.value;
     rid = form.get("rid")?.toString() || "";
     reservationId = form.get("reservationId")?.toString() || "";
