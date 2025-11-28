@@ -1,4 +1,3 @@
-
 <% layout("_layout", it) %>
 
 <main class="container waiter-map-page">
@@ -12,43 +11,115 @@
 <script>
 (function(){
   const rid = "<%= it.rid %>";
-  async function loadFloor(){
-    const res = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}`);
-    if (!res.ok) return;
-    const plan = await res.json();
-    const holder = document.getElementById("floor");
-    holder.innerHTML = "";
-    const grid = document.createElement("div");
-    grid.className = "floor-grid";
-    grid.style.setProperty("--rows", plan.gridRows || 8);
-    grid.style.setProperty("--cols", plan.gridCols || 10);
-    holder.appendChild(grid);
+  const holder = document.getElementById("floor");
 
-    // statuses
-    const sres = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}/statuses`);
-    const sjson = await sres.json();
-    const byNumber = new Map();
-    (sjson || []).forEach(s => byNumber.set(s.tableNumber, s));
+  // נשמור מפה: tableNumber -> כפתור DOM
+  const state = {
+    buttonsByTable: new Map()
+  };
 
-    plan.tables.forEach(t => {
-      const status = byNumber.get(t.tableNumber)?.status || "empty";
-      const btn = document.createElement("button");
-      btn.className = "table " + status;
-      btn.textContent = String(t.tableNumber);
-      btn.style.gridRow = (t.gridY+1) + " / span " + (t.spanY || 1);
-      btn.style.gridColumn = (t.gridX+1) + " / span " + (t.spanX || 1);
-      btn.addEventListener("click", () => {
-        if (status === "occupied") {
-          window.location.href = `/waiter/${encodeURIComponent(rid)}/${encodeURIComponent(t.tableNumber)}`;
-        } else {
-          alert("שולחן לא הושב עדיין. רק המארחת יכולה להושיב דרך מסך המארחת.");
-        }
-      });
-      grid.appendChild(btn);
-    });
+  const floorUrl = `/api/floor-plans/${encodeURIComponent(rid)}`;
+
+  function applyStatus(btn, status) {
+    btn.classList.remove("empty", "occupied", "reserved", "dirty");
+    btn.classList.add(status || "empty");
   }
-  loadFloor();
-  setInterval(loadFloor, 5000);
+
+  // שלב 1 – טעינה ראשונית: בונים את הגריד והכפתורים
+  async function initFloor(){
+    if (!holder) return;
+    try{
+      const res = await fetch(floorUrl);
+      if (!res.ok) {
+        holder.innerHTML = "<p class='muted'>לא הוגדרה מפת שולחנות למסעדה זו.</p>";
+        return;
+      }
+      const plan = await res.json();
+
+      const gridRows = Number(plan.gridRows || 8);
+      const gridCols = Number(plan.gridCols || 10);
+      const tables = Array.isArray(plan.tables) ? plan.tables : [];
+      const tableStatuses = Array.isArray(plan.tableStatuses) ? plan.tableStatuses : [];
+
+      if (!tables.length) {
+        holder.innerHTML = "<p class='muted'>אין שולחנות מוגדרים במפת המסעדה.</p>";
+        return;
+      }
+
+      // פעם יחידה: ננקה ונבנה את המבנה
+      holder.innerHTML = "";
+      const grid = document.createElement("div");
+      grid.className = "floor-grid";
+      grid.style.setProperty("--rows", gridRows);
+      grid.style.setProperty("--cols", gridCols);
+      holder.appendChild(grid);
+
+      // מיפוי סטטוסים התחלתי
+      const statusMap = new Map();
+      tableStatuses.forEach((s) => {
+        statusMap.set(Number(s.tableNumber), s.status || "empty");
+      });
+
+      // יצירת כפתורי השולחנות פעם אחת
+      tables.forEach((t) => {
+        const tn = Number(t.tableNumber);
+        const status = statusMap.get(tn) || "empty";
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "table";
+        applyStatus(btn, status);
+        btn.textContent = String(tn);
+
+        btn.style.gridRow = (t.gridY + 1) + " / span " + (t.spanY || 1);
+        btn.style.gridColumn = (t.gridX + 1) + " / span " + (t.spanX || 1);
+
+        btn.addEventListener("click", () => {
+          const currentStatus = statusMap.get(tn) || "empty";
+          if (currentStatus === "occupied") {
+            window.location.href =
+              `/waiter/${encodeURIComponent(rid)}/${encodeURIComponent(tn)}`;
+          } else {
+            alert("שולחן לא הושב עדיין. רק המארחת יכולה להושיב דרך מסך המארחת.");
+          }
+        });
+
+        grid.appendChild(btn);
+        state.buttonsByTable.set(tn, btn);
+      });
+    } catch (e) {
+      console.error("initFloor error", e);
+      holder.innerHTML = "<p class='muted'>שגיאה בטעינת מפת המסעדה.</p>";
+    }
+  }
+
+  // שלב 2 – ריענון סטטוסים בלבד (בלי למחוק את המפה)
+  async function refreshStatuses(){
+    if (!state.buttonsByTable.size) return; // אם עוד לא נבנה הגריד
+
+    try{
+      const res = await fetch(floorUrl);
+      if (!res.ok) return;
+      const plan = await res.json();
+      const tableStatuses = Array.isArray(plan.tableStatuses) ? plan.tableStatuses : [];
+
+      const statusMap = new Map();
+      tableStatuses.forEach((s) => {
+        statusMap.set(Number(s.tableNumber), s.status || "empty");
+      });
+
+      state.buttonsByTable.forEach((btn, tn) => {
+        const status = statusMap.get(tn) || "empty";
+        applyStatus(btn, status);
+      });
+    } catch (e) {
+      console.warn("refreshStatuses error", e);
+    }
+  }
+
+  // אתחול ראשון + פולינג עדין
+  initFloor();
+  setInterval(refreshStatuses, 5000);
 })();
 </script>
 
@@ -66,9 +137,13 @@
   backdrop-filter: blur(8px);
   padding:8px; border-radius:8px;
   font-weight:700;
+  transition: background-color .25s ease, transform .1s ease;
 }
 .table.empty{ background:#2e7d32; }
 .table.occupied{ background:#c62828; }
 .table.reserved{ background:#f9a825; }
 .table.dirty{ background:#6a1b9a; }
+.table:active{
+  transform: scale(0.96);
+}
 </style>
