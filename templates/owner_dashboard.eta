@@ -115,12 +115,7 @@ function tt(k, fb){
                     <span class="icon">🧑‍🍳</span>
                     מסך מטבח
                   </a>
-             <!-- ✅ חדש: מסך מארחת -->
-                  <a class="btn ghost wide" href="/host/<%= r.id %>">
-                    <span class="icon">🪑</span>
-                    מסך מארחת
-                  </a>
-                </div>
+
                   <!-- ✅ חדש: מסך בר -->
                   <a class="btn ghost wide" href="/bar/<%= r.id %>">
                     <span class="icon">🍸</span>
