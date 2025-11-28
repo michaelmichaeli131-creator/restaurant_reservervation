@@ -6,7 +6,6 @@ import { render } from "../lib/view.ts";
 import { requireStaff } from "../lib/auth.ts";
 import { getRestaurant, listReservationsFor } from "../database.ts";
 import { listOpenOrdersByRestaurant, getOrCreateOpenOrder } from "../pos/pos_db.ts";
-// עזרות לקריאת מבנה רצפה
 import { listFloorSections, getTableIdByNumber } from "../services/floor_service.ts";
 import { seatReservation } from "../services/seating_service.ts";
 
@@ -26,6 +25,27 @@ async function computeAllTableStatuses(
   }));
 }
 
+/** טעינת כל ההזמנות של היום למסך המארחת, בפורמט נוח לתצוגה */
+async function loadHostReservations(rid: string) {
+  const d = new Date();
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  const all = await listReservationsFor(rid, date);
+  const list = (all ?? []); // בלי סינון סטטוס כרגע – ניקח הכל
+
+  return list.map((res: any) => {
+    const name = (res.firstName && res.lastName)
+      ? `${res.firstName} ${res.lastName}`
+      : (res.name ?? "");
+    return {
+      id: res.id,
+      time: res.time,
+      people: res.people,
+      name: name || "—",
+    };
+  });
+}
+
 /** GET /host/:rid – עמוד המארחת עם מפת המסעדה והזמנות להיום */
 hostRouter.get("/host/:rid", async (ctx) => {
   if (!requireStaff(ctx)) return;  // רק משתמש מחובר
@@ -42,15 +62,10 @@ hostRouter.get("/host/:rid", async (ctx) => {
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound, "restaurant not found");
 
-  // שליפת כל ההזמנות להיום בסטטוסים שניתנים להושבה
-  const d = new Date();
-  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const all = await listReservationsFor(rid, date);
-  const reservations = (all ?? []).filter((x: any) =>
-    ["new", "approved", "confirmed"].includes(String(x.status ?? "new")),
-  );
+  // הזמנות להיום
+  const reservations = await loadHostReservations(rid);
 
-  // קריאת מפת רצפה
+  // מפת רצפה – משתמשים ב-Sections רק כדי להוציא טבלת שולחנות (grid)
   const sections = await listFloorSections(rid);
   const tablesFlat: Array<{ id: string; tableNumber: number }> = [];
   for (const s of sections ?? []) {
@@ -60,7 +75,6 @@ hostRouter.get("/host/:rid", async (ctx) => {
   }
   const statuses = await computeAllTableStatuses(rid, tablesFlat);
 
-  // רינדור עמוד המארחת עם הנתונים הדרושים
   await render(ctx, "host_seating", {
     page: "host",
     title: `מארחת · ${r.name}`,
@@ -68,11 +82,11 @@ hostRouter.get("/host/:rid", async (ctx) => {
     rid,
     sections,
     statuses,
-    reservations,
+    reservations, // כבר בפורמט {id,time,people,name}
   });
 });
 
-/** NEW: GET /api/host/:rid/reservations – מחזיר את רשימת ההזמנות להיום (סטטוסים מתאימים) */
+/** GET /api/host/:rid/reservations – מחזיר את רשימת ההזמנות להיום (אותה לוגיקה כמו בדף) */
 hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
   if (!requireStaff(ctx)) return;
 
@@ -87,29 +101,10 @@ hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound, "restaurant not found");
 
-  // שליפת ההזמנות להיום וסינון לפי סטטוס
-  const d = new Date();
-  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const all = await listReservationsFor(rid, date);
-  const reservations = (all ?? []).filter((x: any) =>
-    ["new", "approved", "confirmed"].includes(String(x.status ?? "new")),
-  );
-
-  // מבנה הפלט: שדות נחוצים לתצוגת רשימת ההזמנות ב-JS
-  const resList = reservations.map((res: any) => {
-    const name = (res.firstName && res.lastName)
-      ? `${res.firstName} ${res.lastName}`
-      : (res.name ?? "");
-    return {
-      id: res.id,
-      time: res.time,
-      people: res.people,
-      name: name || "—",
-    };
-  });
+  const reservations = await loadHostReservations(rid);
 
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-  ctx.response.body = { reservations: resList };
+  ctx.response.body = { reservations };
 });
 
 /** POST /api/host/seat – הושבת הזמנה: מקבלת reservationId + table ומייצרת הזמנה פתוחה לשולחן */
