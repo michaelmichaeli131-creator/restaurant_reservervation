@@ -119,21 +119,17 @@ hostRouter.post("/api/host/seat", async (ctx) => {
     return;
   }
 
-  // ✅ Oak 17: body הוא property, לא פונקציה
-  const body = ctx.request.body;
-  let rid = "", reservationId = "", tableNumber = 0;
-
-  if (body && body.type === "json") {
-    const data = await body.value;
-    rid = data.restaurantId?.toString() || data.rid?.toString() || "";
-    reservationId = data.reservationId?.toString() || "";
-    tableNumber = Number(data.table ?? data.tableNumber ?? 0);
-  } else if (body && (body.type === "form" || body.type === "form-data")) {
-    const form = await body.value;
-    rid = form.get("rid")?.toString() || "";
-    reservationId = form.get("reservationId")?.toString() || "";
-    tableNumber = Number(form.get("tableNumber")?.toString() || "0");
+  // ✅ כאן הפיקס: קוראים JSON כמו בשאר הפרויקט
+  let data: any = {};
+  try {
+    data = await ctx.request.body.json();
+  } catch {
+    data = {};
   }
+
+  const rid = (data.restaurantId ?? data.rid ?? "").toString();
+  const reservationId = (data.reservationId ?? "").toString();
+  const tableNumber = Number(data.table ?? data.tableNumber ?? 0);
 
   // בדיקת שדות חובה
   if (!rid || !reservationId || !tableNumber) {
