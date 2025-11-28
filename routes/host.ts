@@ -1,71 +1,100 @@
-
-// routes/host.ts
-// Host dashboard: live map + seat from today's reservations
+// src/routes/host.ts
+// מסך מארחת: מפת מסעדה + הושבת הזמנה לשולחן
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
-import { requireStaff } from "../lib/auth.ts";
-import { getRestaurant, listReservationsByRestaurant } from "../database.ts";
-import { seatReservation, isTableSeated } from "../services/seating_service.ts";
-import { todayISO } from "./restaurants/_utils/datetime.ts";
+import { requireOwner } from "../lib/auth.ts";
+import { getRestaurant, listReservationsFor, setReservationStatus } from "../database.ts";
+import { listOpenOrdersByRestaurant, getOrCreateOpenOrder } from "../pos/pos_db.ts";
+
+// שתי עזרות פשוטות לקריאת מבנה הרצפה מתוך ה-DB שבו משתמש owner_floor
+// מצופה שמבנה כזה כבר נשמר ע"י מסכי הבעלים (sections -> tables -> tableNumber/id)
+import { listFloorSections, getTableIdByNumber } from "../services/floor_service.ts";
 
 export const hostRouter = new Router();
 
-// Host page
+/** חישוב סטטוס לכל שולחן על בסיס הזמנות פתוחות */
+async function computeAllTableStatuses(
+  rid: string,
+  tablesFlat: Array<{ id: string; tableNumber: number }>,
+) {
+  const openOrders = await listOpenOrdersByRestaurant(rid);
+  const occupiedByTable = new Set<number>(openOrders.map((o: any) => Number(o.tableNumber)));
+
+  return tablesFlat.map((t) => {
+    const occupied = occupiedByTable.has(Number(t.tableNumber));
+    return {
+      tableId: t.id,
+      tableNumber: t.tableNumber,
+      status: occupied ? "occupied" : "empty",
+    };
+  });
+}
+
+/** GET /host/:rid – UI של המארחת */
 hostRouter.get("/host/:rid", async (ctx) => {
-  if (!requireStaff(ctx)) return; // host is a staff member
+  if (!requireOwner(ctx)) return; // כרגע: רק בעלים/מנהל יכולים. אם יש "host" ברולים – אפשר להרחיב כאן.
   const rid = ctx.params.rid!;
   const r = await getRestaurant(rid);
-  if (!r) ctx.throw(Status.NotFound);
+  if (!r) ctx.throw(Status.NotFound, "restaurant not found");
+
+  // הזמנות להיום במצבים שניתנים להושבה
+  const d = new Date();
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const all = await listReservationsFor(rid, date);
+  const reservations = (all ?? []).filter((x: any) =>
+    ["new", "approved", "confirmed"].includes(String(x.status ?? "new")),
+  );
+
+  // מפת רצפה
+  const sections = await listFloorSections(rid);
+  const tablesFlat: Array<{ id: string; tableNumber: number }> = [];
+  for (const s of sections ?? []) {
+    for (const t of (s.tables ?? [])) {
+      tablesFlat.push({ id: t.id, tableNumber: Number(t.tableNumber) });
+    }
+  }
+  const statuses = await computeAllTableStatuses(rid, tablesFlat);
+
   await render(ctx, "host_seating", {
-    page: "host_seating",
+    page: "host",
     title: `מארחת · ${r.name}`,
-    rid,
     restaurant: r,
+    rid,
+    sections,
+    statuses,
+    reservations,
   });
 });
 
-// List today's bookable reservations
-hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
-  if (!requireStaff(ctx)) return;
-  const rid = ctx.params.rid!;
-  const date = String(ctx.request.url.searchParams.get("date") || todayISO());
-  const all = await listReservationsByRestaurant(rid, date);
-  // Allow only reservations in states that mean booked/not seated
-  const allowed = (all || []).filter((r: any) => {
-    const st = String(r.status || "new").toLowerCase();
-    return ["new","approved","confirmed"].includes(st);
-  }).map((r: any) => ({
-    id: r.id,
-    time: r.time,
-    people: r.people,
-    name: (r.firstName || "") + " " + (r.lastName || ""),
-    phone: r.phone || "",
-    status: r.status || "new",
-  }));
-  ctx.response.headers.set("Content-Type","application/json; charset=utf-8");
-  ctx.response.body = JSON.stringify({ ok: true, reservations: allowed, date });
-});
-
-// Seat a reservation to a table (host only)
+/** POST /api/host/seat – הושבה: מקבלת reservationId + tableNumber ומייצרת הזמנה פתוחה לשולחן */
 hostRouter.post("/api/host/seat", async (ctx) => {
-  if (!requireStaff(ctx)) return;
-  const body = await ctx.request.body.json();
-  const restaurantId = String(body.restaurantId || "");
-  const reservationId = String(body.reservationId || "");
-  const table = Number(body.table || 0);
+  if (!requireOwner(ctx)) return;
+  const body = ctx.request.body();
+  const form = body.type === "form" ? await body.value : null;
 
-  if (!restaurantId || !reservationId || !table) ctx.throw(Status.BadRequest, "missing fields");
+  const rid = form?.get("rid")?.toString() || "";
+  const reservationId = form?.get("reservationId")?.toString() || "";
+  const tableNumber = Number(form?.get("tableNumber")?.toString() || "0");
 
-  // Make sure table not already seated
-  if (await isTableSeated(restaurantId, table)) {
-    ctx.throw(Status.Conflict, "table already seated");
+  if (!rid || !reservationId || !tableNumber) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "missing_fields" };
+    return;
   }
 
-  const data = await seatReservation({ restaurantId, reservationId, table });
+  // ולידציה שהשולחן קיים במפה
+  const tableId = await getTableIdByNumber(rid, tableNumber);
+  if (!tableId) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "table_not_found" };
+    return;
+  }
 
-  ctx.response.headers.set("Content-Type","application/json; charset=utf-8");
-  ctx.response.body = JSON.stringify({ ok: true, seat: data });
+  // יצירת הזמנה פתוחה + סימון ההזמנה "arrived"
+  const order = await getOrCreateOpenOrder(rid, tableNumber);
+  await setReservationStatus(reservationId, "arrived");
+
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = { ok: true, orderId: order?.id, tableNumber };
 });
-
-export default hostRouter;
