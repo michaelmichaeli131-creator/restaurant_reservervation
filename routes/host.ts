@@ -3,42 +3,46 @@
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
-import { requireOwner } from "../lib/auth.ts";
-import { getRestaurant, listReservationsFor, setReservationStatus } from "../database.ts";
+import { requireStaff } from "../lib/auth.ts";
+import { getRestaurant, listReservationsFor } from "../database.ts";
 import { listOpenOrdersByRestaurant, getOrCreateOpenOrder } from "../pos/pos_db.ts";
-
-// שתי עזרות פשוטות לקריאת מבנה הרצפה מתוך ה-DB שבו משתמש owner_floor
-// מצופה שמבנה כזה כבר נשמר ע"י מסכי הבעלים (sections -> tables -> tableNumber/id)
+// עזרות לקריאת מבנה רצפה
 import { listFloorSections, getTableIdByNumber } from "../services/floor_service.ts";
+import { seatReservation } from "../services/seating_service.ts";
 
 export const hostRouter = new Router();
 
-/** חישוב סטטוס לכל שולחן על בסיס הזמנות פתוחות */
+/** חישוב סטטוס לכל שולחן (תפוס/פנוי) על סמך הזמנות פתוחות */
 async function computeAllTableStatuses(
   rid: string,
   tablesFlat: Array<{ id: string; tableNumber: number }>,
 ) {
   const openOrders = await listOpenOrdersByRestaurant(rid);
-  const occupiedByTable = new Set<number>(openOrders.map((o: any) => Number(o.tableNumber)));
-
-  return tablesFlat.map((t) => {
-    const occupied = occupiedByTable.has(Number(t.tableNumber));
-    return {
-      tableId: t.id,
-      tableNumber: t.tableNumber,
-      status: occupied ? "occupied" : "empty",
-    };
-  });
+  const occupiedByTable = new Set<number>((openOrders ?? []).map((o: any) => Number(o.table)));
+  return tablesFlat.map((t) => ({
+    tableId: t.id,
+    tableNumber: t.tableNumber,
+    status: occupiedByTable.has(Number(t.tableNumber)) ? "occupied" : "empty",
+  }));
 }
 
-/** GET /host/:rid – UI של המארחת */
+/** GET /host/:rid – עמוד המארחת עם מפת המסעדה והזמנות להיום */
 hostRouter.get("/host/:rid", async (ctx) => {
-  if (!requireOwner(ctx)) return; // כרגע: רק בעלים/מנהל יכולים. אם יש "host" ברולים – אפשר להרחיב כאן.
+  if (!requireStaff(ctx)) return;  // רק משתמש מחובר
+
+  const user = ctx.state.user;
+  // רק owner/manager – מלצר לא נכנס למסך מארחת
+  if (user.role !== "owner" && user.role !== "manager") {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = "Forbidden";
+    return;
+  }
+
   const rid = ctx.params.rid!;
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound, "restaurant not found");
 
-  // הזמנות להיום במצבים שניתנים להושבה
+  // שליפת כל ההזמנות להיום בסטטוסים שניתנים להושבה
   const d = new Date();
   const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const all = await listReservationsFor(rid, date);
@@ -46,7 +50,7 @@ hostRouter.get("/host/:rid", async (ctx) => {
     ["new", "approved", "confirmed"].includes(String(x.status ?? "new")),
   );
 
-  // מפת רצפה
+  // קריאת מפת רצפה
   const sections = await listFloorSections(rid);
   const tablesFlat: Array<{ id: string; tableNumber: number }> = [];
   for (const s of sections ?? []) {
@@ -56,6 +60,7 @@ hostRouter.get("/host/:rid", async (ctx) => {
   }
   const statuses = await computeAllTableStatuses(rid, tablesFlat);
 
+  // רינדור עמוד המארחת עם הנתונים הדרושים
   await render(ctx, "host_seating", {
     page: "host",
     title: `מארחת · ${r.name}`,
@@ -67,23 +72,82 @@ hostRouter.get("/host/:rid", async (ctx) => {
   });
 });
 
-/** POST /api/host/seat – הושבה: מקבלת reservationId + tableNumber ומייצרת הזמנה פתוחה לשולחן */
+/** NEW: GET /api/host/:rid/reservations – מחזיר את רשימת ההזמנות להיום (סטטוסים מתאימים) */
+hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+
+  const user = ctx.state.user;
+  if (user.role !== "owner" && user.role !== "manager") {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = "Forbidden";
+    return;
+  }
+
+  const rid = ctx.params.rid!;
+  const r = await getRestaurant(rid);
+  if (!r) ctx.throw(Status.NotFound, "restaurant not found");
+
+  // שליפת ההזמנות להיום וסינון לפי סטטוס
+  const d = new Date();
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const all = await listReservationsFor(rid, date);
+  const reservations = (all ?? []).filter((x: any) =>
+    ["new", "approved", "confirmed"].includes(String(x.status ?? "new")),
+  );
+
+  // מבנה הפלט: שדות נחוצים לתצוגת רשימת ההזמנות ב-JS
+  const resList = reservations.map((res: any) => {
+    const name = (res.firstName && res.lastName)
+      ? `${res.firstName} ${res.lastName}`
+      : (res.name ?? "");
+    return {
+      id: res.id,
+      time: res.time,
+      people: res.people,
+      name: name || "—",
+    };
+  });
+
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = { reservations: resList };
+});
+
+/** POST /api/host/seat – הושבת הזמנה: מקבלת reservationId + table ומייצרת הזמנה פתוחה לשולחן */
 hostRouter.post("/api/host/seat", async (ctx) => {
-  if (!requireOwner(ctx)) return;
+  if (!requireStaff(ctx)) return;
+
+  const user = ctx.state.user;
+  // שוב – רק owner/manager, כדי שמלצר לא יוכל להושיב
+  if (user.role !== "owner" && user.role !== "manager") {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = "Forbidden";
+    return;
+  }
+
+  // קריאת הנתונים מהבקשה (תומך גם ב-JSON וגם ב-FormData)
   const body = ctx.request.body();
-  const form = body.type === "form" ? await body.value : null;
+  let rid = "", reservationId = "", tableNumber = 0;
 
-  const rid = form?.get("rid")?.toString() || "";
-  const reservationId = form?.get("reservationId")?.toString() || "";
-  const tableNumber = Number(form?.get("tableNumber")?.toString() || "0");
+  if (body.type === "json") {
+    const data = await body.value;
+    rid = data.restaurantId?.toString() || data.rid?.toString() || "";
+    reservationId = data.reservationId?.toString() || "";
+    tableNumber = Number(data.table ?? data.tableNumber ?? 0);
+  } else if (body.type === "form" || body.type === "form-data") {
+    const form = await body.value;
+    rid = form.get("rid")?.toString() || "";
+    reservationId = form.get("reservationId")?.toString() || "";
+    tableNumber = Number(form.get("tableNumber")?.toString() || "0");
+  }
 
+  // בדיקת שדות חובה
   if (!rid || !reservationId || !tableNumber) {
     ctx.response.status = Status.BadRequest;
     ctx.response.body = { ok: false, error: "missing_fields" };
     return;
   }
 
-  // ולידציה שהשולחן קיים במפה
+  // ולידציה: שהשולחן מוגדר במפת המסעדה
   const tableId = await getTableIdByNumber(rid, tableNumber);
   if (!tableId) {
     ctx.response.status = Status.BadRequest;
@@ -91,10 +155,26 @@ hostRouter.post("/api/host/seat", async (ctx) => {
     return;
   }
 
-  // יצירת הזמנה פתוחה + סימון ההזמנה "arrived"
-  const order = await getOrCreateOpenOrder(rid, tableNumber);
-  await setReservationStatus(reservationId, "arrived");
+  try {
+    // הושבת ההזמנה בפועל (יוצר הזמנה פתוחה ומסמן את ההזמנה כ"arrived")
+    await seatReservation({ restaurantId: rid, reservationId, table: tableNumber });
+  } catch (err) {
+    const msg = (err as Error).message || "";
+    const errorCode = [
+      "reservation_not_found",
+      "reservation_cancelled",
+      "table_already_seated",
+    ].includes(msg)
+      ? msg
+      : "seat_failed";
 
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: errorCode };
+    return;
+  }
+
+  // שליפה של ההזמנה הפתוחה שזה עתה נוצרה (כדי להחזיר מזהה להזמנה ולוודא הצלחה)
+  const order = await getOrCreateOpenOrder(rid, tableNumber);
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-  ctx.response.body = { ok: true, orderId: order?.id, tableNumber };
+  ctx.response.body = { ok: true, orderId: order?.id || null, tableNumber };
 });

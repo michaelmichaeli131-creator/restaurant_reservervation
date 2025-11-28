@@ -1,4 +1,3 @@
-
 <% layout("_layout", it) %>
 
 <main class="container host-page">
@@ -10,6 +9,7 @@
   <section class="grid">
     <div class="col reservations">
       <h2>הזמנות להיום</h2>
+      <!-- רשימת ההזמנות תיטען דינמית ע"י הסקריפט -->
       <ul id="resv-list" class="list"></ul>
     </div>
     <div class="col floor">
@@ -23,14 +23,16 @@
 <script>
 (function(){
   const rid = "<%= it.rid %>";
-  const state = { selectedResId: null, floor: null, statuses: new Map() };
+  const state = { selectedResId: null };
 
+  // טוען את רשימת ההזמנות להיום מהשרת
   async function loadReservations(){
     const res = await fetch(`/api/host/${encodeURIComponent(rid)}/reservations`);
-    const json = await res.json();
+    if (!res.ok) { console.error("Failed to load reservations"); return; }
+    const data = await res.json();
     const ul = document.getElementById("resv-list");
     ul.innerHTML = "";
-    json.reservations.forEach(r => {
+    (data.reservations || []).forEach(r => {
       const li = document.createElement("li");
       li.className = "item";
       li.innerHTML = \`
@@ -46,9 +48,10 @@
     });
   }
 
+  // טוען את מפת הרצפה והסטטוסים העדכניים
   async function loadFloor(){
     const res = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}`);
-    if (!res.ok) return;
+    if (!res.ok) { console.error("Failed to load floor plan"); return; }
     const plan = await res.json();
     const holder = document.getElementById("floor");
     holder.innerHTML = "";
@@ -57,33 +60,41 @@
     grid.style.setProperty("--rows", plan.gridRows || 8);
     grid.style.setProperty("--cols", plan.gridCols || 10);
     holder.appendChild(grid);
-
-    // statuses
+    // שליפת סטטוס שולחנות נוכחי
     const sres = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}/statuses`);
-    const sjson = await sres.json();
-    const byNumber = new Map();
-    (sjson || []).forEach(s => byNumber.set(s.tableNumber, s));
-
+    const statuses = await sres.json();
+    const statusMap = new Map();
+    (statuses || []).forEach(s => statusMap.set(s.tableNumber, s.status));
+    // יצירת כפתור עבור כל שולחן בתכנית
     plan.tables.forEach(t => {
+      const tableNum = Number(t.tableNumber);
+      const status = statusMap.get(tableNum) || "empty";
       const btn = document.createElement("button");
-      const status = byNumber.get(t.tableNumber)?.status || "empty";
       btn.className = "table " + status;
-      btn.textContent = String(t.tableNumber);
+      btn.textContent = String(tableNum);
       btn.style.gridRow = (t.gridY+1) + " / span " + (t.spanY || 1);
       btn.style.gridColumn = (t.gridX+1) + " / span " + (t.spanX || 1);
-      btn.addEventListener("click", () => seatOnTable(t.tableNumber, status));
+      btn.addEventListener("click", () => seatOnTable(tableNum, status));
       grid.appendChild(btn);
     });
   }
 
+  // ניסיון הושבת הזמנה על שולחן נבחר
   async function seatOnTable(tableNumber, status){
-    if (!state.selectedResId) { alert("בחר/י הזמנה תחילה"); return; }
-    if (status !== "empty"){ alert("אפשר להושיב רק לשולחן פנוי"); return; }
-    const r = confirm("להושיב הזמנה לשולחן " + tableNumber + "?");
-    if (!r) return;
+    if (!state.selectedResId) {
+      alert("יש לבחור הזמנה תחילה!");
+      return;
+    }
+    if (status !== "empty"){
+      alert("אפשר להושיב רק לשולחן פנוי.");
+      return;
+    }
+    const confirmMsg = "להושיב הזמנה לשולחן " + tableNumber + "?";
+    if (!confirm(confirmMsg)) return;
+    // קריאת API להושבה
     const res = await fetch("/api/host/seat", {
       method: "POST",
-      headers: { "Content-Type":"application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         restaurantId: rid,
         reservationId: state.selectedResId,
@@ -91,18 +102,21 @@
       })
     });
     if (res.ok) {
+      // ריענון הרשימה והמפה לאחר הושבה מוצלחת
       await loadReservations();
       await loadFloor();
       state.selectedResId = null;
-      const checked = document.querySelector('input[name="resv"]:checked');
-      if (checked) checked.checked = false;
-      alert("נפתח שולחן להזמנה");
+      // נקה בחירה קודמת אם הייתה
+      const checkedInput = document.querySelector('input[name="resv"]:checked');
+      if (checkedInput) checkedInput.checked = false;
+      alert("נפתח שולחן להזמנה!");  // הודעת הצלחה
     } else {
-      const t = await res.text();
-      alert("שגיאה: " + t);
+      const errText = await res.text();
+      alert("שגיאה בהושבה: " + errText);
     }
   }
 
+  // אתחול ראשוני של הנתונים והגדרת רענון אוטומטי למפת השולחנות
   loadReservations();
   loadFloor();
   setInterval(loadFloor, 5000);
@@ -110,29 +124,52 @@
 </script>
 
 <style>
-.host-page .grid{ display:grid; grid-template-columns: 360px 1fr; gap:16px; }
-.host-page .list{ list-style:none; padding:0; margin:0; }
-.host-page .item{ padding:8px 0; border-top:1px solid rgba(255,255,255,.06); }
-.host-page .item:first-child{ border-top:none; }
-.host-page .radio{ display:flex; gap:8px; align-items:center; }
-.host-page .small{ font-size:12px; }
+.host-page .grid {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 16px;
+}
+.host-page .list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.host-page .item {
+  padding: 8px 0;
+  border-top: 1px solid rgba(255,255,255,.1);
+}
+.host-page .item:first-child {
+  border-top: none;
+}
+.host-page .radio {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.host-page .small {
+  font-size: 12px;
+}
 
-.floor-grid{
-  display:grid;
+/* עיצוב מפת השולחנות (שולחן פנוי/תפוס/וכו') */
+.floor-grid {
+  display: grid;
   grid-template-rows: repeat(var(--rows), 40px);
   grid-template-columns: repeat(var(--cols), 40px);
-  gap:6px;
+  gap: 6px;
   background: rgba(255,255,255,.03);
-  padding:6px; border-radius:8px;
+  padding: 6px;
+  border-radius: 8px;
 }
-.table{
-  border:1px solid rgba(255,255,255,.3);
+.table {
+  border: 1px solid rgba(255,255,255,.3);
   backdrop-filter: blur(8px);
-  padding:8px; border-radius:8px;
-  font-weight:700;
+  padding: 8px;
+  border-radius: 8px;
+  font-weight: 700;
+  color: #fff;
 }
-.table.empty{ background:#2e7d32; }
-.table.occupied{ background:#c62828; }
-.table.reserved{ background:#f9a825; }
-.table.dirty{ background:#6a1b9a; }
+.table.empty   { background: #2e7d32; }   /* ירוק – פנוי */
+.table.occupied{ background: #c62828; }   /* אדום – תפוס */
+.table.reserved{ background: #f9a825; }   /* צהוב – שמור (לא בשימוש כעת) */
+.table.dirty   { background: #6a1b9a; }   /* סגול – מלוכלך (טרם נוקה) */
 </style>

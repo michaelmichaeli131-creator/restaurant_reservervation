@@ -160,7 +160,8 @@ ownerFloorRouter.post(
 ownerFloorRouter.get(
   "/api/floor-plans/:restaurantId",
   async (ctx) => {
-    if (!requireOwner(ctx)) return;
+    // *** שינוי: לפתוח גם ל-manager/staff, לא רק owner ***
+    if (!requireStaff(ctx)) return;
 
     const restaurantId = ctx.params.restaurantId;
     if (!restaurantId) {
@@ -169,11 +170,28 @@ ownerFloorRouter.get(
       return;
     }
 
-    const owner = ctx.state.user;
+    const user = ctx.state.user;
 
-    // Verify ownership
+    // Verify restaurant exists
     const restaurant = await getRestaurant(restaurantId);
-    if (!restaurant || (restaurant as any).ownerId !== owner.id) {
+    if (!restaurant) {
+      ctx.response.status = 404;
+      ctx.response.body = { error: "Restaurant not found" };
+      return;
+    }
+
+    // הרשאות:
+    // owner – חייב להיות הבעלים של המסעדה
+    // manager/staff – כרגע מותר (בהמשך אפשר לסנן לפי שיוך למסעדה)
+    if (user.role === "owner") {
+      if ((restaurant as any).ownerId !== user.id) {
+        ctx.response.status = 403;
+        ctx.response.body = { error: "Forbidden" };
+        return;
+      }
+    } else if (user.role === "manager" || user.role === "staff") {
+      // allowed
+    } else {
       ctx.response.status = 403;
       ctx.response.body = { error: "Forbidden" };
       return;
@@ -202,6 +220,66 @@ ownerFloorRouter.get(
       ...floorPlan,
       tableStatuses,
     };
+  }
+);
+
+// NEW: GET /api/floor-plans/:restaurantId/statuses - only table statuses (for live refresh)
+ownerFloorRouter.get(
+  "/api/floor-plans/:restaurantId/statuses",
+  async (ctx) => {
+    if (!requireStaff(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    if (!restaurantId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID" };
+      return;
+    }
+
+    const user = ctx.state.user;
+
+    // Verify restaurant exists
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant) {
+      ctx.response.status = 404;
+      ctx.response.body = { error: "Restaurant not found" };
+      return;
+    }
+
+    if (user.role === "owner") {
+      if ((restaurant as any).ownerId !== user.id) {
+        ctx.response.status = 403;
+        ctx.response.body = { error: "Forbidden" };
+        return;
+      }
+    } else if (user.role === "manager" || user.role === "staff") {
+      // allowed
+    } else {
+      ctx.response.status = 403;
+      ctx.response.body = { error: "Forbidden" };
+      return;
+    }
+
+    // Get floor plan
+    const floorPlanKey = toKey("floor_plan", restaurantId);
+    const floorPlanRes = await kv.get(floorPlanKey);
+
+    if (!floorPlanRes.value) {
+      ctx.response.status = 404;
+      ctx.response.body = { error: "Floor plan not found" };
+      return;
+    }
+
+    const floorPlan = floorPlanRes.value as FloorPlan;
+
+    // Compute live table statuses
+    const tableStatuses = await computeAllTableStatuses(
+      restaurantId,
+      floorPlan.tables
+    );
+
+    ctx.response.status = 200;
+    ctx.response.body = tableStatuses;
   }
 );
 
