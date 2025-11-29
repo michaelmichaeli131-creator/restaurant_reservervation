@@ -1,5 +1,5 @@
 // src/routes/host.ts
-// מסך מארחת: מפת מסעדה + הושבת הזמנה לשולחן/ות + עדכון סטטוס הזמנה
+// מסך מארחת: מפת מסעדה + הושבת הזמנה לשולחן/ות + עדכון סטטוס הזמנה + שחרור שולחן ע"י מארחת
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -14,6 +14,7 @@ import {
 import {
   listOpenOrdersByRestaurant,
   getOrCreateOpenOrder,
+  closeOrderForTable,
 } from "../pos/pos_db.ts";
 
 import {
@@ -21,7 +22,10 @@ import {
   getTableIdByNumber,
 } from "../services/floor_service.ts";
 
-import { seatReservation } from "../services/seating_service.ts";
+import { seatReservation, unseatTable } from "../services/seating_service.ts";
+
+// אותו helper שאתה כבר משתמש בו ברואטרים אחרים
+import { readBody } from "./restaurants/_utils/body.ts";
 
 export const hostRouter = new Router();
 
@@ -43,42 +47,6 @@ function toIntLoose(v: unknown): number | null {
     if (Number.isFinite(n)) return Math.trunc(n);
   }
   return null;
-}
-
-/** קריאת body גמישה: JSON / form / text (עם ניסיון ל־JSON) */
-async function readJsonLikeBody(ctx: any): Promise<any> {
-  const req: any = ctx.request;
-  const body = req.body;
-  if (!body) return {};
-
-  try {
-    if (body.type === "json") {
-      const v = await body.value;
-      return v ?? {};
-    }
-
-    if (body.type === "form") {
-      const form = await body.value;
-      if (form && typeof form === "object" && "entries" in form) {
-        return Object.fromEntries((form as any).entries());
-      }
-      return form ?? {};
-    }
-
-    const v = await body.value;
-    if (typeof v === "string") {
-      try {
-        return JSON.parse(v);
-      } catch {
-        return {};
-      }
-    }
-
-    return v ?? {};
-  } catch (err) {
-    hlog("readJsonLikeBody ERROR", String(err));
-    return {};
-  }
 }
 
 /** חישוב סטטוס לכל שולחן (תפוס/פנוי) על סמך הזמנות פתוחות */
@@ -220,9 +188,17 @@ hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
   ctx.response.body = { reservations };
 });
 
-/** עזר: קריאת נתונים גם מה-body וגם מה-query (seat יחיד) */
+/** עזר: קריאת נתונים גם מה-body וגם מה-query */
 async function extractSeatPayload(ctx: any) {
-  const data = await readJsonLikeBody(ctx);
+  let data: any = {};
+  try {
+    const { payload } = await readBody(ctx);
+    data = payload || {};
+  } catch (err) {
+    hlog("readBody ERROR", String(err));
+    data = {};
+  }
+
   const url = ctx.request.url;
   const sp = url.searchParams;
 
@@ -245,9 +221,17 @@ async function extractSeatPayload(ctx: any) {
   };
 }
 
-/** עזר: קריאת נתונים ל-seat-multi (body + query) */
+/** עזר: קריאת נתונים ל-seat-multi */
 async function extractSeatMultiPayload(ctx: any) {
-  const data = await readJsonLikeBody(ctx);
+  let data: any = {};
+  try {
+    const { payload } = await readBody(ctx);
+    data = payload || {};
+  } catch (err) {
+    hlog("seat-multi readBody ERROR", String(err));
+    data = {};
+  }
+
   const url = ctx.request.url;
   const sp = url.searchParams;
 
@@ -263,7 +247,10 @@ async function extractSeatMultiPayload(ctx: any) {
     qpTables = qTablesStr
       .split(",")
       .map((s) => toIntLoose(s))
-      .filter((n): n is number => Number.isFinite(n as number) && (n as number) > 0);
+      .filter(
+        (n): n is number =>
+          Number.isFinite(n as number) && (n as number) > 0,
+      );
   }
 
   const tablesRaw = Array.isArray(data.tables) && data.tables.length
@@ -272,7 +259,10 @@ async function extractSeatMultiPayload(ctx: any) {
 
   const tables = tablesRaw
     .map((t: any) => toIntLoose(t))
-    .filter((n): n is number => Number.isFinite(n as number) && (n as number) > 0);
+    .filter(
+      (n): n is number =>
+        Number.isFinite(n as number) && (n as number) > 0,
+    );
 
   return {
     rid,
@@ -328,6 +318,7 @@ hostRouter.post("/api/host/seat", async (ctx) => {
     return;
   }
 
+  // ולידציה שהשולחן קיים
   const tableId = await getTableIdByNumber(rid, tableNumber);
   hlog("seat table lookup", { rid, tableNumber, tableId });
 
@@ -418,6 +409,7 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
     return;
   }
 
+  // ולידציה שכל השולחנות קיימים
   for (const tn of tables) {
     const tableId = await getTableIdByNumber(rid, tn);
     hlog("seat-multi table lookup", { rid, tableNumber: tn, tableId });
@@ -494,8 +486,15 @@ hostRouter.post("/api/host/reservation/status", async (ctx) => {
     return;
   }
 
-  const data = await readJsonLikeBody(ctx);
-  hlog("reservation/status payload (after readJsonLikeBody)", data);
+  let data: any = {};
+  try {
+    const { payload } = await readBody(ctx);
+    data = payload || {};
+    hlog("reservation/status payload (after readBody)", data);
+  } catch (err) {
+    hlog("reservation/status readBody ERROR", String(err));
+    data = {};
+  }
 
   const url = ctx.request.url;
   const sp = url.searchParams;
@@ -541,6 +540,111 @@ hostRouter.post("/api/host/reservation/status", async (ctx) => {
 
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = { ok: true };
+});
+
+/** ✅ חדש: POST /api/host/table/unseat – שחרור שולחן ידנית ע"י המארחת
+ *  שימושי אם נשארו שאריות הושבה ישנות (table_already_seated) למרות שהשולחן ירוק.
+ */
+hostRouter.post("/api/host/table/unseat", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+
+  const user = ctx.state.user;
+  const ct = ctx.request.headers.get("content-type") || "";
+
+  hlog("POST /api/host/table/unseat – incoming", {
+    contentType: ct,
+    userId: user?.id,
+    role: user?.role,
+  });
+
+  if (user.role !== "owner" && user.role !== "manager") {
+    hlog("table/unseat forbidden: role not allowed", { role: user?.role });
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = "Forbidden";
+    return;
+  }
+
+  let data: any = {};
+  try {
+    const { payload } = await readBody(ctx);
+    data = payload || {};
+  } catch (err) {
+    hlog("table/unseat readBody ERROR", String(err));
+    data = {};
+  }
+
+  const url = ctx.request.url;
+  const sp = url.searchParams;
+
+  const qRid = sp.get("restaurantId") ?? sp.get("rid") ?? "";
+  const qTablesStr = sp.get("tables") ?? sp.get("table") ?? "";
+
+  const rid = (data.restaurantId ?? data.rid ?? qRid ?? "").toString();
+
+  let tables: number[] = [];
+
+  // tables כערך יחיד או מערך
+  if (Array.isArray(data.tables) && data.tables.length) {
+    tables = data.tables
+      .map((t: any) => toIntLoose(t))
+      .filter(
+        (n): n is number =>
+          Number.isFinite(n as number) && (n as number) > 0,
+      );
+  } else if (typeof data.table !== "undefined") {
+    const tn = toIntLoose(data.table);
+    if (tn && tn > 0) tables.push(tn);
+  }
+
+  if (!tables.length && qTablesStr) {
+    const fromQuery = qTablesStr
+      .split(",")
+      .map((s) => toIntLoose(s))
+      .filter(
+        (n): n is number =>
+          Number.isFinite(n as number) && (n as number) > 0,
+      );
+    tables.push(...fromQuery);
+  }
+
+  hlog("table/unseat extracted fields", {
+    rid,
+    tables,
+    payload: data,
+    query: Object.fromEntries(sp.entries()),
+  });
+
+  if (!rid || !tables.length) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "missing_fields" };
+    return;
+  }
+
+  const freed: number[] = [];
+
+  for (const tn of tables) {
+    try {
+      await unseatTable(rid, tn);
+      // ננסה גם לסגור הזמנה פתוחה אם נשארה אחת (best-effort)
+      try {
+        await closeOrderForTable(rid, tn);
+      } catch (_err) {
+        // לא קריטי – הכי חשוב לשחרר הושבה
+      }
+      freed.push(tn);
+    } catch (err) {
+      hlog("table/unseat ERROR for table", {
+        rid,
+        table: tn,
+        error: String(err),
+      });
+    }
+  }
+
+  hlog("table/unseat success", { rid, freed });
+
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = { ok: true, freed };
 });
 
 export default hostRouter;
