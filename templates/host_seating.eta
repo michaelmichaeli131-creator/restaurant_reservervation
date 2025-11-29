@@ -206,9 +206,21 @@
       const tables = Array.isArray(plan.tables) ? plan.tables : [];
       const tableStatuses = Array.isArray(plan.tableStatuses) ? plan.tableStatuses : [];
 
+      // ✅ statusMap לסטטוס, guestMap לשם האורח (מגיע מה־API דרך owner_floor.ts)
       const statusMap = new Map();
+      const guestMap = new Map();
+
       tableStatuses.forEach(function(s){
-        statusMap.set(Number(s.tableNumber), s.status || "empty");
+        const tn = Number(s.tableNumber);
+        if (!Number.isFinite(tn)) return;
+
+        const st = s.status || "empty";
+        statusMap.set(tn, st);
+
+        const gName = s.guestName || s.name || s.customerName || null;
+        if (gName) {
+          guestMap.set(tn, String(gName));
+        }
       });
 
       if (!tables.length) {
@@ -229,6 +241,7 @@
         const num = Number(t.tableNumber);
         const status = statusMap.get(num) || "empty";
         const seats = Number(t.seats || 0);
+        const guestName = guestMap.get(num) || "";
 
         const btn = document.createElement("button");
         btn.type = "button";
@@ -240,6 +253,7 @@
         btn.innerHTML = `
           <div class="table-num">${num}</div>
           <div class="table-cap">${capText}</div>
+          ${guestName ? `<div class="table-guest">${guestName}</div>` : ""}
         `;
 
         btn.style.gridRow = (t.gridY + 1) + " / span " + (t.spanY || 1);
