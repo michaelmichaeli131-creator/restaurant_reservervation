@@ -206,13 +206,9 @@
       const tables = Array.isArray(plan.tables) ? plan.tables : [];
       const tableStatuses = Array.isArray(plan.tableStatuses) ? plan.tableStatuses : [];
 
-      // ✅ statusMap מחזיק גם סטטוס וגם guestName
       const statusMap = new Map();
       tableStatuses.forEach(function(s){
-        statusMap.set(Number(s.tableNumber), {
-          status: s.status || "empty",
-          guestName: s.guestName || s.name || s.customerName || null,
-        });
+        statusMap.set(Number(s.tableNumber), s.status || "empty");
       });
 
       if (!tables.length) {
@@ -231,9 +227,7 @@
 
       tables.forEach(function(t){
         const num = Number(t.tableNumber);
-        const info = statusMap.get(num) || { status: "empty", guestName: null };
-        const status = info.status;
-        const existingGuestName = info.guestName || "";
+        const status = statusMap.get(num) || "empty";
         const seats = Number(t.seats || 0);
 
         const btn = document.createElement("button");
@@ -246,15 +240,13 @@
         btn.innerHTML = `
           <div class="table-num">${num}</div>
           <div class="table-cap">${capText}</div>
-          ${existingGuestName ? `<div class="table-guest">${existingGuestName}</div>` : ""}
         `;
 
         btn.style.gridRow = (t.gridY + 1) + " / span " + (t.spanY || 1);
         btn.style.gridColumn = (t.gridX + 1) + " / span " + (t.spanX || 1);
 
         btn.addEventListener("click", function(){
-          const currentInfo = statusMap.get(num) || { status: "empty" };
-          const currentStatus = currentInfo.status || "empty";
+          const currentStatus = statusMap.get(num) || "empty";
           if (currentStatus !== "empty") {
             alert("ניתן לבחור רק שולחנות פנויים. שולחנות תפוסים לא ניתנים לבחירה.");
             return;
@@ -264,9 +256,6 @@
 
         grid.appendChild(btn);
       });
-
-      // נשתמש ב-statusMap גם בפונקציות אחרות (סגירה על scope)
-      (window as any)._hostFloorStatusMap = statusMap;
     }catch(e){
       console.error(e);
       const p = document.createElement("p");
@@ -323,10 +312,8 @@
         return;
       }
 
+      // עדכון ה-UI: סימון השולחנות כתפוסים + שם מזמין
       const floor = document.getElementById("floor");
-      const statusMap = (window as any)._hostFloorStatusMap || new Map();
-
-      // עדכון ה-UI: סימון השולחנות כתפוסים + שם מזמין + עדכון statusMap
       if (floor) {
         tables.forEach(function(tn){
           const btn = floor.querySelector('.table[data-table-number="'+tn+'"]');
@@ -343,15 +330,7 @@
             }
             guestDiv.textContent = guestName;
           }
-
-          // עדכון המפה הפנימית כדי שהשולחן לא יהיה "פנוי" מבחינת הלוגיקה
-          statusMap.set(Number(tn), {
-            status: "occupied",
-            guestName: guestName || null,
-          });
         });
-
-        (window as any)._hostFloorStatusMap = statusMap;
       }
 
       // הסרת ההזמנה מהרשימה
