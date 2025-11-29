@@ -41,7 +41,7 @@
                     <span>•</span>
                     <span><%= r.people %> סועדים</span>
                   </div>
-                  <div class="muted small"><%= r.name || '—' %></div>
+                  <div class="muted small resv-name"><%= r.name || '—' %></div>
                 </div>
               </label>
             </li>
@@ -104,7 +104,11 @@
 
       const statusMap = new Map();
       tableStatuses.forEach(function(s){
-        statusMap.set(Number(s.tableNumber), s.status || "empty");
+        // שומרים אובייקט מלא לכל שולחן (אם בעתיד נוסיף שדות)
+        statusMap.set(Number(s.tableNumber), {
+          status: s.status || "empty",
+          name: s.name || null,
+        });
       });
 
       if (!tables.length) {
@@ -123,7 +127,8 @@
 
       tables.forEach(function(t){
         const num = Number(t.tableNumber);
-        const status = statusMap.get(num) || "empty";
+        const stObj = statusMap.get(num) || { status: "empty", name: null };
+        const status = stObj.status;
         const seats = Number(t.seats || 0);
 
         const btn = document.createElement("button");
@@ -131,6 +136,7 @@
         btn.className = "table " + status;
 
         const capText = seats > 0 ? (seats + " מקומות") : "";
+
         btn.innerHTML = `
           <div class="table-num">${num}</div>
           <div class="table-cap">${capText}</div>
@@ -187,10 +193,27 @@
         btnEl.classList.add("occupied");
       }
 
-      // הסרת ההזמנה מהרשימה כדי שלא יושיבו אותה שוב
+      // מציאת שם המזמין מהשורה שנבחרה
+      let guestName = "";
       const selected = document.querySelector('input[name="resv"]:checked');
       if (selected) {
         const li = selected.closest("li");
+        const nameEl = li && li.querySelector(".resv-name");
+        if (nameEl) guestName = (nameEl.textContent || "").trim();
+
+        // הוספת שם המזמין על השולחן (אם יש)
+        if (btnEl && guestName) {
+          // כדי לא ליצור כפילויות אם תהיה הושבה מחדש
+          let guestDiv = btnEl.querySelector(".table-guest");
+          if (!guestDiv) {
+            guestDiv = document.createElement("div");
+            guestDiv.className = "table-guest";
+            btnEl.appendChild(guestDiv);
+          }
+          guestDiv.textContent = guestName;
+        }
+
+        // הסרת ההזמנה מהרשימה כדי שלא יושיבו אותה שוב
         const ul = li && li.parentElement;
         if (li && ul) {
           ul.removeChild(li);
@@ -336,6 +359,16 @@
     font-size: 11px;
     opacity: .86;
     margin-top: 2px;
+  }
+
+  /* ✅ שם המזמין על השולחן */
+  .table-guest{
+    font-size: 11px;
+    margin-top: 4px;
+    opacity: 0.95;
+    font-weight: 600;
+    color: #fff;
+    text-shadow: 0 0 4px rgba(0,0,0,.4);
   }
 
   .table.empty{

@@ -5,8 +5,14 @@ import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
 import { requireStaff } from "../lib/auth.ts";
 import { getRestaurant, listReservationsFor } from "../database.ts";
-import { listOpenOrdersByRestaurant, getOrCreateOpenOrder } from "../pos/pos_db.ts";
-import { listFloorSections, getTableIdByNumber } from "../services/floor_service.ts";
+import {
+  listOpenOrdersByRestaurant,
+  getOrCreateOpenOrder,
+} from "../pos/pos_db.ts";
+import {
+  listFloorSections,
+  getTableIdByNumber,
+} from "../services/floor_service.ts";
 import { seatReservation } from "../services/seating_service.ts";
 
 export const hostRouter = new Router();
@@ -17,7 +23,9 @@ async function computeAllTableStatuses(
   tablesFlat: Array<{ id: string; tableNumber: number }>,
 ) {
   const openOrders = await listOpenOrdersByRestaurant(rid);
-  const occupiedByTable = new Set<number>((openOrders ?? []).map((o: any) => Number(o.table)));
+  const occupiedByTable = new Set<number>(
+    (openOrders ?? []).map((o: any) => Number(o.table)),
+  );
   return tablesFlat.map((t) => ({
     tableId: t.id,
     tableNumber: t.tableNumber,
@@ -28,7 +36,9 @@ async function computeAllTableStatuses(
 /** טעינת כל ההזמנות "הפעילות" של היום למסך המארחת, בפורמט נוח לתצוגה */
 async function loadHostReservations(rid: string) {
   const d = new Date();
-  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const date = `${d.getFullYear()}-${
+    String(d.getMonth() + 1).padStart(2, "0")
+  }-${String(d.getDate()).padStart(2, "0")}`;
 
   const all = await listReservationsFor(rid, date);
 
@@ -75,7 +85,7 @@ hostRouter.get("/host/:rid", async (ctx) => {
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound, "restaurant not found");
 
-  // הזמנות להיום (רק פעיליות)
+  // הזמנות להיום (רק פעילות)
   const reservations = await loadHostReservations(rid);
 
   // מפת רצפה
