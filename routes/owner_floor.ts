@@ -1,9 +1,9 @@
 // routes/owner_floor.ts
-// Floor plan management for restaurant owners
+// Floor plan management for restaurant owners + חשיפת guestName לשולחנות
 
-import { Router } from "@oak/oak";
+import { Router } from "jsr:@oak/oak";
 import { requireOwner, requireStaff } from "../lib/auth.ts";
-import { kv, getRestaurant, getReservationById } from "../database.ts";
+import { kv, getRestaurant, listReservationsFor } from "../database.ts";
 import { render } from "../lib/view.ts";
 import {
   computeAllTableStatuses,
@@ -14,8 +14,6 @@ import {
   updateFloorSection,
   deleteFloorSection,
 } from "../services/floor_service.ts";
-
-import { getSeatingForTable } from "../services/seating_service.ts";
 
 export const ownerFloorRouter = new Router();
 
@@ -48,7 +46,7 @@ interface TableStatus {
   occupiedSince?: number;
   itemsReady?: number;
   itemsPending?: number;
-  // חדש: שם האורח היושב בשולחן (אם יש הזמנה)
+  // חדש: שם האורח היושב בשולחן (אם יש הזמנה שהגיעה/הושבה)
   guestName?: string | null;
 }
 
@@ -95,7 +93,7 @@ ownerFloorRouter.get(
       restaurantId,
       restaurant: restaurant.value,
     });
-  },
+  }
 );
 
 /* =================== API Routes =================== */
@@ -116,8 +114,18 @@ ownerFloorRouter.post(
       return;
     }
 
-    const body = await ctx.request.body({ type: "json" }).value;
-    const { status } = body as { status?: string };
+    const body = await (ctx.request as any).originalRequest?.json?.().catch?.(() => null)
+      ?? await (async () => {
+        try {
+          const b = (ctx.request as any).body?.({ type: "json" });
+          return b ? await b.value : null;
+        } catch {
+          return null;
+        }
+      })()
+      ?? {};
+
+    const { status } = body as any;
 
     if (!status || !["empty", "occupied", "reserved", "dirty"].includes(status)) {
       ctx.response.status = 400;
@@ -133,11 +141,12 @@ ownerFloorRouter.post(
       return;
     }
 
-    // Verify user has access
+    // Verify user has access (owner can access any, staff/manager can access their own)
     if (user.role === "owner") {
       // Owner can update any restaurant's tables
     } else if (user.role === "manager" || user.role === "staff") {
-      // Manager/staff: אפשר להקשיח בעתיד לפי שיוך
+      // Manager/staff can only update tables at their assigned restaurant
+      // For now, allow if they're logged in (could enhance with restaurant assignment later)
     } else {
       ctx.response.status = 403;
       ctx.response.body = { error: "Forbidden" };
@@ -156,14 +165,13 @@ ownerFloorRouter.post(
 
     ctx.response.status = 200;
     ctx.response.body = { success: true, status: statusData };
-  },
+  }
 );
 
 // GET /api/floor-plans/:restaurantId - Get floor plan with live table statuses
 ownerFloorRouter.get(
   "/api/floor-plans/:restaurantId",
   async (ctx) => {
-    // פתוח גם ל-manager/staff, לא רק owner
     if (!requireStaff(ctx)) return;
 
     const restaurantId = ctx.params.restaurantId;
@@ -218,44 +226,51 @@ ownerFloorRouter.get(
       floorPlan.tables,
     );
 
-    // ✅ הוספת guestName לכל שולחן על בסיס seating_service + reservation
-    const tableStatuses: TableStatus[] = [];
+    // ✅ הוספת guestName לכל שולחן על בסיס reservations שהגיעו/הושבו היום
+    const d = new Date();
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-    for (const ts of baseStatuses as TableStatus[]) {
-      let guestName: string | null = null;
+    const allRes = await listReservationsFor(restaurantId, date);
+    const nameByTable = new Map<number, string>();
 
-      try {
-        const tn = Number(ts.tableNumber);
-        if (Number.isFinite(tn)) {
-          const seating = await getSeatingForTable(restaurantId, tn);
-          if (seating && seating.reservationId) {
-            const resv = await getReservationById(seating.reservationId);
-            if (resv) {
-              const r: any = resv;
-              const fullName =
-                r.firstName && r.lastName
-                  ? `${r.firstName} ${r.lastName}`
-                  : (r.name ?? r.customerName ?? "");
-              if (fullName) guestName = String(fullName);
-            }
-          }
-        }
-      } catch {
-        // לא מפילים את ה-API על שגיאת שם – פשוט משאירים guestName ריק
+    for (const res of (allRes ?? []) as any[]) {
+      const st = String(res.status ?? "").toLowerCase();
+      // נניח ש־arrived / seated = ישבו בשולחן
+      if (st !== "arrived" && st !== "seated") continue;
+
+      const tn = Number(
+        (res as any).tableNumber ??
+        (res as any).table ??
+        (res as any).tableNo ??
+        (res as any).table_id ??
+        0,
+      );
+      if (!tn || !Number.isFinite(tn)) continue;
+
+      const fullName = (res.firstName && res.lastName)
+        ? `${res.firstName} ${res.lastName}`
+        : (res.name ?? "");
+
+      if (fullName) {
+        nameByTable.set(tn, String(fullName));
       }
-
-      tableStatuses.push({
-        ...ts,
-        guestName: guestName ?? null,
-      });
     }
+
+    const tableStatuses: TableStatus[] = (baseStatuses as TableStatus[]).map((ts) => {
+      const tn = Number(ts.tableNumber);
+      const gName = nameByTable.get(tn) ?? null;
+      return {
+        ...ts,
+        guestName: gName,
+      };
+    });
 
     // Return floor plan with live statuses + guestName
     ctx.response.body = {
       ...floorPlan,
       tableStatuses,
     };
-  },
+  }
 );
 
 // NEW: GET /api/floor-plans/:restaurantId/statuses - only table statuses (for live refresh)
@@ -307,7 +322,7 @@ ownerFloorRouter.get(
 
     const floorPlan = floorPlanRes.value as FloorPlan;
 
-    // Compute live table statuses בלבד (למשל למסך מלצרים)
+    // Compute live table statuses
     const tableStatuses = await computeAllTableStatuses(
       restaurantId,
       floorPlan.tables,
@@ -315,7 +330,7 @@ ownerFloorRouter.get(
 
     ctx.response.status = 200;
     ctx.response.body = tableStatuses;
-  },
+  }
 );
 
 // POST /api/floor-plans/:restaurantId - Save/update floor plan with table mappings
@@ -341,8 +356,17 @@ ownerFloorRouter.post(
       return;
     }
 
-    // Parse request body
-    const body = await ctx.request.body({ type: "json" }).value as any;
+    // Parse request body (אותו helper גנרי כמו קודם)
+    const body = await (ctx.request as any).originalRequest?.json?.().catch?.(() => null)
+      ?? await (async () => {
+        try {
+          const b = (ctx.request as any).body?.({ type: "json" });
+          return b ? await b.value : null;
+        } catch {
+          return null;
+        }
+      })()
+      ?? {};
 
     // Validate floor plan data
     if (!body.name || !body.gridRows || !body.gridCols || !Array.isArray(body.tables)) {
@@ -397,7 +421,7 @@ ownerFloorRouter.post(
       floorPlan,
       tableStatuses,
     };
-  },
+  }
 );
 
 /* =================== FLOOR SECTIONS =================== */
@@ -427,7 +451,7 @@ ownerFloorRouter.get(
 
     const sections = await listFloorSections(restaurantId);
     ctx.response.body = sections;
-  },
+  }
 );
 
 // POST /api/floor-sections/:restaurantId - Create section
@@ -453,14 +477,22 @@ ownerFloorRouter.post(
       return;
     }
 
-    const body = await ctx.request.body({ type: "json" }).value as any;
-    const { name, gridRows, gridCols, displayOrder } = body;
+    const body = await (ctx.request as any).originalRequest?.json?.().catch?.(() => null)
+      ?? await (async () => {
+        try {
+          const b = (ctx.request as any).body?.({ type: "json" });
+          return b ? await b.value : null;
+        } catch {
+          return null;
+        }
+      })()
+      ?? {};
+
+    const { name, gridRows, gridCols, displayOrder } = body as any;
 
     if (!name || !gridRows || !gridCols) {
       ctx.response.status = 400;
-      ctx.response.body = {
-        error: "Missing required fields: name, gridRows, gridCols",
-      };
+      ctx.response.body = { error: "Missing required fields: name, gridRows, gridCols" };
       return;
     }
 
@@ -474,7 +506,7 @@ ownerFloorRouter.post(
 
     ctx.response.status = 201;
     ctx.response.body = section;
-  },
+  }
 );
 
 // PUT /api/floor-sections/:restaurantId/:sectionId - Update section
@@ -502,8 +534,18 @@ ownerFloorRouter.put(
       return;
     }
 
-    const body = await ctx.request.body({ type: "json" }).value as any;
-    const updated = await updateFloorSection(restaurantId, sectionId, body);
+    const body = await (ctx.request as any).originalRequest?.json?.().catch?.(() => null)
+      ?? await (async () => {
+        try {
+          const b = (ctx.request as any).body?.({ type: "json" });
+          return b ? await b.value : null;
+        } catch {
+          return null;
+        }
+      })()
+      ?? {};
+
+    const updated = await updateFloorSection(restaurantId, sectionId, body as any);
 
     if (!updated) {
       ctx.response.status = 404;
@@ -512,7 +554,7 @@ ownerFloorRouter.put(
     }
 
     ctx.response.body = updated;
-  },
+  }
 );
 
 // DELETE /api/floor-sections/:restaurantId/:sectionId - Delete section
@@ -542,7 +584,7 @@ ownerFloorRouter.delete(
 
     await deleteFloorSection(restaurantId, sectionId);
     ctx.response.body = { success: true };
-  },
+  }
 );
 
 export default ownerFloorRouter;
