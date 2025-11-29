@@ -1,5 +1,5 @@
 // src/routes/host.ts
-// מסך מארחת: מפת מסעדה + הושבת הזמנה לשולחן/ות + עדכון סטטוס הזמנה
+// מסך מארחת: מפת מסעדה + מפת מסעדה חיה + הושבת הזמנה לשולחן/ות + עדכון סטטוס הזמנה
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -23,9 +23,6 @@ import {
 
 import { seatReservation } from "../services/seating_service.ts";
 
-// אותו helper שאתה כבר משתמש בו ברואטרים אחרים
-import { readBody } from "./restaurants/_utils/body.ts";
-
 export const hostRouter = new Router();
 
 /** לוג עזר למסך המארחת */
@@ -37,15 +34,63 @@ function hlog(...args: unknown[]) {
   }
 }
 
-function toIntLoose(v: unknown): number | null {
-  if (typeof v === "number" && Number.isFinite(v)) return Math.trunc(v);
-  if (typeof v === "string") {
-    const s = v.trim();
-    if (!s) return null;
-    const n = Number(s);
-    if (Number.isFinite(n)) return Math.trunc(n);
+/**
+ * קריאת body לפי ה-API של Oak 17 (body כ-object, לא כ-fn).
+ * מחזיר אובייקט JSON (או {} במקרה של שגיאה).
+ */
+async function parseBody(ctx: any): Promise<Record<string, unknown>> {
+  try {
+    const req: any = ctx.request;
+    const body = req?.body;
+
+    // Oak 17 – body הוא אובייקט עם type/value
+    if (body && typeof body.type === "string") {
+      const type = body.type;
+      const value = await body.value;
+
+      if (type === "json") {
+        return (value ?? {}) as Record<string, unknown>;
+      }
+
+      if (type === "form" || type === "form-data" || type === "urlencoded") {
+        const out: Record<string, unknown> = {};
+        if (value && typeof value.entries === "function") {
+          for (const [k, v] of value.entries()) {
+            out[k] = v;
+          }
+        }
+        return out;
+      }
+
+      if (type === "text") {
+        if (typeof value === "string") {
+          try {
+            return JSON.parse(value) as Record<string, unknown>;
+          } catch {
+            return {};
+          }
+        }
+        return {};
+      }
+
+      // fallback
+      if (value && typeof value === "object") {
+        return value as Record<string, unknown>;
+      }
+      return {};
+    }
+
+    // תאימות אחורה - אם body הוא פונקציה (גרסאות Oak ישנות יותר)
+    if (typeof body === "function") {
+      const res = await body({ type: "json" });
+      const val = res?.value ?? {};
+      if (val && typeof val === "object") return val;
+      return {};
+    }
+  } catch (err) {
+    hlog("parseBody error", String(err));
   }
-  return null;
+  return {};
 }
 
 /** חישוב סטטוס לכל שולחן (תפוס/פנוי) על סמך הזמנות פתוחות */
@@ -74,6 +119,7 @@ async function loadHostReservations(rid: string) {
 
   const all = await listReservationsFor(rid, date);
 
+  // נשאיר רק הזמנות שעדיין רלוונטיות להושבה
   const active = (all ?? []).filter((res: any) => {
     const st = String(res.status ?? "new").toLowerCase();
     const doneStatuses = [
@@ -187,79 +233,6 @@ hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
   ctx.response.body = { reservations };
 });
 
-/** עזר: קריאת נתונים גם מה-body וגם מה-query */
-async function extractSeatPayload(ctx: any) {
-  let data: any = {};
-  try {
-    const { payload } = await readBody(ctx);
-    data = payload || {};
-  } catch (err) {
-    hlog("readBody ERROR", String(err));
-    data = {};
-  }
-
-  const url = ctx.request.url;
-  const sp = url.searchParams;
-
-  const qRid = sp.get("restaurantId") ?? sp.get("rid") ?? "";
-  const qReservationId = sp.get("reservationId") ?? "";
-  const qTable = sp.get("table") ?? sp.get("tableNumber") ?? "";
-
-  const rid = (data.restaurantId ?? data.rid ?? qRid ?? "").toString();
-  const reservationId = (data.reservationId ?? qReservationId ?? "").toString();
-  const tableNumber = toIntLoose(
-    data.table ?? data.tableNumber ?? qTable ?? 0,
-  ) ?? 0;
-
-  return { rid, reservationId, tableNumber, raw: data, query: Object.fromEntries(sp.entries()) };
-}
-
-/** עזר: קריאת נתונים ל-seat-multi */
-async function extractSeatMultiPayload(ctx: any) {
-  let data: any = {};
-  try {
-    const { payload } = await readBody(ctx);
-    data = payload || {};
-  } catch (err) {
-    hlog("seat-multi readBody ERROR", String(err));
-    data = {};
-  }
-
-  const url = ctx.request.url;
-  const sp = url.searchParams;
-
-  const qRid = sp.get("restaurantId") ?? sp.get("rid") ?? "";
-  const qReservationId = sp.get("reservationId") ?? "";
-  const qTablesStr = sp.get("tables") ?? "";
-
-  const rid = (data.restaurantId ?? data.rid ?? qRid ?? "").toString();
-  const reservationId = (data.reservationId ?? qReservationId ?? "").toString();
-
-  let qpTables: number[] = [];
-  if (qTablesStr) {
-    qpTables = qTablesStr
-      .split(",")
-      .map((s) => toIntLoose(s))
-      .filter((n): n is number => Number.isFinite(n as number) && (n as number) > 0);
-  }
-
-  const tablesRaw = Array.isArray(data.tables) && data.tables.length
-    ? data.tables
-    : qpTables;
-
-  const tables = tablesRaw
-    .map((t: any) => toIntLoose(t))
-    .filter((n): n is number => Number.isFinite(n as number) && (n as number) > 0);
-
-  return {
-    rid,
-    reservationId,
-    tables,
-    raw: data,
-    query: Object.fromEntries(sp.entries()),
-  };
-}
-
 /** POST /api/host/seat – הושבת הזמנה לשולחן יחיד */
 hostRouter.post("/api/host/seat", async (ctx) => {
   if (!requireStaff(ctx)) return;
@@ -280,24 +253,27 @@ hostRouter.post("/api/host/seat", async (ctx) => {
     return;
   }
 
-  const { rid, reservationId, tableNumber, raw, query } = await extractSeatPayload(ctx);
+  const data = await parseBody(ctx);
+  hlog("seat payload (after parseBody)", data);
+
+  const rid = String(data.restaurantId ?? data.rid ?? "");
+  const reservationId = String(data.reservationId ?? "");
+  const tableNumberRaw = (data.table ?? data.tableNumber ?? 0) as number | string;
+  const tableNumber = Number(tableNumberRaw);
 
   hlog("seat extracted fields", {
     rid,
     reservationId,
     tableNumber,
     isTableNumberFinite: Number.isFinite(tableNumber),
-    raw,
-    query,
   });
 
-  if (!rid || !reservationId || !tableNumber) {
+  if (!rid || !reservationId || !Number.isFinite(tableNumber) || tableNumber <= 0) {
     hlog("seat -> missing_fields", {
       ridOk: !!rid,
       reservationIdOk: !!reservationId,
-      tableNumberOk: !!tableNumber,
-      payload: raw,
-      query,
+      tableNumberOk: Number.isFinite(tableNumber) && tableNumber > 0,
+      payload: data,
     });
     ctx.response.status = Status.BadRequest;
     ctx.response.body = { ok: false, error: "missing_fields" };
@@ -315,6 +291,7 @@ hostRouter.post("/api/host/seat", async (ctx) => {
   }
 
   try {
+    // seatReservation שומר את ישיבת השולחן ומסמן את ההזמנה כ-arrived
     await seatReservation({ restaurantId: rid, reservationId, table: tableNumber });
   } catch (err) {
     const msg = (err as Error).message || "";
@@ -371,14 +348,21 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
     return;
   }
 
-  const { rid, reservationId, tables, raw, query } = await extractSeatMultiPayload(ctx);
+  const data = await parseBody(ctx);
+  hlog("seat-multi payload (after parseBody)", data);
+
+  const rid = String(data.restaurantId ?? data.rid ?? "");
+  const reservationId = String(data.reservationId ?? "");
+  const tablesRaw = Array.isArray(data.tables) ? data.tables : [];
+  const tables = tablesRaw
+    .map((t: any) => Number(t))
+    .filter((n: number) => Number.isFinite(n) && n > 0);
 
   hlog("seat-multi extracted fields", {
     rid,
     reservationId,
+    tablesRaw,
     tables,
-    raw,
-    query,
   });
 
   if (!rid || !reservationId || !tables.length) {
@@ -386,8 +370,6 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
       ridOk: !!rid,
       reservationIdOk: !!reservationId,
       tablesOk: !!tables.length,
-      payload: raw,
-      query,
     });
     ctx.response.status = Status.BadRequest;
     ctx.response.body = { ok: false, error: "missing_fields" };
@@ -408,11 +390,13 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
   const results: Array<{ tableNumber: number; orderId: string | null }> = [];
 
   try {
+    // שולחן ראשון – seatReservation משנה סטטוס הזמנה ל-arrived
     const primary = tables[0];
     await seatReservation({ restaurantId: rid, reservationId, table: primary });
     const primaryOrder = await getOrCreateOpenOrder(rid, primary);
     results.push({ tableNumber: primary, orderId: primaryOrder?.id ?? null });
 
+    // שאר השולחנות – רק פתיחת הזמנה פתוחה (ללא שינוי סטטוס הזמנה)
     for (let i = 1; i < tables.length; i++) {
       const tn = tables[i];
       const ord = await getOrCreateOpenOrder(rid, tn);
@@ -471,33 +455,18 @@ hostRouter.post("/api/host/reservation/status", async (ctx) => {
     return;
   }
 
-  let data: any = {};
-  try {
-    const { payload } = await readBody(ctx);
-    data = payload || {};
-    hlog("reservation/status payload (after readBody)", data);
-  } catch (err) {
-    hlog("reservation/status readBody ERROR", String(err));
-    data = {};
-  }
+  const data = await parseBody(ctx);
+  hlog("reservation/status payload (after parseBody)", data);
 
-  const url = ctx.request.url;
-  const sp = url.searchParams;
-
-  const qRid = sp.get("restaurantId") ?? sp.get("rid") ?? "";
-  const qReservationId = sp.get("reservationId") ?? "";
-  const qStatus = sp.get("status") ?? "";
-
-  const rid = (data.restaurantId ?? data.rid ?? qRid ?? "").toString();
-  const reservationId = (data.reservationId ?? qReservationId ?? "").toString();
-  const status = (data.status ?? qStatus ?? "").toString().toLowerCase();
+  const rid = String(data.restaurantId ?? data.rid ?? "");
+  const reservationId = String(data.reservationId ?? "");
+  const statusRaw = String(data.status ?? "").toLowerCase();
+  const status = statusRaw as string;
 
   hlog("reservation/status extracted fields", {
     rid,
     reservationId,
     status,
-    payload: data,
-    query: Object.fromEntries(sp.entries()),
   });
 
   if (!rid || !reservationId || !status) {

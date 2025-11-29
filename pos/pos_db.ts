@@ -109,6 +109,14 @@ function kOrderItemPrefix(oid: string): Deno.KvKey {
   return ["pos", "order_item", oid];
 }
 
+/**
+ * KEY להושבה לפי שולחן – חייב להיות זהה למה שמשמש ב-seating_service.ts
+ * כדי שנוכל לנקות אותו כשסוגרים צ'ק, ולמנוע table_already_seated על שולחן שכבר נסגר.
+ */
+function kSeat(restaurantId: string, table: number | string): Deno.KvKey {
+  return ["seat", "by_table", restaurantId, Number(table)];
+}
+
 /* ---------- Categories ---------- */
 
 export async function listCategories(
@@ -368,7 +376,13 @@ export async function listOpenOrdersByRestaurant(
   return out;
 }
 
-/** סגירת הזמנה לשולחן: משנה סטטוס ל-closed ומסיר מפתח order_by_table */
+/**
+ * סגירת הזמנה לשולחן:
+ * - משנה סטטוס ל-closed
+ * - מסיר מפתח order_by_table
+ * - בנוסף: מנקה גם את רשומת ה-seating על השולחן,
+ *   כדי שהמארחת תוכל להושיב שוב (למנוע table_already_seated אחרי שהמלצר סגר).
+ */
 export async function closeOrderForTable(
   restaurantId: string,
   table: number,
@@ -394,5 +408,14 @@ export async function closeOrderForTable(
 
   const res = await tx.commit();
   if (!res.ok) return null;
+
+  // בנוסף לסגירת הצ'ק, נשחרר את השולחן ממערכת ההושבה (seating_service)
+  // כך שהמארחת תוכל להושיב מחדש על אותו שולחן.
+  try {
+    await kv.delete(kSeat(restaurantId, table));
+  } catch {
+    // לא נכשיל את סגירת ההזמנה בגלל שגיאה לא קריטית בניקוי ה-seating
+  }
+
   return updated;
 }
