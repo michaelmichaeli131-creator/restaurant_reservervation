@@ -3,7 +3,7 @@
 
 import { Router } from "@oak/oak";
 import { requireOwner, requireStaff } from "../lib/auth.ts";
-import { kv, getRestaurant, listReservationsFor } from "../database.ts";
+import { kv, getRestaurant } from "../database.ts";
 import { render } from "../lib/view.ts";
 import {
   computeAllTableStatuses,
@@ -46,8 +46,6 @@ interface TableStatus {
   occupiedSince?: number;
   itemsReady?: number;
   itemsPending?: number;
-  // חדש: שם האורח היושב בשולחן (אם יש הזמנה שהגיעה/הושבה)
-  guestName?: string | null;
 }
 
 interface FloorPlan {
@@ -211,52 +209,13 @@ ownerFloorRouter.get(
 
     const floorPlan = floorPlanRes.value as FloorPlan;
 
-    // Compute live table statuses (empty/occupied/reserved/dirty)
-    const baseStatuses = await computeAllTableStatuses(
+    // Compute live table statuses
+    const tableStatuses = await computeAllTableStatuses(
       restaurantId,
       floorPlan.tables
     );
 
-    // ✅ הוספת guestName לכל שולחן על בסיס reservations שהגיעו/הושבו היום
-    const d = new Date();
-    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-    const allRes = await listReservationsFor(restaurantId, date);
-    const nameByTable = new Map<number, string>();
-
-    for (const res of (allRes ?? []) as any[]) {
-      const st = String(res.status ?? "").toLowerCase();
-      // נניח ש־arrived / seated = ישבו בשולחן
-      if (st !== "arrived" && st !== "seated") continue;
-
-      const tn = Number(
-        res.tableNumber ??
-        res.table ??
-        res.tableNo ??
-        res.table_id ??
-        0
-      );
-      if (!tn || !Number.isFinite(tn)) continue;
-
-      const fullName = (res.firstName && res.lastName)
-        ? `${res.firstName} ${res.lastName}`
-        : (res.name ?? "");
-
-      if (fullName) {
-        nameByTable.set(tn, String(fullName));
-      }
-    }
-
-    const tableStatuses: TableStatus[] = (baseStatuses as TableStatus[]).map((ts) => {
-      const tn = Number(ts.tableNumber);
-      const gName = nameByTable.get(tn) ?? null;
-      return {
-        ...ts,
-        guestName: gName,
-      };
-    });
-
-    // Return floor plan with live statuses + guestName
+    // Return floor plan with live statuses
     ctx.response.body = {
       ...floorPlan,
       tableStatuses,
