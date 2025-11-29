@@ -1,14 +1,9 @@
 // routes/owner_floor.ts
-// Floor plan management for restaurant owners + live statuses for host screen
+// Floor plan management for restaurant owners
 
 import { Router } from "@oak/oak";
 import { requireOwner, requireStaff } from "../lib/auth.ts";
-import {
-  kv,
-  getRestaurant,
-  listReservationsFor,
-  getReservationById,
-} from "../database.ts";
+import { kv, getRestaurant, getReservationById } from "../database.ts";
 import { render } from "../lib/view.ts";
 import {
   computeAllTableStatuses,
@@ -19,6 +14,8 @@ import {
   updateFloorSection,
   deleteFloorSection,
 } from "../services/floor_service.ts";
+
+import { getSeatingForTable } from "../services/seating_service.ts";
 
 export const ownerFloorRouter = new Router();
 
@@ -41,7 +38,7 @@ interface FloorTable {
 }
 
 // Live table status computed from orders
-export interface TableStatus {
+interface TableStatus {
   tableId: string;
   tableNumber: number;
   status: "empty" | "occupied" | "reserved" | "dirty";
@@ -51,7 +48,7 @@ export interface TableStatus {
   occupiedSince?: number;
   itemsReady?: number;
   itemsPending?: number;
-  // חדש: שם האורח היושב בשולחן (אם קיים Seating + Reservation)
+  // חדש: שם האורח היושב בשולחן (אם יש הזמנה)
   guestName?: string | null;
 }
 
@@ -64,20 +61,6 @@ interface FloorPlan {
   tables: FloorTable[];
   createdAt: number;
   updatedAt: number;
-}
-
-/** SeatingInfo – העתק מה־services/seating_service.ts (משמש אותנו לקריאה מ-KV) */
-interface SeatingInfo {
-  restaurantId: string;
-  table: number;
-  reservationId: string;
-  seatedAt: number;
-  durationMinutes: number;
-}
-
-/** key לחיפוש Seating לפי שולחן – חייב להיות זהה ל-seating_service.ts */
-function kSeat(restaurantId: string, table: number): Deno.KvKey {
-  return ["seat", "by_table", restaurantId, table];
 }
 
 /* =================== UI Routes =================== */
@@ -133,8 +116,8 @@ ownerFloorRouter.post(
       return;
     }
 
-    const body = await ctx.request.body().value;
-    const { status } = body;
+    const body = await ctx.request.body({ type: "json" }).value;
+    const { status } = body as { status?: string };
 
     if (!status || !["empty", "occupied", "reserved", "dirty"].includes(status)) {
       ctx.response.status = 400;
@@ -150,18 +133,18 @@ ownerFloorRouter.post(
       return;
     }
 
-    // Verify user has access (owner can access any, staff/manager can access their own)
+    // Verify user has access
     if (user.role === "owner") {
       // Owner can update any restaurant's tables
     } else if (user.role === "manager" || user.role === "staff") {
-      // Manager/staff – כרגע מותר (אפשר לחזק בהמשך)
+      // Manager/staff: אפשר להקשיח בעתיד לפי שיוך
     } else {
       ctx.response.status = 403;
       ctx.response.body = { error: "Forbidden" };
       return;
     }
 
-    // Store table status update (מצב לוגי בלבד – בנוסף למידע מההזמנות/צ׳קים)
+    // Store table status update
     const statusKey = toKey("table_status", restaurantId, tableId);
     const statusData = {
       tableId,
@@ -176,7 +159,7 @@ ownerFloorRouter.post(
   },
 );
 
-// GET /api/floor-plans/:restaurantId - Get floor plan with live table statuses + guestName
+// GET /api/floor-plans/:restaurantId - Get floor plan with live table statuses
 ownerFloorRouter.get(
   "/api/floor-plans/:restaurantId",
   async (ctx) => {
@@ -229,39 +212,41 @@ ownerFloorRouter.get(
 
     const floorPlan = floorPlanRes.value as FloorPlan;
 
-    // Compute live table statuses (empty/occupied/reserved/dirty) מה-POS
+    // Compute live table statuses (empty/occupied/reserved/dirty)
     const baseStatuses = await computeAllTableStatuses(
       restaurantId,
       floorPlan.tables,
     );
 
-    // --- הוספת guestName על בסיס Seating + Reservation ---
+    // ✅ הוספת guestName לכל שולחן על בסיס seating_service + reservation
     const tableStatuses: TableStatus[] = [];
-    for (const tsBase of baseStatuses as TableStatus[]) {
-      const tn = Number(tsBase.tableNumber);
+
+    for (const ts of baseStatuses as TableStatus[]) {
       let guestName: string | null = null;
 
-      if (Number.isFinite(tn) && tn > 0) {
-        // נשלוף Seating מה-KV אם קיים
-        const seatRes = await kv.get<SeatingInfo>(kSeat(restaurantId, tn));
-        const seat = seatRes.value;
-
-        if (seat && seat.reservationId) {
-          const res = await getReservationById(seat.reservationId);
-          if (res) {
-            const fullName = (res.firstName && res.lastName)
-              ? `${res.firstName} ${res.lastName}`
-              : (res.name ?? "");
-            if (fullName) {
-              guestName = String(fullName);
+      try {
+        const tn = Number(ts.tableNumber);
+        if (Number.isFinite(tn)) {
+          const seating = await getSeatingForTable(restaurantId, tn);
+          if (seating && seating.reservationId) {
+            const resv = await getReservationById(seating.reservationId);
+            if (resv) {
+              const r: any = resv;
+              const fullName =
+                r.firstName && r.lastName
+                  ? `${r.firstName} ${r.lastName}`
+                  : (r.name ?? r.customerName ?? "");
+              if (fullName) guestName = String(fullName);
             }
           }
         }
+      } catch {
+        // לא מפילים את ה-API על שגיאת שם – פשוט משאירים guestName ריק
       }
 
       tableStatuses.push({
-        ...tsBase,
-        guestName,
+        ...ts,
+        guestName: guestName ?? null,
       });
     }
 
@@ -273,7 +258,7 @@ ownerFloorRouter.get(
   },
 );
 
-// NEW: GET /api/floor-plans/:restaurantId/statuses - only table statuses (לרענון קל)
+// NEW: GET /api/floor-plans/:restaurantId/statuses - only table statuses (for live refresh)
 ownerFloorRouter.get(
   "/api/floor-plans/:restaurantId/statuses",
   async (ctx) => {
@@ -322,7 +307,7 @@ ownerFloorRouter.get(
 
     const floorPlan = floorPlanRes.value as FloorPlan;
 
-    // Compute live table statuses
+    // Compute live table statuses בלבד (למשל למסך מלצרים)
     const tableStatuses = await computeAllTableStatuses(
       restaurantId,
       floorPlan.tables,
@@ -357,7 +342,7 @@ ownerFloorRouter.post(
     }
 
     // Parse request body
-    const body = await ctx.request.body().value;
+    const body = await ctx.request.body({ type: "json" }).value as any;
 
     // Validate floor plan data
     if (!body.name || !body.gridRows || !body.gridCols || !Array.isArray(body.tables)) {
@@ -395,11 +380,7 @@ ownerFloorRouter.post(
 
     // Also create index for listing
     const indexKey = toKey("floor_plan_by_restaurant", restaurantId, floorPlan.id);
-    await kv.set(indexKey, {
-      id: floorPlan.id,
-      name: floorPlan.name,
-      updatedAt: now,
-    });
+    await kv.set(indexKey, { id: floorPlan.id, name: floorPlan.name, updatedAt: now });
 
     // Create table mappings (tableNumber → tableId) for POS lookup
     await setTableMappingsFromFloorPlan(
@@ -408,10 +389,7 @@ ownerFloorRouter.post(
     );
 
     // Compute and return live statuses
-    const tableStatuses = await computeAllTableStatuses(
-      restaurantId,
-      body.tables,
-    );
+    const tableStatuses = await computeAllTableStatuses(restaurantId, body.tables);
 
     ctx.response.status = 200;
     ctx.response.body = {
@@ -475,7 +453,7 @@ ownerFloorRouter.post(
       return;
     }
 
-    const body = await ctx.request.body().value;
+    const body = await ctx.request.body({ type: "json" }).value as any;
     const { name, gridRows, gridCols, displayOrder } = body;
 
     if (!name || !gridRows || !gridCols) {
@@ -524,7 +502,7 @@ ownerFloorRouter.put(
       return;
     }
 
-    const body = await ctx.request.body().value;
+    const body = await ctx.request.body({ type: "json" }).value as any;
     const updated = await updateFloorSection(restaurantId, sectionId, body);
 
     if (!updated) {
