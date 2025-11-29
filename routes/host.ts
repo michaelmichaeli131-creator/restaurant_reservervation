@@ -27,8 +27,9 @@ async function computeAllTableStatuses(
   tablesFlat: Array<{ id: string; tableNumber: number }>,
 ) {
   const openOrders = await listOpenOrdersByRestaurant(rid);
+  // חזרה לשדה tableNumber (כמו אצלך בפו״ס – זה מה שעבד לך קודם)
   const occupiedByTable = new Set<number>(
-    (openOrders ?? []).map((o: any) => Number(o.table)),
+    (openOrders ?? []).map((o: any) => Number(o.tableNumber)),
   );
 
   return tablesFlat.map((t) => ({
@@ -136,6 +137,28 @@ hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
   ctx.response.body = { reservations };
 });
 
+/** עוזר כללי לקריאת body (תומך ב-json וגם form) */
+async function readBody(ctx: any): Promise<Record<string, unknown>> {
+  try {
+    const body = (ctx.request as any).body;
+    if (!body) return {};
+    if (body.type === "json") {
+      return await body.value;
+    }
+    if (body.type === "form" || body.type === "form-data") {
+      const form = await body.value;
+      const obj: Record<string, unknown> = {};
+      for (const [k, v] of form.entries()) {
+        obj[k] = v;
+      }
+      return obj;
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}
+
 /** POST /api/host/seat – הושבת הזמנה לשולחן יחיד */
 hostRouter.post("/api/host/seat", async (ctx) => {
   if (!requireStaff(ctx)) return;
@@ -148,19 +171,14 @@ hostRouter.post("/api/host/seat", async (ctx) => {
     return;
   }
 
-  let data: any = {};
-  try {
-    const body = ctx.request.body();
-    if (body && body.type === "json") {
-      data = await body.value;
-    } else {
-      data = {};
-    }
-  } catch {
-    data = {};
-  }
+  const data = await readBody(ctx);
 
-  const rid = (data.restaurantId ?? data.rid ?? "").toString();
+  const rid = (
+    data.restaurantId ??
+    data.rid ??
+    ctx.params?.rid ??
+    ""
+  ).toString();
   const reservationId = (data.reservationId ?? "").toString();
   const tableNumber = Number(data.table ?? data.tableNumber ?? 0);
 
@@ -213,20 +231,16 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
     return;
   }
 
-  let data: any = {};
-  try {
-    const body = ctx.request.body();
-    if (body && body.type === "json") {
-      data = await body.value;
-    } else {
-      data = {};
-    }
-  } catch {
-    data = {};
-  }
+  const data = await readBody(ctx);
 
-  const rid = (data.restaurantId ?? data.rid ?? "").toString();
+  const rid = (
+    data.restaurantId ??
+    data.rid ??
+    ctx.params?.rid ??
+    ""
+  ).toString();
   const reservationId = (data.reservationId ?? "").toString();
+
   const tablesRaw = Array.isArray(data.tables) ? data.tables : [];
   const tables = tablesRaw
     .map((t: any) => Number(t))
@@ -293,19 +307,14 @@ hostRouter.post("/api/host/reservation/status", async (ctx) => {
     return;
   }
 
-  let data: any = {};
-  try {
-    const body = ctx.request.body();
-    if (body && body.type === "json") {
-      data = await body.value;
-    } else {
-      data = {};
-    }
-  } catch {
-    data = {};
-  }
+  const data = await readBody(ctx);
 
-  const rid = (data.restaurantId ?? data.rid ?? "").toString();
+  const rid = (
+    data.restaurantId ??
+    data.rid ??
+    ctx.params?.rid ??
+    ""
+  ).toString();
   const reservationId = (data.reservationId ?? "").toString();
   const status = (data.status ?? "").toString().toLowerCase();
 

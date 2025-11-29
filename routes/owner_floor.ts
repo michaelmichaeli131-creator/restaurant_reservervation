@@ -114,8 +114,10 @@ ownerFloorRouter.post(
       return;
     }
 
-    const body = ctx.request.body();
-    const json = body && body.type === "json" ? await body.value : {};
+    const bodyObj = (ctx.request as any).body;
+    const json = bodyObj && bodyObj.type === "json"
+      ? await bodyObj.value
+      : {};
     const { status } = json as { status?: string };
 
     if (!status || !["empty", "occupied", "reserved", "dirty"].includes(status)) {
@@ -353,7 +355,7 @@ ownerFloorRouter.post(
       return;
     }
 
-    const bodyObj = ctx.request.body();
+    const bodyObj = (ctx.request as any).body;
     const body = bodyObj && bodyObj.type === "json" ? await bodyObj.value : {};
 
     // Validate floor plan data
@@ -479,7 +481,7 @@ ownerFloorRouter.post(
       return;
     }
 
-    const bodyObj = ctx.request.body();
+    const bodyObj = (ctx.request as any).body;
     const body = bodyObj && bodyObj.type === "json" ? await bodyObj.value : {};
     const { name, gridRows, gridCols, displayOrder } = body as {
       name?: string;
@@ -536,7 +538,7 @@ ownerFloorRouter.put(
       return;
     }
 
-    const bodyObj = ctx.request.body();
+    const bodyObj = (ctx.request as any).body;
     const body = bodyObj && bodyObj.type === "json" ? await bodyObj.value : {};
     const updated = await updateFloorSection(restaurantId, sectionId, body);
 
