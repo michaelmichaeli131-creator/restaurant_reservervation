@@ -1,7 +1,7 @@
-// src/routes/owner_floor.ts
-// Floor plan management for restaurant owners + live status for host/waiter
+// routes/owner_floor.ts
+// Floor plan management for restaurant owners
 
-import { Router } from "jsr:@oak/oak";
+import { Router } from "@oak/oak";
 import { requireOwner, requireStaff } from "../lib/auth.ts";
 import { kv, getRestaurant, listReservationsFor } from "../database.ts";
 import { render } from "../lib/view.ts";
@@ -46,7 +46,7 @@ interface TableStatus {
   occupiedSince?: number;
   itemsReady?: number;
   itemsPending?: number;
-  // חדש: שם האורח שיושב בשולחן (אם קיים)
+  // חדש: שם האורח היושב בשולחן (אם יש הזמנה שהגיעה/הושבה)
   guestName?: string | null;
 }
 
@@ -131,11 +131,12 @@ ownerFloorRouter.post(
       return;
     }
 
-    // Verify user has access
+    // Verify user has access (owner can access any, staff/manager can access their own)
     if (user.role === "owner") {
       // Owner can update any restaurant's tables
     } else if (user.role === "manager" || user.role === "staff") {
-      // Manager/staff - נניח שיש להם גישה (אפשר לחזק בהמשך לפי שדה restaurantId על המשתמש)
+      // Manager/staff can only update tables at their assigned restaurant
+      // For now, allow if they're logged in (could enhance with restaurant assignment later)
     } else {
       ctx.response.status = 403;
       ctx.response.body = { error: "Forbidden" };
@@ -157,11 +158,11 @@ ownerFloorRouter.post(
   }
 );
 
-// GET /api/floor-plans/:restaurantId - Get floor plan with live table statuses + guestName
+// GET /api/floor-plans/:restaurantId - Get floor plan with live table statuses
 ownerFloorRouter.get(
   "/api/floor-plans/:restaurantId",
   async (ctx) => {
-    // כאן נרצה לאפשר גם למלצרים/מארחת לראות את מפת המסעדה (לא רק בעלים)
+    // *** שינוי: לפתוח גם ל-manager/staff, לא רק owner ***
     if (!requireStaff(ctx)) return;
 
     const restaurantId = ctx.params.restaurantId;
@@ -181,8 +182,18 @@ ownerFloorRouter.get(
       return;
     }
 
-    // אם זה בעלים – נוודא שזה באמת שלו
-    if (user.role === "owner" && (restaurant as any).ownerId && (restaurant as any).ownerId !== user.id) {
+    // הרשאות:
+    // owner – חייב להיות הבעלים של המסעדה
+    // manager/staff – כרגע מותר (בהמשך אפשר לסנן לפי שיוך למסעדה)
+    if (user.role === "owner") {
+      if ((restaurant as any).ownerId !== user.id) {
+        ctx.response.status = 403;
+        ctx.response.body = { error: "Forbidden" };
+        return;
+      }
+    } else if (user.role === "manager" || user.role === "staff") {
+      // allowed
+    } else {
       ctx.response.status = 403;
       ctx.response.body = { error: "Forbidden" };
       return;
@@ -190,7 +201,7 @@ ownerFloorRouter.get(
 
     // Get floor plan
     const floorPlanKey = toKey("floor_plan", restaurantId);
-    const floorPlanRes = await kv.get<FloorPlan>(floorPlanKey);
+    const floorPlanRes = await kv.get(floorPlanKey);
 
     if (!floorPlanRes.value) {
       ctx.response.status = 404;
@@ -200,13 +211,13 @@ ownerFloorRouter.get(
 
     const floorPlan = floorPlanRes.value as FloorPlan;
 
-    // Compute live table statuses (empty/occupied/...)
+    // Compute live table statuses (empty/occupied/reserved/dirty)
     const baseStatuses = await computeAllTableStatuses(
       restaurantId,
       floorPlan.tables
     );
 
-    // ✅ הוספת שם האורח (guestName) לכל שולחן על בסיס ההזמנות שהגיעו/הושבו
+    // ✅ הוספת guestName לכל שולחן על בסיס reservations שהגיעו/הושבו היום
     const d = new Date();
     const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
@@ -215,7 +226,7 @@ ownerFloorRouter.get(
 
     for (const res of (allRes ?? []) as any[]) {
       const st = String(res.status ?? "").toLowerCase();
-      // נניח שהזמנה בסטטוס arrived/seated מייצגת שולחן עם אורחים
+      // נניח ש־arrived / seated = ישבו בשולחן
       if (st !== "arrived" && st !== "seated") continue;
 
       const tn = Number(
@@ -245,11 +256,71 @@ ownerFloorRouter.get(
       };
     });
 
-    // Return floor plan with live statuses, כולל guestName
+    // Return floor plan with live statuses + guestName
     ctx.response.body = {
       ...floorPlan,
       tableStatuses,
     };
+  }
+);
+
+// NEW: GET /api/floor-plans/:restaurantId/statuses - only table statuses (for live refresh)
+ownerFloorRouter.get(
+  "/api/floor-plans/:restaurantId/statuses",
+  async (ctx) => {
+    if (!requireStaff(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    if (!restaurantId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID" };
+      return;
+    }
+
+    const user = ctx.state.user;
+
+    // Verify restaurant exists
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant) {
+      ctx.response.status = 404;
+      ctx.response.body = { error: "Restaurant not found" };
+      return;
+    }
+
+    if (user.role === "owner") {
+      if ((restaurant as any).ownerId !== user.id) {
+        ctx.response.status = 403;
+        ctx.response.body = { error: "Forbidden" };
+        return;
+      }
+    } else if (user.role === "manager" || user.role === "staff") {
+      // allowed
+    } else {
+      ctx.response.status = 403;
+      ctx.response.body = { error: "Forbidden" };
+      return;
+    }
+
+    // Get floor plan
+    const floorPlanKey = toKey("floor_plan", restaurantId);
+    const floorPlanRes = await kv.get(floorPlanKey);
+
+    if (!floorPlanRes.value) {
+      ctx.response.status = 404;
+      ctx.response.body = { error: "Floor plan not found" };
+      return;
+    }
+
+    const floorPlan = floorPlanRes.value as FloorPlan;
+
+    // Compute live table statuses
+    const tableStatuses = await computeAllTableStatuses(
+      restaurantId,
+      floorPlan.tables
+    );
+
+    ctx.response.status = 200;
+    ctx.response.body = tableStatuses;
   }
 );
 
@@ -297,7 +368,7 @@ ownerFloorRouter.post(
 
     // Check if floor plan exists
     const floorPlanKey = toKey("floor_plan", restaurantId);
-    const existing = await kv.get<FloorPlan>(floorPlanKey);
+    const existing = await kv.get(floorPlanKey);
 
     const floorPlan: FloorPlan = {
       id: existing.value ? (existing.value as any).id : `fp_${now}`,
