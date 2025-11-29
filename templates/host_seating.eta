@@ -127,7 +127,12 @@
       }
 
       try {
-        const res = await fetch("/api/host/reservation/status", {
+        const url = new URL("/api/host/reservation/status", window.location.origin);
+        url.searchParams.set("restaurantId", rid);
+        url.searchParams.set("reservationId", resId);
+        url.searchParams.set("status", status);
+
+        const res = await fetch(url.toString(), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -206,7 +211,6 @@
       const tables = Array.isArray(plan.tables) ? plan.tables : [];
       const tableStatuses = Array.isArray(plan.tableStatuses) ? plan.tableStatuses : [];
 
-      // statusMap לסטטוס, guestMap לשם האורח (מגיע מה־API דרך owner_floor.ts)
       const statusMap = new Map();
       const guestMap = new Map();
 
@@ -290,7 +294,7 @@
     }
 
     const tables = Array.from(state.selectedTables.values());
-    const guestName = getSelectedReservationName();  // 🟦 זה השם שנשלח לשרת
+    const guestName = getSelectedReservationName();
 
     const msg = tables.length === 1
       ? `להושיב את ההזמנה לשולחן ${tables[0]}?`
@@ -299,29 +303,41 @@
 
     try {
       let res, data;
+
       if (tables.length === 1) {
-        res = await fetch("/api/host/seat", {
+        const url = new URL("/api/host/seat", window.location.origin);
+        url.searchParams.set("restaurantId", rid);
+        url.searchParams.set("reservationId", state.selectedResId);
+        url.searchParams.set("table", String(tables[0]));
+
+        res = await fetch(url.toString(), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             restaurantId: rid,
             reservationId: state.selectedResId,
             table: tables[0],
-            guestName,       // 🟦 חדש – שולחים שם לשרת
+            guestName,
           }),
         });
       } else {
-        res = await fetch("/api/host/seat-multi", {
+        const url = new URL("/api/host/seat-multi", window.location.origin);
+        url.searchParams.set("restaurantId", rid);
+        url.searchParams.set("reservationId", state.selectedResId);
+        url.searchParams.set("tables", tables.join(","));
+
+        res = await fetch(url.toString(), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             restaurantId: rid,
             reservationId: state.selectedResId,
             tables,
-            guestName,       // 🟦 גם כאן
+            guestName,
           }),
         });
       }
+
       data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
         alert("שגיאה בהושבה: " + (data.error || res.status));
