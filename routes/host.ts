@@ -25,15 +25,28 @@ async function computeAllTableStatuses(
   }));
 }
 
-/** טעינת כל ההזמנות של היום למסך המארחת, בפורמט נוח לתצוגה */
+/** טעינת כל ההזמנות "הפעילות" של היום למסך המארחת, בפורמט נוח לתצוגה */
 async function loadHostReservations(rid: string) {
   const d = new Date();
   const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
   const all = await listReservationsFor(rid, date);
-  const list = (all ?? []); // כרגע בלי סינון סטטוסים
 
-  return list.map((res: any) => {
+  // נשאיר רק הזמנות שעדיין רלוונטיות להושבה
+  const active = (all ?? []).filter((res: any) => {
+    const st = String(res.status ?? "new").toLowerCase();
+    const doneStatuses = [
+      "arrived",
+      "seated",
+      "cancelled",
+      "canceled",
+      "no_show",
+      "noshow",
+    ];
+    return !doneStatuses.includes(st);
+  });
+
+  return active.map((res: any) => {
     const name = (res.firstName && res.lastName)
       ? `${res.firstName} ${res.lastName}`
       : (res.name ?? "");
@@ -48,7 +61,7 @@ async function loadHostReservations(rid: string) {
 
 /** GET /host/:rid – עמוד המארחת עם מפת המסעדה והזמנות להיום */
 hostRouter.get("/host/:rid", async (ctx) => {
-  if (!requireStaff(ctx)) return;  // רק משתמש מחובר
+  if (!requireStaff(ctx)) return; // רק משתמש מחובר
 
   const user = ctx.state.user;
   // רק owner/manager – מלצר לא נכנס למסך מארחת
@@ -62,7 +75,7 @@ hostRouter.get("/host/:rid", async (ctx) => {
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound, "restaurant not found");
 
-  // הזמנות להיום
+  // הזמנות להיום (רק פעיליות)
   const reservations = await loadHostReservations(rid);
 
   // מפת רצפה
@@ -119,7 +132,7 @@ hostRouter.post("/api/host/seat", async (ctx) => {
     return;
   }
 
-  // ✅ כאן הפיקס: קוראים JSON כמו בשאר הפרויקט
+  // קריאת JSON (כמו בשאר הפרויקט)
   let data: any = {};
   try {
     data = await ctx.request.body.json();

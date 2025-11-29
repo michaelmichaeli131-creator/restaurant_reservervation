@@ -130,7 +130,6 @@
         btn.type = "button";
         btn.className = "table " + status;
 
-        // ✅ כאן מוסיפים גם גודל שולחן
         const capText = seats > 0 ? (seats + " מקומות") : "";
         btn.innerHTML = `
           <div class="table-num">${num}</div>
@@ -182,13 +181,30 @@
         return;
       }
 
+      // עדכון סטטוס שולחן בצד לקוח
       if (btnEl) {
         btnEl.classList.remove("empty");
         btnEl.classList.add("occupied");
       }
 
+      // הסרת ההזמנה מהרשימה כדי שלא יושיבו אותה שוב
       const selected = document.querySelector('input[name="resv"]:checked');
-      if (selected) selected.checked = false;
+      if (selected) {
+        const li = selected.closest("li");
+        const ul = li && li.parentElement;
+        if (li && ul) {
+          ul.removeChild(li);
+
+          // אם הרשימה התרוקנה – נציג הודעת "אין הזמנות"
+          if (!ul.querySelector("li")) {
+            const p = document.createElement("p");
+            p.className = "muted";
+            p.textContent = "אין הזמנות להיום למסעדה הזו.";
+            ul.replaceWith(p);
+          }
+        }
+      }
+
       state.selectedResId = null;
 
       alert("ההזמנה הושבה לשולחן " + tableNumber + " ונפתח צ׳ק במסעדה.");
@@ -311,7 +327,6 @@
     text-align:center;
   }
 
-  /* ✅ מספר שולחן + קיבולת */
   .table-num{
     font-size: 16px;
     font-weight: 700;
