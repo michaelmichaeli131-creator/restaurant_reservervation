@@ -30,6 +30,7 @@ async function computeAllTableStatuses(
   const occupiedByTable = new Set<number>(
     (openOrders ?? []).map((o: any) => Number(o.table)),
   );
+
   return tablesFlat.map((t) => ({
     tableId: t.id,
     tableNumber: t.tableNumber,
@@ -40,9 +41,10 @@ async function computeAllTableStatuses(
 /** טעינת כל ההזמנות "הפעילות" של היום למסך המארחת, בפורמט נוח לתצוגה */
 async function loadHostReservations(rid: string) {
   const d = new Date();
-  const date = `${d.getFullYear()}-${
-    String(d.getMonth() + 1).padStart(2, "0")
-  }-${String(d.getDate()).padStart(2, "0")}`;
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+    2,
+    "0",
+  )}-${String(d.getDate()).padStart(2, "0")}`;
 
   const all = await listReservationsFor(rid, date);
 
@@ -146,10 +148,14 @@ hostRouter.post("/api/host/seat", async (ctx) => {
     return;
   }
 
-  // קריאת JSON (כמו בשאר הפרויקט)
   let data: any = {};
   try {
-    data = await ctx.request.body.json();
+    const body = ctx.request.body();
+    if (body && body.type === "json") {
+      data = await body.value;
+    } else {
+      data = {};
+    }
   } catch {
     data = {};
   }
@@ -209,7 +215,12 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
 
   let data: any = {};
   try {
-    data = await ctx.request.body.json();
+    const body = ctx.request.body();
+    if (body && body.type === "json") {
+      data = await body.value;
+    } else {
+      data = {};
+    }
   } catch {
     data = {};
   }
@@ -217,9 +228,9 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
   const rid = (data.restaurantId ?? data.rid ?? "").toString();
   const reservationId = (data.reservationId ?? "").toString();
   const tablesRaw = Array.isArray(data.tables) ? data.tables : [];
-  const tables = tablesRaw.map((t: any) => Number(t)).filter((n: number) =>
-    Number.isFinite(n) && n > 0
-  );
+  const tables = tablesRaw
+    .map((t: any) => Number(t))
+    .filter((n: number) => Number.isFinite(n) && n > 0);
 
   if (!rid || !reservationId || !tables.length) {
     ctx.response.status = Status.BadRequest;
@@ -284,7 +295,12 @@ hostRouter.post("/api/host/reservation/status", async (ctx) => {
 
   let data: any = {};
   try {
-    data = await ctx.request.body.json();
+    const body = ctx.request.body();
+    if (body && body.type === "json") {
+      data = await body.value;
+    } else {
+      data = {};
+    }
   } catch {
     data = {};
   }
@@ -312,3 +328,5 @@ hostRouter.post("/api/host/reservation/status", async (ctx) => {
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = { ok: true };
 });
+
+export default hostRouter;

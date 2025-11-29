@@ -93,7 +93,7 @@ ownerFloorRouter.get(
       restaurantId,
       restaurant: restaurant.value,
     });
-  }
+  },
 );
 
 /* =================== API Routes =================== */
@@ -114,8 +114,9 @@ ownerFloorRouter.post(
       return;
     }
 
-    const body = await ctx.request.body.json();
-    const { status } = body;
+    const body = ctx.request.body();
+    const json = body && body.type === "json" ? await body.value : {};
+    const { status } = json as { status?: string };
 
     if (!status || !["empty", "occupied", "reserved", "dirty"].includes(status)) {
       ctx.response.status = 400;
@@ -155,7 +156,7 @@ ownerFloorRouter.post(
 
     ctx.response.status = 200;
     ctx.response.body = { success: true, status: statusData };
-  }
+  },
 );
 
 // GET /api/floor-plans/:restaurantId - Get floor plan with live table statuses
@@ -214,12 +215,15 @@ ownerFloorRouter.get(
     // Compute live table statuses (empty/occupied/reserved/dirty)
     const baseStatuses = await computeAllTableStatuses(
       restaurantId,
-      floorPlan.tables
+      floorPlan.tables,
     );
 
     // ✅ הוספת guestName לכל שולחן על בסיס reservations שהגיעו/הושבו היום
     const d = new Date();
-    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+      2,
+      "0",
+    )}-${String(d.getDate()).padStart(2, "0")}`;
 
     const allRes = await listReservationsFor(restaurantId, date);
     const nameByTable = new Map<number, string>();
@@ -231,10 +235,10 @@ ownerFloorRouter.get(
 
       const tn = Number(
         res.tableNumber ??
-        res.table ??
-        res.tableNo ??
-        res.table_id ??
-        0
+          res.table ??
+          res.tableNo ??
+          res.table_id ??
+          0,
       );
       if (!tn || !Number.isFinite(tn)) continue;
 
@@ -247,21 +251,23 @@ ownerFloorRouter.get(
       }
     }
 
-    const tableStatuses: TableStatus[] = (baseStatuses as TableStatus[]).map((ts) => {
-      const tn = Number(ts.tableNumber);
-      const gName = nameByTable.get(tn) ?? null;
-      return {
-        ...ts,
-        guestName: gName,
-      };
-    });
+    const tableStatuses: TableStatus[] = (baseStatuses as TableStatus[]).map(
+      (ts) => {
+        const tn = Number(ts.tableNumber);
+        const gName = nameByTable.get(tn) ?? null;
+        return {
+          ...ts,
+          guestName: gName,
+        };
+      },
+    );
 
     // Return floor plan with live statuses + guestName
     ctx.response.body = {
       ...floorPlan,
       tableStatuses,
     };
-  }
+  },
 );
 
 // NEW: GET /api/floor-plans/:restaurantId/statuses - only table statuses (for live refresh)
@@ -316,12 +322,12 @@ ownerFloorRouter.get(
     // Compute live table statuses
     const tableStatuses = await computeAllTableStatuses(
       restaurantId,
-      floorPlan.tables
+      floorPlan.tables,
     );
 
     ctx.response.status = 200;
     ctx.response.body = tableStatuses;
-  }
+  },
 );
 
 // POST /api/floor-plans/:restaurantId - Save/update floor plan with table mappings
@@ -347,18 +353,25 @@ ownerFloorRouter.post(
       return;
     }
 
-    // Parse request body
-    const body = await ctx.request.body.json();
+    const bodyObj = ctx.request.body();
+    const body = bodyObj && bodyObj.type === "json" ? await bodyObj.value : {};
 
     // Validate floor plan data
-    if (!body.name || !body.gridRows || !body.gridCols || !Array.isArray(body.tables)) {
+    if (
+      !body.name || !body.gridRows || !body.gridCols ||
+      !Array.isArray(body.tables)
+    ) {
       ctx.response.status = 400;
       ctx.response.body = { error: "Invalid floor plan data" };
       return;
     }
 
     // Validate that all tables have tableNumber
-    if (!body.tables.every((t: any) => t.id && typeof t.tableNumber === "number")) {
+    if (
+      !body.tables.every((t: any) =>
+        t.id && typeof t.tableNumber === "number"
+      )
+    ) {
       ctx.response.status = 400;
       ctx.response.body = { error: "All tables must have id and tableNumber" };
       return;
@@ -386,16 +399,23 @@ ownerFloorRouter.post(
 
     // Also create index for listing
     const indexKey = toKey("floor_plan_by_restaurant", restaurantId, floorPlan.id);
-    await kv.set(indexKey, { id: floorPlan.id, name: floorPlan.name, updatedAt: now });
+    await kv.set(indexKey, {
+      id: floorPlan.id,
+      name: floorPlan.name,
+      updatedAt: now,
+    });
 
     // Create table mappings (tableNumber → tableId) for POS lookup
     await setTableMappingsFromFloorPlan(
       restaurantId,
-      body.tables.map((t: any) => ({ id: t.id, tableNumber: t.tableNumber }))
+      body.tables.map((t: any) => ({ id: t.id, tableNumber: t.tableNumber })),
     );
 
     // Compute and return live statuses
-    const tableStatuses = await computeAllTableStatuses(restaurantId, body.tables);
+    const tableStatuses = await computeAllTableStatuses(
+      restaurantId,
+      body.tables,
+    );
 
     ctx.response.status = 200;
     ctx.response.body = {
@@ -403,7 +423,7 @@ ownerFloorRouter.post(
       floorPlan,
       tableStatuses,
     };
-  }
+  },
 );
 
 /* =================== FLOOR SECTIONS =================== */
@@ -433,7 +453,7 @@ ownerFloorRouter.get(
 
     const sections = await listFloorSections(restaurantId);
     ctx.response.body = sections;
-  }
+  },
 );
 
 // POST /api/floor-sections/:restaurantId - Create section
@@ -459,12 +479,20 @@ ownerFloorRouter.post(
       return;
     }
 
-    const body = await ctx.request.body.json();
-    const { name, gridRows, gridCols, displayOrder } = body;
+    const bodyObj = ctx.request.body();
+    const body = bodyObj && bodyObj.type === "json" ? await bodyObj.value : {};
+    const { name, gridRows, gridCols, displayOrder } = body as {
+      name?: string;
+      gridRows?: number;
+      gridCols?: number;
+      displayOrder?: number;
+    };
 
     if (!name || !gridRows || !gridCols) {
       ctx.response.status = 400;
-      ctx.response.body = { error: "Missing required fields: name, gridRows, gridCols" };
+      ctx.response.body = {
+        error: "Missing required fields: name, gridRows, gridCols",
+      };
       return;
     }
 
@@ -478,7 +506,7 @@ ownerFloorRouter.post(
 
     ctx.response.status = 201;
     ctx.response.body = section;
-  }
+  },
 );
 
 // PUT /api/floor-sections/:restaurantId/:sectionId - Update section
@@ -492,7 +520,9 @@ ownerFloorRouter.put(
 
     if (!restaurantId || !sectionId) {
       ctx.response.status = 400;
-      ctx.response.body = { error: "Missing restaurant ID or section ID" };
+      ctx.response.body = {
+        error: "Missing restaurant ID or section ID",
+      };
       return;
     }
 
@@ -506,7 +536,8 @@ ownerFloorRouter.put(
       return;
     }
 
-    const body = await ctx.request.body.json();
+    const bodyObj = ctx.request.body();
+    const body = bodyObj && bodyObj.type === "json" ? await bodyObj.value : {};
     const updated = await updateFloorSection(restaurantId, sectionId, body);
 
     if (!updated) {
@@ -516,7 +547,7 @@ ownerFloorRouter.put(
     }
 
     ctx.response.body = updated;
-  }
+  },
 );
 
 // DELETE /api/floor-sections/:restaurantId/:sectionId - Delete section
@@ -530,7 +561,9 @@ ownerFloorRouter.delete(
 
     if (!restaurantId || !sectionId) {
       ctx.response.status = 400;
-      ctx.response.body = { error: "Missing restaurant ID or section ID" };
+      ctx.response.body = {
+        error: "Missing restaurant ID or section ID",
+      };
       return;
     }
 
@@ -546,7 +579,7 @@ ownerFloorRouter.delete(
 
     await deleteFloorSection(restaurantId, sectionId);
     ctx.response.body = { success: true };
-  }
+  },
 );
 
 export default ownerFloorRouter;

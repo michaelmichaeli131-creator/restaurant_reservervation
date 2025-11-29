@@ -206,7 +206,7 @@
       const tables = Array.isArray(plan.tables) ? plan.tables : [];
       const tableStatuses = Array.isArray(plan.tableStatuses) ? plan.tableStatuses : [];
 
-      // ✅ statusMap לסטטוס, guestMap לשם האורח (מגיע מה־API דרך owner_floor.ts)
+      // statusMap לסטטוס, guestMap לשם האורח (מגיע מה־API דרך owner_floor.ts)
       const statusMap = new Map();
       const guestMap = new Map();
 
@@ -290,7 +290,7 @@
     }
 
     const tables = Array.from(state.selectedTables.values());
-    const guestName = getSelectedReservationName();
+    const guestName = getSelectedReservationName();  // 🟦 זה השם שנשלח לשרת
 
     const msg = tables.length === 1
       ? `להושיב את ההזמנה לשולחן ${tables[0]}?`
@@ -307,6 +307,7 @@
             restaurantId: rid,
             reservationId: state.selectedResId,
             table: tables[0],
+            guestName,       // 🟦 חדש – שולחים שם לשרת
           }),
         });
       } else {
@@ -317,6 +318,7 @@
             restaurantId: rid,
             reservationId: state.selectedResId,
             tables,
+            guestName,       // 🟦 גם כאן
           }),
         });
       }
