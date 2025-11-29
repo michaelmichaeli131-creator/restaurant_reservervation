@@ -32,7 +32,7 @@
       <% if (reservations.length) { %>
         <ul class="list" id="resv-list">
           <% reservations.forEach(function(r){ %>
-            <li class="item">
+            <li class="item" data-res-id="<%= r.id %>">
               <label class="radio">
                 <input type="radio" name="resv" value="<%= r.id %>">
                 <div class="radio-body">
@@ -44,6 +44,14 @@
                   <div class="muted small resv-name"><%= r.name || '—' %></div>
                 </div>
               </label>
+              <div class="resv-actions">
+                <button type="button" class="link-btn resv-cancel" data-action="cancel" data-id="<%= r.id %>">
+                  ביטול
+                </button>
+                <button type="button" class="link-btn resv-noshow" data-action="no_show" data-id="<%= r.id %>">
+                  לא הגיע
+                </button>
+              </div>
             </li>
           <% }) %>
         </ul>
@@ -55,9 +63,17 @@
     <!-- עמודת מפת מסעדה -->
     <div class="panel card">
       <h2>מפת המסעדה (חי)</h2>
-      <p class="muted small">יש לבחור הזמנה, ואז להקליק על שולחן פנוי להושבה.</p>
+      <p class="muted small">
+        יש לבחור הזמנה, לבחור שולחן או כמה שולחנות (איחוד), ואז ללחוץ על כפתור ההושבה.
+      </p>
       <div id="floor" class="floor-wrapper">
         <!-- המפה תיטען דינמית ע"י JS -->
+      </div>
+      <div class="host-actions">
+        <button id="seat-btn" type="button" class="btn primary sm">
+          הושבה לשולחן/ות שנבחרו
+        </button>
+        <p class="muted small">ניתן לבחור מספר שולחנות עבור אותה הזמנה (איחוד שולחנות).</p>
       </div>
     </div>
   </section>
@@ -68,10 +84,13 @@
   const rid = "<%= it.rid %>";
   const state = {
     selectedResId: null,
+    selectedTables: new Set(),   // מספרי שולחנות שנבחרו
   };
 
-  // בחירת הזמנה
   const resvList = document.getElementById("resv-list");
+  const seatBtn = document.getElementById("seat-btn");
+
+  // בחירת הזמנה (radio)
   if (resvList) {
     resvList.addEventListener("change", function(ev){
       const input = ev.target;
@@ -79,6 +98,91 @@
         state.selectedResId = input.value;
       }
     });
+
+    // כפתורי ביטול / לא הגיע
+    resvList.addEventListener("click", async function(ev){
+      const btn = ev.target;
+      if (!(btn instanceof HTMLElement)) return;
+
+      const action = btn.dataset.action;
+      if (!action) return;
+
+      ev.preventDefault();
+      ev.stopPropagation();
+
+      const li = btn.closest("li[data-res-id]");
+      if (!li) return;
+      const resId = li.getAttribute("data-res-id");
+      if (!resId) return;
+
+      let status = "";
+      if (action === "cancel") {
+        if (!confirm("לסמן את ההזמנה כבוטלה?")) return;
+        status = "cancelled";
+      } else if (action === "no_show") {
+        if (!confirm("לסמן את ההזמנה כ'לא הגיע'?")) return;
+        status = "no_show";
+      } else {
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/host/reservation/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            restaurantId: rid,
+            reservationId: resId,
+            status,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) {
+          alert("שגיאה בעדכון סטטוס ההזמנה: " + (data.error || res.status));
+          return;
+        }
+
+        // אם ההזמנה שסימנו היא גם זו שנבחרה – ננקה מה-state
+        const radio = li.querySelector('input[name="resv"]');
+        if (radio && radio.checked) {
+          state.selectedResId = null;
+        }
+
+        // הסרת השורה מה-UI
+        const ul = li.parentElement;
+        ul.removeChild(li);
+        if (!ul.querySelector("li")) {
+          const p = document.createElement("p");
+          p.className = "muted";
+          p.textContent = "אין הזמנות להיום למסעדה הזו.";
+          ul.replaceWith(p);
+        }
+      } catch (e) {
+        console.error(e);
+        alert("שגיאת רשת בזמן עדכון סטטוס.");
+      }
+    });
+  }
+
+  function getSelectedReservationName(){
+    if (!state.selectedResId || !resvList) return "";
+    const li = resvList.querySelector('li[data-res-id="'+state.selectedResId+'"]');
+    if (!li) return "";
+    const nameEl = li.querySelector(".resv-name");
+    return (nameEl && nameEl.textContent || "").trim();
+  }
+
+  function toggleTableSelection(tableNumber, btnEl){
+    const tn = Number(tableNumber);
+    if (!Number.isFinite(tn) || !btnEl) return;
+
+    if (state.selectedTables.has(tn)) {
+      state.selectedTables.delete(tn);
+      btnEl.classList.remove("selected");
+    } else {
+      state.selectedTables.add(tn);
+      btnEl.classList.add("selected");
+    }
   }
 
   async function loadFloor(){
@@ -104,11 +208,7 @@
 
       const statusMap = new Map();
       tableStatuses.forEach(function(s){
-        // שומרים אובייקט מלא לכל שולחן (אם בעתיד נוסיף שדות)
-        statusMap.set(Number(s.tableNumber), {
-          status: s.status || "empty",
-          name: s.name || null,
-        });
+        statusMap.set(Number(s.tableNumber), s.status || "empty");
       });
 
       if (!tables.length) {
@@ -127,13 +227,13 @@
 
       tables.forEach(function(t){
         const num = Number(t.tableNumber);
-        const stObj = statusMap.get(num) || { status: "empty", name: null };
-        const status = stObj.status;
+        const status = statusMap.get(num) || "empty";
         const seats = Number(t.seats || 0);
 
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "table " + status;
+        btn.dataset.tableNumber = String(num);
 
         const capText = seats > 0 ? (seats + " מקומות") : "";
 
@@ -146,7 +246,12 @@
         btn.style.gridColumn = (t.gridX + 1) + " / span " + (t.spanX || 1);
 
         btn.addEventListener("click", function(){
-          onTableClick(num, status, btn);
+          const currentStatus = statusMap.get(num) || "empty";
+          if (currentStatus !== "empty") {
+            alert("ניתן לבחור רק שולחנות פנויים. שולחנות תפוסים לא ניתנים לבחירה.");
+            return;
+          }
+          toggleTableSelection(num, btn);
         });
 
         grid.appendChild(btn);
@@ -160,65 +265,84 @@
     }
   }
 
-  async function onTableClick(tableNumber, status, btnEl){
+  async function seatSelected(){
     if (!state.selectedResId) {
       alert("יש לבחור הזמנה קודם.");
       return;
     }
-    if (status !== "empty") {
-      alert("ניתן להושיב רק לשולחן פנוי.");
+    if (!state.selectedTables.size) {
+      alert("יש לבחור לפחות שולחן אחד.");
       return;
     }
-    if (!confirm("להושיב את ההזמנה לשולחן " + tableNumber + "?")) return;
+
+    const tables = Array.from(state.selectedTables.values());
+    const guestName = getSelectedReservationName();
+
+    const msg = tables.length === 1
+      ? `להושיב את ההזמנה לשולחן ${tables[0]}?`
+      : `להושיב את ההזמנה לשולחנות ${tables.join(", ")} (איחוד שולחנות)?`;
+    if (!confirm(msg)) return;
 
     try {
-      const res = await fetch("/api/host/seat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          restaurantId: rid,
-          reservationId: state.selectedResId,
-          table: tableNumber
-        })
-      });
-      const data = await res.json().catch(() => ({}));
+      let res, data;
+      if (tables.length === 1) {
+        res = await fetch("/api/host/seat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            restaurantId: rid,
+            reservationId: state.selectedResId,
+            table: tables[0],
+          }),
+        });
+      } else {
+        res = await fetch("/api/host/seat-multi", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            restaurantId: rid,
+            reservationId: state.selectedResId,
+            tables,
+          }),
+        });
+      }
+      data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
         alert("שגיאה בהושבה: " + (data.error || res.status));
         return;
       }
 
-      // עדכון סטטוס שולחן בצד לקוח
-      if (btnEl) {
-        btnEl.classList.remove("empty");
-        btnEl.classList.add("occupied");
+      // עדכון ה-UI: סימון השולחנות כתפוסים + שם מזמין
+      const floor = document.getElementById("floor");
+      if (floor) {
+        tables.forEach(function(tn){
+          const btn = floor.querySelector('.table[data-table-number="'+tn+'"]');
+          if (!btn) return;
+          btn.classList.remove("empty", "selected");
+          btn.classList.add("occupied");
+
+          if (guestName) {
+            let guestDiv = btn.querySelector(".table-guest");
+            if (!guestDiv) {
+              guestDiv = document.createElement("div");
+              guestDiv.className = "table-guest";
+              btn.appendChild(guestDiv);
+            }
+            guestDiv.textContent = guestName;
+          }
+        });
       }
 
-      // מציאת שם המזמין מהשורה שנבחרה
-      let guestName = "";
-      const selected = document.querySelector('input[name="resv"]:checked');
-      if (selected) {
-        const li = selected.closest("li");
-        const nameEl = li && li.querySelector(".resv-name");
-        if (nameEl) guestName = (nameEl.textContent || "").trim();
-
-        // הוספת שם המזמין על השולחן (אם יש)
-        if (btnEl && guestName) {
-          // כדי לא ליצור כפילויות אם תהיה הושבה מחדש
-          let guestDiv = btnEl.querySelector(".table-guest");
-          if (!guestDiv) {
-            guestDiv = document.createElement("div");
-            guestDiv.className = "table-guest";
-            btnEl.appendChild(guestDiv);
+      // הסרת ההזמנה מהרשימה
+      if (resvList && state.selectedResId) {
+        const li = resvList.querySelector('li[data-res-id="'+state.selectedResId+'"]');
+        if (li) {
+          const ul = li.parentElement;
+          const radio = li.querySelector('input[name="resv"]');
+          if (radio && radio.checked) {
+            state.selectedResId = null;
           }
-          guestDiv.textContent = guestName;
-        }
-
-        // הסרת ההזמנה מהרשימה כדי שלא יושיבו אותה שוב
-        const ul = li && li.parentElement;
-        if (li && ul) {
           ul.removeChild(li);
-
-          // אם הרשימה התרוקנה – נציג הודעת "אין הזמנות"
           if (!ul.querySelector("li")) {
             const p = document.createElement("p");
             p.className = "muted";
@@ -228,13 +352,23 @@
         }
       }
 
-      state.selectedResId = null;
+      state.selectedTables.clear();
 
-      alert("ההזמנה הושבה לשולחן " + tableNumber + " ונפתח צ׳ק במסעדה.");
+      alert(
+        tables.length === 1
+          ? `ההזמנה הושבה לשולחן ${tables[0]} ונפתח צ׳ק במסעדה.`
+          : `ההזמנה הושבה לשולחנות ${tables.join(", ")} ונפתחו צ׳קים בהתאם.`
+      );
     } catch (e) {
       console.error(e);
       alert("שגיאת רשת בזמן הושבה.");
     }
+  }
+
+  if (seatBtn) {
+    seatBtn.addEventListener("click", function(){
+      seatSelected();
+    });
   }
 
   loadFloor();
@@ -316,12 +450,36 @@
     font-size:14px;
   }
 
+  .resv-actions{
+    display:flex;
+    gap:8px;
+    margin-top:4px;
+    font-size:12px;
+  }
+  .link-btn{
+    background:none;
+    border:none;
+    padding:0;
+    color:#60a5fa;
+    cursor:pointer;
+    text-decoration:underline;
+    font-size:12px;
+  }
+
   .floor-wrapper{
     margin-top:8px;
     min-height: 260px;
     display:flex;
     align-items:flex-start;
     justify-content:center;
+  }
+
+  .host-actions{
+    margin-top:10px;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    align-items:flex-start;
   }
 
   .floor-grid{
@@ -348,6 +506,7 @@
     backdrop-filter: blur(8px);
     color:#fff;
     text-align:center;
+    transition: transform .08s ease, box-shadow .12s ease, background-color .12s ease;
   }
 
   .table-num{
@@ -361,7 +520,6 @@
     margin-top: 2px;
   }
 
-  /* ✅ שם המזמין על השולחן */
   .table-guest{
     font-size: 11px;
     margin-top: 4px;
@@ -382,6 +540,38 @@
   }
   .table.dirty{
     background:#6a1b9a;  /* סגול – מלוכלך */
+  }
+
+  .table.selected{
+    outline:2px solid #60a5fa;
+    outline-offset:2px;
+    transform: translateY(-1px);
+    box-shadow: 0 0 0 2px rgba(37,99,235,.5);
+  }
+
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:8px 14px;
+    border-radius:12px;
+    border:1px solid #1f2937;
+    background:transparent;
+    color:#e5e7eb;
+    cursor:pointer;
+    font-size:14px;
+    font-weight:600;
+    gap:6px;
+  }
+  .btn.primary{
+    background:#3b82f6;
+    border-color:#2563eb;
+    color:#ffffff;
+  }
+  .btn.sm{
+    padding:6px 12px;
+    border-radius:10px;
+    font-size:13px;
   }
 
   @media (max-width: 900px){

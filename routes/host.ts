@@ -1,10 +1,14 @@
 // src/routes/host.ts
-// מסך מארחת: מפת מסעדה + הושבת הזמנה לשולחן
+// מסך מארחת: מפת מסעדה + הושבת הזמנה לשולחן/ות + עדכון סטטוס הזמנה
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
 import { requireStaff } from "../lib/auth.ts";
-import { getRestaurant, listReservationsFor } from "../database.ts";
+import {
+  getRestaurant,
+  listReservationsFor,
+  setReservationStatus,
+} from "../database.ts";
 import {
   listOpenOrdersByRestaurant,
   getOrCreateOpenOrder,
@@ -130,7 +134,7 @@ hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
   ctx.response.body = { reservations };
 });
 
-/** POST /api/host/seat – הושבת הזמנה: reservationId + table → הזמנה פתוחה לשולחן */
+/** POST /api/host/seat – הושבת הזמנה לשולחן יחיד */
 hostRouter.post("/api/host/seat", async (ctx) => {
   if (!requireStaff(ctx)) return;
 
@@ -187,8 +191,124 @@ hostRouter.post("/api/host/seat", async (ctx) => {
     return;
   }
 
-  // שליפה של ההזמנה הפתוחה שזה עתה נוצרה (כדי להחזיר מזהה להזמנה ולוודא הצלחה)
   const order = await getOrCreateOpenOrder(rid, tableNumber);
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = { ok: true, orderId: order?.id || null, tableNumber };
+});
+
+/** POST /api/host/seat-multi – הושבת הזמנה למספר שולחנות (איחוד שולחנות) */
+hostRouter.post("/api/host/seat-multi", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+
+  const user = ctx.state.user;
+  if (user.role !== "owner" && user.role !== "manager") {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = "Forbidden";
+    return;
+  }
+
+  let data: any = {};
+  try {
+    data = await ctx.request.body.json();
+  } catch {
+    data = {};
+  }
+
+  const rid = (data.restaurantId ?? data.rid ?? "").toString();
+  const reservationId = (data.reservationId ?? "").toString();
+  const tablesRaw = Array.isArray(data.tables) ? data.tables : [];
+  const tables = tablesRaw.map((t: any) => Number(t)).filter((n: number) =>
+    Number.isFinite(n) && n > 0
+  );
+
+  if (!rid || !reservationId || !tables.length) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "missing_fields" };
+    return;
+  }
+
+  // ולידציה שהשולחנות קיימים
+  for (const tn of tables) {
+    const tableId = await getTableIdByNumber(rid, tn);
+    if (!tableId) {
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = { ok: false, error: "table_not_found", table: tn };
+      return;
+    }
+  }
+
+  const results: Array<{ tableNumber: number; orderId: string | null }> = [];
+
+  try {
+    // שולחן ראשון – הושבה "רגילה" שמשנה סטטוס הזמנה ל-arrived
+    const primary = tables[0];
+    await seatReservation({ restaurantId: rid, reservationId, table: primary });
+    const primaryOrder = await getOrCreateOpenOrder(rid, primary);
+    results.push({ tableNumber: primary, orderId: primaryOrder?.id ?? null });
+
+    // שאר השולחנות – פותח להם צ'קים נפרדים אבל מקושרים לישיבה הזאת (לפי תפיסה לוגית)
+    for (let i = 1; i < tables.length; i++) {
+      const tn = tables[i];
+      const ord = await getOrCreateOpenOrder(rid, tn);
+      results.push({ tableNumber: tn, orderId: ord?.id ?? null });
+    }
+  } catch (err) {
+    const msg = (err as Error).message || "";
+    const errorCode = [
+      "reservation_not_found",
+      "reservation_cancelled",
+      "table_already_seated",
+    ].includes(msg)
+      ? msg
+      : "seat_failed";
+
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: errorCode };
+    return;
+  }
+
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = { ok: true, seated: results };
+});
+
+/** POST /api/host/reservation/status – עדכון סטטוס הזמנה (ביטול / לא הגיע) */
+hostRouter.post("/api/host/reservation/status", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+
+  const user = ctx.state.user;
+  if (user.role !== "owner" && user.role !== "manager") {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = "Forbidden";
+    return;
+  }
+
+  let data: any = {};
+  try {
+    data = await ctx.request.body.json();
+  } catch {
+    data = {};
+  }
+
+  const rid = (data.restaurantId ?? data.rid ?? "").toString();
+  const reservationId = (data.reservationId ?? "").toString();
+  const status = (data.status ?? "").toString().toLowerCase();
+
+  if (!rid || !reservationId || !status) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "missing_fields" };
+    return;
+  }
+
+  // נאפשר "cancelled" ו-"no_show" (אפשר להרחיב בעתיד)
+  const allowed = ["cancelled", "canceled", "no_show"];
+  if (!allowed.includes(status)) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "invalid_status" };
+    return;
+  }
+
+  await setReservationStatus(reservationId, status);
+
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = { ok: true };
 });
