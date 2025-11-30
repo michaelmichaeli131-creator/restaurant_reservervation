@@ -1,5 +1,5 @@
 // src/routes/pos.ts
-// POS: תפריט, מלצרים, מטבח, בר, ו-API להזמנות + חשבוניות.
+// POS: תפריט, מלצרים, מטבח, בר, ו-API להזמנות.
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -21,10 +21,7 @@ import {
   addOrderItem,
   getItem,
   updateOrderItemStatus,
-  // חשבוניות
-  listBillsForRestaurant,
-  getBill,
-  deleteBill,
+  listBillsForRestaurant, // ✅ חדש: לשימוש במסך סטטיסטיקות
 } from "../pos/pos_db.ts";
 import {
   handlePosSocket,
@@ -111,70 +108,159 @@ posRouter.post("/owner/:rid/menu/category/:id/delete", async (ctx) => {
   ctx.response.redirect(`/owner/${rid}/menu`);
 });
 
-/* ------------ Owner: bills (חשבוניות) ------------ */
+/* ------------ Owner: stats dashboard ------------ */
 
-posRouter.get("/owner/:rid/bills", async (ctx) => {
+posRouter.get("/owner/:rid/stats", async (ctx) => {
   if (!requireOwner(ctx)) return;
   const rid = ctx.params.rid!;
   const restaurant = await getRestaurant(rid);
   if (!restaurant) ctx.throw(Status.NotFound);
 
-  const bills = await listBillsForRestaurant(rid, 200);
+  // לוקחים את כל החשבוניות למסעדה (limit=0 => ללא הגבלה)
+  const bills = await listBillsForRestaurant(rid, 0);
 
-  await render(ctx, "owner_bills", {
-    page: "owner_bills",
-    title: `חשבונות · ${restaurant.name}`,
-    restaurant,
-    bills,
-  });
-});
-
-posRouter.get("/owner/:rid/bills/:bid", async (ctx) => {
-  if (!requireOwner(ctx)) return;
-  const rid = ctx.params.rid!;
-  const bid = ctx.params.bid!;
-  const restaurant = await getRestaurant(rid);
-  if (!restaurant) ctx.throw(Status.NotFound);
-
-  const bill = await getBill(rid, bid);
-  if (!bill) ctx.throw(Status.NotFound);
-
-  const url = ctx.request.url;
-  const printMode = url.searchParams.get("print") === "1";
-
-  await render(ctx, "owner_bill_view", {
-    page: "owner_bill_view",
-    title: `חשבון שולחן ${bill.table} · ${restaurant.name}`,
-    restaurant,
-    bill,
-    printMode,
-  });
-});
-
-posRouter.post("/owner/:rid/bills/:bid/delete", async (ctx) => {
-  if (!requireOwner(ctx)) return;
-  const rid = ctx.params.rid!;
-  const bid = ctx.params.bid!;
-  await deleteBill(rid, bid);
-  ctx.response.redirect(`/owner/${rid}/bills`);
-});
-
-/* ------------ API: bill JSON ------------ */
-
-posRouter.get("/api/pos/bill/:rid/:bid", async (ctx) => {
-  const rid = ctx.params.rid!;
-  const bid = ctx.params.bid!;
-  const bill = await getBill(rid, bid);
-  if (!bill) ctx.throw(Status.NotFound, "bill_not_found");
-
-  ctx.response.headers.set(
-    "Content-Type",
-    "application/json; charset=utf-8",
+  // אגרגציה
+  let totalRevenue = 0;
+  const menuMap = new Map<
+    string,
+    { id: string; name: string; qty: number; revenue: number; pct?: number }
+  >();
+  const dailyMap = new Map<string, number>();
+  const hourly: { count: number; revenue: number }[] = Array.from(
+    { length: 24 },
+    () => ({ count: 0, revenue: 0 }),
   );
-  ctx.response.body = JSON.stringify({ ok: true, bill });
+  const weekday: { count: number; revenue: number }[] = Array.from(
+    { length: 7 },
+    () => ({ count: 0, revenue: 0 }),
+  );
+
+  let minTs = Number.POSITIVE_INFINITY;
+  let maxTs = 0;
+
+  for (const bill of bills as any[]) {
+    const ts = typeof bill.createdAt === "number"
+      ? bill.createdAt
+      : Date.now();
+    if (ts < minTs) minTs = ts;
+    if (ts > maxTs) maxTs = ts;
+
+    const dt = new Date(ts);
+    const dayKey = dt.toISOString().slice(0, 10); // YYYY-MM-DD
+    const hour = dt.getHours();
+    const wd = dt.getDay(); // 0-6
+
+    const t = bill.totals || {};
+    const billTotal = typeof t.total === "number"
+      ? t.total
+      : (t.subtotal || 0);
+
+    totalRevenue += billTotal;
+
+    dailyMap.set(dayKey, (dailyMap.get(dayKey) ?? 0) + billTotal);
+
+    if (hourly[hour]) {
+      hourly[hour].count += 1;
+      hourly[hour].revenue += billTotal;
+    }
+    if (weekday[wd]) {
+      weekday[wd].count += 1;
+      weekday[wd].revenue += billTotal;
+    }
+
+    if (Array.isArray(bill.items)) {
+      for (const it of bill.items) {
+        if (it.status === "cancelled") continue;
+        const id = String(it.menuItemId || it.id || "");
+        if (!id) continue;
+        const key = id;
+        const prev = menuMap.get(key) ?? {
+          id: key,
+          name: it.name || "פריט ללא שם",
+          qty: 0,
+          revenue: 0,
+        };
+        const q = Number(it.quantity ?? 0);
+        const up = Number(it.unitPrice ?? 0);
+        prev.qty += q;
+        prev.revenue += q * up;
+        menuMap.set(key, prev);
+      }
+    }
+  }
+
+  const billsCount = bills.length;
+  const menuTopArr = Array.from(menuMap.values());
+  menuTopArr.sort((a, b) => b.qty - a.qty);
+  const totalQty = menuTopArr.reduce((s, it) => s + it.qty, 0);
+  for (const it of menuTopArr) {
+    it.pct = totalQty ? (it.qty / totalQty) * 100 : 0;
+  }
+
+  const revenuePerDay = Array.from(dailyMap.entries())
+    .map(([date, revenue]) => ({ date, revenue }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const dayNames = [
+    "ראשון",
+    "שני",
+    "שלישי",
+    "רביעי",
+    "חמישי",
+    "שישי",
+    "שבת",
+  ];
+  const weekdayArr = weekday.map((v, idx) => ({
+    dayIndex: idx,
+    dayName: dayNames[idx],
+    revenue: v.revenue,
+    count: v.count,
+  }));
+  const strongDays = [...weekdayArr].sort((a, b) => b.revenue - a.revenue);
+
+  // שעות חלשות ל-HAPPY HOUR: נבחר 3 שעות עם הכי מעט הכנסות בין 10:00–23:00
+  const hhCandidates: { hour: number; count: number; revenue: number }[] = [];
+  for (let h = 10; h <= 23; h++) {
+    const v = hourly[h];
+    if (!v) continue;
+    hhCandidates.push({ hour: h, count: v.count, revenue: v.revenue });
+  }
+  hhCandidates.sort((a, b) => a.revenue - b.revenue);
+  const weakHours = hhCandidates.slice(0, 3);
+
+  const stats = {
+    totals: {
+      revenue: totalRevenue,
+      billsCount,
+      avgBill: billsCount ? totalRevenue / billsCount : 0,
+      from: isFinite(minTs) ? minTs : null,
+      to: maxTs || null,
+    },
+    menuTop: {
+      totalQty,
+      items: menuTopArr,
+    },
+    revenuePerDay,
+    revenuePerHour: hourly.map((v, hour) => ({
+      hour,
+      revenue: v.revenue,
+      count: v.count,
+    })),
+    weekday: weekdayArr,
+    strongDays,
+    weakHours,
+  };
+
+  await render(ctx, "owner_stats", {
+    page: "owner_stats",
+    title: `סטטיסטיקות · ${restaurant.name}`,
+    restaurant,
+    stats,
+  });
 });
 
 /* ------------ Generic POS table page (למסך הזמנה) ------------ */
+/* נכנסים אליו מהמלצר / מהיכן שצריך: /pos/:rid/table/:tableNumber */
 
 posRouter.get("/pos/:rid/table/:tableNumber", async (ctx) => {
   if (!requireStaff(ctx)) return;
@@ -234,6 +320,7 @@ posRouter.get("/waiter/:rid", async (ctx) => {
       order: row.order,
       itemsCount: totals.itemsCount,
       subtotal: totals.subtotal,
+      // קישור ישיר למסך ההזמנה לשולחן הזה
       posUrl: `/pos/${rid}/table/${row.table}`,
     });
   }
@@ -342,6 +429,7 @@ posRouter.post("/api/pos/order-item/add", async (ctx) => {
     ctx.throw(Status.BadRequest, "missing fields");
   }
 
+  // Waiters can add only when table is seated by host
   if (!(await isTableSeated(restaurantId, table))) {
     ctx.throw(Status.Forbidden, "table_not_seated");
   }
