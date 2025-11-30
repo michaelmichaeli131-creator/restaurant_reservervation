@@ -2,7 +2,7 @@
 
 <%
   const restaurant = it.restaurant || {};
-  const openTables = it.openTables || [];
+  const openTables = it.openTables || []; // מגיע מהשרת כמו בגרסה הישנה
   const rid = it.rid;
 %>
 
@@ -15,169 +15,293 @@
   </header>
 
   <section class="waiter-grid">
-    <!-- כרטיסיית שולחנות פתוחים -->
+    <!-- כרטיסייה: שולחנות פתוחים -->
     <div class="panel card">
       <h2>שולחנות פתוחים</h2>
+      <p class="muted small">
+        רשימת כל השולחנות עם צ׳קים פתוחים / בשירות פעיל. לחיצה על שורה תציג פרטי שולחן,
+        וכפתור "למסך הזמנה" יפתח את מסך ה־POS לשולחן.
+      </p>
 
       <% if (openTables.length) { %>
-        <ul class="list" id="open-tables-list">
+        <ul id="open-tables-list" class="list open-tables-list">
           <% openTables.forEach(function(t){ 
-              const tn = Number(t.tableNumber);
-              const guestName = t.guestName || t.name || t.customerName || "—";
-              const people = t.people || t.guests || t.covers || null;
-              const time = t.time || t.startTime || "";
-              // 🔗 קישור למסך ההזמנה:
-              // 1) אם השרת כבר שלח url/posUrl/href – נשתמש בו
-              // 2) אחרת fallback למסלול הישן בסגנון /pos/:rid?table=:tn
+              const tn = Number(t.tableNumber || t.table || 0);
+              const guestName = t.guestName || t.name || t.customerName || "";
+              const people = t.people || t.covers || "";
+              const time = t.time || t.openedAt || "";
+              const status = t.status || "occupied";
+              const itemsCount = (t.totals && t.totals.itemsCount != null)
+                ? t.totals.itemsCount
+                : (t.itemsCount != null ? t.itemsCount : "");
+              const subtotal = (t.totals && t.totals.subtotal != null)
+                ? t.totals.subtotal
+                : (t.subtotal != null ? t.subtotal : "");
+
+              // URL למסך ההזמנה – קודם מהשרת, ואם אין אז fallback למסלול הישן
               const posUrl = t.posUrl || t.url || t.href || `/pos/${rid}?table=${tn}`;
           %>
             <li
-              class="open-table-row"
+              class="item open-item"
               data-table="<%= tn %>"
+              data-name="<%= guestName %>"
+              data-people="<%= people %>"
+              data-time="<%= time %>"
+              data-status="<%= status %>"
+              data-items-count="<%= itemsCount %>"
+              data-subtotal="<%= subtotal %>"
               data-pos-url="<%= posUrl %>"
-              data-guest="<%= guestName %>"
-              data-people="<%= people || '' %>"
-              data-time="<%= time || '' %>"
             >
-              <div class="row-main">
-                <div class="row-title">
-                  <span class="badge">שולחן <%= tn %></span>
-                  <strong class="guest-name"><%= guestName %></strong>
-                </div>
-                <div class="row-meta small muted">
-                  <% if (people) { %>
-                    <span><%= people %> סועדים</span>
-                    <span>•</span>
-                  <% } %>
-                  <% if (time) { %>
-                    <span>הזמנה לשעה <%= time %></span>
-                  <% } %>
-                </div>
-              </div>
-              <div class="row-actions">
-                <button type="button" class="btn ghost xs js-go-pos">
-                  המשך הזמנה
+              <div class="open-row">
+                <button type="button" class="open-table-btn">
+                  <div class="open-main">
+                    <span class="open-table-num">שולחן <%= tn %></span>
+                    <% if (guestName) { %>
+                      <span class="open-guest-name">• <%= guestName %></span>
+                    <% } %>
+                  </div>
+                  <div class="open-sub">
+                    <% if (people) { %>
+                      <span><%= people %> סועדים</span>
+                    <% } %>
+                    <% if (time) { %>
+                      <span>• <%= time %></span>
+                    <% } %>
+                    <% if (itemsCount !== "" && itemsCount != null) { %>
+                      <span>• <%= itemsCount %> פריטים</span>
+                    <% } %>
+                    <% if (subtotal !== "" && subtotal != null) { %>
+                      <span>• <%= subtotal %> ₪</span>
+                    <% } %>
+                  </div>
+                </button>
+                <button type="button" class="open-pos-link">
+                  למסך הזמנה
                 </button>
               </div>
             </li>
           <% }) %>
         </ul>
       <% } else { %>
-        <p class="muted">אין כרגע שולחנות פתוחים.</p>
+        <div id="open-tables-empty" class="muted small">
+          אין כרגע שולחנות פתוחים.
+        </div>
       <% } %>
     </div>
 
-    <!-- כרטיסיית מפת מסעדה -->
-    <div class="panel card waiter-floor-panel">
-      <div class="panel-header">
-        <div>
-          <h2>מפת המסעדה (חי)</h2>
-          <p class="muted small">
-            לחיצה על שולחן פנוי תפתח הזמנה חדשה. לחיצה על שולחן תפוס תציג פרטי שולחן.
-          </p>
-        </div>
-      </div>
-
-      <div class="waiter-layout">
-        <div id="floor" class="floor-wrapper">
-          <!-- המפה תיטען דינמית ע"י JS -->
-        </div>
-
-        <!-- כרטיסיית צד: פרטי שולחן -->
-        <aside id="table-details" class="table-details hidden">
-          <button type="button" class="details-close" id="details-close-btn" aria-label="סגירת פרטי שולחן">
-            ✕
-          </button>
-          <div class="details-content">
-            <h3 id="details-title">פרטי שולחן</h3>
-            <dl class="details-list">
-              <div class="details-row">
-                <dt>שולחן</dt>
-                <dd id="details-table-num">—</dd>
-              </div>
-              <div class="details-row">
-                <dt>שם הלקוח</dt>
-                <dd id="details-guest-name">—</dd>
-              </div>
-              <div class="details-row">
-                <dt>מספר סועדים</dt>
-                <dd id="details-people">—</dd>
-              </div>
-              <div class="details-row">
-                <dt>שעת הזמנה</dt>
-                <dd id="details-time">—</dd>
-              </div>
-              <div class="details-row">
-                <dt>סטטוס</dt>
-                <dd id="details-status">—</dd>
-              </div>
-            </dl>
-
-            <div class="details-actions">
-              <button type="button" class="btn primary sm" id="details-open-pos">
-                מעבר למסך הזמנה
-              </button>
-            </div>
-          </div>
-        </aside>
+    <!-- כרטיסייה: מפת המסעדה (חי) -->
+    <div class="panel card">
+      <h2>מפת המסעדה (חי)</h2>
+      <p class="muted small">
+        לחיצה על שולחן תפוס תציג פרטי הזמנה; לחיצה על שולחן פנוי תציג מידע בסיסי.
+      </p>
+      <div id="floor" class="floor-wrapper">
+        <!-- המפה תיטען דינמית ע"י JS -->
       </div>
     </div>
   </section>
 </main>
 
+<!-- כרטיסיית צד לפרטי שולחן -->
+<div id="table-info-backdrop" class="table-info-backdrop"></div>
+<aside id="table-info-panel" class="table-info-panel" aria-hidden="true">
+  <div class="table-info-inner">
+    <header class="table-info-header">
+      <div>
+        <div class="tip-label">פרטי שולחן</div>
+        <div class="tip-title">
+          שולחן <span id="tip-table-number">—</span>
+        </div>
+      </div>
+      <button type="button" class="tip-close-btn" id="tip-close-btn" aria-label="סגירת פרטי שולחן">
+        ✕
+      </button>
+    </header>
+
+    <div class="table-info-body">
+      <div class="tip-row">
+        <span class="tip-row-label">שם המזמין</span>
+        <span class="tip-row-value" id="tip-guest-name">—</span>
+      </div>
+      <div class="tip-row">
+        <span class="tip-row-label">מספר סועדים</span>
+        <span class="tip-row-value" id="tip-people">—</span>
+      </div>
+      <div class="tip-row">
+        <span class="tip-row-label">שעת ההזמנה</span>
+        <span class="tip-row-value" id="tip-time">—</span>
+      </div>
+      <div class="tip-row">
+        <span class="tip-row-label">סטטוס שולחן</span>
+        <span class="tip-row-value">
+          <span id="tip-status" class="tip-status-badge">—</span>
+        </span>
+      </div>
+      <div class="tip-row">
+        <span class="tip-row-label">מספר פריטים</span>
+        <span class="tip-row-value" id="tip-items-count">—</span>
+      </div>
+      <div class="tip-row">
+        <span class="tip-row-label">סכום ביניים</span>
+        <span class="tip-row-value" id="tip-subtotal">—</span>
+      </div>
+    </div>
+
+    <footer class="table-info-footer">
+      <p class="muted small">
+        המידע נלקח מההזמנה / צ׳ק האחרון בשולחן.
+      </p>
+    </footer>
+  </div>
+</aside>
+
 <script>
 (function(){
-  const rid = "<%= rid %>";
+  const rid = "<%= it.rid %>";
 
   const openList = document.getElementById("open-tables-list");
   const floorHolder = document.getElementById("floor");
 
-  // side panel elements
-  const detailsPanel = document.getElementById("table-details");
-  const detailsCloseBtn = document.getElementById("details-close-btn");
-  const detailsTableNum = document.getElementById("details-table-num");
-  const detailsGuestName = document.getElementById("details-guest-name");
-  const detailsPeople = document.getElementById("details-people");
-  const detailsTime = document.getElementById("details-time");
-  const detailsStatus = document.getElementById("details-status");
-  const detailsOpenPos = document.getElementById("details-open-pos");
+  // צד פרטי שולחן
+  const tableInfoPanel = document.getElementById("table-info-panel");
+  const tableInfoBackdrop = document.getElementById("table-info-backdrop");
+  const tipCloseBtn = document.getElementById("tip-close-btn");
+  const tipTableNumber = document.getElementById("tip-table-number");
+  const tipGuestName = document.getElementById("tip-guest-name");
+  const tipPeople = document.getElementById("tip-people");
+  const tipTime = document.getElementById("tip-time");
+  const tipStatus = document.getElementById("tip-status");
+  const tipItemsCount = document.getElementById("tip-items-count");
+  const tipSubtotal = document.getElementById("tip-subtotal");
 
-  const sideState = {
-    currentTable: null,
-    currentPosUrl: "",
-    currentStatus: "",
-  };
+  const statusMap = new Map(); // ממפת הרצפה
+  const guestMap = new Map();  // ממפת הרצפה
 
-  // ---------- עזר לפתיחת מסך POS ----------
-  function goToPos(url){
-    if (!url) {
-      alert("לא הוגדר קישור למסך ההזמנה עבור שולחן זה.");
-      return;
-    }
-    window.location.href = url;
+  function mapStatusToLabel(status){
+    const s = (status || "").toLowerCase();
+    if (s === "occupied" || s === "open") return "תפוס";
+    if (s === "reserved") return "שמורה";
+    if (s === "dirty") return "דורש ניקוי";
+    if (s === "empty" || s === "free") return "פנוי";
+    return status || "לא ידוע";
   }
 
-  // ---------- שולחנות פתוחים – קליק על "המשך הזמנה" או על כל השורה ----------
+  function mapStatusToClass(status){
+    const s = (status || "").toLowerCase();
+    if (s === "occupied" || s === "open") return "tip-status-occupied";
+    if (s === "reserved") return "tip-status-reserved";
+    if (s === "dirty") return "tip-status-dirty";
+    if (s === "empty" || s === "free") return "tip-status-empty";
+    return "tip-status-unknown";
+  }
+
+  function formatMoney(v){
+    if (v == null || v === "" || isNaN(Number(v))) return "—";
+    return Number(v).toLocaleString("he-IL", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + " ₪";
+  }
+
+  function openTableInfoPanel(info){
+    if (!tableInfoPanel) return;
+    tipTableNumber.textContent = info.tableNumber != null ? info.tableNumber : "—";
+    tipGuestName.textContent = info.name || "—";
+    tipPeople.textContent = (info.people != null && info.people !== "") ? info.people : "—";
+    tipTime.textContent = info.time || "—";
+
+    const clsBase = ["tip-status-badge","tip-status-empty","tip-status-occupied","tip-status-reserved","tip-status-dirty","tip-status-unknown"];
+    if (tipStatus) {
+      tipStatus.textContent = mapStatusToLabel(info.status);
+      tipStatus.className = clsBase[0] + " " + mapStatusToClass(info.status);
+    }
+
+    tipItemsCount.textContent = (info.itemsCount != null && info.itemsCount !== "")
+      ? info.itemsCount
+      : "—";
+    tipSubtotal.textContent = formatMoney(info.subtotal);
+
+    tableInfoPanel.classList.add("open");
+    tableInfoBackdrop.classList.add("open");
+    tableInfoPanel.setAttribute("aria-hidden", "false");
+  }
+
+  function closeTableInfoPanel(){
+    tableInfoPanel.classList.remove("open");
+    tableInfoBackdrop.classList.remove("open");
+    tableInfoPanel.setAttribute("aria-hidden", "true");
+  }
+
+  if (tipCloseBtn) tipCloseBtn.addEventListener("click", closeTableInfoPanel);
+  if (tableInfoBackdrop) tableInfoBackdrop.addEventListener("click", closeTableInfoPanel);
+
+  // האזנה לרשימת שולחנות פתוחים – כולל מעבר למסך ההזמנה
   if (openList) {
     openList.addEventListener("click", function(ev){
-      const btn = ev.target.closest(".js-go-pos");
-      const row = ev.target.closest("li.open-table-row");
-      if (!row) return;
+      const target = ev.target;
+      if (!(target instanceof HTMLElement)) return;
 
-      const posUrl = row.getAttribute("data-pos-url") || "";
+      const li = target.closest("li[data-table]");
+      if (!li) return;
 
-      // אם לחצו על הכפתור – תמיד ננווט
-      if (btn) {
-        goToPos(posUrl);
+      const tn = li.getAttribute("data-table");
+      let posUrl = li.getAttribute("data-pos-url") || "";
+      // fallback אם משום מה data-pos-url ריק:
+      if (!posUrl && tn) {
+        posUrl = `/pos/${rid}?table=${tn}`;
+      }
+
+      // כפתור "למסך הזמנה"
+      const posBtn = target.closest(".open-pos-link");
+      if (posBtn) {
+        if (posUrl) {
+          window.location.href = posUrl;
+        } else {
+          alert("לא הוגדר קישור למסך ההזמנה עבור שולחן זה.");
+        }
         return;
       }
 
-      // אם לחצו על השורה עצמה – גם ננווט (כמו בממשק הקודם)
-      goToPos(posUrl);
-    });
+      // לחיצה על שורת השולחן - פתיחת כרטיסיית צד
+      const rowBtn = target.closest(".open-table-btn");
+      if (rowBtn) {
+        const name = li.getAttribute("data-name") || "";
+        const people = li.getAttribute("data-people") || "";
+        const time = li.getAttribute("data-time") || "";
+        const status = li.getAttribute("data-status") || "occupied";
+        const itemsCountAttr = li.getAttribute("data-items-count");
+        const subtotalAttr = li.getAttribute("data-subtotal");
+
+        const itemsCount = (itemsCountAttr != null && itemsCountAttr !== "")
+          ? Number(itemsCountAttr)
+          : null;
+        const subtotal = (subtotalAttr != null && subtotalAttr !== "")
+          ? Number(subtotalAttr)
+          : null;
+
+        const info = {
+          tableNumber: Number(tn),
+          name,
+          people,
+          time,
+          status,
+          itemsCount,
+          subtotal,
+        };
+        openTableInfoPanel(info);
+
+        // הדגשה במפת המסעדה
+        const floor = document.getElementById("floor");
+        if (floor && tn) {
+          const tableBtn = floor.querySelector('.table[data-table-number="'+tn+'"]');
+          if (tableBtn) {
+            tableBtn.classList.add("selected");
+            tableBtn.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+            setTimeout(() => tableBtn.classList.remove("selected"), 800);
+          }
+        }
+      }
+    }, { passive: true });
   }
 
-  // ---------- טעינת מפת המסעדה ----------
+  // === טעינת מפת המסעדה === (כמו אצל המארחת)
   async function loadFloor(){
     if (!floorHolder) return;
     floorHolder.innerHTML = "";
@@ -198,9 +322,8 @@
       const tables = Array.isArray(plan.tables) ? plan.tables : [];
       const tableStatuses = Array.isArray(plan.tableStatuses) ? plan.tableStatuses : [];
 
-      const statusMap = new Map();
-      const guestMap = new Map();
-      const tableMeta = new Map(); // people/time וכו'
+      statusMap.clear();
+      guestMap.clear();
 
       tableStatuses.forEach(function(s){
         const tn = Number(s.tableNumber);
@@ -211,11 +334,6 @@
 
         const gName = s.guestName || s.name || s.customerName || null;
         if (gName) guestMap.set(tn, String(gName));
-
-        tableMeta.set(tn, {
-          people: s.people || s.guests || s.covers || "",
-          time: s.time || s.startTime || "",
-        });
       });
 
       if (!tables.length) {
@@ -254,43 +372,54 @@
         btn.style.gridRow = (t.gridY + 1) + " / span " + (t.spanY || 1);
         btn.style.gridColumn = (t.gridX + 1) + " / span " + (t.spanX || 1);
 
-        btn.addEventListener("click", function(){
+        btn.addEventListener("click", async function(){
           const currentStatus = statusMap.get(num) || "empty";
 
-          // אם השולחן פנוי – אפשר לפתוח POS חדש (או לעשות future feature)
           if (currentStatus === "empty") {
-            const url = `/pos/${rid}?table=${num}`;
-            goToPos(url);
+            const info = {
+              tableNumber: num,
+              name: "",
+              people: "",
+              time: "",
+              status: "empty",
+              itemsCount: null,
+              subtotal: null,
+            };
+            openTableInfoPanel(info);
             return;
           }
 
-          // שולחן תפוס – מציגים חלונית צד עם הפרטים
-          const meta = tableMeta.get(num) || {};
-          const people = meta.people || "";
-          const time = meta.time || "";
+          try {
+            const url = new URL("/api/host/table/info", window.location.origin);
+            url.searchParams.set("restaurantId", rid);
+            url.searchParams.set("table", String(num));
 
-          const listItem = openList
-            ? openList.querySelector('li.open-table-row[data-table="'+num+'"]')
-            : null;
+            const res = await fetch(url.toString(), {
+              method: "GET",
+              headers: { "Accept": "application/json" },
+            });
+            const data = await res.json().catch(() => ({}));
 
-          const posUrl =
-            (listItem && listItem.getAttribute("data-pos-url")) ||
-            `/pos/${rid}?table=${num}`;
+            if (!res.ok || !data.ok) {
+              const msg = data && data.error ? data.error : res.status;
+              alert("לא ניתן לטעון פרטי שולחן: " + msg);
+              return;
+            }
 
-          sideState.currentTable = num;
-          sideState.currentPosUrl = posUrl;
-          sideState.currentStatus = currentStatus;
-
-          detailsTableNum.textContent = "#" + num;
-          detailsGuestName.textContent = guestName || "—";
-          detailsPeople.textContent = people ? String(people) : "—";
-          detailsTime.textContent = time || "—";
-          detailsStatus.textContent =
-            currentStatus === "occupied" ? "תפוס" :
-            currentStatus === "reserved" ? "שמור" :
-            currentStatus;
-
-          detailsPanel.classList.remove("hidden");
+            const info = {
+              tableNumber: num,
+              name: data.name || data.guestName || guestMap.get(num) || "",
+              people: data.people,
+              time: data.time,
+              status: currentStatus,
+              itemsCount: data.itemsCount ?? null,
+              subtotal: data.subtotal ?? null,
+            };
+            openTableInfoPanel(info);
+          } catch (e) {
+            console.error(e);
+            alert("שגיאה בטעינת פרטי השולחן.");
+          }
         });
 
         grid.appendChild(btn);
@@ -302,24 +431,6 @@
       p.textContent = "שגיאה בטעינת מפת המסעדה.";
       floorHolder.appendChild(p);
     }
-  }
-
-  // סגירת חלונית צד
-  if (detailsCloseBtn) {
-    detailsCloseBtn.addEventListener("click", function(){
-      detailsPanel.classList.add("hidden");
-    });
-  }
-
-  // כפתור "מעבר למסך הזמנה" בחלונית
-  if (detailsOpenPos) {
-    detailsOpenPos.addEventListener("click", function(){
-      if (!sideState.currentPosUrl) {
-        alert("לא הוגדר קישור למסך ההזמנה עבור שולחן זה.");
-        return;
-      }
-      goToPos(sideState.currentPosUrl);
-    });
   }
 
   loadFloor();
@@ -366,114 +477,88 @@
     box-shadow: 0 10px 30px rgba(0,0,0,.35);
   }
 
-  /* --- רשימת שולחנות פתוחים --- */
   .list{
     list-style:none;
     padding:0;
     margin:8px 0 0;
   }
-  .open-table-row{
+  .item{
     border-top:1px solid rgba(255,255,255,.06);
-    padding:10px 0;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:8px;
-    cursor:pointer;
+    padding:8px 0;
   }
-  .open-table-row:first-child{
+  .item:first-child{
     border-top:none;
     padding-top:0;
   }
 
-  .row-main{
-    flex:1;
-    min-width:0;
+  /* שולחנות פתוחים */
+
+  .open-tables-list{
+    margin-top:10px;
   }
-  .row-title{
+
+  .open-item{
+    padding:6px 0;
+  }
+
+  .open-row{
     display:flex;
-    align-items:center;
+    align-items:stretch;
+    justify-content:space-between;
     gap:8px;
-    margin-bottom:2px;
-  }
-  .guest-name{
-    font-size:14px;
-    font-weight:600;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-  }
-  .row-meta{
-    display:flex;
-    gap:4px;
-    align-items:center;
   }
 
-  .badge{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    padding:2px 8px;
-    border-radius:999px;
-    background:rgba(59,130,246,.16);
-    color:#93c5fd;
-    font-size:11px;
-  }
-
-  .row-actions{
-    display:flex;
-    align-items:center;
-    gap:6px;
-  }
-
-  .btn{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    padding:8px 14px;
-    border-radius:12px;
-    border:1px solid #1f2937;
-    background:transparent;
-    color:#e5e7eb;
-    cursor:pointer;
-    font-size:14px;
-    font-weight:600;
-    gap:6px;
-  }
-  .btn.primary{
-    background:#3b82f6;
-    border-color:#2563eb;
-    color:#ffffff;
-  }
-  .btn.sm{
-    padding:6px 12px;
-    border-radius:10px;
-    font-size:13px;
-  }
-  .btn.ghost{
-    background:rgba(15,23,42,.6);
-    border-color:rgba(148,163,184,.5);
-  }
-  .btn.xs{
-    padding:4px 10px;
-    font-size:12px;
-    border-radius:999px;
-  }
-
-  /* --- מפת מסעדה + חלונית צד --- */
-  .waiter-floor-panel{
+  .open-table-btn{
+    flex:1;
+    text-align:right;
+    background:none;
+    border:none;
+    padding:6px 0;
     display:flex;
     flex-direction:column;
-    gap:8px;
-  }
-  .waiter-layout{
-    display:grid;
-    grid-template-columns: minmax(260px, 1.2fr) minmax(220px, 0.8fr);
-    gap:10px;
-    align-items:flex-start;
+    gap:2px;
+    cursor:pointer;
+    color:inherit;
   }
 
+  .open-main{
+    display:flex;
+    gap:6px;
+    align-items:center;
+    font-size:14px;
+    font-weight:600;
+  }
+  .open-table-num{
+    color:#e5e7eb;
+  }
+  .open-guest-name{
+    color:#93c5fd;
+  }
+
+  .open-sub{
+    font-size:12px;
+    color:#9aa3b2;
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+
+  .open-pos-link{
+    align-self:center;
+    padding:4px 10px;
+    border-radius:999px;
+    border:1px solid rgba(96,165,250,0.6);
+    background:rgba(15,23,42,0.8);
+    color:#bfdbfe;
+    font-size:11px;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+
+  /* מפת מסעדה */
+
   .floor-wrapper{
+    margin-top:8px;
     min-height: 260px;
     display:flex;
     align-items:flex-start;
@@ -517,6 +602,7 @@
     opacity: .86;
     margin-top: 2px;
   }
+
   .table-guest{
     font-size: 11px;
     margin-top: 4px;
@@ -527,87 +613,167 @@
   }
 
   .table.empty{
-    background:#2e7d32;
+    background:#2e7d32;  /* ירוק – פנוי */
   }
   .table.occupied{
-    background:#c62828;
+    background:#c62828;  /* אדום – תפוס */
   }
   .table.reserved{
-    background:#f9a825;
+    background:#f9a825;  /* צהוב – שמור */
   }
   .table.dirty{
-    background:#6a1b9a;
+    background:#6a1b9a;  /* סגול – מלוכלך */
   }
 
-  /* --- חלונית צד --- */
-  .table-details{
-    position:relative;
-    background:rgba(15,23,42,.85);
-    border-radius:14px;
-    border:1px solid rgba(148,163,184,.5);
-    padding:12px 12px 14px;
-    box-shadow: 0 18px 40px rgba(0,0,0,.55);
-  }
-  .table-details.hidden{
-    display:none;
-  }
-  .details-close{
-    position:absolute;
-    top:6px;
-    left:6px;
-    width:22px;
-    height:22px;
-    border-radius:999px;
-    border:none;
-    background:rgba(15,23,42,.9);
-    color:#e5e7eb;
-    font-size:13px;
-    cursor:pointer;
-  }
-  .details-content h3{
-    margin:0 0 8px;
-    font-size:15px;
+  .table.selected{
+    outline:2px solid #60a5fa;
+    outline-offset:2px;
+    transform: translateY(-1px);
+    box-shadow: 0 0 0 2px rgba(37,99,235,.5);
   }
 
-  .details-list{
-    margin:0;
-    padding:0;
+  /* כרטיסיית צד לפרטי שולחן */
+
+  .table-info-backdrop{
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease;
+    z-index: 40;
   }
-  .details-row{
+  .table-info-backdrop.open{
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .table-info-panel{
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: min(340px, 90vw);
+    transform: translateX(100%);
+    transition: transform .22s ease-out;
+    z-index: 41;
     display:flex;
+    align-items:stretch;
+    justify-content:flex-start;
+  }
+  .table-info-panel.open{
+    transform: translateX(0);
+  }
+
+  .table-info-inner{
+    background: rgba(8,12,24,0.98);
+    border-left: 1px solid rgba(148,163,184,0.35);
+    box-shadow: -18px 0 40px rgba(0,0,0,0.6);
+    width: 100%;
+    padding: 14px 16px 16px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+
+  .table-info-header{
+    display:flex;
+    align-items:center;
     justify-content:space-between;
     gap:8px;
+    margin-bottom:4px;
+  }
+
+  .tip-label{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:#9aa3b2;
+  }
+  .tip-title{
+    font-size:18px;
+    font-weight:600;
+  }
+
+  .tip-close-btn{
+    border:none;
+    background: rgba(15,23,42,0.7);
+    color:#e5e7eb;
+    width:28px;
+    height:28px;
+    border-radius:999px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    font-size:14px;
+  }
+
+  .table-info-body{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    margin-top:4px;
+  }
+
+  .tip-row{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
     font-size:13px;
-    padding:3px 0;
-    border-bottom:1px dashed rgba(148,163,184,.35);
   }
-  .details-row:last-child{
-    border-bottom:none;
+  .tip-row-label{
+    color:#9aa3b2;
   }
-  .details-row dt{
-    font-weight:500;
-    color:#9ca3af;
-  }
-  .details-row dd{
-    margin:0;
+  .tip-row-value{
     font-weight:500;
   }
 
-  .details-actions{
-    margin-top:10px;
-    display:flex;
-    justify-content:flex-start;
+  .tip-status-badge{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:2px 8px;
+    border-radius:999px;
+    font-size:11px;
+    border:1px solid transparent;
+  }
+
+  .tip-status-empty{
+    background:rgba(34,197,94,0.12);
+    border-color:rgba(34,197,94,0.4);
+    color:#4ade80;
+  }
+  .tip-status-occupied{
+    background:rgba(239,68,68,0.16);
+    border-color:rgba(239,68,68,0.55);
+    color:#fecaca;
+  }
+  .tip-status-reserved{
+    background:rgba(245,158,11,0.18);
+    border-color:rgba(245,158,11,0.6);
+    color:#fde68a;
+  }
+  .tip-status-dirty{
+    background:rgba(168,85,247,0.2);
+    border-color:rgba(168,85,247,0.7);
+    color:#e9d5ff;
+  }
+  .tip-status-unknown{
+    background:rgba(148,163,184,0.18);
+    border-color:rgba(148,163,184,0.6);
+    color:#e5e7eb;
+  }
+
+  .table-info-footer{
+    margin-top:auto;
+    padding-top:8px;
+    border-top:1px solid rgba(148,163,184,0.25);
   }
 
   @media (max-width: 900px){
     .waiter-grid{
       grid-template-columns:1fr;
-    }
-    .waiter-layout{
-      grid-template-columns:1fr;
-    }
-    .table-details{
-      margin-top:10px;
     }
   }
 </style>
