@@ -38,8 +38,8 @@
                 ? t.totals.subtotal
                 : (t.subtotal != null ? t.subtotal : "");
 
-              // URL למסך ההזמנה – קודם מהשרת, ואם אין אז fallback למסלול הישן
-              const posUrl = t.posUrl || t.url || t.href || `/pos/${rid}?table=${tn}`;
+              // URL למסך ההזמנה – קודם מהשרת, ואם אין אז fallback למסלול הישן: /pos/:rid/table/:tn
+              const posUrl = t.posUrl || t.url || t.href || `/pos/${rid}/table/${tn}`;
           %>
             <li
               class="item open-item"
@@ -245,12 +245,13 @@
       let posUrl = li.getAttribute("data-pos-url") || "";
       // fallback אם משום מה data-pos-url ריק:
       if (!posUrl && tn) {
-        posUrl = `/pos/${rid}?table=${tn}`;
+        posUrl = `/pos/${rid}/table/${tn}`;
       }
 
       // כפתור "למסך הזמנה"
       const posBtn = target.closest(".open-pos-link");
       if (posBtn) {
+        console.log("[WAITER] go to POS:", { tn, posUrl });
         if (posUrl) {
           window.location.href = posUrl;
         } else {
