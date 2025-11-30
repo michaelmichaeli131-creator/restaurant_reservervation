@@ -21,7 +21,7 @@ import {
   addOrderItem,
   getItem,
   updateOrderItemStatus,
-  // ✅ חדשים לחשבוניות
+  // חשבוניות
   listBillsForRestaurant,
   getBill,
   deleteBill,
@@ -112,7 +112,6 @@ posRouter.post("/owner/:rid/menu/category/:id/delete", async (ctx) => {
 });
 
 /* ------------ Owner: bills (חשבוניות) ------------ */
-/* כרטיסיה לבעלים: רשימת חשבונות + צפייה/הדפסה + מחיקה */
 
 posRouter.get("/owner/:rid/bills", async (ctx) => {
   if (!requireOwner(ctx)) return;
@@ -140,11 +139,15 @@ posRouter.get("/owner/:rid/bills/:bid", async (ctx) => {
   const bill = await getBill(rid, bid);
   if (!bill) ctx.throw(Status.NotFound);
 
+  const url = ctx.request.url;
+  const printMode = url.searchParams.get("print") === "1";
+
   await render(ctx, "owner_bill_view", {
     page: "owner_bill_view",
     title: `חשבון שולחן ${bill.table} · ${restaurant.name}`,
     restaurant,
     bill,
+    printMode,
   });
 });
 
@@ -156,7 +159,7 @@ posRouter.post("/owner/:rid/bills/:bid/delete", async (ctx) => {
   ctx.response.redirect(`/owner/${rid}/bills`);
 });
 
-/* ------------ API: bill JSON (לשימוש עתידי / ברקוד וכו') ------------ */
+/* ------------ API: bill JSON ------------ */
 
 posRouter.get("/api/pos/bill/:rid/:bid", async (ctx) => {
   const rid = ctx.params.rid!;
@@ -172,7 +175,6 @@ posRouter.get("/api/pos/bill/:rid/:bid", async (ctx) => {
 });
 
 /* ------------ Generic POS table page (למסך הזמנה) ------------ */
-/* נכנסים אליו מהמלצר / מהיכן שצריך: /pos/:rid/table/:tableNumber */
 
 posRouter.get("/pos/:rid/table/:tableNumber", async (ctx) => {
   if (!requireStaff(ctx)) return;
@@ -232,7 +234,6 @@ posRouter.get("/waiter/:rid", async (ctx) => {
       order: row.order,
       itemsCount: totals.itemsCount,
       subtotal: totals.subtotal,
-      // קישור ישיר למסך ההזמנה לשולחן הזה
       posUrl: `/pos/${rid}/table/${row.table}`,
     });
   }
@@ -341,7 +342,6 @@ posRouter.post("/api/pos/order-item/add", async (ctx) => {
     ctx.throw(Status.BadRequest, "missing fields");
   }
 
-  // Waiters can add only when table is seated by host
   if (!(await isTableSeated(restaurantId, table))) {
     ctx.throw(Status.Forbidden, "table_not_seated");
   }
