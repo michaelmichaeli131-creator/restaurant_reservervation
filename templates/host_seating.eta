@@ -90,6 +90,37 @@
   const resvList = document.getElementById("resv-list");
   const seatBtn = document.getElementById("seat-btn");
 
+  // ---------- עזר: שחרור שולחן/ות תקועים דרך ה-API ----------
+  async function forceUnseatTables(rid, tables){
+    if (!tables || !tables.length) return { ok: false };
+
+    try {
+      const url = new URL("/api/host/table/unseat", window.location.origin);
+      url.searchParams.set("restaurantId", rid);
+      url.searchParams.set("tables", tables.join(","));
+
+      const res = await fetch(url.toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId: rid,
+          tables: tables,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      console.log("[HOST] forceUnseatTables result", res.status, data);
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || ("HTTP " + res.status));
+      }
+      return data;
+    } catch (e) {
+      console.error("[HOST] forceUnseatTables error", e);
+      throw e;
+    }
+  }
+
   // בחירת הזמנה (radio)
   if (resvList) {
     resvList.addEventListener("change", function(ev){
@@ -283,32 +314,7 @@
     }
   }
 
-  // ✅ חדש: קריאה ל־API שמשחרר שולחן/ות ידנית ע"י המארחת
-  async function forceUnseatTables(tables){
-    try {
-      const res = await fetch("/api/host/table/unseat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          restaurantId: rid,
-          tables,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.ok) {
-        alert("שגיאה בשחרור השולחן: " + (data.error || res.status));
-        return false;
-      }
-      return true;
-    } catch (e) {
-      console.error(e);
-      alert("שגיאת רשת בזמן שחרור שולחן.");
-      return false;
-    }
-  }
-
-  // פונקציית הושבה עם אפשרות retry אחרי שחרור שולחן
-  async function performSeat(allowForceRetry){
+  async function seatSelected(){
     if (!state.selectedResId) {
       alert("יש לבחור הזמנה קודם.");
       return;
@@ -326,7 +332,7 @@
       : `להושיב את ההזמנה לשולחנות ${tables.join(", ")} (איחוד שולחנות)?`;
     if (!confirm(msg)) return;
 
-    try {
+    async function doSeatOnce() {
       let res, data;
 
       if (tables.length === 1) {
@@ -364,27 +370,39 @@
       }
 
       data = await res.json().catch(() => ({}));
+      return { res, data };
+    }
+
+    try {
+      // ניסיון ראשון
+      let { res, data } = await doSeatOnce();
+
       if (!res.ok || !data.ok) {
-        // ✅ טיפול מיוחד ב-table_already_seated – הצעה לשחרר ולנסות שוב
-        if (data.error === "table_already_seated" && allowForceRetry) {
-          const doForce = confirm(
-            "המערכת מסמנת את השולחן כתפוס (כנראה שארית מהזמנה קודמת).\nלשחרר את השולחן ידנית ולנסות שוב?"
+        if (data && data.error === "table_already_seated") {
+          const confirmUnseat = confirm(
+            "השולחן מסומן כתפוס במערכת (כנראה מישיבה קודמת). לשחרר אותו ולאפשר הושבה מחדש?"
           );
-          if (!doForce) return;
+          if (!confirmUnseat) return;
 
-          const ok = await forceUnseatTables(tables);
-          if (!ok) return;
+          // שחרור השולחן /ות
+          await forceUnseatTables(rid, tables);
 
-          // ניסיון חוזר אחד – בלי retry נוסף כדי לא להיכנס ללופ
-          await performSeat(false);
+          // ניסיון שני אחרי שחרור
+          const second = await doSeatOnce();
+          res = second.res;
+          data = second.data;
+
+          if (!res.ok || !data.ok) {
+            alert("שגיאה בהושבה אחרי שחרור שולחן: " + (data.error || res.status));
+            return;
+          }
+        } else {
+          alert("שגיאה בהושבה: " + (data.error || res.status));
           return;
         }
-
-        alert("שגיאה בהושבה: " + (data.error || res.status));
-        return;
       }
 
-      // עדכון ה-UI: סימון השולחנות כתפוסים + שם מזמין
+      // === הצלחה: עדכון UI ===
       const floor = document.getElementById("floor");
       if (floor) {
         tables.forEach(function(tn){
@@ -439,8 +457,7 @@
 
   if (seatBtn) {
     seatBtn.addEventListener("click", function(){
-      // מתחילים עם אפשרות retry אחת במקרה של table_already_seated
-      performSeat(true);
+      seatSelected();
     });
   }
 
