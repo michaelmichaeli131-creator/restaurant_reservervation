@@ -294,13 +294,49 @@
         btn.style.gridRow = (t.gridY + 1) + " / span " + (t.spanY || 1);
         btn.style.gridColumn = (t.gridX + 1) + " / span " + (t.spanX || 1);
 
-        btn.addEventListener("click", function(){
+        // *** כאן השינוי העיקרי: לחיצה על שולחן תפוס מציגה פרטים ***
+        btn.addEventListener("click", async function(){
           const currentStatus = statusMap.get(num) || "empty";
-          if (currentStatus !== "empty") {
-            alert("ניתן לבחור רק שולחנות פנויים. שולחנות תפוסים לא ניתנים לבחירה.");
+
+          // שולחן פנוי – בחירה/ביטול להושבה
+          if (currentStatus === "empty") {
+            toggleTableSelection(num, btn);
             return;
           }
-          toggleTableSelection(num, btn);
+
+          // שולחן תפוס/שמורה/מלוכלך – נטען מידע מפורט מהשרת
+          try {
+            const url = new URL("/api/host/table/info", window.location.origin);
+            url.searchParams.set("restaurantId", rid);
+            url.searchParams.set("table", String(num));
+
+            const res = await fetch(url.toString(), {
+              method: "GET",
+              headers: { "Accept": "application/json" },
+            });
+
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.ok) {
+              const msg = data && data.error ? data.error : res.status;
+              alert("לא ניתן לטעון פרטי שולחן: " + msg);
+              return;
+            }
+
+            const name = data.name || "—";
+            const people = (data.people != null) ? data.people : "לא ידוע";
+            const time = data.time || "לא ידוע";
+
+            const info =
+              `שולחן ${num}\n` +
+              `שם המזמין: ${name}\n` +
+              `מספר סועדים: ${people}\n` +
+              `שעת ההזמנה: ${time}`;
+
+            alert(info);
+          } catch (e) {
+            console.error(e);
+            alert("שגיאה בטעינת פרטי השולחן.");
+          }
         });
 
         grid.appendChild(btn);
@@ -402,7 +438,7 @@
         }
       }
 
-      // === הצלחה: עדכון UI ===
+      // === הצלחה: עדכון ה-UI ===
       const floor = document.getElementById("floor");
       if (floor) {
         tables.forEach(function(tn){

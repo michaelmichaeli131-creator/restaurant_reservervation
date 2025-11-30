@@ -1,5 +1,5 @@
 // src/routes/host.ts
-// מסך מארחת: מפת מסעדה + הושבת הזמנה לשולחן/ות + עדכון סטטוס הזמנה + שחרור שולחן
+// מסך מארחת: מפת מסעדה + הושבת הזמנה לשולחן/ות + שחרור שולחנות + אינפורמציה על שולחן + עדכון סטטוס הזמנה
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -9,6 +9,7 @@ import {
   getRestaurant,
   listReservationsFor,
   setReservationStatus,
+  getReservationById,
 } from "../database.ts";
 
 import {
@@ -25,6 +26,7 @@ import {
 import {
   seatReservation,
   unseatTable,
+  getSeatingByTable,
 } from "../services/seating_service.ts";
 
 export const hostRouter = new Router();
@@ -52,19 +54,7 @@ function toIntLoose(v: unknown): number | null {
 /** קריאת body גמישה: JSON / form / text (עם ניסיון ל־JSON) */
 async function readJsonLikeBody(ctx: any): Promise<any> {
   const req: any = ctx.request;
-
-  let body: any;
-  try {
-    // Oak 17+: request.body() מחזיר אובייקט עם type,value
-    if (typeof req.body === "function") {
-      body = req.body();
-    } else {
-      body = req.body;
-    }
-  } catch {
-    body = undefined;
-  }
-
+  const body = req.body;
   if (!body) return {};
 
   try {
@@ -97,7 +87,7 @@ async function readJsonLikeBody(ctx: any): Promise<any> {
   }
 }
 
-/** חישוב סטטוס לכל שולחן (תפוס/פנוי) על סמך הזמנות פתוחות */
+/** חישוב סטטוס לכל שולחן (תפוס/פנוי) על סמך הזמנות פתוחות (POS Orders) */
 async function computeAllTableStatuses(
   rid: string,
   tablesFlat: Array<{ id: string; tableNumber: number }>,
@@ -149,8 +139,7 @@ async function loadHostReservations(rid: string) {
   });
 }
 
-/* ================== UI: GET /host/:rid ================== */
-
+/** GET /host/:rid – עמוד המארחת עם מפת המסעדה והזמנות להיום */
 hostRouter.get("/host/:rid", async (ctx) => {
   if (!requireStaff(ctx)) return; // דורש לוגין
 
@@ -205,8 +194,7 @@ hostRouter.get("/host/:rid", async (ctx) => {
   });
 });
 
-/* =========== API: GET /api/host/:rid/reservations =========== */
-
+/** GET /api/host/:rid/reservations – רשימת הזמנות להיום */
 hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
   if (!requireStaff(ctx)) return;
 
@@ -238,8 +226,7 @@ hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
   ctx.response.body = { reservations };
 });
 
-/* =========== עזר: קריאת נתונים seat יחיד =========== */
-
+/** עזר: קריאת נתונים גם מה-body וגם מה-query (seat יחיד) */
 async function extractSeatPayload(ctx: any) {
   const data = await readJsonLikeBody(ctx);
   const url = ctx.request.url;
@@ -264,8 +251,7 @@ async function extractSeatPayload(ctx: any) {
   };
 }
 
-/* =========== עזר: קריאת נתונים seat-multi =========== */
-
+/** עזר: קריאת נתונים ל-seat-multi (body + query) */
 async function extractSeatMultiPayload(ctx: any) {
   const data = await readJsonLikeBody(ctx);
   const url = ctx.request.url;
@@ -283,10 +269,7 @@ async function extractSeatMultiPayload(ctx: any) {
     qpTables = qTablesStr
       .split(",")
       .map((s) => toIntLoose(s))
-      .filter(
-        (n): n is number =>
-          Number.isFinite(n as number) && (n as number) > 0,
-      );
+      .filter((n): n is number => Number.isFinite(n as number) && (n as number) > 0);
   }
 
   const tablesRaw = Array.isArray(data.tables) && data.tables.length
@@ -295,10 +278,7 @@ async function extractSeatMultiPayload(ctx: any) {
 
   const tables = tablesRaw
     .map((t: any) => toIntLoose(t))
-    .filter(
-      (n): n is number =>
-        Number.isFinite(n as number) && (n as number) > 0,
-    );
+    .filter((n): n is number => Number.isFinite(n as number) && (n as number) > 0);
 
   return {
     rid,
@@ -309,8 +289,42 @@ async function extractSeatMultiPayload(ctx: any) {
   };
 }
 
-/* =========== POST /api/host/seat – הושבת הזמנה לשולחן יחיד =========== */
+/** עזר: קריאת נתונים ל-unseat שולחן/ות */
+async function extractUnseatPayload(ctx: any) {
+  const data = await readJsonLikeBody(ctx);
+  const url = ctx.request.url;
+  const sp = url.searchParams;
 
+  const qRid = sp.get("restaurantId") ?? sp.get("rid") ?? "";
+  const qTablesStr = sp.get("tables") ?? sp.get("table") ?? "";
+
+  const rid = (data.restaurantId ?? data.rid ?? qRid ?? "").toString();
+
+  let qpTables: number[] = [];
+  if (qTablesStr) {
+    qpTables = qTablesStr
+      .split(",")
+      .map((s) => toIntLoose(s))
+      .filter((n): n is number => Number.isFinite(n as number) && (n as number) > 0);
+  }
+
+  const tablesRaw = Array.isArray(data.tables) && data.tables.length
+    ? data.tables
+    : qpTables;
+
+  const tables = tablesRaw
+    .map((t: any) => toIntLoose(t))
+    .filter((n): n is number => Number.isFinite(n as number) && (n as number) > 0);
+
+  return {
+    rid,
+    tables,
+    payload: data,
+    query: Object.fromEntries(sp.entries()),
+  };
+}
+
+/** POST /api/host/seat – הושבת הזמנה לשולחן יחיד */
 hostRouter.post("/api/host/seat", async (ctx) => {
   if (!requireStaff(ctx)) return;
 
@@ -364,14 +378,20 @@ hostRouter.post("/api/host/seat", async (ctx) => {
     return;
   }
 
+  const guestName = (raw?.guestName ?? "").toString().trim() || undefined;
+
   try {
-    await seatReservation({ restaurantId: rid, reservationId, table: tableNumber });
+    await seatReservation({
+      restaurantId: rid,
+      reservationId,
+      table: tableNumber,
+      guestName,
+    });
   } catch (err) {
     const msg = (err as Error).message || "";
     const errorCode = [
       "reservation_not_found",
       "reservation_cancelled",
-      "table_already_seated",
     ].includes(msg)
       ? msg
       : "seat_failed";
@@ -401,8 +421,7 @@ hostRouter.post("/api/host/seat", async (ctx) => {
   ctx.response.body = { ok: true, orderId: order?.id || null, tableNumber };
 });
 
-/* =========== POST /api/host/seat-multi – הושבה למספר שולחנות =========== */
-
+/** POST /api/host/seat-multi – הושבת הזמנה למספר שולחנות (איחוד שולחנות) */
 hostRouter.post("/api/host/seat-multi", async (ctx) => {
   if (!requireStaff(ctx)) return;
 
@@ -457,10 +476,16 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
   }
 
   const results: Array<{ tableNumber: number; orderId: string | null }> = [];
+  const guestName = (raw?.guestName ?? "").toString().trim() || undefined;
 
   try {
     const primary = tables[0];
-    await seatReservation({ restaurantId: rid, reservationId, table: primary });
+    await seatReservation({
+      restaurantId: rid,
+      reservationId,
+      table: primary,
+      guestName,
+    });
     const primaryOrder = await getOrCreateOpenOrder(rid, primary);
     results.push({ tableNumber: primary, orderId: primaryOrder?.id ?? null });
 
@@ -474,7 +499,6 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
     const errorCode = [
       "reservation_not_found",
       "reservation_cancelled",
-      "table_already_seated",
     ].includes(msg)
       ? msg
       : "seat_failed";
@@ -502,8 +526,7 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
   ctx.response.body = { ok: true, seated: results };
 });
 
-/* =========== POST /api/host/table/unseat – שחרור שולחן(ות) ע"י מארחת =========== */
-
+/** POST /api/host/table/unseat – שחרור שולחן/ות מהמארחת (סגירת צ'ק + שחרור seat) */
 hostRouter.post("/api/host/table/unseat", async (ctx) => {
   if (!requireStaff(ctx)) return;
 
@@ -523,50 +546,21 @@ hostRouter.post("/api/host/table/unseat", async (ctx) => {
     return;
   }
 
-  const data = await readJsonLikeBody(ctx);
-  const url = ctx.request.url;
-  const sp = url.searchParams;
-
-  const qRid = sp.get("restaurantId") ?? sp.get("rid") ?? "";
-  const qTablesStr = sp.get("tables") ?? "";
-
-  const rid = (data.restaurantId ?? data.rid ?? qRid ?? "").toString();
-
-  let qpTables: number[] = [];
-  if (qTablesStr) {
-    qpTables = qTablesStr
-      .split(",")
-      .map((s) => toIntLoose(s))
-      .filter(
-        (n): n is number =>
-          Number.isFinite(n as number) && (n as number) > 0,
-      );
-  }
-
-  const tablesRaw = Array.isArray(data.tables) && data.tables.length
-    ? data.tables
-    : qpTables;
-
-  const tables = tablesRaw
-    .map((t: any) => toIntLoose(t))
-    .filter(
-      (n): n is number =>
-        Number.isFinite(n as number) && (n as number) > 0,
-    );
+  const { rid, tables, payload, query } = await extractUnseatPayload(ctx);
 
   hlog("table/unseat extracted fields", {
     rid,
     tables,
-    payload: data,
-    query: Object.fromEntries(sp.entries()),
+    payload,
+    query,
   });
 
   if (!rid || !tables.length) {
     hlog("table/unseat -> missing_fields", {
       ridOk: !!rid,
       tablesOk: !!tables.length,
-      payload: data,
-      query: Object.fromEntries(sp.entries()),
+      payload,
+      query,
     });
     ctx.response.status = Status.BadRequest;
     ctx.response.body = { ok: false, error: "missing_fields" };
@@ -578,24 +572,19 @@ hostRouter.post("/api/host/table/unseat", async (ctx) => {
 
   for (const tn of tables) {
     try {
-      // ניקוי הושבה/סטטוס לוגי
+      // 1) שחרור ישיבה (KV)
       await unseatTable({ restaurantId: rid, table: tn });
-    } catch (err) {
-      const msg = (err as Error).message || String(err);
-      errors.push({ table: tn, message: msg });
-      continue;
-    }
 
-    try {
-      // סגירת צ'ק פתוח (אם נשאר) כדי שהשולחן יהיה פנוי גם ב-POS
+      // 2) סגירת הזמנה פתוחה (אם יש) – לא קריטי אם אין
       await closeOrderForTable(rid, tn);
-    } catch (err) {
-      const msg = (err as Error).message || String(err);
-      errors.push({ table: tn, message: msg });
-      // גם אם לא נסגר צ'ק, כבר שחררנו את ההושבה – ממשיכים
-    }
 
-    freed.push(tn);
+      freed.push(tn);
+    } catch (err) {
+      errors.push({
+        table: tn,
+        message: (err as Error).message || "unknown_error",
+      });
+    }
   }
 
   hlog("table/unseat result", { rid, freed, errors });
@@ -604,8 +593,93 @@ hostRouter.post("/api/host/table/unseat", async (ctx) => {
   ctx.response.body = { ok: true, freed, errors };
 });
 
-/* =========== POST /api/host/reservation/status – ביטול / no-show =========== */
+/** GET /api/host/table/info – פרטים על שולחן תפוס למארחת */
+hostRouter.get("/api/host/table/info", async (ctx) => {
+  if (!requireStaff(ctx)) return;
 
+  const user = ctx.state.user;
+  const ct = ctx.request.headers.get("content-type") || "";
+
+  hlog("GET /api/host/table/info – incoming", {
+    contentType: ct,
+    userId: user?.id,
+    role: user?.role,
+  });
+
+  if (user.role !== "owner" && user.role !== "manager") {
+    hlog("table/info forbidden: role not allowed", { role: user?.role });
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = "Forbidden";
+    return;
+  }
+
+  const url = ctx.request.url;
+  const sp = url.searchParams;
+
+  const rid = (sp.get("restaurantId") ?? sp.get("rid") ?? "").toString();
+  const tStr = (sp.get("table") ?? sp.get("tableNumber") ?? "").toString();
+  const tableNumber = toIntLoose(tStr) ?? 0;
+
+  if (!rid || !tableNumber) {
+    hlog("table/info -> missing_fields", {
+      ridOk: !!rid,
+      tableOk: !!tableNumber,
+      query: Object.fromEntries(sp.entries()),
+    });
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "missing_fields" };
+    return;
+  }
+
+  const seat = await getSeatingByTable(rid, tableNumber);
+  if (!seat) {
+    hlog("table/info -> not_seated", { rid, tableNumber });
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = { ok: false, error: "not_seated" };
+    return;
+  }
+
+  let name = seat.guestName ?? "";
+  let people = seat.people;
+  let time = seat.time;
+
+  // אם חסר משהו – ננסה להשלים מה-reservation
+  const res = await getReservationById(seat.reservationId);
+  if (res) {
+    if (!name) {
+      name = (res.firstName && res.lastName)
+        ? `${res.firstName} ${res.lastName}`
+        : (res.name ?? "");
+    }
+    if (people == null && res.people != null) {
+      people = Number(res.people);
+    }
+    if (!time && res.time) {
+      time = String(res.time);
+    }
+  }
+
+  hlog("table/info success", {
+    rid,
+    tableNumber,
+    reservationId: seat.reservationId,
+    name,
+    people,
+    time,
+  });
+
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = {
+    ok: true,
+    table: tableNumber,
+    reservationId: seat.reservationId,
+    name: name || null,
+    people: people ?? null,
+    time: time ?? null,
+  };
+});
+
+/** POST /api/host/reservation/status – עדכון סטטוס הזמנה (ביטול / לא הגיע) */
 hostRouter.post("/api/host/reservation/status", async (ctx) => {
   if (!requireStaff(ctx)) return;
 

@@ -3,7 +3,8 @@
 // Seating logic:
 // - isTableSeated: בדיקה אם שולחן תפוס (משמש POS / מלצרים)
 // - seatReservation: המארחת מושיבה הזמנה לשולחן → נועלים את השולחן ופותחים Order
-// - unseatTable: שחרור שולחן (best-effort, לא קריטי לפעולה עצמה)
+// - unseatTable: שחרור שולחן (best-effort)
+// - getSeatingByTable: החזרת מידע ישיבה לשולחן (למסך המארחת)
 // -------------------------------------------
 
 import {
@@ -30,6 +31,8 @@ export interface SeatingInfo {
   reservationId: string;
   seatedAt: number;
   guestName?: string;
+  people?: number;
+  time?: string; // שעת ההזמנה (כמו שנשמרת ב-reservation)
 }
 
 /**
@@ -51,7 +54,8 @@ export async function isTableSeated(
  * - פותחים צ'ק פתוח (Order) לשולחן
  * - מעדכנים את סטטוס ההזמנה ל-arrived
  *
- * שים לב: **אין יותר table_already_seated** – המארחת יכולה לדרוס מצב ישן.
+ * שים לב:
+ * ❌ אין כאן table_already_seated – המארחת יכולה לדרוס מצב ישן.
  */
 export async function seatReservation(params: {
   restaurantId: string;
@@ -74,12 +78,20 @@ export async function seatReservation(params: {
   }
 
   const now = Date.now();
+
+  const people = reservation.people != null
+    ? Number(reservation.people)
+    : undefined;
+  const time = reservation.time ? String(reservation.time) : undefined;
+
   const data: SeatingInfo = {
     restaurantId,
     table,
     reservationId,
     seatedAt: now,
     guestName: guestName?.trim() || undefined,
+    people,
+    time,
   };
 
   const seatKey = kSeat(restaurantId, table);
@@ -154,4 +166,15 @@ export async function unseatTable(params: {
     });
     return false;
   }
+}
+
+/**
+ * החזרת מידע ישיבה לשולחן ספציפי (למסך המארחת / API).
+ */
+export async function getSeatingByTable(
+  restaurantId: string,
+  table: number,
+): Promise<SeatingInfo | null> {
+  const row = await kv.get<SeatingInfo>(kSeat(restaurantId, table));
+  return row.value ?? null;
 }
