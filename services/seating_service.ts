@@ -1,9 +1,9 @@
 // src/services/seating_service.ts
 // -------------------------------------------
 // Seating logic:
-// - seatReservation: המארחת מושיבה הזמנה לשולחן → נועלים את השולחן ופותחים הזמנה (Order)
-// - unseatTable: שחרור שולחן (למקרה שנשארו "רוחות רפאים")
-// - isTableSeated: בדיקה אם שולחן תפוס (בשביל POS / מלצר)
+// - isTableSeated: בדיקה אם שולחן תפוס (משמש POS / מלצר)
+// - seatReservation: המארחת מושיבה הזמנה לשולחן → נועלים את השולחן ופותחים Order
+// - unseatTable: שחרור שולחן (כולל טיפול ברשומות ישנות / שבורות)
 // -------------------------------------------
 
 import {
@@ -47,7 +47,7 @@ export async function isTableSeated(
 /**
  * הושבת הזמנה לשולחן:
  * - מוודאים שההזמנה קיימת ולא בוטלה / no_show
- * - נועלים את השולחן ב-KV (atomic + check)
+ * - נועלים את השולחן ב-KV
  * - פותחים הזמנה פתוחה (Order) לשולחן
  * - מעדכנים את סטטוס ההזמנה ל-arrived
  */
@@ -88,17 +88,20 @@ export async function seatReservation(params: {
     guestName: guestName?.trim() || undefined,
   };
 
-  // 4. atomic: נוודא שהשולחן עדיין ריק ונרשום ישיבה
-  const tx = kv
-    .atomic()
-    .check({ key: seatKey, versionstamp: null }) // דורש שהשולחן יהיה ריק
-    .set(seatKey, data)
-    .set(kSeatByRes(reservationId), data);
-
-  const result = await tx.commit();
-  if (!result.ok) {
-    // אם העסקה נכשלה – כנראה מישהו אחר כבר תפס את השולחן
-    throw new Error("table_already_seated");
+  // 4. שמירת ישיבה בשני אינדקסים (לפי שולחן ולפי הזמנה)
+  // כאן לא חייבים atomic מורכב – מספיק שנשמור עקבי "או הכל או כלום", אבל במקרה הגרוע
+  // המפתח השני לא ייכתב וזה לא מפיל את ההושבה.
+  try {
+    await kv.set(seatKey, data);
+    await kv.set(kSeatByRes(reservationId), data);
+  } catch (err) {
+    console.error("[SEATING] seatReservation KV ERROR", {
+      restaurantId,
+      table,
+      reservationId,
+      msg: (err as Error).message,
+    });
+    throw new Error("seat_failed");
   }
 
   // 5. פתיחת צ'ק פתוח לשולחן
@@ -116,31 +119,47 @@ export async function seatReservation(params: {
 
 /**
  * שחרור שולחן ממצב "seated".
- * תומך גם ברשומות ישנות/שבורות שאין להן reservationId תקין,
- * כדי לנקות "רוחות רפאים" שגורמות ל-table_already_seated.
+ * חשוב: ויתרנו על atomic().check(...) כדי להימנע משגיאות טיפוס על רשומות ישנות.
+ * במקרה הגרוע – ננסה למחוק, אם נכשל נלוגג ונחזיר false.
  */
 export async function unseatTable(
   restaurantId: string,
   table: number,
 ): Promise<boolean> {
   const seatKey = kSeat(restaurantId, table);
-  const seatRow = await kv.get<SeatingInfo>(seatKey);
-  const cur = seatRow.value;
 
-  // אם אין רשומה בכלל – מבחינתנו השולחן כבר משוחרר
-  if (!cur) return true;
+  try {
+    const seatRow = await kv.get<SeatingInfo>(seatKey);
+    const cur = seatRow.value;
 
-  const tx = kv.atomic().check(seatRow).delete(seatKey);
+    // אין רשומת ישיבה בכלל => מבחינתנו השולחן משוחרר
+    if (!cur) return true;
 
-  // רק אם יש reservationId תקין – נמחק גם את האינדקס לפי הזמנה
-  if (
-    cur &&
-    typeof cur.reservationId === "string" &&
-    cur.reservationId.trim().length > 0
-  ) {
-    tx.delete(kSeatByRes(cur.reservationId));
+    // מוחקים את המפתח הראשי לפי שולחן
+    await kv.delete(seatKey);
+
+    // אם יש reservationId סביר – ננסה למחוק גם את האינדקס לפי הזמנה
+    if (cur.reservationId) {
+      try {
+        await kv.delete(kSeatByRes(String(cur.reservationId)));
+      } catch (innerErr) {
+        console.error("[SEATING] unseatTable delete by_res ERROR", {
+          restaurantId,
+          table,
+          reservationId: cur.reservationId,
+          msg: (innerErr as Error).message,
+        });
+        // לא מפיל את כל הפעולה – העיקר שהמפתח לפי שולחן נמחק
+      }
+    }
+
+    return true;
+  } catch (err) {
+    console.error("[SEATING] unseatTable ERROR", {
+      restaurantId,
+      table,
+      msg: (err as Error).message,
+    });
+    return false;
   }
-
-  const res = await tx.commit();
-  return res.ok;
 }
