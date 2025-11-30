@@ -2,6 +2,7 @@
 
 <%
   const restaurant = it.restaurant || {};
+  const openTables = it.openTables || []; // מגיע מהשרת כמו בגרסה הישנה
 %>
 
 <main class="waiter container">
@@ -20,19 +21,74 @@
         רשימת כל השולחנות עם צ׳קים פתוחים / בשירות פעיל. לחיצה על שורה תציג פרטי שולחן,
         וכפתור "למסך הזמנה" יפתח את מסך ה־POS לשולחן.
       </p>
-      <ul id="open-tables-list" class="list open-tables-list">
-        <!-- יתמלא דינמית -->
-      </ul>
-      <div id="open-tables-empty" class="muted small" style="display:none;">
-        אין כרגע שולחנות פתוחים.
-      </div>
+
+      <% if (openTables.length) { %>
+        <ul id="open-tables-list" class="list open-tables-list">
+          <% openTables.forEach(function(t){ 
+              const tn = Number(t.tableNumber || t.table || 0);
+              const guestName = t.guestName || t.name || t.customerName || "";
+              const people = t.people || t.covers || "";
+              const time = t.time || t.openedAt || "";
+              const status = t.status || "occupied";
+              const itemsCount = (t.totals && t.totals.itemsCount != null)
+                ? t.totals.itemsCount
+                : (t.itemsCount != null ? t.itemsCount : "");
+              const subtotal = (t.totals && t.totals.subtotal != null)
+                ? t.totals.subtotal
+                : (t.subtotal != null ? t.subtotal : "");
+          %>
+            <li
+              class="item open-item"
+              data-table="<%= tn %>"
+              data-name="<%= guestName %>"
+              data-people="<%= people %>"
+              data-time="<%= time %>"
+              data-status="<%= status %>"
+              data-items-count="<%= itemsCount %>"
+              data-subtotal="<%= subtotal %>"
+            >
+              <div class="open-row">
+                <button type="button" class="open-table-btn">
+                  <div class="open-main">
+                    <span class="open-table-num">שולחן <%= tn %></span>
+                    <% if (guestName) { %>
+                      <span class="open-guest-name">• <%= guestName %></span>
+                    <% } %>
+                  </div>
+                  <div class="open-sub">
+                    <% if (people) { %>
+                      <span><%= people %> סועדים</span>
+                    <% } %>
+                    <% if (time) { %>
+                      <span>• <%= time %></span>
+                    <% } %>
+                    <% if (itemsCount !== "" && itemsCount != null) { %>
+                      <span>• <%= itemsCount %> פריטים</span>
+                    <% } %>
+                    <% if (subtotal !== "" && subtotal != null) { %>
+                      <span>• <%= subtotal %> ₪</span>
+                    <% } %>
+                  </div>
+                </button>
+                <button type="button" class="open-pos-link">
+                  למסך הזמנה
+                </button>
+              </div>
+            </li>
+          <% }) %>
+        </ul>
+      <% } else { %>
+        <div id="open-tables-empty" class="muted small">
+          אין כרגע שולחנות פתוחים.
+        </div>
+      <% } %>
     </div>
 
     <!-- כרטיסייה: מפת המסעדה (חי) -->
     <div class="panel card">
       <h2>מפת המסעדה (חי)</h2>
       <p class="muted small">
-        לחיצה על שולחן תפוס תציג פרטי הזמנה; לחיצה על שולחן פנוי תציג מידע בסיסי (ניתן להרחיב בעתיד לפתיחת צ׳ק).
+        לחיצה על שולחן תפוס תציג פרטי הזמנה; לחיצה על שולחן פנוי תציג מידע בסיסי.
       </p>
       <div id="floor" class="floor-wrapper">
         <!-- המפה תיטען דינמית ע"י JS -->
@@ -90,7 +146,6 @@
       <p class="muted small">
         המידע נלקח מההזמנה / צ׳ק האחרון בשולחן.
       </p>
-      <!-- בעתיד אפשר להוסיף פה כפתור "כניסה לצ׳ק" -->
     </footer>
   </div>
 </aside>
@@ -100,7 +155,6 @@
   const rid = "<%= it.rid %>";
 
   const openList = document.getElementById("open-tables-list");
-  const openEmpty = document.getElementById("open-tables-empty");
   const floorHolder = document.getElementById("floor");
 
   // צד פרטי שולחן
@@ -115,9 +169,8 @@
   const tipItemsCount = document.getElementById("tip-items-count");
   const tipSubtotal = document.getElementById("tip-subtotal");
 
-  const statusMap = new Map();      // tableNumber -> status (ממפת הרצפה)
-  const guestMap = new Map();       // tableNumber -> guestName (ממפת הרצפה)
-  const openTableInfo = new Map();  // tableNumber -> { name, people, time, status, itemsCount, subtotal }
+  const statusMap = new Map(); // ממפת הרצפה
+  const guestMap = new Map();  // ממפת הרצפה
 
   function mapStatusToLabel(status){
     const s = (status || "").toLowerCase();
@@ -155,7 +208,6 @@
       tipStatus.className = clsBase[0] + " " + mapStatusToClass(info.status);
     }
 
-    // פריטים + סכום
     tipItemsCount.textContent = (info.itemsCount != null && info.itemsCount !== "")
       ? info.itemsCount
       : "—";
@@ -175,130 +227,73 @@
   if (tipCloseBtn) tipCloseBtn.addEventListener("click", closeTableInfoPanel);
   if (tableInfoBackdrop) tableInfoBackdrop.addEventListener("click", closeTableInfoPanel);
 
-  // === טעינת שולחנות פתוחים ===
-  async function loadOpenTables(){
-    if (!openList) return;
-    openList.innerHTML = "";
-    openTableInfo.clear();
+  // האזנה לרשימת שולחנות פתוחים – כמו בגרסה הישנה, אבל עם כרטסיית צד
+  if (openList) {
+    openList.addEventListener("click", function(ev){
+      const target = ev.target;
+      if (!(target instanceof HTMLElement)) return;
 
-    try{
-      // תתאם ל-API הקיים אצלך אם השם שונה
-      const url = new URL("/api/pos/open-tables", window.location.origin);
-      url.searchParams.set("restaurantId", rid);
+      // כפתור "למסך הזמנה"
+      const posBtn = target.closest(".open-pos-link");
+      if (posBtn) {
+        const li = posBtn.closest("li[data-table]");
+        if (!li) return;
+        const tn = li.getAttribute("data-table");
+        if (!tn) return;
 
-      const res = await fetch(url.toString(), {
-        headers: { "Accept": "application/json" },
-      });
-      const data = await res.json().catch(() => ({}));
-
-      const tables = Array.isArray(data.tables) ? data.tables : [];
-      if (!tables.length) {
-        openEmpty.style.display = "block";
+        // תתאים לראוטר POS שלך אם הנתיב שונה
+        const href = `/pos/${encodeURIComponent(rid)}/table/${encodeURIComponent(tn)}`;
+        window.location.href = href;
         return;
       }
-      openEmpty.style.display = "none";
 
-      tables.forEach(function(t){
-        const tn = Number(t.tableNumber);
-        if (!Number.isFinite(tn)) return;
+      // לחיצה על שורת השולחן
+      const rowBtn = target.closest(".open-table-btn");
+      if (rowBtn) {
+        const li = rowBtn.closest("li[data-table]");
+        if (!li) return;
 
-        const guestName = t.guestName || t.name || "";
-        const people = t.people || t.covers || "";
-        const time = t.time || t.openedAt || "";
-        const status = t.status || "occupied";
-        const itemsCount = t.itemsCount ?? t.items ?? null;
-        const subtotal = t.subtotal ?? t.total ?? null;
+        const tn = Number(li.getAttribute("data-table"));
+        const name = li.getAttribute("data-name") || "";
+        const people = li.getAttribute("data-people") || "";
+        const time = li.getAttribute("data-time") || "";
+        const status = li.getAttribute("data-status") || "occupied";
+        const itemsCountAttr = li.getAttribute("data-items-count");
+        const subtotalAttr = li.getAttribute("data-subtotal");
 
-        // נשמור ב-map כדי להשתמש בפאנל צד
-        openTableInfo.set(tn, {
+        const itemsCount = (itemsCountAttr != null && itemsCountAttr !== "")
+          ? Number(itemsCountAttr)
+          : null;
+        const subtotal = (subtotalAttr != null && subtotalAttr !== "")
+          ? Number(subtotalAttr)
+          : null;
+
+        const info = {
           tableNumber: tn,
-          name: guestName,
+          name,
           people,
           time,
           status,
           itemsCount,
           subtotal,
-        });
+        };
+        openTableInfoPanel(info);
 
-        const li = document.createElement("li");
-        li.className = "item open-item";
-
-        li.innerHTML = `
-          <div class="open-row">
-            <button type="button" class="open-table-btn" data-table="${tn}">
-              <div class="open-main">
-                <span class="open-table-num">שולחן ${tn}</span>
-                ${guestName ? `<span class="open-guest-name">• ${guestName}</span>` : ""}
-              </div>
-              <div class="open-sub">
-                ${people ? `<span>${people} סועדים</span>` : ""}
-                ${time ? `<span>• ${time}</span>` : ""}
-                ${itemsCount != null ? `<span>• ${itemsCount} פריטים</span>` : ""}
-                ${subtotal != null ? `<span>• ${formatMoney(subtotal)}</span>` : ""}
-              </div>
-            </button>
-            <button type="button" class="open-pos-link" data-table="${tn}">
-              למסך הזמנה
-            </button>
-          </div>
-        `;
-
-        openList.appendChild(li);
-      });
-
-      // האזנה ללחיצה – פעם אחת (לא once!), עם delegation
-      openList.addEventListener("click", function(ev){
-        const target = ev.target;
-        if (!(target instanceof HTMLElement)) return;
-
-        // כפתור "למסך הזמנה" → ניווט ל-POS
-        const posBtn = target.closest(".open-pos-link");
-        if (posBtn) {
-          const tn = Number(posBtn.dataset.table);
-          if (!Number.isFinite(tn)) return;
-          // תתאם לנתיב הקיים אצלך ב-POS אם הוא שונה
-          const href = `/pos/${encodeURIComponent(rid)}/table/${encodeURIComponent(tn)}`;
-          window.location.href = href;
-          return;
-        }
-
-        // לחיצה על השורה (open-table-btn) → פותח פאנל צד עם פרטים
-        const rowBtn = target.closest(".open-table-btn");
-        if (rowBtn) {
-          const tn = Number(rowBtn.dataset.table);
-          if (!Number.isFinite(tn)) return;
-
-          const info = openTableInfo.get(tn) || {
-            tableNumber: tn,
-            name: guestMap.get(tn) || "",
-            people: "",
-            time: "",
-            status: statusMap.get(tn) || "occupied",
-            itemsCount: null,
-            subtotal: null,
-          };
-          openTableInfoPanel(info);
-
-          // נגלול גם למפה ונדגיש את השולחן
-          const floor = document.getElementById("floor");
-          if (floor) {
-            const tableBtn = floor.querySelector('.table[data-table-number="'+tn+'"]');
-            if (tableBtn) {
-              tableBtn.classList.add("selected");
-              tableBtn.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-              setTimeout(() => tableBtn.classList.remove("selected"), 800);
-            }
+        // הדגשה במפת המסעדה
+        const floor = document.getElementById("floor");
+        if (floor) {
+          const tableBtn = floor.querySelector('.table[data-table-number="'+tn+'"]');
+          if (tableBtn) {
+            tableBtn.classList.add("selected");
+            tableBtn.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+            setTimeout(() => tableBtn.classList.remove("selected"), 800);
           }
         }
-      }, { passive: true });
-    }catch(e){
-      console.error(e);
-      openEmpty.style.display = "block";
-      openEmpty.textContent = "שגיאה בטעינת השולחנות הפתוחים.";
-    }
+      }
+    }, { passive: true });
   }
 
-  // === טעינת מפת המסעדה ===
+  // === טעינת מפת המסעדה === (כמו אצל המארחת)
   async function loadFloor(){
     if (!floorHolder) return;
     floorHolder.innerHTML = "";
@@ -372,7 +367,6 @@
         btn.addEventListener("click", async function(){
           const currentStatus = statusMap.get(num) || "empty";
 
-          // אם פנוי – נציג פאנל עם מידע בסיסי (אפשר להרחיב בעתיד לפתיחה אוטומטית של צ׳ק)
           if (currentStatus === "empty") {
             const info = {
               tableNumber: num,
@@ -387,7 +381,6 @@
             return;
           }
 
-          // תפוס / שמור / מלוכלך – נטען פרטי שולחן מהשרת (כמו אצל המארחת)
           try {
             const url = new URL("/api/host/table/info", window.location.origin);
             url.searchParams.set("restaurantId", rid);
@@ -432,11 +425,7 @@
     }
   }
 
-  // טעינה ראשונית
-  loadOpenTables();
   loadFloor();
-
-  // אפשר להוסיף setInterval לרענון בעתיד
 })();
 </script>
 
