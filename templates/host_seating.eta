@@ -79,6 +79,49 @@
   </section>
 </main>
 
+<!-- כרטיסיית צד לפרטי שולחן תפוס -->
+<div id="table-info-backdrop" class="table-info-backdrop"></div>
+<aside id="table-info-panel" class="table-info-panel" aria-hidden="true">
+  <div class="table-info-inner">
+    <header class="table-info-header">
+      <div>
+        <div class="tip-label">פרטי שולחן</div>
+        <div class="tip-title">שולחן <span id="tip-table-number">—</span></div>
+      </div>
+      <button type="button" class="tip-close-btn" id="tip-close-btn" aria-label="סגירת פרטי שולחן">
+        ✕
+      </button>
+    </header>
+
+    <div class="table-info-body">
+      <div class="tip-row">
+        <span class="tip-row-label">שם המזמין</span>
+        <span class="tip-row-value" id="tip-guest-name">—</span>
+      </div>
+      <div class="tip-row">
+        <span class="tip-row-label">מספר סועדים</span>
+        <span class="tip-row-value" id="tip-people">—</span>
+      </div>
+      <div class="tip-row">
+        <span class="tip-row-label">שעת ההזמנה</span>
+        <span class="tip-row-value" id="tip-time">—</span>
+      </div>
+      <div class="tip-row">
+        <span class="tip-row-label">סטטוס שולחן</span>
+        <span class="tip-row-value">
+          <span id="tip-status" class="tip-status-badge">—</span>
+        </span>
+      </div>
+    </div>
+
+    <footer class="table-info-footer">
+      <p class="muted small">
+        המידע נלקח מההזמנה האחרונה ששויכה לשולחן זה.
+      </p>
+    </footer>
+  </div>
+</aside>
+
 <script>
 (function(){
   const rid = "<%= it.rid %>";
@@ -89,6 +132,67 @@
 
   const resvList = document.getElementById("resv-list");
   const seatBtn = document.getElementById("seat-btn");
+
+  // צד פרטי שולחן
+  const tableInfoPanel = document.getElementById("table-info-panel");
+  const tableInfoBackdrop = document.getElementById("table-info-backdrop");
+  const tipCloseBtn = document.getElementById("tip-close-btn");
+  const tipTableNumber = document.getElementById("tip-table-number");
+  const tipGuestName = document.getElementById("tip-guest-name");
+  const tipPeople = document.getElementById("tip-people");
+  const tipTime = document.getElementById("tip-time");
+  const tipStatus = document.getElementById("tip-status");
+
+  function mapStatusToLabel(status){
+    const s = (status || "").toLowerCase();
+    if (s === "occupied" || s === "open") return "תפוס";
+    if (s === "reserved") return "שמורה";
+    if (s === "dirty") return "דורש ניקוי";
+    if (s === "empty" || s === "free") return "פנוי";
+    return status || "לא ידוע";
+  }
+
+  function mapStatusToClass(status){
+    const s = (status || "").toLowerCase();
+    if (s === "occupied" || s === "open") return "tip-status-occupied";
+    if (s === "reserved") return "tip-status-reserved";
+    if (s === "dirty") return "tip-status-dirty";
+    if (s === "empty" || s === "free") return "tip-status-empty";
+    return "tip-status-unknown";
+  }
+
+  function openTableInfoPanel(info){
+    if (!tableInfoPanel) return;
+    tipTableNumber.textContent = info.tableNumber != null ? info.tableNumber : "—";
+    tipGuestName.textContent = info.name || "—";
+    tipPeople.textContent = (info.people != null && info.people !== "") ? info.people : "—";
+    tipTime.textContent = info.time || "—";
+
+    // סטטוס עם באדג׳
+    const clsBase = ["tip-status-badge","tip-status-empty","tip-status-occupied","tip-status-reserved","tip-status-dirty","tip-status-unknown"];
+    if (tipStatus) {
+      tipStatus.textContent = mapStatusToLabel(info.status);
+      tipStatus.className = clsBase[0] + " " + mapStatusToClass(info.status);
+    }
+
+    tableInfoPanel.classList.add("open");
+    tableInfoBackdrop.classList.add("open");
+    tableInfoPanel.setAttribute("aria-hidden","false");
+  }
+
+  function closeTableInfoPanel(){
+    if (!tableInfoPanel) return;
+    tableInfoPanel.classList.remove("open");
+    tableInfoBackdrop.classList.remove("open");
+    tableInfoPanel.setAttribute("aria-hidden","true");
+  }
+
+  if (tipCloseBtn) {
+    tipCloseBtn.addEventListener("click", closeTableInfoPanel);
+  }
+  if (tableInfoBackdrop) {
+    tableInfoBackdrop.addEventListener("click", closeTableInfoPanel);
+  }
 
   // ---------- עזר: שחרור שולחן/ות תקועים דרך ה-API ----------
   async function forceUnseatTables(rid, tables){
@@ -294,12 +398,13 @@
         btn.style.gridRow = (t.gridY + 1) + " / span " + (t.spanY || 1);
         btn.style.gridColumn = (t.gridX + 1) + " / span " + (t.spanX || 1);
 
-        // *** כאן השינוי העיקרי: לחיצה על שולחן תפוס מציגה פרטים ***
+        // לחיצה על שולחן
         btn.addEventListener("click", async function(){
           const currentStatus = statusMap.get(num) || "empty";
 
           // שולחן פנוי – בחירה/ביטול להושבה
           if (currentStatus === "empty") {
+            closeTableInfoPanel(); // אם היה פתוח, נסגור
             toggleTableSelection(num, btn);
             return;
           }
@@ -322,17 +427,13 @@
               return;
             }
 
-            const name = data.name || "—";
-            const people = (data.people != null) ? data.people : "לא ידוע";
-            const time = data.time || "לא ידוע";
-
-            const info =
-              `שולחן ${num}\n` +
-              `שם המזמין: ${name}\n` +
-              `מספר סועדים: ${people}\n` +
-              `שעת ההזמנה: ${time}`;
-
-            alert(info);
+            openTableInfoPanel({
+              tableNumber: num,
+              name: data.name || data.guestName || "",
+              people: data.people,
+              time: data.time,
+              status: currentStatus,
+            });
           } catch (e) {
             console.error(e);
             alert("שגיאה בטעינת פרטי השולחן.");
@@ -479,6 +580,7 @@
       }
 
       state.selectedTables.clear();
+      closeTableInfoPanel();
 
       alert(
         tables.length === 1
@@ -705,4 +807,144 @@
       grid-template-columns:1fr;
     }
   }
+
+  /* ===== כרטיסיית צד לפרטי שולחן ===== */
+
+  .table-info-backdrop{
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease;
+    z-index: 40;
+  }
+  .table-info-backdrop.open{
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .table-info-panel{
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: min(340px, 90vw);
+    transform: translateX(100%);
+    transition: transform .22s ease-out;
+    z-index: 41;
+    display:flex;
+    align-items:stretch;
+    justify-content:flex-start;
+  }
+  .table-info-panel.open{
+    transform: translateX(0);
+  }
+
+  .table-info-inner{
+    background: rgba(8,12,24,0.98);
+    border-left: 1px solid rgba(148,163,184,0.35);
+    box-shadow: -18px 0 40px rgba(0,0,0,0.6);
+    width: 100%;
+    padding: 14px 16px 16px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+
+  .table-info-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin-bottom:4px;
+  }
+
+  .tip-label{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:#9aa3b2;
+  }
+  .tip-title{
+    font-size:18px;
+    font-weight:600;
+  }
+
+  .tip-close-btn{
+    border:none;
+    background: rgba(15,23,42,0.7);
+    color:#e5e7eb;
+    width:28px;
+    height:28px;
+    border-radius:999px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    font-size:14px;
+  }
+
+  .table-info-body{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    margin-top:4px;
+  }
+
+  .tip-row{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    font-size:13px;
+  }
+  .tip-row-label{
+    color:#9aa3b2;
+  }
+  .tip-row-value{
+    font-weight:500;
+  }
+
+  .tip-status-badge{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:2px 8px;
+    border-radius:999px;
+    font-size:11px;
+    border:1px solid transparent;
+  }
+
+  .tip-status-empty{
+    background:rgba(34,197,94,0.12);
+    border-color:rgba(34,197,94,0.4);
+    color:#4ade80;
+  }
+  .tip-status-occupied{
+    background:rgba(239,68,68,0.16);
+    border-color:rgba(239,68,68,0.55);
+    color:#fecaca;
+  }
+  .tip-status-reserved{
+    background:rgba(245,158,11,0.18);
+    border-color:rgba(245,158,11,0.6);
+    color:#fde68a;
+  }
+  .tip-status-dirty{
+    background:rgba(168,85,247,0.2);
+    border-color:rgba(168,85,247,0.7);
+    color:#e9d5ff;
+  }
+  .tip-status-unknown{
+    background:rgba(148,163,184,0.18);
+    border-color:rgba(148,163,184,0.6);
+    color:#e5e7eb;
+  }
+
+  .table-info-footer{
+    margin-top:auto;
+    padding-top:8px;
+    border-top:1px solid rgba(148,163,184,0.25);
+  }
+
 </style>
