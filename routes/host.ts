@@ -1,5 +1,5 @@
 // src/routes/host.ts
-// מסך מארחת: מפת מסעדה + הושבת הזמנה לשולחן/ות + עדכון סטטוס הזמנה + שחרור שולחן ע"י מארחת
+// מסך מארחת: מפת מסעדה + הושבת הזמנה לשולחן/ות + עדכון סטטוס הזמנה + שחרור שולחן
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -22,7 +22,10 @@ import {
   getTableIdByNumber,
 } from "../services/floor_service.ts";
 
-import { seatReservation, unseatTable } from "../services/seating_service.ts";
+import {
+  seatReservation,
+  unseatTable,
+} from "../services/seating_service.ts";
 
 export const hostRouter = new Router();
 
@@ -49,7 +52,19 @@ function toIntLoose(v: unknown): number | null {
 /** קריאת body גמישה: JSON / form / text (עם ניסיון ל־JSON) */
 async function readJsonLikeBody(ctx: any): Promise<any> {
   const req: any = ctx.request;
-  const body = req.body;
+
+  let body: any;
+  try {
+    // Oak 17+: request.body() מחזיר אובייקט עם type,value
+    if (typeof req.body === "function") {
+      body = req.body();
+    } else {
+      body = req.body;
+    }
+  } catch {
+    body = undefined;
+  }
+
   if (!body) return {};
 
   try {
@@ -134,7 +149,8 @@ async function loadHostReservations(rid: string) {
   });
 }
 
-/** GET /host/:rid – עמוד המארחת עם מפת המסעדה והזמנות להיום */
+/* ================== UI: GET /host/:rid ================== */
+
 hostRouter.get("/host/:rid", async (ctx) => {
   if (!requireStaff(ctx)) return; // דורש לוגין
 
@@ -189,7 +205,8 @@ hostRouter.get("/host/:rid", async (ctx) => {
   });
 });
 
-/** GET /api/host/:rid/reservations – רשימת הזמנות להיום */
+/* =========== API: GET /api/host/:rid/reservations =========== */
+
 hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
   if (!requireStaff(ctx)) return;
 
@@ -221,7 +238,8 @@ hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
   ctx.response.body = { reservations };
 });
 
-/** עזר: קריאת נתונים גם מה-body וגם מה-query (seat יחיד) */
+/* =========== עזר: קריאת נתונים seat יחיד =========== */
+
 async function extractSeatPayload(ctx: any) {
   const data = await readJsonLikeBody(ctx);
   const url = ctx.request.url;
@@ -246,7 +264,8 @@ async function extractSeatPayload(ctx: any) {
   };
 }
 
-/** עזר: קריאת נתונים ל-seat-multi (body + query) */
+/* =========== עזר: קריאת נתונים seat-multi =========== */
+
 async function extractSeatMultiPayload(ctx: any) {
   const data = await readJsonLikeBody(ctx);
   const url = ctx.request.url;
@@ -290,7 +309,8 @@ async function extractSeatMultiPayload(ctx: any) {
   };
 }
 
-/** POST /api/host/seat – הושבת הזמנה לשולחן יחיד */
+/* =========== POST /api/host/seat – הושבת הזמנה לשולחן יחיד =========== */
+
 hostRouter.post("/api/host/seat", async (ctx) => {
   if (!requireStaff(ctx)) return;
 
@@ -345,11 +365,7 @@ hostRouter.post("/api/host/seat", async (ctx) => {
   }
 
   try {
-    await seatReservation({
-      restaurantId: rid,
-      reservationId,
-      table: tableNumber,
-    });
+    await seatReservation({ restaurantId: rid, reservationId, table: tableNumber });
   } catch (err) {
     const msg = (err as Error).message || "";
     const errorCode = [
@@ -385,7 +401,8 @@ hostRouter.post("/api/host/seat", async (ctx) => {
   ctx.response.body = { ok: true, orderId: order?.id || null, tableNumber };
 });
 
-/** POST /api/host/seat-multi – הושבת הזמנה למספר שולחנות (איחוד שולחנות) */
+/* =========== POST /api/host/seat-multi – הושבה למספר שולחנות =========== */
+
 hostRouter.post("/api/host/seat-multi", async (ctx) => {
   if (!requireStaff(ctx)) return;
 
@@ -443,11 +460,7 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
 
   try {
     const primary = tables[0];
-    await seatReservation({
-      restaurantId: rid,
-      reservationId,
-      table: primary,
-    });
+    await seatReservation({ restaurantId: rid, reservationId, table: primary });
     const primaryOrder = await getOrCreateOpenOrder(rid, primary);
     results.push({ tableNumber: primary, orderId: primaryOrder?.id ?? null });
 
@@ -489,7 +502,110 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
   ctx.response.body = { ok: true, seated: results };
 });
 
-/** POST /api/host/reservation/status – עדכון סטטוס הזמנה (ביטול / לא הגיע) */
+/* =========== POST /api/host/table/unseat – שחרור שולחן(ות) ע"י מארחת =========== */
+
+hostRouter.post("/api/host/table/unseat", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+
+  const user = ctx.state.user;
+  const ct = ctx.request.headers.get("content-type") || "";
+
+  hlog("POST /api/host/table/unseat – incoming", {
+    contentType: ct,
+    userId: user?.id,
+    role: user?.role,
+  });
+
+  if (user.role !== "owner" && user.role !== "manager") {
+    hlog("table/unseat forbidden: role not allowed", { role: user?.role });
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = "Forbidden";
+    return;
+  }
+
+  const data = await readJsonLikeBody(ctx);
+  const url = ctx.request.url;
+  const sp = url.searchParams;
+
+  const qRid = sp.get("restaurantId") ?? sp.get("rid") ?? "";
+  const qTablesStr = sp.get("tables") ?? "";
+
+  const rid = (data.restaurantId ?? data.rid ?? qRid ?? "").toString();
+
+  let qpTables: number[] = [];
+  if (qTablesStr) {
+    qpTables = qTablesStr
+      .split(",")
+      .map((s) => toIntLoose(s))
+      .filter(
+        (n): n is number =>
+          Number.isFinite(n as number) && (n as number) > 0,
+      );
+  }
+
+  const tablesRaw = Array.isArray(data.tables) && data.tables.length
+    ? data.tables
+    : qpTables;
+
+  const tables = tablesRaw
+    .map((t: any) => toIntLoose(t))
+    .filter(
+      (n): n is number =>
+        Number.isFinite(n as number) && (n as number) > 0,
+    );
+
+  hlog("table/unseat extracted fields", {
+    rid,
+    tables,
+    payload: data,
+    query: Object.fromEntries(sp.entries()),
+  });
+
+  if (!rid || !tables.length) {
+    hlog("table/unseat -> missing_fields", {
+      ridOk: !!rid,
+      tablesOk: !!tables.length,
+      payload: data,
+      query: Object.fromEntries(sp.entries()),
+    });
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "missing_fields" };
+    return;
+  }
+
+  const freed: number[] = [];
+  const errors: Array<{ table: number; message: string }> = [];
+
+  for (const tn of tables) {
+    try {
+      // ניקוי הושבה/סטטוס לוגי
+      await unseatTable({ restaurantId: rid, table: tn });
+    } catch (err) {
+      const msg = (err as Error).message || String(err);
+      errors.push({ table: tn, message: msg });
+      continue;
+    }
+
+    try {
+      // סגירת צ'ק פתוח (אם נשאר) כדי שהשולחן יהיה פנוי גם ב-POS
+      await closeOrderForTable(rid, tn);
+    } catch (err) {
+      const msg = (err as Error).message || String(err);
+      errors.push({ table: tn, message: msg });
+      // גם אם לא נסגר צ'ק, כבר שחררנו את ההושבה – ממשיכים
+    }
+
+    freed.push(tn);
+  }
+
+  hlog("table/unseat result", { rid, freed, errors });
+
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = { ok: true, freed, errors };
+});
+
+/* =========== POST /api/host/reservation/status – ביטול / no-show =========== */
+
 hostRouter.post("/api/host/reservation/status", async (ctx) => {
   if (!requireStaff(ctx)) return;
 
@@ -556,104 +672,6 @@ hostRouter.post("/api/host/reservation/status", async (ctx) => {
 
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = { ok: true };
-});
-
-/** ✅ חדש: POST /api/host/table/unseat – שחרור שולחן ידנית ע"י המארחת
- *  שימושי אם נשארו שאריות הושבה ישנות (table_already_seated) למרות שהשולחן ירוק.
- */
-hostRouter.post("/api/host/table/unseat", async (ctx) => {
-  if (!requireStaff(ctx)) return;
-
-  const user = ctx.state.user;
-  const ct = ctx.request.headers.get("content-type") || "";
-
-  hlog("POST /api/host/table/unseat – incoming", {
-    contentType: ct,
-    userId: user?.id,
-    role: user?.role,
-  });
-
-  if (user.role !== "owner" && user.role !== "manager") {
-    hlog("table/unseat forbidden: role not allowed", { role: user?.role });
-    ctx.response.status = Status.Forbidden;
-    ctx.response.body = "Forbidden";
-    return;
-  }
-
-  const data = await readJsonLikeBody(ctx);
-  const url = ctx.request.url;
-  const sp = url.searchParams;
-
-  const qRid = sp.get("restaurantId") ?? sp.get("rid") ?? "";
-  const qTablesStr = sp.get("tables") ?? sp.get("table") ?? "";
-
-  const rid = (data.restaurantId ?? data.rid ?? qRid ?? "").toString();
-
-  let tables: number[] = [];
-
-  // tables כערך יחיד או מערך מה-body
-  if (Array.isArray(data.tables) && data.tables.length) {
-    tables = data.tables
-      .map((t: any) => toIntLoose(t))
-      .filter(
-        (n): n is number =>
-          Number.isFinite(n as number) && (n as number) > 0,
-      );
-  } else if (typeof data.table !== "undefined") {
-    const tn = toIntLoose(data.table);
-    if (tn && tn > 0) tables.push(tn);
-  }
-
-  // ואם אין ב-body – ננסה query
-  if (!tables.length && qTablesStr) {
-    const fromQuery = qTablesStr
-      .split(",")
-      .map((s) => toIntLoose(s))
-      .filter(
-        (n): n is number =>
-          Number.isFinite(n as number) && (n as number) > 0,
-      );
-    tables.push(...fromQuery);
-  }
-
-  hlog("table/unseat extracted fields", {
-    rid,
-    tables,
-    payload: data,
-    query: Object.fromEntries(sp.entries()),
-  });
-
-  if (!rid || !tables.length) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = { ok: false, error: "missing_fields" };
-    return;
-  }
-
-  const freed: number[] = [];
-
-  for (const tn of tables) {
-    try {
-      await unseatTable(rid, tn);
-      // ננסה גם לסגור הזמנה פתוחה אם נשארה אחת (best-effort)
-      try {
-        await closeOrderForTable(rid, tn);
-      } catch (_err) {
-        // לא קריטי – הכי חשוב לשחרר הושבה
-      }
-      freed.push(tn);
-    } catch (err) {
-      hlog("table/unseat ERROR for table", {
-        rid,
-        table: tn,
-        error: String(err),
-      });
-    }
-  }
-
-  hlog("table/unseat success", { rid, freed });
-
-  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-  ctx.response.body = { ok: true, freed };
 });
 
 export default hostRouter;
