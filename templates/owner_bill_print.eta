@@ -1,0 +1,85 @@
+<% layout("_layout", it) %>
+
+<main class="container">
+  <section class="card receipt">
+    <header class="receipt-header">
+      <h1><%= it.restaurant.name %></h1>
+      <p class="muted">
+        <%= it.restaurant.city %> · <%= it.restaurant.address %>
+      </p>
+    </header>
+
+    <section class="receipt-meta">
+      <div>מס׳ חשבון: <strong><%= it.bill.id %></strong></div>
+      <div>שולחן: <strong>#<%= it.bill.table %></strong></div>
+      <div>
+        תאריך:
+        <strong><%= new Date(it.bill.createdAt).toLocaleString('he-IL') %></strong>
+      </div>
+    </section>
+
+    <table class="table receipt-items">
+      <thead>
+        <tr>
+          <th>פריט</th>
+          <th>כמות</th>
+          <th>מחיר יחידה</th>
+          <th>סכום</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% it.bill.items.filter(function (item) {
+             return item.status !== 'cancelled';
+           }).forEach(function (item) { %>
+          <tr>
+            <td><%= item.name %></td>
+            <td><%= item.quantity %></td>
+            <td><%= item.unitPrice.toFixed(2) %> ₪</td>
+            <td><%= (item.unitPrice * item.quantity).toFixed(2) %> ₪</td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+
+    <section class="receipt-totals">
+      <div>
+        סה״כ לפני מס:
+        <strong><%= (it.bill.totals.subtotal || 0).toFixed(2) %> ₪</strong>
+      </div>
+      <% if (it.bill.totals.taxAmount) { %>
+        <div>
+          מע״מ:
+          <strong><%= it.bill.totals.taxAmount.toFixed(2) %> ₪</strong>
+        </div>
+      <% } %>
+      <div>
+        סה״כ לתשלום:
+        <strong>
+          <%= (it.bill.totals.total || it.bill.totals.subtotal || 0).toFixed(2) %> ₪
+        </strong>
+      </div>
+    </section>
+
+    <section class="receipt-payment">
+      <h3>תשלום באמצעות ברקוד</h3>
+      <p class="muted small">הלקוח יכול לסרוק את הברקוד כדי לשלם.</p>
+
+      <div class="receipt-barcode">
+        <img
+          src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=<%= encodeURIComponent(it.paymentUrl || it.bill.paymentCode) %>"
+          alt="QR code for payment"
+        />
+      </div>
+
+      <p class="muted small">
+        קוד תשלום:
+        <code><%= it.bill.paymentCode %></code>
+      </p>
+    </section>
+
+    <footer class="receipt-footer">
+      <p>תודה שבחרתם ב־<%= it.restaurant.name %>!</p>
+      <button class="btn primary" type="button" onclick="window.print()">הדפסה</button>
+    </footer>
+  </section>
+</main>

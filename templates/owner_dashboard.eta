@@ -115,15 +115,20 @@ function tt(k, fb){
                     <span class="icon">🧑‍🍳</span>
                     מסך מטבח
                   </a>
-             <!-- ✅ חדש: מסך מארחת -->
+                  <!-- ✅ מסך מארחת -->
                   <a class="btn ghost wide" href="/host/<%= r.id %>">
                     <span class="icon">🪑</span>
                     מסך מארחת
                   </a>
-                  <!-- ✅ חדש: מסך בר -->
+                  <!-- ✅ מסך בר -->
                   <a class="btn ghost wide" href="/bar/<%= r.id %>">
                     <span class="icon">🍸</span>
                     מסך בר
+                  </a>
+                  <!-- ✅ חדש: מסך חשבונות -->
+                  <a class="btn ghost wide" href="/owner/<%= r.id %>/bills">
+                    <span class="icon">💳</span>
+                    חשבונות
                   </a>
                 </div>
               </li>
