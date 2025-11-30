@@ -1,0 +1,562 @@
+<% layout("_layout", it) %>
+
+<%
+function fmtMoney(v){
+  try{ return Number(v||0).toFixed(2); }catch(e){ return "0.00"; }
+}
+function fmtDate(ts){
+  if (!ts) return "";
+  try{
+    var d = new Date(ts);
+    return d.toLocaleDateString('he-IL');
+  }catch(e){ return ""; }
+}
+
+var stats = it.stats || {};
+var totals = stats.totals || {};
+var menuTop = stats.menuTop || { items: [], totalQty: 0 };
+var revPerDay = stats.revenuePerDay || [];
+var revPerHour = stats.revenuePerHour || [];
+var weekday = stats.weekday || [];
+var strongDays = stats.strongDays || [];
+var weakHours = stats.weakHours || [];
+
+var topDish = (menuTop.items && menuTop.items.length)
+  ? menuTop.items[0]
+  : null;
+
+var rangeText = "";
+if (totals.from && totals.to) {
+  rangeText = fmtDate(totals.from) + " – " + fmtDate(totals.to);
+}
+%>
+
+<section class="sb-owner-stats container" aria-label="סטטיסטיקות בעלים">
+  <div class="card stats-shell">
+    <header class="stats-header">
+      <div>
+        <h1>סטטיסטיקות למסעדה</h1>
+        <div class="muted">
+          <strong><%= it.restaurant?.name || '' %></strong>
+          <% if (rangeText) { %>
+            · טווח נתונים: <%= rangeText %>
+          <% } %>
+        </div>
+      </div>
+      <a class="btn ghost sm" href="/owner">← חזרה לדשבורד בעלים</a>
+    </header>
+
+    <!-- KPI ראשיים -->
+    <section class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">הכנסות סה״כ</div>
+        <div class="kpi-value"><%= fmtMoney(totals.revenue || 0) %> ₪</div>
+        <div class="kpi-sub">על בסיס חשבוניות נסגרות</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">מספר חשבוניות</div>
+        <div class="kpi-value"><%= totals.billsCount || 0 %></div>
+        <div class="kpi-sub">צ׳קים שנסגרו</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">ממוצע לצ׳ק</div>
+        <div class="kpi-value"><%= fmtMoney(totals.avgBill || 0) %> ₪</div>
+        <div class="kpi-sub">הכנסה ממוצעת לחשבון</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">מנה פופולרית</div>
+        <% if (topDish) { %>
+          <div class="kpi-value kpi-text"><%= topDish.name %></div>
+          <div class="kpi-sub">
+            הוזמנה <%= topDish.qty %> פעמים
+            (<%= (topDish.pct || 0).toFixed(1) %>% מכלל המנות)
+          </div>
+        <% } else { %>
+          <div class="kpi-value kpi-text">אין עדיין נתונים</div>
+          <div class="kpi-sub">לא נסגרו חשבוניות</div>
+        <% } %>
+      </div>
+    </section>
+
+    <div class="stats-grid">
+      <!-- גרף מנות פופולריות -->
+      <section class="stats-panel">
+        <h2 class="panel-title">מנות פופולריות</h2>
+        <p class="panel-sub">
+          מבוסס על כמות מנות שהופיעו בחשבוניות שנסגרו.
+        </p>
+        <canvas id="chart-menu" height="180"></canvas>
+      </section>
+
+      <!-- גרף הכנסות לפי יום -->
+      <section class="stats-panel">
+        <h2 class="panel-title">הכנסות לפי יום</h2>
+        <p class="panel-sub">
+          פילוח הכנסות יומיות – עוזר לזהות ימים חזקים וחלשים.
+        </p>
+        <canvas id="chart-days" height="180"></canvas>
+      </section>
+
+      <!-- גרף שעות חזקות -->
+      <section class="stats-panel">
+        <h2 class="panel-title">שעות חזקות ביום</h2>
+        <p class="panel-sub">
+          מבוסס על זמן פתיחת החשבון – היכן הPeak של השירות.
+        </p>
+        <canvas id="chart-hours" height="180"></canvas>
+      </section>
+
+      <!-- גרף ימים חזקים בשבוע -->
+      <section class="stats-panel">
+        <h2 class="panel-title">ימים חזקים בשבוע</h2>
+        <p class="panel-sub">
+          מסכם הכנסה לפי יום בשבוע (ראשון–שבת).
+        </p>
+        <canvas id="chart-weekday" height="180"></canvas>
+      </section>
+
+      <!-- הוצאות ידניות + רווח משוער -->
+      <section class="stats-panel">
+        <h2 class="panel-title">הוצאות (הזנה ידנית)</h2>
+        <p class="panel-sub">
+          בינתיים לא נשמר בשרת – חישוב מקומי לעזרה בקבלת החלטות.
+        </p>
+        <div class="expenses-table">
+          <div class="expenses-row head">
+            <div>תיאור</div>
+            <div>סכום (₪)</div>
+          </div>
+          <div class="expenses-row">
+            <input class="exp-label" placeholder="שכר עובדים">
+            <input class="exp-amount" type="number" min="0" step="1" placeholder="0">
+          </div>
+          <div class="expenses-row">
+            <input class="exp-label" placeholder="שכירות">
+            <input class="exp-amount" type="number" min="0" step="1" placeholder="0">
+          </div>
+          <div class="expenses-row">
+            <input class="exp-label" placeholder="חומרי גלם">
+            <input class="exp-amount" type="number" min="0" step="1" placeholder="0">
+          </div>
+          <div class="expenses-row">
+            <input class="exp-label" placeholder="שיווק / פרסום">
+            <input class="exp-amount" type="number" min="0" step="1" placeholder="0">
+          </div>
+          <div class="expenses-row">
+            <input class="exp-label" placeholder="אחר">
+            <input class="exp-amount" type="number" min="0" step="1" placeholder="0">
+          </div>
+          <div class="expenses-footer">
+            <div>סה״כ הוצאות:</div>
+            <div id="exp-total">0.00 ₪</div>
+          </div>
+          <div class="expenses-footer profit">
+            <div>רווח משוער:</div>
+            <div id="exp-profit"><%= fmtMoney(totals.revenue || 0) %> ₪</div>
+          </div>
+          <small class="muted">
+            הרווח מחושב כ: הכנסות סה״כ – סך ההוצאות שהזנת.
+          </small>
+        </div>
+      </section>
+
+      <!-- הצעות ל-HAPPY HOUR ועוד תובנות -->
+      <section class="stats-panel">
+        <h2 class="panel-title">תובנות והצעות</h2>
+        <div class="insights">
+          <div class="insight-block">
+            <h3>הצעות ל-HAPPY HOUR</h3>
+            <% if (weakHours && weakHours.length) { %>
+              <ul>
+                <% weakHours.forEach(function(h){ %>
+                  <li>
+                    <strong><%= h.hour %>:00–<%= (h.hour+1) %>:00</strong>
+                    – אחת השעות החלשות מבחינת הכנסות.
+                  </li>
+                <% }) %>
+              </ul>
+            <% } else { %>
+              <p class="muted">אין עדיין מספיק נתונים כדי להמליץ על Happy Hour.</p>
+            <% } %>
+            <p class="muted small">
+              אפשר להציע מבצעים על קוקטיילים, קינוחים או מנות ראשונות בשעות אלו.
+            </p>
+          </div>
+
+          <div class="insight-block">
+            <h3>ימים חזקים</h3>
+            <% if (strongDays && strongDays.length) { %>
+              <ul>
+                <% strongDays.slice(0,3).forEach(function(d){ %>
+                  <li>
+                    <strong><%= d.dayName %></strong> – הכנסה
+                    <strong><%= fmtMoney(d.revenue) %> ₪</strong>
+                    מתוך <%= d.count %> חשבוניות.
+                  </li>
+                <% }) %>
+              </ul>
+            <% } else { %>
+              <p class="muted">אין עדיין מספיק נתונים על ימים בשבוע.</p>
+            <% } %>
+          </div>
+
+          <div class="insight-block">
+            <h3>עוד רעיונות שאפשר להוסיף בהמשך</h3>
+            <ul class="muted small">
+              <li>פילוח לפי סוג שולחן (פנים / חוץ / בר) – אם קיים בפלור.</li>
+              <li>השוואת שבוע מול שבוע קודם / חודש מול חודש.</li>
+              <li>זיהוי מנות שלא נמכרות כמעט – להצעות לשינוי בתפריט.</li>
+              <li>זיהוי שעות עומס למיטוב כמות מלצרים / ברמנים.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+  (function(){
+    var STATS = <%- JSON.stringify(it.stats || {}) %>;
+
+    function money(v){
+      v = Number(v||0);
+      return v.toFixed(2);
+    }
+
+    // הגדרת ברירת מחדל ל-Dark Mode
+    if (window.Chart) {
+      Chart.defaults.color = '#e5e7eb';
+      Chart.defaults.borderColor = 'rgba(148,163,184,0.4)';
+      Chart.defaults.font.family = 'system-ui, -apple-system, BlinkMacSystemFont, "Rubik", sans-serif';
+    }
+
+    // --- מנות פופולריות ---
+    try {
+      var menuCtx = document.getElementById('chart-menu');
+      if (menuCtx && STATS.menuTop && STATS.menuTop.items) {
+        var topItems = STATS.menuTop.items.slice(0, 7);
+        var labels = topItems.map(function(i){ return i.name; });
+        var dataQty = topItems.map(function(i){ return i.qty; });
+
+        new Chart(menuCtx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'כמות הזמנות',
+              data: dataQty
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { beginAtZero: true }
+            }
+          }
+        });
+      }
+    } catch(e){ console.warn('menu chart error', e); }
+
+    // --- הכנסות לפי יום ---
+    try {
+      var daysCtx = document.getElementById('chart-days');
+      if (daysCtx && Array.isArray(STATS.revenuePerDay)) {
+        var labelsD = STATS.revenuePerDay.map(function(d){ return d.date; });
+        var dataD = STATS.revenuePerDay.map(function(d){ return d.revenue; });
+
+        new Chart(daysCtx, {
+          type: 'line',
+          data: {
+            labels: labelsD,
+            datasets: [{
+              label: 'הכנסות (₪)',
+              data: dataD,
+              tension: 0.25,
+              fill: false
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { beginAtZero: true }
+            }
+          }
+        });
+      }
+    } catch(e){ console.warn('days chart error', e); }
+
+    // --- שעות חזקות ---
+    try {
+      var hoursCtx = document.getElementById('chart-hours');
+      if (hoursCtx && Array.isArray(STATS.revenuePerHour)) {
+        var labelsH = STATS.revenuePerHour.map(function(h){ return h.hour + ':00'; });
+        var dataH = STATS.revenuePerHour.map(function(h){ return h.revenue; });
+
+        new Chart(hoursCtx, {
+          type: 'bar',
+          data: {
+            labels: labelsH,
+            datasets: [{
+              label: 'הכנסות לפי שעה (₪)',
+              data: dataH
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { beginAtZero: true }
+            }
+          }
+        });
+      }
+    } catch(e){ console.warn('hours chart error', e); }
+
+    // --- ימים בשבוע ---
+    try {
+      var wdCtx = document.getElementById('chart-weekday');
+      if (wdCtx && Array.isArray(STATS.weekday)) {
+        var labelsW = STATS.weekday.map(function(d){ return d.dayName; });
+        var dataW = STATS.weekday.map(function(d){ return d.revenue; });
+
+        new Chart(wdCtx, {
+          type: 'bar',
+          data: {
+            labels: labelsW,
+            datasets: [{
+              label: 'הכנסות לפי יום בשבוע (₪)',
+              data: dataW
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { beginAtZero: true }
+            }
+          }
+        });
+      }
+    } catch(e){ console.warn('weekday chart error', e); }
+
+    // --- הוצאות ידניות ---
+    (function setupExpenses(){
+      var amountEls = Array.prototype.slice.call(
+        document.querySelectorAll('.exp-amount')
+      );
+      var totalEl = document.getElementById('exp-total');
+      var profitEl = document.getElementById('exp-profit');
+      var baseRevenue = Number((STATS.totals && STATS.totals.revenue) || 0);
+
+      function recalc(){
+        var sum = 0;
+        amountEls.forEach(function(inp){
+          var v = parseFloat((inp.value || '').replace(',','.'));
+          if (!isNaN(v) && v > 0) sum += v;
+        });
+        if (totalEl) totalEl.textContent = money(sum) + ' ₪';
+        if (profitEl) profitEl.textContent = money(baseRevenue - sum) + ' ₪';
+      }
+
+      amountEls.forEach(function(inp){
+        inp.addEventListener('input', recalc);
+      });
+
+      recalc();
+    })();
+  })();
+</script>
+
+<style>
+  .sb-owner-stats.container{
+    max-width:1100px;
+    margin:20px auto;
+    padding:0 16px;
+  }
+  .stats-shell{
+    background: radial-gradient(circle at top, #020617 0, #020617 40%, #020617 100%);
+  }
+  .stats-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:16px;
+  }
+  .stats-header h1{
+    margin:0;
+    font-size:clamp(18px,2.4vw,22px);
+  }
+
+  .muted{ color:#9ca3af; }
+  .muted.small{ font-size:12px; }
+
+  .kpi-grid{
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:12px;
+    margin-bottom:18px;
+  }
+  .kpi-card{
+    background:rgba(15,23,42,.9);
+    border-radius:14px;
+    padding:10px 12px;
+    border:1px solid rgba(148,163,184,.25);
+    box-shadow:0 10px 24px rgba(15,23,42,.7);
+  }
+  .kpi-label{
+    font-size:12px;
+    color:#9ca3af;
+    margin-bottom:4px;
+  }
+  .kpi-value{
+    font-size:18px;
+    font-weight:700;
+  }
+  .kpi-value.kpi-text{
+    font-size:15px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .kpi-sub{
+    font-size:11px;
+    color:#9ca3af;
+    margin-top:3px;
+  }
+
+  .stats-grid{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:14px;
+  }
+  .stats-panel{
+    background:rgba(15,23,42,.9);
+    border-radius:14px;
+    padding:12px 14px;
+    border:1px solid rgba(148,163,184,.25);
+    min-height:200px;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .panel-title{
+    margin:0;
+    font-size:15px;
+  }
+  .panel-sub{
+    margin:0;
+    font-size:12px;
+    color:#9ca3af;
+  }
+
+  canvas{
+    margin-top:6px;
+  }
+
+  .expenses-table{
+    margin-top:6px;
+    font-size:13px;
+  }
+  .expenses-row{
+    display:grid;
+    grid-template-columns:2fr 1fr;
+    gap:6px;
+    margin-bottom:4px;
+  }
+  .expenses-row.head{
+    font-weight:600;
+    margin-bottom:4px;
+  }
+  .exp-label,
+  .exp-amount{
+    padding:6px 8px;
+    border-radius:10px;
+    border:1px solid #334155;
+    background:#020617;
+    color:#e5e7eb;
+    font-size:12px;
+  }
+  .exp-amount{
+    text-align:left;
+    direction:ltr;
+  }
+  .expenses-footer{
+    display:flex;
+    justify-content:space-between;
+    margin-top:4px;
+    font-size:13px;
+  }
+  .expenses-footer.profit{
+    font-weight:700;
+  }
+
+  .insights{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    margin-top:4px;
+    font-size:13px;
+  }
+  .insight-block h3{
+    margin:0 0 4px;
+    font-size:14px;
+  }
+  .insight-block ul{
+    margin:0 0 4px 0;
+    padding-inline-start:18px;
+  }
+  .insight-block li{
+    margin-bottom:2px;
+  }
+
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    padding:8px 12px;
+    border-radius:10px;
+    border:1px solid #334155;
+    background:transparent;
+    color:#e5e7eb;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    text-decoration:none;
+    transition:transform .08s ease,background .12s ease;
+  }
+  .btn.ghost{
+    background:rgba(15,23,42,.6);
+  }
+  .btn.ghost:hover{
+    background:rgba(30,64,175,.3);
+    transform:translateY(-1px);
+  }
+  .btn.sm{
+    padding:5px 9px;
+    font-size:11px;
+    border-radius:8px;
+  }
+
+  @media (max-width:900px){
+    .kpi-grid{
+      grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+    .stats-grid{
+      grid-template-columns:1fr;
+    }
+  }
+
+  @media (max-width:600px){
+    .kpi-grid{
+      grid-template-columns:1fr;
+    }
+  }
+</style>

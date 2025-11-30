@@ -125,10 +125,10 @@ function tt(k, fb){
                     <span class="icon">🍸</span>
                     מסך בר
                   </a>
-                  <!-- ✅ חדש: מסך חשבונות -->
-                  <a class="btn ghost wide" href="/owner/<%= r.id %>/bills">
-                    <span class="icon">💳</span>
-                    חשבונות
+                  <!-- ✅ חדש: מסך סטטיסטיקות -->
+                  <a class="btn ghost wide" href="/owner/<%= r.id %>/stats">
+                    <span class="icon">📊</span>
+                    סטטיסטיקות ודוחות
                   </a>
                 </div>
               </li>
