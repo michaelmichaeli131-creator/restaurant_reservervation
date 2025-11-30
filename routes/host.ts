@@ -24,9 +24,6 @@ import {
 
 import { seatReservation, unseatTable } from "../services/seating_service.ts";
 
-// אותו helper שאתה כבר משתמש בו ברואטרים אחרים
-import { readBody } from "./restaurants/_utils/body.ts";
-
 export const hostRouter = new Router();
 
 /** לוג עזר למסך המארחת */
@@ -47,6 +44,42 @@ function toIntLoose(v: unknown): number | null {
     if (Number.isFinite(n)) return Math.trunc(n);
   }
   return null;
+}
+
+/** קריאת body גמישה: JSON / form / text (עם ניסיון ל־JSON) */
+async function readJsonLikeBody(ctx: any): Promise<any> {
+  const req: any = ctx.request;
+  const body = req.body;
+  if (!body) return {};
+
+  try {
+    if (body.type === "json") {
+      const v = await body.value;
+      return v ?? {};
+    }
+
+    if (body.type === "form") {
+      const form = await body.value;
+      if (form && typeof form === "object" && "entries" in form) {
+        return Object.fromEntries((form as any).entries());
+      }
+      return form ?? {};
+    }
+
+    const v = await body.value;
+    if (typeof v === "string") {
+      try {
+        return JSON.parse(v);
+      } catch {
+        return {};
+      }
+    }
+
+    return v ?? {};
+  } catch (err) {
+    hlog("readJsonLikeBody ERROR", String(err));
+    return {};
+  }
 }
 
 /** חישוב סטטוס לכל שולחן (תפוס/פנוי) על סמך הזמנות פתוחות */
@@ -188,17 +221,9 @@ hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
   ctx.response.body = { reservations };
 });
 
-/** עזר: קריאת נתונים גם מה-body וגם מה-query */
+/** עזר: קריאת נתונים גם מה-body וגם מה-query (seat יחיד) */
 async function extractSeatPayload(ctx: any) {
-  let data: any = {};
-  try {
-    const { payload } = await readBody(ctx);
-    data = payload || {};
-  } catch (err) {
-    hlog("readBody ERROR", String(err));
-    data = {};
-  }
-
+  const data = await readJsonLikeBody(ctx);
   const url = ctx.request.url;
   const sp = url.searchParams;
 
@@ -221,17 +246,9 @@ async function extractSeatPayload(ctx: any) {
   };
 }
 
-/** עזר: קריאת נתונים ל-seat-multi */
+/** עזר: קריאת נתונים ל-seat-multi (body + query) */
 async function extractSeatMultiPayload(ctx: any) {
-  let data: any = {};
-  try {
-    const { payload } = await readBody(ctx);
-    data = payload || {};
-  } catch (err) {
-    hlog("seat-multi readBody ERROR", String(err));
-    data = {};
-  }
-
+  const data = await readJsonLikeBody(ctx);
   const url = ctx.request.url;
   const sp = url.searchParams;
 
@@ -318,7 +335,6 @@ hostRouter.post("/api/host/seat", async (ctx) => {
     return;
   }
 
-  // ולידציה שהשולחן קיים
   const tableId = await getTableIdByNumber(rid, tableNumber);
   hlog("seat table lookup", { rid, tableNumber, tableId });
 
@@ -329,7 +345,11 @@ hostRouter.post("/api/host/seat", async (ctx) => {
   }
 
   try {
-    await seatReservation({ restaurantId: rid, reservationId, table: tableNumber });
+    await seatReservation({
+      restaurantId: rid,
+      reservationId,
+      table: tableNumber,
+    });
   } catch (err) {
     const msg = (err as Error).message || "";
     const errorCode = [
@@ -409,7 +429,6 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
     return;
   }
 
-  // ולידציה שכל השולחנות קיימים
   for (const tn of tables) {
     const tableId = await getTableIdByNumber(rid, tn);
     hlog("seat-multi table lookup", { rid, tableNumber: tn, tableId });
@@ -424,7 +443,11 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
 
   try {
     const primary = tables[0];
-    await seatReservation({ restaurantId: rid, reservationId, table: primary });
+    await seatReservation({
+      restaurantId: rid,
+      reservationId,
+      table: primary,
+    });
     const primaryOrder = await getOrCreateOpenOrder(rid, primary);
     results.push({ tableNumber: primary, orderId: primaryOrder?.id ?? null });
 
@@ -486,15 +509,8 @@ hostRouter.post("/api/host/reservation/status", async (ctx) => {
     return;
   }
 
-  let data: any = {};
-  try {
-    const { payload } = await readBody(ctx);
-    data = payload || {};
-    hlog("reservation/status payload (after readBody)", data);
-  } catch (err) {
-    hlog("reservation/status readBody ERROR", String(err));
-    data = {};
-  }
+  const data = await readJsonLikeBody(ctx);
+  hlog("reservation/status payload (after readJsonLikeBody)", data);
 
   const url = ctx.request.url;
   const sp = url.searchParams;
@@ -564,15 +580,7 @@ hostRouter.post("/api/host/table/unseat", async (ctx) => {
     return;
   }
 
-  let data: any = {};
-  try {
-    const { payload } = await readBody(ctx);
-    data = payload || {};
-  } catch (err) {
-    hlog("table/unseat readBody ERROR", String(err));
-    data = {};
-  }
-
+  const data = await readJsonLikeBody(ctx);
   const url = ctx.request.url;
   const sp = url.searchParams;
 
@@ -583,7 +591,7 @@ hostRouter.post("/api/host/table/unseat", async (ctx) => {
 
   let tables: number[] = [];
 
-  // tables כערך יחיד או מערך
+  // tables כערך יחיד או מערך מה-body
   if (Array.isArray(data.tables) && data.tables.length) {
     tables = data.tables
       .map((t: any) => toIntLoose(t))
@@ -596,6 +604,7 @@ hostRouter.post("/api/host/table/unseat", async (ctx) => {
     if (tn && tn > 0) tables.push(tn);
   }
 
+  // ואם אין ב-body – ננסה query
   if (!tables.length && qTablesStr) {
     const fromQuery = qTablesStr
       .split(",")

@@ -127,7 +127,12 @@
       }
 
       try {
-        const res = await fetch("/api/host/reservation/status", {
+        const url = new URL("/api/host/reservation/status", window.location.origin);
+        url.searchParams.set("restaurantId", rid);
+        url.searchParams.set("reservationId", resId);
+        url.searchParams.set("status", status);
+
+        const res = await fetch(url.toString(), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -206,7 +211,6 @@
       const tables = Array.isArray(plan.tables) ? plan.tables : [];
       const tableStatuses = Array.isArray(plan.tableStatuses) ? plan.tableStatuses : [];
 
-      // statusMap לסטטוס, guestMap לשם האורח (מגיע מה־API דרך owner_floor.ts)
       const statusMap = new Map();
       const guestMap = new Map();
 
@@ -279,7 +283,7 @@
     }
   }
 
-  // ✅ חדש: קריאה ל-API שמשחרר שולחן/ות ידנית ע"י המארחת
+  // ✅ חדש: קריאה ל־API שמשחרר שולחן/ות ידנית ע"י המארחת
   async function forceUnseatTables(tables){
     try {
       const res = await fetch("/api/host/table/unseat", {
@@ -303,7 +307,7 @@
     }
   }
 
-  // פונקציית הושבה פנימית עם יכולת retry אחרי שחרור שולחן
+  // פונקציית הושבה עם אפשרות retry אחרי שחרור שולחן
   async function performSeat(allowForceRetry){
     if (!state.selectedResId) {
       alert("יש לבחור הזמנה קודם.");
@@ -324,8 +328,14 @@
 
     try {
       let res, data;
+
       if (tables.length === 1) {
-        res = await fetch("/api/host/seat", {
+        const url = new URL("/api/host/seat", window.location.origin);
+        url.searchParams.set("restaurantId", rid);
+        url.searchParams.set("reservationId", state.selectedResId);
+        url.searchParams.set("table", String(tables[0]));
+
+        res = await fetch(url.toString(), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -336,7 +346,12 @@
           }),
         });
       } else {
-        res = await fetch("/api/host/seat-multi", {
+        const url = new URL("/api/host/seat-multi", window.location.origin);
+        url.searchParams.set("restaurantId", rid);
+        url.searchParams.set("reservationId", state.selectedResId);
+        url.searchParams.set("tables", tables.join(","));
+
+        res = await fetch(url.toString(), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -347,10 +362,10 @@
           }),
         });
       }
-      data = await res.json().catch(() => ({}));
 
+      data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
-        // ✅ טיפול מיוחד ב-table_already_seated – המארחת יכולה לשחרר ולנסות שוב
+        // ✅ טיפול מיוחד ב-table_already_seated – הצעה לשחרר ולנסות שוב
         if (data.error === "table_already_seated" && allowForceRetry) {
           const doForce = confirm(
             "המערכת מסמנת את השולחן כתפוס (כנראה שארית מהזמנה קודמת).\nלשחרר את השולחן ידנית ולנסות שוב?"
@@ -360,7 +375,7 @@
           const ok = await forceUnseatTables(tables);
           if (!ok) return;
 
-          // ניסיון נוסף – בלי retry נוסף כדי למנוע לופ אינסופי
+          // ניסיון חוזר אחד – בלי retry נוסף כדי לא להיכנס ללופ
           await performSeat(false);
           return;
         }
