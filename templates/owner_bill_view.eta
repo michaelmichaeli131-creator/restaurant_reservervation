@@ -23,9 +23,12 @@ function money(v){
     return Number(v||0).toFixed(2);
   }catch(e){ return '0.00'; }
 }
+
 var totals = it.bill?.totals || {};
-var total = (typeof totals.total === 'number') ? totals.total : (totals.subtotal || 0);
-var subtotal = totals.subtotal || total;
+var baseTotal = (typeof totals.total === 'number')
+  ? totals.total
+  : (totals.subtotal || 0);
+var subtotal = totals.subtotal || baseTotal;
 var taxRate = totals.taxRate;
 var taxAmount = totals.taxAmount;
 var phone = it.restaurant?.phone || '';
@@ -108,10 +111,42 @@ var qrUrl = qrData
           <span><%= money(taxAmount) %> ₪</span>
         </div>
       <% } %>
+      <div class="row">
+        <span>טיפ:</span>
+        <span id="tip-amount-display">0.00 ₪</span>
+      </div>
       <div class="row total">
         <span>לתשלום:</span>
-        <span><%= money(total) %> ₪</span>
+        <span
+          id="receipt-total-value"
+          data-base-total="<%= money(baseTotal) %>"
+        ><%= money(baseTotal) %> ₪</span>
       </div>
+    </section>
+
+    <!-- בקרת טיפ (לא מודפסת) -->
+    <section class="receipt-tip-controls no-print">
+      <div class="tip-row">
+        <label class="tip-label">
+          טיפ (%):
+          <input
+            id="tip-percent"
+            type="number"
+            min="0"
+            max="50"
+            step="1"
+            value="10"
+          >
+        </label>
+        <div class="tip-presets">
+          <button type="button" class="btn ghost sm tip-btn" data-pct="10">10%</button>
+          <button type="button" class="btn ghost sm tip-btn" data-pct="12">12%</button>
+          <button type="button" class="btn ghost sm tip-btn" data-pct="15">15%</button>
+        </div>
+      </div>
+      <small class="muted-tip">
+        הטיפ מחושב רק להדפסה / להצגה ללקוח, כרגע לא נשמר במערכת.
+      </small>
     </section>
 
     <div class="receipt-sep dotted"></div>
@@ -143,8 +178,49 @@ var qrUrl = qrData
 
 <script>
   (function(){
-    // אם נכנסנו במצב הדפסה (?print=1) – נדפיס אוטומטית
     var printMode = <%= it.printMode ? "true" : "false" %>;
+
+    var totalEl = document.getElementById('receipt-total-value');
+    var tipAmountEl = document.getElementById('tip-amount-display');
+    var tipInput = document.getElementById('tip-percent');
+    var tipButtons = Array.prototype.slice.call(
+      document.querySelectorAll('.tip-btn')
+    );
+
+    var baseStr = totalEl ? (totalEl.getAttribute('data-base-total') || "0") : "0";
+    // מורידים " ₪" אם נשאר בטעות
+    baseStr = baseStr.replace(/[^\d.,-]/g,'').replace(',', '.');
+    var baseTotal = parseFloat(baseStr) || 0;
+
+    function recalcTip() {
+      if (!totalEl || !tipAmountEl || !tipInput) return;
+      var pct = parseFloat(tipInput.value || "0");
+      if (isNaN(pct) || pct < 0) pct = 0;
+      var tipAmount = baseTotal * pct / 100;
+      var finalTotal = baseTotal + tipAmount;
+
+      tipAmountEl.textContent = tipAmount.toFixed(2) + " ₪";
+      totalEl.textContent = finalTotal.toFixed(2) + " ₪";
+    }
+
+    if (tipInput) {
+      tipInput.addEventListener('input', recalcTip);
+    }
+
+    tipButtons.forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var pct = parseFloat(btn.getAttribute('data-pct') || "0");
+        if (!isNaN(pct)) {
+          tipInput.value = pct.toString();
+          recalcTip();
+        }
+      });
+    });
+
+    // חישוב ראשוני
+    recalcTip();
+
+    // במצב הדפסה אוטומטי – נדפיס אחרי שהעמוד נטען
     if (printMode) {
       window.addEventListener('load', function(){
         try { window.print(); } catch(e){}
@@ -246,6 +322,44 @@ var qrUrl = qrData
     font-weight:700;
   }
 
+  .receipt-tip-controls{
+    margin-top:6px;
+    font-size:12px;
+  }
+  .tip-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .tip-label{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  #tip-percent{
+    width:70px;
+    padding:4px 6px;
+    border-radius:8px;
+    border:1px solid #4b5563;
+    background:#020617;
+    color:#e5e7eb;
+    font-size:12px;
+    text-align:left;
+    direction:ltr;
+  }
+  .tip-presets{
+    display:flex;
+    gap:4px;
+    flex-wrap:wrap;
+  }
+  .muted-tip{
+    display:block;
+    margin-top:4px;
+    color:#9ca3af;
+  }
+
   .receipt-payment{
     text-align:center;
     margin-top:8px;
@@ -323,6 +437,11 @@ var qrUrl = qrData
   }
   .btn.primary:hover{
     background:#2563eb;
+  }
+  .btn.sm{
+    padding:5px 9px;
+    border-radius:8px;
+    font-size:11px;
   }
 
   @media print{
