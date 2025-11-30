@@ -115,17 +115,22 @@ function tt(k, fb){
                     <span class="icon">🧑‍🍳</span>
                     מסך מטבח
                   </a>
-                  <!-- ✅ מסך מארחת -->
+                  <!-- מסך מארחת -->
                   <a class="btn ghost wide" href="/host/<%= r.id %>">
                     <span class="icon">🪑</span>
                     מסך מארחת
                   </a>
-                  <!-- ✅ מסך בר -->
+                  <!-- מסך בר -->
                   <a class="btn ghost wide" href="/bar/<%= r.id %>">
                     <span class="icon">🍸</span>
                     מסך בר
                   </a>
-                  <!-- ✅ חדש: מסך סטטיסטיקות -->
+                  <!-- ✅ חשבונות -->
+                  <a class="btn ghost wide" href="/owner/<%= r.id %>/bills">
+                    <span class="icon">💳</span>
+                    חשבונות אחרונים
+                  </a>
+                  <!-- ✅ סטטיסטיקות -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/stats">
                     <span class="icon">📊</span>
                     סטטיסטיקות ודוחות
@@ -286,7 +291,7 @@ function tt(k, fb){
   .bar-fill.yellow{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
   .bar-fill.red{background:linear-gradient(90deg,#ef4444,#f87171)}
 
-  /* ✅ יישור אייקונים אחיד */
+  /* יישור אייקונים אחיד */
   .btn{ line-height: 1.1; }
   .btn .icon{
     width:18px;
