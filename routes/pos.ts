@@ -1,543 +1,471 @@
-// src/pos/pos_db.ts
-// POS על Deno KV: תפריט, הזמנות לשולחנות, פריטים, סיכומים, ביטולים, סגירה וחשבוניות.
+// src/routes/pos.ts
+// POS: תפריט, מלצרים, מטבח, בר, ו-API להזמנות + חשבוניות.
 
-import { kv } from "../database.ts";
-import { getTableIdByNumber } from "../services/floor_service.ts";
+import { Router, Status } from "jsr:@oak/oak";
+import { render } from "../lib/view.ts";
+import { requireOwner, requireStaff } from "../lib/auth.ts";
+import { getRestaurant } from "../database.ts";
+import { isTableSeated } from "../services/seating_service.ts";
+import {
+  listItems,
+  listCategories,
+  upsertItem,
+  deleteItem,
+  upsertCategory,
+  deleteCategory,
+  listOpenOrdersByRestaurant,
+  listOrderItemsForTable,
+  computeTotalsForTable,
+  cancelOrderItem,
+  closeOrderForTable,
+  addOrderItem,
+  getItem,
+  updateOrderItemStatus,
+  // ✅ חדשים לחשבוניות
+  listBillsForRestaurant,
+  getBill,
+  deleteBill,
+} from "../pos/pos_db.ts";
+import {
+  handlePosSocket,
+  notifyOrderItemAdded,
+  notifyOrderItemUpdated,
+  notifyOrderClosed,
+} from "../pos/pos_ws.ts";
 
-export type Destination = "kitchen" | "bar";
+export const posRouter = new Router();
 
-export interface MenuCategory {
-  id: string;
-  restaurantId: string;
-  name_he?: string;
-  name_en?: string;
-  name_ka?: string;
-  sort?: number;
-  active?: boolean;
-  createdAt: number;
-}
+// WS endpoint
+posRouter.get("/ws/pos", handlePosSocket);
 
-export interface MenuItem {
-  id: string;
-  restaurantId: string;
-  categoryId?: string | null;
-  name_he?: string;
-  name_en?: string;
-  name_ka?: string;
-  desc_he?: string;
-  desc_en?: string;
-  desc_ka?: string;
-  price: number;
-  destination: Destination; // kitchen or bar
-  isActive?: boolean;
-  outOfStock?: boolean;
-  createdAt: number;
-}
+/* ------------ Owner: menu editor ------------ */
 
-export type OrderItemStatus =
-  | "received"
-  | "in_progress"
-  | "ready"
-  | "served"
-  | "cancelled";
+posRouter.get("/owner/:rid/menu", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const rid = ctx.params.rid!;
+  const r = await getRestaurant(rid);
+  if (!r) ctx.throw(Status.NotFound);
 
-export interface Order {
-  id: string;
-  restaurantId: string;
-  table: number;
-  floorTableId?: string;      // Link to floor plan table ID
-  sectionId?: string;         // Link to floor section
-  status: "open" | "closed" | "cancelled";
-  createdAt: number;
-  closedAt?: number;
-}
+  const [cats, items] = await Promise.all([
+    listCategories(rid),
+    listItems(rid),
+  ]);
 
-export interface OrderItem {
-  id: string;
-  orderId: string;
-  restaurantId: string;
-  table: number;
-  menuItemId: string;
-  name: string;
-  unitPrice: number;
-  quantity: number;
-  destination: Destination;
-  status: OrderItemStatus;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface OrderTotals {
-  itemsCount: number; // כמה פריטים (כולל כמות)
-  subtotal: number;   // סה"כ לפני טיפ/מע"מ וכו'
-}
-
-export interface BillTotals extends OrderTotals {
-  taxRate?: number;
-  taxAmount?: number;
-  total: number;
-}
-
-export interface Bill {
-  id: string;
-  restaurantId: string;
-  orderId: string;
-  table: number;
-  createdAt: number;
-  items: OrderItem[];
-  totals: BillTotals;
-  paymentCode: string;
-}
-
-/* ---------- KEYS ---------- */
-
-function kCategory(rid: string, id: string): Deno.KvKey {
-  return ["pos", "cat", rid, id];
-}
-function kCategoryPrefix(rid: string): Deno.KvKey {
-  return ["pos", "cat", rid];
-}
-
-function kItem(rid: string, id: string): Deno.KvKey {
-  return ["pos", "item", rid, id];
-}
-function kItemPrefix(rid: string): Deno.KvKey {
-  return ["pos", "item", rid];
-}
-
-function kOrder(rid: string, oid: string): Deno.KvKey {
-  return ["pos", "order", rid, oid];
-}
-function kOrderPrefix(rid: string): Deno.KvKey {
-  return ["pos", "order", rid];
-}
-
-function kOrderByTable(rid: string, table: number): Deno.KvKey {
-  return ["pos", "order_by_table", rid, table];
-}
-function kOrderByTablePrefix(rid: string): Deno.KvKey {
-  return ["pos", "order_by_table", rid];
-}
-
-function kOrderItem(oid: string, iid: string): Deno.KvKey {
-  return ["pos", "order_item", oid, iid];
-}
-function kOrderItemPrefix(oid: string): Deno.KvKey {
-  return ["pos", "order_item", oid];
-}
-
-/**
- * KEY להושבה לפי שולחן – חייב להיות זהה למה שמשמש ב-seating_service.ts
- * כדי שנוכל לנקות אותו כשסוגרים צ'ק, ולמנוע table_already_seated על שולחן שכבר נסגר.
- */
-function kSeat(restaurantId: string, table: number | string): Deno.KvKey {
-  return ["seat", "by_table", restaurantId, Number(table)];
-}
-
-/* ---------- Bills ---------- */
-
-function kBill(rid: string, bid: string): Deno.KvKey {
-  return ["pos", "bill", rid, bid];
-}
-
-function kBillByRestaurantPrefix(rid: string): Deno.KvKey {
-  return ["pos", "bill_by_restaurant", rid];
-}
-
-function kBillByRestaurant(
-  rid: string,
-  createdAt: number,
-  bid: string,
-): Deno.KvKey {
-  return ["pos", "bill_by_restaurant", rid, createdAt, bid];
-}
-
-/* ---------- Categories ---------- */
-
-export async function listCategories(
-  restaurantId: string,
-): Promise<MenuCategory[]> {
-  const out: MenuCategory[] = [];
-  for await (
-    const row of kv.list<MenuCategory>({
-      prefix: kCategoryPrefix(restaurantId),
-    })
-  ) {
-    if (row.value) out.push(row.value);
-  }
-  out.sort(
-    (a, b) =>
-      (a.sort ?? 0) - (b.sort ?? 0) || a.createdAt - b.createdAt,
-  );
-  return out;
-}
-
-export async function upsertCategory(
-  cat: Partial<MenuCategory> & {
-    restaurantId: string;
-    name_en?: string;
-    name_he?: string;
-    name_ka?: string;
-    id?: string;
-  },
-): Promise<MenuCategory> {
-  const id = cat.id ?? crypto.randomUUID();
-  const item: MenuCategory = {
-    id,
-    restaurantId: cat.restaurantId,
-    name_en: (cat.name_en ?? "").trim(),
-    name_he: (cat.name_he ?? "").trim(),
-    name_ka: (cat.name_ka ?? "").trim(),
-    sort: cat.sort ?? 0,
-    active: cat.active ?? true,
-    createdAt: Date.now(),
-  };
-  await kv.set(kCategory(cat.restaurantId, id), item);
-  return item;
-}
-
-export async function deleteCategory(
-  restaurantId: string,
-  id: string,
-): Promise<void> {
-  await kv.delete(kCategory(restaurantId, id));
-}
-
-/* ---------- Items ---------- */
-
-export async function listItems(restaurantId: string): Promise<MenuItem[]> {
-  const out: MenuItem[] = [];
-  for await (
-    const row of kv.list<MenuItem>({
-      prefix: kItemPrefix(restaurantId),
-    })
-  ) {
-    if (row.value) out.push(row.value);
-  }
-  out.sort((a, b) => a.createdAt - b.createdAt);
-  return out;
-}
-
-export async function getItem(
-  restaurantId: string,
-  id: string,
-): Promise<MenuItem | null> {
-  const row = await kv.get<MenuItem>(kItem(restaurantId, id));
-  return row.value ?? null;
-}
-
-export async function upsertItem(
-  it: Partial<MenuItem> & {
-    restaurantId: string;
-    name_en?: string;
-    name_he?: string;
-    price?: number;
-    destination?: Destination;
-    id?: string;
-  },
-): Promise<MenuItem> {
-  const id = it.id ?? crypto.randomUUID();
-  const item: MenuItem = {
-    id,
-    restaurantId: it.restaurantId,
-    categoryId: it.categoryId ?? null,
-    name_en: (it.name_en ?? it.name_he ?? "").trim(),
-    name_he: (it.name_he ?? "").trim(),
-    name_ka: (it.name_ka ?? "").trim(),
-    desc_en: (it.desc_en ?? "").trim(),
-    desc_he: (it.desc_he ?? "").trim(),
-    desc_ka: (it.desc_ka ?? "").trim(),
-    price: Number(it.price ?? 0),
-    destination: it.destination ?? "kitchen",
-    isActive: it.isActive ?? true,
-    outOfStock: it.outOfStock ?? false,
-    createdAt: Date.now(),
-  };
-  await kv.set(kItem(it.restaurantId, id), item);
-  return item;
-}
-
-export async function deleteItem(
-  restaurantId: string,
-  id: string,
-): Promise<void> {
-  await kv.delete(kItem(restaurantId, id));
-}
-
-/* ---------- Orders ---------- */
-
-export async function getOrCreateOpenOrder(
-  restaurantId: string,
-  table: number,
-): Promise<Order> {
-  const key = kOrderByTable(restaurantId, table);
-  const cur = await kv.get<Order>(key);
-  if (cur.value && cur.value.status === "open") return cur.value;
-
-  // Look up floor table ID from table number
-  const floorTableId = await getTableIdByNumber(restaurantId, table);
-
-  const order: Order = {
-    id: crypto.randomUUID(),
-    restaurantId,
-    table,
-    floorTableId: floorTableId || undefined,  // Link to floor plan if available
-    status: "open",
-    createdAt: Date.now(),
-  };
-  const tx = kv.atomic()
-    .set(kOrder(restaurantId, order.id), order)
-    .set(key, order);
-  const res = await tx.commit();
-  if (!res.ok) {
-    const again = await kv.get<Order>(key);
-    if (again.value) return again.value;
-    throw new Error("failed_create_order");
-  }
-  return order;
-}
-
-export async function addOrderItem(params: {
-  restaurantId: string;
-  table: number;
-  menuItem: MenuItem;
-  quantity?: number;
-}): Promise<{ order: Order; orderItem: OrderItem }> {
-  const order = await getOrCreateOpenOrder(
-    params.restaurantId,
-    params.table,
-  );
-  const orderItem: OrderItem = {
-    id: crypto.randomUUID(),
-    orderId: order.id,
-    restaurantId: params.restaurantId,
-    table: params.table,
-    menuItemId: params.menuItem.id,
-    name: params.menuItem.name_en || params.menuItem.name_he || "",
-    unitPrice: Number(params.menuItem.price ?? 0),
-    quantity: Number(params.quantity ?? 1),
-    destination: params.menuItem.destination,
-    status: "received",
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  };
-  const tx = kv.atomic().set(
-    kOrderItem(order.id, orderItem.id),
-    orderItem,
-  );
-  const res = await tx.commit();
-  if (!res.ok) throw new Error("failed_add_order_item");
-  return { order, orderItem };
-}
-
-export async function listOrderItemsForTable(
-  restaurantId: string,
-  table: number,
-): Promise<OrderItem[]> {
-  const orderRow = await kv.get<Order>(
-    kOrderByTable(restaurantId, table),
-  );
-  if (!orderRow.value) return [];
-  const order = orderRow.value;
-  const out: OrderItem[] = [];
-  for await (
-    const row of kv.list<OrderItem>({
-      prefix: kOrderItemPrefix(order.id),
-    })
-  ) {
-    if (row.value) out.push(row.value);
-  }
-  out.sort((a, b) => a.createdAt - b.createdAt);
-  return out;
-}
-
-/** סיכום חשבון לשולחן: כמה פריטים ומה הסכום הכולל (לא כולל פריטים שבוטלו) */
-export async function computeTotalsForTable(
-  restaurantId: string,
-  table: number,
-): Promise<OrderTotals> {
-  const items = await listOrderItemsForTable(restaurantId, table);
-  const active = items.filter((it) => it.status !== "cancelled");
-  const itemsCount = active.reduce((sum, it) => sum + it.quantity, 0);
-  const subtotal = active.reduce(
-    (sum, it) => sum + it.quantity * it.unitPrice,
-    0,
-  );
-  return { itemsCount, subtotal };
-}
-
-export async function updateOrderItemStatus(
-  orderItemId: string,
-  orderId: string,
-  next: OrderItemStatus,
-): Promise<OrderItem | null> {
-  const key = kOrderItem(orderId, orderItemId);
-  const row = await kv.get<OrderItem>(key);
-  if (!row.value) return null;
-  const cur = row.value;
-  const updated: OrderItem = {
-    ...cur,
-    status: next,
-    updatedAt: Date.now(),
-  };
-  const ok = await kv.atomic().check(row).set(key, updated).commit();
-  if (!ok.ok) return null;
-  return updated;
-}
-
-/** "מחיקת" פריט מההזמנה – בפועל מסמן כ-cancelled */
-export async function cancelOrderItem(
-  orderId: string,
-  orderItemId: string,
-): Promise<OrderItem | null> {
-  return await updateOrderItemStatus(orderItemId, orderId, "cancelled");
-}
-
-/** מחזיר את כל השולחנות עם הזמנה פתוחה למסעדה */
-export async function listOpenOrdersByRestaurant(
-  restaurantId: string,
-): Promise<{ table: number; order: Order }[]> {
-  const out: { table: number; order: Order }[] = [];
-  for await (
-    const row of kv.list<Order>({
-      prefix: kOrderPrefix(restaurantId),
-    })
-  ) {
-    if (row.value && row.value.status === "open") {
-      out.push({ table: row.value.table, order: row.value });
-    }
-  }
-  out.sort((a, b) => a.table - b.table);
-  return out;
-}
-
-/**
- * סגירת הזמנה לשולחן:
- * - משנה סטטוס ל-closed
- * - מסיר מפתח order_by_table
- * - יוצר Bill עם צילום מצב
- * - מנקה גם את רשומת ה-seating על השולחן
- */
-export async function closeOrderForTable(
-  restaurantId: string,
-  table: number,
-): Promise<Order | null> {
-  const byTableKey = kOrderByTable(restaurantId, table);
-  const byTableRow = await kv.get<Order>(byTableKey);
-  const cur = byTableRow.value;
-  if (!cur) return null;
-
-  const orderKey = kOrder(restaurantId, cur.id);
-  const orderRow = await kv.get<Order>(orderKey);
-  const base = orderRow.value ?? cur;
-
-  // למשוך את כל פריטי ההזמנה כדי לייצר חשבון
-  const items: OrderItem[] = [];
-  for await (
-    const row of kv.list<OrderItem>({
-      prefix: kOrderItemPrefix(base.id),
-    })
-  ) {
-    if (row.value) items.push(row.value);
-  }
-  items.sort((a, b) => a.createdAt - b.createdAt);
-
-  const active = items.filter((it) => it.status !== "cancelled");
-  const itemsCount = active.reduce((sum, it) => sum + it.quantity, 0);
-  const subtotal = active.reduce(
-    (sum, it) => sum + it.quantity * it.unitPrice,
-    0,
-  );
-
-  const totals: BillTotals = {
-    itemsCount,
-    subtotal,
-    taxRate: undefined,
-    taxAmount: undefined,
-    total: subtotal,
-  };
-
-  const now = Date.now();
-  const updated: Order = {
-    ...base,
-    status: "closed",
-    closedAt: now,
-  };
-
-  const billId = crypto.randomUUID();
-  const paymentCode =
-    `SPOTBOOK|rid=${restaurantId}|order=${updated.id}|table=${table}|bill=${billId}`;
-
-  const bill: Bill = {
-    id: billId,
-    restaurantId,
-    orderId: updated.id,
-    table,
-    createdAt: now,
+  await render(ctx, "owner_menu", {
+    page: "owner_menu",
+    title: `Edit Menu · ${r.name}`,
+    restaurant: r,
+    cats,
     items,
+  });
+});
+
+posRouter.post("/owner/:rid/menu/item", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const rid = ctx.params.rid!;
+  const form = await ctx.request.body.formData();
+
+  const name_en = (form.get("name_en")?.toString() ?? "").trim();
+  const name_he = (form.get("name_he")?.toString() ?? "").trim();
+  const price = Number(form.get("price")?.toString() ?? "0");
+  const destination = (form.get("destination")?.toString() ??
+    "kitchen") as any;
+  const categoryId = (form.get("categoryId")?.toString() ?? "") || null;
+
+  await upsertItem({
+    restaurantId: rid,
+    name_en,
+    name_he,
+    price,
+    destination,
+    categoryId: categoryId || null,
+  });
+
+  ctx.response.redirect(`/owner/${rid}/menu`);
+});
+
+posRouter.post("/owner/:rid/menu/item/:id/delete", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const rid = ctx.params.rid!;
+  const id = ctx.params.id!;
+  await deleteItem(rid, id);
+  ctx.response.redirect(`/owner/${rid}/menu`);
+});
+
+posRouter.post("/owner/:rid/menu/category", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const rid = ctx.params.rid!;
+  const form = await ctx.request.body.formData();
+  const name_en = (form.get("name_en")?.toString() ?? "").trim();
+  const name_he = (form.get("name_he")?.toString() ?? "").trim();
+
+  await upsertCategory({ restaurantId: rid, name_en, name_he });
+  ctx.response.redirect(`/owner/${rid}/menu`);
+});
+
+posRouter.post("/owner/:rid/menu/category/:id/delete", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const rid = ctx.params.rid!;
+  const id = ctx.params.id!;
+  await deleteCategory(rid, id);
+  ctx.response.redirect(`/owner/${rid}/menu`);
+});
+
+/* ------------ Owner: bills (חשבוניות) ------------ */
+/* כרטיסיה לבעלים: רשימת חשבונות + צפייה/הדפסה + מחיקה */
+
+posRouter.get("/owner/:rid/bills", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const rid = ctx.params.rid!;
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant) ctx.throw(Status.NotFound);
+
+  const bills = await listBillsForRestaurant(rid, 200);
+
+  await render(ctx, "owner_bills", {
+    page: "owner_bills",
+    title: `חשבונות · ${restaurant.name}`,
+    restaurant,
+    bills,
+  });
+});
+
+posRouter.get("/owner/:rid/bills/:bid", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const rid = ctx.params.rid!;
+  const bid = ctx.params.bid!;
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant) ctx.throw(Status.NotFound);
+
+  const bill = await getBill(rid, bid);
+  if (!bill) ctx.throw(Status.NotFound);
+
+  await render(ctx, "owner_bill_view", {
+    page: "owner_bill_view",
+    title: `חשבון שולחן ${bill.table} · ${restaurant.name}`,
+    restaurant,
+    bill,
+  });
+});
+
+posRouter.post("/owner/:rid/bills/:bid/delete", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const rid = ctx.params.rid!;
+  const bid = ctx.params.bid!;
+  await deleteBill(rid, bid);
+  ctx.response.redirect(`/owner/${rid}/bills`);
+});
+
+/* ------------ API: bill JSON (לשימוש עתידי / ברקוד וכו') ------------ */
+
+posRouter.get("/api/pos/bill/:rid/:bid", async (ctx) => {
+  const rid = ctx.params.rid!;
+  const bid = ctx.params.bid!;
+  const bill = await getBill(rid, bid);
+  if (!bill) ctx.throw(Status.NotFound, "bill_not_found");
+
+  ctx.response.headers.set(
+    "Content-Type",
+    "application/json; charset=utf-8",
+  );
+  ctx.response.body = JSON.stringify({ ok: true, bill });
+});
+
+/* ------------ Generic POS table page (למסך הזמנה) ------------ */
+/* נכנסים אליו מהמלצר / מהיכן שצריך: /pos/:rid/table/:tableNumber */
+
+posRouter.get("/pos/:rid/table/:tableNumber", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+
+  const user = ctx.state.user;
+  const rid = ctx.params.rid!;
+  const tableParam = ctx.params.tableNumber;
+  const tableNumber = Number(tableParam);
+
+  console.log("[POS] GET /pos/:rid/table/:tableNumber", {
+    rid,
+    tableParam,
+    tableNumber,
+    userId: user?.id,
+    role: user?.role,
+  });
+
+  if (!Number.isFinite(tableNumber) || tableNumber <= 0) {
+    ctx.throw(Status.BadRequest, "invalid table number");
+  }
+
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant) {
+    ctx.throw(Status.NotFound, "restaurant not found");
+  }
+
+  const items = await listOrderItemsForTable(rid, tableNumber);
+  const totals = await computeTotalsForTable(rid, tableNumber);
+
+  await render(ctx, "pos_waiter", {
+    page: "pos_waiter",
+    title: `Waiter · Table ${tableNumber} · ${restaurant.name}`,
+    rid,
+    table: tableNumber,
+    restaurant,
+    orderItems: items,
     totals,
-    paymentCode,
-  };
+    user,
+  });
+});
 
-  const tx = kv.atomic()
-    .set(orderKey, updated)
-    .delete(byTableKey)
-    .set(kBill(restaurantId, billId), bill)
-    .set(kBillByRestaurant(restaurantId, now, billId), bill);
+/* ------------ Waiter lobby ------------ */
 
-  const res = await tx.commit();
-  if (!res.ok) return null;
+posRouter.get("/waiter/:rid", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const rid = ctx.params.rid!;
+  const r = await getRestaurant(rid);
+  if (!r) ctx.throw(Status.NotFound);
 
-  // בנוסף לסגירת הצ'ק, נשחרר את השולחן ממערכת ההושבה (seating_service)
-  try {
-    await kv.delete(kSeat(restaurantId, table));
-  } catch {
-    // לא נכשיל את סגירת ההזמנה בגלל שגיאה לא קריטית בניקוי ה-seating
+  const open = await listOpenOrdersByRestaurant(rid);
+
+  const enriched: any[] = [];
+  for (const row of open) {
+    const totals = await computeTotalsForTable(rid, row.table);
+    enriched.push({
+      table: row.table,
+      order: row.order,
+      itemsCount: totals.itemsCount,
+      subtotal: totals.subtotal,
+      // קישור ישיר למסך ההזמנה לשולחן הזה
+      posUrl: `/pos/${rid}/table/${row.table}`,
+    });
   }
 
-  return updated;
-}
+  await render(ctx, "pos_waiter_lobby", {
+    page: "pos_waiter_lobby",
+    title: `מסך מלצרים · ${r.name}`,
+    restaurant: r,
+    rid,
+    openTables: enriched,
+  });
+});
 
-/* ---------- Bills API ---------- */
+/* ------------ Waiter table page (נתיב ישן /waiter/:rid/:table) ------------ */
 
-export async function listBillsForRestaurant(
-  restaurantId: string,
-  limit = 100,
-): Promise<Bill[]> {
-  const out: Bill[] = [];
-  for await (
-    const row of kv.list<Bill>({
-      prefix: kBillByRestaurantPrefix(restaurantId),
-    })
-  ) {
-    if (row.value) out.push(row.value);
+posRouter.get("/waiter/:rid/:table", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const rid = ctx.params.rid!;
+  const table = Number(ctx.params.table!);
+  const r = await getRestaurant(rid);
+  if (!r) ctx.throw(Status.NotFound);
+
+  const items = await listOrderItemsForTable(rid, table);
+  const totals = await computeTotalsForTable(rid, table);
+
+  await render(ctx, "pos_waiter", {
+    page: "pos_waiter",
+    title: `Waiter · Table ${table} · ${r.name}`,
+    rid,
+    table,
+    restaurant: r,
+    orderItems: items,
+    totals,
+  });
+});
+
+/* ------------ Waiter map (click table to open) ------------ */
+
+posRouter.get("/waiter-map/:rid", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const rid = ctx.params.rid!;
+  const r = await getRestaurant(rid);
+  if (!r) ctx.throw(Status.NotFound);
+  await render(ctx, "pos_waiter_map", {
+    page: "pos_waiter_map",
+    title: `מפת מסעדה · ${r.name}`,
+    rid,
+    restaurant: r,
+  });
+});
+
+/* ------------ Kitchen & Bar dashboards ------------ */
+
+posRouter.get("/kitchen/:rid", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const rid = ctx.params.rid!;
+  const r = await getRestaurant(rid);
+  if (!r) ctx.throw(Status.NotFound);
+
+  await render(ctx, "pos_kitchen", {
+    page: "pos_kitchen",
+    title: `Kitchen · ${r.name}`,
+    rid,
+    restaurant: r,
+  });
+});
+
+posRouter.get("/bar/:rid", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const rid = ctx.params.rid!;
+  const r = await getRestaurant(rid);
+  if (!r) ctx.throw(Status.NotFound);
+
+  await render(ctx, "pos_bar", {
+    page: "pos_bar",
+    title: `Bar · ${r.name}`,
+    rid,
+    restaurant: r,
+  });
+});
+
+/* ------------ Public menu API ------------ */
+
+posRouter.get("/api/pos/menu/:rid", async (ctx) => {
+  const rid = ctx.params.rid!;
+  const items = await listItems(rid);
+  ctx.response.headers.set(
+    "Content-Type",
+    "application/json; charset=utf-8",
+  );
+  ctx.response.body = JSON.stringify(items);
+});
+
+/* ------------ API: waiter adds item ------------ */
+
+posRouter.post("/api/pos/order-item/add", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+
+  const body = await ctx.request.body.json();
+  const restaurantId = String(body.restaurantId ?? "");
+  const table = Number(body.table ?? 0);
+  const menuItemId = String(body.menuItemId ?? "");
+  const quantity = Number(body.quantity ?? 1);
+
+  if (!restaurantId || !table || !menuItemId) {
+    ctx.throw(Status.BadRequest, "missing fields");
   }
-  out.sort((a, b) => b.createdAt - a.createdAt);
-  return limit > 0 && out.length > limit ? out.slice(0, limit) : out;
-}
 
-export async function getBill(
-  restaurantId: string,
-  billId: string,
-): Promise<Bill | null> {
-  const row = await kv.get<Bill>(kBill(restaurantId, billId));
-  return row.value ?? null;
-}
+  // Waiters can add only when table is seated by host
+  if (!(await isTableSeated(restaurantId, table))) {
+    ctx.throw(Status.Forbidden, "table_not_seated");
+  }
 
-export async function deleteBill(
-  restaurantId: string,
-  billId: string,
-): Promise<boolean> {
-  const billRow = await kv.get<Bill>(kBill(restaurantId, billId));
-  const bill = billRow.value;
-  if (!bill) return false;
+  const menuItem = await getItem(restaurantId, menuItemId);
+  if (!menuItem) ctx.throw(Status.NotFound, "menuItem not found");
 
-  const listKey = kBillByRestaurant(restaurantId, bill.createdAt, billId);
+  const { order, orderItem } = await addOrderItem({
+    restaurantId,
+    table,
+    menuItem,
+    quantity,
+  });
+  const totals = await computeTotalsForTable(restaurantId, table);
 
-  const res = await kv.atomic()
-    .delete(kBill(restaurantId, billId))
-    .delete(listKey)
-    .commit();
+  notifyOrderItemAdded(orderItem);
 
-  return res.ok;
-}
+  ctx.response.headers.set(
+    "Content-Type",
+    "application/json; charset=utf-8",
+  );
+  ctx.response.body = JSON.stringify({
+    ok: true,
+    order,
+    item: orderItem,
+    totals,
+  });
+});
+
+/* ------------ API: cancel item (waiter) ------------ */
+
+posRouter.post("/api/pos/order-item/cancel", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const body = await ctx.request.body.json();
+  const restaurantId = String(body.restaurantId ?? "");
+  const orderId = String(body.orderId ?? "");
+  const orderItemId = String(body.orderItemId ?? "");
+  const table = Number(body.table ?? 0);
+
+  if (!restaurantId || !orderId || !orderItemId || !table) {
+    ctx.throw(Status.BadRequest, "missing fields");
+  }
+
+  const updated = await cancelOrderItem(orderId, orderItemId);
+  const totals = await computeTotalsForTable(restaurantId, table);
+
+  if (updated) {
+    notifyOrderItemUpdated(updated);
+  }
+
+  ctx.response.headers.set(
+    "Content-Type",
+    "application/json; charset=utf-8",
+  );
+  ctx.response.body = JSON.stringify({
+    ok: !!updated,
+    item: updated,
+    totals,
+  });
+});
+
+/* ------------ API: mark item served (waiter) ------------ */
+
+posRouter.post("/api/pos/order-item/serve", async (ctx) => {
+  const body = await ctx.request.body.json();
+  const restaurantId = String(body.restaurantId ?? "");
+  const orderId = String(body.orderId ?? "");
+  const orderItemId = String(body.orderItemId ?? "");
+  const table = Number(body.table ?? 0);
+
+  if (!restaurantId || !orderId || !orderItemId || !table) {
+    ctx.throw(Status.BadRequest, "missing fields");
+  }
+
+  const updated = await updateOrderItemStatus(
+    orderItemId,
+    orderId,
+    "served",
+  );
+  const totals = await computeTotalsForTable(restaurantId, table);
+
+  if (updated) {
+    notifyOrderItemUpdated(updated);
+  }
+
+  ctx.response.headers.set(
+    "Content-Type",
+    "application/json; charset=utf-8",
+  );
+  ctx.response.body = JSON.stringify({
+    ok: !!updated,
+    item: updated,
+    totals,
+  });
+});
+
+/* ------------ API: close order ------------ */
+
+posRouter.post("/api/pos/order/close", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const body = await ctx.request.body.json();
+  const restaurantId = String(body.restaurantId ?? "");
+  const table = Number(body.table ?? 0);
+
+  if (!restaurantId || !table) {
+    ctx.throw(Status.BadRequest, "missing fields");
+  }
+
+  const order = await closeOrderForTable(restaurantId, table);
+  const totals = await computeTotalsForTable(restaurantId, table);
+
+  if (order) {
+    notifyOrderClosed(restaurantId, table);
+  }
+
+  ctx.response.headers.set(
+    "Content-Type",
+    "application/json; charset=utf-8",
+  );
+  ctx.response.body = JSON.stringify({
+    ok: !!order,
+    order,
+    totals,
+  });
+});
+
+export default posRouter;
