@@ -17,7 +17,8 @@
     <div class="panel card">
       <h2>שולחנות פתוחים</h2>
       <p class="muted small">
-        רשימת כל השולחנות עם צ׳קים פתוחים / בשירות פעיל.
+        רשימת כל השולחנות עם צ׳קים פתוחים / בשירות פעיל. לחיצה על שורה תציג פרטי שולחן,
+        וכפתור "למסך הזמנה" יפתח את מסך ה־POS לשולחן.
       </p>
       <ul id="open-tables-list" class="list open-tables-list">
         <!-- יתמלא דינמית -->
@@ -31,7 +32,7 @@
     <div class="panel card">
       <h2>מפת המסעדה (חי)</h2>
       <p class="muted small">
-        לחיצה על שולחן תפוס תציג פרטי הזמנה; לחיצה על שולחן פנוי תוכל לפתוח צ׳ק חדש (בהמשך).
+        לחיצה על שולחן תפוס תציג פרטי הזמנה; לחיצה על שולחן פנוי תציג מידע בסיסי (ניתן להרחיב בעתיד לפתיחת צ׳ק).
       </p>
       <div id="floor" class="floor-wrapper">
         <!-- המפה תיטען דינמית ע"י JS -->
@@ -75,13 +76,21 @@
           <span id="tip-status" class="tip-status-badge">—</span>
         </span>
       </div>
+      <div class="tip-row">
+        <span class="tip-row-label">מספר פריטים</span>
+        <span class="tip-row-value" id="tip-items-count">—</span>
+      </div>
+      <div class="tip-row">
+        <span class="tip-row-label">סכום ביניים</span>
+        <span class="tip-row-value" id="tip-subtotal">—</span>
+      </div>
     </div>
 
     <footer class="table-info-footer">
       <p class="muted small">
         המידע נלקח מההזמנה / צ׳ק האחרון בשולחן.
       </p>
-      <!-- פה בעתיד אפשר להוסיף כפתור "כניסה לצ׳ק" -->
+      <!-- בעתיד אפשר להוסיף פה כפתור "כניסה לצ׳ק" -->
     </footer>
   </div>
 </aside>
@@ -103,10 +112,12 @@
   const tipPeople = document.getElementById("tip-people");
   const tipTime = document.getElementById("tip-time");
   const tipStatus = document.getElementById("tip-status");
+  const tipItemsCount = document.getElementById("tip-items-count");
+  const tipSubtotal = document.getElementById("tip-subtotal");
 
-  const statusMap = new Map();   // tableNumber -> status
-  const guestMap = new Map();    // tableNumber -> name
-  const openTableInfo = new Map(); // tableNumber -> { name, people, time, status }
+  const statusMap = new Map();      // tableNumber -> status (ממפת הרצפה)
+  const guestMap = new Map();       // tableNumber -> guestName (ממפת הרצפה)
+  const openTableInfo = new Map();  // tableNumber -> { name, people, time, status, itemsCount, subtotal }
 
   function mapStatusToLabel(status){
     const s = (status || "").toLowerCase();
@@ -126,6 +137,11 @@
     return "tip-status-unknown";
   }
 
+  function formatMoney(v){
+    if (v == null || v === "" || isNaN(Number(v))) return "—";
+    return Number(v).toLocaleString("he-IL", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + " ₪";
+  }
+
   function openTableInfoPanel(info){
     if (!tableInfoPanel) return;
     tipTableNumber.textContent = info.tableNumber != null ? info.tableNumber : "—";
@@ -138,6 +154,12 @@
       tipStatus.textContent = mapStatusToLabel(info.status);
       tipStatus.className = clsBase[0] + " " + mapStatusToClass(info.status);
     }
+
+    // פריטים + סכום
+    tipItemsCount.textContent = (info.itemsCount != null && info.itemsCount !== "")
+      ? info.itemsCount
+      : "—";
+    tipSubtotal.textContent = formatMoney(info.subtotal);
 
     tableInfoPanel.classList.add("open");
     tableInfoBackdrop.classList.add("open");
@@ -157,9 +179,10 @@
   async function loadOpenTables(){
     if (!openList) return;
     openList.innerHTML = "";
+    openTableInfo.clear();
 
     try{
-      // תתאים ל-API הקיים אצלך אם שונה:
+      // תתאם ל-API הקיים אצלך אם השם שונה
       const url = new URL("/api/pos/open-tables", window.location.origin);
       url.searchParams.set("restaurantId", rid);
 
@@ -176,13 +199,15 @@
       openEmpty.style.display = "none";
 
       tables.forEach(function(t){
-        const li = document.createElement("li");
-        li.className = "item open-item";
         const tn = Number(t.tableNumber);
+        if (!Number.isFinite(tn)) return;
+
         const guestName = t.guestName || t.name || "";
         const people = t.people || t.covers || "";
         const time = t.time || t.openedAt || "";
         const status = t.status || "occupied";
+        const itemsCount = t.itemsCount ?? t.items ?? null;
+        const subtotal = t.subtotal ?? t.total ?? null;
 
         // נשמור ב-map כדי להשתמש בפאנל צד
         openTableInfo.set(tn, {
@@ -191,51 +216,81 @@
           people,
           time,
           status,
+          itemsCount,
+          subtotal,
         });
 
+        const li = document.createElement("li");
+        li.className = "item open-item";
+
         li.innerHTML = `
-          <button type="button" class="open-table-btn" data-table="${tn}">
-            <div class="open-main">
-              <span class="open-table-num">שולחן ${tn}</span>
-              ${guestName ? `<span class="open-guest-name">• ${guestName}</span>` : ""}
-            </div>
-            <div class="open-sub">
-              ${people ? `<span>${people} סועדים</span>` : ""}
-              ${time ? `<span>• ${time}</span>` : ""}
-            </div>
-          </button>
+          <div class="open-row">
+            <button type="button" class="open-table-btn" data-table="${tn}">
+              <div class="open-main">
+                <span class="open-table-num">שולחן ${tn}</span>
+                ${guestName ? `<span class="open-guest-name">• ${guestName}</span>` : ""}
+              </div>
+              <div class="open-sub">
+                ${people ? `<span>${people} סועדים</span>` : ""}
+                ${time ? `<span>• ${time}</span>` : ""}
+                ${itemsCount != null ? `<span>• ${itemsCount} פריטים</span>` : ""}
+                ${subtotal != null ? `<span>• ${formatMoney(subtotal)}</span>` : ""}
+              </div>
+            </button>
+            <button type="button" class="open-pos-link" data-table="${tn}">
+              למסך הזמנה
+            </button>
+          </div>
         `;
 
         openList.appendChild(li);
       });
 
-      // האזנה ללחיצה על שולחן מהרשימה
+      // האזנה ללחיצה – פעם אחת (לא once!), עם delegation
       openList.addEventListener("click", function(ev){
-        const btn = ev.target.closest(".open-table-btn");
-        if (!btn) return;
-        const tn = Number(btn.dataset.table);
-        if (!Number.isFinite(tn)) return;
+        const target = ev.target;
+        if (!(target instanceof HTMLElement)) return;
 
-        const info = openTableInfo.get(tn) || {
-          tableNumber: tn,
-          name: guestMap.get(tn) || "",
-          people: "",
-          time: "",
-          status: statusMap.get(tn) || "occupied",
-        };
-        openTableInfoPanel(info);
+        // כפתור "למסך הזמנה" → ניווט ל-POS
+        const posBtn = target.closest(".open-pos-link");
+        if (posBtn) {
+          const tn = Number(posBtn.dataset.table);
+          if (!Number.isFinite(tn)) return;
+          // תתאם לנתיב הקיים אצלך ב-POS אם הוא שונה
+          const href = `/pos/${encodeURIComponent(rid)}/table/${encodeURIComponent(tn)}`;
+          window.location.href = href;
+          return;
+        }
 
-        // נגלול גם למפה ונדגיש את השולחן
-        const floor = document.getElementById("floor");
-        if (floor) {
-          const tableBtn = floor.querySelector('.table[data-table-number="'+tn+'"]');
-          if (tableBtn) {
-            tableBtn.classList.add("selected");
-            tableBtn.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-            setTimeout(() => tableBtn.classList.remove("selected"), 800);
+        // לחיצה על השורה (open-table-btn) → פותח פאנל צד עם פרטים
+        const rowBtn = target.closest(".open-table-btn");
+        if (rowBtn) {
+          const tn = Number(rowBtn.dataset.table);
+          if (!Number.isFinite(tn)) return;
+
+          const info = openTableInfo.get(tn) || {
+            tableNumber: tn,
+            name: guestMap.get(tn) || "",
+            people: "",
+            time: "",
+            status: statusMap.get(tn) || "occupied",
+            itemsCount: null,
+            subtotal: null,
+          };
+          openTableInfoPanel(info);
+
+          // נגלול גם למפה ונדגיש את השולחן
+          const floor = document.getElementById("floor");
+          if (floor) {
+            const tableBtn = floor.querySelector('.table[data-table-number="'+tn+'"]');
+            if (tableBtn) {
+              tableBtn.classList.add("selected");
+              tableBtn.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+              setTimeout(() => tableBtn.classList.remove("selected"), 800);
+            }
           }
         }
-      }, { once: true }); // פעם אחת מספיקת – אם תרצה, תוריד את once
+      }, { passive: true });
     }catch(e){
       console.error(e);
       openEmpty.style.display = "block";
@@ -317,7 +372,7 @@
         btn.addEventListener("click", async function(){
           const currentStatus = statusMap.get(num) || "empty";
 
-          // אם פנוי – כרגע רק נציג הודעה רכה (אפשר בעתיד לפתוח צ׳ק חדש)
+          // אם פנוי – נציג פאנל עם מידע בסיסי (אפשר להרחיב בעתיד לפתיחה אוטומטית של צ׳ק)
           if (currentStatus === "empty") {
             const info = {
               tableNumber: num,
@@ -325,6 +380,8 @@
               people: "",
               time: "",
               status: "empty",
+              itemsCount: null,
+              subtotal: null,
             };
             openTableInfoPanel(info);
             return;
@@ -354,6 +411,8 @@
               people: data.people,
               time: data.time,
               status: currentStatus,
+              itemsCount: data.itemsCount ?? null,
+              subtotal: data.subtotal ?? null,
             };
             openTableInfoPanel(info);
           } catch (e) {
@@ -377,7 +436,7 @@
   loadOpenTables();
   loadFloor();
 
-  // בעתיד אפשר להוסיף setInterval לרענון
+  // אפשר להוסיף setInterval לרענון בעתיד
 })();
 </script>
 
@@ -445,8 +504,15 @@
     padding:6px 0;
   }
 
+  .open-row{
+    display:flex;
+    align-items:stretch;
+    justify-content:space-between;
+    gap:8px;
+  }
+
   .open-table-btn{
-    width:100%;
+    flex:1;
     text-align:right;
     background:none;
     border:none;
@@ -476,7 +542,20 @@
     font-size:12px;
     color:#9aa3b2;
     display:flex;
+    flex-wrap:wrap;
     gap:6px;
+  }
+
+  .open-pos-link{
+    align-self:center;
+    padding:4px 10px;
+    border-radius:999px;
+    border:1px solid rgba(96,165,250,0.6);
+    background:rgba(15,23,42,0.8);
+    color:#bfdbfe;
+    font-size:11px;
+    cursor:pointer;
+    white-space:nowrap;
   }
 
   /* מפת מסעדה */
