@@ -107,6 +107,49 @@ posRouter.post("/owner/:rid/menu/category/:id/delete", async (ctx) => {
   ctx.response.redirect(`/owner/${rid}/menu`);
 });
 
+/* ------------ Generic POS table page (למסך הזמנה) ------------ */
+/* נכנסים אליו מהמלצר / מהיכן שצריך: /pos/:rid/table/:tableNumber */
+
+posRouter.get("/pos/:rid/table/:tableNumber", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+
+  const user = ctx.state.user;
+  const rid = ctx.params.rid!;
+  const tableParam = ctx.params.tableNumber;
+  const tableNumber = Number(tableParam);
+
+  console.log("[POS] GET /pos/:rid/table/:tableNumber", {
+    rid,
+    tableParam,
+    tableNumber,
+    userId: user?.id,
+    role: user?.role,
+  });
+
+  if (!Number.isFinite(tableNumber) || tableNumber <= 0) {
+    ctx.throw(Status.BadRequest, "invalid table number");
+  }
+
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant) {
+    ctx.throw(Status.NotFound, "restaurant not found");
+  }
+
+  const items = await listOrderItemsForTable(rid, tableNumber);
+  const totals = await computeTotalsForTable(rid, tableNumber);
+
+  await render(ctx, "pos_waiter", {
+    page: "pos_waiter",
+    title: `Waiter · Table ${tableNumber} · ${restaurant.name}`,
+    rid,
+    table: tableNumber,
+    restaurant,
+    orderItems: items,
+    totals,
+    user,
+  });
+});
+
 /* ------------ Waiter lobby ------------ */
 
 posRouter.get("/waiter/:rid", async (ctx) => {
@@ -125,6 +168,8 @@ posRouter.get("/waiter/:rid", async (ctx) => {
       order: row.order,
       itemsCount: totals.itemsCount,
       subtotal: totals.subtotal,
+      // קישור ישיר למסך ההזמנה לשולחן הזה
+      posUrl: `/pos/${rid}/table/${row.table}`,
     });
   }
 
@@ -137,7 +182,7 @@ posRouter.get("/waiter/:rid", async (ctx) => {
   });
 });
 
-/* ------------ Waiter table page ------------ */
+/* ------------ Waiter table page (נתיב ישן /waiter/:rid/:table) ------------ */
 
 posRouter.get("/waiter/:rid/:table", async (ctx) => {
   if (!requireStaff(ctx)) return;
@@ -160,7 +205,6 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
   });
 });
 
-
 /* ------------ Waiter map (click table to open) ------------ */
 
 posRouter.get("/waiter-map/:rid", async (ctx) => {
@@ -175,6 +219,7 @@ posRouter.get("/waiter-map/:rid", async (ctx) => {
     restaurant: r,
   });
 });
+
 /* ------------ Kitchen & Bar dashboards ------------ */
 
 posRouter.get("/kitchen/:rid", async (ctx) => {
@@ -218,7 +263,6 @@ posRouter.get("/api/pos/menu/:rid", async (ctx) => {
 });
 
 /* ------------ API: waiter adds item ------------ */
-
 
 posRouter.post("/api/pos/order-item/add", async (ctx) => {
   if (!requireStaff(ctx)) return;
