@@ -1,66 +1,159 @@
 <% layout("_layout", it) %>
 
-<main class="container">
-  <section class="card">
-    <header class="page-header">
-      <h1>חשבונות — <%= it.restaurant.name %></h1>
-      <p class="muted">
-        <%= it.restaurant.city %> · <%= it.restaurant.address %>
-      </p>
+<%
+function tt(k, fb){
+  try{
+    if (it && typeof it.t==='function'){
+      const s = it.t(k);
+      if(!s || s===k || s===`(${k})`) return fb;
+      return s;
+    }
+  }catch(e){}
+  return fb;
+}
+
+function formatDateTime(ts){
+  try{
+    var d = new Date(ts);
+    var dd = d.toLocaleDateString('he-IL');
+    var tt = d.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+    return dd + " " + tt;
+  }catch(e){ return ''; }
+}
+%>
+
+<section class="sb-owner container" aria-label="חשבונות מסעדה">
+  <div class="card">
+    <header class="owner-hd">
+      <h1>חשבונות · <%= it.restaurant?.name %></h1>
+      <span class="muted">
+        <%= it.restaurant?.city || '' %> • <%= it.restaurant?.address || '' %>
+      </span>
     </header>
 
-    <h2 class="card-title" style="margin-top:12px;">חשבונות שנשמרו</h2>
-
-    <% if (!it.bills || !it.bills.length) { %>
-      <p class="muted" style="margin-top:8px;">
-        עדיין אין חשבונות סגורים ממערכת ה-POS.
-      </p>
-    <% } else { %>
-      <div class="table-wrapper" style="overflow-x:auto;margin-top:10px;">
-        <table class="table">
+    <div class="owner-bills">
+      <% if (it.bills && it.bills.length) { %>
+        <table class="bills-table">
           <thead>
             <tr>
+              <th>#</th>
               <th>תאריך</th>
               <th>שולחן</th>
-              <th>פריטים</th>
               <th>סכום</th>
-              <th>קוד תשלום</th>
-              <th></th>
+              <th>פעולות</th>
             </tr>
           </thead>
           <tbody>
-            <% it.bills.forEach(function (b) { %>
+            <% it.bills.forEach(function(b, idx){ %>
               <tr>
-                <td><%= new Date(b.createdAt).toLocaleString('he-IL') %></td>
-                <td>#<%= b.table %></td>
-                <td><%= b.totals.itemsCount || 0 %></td>
-                <td><%= (b.totals.total || b.totals.subtotal || 0).toFixed(2) %> ₪</td>
-                <td class="small">
-                  <code><%= b.paymentCode %></code>
+                <td><%= idx + 1 %></td>
+                <td><%= formatDateTime(b.createdAt) %></td>
+                <td>שולחן <%= b.table %></td>
+                <td>
+                  <%= (b.totals && typeof b.totals.total==='number'
+                      ? b.totals.total.toFixed(2)
+                      : (b.totals?.subtotal ?? 0).toFixed(2)) %> ₪
                 </td>
-                <td style="white-space:nowrap;">
+                <td class="bills-actions">
+                  <a class="btn ghost sm" href="/owner/<%= it.restaurant.id %>/bills/<%= b.id %>">
+                    הצג
+                  </a>
                   <a
-                    class="btn ghost"
-                    href="/owner/<%= it.restaurant.id %>/bills/<%= b.id %>/print"
+                    class="btn ghost sm"
+                    href="/owner/<%= it.restaurant.id %>/bills/<%= b.id %>?print=1"
                     target="_blank"
-                    rel="nofollow"
+                    rel="noopener"
                   >
-                    🖨️ הדפס
+                    הדפס
                   </a>
                   <form
-                    method="post"
                     action="/owner/<%= it.restaurant.id %>/bills/<%= b.id %>/delete"
-                    style="display:inline"
-                    onsubmit="return confirm('למחוק חשבון זה?');"
+                    method="post"
+                    class="inline-form"
+                    onsubmit="return confirm('למחוק את החשבון הזה?');"
                   >
-                    <button class="btn ghost" type="submit">🗑️ מחק</button>
+                    <button type="submit" class="btn ghost sm danger">
+                      מחיקה
+                    </button>
                   </form>
                 </td>
               </tr>
             <% }) %>
           </tbody>
         </table>
-      </div>
-    <% } %>
-  </section>
-</main>
+      <% } else { %>
+        <p class="muted" style="margin-top:10px">
+          עדיין אין חשבונות שמורים למסעדה זו.
+        </p>
+      <% } %>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sb-owner.container{max-width:900px;margin:20px auto;padding:0 16px}
+  .card{
+    background: var(--panel,#121622);
+    border:1px solid var(--bd,#222834);
+    border-radius:18px;padding:18px;margin-bottom:18px;
+    color: var(--ink,#e6e8ef);
+    box-shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  .owner-hd{
+    display:flex;align-items:flex-end;justify-content:space-between;gap:10px;
+    margin-bottom:10px;
+  }
+  .muted{color:var(--ink-muted,#9aa3b2);}
+
+  .bills-table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:10px;
+    font-size:14px;
+  }
+  .bills-table thead tr{
+    background:rgba(15,23,42,.9);
+  }
+  .bills-table th,
+  .bills-table td{
+    padding:8px 10px;
+    text-align:right;
+    border-bottom:1px solid rgba(148,163,184,.25);
+  }
+  .bills-table tbody tr:hover{
+    background:rgba(15,23,42,.8);
+  }
+
+  .bills-actions{
+    display:flex;
+    gap:6px;
+    align-items:center;
+    justify-content:flex-start;
+    flex-wrap:wrap;
+  }
+  .inline-form{display:inline}
+
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    gap:6px;padding:7px 10px;border-radius:10px;
+    border:1px solid var(--bd,#23293a);
+    background:transparent;color:var(--ink,#e6e8ef);
+    font-size:12px;font-weight:600;text-decoration:none;cursor:pointer;
+    transition:transform .08s ease,background .12s ease;
+  }
+  .btn.ghost{
+    background:color-mix(in srgb,var(--panel,#121622) 88%,transparent);
+  }
+  .btn.ghost:hover{
+    background:color-mix(in srgb,var(--panel,#121622) 94%,transparent);
+    transform:translateY(-1px);
+  }
+  .btn.sm{padding:5px 9px;border-radius:9px;}
+  .btn.danger{border-color:#b91c1c;color:#fecaca;}
+
+  @media (max-width:700px){
+    .owner-hd{flex-direction:column;align-items:flex-start}
+    .bills-table th:nth-child(1),
+    .bills-table td:nth-child(1){display:none;}
+  }
+</style>

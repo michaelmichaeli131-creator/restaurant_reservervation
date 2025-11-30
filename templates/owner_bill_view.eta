@@ -1,0 +1,355 @@
+<% layout("_layout", it) %>
+
+<%
+function formatDate(ts){
+  try{
+    var d = new Date(ts);
+    return d.toLocaleDateString('he-IL');
+  }catch(e){ return ''; }
+}
+function formatTime(ts){
+  try{
+    var d = new Date(ts);
+    return d.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+  }catch(e){ return ''; }
+}
+function lineTotal(item){
+  try{
+    return (Number(item.quantity||0) * Number(item.unitPrice||0)).toFixed(2);
+  }catch(e){ return '0.00'; }
+}
+function money(v){
+  try{
+    return Number(v||0).toFixed(2);
+  }catch(e){ return '0.00'; }
+}
+var totals = it.bill?.totals || {};
+var total = (typeof totals.total === 'number') ? totals.total : (totals.subtotal || 0);
+var subtotal = totals.subtotal || total;
+var taxRate = totals.taxRate;
+var taxAmount = totals.taxAmount;
+var phone = it.restaurant?.phone || '';
+var fullAddress = [
+  it.restaurant?.address || '',
+  it.restaurant?.city || ''
+].filter(Boolean).join(" · ");
+var qrData = it.bill?.paymentCode || "";
+var qrUrl = qrData
+  ? ("https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" + encodeURIComponent(qrData))
+  : "";
+%>
+
+<section class="receipt-wrap" aria-label="חשבון מסעדה">
+  <div class="receipt-card">
+    <!-- כותרת מסעדה -->
+    <header class="receipt-header">
+      <h1 class="restaurant-name"><%= it.restaurant?.name || 'Restaurant' %></h1>
+      <% if (fullAddress) { %>
+        <div class="restaurant-meta"><%= fullAddress %></div>
+      <% } %>
+      <% if (phone) { %>
+        <div class="restaurant-meta">טלפון: <%= phone %></div>
+      <% } %>
+    </header>
+
+    <div class="receipt-sep"></div>
+
+    <!-- פרטי הזמנה -->
+    <section class="receipt-meta">
+      <div><strong>תאריך:</strong> <%= formatDate(it.bill.createdAt) %></div>
+      <div><strong>שעה:</strong> <%= formatTime(it.bill.createdAt) %></div>
+      <div><strong>שולחן:</strong> <%= it.bill.table %></div>
+    </section>
+
+    <div class="receipt-sep dotted"></div>
+
+    <!-- רשימת פריטים -->
+    <section class="receipt-items">
+      <table>
+        <thead>
+          <tr>
+            <th class="col-name">פריט</th>
+            <th class="col-qty">כמות</th>
+            <th class="col-unit">מחיר</th>
+            <th class="col-total">סה״כ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (it.bill.items && it.bill.items.length) { %>
+            <% it.bill.items.forEach(function(item){ %>
+              <% if (item.status === 'cancelled') { return; } %>
+              <tr>
+                <td class="col-name"><%= item.name %></td>
+                <td class="col-qty"><%= item.quantity %></td>
+                <td class="col-unit"><%= money(item.unitPrice) %> ₪</td>
+                <td class="col-total"><%= lineTotal(item) %> ₪</td>
+              </tr>
+            <% }) %>
+          <% } else { %>
+            <tr>
+              <td colspan="4" class="empty-row">אין פריטים בחשבון זה.</td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </section>
+
+    <div class="receipt-sep dotted"></div>
+
+    <!-- סיכומים -->
+    <section class="receipt-summary">
+      <div class="row">
+        <span>סיכום ביניים:</span>
+        <span><%= money(subtotal) %> ₪</span>
+      </div>
+      <% if (typeof taxRate === 'number' && typeof taxAmount === 'number') { %>
+        <div class="row">
+          <span>מע״מ (<%= (taxRate * 100).toFixed(0) %>%)</span>
+          <span><%= money(taxAmount) %> ₪</span>
+        </div>
+      <% } %>
+      <div class="row total">
+        <span>לתשלום:</span>
+        <span><%= money(total) %> ₪</span>
+      </div>
+    </section>
+
+    <div class="receipt-sep dotted"></div>
+
+    <!-- ברקוד / QR לתשלום -->
+    <section class="receipt-payment">
+      <div class="payment-title">תשלום באמצעות סריקה</div>
+      <% if (qrUrl) { %>
+        <div class="qr-wrap">
+          <img src="<%= qrUrl %>" alt="קוד תשלום לסריקה" />
+        </div>
+      <% } else { %>
+        <div class="payment-code">
+          <small>קוד תשלום:</small>
+          <div class="code-box"><%= qrData %></div>
+        </div>
+      <% } %>
+    </section>
+
+    <!-- כפתורי ניווט / הדפסה (רק במצב רגיל, לא ב-printMode) -->
+    <% if (!it.printMode) { %>
+      <div class="receipt-actions no-print">
+        <a class="btn ghost" href="/owner/<%= it.restaurant.id %>/bills">← חזרה לרשימת חשבונות</a>
+        <button class="btn primary" type="button" onclick="window.print()">הדפס</button>
+      </div>
+    <% } %>
+  </div>
+</section>
+
+<script>
+  (function(){
+    // אם נכנסנו במצב הדפסה (?print=1) – נדפיס אוטומטית
+    var printMode = <%= it.printMode ? "true" : "false" %>;
+    if (printMode) {
+      window.addEventListener('load', function(){
+        try { window.print(); } catch(e){}
+      });
+    }
+  })();
+</script>
+
+<style>
+  .receipt-wrap{
+    min-height:100vh;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding:24px 12px;
+    background: radial-gradient(circle at top, #1f2937 0, #020617 55%, #000 100%);
+    color:#e5e7eb;
+  }
+  .receipt-card{
+    width:100%;
+    max-width:420px;
+    background:#050816;
+    border-radius:18px;
+    border:1px solid rgba(148,163,184,.25);
+    box-shadow:0 18px 40px rgba(0,0,0,.65);
+    padding:18px 18px 14px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Rubik", sans-serif;
+  }
+
+  .receipt-header{
+    text-align:center;
+    margin-bottom:8px;
+  }
+  .restaurant-name{
+    margin:0;
+    font-size:20px;
+    letter-spacing:.03em;
+  }
+  .restaurant-meta{
+    font-size:12px;
+    color:#9ca3af;
+  }
+
+  .receipt-sep{
+    height:1px;
+    background:linear-gradient(90deg,transparent,#4b5563,transparent);
+    margin:10px 0;
+  }
+  .receipt-sep.dotted{
+    border-top:1px dashed #4b5563;
+    background:none;
+  }
+
+  .receipt-meta{
+    font-size:13px;
+    display:grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    row-gap:4px;
+    column-gap:10px;
+  }
+
+  .receipt-items table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:13px;
+  }
+  .receipt-items th,
+  .receipt-items td{
+    padding:4px 0;
+  }
+  .receipt-items thead th{
+    border-bottom:1px solid #4b5563;
+    font-weight:600;
+  }
+  .receipt-items tbody tr:last-child td{
+    padding-bottom:0;
+  }
+  .col-name{text-align:right;}
+  .col-qty{text-align:center;width:50px;}
+  .col-unit{text-align:center;width:70px;}
+  .col-total{text-align:left;width:80px;}
+  .empty-row{
+    text-align:center;
+    color:#6b7280;
+    padding:10px 0;
+  }
+
+  .receipt-summary{
+    font-size:13px;
+  }
+  .receipt-summary .row{
+    display:flex;
+    justify-content:space-between;
+    margin-bottom:3px;
+  }
+  .receipt-summary .row.total{
+    margin-top:6px;
+    font-size:14px;
+    font-weight:700;
+  }
+
+  .receipt-payment{
+    text-align:center;
+    margin-top:8px;
+  }
+  .payment-title{
+    font-size:12px;
+    color:#9ca3af;
+    margin-bottom:4px;
+  }
+  .qr-wrap{
+    display:inline-flex;
+    padding:6px;
+    border-radius:12px;
+    background:#020617;
+    border:1px solid rgba(148,163,184,.35);
+  }
+  .qr-wrap img{
+    display:block;
+    width:160px;
+    height:160px;
+  }
+
+  .payment-code small{
+    display:block;
+    font-size:11px;
+    color:#9ca3af;
+    margin-bottom:2px;
+  }
+  .code-box{
+    font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size:11px;
+    background:#020617;
+    border-radius:8px;
+    border:1px solid rgba(148,163,184,.35);
+    padding:6px;
+    word-break:break-all;
+    text-align:left;
+    direction:ltr;
+  }
+
+  .receipt-actions{
+    margin-top:10px;
+    display:flex;
+    justify-content:space-between;
+    gap:8px;
+  }
+
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    padding:8px 12px;
+    border-radius:10px;
+    border:1px solid #334155;
+    background:transparent;
+    color:#e5e7eb;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    text-decoration:none;
+    transition:transform .08s ease,background .12s ease;
+  }
+  .btn.ghost{
+    background:rgba(15,23,42,.6);
+  }
+  .btn.ghost:hover{
+    background:rgba(30,64,175,.3);
+    transform:translateY(-1px);
+  }
+  .btn.primary{
+    background:#3b82f6;
+    border-color:#3b82f6;
+    box-shadow:0 8px 24px rgba(59,130,246,.45);
+  }
+  .btn.primary:hover{
+    background:#2563eb;
+  }
+
+  @media print{
+    body{
+      background:#fff !important;
+    }
+    .receipt-wrap{
+      min-height:auto;
+      padding:0;
+      background:#fff !important;
+    }
+    .receipt-card{
+      max-width:none;
+      box-shadow:none;
+      border-radius:0;
+      border:none;
+      padding:8mm 10mm;
+      background:#fff;
+      color:#000;
+    }
+    .receipt-sep,
+    .receipt-sep.dotted{
+      border-color:#aaa;
+      background:#aaa;
+    }
+    .no-print{
+      display:none !important;
+    }
+  }
+</style>
