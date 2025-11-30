@@ -37,13 +37,8 @@
                 ? t.totals.subtotal
                 : (t.subtotal != null ? t.subtotal : "");
 
-              // URL למסך ההזמנה – קודם מהשרת (כמו בגרסה הישנה), ואם אין אז fallback
-              const ridVal = restaurant.id || it.rid || "";
-              const posUrl = t.posUrl || t.url || t.href || (
-                ridVal
-                  ? `/pos/${encodeURIComponent(ridVal)}/table/${encodeURIComponent(tn)}`
-                  : `/pos/table/${encodeURIComponent(tn)}`
-              );
+              // *** שורה חשובה: URL למסך ההזמנה רק מהשרת, בלי fallback ***
+              const posUrl = t.posUrl || t.url || t.href || "";
           %>
             <li
               class="item open-item"
@@ -253,10 +248,8 @@
       if (posBtn) {
         if (posUrl) {
           window.location.href = posUrl;
-        } else if (tn) {
-          // fallback אם משום מה אין data-pos-url
-          const href = `/pos/${encodeURIComponent(rid)}/table/${encodeURIComponent(tn)}`;
-          window.location.href = href;
+        } else {
+          alert("לא הוגדר קישור למסך ההזמנה עבור שולחן זה.");
         }
         return;
       }
