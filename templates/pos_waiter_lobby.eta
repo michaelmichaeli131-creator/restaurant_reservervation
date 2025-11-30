@@ -36,6 +36,14 @@
               const subtotal = (t.totals && t.totals.subtotal != null)
                 ? t.totals.subtotal
                 : (t.subtotal != null ? t.subtotal : "");
+
+              // URL למסך ההזמנה – קודם מהשרת (כמו בגרסה הישנה), ואם אין אז fallback
+              const ridVal = restaurant.id || it.rid || "";
+              const posUrl = t.posUrl || t.url || t.href || (
+                ridVal
+                  ? `/pos/${encodeURIComponent(ridVal)}/table/${encodeURIComponent(tn)}`
+                  : `/pos/table/${encodeURIComponent(tn)}`
+              );
           %>
             <li
               class="item open-item"
@@ -46,6 +54,7 @@
               data-status="<%= status %>"
               data-items-count="<%= itemsCount %>"
               data-subtotal="<%= subtotal %>"
+              data-pos-url="<%= posUrl %>"
             >
               <div class="open-row">
                 <button type="button" class="open-table-btn">
@@ -227,33 +236,34 @@
   if (tipCloseBtn) tipCloseBtn.addEventListener("click", closeTableInfoPanel);
   if (tableInfoBackdrop) tableInfoBackdrop.addEventListener("click", closeTableInfoPanel);
 
-  // האזנה לרשימת שולחנות פתוחים – כמו בגרסה הישנה, אבל עם כרטסיית צד
+  // האזנה לרשימת שולחנות פתוחים – כולל מעבר למסך ההזמנה
   if (openList) {
     openList.addEventListener("click", function(ev){
       const target = ev.target;
       if (!(target instanceof HTMLElement)) return;
 
+      const li = target.closest("li[data-table]");
+      if (!li) return;
+
+      const tn = li.getAttribute("data-table");
+      const posUrl = li.getAttribute("data-pos-url") || "";
+
       // כפתור "למסך הזמנה"
       const posBtn = target.closest(".open-pos-link");
       if (posBtn) {
-        const li = posBtn.closest("li[data-table]");
-        if (!li) return;
-        const tn = li.getAttribute("data-table");
-        if (!tn) return;
-
-        // תתאים לראוטר POS שלך אם הנתיב שונה
-        const href = `/pos/${encodeURIComponent(rid)}/table/${encodeURIComponent(tn)}`;
-        window.location.href = href;
+        if (posUrl) {
+          window.location.href = posUrl;
+        } else if (tn) {
+          // fallback אם משום מה אין data-pos-url
+          const href = `/pos/${encodeURIComponent(rid)}/table/${encodeURIComponent(tn)}`;
+          window.location.href = href;
+        }
         return;
       }
 
-      // לחיצה על שורת השולחן
+      // לחיצה על שורת השולחן - פתיחת כרטיסיית צד
       const rowBtn = target.closest(".open-table-btn");
       if (rowBtn) {
-        const li = rowBtn.closest("li[data-table]");
-        if (!li) return;
-
-        const tn = Number(li.getAttribute("data-table"));
         const name = li.getAttribute("data-name") || "";
         const people = li.getAttribute("data-people") || "";
         const time = li.getAttribute("data-time") || "";
@@ -269,7 +279,7 @@
           : null;
 
         const info = {
-          tableNumber: tn,
+          tableNumber: Number(tn),
           name,
           people,
           time,
@@ -281,7 +291,7 @@
 
         // הדגשה במפת המסעדה
         const floor = document.getElementById("floor");
-        if (floor) {
+        if (floor && tn) {
           const tableBtn = floor.querySelector('.table[data-table-number="'+tn+'"]');
           if (tableBtn) {
             tableBtn.classList.add("selected");
