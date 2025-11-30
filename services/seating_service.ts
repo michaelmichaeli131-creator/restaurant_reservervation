@@ -1,22 +1,29 @@
-// services/seating_service.ts
-// Seating logic: host seats a reservation to a table -> creates open order and locks table.
+// src/services/seating_service.ts
+// -------------------------------------------
+// Seating logic:
+// - seatReservation: המארחת מושיבה הזמנה לשולחן → נועלים את השולחן ופותחים הזמנה (Order)
+// - unseatTable: שחרור שולחן (למקרה שנשארו "רוחות רפאים")
+// - isTableSeated: בדיקה אם שולחן תפוס (בשביל POS / מלצר)
+// -------------------------------------------
 
 import {
   kv,
-  type Reservation,
   getReservationById,
   setReservationStatus,
 } from "../database.ts";
 import { getOrCreateOpenOrder } from "../pos/pos_db.ts";
 
+/** מפתח KV: ישיבה לפי שולחן */
 function kSeat(restaurantId: string, table: number): Deno.KvKey {
   return ["seat", "by_table", restaurantId, table];
 }
 
+/** מפתח KV: ישיבה לפי הזמנה */
 function kSeatByRes(reservationId: string): Deno.KvKey {
   return ["seat", "by_res", reservationId];
 }
 
+/** מידע ישיבה שנשמר ב-KV */
 export interface SeatingInfo {
   restaurantId: string;
   table: number;
@@ -25,6 +32,25 @@ export interface SeatingInfo {
   guestName?: string;
 }
 
+/**
+ * בדיקה אם שולחן כבר "תפוס" לפי KV.
+ * משמש ע"י POS (מלצרים) כדי לא לפתוח שולחן כשהוא כבר תפוס ב-host.
+ */
+export async function isTableSeated(
+  restaurantId: string,
+  table: number,
+): Promise<boolean> {
+  const row = await kv.get<SeatingInfo>(kSeat(restaurantId, table));
+  return !!row.value;
+}
+
+/**
+ * הושבת הזמנה לשולחן:
+ * - מוודאים שההזמנה קיימת ולא בוטלה / no_show
+ * - נועלים את השולחן ב-KV (atomic + check)
+ * - פותחים הזמנה פתוחה (Order) לשולחן
+ * - מעדכנים את סטטוס ההזמנה ל-arrived
+ */
 export async function seatReservation(params: {
   restaurantId: string;
   reservationId: string;
@@ -39,17 +65,17 @@ export async function seatReservation(params: {
     throw new Error("reservation_not_found");
   }
 
-  // 2. לוודא שההזמנה עדיין פעילה (לא בוטלה / לא הוגדרה כ-no_show)
+  // 2. לוודא שההזמנה עדיין פעילה
   const status = String(reservation.status ?? "new").toLowerCase();
   if (["cancelled", "canceled", "no_show", "noshow"].includes(status)) {
     throw new Error("reservation_cancelled");
   }
 
+  // 3. לבדוק אם השולחן כבר תפוס
   const seatKey = kSeat(restaurantId, table);
   const seatRow = await kv.get<SeatingInfo>(seatKey);
-
-  // אם כבר יש ישיבה מוגדרת לשולחן הזה – לא נדרוך עליה
   if (seatRow.value) {
+    // יש כבר רשומת ישיבה לשולחן הזה
     throw new Error("table_already_seated");
   }
 
@@ -62,26 +88,27 @@ export async function seatReservation(params: {
     guestName: guestName?.trim() || undefined,
   };
 
+  // 4. atomic: נוודא שהשולחן עדיין ריק ונרשום ישיבה
   const tx = kv
     .atomic()
-    // נוודא שהשולחן עדיין ריק (אין רשומה ב-KV)
-    .check({ key: seatKey, versionstamp: null })
+    .check({ key: seatKey, versionstamp: null }) // דורש שהשולחן יהיה ריק
     .set(seatKey, data)
     .set(kSeatByRes(reservationId), data);
 
   const result = await tx.commit();
   if (!result.ok) {
+    // אם העסקה נכשלה – כנראה מישהו אחר כבר תפס את השולחן
     throw new Error("table_already_seated");
   }
 
-  // לפתוח / לוודא שיש צ'ק פתוח לשולחן זה
+  // 5. פתיחת צ'ק פתוח לשולחן
   await getOrCreateOpenOrder(restaurantId, table);
 
-  // לסמן את ההזמנה כ-arrived
+  // 6. עדכון סטטוס ההזמנה ל-arrived (לא מפילים על זה את הקריאה אם נכשל)
   try {
     await setReservationStatus(reservationId, "arrived");
   } catch {
-    // לא קריטי לפוצץ את הקריאה על זה
+    // ignore
   }
 
   return data;
@@ -89,7 +116,7 @@ export async function seatReservation(params: {
 
 /**
  * שחרור שולחן ממצב "seated".
- * חשוב: תומך גם ברשומות ישנות/שבורות שאין להן reservationId תקין,
+ * תומך גם ברשומות ישנות/שבורות שאין להן reservationId תקין,
  * כדי לנקות "רוחות רפאים" שגורמות ל-table_already_seated.
  */
 export async function unseatTable(
