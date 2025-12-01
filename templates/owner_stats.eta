@@ -1,377 +1,358 @@
 <% layout("_layout", it) %>
 
 <%
-function fmtMoney(v){
-  try{ return Number(v||0).toFixed(2); }catch(e){ return "0.00"; }
-}
-function fmtDate(ts){
-  if (!ts) return "";
-  try{
-    var d = new Date(ts);
-    return d.toLocaleDateString('he-IL');
-  }catch(e){ return ""; }
-}
+  // תרגום בסיסי עם fallback
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t === "function"){
+        const s = it.t(k);
+        if (!s || s === k || s === `(${k})`) return fb;
+        return s;
+      }
+    } catch(e){}
+    return fb;
+  }
 
-var stats = it.stats || {};
-var totals = stats.totals || {};
-var menuTop = stats.menuTop || { items: [], totalQty: 0 };
-var revPerDay = stats.revenuePerDay || [];
-var revPerHour = stats.revenuePerHour || [];
-var weekday = stats.weekday || [];
-var strongDays = stats.strongDays || [];
-var weakHours = stats.weakHours || [];
+  const restaurant = it.restaurant || {};
+  const stats = it.stats || {};
+  const totals = stats.totals || {};
 
-var topDish = (menuTop.items && menuTop.items.length)
-  ? menuTop.items[0]
-  : null;
+  const revenuePerDay   = Array.isArray(stats.revenuePerDay) ? stats.revenuePerDay : [];
+  const revenuePerHour  = Array.isArray(stats.revenuePerHour) ? stats.revenuePerHour : [];
+  const weekday         = Array.isArray(stats.weekday) ? stats.weekday : [];
+  const strongDays      = Array.isArray(stats.strongDays) ? stats.strongDays : [];
+  const menuTopItems    = stats.menuTop && Array.isArray(stats.menuTop.items)
+                          ? stats.menuTop.items
+                          : [];
 
-var rangeText = "";
-if (totals.from && totals.to) {
-  rangeText = fmtDate(totals.from) + " – " + fmtDate(totals.to);
-}
+  const totalRevenue    = Number(totals.revenue ?? 0) || 0;
+  const billsCount      = Number(totals.billsCount ?? 0) || 0;
+  const avgBill         = Number(totals.avgBill ?? 0) || 0;
+
+  const fromTs = totals.from && Number.isFinite(totals.from) ? new Date(totals.from) : null;
+  const toTs   = totals.to   && Number.isFinite(totals.to)   ? new Date(totals.to)   : null;
+
+  const rangeStr = (fromTs && toTs)
+    ? `${fromTs.toLocaleDateString("he-IL")} – ${toTs.toLocaleDateString("he-IL")}`
+    : "";
+
+  // חישוב מקסימום להכנסות ליום – לגרפים
+  let maxDayRevenue = 0;
+  revenuePerDay.forEach(r => {
+    const v = Number(r.revenue ?? 0) || 0;
+    if (v > maxDayRevenue) maxDayRevenue = v;
+  });
+
+  // מקסימום לשעה
+  let maxHourRevenue = 0;
+  revenuePerHour.forEach(r => {
+    const v = Number(r.revenue ?? 0) || 0;
+    if (v > maxHourRevenue) maxHourRevenue = v;
+  });
+
+  // מקסימום ליום בשבוע
+  let maxWeekdayRevenue = 0;
+  weekday.forEach(r => {
+    const v = Number(r.revenue ?? 0) || 0;
+    if (v > maxWeekdayRevenue) maxWeekdayRevenue = v;
+  });
+
+  // פופולריות מנות – ניקח רק TOP 7 לגרף
+  const topMenu = menuTopItems
+    .slice()
+    .sort((a,b) => (b.qty ?? 0) - (a.qty ?? 0))
+    .slice(0, 7);
+
+  const totalQty = stats.menuTop && typeof stats.menuTop.totalQty === "number"
+    ? stats.menuTop.totalQty
+    : topMenu.reduce((s,it)=>s + (Number(it.qty ?? 0) || 0), 0);
 %>
 
-<section class="sb-owner-stats container" aria-label="סטטיסטיקות בעלים">
-  <div class="card stats-shell">
-    <header class="stats-header">
+<section class="sb-owner-stats container" aria-label="סטטיסטיקות למסעדה">
+  <div class="card page-card">
+    <header class="page-header">
       <div>
-        <h1>סטטיסטיקות למסעדה</h1>
-        <div class="muted">
-          <strong><%= it.restaurant?.name || '' %></strong>
-          <% if (rangeText) { %>
-            · טווח נתונים: <%= rangeText %>
-          <% } %>
-        </div>
+        <h1 class="page-title">
+          📊 סטטיסטיקות · <%= restaurant.name || "מסעדה" %>
+        </h1>
+        <p class="muted">
+          טווח נתונים:
+          <%= rangeStr || "ללא טווח מוגדר (חשבון ראשון → אחרון)" %>
+        </p>
       </div>
-      <a class="btn ghost sm" href="/owner">← חזרה לדשבורד בעלים</a>
+      <div class="page-actions">
+        <a class="btn ghost" href="/owner">
+          ← חזרה לדשבורד בעלים
+        </a>
+      </div>
     </header>
 
-    <!-- KPI ראשיים -->
-    <section class="kpi-grid">
+    <!-- 🔹 KPI ראשי: סיכום על -->
+    <section class="kpi-grid" aria-label="מדדי על">
       <div class="kpi-card">
-        <div class="kpi-label">הכנסות סה״כ</div>
-        <div class="kpi-value"><%= fmtMoney(totals.revenue || 0) %> ₪</div>
-        <div class="kpi-sub">על בסיס חשבוניות נסגרות</div>
+        <div class="kpi-label">סה״כ הכנסות</div>
+        <div class="kpi-value main">₪ <%= totalRevenue.toFixed(2) %></div>
+        <div class="kpi-sub muted">
+          <%= billsCount %> חשבונות נסגרו
+        </div>
       </div>
+
       <div class="kpi-card">
-        <div class="kpi-label">מספר חשבוניות</div>
-        <div class="kpi-value"><%= totals.billsCount || 0 %></div>
-        <div class="kpi-sub">צ׳קים שנסגרו</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">ממוצע לצ׳ק</div>
-        <div class="kpi-value"><%= fmtMoney(totals.avgBill || 0) %> ₪</div>
-        <div class="kpi-sub">הכנסה ממוצעת לחשבון</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">מנה פופולרית</div>
-        <% if (topDish) { %>
-          <div class="kpi-value kpi-text"><%= topDish.name %></div>
-          <div class="kpi-sub">
-            הוזמנה <%= topDish.qty %> פעמים
-            (<%= (topDish.pct || 0).toFixed(1) %>% מכלל המנות)
+        <div class="kpi-label">ממוצע חשבון ללקוח</div>
+        <div class="kpi-value main">₪ <%= avgBill.toFixed(2) %></div>
+        <div class="kpi-sub muted">
+          מחושב לפי כל החשבונות בטווח
+        </div>
+        <div class="kpi-bar-wrap">
+          <div class="kpi-bar-track">
+            <%
+              // ננרמל את avgBill לערך "רצוי" לצורך גרפיקה בלבד
+              const target = 200;
+              const pct = Math.max(5, Math.min(100, (avgBill / target) * 100 || 0));
+            %>
+            <div class="kpi-bar-fill" style="width:<%= pct %>%"></div>
           </div>
+          <div class="kpi-bar-legend">
+            <span class="muted">0</span>
+            <span class="muted">יעד חזוי: ₪ <%= target.toFixed(0) %></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-label">ימים חזקים</div>
+        <% if (strongDays && strongDays.length) { %>
+          <ul class="mini-list">
+            <% strongDays.slice(0,3).forEach(function(d){ %>
+              <li>
+                <span class="dot"></span>
+                <span><%= d.dayName %></span>
+                <span class="mono mini-amount">
+                  ₪ <%= Number(d.revenue ?? 0).toFixed(0) %>
+                </span>
+              </li>
+            <% }) %>
+          </ul>
         <% } else { %>
-          <div class="kpi-value kpi-text">אין עדיין נתונים</div>
-          <div class="kpi-sub">לא נסגרו חשבוניות</div>
+          <p class="muted">עדיין אין מספיק נתונים לניתוח ימים חזקים.</p>
         <% } %>
       </div>
     </section>
 
-    <div class="stats-grid">
-      <!-- גרף מנות פופולריות -->
-      <section class="stats-panel">
-        <h2 class="panel-title">מנות פופולריות</h2>
-        <p class="panel-sub">
-          מבוסס על כמות מנות שהופיעו בחשבוניות שנסגרו.
-        </p>
-        <canvas id="chart-menu" height="180"></canvas>
-      </section>
+    <!-- ROW 1: 1) הכנסות יומיות, 2) ממוצע חשבון בזמן -->
+    <section class="row row-charts">
+      <!-- 1. הכנסות יומיות -->
+      <div class="chart-card">
+        <h2 class="chart-title">1. הכנסות יומיות (Total Revenue)</h2>
+        <% if (revenuePerDay.length && maxDayRevenue > 0) { %>
+          <div class="chart-bars" aria-label="הכנסות לפי יום">
+            <% revenuePerDay.forEach(function(d){ 
+                 const rev = Number(d.revenue ?? 0) || 0;
+                 const pct = maxDayRevenue ? (rev / maxDayRevenue) * 100 : 0;
+            %>
+              <div class="bar-row">
+                <span class="bar-label-date"><%= d.date %></span>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width:<%= pct %>%"></div>
+                </div>
+                <span class="bar-value mono">₪ <%= rev.toFixed(0) %></span>
+              </div>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <p class="muted">עדיין אין חשבוניות מספיקות להצגת הכנסות יומיות.</p>
+        <% } %>
+      </div>
 
-      <!-- גרף הכנסות לפי יום -->
-      <section class="stats-panel">
-        <h2 class="panel-title">הכנסות לפי יום</h2>
-        <p class="panel-sub">
-          פילוח הכנסות יומיות – עוזר לזהות ימים חזקים וחלשים.
-        </p>
-        <canvas id="chart-days" height="180"></canvas>
-      </section>
+      <!-- 2. ממוצע חשבון – חלוקה לפי יום -->
+      <div class="chart-card">
+        <h2 class="chart-title">2. ממוצע חשבון ללקוח (Average Check)</h2>
+        <% if (revenuePerDay.length && billsCount > 0) { %>
+          <p class="muted small">
+            הערה: ממוצע החשבון הכללי כבר מוצג למעלה; כאן מוצג פר יום (בקירוב – לפי מספר חשבונות הכולל).
+          </p>
+          <div class="chart-bars mini" aria-label="ממוצע חשבון ליום">
+            <%
+              // נניח שהחשבוניות מפוזרות די שווה – זה קירוב.
+              const avgBillsPerDay = billsCount / (revenuePerDay.length || 1);
+            %>
+            <% revenuePerDay.forEach(function(d){ 
+                 const rev = Number(d.revenue ?? 0) || 0;
+                 const localAvg = avgBillsPerDay ? (rev / avgBillsPerDay) : 0;
+                 const pct = target ? Math.min(100, (localAvg / target) * 100) : 0;
+            %>
+              <div class="bar-row">
+                <span class="bar-label-date"><%= d.date %></span>
+                <div class="bar-track">
+                  <div class="bar-fill alt" style="width:<%= pct %>%"></div>
+                </div>
+                <span class="bar-value mono">₪ <%= localAvg.toFixed(0) %></span>
+              </div>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <p class="muted">לא ניתן לחשב ממוצע חשבון לפי יום בלי חשבוניות.</p>
+        <% } %>
+      </div>
+    </section>
 
-      <!-- גרף שעות חזקות -->
-      <section class="stats-panel">
-        <h2 class="panel-title">שעות חזקות ביום</h2>
-        <p class="panel-sub">
-          מבוסס על זמן פתיחת החשבון – היכן הPeak של השירות.
-        </p>
-        <canvas id="chart-hours" height="180"></canvas>
-      </section>
+    <!-- ROW 2: 3) מנות פופולריות, 4) הכנסות לפי שעה -->
+    <section class="row row-charts">
+      <!-- 3. מנות פופולריות -->
+      <div class="chart-card">
+        <h2 class="chart-title">3. מנות פופולריות (Top Dishes)</h2>
+        <% if (topMenu.length && totalQty > 0) { %>
+          <div class="chart-bars" aria-label="מנות פופולריות">
+            <% topMenu.forEach(function(item){
+                 const qty = Number(item.qty ?? 0) || 0;
+                 const pctQty = totalQty ? (qty / totalQty) * 100 : 0;
+            %>
+              <div class="bar-row">
+                <span class="bar-label-name"><%= item.name || "פריט ללא שם" %></span>
+                <div class="bar-track">
+                  <div class="bar-fill dish" style="width:<%= pctQty %>%"></div>
+                </div>
+                <span class="bar-value mono">
+                  <%= qty %> × ( <%= pctQty.toFixed(1) %>% )
+                </span>
+              </div>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <p class="muted">עדיין אין נתונים מספקים לפופולריות מנות.</p>
+        <% } %>
+      </div>
 
-      <!-- גרף ימים חזקים בשבוע -->
-      <section class="stats-panel">
-        <h2 class="panel-title">ימים חזקים בשבוע</h2>
-        <p class="panel-sub">
-          מסכם הכנסה לפי יום בשבוע (ראשון–שבת).
-        </p>
-        <canvas id="chart-weekday" height="180"></canvas>
-      </section>
+      <!-- 4. הכנסות לפי שעה -->
+      <div class="chart-card">
+        <h2 class="chart-title">4. הכנסות לפי שעה (Revenue by Hour)</h2>
+        <% if (revenuePerHour.length && maxHourRevenue > 0) { %>
+          <div class="chart-heat" aria-label="הכנסות לפי שעה">
+            <% revenuePerHour.forEach(function(h){ 
+                 const hour = h.hour;
+                 const rev = Number(h.revenue ?? 0) || 0;
+                 const count = Number(h.count ?? 0) || 0;
+                 const intensity = maxHourRevenue ? (rev / maxHourRevenue) : 0;
+                 const pct = Math.max(0.12, intensity); // לא פחות מדי כדי שיראו
+            %>
+              <div class="heat-cell" style="--i:<%= pct %>">
+                <div class="heat-hour"><%= hour %>:00</div>
+                <div class="heat-rev mono">₪ <%= rev.toFixed(0) %></div>
+                <div class="heat-count muted small"><%= count %> חשבונות</div>
+              </div>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <p class="muted">טרם נרשמו מספיק חשבונות כדי לנתח שעות חזקות.</p>
+        <% } %>
+      </div>
+    </section>
 
-      <!-- הוצאות ידניות + רווח משוער -->
-      <section class="stats-panel">
-        <h2 class="panel-title">הוצאות (הזנה ידנית)</h2>
-        <p class="panel-sub">
-          בינתיים לא נשמר בשרת – חישוב מקומי לעזרה בקבלת החלטות.
+    <!-- ROW 3: 5) הכנסות לפי יום בשבוע, 6) טבלת ימים חזקים -->
+    <section class="row row-charts">
+      <!-- 5. הכנסות לפי יום בשבוע -->
+      <div class="chart-card">
+        <h2 class="chart-title">5. הכנסות לפי יום בשבוע</h2>
+        <% if (weekday.length && maxWeekdayRevenue > 0) { %>
+          <div class="chart-bars weekday" aria-label="הכנסות בחתך ימי השבוע">
+            <% weekday.forEach(function(d){ 
+                 const rev = Number(d.revenue ?? 0) || 0;
+                 const cnt = Number(d.count ?? 0) || 0;
+                 const pct = maxWeekdayRevenue ? (rev / maxWeekdayRevenue) * 100 : 0;
+            %>
+              <div class="bar-row">
+                <span class="bar-label-name"><%= d.dayName %></span>
+                <div class="bar-track">
+                  <div class="bar-fill weekday" style="width:<%= pct %>%"></div>
+                </div>
+                <span class="bar-value mono">
+                  ₪ <%= rev.toFixed(0) %> · <%= cnt %> חשבונות
+                </span>
+              </div>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <p class="muted">אין מספיק נתונים לפי ימי השבוע.</p>
+        <% } %>
+      </div>
+
+      <!-- 6. תחלופת שולחנות (קירוב) -->
+      <div class="chart-card">
+        <h2 class="chart-title">6. תחלופת שולחנות (Table Turnover – קירוב)</h2>
+        <p class="muted small">
+          לפי כמות חשבונות נסגרו / כמות ימי פעילות. בהמשך אפשר לדייק עם נתוני הושבה מלאים.
         </p>
-        <div class="expenses-table">
-          <div class="expenses-row head">
-            <div>תיאור</div>
-            <div>סכום (₪)</div>
+        <% if (billsCount > 0 && revenuePerDay.length) { %>
+          <%
+            const days = revenuePerDay.length || 1;
+            const approxCoversPerDay = billsCount / days;
+          %>
+          <div class="turnover-card">
+            <div class="turnover-main">
+              <div class="turnover-value mono"><%= approxCoversPerDay.toFixed(1) %></div>
+              <div class="turnover-label">חשבונות ביום בממוצע</div>
+            </div>
+            <div class="turnover-bar-wrap">
+              <div class="turnover-bar-track">
+                <%
+                  const tTarget = 40;
+                  const tPct = Math.max(8, Math.min(100, (approxCoversPerDay / tTarget) * 100));
+                %>
+                <div class="turnover-bar-fill" style="width:<%= tPct %>%"></div>
+              </div>
+              <div class="turnover-legend">
+                <span class="muted">יעד דמיוני: ~<%= tTarget %> חשבונות/יום</span>
+              </div>
+            </div>
           </div>
-          <div class="expenses-row">
-            <input class="exp-label" placeholder="שכר עובדים">
-            <input class="exp-amount" type="number" min="0" step="1" placeholder="0">
-          </div>
-          <div class="expenses-row">
-            <input class="exp-label" placeholder="שכירות">
-            <input class="exp-amount" type="number" min="0" step="1" placeholder="0">
-          </div>
-          <div class="expenses-row">
-            <input class="exp-label" placeholder="חומרי גלם">
-            <input class="exp-amount" type="number" min="0" step="1" placeholder="0">
-          </div>
-          <div class="expenses-row">
-            <input class="exp-label" placeholder="שיווק / פרסום">
-            <input class="exp-amount" type="number" min="0" step="1" placeholder="0">
-          </div>
-          <div class="expenses-row">
-            <input class="exp-label" placeholder="אחר">
-            <input class="exp-amount" type="number" min="0" step="1" placeholder="0">
-          </div>
-          <div class="expenses-footer">
-            <div>סה״כ הוצאות:</div>
-            <div id="exp-total">0.00 ₪</div>
-          </div>
-          <div class="expenses-footer profit">
-            <div>רווח משוער:</div>
-            <div id="exp-profit"><%= fmtMoney(totals.revenue || 0) %> ₪</div>
-          </div>
-          <small class="muted">
-            הרווח מחושב כ: הכנסות סה״כ – סך ההוצאות שהזנת.
-          </small>
+        <% } else { %>
+          <p class="muted">אין מספיק נתונים לחישוב תחלופה.</p>
+        <% } %>
+      </div>
+    </section>
+
+    <!-- ROW 4: 7+8 – placeholders חכמים למדדים שדורשים עוד data -->
+    <section class="row row-charts">
+      <!-- 7. רווחיות פר מנה -->
+      <div class="chart-card">
+        <h2 class="chart-title">7. רווחיות לפי מנה (Profit per Dish)</h2>
+        <p class="muted small">
+          כדי לחשב רווחיות אמיתית לפי מנה צריך להזין עלות מרכיבים (Food Cost) לכל פריט בתפריט.
+        </p>
+        <div class="placeholder-chart">
+          <div class="placeholder-bar"></div>
+          <div class="placeholder-bar short"></div>
+          <div class="placeholder-bar mid"></div>
         </div>
-      </section>
+        <p class="muted small">
+          כרגע אנו מציגים רק פופולריות מנות (סטטיסטיקה מס׳ 3). כאשר תוסיף עלות לתפריט, נוכל
+          להציג איזו מנה לא רק נמכרת הרבה – אלא גם מכניסה הכי הרבה.
+        </p>
+      </div>
 
-      <!-- הצעות ל-HAPPY HOUR ועוד תובנות -->
-      <section class="stats-panel">
-        <h2 class="panel-title">תובנות והצעות</h2>
-        <div class="insights">
-          <div class="insight-block">
-            <h3>הצעות ל-HAPPY HOUR</h3>
-            <% if (weakHours && weakHours.length) { %>
-              <ul>
-                <% weakHours.forEach(function(h){ %>
-                  <li>
-                    <strong><%= h.hour %>:00–<%= (h.hour+1) %>:00</strong>
-                    – אחת השעות החלשות מבחינת הכנסות.
-                  </li>
-                <% }) %>
-              </ul>
-            <% } else { %>
-              <p class="muted">אין עדיין מספיק נתונים כדי להמליץ על Happy Hour.</p>
-            <% } %>
-            <p class="muted small">
-              אפשר להציע מבצעים על קוקטיילים, קינוחים או מנות ראשונות בשעות אלו.
-            </p>
+      <!-- 8. עלות עבודה מתוך ההכנסות -->
+      <div class="chart-card">
+        <h2 class="chart-title">8. עלות עבודה מתוך ההכנסות (Labor Cost %)</h2>
+        <p class="muted small">
+          מדד זה דורש נתונים מהשכר / מערכת נוכחות עובדים (עלות שעתית, משמרות, שעות עבודה בפועל).
+        </p>
+        <div class="placeholder-gauge">
+          <div class="gauge-arc">
+            <div class="gauge-fill"></div>
           </div>
-
-          <div class="insight-block">
-            <h3>ימים חזקים</h3>
-            <% if (strongDays && strongDays.length) { %>
-              <ul>
-                <% strongDays.slice(0,3).forEach(function(d){ %>
-                  <li>
-                    <strong><%= d.dayName %></strong> – הכנסה
-                    <strong><%= fmtMoney(d.revenue) %> ₪</strong>
-                    מתוך <%= d.count %> חשבוניות.
-                  </li>
-                <% }) %>
-              </ul>
-            <% } else { %>
-              <p class="muted">אין עדיין מספיק נתונים על ימים בשבוע.</p>
-            <% } %>
-          </div>
-
-          <div class="insight-block">
-            <h3>עוד רעיונות שאפשר להוסיף בהמשך</h3>
-            <ul class="muted small">
-              <li>פילוח לפי סוג שולחן (פנים / חוץ / בר) – אם קיים בפלור.</li>
-              <li>השוואת שבוע מול שבוע קודם / חודש מול חודש.</li>
-              <li>זיהוי מנות שלא נמכרות כמעט – להצעות לשינוי בתפריט.</li>
-              <li>זיהוי שעות עומס למיטוב כמות מלצרים / ברמנים.</li>
-            </ul>
+          <div class="gauge-center">
+            <div class="gauge-value">—%</div>
+            <div class="gauge-label muted small">טרם הוגדר</div>
           </div>
         </div>
-      </section>
-    </div>
+        <p class="muted small">
+          כאשר תחבר נתוני כוח אדם (למשל בקובץ חיצוני או מודול נוסף ב־SpotBook), נוכל לחשב:
+          עלות עבודה / הכנסות, וכך לראות אם צריך לייעל משמרות.
+        </p>
+      </div>
+    </section>
   </div>
 </section>
-
-<!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<script>
-  (function(){
-    var STATS = <%- JSON.stringify(it.stats || {}) %>;
-
-    function money(v){
-      v = Number(v||0);
-      return v.toFixed(2);
-    }
-
-    // הגדרת ברירת מחדל ל-Dark Mode
-    if (window.Chart) {
-      Chart.defaults.color = '#e5e7eb';
-      Chart.defaults.borderColor = 'rgba(148,163,184,0.4)';
-      Chart.defaults.font.family = 'system-ui, -apple-system, BlinkMacSystemFont, "Rubik", sans-serif';
-    }
-
-    // --- מנות פופולריות ---
-    try {
-      var menuCtx = document.getElementById('chart-menu');
-      if (menuCtx && STATS.menuTop && STATS.menuTop.items) {
-        var topItems = STATS.menuTop.items.slice(0, 7);
-        var labels = topItems.map(function(i){ return i.name; });
-        var dataQty = topItems.map(function(i){ return i.qty; });
-
-        new Chart(menuCtx, {
-          type: 'bar',
-          data: {
-            labels: labels,
-            datasets: [{
-              label: 'כמות הזמנות',
-              data: dataQty
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-              y: { beginAtZero: true }
-            }
-          }
-        });
-      }
-    } catch(e){ console.warn('menu chart error', e); }
-
-    // --- הכנסות לפי יום ---
-    try {
-      var daysCtx = document.getElementById('chart-days');
-      if (daysCtx && Array.isArray(STATS.revenuePerDay)) {
-        var labelsD = STATS.revenuePerDay.map(function(d){ return d.date; });
-        var dataD = STATS.revenuePerDay.map(function(d){ return d.revenue; });
-
-        new Chart(daysCtx, {
-          type: 'line',
-          data: {
-            labels: labelsD,
-            datasets: [{
-              label: 'הכנסות (₪)',
-              data: dataD,
-              tension: 0.25,
-              fill: false
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-              y: { beginAtZero: true }
-            }
-          }
-        });
-      }
-    } catch(e){ console.warn('days chart error', e); }
-
-    // --- שעות חזקות ---
-    try {
-      var hoursCtx = document.getElementById('chart-hours');
-      if (hoursCtx && Array.isArray(STATS.revenuePerHour)) {
-        var labelsH = STATS.revenuePerHour.map(function(h){ return h.hour + ':00'; });
-        var dataH = STATS.revenuePerHour.map(function(h){ return h.revenue; });
-
-        new Chart(hoursCtx, {
-          type: 'bar',
-          data: {
-            labels: labelsH,
-            datasets: [{
-              label: 'הכנסות לפי שעה (₪)',
-              data: dataH
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-              y: { beginAtZero: true }
-            }
-          }
-        });
-      }
-    } catch(e){ console.warn('hours chart error', e); }
-
-    // --- ימים בשבוע ---
-    try {
-      var wdCtx = document.getElementById('chart-weekday');
-      if (wdCtx && Array.isArray(STATS.weekday)) {
-        var labelsW = STATS.weekday.map(function(d){ return d.dayName; });
-        var dataW = STATS.weekday.map(function(d){ return d.revenue; });
-
-        new Chart(wdCtx, {
-          type: 'bar',
-          data: {
-            labels: labelsW,
-            datasets: [{
-              label: 'הכנסות לפי יום בשבוע (₪)',
-              data: dataW
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-              y: { beginAtZero: true }
-            }
-          }
-        });
-      }
-    } catch(e){ console.warn('weekday chart error', e); }
-
-    // --- הוצאות ידניות ---
-    (function setupExpenses(){
-      var amountEls = Array.prototype.slice.call(
-        document.querySelectorAll('.exp-amount')
-      );
-      var totalEl = document.getElementById('exp-total');
-      var profitEl = document.getElementById('exp-profit');
-      var baseRevenue = Number((STATS.totals && STATS.totals.revenue) || 0);
-
-      function recalc(){
-        var sum = 0;
-        amountEls.forEach(function(inp){
-          var v = parseFloat((inp.value || '').replace(',','.'));
-          if (!isNaN(v) && v > 0) sum += v;
-        });
-        if (totalEl) totalEl.textContent = money(sum) + ' ₪';
-        if (profitEl) profitEl.textContent = money(baseRevenue - sum) + ' ₪';
-      }
-
-      amountEls.forEach(function(inp){
-        inp.addEventListener('input', recalc);
-      });
-
-      recalc();
-    })();
-  })();
-</script>
 
 <style>
   .sb-owner-stats.container{
@@ -379,141 +360,300 @@ if (totals.from && totals.to) {
     margin:20px auto;
     padding:0 16px;
   }
-  .stats-shell{
-    background: radial-gradient(circle at top, #020617 0, #020617 40%, #020617 100%);
-  }
-  .stats-header{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:12px;
-    margin-bottom:16px;
-  }
-  .stats-header h1{
-    margin:0;
-    font-size:clamp(18px,2.4vw,22px);
+
+  .card.page-card{
+    background: var(--panel,#050816);
+    border-radius:18px;
+    border:1px solid var(--bd,#1f2937);
+    padding:18px;
+    color:var(--ink,#e5e7eb);
+    box-shadow:0 18px 45px rgba(0,0,0,.7);
   }
 
-  .muted{ color:#9ca3af; }
-  .muted.small{ font-size:12px; }
+  .page-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:16px;
+    margin-bottom:16px;
+  }
+  .page-title{
+    margin:0 0 4px;
+    font-size:22px;
+  }
+  .muted{
+    color:var(--ink-muted,#9ca3af);
+  }
+  .muted.small{
+    font-size:11px;
+  }
+  .page-actions{
+    display:flex;
+    gap:8px;
+  }
 
   .kpi-grid{
     display:grid;
-    grid-template-columns:repeat(4,minmax(0,1fr));
+    grid-template-columns:2fr 2fr 2fr;
     gap:12px;
     margin-bottom:18px;
   }
   .kpi-card{
-    background:rgba(15,23,42,.9);
+    background: radial-gradient(circle at top left,rgba(59,130,246,.35),transparent 60%);
     border-radius:14px;
     padding:10px 12px;
-    border:1px solid rgba(148,163,184,.25);
-    box-shadow:0 10px 24px rgba(15,23,42,.7);
+    border:1px solid rgba(148,163,184,.3);
   }
   .kpi-label{
     font-size:12px;
-    color:#9ca3af;
-    margin-bottom:4px;
+    color:var(--ink-muted,#9ca3af);
   }
-  .kpi-value{
-    font-size:18px;
+  .kpi-value.main{
+    font-size:20px;
     font-weight:700;
+    margin-top:4px;
   }
-  .kpi-value.kpi-text{
-    font-size:15px;
+  .kpi-sub{
+    font-size:12px;
+    margin-top:2px;
+  }
+  .kpi-bar-wrap{
+    margin-top:8px;
+  }
+  .kpi-bar-track{
+    position:relative;
+    height:8px;
+    border-radius:999px;
+    background:rgba(15,23,42,.9);
+    overflow:hidden;
+  }
+  .kpi-bar-fill{
+    height:100%;
+    border-radius:999px;
+    background:linear-gradient(90deg,#22c55e,#a3e635);
+  }
+  .kpi-bar-legend{
+    display:flex;
+    justify-content:space-between;
+    font-size:11px;
+    margin-top:2px;
+  }
+
+  .mini-list{
+    list-style:none;
+    padding:0;
+    margin:6px 0 0;
+    font-size:12px;
+  }
+  .mini-list li{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin:2px 0;
+  }
+  .mini-list .dot{
+    width:6px;
+    height:6px;
+    border-radius:999px;
+    background:#22c55e;
+    margin-inline-end:4px;
+  }
+  .mini-amount{
+    font-size:11px;
+  }
+
+  .row{
+    margin-bottom:16px;
+  }
+  .row-charts{
+    display:grid;
+    grid-template-columns:1.4fr 1.4fr;
+    gap:12px;
+  }
+
+  .chart-card{
+    background: radial-gradient(circle at top right,rgba(124,58,237,.35),transparent 60%);
+    border-radius:14px;
+    padding:10px 12px;
+    border:1px solid rgba(148,163,184,.3);
+  }
+  .chart-title{
+    font-size:14px;
+    margin:0 0 6px;
+  }
+
+  .chart-bars{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    max-height:260px;
+    overflow:auto;
+    padding-right:4px;
+  }
+  .chart-bars.mini{
+    max-height:220px;
+  }
+  .chart-bars.weekday{
+    max-height:230px;
+  }
+  .bar-row{
+    display:grid;
+    grid-template-columns: minmax(80px, 1fr) minmax(0, 3fr) auto;
+    gap:6px;
+    align-items:center;
+    font-size:12px;
+  }
+  .bar-label-date,
+  .bar-label-name{
     white-space:nowrap;
     overflow:hidden;
     text-overflow:ellipsis;
   }
-  .kpi-sub{
+  .bar-track{
+    position:relative;
+    height:8px;
+    border-radius:999px;
+    background:rgba(15,23,42,.85);
+    overflow:hidden;
+  }
+  .bar-fill{
+    position:absolute;
+    inset:0;
+    width:40%;
+    border-radius:999px;
+    background:linear-gradient(90deg,#3b82f6,#ec4899);
+  }
+  .bar-fill.alt{
+    background:linear-gradient(90deg,#22c55e,#a3e635);
+  }
+  .bar-fill.dish{
+    background:linear-gradient(90deg,#f97316,#fde047);
+  }
+  .bar-fill.weekday{
+    background:linear-gradient(90deg,#06b6d4,#22d3ee);
+  }
+  .bar-value{
     font-size:11px;
-    color:#9ca3af;
-    margin-top:3px;
+  }
+  .mono{
+    font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New",monospace;
   }
 
-  .stats-grid{
+  .chart-heat{
     display:grid;
-    grid-template-columns:repeat(2,minmax(0,1fr));
-    gap:14px;
+    grid-template-columns:repeat(auto-fill,minmax(80px,1fr));
+    gap:6px;
+    max-height:260px;
+    overflow:auto;
+    padding-right:4px;
   }
-  .stats-panel{
-    background:rgba(15,23,42,.9);
-    border-radius:14px;
-    padding:12px 14px;
-    border:1px solid rgba(148,163,184,.25);
-    min-height:200px;
+  .heat-cell{
+    padding:6px;
+    border-radius:10px;
+    background:linear-gradient(
+      135deg,
+      color-mix(in srgb,#22c55e calc(var(--i,0)*100%), #020617),
+      #020617
+    );
+    border:1px solid rgba(15,23,42,.9);
+    box-shadow:0 10px 25px rgba(0,0,0,.45);
+  }
+  .heat-hour{
+    font-size:12px;
+    font-weight:600;
+  }
+  .heat-rev{
+    font-size:12px;
+  }
+
+  .turnover-card{
     display:flex;
     flex-direction:column;
-    gap:6px;
-  }
-  .panel-title{
-    margin:0;
-    font-size:15px;
-  }
-  .panel-sub{
-    margin:0;
-    font-size:12px;
-    color:#9ca3af;
-  }
-
-  canvas{
-    margin-top:6px;
-  }
-
-  .expenses-table{
-    margin-top:6px;
-    font-size:13px;
-  }
-  .expenses-row{
-    display:grid;
-    grid-template-columns:2fr 1fr;
-    gap:6px;
-    margin-bottom:4px;
-  }
-  .expenses-row.head{
-    font-weight:600;
-    margin-bottom:4px;
-  }
-  .exp-label,
-  .exp-amount{
-    padding:6px 8px;
-    border-radius:10px;
-    border:1px solid #334155;
-    background:#020617;
-    color:#e5e7eb;
-    font-size:12px;
-  }
-  .exp-amount{
-    text-align:left;
-    direction:ltr;
-  }
-  .expenses-footer{
-    display:flex;
-    justify-content:space-between;
+    gap:8px;
     margin-top:4px;
-    font-size:13px;
   }
-  .expenses-footer.profit{
+  .turnover-main{
+    text-align:center;
+  }
+  .turnover-value{
+    font-size:26px;
     font-weight:700;
   }
+  .turnover-label{
+    font-size:12px;
+  }
+  .turnover-bar-wrap{
+    margin-top:4px;
+  }
+  .turnover-bar-track{
+    height:8px;
+    border-radius:999px;
+    background:rgba(15,23,42,.85);
+    overflow:hidden;
+  }
+  .turnover-bar-fill{
+    height:100%;
+    border-radius:999px;
+    background:linear-gradient(90deg,#3b82f6,#22c55e);
+  }
+  .turnover-legend{
+    margin-top:4px;
+    font-size:11px;
+  }
 
-  .insights{
+  .placeholder-chart{
     display:flex;
     flex-direction:column;
-    gap:10px;
-    margin-top:4px;
-    font-size:13px;
+    gap:4px;
+    margin:8px 0;
   }
-  .insight-block h3{
-    margin:0 0 4px;
-    font-size:14px;
+  .placeholder-bar{
+    height:8px;
+    border-radius:999px;
+    background:linear-gradient(90deg,#4b5563,#111827);
   }
-  .insight-block ul{
-    margin:0 0 4px 0;
-    padding-inline-start:18px;
+  .placeholder-bar.short{
+    width:40%;
   }
-  .insight-block li{
-    margin-bottom:2px;
+  .placeholder-bar.mid{
+    width:70%;
+  }
+
+  .placeholder-gauge{
+    position:relative;
+    width:140px;
+    height:80px;
+    margin:8px auto 4px;
+  }
+  .gauge-arc{
+    position:absolute;
+    inset:0;
+    border-radius:999px 999px 0 0;
+    border:8px solid #111827;
+    border-bottom:none;
+    overflow:hidden;
+  }
+  .gauge-fill{
+    position:absolute;
+    inset:0;
+    border-radius:999px 999px 0 0;
+    border:8px solid #374151;
+    border-bottom:none;
+  }
+  .gauge-center{
+    position:absolute;
+    inset:18px 0 0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-start;
+    text-align:center;
+    gap:2px;
+  }
+  .gauge-value{
+    font-size:18px;
+    font-weight:700;
   }
 
   .btn{
@@ -523,39 +663,31 @@ if (totals.from && totals.to) {
     gap:6px;
     padding:8px 12px;
     border-radius:10px;
-    border:1px solid #334155;
-    background:transparent;
+    border:1px solid rgba(148,163,184,.3);
+    background:rgba(15,23,42,.9);
     color:#e5e7eb;
     font-size:13px;
-    font-weight:600;
-    cursor:pointer;
     text-decoration:none;
-    transition:transform .08s ease,background .12s ease;
+    cursor:pointer;
+    transition:transform .08s ease, box-shadow .12s ease, background .12s ease;
+  }
+  .btn:hover{
+    transform:translateY(-1px);
+    box-shadow:0 12px 30px rgba(15,23,42,.7);
   }
   .btn.ghost{
-    background:rgba(15,23,42,.6);
-  }
-  .btn.ghost:hover{
-    background:rgba(30,64,175,.3);
-    transform:translateY(-1px);
-  }
-  .btn.sm{
-    padding:5px 9px;
-    font-size:11px;
-    border-radius:8px;
+    background:rgba(15,23,42,.7);
   }
 
   @media (max-width:900px){
-    .kpi-grid{
-      grid-template-columns:repeat(2,minmax(0,1fr));
+    .page-header{
+      flex-direction:column;
+      align-items:flex-start;
     }
-    .stats-grid{
+    .kpi-grid{
       grid-template-columns:1fr;
     }
-  }
-
-  @media (max-width:600px){
-    .kpi-grid{
+    .row-charts{
       grid-template-columns:1fr;
     }
   }
