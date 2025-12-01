@@ -330,40 +330,15 @@ export async function addOrderItem(params: {
   return { order, orderItem };
 }
 
-/**
- * מחזיר פריטי הזמנה לפי שולחן.
- * קודם מחפש הזמנה פתוחה דרך order_by_table,
- * ואם אין – מחפש את ההזמנה האחרונה לשולחן הזה (גם אם היא כבר closed).
- */
 export async function listOrderItemsForTable(
   restaurantId: string,
   table: number,
 ): Promise<OrderItem[]> {
-  // 1) ניסיון רגיל – להזמנה פתוחה
-  let order: Order | null = null;
-
-  const byTableRow = await kv.get<Order>(
+  const orderRow = await kv.get<Order>(
     kOrderByTable(restaurantId, table),
   );
-  if (byTableRow.value) {
-    order = byTableRow.value;
-  } else {
-    // 2) fallback: לחפש את ההזמנה האחרונה לשולחן הזה בין כל ה-orders
-    let latest: Order | null = null;
-    for await (
-      const row of kv.list<Order>({ prefix: kOrderPrefix(restaurantId) })
-    ) {
-      if (!row.value) continue;
-      if (row.value.table !== table) continue;
-      if (!latest || row.value.createdAt > latest.createdAt) {
-        latest = row.value;
-      }
-    }
-    order = latest;
-  }
-
-  if (!order) return [];
-
+  if (!orderRow.value) return [];
+  const order = orderRow.value;
   const out: OrderItem[] = [];
   for await (
     const row of kv.list<OrderItem>({
@@ -545,8 +520,35 @@ export async function getBill(
   restaurantId: string,
   billId: string,
 ): Promise<Bill | null> {
-  const row = await kv.get<Bill>(kBill(restaurantId, billId));
-  return row.value ?? null;
+  const key = kBill(restaurantId, billId);
+  console.debug("[POS][getBill] start", {
+    restaurantId,
+    billId,
+    key,
+  });
+
+  const row = await kv.get<Bill>(key);
+
+  if (!row.value) {
+    console.warn("[POS][getBill] bill not found in KV", {
+      restaurantId,
+      billId,
+      key,
+    });
+    return null;
+  }
+
+  const bill = row.value;
+  console.debug("[POS][getBill] bill loaded", {
+    restaurantId,
+    billId: bill.id,
+    createdAt: bill.createdAt,
+    createdAtIso: new Date(bill.createdAt).toISOString(),
+    itemsCount: Array.isArray(bill.items) ? bill.items.length : null,
+    total: bill.totals?.total ?? bill.totals?.subtotal ?? null,
+  });
+
+  return bill;
 }
 
 export async function deleteBill(
@@ -555,7 +557,13 @@ export async function deleteBill(
 ): Promise<boolean> {
   const billRow = await kv.get<Bill>(kBill(restaurantId, billId));
   const bill = billRow.value;
-  if (!bill) return false;
+  if (!bill) {
+    console.warn("[POS][deleteBill] bill not found", {
+      restaurantId,
+      billId,
+    });
+    return false;
+  }
 
   const listKey = kBillByRestaurant(restaurantId, bill.createdAt, billId);
 
@@ -563,6 +571,12 @@ export async function deleteBill(
     .delete(kBill(restaurantId, billId))
     .delete(listKey)
     .commit();
+
+  console.debug("[POS][deleteBill] delete result", {
+    restaurantId,
+    billId,
+    ok: res.ok,
+  });
 
   return res.ok;
 }
