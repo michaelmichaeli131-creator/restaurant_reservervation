@@ -330,15 +330,40 @@ export async function addOrderItem(params: {
   return { order, orderItem };
 }
 
+/**
+ * מחזיר פריטי הזמנה לפי שולחן.
+ * קודם מחפש הזמנה פתוחה דרך order_by_table,
+ * ואם אין – מחפש את ההזמנה האחרונה לשולחן הזה (גם אם היא כבר closed).
+ */
 export async function listOrderItemsForTable(
   restaurantId: string,
   table: number,
 ): Promise<OrderItem[]> {
-  const orderRow = await kv.get<Order>(
+  // 1) ניסיון רגיל – להזמנה פתוחה
+  let order: Order | null = null;
+
+  const byTableRow = await kv.get<Order>(
     kOrderByTable(restaurantId, table),
   );
-  if (!orderRow.value) return [];
-  const order = orderRow.value;
+  if (byTableRow.value) {
+    order = byTableRow.value;
+  } else {
+    // 2) fallback: לחפש את ההזמנה האחרונה לשולחן הזה בין כל ה-orders
+    let latest: Order | null = null;
+    for await (
+      const row of kv.list<Order>({ prefix: kOrderPrefix(restaurantId) })
+    ) {
+      if (!row.value) continue;
+      if (row.value.table !== table) continue;
+      if (!latest || row.value.createdAt > latest.createdAt) {
+        latest = row.value;
+      }
+    }
+    order = latest;
+  }
+
+  if (!order) return [];
+
   const out: OrderItem[] = [];
   for await (
     const row of kv.list<OrderItem>({
