@@ -40,6 +40,8 @@ import { diagRouter } from "./routes/diag.ts";
 import openingRouter from "./routes/opening.ts";
 import { posRouter } from "./routes/pos.ts";
 import { hostRouter } from "./routes/host.ts";
+import ownerBillsRouter from "./routes/owner_bills.ts";
+
 import { reservationPortal } from "./routes/reservation_portal.ts";
 
 // ✅ i18n: טעינה בטוחה (תומך גם default וגם named export)
@@ -445,6 +447,10 @@ app.use(reviewPortalRouter.allowedMethods());
 // ראוטר שורש נוסף
 app.use(rootRouter.routes());
 app.use(rootRouter.allowedMethods());
+
+// אחרי app.use(rootRouter.routes()) וכו׳
+app.use(ownerBillsRouter.routes());
+app.use(ownerBillsRouter.allowedMethods());
 
 // hours
 app.use(openingRouter.routes());
