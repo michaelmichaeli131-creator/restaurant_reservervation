@@ -21,7 +21,9 @@ import {
   addOrderItem,
   getItem,
   updateOrderItemStatus,
-  listBillsForRestaurant, // ✅ חדש: לשימוש במסך סטטיסטיקות
+  listBillsForRestaurant, // ✅ לסטטיסטיקות + חשבונות
+  getBill,                // ✅ להצגת חשבונית
+  deleteBill,             // ✅ למחיקת חשבונית
 } from "../pos/pos_db.ts";
 import {
   handlePosSocket,
@@ -106,6 +108,83 @@ posRouter.post("/owner/:rid/menu/category/:id/delete", async (ctx) => {
   const id = ctx.params.id!;
   await deleteCategory(rid, id);
   ctx.response.redirect(`/owner/${rid}/menu`);
+});
+
+/* ------------ Owner: bills (חשבונות אחרונים) ------------ */
+/* מסך רשימת החשבוניות + הדפסה/מחיקה                           */
+
+posRouter.get("/owner/:rid/bills", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const rid = ctx.params.rid!;
+
+  console.log("[BILLS] GET /owner/:rid/bills", {
+    rid,
+    user: ctx.state.user?.id,
+  });
+
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant) ctx.throw(Status.NotFound, "restaurant_not_found");
+
+  // לוקחים את החשבוניות האחרונות (0 => ללא הגבלה, אפשר לשים למשל 200)
+  const bills = await listBillsForRestaurant(rid, 200);
+
+  let totalRevenue = 0;
+  for (const b of bills) {
+    const t = b.totals || ({} as any);
+    const billTotal = typeof t.total === "number"
+      ? t.total
+      : (t.subtotal || 0);
+    totalRevenue += billTotal;
+  }
+
+  await render(ctx, "owner_bills", {
+    page: "owner_bills",
+    title: `חשבונות אחרונים · ${restaurant.name}`,
+    restaurant,
+    bills,
+    summary: {
+      totalRevenue,
+      billsCount: bills.length,
+    },
+  });
+});
+
+posRouter.get("/owner/:rid/bills/:billId/print", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const rid = ctx.params.rid!;
+  const billId = ctx.params.billId!;
+
+  console.log("[BILLS] GET /owner/:rid/bills/:billId/print", {
+    rid,
+    billId,
+  });
+
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant) ctx.throw(Status.NotFound, "restaurant_not_found");
+
+  const bill = await getBill(rid, billId);
+  if (!bill) ctx.throw(Status.NotFound, "bill_not_found");
+
+  await render(ctx, "owner_bill_print", {
+    page: "owner_bill_print",
+    title: `חשבונית · שולחן ${bill.table} · ${restaurant.name}`,
+    restaurant,
+    bill,
+  });
+});
+
+posRouter.post("/owner/:rid/bills/:billId/delete", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const rid = ctx.params.rid!;
+  const billId = ctx.params.billId!;
+
+  console.log("[BILLS] POST /owner/:rid/bills/:billId/delete", {
+    rid,
+    billId,
+  });
+
+  await deleteBill(rid, billId);
+  ctx.response.redirect(`/owner/${rid}/bills`);
 });
 
 /* ------------ Owner: stats dashboard ------------ */
@@ -218,7 +297,7 @@ posRouter.get("/owner/:rid/stats", async (ctx) => {
   }));
   const strongDays = [...weekdayArr].sort((a, b) => b.revenue - a.revenue);
 
-  // שעות חלשות ל-HAPPY HOUR: נבחר 3 שעות עם הכי מעט הכנסות בין 10:00–23:00
+  // שעות חלשות ל-HAPPY HOUR: 3 השעות עם הכי מעט הכנסות בין 10:00–23:00
   const hhCandidates: { hour: number; count: number; revenue: number }[] = [];
   for (let h = 10; h <= 23; h++) {
     const v = hourly[h];
