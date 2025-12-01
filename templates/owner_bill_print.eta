@@ -1,85 +1,539 @@
 <% layout("_layout", it) %>
 
-<main class="container">
-  <section class="card receipt">
-    <header class="receipt-header">
-      <h1><%= it.restaurant.name %></h1>
-      <p class="muted">
-        <%= it.restaurant.city %> · <%= it.restaurant.address %>
-      </p>
+<%
+  // תרגום עם fallback
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t === "function") {
+        const s = it.t(k);
+        if (!s || s === k || s === `(${k})`) return fb;
+        return s;
+      }
+    } catch(e){}
+    return fb;
+  }
+
+  const restaurant = it.restaurant || {};
+  const bill = it.bill || {};
+  const totals = bill.totals || {};
+  const subtotal = Number(totals.subtotal ?? totals.total ?? 0) || 0;
+  const createdAt = typeof bill.createdAt === "number"
+    ? new Date(bill.createdAt)
+    : new Date();
+
+  const dateStr = createdAt.toLocaleDateString("he-IL");
+  const timeStr = createdAt.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+%>
+
+<section class="sb-bill container" aria-label="חשבונית למסעדה">
+  <div class="bill-card">
+    <!-- כפתור הדפסה בראש הדף -->
+    <header class="bill-header">
+      <div class="bill-header-main">
+        <h1 class="bill-title"><%= restaurant.name || "שם מסעדה" %></h1>
+        <p class="bill-subtitle">
+          <%= restaurant.address || "" %>
+          <% if (restaurant.city) { %> · <%= restaurant.city %><% } %>
+        </p>
+        <% if (restaurant.phone) { %>
+          <p class="bill-meta-line">
+            <span class="label">טלפון:</span>
+            <span><%= restaurant.phone %></span>
+          </p>
+        <% } %>
+      </div>
+
+      <div class="bill-header-actions no-print">
+        <button type="button" class="btn primary" onclick="window.print()">
+          🖨️ הדפס
+        </button>
+        <a
+          class="btn ghost"
+          href="/owner/<%= restaurant.id %>/bills"
+        >
+          ← חזרה לחשבונות
+        </a>
+      </div>
     </header>
 
-    <section class="receipt-meta">
-      <div>מס׳ חשבון: <strong><%= it.bill.id %></strong></div>
-      <div>שולחן: <strong>#<%= it.bill.table %></strong></div>
-      <div>
-        תאריך:
-        <strong><%= new Date(it.bill.createdAt).toLocaleString('he-IL') %></strong>
+    <!-- פרטי הזמנה -->
+    <div class="bill-meta card">
+      <div class="bill-meta-row">
+        <span class="label">תאריך:</span>
+        <span><%= dateStr %></span>
       </div>
-    </section>
-
-    <table class="table receipt-items">
-      <thead>
-        <tr>
-          <th>פריט</th>
-          <th>כמות</th>
-          <th>מחיר יחידה</th>
-          <th>סכום</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% it.bill.items.filter(function (item) {
-             return item.status !== 'cancelled';
-           }).forEach(function (item) { %>
-          <tr>
-            <td><%= item.name %></td>
-            <td><%= item.quantity %></td>
-            <td><%= item.unitPrice.toFixed(2) %> ₪</td>
-            <td><%= (item.unitPrice * item.quantity).toFixed(2) %> ₪</td>
-          </tr>
-        <% }) %>
-      </tbody>
-    </table>
-
-    <section class="receipt-totals">
-      <div>
-        סה״כ לפני מס:
-        <strong><%= (it.bill.totals.subtotal || 0).toFixed(2) %> ₪</strong>
+      <div class="bill-meta-row">
+        <span class="label">שעה:</span>
+        <span><%= timeStr %></span>
       </div>
-      <% if (it.bill.totals.taxAmount) { %>
-        <div>
-          מע״מ:
-          <strong><%= it.bill.totals.taxAmount.toFixed(2) %> ₪</strong>
-        </div>
+      <div class="bill-meta-row">
+        <span class="label">שולחן:</span>
+        <span><%= bill.table ?? "-" %></span>
+      </div>
+      <div class="bill-meta-row">
+        <span class="label">מס׳ הזמנה:</span>
+        <span class="mono"><%= bill.orderId || bill.id || "-" %></span>
+      </div>
+      <div class="bill-meta-row">
+        <span class="label">קוד תשלום:</span>
+        <span class="mono small"><%= bill.paymentCode || "-" %></span>
+      </div>
+    </div>
+
+    <!-- רשימת פריטים -->
+    <div class="bill-items card">
+      <h2 class="section-title">פריטים בחשבון</h2>
+
+      <% if (Array.isArray(bill.items) && bill.items.length) { %>
+        <table class="bill-table">
+          <thead>
+            <tr>
+              <th class="col-qty">כמות</th>
+              <th class="col-name">פריט</th>
+              <th class="col-unit">מחיר יחידה</th>
+              <th class="col-total">סה״כ</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% bill.items.forEach(function(itm){ 
+                 if (itm.status === "cancelled") return;
+                 const q = Number(itm.quantity ?? 0) || 0;
+                 const up = Number(itm.unitPrice ?? 0) || 0;
+                 const lineTotal = q * up;
+            %>
+              <tr>
+                <td class="col-qty"><%= q %></td>
+                <td class="col-name"><%= itm.name || "פריט ללא שם" %></td>
+                <td class="col-unit">
+                  ₪ <%= up.toFixed(2) %>
+                </td>
+                <td class="col-total">
+                  ₪ <%= lineTotal.toFixed(2) %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } else { %>
+        <p class="muted">אין פריטים בחשבון זה.</p>
       <% } %>
-      <div>
-        סה״כ לתשלום:
-        <strong>
-          <%= (it.bill.totals.total || it.bill.totals.subtotal || 0).toFixed(2) %> ₪
-        </strong>
+    </div>
+
+    <!-- סיכומים + טיפ באחוזים ובקבוע -->
+    <div class="bill-summary card">
+      <h2 class="section-title">סיכום חשבון</h2>
+
+      <div class="summary-grid">
+        <div class="summary-left">
+          <div class="summary-row">
+            <span class="label">סיכום ביניים (ללא טיפ):</span>
+            <span class="value mono" id="sb-subtotal">
+              ₪ <%= subtotal.toFixed(2) %>
+            </span>
+          </div>
+
+          <!-- טיפ באחוזים -->
+          <div class="summary-row tip-row">
+            <div class="tip-label-wrap">
+              <span class="label">טיפ (%):</span>
+              <span class="tip-hint">הזן אחוז, הטיפ יחושב אוטומטית</span>
+            </div>
+            <div class="tip-input-wrap">
+              <input
+                id="tipPct"
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value="10"
+                inputmode="decimal"
+              />
+              <span class="suffix">%</span>
+            </div>
+          </div>
+
+          <!-- טיפ בקבוע -->
+          <div class="summary-row tip-row">
+            <div class="tip-label-wrap">
+              <span class="label">טיפ קבוע:</span>
+              <span class="tip-hint">אפשר גם להזין סכום ידני</span>
+            </div>
+            <div class="tip-input-wrap">
+              <span class="prefix">₪</span>
+              <input
+                id="tipFixed"
+                type="number"
+                min="0"
+                step="0.5"
+                value="<%= (subtotal * 0.10).toFixed(2) %>"
+                inputmode="decimal"
+              />
+            </div>
+          </div>
+
+          <!-- אפשרות לשדה נוסף (למשל שירות / הנחה בעתיד) -->
+        </div>
+
+        <div class="summary-right">
+          <div class="summary-row">
+            <span class="label">סה״כ טיפ:</span>
+            <span class="value mono" id="sb-tip-display">
+              ₪ <%= (subtotal * 0.10).toFixed(2) %>
+            </span>
+          </div>
+
+          <div class="summary-row total-row">
+            <span class="label strong">סה״כ לתשלום:</span>
+            <span class="value mono strong" id="sb-grand-total">
+              ₪ <%= (subtotal * 1.10).toFixed(2) %>
+            </span>
+          </div>
+
+          <p class="muted small">
+            הטיפ אינו מחושב במערכת החשבונאית – זהו חישוב לצורכי הצגה בלבד.
+          </p>
+        </div>
       </div>
-    </section>
+    </div>
 
-    <section class="receipt-payment">
-      <h3>תשלום באמצעות ברקוד</h3>
-      <p class="muted small">הלקוח יכול לסרוק את הברקוד כדי לשלם.</p>
-
-      <div class="receipt-barcode">
-        <img
-          src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=<%= encodeURIComponent(it.paymentUrl || it.bill.paymentCode) %>"
-          alt="QR code for payment"
-        />
-      </div>
-
-      <p class="muted small">
-        קוד תשלום:
-        <code><%= it.bill.paymentCode %></code>
-      </p>
-    </section>
-
-    <footer class="receipt-footer">
-      <p>תודה שבחרתם ב־<%= it.restaurant.name %>!</p>
-      <button class="btn primary" type="button" onclick="window.print()">הדפסה</button>
+    <footer class="bill-footer">
+      <p>תודה שבחרתם <strong><%= restaurant.name || "בנו" %></strong> 💛</p>
+      <p class="muted small">לשימוש פנימי וללקוח, אין באמור תחליף לחשבונית מס כדין.</p>
     </footer>
-  </section>
-</main>
+  </div>
+</section>
+
+<script>
+  (function(){
+    var subtotal = Number(<%= JSON.stringify(subtotal) %>) || 0;
+
+    var tipPctInput   = document.getElementById('tipPct');
+    var tipFixedInput = document.getElementById('tipFixed');
+    var tipDisplay    = document.getElementById('sb-tip-display');
+    var grandTotalEl  = document.getElementById('sb-grand-total');
+
+    function formatMoney(v){
+      if (!isFinite(v)) v = 0;
+      return '₪ ' + v.toFixed(2);
+    }
+
+    function recalcFromPercent(){
+      var pct = Number(tipPctInput.value || '0');
+      if (!isFinite(pct) || pct < 0) pct = 0;
+
+      var tip = subtotal * (pct / 100);
+      tipFixedInput.value = tip.toFixed(2);
+
+      var grand = subtotal + tip;
+      tipDisplay.textContent   = formatMoney(tip);
+      grandTotalEl.textContent = formatMoney(grand);
+    }
+
+    function recalcFromFixed(){
+      var tip = Number(tipFixedInput.value || '0');
+      if (!isFinite(tip) || tip < 0) tip = 0;
+
+      // לעדכן אחוז טיפ בהתאם לסכום הקבוע
+      var pct = subtotal > 0 ? (tip / subtotal) * 100 : 0;
+      tipPctInput.value = pct.toFixed(0);
+
+      var grand = subtotal + tip;
+      tipDisplay.textContent   = formatMoney(tip);
+      grandTotalEl.textContent = formatMoney(grand);
+    }
+
+    if (tipPctInput && tipFixedInput) {
+      // ברירת מחדל – לסנכרן לפי אחוז התחלתי
+      recalcFromPercent();
+
+      tipPctInput.addEventListener('input', function(){
+        recalcFromPercent();
+      });
+
+      tipFixedInput.addEventListener('input', function(){
+        recalcFromFixed();
+      });
+    }
+  })();
+</script>
+
+<style>
+  .sb-bill.container{
+    max-width: 720px;
+    margin: 24px auto;
+    padding: 0 16px;
+  }
+
+  .bill-card{
+    background: var(--panel, #0b101c);
+    border-radius: 18px;
+    border: 1px solid var(--bd, #1f2933);
+    padding: 18px 18px 22px;
+    color: var(--ink, #e5e7eb);
+    box-shadow: 0 18px 40px rgba(0,0,0,.55);
+  }
+
+  .bill-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:16px;
+    border-bottom:1px dashed rgba(148,163,184,.35);
+    padding-bottom:12px;
+    margin-bottom:14px;
+  }
+
+  .bill-header-main{
+    max-width:60%;
+  }
+
+  .bill-title{
+    font-size:24px;
+    margin:0 0 4px;
+  }
+  .bill-subtitle{
+    margin:0;
+    color:var(--ink-muted,#9ca3af);
+  }
+  .bill-meta-line{
+    margin:2px 0 0;
+    font-size:13px;
+  }
+  .bill-meta-line .label{
+    font-weight:600;
+    margin-inline-end:4px;
+  }
+
+  .bill-header-actions{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+
+  .card{
+    background: radial-gradient(circle at top left, rgba(148,163,184,.10), transparent 55%);
+    border-radius:14px;
+    border:1px solid rgba(148,163,184,.25);
+    padding:10px 12px;
+    margin-bottom:12px;
+  }
+
+  .bill-meta-row{
+    display:flex;
+    justify-content:space-between;
+    font-size:13px;
+    margin:2px 0;
+  }
+  .bill-meta-row .label{
+    font-weight:600;
+    color:var(--ink-muted,#9ca3af);
+  }
+
+  .section-title{
+    margin:0 0 8px;
+    font-size:15px;
+  }
+
+  .bill-table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:13px;
+  }
+  .bill-table thead tr{
+    border-bottom:1px solid rgba(148,163,184,.35);
+  }
+  .bill-table th,
+  .bill-table td{
+    padding:6px 4px;
+  }
+  .bill-table th{
+    text-align:right;
+    font-weight:600;
+    color:var(--ink-muted,#9ca3af);
+    font-size:12px;
+  }
+  .bill-table .col-qty{
+    width:50px;
+    text-align:center;
+  }
+  .bill-table .col-unit,
+  .bill-table .col-total{
+    white-space:nowrap;
+    text-align:left;
+  }
+  .bill-table tbody tr:nth-child(odd){
+    background:rgba(15,23,42,.55);
+  }
+
+  .summary-grid{
+    display:grid;
+    grid-template-columns:1.4fr 1fr;
+    gap:16px;
+  }
+
+  .summary-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin:4px 0;
+    font-size:13px;
+  }
+
+  .summary-row .label{
+    font-weight:600;
+    color:var(--ink-muted,#9ca3af);
+  }
+
+  .summary-row .value{
+    font-weight:500;
+  }
+
+  .summary-row.total-row{
+    margin-top:8px;
+    padding-top:8px;
+    border-top:1px dashed rgba(148,163,184,.45);
+  }
+
+  .summary-row.total-row .label.strong,
+  .summary-row.total-row .value.strong{
+    font-size:15px;
+    font-weight:700;
+  }
+
+  .tip-row{
+    flex-direction:column;
+    align-items:stretch;
+    gap:4px;
+  }
+
+  .tip-label-wrap{
+    display:flex;
+    flex-direction:column;
+  }
+  .tip-hint{
+    font-size:11px;
+    color:var(--ink-muted,#9ca3af);
+  }
+
+  .tip-input-wrap{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    margin-top:2px;
+  }
+
+  .tip-input-wrap input{
+    flex:1;
+    padding:6px 8px;
+    border-radius:10px;
+    border:1px solid rgba(148,163,184,.45);
+    background:#020617;
+    color:#e5e7eb;
+    font-size:13px;
+    outline:none;
+  }
+  .tip-input-wrap input:focus{
+    border-color:rgba(96,165,250,.9);
+    box-shadow:0 0 0 1px rgba(96,165,250,.35);
+  }
+
+  .tip-input-wrap .suffix,
+  .tip-input-wrap .prefix{
+    font-size:13px;
+    color:var(--ink-muted,#9ca3af);
+  }
+
+  .bill-footer{
+    margin-top:10px;
+    text-align:center;
+    font-size:12px;
+  }
+
+  .bill-footer .muted{
+    margin:2px 0 0;
+  }
+
+  .muted{
+    color:var(--ink-muted,#9ca3af);
+  }
+  .muted.small{
+    font-size:11px;
+  }
+
+  .mono{
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    padding:8px 12px;
+    border-radius:10px;
+    border:1px solid rgba(148,163,184,.35);
+    background:rgba(15,23,42,.9);
+    color:#e5e7eb;
+    font-size:13px;
+    text-decoration:none;
+    cursor:pointer;
+    transition:transform .08s ease, box-shadow .12s ease, background .12s ease;
+  }
+  .btn:hover{
+    transform:translateY(-1px);
+    box-shadow:0 10px 24px rgba(15,23,42,.7);
+  }
+  .btn.primary{
+    border-color:transparent;
+    background:linear-gradient(135deg,#2563eb,#7c3aed);
+    box-shadow:0 12px 30px rgba(37,99,235,.55);
+  }
+  .btn.ghost{
+    background:rgba(15,23,42,.7);
+  }
+
+  @media (max-width:768px){
+    .bill-header{
+      flex-direction:column;
+      align-items:flex-start;
+    }
+    .bill-header-main{
+      max-width:100%;
+    }
+    .summary-grid{
+      grid-template-columns:1fr;
+    }
+    .bill-card{
+      padding:14px;
+    }
+  }
+
+  /* מצב הדפסה */
+  @media print{
+    body{
+      background:#fff;
+    }
+    .no-print{
+      display:none !important;
+    }
+    .sb-bill.container{
+      max-width:none;
+      margin:0;
+      padding:0;
+    }
+    .bill-card{
+      box-shadow:none;
+      border-radius:0;
+      border:none;
+      background:#fff;
+      color:#000;
+    }
+    .card{
+      border:1px solid #ddd;
+      background:#fff;
+    }
+    .btn{
+      display:none !important;
+    }
+  }
+</style>
