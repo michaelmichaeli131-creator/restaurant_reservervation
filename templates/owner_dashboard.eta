@@ -101,7 +101,7 @@ function tt(k, fb){
                   </a>
                 </div>
 
-                <!-- שורת POS – מתחת לסידור שולחנות, כפתורים "ארוכים" -->
+                <!-- שורת POS + ניהול תפעולי -->
                 <div class="actions pos-actions">
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/menu">
                     <span class="icon">🧾</span>
@@ -134,6 +134,16 @@ function tt(k, fb){
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/stats">
                     <span class="icon">📊</span>
                     סטטיסטיקות ודוחות
+                  </a>
+                  <!-- ✅ מלאי חומרי גלם -->
+                  <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/stock">
+                    <span class="icon">📦</span>
+                    מלאי חומרי גלם
+                  </a>
+                  <!-- ✅ מתכוני מנות -->
+                  <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/recipes">
+                    <span class="icon">📖</span>
+                    מתכוני מנות
                   </a>
                 </div>
               </li>
