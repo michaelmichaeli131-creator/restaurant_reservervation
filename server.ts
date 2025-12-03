@@ -41,7 +41,7 @@ import openingRouter from "./routes/opening.ts";
 import { posRouter } from "./routes/pos.ts";
 import { hostRouter } from "./routes/host.ts";
 import ownerBillsRouter from "./routes/owner_bills.ts";
-
+import inventoryRouter from "./routes/inventory.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
 
 // ✅ i18n: טעינה בטוחה (תומך גם default וגם named export)
@@ -455,6 +455,10 @@ app.use(ownerBillsRouter.allowedMethods());
 // hours
 app.use(openingRouter.routes());
 app.use(openingRouter.allowedMethods());
+
+app.use(inventoryRouter.routes());
+app.use(inventoryRouter.allowedMethods());
+
 
 // --- 404 (כללי) ---
 app.use((ctx) => {
