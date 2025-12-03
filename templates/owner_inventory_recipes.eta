@@ -1,0 +1,277 @@
+<% layout("_layout", it) %>
+
+<%
+  const restaurant = it.restaurant || {};
+  const menuItems  = Array.isArray(it.menuItems) ? it.menuItems : [];
+  const recipes    = Array.isArray(it.recipes) ? it.recipes : [];
+  const ingredients = Array.isArray(it.ingredients) ? it.ingredients : [];
+
+  // מפה מהירה recipe לפי itemId
+  const recipeMap = {};
+  recipes.forEach(function(r){
+    if (!r.menuItemId) return;
+    recipeMap[r.menuItemId] = r;
+  });
+%>
+
+<section class="sb-owner container" aria-label="מתכוני מנות וחומרי גלם">
+  <div class="card">
+    <header class="owner-hd">
+      <div>
+        <h1>מתכוני מנות · <%= restaurant.name || 'מסעדה' %></h1>
+        <p class="muted">
+          הגדרת פירוק מנות לחומרי גלם – כדי שמערכת המלאי תדע להוריד אוטומטית כמות מהמלאי בכל הזמנה.
+        </p>
+      </div>
+    </header>
+
+    <div class="inv-grid">
+      <!-- צד ימין: טופס עריכת מתכון למנה נבחרת -->
+      <div class="panel card">
+        <h2 class="card-title">עריכת מתכון למנה</h2>
+
+        <form
+          action="/owner/<%= restaurant.id %>/inventory/recipes/save"
+          method="post"
+          class="form"
+        >
+          <label>
+            מנה בתפריט
+            <select name="menuItemId" required>
+              <option value="">בחר מנה...</option>
+              <% menuItems.forEach(function(mi){ %>
+                <option value="<%= mi.id %>"><%= mi.name_he || mi.name_en || 'ללא שם' %></option>
+              <% }) %>
+            </select>
+          </label>
+
+          <p class="muted" style="margin-top:6px">
+            אחרי בחירת מנה, ניתן להגדיר את חומרי הגלם והכמויות לכל מנה.
+          </p>
+
+          <!-- 
+            פשטות: בשלב ראשון – 3 שורות קבועות.
+            אפשר להרחיב בעתיד ל"דינמי" עם JS.
+          -->
+          <div class="recipe-grid">
+            <% for (let i = 0; i < 3; i++) { %>
+              <div class="recipe-row">
+                <label>
+                  חומר גלם
+                  <select name="rows[<%= i %>][ingredientId]">
+                    <option value="">—</option>
+                    <% ingredients.forEach(function(ing){ %>
+                      <option value="<%= ing.id %>">
+                        <%= ing.name || ing.ingredientName || 'ללא שם' %>
+                      </option>
+                    <% }) %>
+                  </select>
+                </label>
+                <label>
+                  כמות במנה
+                  <input
+                    name="rows[<%= i %>][qty]"
+                    type="number"
+                    step="0.001"
+                    min="0"
+                    placeholder="לדוגמה: 0.18"
+                  >
+                </label>
+              </div>
+            <% } %>
+          </div>
+
+          <label>
+            הערות (אופציונלי)
+            <input name="note" placeholder="הערות שף / גרסה מיוחדת של המנה">
+          </label>
+
+          <button class="btn primary sm" type="submit" style="margin-top:10px">
+            שמירת מתכון
+          </button>
+        </form>
+      </div>
+
+      <!-- צד שמאל: סקירה של כל המנות עם הפירוק שלהן -->
+      <div class="panel card">
+        <h2 class="card-title">כל המנות וחומרי הגלם שלהן</h2>
+
+        <% if (menuItems.length) { %>
+          <div class="recipes-list">
+            <% menuItems.forEach(function(mi){ 
+                 const r = recipeMap[mi.id];
+                 const rows = Array.isArray(r?.rows) ? r.rows : [];
+            %>
+              <article class="recipe-card">
+                <header class="recipe-header">
+                  <div>
+                    <div class="recipe-title">
+                      <strong><%= mi.name_he || mi.name_en || 'ללא שם' %></strong>
+                    </div>
+                    <% if (mi.price) { %>
+                      <div class="recipe-sub muted">
+                        מחיר בתפריט: <%= Number(mi.price).toFixed(2) %> ₪
+                      </div>
+                    <% } %>
+                  </div>
+                  <% if (rows.length) { %>
+                    <span class="badge ok">מתכון מוגדר</span>
+                  <% } else { %>
+                    <span class="badge bad">אין מתכון</span>
+                  <% } %>
+                </header>
+
+                <% if (rows.length) { %>
+                  <ul class="recipe-rows">
+                    <% rows.forEach(function(row){ 
+                         const ingId = row.ingredientId || row.id;
+                         const qty   = Number(row.qty ?? row.quantity ?? 0);
+                         const ing = ingredients.find(function(x){ return x.id === ingId; }) || {};
+                    %>
+                      <li>
+                        <span class="ing-name"><%= ing.name || ing.ingredientName || 'חומר גלם' %></span>
+                        <span class="ing-qty">
+                          <%= qty %> <%= ing.unit || '' %>
+                        </span>
+                      </li>
+                    <% }) %>
+                  </ul>
+                <% } else { %>
+                  <p class="muted small">
+                    עדיין לא הוגדרו חומרי גלם למנה זו.
+                  </p>
+                <% } %>
+
+                <% if (r && r.note) { %>
+                  <p class="muted small">הערות: <%= r.note %></p>
+                <% } %>
+              </article>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <p class="muted">אין עדיין מנות בתפריט, לכן אין מה להגדיר כמתכונים.</p>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .inv-grid{
+    display:grid;
+    grid-template-columns:1.1fr 1.4fr;
+    gap:16px;
+    margin-top:14px;
+  }
+
+  .recipe-grid{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    margin-top:8px;
+  }
+  .recipe-row{
+    display:grid;
+    grid-template-columns:1.2fr 0.8fr;
+    gap:8px;
+  }
+
+  .recipes-list{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    margin-top:8px;
+    max-height:520px;
+    overflow:auto;
+    padding-right:4px;
+  }
+
+  .recipe-card{
+    background:rgba(15,23,42,.85);
+    border-radius:14px;
+    border:1px solid rgba(148,163,184,.2);
+    padding:10px 12px;
+  }
+
+  .recipe-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:8px;
+  }
+
+  .recipe-title{
+    font-size:14px;
+  }
+  .recipe-sub{
+    font-size:12px;
+    margin-top:2px;
+  }
+
+  .recipe-rows{
+    list-style:none;
+    margin:8px 0 0;
+    padding:0;
+    font-size:13px;
+  }
+  .recipe-rows li{
+    display:flex;
+    justify-content:space-between;
+    padding:3px 0;
+    border-bottom:1px dashed rgba(148,163,184,.25);
+  }
+  .recipe-rows li:last-child{
+    border-bottom:none;
+  }
+  .ing-name{
+    font-weight:500;
+  }
+  .ing-qty{
+    color:#9ca3af;
+  }
+
+  .small{
+    font-size:12px;
+  }
+
+  .badge{
+    display:inline-flex;
+    align-items:center;
+    padding:3px 8px;
+    border-radius:999px;
+    font-size:11px;
+    border:1px solid transparent;
+  }
+  .badge.ok{
+    border-color:rgba(52,211,153,.5);
+    color:#6ee7b7;
+    background:rgba(16,185,129,.08);
+  }
+  .badge.bad{
+    border-color:rgba(248,113,113,.6);
+    color:#fecaca;
+    background:rgba(248,113,113,.08);
+  }
+
+  .form select{
+    width:100%;
+    padding:10px 12px;
+    margin-top:6px;
+    background:#171b29;
+    color:#e6e8ef;
+    border:1px solid #23293a;
+    border-radius:12px;
+    font-size:14px;
+    outline:none;
+  }
+  .form select:focus{
+    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
+  }
+
+  @media (max-width:900px){
+    .inv-grid{
+      grid-template-columns:1fr;
+    }
+  }
+</style>
