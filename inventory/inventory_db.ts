@@ -7,9 +7,7 @@
 // - תנועות מלאי (InventoryTx) – לוג של משלוחים / התאמות
 // - מתכונים: קישור בין מנות בתפריט ↔ חומרי גלם
 //
-// ⚠️ שים לב: כרגע אין כאן חיבור ל-POS.
-// בשלב הבא נוסיף פונקציה consumeIngredientsForMenuItem
-// ונקרא לה מתוך pos_db.ts כשנוצר orderItem חדש.
+// כעת יש גם חיבור ל-POS דרך consumeIngredientsForMenuItem
 //
 
 import { kv } from "../database.ts";
@@ -298,4 +296,61 @@ export async function listRecipesForRestaurant(
   }
   out.sort((a, b) => a.menuItemId.localeCompare(b.menuItemId));
   return out;
+}
+
+/* ---------- POS INTEGRATION: צריכת מלאי לפי מתכון ---------- */
+
+/**
+ * צריכת מלאי אוטומטית עבור מנה שנמכרה ב-POS.
+ * - restaurantId: המסעדה
+ * - menuItemId: מזהה המנה מתפריט ה-POS
+ * - quantity: כמה מנות הוזמנו
+ */
+export async function consumeIngredientsForMenuItem(params: {
+  restaurantId: string;
+  menuItemId: string;
+  quantity: number;
+  reason?: string;
+}): Promise<void> {
+  const { restaurantId, menuItemId } = params;
+  const quantity = Number(params.quantity ?? 0);
+  if (!restaurantId || !menuItemId || !quantity || quantity <= 0) return;
+
+  const recipe = await getRecipeForMenuItem(restaurantId, menuItemId);
+  if (!recipe || !Array.isArray(recipe.components) ||
+    !recipe.components.length) {
+    console.warn("[INV] no recipe for menu item", {
+      restaurantId,
+      menuItemId,
+    });
+    return;
+  }
+
+  for (const comp of recipe.components) {
+    if (!comp.ingredientId || !Number.isFinite(Number(comp.qty))) continue;
+    const perDish = Number(comp.qty);
+    if (perDish <= 0) continue;
+
+    const totalConsume = perDish * quantity;
+
+    try {
+      await applyInventoryTx({
+        restaurantId,
+        ingredientId: comp.ingredientId,
+        type: "consumption",
+        deltaQty: -totalConsume, // צריכה = מינוס במלאי
+        reason: params.reason ??
+          `POS order: menuItem=${menuItemId}, qty=${quantity}`,
+      });
+    } catch (err) {
+      console.error("[INV] failed to consume inventory", {
+        restaurantId,
+        menuItemId,
+        ingredientId: comp.ingredientId,
+        totalConsume,
+        error: err,
+      });
+      // לא מפילים את ההזמנה – רק לוג
+    }
+  }
 }

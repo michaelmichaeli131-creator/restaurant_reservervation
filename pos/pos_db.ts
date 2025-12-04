@@ -3,6 +3,7 @@
 
 import { kv } from "../database.ts";
 import { getTableIdByNumber } from "../services/floor_service.ts";
+import { consumeIngredientsForMenuItem } from "../inventory/inventory_db.ts"; // ✅ חיבור למלאי
 
 export type Destination = "kitchen" | "bar";
 
@@ -327,6 +328,25 @@ export async function addOrderItem(params: {
   );
   const res = await tx.commit();
   if (!res.ok) throw new Error("failed_add_order_item");
+
+  // ✅ חיבור למלאי: צריכת חומרי גלם לפי מתכון
+  try {
+    await consumeIngredientsForMenuItem({
+      restaurantId: params.restaurantId,
+      menuItemId: params.menuItem.id,
+      quantity: orderItem.quantity,
+      reason: `POS order ${order.id} (table ${params.table})`,
+    });
+  } catch (err) {
+    console.error("[POS] failed to consume inventory for orderItem", {
+      restaurantId: params.restaurantId,
+      menuItemId: params.menuItem.id,
+      quantity: orderItem.quantity,
+      error: err,
+    });
+    // לא מפילים את ההזמנה – רק לוג
+  }
+
   return { order, orderItem };
 }
 
