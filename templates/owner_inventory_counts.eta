@@ -1,0 +1,212 @@
+<% layout("_layout", it) %>
+
+<%
+  const restaurant = it.restaurant || {};
+  const sessions = Array.isArray(it.sessions) ? it.sessions : [];
+  const created = (it.created || '').trim();
+
+  function fmt(ts){
+    try{
+      const d = new Date(Number(ts||0));
+      if(!Number.isFinite(d.getTime())) return '';
+      return d.toLocaleString('he-IL', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+    }catch(_){ return ''; }
+  }
+%>
+
+<section class="sb-owner container" aria-label="ספירות מלאי">
+  <div class="card">
+    <header class="owner-hd">
+      <div>
+        <h1>ספירות מלאי · <%= restaurant.name || 'מסעדה' %></h1>
+        <p class="muted">
+          כאן תוכל ליצור “ספירת מלאי” (Session) ולנהל ספירות תקופתיות.
+          בעמוד הבא נכניס את טבלת הספירה עצמה (Actual מול Expected).
+        </p>
+      </div>
+      <div class="actions">
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">⬅ מלאי</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📊 עלויות</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/recipes">🧾 מתכונים</a>
+      </div>
+    </header>
+
+    <% if (created) { %>
+      <div class="notice ok">
+        ✅ נוצרה ספירה חדשה:
+        <a href="/owner/<%= restaurant.id %>/inventory/counts/<%= created %>">פתח ספירה</a>
+      </div>
+    <% } %>
+
+    <div class="grid">
+      <div class="panel card">
+        <h2 class="card-title">יצירת ספירה חדשה</h2>
+        <form class="form" method="post" action="/owner/<%= restaurant.id %>/inventory/counts/new">
+          <label>
+            הערה (אופציונלי)
+            <input name="note" placeholder="לדוגמה: ספירה חודשית / סוף משמרת">
+          </label>
+          <button class="btn primary sm" type="submit" style="margin-top:10px">➕ צור ספירה</button>
+        </form>
+
+        <p class="muted small" style="margin-top:10px">
+          טיפ: מומלץ לבצע ספירה בתדירות קבועה (שבועי/חודשי) כדי לזהות פחת, גניבות או טעויות מלאי.
+        </p>
+      </div>
+
+      <div class="panel card">
+        <h2 class="card-title">ספירות אחרונות</h2>
+
+        <% if (!sessions.length) { %>
+          <p class="muted">עדיין לא נוצרו ספירות מלאי למסעדה הזו.</p>
+        <% } else { %>
+          <div class="list">
+            <% sessions.forEach(function(s){ 
+                 const st = s.status || 'draft';
+                 const isFinal = st === 'finalized';
+            %>
+              <a class="row" href="/owner/<%= restaurant.id %>/inventory/counts/<%= s.id %>">
+                <div class="meta">
+                  <div class="title"><strong>ספירה #<%= String(s.id).slice(0,8) %></strong></div>
+                  <div class="sub muted small">
+                    נוצרה: <%= fmt(s.createdAt) %>
+                    <% if (s.finalizedAt) { %> • נסגרה: <%= fmt(s.finalizedAt) %><% } %>
+                  </div>
+                  <% if (s.note) { %>
+                    <div class="sub muted small">הערה: <%= s.note %></div>
+                  <% } %>
+                </div>
+
+                <div class="right">
+                  <span class="pill <%= isFinal ? 'ok' : 'warn' %>">
+                    <%= isFinal ? 'נסגרה' : 'טיוטה' %>
+                  </span>
+                  <span class="chev">›</span>
+                </div>
+              </a>
+            <% }) %>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
+
+  .card{
+    background: var(--panel, #121622);
+    border:1px solid var(--bd, #222834);
+    border-radius:18px; padding:18px; margin-bottom:18px;
+    color: var(--ink, #e6e8ef);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  .panel.card{height:100%}
+
+  .owner-hd{display:flex;align-items:flex-start;gap:12px;justify-content:space-between}
+  .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
+  .muted{ color: var(--ink-muted, #9aa3b2); }
+  .small{ font-size:12px; }
+
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
+    border:1px solid var(--bd, #23293a); background:transparent;
+    color: var(--ink, #e6e8ef); font-weight:700;
+    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover{ transform: translateY(-1px); }
+  .btn.primary{
+    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
+    box-shadow: 0 8px 24px rgba(59,130,246,.35);
+  }
+  .btn.ghost{background:rgba(15,23,42,.6);}
+  .btn.sm{ padding:8px 12px; border-radius:10px; font-size:13px }
+
+  .grid{
+    display:grid;
+    grid-template-columns: 1fr 1.3fr;
+    gap:16px;
+    margin-top:14px;
+  }
+
+  .form label{ display:block; font-weight:700; font-size:13px; margin-top:8px }
+  .form input{
+    width:100%;padding:10px 12px;margin-top:6px;
+    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
+    font-size:14px; outline:none;
+  }
+  .form input:focus{
+    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
+  }
+
+  .notice{
+    margin-top:12px;
+    padding:10px 12px;
+    border-radius:14px;
+    border:1px solid rgba(148,163,184,.25);
+    background: rgba(148,163,184,.10);
+    color:#dbe3f0;
+  }
+  .notice.ok{
+    border-color: rgba(52,211,153,.35);
+    background: rgba(16,185,129,.10);
+  }
+  .notice a{ color:#93c5fd; font-weight:900; text-decoration:none; }
+  .notice a:hover{ text-decoration:underline; }
+
+  .list{
+    margin-top:10px;
+    border:1px solid rgba(148,163,184,.18);
+    border-radius:14px;
+    overflow:hidden;
+  }
+  .row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:12px 12px;
+    border-top:1px solid rgba(255,255,255,.06);
+    text-decoration:none;
+    color:inherit;
+  }
+  .row:first-child{border-top:none}
+  .row:hover{ background: rgba(148,163,184,.06); }
+
+  .title{font-size:14px}
+  .sub{margin-top:2px}
+
+  .right{display:flex;align-items:center;gap:10px}
+  .pill{
+    display:inline-flex;align-items:center;
+    padding:4px 10px;border-radius:999px;
+    font-size:12px;font-weight:900;
+    border:1px solid rgba(148,163,184,.25);
+    background: rgba(148,163,184,.10);
+    color:#d7deea;
+    white-space:nowrap;
+  }
+  .pill.ok{
+    border-color: rgba(52,211,153,.35);
+    background: rgba(16,185,129,.10);
+    color:#6ee7b7;
+  }
+  .pill.warn{
+    border-color: rgba(251,191,36,.35);
+    background: rgba(245,158,11,.10);
+    color:#fbbf24;
+  }
+  .chev{
+    font-size:18px;
+    color:#9aa3b2;
+    line-height:1;
+  }
+
+  @media (max-width:950px){
+    .grid{grid-template-columns:1fr}
+  }
+</style>

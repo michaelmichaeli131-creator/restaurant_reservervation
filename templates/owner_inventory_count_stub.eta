@@ -1,0 +1,58 @@
+<% layout("_layout", it) %>
+
+<%
+  const restaurant = it.restaurant || {};
+  const s = it.session || {};
+%>
+
+<section class="sb-owner container" aria-label="ספירת מלאי">
+  <div class="card">
+    <header class="owner-hd">
+      <div>
+        <h1>ספירת מלאי · <%= restaurant.name || 'מסעדה' %></h1>
+        <p class="muted">
+          ספירה: <strong>#<%= String(s.id||'').slice(0,8) %></strong> • סטטוס: <strong><%= s.status || 'draft' %></strong>
+        </p>
+      </div>
+      <div class="actions">
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/counts">⬅ חזרה לרשימה</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">📦 מלאי</a>
+      </div>
+    </header>
+
+    <div class="panel card">
+      <h2 class="card-title">המשך במימוש עמוד הספירה</h2>
+      <p class="muted">
+        בעמוד הבא נממש כאן:
+        <br>• טבלת חומרי גלם (Expected = currentQty)
+        <br>• שדה Actual לכל שורה
+        <br>• Diff + שווי פער לפי costEffective
+        <br>• כפתור “סגור ספירה” שיוצר movements מסוג adjustment
+      </p>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
+  .card{
+    background: var(--panel, #121622);
+    border:1px solid var(--bd, #222834);
+    border-radius:18px; padding:18px; margin-bottom:18px;
+    color: var(--ink, #e6e8ef);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  .panel.card{height:100%}
+  .owner-hd{display:flex;align-items:flex-start;gap:12px;justify-content:space-between}
+  .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
+  .muted{ color: var(--ink-muted, #9aa3b2); }
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
+    border:1px solid var(--bd, #23293a); background:transparent;
+    color: var(--ink, #e6e8ef); font-weight:700;
+  }
+  .btn.ghost{background:rgba(15,23,42,.6);}
+  .btn.sm{ padding:8px 12px; border-radius:10px; font-size:13px }
+</style>
