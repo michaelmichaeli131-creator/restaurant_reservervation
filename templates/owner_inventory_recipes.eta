@@ -4,7 +4,7 @@
   const restaurant  = it.restaurant || {};
   const menuItems   = Array.isArray(it.menuItems) ? it.menuItems : [];
   const recipes     = Array.isArray(it.recipes) ? it.recipes : [];
-  const ingredients = Array.isArray(it.ingredients) ? it.ingredients : [];
+  const ingredientsArr = Array.isArray(it.ingredients) ? it.ingredients : [];
 
   // מפה מהירה recipe לפי itemId
   const recipeMapSrv = {};
@@ -37,7 +37,7 @@
             <br>
             <small>עבור לדף "עריכת תפריט" והוסף מנות חדשות.</small>
           </p>
-        <% } else if (!ingredients.length) { %>
+        <% } else if (!ingredientsArr.length) { %>
           <p class="muted">
             אין עדיין חומרי גלם במלאי, לכן אי אפשר לבנות מתכונים.
             <br>
@@ -135,7 +135,7 @@
                     <% rows.forEach(function(row){
                          const ingId = row.ingredientId || row.id;
                          const qty   = Number(row.qty ?? row.quantity ?? 0);
-                         const ing   = ingredients.find(function(x){ return x.id === ingId; }) || {};
+                         const ing   = ingredientsArr.find(function(x){ return x.id === ingId; }) || {};
                     %>
                       <li>
                         <span class="ing-name">
@@ -171,8 +171,8 @@
 
 <script>
   (function(){
-    // נתונים מהשרת
-    var ingredients  = <%- JSON.stringify(ingredients || []) %>;
+    // נתונים מהשרת (שימוש ישיר ב-it כדי לוודא שתמיד יש ערך)
+    var ingredients  = <%- JSON.stringify(Array.isArray(ingredientsArr) ? ingredientsArr : []) %>;
     var recipeMap    = <%- JSON.stringify(recipeMapSrv || {}) %>;
 
     var container    = document.getElementById('recipe-components');
@@ -193,7 +193,11 @@
 
     if (!container || !btnAdd || !form || !hiddenJson || !selectItem) {
       console.warn("[Recipes view] missing DOM element(s)", {
-        container, btnAdd, form, hiddenJson, selectItem
+        container: !!container,
+        btnAdd: !!btnAdd,
+        form: !!form,
+        hiddenJson: !!hiddenJson,
+        selectItem: !!selectItem
       });
       return;
     }
