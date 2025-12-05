@@ -73,13 +73,22 @@
               <!-- יתווסף לפחות רכיב אחד כברירת מחדל ב-JS -->
             </div>
 
-            <button type="button" class="btn ghost sm" id="btn-add-component" style="margin-top:8px">
+            <button
+              type="button"
+              class="btn ghost sm"
+              id="btn-add-component"
+              style="margin-top:8px"
+            >
               ➕ הוסף רכיב (חומר גלם נוסף למנה)
             </button>
 
             <label style="margin-top:12px">
               הערות (אופציונלי)
-              <input name="note" id="recipe-note" placeholder="הערות שף / גרסה מיוחדת של המנה">
+              <input
+                name="note"
+                id="recipe-note"
+                placeholder="הערות שף / גרסה מיוחדת של המנה"
+              >
             </label>
 
             <!-- JSON של הרכיבים -->
@@ -173,7 +182,21 @@
     var selectItem   = document.getElementById('menuItemId');
     var noteInput    = document.getElementById('recipe-note');
 
-    if (!container || !btnAdd || !form || !hiddenJson || !selectItem) return;
+    console.log("[Recipes view] init", {
+      hasContainer: !!container,
+      hasBtnAdd: !!btnAdd,
+      hasForm: !!form,
+      hasHiddenJson: !!hiddenJson,
+      hasSelectItem: !!selectItem,
+      ingredientsCount: ingredients.length
+    });
+
+    if (!container || !btnAdd || !form || !hiddenJson || !selectItem) {
+      console.warn("[Recipes view] missing DOM element(s)", {
+        container, btnAdd, form, hiddenJson, selectItem
+      });
+      return;
+    }
 
     function buildIngredientOptions(selectedId) {
       var html = '<option value="">חומר גלם...</option>';
@@ -397,4 +420,3 @@
     }
   }
 </style>
-
