@@ -27,6 +27,7 @@ import {
   getEffectiveCostPerUnit,
   setIngredientManualCostPerUnit,
   type InventoryTx,
+  type Ingredient,
 } from "../inventory/inventory_db.ts";
 
 export const inventoryRouter = new Router();
@@ -120,8 +121,8 @@ inventoryRouter.post("/owner/:rid/inventory/recipes/save", async (ctx) => {
   }
 
   const note = (form.get("note")?.toString() || "").trim();
-
   await saveRecipeForMenuItem(rid, menuItemId, comps, note || undefined);
+
   ctx.response.redirect(`/owner/${rid}/inventory/recipes`);
 });
 
@@ -156,10 +157,8 @@ inventoryRouter.post("/owner/:rid/inventory/stock/ingredient", async (ctx) => {
   const currentQty = toNum(form.get("currentQty"), 0);
   const minQty = toNum(form.get("minQty"), 0);
 
-  // ✅ Manual override (אם ריק, נשאר undefined)
-  const costPerUnit = form.get("costPerUnit")
-    ? toNum(form.get("costPerUnit"), NaN)
-    : NaN;
+  // Manual override לעלות ליחידה (אופציונלי)
+  const costPerUnit = form.get("costPerUnit") ? toNum(form.get("costPerUnit"), NaN) : NaN;
 
   const supplierName = (form.get("supplierName")?.toString() || "").trim();
   const notes = (form.get("notes")?.toString() || "").trim();
@@ -198,9 +197,7 @@ inventoryRouter.post("/owner/:rid/inventory/stock/tx", async (ctx) => {
   const form = await ctx.request.body.formData();
 
   const ingredientId = (form.get("ingredientId")?.toString() || "").trim();
-  const type = (form.get("type")?.toString() || "delivery") as
-    | "delivery"
-    | "adjustment";
+  const type = (form.get("type")?.toString() || "delivery") as "delivery" | "adjustment";
   const deltaQty = toNum(form.get("deltaQty"), 0);
   const costTotal = form.get("costTotal") ? toNum(form.get("costTotal"), NaN) : NaN;
   const reason = (form.get("reason")?.toString() || "").trim();
@@ -222,19 +219,9 @@ inventoryRouter.post("/owner/:rid/inventory/stock/tx", async (ctx) => {
 });
 
 /* ========================================================================== */
-/*  ✅ עלויות / הוצאות חודשיות (Computed + Manual Override)                   */
+/*  ✅ עלויות / הוצאות חודשיות (AUTO computed + Manual Override)              */
 /* ========================================================================== */
 
-/**
- * GET /owner/:rid/inventory/costs?month=YYYY-MM
- * מחזיר פרמטרים בדיוק כמו שה-template עם הגרפים מצפה:
- * - monthKey
- * - summary {totalSpend, computedTotal, deliveriesWithCost, deliveriesMissingCost, avgPerDelivery, maxDaily}
- * - daily [{date,total}]
- * - topIngredients [{ingredientId,name,spend}]
- * - ingredients (כולל costPerUnitAuto וכו')
- * - override (אם קיים)
- */
 inventoryRouter.get("/owner/:rid/inventory/costs", async (ctx) => {
   if (!requireOwner(ctx)) return;
   const rid = ctx.params.rid!;
@@ -250,37 +237,56 @@ inventoryRouter.get("/owner/:rid/inventory/costs", async (ctx) => {
     getMonthlySpendOverride(rid, monthKey),
   ]);
 
-  // monthly totals
+  const ingMap = new Map<string, Ingredient>();
+  for (const ing of ingredients) ingMap.set(ing.id, ing);
+
+  // ✅ AUTO: עלות משלוח = costTotal אם הוזן, אחרת deltaQty * effectiveCostPerUnit
   let computedTotal = 0;
-  let deliveriesWithCost = 0;
+  let deliveriesCount = 0;
   let deliveriesMissingCost = 0;
+  let deliveriesWithCost = 0;
 
-  // daily sparkline
   const dailyMap: Record<string, number> = {};
-
-  // top ingredients by spend
   const spendByIngredient: Record<string, number> = {};
 
   for (const tx of txList as InventoryTx[]) {
     if (tx.type !== "delivery") continue;
     if (!(tx.createdAt >= start && tx.createdAt < end)) continue;
 
-    const hasCost =
-      typeof tx.costTotal === "number" && Number.isFinite(tx.costTotal);
+    deliveriesCount++;
 
-    if (!hasCost) {
+    let txCost: number | null = null;
+
+    const hasExplicitCost = typeof tx.costTotal === "number" && Number.isFinite(tx.costTotal);
+    if (hasExplicitCost) {
+      txCost = tx.costTotal!;
+    } else {
+      // compute from unit cost if available
+      const ing = ingMap.get(tx.ingredientId);
+      const unitCost = ing ? getEffectiveCostPerUnit(ing) : undefined;
+      if (
+        typeof unitCost === "number" &&
+        Number.isFinite(unitCost) &&
+        unitCost >= 0 &&
+        Number.isFinite(tx.deltaQty) &&
+        tx.deltaQty > 0
+      ) {
+        txCost = tx.deltaQty * unitCost;
+      }
+    }
+
+    if (txCost == null) {
       deliveriesMissingCost++;
       continue;
     }
 
     deliveriesWithCost++;
-    computedTotal += tx.costTotal!;
+    computedTotal += txCost;
 
     const day = isoDayUtc(tx.createdAt);
-    dailyMap[day] = (dailyMap[day] || 0) + tx.costTotal!;
+    dailyMap[day] = (dailyMap[day] || 0) + txCost;
 
-    spendByIngredient[tx.ingredientId] =
-      (spendByIngredient[tx.ingredientId] || 0) + tx.costTotal!;
+    spendByIngredient[tx.ingredientId] = (spendByIngredient[tx.ingredientId] || 0) + txCost;
   }
 
   const overrideTotal =
@@ -301,9 +307,7 @@ inventoryRouter.get("/owner/:rid/inventory/costs", async (ctx) => {
     if (v > maxDaily) maxDaily = v;
   }
 
-  const avgPerDelivery = deliveriesWithCost > 0
-    ? (computedTotal / deliveriesWithCost)
-    : 0;
+  const avgPerDelivery = deliveriesWithCost > 0 ? (computedTotal / deliveriesWithCost) : 0;
 
   const idToName: Record<string, string> = {};
   for (const ing of ingredients) idToName[ing.id] = ing.name;
@@ -317,21 +321,16 @@ inventoryRouter.get("/owner/:rid/inventory/costs", async (ctx) => {
     .sort((a, b) => Number(b.spend || 0) - Number(a.spend || 0))
     .slice(0, 8);
 
-  // optional: להוסיף לשורות גם effective cost אם תרצה בעתיד
-  // (כרגע template שלך משתמש רק ב-ingredients + costPerUnit)
-  // אבל נשמור זה בצד:
-  for (const ing of ingredients) {
-    // אין שינוי לאובייקט - רק מוודא שלא נשבר
-    getEffectiveCostPerUnit(ing);
-  }
-
   const summary = {
-    totalSpend,          // effective (override wins)
-    computedTotal,       // for display when override exists
-    deliveriesWithCost,
-    deliveriesMissingCost,
+    totalSpend,               // מה שמוצג למעלה (override אם יש)
+    deliveriesWithCost,       // “משלוחים שנכנסו לחישוב” (explicit או computed)
     avgPerDelivery,
     maxDaily,
+
+    // שדות נוספים (אם תרצה להציג בעתיד)
+    computedTotal,
+    deliveriesMissingCost,
+    deliveriesCount,
   };
 
   await render(ctx, "owner_inventory_costs", {
@@ -347,10 +346,6 @@ inventoryRouter.get("/owner/:rid/inventory/costs", async (ctx) => {
   });
 });
 
-/**
- * POST /owner/:rid/inventory/costs/override
- * אם overrideTotal ריק/לא מספר -> מוחק override וחוזר לאוטומטי
- */
 inventoryRouter.post("/owner/:rid/inventory/costs/override", async (ctx) => {
   if (!requireOwner(ctx)) return;
   const rid = ctx.params.rid!;
@@ -373,17 +368,9 @@ inventoryRouter.post("/owner/:rid/inventory/costs/override", async (ctx) => {
     note: note || undefined,
   });
 
-  ctx.response.redirect(
-    `/owner/${rid}/inventory/costs?month=${encodeURIComponent(monthKey)}`,
-  );
+  ctx.response.redirect(`/owner/${rid}/inventory/costs?month=${encodeURIComponent(monthKey)}`);
 });
 
-/**
- * POST /owner/:rid/inventory/costs/ingredient/:id
- * עדכון Manual override ל-costPerUnit:
- * - ערך מספרי => שומר override ידני
- * - ריק => מוחק override ידני וחוזר ל-AUTO (אם קיים)
- */
 inventoryRouter.post(
   "/owner/:rid/inventory/costs/ingredient/:id",
   async (ctx) => {
@@ -407,9 +394,7 @@ inventoryRouter.post(
       costPerUnit: val, // null => clear override
     });
 
-    ctx.response.redirect(
-      `/owner/${rid}/inventory/costs?month=${encodeURIComponent(monthKey)}`,
-    );
+    ctx.response.redirect(`/owner/${rid}/inventory/costs?month=${encodeURIComponent(monthKey)}`);
   },
 );
 
