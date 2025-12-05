@@ -6,7 +6,7 @@
   const recipes     = Array.isArray(it.recipes) ? it.recipes : [];
   const ingredients = Array.isArray(it.ingredients) ? it.ingredients : [];
 
-  // מפה מהירה recipe לפי itemId (לצד השמאלי בלבד)
+  // מפה מהירה recipe לפי itemId – לשימוש בצד השמאלי בלבד (תצוגה)
   const recipeMapSrv = {};
   recipes.forEach(function(r){
     if (!r.menuItemId) return;
@@ -98,6 +98,16 @@
               💾 שמירת מתכון
             </button>
           </form>
+
+          <!-- template חבוי של options לחומרי גלם, לשימוש ב-JS -->
+          <select id="ingredient-options-template" style="display:none">
+            <option value="">חומר גלם...</option>
+            <% ingredients.forEach(function(ing){ %>
+              <option value="<%= ing.id %>">
+                <%= ing.name || ing.ingredientName || 'חומר גלם' %> (<%= ing.unit || 'unit' %>)
+              </option>
+            <% }) %>
+          </select>
         <% } %>
       </div>
 
@@ -111,7 +121,7 @@
                  const r    = recipeMapSrv[mi.id];
                  const rows = Array.isArray(r?.components) ? r.components : [];
             %>
-              <article class="recipe-card">
+              <article class="recipe-card" data-menu-item-id="<%= mi.id %>">
                 <header class="recipe-header">
                   <div>
                     <div class="recipe-title">
@@ -137,7 +147,10 @@
                          const qty   = Number(row.qty ?? row.quantity ?? 0);
                          const ing   = ingredients.find(function(x){ return x.id === ingId; }) || {};
                     %>
-                      <li>
+                      <li
+                        data-ingredient-id="<%= ingId %>"
+                        data-qty="<%= qty %>"
+                      >
                         <span class="ing-name">
                           <%= ing.name || ing.ingredientName || 'חומר גלם' %>
                         </span>
@@ -154,7 +167,12 @@
                 <% } %>
 
                 <% if (r && r.note) { %>
-                  <p class="muted small">הערות: <%= r.note %></p>
+                  <p
+                    class="muted small"
+                    data-recipe-note="<%= r.note %>"
+                  >
+                    הערות: <%= r.note %>
+                  </p>
                 <% } %>
               </article>
             <% }) %>
@@ -171,63 +189,42 @@
 
 <script>
   (function(){
-    // *** שים לב: משתמשים ישירות ב-it.* כדי שלא תהיה בעיית scope / undefined ***
-    var ingredients = <%- JSON.stringify(it.ingredients || []) %>;
-    var recipes     = <%- JSON.stringify(it.recipes || []) %>;
-
-    // בניית מפה בצד הקליינט (לא תלוי במשתנה recipeMapSrv)
-    var recipeMap = {};
-    recipes.forEach(function(r){
-      if (r && r.menuItemId) {
-        recipeMap[r.menuItemId] = r;
-      }
-    });
-
     var container    = document.getElementById('recipe-components');
     var btnAdd       = document.getElementById('btn-add-component');
     var form         = document.getElementById('recipe-form');
     var hiddenJson   = document.getElementById('components-json');
     var selectItem   = document.getElementById('menuItemId');
     var noteInput    = document.getElementById('recipe-note');
+    var tplSelect    = document.getElementById('ingredient-options-template');
 
-    console.log("[Recipes view] init", {
-      hasContainer: !!container,
-      hasBtnAdd: !!btnAdd,
-      hasForm: !!form,
-      hasHiddenJson: !!hiddenJson,
-      hasSelectItem: !!selectItem,
-      ingredientsCount: ingredients.length,
-      recipesCount: recipes.length
-    });
-
-    if (!container || !btnAdd || !form || !hiddenJson || !selectItem) {
+    if (!container || !btnAdd || !form || !hiddenJson || !selectItem || !tplSelect) {
       console.warn("[Recipes view] missing DOM element(s)", {
         container: !!container,
         btnAdd: !!btnAdd,
         form: !!form,
         hiddenJson: !!hiddenJson,
-        selectItem: !!selectItem
+        selectItem: !!selectItem,
+        tplSelect: !!tplSelect
       });
       return;
     }
 
-    function buildIngredientOptions(selectedId) {
-      var html = '<option value="">חומר גלם...</option>';
-      html += ingredients.map(function(ing){
-        var sel = (selectedId && selectedId === ing.id) ? ' selected' : '';
-        return '<option value="'+ing.id+'"'+sel+'>'+ing.name+' ('+(ing.unit || 'unit')+')</option>';
-      }).join('');
-      return html;
+    function createIngredientSelect(selectedId) {
+      var sel = document.createElement('select');
+      sel.className = 'recipe-ingredient';
+      sel.required = true;
+      sel.innerHTML = tplSelect.innerHTML;
+      if (selectedId) {
+        sel.value = selectedId;
+      }
+      return sel;
     }
 
     function renderRow(value) {
       var wrap = document.createElement('div');
       wrap.className = 'recipe-row';
 
-      var sel = document.createElement('select');
-      sel.className = 'recipe-ingredient';
-      sel.required = true;
-      sel.innerHTML = buildIngredientOptions(value && value.ingredientId);
+      var sel = createIngredientSelect(value && value.ingredientId);
 
       var inputQty = document.createElement('input');
       inputQty.type = 'number';
@@ -260,29 +257,45 @@
       while (container.firstChild) container.removeChild(container.firstChild);
     }
 
-    // טעינת מתכון קיים כשבוחרים מנה
-    selectItem.addEventListener('change', function(){
-      var id = selectItem.value;
+    function loadRecipeFromDOM(menuItemId) {
       clearRows();
 
-      var recipe = recipeMap[id];
-      if (recipe && Array.isArray(recipe.components) && recipe.components.length) {
-        recipe.components.forEach(function(c){
-          renderRow({ ingredientId: c.ingredientId, qty: c.qty });
-        });
-        if (noteInput && recipe.note) {
-          noteInput.value = recipe.note;
-        } else if (noteInput) {
-          noteInput.value = '';
-        }
-      } else {
-        // אין מתכון – נתחיל משורה ריקה
+      var article = document.querySelector('[data-menu-item-id="'+menuItemId+'"]');
+      if (!article) {
         renderRow(null);
         if (noteInput) noteInput.value = '';
+        return;
       }
+
+      var lis = article.querySelectorAll('li[data-ingredient-id]');
+      if (!lis.length) {
+        renderRow(null);
+      } else {
+        lis.forEach(function(li){
+          var ingId = li.getAttribute('data-ingredient-id');
+          var qty   = parseFloat(li.getAttribute('data-qty') || '0');
+          if (!ingId || !(qty > 0)) return;
+          renderRow({ ingredientId: ingId, qty: qty });
+        });
+      }
+
+      if (noteInput) {
+        var noteEl = article.querySelector('[data-recipe-note]');
+        noteInput.value = noteEl ? (noteEl.getAttribute('data-recipe-note') || '') : '';
+      }
+    }
+
+    selectItem.addEventListener('change', function(){
+      var id = selectItem.value;
+      if (!id) {
+        clearRows();
+        renderRow(null);
+        if (noteInput) noteInput.value = '';
+        return;
+      }
+      loadRecipeFromDOM(id);
     });
 
-    // כפתור הוספת רכיב
     btnAdd.addEventListener('click', function(){
       renderRow(null);
     });
@@ -292,7 +305,6 @@
       renderRow(null);
     }
 
-    // לפני שליחה – נרכיב JSON של כל הרכיבים
     form.addEventListener('submit', function(){
       var rows = container.querySelectorAll('.recipe-row');
       var comps = [];
