@@ -1,18 +1,16 @@
 <% layout("_layout", it) %>
 
 <%
-  const restaurant   = it.restaurant || {};
-  const ingredients  = Array.isArray(it.ingredients) ? it.ingredients : [];
-  const monthKey     = it.monthKey || '';
-  const summary      = it.summary || {};
-  const daily        = Array.isArray(it.daily) ? it.daily : [];
-  const topIngredients = Array.isArray(it.topIngredients) ? it.topIngredients : [];
+  const restaurant = it.restaurant || {};
+  const month = it.month || "";
+  const rows = Array.isArray(it.rows) ? it.rows : [];
+  const computedTotal = Number(it.computedTotal || 0);
+  const effectiveTotal = Number(it.effectiveTotal || 0);
+  const override = it.override || null;
+  const deliveriesCount = Number(it.deliveriesCount || 0);
+  const deliveriesMissingCost = Number(it.deliveriesMissingCost || 0);
 
-  function num(n, digits=2){
-    const x = Number(n || 0);
-    if(!Number.isFinite(x)) return '0';
-    return x.toFixed(digits);
-  }
+  const hasOverride = override && typeof override.overrideTotal === "number";
 %>
 
 <section class="sb-owner container" aria-label="עלויות חומרי גלם">
@@ -21,169 +19,167 @@
       <div>
         <h1>עלויות חומרי גלם · <%= restaurant.name || 'מסעדה' %></h1>
         <p class="muted">
-          כאן מגדירים <strong>מחיר ליחידה</strong> לכל חומר גלם ומקבלים <strong>סיכום חודשי</strong> לפי תנועות מלאי מסוג <code>delivery</code> שיש בהן עלות.
+          ההוצאות מחושבות אוטומטית מתוך <strong>משלוחים</strong> (type=delivery + costTotal).
+          Override ידני אפשרי רק אם מכניסים במפורש — ואז הוא דורס את החישוב.
         </p>
       </div>
-      <div class="actions">
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">⬅ מלאי חומרי גלם</a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/recipes">🧾 מתכונים</a>
-      </div>
+
+      <form method="get" action="/owner/<%= restaurant.id %>/inventory/costs" class="month-form">
+        <label class="muted" style="font-size:12px">חודש</label>
+        <input type="month" name="month" value="<%= month %>">
+        <button class="btn ghost sm" type="submit">עדכן</button>
+      </form>
     </header>
 
-    <div class="costs-top">
+    <div class="grid">
       <div class="panel card">
-        <form method="get" action="/owner/<%= restaurant.id %>/inventory/costs" class="row">
-          <label class="lbl">
-            חודש
-            <input name="month" value="<%= monthKey %>" placeholder="YYYY-MM" inputmode="numeric" />
+        <h2 class="card-title">סיכום חודש <%= month %></h2>
+
+        <div class="kpis">
+          <div class="kpi">
+            <div class="kpi-label muted">מחושב אוטומטי</div>
+            <div class="kpi-val"><%= computedTotal.toFixed(2) %> ₪</div>
+          </div>
+
+          <div class="kpi">
+            <div class="kpi-label muted">סה״כ אפקטיבי</div>
+            <div class="kpi-val"><%= effectiveTotal.toFixed(2) %> ₪</div>
+            <% if (hasOverride) { %>
+              <div class="kpi-note badge warn">נדרס ידנית</div>
+            <% } else { %>
+              <div class="kpi-note badge ok">אוטומטי</div>
+            <% } %>
+          </div>
+
+          <div class="kpi">
+            <div class="kpi-label muted">משלוחים בחודש</div>
+            <div class="kpi-val"><%= deliveriesCount %></div>
+            <% if (deliveriesMissingCost > 0) { %>
+              <div class="kpi-note badge bad">חסרה עלות ב-<%= deliveriesMissingCost %> משלוחים</div>
+            <% } else { %>
+              <div class="kpi-note badge ok">לכולם יש עלות</div>
+            <% } %>
+          </div>
+        </div>
+
+        <div class="sep"></div>
+
+        <h3 style="margin:0 0 8px">Override ידני (אופציונלי)</h3>
+
+        <form method="post" action="/owner/<%= restaurant.id %>/inventory/costs/override" class="form">
+          <input type="hidden" name="month" value="<%= month %>">
+
+          <label>
+            סכום ידני לחודש (₪) — משאיר ריק כדי לחזור לאוטומטי
+            <input
+              name="overrideTotal"
+              inputmode="decimal"
+              placeholder="השאר ריק = חישוב אוטומטי"
+              value="<%= hasOverride ? String(override.overrideTotal) : '' %>"
+            >
           </label>
-          <button class="btn primary sm" type="submit">הצג</button>
+
+          <label>
+            הערה (אופציונלי)
+            <input name="note" placeholder="למשל: תיקון חשבונית חריגה" value="<%= override?.note || '' %>">
+          </label>
+
+          <div class="row-actions">
+            <button class="btn primary sm" type="submit">שמור</button>
+            <button class="btn ghost sm" type="submit" name="overrideTotal" value="">אפס Override</button>
+          </div>
+
+          <p class="muted small" style="margin-top:8px">
+            ה-Override נשמר רק אם הכנסת מספר. אם תשאיר ריק ותשמור — המערכת חוזרת לחישוב האוטומטי.
+          </p>
         </form>
-
-        <div class="stats">
-          <div class="stat">
-            <div class="k">סה״כ הוצאה בחודש</div>
-            <div class="v">₪ <%= num(summary.totalSpend, 2) %></div>
-          </div>
-          <div class="stat">
-            <div class="k">משלוחים עם עלות</div>
-            <div class="v"><%= Number(summary.deliveriesWithCost || 0) %></div>
-          </div>
-          <div class="stat">
-            <div class="k">ממוצע עלות למשלוח</div>
-            <div class="v">₪ <%= num(summary.avgPerDelivery, 2) %></div>
-          </div>
-        </div>
-
-        <div class="spark">
-          <div class="spark-hd">
-            <span class="muted small">הוצאה יומית (Sparkline)</span>
-            <span class="muted small">Max day: ₪ <%= num(summary.maxDaily, 2) %></span>
-          </div>
-          <svg id="spark-svg" viewBox="0 0 300 60" preserveAspectRatio="none" aria-label="גרף הוצאה יומית"></svg>
-        </div>
       </div>
 
       <div class="panel card">
-        <h2 class="card-title">Top חומרי גלם לפי הוצאה בחודש</h2>
+        <h2 class="card-title">פירוט חומרי גלם</h2>
 
-        <% if (!topIngredients.length) { %>
-          <p class="muted">אין עדיין נתוני עלויות לחודש הזה (אין deliveries עם costTotal).</p>
-        <% } else { %>
-          <div class="top-list">
-            <% const max = Math.max.apply(null, topIngredients.map(x => Number(x.spend||0)).concat([1])); %>
-            <% topIngredients.forEach(function(x){ 
-                 const pct = Math.max(2, Math.min(100, (Number(x.spend||0) / max) * 100));
-            %>
-              <div class="top-row">
-                <div class="top-meta">
-                  <div class="top-name"><strong><%= x.name %></strong></div>
-                  <div class="top-sub muted small">₪ <%= num(x.spend, 2) %></div>
-                </div>
-                <div class="bar" aria-label="bar">
-                  <div class="bar-fill" style="width:<%= pct %>%"></div>
-                </div>
-              </div>
-            <% }) %>
-          </div>
-        <% } %>
-      </div>
-    </div>
+        <div class="table-wrap">
+          <table class="tbl" aria-label="טבלת עלויות חומרי גלם">
+            <thead>
+              <tr>
+                <th>חומר גלם</th>
+                <th>מלאי</th>
+                <th>הוצאה בחודש</th>
+                <th>עלות/יח' (AUTO)</th>
+                <th>עלות/יח' (Override)</th>
+                <th>עלות/יח' אפקטיבית</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (!rows.length) { %>
+                <tr><td colspan="6" class="muted">אין חומרי גלם.</td></tr>
+              <% } else { %>
+                <% rows.forEach(function(r){ 
+                     const ing = r.ingredient || {};
+                     const low = !!r.lowStock;
+                %>
+                  <tr class="<%= low ? 'low' : '' %>">
+                    <td>
+                      <div class="name"><strong><%= ing.name %></strong></div>
+                      <div class="muted small">
+                        יחידה: <%= ing.unit || 'unit' %>
+                        <% if (low) { %> · <span class="badge bad">מתחת לרף</span><% } %>
+                      </div>
+                    </td>
 
-    <div class="panel card" style="margin-top:16px">
-      <h2 class="card-title">מחיר ליחידה לחומרי גלם</h2>
-      <p class="muted small">
-        השדה <strong>מחיר ליחידה</strong> משמש בהמשך לחישוב Food Cost למנה.
-        אפשר להשאיר ריק אם עדיין לא ידוע.
-      </p>
+                    <td class="num">
+                      <div><%= Number(ing.currentQty || 0).toFixed(3) %></div>
+                      <div class="muted small">min: <%= Number(ing.minQty || 0).toFixed(3) %></div>
+                    </td>
 
-      <% if (!ingredients.length) { %>
-        <p class="muted">אין עדיין חומרי גלם. עבור לעמוד מלאי והוסף חומרי גלם.</p>
-      <% } else { %>
-        <div class="table">
-          <div class="tr th">
-            <div>חומר גלם</div>
-            <div>יחידה</div>
-            <div>מחיר ליחידה</div>
-            <div></div>
-          </div>
+                    <td class="num">
+                      <div><%= Number(r.spendCost || 0).toFixed(2) %> ₪</div>
+                      <div class="muted small">
+                        כמות שנקנתה: <%= Number(r.spendQty || 0).toFixed(3) %> <%= ing.unit || '' %>
+                      </div>
+                    </td>
 
-          <% ingredients.forEach(function(ing){ %>
-            <form class="tr" method="post" action="/owner/<%= restaurant.id %>/inventory/costs/ingredient/<%= ing.id %>">
-              <div class="td">
-                <div class="name"><strong><%= ing.name %></strong></div>
-                <div class="muted small">
-                  במלאי: <%= Number(ing.currentQty || 0) %> • רף מינ׳: <%= Number(ing.minQty || 0) %>
-                </div>
-              </div>
+                    <td class="num">
+                      <% if (r.costAuto != null) { %>
+                        <%= Number(r.costAuto).toFixed(2) %>
+                      <% } else { %>
+                        <span class="muted">—</span>
+                      <% } %>
+                    </td>
 
-              <div class="td">
-                <span class="pill"><%= ing.unit || 'unit' %></span>
-              </div>
+                    <td class="num">
+                      <% if (r.costManual != null) { %>
+                        <span class="badge warn"><%= Number(r.costManual).toFixed(2) %></span>
+                      <% } else { %>
+                        <span class="muted">—</span>
+                      <% } %>
+                      <div class="muted small">*(נערך בדף מלאי חומרי גלם)*</div>
+                    </td>
 
-              <div class="td">
-                <input
-                  class="in"
-                  name="costPerUnit"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="לדוגמה: 12.50"
-                  value="<%= (typeof ing.costPerUnit === 'number' ? String(ing.costPerUnit) : '') %>"
-                />
-                <div class="muted small">₪ / <%= ing.unit || 'unit' %></div>
-              </div>
-
-              <div class="td right">
-                <input type="hidden" name="month" value="<%= monthKey %>">
-                <button class="btn primary sm" type="submit">שמור</button>
-              </div>
-            </form>
-          <% }) %>
+                    <td class="num">
+                      <% if (r.costEffective != null) { %>
+                        <strong><%= Number(r.costEffective).toFixed(2) %></strong>
+                      <% } else { %>
+                        <span class="muted">—</span>
+                      <% } %>
+                    </td>
+                  </tr>
+                <% }) %>
+              <% } %>
+            </tbody>
+          </table>
         </div>
-      <% } %>
+
+        <p class="muted small" style="margin-top:10px">
+          AUTO עלות/יח' מחושב ממשלוחים (delivery עם costTotal). Override ידני לעלות/יח' נעשה במסך “מלאי חומרי גלם”.
+        </p>
+      </div>
     </div>
   </div>
 </section>
 
-<script>
-  (function(){
-    // ⚠️ חשוב: חייב להיות ערך JS חוקי, לכן נותנים JSON.stringify מהשרת
-    var daily = <%- JSON.stringify(daily || []) %>;
-    var svg = document.getElementById('spark-svg');
-    if(!svg || !Array.isArray(daily) || !daily.length) return;
-
-    var w = 300, h = 60, pad = 6;
-    var max = 0;
-    for(var i=0;i<daily.length;i++){
-      var v = Number(daily[i].total || 0);
-      if(v > max) max = v;
-    }
-    if(!(max > 0)) max = 1;
-
-    function x(i){ return pad + (i * (w - pad*2) / Math.max(1, daily.length-1)); }
-    function y(v){
-      var t = Number(v || 0);
-      var yy = pad + (1 - (t/max)) * (h - pad*2);
-      return Math.max(pad, Math.min(h-pad, yy));
-    }
-
-    var d = "";
-    for(var i=0;i<daily.length;i++){
-      var px = x(i);
-      var py = y(daily[i].total);
-      d += (i===0 ? "M" : "L") + px.toFixed(2) + " " + py.toFixed(2) + " ";
-    }
-
-    svg.innerHTML =
-      '<path d="'+d+'" fill="none" stroke="rgba(59,130,246,.95)" stroke-width="2.2" stroke-linecap="round"/>' +
-      '<path d="'+d+' L '+(w-pad)+' '+(h-pad)+' L '+pad+' '+(h-pad)+' Z" fill="rgba(59,130,246,.10)"/>';
-  })();
-</script>
-
 <style>
-  .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
-
+  .sb-owner.container{max-width:1200px;margin:20px auto;padding:0 16px}
   .card{
     background: var(--panel, #121622);
     border:1px solid var(--bd, #222834);
@@ -193,94 +189,76 @@
   }
   .panel.card{height:100%}
 
-  .owner-hd{display:flex;align-items:flex-start;gap:12px;justify-content:space-between}
-  .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
-  .muted{ color: var(--ink-muted, #9aa3b2); }
-  .small{ font-size:12px; }
-  code{background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.22);padding:1px 6px;border-radius:8px}
-
-  .actions{display:flex;gap:8px;flex-wrap:wrap}
-  .btn{
-    display:inline-flex; align-items:center; justify-content:center; gap:8px;
-    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
-    border:1px solid var(--bd, #23293a); background:transparent;
-    color: var(--ink, #e6e8ef); font-weight:700;
-    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
+  .owner-hd{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
   }
-  .btn:hover{ transform: translateY(-1px); }
-  .btn.primary{
-    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
-    box-shadow: 0 8px 24px rgba(59,130,246,.35);
+  .month-form{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+  .month-form input{
+    padding:8px 10px;border-radius:12px;border:1px solid #23293a;background:#171b29;color:#e6e8ef;
   }
-  .btn.ghost{background:rgba(15,23,42,.6);}
-  .btn.sm{ padding:8px 12px; border-radius:10px; font-size:13px }
 
-  .costs-top{
+  .muted{color: var(--ink-muted,#9aa3b2);}
+  .small{font-size:12px}
+  .sep{height:1px;background:#23293a;margin:12px 0;border-radius:999px}
+
+  .grid{
     display:grid;
-    grid-template-columns:1.3fr 1fr;
+    grid-template-columns:1fr 1.4fr;
     gap:16px;
     margin-top:14px;
   }
 
-  .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
-  .lbl{display:block;font-weight:700;font-size:13px}
-  .lbl input{
-    width:160px;padding:10px 12px;margin-top:6px;
+  .card-title{margin:0 0 10px;font-size: clamp(16px, 2.2vw, 20px)}
+
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .kpi{
+    background:rgba(148,163,184,.08);
+    border:1px solid rgba(148,163,184,.18);
+    border-radius:14px;
+    padding:10px;
+  }
+  .kpi-label{font-size:12px}
+  .kpi-val{font-size:18px;font-weight:800;margin-top:4px}
+  .kpi-note{margin-top:6px;display:inline-flex}
+
+  .badge{
+    display:inline-flex;align-items:center;
+    padding:3px 8px;border-radius:999px;font-size:11px;
+    border:1px solid transparent;
+  }
+  .badge.ok{border-color:rgba(52,211,153,.5);color:#6ee7b7;background:rgba(16,185,129,.08);}
+  .badge.bad{border-color:rgba(248,113,113,.6);color:#fecaca;background:rgba(248,113,113,.08);}
+  .badge.warn{border-color:rgba(251,191,36,.6);color:#fde68a;background:rgba(251,191,36,.08);}
+
+  .form label{display:block;font-weight:600;font-size:14px;margin-top:8px}
+  .form input{
+    width:100%;padding:10px 12px;margin-top:6px;
     background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
     font-size:14px; outline:none;
   }
 
-  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
-  .stat{
-    background:rgba(148,163,184,.10);
-    border:1px solid rgba(148,163,184,.20);
-    border-radius:14px;
-    padding:10px 12px;
-  }
-  .stat .k{font-size:12px;color:#b6bfce}
-  .stat .v{font-size:18px;font-weight:900;margin-top:2px}
+  .row-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 
-  .spark{margin-top:12px}
-  .spark-hd{display:flex;justify-content:space-between;gap:10px;margin-bottom:6px}
-  #spark-svg{
-    width:100%;height:70px;
-    background:#0e1422;
-    border:1px solid #1f2636;
-    border-radius:14px;
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    padding:10px 14px;border-radius:12px;cursor:pointer;text-decoration:none;
+    border:1px solid var(--bd,#23293a);background:transparent;color: var(--ink,#e6e8ef);
+    font-weight:700;
   }
+  .btn.primary{background: var(--brand,#3b82f6);border-color:transparent;color:#fff}
+  .btn.ghost{background: rgba(15,23,42,.5)}
+  .btn.sm{padding:8px 12px;border-radius:10px;font-size:13px}
 
-  .top-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
-  .top-row{display:grid;grid-template-columns:1fr 1.2fr;gap:10px;align-items:center}
-  .top-name{font-size:14px}
-  .bar{width:100%;height:10px;background:#0e1422;border-radius:999px;overflow:hidden;border:1px solid #1f2636}
-  .bar-fill{height:100%;background:linear-gradient(90deg,#10b981,#34d399)}
+  .table-wrap{overflow:auto;border:1px solid rgba(148,163,184,.18);border-radius:14px}
+  .tbl{width:100%;border-collapse:collapse;min-width:900px}
+  .tbl th,.tbl td{padding:10px 12px;border-bottom:1px solid rgba(148,163,184,.14);vertical-align:top}
+  .tbl th{font-size:12px;text-transform:none;color:#cbd5e1;white-space:nowrap}
+  .tbl td.num{text-align:right;white-space:nowrap}
+  tr.low{background: rgba(248,113,113,.06)}
+  .name{font-size:14px}
 
-  .table{margin-top:10px;border:1px solid rgba(148,163,184,.18);border-radius:14px;overflow:hidden}
-  .tr{display:grid;grid-template-columns:2.2fr .7fr 1.1fr .6fr;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid rgba(255,255,255,.06)}
-  .tr:first-child{border-top:none}
-  .th{background:rgba(148,163,184,.08);font-weight:900;color:#dbe3f0}
-  .td{min-width:0}
-  .td.right{display:flex;justify-content:flex-end}
-  .name{line-height:1.2}
-  .pill{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);font-size:12px;color:#d7deea}
-  .in{
-    width:100%;
-    padding:10px 12px;
-    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
-    font-size:14px; outline:none;
-  }
-  .in:focus{
-    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
-  }
-
-  @media (max-width:950px){
-    .costs-top{grid-template-columns:1fr}
-    .stats{grid-template-columns:1fr}
-    .tr{grid-template-columns:1.8fr .7fr 1.1fr .8fr}
-  }
-  @media (max-width:700px){
-    .tr{grid-template-columns:1fr}
-    .td.right{justify-content:flex-start}
+  @media (max-width:1000px){
+    .grid{grid-template-columns:1fr}
+    .kpis{grid-template-columns:1fr}
   }
 </style>
