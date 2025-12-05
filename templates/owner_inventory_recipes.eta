@@ -4,9 +4,9 @@
   const restaurant  = it.restaurant || {};
   const menuItems   = Array.isArray(it.menuItems) ? it.menuItems : [];
   const recipes     = Array.isArray(it.recipes) ? it.recipes : [];
-  const ingredientsArr = Array.isArray(it.ingredients) ? it.ingredients : [];
+  const ingredients = Array.isArray(it.ingredients) ? it.ingredients : [];
 
-  // מפה מהירה recipe לפי itemId
+  // מפה מהירה recipe לפי itemId (לצד השמאלי בלבד)
   const recipeMapSrv = {};
   recipes.forEach(function(r){
     if (!r.menuItemId) return;
@@ -37,7 +37,7 @@
             <br>
             <small>עבור לדף "עריכת תפריט" והוסף מנות חדשות.</small>
           </p>
-        <% } else if (!ingredientsArr.length) { %>
+        <% } else if (!ingredients.length) { %>
           <p class="muted">
             אין עדיין חומרי גלם במלאי, לכן אי אפשר לבנות מתכונים.
             <br>
@@ -135,7 +135,7 @@
                     <% rows.forEach(function(row){
                          const ingId = row.ingredientId || row.id;
                          const qty   = Number(row.qty ?? row.quantity ?? 0);
-                         const ing   = ingredientsArr.find(function(x){ return x.id === ingId; }) || {};
+                         const ing   = ingredients.find(function(x){ return x.id === ingId; }) || {};
                     %>
                       <li>
                         <span class="ing-name">
@@ -171,9 +171,17 @@
 
 <script>
   (function(){
-    // נתונים מהשרת (שימוש ישיר ב-it כדי לוודא שתמיד יש ערך)
-    var ingredients  = <%- JSON.stringify(Array.isArray(ingredientsArr) ? ingredientsArr : []) %>;
-    var recipeMap    = <%- JSON.stringify(recipeMapSrv || {}) %>;
+    // *** שים לב: משתמשים ישירות ב-it.* כדי שלא תהיה בעיית scope / undefined ***
+    var ingredients = <%- JSON.stringify(it.ingredients || []) %>;
+    var recipes     = <%- JSON.stringify(it.recipes || []) %>;
+
+    // בניית מפה בצד הקליינט (לא תלוי במשתנה recipeMapSrv)
+    var recipeMap = {};
+    recipes.forEach(function(r){
+      if (r && r.menuItemId) {
+        recipeMap[r.menuItemId] = r;
+      }
+    });
 
     var container    = document.getElementById('recipe-components');
     var btnAdd       = document.getElementById('btn-add-component');
@@ -188,7 +196,8 @@
       hasForm: !!form,
       hasHiddenJson: !!hiddenJson,
       hasSelectItem: !!selectItem,
-      ingredientsCount: ingredients.length
+      ingredientsCount: ingredients.length,
+      recipesCount: recipes.length
     });
 
     if (!container || !btnAdd || !form || !hiddenJson || !selectItem) {
@@ -278,8 +287,7 @@
       renderRow(null);
     });
 
-    // ברירת מחדל: אם יש מנות – נציג לפחות שורה אחת ריקה,
-    // כדי שיהיה ברור שאפשר לבחור חומר גלם
+    // ברירת מחדל: אם יש מנות – נציג לפחות שורה אחת ריקה
     if (container.children.length === 0) {
       renderRow(null);
     }
