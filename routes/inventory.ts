@@ -1,8 +1,9 @@
 // src/routes/inventory.ts
 // ----------------------------------------
 // Owner inventory routes:
-// - מתכונים: קישור מנות ↔ חומרי גלם (ללא הגבלה על מספר חומרי הגלם למנה)
-// - מלאי: רשימת חומרי גלם + יצירה/עדכון + מחיקה + תנועות מלאי
+// - מתכונים: קישור מנות ↔ חומרי גלם
+// - מלאי: רשימת חומרי גלם + עדכון / מחיקה
+// - תנועות מלאי (משלוח / התאמה ידנית)
 // ----------------------------------------
 
 import { Router, Status } from "jsr:@oak/oak";
@@ -10,17 +11,15 @@ import { render } from "../lib/view.ts";
 import { requireOwner } from "../lib/auth.ts";
 import { getRestaurant } from "../database.ts";
 
-import {
-  listItems,
-} from "../pos/pos_db.ts";
+import { listItems } from "../pos/pos_db.ts";
 
 import {
   listIngredients,
   upsertIngredient,
+  deleteIngredient,
   listRecipesForRestaurant,
   saveRecipeForMenuItem,
   applyInventoryTx,
-  deleteIngredient,
 } from "../inventory/inventory_db.ts";
 
 export const inventoryRouter = new Router();
@@ -31,10 +30,16 @@ function toNum(val: unknown, def = 0): number {
   return Number.isFinite(n) ? n : def;
 }
 
-/* ------------ GET: פירוק מנות לחומרי גלם ------------ */
+/* ========================================================================== */
+/*  מתכונים – קישור בין מנות בתפריט ↔ חומרי גלם                              */
+/* ========================================================================== */
+
 /**
- * מציג לכל מנה בתפריט (MenuItem) את רשימת חומרי הגלם לפי המתכון.
- * נתיב: /owner/:rid/inventory/recipes
+ * GET  /owner/:rid/inventory/recipes
+ * מציג:
+ *  - רשימת מנות (menuItems)
+ *  - רשימת חומרי גלם (ingredients)
+ *  - רשימת מתכונים קיימים (recipes)
  */
 inventoryRouter.get("/owner/:rid/inventory/recipes", async (ctx) => {
   if (!requireOwner(ctx)) return;
@@ -58,13 +63,12 @@ inventoryRouter.get("/owner/:rid/inventory/recipes", async (ctx) => {
   });
 });
 
-/* ------------ POST: שמירת מתכון למנה ------------ */
 /**
- * נתיב: POST /owner/:rid/inventory/recipes/save
- * הטופס שולח:
+ * POST /owner/:rid/inventory/recipes/save
+ * שומר מתכון למנה אחת:
  * - menuItemId
- * - components (JSON string: [{ingredientId, qty}, ...])
- * - note (אופציונלי)
+ * - components (JSON של [{ingredientId, qty}...])
+ * - note (הערות שף)
  */
 inventoryRouter.post(
   "/owner/:rid/inventory/recipes/save",
@@ -75,42 +79,41 @@ inventoryRouter.post(
 
     const menuItemId = (form.get("menuItemId")?.toString() || "").trim();
     if (!menuItemId) {
-      ctx.throw(Status.BadRequest, "missing_menuItemId");
+      ctx.throw(Status.BadRequest, "missing_menu_item");
     }
 
     const rawComponents = form.get("components")?.toString() || "[]";
-    let components: { ingredientId: string; qty: number }[] = [];
-
+    let comps: Array<{ ingredientId: string; qty: number }> = [];
     try {
       const parsed = JSON.parse(rawComponents);
       if (Array.isArray(parsed)) {
-        components = parsed
+        comps = parsed
           .map((c) => ({
             ingredientId: String(c.ingredientId || "").trim(),
-            qty: Number(c.qty || 0),
+            qty: Number(c.qty ?? 0),
           }))
           .filter((c) => c.ingredientId && c.qty > 0);
       }
-    } catch (_e) {
-      // אם JSON הרוס – נתעלם בשקט ונשמור בלי רכיבים
-      components = [];
+    } catch {
+      // נמשיך עם מערך ריק
+      comps = [];
     }
 
-    const note = (form.get("note")?.toString() || "").trim() || undefined;
+    const note = (form.get("note")?.toString() || "").trim();
 
-    await saveRecipeForMenuItem(rid, menuItemId, components, note);
+    await saveRecipeForMenuItem(rid, menuItemId, comps, note || undefined);
 
     ctx.response.redirect(`/owner/${rid}/inventory/recipes`);
   },
 );
 
-/* ------------ GET: דף מלאי חומרי גלם ------------ */
+/* ========================================================================== */
+/*  מלאי חומרי גלם                                                             */
+/* ========================================================================== */
+
 /**
- * מציג רשימת חומרי גלם, עם:
- * - כמות נוכחית
- * - רף מינימום (מעל/מתחת)
- * - צבע אדום כשחסר
- * נתיב: /owner/:rid/inventory/stock
+ * GET /owner/:rid/inventory/stock
+ * מציג רשימת חומרי גלם + סטטוס מלאי
  */
 inventoryRouter.get("/owner/:rid/inventory/stock", async (ctx) => {
   if (!requireOwner(ctx)) return;
@@ -128,10 +131,9 @@ inventoryRouter.get("/owner/:rid/inventory/stock", async (ctx) => {
   });
 });
 
-/* ------------ POST: יצירה / עדכון חומר גלם ------------ */
 /**
- * נתיב: POST /owner/:rid/inventory/stock/ingredient
- * יוצר / מעדכן חומר גלם. אם יש id => עדכון.
+ * POST /owner/:rid/inventory/stock/ingredient
+ * יצירה / עדכון חומר גלם (upsert)
  */
 inventoryRouter.post(
   "/owner/:rid/inventory/stock/ingredient",
@@ -174,21 +176,16 @@ inventoryRouter.post(
   },
 );
 
-/* ------------ POST: מחיקת חומר גלם ------------ */
 /**
- * נתיב: POST /owner/:rid/inventory/stock/ingredient/delete
+ * POST /owner/:rid/inventory/stock/ingredient/:id/delete
+ * מחיקת חומר גלם
  */
 inventoryRouter.post(
-  "/owner/:rid/inventory/stock/ingredient/delete",
+  "/owner/:rid/inventory/stock/ingredient/:id/delete",
   async (ctx) => {
     if (!requireOwner(ctx)) return;
     const rid = ctx.params.rid!;
-    const form = await ctx.request.body.formData();
-    const ingredientId = (form.get("ingredientId")?.toString() || "").trim();
-
-    if (!ingredientId) {
-      ctx.throw(Status.BadRequest, "missing_ingredientId");
-    }
+    const ingredientId = ctx.params.id!;
 
     await deleteIngredient(rid, ingredientId);
 
@@ -196,10 +193,9 @@ inventoryRouter.post(
   },
 );
 
-/* ------------ POST: תנועת מלאי (משלוח/התאמה) ------------ */
 /**
- * נתיב: POST /owner/:rid/inventory/stock/tx
- * מאפשר לעדכן שהגיע משלוח או התאמה ידנית.
+ * POST /owner/:rid/inventory/stock/tx
+ * תנועת מלאי: משלוח / התאמת מלאי ידנית
  */
 inventoryRouter.post(
   "/owner/:rid/inventory/stock/tx",
