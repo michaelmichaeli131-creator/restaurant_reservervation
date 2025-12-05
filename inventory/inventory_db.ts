@@ -168,6 +168,14 @@ export async function upsertIngredient(
   return item;
 }
 
+/** מחיקת חומר גלם (פשוטה, כרגע לא מנקים מתכונים / תנועות ישנות) */
+export async function deleteIngredient(
+  restaurantId: string,
+  ingredientId: string,
+): Promise<void> {
+  await kv.delete(kIngredient(restaurantId, ingredientId));
+}
+
 /**
  * התאמת מלאי (משלוח, צריכה, בזבוז, התאמה ידנית).
  * מעדכן את currentQty בחומר הגלם + יוצר תנועת מלאי.
@@ -335,6 +343,7 @@ export async function consumeIngredientsForMenuItem(params: {
         ingredientId: comp.ingredientId,
         type: "consumption",
         deltaQty: delta,
+        costTotal: undefined,
         reason: `POS auto-consume: menuItem=${menuItemId}, qty=${q}`,
       });
     } catch (err) {

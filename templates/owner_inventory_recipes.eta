@@ -47,10 +47,11 @@
             action="/owner/<%= restaurant.id %>/inventory/recipes/save"
             method="post"
             class="form"
+            id="recipe-form"
           >
             <label>
               מנה בתפריט
-              <select name="menuItemId" required>
+              <select name="menuItemId" id="menuItemId" required>
                 <option value="">בחר מנה...</option>
                 <% menuItems.forEach(function(mi){ %>
                   <option value="<%= mi.id %>">
@@ -61,42 +62,24 @@
             </label>
 
             <p class="muted" style="margin-top:6px">
-              אחרי בחירת מנה, ניתן להגדיר את חומרי הגלם והכמויות לכל מנה.
+              הוסף כמה חומרי גלם שתרצה – כל שורה מייצגת רכיב אחד במתכון.
             </p>
 
-            <!-- פשטות: בשלב ראשון – 3 שורות קבועות -->
-            <div class="recipe-grid">
-              <% for (let i = 0; i < 3; i++) { %>
-                <div class="recipe-row">
-                  <label>
-                    חומר גלם
-                    <select name="rows[<%= i %>][ingredientId]">
-                      <option value="">—</option>
-                      <% ingredients.forEach(function(ing){ %>
-                        <option value="<%= ing.id %>">
-                          <%= ing.name || ing.ingredientName || 'ללא שם' %>
-                        </option>
-                      <% }) %>
-                    </select>
-                  </label>
-                  <label>
-                    כמות במנה
-                    <input
-                      name="rows[<%= i %>][qty]"
-                      type="number"
-                      step="0.001"
-                      min="0"
-                      placeholder="לדוגמה: 0.18"
-                    >
-                  </label>
-                </div>
-              <% } %>
+            <div class="recipe-grid" id="recipe-components">
+              <!-- השורות יתווספו דינמית ב-JS -->
             </div>
 
-            <label>
+            <button type="button" class="btn ghost sm" id="btn-add-component" style="margin-top:8px">
+              ➕ הוסף רכיב
+            </button>
+
+            <label style="margin-top:12px">
               הערות (אופציונלי)
-              <input name="note" placeholder="הערות שף / גרסה מיוחדת של המנה">
+              <input name="note" id="recipe-note" placeholder="הערות שף / גרסה מיוחדת של המנה">
             </label>
+
+            <!-- JSON של הרכיבים -->
+            <input type="hidden" name="components" id="components-json">
 
             <button class="btn primary sm" type="submit" style="margin-top:10px">
               שמירת מתכון
@@ -112,7 +95,7 @@
         <% if (menuItems.length) { %>
           <div class="recipes-list">
             <% menuItems.forEach(function(mi){
-                 const r = recipeMap[mi.id];
+                 const r    = recipeMap[mi.id];
                  const rows = Array.isArray(r?.components) ? r.components : [];
             %>
               <article class="recipe-card">
@@ -139,7 +122,7 @@
                     <% rows.forEach(function(row){
                          const ingId = row.ingredientId || row.id;
                          const qty   = Number(row.qty ?? row.quantity ?? 0);
-                         const ing = ingredients.find(function(x){ return x.id === ingId; }) || {};
+                         const ing   = ingredients.find(function(x){ return x.id === ingId; }) || {};
                     %>
                       <li>
                         <span class="ing-name">
@@ -173,6 +156,116 @@
   </div>
 </section>
 
+<script>
+  (function(){
+    var ingredients  = <%- JSON.stringify(ingredients || []) %>;
+    var recipeMap    = <%- JSON.stringify(recipeMap || {}) %>;
+    var container    = document.getElementById('recipe-components');
+    var btnAdd       = document.getElementById('btn-add-component');
+    var form         = document.getElementById('recipe-form');
+    var hiddenJson   = document.getElementById('components-json');
+    var selectItem   = document.getElementById('menuItemId');
+    var noteInput    = document.getElementById('recipe-note');
+
+    if (!container || !btnAdd || !form || !hiddenJson || !selectItem) return;
+
+    function buildIngredientOptions(selectedId) {
+      var html = '<option value="">חומר גלם...</option>';
+      html += ingredients.map(function(ing){
+        var sel = (selectedId && selectedId === ing.id) ? ' selected' : '';
+        return '<option value="'+ing.id+'"'+sel+'>'+ing.name+' ('+(ing.unit || 'unit')+')</option>';
+      }).join('');
+      return html;
+    }
+
+    function renderRow(value) {
+      var wrap = document.createElement('div');
+      wrap.className = 'recipe-row';
+
+      var sel = document.createElement('select');
+      sel.className = 'recipe-ingredient';
+      sel.required = true;
+      sel.innerHTML = buildIngredientOptions(value && value.ingredientId);
+
+      var inputQty = document.createElement('input');
+      inputQty.type = 'number';
+      inputQty.min = '0';
+      inputQty.step = '0.001';
+      inputQty.required = true;
+      inputQty.placeholder = 'כמות ליחידה אחת';
+      inputQty.className = 'recipe-qty';
+      if (value && typeof value.qty === 'number') {
+        inputQty.value = value.qty;
+      }
+
+      var btnDel = document.createElement('button');
+      btnDel.type = 'button';
+      btnDel.className = 'btn ghost sm';
+      btnDel.textContent = '✕';
+
+      btnDel.addEventListener('click', function(){
+        wrap.remove();
+      });
+
+      wrap.appendChild(sel);
+      wrap.appendChild(inputQty);
+      wrap.appendChild(btnDel);
+
+      container.appendChild(wrap);
+    }
+
+    function clearRows() {
+      while (container.firstChild) container.removeChild(container.firstChild);
+    }
+
+    // טעינת מתכון קיים כשבוחרים מנה
+    selectItem.addEventListener('change', function(){
+      var id = selectItem.value;
+      clearRows();
+      var recipe = recipeMap[id];
+      if (recipe && Array.isArray(recipe.components) && recipe.components.length) {
+        recipe.components.forEach(function(c){
+          renderRow({ ingredientId: c.ingredientId, qty: c.qty });
+        });
+        if (noteInput && recipe.note) {
+          noteInput.value = recipe.note;
+        } else if (noteInput) {
+          noteInput.value = '';
+        }
+      } else {
+        // אין מתכון – נתחיל משורה ריקה
+        renderRow(null);
+        if (noteInput) noteInput.value = '';
+      }
+    });
+
+    // כפתור הוספת רכיב
+    btnAdd.addEventListener('click', function(){
+      renderRow(null);
+    });
+
+    // אם יש מנות – נטען שורה אחת ריקה כברירת מחדל
+    if (menuItems && menuItems.length && container.children.length === 0) {
+      renderRow(null);
+    }
+
+    form.addEventListener('submit', function(){
+      var rows = container.querySelectorAll('.recipe-row');
+      var comps = [];
+      rows.forEach(function(row){
+        var s = row.querySelector('.recipe-ingredient');
+        var q = row.querySelector('.recipe-qty');
+        if (!s || !q) return;
+        var id = s.value;
+        var qty = parseFloat(q.value || '0');
+        if (!id || !(qty > 0)) return;
+        comps.push({ ingredientId: id, qty: qty });
+      });
+      hiddenJson.value = JSON.stringify(comps);
+    });
+  })();
+</script>
+
 <style>
   .inv-grid{
     display:grid;
@@ -189,8 +282,9 @@
   }
   .recipe-row{
     display:grid;
-    grid-template-columns:1.2fr 0.8fr;
+    grid-template-columns:1.5fr 1fr auto;
     gap:8px;
+    align-items:center;
   }
 
   .recipes-list{
@@ -270,7 +364,8 @@
     background:rgba(248,113,113,.08);
   }
 
-  .form select{
+  .form select,
+  .form input{
     width:100%;
     padding:10px 12px;
     margin-top:6px;
@@ -281,7 +376,8 @@
     font-size:14px;
     outline:none;
   }
-  .form select:focus{
+  .form select:focus,
+  .form input:focus{
     border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
   }

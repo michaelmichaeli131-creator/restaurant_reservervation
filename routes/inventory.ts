@@ -1,8 +1,8 @@
 // src/routes/inventory.ts
 // ----------------------------------------
 // Owner inventory routes:
-// - מתכונים: קישור מנות ↔ חומרי גלם
-// - מלאי: רשימת חומרי גלם + עדכון כמות ורף מינימום + תנועות
+// - מתכונים: קישור מנות ↔ חומרי גלם (ללא הגבלה על מספר חומרי הגלם למנה)
+// - מלאי: רשימת חומרי גלם + יצירה/עדכון + מחיקה + תנועות מלאי
 // ----------------------------------------
 
 import { Router, Status } from "jsr:@oak/oak";
@@ -20,6 +20,7 @@ import {
   listRecipesForRestaurant,
   saveRecipeForMenuItem,
   applyInventoryTx,
+  deleteIngredient,
 } from "../inventory/inventory_db.ts";
 
 export const inventoryRouter = new Router();
@@ -60,7 +61,10 @@ inventoryRouter.get("/owner/:rid/inventory/recipes", async (ctx) => {
 /* ------------ POST: שמירת מתכון למנה ------------ */
 /**
  * נתיב: POST /owner/:rid/inventory/recipes/save
- * הטופס משתמש בשדות rows[0][ingredientId], rows[0][qty], ...
+ * הטופס שולח:
+ * - menuItemId
+ * - components (JSON string: [{ingredientId, qty}, ...])
+ * - note (אופציונלי)
  */
 inventoryRouter.post(
   "/owner/:rid/inventory/recipes/save",
@@ -74,14 +78,22 @@ inventoryRouter.post(
       ctx.throw(Status.BadRequest, "missing_menuItemId");
     }
 
-    const components: { ingredientId: string; qty: number }[] = [];
-    // כרגע יש 3 שורות, אבל נגדיר לולאה "נדיבה" ליתר ביטחון
-    for (let i = 0; i < 10; i++) {
-      const ingId = (form.get(`rows[${i}][ingredientId]`)?.toString() || "").trim();
-      const qty = toNum(form.get(`rows[${i}][qty]`), 0);
-      if (ingId && qty > 0) {
-        components.push({ ingredientId: ingId, qty });
+    const rawComponents = form.get("components")?.toString() || "[]";
+    let components: { ingredientId: string; qty: number }[] = [];
+
+    try {
+      const parsed = JSON.parse(rawComponents);
+      if (Array.isArray(parsed)) {
+        components = parsed
+          .map((c) => ({
+            ingredientId: String(c.ingredientId || "").trim(),
+            qty: Number(c.qty || 0),
+          }))
+          .filter((c) => c.ingredientId && c.qty > 0);
       }
+    } catch (_e) {
+      // אם JSON הרוס – נתעלם בשקט ונשמור בלי רכיבים
+      components = [];
     }
 
     const note = (form.get("note")?.toString() || "").trim() || undefined;
@@ -157,6 +169,28 @@ inventoryRouter.post(
       supplierName: supplierName || undefined,
       notes: notes || undefined,
     });
+
+    ctx.response.redirect(`/owner/${rid}/inventory/stock`);
+  },
+);
+
+/* ------------ POST: מחיקת חומר גלם ------------ */
+/**
+ * נתיב: POST /owner/:rid/inventory/stock/ingredient/delete
+ */
+inventoryRouter.post(
+  "/owner/:rid/inventory/stock/ingredient/delete",
+  async (ctx) => {
+    if (!requireOwner(ctx)) return;
+    const rid = ctx.params.rid!;
+    const form = await ctx.request.body.formData();
+    const ingredientId = (form.get("ingredientId")?.toString() || "").trim();
+
+    if (!ingredientId) {
+      ctx.throw(Status.BadRequest, "missing_ingredientId");
+    }
+
+    await deleteIngredient(rid, ingredientId);
 
     ctx.response.redirect(`/owner/${rid}/inventory/stock`);
   },

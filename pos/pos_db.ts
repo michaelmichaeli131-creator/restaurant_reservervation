@@ -129,7 +129,6 @@ function kOrderItemPrefix(oid: string): Deno.KvKey {
 
 /**
  * KEY להושבה לפי שולחן – חייב להיות זהה למה שמשמש ב-seating_service.ts
- * כדי שנוכל לנקות אותו כשסוגרים צ'ק, ולמנוע table_already_seated על שולחן שכבר נסגר.
  */
 function kSeat(restaurantId: string, table: number | string): Deno.KvKey {
   return ["seat", "by_table", restaurantId, Number(table)];
@@ -275,14 +274,13 @@ export async function getOrCreateOpenOrder(
   const cur = await kv.get<Order>(key);
   if (cur.value && cur.value.status === "open") return cur.value;
 
-  // Look up floor table ID from table number
   const floorTableId = await getTableIdByNumber(restaurantId, table);
 
   const order: Order = {
     id: crypto.randomUUID(),
     restaurantId,
     table,
-    floorTableId: floorTableId || undefined,  // Link to floor plan if available
+    floorTableId: floorTableId || undefined,
     status: "open",
     createdAt: Date.now(),
   };
@@ -329,7 +327,7 @@ export async function addOrderItem(params: {
   const res = await tx.commit();
   if (!res.ok) throw new Error("failed_add_order_item");
 
-  // ✅ הורדת מלאי אוטומטית לפי מתכון
+  // צריכת מלאי אוטומטית
   consumeIngredientsForMenuItem({
     restaurantId: params.restaurantId,
     menuItemId: params.menuItem.id,
@@ -366,7 +364,6 @@ export async function listOrderItemsForTable(
   return out;
 }
 
-/** סיכום חשבון לשולחן: כמה פריטים ומה הסכום הכולל (לא כולל פריטים שבוטלו) */
 export async function computeTotalsForTable(
   restaurantId: string,
   table: number,
@@ -400,7 +397,6 @@ export async function updateOrderItemStatus(
   return updated;
 }
 
-/** "מחיקת" פריט מההזמנה – בפועל מסמן כ-cancelled */
 export async function cancelOrderItem(
   orderId: string,
   orderItemId: string,
@@ -408,7 +404,6 @@ export async function cancelOrderItem(
   return await updateOrderItemStatus(orderItemId, orderId, "cancelled");
 }
 
-/** מחזיר את כל השולחנות עם הזמנה פתוחה למסעדה */
 export async function listOpenOrdersByRestaurant(
   restaurantId: string,
 ): Promise<{ table: number; order: Order }[]> {
@@ -426,13 +421,6 @@ export async function listOpenOrdersByRestaurant(
   return out;
 }
 
-/**
- * סגירת הזמנה לשולחן:
- * - משנה סטטוס ל-closed
- * - מסיר מפתח order_by_table
- * - יוצר Bill עם צילום מצב
- * - מנקה גם את רשומת ה-seating על השולחן
- */
 export async function closeOrderForTable(
   restaurantId: string,
   table: number,
@@ -446,7 +434,6 @@ export async function closeOrderForTable(
   const orderRow = await kv.get<Order>(orderKey);
   const base = orderRow.value ?? cur;
 
-  // למשוך את כל פריטי ההזמנה כדי לייצר חשבון
   const items: OrderItem[] = [];
   for await (
     const row of kv.list<OrderItem>({
@@ -503,11 +490,10 @@ export async function closeOrderForTable(
   const res = await tx.commit();
   if (!res.ok) return null;
 
-  // בנוסף לסגירת הצ'ק, נשחרר את השולחן ממערכת ההושבה (seating_service)
   try {
     await kv.delete(kSeat(restaurantId, table));
   } catch {
-    // לא נכשיל את סגירת ההזמנה בגלל שגיאה לא קריטית בניקוי ה-seating
+    // ignore
   }
 
   return updated;
