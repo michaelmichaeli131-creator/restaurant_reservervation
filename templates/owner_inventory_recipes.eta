@@ -7,10 +7,10 @@
   const ingredients = Array.isArray(it.ingredients) ? it.ingredients : [];
 
   // מפה מהירה recipe לפי itemId
-  const recipeMap = {};
+  const recipeMapSrv = {};
   recipes.forEach(function(r){
     if (!r.menuItemId) return;
-    recipeMap[r.menuItemId] = r;
+    recipeMapSrv[r.menuItemId] = r;
   });
 %>
 
@@ -20,7 +20,8 @@
       <div>
         <h1>מתכוני מנות · <%= restaurant.name || 'מסעדה' %></h1>
         <p class="muted">
-          הגדרת פירוק מנות לחומרי גלם – כדי שמערכת המלאי תדע להוריד אוטומטית כמות מהמלאי בכל הזמנה.
+          כאן מגדירים אילו חומרי גלם וכמויות שייכים לכל מנה בתפריט.
+          בכל פעם שהמנה מוזמנת ב-POS, המערכת תוריד אוטומטית את הכמות מהמלאי.
         </p>
       </div>
     </header>
@@ -62,15 +63,18 @@
             </label>
 
             <p class="muted" style="margin-top:6px">
-              הוסף כמה חומרי גלם שתרצה – כל שורה מייצגת רכיב אחד במתכון.
+              1. בחר מנה מלמעלה.  
+              2. לכל שורה למטה: בחר <strong>חומר גלם</strong> והכנס <strong>כמות ליחידת מנה</strong>.  
+              3. ניתן להוסיף כמה רכיבים שתרצה באמצעות "➕ הוסף רכיב".
             </p>
 
+            <!-- כאן מופיעות שורות חומרי הגלם למנה -->
             <div class="recipe-grid" id="recipe-components">
-              <!-- השורות יתווספו דינמית ב-JS -->
+              <!-- יתווסף לפחות רכיב אחד כברירת מחדל ב-JS -->
             </div>
 
             <button type="button" class="btn ghost sm" id="btn-add-component" style="margin-top:8px">
-              ➕ הוסף רכיב
+              ➕ הוסף רכיב (חומר גלם נוסף למנה)
             </button>
 
             <label style="margin-top:12px">
@@ -82,7 +86,7 @@
             <input type="hidden" name="components" id="components-json">
 
             <button class="btn primary sm" type="submit" style="margin-top:10px">
-              שמירת מתכון
+              💾 שמירת מתכון
             </button>
           </form>
         <% } %>
@@ -95,7 +99,7 @@
         <% if (menuItems.length) { %>
           <div class="recipes-list">
             <% menuItems.forEach(function(mi){
-                 const r    = recipeMap[mi.id];
+                 const r    = recipeMapSrv[mi.id];
                  const rows = Array.isArray(r?.components) ? r.components : [];
             %>
               <article class="recipe-card">
@@ -158,8 +162,10 @@
 
 <script>
   (function(){
+    // נתונים מהשרת
     var ingredients  = <%- JSON.stringify(ingredients || []) %>;
-    var recipeMap    = <%- JSON.stringify(recipeMap || {}) %>;
+    var recipeMap    = <%- JSON.stringify(recipeMapSrv || {}) %>;
+
     var container    = document.getElementById('recipe-components');
     var btnAdd       = document.getElementById('btn-add-component');
     var form         = document.getElementById('recipe-form');
@@ -222,6 +228,7 @@
     selectItem.addEventListener('change', function(){
       var id = selectItem.value;
       clearRows();
+
       var recipe = recipeMap[id];
       if (recipe && Array.isArray(recipe.components) && recipe.components.length) {
         recipe.components.forEach(function(c){
@@ -244,11 +251,13 @@
       renderRow(null);
     });
 
-    // אם יש מנות – נטען שורה אחת ריקה כברירת מחדל
-    if (menuItems && menuItems.length && container.children.length === 0) {
+    // ברירת מחדל: אם יש מנות – נציג לפחות שורה אחת ריקה,
+    // כדי שיהיה ברור שאפשר לבחור חומר גלם
+    if (container.children.length === 0) {
       renderRow(null);
     }
 
+    // לפני שליחה – נרכיב JSON של כל הרכיבים
     form.addEventListener('submit', function(){
       var rows = container.querySelectorAll('.recipe-row');
       var comps = [];
