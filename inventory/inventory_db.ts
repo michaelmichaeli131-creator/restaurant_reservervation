@@ -4,11 +4,10 @@
 // ----------------------------------------
 // כולל:
 // - חומרי גלם (Ingredients) עם כמות נוכחית, רף מינימום, עלות, ספק
-// - תנועות מלאי (InventoryTx) – לוג של משלוחים / התאמות
+// - תנועות מלאי (InventoryTx) – לוג של משלוחים / התאמות / צריכה / בזבוז
 // - מתכונים: קישור בין מנות בתפריט ↔ חומרי גלם
-//
-// כעת יש גם חיבור ל-POS דרך consumeIngredientsForMenuItem
-//
+// - פונקציית consumeIngredientsForMenuItem שנקראת מה-POS
+// ----------------------------------------
 
 import { kv } from "../database.ts";
 
@@ -65,6 +64,7 @@ export interface MenuRecipe {
   restaurantId: string;
   menuItemId: string;
   components: RecipeComponent[];
+  note?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -249,6 +249,7 @@ export async function saveRecipeForMenuItem(
   restaurantId: string,
   menuItemId: string,
   components: RecipeComponent[],
+  note?: string,
 ): Promise<MenuRecipe> {
   const now = Date.now();
   const clean = components
@@ -265,6 +266,7 @@ export async function saveRecipeForMenuItem(
     restaurantId,
     menuItemId,
     components: clean,
+    note: note && note.trim() ? note.trim() : undefined,
     createdAt: now,
     updatedAt: now,
   };
@@ -298,28 +300,24 @@ export async function listRecipesForRestaurant(
   return out;
 }
 
-/* ---------- POS INTEGRATION: צריכת מלאי לפי מתכון ---------- */
+/* ---------- AUTO-CONSUMPTION FROM POS ---------- */
 
 /**
- * צריכת מלאי אוטומטית עבור מנה שנמכרה ב-POS.
- * - restaurantId: המסעדה
- * - menuItemId: מזהה המנה מתפריט ה-POS
- * - quantity: כמה מנות הוזמנו
+ * צריכת מלאי אוטומטית עבור מנה מסוימת שהוזמנה מה-POS.
+ * לא זורק שגיאה החוצה – כדי לא להפיל הזמנה בגלל מלאי.
  */
 export async function consumeIngredientsForMenuItem(params: {
   restaurantId: string;
   menuItemId: string;
   quantity: number;
-  reason?: string;
 }): Promise<void> {
   const { restaurantId, menuItemId } = params;
-  const quantity = Number(params.quantity ?? 0);
-  if (!restaurantId || !menuItemId || !quantity || quantity <= 0) return;
+  const q = Number(params.quantity || 0);
+  if (!(q > 0)) return;
 
   const recipe = await getRecipeForMenuItem(restaurantId, menuItemId);
-  if (!recipe || !Array.isArray(recipe.components) ||
-    !recipe.components.length) {
-    console.warn("[INV] no recipe for menu item", {
+  if (!recipe || !Array.isArray(recipe.components) || !recipe.components.length) {
+    console.warn("[INV][consume] no recipe for menuItem", {
       restaurantId,
       menuItemId,
     });
@@ -327,30 +325,25 @@ export async function consumeIngredientsForMenuItem(params: {
   }
 
   for (const comp of recipe.components) {
-    if (!comp.ingredientId || !Number.isFinite(Number(comp.qty))) continue;
-    const perDish = Number(comp.qty);
-    if (perDish <= 0) continue;
+    const baseQty = Number(comp.qty || 0);
+    if (!(baseQty > 0)) continue;
 
-    const totalConsume = perDish * quantity;
-
+    const delta = -q * baseQty; // צריכה = הורדת מלאי
     try {
       await applyInventoryTx({
         restaurantId,
         ingredientId: comp.ingredientId,
         type: "consumption",
-        deltaQty: -totalConsume, // צריכה = מינוס במלאי
-        reason: params.reason ??
-          `POS order: menuItem=${menuItemId}, qty=${quantity}`,
+        deltaQty: delta,
+        reason: `POS auto-consume: menuItem=${menuItemId}, qty=${q}`,
       });
     } catch (err) {
-      console.error("[INV] failed to consume inventory", {
+      console.error("[INV][consume] failed for ingredient", {
         restaurantId,
         menuItemId,
         ingredientId: comp.ingredientId,
-        totalConsume,
-        error: err,
+        error: String(err),
       });
-      // לא מפילים את ההזמנה – רק לוג
     }
   }
 }

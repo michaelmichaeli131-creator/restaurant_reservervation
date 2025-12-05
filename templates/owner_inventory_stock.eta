@@ -1,11 +1,12 @@
 <% layout("_layout", it) %>
 
 <%
-  // הגנות כדי שלא נתפוצץ אם משהו לא קיים
   const restaurant  = it.restaurant || {};
   const ingredients = Array.isArray(it.ingredients) ? it.ingredients : [];
-  const txs         = Array.isArray(it.txs) ? it.txs : [];
-  const lowList     = Array.isArray(it.lowStock) ? it.lowStock : [];
+
+  const lowStock = ingredients.filter(function(ing){
+    return ing.minQty > 0 && ing.currentQty <= ing.minQty;
+  });
 %>
 
 <section class="sb-owner container" aria-label="מלאי חומרי גלם">
@@ -14,106 +15,136 @@
       <div>
         <h1>מלאי חומרי גלם · <%= restaurant.name || 'מסעדה' %></h1>
         <p class="muted">
-          ניהול מלאי חכם לפי חומרי גלם, תנועות כניסה/יציאה והתראות על חוסרים.
+          ניהול מלאי בסיסי – כמות נוכחית, רף מינימום, עלות וספקים. ניתן גם להזין משלוחים ותנועות מלאי.
         </p>
       </div>
     </header>
 
     <div class="inv-grid">
-      <!-- טבלה ראשית של המלאי -->
+      <!-- צד שמאל: רשימת חומרי גלם -->
       <div class="panel card">
-        <h2 class="card-title">מבט כללי על מלאי</h2>
+        <h2 class="card-title">רשימת חומרי גלם</h2>
 
-        <% if (ingredients.length) { %>
-          <table class="inv-table">
-            <thead>
-              <tr>
-                <th>חומר גלם</th>
-                <th>יחידת מידה</th>
-                <th>מלאי נוכחי</th>
-                <th>מינימום</th>
-                <th>עלות ליחידה</th>
-                <th>מצב</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% ingredients.forEach(function(ing){ 
-                   const qty    = Number(ing.currentQty ?? ing.qty ?? 0);
-                   const min    = Number(ing.minQty ?? ing.minStock ?? 0);
-                   const unit   = ing.unit || ing.unitName || '';
-                   const cost   = typeof ing.costPerUnit === 'number' ? ing.costPerUnit : (typeof ing.cost === 'number' ? ing.cost : 0);
-                   const isLow  = qty <= min && min > 0;
-                %>
-                <tr class="<%= isLow ? 'low' : '' %>">
-                  <td><strong><%= ing.name || ing.ingredientName || 'ללא שם' %></strong></td>
-                  <td><%= unit %></td>
-                  <td><%= qty %></td>
-                  <td><%= min %></td>
-                  <td><%= cost ? cost.toFixed(2) + ' ₪' : '-' %></td>
-                  <td>
-                    <% if (isLow) { %>
-                      <span class="badge bad">מתחת למינימום</span>
-                    <% } else { %>
-                      <span class="badge ok">תקין</span>
-                    <% } %>
-                  </td>
-                </tr>
-              <% }) %>
-            </tbody>
-          </table>
+        <% if (!ingredients.length) { %>
+          <p class="muted">
+            עדיין לא הוגדרו חומרי גלם.
+            <br>
+            <small>הוסף חומרי גלם בטופס "חומר גלם חדש" מימין.</small>
+          </p>
         <% } else { %>
-          <p class="muted">עדיין לא הוגדרו חומרי גלם למסעדה זו.</p>
-        <% } %>
+          <div class="kpis" style="margin-bottom:8px">
+            <span class="kpi">סה"כ חומרים: <%= ingredients.length %></span>
+            <span class="kpi">חוסרים פוטנציאליים: <%= lowStock.length %></span>
+          </div>
 
-        <% if (lowList.length) { %>
-          <div class="low-hint">
-            <strong>חומרים מתחת למינימום:</strong>
-            <%= lowList.map(function(x){ return x.name || x.ingredientName || 'ללא שם'; }).join(' • ') %>
+          <div class="table-wrapper">
+            <table class="inv-table">
+              <thead>
+                <tr>
+                  <th>שם</th>
+                  <th>יחידה</th>
+                  <th>כמות</th>
+                  <th>מינימום</th>
+                  <th>סטטוס</th>
+                  <th>עלות/יח'</th>
+                  <th>ספק</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% ingredients.forEach(function(ing){ 
+                     const isLow = ing.minQty > 0 && ing.currentQty <= ing.minQty;
+                %>
+                  <tr class="<%= isLow ? 'row-low' : '' %>">
+                    <td><%= ing.name %></td>
+                    <td><%= ing.unit || 'unit' %></td>
+                    <td><%= Number(ing.currentQty || 0).toFixed(3) %></td>
+                    <td><%= Number(ing.minQty || 0).toFixed(3) %></td>
+                    <td>
+                      <% if (ing.minQty > 0) { %>
+                        <% if (isLow) { %>
+                          <span class="badge bad">מתחת למינימום</span>
+                        <% } else { %>
+                          <span class="badge ok">תקין</span>
+                        <% } %>
+                      <% } else { %>
+                        <span class="badge">ללא רף</span>
+                      <% } %>
+                    </td>
+                    <td>
+                      <% if (typeof ing.costPerUnit === 'number') { %>
+                        <%= ing.costPerUnit.toFixed(2) %> ₪
+                      <% } else { %>
+                        —
+                      <% } %>
+                    </td>
+                    <td><%= ing.supplierName || '—' %></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
           </div>
         <% } %>
       </div>
 
-      <!-- צד ימין: טפסים ותנועות -->
+      <!-- צד ימין: טפסים -->
       <div class="panel card">
-        <!-- טופס יצירת חומר גלם -->
-        <section class="inv-section">
-          <h2 class="card-title">הוספת חומר גלם חדש</h2>
-          <form
-            action="/owner/<%= restaurant.id %>/inventory/stock/ingredient"
-            method="post"
-            class="form"
-          >
-            <label>
-              שם חומר גלם
-              <input name="name" required placeholder="לדוגמה: קמח 00, שמן זית, גאודה">
-            </label>
+        <h2 class="card-title">חומר גלם חדש / עדכון</h2>
 
-            <label>
-              יחידת מידה
-              <input name="unit" required placeholder="ק״ג, ליטר, יחידות...">
-            </label>
+        <form
+          action="/owner/<%= restaurant.id %>/inventory/stock/ingredient"
+          method="post"
+          class="form"
+        >
+          <!-- בשלב ראשון לא מאפשרים עריכת חומר קיים דרך הטופס הזה (אין hidden id) -->
+          <label>
+            שם חומר גלם
+            <input name="name" required placeholder="לדוגמה: קמח לבן 00">
+          </label>
 
-            <label>
-              מלאי מינימלי (סף התראה)
-              <input name="minQty" type="number" min="0" step="0.01" value="0">
-            </label>
+          <label>
+            יחידה
+            <input name="unit" placeholder="kg / g / ml / unit" value="kg">
+          </label>
 
-            <label>
-              עלות ליחידה (ש״ח)
-              <input name="costPerUnit" type="number" min="0" step="0.01" value="0">
-            </label>
+          <label>
+            כמות התחלתית במלאי
+            <input name="currentQty" type="number" step="0.001" min="0" value="0">
+          </label>
 
-            <button class="btn primary sm" type="submit" style="margin-top:10px">
-              שמירת חומר גלם
-            </button>
-          </form>
-        </section>
+          <label>
+            כמות מינימלית לפני אזהרה
+            <input name="minQty" type="number" step="0.001" min="0" value="0">
+          </label>
+
+          <label>
+            עלות ליחידה (אופציונלי)
+            <input name="costPerUnit" type="number" step="0.01" min="0" placeholder="לדוגמה: 5.20">
+          </label>
+
+          <label>
+            ספק (אופציונלי)
+            <input name="supplierName" placeholder="שם ספק / חברה">
+          </label>
+
+          <label>
+            הערות (אופציונלי)
+            <input name="notes" placeholder="למשל: לשמור בקירור, תוקף קצר וכו'">
+          </label>
+
+          <button class="btn primary sm" type="submit" style="margin-top:10px">
+            💾 שמירה
+          </button>
+        </form>
 
         <div class="sep"></div>
 
-        <!-- טופס תנועת מלאי -->
-        <section class="inv-section">
-          <h2 class="card-title">תנועת מלאי (כניסה / יציאה)</h2>
+        <h3 class="card-title" style="margin-top:8px">תנועת מלאי (משלוח / התאמה)</h3>
+
+        <% if (!ingredients.length) { %>
+          <p class="muted small">
+            יש להוסיף קודם חומרי גלם לפני שאפשר לעדכן תנועות מלאי.
+          </p>
+        <% } else { %>
           <form
             action="/owner/<%= restaurant.id %>/inventory/stock/tx"
             method="post"
@@ -125,7 +156,7 @@
                 <option value="">בחר חומר גלם...</option>
                 <% ingredients.forEach(function(ing){ %>
                   <option value="<%= ing.id %>">
-                    <%= ing.name || ing.ingredientName || 'ללא שם' %>
+                    <%= ing.name %> (כרגע: <%= Number(ing.currentQty || 0).toFixed(3) %> <%= ing.unit || '' %>)
                   </option>
                 <% }) %>
               </select>
@@ -133,95 +164,96 @@
 
             <label>
               סוג תנועה
-              <select name="direction" required>
-                <option value="in">כניסה (משלוח חדש)</option>
-                <option value="out">יציאה (שימוש במטבח / בלאי)</option>
+              <select name="type">
+                <option value="delivery">משלוח נכנס</option>
+                <option value="adjustment">התאמה ידנית</option>
               </select>
             </label>
 
             <label>
-              כמות
-              <input name="quantity" type="number" min="0" step="0.01" required>
+              שינוי כמות
+              <input
+                name="deltaQty"
+                type="number"
+                step="0.001"
+                placeholder="לדוגמה: +5 (משלוח), -0.3 (הפחתה)"
+              >
             </label>
 
             <label>
-              הערה (אופציונלי)
-              <input name="note" placeholder="לדוגמה: הזמנה מספק X, ספירת מלאי, בלאי...">
+              עלות כוללת (אופציונלי)
+              <input
+                name="costTotal"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="כמה עלה המשלוח הזה (₪)"
+              >
             </label>
 
-            <button class="btn primary sm" type="submit" style="margin-top:10px">
-              שמירת תנועה
+            <label>
+              סיבה / הערה (אופציונלי)
+              <input name="reason" placeholder="לדוגמה: משלוח ספק X, ספירת מלאי ידנית">
+            </label>
+
+            <button class="btn ghost sm" type="submit" style="margin-top:10px">
+              ➕ שמירת תנועה
             </button>
           </form>
-        </section>
-
-        <div class="sep"></div>
-
-        <!-- תנועות אחרונות -->
-        <section class="inv-section">
-          <h2 class="card-title">תנועות מלאי אחרונות</h2>
-          <% if (txs.length) { %>
-            <div class="inv-tx-list">
-              <% txs.slice(0, 20).forEach(function(tx){ 
-                   const ingName = tx.ingredientName || tx.ingredient?.name || 'חומר גלם';
-                   const dir = tx.direction || tx.type || 'in';
-                   const qty = Number(tx.quantity ?? 0);
-                   const dt = tx.createdAt ? new Date(tx.createdAt) : null;
-                %>
-                <div class="inv-tx-item">
-                  <div class="inv-tx-main">
-                    <span class="inv-tx-name"><%= ingName %></span>
-                    <span class="inv-tx-qty <%= dir === 'out' ? 'out' : 'in' %>">
-                      <%= dir === 'out' ? '-' : '+' %><%= qty %>
-                    </span>
-                  </div>
-                  <div class="inv-tx-meta">
-                    <% if (dt) { %>
-                      <span><%= dt.toLocaleDateString('he-IL') %> · <%= dt.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'}) %></span>
-                    <% } %>
-                    <% if (tx.note) { %>
-                      <span class="muted">· <%= tx.note %></span>
-                    <% } %>
-                  </div>
-                </div>
-              <% }) %>
-            </div>
-          <% } else { %>
-            <p class="muted">עדיין אין תנועות מלאי.</p>
-          <% } %>
-        </section>
+        <% } %>
       </div>
     </div>
   </div>
 </section>
 
 <style>
+  .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
+  .card{
+    background: var(--panel, #121622);
+    border:1px solid var(--bd, #222834);
+    border-radius:18px; padding:18px; margin-bottom:18px;
+    color: var(--ink, #e6e8ef);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  .owner-hd{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+  }
+  .muted{color:var(--ink-muted,#9aa3b2);}
+  .small{font-size:12px;}
+
   .inv-grid{
     display:grid;
-    grid-template-columns:1.4fr 1fr;
+    grid-template-columns:1.4fr 1.1fr;
     gap:16px;
     margin-top:14px;
+  }
+
+  .table-wrapper{
+    max-height:420px;
+    overflow:auto;
+    margin-top:8px;
   }
 
   .inv-table{
     width:100%;
     border-collapse:collapse;
-    font-size:14px;
-    margin-top:8px;
+    font-size:13px;
   }
   .inv-table th,
   .inv-table td{
-    padding:8px 6px;
+    padding:6px 8px;
     border-bottom:1px solid rgba(148,163,184,.18);
     text-align:right;
   }
   .inv-table th{
-    font-size:12px;
-    text-transform:uppercase;
-    letter-spacing:.04em;
-    color:#9ca3af;
+    font-weight:600;
+    color:#e5e7eb;
+    background:rgba(15,23,42,.8);
+    position:sticky;
+    top:0;
+    z-index:1;
   }
-  .inv-table tr.low{
+  .row-low{
     background:rgba(248,113,113,.04);
   }
 
@@ -244,67 +276,42 @@
     background:rgba(248,113,113,.08);
   }
 
-  .inv-section + .inv-section{
-    margin-top:12px;
-  }
-
-  .inv-tx-list{
-    max-height:260px;
-    overflow:auto;
-    padding-right:4px;
-  }
-  .inv-tx-item{
-    padding:6px 0;
-    border-bottom:1px solid rgba(148,163,184,.16);
-  }
-  .inv-tx-item:last-child{
-    border-bottom:none;
-  }
-  .inv-tx-main{
+  .kpis{
     display:flex;
-    justify-content:space-between;
-    align-items:center;
-    font-size:14px;
-  }
-  .inv-tx-name{
-    font-weight:500;
-  }
-  .inv-tx-qty{
-    font-weight:600;
-  }
-  .inv-tx-qty.in{ color:#4ade80; }
-  .inv-tx-qty.out{ color:#f97373; }
-
-  .inv-tx-meta{
-    font-size:11px;
-    color:#9ca3af;
-    margin-top:2px;
-    display:flex;
-    gap:4px;
     flex-wrap:wrap;
-  }
-
-  .low-hint{
-    margin-top:10px;
-    font-size:12px;
-    color:#fecaca;
-  }
-
-  .form select{
-    width:100%;
-    padding:10px 12px;
+    gap:6px;
     margin-top:6px;
-    background:#171b29;
-    color:#e6e8ef;
-    border:1px solid #23293a;
-    border-radius:12px;
-    font-size:14px;
-    outline:none;
   }
-  .form select:focus{
-    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
+  .kpi{
+    font-size:12px;color:#cbd5e1;
+    background: rgba(148,163,184,.12);
+    border:1px solid rgba(148,163,184,.25);
+    border-radius:10px;padding:4px 6px
   }
+
+  .form label{display:block;font-weight:600;font-size:14px;margin-top:8px}
+  .form input,
+  .form select{
+    width:100%;padding:10px 12px;margin-top:6px;
+    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
+    font-size:14px; outline:none;
+  }
+
+  .sep{height:1px;background:#23293a;margin:14px 0;border-radius:999px}
+
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    padding:8px 12px;border-radius:10px;border:1px solid #23293a;
+    background:transparent;color:#e6e8ef;text-decoration:none;font-weight:600;
+    cursor:pointer;
+  }
+  .btn.primary{
+    background:var(--brand,#3b82f6);
+    border-color:transparent;
+    color:#fff;
+  }
+  .btn.ghost{background:rgba(15,23,42,.6);}
+  .btn.sm{font-size:13px;padding:6px 10px}
 
   @media (max-width:900px){
     .inv-grid{

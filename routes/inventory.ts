@@ -2,7 +2,7 @@
 // ----------------------------------------
 // Owner inventory routes:
 // - מתכונים: קישור מנות ↔ חומרי גלם
-// - מלאי: רשימת חומרי גלם + עדכון כמות ורף מינימום
+// - מלאי: רשימת חומרי גלם + עדכון כמות ורף מינימום + תנועות
 // ----------------------------------------
 
 import { Router, Status } from "jsr:@oak/oak";
@@ -18,7 +18,6 @@ import {
   listIngredients,
   upsertIngredient,
   listRecipesForRestaurant,
-  getRecipeForMenuItem,
   saveRecipeForMenuItem,
   applyInventoryTx,
 } from "../inventory/inventory_db.ts";
@@ -48,72 +47,46 @@ inventoryRouter.get("/owner/:rid/inventory/recipes", async (ctx) => {
     listRecipesForRestaurant(rid),
   ]);
 
-  const ingById = new Map(
-    ingredients.map((ing) => [ing.id, ing]),
-  );
-  const recipeMap = new Map(
-    recipes.map((r) => [r.menuItemId, r]),
-  );
-
-  // נבנה מבנה נוח לתבנית
-  const rows = menuItems.map((mi) => {
-    const recipe = recipeMap.get(mi.id) ?? null;
-    const comps = (recipe?.components ?? []).map((c) => {
-      const ing = ingById.get(c.ingredientId) ?? null;
-      return {
-        ingredientId: c.ingredientId,
-        ingredientName: ing?.name ?? "(חומר גלם לא קיים)",
-        unit: ing?.unit ?? "",
-        qty: c.qty,
-        lowStock: ing
-          ? ing.currentQty <= ing.minQty && ing.minQty > 0
-          : false,
-      };
-    });
-
-    return {
-      menuItemId: mi.id,
-      menuItemName: mi.name_en || mi.name_he || "(ללא שם)",
-      price: mi.price,
-      recipe: comps,
-    };
-  });
-
   await render(ctx, "owner_inventory_recipes", {
     page: "owner_inventory_recipes",
     title: `מתכונים וחומרי גלם · ${restaurant.name}`,
     restaurant,
+    menuItems,
     ingredients,
-    rows,
+    recipes,
   });
 });
 
 /* ------------ POST: שמירת מתכון למנה ------------ */
 /**
- * טופס פשוט ששומר מתכון למנה.
- * נתיב: POST /owner/:rid/inventory/recipes/:menuItemId
+ * נתיב: POST /owner/:rid/inventory/recipes/save
+ * הטופס משתמש בשדות rows[0][ingredientId], rows[0][qty], ...
  */
 inventoryRouter.post(
-  "/owner/:rid/inventory/recipes/:menuItemId",
+  "/owner/:rid/inventory/recipes/save",
   async (ctx) => {
     if (!requireOwner(ctx)) return;
     const rid = ctx.params.rid!;
-    const menuItemId = ctx.params.menuItemId!;
-
     const form = await ctx.request.body.formData();
 
-    // מגיעים בכמה שורות: ingredientId[], qty[]
-    const ingredientIds = form.getAll("ingredientId")
-      .map((v) => v?.toString().trim())
-      .filter(Boolean);
-    const qtys = form.getAll("qty").map((v) => toNum(v, 0));
+    const menuItemId = (form.get("menuItemId")?.toString() || "").trim();
+    if (!menuItemId) {
+      ctx.throw(Status.BadRequest, "missing_menuItemId");
+    }
 
-    const components = ingredientIds.map((id, idx) => ({
-      ingredientId: id!,
-      qty: qtys[idx] ?? 0,
-    }));
+    const components: { ingredientId: string; qty: number }[] = [];
+    // כרגע יש 3 שורות, אבל נגדיר לולאה "נדיבה" ליתר ביטחון
+    for (let i = 0; i < 10; i++) {
+      const ingId = (form.get(`rows[${i}][ingredientId]`)?.toString() || "").trim();
+      const qty = toNum(form.get(`rows[${i}][qty]`), 0);
+      if (ingId && qty > 0) {
+        components.push({ ingredientId: ingId, qty });
+      }
+    }
 
-    await saveRecipeForMenuItem(rid, menuItemId, components);
+    const note = (form.get("note")?.toString() || "").trim() || undefined;
+
+    await saveRecipeForMenuItem(rid, menuItemId, components, note);
 
     ctx.response.redirect(`/owner/${rid}/inventory/recipes`);
   },
