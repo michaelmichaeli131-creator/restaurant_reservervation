@@ -17,10 +17,10 @@ import { kv } from "../database.ts";
 
 // סוגי תנועות מלאי
 export type InventoryTxType =
-  | "delivery"     // משלוח נכנס
-  | "adjustment"   // התאמת מלאי ידנית
-  | "consumption"  // צריכה (הזמנות מלקוחות)
-  | "waste";       // בזבוז / השלכה
+  | "delivery"
+  | "adjustment"
+  | "consumption"
+  | "waste";
 
 // חומר גלם יחיד
 export interface Ingredient {
@@ -34,18 +34,18 @@ export interface Ingredient {
   minQty: number;
 
   /**
-   * ✅ Manual override לעלות ליחידה (זה מה שהיה אצלך קודם)
-   * אם מוגדר – הוא מנצח את החישוב האוטומטי.
+   * ✅ Manual override לעלות ליחידה
+   * אם מוגדר – מנצח את החישוב האוטומטי.
    */
   costPerUnit?: number;
 
   /**
-   * ✅ AUTO: מחושב מהמשלוחים האחרונים (delivery עם costTotal + deltaQty)
+   * ✅ AUTO: מחושב מהמשלוחים (delivery עם costTotal + deltaQty)
    */
   costPerUnitAuto?: number;
 
   /**
-   * פנימי: חותמת זמן של משלוח אחרון ששימש לחישוב auto (לא חובה, אבל שימושי)
+   * פנימי: חותמת זמן של משלוח אחרון ששימש לחישוב auto
    */
   costAutoUpdatedAt?: number;
 
@@ -90,7 +90,6 @@ export interface MenuRecipe {
 
 /**
  * ✅ Override ידני להוצאה חודשית.
- * אם קיים – דורס את החישוב האוטומטי מהמשלוחים.
  */
 export interface MonthlySpendOverride {
   restaurantId: string;
@@ -135,14 +134,17 @@ function kMonthlyOverride(rid: string, month: string): Deno.KvKey {
 /* ---------- Helpers ---------- */
 
 export function getEffectiveCostPerUnit(ing: Ingredient): number | undefined {
-  const manual = typeof ing.costPerUnit === "number" && Number.isFinite(ing.costPerUnit)
-    ? ing.costPerUnit
-    : undefined;
+  const manual =
+    typeof ing.costPerUnit === "number" && Number.isFinite(ing.costPerUnit)
+      ? ing.costPerUnit
+      : undefined;
   if (typeof manual === "number") return manual;
 
-  const auto = typeof ing.costPerUnitAuto === "number" && Number.isFinite(ing.costPerUnitAuto)
-    ? ing.costPerUnitAuto
-    : undefined;
+  const auto =
+    typeof ing.costPerUnitAuto === "number" && Number.isFinite(ing.costPerUnitAuto)
+      ? ing.costPerUnitAuto
+      : undefined;
+
   return auto;
 }
 
@@ -189,22 +191,20 @@ export async function upsertIngredient(
     restaurantId: data.restaurantId,
     name: data.name.trim(),
     unit: data.unit?.trim() || existing?.unit || "unit",
-    currentQty: typeof data.currentQty === "number"
-      ? data.currentQty
-      : (existing?.currentQty ?? 0),
-    minQty: typeof data.minQty === "number"
-      ? data.minQty
-      : (existing?.minQty ?? 0),
+    currentQty:
+      typeof data.currentQty === "number" ? data.currentQty : (existing?.currentQty ?? 0),
+    minQty: typeof data.minQty === "number" ? data.minQty : (existing?.minQty ?? 0),
 
     // Manual override
     costPerUnit,
 
-    // Auto cost stays unless overridden by delivery logic
+    // Auto cost stays unless updated by deliveries
     costPerUnitAuto: existing?.costPerUnitAuto,
     costAutoUpdatedAt: existing?.costAutoUpdatedAt,
 
     supplierName: data.supplierName?.trim() ?? existing?.supplierName,
     notes: data.notes?.trim() ?? existing?.notes,
+
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
@@ -218,12 +218,46 @@ export async function deleteIngredient(restaurantId: string, ingredientId: strin
   await kv.delete(kIngredient(restaurantId, ingredientId));
 }
 
+/**
+ * ✅ עדכון/מחיקה של Manual override לעלות ליחידה
+ * - costPerUnit = number => שומר override
+ * - costPerUnit = null => מוחק override (undefined)
+ */
+export async function setIngredientManualCostPerUnit(params: {
+  restaurantId: string;
+  ingredientId: string;
+  costPerUnit: number | null;
+}): Promise<Ingredient> {
+  const key = kIngredient(params.restaurantId, params.ingredientId);
+  const row = await kv.get<Ingredient>(key);
+  if (!row.value) throw new Error("ingredient_not_found");
+
+  const cur = row.value;
+  const now = Date.now();
+
+  const next: Ingredient = {
+    ...cur,
+    costPerUnit:
+      typeof params.costPerUnit === "number" && Number.isFinite(params.costPerUnit)
+        ? params.costPerUnit
+        : undefined,
+    updatedAt: now,
+  };
+
+  const res = await kv.atomic().check(row).set(key, next).commit();
+  if (!res.ok) {
+    // fallback
+    await kv.set(key, next);
+  }
+  return next;
+}
+
 /* ---------- INVENTORY TX API ---------- */
 
 /**
  * התאמת מלאי (משלוח/צריכה/בזבוז/התאמה).
  * ✅ אם זו קבלת משלוח (delivery) ויש costTotal + deltaQty>0:
- *    מעדכן costPerUnitAuto לפי עלות ממוצעת למשלוח האחרון (סמוטינג עדין).
+ *    מעדכן costPerUnitAuto לפי העלות ליחידה (עם smoothing).
  */
 export async function applyInventoryTx(params: {
   restaurantId: string;
@@ -245,7 +279,7 @@ export async function applyInventoryTx(params: {
   let nextCostPerUnitAuto = ing.costPerUnitAuto;
   let nextCostAutoUpdatedAt = ing.costAutoUpdatedAt;
 
-  // ✅ auto cost update from deliveries
+  // auto cost update from deliveries
   if (
     params.type === "delivery" &&
     typeof params.costTotal === "number" &&
@@ -256,7 +290,7 @@ export async function applyInventoryTx(params: {
   ) {
     const unitCost = params.costTotal / params.deltaQty;
 
-    // smoothing: 70% previous, 30% new delivery cost
+    // smoothing: 70% previous, 30% new
     if (typeof nextCostPerUnitAuto === "number" && Number.isFinite(nextCostPerUnitAuto)) {
       nextCostPerUnitAuto = (nextCostPerUnitAuto * 0.7) + (unitCost * 0.3);
     } else {
@@ -300,9 +334,7 @@ export async function listInventoryTx(
   limit = 200,
 ): Promise<InventoryTx[]> {
   const out: InventoryTx[] = [];
-  for await (
-    const row of kv.list<InventoryTx>({ prefix: kInvTxPrefix(restaurantId) })
-  ) {
+  for await (const row of kv.list<InventoryTx>({ prefix: kInvTxPrefix(restaurantId) })) {
     if (row.value) out.push(row.value);
   }
   out.sort((a, b) => b.createdAt - a.createdAt);
@@ -318,6 +350,7 @@ export async function saveRecipeForMenuItem(
   note?: string,
 ): Promise<MenuRecipe> {
   const now = Date.now();
+
   const clean = components
     .filter((c) =>
       c.ingredientId &&
@@ -414,7 +447,7 @@ export async function getMonthlySpendOverride(
 }
 
 /**
- * אם overrideTotal הוא undefined/null/NaN -> מוחקים override וחוזרים לחישוב אוטומטי.
+ * אם overrideTotal הוא undefined/null/NaN -> מוחקים override וחוזרים לאוטומטי.
  */
 export async function setMonthlySpendOverride(params: {
   restaurantId: string;
@@ -425,9 +458,10 @@ export async function setMonthlySpendOverride(params: {
   const key = kMonthlyOverride(params.restaurantId, params.month);
   const now = Date.now();
 
-  const val = typeof params.overrideTotal === "number" && Number.isFinite(params.overrideTotal)
-    ? params.overrideTotal
-    : null;
+  const val =
+    typeof params.overrideTotal === "number" && Number.isFinite(params.overrideTotal)
+      ? params.overrideTotal
+      : null;
 
   if (val === null) {
     await kv.delete(key);
