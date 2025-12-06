@@ -1,0 +1,212 @@
+<% layout("_layout", it) %>
+<%
+  const restaurant  = it.restaurant || {};
+  const po          = it.po || {};
+  const ingredients = Array.isArray(it.ingredients) ? it.ingredients : [];
+  const expectedAtStr = it.expectedAtStr || '';
+
+  function esc(x){ return String(x ?? '').replaceAll('"','&quot;'); }
+%>
+
+<section class="sb-owner container" aria-label="הזמנת רכש">
+  <div class="card">
+    <header class="owner-hd">
+      <div>
+        <h1>הזמנת רכש · <%= restaurant.name || 'מסעדה' %></h1>
+        <p class="muted">
+          ספק: <strong><%= po.supplierNameSnapshot || '—' %></strong> •
+          סטטוס: <strong><%= po.status || 'draft' %></strong>
+        </p>
+      </div>
+      <div class="actions">
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/purchase_orders">⬅ כל ההזמנות</a>
+      </div>
+    </header>
+
+    <div class="panel card" style="margin-top:14px">
+      <h2 class="card-title">פרטי הזמנה</h2>
+
+      <form id="po-form" method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= po.id %>/save" class="form">
+        <div class="row">
+          <label class="lbl">
+            צפי הגעה (expectedAt)
+            <input class="in" name="expectedAt" type="date" value="<%= expectedAtStr %>">
+          </label>
+          <label class="lbl" style="flex:1;min-width:260px">
+            הערה
+            <input class="in" name="note" value="<%= esc(po.note||'') %>" placeholder="אופציונלי">
+          </label>
+        </div>
+
+        <div style="margin-top:12px">
+          <h3 class="card-title" style="font-size:16px;margin:0 0 8px">שורות הזמנה</h3>
+
+          <div class="po-grid" id="po-lines"></div>
+
+          <button type="button" class="btn ghost sm" id="btn-add" style="margin-top:8px">
+            ➕ הוסף שורה
+          </button>
+
+          <input type="hidden" name="lines" id="lines-json">
+        </div>
+
+        <div class="actions" style="margin-top:12px">
+          <button class="btn primary sm" type="submit">💾 שמור</button>
+
+          <% if (po.status !== 'delivered' && po.status !== 'cancelled') { %>
+            <form method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= po.id %>/send">
+              <button class="btn ghost sm" type="submit">נשלח</button>
+            </form>
+
+            <form method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= po.id %>/delivered"
+                  onsubmit="return confirm('לסמן כסופק? זה יוסיף מלאי (delivery) לכל השורות.')">
+              <button class="btn primary sm" type="submit">✅ סופק</button>
+            </form>
+
+            <form method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= po.id %>/cancel"
+                  onsubmit="return confirm('לבטל הזמנה?')">
+              <button class="btn ghost sm" type="submit">בטל</button>
+            </form>
+          <% } %>
+        </div>
+      </form>
+
+      <p class="muted small" style="margin-top:10px">
+        טיפ: כשמסמנים "סופק" — נוצרת תנועת מלאי <code>delivery</code> לכל שורה עם deltaQty = הכמות.
+      </p>
+    </div>
+  </div>
+</section>
+
+<script>
+  (function(){
+    var ingredients = <%- JSON.stringify(ingredients || []) %>;
+    var existing = <%- JSON.stringify((po && po.lines) ? po.lines : []) %>;
+
+    var grid = document.getElementById('po-lines');
+    var btnAdd = document.getElementById('btn-add');
+    var form = document.getElementById('po-form');
+    var hidden = document.getElementById('lines-json');
+
+    if(!grid || !btnAdd || !form || !hidden) return;
+
+    function buildOptions(selectedId){
+      var html = '<option value="">חומר גלם...</option>';
+      html += ingredients.map(function(ing){
+        var sel = (selectedId && selectedId === ing.id) ? ' selected' : '';
+        return '<option value="'+ing.id+'"'+sel+'>'+ing.name+' ('+(ing.unit||'unit')+')</option>';
+      }).join('');
+      return html;
+    }
+
+    function addRow(v){
+      var wrap = document.createElement('div');
+      wrap.className = 'po-row';
+
+      var sel = document.createElement('select');
+      sel.className = 'po-ing';
+      sel.required = true;
+      sel.innerHTML = buildOptions(v && v.ingredientId);
+
+      var qty = document.createElement('input');
+      qty.type = 'number';
+      qty.min = '0';
+      qty.step = '0.001';
+      qty.placeholder = 'כמות';
+      qty.className = 'po-qty';
+      qty.required = true;
+      if (v && typeof v.qty === 'number') qty.value = String(v.qty);
+
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'btn ghost sm';
+      del.textContent = '✕';
+      del.addEventListener('click', function(){ wrap.remove(); });
+
+      wrap.appendChild(sel);
+      wrap.appendChild(qty);
+      wrap.appendChild(del);
+      grid.appendChild(wrap);
+    }
+
+    btnAdd.addEventListener('click', function(){ addRow(null); });
+
+    if (Array.isArray(existing) && existing.length) {
+      existing.forEach(function(x){ addRow({ ingredientId: x.ingredientId, qty: Number(x.qty||0) }); });
+    } else {
+      addRow(null);
+    }
+
+    form.addEventListener('submit', function(){
+      var rows = grid.querySelectorAll('.po-row');
+      var out = [];
+      rows.forEach(function(row){
+        var s = row.querySelector('.po-ing');
+        var q = row.querySelector('.po-qty');
+        if(!s || !q) return;
+        var id = s.value;
+        var qty = parseFloat(q.value || '0');
+        if(!id || !(qty > 0)) return;
+        out.push({ ingredientId: id, qty: qty });
+      });
+      hidden.value = JSON.stringify(out);
+    });
+  })();
+</script>
+
+<style>
+  .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
+  .card{
+    background: var(--panel, #121622);
+    border:1px solid var(--bd, #222834);
+    border-radius:18px; padding:18px; margin-bottom:18px;
+    color: var(--ink, #e6e8ef);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  .panel.card{height:100%}
+  .owner-hd{display:flex;align-items:flex-start;gap:12px;justify-content:space-between}
+  .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
+  .muted{ color: var(--ink-muted, #9aa3b2); }
+  .small{ font-size:12px; }
+  code{background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.22);padding:1px 6px;border-radius:8px}
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
+    border:1px solid var(--bd, #23293a); background:transparent;
+    color: var(--ink, #e6e8ef); font-weight:700;
+  }
+  .btn.primary{
+    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
+    box-shadow: 0 8px 24px rgba(59,130,246,.35);
+  }
+  .btn.ghost{background:rgba(15,23,42,.6);}
+  .btn.sm{ padding:8px 12px; border-radius:10px; font-size:13px }
+
+  .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+  .lbl{display:block;font-weight:700;font-size:13px}
+  .in{
+    padding:10px 12px;margin-top:6px;
+    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
+    font-size:14px; outline:none;
+  }
+
+  .po-grid{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+  .po-row{
+    display:grid;
+    grid-template-columns:1.6fr 1fr auto;
+    gap:8px;
+    align-items:center;
+  }
+  .po-row select, .po-row input{
+    width:100%;
+    padding:10px 12px;
+    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
+    font-size:14px; outline:none;
+  }
+
+  @media (max-width:900px){
+    .po-row{grid-template-columns:1fr}
+  }
+</style>

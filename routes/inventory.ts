@@ -1,4 +1,14 @@
 // src/routes/inventory.ts
+// ----------------------------------------
+// Owner inventory routes:
+// - מתכונים: קישור מנות ↔ חומרי גלם
+// - מלאי: רשימת חומרי גלם + עדכון / מחיקה
+// - תנועות מלאי (משלוח / התאמה ידנית)
+// - הוצאות חודשיות (מחושב ממשלוחים) + Override ידני
+// - ספירות מלאי (sessions + lines + finalize)
+// - Food Cost per Dish
+// - ✅ ספקים (טבלה בסיסית + leadTimeDays לצפי הגעה)
+// ----------------------------------------
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
@@ -186,13 +196,16 @@ inventoryRouter.post("/owner/:rid/inventory/stock/ingredient", async (ctx) => {
   ctx.response.redirect(`/owner/${rid}/inventory/stock`);
 });
 
-inventoryRouter.post("/owner/:rid/inventory/stock/ingredient/:id/delete", async (ctx) => {
-  if (!requireOwner(ctx)) return;
-  const rid = ctx.params.rid!;
-  const ingredientId = ctx.params.id!;
-  await deleteIngredient(rid, ingredientId);
-  ctx.response.redirect(`/owner/${rid}/inventory/stock`);
-});
+inventoryRouter.post(
+  "/owner/:rid/inventory/stock/ingredient/:id/delete",
+  async (ctx) => {
+    if (!requireOwner(ctx)) return;
+    const rid = ctx.params.rid!;
+    const ingredientId = ctx.params.id!;
+    await deleteIngredient(rid, ingredientId);
+    ctx.response.redirect(`/owner/${rid}/inventory/stock`);
+  },
+);
 
 inventoryRouter.post("/owner/:rid/inventory/stock/tx", async (ctx) => {
   if (!requireOwner(ctx)) return;
@@ -200,7 +213,9 @@ inventoryRouter.post("/owner/:rid/inventory/stock/tx", async (ctx) => {
   const form = await ctx.request.body.formData();
 
   const ingredientId = (form.get("ingredientId")?.toString() || "").trim();
-  const type = (form.get("type")?.toString() || "delivery") as "delivery" | "adjustment";
+  const type = (form.get("type")?.toString() || "delivery") as
+    | "delivery"
+    | "adjustment";
   const deltaQty = toNum(form.get("deltaQty"), 0);
   const costTotal = form.get("costTotal") ? toNum(form.get("costTotal"), NaN) : NaN;
   const reason = (form.get("reason")?.toString() || "").trim();
@@ -223,6 +238,7 @@ inventoryRouter.post("/owner/:rid/inventory/stock/tx", async (ctx) => {
 
 /* ========================================================================== */
 /*  ✅ Suppliers                                                                */
+/*  מינימום הכרחי: name + leadTimeDays (+ phone/email/paymentTerms)            */
 /* ========================================================================== */
 
 inventoryRouter.get("/owner/:rid/inventory/suppliers", async (ctx) => {
@@ -242,7 +258,8 @@ inventoryRouter.get("/owner/:rid/inventory/suppliers", async (ctx) => {
   });
 });
 
-inventoryRouter.post("/owner/:rid/inventory/suppliers/save", async (ctx) => {
+// שומר ספק (alias): /save וגם /upsert כדי שלא תישבר שום תבנית קיימת
+async function handleSupplierUpsert(ctx: any) {
   if (!requireOwner(ctx)) return;
 
   const rid = ctx.params.rid!;
@@ -256,8 +273,9 @@ inventoryRouter.post("/owner/:rid/inventory/suppliers/save", async (ctx) => {
   const phone = (form.get("phone")?.toString() || "").trim();
   const email = (form.get("email")?.toString() || "").trim();
   const paymentTerms = (form.get("paymentTerms")?.toString() || "").trim();
-  const notes = (form.get("notes")?.toString() || "").trim();
-  const isActive = form.get("isActive") ? true : false;
+
+  // ✅ הדבר היחיד ההכרחי לצפי הגעה
+  const leadTimeDays = toNum(form.get("leadTimeDays"), 0);
 
   if (!name) ctx.throw(Status.BadRequest, "missing_supplier_name");
 
@@ -268,12 +286,14 @@ inventoryRouter.post("/owner/:rid/inventory/suppliers/save", async (ctx) => {
     phone: phone || undefined,
     email: email || undefined,
     paymentTerms: paymentTerms || undefined,
-    notes: notes || undefined,
-    isActive,
+    leadTimeDays: Number.isFinite(leadTimeDays) && leadTimeDays >= 0 ? Math.floor(leadTimeDays) : 0,
   });
 
   ctx.response.redirect(`/owner/${rid}/inventory/suppliers`);
-});
+}
+
+inventoryRouter.post("/owner/:rid/inventory/suppliers/save", handleSupplierUpsert);
+inventoryRouter.post("/owner/:rid/inventory/suppliers/upsert", handleSupplierUpsert);
 
 inventoryRouter.post("/owner/:rid/inventory/suppliers/:sid/delete", async (ctx) => {
   if (!requireOwner(ctx)) return;
@@ -326,7 +346,9 @@ inventoryRouter.get("/owner/:rid/inventory/costs", async (ctx) => {
 
     if (!perIngredient[tx.ingredientId]) perIngredient[tx.ingredientId] = { cost: 0, qty: 0 };
     perIngredient[tx.ingredientId].cost += tx.costTotal!;
-    if (Number.isFinite(tx.deltaQty) && tx.deltaQty > 0) perIngredient[tx.ingredientId].qty += tx.deltaQty;
+    if (Number.isFinite(tx.deltaQty) && tx.deltaQty > 0) {
+      perIngredient[tx.ingredientId].qty += tx.deltaQty;
+    }
 
     const d = new Date(tx.createdAt);
     const key = `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
@@ -470,7 +492,7 @@ inventoryRouter.get("/owner/:rid/inventory/foodcost", async (ctx) => {
     const r = recipeByMenuItem[mi.id];
     const comps = Array.isArray(r?.components) ? r.components : [];
 
-    let hasRecipe = comps.length > 0;
+    const hasRecipe = comps.length > 0;
     let missingIngredients = 0;
     let missingCosts = 0;
 
@@ -580,14 +602,12 @@ inventoryRouter.get("/owner/:rid/inventory/counts/:cid", async (ctx) => {
 
   const ingredients = await listIngredients(rid);
 
-  // ensure snapshot lines exist
   const lines = await ensureInventoryCountSnapshot({
     restaurantId: rid,
     countId: cid,
     ingredients,
   });
 
-  // compute summary (treat empty actual as expected for preview)
   let expectedValue = 0;
   let actualValue = 0;
   let filled = 0;
@@ -650,9 +670,10 @@ inventoryRouter.post("/owner/:rid/inventory/counts/:cid/save", async (ctx) => {
     if (!ingredientId) continue;
 
     const actualRaw = row.actualQty;
-    const actual = (actualRaw === "" || actualRaw === null || typeof actualRaw === "undefined")
-      ? null
-      : Number(actualRaw);
+    const actual =
+      (actualRaw === "" || actualRaw === null || typeof actualRaw === "undefined")
+        ? null
+        : Number(actualRaw);
 
     const kind = String(row.adjustKind || "adjustment").trim();
     const adjustKind = (kind === "waste") ? "waste" : "adjustment";
@@ -687,7 +708,6 @@ inventoryRouter.post("/owner/:rid/inventory/counts/:cid/finalize", async (ctx) =
     return;
   }
 
-  // save first (same payload)
   const form = await ctx.request.body.formData();
   const raw = (form.get("lines")?.toString() || "[]").trim();
 
@@ -704,9 +724,10 @@ inventoryRouter.post("/owner/:rid/inventory/counts/:cid/finalize", async (ctx) =
     if (!ingredientId) continue;
 
     const actualRaw = row.actualQty;
-    const actual = (actualRaw === "" || actualRaw === null || typeof actualRaw === "undefined")
-      ? null
-      : Number(actualRaw);
+    const actual =
+      (actualRaw === "" || actualRaw === null || typeof actualRaw === "undefined")
+        ? null
+        : Number(actualRaw);
 
     const kind = String(row.adjustKind || "adjustment").trim();
     const adjustKind = (kind === "waste") ? "waste" : "adjustment";

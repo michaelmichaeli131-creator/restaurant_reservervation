@@ -3,11 +3,11 @@
 // Inventory / Ingredients module for SpotBook
 // ----------------------------------------
 // כולל:
-// - Ingredients
-// - InventoryTx
-// - Recipes
-// - Monthly Spend Override
-// - ✅ Inventory Counts: Sessions + Lines + Finalize
+// - Ingredients + InventoryTx + Recipes + auto-consumption
+// - Monthly spend override + AUTO costPerUnitAuto + Manual costPerUnit
+// - Inventory counts (sessions + lines + finalize)
+// - ✅ Suppliers
+// - ✅ Purchase Orders (PO) with expectedAt (ETA) + delivered -> creates delivery tx
 // ----------------------------------------
 
 import { kv } from "../database.ts";
@@ -30,9 +30,15 @@ export interface Ingredient {
   currentQty: number;
   minQty: number;
 
-  costPerUnit?: number;       // manual override
-  costPerUnitAuto?: number;   // auto from deliveries
+  /** Manual override */
+  costPerUnit?: number;
+
+  /** Auto estimated from deliveries */
+  costPerUnitAuto?: number;
   costAutoUpdatedAt?: number;
+
+  /** ✅ minimal supplier link (optional) */
+  preferredSupplierId?: string;
 
   supplierName?: string;
   notes?: string;
@@ -79,46 +85,86 @@ export interface MonthlySpendOverride {
   updatedAt: number;
 }
 
-/* ---------- Inventory Counts ---------- */
+/* ---------- Counts ---------- */
 
-export type InventoryCountStatus = "draft" | "finalized" | "cancelled";
-export type InventoryCountAdjustKind = "adjustment" | "waste";
+export type InventoryCountStatus = "draft" | "finalized";
 
 export interface InventoryCountSession {
   id: string;
   restaurantId: string;
   status: InventoryCountStatus;
   note?: string;
-
   createdAt: number;
   updatedAt: number;
-
   finalizedAt?: number;
-  cancelledAt?: number;
-
-  // optional: marks snapshot creation
-  snapshotCreatedAt?: number;
+  finalizedBy?: string;
 }
+
+export type InventoryCountAdjustKind = "adjustment" | "waste";
 
 export interface InventoryCountLine {
   restaurantId: string;
   countId: string;
-
   ingredientId: string;
 
-  // snapshot fields (so the count is stable)
-  ingredientName: string;
-  unit: string;
-  expectedQty: number;
-  costPerUnitSnapshot?: number;
+  ingredientNameSnapshot: string;
+  unitSnapshot: string;
 
-  // editable fields
-  actualQty?: number;
-  adjustKind?: InventoryCountAdjustKind; // default: adjustment
-  note?: string;
+  expectedQty: number;
+  costPerUnitSnapshot: number;
+
+  actualQty?: number | null; // null/undefined = not filled
+  adjustKind?: InventoryCountAdjustKind; // default adjustment
+  note?: string | null;
 
   createdAt: number;
   updatedAt: number;
+}
+
+/* ---------- ✅ Suppliers ---------- */
+
+export interface Supplier {
+  id: string;
+  restaurantId: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  paymentTerms?: string;
+
+  /** ✅ required for ETA calculation */
+  leadTimeDays: number;
+
+  createdAt: number;
+  updatedAt: number;
+}
+
+/* ---------- ✅ Purchase Orders ---------- */
+
+export type PurchaseOrderStatus = "draft" | "sent" | "delivered" | "cancelled";
+
+export interface PurchaseOrderLine {
+  ingredientId: string;
+  ingredientName?: string;
+  qty: number;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  restaurantId: string;
+  supplierId: string;
+  supplierNameSnapshot: string;
+
+  status: PurchaseOrderStatus;
+
+  createdAt: number;
+  updatedAt: number;
+
+  expectedAt: number; // ETA
+  deliveredAt?: number;
+
+  note?: string;
+
+  lines: PurchaseOrderLine[];
 }
 
 /* ---------- KEYS ---------- */
@@ -152,20 +198,34 @@ function kMonthlyOverride(rid: string, month: string): Deno.KvKey {
   return ["inv", "spend_override", rid, month];
 }
 
-// Count sessions
+// Counts
 function kCountSession(rid: string, cid: string): Deno.KvKey {
-  return ["inv", "count_session", rid, cid];
+  return ["inv", "count", rid, cid];
 }
 function kCountSessionPrefix(rid: string): Deno.KvKey {
-  return ["inv", "count_session", rid];
+  return ["inv", "count", rid];
 }
-
-// Count lines
-function kCountLine(rid: string, cid: string, ingId: string): Deno.KvKey {
-  return ["inv", "count_line", rid, cid, ingId];
+function kCountLine(rid: string, cid: string, ingredientId: string): Deno.KvKey {
+  return ["inv", "count_line", rid, cid, ingredientId];
 }
 function kCountLinePrefix(rid: string, cid: string): Deno.KvKey {
   return ["inv", "count_line", rid, cid];
+}
+
+// ✅ Suppliers
+function kSupplier(rid: string, sid: string): Deno.KvKey {
+  return ["inv", "supplier", rid, sid];
+}
+function kSupplierPrefix(rid: string): Deno.KvKey {
+  return ["inv", "supplier", rid];
+}
+
+// ✅ Purchase Orders
+function kPO(rid: string, poid: string): Deno.KvKey {
+  return ["inv", "po", rid, poid];
+}
+function kPOPrefix(rid: string): Deno.KvKey {
+  return ["inv", "po", rid];
 }
 
 /* ---------- Helpers ---------- */
@@ -184,12 +244,7 @@ export function getEffectiveCostPerUnit(ing: Ingredient): number | undefined {
   return auto;
 }
 
-function safeNum(v: unknown): number | undefined {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : undefined;
-}
-
-/* ---------- INGREDIENTS API ---------- */
+/* ============================= INGREDIENTS API ============================= */
 
 export async function listIngredients(restaurantId: string): Promise<Ingredient[]> {
   const out: Ingredient[] = [];
@@ -222,6 +277,11 @@ export async function upsertIngredient(
       ? data.costPerUnit
       : existing?.costPerUnit;
 
+  const preferredSupplierId =
+    typeof data.preferredSupplierId === "string" && data.preferredSupplierId.trim()
+      ? data.preferredSupplierId.trim()
+      : existing?.preferredSupplierId;
+
   const item: Ingredient = {
     id,
     restaurantId: data.restaurantId,
@@ -238,6 +298,8 @@ export async function upsertIngredient(
     costPerUnitAuto: existing?.costPerUnitAuto,
     costAutoUpdatedAt: existing?.costAutoUpdatedAt,
 
+    preferredSupplierId,
+
     supplierName: data.supplierName?.trim() ?? existing?.supplierName,
     notes: data.notes?.trim() ?? existing?.notes,
     createdAt: existing?.createdAt ?? now,
@@ -252,7 +314,7 @@ export async function deleteIngredient(restaurantId: string, ingredientId: strin
   await kv.delete(kIngredient(restaurantId, ingredientId));
 }
 
-/* ---------- INVENTORY TX API ---------- */
+/* ============================ INVENTORY TX API ============================ */
 
 export async function applyInventoryTx(params: {
   restaurantId: string;
@@ -274,6 +336,7 @@ export async function applyInventoryTx(params: {
   let nextCostPerUnitAuto = ing.costPerUnitAuto;
   let nextCostAutoUpdatedAt = ing.costAutoUpdatedAt;
 
+  // AUTO cost update from deliveries with cost + qty
   if (
     params.type === "delivery" &&
     typeof params.costTotal === "number" &&
@@ -283,6 +346,7 @@ export async function applyInventoryTx(params: {
     params.deltaQty > 0
   ) {
     const unitCost = params.costTotal / params.deltaQty;
+
     if (typeof nextCostPerUnitAuto === "number" && Number.isFinite(nextCostPerUnitAuto)) {
       nextCostPerUnitAuto = (nextCostPerUnitAuto * 0.7) + (unitCost * 0.3);
     } else {
@@ -333,7 +397,7 @@ export async function listInventoryTx(
   return limit > 0 && out.length > limit ? out.slice(0, limit) : out;
 }
 
-/* ---------- RECIPES API ---------- */
+/* =============================== RECIPES API =============================== */
 
 export async function saveRecipeForMenuItem(
   restaurantId: string,
@@ -343,8 +407,15 @@ export async function saveRecipeForMenuItem(
 ): Promise<MenuRecipe> {
   const now = Date.now();
   const clean = components
-    .filter((c) => c.ingredientId && Number.isFinite(Number(c.qty)) && Number(c.qty) > 0)
-    .map((c) => ({ ingredientId: String(c.ingredientId).trim(), qty: Number(c.qty) }));
+    .filter((c) =>
+      c.ingredientId &&
+      Number.isFinite(Number(c.qty)) &&
+      Number(c.qty) > 0
+    )
+    .map((c) => ({
+      ingredientId: String(c.ingredientId).trim(),
+      qty: Number(c.qty),
+    }));
 
   const recipe: MenuRecipe = {
     restaurantId,
@@ -378,7 +449,7 @@ export async function listRecipesForRestaurant(
   return out;
 }
 
-/* ---------- AUTO-CONSUMPTION FROM POS ---------- */
+/* ======================= AUTO-CONSUMPTION FROM POS ======================== */
 
 export async function consumeIngredientsForMenuItem(params: {
   restaurantId: string;
@@ -406,10 +477,11 @@ export async function consumeIngredientsForMenuItem(params: {
         ingredientId: comp.ingredientId,
         type: "consumption",
         deltaQty: delta,
+        costTotal: undefined,
         reason: `POS auto-consume: menuItem=${menuItemId}, qty=${q}`,
       });
     } catch (err) {
-      console.error("[INV][consume] failed", {
+      console.error("[INV][consume] failed for ingredient", {
         restaurantId,
         menuItemId,
         ingredientId: comp.ingredientId,
@@ -419,7 +491,7 @@ export async function consumeIngredientsForMenuItem(params: {
   }
 }
 
-/* ---------- MONTHLY SPEND OVERRIDE API ---------- */
+/* ======================= MONTHLY SPEND OVERRIDE API ======================= */
 
 export async function getMonthlySpendOverride(
   restaurantId: string,
@@ -463,9 +535,19 @@ export async function setMonthlySpendOverride(params: {
   return obj;
 }
 
-/* ========================================================================== */
-/*  INVENTORY COUNTS: Sessions + Lines + Finalize                              */
-/* ========================================================================== */
+/* ============================== COUNTS API ============================== */
+
+export async function listInventoryCountSessions(
+  restaurantId: string,
+  limit = 200,
+): Promise<InventoryCountSession[]> {
+  const out: InventoryCountSession[] = [];
+  for await (const row of kv.list<InventoryCountSession>({ prefix: kCountSessionPrefix(restaurantId) })) {
+    if (row.value) out.push(row.value);
+  }
+  out.sort((a, b) => b.createdAt - a.createdAt);
+  return limit > 0 && out.length > limit ? out.slice(0, limit) : out;
+}
 
 export async function createInventoryCountSession(params: {
   restaurantId: string;
@@ -495,82 +577,147 @@ export async function getInventoryCountSession(
   return row.value ?? null;
 }
 
-export async function listInventoryCountSessions(
+export async function listInventoryCountLines(
   restaurantId: string,
-  limit = 100,
-): Promise<InventoryCountSession[]> {
-  const out: InventoryCountSession[] = [];
-  for await (const row of kv.list<InventoryCountSession>({ prefix: kCountSessionPrefix(restaurantId) })) {
+  countId: string,
+): Promise<InventoryCountLine[]> {
+  const out: InventoryCountLine[] = [];
+  for await (const row of kv.list<InventoryCountLine>({ prefix: kCountLinePrefix(restaurantId, countId) })) {
     if (row.value) out.push(row.value);
   }
-  out.sort((a, b) => b.createdAt - a.createdAt);
-  return limit > 0 && out.length > limit ? out.slice(0, limit) : out;
+  out.sort((a, b) => a.ingredientNameSnapshot.localeCompare(b.ingredientNameSnapshot));
+  return out;
 }
 
-export async function setInventoryCountSession(params: {
+export async function ensureInventoryCountSnapshot(params: {
   restaurantId: string;
   countId: string;
-  status?: InventoryCountStatus;
-  note?: string | null;
-  snapshotCreatedAt?: number | null;
-  finalizedAt?: number | null;
-  cancelledAt?: number | null;
-}): Promise<InventoryCountSession> {
-  const key = kCountSession(params.restaurantId, params.countId);
-  const prev = await kv.get<InventoryCountSession>(key);
-  if (!prev.value) throw new Error("count_session_not_found");
+  ingredients: Ingredient[];
+}): Promise<InventoryCountLine[]> {
+  const { restaurantId, countId, ingredients } = params;
+
+  const existing = await listInventoryCountLines(restaurantId, countId);
+  const map: Record<string, InventoryCountLine> = {};
+  for (const ln of existing) map[ln.ingredientId] = ln;
 
   const now = Date.now();
-  const s = prev.value;
+  const ops = kv.atomic();
 
-  const next: InventoryCountSession = {
-    ...s,
-    status: params.status ?? s.status,
-    note: (params.note === null) ? undefined : (params.note ?? s.note),
-    snapshotCreatedAt: (params.snapshotCreatedAt === null) ? undefined : (params.snapshotCreatedAt ?? s.snapshotCreatedAt),
-    finalizedAt: (params.finalizedAt === null) ? undefined : (params.finalizedAt ?? s.finalizedAt),
-    cancelledAt: (params.cancelledAt === null) ? undefined : (params.cancelledAt ?? s.cancelledAt),
+  let changed = false;
+  for (const ing of ingredients) {
+    if (map[ing.id]) continue;
+
+    const snapCost = getEffectiveCostPerUnit(ing) ?? 0;
+
+    const line: InventoryCountLine = {
+      restaurantId,
+      countId,
+      ingredientId: ing.id,
+      ingredientNameSnapshot: ing.name,
+      unitSnapshot: ing.unit || "unit",
+      expectedQty: Number(ing.currentQty || 0),
+      costPerUnitSnapshot: Number.isFinite(snapCost) ? snapCost : 0,
+      actualQty: null,
+      adjustKind: "adjustment",
+      note: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    ops.set(kCountLine(restaurantId, countId, ing.id), line);
+    changed = true;
+  }
+
+  if (changed) {
+    const res = await ops.commit();
+    if (!res.ok) {
+      // if commit failed, just re-read
+    }
+  }
+
+  return await listInventoryCountLines(restaurantId, countId);
+}
+
+export async function upsertInventoryCountLine(params: {
+  restaurantId: string;
+  countId: string;
+  ingredientId: string;
+  actualQty: number | null;
+  adjustKind: InventoryCountAdjustKind;
+  note: string | null;
+}): Promise<InventoryCountLine | null> {
+  const key = kCountLine(params.restaurantId, params.countId, params.ingredientId);
+  const row = await kv.get<InventoryCountLine>(key);
+  if (!row.value) return null;
+
+  const now = Date.now();
+  const updated: InventoryCountLine = {
+    ...row.value,
+    actualQty: params.actualQty,
+    adjustKind: params.adjustKind,
+    note: params.note,
     updatedAt: now,
   };
 
-  await kv.set(key, next);
-  return next;
+  const ok = await kv.atomic().check(row).set(key, updated).commit();
+  if (!ok.ok) return null;
+  return updated;
 }
 
-// ==============================
-// SUPPLIERS (טבלת ספקים)
-// ==============================
-
-export interface Supplier {
-  id: string;
+export async function finalizeInventoryCount(params: {
   restaurantId: string;
+  countId: string;
+  actor?: string;
+}): Promise<void> {
+  const { restaurantId, countId } = params;
 
-  name: string;
-  phone?: string;
-  email?: string;
-  paymentTerms?: string; // תנאי תשלום (למשל: "שוטף +30")
-  notes?: string;
+  const sessKey = kCountSession(restaurantId, countId);
+  const sessRow = await kv.get<InventoryCountSession>(sessKey);
+  if (!sessRow.value) throw new Error("count_not_found");
+  if (sessRow.value.status !== "draft") return;
 
-  isActive?: boolean;
+  const lines = await listInventoryCountLines(restaurantId, countId);
 
-  createdAt: number;
-  updatedAt: number;
+  // apply diffs
+  for (const ln of lines) {
+    const exp = Number(ln.expectedQty || 0);
+    const act = (typeof ln.actualQty === "number" && Number.isFinite(ln.actualQty)) ? ln.actualQty : null;
+    if (act === null) continue;
+
+    const diff = act - exp;
+    if (!Number.isFinite(diff) || diff === 0) continue;
+
+    const kind: InventoryTxType = ln.adjustKind === "waste" ? "waste" : "adjustment";
+    await applyInventoryTx({
+      restaurantId,
+      ingredientId: ln.ingredientId,
+      type: kind,
+      deltaQty: diff,
+      reason: `Inventory count ${countId} (${kind})`,
+    });
+  }
+
+  const now = Date.now();
+  const updated: InventoryCountSession = {
+    ...sessRow.value,
+    status: "finalized",
+    finalizedAt: now,
+    finalizedBy: params.actor,
+    updatedAt: now,
+  };
+
+  const ok = await kv.atomic().check(sessRow).set(sessKey, updated).commit();
+  if (!ok.ok) throw new Error("count_finalize_failed");
 }
 
-// Keys
-function kSupplier(rid: string, supplierId: string): Deno.KvKey {
-  return ["inv", "supplier", rid, supplierId];
-}
-function kSupplierPrefix(rid: string): Deno.KvKey {
-  return ["inv", "supplier", rid];
-}
+/* ============================== ✅ SUPPLIERS API ============================== */
 
 export async function listSuppliers(restaurantId: string): Promise<Supplier[]> {
   const out: Supplier[] = [];
   for await (const row of kv.list<Supplier>({ prefix: kSupplierPrefix(restaurantId) })) {
     if (row.value) out.push(row.value);
   }
-  out.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  out.sort((a, b) => a.name.localeCompare(b.name));
   return out;
 }
 
@@ -582,37 +729,37 @@ export async function getSupplier(
   return row.value ?? null;
 }
 
-export async function upsertSupplier(
-  data: Partial<Supplier> & { restaurantId: string; name: string },
-): Promise<Supplier> {
+export async function upsertSupplier(params: Partial<Supplier> & {
+  restaurantId: string;
+  name: string;
+  leadTimeDays: number;
+  id?: string;
+}): Promise<Supplier> {
   const now = Date.now();
-  const id = data.id ?? crypto.randomUUID();
+  const id = params.id ?? crypto.randomUUID();
 
-  const prev = await kv.get<Supplier>(kSupplier(data.restaurantId, id));
+  const prev = await kv.get<Supplier>(kSupplier(params.restaurantId, id));
   const existing = prev.value ?? null;
 
-  const obj: Supplier = {
+  const lead = Number(params.leadTimeDays);
+  const leadTimeDays = Number.isFinite(lead) && lead >= 0 ? Math.floor(lead) : (existing?.leadTimeDays ?? 0);
+
+  const sup: Supplier = {
     id,
-    restaurantId: data.restaurantId,
-
-    name: (data.name || "").trim(),
-    phone: (data.phone || "").trim() || undefined,
-    email: (data.email || "").trim() || undefined,
-    paymentTerms: (data.paymentTerms || "").trim() || undefined,
-    notes: (data.notes || "").trim() || undefined,
-
-    isActive: typeof data.isActive === "boolean"
-      ? data.isActive
-      : (existing?.isActive ?? true),
-
+    restaurantId: params.restaurantId,
+    name: (params.name ?? existing?.name ?? "").trim(),
+    phone: (params.phone ?? existing?.phone ?? "").trim() || undefined,
+    email: (params.email ?? existing?.email ?? "").trim() || undefined,
+    paymentTerms: (params.paymentTerms ?? existing?.paymentTerms ?? "").trim() || undefined,
+    leadTimeDays,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
 
-  if (!obj.name) throw new Error("missing_supplier_name");
+  if (!sup.name) throw new Error("supplier_missing_name");
 
-  await kv.set(kSupplier(data.restaurantId, id), obj);
-  return obj;
+  await kv.set(kSupplier(params.restaurantId, id), sup);
+  return sup;
 }
 
 export async function deleteSupplier(
@@ -622,162 +769,169 @@ export async function deleteSupplier(
   await kv.delete(kSupplier(restaurantId, supplierId));
 }
 
+/* ============================== ✅ PURCHASE ORDERS API ============================== */
 
-/* ---------- Count Lines ---------- */
-
-export async function listInventoryCountLines(
+export async function listPurchaseOrders(
   restaurantId: string,
-  countId: string,
-): Promise<InventoryCountLine[]> {
-  const out: InventoryCountLine[] = [];
-  for await (const row of kv.list<InventoryCountLine>({ prefix: kCountLinePrefix(restaurantId, countId) })) {
+  limit = 200,
+): Promise<PurchaseOrder[]> {
+  const out: PurchaseOrder[] = [];
+  for await (const row of kv.list<PurchaseOrder>({ prefix: kPOPrefix(restaurantId) })) {
     if (row.value) out.push(row.value);
   }
-  out.sort((a, b) => a.ingredientName.localeCompare(b.ingredientName));
-  return out;
+  out.sort((a, b) => b.createdAt - a.createdAt);
+  return limit > 0 && out.length > limit ? out.slice(0, limit) : out;
 }
 
-export async function upsertInventoryCountLine(params: {
+export async function getPurchaseOrder(
+  restaurantId: string,
+  poId: string,
+): Promise<PurchaseOrder | null> {
+  const row = await kv.get<PurchaseOrder>(kPO(restaurantId, poId));
+  return row.value ?? null;
+}
+
+export async function createPurchaseOrder(params: {
   restaurantId: string;
-  countId: string;
-  ingredientId: string;
-
-  ingredientName?: string;
-  unit?: string;
-  expectedQty?: number;
-  costPerUnitSnapshot?: number;
-
-  actualQty?: number | null;
-  adjustKind?: InventoryCountAdjustKind | null;
-  note?: string | null;
-}): Promise<InventoryCountLine> {
+  supplier: Supplier;
+  expectedAt?: number; // if omitted -> now + leadTimeDays
+  note?: string;
+}): Promise<PurchaseOrder> {
   const now = Date.now();
-  const key = kCountLine(params.restaurantId, params.countId, params.ingredientId);
+  const id = crypto.randomUUID();
 
-  const prev = await kv.get<InventoryCountLine>(key);
-  const existing = prev.value ?? null;
+  const expectedAt =
+    typeof params.expectedAt === "number" && Number.isFinite(params.expectedAt)
+      ? params.expectedAt
+      : (now + (params.supplier.leadTimeDays * 24 * 60 * 60 * 1000));
 
-  const actual = params.actualQty === null ? undefined : (typeof params.actualQty === "number" && Number.isFinite(params.actualQty) ? params.actualQty : existing?.actualQty);
-  const adjustKind = params.adjustKind === null ? undefined : (params.adjustKind ?? existing?.adjustKind ?? "adjustment");
-  const note = params.note === null ? undefined : (params.note ?? existing?.note);
-
-  const expectedQty =
-    typeof params.expectedQty === "number" && Number.isFinite(params.expectedQty)
-      ? params.expectedQty
-      : (existing?.expectedQty ?? 0);
-
-  const line: InventoryCountLine = {
+  const po: PurchaseOrder = {
+    id,
     restaurantId: params.restaurantId,
-    countId: params.countId,
-    ingredientId: params.ingredientId,
+    supplierId: params.supplier.id,
+    supplierNameSnapshot: params.supplier.name,
+    status: "draft",
+    createdAt: now,
+    updatedAt: now,
+    expectedAt,
+    note: params.note && params.note.trim() ? params.note.trim() : undefined,
+    lines: [],
+  };
 
-    ingredientName: (params.ingredientName ?? existing?.ingredientName ?? "").trim() || existing?.ingredientName || "Ingredient",
-    unit: (params.unit ?? existing?.unit ?? "unit").trim() || "unit",
-    expectedQty,
+  await kv.set(kPO(params.restaurantId, id), po);
+  return po;
+}
 
-    costPerUnitSnapshot:
-      typeof params.costPerUnitSnapshot === "number" && Number.isFinite(params.costPerUnitSnapshot)
-        ? params.costPerUnitSnapshot
-        : existing?.costPerUnitSnapshot,
+export async function savePurchaseOrder(params: {
+  restaurantId: string;
+  poId: string;
+  expectedAt?: number;
+  note?: string;
+  lines: PurchaseOrderLine[];
+}): Promise<PurchaseOrder | null> {
+  const key = kPO(params.restaurantId, params.poId);
+  const row = await kv.get<PurchaseOrder>(key);
+  if (!row.value) return null;
 
-    actualQty: actual,
-    adjustKind,
-    note: note && note.trim() ? note.trim() : undefined,
+  const cur = row.value;
+  if (cur.status === "delivered" || cur.status === "cancelled") return cur;
 
-    createdAt: existing?.createdAt ?? now,
+  const now = Date.now();
+
+  const cleanLines = (Array.isArray(params.lines) ? params.lines : [])
+    .map((l) => ({
+      ingredientId: String(l.ingredientId || "").trim(),
+      ingredientName: (l.ingredientName || "").trim() || undefined,
+      qty: Number(l.qty || 0),
+    }))
+    .filter((l) => l.ingredientId && Number.isFinite(l.qty) && l.qty > 0);
+
+  const expectedAt =
+    typeof params.expectedAt === "number" && Number.isFinite(params.expectedAt)
+      ? params.expectedAt
+      : cur.expectedAt;
+
+  const updated: PurchaseOrder = {
+    ...cur,
+    expectedAt,
+    note: params.note && params.note.trim() ? params.note.trim() : undefined,
+    lines: cleanLines,
     updatedAt: now,
   };
 
-  await kv.set(key, line);
-  return line;
+  const ok = await kv.atomic().check(row).set(key, updated).commit();
+  if (!ok.ok) return null;
+  return updated;
 }
 
-/**
- * Ensures snapshot lines exist.
- * If none exist → creates one line per current ingredient with expectedQty=currentQty and cost snapshot.
- */
-export async function ensureInventoryCountSnapshot(params: {
+export async function setPurchaseOrderStatus(params: {
   restaurantId: string;
-  countId: string;
-  ingredients: Ingredient[];
-}): Promise<InventoryCountLine[]> {
-  const existing = await listInventoryCountLines(params.restaurantId, params.countId);
-  if (existing.length) return existing;
+  poId: string;
+  status: PurchaseOrderStatus;
+}): Promise<PurchaseOrder | null> {
+  const key = kPO(params.restaurantId, params.poId);
+  const row = await kv.get<PurchaseOrder>(key);
+  if (!row.value) return null;
+
+  const cur = row.value;
+  if (cur.status === "delivered") return cur;
+  if (cur.status === "cancelled" && params.status !== "cancelled") return cur;
 
   const now = Date.now();
-  for (const ing of params.ingredients) {
-    const costSnap = getEffectiveCostPerUnit(ing);
-    await upsertInventoryCountLine({
-      restaurantId: params.restaurantId,
-      countId: params.countId,
-      ingredientId: ing.id,
-      ingredientName: ing.name,
-      unit: ing.unit,
-      expectedQty: Number(ing.currentQty || 0),
-      costPerUnitSnapshot: typeof costSnap === "number" && Number.isFinite(costSnap) ? costSnap : undefined,
-      actualQty: null,
-      adjustKind: "adjustment",
-      note: null,
-    });
+  const updated: PurchaseOrder = {
+    ...cur,
+    status: params.status,
+    updatedAt: now,
+  };
+
+  const ok = await kv.atomic().check(row).set(key, updated).commit();
+  if (!ok.ok) return null;
+  return updated;
+}
+
+export async function markPurchaseOrderDelivered(params: {
+  restaurantId: string;
+  poId: string;
+}): Promise<PurchaseOrder | null> {
+  const key = kPO(params.restaurantId, params.poId);
+  const row = await kv.get<PurchaseOrder>(key);
+  if (!row.value) return null;
+
+  const po = row.value;
+  if (po.status === "delivered" || po.status === "cancelled") return po;
+
+  // Validate ingredient existence first
+  for (const ln of po.lines || []) {
+    if (!ln.ingredientId) continue;
+    const ing = await getIngredient(params.restaurantId, ln.ingredientId);
+    if (!ing) {
+      throw new Error(`po_missing_ingredient:${ln.ingredientId}`);
+    }
   }
 
-  await setInventoryCountSession({
-    restaurantId: params.restaurantId,
-    countId: params.countId,
-    snapshotCreatedAt: now,
-  });
-
-  return await listInventoryCountLines(params.restaurantId, params.countId);
-}
-
-/**
- * Finalize:
- * - applies tx for lines with actualQty set (diff=actual-expected)
- * - updates session status->finalized
- */
-export async function finalizeInventoryCount(params: {
-  restaurantId: string;
-  countId: string;
-  actor?: string;
-}): Promise<void> {
-  const s = await getInventoryCountSession(params.restaurantId, params.countId);
-  if (!s) throw new Error("count_session_not_found");
-  if (s.status !== "draft") return; // already finalized/cancelled
-
-  const lines = await listInventoryCountLines(params.restaurantId, params.countId);
-  const now = Date.now();
-
-  for (const ln of lines) {
-    const actual = safeNum(ln.actualQty);
-    if (typeof actual !== "number") continue;
-
-    const expected = Number(ln.expectedQty || 0);
-    const diff = actual - expected;
-    if (!Number.isFinite(diff) || diff === 0) continue;
-
-    const kind = (ln.adjustKind || "adjustment") as InventoryCountAdjustKind;
-
-    // if negative diff and user selected waste -> waste
-    const txType: InventoryTxType =
-      diff < 0 && kind === "waste" ? "waste" : "adjustment";
-
-    const reasonBase = `Inventory count ${params.countId.slice(0, 8)}`;
-    const note = ln.note ? ` • ${ln.note}` : "";
-    const actor = params.actor ? ` • by ${params.actor}` : "";
+  // Create delivery tx per line
+  for (const ln of po.lines || []) {
+    const qty = Number(ln.qty || 0);
+    if (!ln.ingredientId || !(qty > 0)) continue;
 
     await applyInventoryTx({
       restaurantId: params.restaurantId,
       ingredientId: ln.ingredientId,
-      type: txType,
-      deltaQty: diff,
-      reason: `${reasonBase}${note}${actor}`,
+      type: "delivery",
+      deltaQty: qty,
+      reason: `PO ${po.id} delivered (supplier=${po.supplierNameSnapshot})`,
     });
   }
 
-  await setInventoryCountSession({
-    restaurantId: params.restaurantId,
-    countId: params.countId,
-    status: "finalized",
-    finalizedAt: now,
-  });
+  const now = Date.now();
+  const updated: PurchaseOrder = {
+    ...po,
+    status: "delivered",
+    deliveredAt: now,
+    updatedAt: now,
+  };
+
+  const ok = await kv.atomic().check(row).set(key, updated).commit();
+  if (!ok.ok) return null;
+  return updated;
 }
