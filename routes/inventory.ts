@@ -7,28 +7,42 @@ import { getRestaurant } from "../database.ts";
 import { listItems } from "../pos/pos_db.ts";
 
 import {
+  // ingredients
   listIngredients,
   upsertIngredient,
   deleteIngredient,
+
+  // recipes
   listRecipesForRestaurant,
   saveRecipeForMenuItem,
+
+  // tx
   applyInventoryTx,
   listInventoryTx,
+
+  // costs overrides + cost effective
   getMonthlySpendOverride,
   setMonthlySpendOverride,
   getEffectiveCostPerUnit,
+
   // counts
   listInventoryCountSessions,
   createInventoryCountSession,
   getInventoryCountSession,
-  listInventoryCountLines,
+  listInventoryCountLines, // (יכול להיות לא בשימוש, אבל נשאר)
   ensureInventoryCountSnapshot,
   upsertInventoryCountLine,
   finalizeInventoryCount,
+
+  // ✅ suppliers
+  listSuppliers,
+  upsertSupplier,
+  deleteSupplier,
 } from "../inventory/inventory_db.ts";
 
 export const inventoryRouter = new Router();
 
+/* ------------ Helper: parse number safely ------------ */
 function toNum(val: unknown, def = 0): number {
   const n = Number(val);
   return Number.isFinite(n) ? n : def;
@@ -38,6 +52,7 @@ function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
+// YYYY-MM validation + default (UTC)
 function sanitizeMonth(maybe: string | null | undefined): string {
   const now = new Date();
   const def = `${now.getUTCFullYear()}-${pad2(now.getUTCMonth() + 1)}`;
@@ -117,7 +132,7 @@ inventoryRouter.post("/owner/:rid/inventory/recipes/save", async (ctx) => {
 });
 
 /* ========================================================================== */
-/*  Stock                                                                       */
+/*  Stock                                                                      */
 /* ========================================================================== */
 
 inventoryRouter.get("/owner/:rid/inventory/stock", async (ctx) => {
@@ -204,6 +219,69 @@ inventoryRouter.post("/owner/:rid/inventory/stock/tx", async (ctx) => {
   });
 
   ctx.response.redirect(`/owner/${rid}/inventory/stock`);
+});
+
+/* ========================================================================== */
+/*  ✅ Suppliers                                                                */
+/* ========================================================================== */
+
+inventoryRouter.get("/owner/:rid/inventory/suppliers", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const rid = ctx.params.rid!;
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant) ctx.throw(Status.NotFound);
+
+  const suppliers = await listSuppliers(rid);
+
+  await render(ctx, "owner_inventory_suppliers", {
+    page: "owner_inventory_suppliers",
+    title: `ספקים · ${restaurant.name}`,
+    restaurant,
+    suppliers,
+  });
+});
+
+inventoryRouter.post("/owner/:rid/inventory/suppliers/save", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const rid = ctx.params.rid!;
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant) ctx.throw(Status.NotFound);
+
+  const form = await ctx.request.body.formData();
+
+  const id = (form.get("id")?.toString() || "").trim() || undefined;
+  const name = (form.get("name")?.toString() || "").trim();
+  const phone = (form.get("phone")?.toString() || "").trim();
+  const email = (form.get("email")?.toString() || "").trim();
+  const paymentTerms = (form.get("paymentTerms")?.toString() || "").trim();
+  const notes = (form.get("notes")?.toString() || "").trim();
+  const isActive = form.get("isActive") ? true : false;
+
+  if (!name) ctx.throw(Status.BadRequest, "missing_supplier_name");
+
+  await upsertSupplier({
+    id,
+    restaurantId: rid,
+    name,
+    phone: phone || undefined,
+    email: email || undefined,
+    paymentTerms: paymentTerms || undefined,
+    notes: notes || undefined,
+    isActive,
+  });
+
+  ctx.response.redirect(`/owner/${rid}/inventory/suppliers`);
+});
+
+inventoryRouter.post("/owner/:rid/inventory/suppliers/:sid/delete", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const rid = ctx.params.rid!;
+  const sid = ctx.params.sid!;
+  await deleteSupplier(rid, sid);
+  ctx.response.redirect(`/owner/${rid}/inventory/suppliers`);
 });
 
 /* ========================================================================== */
@@ -362,9 +440,9 @@ inventoryRouter.post("/owner/:rid/inventory/counts/new", async (ctx) => {
   ctx.response.redirect(`/owner/${rid}/inventory/counts?created=${encodeURIComponent(session.id)}`);
 });
 
-// ==========================================================================
-//  ✅ Food Cost per Dish (עלות מנה ורווחיות)
-// ==========================================================================
+/* ========================================================================== */
+/*  ✅ Food Cost per Dish (עלות מנה ורווחיות)                                   */
+/* ========================================================================== */
 
 inventoryRouter.get("/owner/:rid/inventory/foodcost", async (ctx) => {
   if (!requireOwner(ctx)) return;
@@ -427,8 +505,7 @@ inventoryRouter.get("/owner/:rid/inventory/foodcost", async (ctx) => {
     const gross = price - foodCost;
     const marginPct = price > 0 ? (gross / price) * 100 : null;
 
-    const name =
-      mi.name_he || mi.name_en || mi.name_ka || "ללא שם";
+    const name = mi.name_he || mi.name_en || mi.name_ka || "ללא שם";
 
     return {
       menuItem: mi,
@@ -444,7 +521,6 @@ inventoryRouter.get("/owner/:rid/inventory/foodcost", async (ctx) => {
     };
   });
 
-  // סטטיסטיקות קצרות
   const totalItems = rows.length;
   const withRecipe = rows.filter((x) => x.hasRecipe).length;
   const missingRecipe = totalItems - withRecipe;
@@ -459,7 +535,6 @@ inventoryRouter.get("/owner/:rid/inventory/foodcost", async (ctx) => {
     return rel.reduce((s, x) => s + (x.marginPct || 0), 0) / rel.length;
   })();
 
-  // Top lists
   const topCostly = [...rows]
     .filter((x) => x.hasRecipe)
     .sort((a, b) => b.foodCost - a.foodCost)
@@ -487,8 +562,6 @@ inventoryRouter.get("/owner/:rid/inventory/foodcost", async (ctx) => {
     topProfitable,
   });
 });
-
-
 
 /* ========================================================================== */
 /*  Counts: page (table) + save + finalize                                     */
@@ -522,7 +595,10 @@ inventoryRouter.get("/owner/:rid/inventory/counts/:cid", async (ctx) => {
   for (const ln of lines) {
     const cost = Number(ln.costPerUnitSnapshot || 0);
     const exp = Number(ln.expectedQty || 0);
-    const act = (typeof ln.actualQty === "number" && Number.isFinite(ln.actualQty)) ? ln.actualQty : exp;
+    const act =
+      (typeof ln.actualQty === "number" && Number.isFinite(ln.actualQty))
+        ? ln.actualQty
+        : exp;
 
     expectedValue += exp * cost;
     actualValue += act * cost;
@@ -569,7 +645,6 @@ inventoryRouter.post("/owner/:rid/inventory/counts/:cid/save", async (ctx) => {
     parsed = [];
   }
 
-  // update provided lines
   for (const row of parsed) {
     const ingredientId = String(row.ingredientId || "").trim();
     if (!ingredientId) continue;
@@ -583,7 +658,6 @@ inventoryRouter.post("/owner/:rid/inventory/counts/:cid/save", async (ctx) => {
     const adjustKind = (kind === "waste") ? "waste" : "adjustment";
     const note = String(row.note || "").trim();
 
-    // validations: actual >= 0 if provided
     if (actual !== null) {
       if (!Number.isFinite(actual) || actual < 0) continue;
     }
@@ -652,8 +726,9 @@ inventoryRouter.post("/owner/:rid/inventory/counts/:cid/finalize", async (ctx) =
     });
   }
 
-  // apply diffs + mark finalized
-  const actor = (ctx.state?.user?.username || ctx.state?.user?.firstName || "").toString() || undefined;
+  const actor =
+    (ctx.state?.user?.username || ctx.state?.user?.firstName || "").toString() || undefined;
+
   await finalizeInventoryCount({ restaurantId: rid, countId: cid, actor });
 
   ctx.response.redirect(`/owner/${rid}/inventory/counts/${cid}?final=1`);

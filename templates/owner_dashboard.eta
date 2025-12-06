@@ -155,6 +155,11 @@ function tt(k, fb){
   		<span class="icon">💰</span>
   		עלות מנה ורווחיות
 		</a>
+		<!-- ✅ ספקים -->
+		<a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/suppliers">
+ 		 <span class="icon">🚚</span>
+  		ספקים		
+		</a>
                   <!-- ✅ מתכוני מנות -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/recipes">
                     <span class="icon">📖</span>

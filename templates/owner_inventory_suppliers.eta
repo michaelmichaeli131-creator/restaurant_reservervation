@@ -1,0 +1,211 @@
+<% layout("_layout", it) %>
+
+<%
+  const restaurant = it.restaurant || {};
+  const suppliers  = Array.isArray(it.suppliers) ? it.suppliers : [];
+
+  function esc(s){ return String(s ?? ""); }
+%>
+
+<section class="sb-owner container" aria-label="ספקים">
+  <div class="card">
+    <header class="owner-hd">
+      <div>
+        <h1>ספקים · <%= restaurant.name || 'מסעדה' %></h1>
+        <p class="muted">
+          ניהול ספקים בסיסי: שם, טלפון, מייל, תנאי תשלום והערות.
+          (בשלב הבא נחבר “ספק מועדף” לכל חומר גלם + הזמנות רכש).
+        </p>
+      </div>
+      <div class="actions">
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">⬅ מלאי</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📈 עלויות</a>
+      </div>
+    </header>
+
+    <div class="panel card" style="margin-top:14px">
+      <h2 class="card-title">הוספת ספק חדש</h2>
+
+      <form class="form row" method="post" action="/owner/<%= restaurant.id %>/inventory/suppliers/save">
+        <input type="hidden" name="id" value="">
+        <label class="lbl">
+          שם ספק *
+          <input name="name" required placeholder="לדוגמה: דגי הים בע״מ">
+        </label>
+        <label class="lbl">
+          טלפון
+          <input name="phone" placeholder="050-1234567">
+        </label>
+        <label class="lbl">
+          מייל
+          <input name="email" type="email" placeholder="sales@supplier.com">
+        </label>
+        <label class="lbl">
+          תנאי תשלום
+          <input name="paymentTerms" placeholder="שוטף +30">
+        </label>
+        <label class="lbl" style="min-width:220px;flex:1">
+          הערות
+          <input name="notes" placeholder="ימי אספקה / מינימום הזמנה / וכו׳">
+        </label>
+
+        <label class="chk">
+          <input type="checkbox" name="isActive" checked>
+          פעיל
+        </label>
+
+        <button class="btn primary sm" type="submit">➕ הוסף</button>
+      </form>
+    </div>
+
+    <div class="panel card" style="margin-top:16px">
+      <h2 class="card-title">כל הספקים</h2>
+
+      <% if (!suppliers.length) { %>
+        <p class="muted">עדיין אין ספקים. הוסף ספק ראשון למעלה.</p>
+      <% } else { %>
+
+        <div class="table">
+          <div class="tr th">
+            <div>שם</div>
+            <div>טלפון</div>
+            <div>מייל</div>
+            <div>תנאי תשלום</div>
+            <div>פעיל</div>
+            <div></div>
+          </div>
+
+          <% suppliers.forEach(function(s){ %>
+            <form class="tr" method="post" action="/owner/<%= restaurant.id %>/inventory/suppliers/save">
+              <input type="hidden" name="id" value="<%= esc(s.id) %>">
+
+              <div class="td">
+                <input class="in" name="name" required value="<%= esc(s.name) %>">
+                <% if (s.notes) { %>
+                  <div class="muted small" style="margin-top:6px">הערות: <%= esc(s.notes) %></div>
+                <% } %>
+              </div>
+
+              <div class="td">
+                <input class="in" name="phone" value="<%= esc(s.phone || '') %>" placeholder="—">
+              </div>
+
+              <div class="td">
+                <input class="in" name="email" type="email" value="<%= esc(s.email || '') %>" placeholder="—">
+              </div>
+
+              <div class="td">
+                <input class="in" name="paymentTerms" value="<%= esc(s.paymentTerms || '') %>" placeholder="—">
+              </div>
+
+              <div class="td">
+                <label class="chk tiny" title="פעיל">
+                  <input type="checkbox" name="isActive" <%= (s.isActive === false ? '' : 'checked') %> >
+                  <span class="muted small">פעיל</span>
+                </label>
+              </div>
+
+              <div class="td right">
+                <button class="btn primary sm" type="submit">שמור</button>
+
+                <button
+                  class="btn ghost sm danger"
+                  type="submit"
+                  formaction="/owner/<%= restaurant.id %>/inventory/suppliers/<%= esc(s.id) %>/delete"
+                  formmethod="post"
+                  onclick="return confirm('למחוק את הספק הזה?')"
+                  style="margin-right:8px"
+                >
+                  מחיקה
+                </button>
+              </div>
+            </form>
+          <% }) %>
+        </div>
+
+      <% } %>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
+
+  .card{
+    background: var(--panel, #121622);
+    border:1px solid var(--bd, #222834);
+    border-radius:18px; padding:18px; margin-bottom:18px;
+    color: var(--ink, #e6e8ef);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  .panel.card{height:100%}
+
+  .owner-hd{display:flex;align-items:flex-start;gap:12px;justify-content:space-between}
+  .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
+  .muted{ color: var(--ink-muted, #9aa3b2); }
+  .small{ font-size:12px; }
+
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
+    border:1px solid var(--bd, #23293a); background:transparent;
+    color: var(--ink, #e6e8ef); font-weight:700;
+    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover{ transform: translateY(-1px); }
+  .btn.primary{
+    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
+    box-shadow: 0 8px 24px rgba(59,130,246,.35);
+  }
+  .btn.ghost{background:rgba(15,23,42,.6);}
+  .btn.sm{ padding:8px 12px; border-radius:10px; font-size:13px }
+  .btn.danger{
+    border-color: rgba(248,113,113,.35);
+    color:#fecaca;
+  }
+
+  .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+  .lbl{display:block;font-weight:700;font-size:13px}
+  .lbl input{
+    width:200px; padding:10px 12px; margin-top:6px;
+    background:#171b29; color:#e6e8ef; border:1px solid #23293a; border-radius:12px;
+    font-size:14px; outline:none;
+  }
+
+  .chk{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:8px 10px;
+    border:1px solid rgba(148,163,184,.2);
+    background:rgba(148,163,184,.08);
+    border-radius:12px;
+    font-weight:700;
+  }
+  .chk.tiny{ padding:6px 8px; border-radius:10px; }
+  .chk input{ transform: translateY(1px); }
+
+  .table{margin-top:10px;border:1px solid rgba(148,163,184,.18);border-radius:14px;overflow:hidden}
+  .tr{display:grid;grid-template-columns:1.6fr 1fr 1.2fr 1fr .7fr 1fr;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid rgba(255,255,255,.06)}
+  .tr:first-child{border-top:none}
+  .th{background:rgba(148,163,184,.08);font-weight:900;color:#dbe3f0}
+
+  .td{min-width:0}
+  .td.right{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+
+  .in{
+    width:100%;
+    padding:10px 12px;
+    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
+    font-size:14px; outline:none;
+  }
+  .in:focus{
+    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
+  }
+
+  @media (max-width:950px){
+    .tr{grid-template-columns:1fr}
+    .td.right{justify-content:flex-start}
+    .lbl input{width:100%}
+  }
+</style>

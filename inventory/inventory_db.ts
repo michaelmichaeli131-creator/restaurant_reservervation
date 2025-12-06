@@ -537,6 +537,92 @@ export async function setInventoryCountSession(params: {
   return next;
 }
 
+// ==============================
+// SUPPLIERS (טבלת ספקים)
+// ==============================
+
+export interface Supplier {
+  id: string;
+  restaurantId: string;
+
+  name: string;
+  phone?: string;
+  email?: string;
+  paymentTerms?: string; // תנאי תשלום (למשל: "שוטף +30")
+  notes?: string;
+
+  isActive?: boolean;
+
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Keys
+function kSupplier(rid: string, supplierId: string): Deno.KvKey {
+  return ["inv", "supplier", rid, supplierId];
+}
+function kSupplierPrefix(rid: string): Deno.KvKey {
+  return ["inv", "supplier", rid];
+}
+
+export async function listSuppliers(restaurantId: string): Promise<Supplier[]> {
+  const out: Supplier[] = [];
+  for await (const row of kv.list<Supplier>({ prefix: kSupplierPrefix(restaurantId) })) {
+    if (row.value) out.push(row.value);
+  }
+  out.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  return out;
+}
+
+export async function getSupplier(
+  restaurantId: string,
+  supplierId: string,
+): Promise<Supplier | null> {
+  const row = await kv.get<Supplier>(kSupplier(restaurantId, supplierId));
+  return row.value ?? null;
+}
+
+export async function upsertSupplier(
+  data: Partial<Supplier> & { restaurantId: string; name: string },
+): Promise<Supplier> {
+  const now = Date.now();
+  const id = data.id ?? crypto.randomUUID();
+
+  const prev = await kv.get<Supplier>(kSupplier(data.restaurantId, id));
+  const existing = prev.value ?? null;
+
+  const obj: Supplier = {
+    id,
+    restaurantId: data.restaurantId,
+
+    name: (data.name || "").trim(),
+    phone: (data.phone || "").trim() || undefined,
+    email: (data.email || "").trim() || undefined,
+    paymentTerms: (data.paymentTerms || "").trim() || undefined,
+    notes: (data.notes || "").trim() || undefined,
+
+    isActive: typeof data.isActive === "boolean"
+      ? data.isActive
+      : (existing?.isActive ?? true),
+
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+
+  if (!obj.name) throw new Error("missing_supplier_name");
+
+  await kv.set(kSupplier(data.restaurantId, id), obj);
+  return obj;
+}
+
+export async function deleteSupplier(
+  restaurantId: string,
+  supplierId: string,
+): Promise<void> {
+  await kv.delete(kSupplier(restaurantId, supplierId));
+}
+
+
 /* ---------- Count Lines ---------- */
 
 export async function listInventoryCountLines(
