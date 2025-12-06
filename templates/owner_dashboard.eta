@@ -160,6 +160,15 @@ function tt(k, fb){
  		 <span class="icon">🚚</span>
   		ספקים		
 		</a>
+		<a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/suppliers">
+  		<span class="icon">🏭</span>
+  		ספקים
+		</a>
+		<a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/purchase_orders">
+  		<span class="icon">📄</span>
+  		הזמנות רכש (PO)
+		</a>
+
                   <!-- ✅ מתכוני מנות -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/recipes">
                     <span class="icon">📖</span>
