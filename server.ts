@@ -30,7 +30,7 @@ import { ownerRouter } from "./routes/owner.ts";
 import { adminRouter } from "./routes/admin.ts";
 import rootRouter from "./routes/root.ts";
 import ownerCapacityRouter from "./routes/owner_capacity.ts";
-import { listRestaurants, getUserById } from "./database.ts";
+import { listRestaurants, listRestaurantsByCategory, getUserById, type KitchenCategory } from "./database.ts";
 import { sendVerifyEmail } from "./lib/mail_wrappers.ts";
 import ownerManageRouter from "./routes/owner_manage.ts";
 import { ownerHoursRouter } from "./routes/owner_hours.ts";
@@ -267,12 +267,24 @@ root.get("/", async (ctx) => {
   const url = ctx.request.url;
   const q = url.searchParams.get("q")?.toString() ?? "";
   const search = url.searchParams.get("search")?.toString() ?? "";
-  const shouldSearch = search === "1" || q.trim().length > 0;
-  const restaurants = shouldSearch ? await listRestaurants(q, true) : [];
+  const category = url.searchParams.get("category")?.toString() ?? "";
+
+  let restaurants: any[] = [];
+
+  if (category && category.trim()) {
+    // Filter by category
+    restaurants = await listRestaurantsByCategory(category as KitchenCategory, true);
+  } else {
+    // Text search
+    const shouldSearch = search === "1" || q.trim().length > 0;
+    restaurants = shouldSearch ? await listRestaurants(q, true) : [];
+  }
+
   await render(ctx, "index", {
     restaurants,
     q,
-    search: shouldSearch ? "1" : "",
+    search: (search === "1" || q.trim().length > 0) ? "1" : "",
+    category,
     page: "home",
     title: "GeoTable — חיפוש מסעדה",
   });
@@ -444,9 +456,9 @@ app.use(reviewsRouter.allowedMethods());
 app.use(reviewPortalRouter.routes());
 app.use(reviewPortalRouter.allowedMethods());
 
-// ראוטר שורש נוסף
-app.use(rootRouter.routes());
-app.use(rootRouter.allowedMethods());
+// ראוטר שורש נוסף (DISABLED - "/" now handled by inline root router above for category support)
+// app.use(rootRouter.routes());
+// app.use(rootRouter.allowedMethods());
 
 // אחרי app.use(rootRouter.routes()) וכו׳
 app.use(ownerBillsRouter.routes());
