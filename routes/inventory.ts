@@ -8,6 +8,7 @@
 // - ספירות מלאי (sessions + lines + finalize)
 // - Food Cost per Dish
 // - ✅ ספקים (טבלה בסיסית + leadTimeDays לצפי הגעה)
+// - ✅ הזמנות רכש (purchase_orders) – כדי שכפתור "הזמנות רכש" לא יחזיר Not Found
 // ----------------------------------------
 
 import { Router, Status } from "jsr:@oak/oak";
@@ -48,6 +49,15 @@ import {
   listSuppliers,
   upsertSupplier,
   deleteSupplier,
+  getSupplier,
+
+  // ✅ purchase orders
+  listPurchaseOrders,
+  createPurchaseOrder,
+  getPurchaseOrder,
+  savePurchaseOrder,
+  setPurchaseOrderStatus,
+  markPurchaseOrderDelivered,
 } from "../inventory/inventory_db.ts";
 
 export const inventoryRouter = new Router();
@@ -83,6 +93,19 @@ function monthRangeUtc(month: string): { start: number; end: number } {
   const start = Date.UTC(y, mo - 1, 1, 0, 0, 0, 0);
   const end = Date.UTC(y, mo, 1, 0, 0, 0, 0);
   return { start, end };
+}
+
+// YYYY-MM-DD -> UTC ms (00:00)
+function parseYmdToUtcMs(maybe: string | null | undefined): number | undefined {
+  const v = (maybe || "").trim();
+  if (!v) return undefined;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return undefined;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (!(y >= 2000 && y <= 2100 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31)) return undefined;
+  return Date.UTC(y, mo - 1, d, 0, 0, 0, 0);
 }
 
 /* ========================================================================== */
@@ -217,7 +240,9 @@ inventoryRouter.post("/owner/:rid/inventory/stock/tx", async (ctx) => {
     | "delivery"
     | "adjustment";
   const deltaQty = toNum(form.get("deltaQty"), 0);
-  const costTotal = form.get("costTotal") ? toNum(form.get("costTotal"), NaN) : NaN;
+  const costTotal = form.get("costTotal")
+    ? toNum(form.get("costTotal"), NaN)
+    : NaN;
   const reason = (form.get("reason")?.toString() || "").trim();
 
   if (!ingredientId || !Number.isFinite(deltaQty) || deltaQty === 0) {
@@ -274,8 +299,12 @@ async function handleSupplierUpsert(ctx: any) {
   const email = (form.get("email")?.toString() || "").trim();
   const paymentTerms = (form.get("paymentTerms")?.toString() || "").trim();
 
-  // ✅ הדבר היחיד ההכרחי לצפי הגעה
+  // ✅ צפי הגעה (הכרחי)
   const leadTimeDays = toNum(form.get("leadTimeDays"), 0);
+
+  // תואם לטמפלט הקיים
+  const notes = (form.get("notes")?.toString() || "").trim();
+  const isActive = form.get("isActive") ? true : false;
 
   if (!name) ctx.throw(Status.BadRequest, "missing_supplier_name");
 
@@ -286,7 +315,12 @@ async function handleSupplierUpsert(ctx: any) {
     phone: phone || undefined,
     email: email || undefined,
     paymentTerms: paymentTerms || undefined,
-    leadTimeDays: Number.isFinite(leadTimeDays) && leadTimeDays >= 0 ? Math.floor(leadTimeDays) : 0,
+    leadTimeDays:
+      Number.isFinite(leadTimeDays) && leadTimeDays >= 0
+        ? Math.floor(leadTimeDays)
+        : 0,
+    notes: notes || undefined,
+    isActive,
   });
 
   ctx.response.redirect(`/owner/${rid}/inventory/suppliers`);
@@ -302,6 +336,188 @@ inventoryRouter.post("/owner/:rid/inventory/suppliers/:sid/delete", async (ctx) 
   const sid = ctx.params.sid!;
   await deleteSupplier(rid, sid);
   ctx.response.redirect(`/owner/${rid}/inventory/suppliers`);
+});
+
+/* ========================================================================== */
+/*  ✅ Purchase Orders (fix for "הזמנות רכש" Not Found)                        */
+/* ========================================================================== */
+
+inventoryRouter.get("/owner/:rid/inventory/purchase_orders", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const rid = ctx.params.rid!;
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant) ctx.throw(Status.NotFound);
+
+  const [suppliers, pos] = await Promise.all([
+    listSuppliers(rid),
+    listPurchaseOrders(rid, 200),
+  ]);
+
+  await render(ctx, "owner_inventory_purchase_orders", {
+    page: "owner_inventory_purchase_orders",
+    title: `הזמנות רכש · ${restaurant.name}`,
+    restaurant,
+    suppliers,
+    pos,
+  });
+});
+
+inventoryRouter.post("/owner/:rid/inventory/purchase_orders/new", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const rid = ctx.params.rid!;
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant) ctx.throw(Status.NotFound);
+
+  const form = await ctx.request.body.formData();
+  const supplierId = (form.get("supplierId")?.toString() || "").trim();
+  const expectedAt = parseYmdToUtcMs(form.get("expectedAt")?.toString() || "");
+  const note = (form.get("note")?.toString() || "").trim();
+
+  if (!supplierId) ctx.throw(Status.BadRequest, "missing_supplier");
+
+  const supplier = await getSupplier(rid, supplierId);
+  if (!supplier) ctx.throw(Status.BadRequest, "supplier_not_found");
+
+  const po = await createPurchaseOrder({
+    restaurantId: rid,
+    supplier,
+    expectedAt,
+    note: note || undefined,
+  });
+
+  ctx.response.redirect(`/owner/${rid}/inventory/purchase_orders/${po.id}`);
+});
+
+inventoryRouter.get("/owner/:rid/inventory/purchase_orders/:pid", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const rid = ctx.params.rid!;
+  const pid = ctx.params.pid!;
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant) ctx.throw(Status.NotFound);
+
+  const po = await getPurchaseOrder(rid, pid);
+  if (!po) ctx.throw(Status.NotFound);
+
+  const [suppliers, ingredients] = await Promise.all([
+    listSuppliers(rid),
+    listIngredients(rid),
+  ]);
+
+  await render(ctx, "owner_inventory_purchase_order", {
+    page: "owner_inventory_purchase_order",
+    title: `הזמנת רכש · ${restaurant.name}`,
+    restaurant,
+    po,
+    suppliers,
+    ingredients,
+  });
+});
+
+inventoryRouter.post("/owner/:rid/inventory/purchase_orders/:pid/save", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const rid = ctx.params.rid!;
+  const pid = ctx.params.pid!;
+  const po = await getPurchaseOrder(rid, pid);
+  if (!po) ctx.throw(Status.NotFound);
+
+  if (po.status !== "draft") {
+    ctx.response.redirect(`/owner/${rid}/inventory/purchase_orders/${pid}`);
+    return;
+  }
+
+  const form = await ctx.request.body.formData();
+  const note = (form.get("note")?.toString() || "").trim();
+  const expectedAt = parseYmdToUtcMs(form.get("expectedAt")?.toString() || "");
+
+  const rawLines = (form.get("lines")?.toString() || "[]").trim();
+  let parsed: any[] = [];
+  try {
+    const v = JSON.parse(rawLines);
+    if (Array.isArray(v)) parsed = v;
+  } catch {
+    parsed = [];
+  }
+
+  const lines = parsed
+    .map((x: any) => ({
+      ingredientId: String(x.ingredientId || "").trim(),
+      qty: Number(x.qty || 0),
+    }))
+    .filter((l) => l.ingredientId && Number.isFinite(l.qty) && l.qty > 0);
+
+  await savePurchaseOrder({
+    restaurantId: rid,
+    poId: pid,
+    expectedAt,
+    note: note || undefined,
+    // ingredientName לא חובה (ה־DB יודע לשמור גם בלי)
+    lines: lines.map((l) => ({
+      ingredientId: l.ingredientId,
+      qty: l.qty,
+    })),
+  });
+
+  ctx.response.redirect(`/owner/${rid}/inventory/purchase_orders/${pid}?saved=1`);
+});
+
+inventoryRouter.post("/owner/:rid/inventory/purchase_orders/:pid/send", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const rid = ctx.params.rid!;
+  const pid = ctx.params.pid!;
+  const po = await getPurchaseOrder(rid, pid);
+  if (!po) ctx.throw(Status.NotFound);
+
+  if (po.status !== "draft") {
+    ctx.response.redirect(`/owner/${rid}/inventory/purchase_orders/${pid}`);
+    return;
+  }
+
+  await setPurchaseOrderStatus({ restaurantId: rid, poId: pid, status: "sent" });
+  ctx.response.redirect(`/owner/${rid}/inventory/purchase_orders/${pid}?sent=1`);
+});
+
+inventoryRouter.post("/owner/:rid/inventory/purchase_orders/:pid/cancel", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const rid = ctx.params.rid!;
+  const pid = ctx.params.pid!;
+  const po = await getPurchaseOrder(rid, pid);
+  if (!po) ctx.throw(Status.NotFound);
+
+  if (po.status === "delivered") {
+    ctx.response.redirect(`/owner/${rid}/inventory/purchase_orders/${pid}`);
+    return;
+  }
+
+  await setPurchaseOrderStatus({ restaurantId: rid, poId: pid, status: "cancelled" });
+  ctx.response.redirect(`/owner/${rid}/inventory/purchase_orders/${pid}?cancelled=1`);
+});
+
+inventoryRouter.post("/owner/:rid/inventory/purchase_orders/:pid/delivered", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const rid = ctx.params.rid!;
+  const pid = ctx.params.pid!;
+  const po = await getPurchaseOrder(rid, pid);
+  if (!po) ctx.throw(Status.NotFound);
+
+  if (po.status === "delivered" || po.status === "cancelled") {
+    ctx.response.redirect(`/owner/${rid}/inventory/purchase_orders/${pid}`);
+    return;
+  }
+
+  const actor =
+    (ctx.state?.user?.username || ctx.state?.user?.firstName || "")
+      .toString() || undefined;
+
+  await markPurchaseOrderDelivered({ restaurantId: rid, poId: pid, actor });
+
+  ctx.response.redirect(`/owner/${rid}/inventory/purchase_orders/${pid}?delivered=1`);
 });
 
 /* ========================================================================== */
@@ -344,14 +560,17 @@ inventoryRouter.get("/owner/:rid/inventory/costs", async (ctx) => {
 
     computedTotal += tx.costTotal!;
 
-    if (!perIngredient[tx.ingredientId]) perIngredient[tx.ingredientId] = { cost: 0, qty: 0 };
+    if (!perIngredient[tx.ingredientId]) {
+      perIngredient[tx.ingredientId] = { cost: 0, qty: 0 };
+    }
     perIngredient[tx.ingredientId].cost += tx.costTotal!;
     if (Number.isFinite(tx.deltaQty) && tx.deltaQty > 0) {
       perIngredient[tx.ingredientId].qty += tx.deltaQty;
     }
 
     const d = new Date(tx.createdAt);
-    const key = `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+    const key =
+      `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
     dailyMap[key] = (dailyMap[key] || 0) + tx.costTotal!;
   }
 
@@ -378,9 +597,10 @@ inventoryRouter.get("/owner/:rid/inventory/costs", async (ctx) => {
   const summary = {
     totalSpend: effectiveTotal,
     deliveriesWithCost: deliveriesCount - deliveriesMissingCost,
-    avgPerDelivery: (deliveriesCount - deliveriesMissingCost) > 0
-      ? (computedTotal / (deliveriesCount - deliveriesMissingCost))
-      : 0,
+    avgPerDelivery:
+      (deliveriesCount - deliveriesMissingCost) > 0
+        ? (computedTotal / (deliveriesCount - deliveriesMissingCost))
+        : 0,
     maxDaily: daily.length ? Math.max(...daily.map((d) => Number(d.total || 0))) : 0,
   };
 
@@ -748,7 +968,8 @@ inventoryRouter.post("/owner/:rid/inventory/counts/:cid/finalize", async (ctx) =
   }
 
   const actor =
-    (ctx.state?.user?.username || ctx.state?.user?.firstName || "").toString() || undefined;
+    (ctx.state?.user?.username || ctx.state?.user?.firstName || "")
+      .toString() || undefined;
 
   await finalizeInventoryCount({ restaurantId: rid, countId: cid, actor });
 
