@@ -150,6 +150,11 @@ function tt(k, fb){
   		<span class="icon">📋</span>
   		ספירות מלאי	
 		</a>
+		<!-- ✅ עלות מנה ורווחיות (Food Cost) -->
+		<a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/foodcost">
+  		<span class="icon">💰</span>
+  		עלות מנה ורווחיות
+		</a>
                   <!-- ✅ מתכוני מנות -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/recipes">
                     <span class="icon">📖</span>
