@@ -2,7 +2,17 @@
 
 <%
   const restaurant = it.restaurant || {};
-  const s = it.session || {};
+  const session = it.session || {};
+  const lines = Array.isArray(it.lines) ? it.lines : [];
+  const summary = it.summary || {};
+  const saved = (it.request?.url?.searchParams?.get?.("saved") || "") || "";
+  const final = (it.request?.url?.searchParams?.get?.("final") || "") || "";
+
+  function num(n, digits=2){
+    const x = Number(n || 0);
+    if(!Number.isFinite(x)) return '0';
+    return x.toFixed(digits);
+  }
 %>
 
 <section class="sb-owner container" aria-label="ספירת מלאי">
@@ -11,7 +21,9 @@
       <div>
         <h1>ספירת מלאי · <%= restaurant.name || 'מסעדה' %></h1>
         <p class="muted">
-          ספירה: <strong>#<%= String(s.id||'').slice(0,8) %></strong> • סטטוס: <strong><%= s.status || 'draft' %></strong>
+          ספירה <strong>#<%= String(session.id||'').slice(0,8) %></strong>
+          • סטטוס: <strong><%= session.status || 'draft' %></strong>
+          <% if (session.note) { %> • הערה: <strong><%= session.note %></strong><% } %>
         </p>
       </div>
       <div class="actions">
@@ -20,21 +32,277 @@
       </div>
     </header>
 
-    <div class="panel card">
-      <h2 class="card-title">המשך במימוש עמוד הספירה</h2>
-      <p class="muted">
-        בעמוד הבא נממש כאן:
-        <br>• טבלת חומרי גלם (Expected = currentQty)
-        <br>• שדה Actual לכל שורה
-        <br>• Diff + שווי פער לפי costEffective
-        <br>• כפתור “סגור ספירה” שיוצר movements מסוג adjustment
-      </p>
+    <% if (saved) { %>
+      <div class="notice ok">💾 נשמרה טיוטה.</div>
+    <% } %>
+    <% if (final) { %>
+      <div class="notice ok">✅ הספירה נסגרה והחלו התאמות מלאי בהתאם.</div>
+    <% } %>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="k">סה״כ פריטים</div>
+        <div class="v"><%= Number(summary.items || 0) %></div>
+      </div>
+      <div class="stat">
+        <div class="k">שורות עם Actual שהוזן</div>
+        <div class="v"><%= Number(summary.filled || 0) %></div>
+      </div>
+      <div class="stat">
+        <div class="k">שווי Expected</div>
+        <div class="v">₪ <%= num(summary.expectedValue, 2) %></div>
+      </div>
+      <div class="stat">
+        <div class="k">שווי Actual (תצוגה)</div>
+        <div class="v">₪ <%= num(summary.actualValue, 2) %></div>
+      </div>
+      <div class="stat wide">
+        <div class="k">Δ שווי (Actual-Expected)</div>
+        <div class="v" id="delta-val">₪ <%= num(summary.deltaValue, 2) %></div>
+        <div class="muted small" id="delta-hint">הדלתא מתעדכנת בזמן אמת בזמן הקלדה.</div>
+      </div>
     </div>
+
+    <% if (!lines.length) { %>
+      <p class="muted">אין שורות ספירה (בעיה בסנאפשוט). חזור לרשימה ונסה ליצור ספירה מחדש.</p>
+    <% } else { %>
+      <form id="count-form" method="post" action="/owner/<%= restaurant.id %>/inventory/counts/<%= session.id %>/save" class="panel card" style="margin-top:16px">
+        <div class="form-hd">
+          <h2 class="card-title">טבלת ספירה</h2>
+          <div class="form-actions">
+            <input class="search" id="search" placeholder="חפש חומר גלם..." />
+          </div>
+        </div>
+
+        <input type="hidden" name="lines" id="lines-json" />
+
+        <div class="table" id="table">
+          <div class="tr th">
+            <div>חומר גלם</div>
+            <div>Expected</div>
+            <div>Actual</div>
+            <div>Δ Qty</div>
+            <div>סוג פער</div>
+            <div>₪ Δ</div>
+            <div>הערה</div>
+          </div>
+
+          <% lines.forEach(function(ln){ 
+               const exp = Number(ln.expectedQty || 0);
+               const act = (typeof ln.actualQty === 'number' ? ln.actualQty : null);
+               const cost = Number(ln.costPerUnitSnapshot || 0);
+               const diff = (act === null) ? null : (act - exp);
+               const diffVal = (diff === null) ? null : (diff * cost);
+               const kind = (ln.adjustKind === 'waste') ? 'waste' : 'adjustment';
+          %>
+            <div class="tr row" data-id="<%= ln.ingredientId %>" data-cost="<%= cost %>" data-exp="<%= exp %>">
+              <div class="td">
+                <div class="name"><strong><%= ln.ingredientName %></strong></div>
+                <div class="muted small">יחידה: <span class="pill"><%= ln.unit || 'unit' %></span></div>
+                <% if (!cost) { %>
+                  <div class="muted small">⚠️ אין עלות ליחידה (חישוב ₪Δ יהיה 0)</div>
+                <% } %>
+              </div>
+
+              <div class="td">
+                <div class="mono"><%= exp %></div>
+              </div>
+
+              <div class="td">
+                <input
+                  class="in actual"
+                  inputmode="decimal"
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  placeholder="<%= exp %>"
+                  value="<%= (act === null ? '' : String(act)) %>"
+                />
+                <div class="muted small">הפלאייסהולדר = Expected</div>
+              </div>
+
+              <div class="td">
+                <span class="pill diff <%= (diff !== null && diff !== 0) ? 'warn' : 'ok' %>">
+                  <%= (diff === null ? '—' : num(diff, 3)) %>
+                </span>
+              </div>
+
+              <div class="td">
+                <select class="in kind">
+                  <option value="adjustment" <%= kind==='adjustment' ? 'selected' : '' %>>Adjustment</option>
+                  <option value="waste" <%= kind==='waste' ? 'selected' : '' %>>Waste (בלאי/גניבה)</option>
+                </select>
+                <div class="muted small">Waste יעבוד רק אם Δ שלילי</div>
+              </div>
+
+              <div class="td">
+                <span class="mono diffval"><%= (diffVal===null ? '—' : ('₪ ' + num(diffVal, 2))) %></span>
+              </div>
+
+              <div class="td">
+                <input class="in note" value="<%= ln.note || '' %>" placeholder="לדוגמה: נשפך / טעות ספירה" />
+              </div>
+            </div>
+          <% }) %>
+        </div>
+
+        <div class="footer">
+          <% if ((session.status || 'draft') === 'draft') { %>
+            <button class="btn primary sm" type="submit" id="btn-save">💾 שמור טיוטה</button>
+            <button
+              class="btn danger sm"
+              type="submit"
+              id="btn-finalize"
+              formaction="/owner/<%= restaurant.id %>/inventory/counts/<%= session.id %>/finalize"
+            >✅ סגור ספירה והחל התאמות</button>
+          <% } else { %>
+            <span class="muted small">הספירה כבר נסגרה, אי אפשר לערוך.</span>
+          <% } %>
+        </div>
+      </form>
+    <% } %>
   </div>
 </section>
 
+<script>
+  (function(){
+    var form = document.getElementById('count-form');
+    if(!form) return;
+
+    var linesJson = document.getElementById('lines-json');
+    var rows = Array.from(document.querySelectorAll('.row'));
+    var deltaEl = document.getElementById('delta-val');
+
+    var search = document.getElementById('search');
+    if (search){
+      search.addEventListener('input', function(){
+        var q = String(search.value || '').trim().toLowerCase();
+        rows.forEach(function(r){
+          var name = (r.querySelector('.name')?.textContent || '').toLowerCase();
+          r.style.display = (!q || name.indexOf(q) >= 0) ? '' : 'none';
+        });
+      });
+    }
+
+    function toNum(v){
+      var n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function updateRow(r){
+      var exp = toNum(r.getAttribute('data-exp')) || 0;
+      var cost = toNum(r.getAttribute('data-cost')) || 0;
+
+      var actualInput = r.querySelector('.actual');
+      var kindSel = r.querySelector('.kind');
+      var diffPill = r.querySelector('.diff');
+      var diffVal = r.querySelector('.diffval');
+
+      var actRaw = actualInput ? String(actualInput.value || '').trim() : '';
+      var act = actRaw ? toNum(actRaw) : null;
+
+      var diff = (act === null) ? null : (act - exp);
+      if(diffPill){
+        diffPill.textContent = (diff === null) ? '—' : (diff.toFixed(3));
+        diffPill.classList.remove('warn','ok');
+        diffPill.classList.add((diff !== null && diff !== 0) ? 'warn' : 'ok');
+      }
+      if(diffVal){
+        var dv = (diff === null) ? null : (diff * cost);
+        diffVal.textContent = (dv === null) ? '—' : ('₪ ' + dv.toFixed(2));
+      }
+
+      // waste only makes sense for negative diffs
+      if(kindSel && diff !== null && diff >= 0){
+        // keep selection, but hint text already says it will be treated as adjustment on finalize
+      }
+    }
+
+    function updateTotals(){
+      var expectedValue = 0;
+      var actualValue = 0;
+
+      rows.forEach(function(r){
+        var exp = toNum(r.getAttribute('data-exp')) || 0;
+        var cost = toNum(r.getAttribute('data-cost')) || 0;
+
+        var actualInput = r.querySelector('.actual');
+        var actRaw = actualInput ? String(actualInput.value || '').trim() : '';
+        var act = actRaw ? toNum(actRaw) : null;
+
+        var actForPreview = (act === null) ? exp : act;
+        expectedValue += exp * cost;
+        actualValue += actForPreview * cost;
+      });
+
+      var delta = actualValue - expectedValue;
+      if(deltaEl) deltaEl.textContent = '₪ ' + delta.toFixed(2);
+    }
+
+    rows.forEach(function(r){
+      var a = r.querySelector('.actual');
+      var k = r.querySelector('.kind');
+      var n = r.querySelector('.note');
+      [a,k,n].forEach(function(el){
+        if(!el) return;
+        el.addEventListener('input', function(){
+          updateRow(r);
+          updateTotals();
+        });
+        el.addEventListener('change', function(){
+          updateRow(r);
+          updateTotals();
+        });
+      });
+      updateRow(r);
+    });
+    updateTotals();
+
+    var btnFinalize = document.getElementById('btn-finalize');
+    if(btnFinalize){
+      btnFinalize.addEventListener('click', function(ev){
+        var ok = confirm('לסגור ספירה ולהחיל התאמות במלאי? פעולה זו לא ניתנת לביטול.');
+        if(!ok) ev.preventDefault();
+      });
+    }
+
+    form.addEventListener('submit', function(){
+      var payload = [];
+      rows.forEach(function(r){
+        var id = r.getAttribute('data-id');
+        if(!id) return;
+
+        var actualInput = r.querySelector('.actual');
+        var kindSel = r.querySelector('.kind');
+        var noteInput = r.querySelector('.note');
+
+        var actRaw = actualInput ? String(actualInput.value || '').trim() : '';
+        var actualQty = actRaw ? Number(actRaw) : null;
+
+        if(actRaw && !Number.isFinite(actualQty)) actualQty = null;
+        if(typeof actualQty === 'number' && actualQty < 0) actualQty = null;
+
+        var adjustKind = kindSel ? String(kindSel.value || 'adjustment') : 'adjustment';
+        if(adjustKind !== 'waste') adjustKind = 'adjustment';
+
+        var note = noteInput ? String(noteInput.value || '').trim() : '';
+
+        payload.push({
+          ingredientId: id,
+          actualQty: actualQty,
+          adjustKind: adjustKind,
+          note: note
+        });
+      });
+
+      linesJson.value = JSON.stringify(payload);
+    });
+  })();
+</script>
+
 <style>
   .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
+
   .card{
     background: var(--panel, #121622);
     border:1px solid var(--bd, #222834);
@@ -43,16 +311,131 @@
     box-shadow: 0 10px 30px rgba(0,0,0,.35);
   }
   .panel.card{height:100%}
+
   .owner-hd{display:flex;align-items:flex-start;gap:12px;justify-content:space-between}
-  .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
+  .card-title{ margin:0; font-size: clamp(16px, 2.2vw, 20px) }
   .muted{ color: var(--ink-muted, #9aa3b2); }
+  .small{ font-size:12px; }
+  .mono{ font-variant-numeric: tabular-nums; }
+
   .actions{display:flex;gap:8px;flex-wrap:wrap}
   .btn{
     display:inline-flex; align-items:center; justify-content:center; gap:8px;
     padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
     border:1px solid var(--bd, #23293a); background:transparent;
     color: var(--ink, #e6e8ef); font-weight:700;
+    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover{ transform: translateY(-1px); }
+  .btn.primary{
+    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
+    box-shadow: 0 8px 24px rgba(59,130,246,.35);
   }
   .btn.ghost{background:rgba(15,23,42,.6);}
+  .btn.danger{
+    background: rgba(239,68,68,.16);
+    border-color: rgba(239,68,68,.35);
+    box-shadow: 0 8px 24px rgba(239,68,68,.14);
+  }
   .btn.sm{ padding:8px 12px; border-radius:10px; font-size:13px }
+
+  .notice{
+    margin-top:12px;
+    padding:10px 12px;
+    border-radius:14px;
+    border:1px solid rgba(148,163,184,.25);
+    background: rgba(148,163,184,.10);
+    color:#dbe3f0;
+  }
+  .notice.ok{
+    border-color: rgba(52,211,153,.35);
+    background: rgba(16,185,129,.10);
+  }
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+  .stat{
+    background:rgba(148,163,184,.10);
+    border:1px solid rgba(148,163,184,.20);
+    border-radius:14px;
+    padding:10px 12px;
+  }
+  .stat .k{font-size:12px;color:#b6bfce}
+  .stat .v{font-size:18px;font-weight:900;margin-top:2px}
+  .stat.wide{grid-column:span 2}
+
+  .form-hd{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:10px;
+  }
+  .search{
+    width:240px;
+    padding:10px 12px;
+    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
+    font-size:14px; outline:none;
+  }
+
+  .table{margin-top:10px;border:1px solid rgba(148,163,184,.18);border-radius:14px;overflow:hidden}
+  .tr{
+    display:grid;
+    grid-template-columns: 2.2fr .9fr 1.1fr .8fr 1.1fr .9fr 1.4fr;
+    gap:10px;
+    align-items:center;
+    padding:10px 12px;
+    border-top:1px solid rgba(255,255,255,.06)
+  }
+  .tr:first-child{border-top:none}
+  .th{background:rgba(148,163,184,.08);font-weight:900;color:#dbe3f0}
+  .td{min-width:0}
+
+  .name{line-height:1.2}
+  .pill{
+    display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;
+    border:1px solid rgba(148,163,184,.25);
+    background:rgba(148,163,184,.10);
+    font-size:12px;color:#d7deea;white-space:nowrap;
+  }
+  .pill.ok{
+    border-color: rgba(52,211,153,.35);
+    background: rgba(16,185,129,.10);
+    color:#6ee7b7;
+  }
+  .pill.warn{
+    border-color: rgba(251,191,36,.35);
+    background: rgba(245,158,11,.10);
+    color:#fbbf24;
+  }
+
+  .in{
+    width:100%;
+    padding:10px 12px;
+    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
+    font-size:14px; outline:none;
+  }
+  .in:focus{
+    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
+  }
+
+  .footer{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    justify-content:flex-end;
+    margin-top:12px;
+    flex-wrap:wrap;
+  }
+
+  @media (max-width:1050px){
+    .stats{grid-template-columns:1fr 1fr}
+    .stat.wide{grid-column:span 2}
+    .tr{grid-template-columns:1.8fr .9fr 1fr .8fr 1fr .9fr 1.2fr}
+  }
+  @media (max-width:800px){
+    .tr{grid-template-columns:1fr}
+    .footer{justify-content:flex-start}
+    .search{width:100%}
+  }
 </style>

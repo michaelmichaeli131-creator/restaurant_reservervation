@@ -3,51 +3,35 @@
 // Inventory / Ingredients module for SpotBook
 // ----------------------------------------
 // כולל:
-// - חומרי גלם (Ingredients) עם כמות נוכחית, רף מינימום, עלות, ספק
-// - תנועות מלאי (InventoryTx) – לוג של משלוחים / התאמות / צריכה / בזבוז
-// - מתכונים: קישור בין מנות בתפריט ↔ חומרי גלם
-// - פונקציית consumeIngredientsForMenuItem שנקראת מה-POS
-// - ✅ הוצאות חודשיות מחושבות אוטומטית ממשלוחים + Override ידני מפורש
-// - ✅ עלות ליחידה AUTO לפי משלוחים (costPerUnitAuto) + Override ידני (costPerUnit)
-// - ✅ (חדש) ספירות מלאי (Inventory Counts) - Sessions (עמוד ראשון: רשימה + יצירה)
+// - Ingredients
+// - InventoryTx
+// - Recipes
+// - Monthly Spend Override
+// - ✅ Inventory Counts: Sessions + Lines + Finalize
 // ----------------------------------------
 
 import { kv } from "../database.ts";
 
 /* ---------- Types ---------- */
 
-// סוגי תנועות מלאי
 export type InventoryTxType =
-  | "delivery"     // משלוח נכנס
-  | "adjustment"   // התאמת מלאי ידנית
-  | "consumption"  // צריכה (הזמנות מלקוחות)
-  | "waste";       // בזבוז / השלכה
+  | "delivery"
+  | "adjustment"
+  | "consumption"
+  | "waste";
 
-// חומר גלם יחיד
 export interface Ingredient {
   id: string;
   restaurantId: string;
 
   name: string;
-  unit: string; // "kg", "g", "ml", "unit"
+  unit: string;
 
   currentQty: number;
   minQty: number;
 
-  /**
-   * ✅ Manual override לעלות ליחידה
-   * אם מוגדר – הוא מנצח את החישוב האוטומטי.
-   */
-  costPerUnit?: number;
-
-  /**
-   * ✅ AUTO: מחושב מהמשלוחים האחרונים (delivery עם costTotal + deltaQty)
-   */
-  costPerUnitAuto?: number;
-
-  /**
-   * פנימי: חותמת זמן של משלוח אחרון ששימש לחישוב auto
-   */
+  costPerUnit?: number;       // manual override
+  costPerUnitAuto?: number;   // auto from deliveries
   costAutoUpdatedAt?: number;
 
   supplierName?: string;
@@ -57,7 +41,6 @@ export interface Ingredient {
   updatedAt: number;
 }
 
-// תנועת מלאי
 export interface InventoryTx {
   id: string;
   restaurantId: string;
@@ -73,13 +56,11 @@ export interface InventoryTx {
   createdAt: number;
 }
 
-// רכיב מתכון יחיד: מנה ← חומר גלם
 export interface RecipeComponent {
   ingredientId: string;
   qty: number;
 }
 
-// מתכון למנה אחת
 export interface MenuRecipe {
   restaurantId: string;
   menuItemId: string;
@@ -89,10 +70,6 @@ export interface MenuRecipe {
   updatedAt: number;
 }
 
-/**
- * ✅ Override ידני להוצאה חודשית.
- * אם קיים – דורס את החישוב האוטומטי מהמשלוחים.
- */
 export interface MonthlySpendOverride {
   restaurantId: string;
   month: string; // YYYY-MM
@@ -102,9 +79,10 @@ export interface MonthlySpendOverride {
   updatedAt: number;
 }
 
-/* ---------- NEW: Inventory Count Sessions ---------- */
+/* ---------- Inventory Counts ---------- */
 
 export type InventoryCountStatus = "draft" | "finalized" | "cancelled";
+export type InventoryCountAdjustKind = "adjustment" | "waste";
 
 export interface InventoryCountSession {
   id: string;
@@ -117,6 +95,30 @@ export interface InventoryCountSession {
 
   finalizedAt?: number;
   cancelledAt?: number;
+
+  // optional: marks snapshot creation
+  snapshotCreatedAt?: number;
+}
+
+export interface InventoryCountLine {
+  restaurantId: string;
+  countId: string;
+
+  ingredientId: string;
+
+  // snapshot fields (so the count is stable)
+  ingredientName: string;
+  unit: string;
+  expectedQty: number;
+  costPerUnitSnapshot?: number;
+
+  // editable fields
+  actualQty?: number;
+  adjustKind?: InventoryCountAdjustKind; // default: adjustment
+  note?: string;
+
+  createdAt: number;
+  updatedAt: number;
 }
 
 /* ---------- KEYS ---------- */
@@ -150,7 +152,7 @@ function kMonthlyOverride(rid: string, month: string): Deno.KvKey {
   return ["inv", "spend_override", rid, month];
 }
 
-// NEW: Inventory Counts
+// Count sessions
 function kCountSession(rid: string, cid: string): Deno.KvKey {
   return ["inv", "count_session", rid, cid];
 }
@@ -158,18 +160,33 @@ function kCountSessionPrefix(rid: string): Deno.KvKey {
   return ["inv", "count_session", rid];
 }
 
+// Count lines
+function kCountLine(rid: string, cid: string, ingId: string): Deno.KvKey {
+  return ["inv", "count_line", rid, cid, ingId];
+}
+function kCountLinePrefix(rid: string, cid: string): Deno.KvKey {
+  return ["inv", "count_line", rid, cid];
+}
+
 /* ---------- Helpers ---------- */
 
 export function getEffectiveCostPerUnit(ing: Ingredient): number | undefined {
-  const manual = typeof ing.costPerUnit === "number" && Number.isFinite(ing.costPerUnit)
-    ? ing.costPerUnit
-    : undefined;
+  const manual =
+    typeof ing.costPerUnit === "number" && Number.isFinite(ing.costPerUnit)
+      ? ing.costPerUnit
+      : undefined;
   if (typeof manual === "number") return manual;
 
-  const auto = typeof ing.costPerUnitAuto === "number" && Number.isFinite(ing.costPerUnitAuto)
-    ? ing.costPerUnitAuto
-    : undefined;
+  const auto =
+    typeof ing.costPerUnitAuto === "number" && Number.isFinite(ing.costPerUnitAuto)
+      ? ing.costPerUnitAuto
+      : undefined;
   return auto;
+}
+
+function safeNum(v: unknown): number | undefined {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
 }
 
 /* ---------- INGREDIENTS API ---------- */
@@ -191,11 +208,6 @@ export async function getIngredient(
   return row.value ?? null;
 }
 
-/**
- * יצירה / עדכון של חומר גלם.
- * - costPerUnit = Manual override (אופציונלי)
- * - costPerUnitAuto נשמר ומתעדכן אוטומטית רק ע"י משלוחים
- */
 export async function upsertIngredient(
   data: Partial<Ingredient> & { restaurantId: string; name: string },
 ): Promise<Ingredient> {
@@ -222,10 +234,7 @@ export async function upsertIngredient(
       ? data.minQty
       : (existing?.minQty ?? 0),
 
-    // Manual override
     costPerUnit,
-
-    // Auto cost stays unless overridden by delivery logic
     costPerUnitAuto: existing?.costPerUnitAuto,
     costAutoUpdatedAt: existing?.costAutoUpdatedAt,
 
@@ -239,18 +248,12 @@ export async function upsertIngredient(
   return item;
 }
 
-/** מחיקת חומר גלם */
 export async function deleteIngredient(restaurantId: string, ingredientId: string): Promise<void> {
   await kv.delete(kIngredient(restaurantId, ingredientId));
 }
 
 /* ---------- INVENTORY TX API ---------- */
 
-/**
- * התאמת מלאי (משלוח/צריכה/בזבוז/התאמה).
- * ✅ אם זו קבלת משלוח (delivery) ויש costTotal + deltaQty>0:
- *    מעדכן costPerUnitAuto לפי עלות ממוצעת למשלוח האחרון (סמוטינג עדין).
- */
 export async function applyInventoryTx(params: {
   restaurantId: string;
   ingredientId: string;
@@ -271,7 +274,6 @@ export async function applyInventoryTx(params: {
   let nextCostPerUnitAuto = ing.costPerUnitAuto;
   let nextCostAutoUpdatedAt = ing.costAutoUpdatedAt;
 
-  // ✅ auto cost update from deliveries
   if (
     params.type === "delivery" &&
     typeof params.costTotal === "number" &&
@@ -281,8 +283,6 @@ export async function applyInventoryTx(params: {
     params.deltaQty > 0
   ) {
     const unitCost = params.costTotal / params.deltaQty;
-
-    // smoothing: 70% previous, 30% new delivery cost
     if (typeof nextCostPerUnitAuto === "number" && Number.isFinite(nextCostPerUnitAuto)) {
       nextCostPerUnitAuto = (nextCostPerUnitAuto * 0.7) + (unitCost * 0.3);
     } else {
@@ -326,9 +326,7 @@ export async function listInventoryTx(
   limit = 200,
 ): Promise<InventoryTx[]> {
   const out: InventoryTx[] = [];
-  for await (
-    const row of kv.list<InventoryTx>({ prefix: kInvTxPrefix(restaurantId) })
-  ) {
+  for await (const row of kv.list<InventoryTx>({ prefix: kInvTxPrefix(restaurantId) })) {
     if (row.value) out.push(row.value);
   }
   out.sort((a, b) => b.createdAt - a.createdAt);
@@ -345,15 +343,8 @@ export async function saveRecipeForMenuItem(
 ): Promise<MenuRecipe> {
   const now = Date.now();
   const clean = components
-    .filter((c) =>
-      c.ingredientId &&
-      Number.isFinite(Number(c.qty)) &&
-      Number(c.qty) > 0
-    )
-    .map((c) => ({
-      ingredientId: String(c.ingredientId).trim(),
-      qty: Number(c.qty),
-    }));
+    .filter((c) => c.ingredientId && Number.isFinite(Number(c.qty)) && Number(c.qty) > 0)
+    .map((c) => ({ ingredientId: String(c.ingredientId).trim(), qty: Number(c.qty) }));
 
   const recipe: MenuRecipe = {
     restaurantId,
@@ -415,11 +406,10 @@ export async function consumeIngredientsForMenuItem(params: {
         ingredientId: comp.ingredientId,
         type: "consumption",
         deltaQty: delta,
-        costTotal: undefined,
         reason: `POS auto-consume: menuItem=${menuItemId}, qty=${q}`,
       });
     } catch (err) {
-      console.error("[INV][consume] failed for ingredient", {
+      console.error("[INV][consume] failed", {
         restaurantId,
         menuItemId,
         ingredientId: comp.ingredientId,
@@ -439,12 +429,9 @@ export async function getMonthlySpendOverride(
   return row.value ?? null;
 }
 
-/**
- * אם overrideTotal הוא undefined/null/NaN -> מוחקים override וחוזרים לחישוב אוטומטי.
- */
 export async function setMonthlySpendOverride(params: {
   restaurantId: string;
-  month: string; // YYYY-MM
+  month: string;
   overrideTotal?: number | null;
   note?: string;
 }): Promise<MonthlySpendOverride | null> {
@@ -477,7 +464,7 @@ export async function setMonthlySpendOverride(params: {
 }
 
 /* ========================================================================== */
-/*  ✅ NEW: INVENTORY COUNTS (Page 1: list + create)                           */
+/*  INVENTORY COUNTS: Sessions + Lines + Finalize                              */
 /* ========================================================================== */
 
 export async function createInventoryCountSession(params: {
@@ -513,11 +500,198 @@ export async function listInventoryCountSessions(
   limit = 100,
 ): Promise<InventoryCountSession[]> {
   const out: InventoryCountSession[] = [];
-  for await (
-    const row of kv.list<InventoryCountSession>({ prefix: kCountSessionPrefix(restaurantId) })
-  ) {
+  for await (const row of kv.list<InventoryCountSession>({ prefix: kCountSessionPrefix(restaurantId) })) {
     if (row.value) out.push(row.value);
   }
   out.sort((a, b) => b.createdAt - a.createdAt);
   return limit > 0 && out.length > limit ? out.slice(0, limit) : out;
+}
+
+export async function setInventoryCountSession(params: {
+  restaurantId: string;
+  countId: string;
+  status?: InventoryCountStatus;
+  note?: string | null;
+  snapshotCreatedAt?: number | null;
+  finalizedAt?: number | null;
+  cancelledAt?: number | null;
+}): Promise<InventoryCountSession> {
+  const key = kCountSession(params.restaurantId, params.countId);
+  const prev = await kv.get<InventoryCountSession>(key);
+  if (!prev.value) throw new Error("count_session_not_found");
+
+  const now = Date.now();
+  const s = prev.value;
+
+  const next: InventoryCountSession = {
+    ...s,
+    status: params.status ?? s.status,
+    note: (params.note === null) ? undefined : (params.note ?? s.note),
+    snapshotCreatedAt: (params.snapshotCreatedAt === null) ? undefined : (params.snapshotCreatedAt ?? s.snapshotCreatedAt),
+    finalizedAt: (params.finalizedAt === null) ? undefined : (params.finalizedAt ?? s.finalizedAt),
+    cancelledAt: (params.cancelledAt === null) ? undefined : (params.cancelledAt ?? s.cancelledAt),
+    updatedAt: now,
+  };
+
+  await kv.set(key, next);
+  return next;
+}
+
+/* ---------- Count Lines ---------- */
+
+export async function listInventoryCountLines(
+  restaurantId: string,
+  countId: string,
+): Promise<InventoryCountLine[]> {
+  const out: InventoryCountLine[] = [];
+  for await (const row of kv.list<InventoryCountLine>({ prefix: kCountLinePrefix(restaurantId, countId) })) {
+    if (row.value) out.push(row.value);
+  }
+  out.sort((a, b) => a.ingredientName.localeCompare(b.ingredientName));
+  return out;
+}
+
+export async function upsertInventoryCountLine(params: {
+  restaurantId: string;
+  countId: string;
+  ingredientId: string;
+
+  ingredientName?: string;
+  unit?: string;
+  expectedQty?: number;
+  costPerUnitSnapshot?: number;
+
+  actualQty?: number | null;
+  adjustKind?: InventoryCountAdjustKind | null;
+  note?: string | null;
+}): Promise<InventoryCountLine> {
+  const now = Date.now();
+  const key = kCountLine(params.restaurantId, params.countId, params.ingredientId);
+
+  const prev = await kv.get<InventoryCountLine>(key);
+  const existing = prev.value ?? null;
+
+  const actual = params.actualQty === null ? undefined : (typeof params.actualQty === "number" && Number.isFinite(params.actualQty) ? params.actualQty : existing?.actualQty);
+  const adjustKind = params.adjustKind === null ? undefined : (params.adjustKind ?? existing?.adjustKind ?? "adjustment");
+  const note = params.note === null ? undefined : (params.note ?? existing?.note);
+
+  const expectedQty =
+    typeof params.expectedQty === "number" && Number.isFinite(params.expectedQty)
+      ? params.expectedQty
+      : (existing?.expectedQty ?? 0);
+
+  const line: InventoryCountLine = {
+    restaurantId: params.restaurantId,
+    countId: params.countId,
+    ingredientId: params.ingredientId,
+
+    ingredientName: (params.ingredientName ?? existing?.ingredientName ?? "").trim() || existing?.ingredientName || "Ingredient",
+    unit: (params.unit ?? existing?.unit ?? "unit").trim() || "unit",
+    expectedQty,
+
+    costPerUnitSnapshot:
+      typeof params.costPerUnitSnapshot === "number" && Number.isFinite(params.costPerUnitSnapshot)
+        ? params.costPerUnitSnapshot
+        : existing?.costPerUnitSnapshot,
+
+    actualQty: actual,
+    adjustKind,
+    note: note && note.trim() ? note.trim() : undefined,
+
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+
+  await kv.set(key, line);
+  return line;
+}
+
+/**
+ * Ensures snapshot lines exist.
+ * If none exist → creates one line per current ingredient with expectedQty=currentQty and cost snapshot.
+ */
+export async function ensureInventoryCountSnapshot(params: {
+  restaurantId: string;
+  countId: string;
+  ingredients: Ingredient[];
+}): Promise<InventoryCountLine[]> {
+  const existing = await listInventoryCountLines(params.restaurantId, params.countId);
+  if (existing.length) return existing;
+
+  const now = Date.now();
+  for (const ing of params.ingredients) {
+    const costSnap = getEffectiveCostPerUnit(ing);
+    await upsertInventoryCountLine({
+      restaurantId: params.restaurantId,
+      countId: params.countId,
+      ingredientId: ing.id,
+      ingredientName: ing.name,
+      unit: ing.unit,
+      expectedQty: Number(ing.currentQty || 0),
+      costPerUnitSnapshot: typeof costSnap === "number" && Number.isFinite(costSnap) ? costSnap : undefined,
+      actualQty: null,
+      adjustKind: "adjustment",
+      note: null,
+    });
+  }
+
+  await setInventoryCountSession({
+    restaurantId: params.restaurantId,
+    countId: params.countId,
+    snapshotCreatedAt: now,
+  });
+
+  return await listInventoryCountLines(params.restaurantId, params.countId);
+}
+
+/**
+ * Finalize:
+ * - applies tx for lines with actualQty set (diff=actual-expected)
+ * - updates session status->finalized
+ */
+export async function finalizeInventoryCount(params: {
+  restaurantId: string;
+  countId: string;
+  actor?: string;
+}): Promise<void> {
+  const s = await getInventoryCountSession(params.restaurantId, params.countId);
+  if (!s) throw new Error("count_session_not_found");
+  if (s.status !== "draft") return; // already finalized/cancelled
+
+  const lines = await listInventoryCountLines(params.restaurantId, params.countId);
+  const now = Date.now();
+
+  for (const ln of lines) {
+    const actual = safeNum(ln.actualQty);
+    if (typeof actual !== "number") continue;
+
+    const expected = Number(ln.expectedQty || 0);
+    const diff = actual - expected;
+    if (!Number.isFinite(diff) || diff === 0) continue;
+
+    const kind = (ln.adjustKind || "adjustment") as InventoryCountAdjustKind;
+
+    // if negative diff and user selected waste -> waste
+    const txType: InventoryTxType =
+      diff < 0 && kind === "waste" ? "waste" : "adjustment";
+
+    const reasonBase = `Inventory count ${params.countId.slice(0, 8)}`;
+    const note = ln.note ? ` • ${ln.note}` : "";
+    const actor = params.actor ? ` • by ${params.actor}` : "";
+
+    await applyInventoryTx({
+      restaurantId: params.restaurantId,
+      ingredientId: ln.ingredientId,
+      type: txType,
+      deltaQty: diff,
+      reason: `${reasonBase}${note}${actor}`,
+    });
+  }
+
+  await setInventoryCountSession({
+    restaurantId: params.restaurantId,
+    countId: params.countId,
+    status: "finalized",
+    finalizedAt: now,
+  });
 }
