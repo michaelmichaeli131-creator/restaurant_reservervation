@@ -1,0 +1,283 @@
+<% layout("_layout", it) %>
+
+<%
+  const restaurant = it.restaurant || {};
+  const rows = Array.isArray(it.rows) ? it.rows : [];
+  const summary = it.summary || {};
+  const topCostly = Array.isArray(it.topCostly) ? it.topCostly : [];
+  const topProfitable = Array.isArray(it.topProfitable) ? it.topProfitable : [];
+
+  function num(n, digits=2){
+    const x = Number(n || 0);
+    if(!Number.isFinite(x)) return '0';
+    return x.toFixed(digits);
+  }
+%>
+
+<section class="sb-owner container" aria-label="עלות מנה ורווחיות">
+  <div class="card">
+    <header class="owner-hd">
+      <div>
+        <h1>עלות מנה ורווחיות · <%= restaurant.name || 'מסעדה' %></h1>
+        <p class="muted">
+          העלות מחושבת לפי <strong>מתכון</strong> × <strong>עלות ליחידה (Effective)</strong>
+          (Manual override מנצח Auto).
+        </p>
+      </div>
+      <div class="actions">
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/recipes">📖 מתכונים</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">💸 עלויות</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/menu">🧾 תפריט</a>
+      </div>
+    </header>
+
+    <div class="top-grid">
+      <div class="panel card">
+        <h2 class="card-title">סיכום</h2>
+        <div class="stats">
+          <div class="stat">
+            <div class="k">סה״כ מנות</div>
+            <div class="v"><%= Number(summary.totalItems || 0) %></div>
+          </div>
+          <div class="stat">
+            <div class="k">עם מתכון</div>
+            <div class="v"><%= Number(summary.withRecipe || 0) %></div>
+          </div>
+          <div class="stat">
+            <div class="k">חסר מתכון</div>
+            <div class="v"><%= Number(summary.missingRecipe || 0) %></div>
+          </div>
+          <div class="stat">
+            <div class="k">מנות עם חסר עלויות</div>
+            <div class="v"><%= Number(summary.withMissingCosts || 0) %></div>
+          </div>
+          <div class="stat">
+            <div class="k">Avg Food Cost</div>
+            <div class="v">₪ <%= num(summary.avgFoodCost, 2) %></div>
+          </div>
+          <div class="stat">
+            <div class="k">Avg Margin %</div>
+            <div class="v"><%= (typeof summary.avgMarginPct === 'number' ? num(summary.avgMarginPct, 1) : '—') %>%</div>
+          </div>
+        </div>
+
+        <div class="search-wrap">
+          <input id="search" class="search" placeholder="חפש מנה..." />
+        </div>
+      </div>
+
+      <div class="panel card">
+        <h2 class="card-title">Top מנות יקרות (Food Cost)</h2>
+        <% if (!topCostly.length) { %>
+          <p class="muted">אין מספיק נתונים (כנראה אין מתכונים).</p>
+        <% } else { %>
+          <div class="top-list">
+            <% const max = Math.max.apply(null, topCostly.map(x => Number(x.foodCost||0)).concat([1])); %>
+            <% topCostly.forEach(function(x){ 
+                 const pct = Math.max(2, Math.min(100, (Number(x.foodCost||0) / max) * 100));
+            %>
+              <div class="top-row">
+                <div class="top-meta">
+                  <div class="top-name"><strong><%= x.name %></strong></div>
+                  <div class="top-sub muted small">₪ <%= num(x.foodCost, 2) %> • מחיר: ₪ <%= num(x.price, 2) %></div>
+                </div>
+                <div class="bar"><div class="bar-fill" style="width:<%= pct %>%"></div></div>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+      </div>
+
+      <div class="panel card">
+        <h2 class="card-title">Top רווחיות (Margin %)</h2>
+        <% if (!topProfitable.length) { %>
+          <p class="muted">אין מספיק נתונים (צריך מחיר למנה + מתכון + עלויות).</p>
+        <% } else { %>
+          <div class="top-list">
+            <% const maxM = Math.max.apply(null, topProfitable.map(x => Number(x.marginPct||0)).concat([1])); %>
+            <% topProfitable.forEach(function(x){ 
+                 const pct = Math.max(2, Math.min(100, (Number(x.marginPct||0) / maxM) * 100));
+            %>
+              <div class="top-row">
+                <div class="top-meta">
+                  <div class="top-name"><strong><%= x.name %></strong></div>
+                  <div class="top-sub muted small">
+                    מרג׳ין: <%= num(x.marginPct, 1) %>% • ₪ רווח: <%= num(x.gross, 2) %>
+                  </div>
+                </div>
+                <div class="bar"><div class="bar-fill green" style="width:<%= pct %>%"></div></div>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="panel card" style="margin-top:16px">
+      <h2 class="card-title">כל המנות</h2>
+
+      <% if (!rows.length) { %>
+        <p class="muted">אין מנות בתפריט.</p>
+      <% } else { %>
+        <div class="table" id="table">
+          <div class="tr th">
+            <div>מנה</div>
+            <div>מחיר</div>
+            <div>Food Cost</div>
+            <div>רווח</div>
+            <div>Margin %</div>
+            <div>סטטוס</div>
+          </div>
+
+          <% rows.forEach(function(r){ 
+               const st =
+                 (!r.hasRecipe) ? 'no_recipe' :
+                 (r.missingCosts > 0) ? 'missing_costs' :
+                 (r.missingIngredients > 0) ? 'missing_ing' :
+                 'ok';
+          %>
+            <div class="tr row" data-name="<%= (r.name || '').toLowerCase() %>">
+              <div class="td">
+                <div class="name"><strong><%= r.name %></strong></div>
+                <% if (r.hasRecipe) { %>
+                  <div class="muted small">רכיבים: <%= (r.breakdown || []).length %></div>
+                <% } else { %>
+                  <div class="muted small">אין מתכון</div>
+                <% } %>
+              </div>
+              <div class="td mono">₪ <%= num(r.price, 2) %></div>
+              <div class="td mono">₪ <%= num(r.foodCost, 2) %></div>
+              <div class="td mono">₪ <%= num(r.gross, 2) %></div>
+              <div class="td mono"><%= (typeof r.marginPct === 'number' ? num(r.marginPct, 1) : '—') %>%</div>
+              <div class="td">
+                <% if (st === 'ok') { %>
+                  <span class="badge ok">✅ תקין</span>
+                <% } else if (st === 'no_recipe') { %>
+                  <span class="badge bad">❌ אין מתכון</span>
+                <% } else if (st === 'missing_costs') { %>
+                  <span class="badge warn">⚠️ חסר עלויות</span>
+                <% } else { %>
+                  <span class="badge warn">⚠️ חסרים רכיבים</span>
+                <% } %>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</section>
+
+<script>
+  (function(){
+    var s = document.getElementById('search');
+    var rows = Array.from(document.querySelectorAll('.row'));
+    if(!s || !rows.length) return;
+
+    s.addEventListener('input', function(){
+      var q = String(s.value || '').trim().toLowerCase();
+      rows.forEach(function(r){
+        var name = r.getAttribute('data-name') || '';
+        r.style.display = (!q || name.indexOf(q) >= 0) ? '' : 'none';
+      });
+    });
+  })();
+</script>
+
+<style>
+  .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
+  .card{
+    background: var(--panel, #121622);
+    border:1px solid var(--bd, #222834);
+    border-radius:18px; padding:18px; margin-bottom:18px;
+    color: var(--ink, #e6e8ef);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  .panel.card{height:100%}
+  .owner-hd{display:flex;align-items:flex-start;gap:12px;justify-content:space-between}
+  .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
+  .muted{ color: var(--ink-muted, #9aa3b2); }
+  .small{ font-size:12px; }
+  .mono{ font-variant-numeric: tabular-nums; }
+
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
+    border:1px solid var(--bd, #23293a); background:transparent;
+    color: var(--ink, #e6e8ef); font-weight:700;
+    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover{ transform: translateY(-1px); }
+  .btn.primary{
+    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
+    box-shadow: 0 8px 24px rgba(59,130,246,.35);
+  }
+  .btn.ghost{background:rgba(15,23,42,.6);}
+  .btn.sm{ padding:8px 12px; border-radius:10px; font-size:13px }
+
+  .top-grid{
+    display:grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap:16px;
+    margin-top:14px;
+  }
+  .top-grid > .panel.card:nth-child(3){
+    grid-column: span 2;
+  }
+
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+  .stat{
+    background:rgba(148,163,184,.10);
+    border:1px solid rgba(148,163,184,.20);
+    border-radius:14px;
+    padding:10px 12px;
+  }
+  .stat .k{font-size:12px;color:#b6bfce}
+  .stat .v{font-size:18px;font-weight:900;margin-top:2px}
+
+  .search-wrap{margin-top:12px}
+  .search{
+    width:100%;
+    padding:10px 12px;
+    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
+    font-size:14px; outline:none;
+  }
+  .search:focus{
+    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
+  }
+
+  .top-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+  .top-row{display:grid;grid-template-columns:1fr 1.2fr;gap:10px;align-items:center}
+  .top-name{font-size:14px}
+  .bar{width:100%;height:10px;background:#0e1422;border-radius:999px;overflow:hidden;border:1px solid #1f2636}
+  .bar-fill{height:100%;background:linear-gradient(90deg,#10b981,#34d399)}
+  .bar-fill.green{background:linear-gradient(90deg,#22c55e,#86efac)}
+
+  .table{margin-top:10px;border:1px solid rgba(148,163,184,.18);border-radius:14px;overflow:hidden}
+  .tr{display:grid;grid-template-columns:2.2fr .8fr .9fr .9fr .8fr .9fr;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid rgba(255,255,255,.06)}
+  .tr:first-child{border-top:none}
+  .th{background:rgba(148,163,184,.08);font-weight:900;color:#dbe3f0}
+  .td{min-width:0}
+  .name{line-height:1.2}
+
+  .badge{
+    display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;
+    border:1px solid rgba(148,163,184,.25);
+    font-size:12px;
+    white-space:nowrap;
+  }
+  .badge.ok{border-color:rgba(52,211,153,.35);background:rgba(16,185,129,.10);color:#6ee7b7}
+  .badge.warn{border-color:rgba(251,191,36,.35);background:rgba(245,158,11,.10);color:#fbbf24}
+  .badge.bad{border-color:rgba(248,113,113,.45);background:rgba(248,113,113,.10);color:#fecaca}
+
+  @media (max-width:950px){
+    .top-grid{grid-template-columns:1fr}
+    .top-grid > .panel.card:nth-child(3){grid-column:auto}
+    .stats{grid-template-columns:1fr}
+  }
+  @media (max-width:820px){
+    .tr{grid-template-columns:1fr}
+  }
+</style>

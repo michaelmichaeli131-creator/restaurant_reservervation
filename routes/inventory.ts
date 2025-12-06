@@ -362,6 +362,134 @@ inventoryRouter.post("/owner/:rid/inventory/counts/new", async (ctx) => {
   ctx.response.redirect(`/owner/${rid}/inventory/counts?created=${encodeURIComponent(session.id)}`);
 });
 
+// ==========================================================================
+//  ✅ Food Cost per Dish (עלות מנה ורווחיות)
+// ==========================================================================
+
+inventoryRouter.get("/owner/:rid/inventory/foodcost", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  const rid = ctx.params.rid!;
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant) ctx.throw(Status.NotFound);
+
+  const [menuItems, recipes, ingredients] = await Promise.all([
+    listItems(rid),
+    listRecipesForRestaurant(rid),
+    listIngredients(rid),
+  ]);
+
+  const recipeByMenuItem: Record<string, any> = {};
+  for (const r of recipes) {
+    if (r?.menuItemId) recipeByMenuItem[r.menuItemId] = r;
+  }
+
+  const ingById: Record<string, any> = {};
+  for (const ing of ingredients) {
+    if (ing?.id) ingById[ing.id] = ing;
+  }
+
+  const rows = menuItems.map((mi) => {
+    const r = recipeByMenuItem[mi.id];
+    const comps = Array.isArray(r?.components) ? r.components : [];
+
+    let hasRecipe = comps.length > 0;
+    let missingIngredients = 0;
+    let missingCosts = 0;
+
+    const breakdown = comps.map((c: any) => {
+      const ingId = String(c?.ingredientId || "").trim();
+      const qty = Number(c?.qty ?? 0);
+      const ing = ingById[ingId] || null;
+
+      if (!ing) missingIngredients++;
+
+      const effCost = ing ? (getEffectiveCostPerUnit(ing) ?? null) : null;
+      if (ing && (effCost === null || !Number.isFinite(effCost))) missingCosts++;
+
+      const lineCost =
+        Number.isFinite(qty) && qty > 0 && typeof effCost === "number"
+          ? qty * effCost
+          : 0;
+
+      return {
+        ingredientId: ingId,
+        name: ing?.name || "חומר גלם חסר",
+        unit: ing?.unit || "",
+        qty: Number.isFinite(qty) ? qty : 0,
+        costPerUnitEffective: effCost,
+        lineCost,
+        hasIng: !!ing,
+      };
+    });
+
+    const foodCost = breakdown.reduce((s, x) => s + Number(x.lineCost || 0), 0);
+    const price = Number(mi.price || 0);
+    const gross = price - foodCost;
+    const marginPct = price > 0 ? (gross / price) * 100 : null;
+
+    const name =
+      mi.name_he || mi.name_en || mi.name_ka || "ללא שם";
+
+    return {
+      menuItem: mi,
+      name,
+      price,
+      hasRecipe,
+      missingIngredients,
+      missingCosts,
+      breakdown,
+      foodCost,
+      gross,
+      marginPct,
+    };
+  });
+
+  // סטטיסטיקות קצרות
+  const totalItems = rows.length;
+  const withRecipe = rows.filter((x) => x.hasRecipe).length;
+  const missingRecipe = totalItems - withRecipe;
+  const withMissingCosts = rows.filter((x) => x.missingCosts > 0).length;
+
+  const avgFoodCost =
+    totalItems > 0 ? rows.reduce((s, x) => s + x.foodCost, 0) / totalItems : 0;
+
+  const avgMarginPct = (() => {
+    const rel = rows.filter((x) => x.price > 0 && typeof x.marginPct === "number");
+    if (!rel.length) return null;
+    return rel.reduce((s, x) => s + (x.marginPct || 0), 0) / rel.length;
+  })();
+
+  // Top lists
+  const topCostly = [...rows]
+    .filter((x) => x.hasRecipe)
+    .sort((a, b) => b.foodCost - a.foodCost)
+    .slice(0, 8);
+
+  const topProfitable = [...rows]
+    .filter((x) => x.price > 0 && typeof x.marginPct === "number")
+    .sort((a, b) => (b.marginPct || 0) - (a.marginPct || 0))
+    .slice(0, 8);
+
+  await render(ctx, "owner_inventory_foodcost", {
+    page: "owner_inventory_foodcost",
+    title: `עלות מנה ורווחיות · ${restaurant.name}`,
+    restaurant,
+    rows,
+    summary: {
+      totalItems,
+      withRecipe,
+      missingRecipe,
+      withMissingCosts,
+      avgFoodCost,
+      avgMarginPct,
+    },
+    topCostly,
+    topProfitable,
+  });
+});
+
+
+
 /* ========================================================================== */
 /*  Counts: page (table) + save + finalize                                     */
 /* ========================================================================== */
