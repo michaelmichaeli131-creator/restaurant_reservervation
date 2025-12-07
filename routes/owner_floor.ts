@@ -13,6 +13,16 @@ import {
   listFloorSections,
   updateFloorSection,
   deleteFloorSection,
+  // Multi-layout functions
+  createFloorLayout,
+  getFloorLayout,
+  listFloorLayouts,
+  updateFloorLayout,
+  deleteFloorLayout,
+  setActiveFloorLayout,
+  getActiveFloorLayout,
+  duplicateFloorLayout,
+  type FloorLayout,
 } from "../services/floor_service.ts";
 
 export const ownerFloorRouter = new Router();
@@ -584,6 +594,373 @@ ownerFloorRouter.delete(
 
     await deleteFloorSection(restaurantId, sectionId);
     ctx.response.body = { success: true };
+  }
+);
+
+/* =================== MULTI-LAYOUT API =================== */
+
+// GET /api/floor-layouts/:restaurantId - List all layouts for a restaurant
+ownerFloorRouter.get(
+  "/api/floor-layouts/:restaurantId",
+  async (ctx) => {
+    if (!requireOwner(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    if (!restaurantId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID" };
+      return;
+    }
+
+    const owner = ctx.state.user;
+
+    // Verify ownership
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant || (restaurant as any).ownerId !== owner.id) {
+      ctx.response.status = 403;
+      ctx.response.body = { error: "Forbidden" };
+      return;
+    }
+
+    const layouts = await listFloorLayouts(restaurantId);
+    ctx.response.body = layouts;
+  }
+);
+
+// GET /api/floor-layouts/:restaurantId/:layoutId - Get specific layout
+ownerFloorRouter.get(
+  "/api/floor-layouts/:restaurantId/:layoutId",
+  async (ctx) => {
+    if (!requireStaff(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    const layoutId = ctx.params.layoutId;
+
+    if (!restaurantId || !layoutId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID or layout ID" };
+      return;
+    }
+
+    const user = ctx.state.user;
+
+    // Verify restaurant exists and user has access
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant) {
+      ctx.response.status = 404;
+      ctx.response.body = { error: "Restaurant not found" };
+      return;
+    }
+
+    if (user.role === "owner") {
+      if ((restaurant as any).ownerId !== user.id) {
+        ctx.response.status = 403;
+        ctx.response.body = { error: "Forbidden" };
+        return;
+      }
+    }
+
+    const layout = await getFloorLayout(restaurantId, layoutId);
+    if (!layout) {
+      ctx.response.status = 404;
+      ctx.response.body = { error: "Layout not found" };
+      return;
+    }
+
+    // Compute live table statuses
+    const tableStatuses = await computeAllTableStatuses(restaurantId, layout.tables);
+
+    ctx.response.body = {
+      ...layout,
+      tableStatuses,
+    };
+  }
+);
+
+// POST /api/floor-layouts/:restaurantId - Create new layout
+ownerFloorRouter.post(
+  "/api/floor-layouts/:restaurantId",
+  async (ctx) => {
+    if (!requireOwner(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    if (!restaurantId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID" };
+      return;
+    }
+
+    const owner = ctx.state.user;
+
+    // Verify ownership
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant || (restaurant as any).ownerId !== owner.id) {
+      ctx.response.status = 403;
+      ctx.response.body = { error: "Forbidden" };
+      return;
+    }
+
+    let body;
+    try {
+      body = await ctx.request.body.json();
+    } catch (err) {
+      console.error("[DEBUG] Body parsing error:", err);
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Invalid JSON body" };
+      return;
+    }
+
+    console.log("[DEBUG] POST /api/floor-layouts - Received body:", JSON.stringify(body));
+
+    const { name, gridRows, gridCols, tables, isActive } = body;
+
+    console.log("[DEBUG] Extracted fields:", { name, gridRows, gridCols, tables, isActive });
+
+    if (!name || !gridRows || !gridCols) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing required fields: name, gridRows, gridCols" };
+      return;
+    }
+
+    const layout = await createFloorLayout({
+      restaurantId,
+      name,
+      gridRows: Number(gridRows),
+      gridCols: Number(gridCols),
+      tables: tables ?? [],
+      isActive: isActive ?? false,
+    });
+
+    // Create table mappings if tables provided
+    if (tables && Array.isArray(tables) && tables.length > 0) {
+      await setTableMappingsFromFloorPlan(
+        restaurantId,
+        tables.map((t: any) => ({ id: t.id, tableNumber: t.tableNumber }))
+      );
+    }
+
+    ctx.response.status = 201;
+    ctx.response.body = layout;
+  }
+);
+
+// PUT /api/floor-layouts/:restaurantId/:layoutId - Update layout
+ownerFloorRouter.put(
+  "/api/floor-layouts/:restaurantId/:layoutId",
+  async (ctx) => {
+    if (!requireOwner(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    const layoutId = ctx.params.layoutId;
+
+    if (!restaurantId || !layoutId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID or layout ID" };
+      return;
+    }
+
+    const owner = ctx.state.user;
+
+    // Verify ownership
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant || (restaurant as any).ownerId !== owner.id) {
+      ctx.response.status = 403;
+      ctx.response.body = { error: "Forbidden" };
+      return;
+    }
+
+    let body;
+    try {
+      body = await ctx.request.body.json();
+    } catch (err) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Invalid JSON body" };
+      return;
+    }
+
+    const updated = await updateFloorLayout(restaurantId, layoutId, body);
+
+    if (!updated) {
+      ctx.response.status = 404;
+      ctx.response.body = { error: "Layout not found" };
+      return;
+    }
+
+    // Update table mappings if tables were modified
+    if (body.tables && Array.isArray(body.tables)) {
+      await setTableMappingsFromFloorPlan(
+        restaurantId,
+        body.tables.map((t: any) => ({ id: t.id, tableNumber: t.tableNumber }))
+      );
+    }
+
+    ctx.response.body = updated;
+  }
+);
+
+// DELETE /api/floor-layouts/:restaurantId/:layoutId - Delete layout
+ownerFloorRouter.delete(
+  "/api/floor-layouts/:restaurantId/:layoutId",
+  async (ctx) => {
+    if (!requireOwner(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    const layoutId = ctx.params.layoutId;
+
+    if (!restaurantId || !layoutId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID or layout ID" };
+      return;
+    }
+
+    const owner = ctx.state.user;
+
+    // Verify ownership
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant || (restaurant as any).ownerId !== owner.id) {
+      ctx.response.status = 403;
+      ctx.response.body = { error: "Forbidden" };
+      return;
+    }
+
+    try {
+      const deleted = await deleteFloorLayout(restaurantId, layoutId);
+      if (!deleted) {
+        ctx.response.status = 404;
+        ctx.response.body = { error: "Layout not found" };
+        return;
+      }
+      ctx.response.body = { success: true };
+    } catch (err) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+);
+
+// POST /api/floor-layouts/:restaurantId/:layoutId/activate - Set active layout
+ownerFloorRouter.post(
+  "/api/floor-layouts/:restaurantId/:layoutId/activate",
+  async (ctx) => {
+    if (!requireOwner(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    const layoutId = ctx.params.layoutId;
+
+    if (!restaurantId || !layoutId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID or layout ID" };
+      return;
+    }
+
+    const owner = ctx.state.user;
+
+    // Verify ownership
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant || (restaurant as any).ownerId !== owner.id) {
+      ctx.response.status = 403;
+      ctx.response.body = { error: "Forbidden" };
+      return;
+    }
+
+    try {
+      await setActiveFloorLayout(restaurantId, layoutId);
+      ctx.response.body = { success: true };
+    } catch (err) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+);
+
+// GET /api/floor-layouts/:restaurantId/active - Get active layout
+ownerFloorRouter.get(
+  "/api/floor-layouts/:restaurantId/active",
+  async (ctx) => {
+    if (!requireStaff(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    if (!restaurantId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID" };
+      return;
+    }
+
+    const user = ctx.state.user;
+
+    // Verify restaurant exists and user has access
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant) {
+      ctx.response.status = 404;
+      ctx.response.body = { error: "Restaurant not found" };
+      return;
+    }
+
+    if (user.role === "owner") {
+      if ((restaurant as any).ownerId !== user.id) {
+        ctx.response.status = 403;
+        ctx.response.body = { error: "Forbidden" };
+        return;
+      }
+    }
+
+    const layout = await getActiveFloorLayout(restaurantId);
+    if (!layout) {
+      ctx.response.status = 404;
+      ctx.response.body = { error: "No active layout found" };
+      return;
+    }
+
+    // Compute live table statuses
+    const tableStatuses = await computeAllTableStatuses(restaurantId, layout.tables);
+
+    ctx.response.body = {
+      ...layout,
+      tableStatuses,
+    };
+  }
+);
+
+// POST /api/floor-layouts/:restaurantId/:layoutId/duplicate - Duplicate layout
+ownerFloorRouter.post(
+  "/api/floor-layouts/:restaurantId/:layoutId/duplicate",
+  async (ctx) => {
+    if (!requireOwner(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    const layoutId = ctx.params.layoutId;
+
+    if (!restaurantId || !layoutId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID or layout ID" };
+      return;
+    }
+
+    const owner = ctx.state.user;
+
+    // Verify ownership
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant || (restaurant as any).ownerId !== owner.id) {
+      ctx.response.status = 403;
+      ctx.response.body = { error: "Forbidden" };
+      return;
+    }
+
+    let body;
+    try {
+      body = await ctx.request.body.json();
+    } catch (err) {
+      body = {};
+    }
+
+    try {
+      const newLayout = await duplicateFloorLayout(restaurantId, layoutId, body.name);
+      ctx.response.status = 201;
+      ctx.response.body = newLayout;
+    } catch (err) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: err instanceof Error ? err.message : String(err) };
+    }
   }
 );
 

@@ -14,13 +14,16 @@ interface FloorTable {
   sectionId?: string;
 }
 
-interface FloorPlan {
-  id?: string;
+interface FloorLayout {
+  id: string;
   restaurantId: string;
   name: string;
   gridRows: number;
   gridCols: number;
   tables: FloorTable[];
+  isActive: boolean;
+  createdAt: number;
+  updatedAt: number;
 }
 
 interface FloorSection {
@@ -39,25 +42,35 @@ interface FloorEditorProps {
 }
 
 export default function FloorEditor({ restaurantId }: FloorEditorProps) {
+  const [layouts, setLayouts] = useState<FloorLayout[]>([]);
+  const [currentLayout, setCurrentLayout] = useState<FloorLayout | null>(null);
   const [sections, setSections] = useState<FloorSection[]>([]);
   const [activeSection, setActiveSection] = useState<FloorSection | null>(null);
-  const [sectionFloorPlans, setSectionFloorPlans] = useState<Map<string, FloorPlan>>(new Map());
-
-  const [floorPlan, setFloorPlan] = useState<FloorPlan>({
-    restaurantId,
-    name: 'Main Floor',
-    gridRows: 8,
-    gridCols: 12,
-    tables: []
-  });
 
   const [selectedTable, setSelectedTable] = useState<FloorTable | null>(null);
   const [draggedItem, setDraggedItem] = useState<{ type: 'new' | 'existing', shape?: string, tableId?: string } | null>(null);
   const [nextTableNumber, setNextTableNumber] = useState(1);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newLayoutName, setNewLayoutName] = useState('');
 
-  // Load sections and floor plan
+  // Load all layouts
   useEffect(() => {
     if (!restaurantId) return;
+
+    fetch(`/api/floor-layouts/${restaurantId}`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => {
+        setLayouts(data);
+        // Set active layout or first one as current
+        const active = data.find((l: FloorLayout) => l.isActive);
+        setCurrentLayout(active || data[0] || null);
+
+        // Calculate max table number across all layouts
+        const allTables = data.flatMap((l: FloorLayout) => l.tables);
+        const maxNum = Math.max(...allTables.map((t: FloorTable) => t.tableNumber), 0);
+        setNextTableNumber(maxNum + 1);
+      })
+      .catch(err => console.error('Failed to load layouts:', err));
 
     // Load sections
     fetch(`/api/floor-sections/${restaurantId}`)
@@ -69,20 +82,113 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
         }
       })
       .catch(err => console.error('Failed to load sections:', err));
-
-    // Load main floor plan
-    fetch(`/api/floor-plans/${restaurantId}`)
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data) {
-          setFloorPlan(data);
-          // Find the highest table number
-          const maxTableNum = Math.max(...(data.tables.map((t: FloorTable) => t.tableNumber) || [0]));
-          setNextTableNumber(maxTableNum + 1);
-        }
-      })
-      .catch(err => console.error('Failed to load floor plan:', err));
   }, [restaurantId]);
+
+  const createNewLayout = async () => {
+    if (!newLayoutName.trim()) {
+      alert('Please enter a layout name');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/floor-layouts/${restaurantId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: newLayoutName,
+          gridRows: 8,
+          gridCols: 12,
+          tables: [],
+          isActive: layouts.length === 0, // First layout is active
+        })
+      });
+
+      if (response.ok) {
+        const newLayout = await response.json();
+        setLayouts([...layouts, newLayout]);
+        setCurrentLayout(newLayout);
+        setNewLayoutName('');
+        setIsCreateModalOpen(false);
+      } else {
+        const errorData = await response.json().catch(() => null);
+        const errorMsg = errorData?.error || `Server error: ${response.status} ${response.statusText}`;
+        alert(`Failed to create layout: ${errorMsg}`);
+      }
+    } catch (err) {
+      console.error('Create layout failed:', err);
+      alert(`Error creating layout: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
+  const deleteLayout = async (layoutId: string) => {
+    if (!confirm('Are you sure you want to delete this layout?')) return;
+
+    try {
+      const response = await fetch(`/api/floor-layouts/${restaurantId}/${layoutId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const updated = layouts.filter(l => l.id !== layoutId);
+        setLayouts(updated);
+        if (currentLayout?.id === layoutId) {
+          setCurrentLayout(updated[0] || null);
+        }
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to delete layout');
+      }
+    } catch (err) {
+      console.error('Delete failed:', err);
+      alert('Error deleting layout');
+    }
+  };
+
+  const duplicateLayout = async (layoutId: string) => {
+    const name = prompt('Enter name for duplicated layout:');
+    if (!name) return;
+
+    try {
+      const response = await fetch(`/api/floor-layouts/${restaurantId}/${layoutId}/duplicate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name })
+      });
+
+      if (response.ok) {
+        const newLayout = await response.json();
+        setLayouts([...layouts, newLayout]);
+        setCurrentLayout(newLayout);
+      } else {
+        alert('Failed to duplicate layout');
+      }
+    } catch (err) {
+      console.error('Duplicate failed:', err);
+      alert('Error duplicating layout');
+    }
+  };
+
+  const setActiveLayout = async (layoutId: string) => {
+    try {
+      const response = await fetch(`/api/floor-layouts/${restaurantId}/${layoutId}/activate`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        // Update layouts to reflect new active state
+        setLayouts(layouts.map(l => ({
+          ...l,
+          isActive: l.id === layoutId
+        })));
+      }
+    } catch (err) {
+      console.error('Set active failed:', err);
+    }
+  };
 
   const handleDragStart = (e: React.DragEvent, type: 'new' | 'existing', shape?: string, tableId?: string) => {
     setDraggedItem({ type, shape, tableId });
@@ -92,7 +198,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const handleDrop = (e: React.DragEvent, gridX: number, gridY: number) => {
     e.preventDefault();
 
-    if (!draggedItem) return;
+    if (!draggedItem || !currentLayout) return;
 
     if (draggedItem.type === 'new' && draggedItem.shape) {
       // Add new table
@@ -109,19 +215,19 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
         sectionId: activeSection?.id
       };
 
-      setFloorPlan(prev => ({
-        ...prev,
-        tables: [...prev.tables, newTable]
-      }));
+      setCurrentLayout({
+        ...currentLayout,
+        tables: [...currentLayout.tables, newTable]
+      });
       setNextTableNumber(nextTableNumber + 1);
     } else if (draggedItem.type === 'existing' && draggedItem.tableId) {
       // Move existing table
-      setFloorPlan(prev => ({
-        ...prev,
-        tables: prev.tables.map(t =>
+      setCurrentLayout({
+        ...currentLayout,
+        tables: currentLayout.tables.map(t =>
           t.id === draggedItem.tableId ? { ...t, gridX, gridY } : t
         )
-      }));
+      });
     }
 
     setDraggedItem(null);
@@ -133,51 +239,115 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   };
 
   const deleteTable = (tableId: string) => {
-    setFloorPlan(prev => ({
-      ...prev,
-      tables: prev.tables.filter(t => t.id !== tableId)
-    }));
+    if (!currentLayout) return;
+    setCurrentLayout({
+      ...currentLayout,
+      tables: currentLayout.tables.filter(t => t.id !== tableId)
+    });
     setSelectedTable(null);
   };
 
   const updateTable = (tableId: string, updates: Partial<FloorTable>) => {
-    setFloorPlan(prev => ({
-      ...prev,
-      tables: prev.tables.map(t => t.id === tableId ? { ...t, ...updates } : t)
-    }));
+    if (!currentLayout) return;
+    setCurrentLayout({
+      ...currentLayout,
+      tables: currentLayout.tables.map(t => t.id === tableId ? { ...t, ...updates } : t)
+    });
   };
 
-  const savePlan = async () => {
+  const saveCurrentLayout = async () => {
+    if (!currentLayout) return;
+
     try {
-      const response = await fetch(`/api/floor-plans/${restaurantId}`, {
-        method: 'POST',
+      const response = await fetch(`/api/floor-layouts/${restaurantId}/${currentLayout.id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(floorPlan)
+        body: JSON.stringify(currentLayout)
       });
 
       if (response.ok) {
-        alert('✅ Floor plan saved successfully!');
+        alert('✅ Layout saved successfully!');
+        // Update the layout in the list
+        setLayouts(layouts.map(l => l.id === currentLayout.id ? currentLayout : l));
       } else {
-        const text = await response.text();
-        console.error('Save failed:', response.status, text);
-        let errorMsg = `Status ${response.status}`;
-        try {
-          const json = JSON.parse(text);
-          errorMsg = json.error || errorMsg;
-        } catch {
-          errorMsg = response.statusText || errorMsg;
-        }
-        alert(`❌ Failed to save floor plan: ${errorMsg}`);
+        const data = await response.json();
+        alert(`❌ Failed to save: ${data.error || 'Unknown error'}`);
       }
     } catch (err) {
       console.error('Save failed:', err);
-      alert(`❌ Error saving floor plan: ${err instanceof Error ? err.message : String(err)}`);
+      alert(`❌ Error saving: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
+  if (!currentLayout) {
+    return (
+      <div className="floor-editor-empty">
+        <h2>No Floor Layouts</h2>
+        <p>Create your first floor layout to get started.</p>
+        <button className="btn-primary" onClick={() => setIsCreateModalOpen(true)}>
+          ➕ Create New Layout
+        </button>
+
+        {isCreateModalOpen && (
+          <div className="modal-overlay" onClick={() => setIsCreateModalOpen(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <h3>Create New Layout</h3>
+              <input
+                type="text"
+                placeholder="Layout name (e.g., Main Floor, Patio)"
+                value={newLayoutName}
+                onChange={(e) => setNewLayoutName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && createNewLayout()}
+                autoFocus
+              />
+              <div className="modal-actions">
+                <button onClick={createNewLayout} className="btn-primary">Create</button>
+                <button onClick={() => setIsCreateModalOpen(false)} className="btn-secondary">Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="floor-editor">
+      <div className="editor-header">
+        <div className="layout-selector">
+          <select
+            value={currentLayout.id}
+            onChange={(e) => {
+              const layout = layouts.find(l => l.id === e.target.value);
+              if (layout) setCurrentLayout(layout);
+            }}
+          >
+            {layouts.map((layout) => (
+              <option key={layout.id} value={layout.id}>
+                {layout.name} {layout.isActive ? '(Active)' : ''}
+              </option>
+            ))}
+          </select>
+          <button className="btn-icon" onClick={() => setIsCreateModalOpen(true)} title="New Layout">
+            ➕
+          </button>
+          <button className="btn-icon" onClick={() => duplicateLayout(currentLayout.id)} title="Duplicate Layout">
+            📋
+          </button>
+          {!currentLayout.isActive && (
+            <button className="btn-icon" onClick={() => setActiveLayout(currentLayout.id)} title="Set as Active">
+              ⭐
+            </button>
+          )}
+          {layouts.length > 1 && (
+            <button className="btn-icon btn-danger" onClick={() => deleteLayout(currentLayout.id)} title="Delete Layout">
+              🗑️
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className="editor-sidebar">
         {sections.length > 0 && (
           <div className="sections-tabs">
@@ -259,7 +429,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
           </div>
         )}
 
-        <button className="btn-save" onClick={savePlan}>
+        <button className="btn-save" onClick={saveCurrentLayout}>
           💾 Save Layout
         </button>
       </div>
@@ -268,15 +438,15 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
         <div
           className="grid"
           style={{
-            gridTemplateColumns: `repeat(${floorPlan.gridCols}, 60px)`,
-            gridTemplateRows: `repeat(${floorPlan.gridRows}, 60px)`
+            gridTemplateColumns: `repeat(${currentLayout.gridCols}, 60px)`,
+            gridTemplateRows: `repeat(${currentLayout.gridRows}, 60px)`
           }}
         >
-          {Array.from({ length: floorPlan.gridRows * floorPlan.gridCols }).map((_, i) => {
-            const gridY = Math.floor(i / floorPlan.gridCols);
-            const gridX = i % floorPlan.gridCols;
+          {Array.from({ length: currentLayout.gridRows * currentLayout.gridCols }).map((_, i) => {
+            const gridY = Math.floor(i / currentLayout.gridCols);
+            const gridX = i % currentLayout.gridCols;
 
-            const tableHere = floorPlan.tables.find(t =>
+            const tableHere = currentLayout.tables.find(t =>
               gridX >= t.gridX && gridX < t.gridX + t.spanX &&
               gridY >= t.gridY && gridY < t.gridY + t.spanY
             );
@@ -310,6 +480,26 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
           })}
         </div>
       </div>
+
+      {isCreateModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsCreateModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Create New Layout</h3>
+            <input
+              type="text"
+              placeholder="Layout name (e.g., Main Floor, Patio)"
+              value={newLayoutName}
+              onChange={(e) => setNewLayoutName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && createNewLayout()}
+              autoFocus
+            />
+            <div className="modal-actions">
+              <button onClick={createNewLayout} className="btn-primary">Create</button>
+              <button onClick={() => setIsCreateModalOpen(false)} className="btn-secondary">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
