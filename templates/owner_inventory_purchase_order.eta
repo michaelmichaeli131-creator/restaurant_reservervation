@@ -1,161 +1,341 @@
 <% layout("_layout", it) %>
-<%
-  const restaurant  = it.restaurant || {};
-  const po          = it.po || {};
-  const ingredients = Array.isArray(it.ingredients) ? it.ingredients : [];
-  const expectedAtStr = it.expectedAtStr || '';
 
-  function esc(x){ return String(x ?? '').replaceAll('"','&quot;'); }
+<%
+  const restaurant = it.restaurant || {};
+  const po         = it.po || {};
+  const suppliers  = Array.isArray(it.suppliers) ? it.suppliers : [];
+  const ingredientsAll = Array.isArray(it.ingredients) ? it.ingredients : [];
+  const ingredientsForSupplier = Array.isArray(it.ingredientsForSupplier) ? it.ingredientsForSupplier : [];
+
+  function esc(s){ return String(s ?? ""); }
+
+  const editable = (po.status === "draft");
+  const supplierName = po.supplierNameSnapshot || po.supplierName || "";
+
+  const ingOptionsBase = ingredientsForSupplier.length ? ingredientsForSupplier : ingredientsAll;
+
+  const lines = Array.isArray(po.lines) ? po.lines : [];
+
+  function fmtDateInput(ms){
+    if (!ms && ms !== 0) return "";
+    const d = new Date(ms);
+    if (Number.isNaN(d.getTime())) return "";
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(d.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${dd}`;
+  }
+
+  function fmtDate(ms){
+    if (!ms && ms !== 0) return "";
+    const d = new Date(ms);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("he-IL", { day:"2-digit", month:"2-digit", year:"2-digit" });
+  }
+
+  function statusLabel(st){
+    if (!st) return "טיוטה";
+    switch(String(st)){
+      case "draft": return "טיוטה";
+      case "sent": return "נשלח";
+      case "delivered": return "סופק";
+      case "cancelled": return "בוטל";
+      default: return st;
+    }
+  }
 %>
 
 <section class="sb-owner container" aria-label="הזמנת רכש">
   <div class="card">
     <header class="owner-hd">
       <div>
-        <h1>הזמנת רכש · <%= restaurant.name || 'מסעדה' %></h1>
+        <h1>
+          הזמנת רכש · <%= restaurant.name || 'מסעדה' %>
+        </h1>
         <p class="muted">
-          ספק: <strong><%= po.supplierNameSnapshot || '—' %></strong> •
-          סטטוס: <strong><%= po.status || 'draft' %></strong>
+          הזמנה מס׳
+          <span class="muted small">PO-</span><strong><%= esc(po.id) %></strong>
+          לספק:
+          <strong><%= esc(supplierName || 'לא ידוע') %></strong>
         </p>
       </div>
       <div class="actions">
         <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/purchase_orders">⬅ כל ההזמנות</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">🥬 מלאי</a>
       </div>
     </header>
 
     <div class="panel card" style="margin-top:14px">
-      <h2 class="card-title">פרטי הזמנה</h2>
+      <div class="po-header-row">
+        <div>
+          <div class="muted small">סטטוס</div>
+          <div class="po-status po-status-<%= esc(po.status || 'draft') %>">
+            <%= statusLabel(po.status) %>
+          </div>
+        </div>
+        <div>
+          <div class="muted small">נוצר בתאריך</div>
+          <div><%= fmtDate(po.createdAt) || '—' %></div>
+        </div>
+        <div>
+          <div class="muted small">צפי אספקה</div>
+          <div><%= fmtDate(po.expectedAt) || '—' %></div>
+        </div>
+        <div>
+          <div class="muted small">סופק בתאריך</div>
+          <div><%= fmtDate(po.deliveredAt) || '—' %></div>
+        </div>
+      </div>
 
-      <form id="po-form" method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= po.id %>/save" class="form">
-        <div class="row">
+      <!-- פעולות סטטוס -->
+      <div class="po-actions" style="margin-top:10px">
+        <% if (po.status === "draft") { %>
+          <form method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= esc(po.id) %>/send">
+            <button class="btn primary sm" type="submit">📤 סמן כנשלח</button>
+          </form>
+        <% } %>
+
+        <% if (po.status !== "cancelled" && po.status !== "delivered") { %>
+          <form method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= esc(po.id) %>/cancel">
+            <button
+              class="btn ghost sm danger"
+              type="submit"
+              onclick="return confirm('לבטל את ההזמנה הזו? לא יעדכן מלאי.')"
+            >
+              ❌ ביטול הזמנה
+            </button>
+          </form>
+        <% } %>
+
+        <% if (po.status !== "cancelled" && po.status !== "delivered") { %>
+          <form method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= esc(po.id) %>/delivered">
+            <button
+              class="btn ghost sm"
+              type="submit"
+              onclick="return confirm('לסמן את ההזמנה כסופקה? המלאי יעודכן אוטומטית לפי השורות.')"
+            >
+              ✅ סמן כסופקה
+            </button>
+          </form>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- עריכת הזמנה (שורות + צפי אספקה + הערה) -->
+    <div class="panel card" style="margin-top:16px">
+      <h2 class="card-title">
+        פרטי ההזמנה
+        <% if (!editable) { %>
+          <span class="muted small">(לא ניתן לעריכה לאחר שליחה/סיפוק/ביטול)</span>
+        <% } %>
+      </h2>
+
+      <form
+        id="po-edit-form"
+        method="post"
+        action="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= esc(po.id) %>/save"
+      >
+        <input type="hidden" name="lines" id="po-lines-input" value="[]">
+
+        <div class="row" style="margin-bottom:12px">
           <label class="lbl">
-            צפי הגעה (expectedAt)
-            <input class="in" name="expectedAt" type="date" value="<%= expectedAtStr %>">
+            צפי אספקה
+            <input
+              name="expectedAt"
+              type="date"
+              value="<%= fmtDateInput(po.expectedAt) %>"
+              <%= editable ? '' : 'disabled' %>
+            >
           </label>
-          <label class="lbl" style="flex:1;min-width:260px">
-            הערה
-            <input class="in" name="note" value="<%= esc(po.note||'') %>" placeholder="אופציונלי">
+
+          <label class="lbl" style="min-width:260px;flex:1">
+            הערות להזמנה
+            <input
+              name="note"
+              value="<%= esc(po.note || '') %>"
+              placeholder="מידע נוסף לספק או לצוות"
+              <%= editable ? '' : 'disabled' %>
+            >
           </label>
         </div>
 
-        <div style="margin-top:12px">
-          <h3 class="card-title" style="font-size:16px;margin:0 0 8px">שורות הזמנה</h3>
+        <div class="table">
+          <div class="tr th">
+            <div>חומר גלם</div>
+            <div>כמות</div>
+            <div>יחידת מידה</div>
+            <div></div>
+          </div>
 
-          <div class="po-grid" id="po-lines"></div>
+          <!-- שורות קיימות -->
+          <% lines.forEach(function(line, idx){ %>
+            <div
+              class="tr po-line"
+              data-line-index="<%= idx %>"
+            >
+              <div class="td">
+                <select
+                  class="in po-line-ingredient"
+                  <%= editable ? '' : 'disabled' %>
+                >
+                  <% ingOptionsBase.forEach(function(ing){ %>
+                    <option
+                      value="<%= esc(ing.id) %>"
+                      <%= (ing.id === line.ingredientId ? 'selected' : '') %>
+                    >
+                      <%= esc(ing.name) %>
+                    </option>
+                  <% }) %>
+                </select>
+              </div>
 
-          <button type="button" class="btn ghost sm" id="btn-add" style="margin-top:8px">
-            ➕ הוסף שורה
-          </button>
+              <div class="td">
+                <input
+                  class="in po-line-qty"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value="<%= esc(line.qty ?? '') %>"
+                  <%= editable ? '' : 'disabled' %>
+                >
+              </div>
 
-          <input type="hidden" name="lines" id="lines-json">
+              <div class="td">
+                <% 
+                  const ing = ingOptionsBase.find(i => i.id === line.ingredientId) || {};
+                %>
+                <span class="muted small">
+                  <%= esc(ing.unit || '') %>
+                </span>
+              </div>
+
+              <div class="td right">
+                <% if (editable) { %>
+                  <button
+                    class="btn ghost sm danger po-line-remove"
+                    type="button"
+                  >
+                    מחיקת שורה
+                  </button>
+                <% } %>
+              </div>
+            </div>
+          <% }) %>
         </div>
 
-        <div class="actions" style="margin-top:12px">
-          <button class="btn primary sm" type="submit">💾 שמור</button>
+        <% if (editable) { %>
+          <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+            <button
+              class="btn ghost sm"
+              type="button"
+              id="po-add-line-btn"
+            >
+              ➕ הוסף חומר גלם להזמנה
+            </button>
 
-          <% if (po.status !== 'delivered' && po.status !== 'cancelled') { %>
-            <form method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= po.id %>/send">
-              <button class="btn ghost sm" type="submit">נשלח</button>
-            </form>
+            <button class="btn primary sm" type="submit">
+              💾 שמור הזמנה
+            </button>
+          </div>
 
-            <form method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= po.id %>/delivered"
-                  onsubmit="return confirm('לסמן כסופק? זה יוסיף מלאי (delivery) לכל השורות.')">
-              <button class="btn primary sm" type="submit">✅ סופק</button>
-            </form>
-
-            <form method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= po.id %>/cancel"
-                  onsubmit="return confirm('לבטל הזמנה?')">
-              <button class="btn ghost sm" type="submit">בטל</button>
-            </form>
-          <% } %>
-        </div>
+          <p class="muted small" style="margin-top:6px">
+            בעת שמירת ההזמנה נשמרות רק שורות עם חומר גלם וכמות &gt; 0.
+          </p>
+        <% } %>
       </form>
-
-      <p class="muted small" style="margin-top:10px">
-        טיפ: כשמסמנים "סופק" — נוצרת תנועת מלאי <code>delivery</code> לכל שורה עם deltaQty = הכמות.
-      </p>
     </div>
   </div>
 </section>
 
 <script>
   (function(){
-    var ingredients = <%- JSON.stringify(ingredients || []) %>;
-    var existing = <%- JSON.stringify((po && po.lines) ? po.lines : []) %>;
+    const editable = <%= editable ? 'true' : 'false' %>;
+    if (!editable) return;
 
-    var grid = document.getElementById('po-lines');
-    var btnAdd = document.getElementById('btn-add');
-    var form = document.getElementById('po-form');
-    var hidden = document.getElementById('lines-json');
+    const form = document.getElementById('po-edit-form');
+    const linesInput = document.getElementById('po-lines-input');
+    const addBtn = document.getElementById('po-add-line-btn');
 
-    if(!grid || !btnAdd || !form || !hidden) return;
-
-    function buildOptions(selectedId){
-      var html = '<option value="">חומר גלם...</option>';
-      html += ingredients.map(function(ing){
-        var sel = (selectedId && selectedId === ing.id) ? ' selected' : '';
-        return '<option value="'+ing.id+'"'+sel+'>'+ing.name+' ('+(ing.unit||'unit')+')</option>';
-      }).join('');
-      return html;
-    }
-
-    function addRow(v){
-      var wrap = document.createElement('div');
-      wrap.className = 'po-row';
-
-      var sel = document.createElement('select');
-      sel.className = 'po-ing';
-      sel.required = true;
-      sel.innerHTML = buildOptions(v && v.ingredientId);
-
-      var qty = document.createElement('input');
-      qty.type = 'number';
-      qty.min = '0';
-      qty.step = '0.001';
-      qty.placeholder = 'כמות';
-      qty.className = 'po-qty';
-      qty.required = true;
-      if (v && typeof v.qty === 'number') qty.value = String(v.qty);
-
-      var del = document.createElement('button');
-      del.type = 'button';
-      del.className = 'btn ghost sm';
-      del.textContent = '✕';
-      del.addEventListener('click', function(){ wrap.remove(); });
-
-      wrap.appendChild(sel);
-      wrap.appendChild(qty);
-      wrap.appendChild(del);
-      grid.appendChild(wrap);
-    }
-
-    btnAdd.addEventListener('click', function(){ addRow(null); });
-
-    if (Array.isArray(existing) && existing.length) {
-      existing.forEach(function(x){ addRow({ ingredientId: x.ingredientId, qty: Number(x.qty||0) }); });
-    } else {
-      addRow(null);
-    }
-
-    form.addEventListener('submit', function(){
-      var rows = grid.querySelectorAll('.po-row');
-      var out = [];
+    function collectLines(){
+      const rows = Array.from(document.querySelectorAll('.po-line'));
+      const result = [];
       rows.forEach(function(row){
-        var s = row.querySelector('.po-ing');
-        var q = row.querySelector('.po-qty');
-        if(!s || !q) return;
-        var id = s.value;
-        var qty = parseFloat(q.value || '0');
-        if(!id || !(qty > 0)) return;
-        out.push({ ingredientId: id, qty: qty });
+        const ingSel = row.querySelector('.po-line-ingredient');
+        const qtyInput = row.querySelector('.po-line-qty');
+        if (!ingSel || !qtyInput) return;
+        const ingredientId = (ingSel.value || '').trim();
+        const qty = Number(qtyInput.value || '0');
+        if (!ingredientId || !Number.isFinite(qty) || qty <= 0) return;
+        result.push({ ingredientId, qty });
       });
-      hidden.value = JSON.stringify(out);
-    });
+      linesInput.value = JSON.stringify(result);
+    }
+
+    if (form) {
+      form.addEventListener('submit', function(){
+        collectLines();
+      });
+    }
+
+    function attachRemoveHandlers(){
+      document.querySelectorAll('.po-line-remove').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          const row = btn.closest('.po-line');
+          if (row) row.remove();
+        });
+      });
+    }
+
+    function createLineRow(){
+      const container = document.createElement('div');
+      container.className = 'tr po-line';
+
+      // נשתמש באופציה הראשונה כברירת מחדל
+      const ingSelectOptions = `
+        <% ingOptionsBase.forEach(function(ing){ %>
+          <option value="<%= esc(ing.id) %>"><%= esc(ing.name) %></option>
+        <% }) %>
+      `;
+
+      container.innerHTML = `
+        <div class="td">
+          <select class="in po-line-ingredient">
+            ${ingSelectOptions}
+          </select>
+        </div>
+        <div class="td">
+          <input class="in po-line-qty" type="number" step="0.01" min="0" value="0">
+        </div>
+        <div class="td">
+          <span class="muted small"></span>
+        </div>
+        <div class="td right">
+          <button class="btn ghost sm danger po-line-remove" type="button">
+            מחיקת שורה
+          </button>
+        </div>
+      `;
+
+      const table = document.querySelector('.panel.card .table');
+      if (table) {
+        table.appendChild(container);
+      }
+      attachRemoveHandlers();
+    }
+
+    if (addBtn) {
+      addBtn.addEventListener('click', function(){
+        createLineRow();
+      });
+    }
+
+    attachRemoveHandlers();
   })();
 </script>
 
 <style>
   .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
+
   .card{
     background: var(--panel, #121622);
     border:1px solid var(--bd, #222834);
@@ -164,49 +344,84 @@
     box-shadow: 0 10px 30px rgba(0,0,0,.35);
   }
   .panel.card{height:100%}
+
   .owner-hd{display:flex;align-items:flex-start;gap:12px;justify-content:space-between}
   .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
   .muted{ color: var(--ink-muted, #9aa3b2); }
   .small{ font-size:12px; }
-  code{background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.22);padding:1px 6px;border-radius:8px}
-  .actions{display:flex;gap:8px;flex-wrap:wrap}
 
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
   .btn{
     display:inline-flex; align-items:center; justify-content:center; gap:8px;
     padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
     border:1px solid var(--bd, #23293a); background:transparent;
     color: var(--ink, #e6e8ef); font-weight:700;
+    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
   }
+  .btn:hover{ transform: translateY(-1px); }
   .btn.primary{
     background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
     box-shadow: 0 8px 24px rgba(59,130,246,.35);
   }
   .btn.ghost{background:rgba(15,23,42,.6);}
   .btn.sm{ padding:8px 12px; border-radius:10px; font-size:13px }
+  .btn.danger{
+    border-color: rgba(248,113,113,.35);
+    color:#fecaca;
+  }
 
   .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
   .lbl{display:block;font-weight:700;font-size:13px}
-  .in{
-    padding:10px 12px;margin-top:6px;
-    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
+  .lbl input{
+    width:220px; padding:10px 12px; margin-top:6px;
+    background:#171b29; color:#e6e8ef; border:1px solid #23293a; border-radius:12px;
     font-size:14px; outline:none;
   }
 
-  .po-grid{display:flex;flex-direction:column;gap:8px;margin-top:8px}
-  .po-row{
-    display:grid;
-    grid-template-columns:1.6fr 1fr auto;
-    gap:8px;
-    align-items:center;
-  }
-  .po-row select, .po-row input{
+  .table{margin-top:10px;border:1px solid rgba(148,163,184,.18);border-radius:14px;overflow:hidden}
+  .tr{display:grid;grid-template-columns:1.8fr .9fr .7fr 1.1fr;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid rgba(255,255,255,.06)}
+  .tr:first-child{border-top:none}
+  .th{background:rgba(148,163,184,.08);font-weight:900;color:#dbe3f0}
+
+  .td{min-width:0}
+  .td.right{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+
+  .in{
     width:100%;
     padding:10px 12px;
     background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
     font-size:14px; outline:none;
   }
+  .in:focus{
+    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
+  }
 
-  @media (max-width:900px){
-    .po-row{grid-template-columns:1fr}
+  .po-header-row{
+    display:flex;gap:18px;flex-wrap:wrap;
+  }
+  .po-header-row > div{
+    min-width:120px;
+  }
+
+  .po-status{
+    display:inline-flex;align-items:center;justify-content:center;
+    padding:4px 8px;border-radius:999px;font-size:11px;
+    background:rgba(148,163,184,.18);
+  }
+  .po-status-draft{background:rgba(148,163,184,.18);}
+  .po-status-sent{background:rgba(59,130,246,.25);}
+  .po-status-delivered{background:rgba(34,197,94,.25);}
+  .po-status-cancelled{background:rgba(248,113,113,.25);}
+
+  .po-actions{
+    display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+  }
+
+  @media (max-width:950px){
+    .tr{grid-template-columns:1fr}
+    .td.right{justify-content:flex-start}
+    .lbl input{width:100%}
+    .po-header-row{flex-direction:column}
   }
 </style>

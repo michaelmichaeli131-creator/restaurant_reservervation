@@ -13,12 +13,13 @@
       <div>
         <h1>ספקים · <%= restaurant.name || 'מסעדה' %></h1>
         <p class="muted">
-          ניהול ספקים בסיסי + <strong>זמן אספקה (ימים)</strong> לצפי הגעה.
-          (בשלב הבא נחבר “ספק מועדף” לכל חומר גלם + הזמנות רכש).
+          ניהול ספקים בסיסי: פרטי קשר, תנאי תשלום וזמן אספקה טיפוסי (ימים).
+          זמן האספקה משמש לחישוב צפי הגעה בהזמנות רכש חדשות.
         </p>
       </div>
       <div class="actions">
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">⬅ מלאי</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">🥬 מלאי</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/purchase_orders">🧾 הזמנות רכש</a>
         <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📈 עלויות</a>
       </div>
     </header>
@@ -28,35 +29,29 @@
 
       <form class="form row" method="post" action="/owner/<%= restaurant.id %>/inventory/suppliers/save">
         <input type="hidden" name="id" value="">
-
         <label class="lbl">
           שם ספק *
           <input name="name" required placeholder="לדוגמה: דגי הים בע״מ">
         </label>
-
-        <label class="lbl">
-          זמן אספקה (ימים)
-          <input name="leadTimeDays" type="number" step="1" min="0" value="0" inputmode="numeric" placeholder="לדוגמה: 2">
-        </label>
-
         <label class="lbl">
           טלפון
           <input name="phone" placeholder="050-1234567">
         </label>
-
         <label class="lbl">
           מייל
           <input name="email" type="email" placeholder="sales@supplier.com">
         </label>
-
         <label class="lbl">
           תנאי תשלום
           <input name="paymentTerms" placeholder="שוטף +30">
         </label>
-
+        <label class="lbl">
+          זמן אספקה (ימים)
+          <input name="leadTimeDays" type="number" min="0" step="1" placeholder="לדוגמה: 2">
+        </label>
         <label class="lbl" style="min-width:220px;flex:1">
           הערות
-          <input name="notes" placeholder="ימי אספקה / מינימום הזמנה / וכו׳">
+          <input name="notes" placeholder="ימי אספקה, מינימום הזמנה, שעות מענה וכו׳">
         </label>
 
         <label class="chk">
@@ -64,7 +59,7 @@
           פעיל
         </label>
 
-        <button class="btn primary sm" type="submit">➕ הוסף</button>
+        <button class="btn primary sm" type="submit">➕ הוסף ספק</button>
       </form>
     </div>
 
@@ -78,10 +73,10 @@
         <div class="table">
           <div class="tr th">
             <div>שם</div>
-            <div>צפי אספקה (ימים)</div>
             <div>טלפון</div>
             <div>מייל</div>
             <div>תנאי תשלום</div>
+            <div>זמן אספקה (ימים)</div>
             <div>פעיל</div>
             <div></div>
           </div>
@@ -93,21 +88,10 @@
               <div class="td">
                 <input class="in" name="name" required value="<%= esc(s.name) %>">
                 <% if (s.notes) { %>
-                  <div class="muted small" style="margin-top:6px">הערות: <%= esc(s.notes) %></div>
+                  <div class="muted small" style="margin-top:6px">
+                    הערות: <%= esc(s.notes) %>
+                  </div>
                 <% } %>
-              </div>
-
-              <div class="td">
-                <input
-                  class="in"
-                  name="leadTimeDays"
-                  type="number"
-                  step="1"
-                  min="0"
-                  inputmode="numeric"
-                  value="<%= (typeof s.leadTimeDays === 'number' ? String(s.leadTimeDays) : '0') %>"
-                  placeholder="0"
-                >
               </div>
 
               <div class="td">
@@ -120,6 +104,20 @@
 
               <div class="td">
                 <input class="in" name="paymentTerms" value="<%= esc(s.paymentTerms || '') %>" placeholder="—">
+              </div>
+
+              <div class="td">
+                <input
+                  class="in"
+                  name="leadTimeDays"
+                  type="number"
+                  min="0" step="1"
+                  value="<%= (typeof s.leadTimeDays === 'number' ? s.leadTimeDays : '') %>"
+                  placeholder="—"
+                >
+                <div class="muted small" style="margin-top:4px">
+                  משמש כברירת מחדל לצפי הגעה בהזמנה חדשה.
+                </div>
               </div>
 
               <div class="td">
@@ -138,6 +136,7 @@
                   formaction="/owner/<%= restaurant.id %>/inventory/suppliers/<%= esc(s.id) %>/delete"
                   formmethod="post"
                   onclick="return confirm('למחוק את הספק הזה?')"
+                  style="margin-right:8px"
                 >
                   מחיקה
                 </button>
@@ -208,14 +207,7 @@
   .chk input{ transform: translateY(1px); }
 
   .table{margin-top:10px;border:1px solid rgba(148,163,184,.18);border-radius:14px;overflow:hidden}
-  .tr{
-    display:grid;
-    grid-template-columns:1.5fr .9fr 1fr 1.2fr 1fr .7fr 1.05fr;
-    gap:10px;
-    align-items:center;
-    padding:10px 12px;
-    border-top:1px solid rgba(255,255,255,.06)
-  }
+  .tr{display:grid;grid-template-columns:1.6fr .9fr 1.2fr 1fr 1.1fr .7fr 1fr;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid rgba(255,255,255,.06)}
   .tr:first-child{border-top:none}
   .th{background:rgba(148,163,184,.08);font-weight:900;color:#dbe3f0}
 
