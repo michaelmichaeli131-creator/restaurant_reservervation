@@ -1,14 +1,29 @@
 <% layout("_layout", it) %>
+
 <%
   const restaurant = it.restaurant || {};
   const suppliers  = Array.isArray(it.suppliers) ? it.suppliers : [];
   const pos        = Array.isArray(it.pos) ? it.pos : [];
 
+  function esc(s){ return String(s ?? ""); }
+
   function fmtDate(ms){
-    if(!ms) return '-';
-    try{ return new Date(ms).toISOString().slice(0,10); }catch(e){ return '-'; }
+    if (!ms && ms !== 0) return "";
+    const d = new Date(ms);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("he-IL", { day:"2-digit", month:"2-digit", year:"2-digit" });
   }
-  function esc(x){ return String(x ?? '').replaceAll('"','&quot;'); }
+
+  function statusLabel(st){
+    if (!st) return "טיוטה";
+    switch(String(st)){
+      case "draft": return "טיוטה";
+      case "sent": return "נשלח";
+      case "delivered": return "סופק";
+      case "cancelled": return "בוטל";
+      default: return st;
+    }
+  }
 %>
 
 <section class="sb-owner container" aria-label="הזמנות רכש">
@@ -17,97 +32,110 @@
       <div>
         <h1>הזמנות רכש · <%= restaurant.name || 'מסעדה' %></h1>
         <p class="muted">
-          מינימום הכרחי: יוצרים PO לספק, מגדירים צפי הגעה (expectedAt), מוסיפים שורות (חומר גלם + כמות), ובסוף מסמנים "סופק" — ואז נוצרות תנועות מלאי <code>delivery</code>.
+          יצירה וניהול של הזמנות רכש לספקים. כאשר מסמנים הזמנה כ<span dir="ltr">“סופקה”</span>,
+          המלאי של חומרי הגלם מתעדכן אוטומטית לפי השורות בהזמנה.
         </p>
       </div>
       <div class="actions">
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/suppliers">🏭 ספקים</a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">📦 מלאי</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">🥬 מלאי</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/suppliers">📦 ספקים</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📈 עלויות</a>
       </div>
     </header>
 
+    <!-- יצירת הזמנה חדשה -->
     <div class="panel card" style="margin-top:14px">
-      <h2 class="card-title">יצירת PO חדש</h2>
+      <h2 class="card-title">הזמנה חדשה</h2>
 
-      <% if (!suppliers.length) { %>
-        <p class="muted">כדי ליצור הזמנה, קודם הוסף ספקים.</p>
-        <a class="btn primary sm" href="/owner/<%= restaurant.id %>/inventory/suppliers">➕ הוסף ספק</a>
-      <% } else { %>
-        <form class="row" method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/new">
-          <label class="lbl">
-            ספק
-            <select name="supplierId" class="in" required style="width:220px">
-              <option value="">בחר ספק...</option>
-              <% suppliers.forEach(function(s){ %>
-                <option value="<%= s.id %>"><%= s.name %> (Lead: <%= Number(s.leadTimeDays||0) %>d)</option>
-              <% }) %>
-            </select>
-          </label>
+      <form class="form row" method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/new">
+        <label class="lbl">
+          ספק *
+          <select name="supplierId" required>
+            <option value="">בחר ספק…</option>
+            <% suppliers.forEach(function(s){ %>
+              <% if (s && s.isActive !== false) { %>
+                <option value="<%= esc(s.id) %>"><%= esc(s.name) %></option>
+              <% } %>
+            <% }) %>
+          </select>
+        </label>
 
-          <label class="lbl">
-            צפי הגעה (אופציונלי)
-            <input class="in" name="expectedAt" type="date" style="width:180px">
-          </label>
+        <label class="lbl">
+          צפי אספקה
+          <input name="expectedAt" type="date">
+        </label>
 
-          <label class="lbl" style="min-width:260px">
-            הערה
-            <input class="in" name="note" placeholder="אופציונלי">
-          </label>
+        <label class="lbl" style="min-width:260px;flex:1">
+          הערות להזמנה
+          <input name="note" placeholder="לדוגמה: משלוח ליום חמישי בבוקר, לשים במקרר האמצעי">
+        </label>
 
-          <button class="btn primary sm" type="submit">➕ צור הזמנה</button>
-        </form>
-        <p class="muted small" style="margin-top:6px">
-          אם לא תמלא צפי הגעה — המערכת תחשב אוטומטית: היום + leadTimeDays של הספק.
-        </p>
-      <% } %>
+        <button class="btn primary sm" type="submit">➕ צור הזמנה</button>
+      </form>
+      <p class="muted small" style="margin-top:8px">
+        אם לא הוזן תאריך צפי, המערכת יכולה להשתמש בזמן האספקה הטיפוסי של הספק (leadTimeDays).
+      </p>
     </div>
 
-    <div class="panel card" style="margin-top:14px">
-      <h2 class="card-title">הזמנות קיימות</h2>
+    <!-- רשימת הזמנות -->
+    <div class="panel card" style="margin-top:16px">
+      <h2 class="card-title">כל הזמנות הרכש</h2>
 
       <% if (!pos.length) { %>
-        <p class="muted">אין עדיין הזמנות רכש.</p>
+        <p class="muted">עדיין אין הזמנות רכש. צור הזמנה חדשה למעלה.</p>
       <% } else { %>
+
         <div class="table">
           <div class="tr th">
-            <div>תאריך יצירה</div>
+            <div>מס׳ הזמנה</div>
             <div>ספק</div>
             <div>סטטוס</div>
-            <div>צפי הגעה</div>
-            <div>שורות</div>
+            <div>נוצר בתאריך</div>
+            <div>צפי אספקה</div>
+            <div>סופק בתאריך</div>
             <div></div>
           </div>
 
           <% pos.forEach(function(po){ %>
             <div class="tr">
-              <div class="td"><%= fmtDate(po.createdAt) %></div>
-              <div class="td"><strong><%= po.supplierNameSnapshot || 'ספק' %></strong></div>
               <div class="td">
-                <span class="pill <%= po.status %>"><%= po.status %></span>
+                <span class="muted small">PO-</span><%= esc(po.id) %>
               </div>
-              <div class="td"><%= fmtDate(po.expectedAt) %></div>
-              <div class="td"><%= Array.isArray(po.lines) ? po.lines.length : 0 %></div>
 
-              <div class="td right" style="gap:8px;display:flex;justify-content:flex-end;flex-wrap:wrap">
-                <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= po.id %>">פתח</a>
+              <div class="td">
+                <%= esc(po.supplierNameSnapshot || po.supplierName || '—') %>
+              </div>
 
-                <% if (po.status !== 'delivered' && po.status !== 'cancelled') { %>
-                  <form method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= po.id %>/send">
-                    <button class="btn ghost sm" type="submit">נשלח</button>
-                  </form>
-                  <form method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= po.id %>/delivered"
-                        onsubmit="return confirm('לסמן כסופק? זה יוסיף מלאי (delivery) לכל השורות.')">
-                    <button class="btn primary sm" type="submit">סופק</button>
-                  </form>
-                  <form method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= po.id %>/cancel"
-                        onsubmit="return confirm('לבטל הזמנה?')">
-                    <button class="btn ghost sm" type="submit">בטל</button>
-                  </form>
-                <% } %>
+              <div class="td">
+                <span class="po-status po-status-<%= esc(po.status || 'draft') %>">
+                  <%= statusLabel(po.status) %>
+                </span>
+              </div>
+
+              <div class="td">
+                <%= fmtDate(po.createdAt) || '—' %>
+              </div>
+
+              <div class="td">
+                <%= fmtDate(po.expectedAt) || '—' %>
+              </div>
+
+              <div class="td">
+                <%= fmtDate(po.deliveredAt) || '—' %>
+              </div>
+
+              <div class="td right">
+                <a
+                  class="btn primary sm"
+                  href="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= esc(po.id) %>"
+                >
+                  פתיחת הזמנה
+                </a>
               </div>
             </div>
           <% }) %>
         </div>
+
       <% } %>
     </div>
   </div>
@@ -115,6 +143,7 @@
 
 <style>
   .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
+
   .card{
     background: var(--panel, #121622);
     border:1px solid var(--bd, #222834);
@@ -123,19 +152,21 @@
     box-shadow: 0 10px 30px rgba(0,0,0,.35);
   }
   .panel.card{height:100%}
+
   .owner-hd{display:flex;align-items:flex-start;gap:12px;justify-content:space-between}
   .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
   .muted{ color: var(--ink-muted, #9aa3b2); }
   .small{ font-size:12px; }
-  code{background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.22);padding:1px 6px;border-radius:8px}
-  .actions{display:flex;gap:8px;flex-wrap:wrap}
 
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
   .btn{
     display:inline-flex; align-items:center; justify-content:center; gap:8px;
     padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
     border:1px solid var(--bd, #23293a); background:transparent;
     color: var(--ink, #e6e8ef); font-weight:700;
+    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
   }
+  .btn:hover{ transform: translateY(-1px); }
   .btn.primary{
     background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
     box-shadow: 0 8px 24px rgba(59,130,246,.35);
@@ -145,30 +176,33 @@
 
   .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
   .lbl{display:block;font-weight:700;font-size:13px}
-
-  .in{
-    padding:10px 12px;
-    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
+  .lbl input, .lbl select{
+    width:200px; padding:10px 12px; margin-top:6px;
+    background:#171b29; color:#e6e8ef; border:1px solid #23293a; border-radius:12px;
     font-size:14px; outline:none;
   }
 
   .table{margin-top:10px;border:1px solid rgba(148,163,184,.18);border-radius:14px;overflow:hidden}
-  .tr{display:grid;grid-template-columns:1fr 1.3fr .7fr .9fr .5fr 1.2fr;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid rgba(255,255,255,.06)}
+  .tr{display:grid;grid-template-columns:.9fr 1.4fr .9fr 1.1fr 1.1fr 1.1fr 1.1fr;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid rgba(255,255,255,.06)}
   .tr:first-child{border-top:none}
   .th{background:rgba(148,163,184,.08);font-weight:900;color:#dbe3f0}
-  .td{min-width:0}
-  .td.right{display:flex;justify-content:flex-end}
 
-  .pill{
-    display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;
-    border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.10);
-    font-size:12px;color:#d7deea
+  .td{min-width:0}
+  .td.right{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+
+  .po-status{
+    display:inline-flex;align-items:center;justify-content:center;
+    padding:4px 8px;border-radius:999px;font-size:11px;
+    background:rgba(148,163,184,.18);
   }
-  .pill.delivered{border-color:rgba(52,211,153,.45);background:rgba(16,185,129,.10);color:#6ee7b7}
-  .pill.cancelled{border-color:rgba(248,113,113,.55);background:rgba(248,113,113,.08);color:#fecaca}
-  .pill.sent{border-color:rgba(59,130,246,.55);background:rgba(59,130,246,.10);color:#bfdbfe}
+  .po-status-draft{background:rgba(148,163,184,.18);}
+  .po-status-sent{background:rgba(59,130,246,.25);}
+  .po-status-delivered{background:rgba(34,197,94,.25);}
+  .po-status-cancelled{background:rgba(248,113,113,.25);}
 
   @media (max-width:950px){
     .tr{grid-template-columns:1fr}
+    .td.right{justify-content:flex-start}
+    .lbl input, .lbl select{width:100%}
   }
 </style>
