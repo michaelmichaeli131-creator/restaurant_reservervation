@@ -27,12 +27,14 @@ interface FloorTable {
   sectionId?: string;
 }
 
-interface FloorPlan {
+interface FloorLayout {
   id: string;
+  restaurantId: string;
   name: string;
   gridRows: number;
   gridCols: number;
   tables: FloorTable[];
+  isActive: boolean;
   tableStatuses?: TableStatus[];
 }
 
@@ -55,7 +57,8 @@ const STATUS_LABELS = {
 };
 
 export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewProps) {
-  const [floorPlan, setFloorPlan] = useState<FloorPlan | null>(null);
+  const [layouts, setLayouts] = useState<FloorLayout[]>([]);
+  const [currentLayout, setCurrentLayout] = useState<FloorLayout | null>(null);
   const [tableStatuses, setTableStatuses] = useState<Map<string, TableStatus>>(new Map());
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -63,46 +66,65 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
   const [selectedTable, setSelectedTable] = useState<TableStatus | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // Load floor plan and initial table statuses
+  // Load all layouts
   useEffect(() => {
-    const loadFloorPlan = async () => {
+    const loadLayouts = async () => {
       try {
-        const res = await fetch(`/api/floor-plans/${restaurantId}`);
+        const res = await fetch(`/api/floor-layouts/${restaurantId}`);
         if (res.ok) {
-          const plan: FloorPlan = await res.json();
-          setFloorPlan(plan);
+          const allLayouts: FloorLayout[] = await res.json();
+          setLayouts(allLayouts);
 
-          // Initialize table statuses
-          if (plan.tableStatuses) {
-            const statusMap = new Map();
-            plan.tableStatuses.forEach(ts => {
-              statusMap.set(ts.tableId, ts);
-            });
-            setTableStatuses(statusMap);
+          // Find active layout or use first one
+          const active = allLayouts.find(l => l.isActive) || allLayouts[0];
+          if (active) {
+            await loadLayout(active.id);
           }
         }
       } catch (err) {
-        console.error('Failed to load floor plan:', err);
+        console.error('Failed to load layouts:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    loadFloorPlan();
+    loadLayouts();
   }, [restaurantId]);
+
+  // Load specific layout with table statuses
+  const loadLayout = async (layoutId: string) => {
+    try {
+      const res = await fetch(`/api/floor-layouts/${restaurantId}/${layoutId}`);
+      if (res.ok) {
+        const layout: FloorLayout = await res.json();
+        setCurrentLayout(layout);
+
+        // Initialize table statuses
+        if (layout.tableStatuses) {
+          const statusMap = new Map();
+          layout.tableStatuses.forEach(ts => {
+            statusMap.set(ts.tableId, ts);
+          });
+          setTableStatuses(statusMap);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load layout:', err);
+    }
+  };
 
   // Auto-refresh table statuses
   useEffect(() => {
-    if (!autoRefresh || !floorPlan) return;
+    if (!autoRefresh || !currentLayout) return;
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/floor-plans/${restaurantId}`);
+        const res = await fetch(`/api/floor-layouts/${restaurantId}/${currentLayout.id}`);
         if (res.ok) {
-          const plan: FloorPlan = await res.json();
-          if (plan.tableStatuses) {
+          const layout: FloorLayout = await res.json();
+          if (layout.tableStatuses) {
             const statusMap = new Map();
-            plan.tableStatuses.forEach(ts => {
+            layout.tableStatuses.forEach(ts => {
               statusMap.set(ts.tableId, ts);
             });
             setTableStatuses(statusMap);
@@ -114,16 +136,16 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
     }, refreshInterval);
 
     return () => clearInterval(interval);
-  }, [restaurantId, autoRefresh, refreshInterval, floorPlan]);
+  }, [restaurantId, autoRefresh, refreshInterval, currentLayout]);
 
   if (loading) {
-    return <div className="live-view-loading">Loading floor plan...</div>;
+    return <div className="live-view-loading">Loading floor layouts...</div>;
   }
 
-  if (!floorPlan) {
+  if (!currentLayout) {
     return (
       <div className="live-view-error">
-        <p>Floor plan not found. Please set up your floor plan first.</p>
+        <p>No floor layouts found. Please create a floor layout first.</p>
       </div>
     );
   }
@@ -142,7 +164,6 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
   };
 
   const handleStatusChange = (tableId: string, newStatus: string) => {
-    // Update the local state with the new status
     const updatedStatus = { ...getTableStatus(tableId), status: newStatus as any };
     setTableStatuses(prev => new Map(prev).set(tableId, updatedStatus));
   };
@@ -161,12 +182,37 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
     return `₪${price.toFixed(0)}`;
   };
 
+  const handleLayoutChange = (layoutId: string) => {
+    const selected = layouts.find(l => l.id === layoutId);
+    if (selected) {
+      loadLayout(layoutId);
+    }
+  };
+
   return (
     <div className="restaurant-live-view">
       <div className="live-view-header">
-        <h1>🔴 Live Floor View - {floorPlan.name}</h1>
+        <div className="header-title">
+          <h1>🔴 Live Floor View</h1>
+          {layouts.length > 1 && (
+            <div className="layout-selector-live">
+              <label>Layout:</label>
+              <select
+                value={currentLayout.id}
+                onChange={(e) => handleLayoutChange(e.target.value)}
+                className="layout-select"
+              >
+                {layouts.map((layout) => (
+                  <option key={layout.id} value={layout.id}>
+                    {layout.name} {layout.isActive ? '★' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
         <div className="control-panel">
-          <label>
+          <label className="auto-refresh-label">
             <input
               type="checkbox"
               checked={autoRefresh}
@@ -178,35 +224,28 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
             value={refreshInterval}
             onChange={(e) => setRefreshInterval(Number(e.target.value))}
             disabled={!autoRefresh}
+            className="refresh-interval-select"
           >
-            <option value={3000}>3 seconds</option>
-            <option value={5000}>5 seconds</option>
-            <option value={10000}>10 seconds</option>
-            <option value={15000}>15 seconds</option>
+            <option value={3000}>3s</option>
+            <option value={5000}>5s</option>
+            <option value={10000}>10s</option>
+            <option value={15000}>15s</option>
           </select>
-          <button onClick={() => {
-            const res = fetch(`/api/floor-plans/${restaurantId}`);
-            res.then(r => r.json()).then(plan => {
-              if (plan.tableStatuses) {
-                const statusMap = new Map();
-                plan.tableStatuses.forEach((ts: TableStatus) => {
-                  statusMap.set(ts.tableId, ts);
-                });
-                setTableStatuses(statusMap);
-              }
-            });
-          }}>
-            🔄 Refresh Now
+          <button
+            className="refresh-btn"
+            onClick={() => currentLayout && loadLayout(currentLayout.id)}
+          >
+            🔄 Refresh
           </button>
         </div>
       </div>
 
       <div className="live-view-container">
         <div className="floor-grid" style={{
-          gridTemplateColumns: `repeat(${floorPlan.gridCols}, 1fr)`,
-          gridTemplateRows: `repeat(${floorPlan.gridRows}, 1fr)`,
+          gridTemplateColumns: `repeat(${currentLayout.gridCols}, 1fr)`,
+          gridTemplateRows: `repeat(${currentLayout.gridRows}, 1fr)`,
         }}>
-          {floorPlan.tables.map((table) => {
+          {currentLayout.tables.map((table) => {
             const status = getTableStatus(table.id);
             const color = STATUS_COLORS[status.status];
             const timeSeated = formatTime(status.occupiedSince);
@@ -288,7 +327,7 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
         <div className="stats-panel">
         <div className="stat">
           <span className="label">Total Tables:</span>
-          <span className="value">{floorPlan.tables.length}</span>
+          <span className="value">{currentLayout.tables.length}</span>
         </div>
         <div className="stat">
           <span className="label">Occupied:</span>
@@ -305,11 +344,11 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
         <div className="stat">
           <span className="label">Occupancy:</span>
           <span className="value">
-            {Math.round(
+            {currentLayout.tables.length > 0 ? Math.round(
               (Array.from(tableStatuses.values()).filter(ts => ts.status === 'occupied').length /
-                floorPlan.tables.length) *
+                currentLayout.tables.length) *
                 100
-            )}%
+            ) : 0}%
           </span>
         </div>
         </div>
