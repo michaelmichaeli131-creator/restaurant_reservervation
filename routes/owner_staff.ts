@@ -31,11 +31,14 @@ import {
   setStaffApproval,
   setStaffPermissions,
   resetStaffPermissionsToDefault,
-  getStaffByRestaurantAndUser,       // ← חדש
-  createApprovedStaffFromSignup,     // ← חדש
+  getStaffByRestaurantAndUser,
+  createApprovedStaffFromSignup,
 } from "../services/staff_db.ts";
 
 export const ownerStaffRouter = new Router();
+
+// 🔎 לוג בעת טעינת המודול
+console.log("[owner_staff] router module loaded");
 
 // כל הראוטר הזה מוגן – רק בעלים
 ownerStaffRouter.use(requireOwner as any);
@@ -75,6 +78,11 @@ async function listOwnerRestaurants(ownerId: string): Promise<Restaurant[]> {
 function ensureOwner(ctx: any): User {
   const user = ctx.state.user as User | undefined;
   if (!user || user.role !== "owner") {
+    console.warn("[owner_staff] ensureOwner failed", {
+      hasUser: Boolean(user),
+      role: user?.role,
+      path: ctx.request.url.pathname,
+    });
     const err: any = new Error("Not owner");
     err.status = Status.Forbidden;
     throw err;
@@ -99,11 +107,23 @@ type SignupRequestWithUser = {
  */
 ownerStaffRouter.get("/owner/staff", async (ctx) => {
   const owner = ensureOwner(ctx);
+  console.log("[owner_staff] GET /owner/staff – start", {
+    ownerId: owner.id,
+    ownerEmail: owner.email,
+  });
 
   const restaurants = await listOwnerRestaurants(owner.id);
+  console.log("[owner_staff] owner restaurants loaded", {
+    count: restaurants.length,
+    ids: restaurants.map((r) => r.id),
+  });
 
   // בקשות הצטרפות (StaffSignupRequest) לכל המסעדות של הבעלים
   const rawSignupRequests = await listStaffSignupRequestsForOwner(owner.id, "pending");
+  console.log("[owner_staff] signup requests loaded", {
+    count: rawSignupRequests.length,
+  });
+
   const signupRequestsByRestaurant = new Map<string, SignupRequestWithUser[]>();
 
   for (const req of rawSignupRequests) {
@@ -126,6 +146,15 @@ ownerStaffRouter.get("/owner/staff", async (ctx) => {
     const active = all.filter((s) => s.approvalStatus === "approved");
     const signupRequests = signupRequestsByRestaurant.get(r.id) ?? [];
 
+    console.log("[owner_staff] restaurant block", {
+      restaurantId: r.id,
+      name: r.name,
+      staffCount: all.length,
+      activeCount: active.length,
+      pendingCount: pending.length,
+      signupRequestsCount: signupRequests.length,
+    });
+
     items.push({
       restaurant: r,
       staff: active,
@@ -140,22 +169,24 @@ ownerStaffRouter.get("/owner/staff", async (ctx) => {
     restaurantsData: items,
     allPermissions: ALL_PERMISSIONS,
   });
+
+  console.log("[owner_staff] GET /owner/staff – render done");
 });
 
 /* ─────────────── POST: אישור עובד קיים (staff_db) ─────────────── */
-/**
- * POST /owner/staff/:id/approve
- * body (אופציונלי):
- *   permissions=... (multi-select)
- *   useDefaults=on  → אם לא נשלחו הרשאות, אך רוצים ברירות מחדל
- */
 ownerStaffRouter.post("/owner/staff/:id/approve", async (ctx) => {
   const owner = ensureOwner(ctx);
   const staffId = ctx.params.id!;
   const form = await ctx.request.body({ type: "form" }).value;
 
+  console.log("[owner_staff] POST /owner/staff/:id/approve", {
+    staffId,
+    ownerId: owner.id,
+  });
+
   const staff = await getStaffById(staffId);
   if (!staff) {
+    console.warn("[owner_staff] approve – staff not found", { staffId });
     ctx.response.status = Status.NotFound;
     ctx.response.body = "Staff not found";
     return;
@@ -163,12 +194,17 @@ ownerStaffRouter.post("/owner/staff/:id/approve", async (ctx) => {
 
   const restaurant = await getRestaurant(staff.restaurantId);
   if (!restaurant || restaurant.ownerId !== owner.id) {
+    console.warn("[owner_staff] approve – restaurant not owner", {
+      staffId,
+      restaurantId: restaurant?.id,
+      ownerId: owner.id,
+      restaurantOwnerId: restaurant?.ownerId,
+    });
     ctx.response.status = Status.Forbidden;
     ctx.response.body = "Not your restaurant";
     return;
   }
 
-  // קבלת הרשאות מהטופס (אם יש)
   const rawPerms = form.getAll("permissions") as string[] | undefined;
   const useDefaults = form.get("useDefaults") === "on";
 
@@ -184,15 +220,24 @@ ownerStaffRouter.post("/owner/staff/:id/approve", async (ctx) => {
     newPermissions = filtered;
   }
 
-  // אישור העובד
   await setStaffApproval(staffId, "approved");
+  console.log("[owner_staff] staff approved", {
+    staffId,
+    restaurantId: staff.restaurantId,
+    usedDefaults: useDefaults && (!newPermissions || !newPermissions.length),
+  });
 
-  // אם נבחרו הרשאות ספציפיות – לעדכן אותן
   if (newPermissions && newPermissions.length > 0) {
     await setStaffPermissions(staffId, newPermissions);
+    console.log("[owner_staff] staff permissions updated (explicit)", {
+      staffId,
+      count: newPermissions.length,
+    });
   } else if (useDefaults) {
-    // אם לא נבחר ספציפי אך ביקשו ברירת מחדל
     await resetStaffPermissionsToDefault(staffId);
+    console.log("[owner_staff] staff permissions reset to default", {
+      staffId,
+    });
   }
 
   const redirectTo = form.get("redirectTo") || "/owner/staff";
@@ -200,16 +245,19 @@ ownerStaffRouter.post("/owner/staff/:id/approve", async (ctx) => {
 });
 
 /* ─────────────── POST: דחיית עובד קיים (staff_db) ─────────────── */
-/**
- * POST /owner/staff/:id/reject
- */
 ownerStaffRouter.post("/owner/staff/:id/reject", async (ctx) => {
   const owner = ensureOwner(ctx);
   const staffId = ctx.params.id!;
   const form = await ctx.request.body({ type: "form" }).value;
 
+  console.log("[owner_staff] POST /owner/staff/:id/reject", {
+    staffId,
+    ownerId: owner.id,
+  });
+
   const staff = await getStaffById(staffId);
   if (!staff) {
+    console.warn("[owner_staff] reject – staff not found", { staffId });
     ctx.response.status = Status.NotFound;
     ctx.response.body = "Staff not found";
     return;
@@ -217,31 +265,41 @@ ownerStaffRouter.post("/owner/staff/:id/reject", async (ctx) => {
 
   const restaurant = await getRestaurant(staff.restaurantId);
   if (!restaurant || restaurant.ownerId !== owner.id) {
+    console.warn("[owner_staff] reject – restaurant not owner", {
+      staffId,
+      restaurantId: restaurant?.id,
+      ownerId: owner.id,
+      restaurantOwnerId: restaurant?.ownerId,
+    });
     ctx.response.status = Status.Forbidden;
     ctx.response.body = "Not your restaurant";
     return;
   }
 
-  // דחייה: נסמן approvalStatus="rejected" ומשאיר את הרשומה (שיקוף ללוגים)
   await setStaffApproval(staffId, "rejected");
+  console.log("[owner_staff] staff rejected", {
+    staffId,
+    restaurantId: staff.restaurantId,
+  });
 
   const redirectTo = form.get("redirectTo") || "/owner/staff";
   ctx.response.redirect(String(redirectTo));
 });
 
 /* ─────────────── POST: עדכון הרשאות של עובד קיים ─────────────── */
-/**
- * POST /owner/staff/:id/permissions
- * body:
- *   permissions=... (multi-select)
- */
 ownerStaffRouter.post("/owner/staff/:id/permissions", async (ctx) => {
   const owner = ensureOwner(ctx);
   const staffId = ctx.params.id!;
   const form = await ctx.request.body({ type: "form" }).value;
 
+  console.log("[owner_staff] POST /owner/staff/:id/permissions", {
+    staffId,
+    ownerId: owner.id,
+  });
+
   const staff = await getStaffById(staffId);
   if (!staff) {
+    console.warn("[owner_staff] permissions – staff not found", { staffId });
     ctx.response.status = Status.NotFound;
     ctx.response.body = "Staff not found";
     return;
@@ -249,6 +307,12 @@ ownerStaffRouter.post("/owner/staff/:id/permissions", async (ctx) => {
 
   const restaurant = await getRestaurant(staff.restaurantId);
   if (!restaurant || restaurant.ownerId !== owner.id) {
+    console.warn("[owner_staff] permissions – restaurant not owner", {
+      staffId,
+      restaurantId: restaurant?.id,
+      ownerId: owner.id,
+      restaurantOwnerId: restaurant?.ownerId,
+    });
     ctx.response.status = Status.Forbidden;
     ctx.response.body = "Not your restaurant";
     return;
@@ -259,6 +323,9 @@ ownerStaffRouter.post("/owner/staff/:id/permissions", async (ctx) => {
 
   if (resetToDefaults) {
     await resetStaffPermissionsToDefault(staffId);
+    console.log("[owner_staff] permissions reset to defaults", {
+      staffId,
+    });
   } else {
     const filtered: StaffPermission[] = [];
     if (rawPerms) {
@@ -269,6 +336,10 @@ ownerStaffRouter.post("/owner/staff/:id/permissions", async (ctx) => {
       }
     }
     await setStaffPermissions(staffId, filtered);
+    console.log("[owner_staff] permissions updated explicit", {
+      staffId,
+      count: filtered.length,
+    });
   }
 
   const redirectTo = form.get("redirectTo") || "/owner/staff";
@@ -276,15 +347,6 @@ ownerStaffRouter.post("/owner/staff/:id/permissions", async (ctx) => {
 });
 
 /* ─────────────── POST: אישור / דחיית בקשת הצטרפות (StaffSignupRequest) ─────────────── */
-/**
- * עובדים שנרשמו כ-"staff" דרך /auth/register יוצרים StaffSignupRequest.
- * כאן בעל המסעדה יכול לאשר / לדחות את הבקשה.
- *
- * בעת אישור:
- *  - מעדכנים סטטוס בבקשה עצמה (pending → approved)
- *  - ואם המשתמש קיים ואין כבר StaffMember באותה מסעדה → יוצרים StaffMember מאושר
- *    עם הרשאות דיפולטיות לפי role (או הרחבות בעתיד).
- */
 
 /** אישור בקשת הצטרפות */
 ownerStaffRouter.post("/owner/staff-signup/:id/approve", async (ctx) => {
@@ -292,8 +354,14 @@ ownerStaffRouter.post("/owner/staff-signup/:id/approve", async (ctx) => {
   const id = ctx.params.id!;
   const form = await ctx.request.body({ type: "form" }).value;
 
+  console.log("[owner_staff] POST /owner/staff-signup/:id/approve", {
+    signupRequestId: id,
+    ownerId: owner.id,
+  });
+
   const req = await getStaffSignupRequest(id);
   if (!req) {
+    console.warn("[owner_staff] signup approve – request not found", { id });
     ctx.response.status = Status.NotFound;
     ctx.response.body = "Signup request not found";
     return;
@@ -301,44 +369,67 @@ ownerStaffRouter.post("/owner/staff-signup/:id/approve", async (ctx) => {
 
   const restaurant = await getRestaurant(req.restaurantId);
   if (!restaurant || restaurant.ownerId !== owner.id) {
+    console.warn("[owner_staff] signup approve – restaurant not owner", {
+      signupRequestId: id,
+      restaurantId: restaurant?.id,
+      ownerId: owner.id,
+      restaurantOwnerId: restaurant?.ownerId,
+    });
     ctx.response.status = Status.Forbidden;
     ctx.response.body = "Not your restaurant";
     return;
   }
 
-  // ננסה להביא את המשתמש עצמו
   const user = await getUserById(req.userId);
   if (!user) {
-    console.warn("[owner_staff] signup request user not found", {
+    console.warn("[owner_staff] signup approve – user not found", {
       userId: req.userId,
-      requestId: id,
+      signupRequestId: id,
     });
   } else {
-    // נבדוק אם כבר קיימת רשומת StaffMember למסעדה הזו
     const existing = await getStaffByRestaurantAndUser(req.restaurantId, user.id);
-    if (!existing) {
+    if (existing) {
+      console.log("[owner_staff] signup approve – staff already exists, skip create", {
+        signupRequestId: id,
+        restaurantId: req.restaurantId,
+        userId: user.id,
+        staffId: existing.id,
+      });
+    } else {
       try {
-        await createApprovedStaffFromSignup({
+        const created = await createApprovedStaffFromSignup({
           restaurantId: req.restaurantId,
           userId: user.id,
           firstName: user.firstName || "",
           lastName: user.lastName || "",
           email: user.email,
           phone: user.phone || undefined,
-          role: req.staffRole,             // מתוך StaffSignupRequest
-          // permissionsOverride: אפשר להוסיף בעתיד אם נרצה לקחת מהטופס
+          role: req.staffRole,
+        });
+        console.log("[owner_staff] signup approve – created staff from request", {
+          signupRequestId: id,
+          restaurantId: req.restaurantId,
+          userId: user.id,
+          staffId: created.id,
         });
       } catch (e) {
         console.error(
           "[owner_staff] failed to create StaffMember from signup request",
-          e,
+          {
+            signupRequestId: id,
+            restaurantId: req.restaurantId,
+            userId: req.userId,
+            error: String(e),
+          },
         );
       }
     }
   }
 
-  // מעדכנים סטטוס הבקשה ל-approved (גם אם יצירת ה-Staff נכשלה – שומרים התנהגות סבירה)
   await updateStaffSignupStatus(id, "approved");
+  console.log("[owner_staff] signup request status → approved", {
+    signupRequestId: id,
+  });
 
   const redirectTo = form.get("redirectTo") || "/owner/staff";
   ctx.response.redirect(String(redirectTo));
@@ -350,8 +441,14 @@ ownerStaffRouter.post("/owner/staff-signup/:id/reject", async (ctx) => {
   const id = ctx.params.id!;
   const form = await ctx.request.body({ type: "form" }).value;
 
+  console.log("[owner_staff] POST /owner/staff-signup/:id/reject", {
+    signupRequestId: id,
+    ownerId: owner.id,
+  });
+
   const req = await getStaffSignupRequest(id);
   if (!req) {
+    console.warn("[owner_staff] signup reject – request not found", { id });
     ctx.response.status = Status.NotFound;
     ctx.response.body = "Signup request not found";
     return;
@@ -359,12 +456,21 @@ ownerStaffRouter.post("/owner/staff-signup/:id/reject", async (ctx) => {
 
   const restaurant = await getRestaurant(req.restaurantId);
   if (!restaurant || restaurant.ownerId !== owner.id) {
+    console.warn("[owner_staff] signup reject – restaurant not owner", {
+      signupRequestId: id,
+      restaurantId: restaurant?.id,
+      ownerId: owner.id,
+      restaurantOwnerId: restaurant?.ownerId,
+    });
     ctx.response.status = Status.Forbidden;
     ctx.response.body = "Not your restaurant";
     return;
   }
 
   await updateStaffSignupStatus(id, "rejected");
+  console.log("[owner_staff] signup request status → rejected", {
+    signupRequestId: id,
+  });
 
   const redirectTo = form.get("redirectTo") || "/owner/staff";
   ctx.response.redirect(String(redirectTo));

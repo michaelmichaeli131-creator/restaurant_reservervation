@@ -354,7 +354,7 @@ root.get("/__mailtest", async (ctx) => {
 root.get("/__env", (ctx) => {
   const key = ctx.request.url.searchParams.get("key") ?? "";
   if (!ADMIN_SECRET || key !== ADMIN_SECRET) {
-    ctx.response.status = Status.Uuthorized;
+    ctx.response.status = Status.Unauthorized;
     ctx.response.body = "Unauthorized";
     return;
   }
@@ -384,29 +384,62 @@ app.use(async (ctx, next) => {
     path.startsWith("/manage") ||
     path.startsWith("/opening");
 
-  if (!needsAuth) return await next();
-
   const user = (ctx.state as any).user;
+
+  // 🔎 לוג מפורט ל-Auth Gate
+  console.log("[AUTH_GATE] check", {
+    path,
+    needsAuth,
+    hasUser: Boolean(user),
+    userId: user?.id,
+    userEmail: user?.email,
+    role: user?.role,
+  });
+
+  if (!needsAuth) {
+    console.log("[AUTH_GATE] path does not need auth, continue", { path });
+    return await next();
+  }
 
   if (!user) {
     const redirect = "/auth/login?redirect=" +
       encodeURIComponent(path);
+    console.log("[AUTH_GATE] no user, redirect to login", {
+      path,
+      redirect,
+    });
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", redirect);
     return;
   }
 
   if (!user.emailVerified) {
+    console.warn("[AUTH_GATE] blocked – email not verified", {
+      userId: user.id,
+      email: user.email,
+      path,
+    });
     ctx.response.status = Status.Forbidden;
     ctx.response.body = "נדרש אימות דוא״ל לפני גישה לאזור זה.";
     return;
   }
 
   if (user.isActive === false) {
+    console.warn("[AUTH_GATE] blocked – user inactive", {
+      userId: user.id,
+      email: user.email,
+      path,
+    });
     ctx.response.status = Status.Forbidden;
     ctx.response.body = "החשבון מבוטל. פנה/י לתמיכה.";
     return;
   }
+
+  console.log("[AUTH_GATE] access granted", {
+    path,
+    userId: user.id,
+    role: user.role,
+  });
 
   await next();
 });
@@ -499,8 +532,6 @@ app.use(openingRouter.allowedMethods());
 
 app.use(inventoryRouter.routes());
 app.use(inventoryRouter.allowedMethods());
-
-
 
 // --- 404 (כללי) ---
 app.use((ctx) => {
