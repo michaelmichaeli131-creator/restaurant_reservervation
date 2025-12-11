@@ -449,14 +449,16 @@ app.use(ownerCapacityRouter.allowedMethods());
 app.use(ownerManageRouter.routes());
 app.use(ownerManageRouter.allowedMethods());
 
-app.use(ownerRouter.routes());
-app.use(ownerRouter.allowedMethods());
-
+// ✅ קודם ראוטרים ספציפיים
 app.use(ownerPhotosRouter.routes());
 app.use(ownerPhotosRouter.allowedMethods());
 
 app.use(ownerShiftsRouter.routes());
 app.use(ownerShiftsRouter.allowedMethods());
+
+// ✅ ואז ownerRouter הכללי
+app.use(ownerRouter.routes());
+app.use(ownerRouter.allowedMethods());
 
 // Floor plan management
 app.use(ownerFloorRouter.routes());
@@ -486,10 +488,6 @@ app.use(reviewsRouter.allowedMethods());
 app.use(reviewPortalRouter.routes());
 app.use(reviewPortalRouter.allowedMethods());
 
-// ראוטר שורש נוסף (DISABLED - "/" now handled by inline root router above for category support)
-// app.use(rootRouter.routes());
-// app.use(rootRouter.allowedMethods());
-
 // אחרי app.use(rootRouter.routes()) וכו׳
 app.use(ownerBillsRouter.routes());
 app.use(ownerBillsRouter.allowedMethods());
@@ -500,6 +498,7 @@ app.use(openingRouter.allowedMethods());
 
 app.use(inventoryRouter.routes());
 app.use(inventoryRouter.allowedMethods());
+
 
 
 // --- 404 (כללי) ---
