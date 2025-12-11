@@ -454,10 +454,6 @@ app.use(ownerPhotosRouter.allowedMethods());
 app.use(ownerShiftsRouter.routes());
 app.use(ownerShiftsRouter.allowedMethods());
 
-// ✅ חדש: ניהול עובדים והרשאות לבעל המסעדה
-app.use(ownerStaffRouter.routes());
-app.use(ownerStaffRouter.allowedMethods());
-
 // Floor plan management
 app.use(ownerFloorRouter.routes());
 app.use(ownerFloorRouter.allowedMethods());
