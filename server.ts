@@ -424,6 +424,10 @@ app.use(async (ctx, next) => {
 app.use(authRouter.routes());
 app.use(authRouter.allowedMethods());
 
+// Staff management (owner)
+app.use(ownerStaffRouter.routes());
+app.use(ownerStaffRouter.allowedMethods());
+
 // פורטל הזמנות (מייל)
 app.use(reservationPortal.routes());
 app.use(reservationPortal.allowedMethods());
@@ -444,10 +448,6 @@ app.use(ownerCapacityRouter.allowedMethods());
 
 app.use(ownerManageRouter.routes());
 app.use(ownerManageRouter.allowedMethods());
-
-// Staff management (owner)
-app.use(ownerStaffRouter.routes());
-app.use(ownerStaffRouter.allowedMethods());
 
 app.use(ownerRouter.routes());
 app.use(ownerRouter.allowedMethods());
