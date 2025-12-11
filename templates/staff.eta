@@ -1,0 +1,212 @@
+<main class="page owner-staff-page" dir="rtl">
+  <header class="page-header">
+    <h1 class="page-title">ניהול עובדים למסעדות שלי</h1>
+    <p class="page-subtitle">
+      כאן אתה מאשר עובדים שהגישו בקשה, ומגדיר לכל עובד אילו פיצ'רים יהיו זמינים לו במערכת.
+    </p>
+  </header>
+
+  <% 
+    const owner = it.owner;
+    const restaurantsData = it.restaurantsData || [];
+    const allPermissions = it.allPermissions || [];
+
+    const permLabels = {
+      "pos.waiter": "POS - מלצר (קליטת הזמנות וטיפול בשולחנות)",
+      "pos.kitchen": "POS - מטבח (מסך הזמנות למטבח/בר)",
+      "host.seating": "מארחת - השמת שולחנות וניהול רצפת המסעדה",
+      "reservations.view": "צפייה בהזמנות למסעדה",
+      "reservations.manage": "ניהול הזמנות (אישור/ביטול/עדכון)",
+      "floor.view": "צפייה במפת השולחנות",
+      "floor.edit": "עריכת מפת שולחנות",
+      "shifts.view": "צפייה במשמרות",
+      "shifts.manage": "ניהול משמרות (שיבוץ, שינוי, ביטול)",
+      "inventory.view": "צפייה במלאי וחומרי גלם",
+      "inventory.manage": "ניהול מלאי (עדכון, הזמנות, התאמות)",
+      "reports.view": "צפייה בדוחות (מכירות, תפוסה וכו')",
+      "menu.manage": "ניהול תפריט (מנות, מחירים, זמינות)"
+    };
+  %>
+
+  <% if (!restaurantsData.length) { %>
+    <section class="empty-state">
+      <h2>אין מסעדות משויכות לחשבון שלך עדיין</h2>
+      <p>
+        כדי לנהל עובדים, תחילה צריך ליצור מסעדה במערכת.
+      </p>
+      <a href="/owner/restaurants/new" class="btn btn-primary">
+        + הוספת מסעדה חדשה
+      </a>
+    </section>
+  <% } %>
+
+  <% restaurantsData.forEach(function(block) { 
+       const restaurant = block.restaurant;
+       const staff = block.staff || [];
+       const pending = block.pending || [];
+  %>
+    <section class="restaurant-block card">
+      <header class="restaurant-header">
+        <div class="restaurant-main">
+          <h2 class="restaurant-name">
+            <%= restaurant.name %>
+          </h2>
+          <p class="restaurant-meta">
+            <span><%= restaurant.city %> · <%= restaurant.address %></span>
+          </p>
+        </div>
+        <div class="restaurant-stats">
+          <span class="badge">
+            עובדים מאושרים: <strong><%= staff.length %></strong>
+          </span>
+          <span class="badge badge-warning">
+            ממתינים לאישור: <strong><%= pending.length %></strong>
+          </span>
+        </div>
+      </header>
+
+      <!-- עובדים ממתינים לאישור -->
+      <section class="pending-staff-section">
+        <h3 class="section-title">
+          עובדים ממתינים לאישור
+          <% if (!pending.length) { %>
+            <span class="section-subtitle">אין בקשות ממתינות כרגע</span>
+          <% } %>
+        </h3>
+
+        <% if (pending.length) { %>
+          <div class="table-wrapper">
+            <table class="table table-pending-staff">
+              <thead>
+                <tr>
+                  <th>שם</th>
+                  <th>תפקיד</th>
+                  <th>אימייל</th>
+                  <th>טלפון</th>
+                  <th>נרשם בתאריך</th>
+                  <th>פעולות</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% pending.forEach(function(s) { %>
+                  <tr>
+                    <td><%= s.firstName %> <%= s.lastName %></td>
+                    <td><%= s.role %></td>
+                    <td><%= s.email %></td>
+                    <td><%= s.phone || "-" %></td>
+                    <td>
+                      <% if (s.createdAt) { %>
+                        <%= new Date(s.createdAt).toLocaleString("he-IL") %>
+                      <% } else { %>
+                        -
+                      <% } %>
+                    </td>
+                    <td class="actions">
+                      <!-- טופס אישור -->
+                      <form method="post" action="/owner/staff/<%= s.id %>/approve" class="inline-form">
+                        <input type="hidden" name="redirectTo" value="/owner/staff" />
+                        <!-- אפשרות לסמן שימוש בברירת מחדל של הרשאות -->
+                        <input type="hidden" name="useDefaults" value="on" />
+                        <button type="submit" class="btn btn-sm btn-success">
+                          ✓ אשר עובד
+                        </button>
+                      </form>
+
+                      <!-- טופס דחייה -->
+                      <form method="post" action="/owner/staff/<%= s.id %>/reject" class="inline-form">
+                        <input type="hidden" name="redirectTo" value="/owner/staff" />
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                          ✕ דחה
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+      </section>
+
+      <!-- עובדים מאושרים + הרשאות -->
+      <section class="approved-staff-section">
+        <h3 class="section-title">
+          עובדים מאושרים והרשאות
+          <% if (!staff.length) { %>
+            <span class="section-subtitle">עוד לא אישרת אף עובד למסעדה זו</span>
+          <% } %>
+        </h3>
+
+        <% if (staff.length) { %>
+          <div class="staff-cards-grid">
+            <% staff.forEach(function(s) { %>
+              <article class="staff-card">
+                <header class="staff-card-header">
+                  <div class="staff-main">
+                    <h4 class="staff-name">
+                      <%= s.firstName %> <%= s.lastName %>
+                    </h4>
+                    <p class="staff-role">
+                      תפקיד: <strong><%= s.role %></strong>
+                    </p>
+                    <p class="staff-contact">
+                      <span>אימייל: <%= s.email %></span><br />
+                      <span>טלפון: <%= s.phone || "-" %></span>
+                    </p>
+                  </div>
+                  <div class="staff-meta">
+                    <span class="badge badge-status">
+                      סטטוס: <strong><%= s.status %></strong>
+                    </span>
+                    <span class="badge badge-approval">
+                      אישור: <strong><%= s.approvalStatus %></strong>
+                    </span>
+                  </div>
+                </header>
+
+                <!-- טופס הרשאות -->
+                <section class="staff-permissions">
+                  <h5>הרשאות לעובד זה</h5>
+                  <form method="post" action="/owner/staff/<%= s.id %>/permissions">
+                    <input type="hidden" name="redirectTo" value="/owner/staff" />
+
+                    <div class="permissions-grid">
+                      <% 
+                        const currentPerms = s.permissions || [];
+                        allPermissions.forEach(function(p) {
+                          const checked = currentPerms.includes(p);
+                      %>
+                        <label class="permission-item">
+                          <input
+                            type="checkbox"
+                            name="permissions"
+                            value="<%= p %>"
+                            <%= checked ? "checked" : "" %>
+                          />
+                          <span class="permission-label">
+                            <strong><%= permLabels[p] || p %></strong>
+                          </span>
+                        </label>
+                      <% }) %>
+                    </div>
+
+                    <div class="permissions-actions">
+                      <label class="inline-checkbox">
+                        <input type="checkbox" name="resetToDefaults" />
+                        <span>איפוס הרשאות לברירת מחדל לפי תפקיד</span>
+                      </label>
+
+                      <button type="submit" class="btn btn-sm btn-primary">
+                        שמור הרשאות
+                      </button>
+                    </div>
+                  </form>
+                </section>
+              </article>
+            <% }) %>
+          </div>
+        <% } %>
+      </section>
+    </section>
+  <% }) %>
+</main>

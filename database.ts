@@ -52,7 +52,36 @@ export interface Restaurant {
 }
 
 // ========== SHIFT MANAGEMENT ==========
-export type StaffRole = "manager" | "chef" | "waiter" | "busser" | "host" | "bartender";
+
+// הרחבת התפקידים כדי לכלול kitchen + shift_manager
+export type StaffRole =
+  | "manager"
+  | "chef"
+  | "waiter"
+  | "busser"
+  | "host"
+  | "bartender"
+  | "kitchen"        // עובד מטבח
+  | "shift_manager"; // מנהל משמרת
+
+// סטטוס אישור העובד ע"י בעל המסעדה
+export type StaffApprovalStatus = "pending" | "approved" | "rejected";
+
+// הרשאות גישה למסכים/יכולות במערכת עבור עובדים
+export type StaffPermission =
+  | "pos.waiter"          // מסך מלצר + הוספת פריטים / סגירת שולחן
+  | "pos.kitchen"         // מסך מטבח + שינוי סטטוסים
+  | "host.seating"        // מסך הושבה / פתיחת שולחן
+  | "reservations.view"   // צפייה בהזמנות למסעדה
+  | "reservations.manage" // ניהול (אישור/ביטול) הזמנות
+  | "floor.view"          // צפייה ב-floor plan
+  | "floor.edit"          // עריכת floor plan
+  | "shifts.view"         // צפייה במשמרות
+  | "shifts.manage"       // ניהול משמרות
+  | "inventory.view"      // צפייה במלאי
+  | "inventory.manage"    // ניהול מלאי
+  | "reports.view"        // צפייה בדוחות
+  | "menu.manage";        // ניהול תפריט
 
 export interface StaffMember {
   id: string;
@@ -65,6 +94,10 @@ export interface StaffMember {
   role: StaffRole;
   hourlyRate?: number;
   status: "active" | "inactive" | "on_leave";
+  // חדש: סטטוס אישור ע"י בעל המסעדה (optional לשמירה על תאימות לרשומות ישנות)
+  approvalStatus?: StaffApprovalStatus;
+  // חדש: סט הרשאות למסכים/יכולות במסעדה זו (optional לרשומות ישנות)
+  permissions?: StaffPermission[];
   hireDate: number;
   createdAt: number;
 }
@@ -180,7 +213,7 @@ export async function createUser(u: {
   age?: number;
   businessType?: string;
   passwordHash?: string;
-  role?: "user" | "owner";
+  role?: "user" | "owner" | "manager" | "staff";
   provider?: "local" | "google";
 }): Promise<User> {
   const id = u.id || crypto.randomUUID();
@@ -969,9 +1002,7 @@ export async function resetReservations(): Promise<{ deleted: number }> {
     await kv.delete(e.key);
     deleted++;
   }
-  for await (const e of kv.list({ prefix: toKey("reservation_by_day") })) {
-    await kv.delete(e.key);
-  }
+  for await (const e of kv.list({ prefix: toKey("reservation_by_day") })) await kv.delete(e.key);
   return { deleted };
 }
 

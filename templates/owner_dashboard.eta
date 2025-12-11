@@ -17,11 +17,20 @@ function tt(k, fb){
 <section class="sb-owner container" aria-label="<%= tt('owner.dashboard.aria_section','דשבורד בעלים') %>">
   <div class="card">
     <header class="owner-hd">
-      <h1><%= tt('owner.dashboard.title','דשבורד בעלים') %></h1>
-      <span class="muted">
-        <%= tt('owner.dashboard.hello','שלום') %>,
-        <strong><%= it.user?.firstName || it.user?.username || tt('owner.dashboard.owner_fallback','בעלים') %></strong>
-      </span>
+      <div class="owner-hd-main">
+        <h1><%= tt('owner.dashboard.title','דשבורד בעלים') %></h1>
+        <span class="muted">
+          <%= tt('owner.dashboard.hello','שלום') %>,
+          <strong><%= it.user?.firstName || it.user?.username || tt('owner.dashboard.owner_fallback','בעלים') %></strong>
+        </span>
+      </div>
+      <div class="owner-hd-actions">
+        <!-- 🔥 כפתור חדש: ניהול עובדים והרשאות -->
+        <a href="/owner/staff" class="btn sm ghost owner-staff-btn">
+          <span class="icon">👥</span>
+          ניהול עובדים
+        </a>
+      </div>
     </header>
 
     <div class="owner-grid">
@@ -91,11 +100,11 @@ function tt(k, fb){
                     <span class="icon">🖼️</span>
                     <%= tt('owner.dashboard.btn_photos','תמונות') %>
                   </a>
-                  <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/floor" target="_self" rel="nofollow">
+                  <a class="btn ghost" href="/owner/<%= r.id %>/floor" target="_self" rel="nofollow">
                     <span class="icon">🍽️</span>
                     <%= tt('owner.dashboard.btn_floor','סידור שולחנות') %>
                   </a>
-                  <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/shifts" target="_self" rel="nofollow">
+                  <a class="btn ghost" href="/owner/<%= r.id %>/shifts" target="_self" rel="nofollow">
                     <span class="icon">📅</span>
                     <%= tt('owner.dashboard.btn_shifts','ניהול משמרות') %>
                   </a>
@@ -140,30 +149,30 @@ function tt(k, fb){
                     <span class="icon">📦</span>
                     מלאי חומרי גלם
                   </a>
-		<!-- ✅ עלויות חומרי גלם -->
-		<a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/costs">
-  		<span class="icon">💰</span>
- 		 עלויות חומרי גלם
-		</a>
-		<!-- ✅ ספירות מלאי -->
-		<a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/counts">
-  		<span class="icon">📋</span>
-  		ספירות מלאי	
-		</a>
-		<!-- ✅ עלות מנה ורווחיות (Food Cost) -->
-		<a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/foodcost">
-  		<span class="icon">💰</span>
-  		עלות מנה ורווחיות
-		</a>
-		<!-- ✅ ספקים -->
-		<a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/suppliers">
- 		 <span class="icon">🚚</span>
-  		ספקים		
-		</a>
-		<a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/purchase_orders">
-  		<span class="icon">📄</span>
-  		הזמנות רכש (PO)
-		</a>
+                  <!-- ✅ עלויות חומרי גלם -->
+                  <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/costs">
+                    <span class="icon">💰</span>
+                    עלויות חומרי גלם
+                  </a>
+                  <!-- ✅ ספירות מלאי -->
+                  <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/counts">
+                    <span class="icon">📋</span>
+                    ספירות מלאי	
+                  </a>
+                  <!-- ✅ עלות מנה ורווחיות (Food Cost) -->
+                  <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/foodcost">
+                    <span class="icon">💰</span>
+                    עלות מנה ורווחיות
+                  </a>
+                  <!-- ✅ ספקים -->
+                  <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/suppliers">
+                    <span class="icon">🚚</span>
+                    ספקים		
+                  </a>
+                  <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/purchase_orders">
+                    <span class="icon">📄</span>
+                    הזמנות רכש (PO)
+                  </a>
 
                   <!-- ✅ מתכוני מנות -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/recipes">
@@ -290,6 +299,21 @@ function tt(k, fb){
   .owner-hd{
     display:flex;align-items:center;gap:10px;justify-content:space-between
   }
+  .owner-hd-main{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+  .owner-hd-actions{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .owner-staff-btn{
+    font-size:12px;
+    padding:6px 10px;
+  }
+
   .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
   .muted{ color: var(--ink-muted, #9aa3b2); }
 
@@ -391,6 +415,14 @@ function tt(k, fb){
     .pos-actions .btn.wide{
       width:100%;
       justify-content:center;
+    }
+    .owner-hd{
+      flex-direction:column;
+      align-items:flex-start;
+    }
+    .owner-hd-actions{
+      width:100%;
+      justify-content:flex-start;
     }
   }
 </style>

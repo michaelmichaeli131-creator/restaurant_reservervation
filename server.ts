@@ -30,7 +30,12 @@ import { ownerRouter } from "./routes/owner.ts";
 import { adminRouter } from "./routes/admin.ts";
 import rootRouter from "./routes/root.ts";
 import ownerCapacityRouter from "./routes/owner_capacity.ts";
-import { listRestaurants, listRestaurantsByCategory, getUserById, type KitchenCategory } from "./database.ts";
+import {
+  listRestaurants,
+  listRestaurantsByCategory,
+  getUserById,
+  type KitchenCategory,
+} from "./database.ts";
 import { sendVerifyEmail } from "./lib/mail_wrappers.ts";
 import ownerManageRouter from "./routes/owner_manage.ts";
 import { ownerHoursRouter } from "./routes/owner_hours.ts";
@@ -43,6 +48,7 @@ import { hostRouter } from "./routes/host.ts";
 import ownerBillsRouter from "./routes/owner_bills.ts";
 import inventoryRouter from "./routes/inventory.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
+import { ownerStaffRouter } from "./routes/owner_staff.ts";
 
 // ✅ i18n: טעינה בטוחה (תומך גם default וגם named export)
 import * as i18nModule from "./middleware/i18n.ts";
@@ -119,7 +125,9 @@ app.use(async (ctx, next) => {
         `[ERR ${reqId}] ${err.status} ${err.message}\n${(err as any).stack ?? ""}`,
       );
       ctx.response.status = err.status;
-      ctx.response.body = (err as any).expose ? (err as any).message : "Internal Server Error";
+      ctx.response.body = (err as any).expose
+        ? (err as any).message
+        : "Internal Server Error";
     } else {
       console.error(`[ERR ${reqId}] UNCAUGHT:`, (err as any)?.stack ?? err);
       ctx.response.status = 500;
@@ -136,8 +144,14 @@ app.use(async (ctx, next) => {
   );
   ctx.response.headers.set("X-Frame-Options", "DENY");
   ctx.response.headers.set("X-Content-Type-Options", "nosniff");
-  ctx.response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  ctx.response.headers.set("Permissions-Policy", "geolocation=(), microphone=()");
+  ctx.response.headers.set(
+    "Referrer-Policy",
+    "strict-origin-when-cross-origin",
+  );
+  ctx.response.headers.set(
+    "Permissions-Policy",
+    "geolocation=(), microphone=()",
+  );
   if (isHttps(ctx)) {
     ctx.response.headers.set(
       "Strict-Transport-Security",
@@ -273,7 +287,10 @@ root.get("/", async (ctx) => {
 
   if (category && category.trim()) {
     // Filter by category
-    restaurants = await listRestaurantsByCategory(category as KitchenCategory, true);
+    restaurants = await listRestaurantsByCategory(
+      category as KitchenCategory,
+      true,
+    );
   } else {
     // Text search
     const shouldSearch = search === "1" || q.trim().length > 0;
@@ -306,7 +323,10 @@ root.get("/__echo", (ctx) => {
     headers: Object.fromEntries(ctx.request.headers),
     now: nowIso(),
   };
-  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.headers.set(
+    "Content-Type",
+    "application/json; charset=utf-8",
+  );
   ctx.response.body = JSON.stringify(info, null, 2);
 });
 
@@ -333,11 +353,14 @@ root.get("/__mailtest", async (ctx) => {
 root.get("/__env", (ctx) => {
   const key = ctx.request.url.searchParams.get("key") ?? "";
   if (!ADMIN_SECRET || key !== ADMIN_SECRET) {
-    ctx.response.status = Status.Unauthorized;
+    ctx.response.status = Status.Uuthorized;
     ctx.response.body = "Unauthorized";
     return;
   }
-  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.headers.set(
+    "Content-Type",
+    "application/json; charset=utf-8",
+  );
   ctx.response.body = JSON.stringify({
     time: nowIso(),
     port: PORT,
@@ -365,7 +388,8 @@ app.use(async (ctx, next) => {
   const user = (ctx.state as any).user;
 
   if (!user) {
-    const redirect = "/auth/login?redirect=" + encodeURIComponent(path);
+    const redirect = "/auth/login?redirect=" +
+      encodeURIComponent(path);
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", redirect);
     return;
@@ -390,7 +414,9 @@ app.use(async (ctx, next) => {
 
 // לוג קצר לכל בקשה (debug)
 app.use(async (ctx, next) => {
-  console.log(`[DEBUG] incoming: ${ctx.request.method} ${ctx.request.url.pathname}`);
+  console.log(
+    `[DEBUG] incoming: ${ctx.request.method} ${ctx.request.url.pathname}`,
+  );
   await next();
 });
 
@@ -427,6 +453,10 @@ app.use(ownerPhotosRouter.allowedMethods());
 
 app.use(ownerShiftsRouter.routes());
 app.use(ownerShiftsRouter.allowedMethods());
+
+// ✅ חדש: ניהול עובדים והרשאות לבעל המסעדה
+app.use(ownerStaffRouter.routes());
+app.use(ownerStaffRouter.allowedMethods());
 
 // Floor plan management
 app.use(ownerFloorRouter.routes());
@@ -471,7 +501,6 @@ app.use(openingRouter.allowedMethods());
 app.use(inventoryRouter.routes());
 app.use(inventoryRouter.allowedMethods());
 
-
 // --- 404 (כללי) ---
 app.use((ctx) => {
   if (ctx.response.body == null) {
@@ -495,7 +524,9 @@ for (const s of signals) {
 
 // -------------------- START --------------------
 console.log(
-  `[BOOT] GeoTable up on :${PORT} (env=${NODE_ENV}) BASE_URL=${BASE_URL || "(not set)"} BUILD_TAG=${BUILD_TAG}`,
+  `[BOOT] GeoTable up on :${PORT} (env=${NODE_ENV}) BASE_URL=${
+    BASE_URL || "(not set)"
+  } BUILD_TAG=${BUILD_TAG}`,
 );
 await app.listen({ port: PORT, signal: controller.signal });
 console.log("[BOOT] server stopped");

@@ -97,17 +97,47 @@ authRouter.post("/auth/register", async (ctx) => {
   const businessType = String(b.businessType ?? "").trim();
   const phone = String(b.phone ?? "").trim();
 
+  // 🔥 חדש – שדות סיווג חשבון
+  const rawAccountType = String(b.accountType ?? "").trim();
+  const accountType: "customer" | "owner" | "staff" =
+    rawAccountType === "customer" || rawAccountType === "staff"
+      ? (rawAccountType as any)
+      : "owner";
+
+  const staffRole = String(b.staffRole ?? "").trim();
+  const staffRestaurantName = String(b.staffRestaurantName ?? "").trim();
+
+  // אובייקט prefill שמתאים ל-register.eta החדש
+  const prefill = {
+    firstName,
+    lastName,
+    email,
+    businessType,
+    phone,
+    accountType,
+    staffRole,
+    staffRestaurantName,
+  };
+
   if (!firstName || !lastName || !email || !password) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/register", {
       title: "הרשמה",
       page: "register",
-      error: "נא למלא את כל השדות",
-      firstName,
-      lastName,
-      email,
-      businessType,
-      phone,
+      error: "נא למלא את כל השדות החיוניים",
+      prefill,
+    });
+    return;
+  }
+
+  // אם נרשם כעובד – חובה תפקיד + מסעדה
+  if (accountType === "staff" && (!staffRole || !staffRestaurantName)) {
+    ctx.response.status = Status.BadRequest;
+    await render(ctx, "auth/register", {
+      title: "הרשמה",
+      page: "register",
+      error: "לעובדי מסעדה חובה לבחור תפקיד ולהזין לאיזו מסעדה אתה שייך.",
+      prefill,
     });
     return;
   }
@@ -118,11 +148,7 @@ authRouter.post("/auth/register", async (ctx) => {
       title: "הרשמה",
       page: "register",
       error: "הסיסמה צריכה להכיל לפחות 8 תווים",
-      firstName,
-      lastName,
-      email,
-      businessType,
-      phone,
+      prefill,
     });
     return;
   }
@@ -134,16 +160,23 @@ authRouter.post("/auth/register", async (ctx) => {
       title: "הרשמה",
       page: "register",
       error: "כתובת הדוא״ל כבר קיימת במערכת",
-      firstName,
-      lastName,
-      email,
-      businessType,
-      phone,
+      prefill,
     });
     return;
   }
 
   const passwordHash = await hashPassword(password);
+
+  // מיפוי accountType → user.role
+  // customer → user, owner → owner, staff → staff
+  let targetRole: "user" | "owner" | "staff" | "manager";
+  if (accountType === "customer") {
+    targetRole = "user";
+  } else if (accountType === "staff") {
+    targetRole = "staff";
+  } else {
+    targetRole = "owner";
+  }
 
   const created = await createUser({
     firstName,
@@ -152,10 +185,11 @@ authRouter.post("/auth/register", async (ctx) => {
     phone,
     businessType,
     passwordHash,
-    role: "owner",   // ברירת מחדל – בעלים
+    role: targetRole as any, // createUser טייפ ישן ("user" | "owner") – גוררים ידנית
     provider: "local",
   } as any);
 
+  // בשלב זה: גם לקוח וגם עובד צריכים אימות מייל, כמו בעלים.
   const token = await createVerifyToken(created.id);
   const lang = (ctx.state?.lang as string | undefined) ?? "he";
 
@@ -256,6 +290,8 @@ authRouter.post("/auth/login", async (ctx) => {
     await session.set("userId", user.id);
   }
 
+  // שמרתי את ההתנהגות הקיימת כדי לא לשבור כלום:
+  // admin → /admin, כל השאר → /owner
   ctx.response.redirect(user.role === "admin" ? "/admin" : "/owner");
 });
 
