@@ -445,6 +445,10 @@ app.use(ownerCapacityRouter.allowedMethods());
 app.use(ownerManageRouter.routes());
 app.use(ownerManageRouter.allowedMethods());
 
+// Staff management (owner)
+app.use(ownerStaffRouter.routes());
+app.use(ownerStaffRouter.allowedMethods());
+
 app.use(ownerRouter.routes());
 app.use(ownerRouter.allowedMethods());
 
@@ -497,9 +501,6 @@ app.use(openingRouter.allowedMethods());
 app.use(inventoryRouter.routes());
 app.use(inventoryRouter.allowedMethods());
 
-// Staff management (owner)
-app.use(ownerStaffRouter.routes());
-app.use(ownerStaffRouter.allowedMethods());
 
 // --- 404 (כללי) ---
 app.use((ctx) => {
