@@ -17,6 +17,8 @@ import {
   setEmailVerified,
   updateUserPassword,
   getUserById,
+  findRestaurantByNameExact,       // ← חדש
+  createStaffSignupRequest,        // ← חדש
 } from "../database.ts";
 
 import { hashPassword, verifyPassword } from "../lib/auth.ts";
@@ -130,7 +132,7 @@ authRouter.post("/auth/register", async (ctx) => {
     return;
   }
 
-  // אם נרשם כעובד – חובה תפקיד + מסעדה
+  // אם נרשם כעובד – חובה תפקיד + שם מסעדה
   if (accountType === "staff" && (!staffRole || !staffRestaurantName)) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/register", {
@@ -140,6 +142,24 @@ authRouter.post("/auth/register", async (ctx) => {
       prefill,
     });
     return;
+  }
+
+  // אם זה עובד – נוודא שהמסעדה באמת קיימת ונשמור אותה ליצירת הבקשה
+  let targetRestaurant: any = null;
+  if (accountType === "staff") {
+    const restaurant = await findRestaurantByNameExact(staffRestaurantName);
+    if (!restaurant) {
+      ctx.response.status = Status.BadRequest;
+      await render(ctx, "auth/register", {
+        title: "הרשמה",
+        page: "register",
+        error:
+          "לא נמצאה מסעדה בשם הזה. ודא שבעל המסעדה כבר פתח אותה במערכת, והקלד את השם בדיוק.",
+        prefill,
+      });
+      return;
+    }
+    targetRestaurant = restaurant;
   }
 
   if (password.length < 8) {
@@ -189,7 +209,21 @@ authRouter.post("/auth/register", async (ctx) => {
     provider: "local",
   } as any);
 
-  // בשלב זה: גם לקוח וגם עובד צריכים אימות מייל, כמו בעלים.
+  // אם זה עובד – ליצור בקשת הצטרפות עבור בעל המסעדה
+  if (accountType === "staff" && targetRestaurant) {
+    try {
+      await createStaffSignupRequest({
+        userId: created.id,
+        restaurantId: targetRestaurant.id,
+        ownerId: targetRestaurant.ownerId,
+        staffRole: (staffRole || "waiter") as any,
+        restaurantName: targetRestaurant.name,
+      });
+    } catch (e) {
+      console.error("[auth.register] createStaffSignupRequest failed:", e);
+    }
+  }
+
   const token = await createVerifyToken(created.id);
   const lang = (ctx.state?.lang as string | undefined) ?? "he";
 

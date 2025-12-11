@@ -1464,3 +1464,119 @@ export async function isReviewTokenUsed(reservationId: string): Promise<boolean>
   const entry = await kv.get(toKey("review_token_used", reservationId));
   return entry.value !== null;
 }
+
+
+/* ───────────────────── Staff Signup Requests ───────────────────── */
+
+export interface StaffSignupRequest {
+  id: string;
+  userId: string;
+  restaurantId: string;
+  ownerId: string;
+  staffRole: StaffRole;
+  restaurantName: string;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  createdAt: number;
+  decidedAt?: number;
+  noteFromOwner?: string;
+}
+
+/** חיפוש מסעדה לפי שם מדויק (lowercase + trim, תואם לאינדקס restaurant_name) */
+export async function findRestaurantByNameExact(
+  name: string,
+): Promise<Restaurant | null> {
+  const key = lower(name);
+  if (!key) return null;
+
+  for await (const row of kv.list({ prefix: toKey("restaurant_name", key) })) {
+    const id = row.key[row.key.length - 1] as string;
+    const r = (await kv.get<Restaurant>(toKey("restaurant", id))).value;
+    if (r) return r;
+  }
+  return null;
+}
+
+/** יצירת בקשת הצטרפות עובד למסעדה */
+export async function createStaffSignupRequest(data: {
+  userId: string;
+  restaurantId: string;
+  ownerId: string;
+  staffRole: StaffRole;
+  restaurantName: string;
+}): Promise<StaffSignupRequest> {
+  const id = crypto.randomUUID();
+  const req: StaffSignupRequest = {
+    id,
+    userId: data.userId,
+    restaurantId: data.restaurantId,
+    ownerId: data.ownerId,
+    staffRole: data.staffRole,
+    restaurantName: data.restaurantName,
+    status: "pending",
+    createdAt: now(),
+  };
+
+  const tx = kv.atomic()
+    .set(toKey("staff_signup", id), req)
+    .set(toKey("staff_signup_by_owner", req.ownerId, id), 1)
+    .set(toKey("staff_signup_by_user", req.userId, id), 1)
+    .set(toKey("staff_signup_by_restaurant", req.restaurantId, id), 1);
+
+  const res = await tx.commit();
+  if (!res.ok) throw new Error("create_staff_signup_race");
+  return req;
+}
+
+export async function getStaffSignupRequest(
+  id: string,
+): Promise<StaffSignupRequest | null> {
+  return (await kv.get<StaffSignupRequest>(toKey("staff_signup", id))).value ?? null;
+}
+
+/** כל הבקשות לבעל מסעדות מסוים (ברירת־מחדל: pending בלבד) */
+export async function listStaffSignupRequestsForOwner(
+  ownerId: string,
+  status:
+    | "pending"
+    | "approved"
+    | "rejected"
+    | "cancelled"
+    | "any" = "pending",
+): Promise<StaffSignupRequest[]> {
+  const out: StaffSignupRequest[] = [];
+
+  for await (const row of kv.list({
+    prefix: toKey("staff_signup_by_owner", ownerId),
+  })) {
+    const id = row.key[row.key.length - 1] as string;
+    const req = (await kv.get<StaffSignupRequest>(toKey("staff_signup", id)))
+      .value;
+    if (!req) continue;
+    if (status !== "any" && req.status !== status) continue;
+    out.push(req);
+  }
+
+  out.sort((a, b) => b.createdAt - a.createdAt);
+  return out;
+}
+
+/** עדכון סטטוס בקשה (אישור / דחייה / ביטול) */
+export async function updateStaffSignupStatus(
+  id: string,
+  status: "approved" | "rejected" | "cancelled",
+  noteFromOwner?: string,
+): Promise<StaffSignupRequest | null> {
+  const cur = await kv.get<StaffSignupRequest>(toKey("staff_signup", id));
+  if (!cur.value) return null;
+
+  const next: StaffSignupRequest = {
+    ...cur.value,
+    status,
+    decidedAt: now(),
+    noteFromOwner: noteFromOwner ?? cur.value.noteFromOwner,
+  };
+
+  await kv.set(toKey("staff_signup", id), next);
+  return next;
+}
+

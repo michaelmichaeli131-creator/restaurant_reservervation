@@ -6,7 +6,7 @@
     </p>
   </header>
 
-  <% 
+  <%
     const owner = it.owner;
     const restaurantsData = it.restaurantsData || [];
     const allPermissions = it.allPermissions || [];
@@ -40,10 +40,11 @@
     </section>
   <% } %>
 
-  <% restaurantsData.forEach(function(block) { 
+  <% restaurantsData.forEach(function(block) {
        const restaurant = block.restaurant;
        const staff = block.staff || [];
        const pending = block.pending || [];
+       const signupRequests = block.signupRequests || []; // ← חדש
   %>
     <section class="restaurant-block card">
       <header class="restaurant-header">
@@ -60,17 +61,108 @@
             עובדים מאושרים: <strong><%= staff.length %></strong>
           </span>
           <span class="badge badge-warning">
-            ממתינים לאישור: <strong><%= pending.length %></strong>
+            ממתינים לאישור (staff_db): <strong><%= pending.length %></strong>
+          </span>
+          <span class="badge badge-info">
+            בקשות הצטרפות חדשות: <strong><%= signupRequests.length %></strong>
           </span>
         </div>
       </header>
 
-      <!-- עובדים ממתינים לאישור -->
+      <!-- בקשות הצטרפות חדשות מעובדים שנרשמו כ-"staff" -->
+      <section class="signup-requests-section">
+        <h3 class="section-title">
+          בקשות הצטרפות מעובדים שנרשמו למערכת
+          <% if (!signupRequests.length) { %>
+            <span class="section-subtitle">אין כרגע בקשות חדשות להצטרפות</span>
+          <% } %>
+        </h3>
+
+        <% if (signupRequests.length) { %>
+          <div class="table-wrapper">
+            <table class="table table-signup-requests">
+              <thead>
+                <tr>
+                  <th>שם</th>
+                  <th>תפקיד מבוקש</th>
+                  <th>אימייל</th>
+                  <th>טלפון</th>
+                  <th>סטטוס בקשה</th>
+                  <th>נוצר בתאריך</th>
+                  <th>פעולות</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% signupRequests.forEach(function(item) {
+                     const req = item.request;
+                     const u = item.user;
+                %>
+                  <tr>
+                    <td>
+                      <% if (u) { %>
+                        <%= u.firstName || "" %> <%= u.lastName || "" %>
+                      <% } else { %>
+                        משתמש #<%= req.userId %>
+                      <% } %>
+                    </td>
+                    <td><%= req.staffRole || "-" %></td>
+                    <td>
+                      <% if (u && u.email) { %>
+                        <%= u.email %>
+                      <% } else { %>
+                        -
+                      <% } %>
+                    </td>
+                    <td>
+                      <% if (u && u.phone) { %>
+                        <%= u.phone %>
+                      <% } else { %>
+                        -
+                      <% } %>
+                    </td>
+                    <td>
+                      <span class="badge badge-status">
+                        <%= req.status %>
+                      </span>
+                    </td>
+                    <td>
+                      <% if (req.createdAt) { %>
+                        <%= new Date(req.createdAt).toLocaleString("he-IL") %>
+                      <% } else { %>
+                        -
+                      <% } %>
+                    </td>
+                    <td class="actions">
+                      <!-- אישור בקשת הצטרפות -->
+                      <form method="post" action="/owner/staff-signup/<%= req.id %>/approve" class="inline-form">
+                        <input type="hidden" name="redirectTo" value="/owner/staff" />
+                        <button type="submit" class="btn btn-sm btn-success">
+                          ✓ אשר בקשה
+                        </button>
+                      </form>
+
+                      <!-- דחיית בקשת הצטרפות -->
+                      <form method="post" action="/owner/staff-signup/<%= req.id %>/reject" class="inline-form">
+                        <input type="hidden" name="redirectTo" value="/owner/staff" />
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                          ✕ דחה בקשה
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+      </section>
+
+      <!-- עובדים ממתינים לאישור (מודל staff_db הישן/קיים) -->
       <section class="pending-staff-section">
         <h3 class="section-title">
-          עובדים ממתינים לאישור
+          עובדים ממתינים לאישור (רשומות staff קיימות)
           <% if (!pending.length) { %>
-            <span class="section-subtitle">אין בקשות ממתינות כרגע</span>
+            <span class="section-subtitle">אין עובדים ממתינים כרגע במסעדה זו</span>
           <% } %>
         </h3>
 
@@ -171,7 +263,7 @@
                     <input type="hidden" name="redirectTo" value="/owner/staff" />
 
                     <div class="permissions-grid">
-                      <% 
+                      <%
                         const currentPerms = s.permissions || [];
                         allPermissions.forEach(function(p) {
                           const checked = currentPerms.includes(p);

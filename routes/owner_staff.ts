@@ -2,7 +2,8 @@
 // --------------------------------------------------------
 // ניהול עובדים ע"י בעל המסעדה:
 // - רשימת עובדים למסעדות שלו
-// - עובדים ממתינים (pending)
+// - עובדים ממתינים (pending) לפי staff_db
+// - בקשות הצטרפות חדשות (StaffSignupRequest) מעובדים שנרשמו לבד
 // - אישור / דחייה
 // - עדכון הרשאות
 // --------------------------------------------------------
@@ -16,7 +17,12 @@ import {
   type User,
   type Restaurant,
   type StaffPermission,
+  type StaffSignupRequest,
   getRestaurant,
+  getUserById,
+  listStaffSignupRequestsForOwner,
+  getStaffSignupRequest,
+  updateStaffSignupStatus,
 } from "../database.ts";
 
 import {
@@ -25,6 +31,8 @@ import {
   setStaffApproval,
   setStaffPermissions,
   resetStaffPermissionsToDefault,
+  getStaffByRestaurantAndUser,       // ← חדש
+  createApprovedStaffFromSignup,     // ← חדש
 } from "../services/staff_db.ts";
 
 export const ownerStaffRouter = new Router();
@@ -74,32 +82,55 @@ function ensureOwner(ctx: any): User {
   return user;
 }
 
+type SignupRequestWithUser = {
+  request: StaffSignupRequest;
+  user: User | null;
+};
+
 /* ─────────────── GET: מסך ניהול עובדים ─────────────── */
 /**
  * GET /owner/staff
  * מציג:
  * - רשימת מסעדות של הבעלים
- * - לכל מסעדה: עובדים מאושרים + עובדים ממתינים
+ * - לכל מסעדה:
+ *    • עובדים מאושרים
+ *    • עובדים ממתינים (לפי staff_db)
+ *    • בקשות הצטרפות חדשות (עובדים שנרשמו בעצמם כ"staff")
  */
 ownerStaffRouter.get("/owner/staff", async (ctx) => {
   const owner = ensureOwner(ctx);
 
   const restaurants = await listOwnerRestaurants(owner.id);
 
+  // בקשות הצטרפות (StaffSignupRequest) לכל המסעדות של הבעלים
+  const rawSignupRequests = await listStaffSignupRequestsForOwner(owner.id, "pending");
+  const signupRequestsByRestaurant = new Map<string, SignupRequestWithUser[]>();
+
+  for (const req of rawSignupRequests) {
+    const u = await getUserById(req.userId);
+    const arr = signupRequestsByRestaurant.get(req.restaurantId) ?? [];
+    arr.push({ request: req, user: u });
+    signupRequestsByRestaurant.set(req.restaurantId, arr);
+  }
+
   const items: Array<{
     restaurant: Restaurant;
     staff: Awaited<ReturnType<typeof listStaffByRestaurant>>;
     pending: Awaited<ReturnType<typeof listStaffByRestaurant>>;
+    signupRequests: SignupRequestWithUser[];
   }> = [];
 
   for (const r of restaurants) {
     const all = await listStaffByRestaurant(r.id, { includeInactive: true });
     const pending = all.filter((s) => s.approvalStatus === "pending");
     const active = all.filter((s) => s.approvalStatus === "approved");
+    const signupRequests = signupRequestsByRestaurant.get(r.id) ?? [];
+
     items.push({
       restaurant: r,
       staff: active,
       pending,
+      signupRequests,
     });
   }
 
@@ -111,7 +142,7 @@ ownerStaffRouter.get("/owner/staff", async (ctx) => {
   });
 });
 
-/* ─────────────── POST: אישור עובד ─────────────── */
+/* ─────────────── POST: אישור עובד קיים (staff_db) ─────────────── */
 /**
  * POST /owner/staff/:id/approve
  * body (אופציונלי):
@@ -168,7 +199,7 @@ ownerStaffRouter.post("/owner/staff/:id/approve", async (ctx) => {
   ctx.response.redirect(String(redirectTo));
 });
 
-/* ─────────────── POST: דחיית עובד ─────────────── */
+/* ─────────────── POST: דחיית עובד קיים (staff_db) ─────────────── */
 /**
  * POST /owner/staff/:id/reject
  */
@@ -198,7 +229,7 @@ ownerStaffRouter.post("/owner/staff/:id/reject", async (ctx) => {
   ctx.response.redirect(String(redirectTo));
 });
 
-/* ─────────────── POST: עדכון הרשאות של עובד ─────────────── */
+/* ─────────────── POST: עדכון הרשאות של עובד קיים ─────────────── */
 /**
  * POST /owner/staff/:id/permissions
  * body:
@@ -239,6 +270,101 @@ ownerStaffRouter.post("/owner/staff/:id/permissions", async (ctx) => {
     }
     await setStaffPermissions(staffId, filtered);
   }
+
+  const redirectTo = form.get("redirectTo") || "/owner/staff";
+  ctx.response.redirect(String(redirectTo));
+});
+
+/* ─────────────── POST: אישור / דחיית בקשת הצטרפות (StaffSignupRequest) ─────────────── */
+/**
+ * עובדים שנרשמו כ-"staff" דרך /auth/register יוצרים StaffSignupRequest.
+ * כאן בעל המסעדה יכול לאשר / לדחות את הבקשה.
+ *
+ * בעת אישור:
+ *  - מעדכנים סטטוס בבקשה עצמה (pending → approved)
+ *  - ואם המשתמש קיים ואין כבר StaffMember באותה מסעדה → יוצרים StaffMember מאושר
+ *    עם הרשאות דיפולטיות לפי role (או הרחבות בעתיד).
+ */
+
+/** אישור בקשת הצטרפות */
+ownerStaffRouter.post("/owner/staff-signup/:id/approve", async (ctx) => {
+  const owner = ensureOwner(ctx);
+  const id = ctx.params.id!;
+  const form = await ctx.request.body({ type: "form" }).value;
+
+  const req = await getStaffSignupRequest(id);
+  if (!req) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Signup request not found";
+    return;
+  }
+
+  const restaurant = await getRestaurant(req.restaurantId);
+  if (!restaurant || restaurant.ownerId !== owner.id) {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = "Not your restaurant";
+    return;
+  }
+
+  // ננסה להביא את המשתמש עצמו
+  const user = await getUserById(req.userId);
+  if (!user) {
+    console.warn("[owner_staff] signup request user not found", {
+      userId: req.userId,
+      requestId: id,
+    });
+  } else {
+    // נבדוק אם כבר קיימת רשומת StaffMember למסעדה הזו
+    const existing = await getStaffByRestaurantAndUser(req.restaurantId, user.id);
+    if (!existing) {
+      try {
+        await createApprovedStaffFromSignup({
+          restaurantId: req.restaurantId,
+          userId: user.id,
+          firstName: user.firstName || "",
+          lastName: user.lastName || "",
+          email: user.email,
+          phone: user.phone || undefined,
+          role: req.staffRole,             // מתוך StaffSignupRequest
+          // permissionsOverride: אפשר להוסיף בעתיד אם נרצה לקחת מהטופס
+        });
+      } catch (e) {
+        console.error(
+          "[owner_staff] failed to create StaffMember from signup request",
+          e,
+        );
+      }
+    }
+  }
+
+  // מעדכנים סטטוס הבקשה ל-approved (גם אם יצירת ה-Staff נכשלה – שומרים התנהגות סבירה)
+  await updateStaffSignupStatus(id, "approved");
+
+  const redirectTo = form.get("redirectTo") || "/owner/staff";
+  ctx.response.redirect(String(redirectTo));
+});
+
+/** דחיית בקשת הצטרפות */
+ownerStaffRouter.post("/owner/staff-signup/:id/reject", async (ctx) => {
+  const owner = ensureOwner(ctx);
+  const id = ctx.params.id!;
+  const form = await ctx.request.body({ type: "form" }).value;
+
+  const req = await getStaffSignupRequest(id);
+  if (!req) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Signup request not found";
+    return;
+  }
+
+  const restaurant = await getRestaurant(req.restaurantId);
+  if (!restaurant || restaurant.ownerId !== owner.id) {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = "Not your restaurant";
+    return;
+  }
+
+  await updateStaffSignupStatus(id, "rejected");
 
   const redirectTo = form.get("redirectTo") || "/owner/staff";
   ctx.response.redirect(String(redirectTo));

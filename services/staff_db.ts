@@ -3,6 +3,7 @@
 // שכבת DB לעובדי מסעדה (StaffMember):
 // - יצירת עובד ע"י בעל המסעדה (מאושר מראש)
 // - יצירת עובד בהרשמה עצמית (pending)
+// - יצירת עובד מאושר מתוך בקשת הצטרפות (signup approval)
 // - רשימות עובדים למסעדה
 // - עדכון סטטוס / הרשאות
 // --------------------------------------------------------
@@ -301,3 +302,37 @@ export async function hardDeleteStaff(staffId: string): Promise<boolean> {
   const res = await tx.commit();
   return res.ok;
 }
+
+/* ─────────────── יצירת עובד מאושר מתוך בקשת הצטרפות ─────────────── */
+/**
+ * helper קטן לשימוש במסך בעלים:
+ * כשבעלים מאשר StaffSignupRequest, אפשר לקרוא לפונקציה הזו
+ * כדי ליצור רשומת StaffMember מאושרת עם הרשאות דיפולטיות (או override).
+ *
+ * ⚠️ הפונקציה *לא* נוגעת בבקשת ההצטרפות עצמה (לא משנה status של signup),
+ * זה נעשה בשכבה אחרת (owner_staff.ts / database.ts).
+ */
+export async function createApprovedStaffFromSignup(args: {
+  restaurantId: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  role: StaffRole;
+  permissionsOverride?: StaffPermission[];
+}): Promise<StaffMember> {
+  return await createStaffByOwner({
+    restaurantId: args.restaurantId,
+    userId: args.userId,
+    firstName: args.firstName,
+    lastName: args.lastName,
+    email: args.email,
+    phone: args.phone,
+    role: args.role,
+    hourlyRate: undefined,
+    hireDate: undefined,
+    permissionsOverride: args.permissionsOverride,
+  });
+}
+
