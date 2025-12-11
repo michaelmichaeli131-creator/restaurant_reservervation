@@ -44,7 +44,7 @@
        const restaurant = block.restaurant;
        const staff = block.staff || [];
        const pending = block.pending || [];
-       const signupRequests = block.signupRequests || []; // ← חדש
+       const signupRequests = block.signupRequests || [];
   %>
     <section class="restaurant-block card">
       <header class="restaurant-header">
@@ -61,7 +61,7 @@
             עובדים מאושרים: <strong><%= staff.length %></strong>
           </span>
           <span class="badge badge-warning">
-            ממתינים לאישור (staff_db): <strong><%= pending.length %></strong>
+            עובדים ממתינים: <strong><%= pending.length %></strong>
           </span>
           <span class="badge badge-info">
             בקשות הצטרפות חדשות: <strong><%= signupRequests.length %></strong>
@@ -69,12 +69,12 @@
         </div>
       </header>
 
-      <!-- בקשות הצטרפות חדשות מעובדים שנרשמו כ-"staff" -->
+      <!-- בקשות הצטרפות (StaffSignupRequest) -->
       <section class="signup-requests-section">
         <h3 class="section-title">
-          בקשות הצטרפות מעובדים שנרשמו למערכת
+          בקשות הצטרפות חדשות
           <% if (!signupRequests.length) { %>
-            <span class="section-subtitle">אין כרגע בקשות חדשות להצטרפות</span>
+            <span class="section-subtitle">אין בקשות הצטרפות חדשות למסעדה זו</span>
           <% } %>
         </h3>
 
@@ -84,47 +84,29 @@
               <thead>
                 <tr>
                   <th>שם</th>
-                  <th>תפקיד מבוקש</th>
                   <th>אימייל</th>
                   <th>טלפון</th>
-                  <th>סטטוס בקשה</th>
+                  <th>תפקיד מבוקש</th>
                   <th>נוצר בתאריך</th>
                   <th>פעולות</th>
                 </tr>
               </thead>
               <tbody>
-                <% signupRequests.forEach(function(item) {
-                     const req = item.request;
-                     const u = item.user;
+                <% signupRequests.forEach(function(entry) {
+                     const req = entry.request;
+                     const user = entry.user;
                 %>
                   <tr>
                     <td>
-                      <% if (u) { %>
-                        <%= u.firstName || "" %> <%= u.lastName || "" %>
+                      <% if (user) { %>
+                        <%= user.firstName || "" %> <%= user.lastName || "" %>
                       <% } else { %>
-                        משתמש #<%= req.userId %>
+                        (משתמש לא נמצא)
                       <% } %>
                     </td>
-                    <td><%= req.staffRole || "-" %></td>
-                    <td>
-                      <% if (u && u.email) { %>
-                        <%= u.email %>
-                      <% } else { %>
-                        -
-                      <% } %>
-                    </td>
-                    <td>
-                      <% if (u && u.phone) { %>
-                        <%= u.phone %>
-                      <% } else { %>
-                        -
-                      <% } %>
-                    </td>
-                    <td>
-                      <span class="badge badge-status">
-                        <%= req.status %>
-                      </span>
-                    </td>
+                    <td><%= user ? user.email : req.userId %></td>
+                    <td><%= user && user.phone ? user.phone : "-" %></td>
+                    <td><%= req.staffRole %></td>
                     <td>
                       <% if (req.createdAt) { %>
                         <%= new Date(req.createdAt).toLocaleString("he-IL") %>
@@ -133,15 +115,15 @@
                       <% } %>
                     </td>
                     <td class="actions">
-                      <!-- אישור בקשת הצטרפות -->
+                      <!-- אישור בקשה -->
                       <form method="post" action="/owner/staff-signup/<%= req.id %>/approve" class="inline-form">
                         <input type="hidden" name="redirectTo" value="/owner/staff" />
                         <button type="submit" class="btn btn-sm btn-success">
-                          ✓ אשר בקשה
+                          ✓ אשר הצטרפות
                         </button>
                       </form>
 
-                      <!-- דחיית בקשת הצטרפות -->
+                      <!-- דחיית בקשה -->
                       <form method="post" action="/owner/staff-signup/<%= req.id %>/reject" class="inline-form">
                         <input type="hidden" name="redirectTo" value="/owner/staff" />
                         <button type="submit" class="btn btn-sm btn-outline-danger">
@@ -150,19 +132,19 @@
                       </form>
                     </td>
                   </tr>
-                <% }) %>
+                <% }); %>
               </tbody>
             </table>
           </div>
         <% } %>
       </section>
 
-      <!-- עובדים ממתינים לאישור (מודל staff_db הישן/קיים) -->
+      <!-- עובדים ממתינים לאישור (staff_db) -->
       <section class="pending-staff-section">
         <h3 class="section-title">
-          עובדים ממתינים לאישור (רשומות staff קיימות)
+          עובדים ממתינים לאישור
           <% if (!pending.length) { %>
-            <span class="section-subtitle">אין עובדים ממתינים כרגע במסעדה זו</span>
+            <span class="section-subtitle">אין עובדים ממתינים כרגע</span>
           <% } %>
         </h3>
 
@@ -197,7 +179,7 @@
                       <!-- טופס אישור -->
                       <form method="post" action="/owner/staff/<%= s.id %>/approve" class="inline-form">
                         <input type="hidden" name="redirectTo" value="/owner/staff" />
-                        <!-- אפשרות לסמן שימוש בברירת מחדל של הרשאות -->
+                        <!-- שימוש בברירת מחדל של הרשאות -->
                         <input type="hidden" name="useDefaults" value="on" />
                         <button type="submit" class="btn btn-sm btn-success">
                           ✓ אשר עובד
@@ -213,7 +195,7 @@
                       </form>
                     </td>
                   </tr>
-                <% }) %>
+                <% }); %>
               </tbody>
             </table>
           </div>
@@ -242,7 +224,7 @@
                       תפקיד: <strong><%= s.role %></strong>
                     </p>
                     <p class="staff-contact">
-                      <span>אימייל: <%= s.email %></span><br />
+                      <span>אימייל: <%= s.email %></span><br/>
                       <span>טלפון: <%= s.phone || "-" %></span>
                     </p>
                   </div>
@@ -279,7 +261,7 @@
                             <strong><%= permLabels[p] || p %></strong>
                           </span>
                         </label>
-                      <% }) %>
+                      <% }); %>
                     </div>
 
                     <div class="permissions-actions">
@@ -295,10 +277,10 @@
                   </form>
                 </section>
               </article>
-            <% }) %>
+            <% }); %>
           </div>
         <% } %>
       </section>
     </section>
-  <% }) %>
+  <% }); %>
 </main>
