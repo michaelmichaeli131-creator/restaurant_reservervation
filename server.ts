@@ -30,6 +30,8 @@ import { ownerRouter } from "./routes/owner.ts";
 import { adminRouter } from "./routes/admin.ts";
 import rootRouter from "./routes/root.ts";
 import ownerCapacityRouter from "./routes/owner_capacity.ts";
+import { ownerStaffRouter } from "./routes/owner_staff.ts";
+
 import {
   listRestaurants,
   listRestaurantsByCategory,
@@ -48,7 +50,6 @@ import { hostRouter } from "./routes/host.ts";
 import ownerBillsRouter from "./routes/owner_bills.ts";
 import inventoryRouter from "./routes/inventory.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
-import { ownerStaffRouter } from "./routes/owner_staff.ts";
 
 // ✅ i18n: טעינה בטוחה (תומך גם default וגם named export)
 import * as i18nModule from "./middleware/i18n.ts";
