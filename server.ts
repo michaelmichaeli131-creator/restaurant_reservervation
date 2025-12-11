@@ -501,6 +501,10 @@ app.use(openingRouter.allowedMethods());
 app.use(inventoryRouter.routes());
 app.use(inventoryRouter.allowedMethods());
 
+// Staff management (owner)
+app.use(ownerStaffRouter.routes());
+app.use(ownerStaffRouter.allowedMethods());
+
 // --- 404 (כללי) ---
 app.use((ctx) => {
   if (ctx.response.body == null) {
