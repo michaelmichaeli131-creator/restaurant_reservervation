@@ -1,11 +1,26 @@
 <% layout("_layout", it) %>
 
-<main class="page owner-staff-page" dir="rtl">
-  <header class="page-header">
-    <h1 class="page-title">ניהול עובדים למסעדות שלי</h1>
-    <p class="page-subtitle">
-      כאן אתה מאשר עובדים שהגישו בקשה, ומגדיר לכל עובד אילו פיצ'רים יהיו זמינים לו במערכת.
-    </p>
+<main class="page owner-staff-page layout-max-width" dir="rtl">
+  <!-- כותרת עליונה כמו בשאר מסכי ה-owner -->
+  <header class="page-header owner-header">
+    <div class="page-header-main">
+      <h1 class="page-title">
+        👥 ניהול עובדים למסעדות שלי
+      </h1>
+      <p class="page-subtitle">
+        מאשרים עובדים, מנהלים בקשות הצטרפות ומגדירים לכל אחד אילו אזורים במערכת יהיו זמינים עבורו.
+      </p>
+    </div>
+    <div class="page-header-meta">
+      <div class="badge-row">
+        <span class="badge badge-soft">
+          בעלים: <strong><%= it.owner?.firstName %> <%= it.owner?.lastName %></strong>
+        </span>
+        <span class="badge badge-soft-secondary">
+          אימייל: <strong><%= it.owner?.email %></strong>
+        </span>
+      </div>
+    </div>
   </header>
 
   <%
@@ -31,237 +46,296 @@
   %>
 
   <% if (!restaurantsData.length) { %>
-    <section class="empty-state card">
-      <h2>אין מסעדות משויכות לחשבון שלך עדיין</h2>
-      <p>כדי לנהל עובדים, תחילה צריך ליצור מסעדה במערכת.</p>
+    <!-- מצב ריק – אין עדיין מסעדות -->
+    <section class="empty-state card card-center">
+      <div class="empty-icon">🍽️</div>
+      <h2 class="empty-title">אין מסעדות משויכות לחשבון שלך עדיין</h2>
+      <p class="empty-subtitle">
+        כדי לנהל עובדים, צריך קודם ליצור מסעדה במערכת ולהגדיר לה שעות, תפריט ורצפת שולחנות.
+      </p>
       <a href="/owner/restaurants/new" class="btn btn-primary">
-        + הוספת מסעדה חדשה
+        + יצירת מסעדה חדשה
       </a>
     </section>
   <% } %>
 
-  <% restaurantsData.forEach(function(block) {
-       const restaurant = block.restaurant;
-       const staff = block.staff || [];
-       const pending = block.pending || [];
-       const signupRequests = block.signupRequests || [];
-  %>
-
-    <section class="restaurant-block card">
-      <header class="restaurant-header">
-        <div class="restaurant-main">
-          <h2 class="restaurant-name"><%= restaurant.name %></h2>
-          <p class="restaurant-meta">
-            <span><%= restaurant.city %> · <%= restaurant.address %></span>
-          </p>
-        </div>
-
-        <div class="restaurant-stats">
-          <span class="badge">
-            עובדים מאושרים: <strong><%= staff.length %></strong>
-          </span>
-          <span class="badge badge-warning">
-            ממתינים לאישור: <strong><%= pending.length %></strong>
-          </span>
-          <span class="badge badge-info">
-            בקשות הצטרפות חדשות: <strong><%= signupRequests.length %></strong>
-          </span>
-        </div>
-      </header>
-
-      <!-- בקשות הצטרפות חדשות (StaffSignupRequest) -->
-      <section class="signup-requests-section">
-        <h3 class="section-title">
-          בקשות הצטרפות חדשות
-          <% if (!signupRequests.length) { %>
-            <span class="section-subtitle">אין בקשות חדשות כרגע</span>
-          <% } %>
-        </h3>
-
-        <% if (signupRequests.length) { %>
-          <div class="table-wrapper">
-            <table class="table table-signup-requests">
-              <thead>
-                <tr>
-                  <th>שם</th>
-                  <th>אימייל</th>
-                  <th>טלפון</th>
-                  <th>תפקיד מבוקש</th>
-                  <th>נשלח בתאריך</th>
-                  <th>פעולות</th>
-                </tr>
-              </thead>
-              <tbody>
-                <% signupRequests.forEach(function(x) {
-                     const req = x.request;
-                     const u = x.user;
-                %>
-                  <tr>
-                    <td>
-                      <%= (u ? (u.firstName + " " + u.lastName) : "—") %>
-                    </td>
-                    <td><%= (u ? u.email : "—") %></td>
-                    <td><%= (u && u.phone ? u.phone : "-") %></td>
-                    <td><%= req.staffRole || "-" %></td>
-                    <td>
-                      <% if (req.createdAt) { %>
-                        <%= new Date(req.createdAt).toLocaleString("he-IL") %>
-                      <% } else { %>
-                        -
-                      <% } %>
-                    </td>
-                    <td class="actions">
-                      <form method="post" action="/owner/staff-signup/<%= req.id %>/approve" class="inline-form">
-                        <input type="hidden" name="redirectTo" value="/owner/staff" />
-                        <button type="submit" class="btn btn-sm btn-success">✓ אשר</button>
-                      </form>
-
-                      <form method="post" action="/owner/staff-signup/<%= req.id %>/reject" class="inline-form">
-                        <input type="hidden" name="redirectTo" value="/owner/staff" />
-                        <button type="submit" class="btn btn-sm btn-outline-danger">✕ דחה</button>
-                      </form>
-                    </td>
-                  </tr>
-                <% }) %>
-              </tbody>
-            </table>
+  <section class="owner-content-grid">
+    <% restaurantsData.forEach(function(block) {
+         const restaurant = block.restaurant;
+         const staff = block.staff || [];
+         const pending = block.pending || [];
+         const signupRequests = block.signupRequests || [];
+    %>
+      <section class="restaurant-block card card-section">
+        <!-- כותרת מסעדה + סטטוסים -->
+        <header class="restaurant-header section-header">
+          <div class="restaurant-main">
+            <h2 class="restaurant-name">
+              <span class="restaurant-dot"></span>
+              <%= restaurant.name %>
+            </h2>
+            <p class="restaurant-meta">
+              <span><%= restaurant.city %> · <%= restaurant.address %></span>
+            </p>
           </div>
-        <% } %>
-      </section>
-
-      <!-- עובדים ממתינים לאישור (staff_db pending) -->
-      <section class="pending-staff-section">
-        <h3 class="section-title">
-          עובדים ממתינים לאישור
-          <% if (!pending.length) { %>
-            <span class="section-subtitle">אין בקשות ממתינות כרגע</span>
-          <% } %>
-        </h3>
-
-        <% if (pending.length) { %>
-          <div class="table-wrapper">
-            <table class="table table-pending-staff">
-              <thead>
-                <tr>
-                  <th>שם</th>
-                  <th>תפקיד</th>
-                  <th>אימייל</th>
-                  <th>טלפון</th>
-                  <th>נרשם בתאריך</th>
-                  <th>פעולות</th>
-                </tr>
-              </thead>
-              <tbody>
-                <% pending.forEach(function(s) { %>
-                  <tr>
-                    <td><%= s.firstName %> <%= s.lastName %></td>
-                    <td><%= s.role %></td>
-                    <td><%= s.email %></td>
-                    <td><%= s.phone || "-" %></td>
-                    <td>
-                      <% if (s.createdAt) { %>
-                        <%= new Date(s.createdAt).toLocaleString("he-IL") %>
-                      <% } else { %>
-                        -
-                      <% } %>
-                    </td>
-                    <td class="actions">
-                      <form method="post" action="/owner/staff/<%= s.id %>/approve" class="inline-form">
-                        <input type="hidden" name="redirectTo" value="/owner/staff" />
-                        <input type="hidden" name="useDefaults" value="on" />
-                        <button type="submit" class="btn btn-sm btn-success">✓ אשר עובד</button>
-                      </form>
-
-                      <form method="post" action="/owner/staff/<%= s.id %>/reject" class="inline-form">
-                        <input type="hidden" name="redirectTo" value="/owner/staff" />
-                        <button type="submit" class="btn btn-sm btn-outline-danger">✕ דחה</button>
-                      </form>
-                    </td>
-                  </tr>
-                <% }) %>
-              </tbody>
-            </table>
+          <div class="restaurant-stats">
+            <span class="badge badge-soft">
+              עובדים מאושרים: <strong><%= staff.length %></strong>
+            </span>
+            <span class="badge badge-warning-soft">
+              ממתינים ב-staff_db: <strong><%= pending.length %></strong>
+            </span>
+            <span class="badge badge-info-soft">
+              בקשות הצטרפות חדשות: <strong><%= signupRequests.length %></strong>
+            </span>
           </div>
-        <% } %>
-      </section>
+        </header>
 
-      <!-- עובדים מאושרים + הרשאות -->
-      <section class="approved-staff-section">
-        <h3 class="section-title">
-          עובדים מאושרים והרשאות
-          <% if (!staff.length) { %>
-            <span class="section-subtitle">עוד לא אישרת אף עובד למסעדה זו</span>
-          <% } %>
-        </h3>
+        <div class="restaurant-body-columns">
+          <div class="restaurant-column column-left">
+            <!-- עובדים ממתינים ב-staff_db -->
+            <section class="pending-staff-section section-block">
+              <div class="section-title-row">
+                <h3 class="section-title">
+                  עובדים ממתינים לאישור (staff_db)
+                </h3>
+                <% if (!pending.length) { %>
+                  <span class="section-subtitle text-muted">
+                    אין בקשות ממתינות כרגע דרך בעלי המסעדה.
+                  </span>
+                <% } %>
+              </div>
 
-        <% if (staff.length) { %>
-          <div class="staff-cards-grid">
-            <% staff.forEach(function(s) { %>
-              <article class="staff-card card">
-                <header class="staff-card-header">
-                  <div class="staff-main">
-                    <h4 class="staff-name"><%= s.firstName %> <%= s.lastName %></h4>
-                    <p class="staff-role">תפקיד: <strong><%= s.role %></strong></p>
-                    <p class="staff-contact">
-                      <span>אימייל: <%= s.email %></span><br />
-                      <span>טלפון: <%= s.phone || "-" %></span>
-                    </p>
-                  </div>
+              <% if (pending.length) { %>
+                <div class="table-wrapper table-wrapper-soft">
+                  <table class="table table-compact table-pending-staff">
+                    <thead>
+                      <tr>
+                        <th>שם</th>
+                        <th>תפקיד</th>
+                        <th>אימייל</th>
+                        <th>טלפון</th>
+                        <th>נרשם בתאריך</th>
+                        <th class="col-actions">פעולות</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <% pending.forEach(function(s) { %>
+                        <tr>
+                          <td><%= s.firstName %> <%= s.lastName %></td>
+                          <td><%= s.role %></td>
+                          <td><%= s.email %></td>
+                          <td><%= s.phone || "-" %></td>
+                          <td>
+                            <% if (s.createdAt) { %>
+                              <%= new Date(s.createdAt).toLocaleString("he-IL") %>
+                            <% } else { %>
+                              -
+                            <% } %>
+                          </td>
+                          <td class="actions">
+                            <div class="actions-row">
+                              <!-- טופס אישור -->
+                              <form method="post" action="/owner/staff/<%= s.id %>/approve" class="inline-form">
+                                <input type="hidden" name="redirectTo" value="/owner/staff" />
+                                <input type="hidden" name="useDefaults" value="on" />
+                                <button type="submit" class="btn btn-xs btn-success">
+                                  ✓ אישור מהיר
+                                </button>
+                              </form>
 
-                  <div class="staff-meta">
-                    <span class="badge badge-status">
-                      סטטוס: <strong><%= s.status %></strong>
-                    </span>
-                    <span class="badge badge-approval">
-                      אישור: <strong><%= s.approvalStatus %></strong>
-                    </span>
-                  </div>
-                </header>
-
-                <section class="staff-permissions">
-                  <h5>הרשאות לעובד זה</h5>
-
-                  <form method="post" action="/owner/staff/<%= s.id %>/permissions">
-                    <input type="hidden" name="redirectTo" value="/owner/staff" />
-
-                    <div class="permissions-grid">
-                      <%
-                        const currentPerms = s.permissions || [];
-                        allPermissions.forEach(function(p) {
-                          const checked = currentPerms.includes(p);
-                      %>
-                        <label class="permission-item">
-                          <input
-                            type="checkbox"
-                            name="permissions"
-                            value="<%= p %>"
-                            <%= checked ? "checked" : "" %>
-                          />
-                          <span class="permission-label">
-                            <strong><%= permLabels[p] || p %></strong>
-                          </span>
-                        </label>
+                              <!-- טופס דחייה -->
+                              <form method="post" action="/owner/staff/<%= s.id %>/reject" class="inline-form">
+                                <input type="hidden" name="redirectTo" value="/owner/staff" />
+                                <button type="submit" class="btn btn-xs btn-outline-danger">
+                                  ✕ דחייה
+                                </button>
+                              </form>
+                            </div>
+                          </td>
+                        </tr>
                       <% }) %>
-                    </div>
+                    </tbody>
+                  </table>
+                </div>
+              <% } %>
+            </section>
 
-                    <div class="permissions-actions">
-                      <label class="inline-checkbox">
-                        <input type="checkbox" name="resetToDefaults" />
-                        <span>איפוס הרשאות לברירת מחדל לפי תפקיד</span>
-                      </label>
+            <!-- בקשות הצטרפות חדשות (self-signup) -->
+            <section class="signup-requests-section section-block">
+              <div class="section-title-row">
+                <h3 class="section-title">
+                  בקשות הצטרפות חדשות (self-signup)
+                </h3>
+                <% if (!signupRequests.length) { %>
+                  <span class="section-subtitle text-muted">
+                    אין בקשות חדשות כרגע מעובדים שנרשמו לבד.
+                  </span>
+                <% } %>
+              </div>
 
-                      <button type="submit" class="btn btn-sm btn-primary">
-                        שמור הרשאות
-                      </button>
-                    </div>
-                  </form>
-                </section>
-              </article>
-            <% }) %>
+              <% if (signupRequests.length) { %>
+                <div class="table-wrapper table-wrapper-soft">
+                  <table class="table table-compact table-signup-requests">
+                    <thead>
+                      <tr>
+                        <th>שם</th>
+                        <th>תפקיד מבוקש</th>
+                        <th>אימייל</th>
+                        <th>טלפון</th>
+                        <th>נשלח בתאריך</th>
+                        <th>סטטוס</th>
+                        <th class="col-actions">פעולות</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <% signupRequests.forEach(function(entry) {
+                           const req = entry.request;
+                           const user = entry.user || {};
+                      %>
+                        <tr>
+                          <td><%= user.firstName || "-" %> <%= user.lastName || "" %></td>
+                          <td><%= req.staffRole %></td>
+                          <td><%= user.email || req.userEmail || "-" %></td>
+                          <td><%= user.phone || req.userPhone || "-" %></td>
+                          <td>
+                            <% if (req.createdAt) { %>
+                              <%= new Date(req.createdAt).toLocaleString("he-IL") %>
+                            <% } else { %>
+                              -
+                            <% } %>
+                          </td>
+                          <td>
+                            <span class="status-pill status-<%= req.status %>">
+                              <%= req.status %>
+                            </span>
+                          </td>
+                          <td class="actions">
+                            <div class="actions-row">
+                              <form method="post" action="/owner/staff-signup/<%= req.id %>/approve" class="inline-form">
+                                <input type="hidden" name="redirectTo" value="/owner/staff" />
+                                <button type="submit" class="btn btn-xs btn-success">
+                                  ✓ אשר ויצור עובד
+                                </button>
+                              </form>
+                              <form method="post" action="/owner/staff-signup/<%= req.id %>/reject" class="inline-form">
+                                <input type="hidden" name="redirectTo" value="/owner/staff" />
+                                <button type="submit" class="btn btn-xs btn-outline-danger">
+                                  ✕ דחה בקשה
+                                </button>
+                              </form>
+                            </div>
+                          </td>
+                        </tr>
+                      <% }) %>
+                    </tbody>
+                  </table>
+                </div>
+              <% } %>
+            </section>
           </div>
-        <% } %>
-      </section>
-    </section>
 
-  <% }) %>
+          <!-- טור שני: עובדים מאושרים + הרשאות -->
+          <div class="restaurant-column column-right">
+            <section class="approved-staff-section section-block">
+              <div class="section-title-row">
+                <h3 class="section-title">
+                  עובדים מאושרים והרשאות
+                </h3>
+                <% if (!staff.length) { %>
+                  <span class="section-subtitle text-muted">
+                    עדיין לא הוגדרו עובדים מאושרים למסעדה זו.
+                  </span>
+                <% } else { %>
+                  <span class="section-subtitle text-muted">
+                    לחץ על עובד כדי לעדכן לו הרשאות לפי אזורי המערכת.
+                  </span>
+                <% } %>
+              </div>
+
+              <% if (staff.length) { %>
+                <div class="staff-cards-grid">
+                  <% staff.forEach(function(s) { %>
+                    <article class="staff-card card card-soft">
+                      <header class="staff-card-header">
+                        <div class="staff-main">
+                          <h4 class="staff-name">
+                            <span class="staff-avatar">
+                              <%= (s.firstName || " ")[0] %>
+                            </span>
+                            <span>
+                              <%= s.firstName %> <%= s.lastName %>
+                            </span>
+                          </h4>
+                          <p class="staff-role">
+                            תפקיד: <strong><%= s.role %></strong>
+                          </p>
+                          <p class="staff-contact">
+                            <span>אימייל: <%= s.email %></span><br />
+                            <span>טלפון: <%= s.phone || "-" %></span>
+                          </p>
+                        </div>
+                        <div class="staff-meta">
+                          <span class="badge badge-soft">
+                            סטטוס: <strong><%= s.status %></strong>
+                          </span>
+                          <span class="badge badge-soft-secondary">
+                            אישור: <strong><%= s.approvalStatus %></strong>
+                          </span>
+                          <% if (s.createdAt) { %>
+                            <span class="meta-small">
+                              הצטרף: <%= new Date(s.createdAt).toLocaleDateString("he-IL") %>
+                            </span>
+                          <% } %>
+                        </div>
+                      </header>
+
+                      <!-- טופס הרשאות -->
+                      <section class="staff-permissions">
+                        <h5 class="staff-permissions-title">הרשאות לעובד זה</h5>
+                        <form method="post" action="/owner/staff/<%= s.id %>/permissions">
+                          <input type="hidden" name="redirectTo" value="/owner/staff" />
+
+                          <div class="permissions-grid">
+                            <%
+                              const currentPerms = s.permissions || [];
+                              allPermissions.forEach(function(p) {
+                                const checked = currentPerms.includes(p);
+                            %>
+                              <label class="permission-item">
+                                <input
+                                  type="checkbox"
+                                  name="permissions"
+                                  value="<%= p %>"
+                                  <%= checked ? "checked" : "" %>
+                                />
+                                <span class="permission-label">
+                                  <strong><%= permLabels[p] || p %></strong>
+                                </span>
+                              </label>
+                            <% }) %>
+                          </div>
+
+                          <div class="permissions-actions">
+                            <label class="inline-checkbox">
+                              <input type="checkbox" name="resetToDefaults" />
+                              <span>איפוס הרשאות לברירת מחדל לפי תפקיד</span>
+                            </label>
+
+                            <button type="submit" class="btn btn-sm btn-primary">
+                              💾 שמור הרשאות
+                            </button>
+                          </div>
+                        </form>
+                      </section>
+                    </article>
+                  <% }) %>
+                </div>
+              <% } %>
+            </section>
+          </div>
+        </div>
+      </section>
+    <% }) %>
+  </section>
 </main>
