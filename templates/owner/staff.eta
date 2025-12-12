@@ -1,4 +1,4 @@
-<% layout("_layout", it) %>
+<% layout("../_layout", it) %>
 
 <main class="page owner-staff-page layout-max-width" dir="rtl">
   <!-- כותרת עליונה כמו בשאר מסכי ה-owner -->
