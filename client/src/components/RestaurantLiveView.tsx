@@ -257,9 +257,6 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
                 style={{
                   gridColumn: `${table.gridX + 1} / span ${table.spanX}`,
                   gridRow: `${table.gridY + 1} / span ${table.spanY}`,
-                  backgroundColor: color,
-                  opacity: status.status === 'empty' ? 0.6 : 1,
-                  cursor: 'pointer',
                 }}
                 onClick={() => handleTableClick(status)}
               >

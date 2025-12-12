@@ -100,7 +100,7 @@ function tt(k, fb){
                     <span class="icon">🖼️</span>
                     <%= tt('owner.dashboard.btn_photos','תמונות') %>
                   </a>
-                  <a class="btn ghost" href="/owner/<%= r.id %>/floor" target="_self" rel="nofollow">
+                  <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/floor" target="_self" rel="nofollow">
                     <span class="icon">🍽️</span>
                     <%= tt('owner.dashboard.btn_floor','סידור שולחנות') %>
                   </a>
