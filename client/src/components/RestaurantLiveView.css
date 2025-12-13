@@ -142,34 +142,46 @@
   z-index: 10;
 }
 
-/* Table shapes */
+/* Table shapes with base colors matching FloorEditor */
 .table-square {
   border-radius: 6px;
+  background: #10b981 !important;
 }
 
 .table-round {
   border-radius: 50%;
+  background: #3b82f6 !important;
 }
 
 .table-rect {
   border-radius: 4px;
+  background: #f59e0b !important;
 }
 
 .table-booth {
   border-radius: 4px;
+  background: #8b5cf6 !important;
 }
 
-/* Status-based styling */
+/* Status-based styling via border and opacity */
+.table-card.status-empty {
+  opacity: 0.6;
+  border: 3px solid rgba(76, 175, 80, 0.5);
+}
+
 .table-card.status-occupied {
-  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+  border: 3px solid #FF6B6B;
+  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
 }
 
 .table-card.status-reserved {
-  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+  border: 3px solid #FFC107;
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4);
 }
 
 .table-card.status-dirty {
-  box-shadow: 0 4px 12px rgba(156, 39, 176, 0.3);
+  border: 3px solid #9C27B0;
+  box-shadow: 0 4px 12px rgba(156, 39, 176, 0.4);
 }
 
 /* Table content */
