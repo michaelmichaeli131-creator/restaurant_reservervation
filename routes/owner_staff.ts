@@ -52,7 +52,7 @@ console.log("[owner_staff] router module loaded");
  * כי requireOwner הוא לא middleware של Oak (הוא מחזיר boolean ולא קורא next),
  * וזה עלול לקטוע את השרשרת ולהפיל אותנו ל-404.
  *
- * במקום זה – משתמשים בפונקציה ensureOwner(ctx) בכל handler, כמו ב-routes/owner.ts.
+ * במקום זה – משתמשים בפונקציה ensureOwner(ctx) בכל handler.
  */
 
 /* ─────────────── Helpers ─────────────── */
@@ -73,7 +73,6 @@ const ALL_PERMISSIONS: StaffPermission[] = [
   "menu.manage",
 ];
 
-// מסעדות של הבעלים (מבוסס על restaurant_by_owner)
 async function listOwnerRestaurants(ownerId: string): Promise<Restaurant[]> {
   const restaurants: Restaurant[] = [];
 
@@ -87,7 +86,6 @@ async function listOwnerRestaurants(ownerId: string): Promise<Restaurant[]> {
   return restaurants;
 }
 
-// בדיקה פנימית שהמשתמש הוא owner – משתמשת ב־ctx.state.user
 function ensureOwner(ctx: any): User {
   const user = ctx.state.user as User | undefined;
 
@@ -143,113 +141,143 @@ function isStaffRole(x: unknown): x is StaffRole {
   return typeof x === "string" && STAFF_ROLES.includes(x as StaffRole);
 }
 
-/* ✅ MIN FIX: קריאה יציבה של body (JSON / form / form-data) לפי Content-Type
-   - בלי לקרוא ctx.request.body() פעמיים
-   - זה פותר invalid_body כשאתה שולח fetch עם application/json
-*/
-function parseBool(x: unknown): boolean {
-  return x === true || x === "true" || x === "on" || x === 1 || x === "1";
+/* ─────────────── Debug helpers ─────────────── */
+
+function reqTag(ctx: any) {
+  // אם יש לך req id במערכת – אפשר לשלב כאן
+  return `${ctx.request.method} ${ctx.request.url.pathname}`;
 }
 
-function parsePerms(x: unknown): string[] | undefined {
-  if (Array.isArray(x)) return x.map((v) => String(v));
-  if (typeof x === "string") {
-    const s = x.trim();
-    if (!s) return undefined;
-    // תומך גם ב-"a,b,c" וגם ב-"a"
-    return s.includes(",")
-      ? s.split(",").map((t) => t.trim()).filter(Boolean)
-      : [s];
-  }
-  return undefined;
+function headersToObject(h: Headers) {
+  const out: Record<string, string> = {};
+  for (const [k, v] of h.entries()) out[k.toLowerCase()] = v;
+  return out;
 }
 
-async function readOwnerCreateStaffPayload(ctx: any): Promise<OwnerCreateStaffPayload> {
-  const ct = (ctx.request.headers.get("content-type") || "").toLowerCase();
+function safePreview(s: string, max = 600) {
+  const t = String(s ?? "");
+  return t.length > max ? t.slice(0, max) + "…(truncated)" : t;
+}
 
-  // JSON
-  if (ct.includes("application/json")) {
-    const v = await ctx.request.body({ type: "json" }).value;
-    return {
-      restaurantId: String(v?.restaurantId ?? "").trim(),
-      email: String(v?.email ?? "").trim(),
-      password: String(v?.password ?? ""),
-      firstName: v?.firstName ? String(v.firstName).trim() : undefined,
-      lastName: v?.lastName ? String(v.lastName).trim() : undefined,
-      phone: v?.phone ? String(v.phone).trim() : undefined,
-      role: String(v?.role ?? "") as StaffRole,
-      permissions: parsePerms(v?.permissions),
-      useDefaults: parseBool(v?.useDefaults),
-    };
+function redactPayloadForLog(p: OwnerCreateStaffPayload) {
+  return {
+    restaurantId: p.restaurantId,
+    email: p.email,
+    role: p.role,
+    firstName: p.firstName,
+    lastName: p.lastName,
+    phone: p.phone,
+    useDefaults: Boolean(p.useDefaults),
+    permissionsCount: Array.isArray(p.permissions) ? p.permissions.length : 0,
+    hasPassword: Boolean(p.password),
+    passwordLen: typeof p.password === "string" ? p.password.length : 0,
+  };
+}
+
+/**
+ * קורא body פעם אחת בלבד.
+ * - קורא כ-text
+ * - מחליט parse לפי Content-Type (או לפי צורת הטקסט)
+ * - תומך JSON וגם x-www-form-urlencoded
+ */
+async function readOwnerCreateStaffPayload(ctx: any): Promise<{
+  payload: OwnerCreateStaffPayload;
+  meta: { contentType: string; rawPreview: string };
+}> {
+  const contentType = String(ctx.request.headers.get("content-type") || "");
+  const accept = String(ctx.request.headers.get("accept") || "");
+
+  // קוראים פעם אחת כטקסט – זה עובד גם ל-json וגם ל-form-urlencoded
+  const rawText = await ctx.request.body({ type: "text" }).value as string;
+  const rawPreview = safePreview(rawText);
+
+  console.log("[owner_staff] read payload start", {
+    tag: reqTag(ctx),
+    contentType,
+    accept,
+    rawPreview,
+  });
+
+  let obj: any = null;
+
+  const looksJson =
+    contentType.includes("application/json") ||
+    rawText.trim().startsWith("{") ||
+    rawText.trim().startsWith("[");
+
+  if (looksJson) {
+    try {
+      obj = rawText ? JSON.parse(rawText) : {};
+    } catch (e) {
+      console.error("[owner_staff] JSON parse failed", {
+        tag: reqTag(ctx),
+        contentType,
+        rawPreview,
+        err: String(e),
+      });
+      throw new Error("json_parse_failed");
+    }
+  } else {
+    // form-urlencoded
+    try {
+      const usp = new URLSearchParams(rawText || "");
+      obj = {};
+      for (const [k, v] of usp.entries()) {
+        if (k === "permissions") {
+          if (!obj.permissions) obj.permissions = [];
+          obj.permissions.push(v);
+        } else {
+          obj[k] = v;
+        }
+      }
+    } catch (e) {
+      console.error("[owner_staff] form parse failed", {
+        tag: reqTag(ctx),
+        contentType,
+        rawPreview,
+        err: String(e),
+      });
+      throw new Error("form_parse_failed");
+    }
   }
 
-  // Form (x-www-form-urlencoded)
-  try {
-    const form = await ctx.request.body({ type: "form" }).value;
-    const perms = (form.getAll("permissions") as string[] | undefined) ?? undefined;
+  const v = obj || {};
+  const payload: OwnerCreateStaffPayload = {
+    restaurantId: String(v.restaurantId ?? "").trim(),
+    email: String(v.email ?? "").trim(),
+    password: String(v.password ?? ""),
+    firstName: v.firstName ? String(v.firstName).trim() : undefined,
+    lastName: v.lastName ? String(v.lastName).trim() : undefined,
+    phone: v.phone ? String(v.phone).trim() : undefined,
+    role: v.role as StaffRole,
+    permissions: Array.isArray(v.permissions) ? v.permissions.map(String) : undefined,
+    useDefaults: Boolean(v.useDefaults) || v.useDefaults === "on",
+  };
 
-    return {
-      restaurantId: String(form.get("restaurantId") ?? "").trim(),
-      email: String(form.get("email") ?? "").trim(),
-      password: String(form.get("password") ?? ""),
-      firstName: form.get("firstName") ? String(form.get("firstName")).trim() : undefined,
-      lastName: form.get("lastName") ? String(form.get("lastName")).trim() : undefined,
-      phone: form.get("phone") ? String(form.get("phone")).trim() : undefined,
-      role: String(form.get("role") ?? "") as StaffRole,
-      permissions: perms && perms.length ? perms.map(String) : undefined,
-      useDefaults: form.get("useDefaults") === "on",
-    };
-  } catch {
-    // multipart/form-data (fallback)
-    const fd = await ctx.request.body({ type: "form-data" }).value;
-    const data = await fd.read();
-    const fields = data.fields || {};
+  console.log("[owner_staff] read payload normalized", {
+    tag: reqTag(ctx),
+    normalized: redactPayloadForLog(payload),
+  });
 
-    // permissions יכול להיות שדה יחיד או מערך – תלוי איך נשלח
-    const permsRaw: unknown = (fields as any).permissions;
-    const perms = Array.isArray(permsRaw)
-      ? permsRaw.map((x) => String(x))
-      : (typeof permsRaw === "string" && permsRaw ? [permsRaw] : undefined);
-
-    return {
-      restaurantId: String((fields as any).restaurantId ?? "").trim(),
-      email: String((fields as any).email ?? "").trim(),
-      password: String((fields as any).password ?? ""),
-      firstName: (fields as any).firstName ? String((fields as any).firstName).trim() : undefined,
-      lastName: (fields as any).lastName ? String((fields as any).lastName).trim() : undefined,
-      phone: (fields as any).phone ? String((fields as any).phone).trim() : undefined,
-      role: String((fields as any).role ?? "") as StaffRole,
-      permissions: perms,
-      useDefaults: parseBool((fields as any).useDefaults),
-    };
-  }
+  return { payload, meta: { contentType, rawPreview } };
 }
 
 /* ─────────────── GET: מסך ניהול עובדים ─────────────── */
-/**
- * GET /owner/staff
- * מציג:
- * - רשימת מסעדות של הבעלים
- * - לכל מסעדה:
- *    • עובדים מאושרים
- *    • עובדים ממתינים (לפי staff_db)
- *    • בקשות הצטרפות חדשות (עובדים שנרשמו בעצמם כ"staff")
- */
+
 ownerStaffRouter.get("/owner/staff", async (ctx) => {
-  // וידוא owner (משתמש ב-ctx.state.user שקיים אחרי ה-AUTH_GATE)
   const owner = ensureOwner(ctx);
+
   console.log("[owner_staff] GET /owner/staff – start", {
     ownerId: owner.id,
     ownerEmail: owner.email,
   });
 
   const restaurants = await listOwnerRestaurants(owner.id);
+
   console.log("[owner_staff] owner restaurants loaded", {
     count: restaurants.length,
     ids: restaurants.map((r) => r.id),
   });
-
-  // Staff signup requests removed (staff is created only by owners)
 
   const items: Array<{
     restaurant: Restaurant;
@@ -261,13 +289,13 @@ ownerStaffRouter.get("/owner/staff", async (ctx) => {
     const all = await listStaffByRestaurant(r.id, { includeInactive: true });
     const pending = all.filter((s) => s.approvalStatus === "pending");
     const active = all.filter((s) => s.approvalStatus === "approved");
+
     console.log("[owner_staff] restaurant block", {
       restaurantId: r.id,
       name: r.name,
       staffCount: all.length,
       activeCount: active.length,
       pendingCount: pending.length,
-      signupRequestsCount: 0,
     });
 
     items.push({
@@ -289,22 +317,42 @@ ownerStaffRouter.get("/owner/staff", async (ctx) => {
 });
 
 /* ─────────────── POST: יצירת עובד ע"י בעל מסעדה ─────────────── */
-/**
- * POST /owner/staff/create
- * יוצר (במידת הצורך) User חדש עם role="staff" + StaffMember מאושר למסעדה.
- *
- * Body (JSON או form):
- *   restaurantId, email, password, firstName?, lastName?, phone?, role, permissions[]?, useDefaults?
- */
+
 ownerStaffRouter.post("/owner/staff/create", async (ctx) => {
   const owner = ensureOwner(ctx);
 
+  const hObj = headersToObject(ctx.request.headers);
+
+  console.log("[owner_staff] POST /owner/staff/create – incoming", {
+    ownerId: owner.id,
+    ownerEmail: owner.email,
+    headers: {
+      "content-type": hObj["content-type"],
+      "accept": hObj["accept"],
+      // אם תרצה, תוכל להדפיס את כולם:
+      // all: hObj,
+    },
+  });
+
   let payload: OwnerCreateStaffPayload;
+  let meta: { contentType: string; rawPreview: string };
+
   try {
-    payload = await readOwnerCreateStaffPayload(ctx);
+    const r = await readOwnerCreateStaffPayload(ctx);
+    payload = r.payload;
+    meta = r.meta;
   } catch (e) {
+    console.error("[owner_staff] create – invalid_body", {
+      ownerId: owner.id,
+      err: String(e),
+    });
     ctx.response.status = Status.BadRequest;
-    ctx.response.body = { ok: false, error: "invalid_body", message: String(e) };
+    ctx.response.body = {
+      ok: false,
+      error: "invalid_body",
+      message: "Failed to parse request body",
+      debug: { err: String(e) },
+    };
     return;
   }
 
@@ -313,38 +361,59 @@ ownerStaffRouter.post("/owner/staff/create", async (ctx) => {
   const password = String(payload.password ?? "");
   const role = payload.role;
 
+  console.log("[owner_staff] create – validated input start", {
+    restaurantId,
+    email,
+    role,
+    useDefaults: Boolean(payload.useDefaults),
+    permissionsCount: Array.isArray(payload.permissions) ? payload.permissions.length : 0,
+  });
+
   if (!restaurantId) {
+    console.warn("[owner_staff] create – restaurant_required", { ownerId: owner.id });
     ctx.response.status = Status.BadRequest;
     ctx.response.body = { ok: false, error: "restaurant_required" };
     return;
   }
   if (!email || !email.includes("@")) {
+    console.warn("[owner_staff] create – email_invalid", { ownerId: owner.id, email });
     ctx.response.status = Status.BadRequest;
     ctx.response.body = { ok: false, error: "email_invalid" };
     return;
   }
   if (!password || password.length < 8) {
+    console.warn("[owner_staff] create – password_too_short", { ownerId: owner.id, len: password?.length || 0 });
     ctx.response.status = Status.BadRequest;
     ctx.response.body = { ok: false, error: "password_too_short", min: 8 };
     return;
   }
   if (!isStaffRole(role)) {
+    console.warn("[owner_staff] create – role_invalid", { ownerId: owner.id, role });
     ctx.response.status = Status.BadRequest;
     ctx.response.body = { ok: false, error: "role_invalid" };
     return;
   }
 
-  // verify owner owns restaurant
   const restaurant = await getRestaurant(restaurantId);
   if (!restaurant || restaurant.ownerId !== owner.id) {
+    console.warn("[owner_staff] create – not_your_restaurant", {
+      ownerId: owner.id,
+      restaurantId,
+      found: Boolean(restaurant),
+      restaurantOwnerId: restaurant?.ownerId,
+    });
     ctx.response.status = Status.Forbidden;
     ctx.response.body = { ok: false, error: "not_your_restaurant" };
     return;
   }
 
-  // find or create user
   let user = await findUserByEmail(email);
   if (user && user.role !== "staff") {
+    console.warn("[owner_staff] create – email_in_use (non-staff user)", {
+      ownerId: owner.id,
+      email,
+      existingRole: user.role,
+    });
     ctx.response.status = Status.Conflict;
     ctx.response.body = {
       ok: false,
@@ -366,40 +435,54 @@ ownerStaffRouter.post("/owner/staff/create", async (ctx) => {
         provider: "local",
         emailVerified: true,
       });
+      console.log("[owner_staff] create – user created", { userId: user.id, email: user.email });
     } catch (e) {
+      console.error("[owner_staff] create – user_create_failed", {
+        ownerId: owner.id,
+        email,
+        err: String(e),
+      });
       ctx.response.status = Status.Conflict;
       ctx.response.body = { ok: false, error: "user_create_failed", message: String(e) };
       return;
     }
   } else {
-    // ensure not blocked by email verification for staff created historically
     if (!user.emailVerified) {
       await setEmailVerified(user.id);
+      console.log("[owner_staff] create – setEmailVerified", { userId: user.id, email: user.email });
     }
   }
 
-  // prevent duplicates
   const existing = await getStaffByRestaurantAndUser(restaurantId, user.id);
   if (existing) {
+    console.warn("[owner_staff] create – staff_exists", {
+      ownerId: owner.id,
+      restaurantId,
+      userId: user.id,
+      staffId: existing.id,
+    });
     ctx.response.status = Status.Conflict;
     ctx.response.body = { ok: false, error: "staff_exists", staffId: existing.id };
     return;
   }
 
-  // 7.3: permissions defaults are decided on the server.
-  // - if useDefaults: ignore any permissions sent from client
-  // - else: accept only whitelisted permissions (and require at least one)
   const useDefaults = Boolean(payload.useDefaults);
   let permissions: StaffPermission[] | undefined;
 
   if (!useDefaults) {
     const rawPerms = payload.permissions ?? [];
     const filtered: StaffPermission[] = [];
+
     for (const p of rawPerms) {
       if (ALL_PERMISSIONS.includes(p as StaffPermission)) filtered.push(p as StaffPermission);
     }
 
     if (!filtered.length) {
+      console.warn("[owner_staff] create – permissions_required", {
+        ownerId: owner.id,
+        restaurantId,
+        rawPermsCount: rawPerms.length,
+      });
       ctx.response.status = Status.BadRequest;
       ctx.response.body = {
         ok: false,
@@ -411,6 +494,15 @@ ownerStaffRouter.post("/owner/staff/create", async (ctx) => {
 
     permissions = filtered;
   }
+
+  console.log("[owner_staff] create – creating staff record", {
+    ownerId: owner.id,
+    restaurantId,
+    userId: user.id,
+    role,
+    useDefaults,
+    permissionsCount: permissions?.length ?? 0,
+  });
 
   const staff = await createStaffByOwner({
     restaurantId,
@@ -424,7 +516,12 @@ ownerStaffRouter.post("/owner/staff/create", async (ctx) => {
     useDefaults,
   });
 
-  // 7.4 audit
+  console.log("[owner_staff] create – staff created", {
+    staffId: staff.id,
+    restaurantId,
+    userId: user.id,
+  });
+
   await logAuditEvent({
     restaurantId,
     actor: owner,
@@ -439,7 +536,6 @@ ownerStaffRouter.post("/owner/staff/create", async (ctx) => {
     },
   });
 
-  // decide response type
   const wantsJson =
     ctx.request.headers.get("accept")?.includes("application/json") ||
     ctx.request.headers.get("content-type")?.includes("application/json");
@@ -458,10 +554,7 @@ ownerStaffRouter.post("/owner/staff/:id/approve", async (ctx) => {
   const staffId = ctx.params.id!;
   const form = await ctx.request.body({ type: "form" }).value;
 
-  console.log("[owner_staff] POST /owner/staff/:id/approve", {
-    staffId,
-    ownerId: owner.id,
-  });
+  console.log("[owner_staff] POST /owner/staff/:id/approve", { staffId, ownerId: owner.id });
 
   const staff = await getStaffById(staffId);
   if (!staff) {
@@ -492,16 +585,13 @@ ownerStaffRouter.post("/owner/staff/:id/approve", async (ctx) => {
   if (rawPerms && rawPerms.length > 0) {
     const filtered: StaffPermission[] = [];
     for (const p of rawPerms) {
-      if (ALL_PERMISSIONS.includes(p as StaffPermission)) {
-        filtered.push(p as StaffPermission);
-      }
+      if (ALL_PERMISSIONS.includes(p as StaffPermission)) filtered.push(p as StaffPermission);
     }
     newPermissions = filtered;
   }
 
   await setStaffApproval(staffId, "approved");
 
-  // 7.4 audit
   await logAuditEvent({
     restaurantId: staff.restaurantId,
     actor: owner,
@@ -509,11 +599,6 @@ ownerStaffRouter.post("/owner/staff/:id/approve", async (ctx) => {
     targetType: "staff",
     targetId: staffId,
     meta: { approvalStatus: "approved" },
-  });
-  console.log("[owner_staff] staff approved", {
-    staffId,
-    restaurantId: staff.restaurantId,
-    usedDefaults: useDefaults && (!newPermissions || !newPermissions.length),
   });
 
   if (newPermissions && newPermissions.length > 0) {
@@ -527,10 +612,6 @@ ownerStaffRouter.post("/owner/staff/:id/approve", async (ctx) => {
       targetId: staffId,
       meta: { mode: "explicit", permissions: newPermissions },
     });
-    console.log("[owner_staff] staff permissions updated (explicit)", {
-      staffId,
-      count: newPermissions.length,
-    });
   } else if (useDefaults) {
     await resetStaffPermissionsToDefault(staffId);
 
@@ -541,9 +622,6 @@ ownerStaffRouter.post("/owner/staff/:id/approve", async (ctx) => {
       targetType: "staff",
       targetId: staffId,
       meta: { mode: "defaults" },
-    });
-    console.log("[owner_staff] staff permissions reset to default", {
-      staffId,
     });
   }
 
@@ -557,14 +635,10 @@ ownerStaffRouter.post("/owner/staff/:id/reject", async (ctx) => {
   const staffId = ctx.params.id!;
   const form = await ctx.request.body({ type: "form" }).value;
 
-  console.log("[owner_staff] POST /owner/staff/:id/reject", {
-    staffId,
-    ownerId: owner.id,
-  });
+  console.log("[owner_staff] POST /owner/staff/:id/reject", { staffId, ownerId: owner.id });
 
   const staff = await getStaffById(staffId);
   if (!staff) {
-    console.warn("[owner_staff] reject – staff not found", { staffId });
     ctx.response.status = Status.NotFound;
     ctx.response.body = "Staff not found";
     return;
@@ -572,12 +646,6 @@ ownerStaffRouter.post("/owner/staff/:id/reject", async (ctx) => {
 
   const restaurant = await getRestaurant(staff.restaurantId);
   if (!restaurant || restaurant.ownerId !== owner.id) {
-    console.warn("[owner_staff] reject – restaurant not owner", {
-      staffId,
-      restaurantId: restaurant?.id,
-      ownerId: owner.id,
-      restaurantOwnerId: restaurant?.ownerId,
-    });
     ctx.response.status = Status.Forbidden;
     ctx.response.body = "Not your restaurant";
     return;
@@ -585,7 +653,6 @@ ownerStaffRouter.post("/owner/staff/:id/reject", async (ctx) => {
 
   await setStaffApproval(staffId, "rejected");
 
-  // 7.4 audit
   await logAuditEvent({
     restaurantId: staff.restaurantId,
     actor: owner,
@@ -594,17 +661,12 @@ ownerStaffRouter.post("/owner/staff/:id/reject", async (ctx) => {
     targetId: staffId,
     meta: { approvalStatus: "rejected" },
   });
-  console.log("[owner_staff] staff rejected", {
-    staffId,
-    restaurantId: staff.restaurantId,
-  });
 
   const redirectTo = form.get("redirectTo") || "/owner/staff";
   ctx.response.redirect(String(redirectTo));
 });
 
 /* ─────────────── POST: השבתה/הפעלה של עובד ─────────────── */
-// שלב 7.1: toggle active/inactive
 ownerStaffRouter.post("/owner/staff/:id/status", async (ctx) => {
   const owner = ensureOwner(ctx);
   const staffId = ctx.params.id!;
@@ -634,7 +696,6 @@ ownerStaffRouter.post("/owner/staff/:id/status", async (ctx) => {
 
   await setStaffStatus(staffId, status);
 
-  // 7.4 audit
   await logAuditEvent({
     restaurantId: staff.restaurantId,
     actor: owner,
@@ -643,19 +704,12 @@ ownerStaffRouter.post("/owner/staff/:id/status", async (ctx) => {
     targetId: staffId,
     meta: { status },
   });
-  console.log("[owner_staff] staff status updated", {
-    staffId,
-    restaurantId: staff.restaurantId,
-    status,
-  });
 
   const redirectTo = form.get("redirectTo") || "/owner/staff";
   ctx.response.redirect(String(redirectTo));
 });
 
 /* ─────────────── POST: יצירת קישור איפוס סיסמה לעובד ─────────────── */
-// Owner generates a reset link for a staff user (no email sending here).
-// Returns JSON: { ok:true, resetUrl:"/auth/reset?token=..." }
 ownerStaffRouter.post("/owner/staff/:id/password-reset-link", async (ctx) => {
   const owner = ensureOwner(ctx);
   const staffId = ctx.params.id!;
@@ -681,7 +735,6 @@ ownerStaffRouter.post("/owner/staff/:id/password-reset-link", async (ctx) => {
     return;
   }
 
-  // If the user is not local, password reset via this flow doesn't apply.
   if ((user as any).provider && (user as any).provider !== "local") {
     ctx.response.status = Status.Conflict;
     ctx.response.body = { ok: false, error: "non_local_user" };
@@ -691,7 +744,6 @@ ownerStaffRouter.post("/owner/staff/:id/password-reset-link", async (ctx) => {
   const token = await createResetToken(user.id);
   const resetUrl = `/auth/reset?token=${encodeURIComponent(token)}`;
 
-  // 7.4 audit
   await logAuditEvent({
     restaurantId: staff.restaurantId,
     actor: owner,
@@ -706,8 +758,6 @@ ownerStaffRouter.post("/owner/staff/:id/password-reset-link", async (ctx) => {
 });
 
 /* ─────────────── GET: Audit log (JSON) ─────────────── */
-// Owner can fetch recent audit events per restaurant.
-// GET /owner/staff/audit?restaurantId=...&limit=50
 ownerStaffRouter.get("/owner/staff/audit", async (ctx) => {
   const owner = ensureOwner(ctx);
   const restaurantId = String(ctx.request.url.searchParams.get("restaurantId") ?? "").trim();
@@ -730,6 +780,7 @@ ownerStaffRouter.get("/owner/staff/audit", async (ctx) => {
     restaurantId,
     Number.isFinite(limit) ? Math.max(1, Math.min(200, limit)) : 50,
   );
+
   ctx.response.status = Status.OK;
   ctx.response.body = { ok: true, restaurantId, events };
 });
@@ -740,14 +791,8 @@ ownerStaffRouter.post("/owner/staff/:id/permissions", async (ctx) => {
   const staffId = ctx.params.id!;
   const form = await ctx.request.body({ type: "form" }).value;
 
-  console.log("[owner_staff] POST /owner/staff/:id/permissions", {
-    staffId,
-    ownerId: owner.id,
-  });
-
   const staff = await getStaffById(staffId);
   if (!staff) {
-    console.warn("[owner_staff] permissions – staff not found", { staffId });
     ctx.response.status = Status.NotFound;
     ctx.response.body = "Staff not found";
     return;
@@ -755,12 +800,6 @@ ownerStaffRouter.post("/owner/staff/:id/permissions", async (ctx) => {
 
   const restaurant = await getRestaurant(staff.restaurantId);
   if (!restaurant || restaurant.ownerId !== owner.id) {
-    console.warn("[owner_staff] permissions – restaurant not owner", {
-      staffId,
-      restaurantId: restaurant?.id,
-      ownerId: owner.id,
-      restaurantOwnerId: restaurant?.ownerId,
-    });
     ctx.response.status = Status.Forbidden;
     ctx.response.body = "Not your restaurant";
     return;
@@ -772,7 +811,6 @@ ownerStaffRouter.post("/owner/staff/:id/permissions", async (ctx) => {
   if (resetToDefaults) {
     await resetStaffPermissionsToDefault(staffId);
 
-    // 7.4 audit
     await logAuditEvent({
       restaurantId: staff.restaurantId,
       actor: owner,
@@ -781,19 +819,16 @@ ownerStaffRouter.post("/owner/staff/:id/permissions", async (ctx) => {
       targetId: staffId,
       meta: { mode: "defaults" },
     });
-    console.log("[owner_staff] permissions reset to defaults", { staffId });
   } else {
     const filtered: StaffPermission[] = [];
     if (rawPerms) {
       for (const p of rawPerms) {
-        if (ALL_PERMISSIONS.includes(p as StaffPermission)) {
-          filtered.push(p as StaffPermission);
-        }
+        if (ALL_PERMISSIONS.includes(p as StaffPermission)) filtered.push(p as StaffPermission);
       }
     }
+
     await setStaffPermissions(staffId, filtered);
 
-    // 7.4 audit
     await logAuditEvent({
       restaurantId: staff.restaurantId,
       actor: owner,
@@ -802,15 +837,8 @@ ownerStaffRouter.post("/owner/staff/:id/permissions", async (ctx) => {
       targetId: staffId,
       meta: { mode: "explicit", permissions: filtered },
     });
-    console.log("[owner_staff] permissions updated explicit", {
-      staffId,
-      count: filtered.length,
-    });
   }
 
   const redirectTo = form.get("redirectTo") || "/owner/staff";
   ctx.response.redirect(String(redirectTo));
 });
-
-/** אישור בקשת הצטרפות */
-/** דחיית בקשת הצטרפות */
