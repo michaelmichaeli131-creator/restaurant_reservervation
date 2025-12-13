@@ -262,7 +262,6 @@
     font-size:13px;
   }
   .perm-panel{margin-top:10px}
-
 </style>
 
 <%
@@ -292,7 +291,6 @@
     "menu.manage": "ניהול תפריט (מנות, מחירים, זמינות)"
   };
 
-  // ✅ MIN-FIX: אל תעשה loop בתוך <select>. בונים HTML מוכן ומדפיסים עם <%~ %>
   function escAttr(s){
     return String(s || "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   }
@@ -307,7 +305,6 @@
     if (!id) continue;
     __restOpts.push(`<option value="${escAttr(id)}">${escText(name)}</option>`);
   }
-  // ✅ FIX: keep on it (stable scope in Eta)
   it.__restOptsHtml = __restOpts.join("");
 
   const __roleOpts = [];
@@ -317,14 +314,10 @@
     if (!v) continue;
     __roleOpts.push(`<option value="${escAttr(v)}">${escText(l)}</option>`);
   }
-  // ✅ FIX: keep on it (stable scope in Eta)
   it.__roleOptsHtml = __roleOpts.join("");
 
-  // audit uses same restaurant options
-  // ✅ FIX: keep on it (stable scope in Eta)
   it.__auditOptsHtml = it.__restOptsHtml;
 
-  // ✅ FIX (MIN): store safe permissions on it (Eta scope-safe)
   it.__permsSafe = Array.isArray(allPermissions)
     ? allPermissions
     : (typeof allPermissions === "string"
@@ -371,9 +364,9 @@
         </div>
         <div class="pill-row">
           <span class="pill">מאושרים: <b><%= staff.length %></b></span>
-          <span class="pill">pending (staff_db): <b><%= pending.length %></b></span>        </div>
+          <span class="pill">pending (staff_db): <b><%= pending.length %></b></span>
+        </div>
       </div>
-
 
       <div class="grid">
         <!-- LEFT: pending staff -->
@@ -488,7 +481,7 @@
                     <input type="hidden" name="redirectTo" value="/owner/staff" />
 
                     <div class="perm-grid" style="<%= isInactive ? "opacity:.55" : "" %>">
-                      <% ((it.__permsSafe || [])).forEach(function(p){
+                      <% ;((it.__permsSafe || [])).forEach(function(p){
                            const checked = (s.permissions || []).includes(p);
                       %>
                         <label class="perm-item">
@@ -528,8 +521,6 @@
   <% }) %>
 </div>
 
-
-
 <div class="sb-modal hidden" id="createStaffModal" aria-hidden="true">
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="createStaffTitle">
     <div class="dialog-hd">
@@ -548,7 +539,6 @@
           <div class="field full">
             <label>מסעדה (חובה)</label>
 
-            <!-- ✅ MIN-FIX: no loops inside select -->
             <select name="restaurantId" required>
               <option value="">בחר מסעדה…</option>
               <%~ (it.__restOptsHtml || "") %>
@@ -563,7 +553,6 @@
           <div class="field">
             <label>תפקיד (חובה)</label>
 
-            <!-- ✅ MIN-FIX: no loops inside select -->
             <select name="role" required>
               <option value="">בחר תפקיד…</option>
               <%~ (it.__roleOptsHtml || "") %>
@@ -603,7 +592,7 @@
             <div id="permOverrideBox" style="display:none; margin-top:10px">
               <div class="muted" style="margin-bottom:8px">בחר הרשאות ספציפיות (אופציונלי):</div>
               <div class="perm-grid">
-                <% ((it.__permsSafe || [])).forEach(function(p){ %>
+                <% ;((it.__permsSafe || [])).forEach(function(p){ %>
                   <label class="perm-item">
                     <input type="checkbox" name="permissions" value="<%= p %>" />
                     <div>
@@ -660,7 +649,6 @@
   </div>
 </div>
 
-
 <div class="sb-modal hidden" id="auditModal" aria-hidden="true">
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="auditTitle">
     <div class="dialog-hd">
@@ -675,8 +663,6 @@
       <div class="grid">
         <label>
           <div class="lbl">מסעדה</div>
-
-          <!-- ✅ MIN-FIX: no loops inside select -->
           <select id="auditRestaurantId" class="input">
             <%~ (it.__auditOptsHtml || "") %>
           </select>
@@ -710,7 +696,6 @@
   <div class="overlay" id="auditOverlay"></div>
 </div>
 
-
 <script>
 (function(){
   const modal = document.getElementById("createStaffModal");
@@ -729,7 +714,6 @@
     modal.setAttribute("aria-hidden","false");
     errBox.style.display="none";
     errBox.textContent="";
-    // focus first field
     const sel = form.querySelector('select[name="restaurantId"]');
     if (sel) sel.focus();
   }
@@ -821,7 +805,6 @@
       }
 
       hideModal();
-      // refresh to show new staff in list
       window.location.reload();
     }catch(ex){
       showError(String(ex));
@@ -830,89 +813,86 @@
     }
   });
 
-  
+  // ───────── Password reset link (Owner → Staff) ─────────
+  const resetModal = document.getElementById("resetPwModal");
+  const resetOverlay = document.getElementById("resetPwOverlay");
+  const resetCloseBtn = document.getElementById("btnCloseResetPw");
+  const resetCloseBtn2 = document.getElementById("btnCloseResetPw2");
+  const resetSub = document.getElementById("resetPwSub");
+  const resetLinkInput = document.getElementById("resetPwLink");
+  const resetErr = document.getElementById("resetPwErr");
+  const btnCopy = document.getElementById("btnCopyResetPw");
+  const btnOpen = document.getElementById("btnOpenResetPw");
 
-// ───────── Password reset link (Owner → Staff) ─────────
-const resetModal = document.getElementById("resetPwModal");
-const resetOverlay = document.getElementById("resetPwOverlay");
-const resetCloseBtn = document.getElementById("btnCloseResetPw");
-const resetCloseBtn2 = document.getElementById("btnCloseResetPw2");
-const resetSub = document.getElementById("resetPwSub");
-const resetLinkInput = document.getElementById("resetPwLink");
-const resetErr = document.getElementById("resetPwErr");
-const btnCopy = document.getElementById("btnCopyResetPw");
-const btnOpen = document.getElementById("btnOpenResetPw");
-
-function showResetErr(msg){
-  resetErr.textContent = msg;
-  resetErr.classList.remove("hidden");
-}
-function clearResetErr(){
-  resetErr.textContent = "";
-  resetErr.classList.add("hidden");
-}
-function openResetModal(){
-  clearResetErr();
-  resetModal.classList.remove("hidden");
-}
-function closeResetModal(){
-  resetModal.classList.add("hidden");
-}
-
-window.openResetLinkModal = async function(staffId, email){
-  try{
+  function showResetErr(msg){
+    resetErr.textContent = msg;
+    resetErr.classList.remove("hidden");
+  }
+  function clearResetErr(){
+    resetErr.textContent = "";
+    resetErr.classList.add("hidden");
+  }
+  function openResetModal(){
     clearResetErr();
-    resetSub.textContent = "יוצר קישור עבור: " + (email || "");
-    resetLinkInput.value = "טוען...";
-    openResetModal();
+    resetModal.classList.remove("hidden");
+  }
+  function closeResetModal(){
+    resetModal.classList.add("hidden");
+  }
 
-    const res = await fetch(`/owner/staff/${staffId}/password-reset-link`, {
-      method: "POST",
-      headers: { "Accept": "application/json" }
-    });
-    const data = await res.json().catch(()=>null);
-    if(!res.ok || !data || !data.ok){
-      const err = (data && data.error) ? data.error : "unknown";
-      const map = {
-        "staff_not_found": "העובד לא נמצא.",
-        "not_your_restaurant": "אין לך הרשאה למסעדה הזו.",
-        "user_not_found": "המשתמש לא נמצא.",
-        "non_local_user": "לא ניתן לאפס סיסמה למשתמש שאינו Local.",
-        "unknown": "שגיאה לא ידועה."
-      };
+  window.openResetLinkModal = async function(staffId, email){
+    try{
+      clearResetErr();
+      resetSub.textContent = "יוצר קישור עבור: " + (email || "");
+      resetLinkInput.value = "טוען...";
+      openResetModal();
+
+      const res = await fetch(`/owner/staff/${staffId}/password-reset-link`, {
+        method: "POST",
+        headers: { "Accept": "application/json" }
+      });
+      const data = await res.json().catch(()=>null);
+      if(!res.ok || !data || !data.ok){
+        const err = (data && data.error) ? data.error : "unknown";
+        const map = {
+          "staff_not_found": "העובד לא נמצא.",
+          "not_your_restaurant": "אין לך הרשאה למסעדה הזו.",
+          "user_not_found": "המשתמש לא נמצא.",
+          "non_local_user": "לא ניתן לאפס סיסמה למשתמש שאינו Local.",
+          "unknown": "שגיאה לא ידועה."
+        };
+        resetLinkInput.value = "";
+        showResetErr(map[err] || ("שגיאה: " + err));
+        return;
+      }
+
+      const relative = String(data.resetUrl || "");
+      const full = relative.startsWith("http") ? relative : (window.location.origin + relative);
+      resetLinkInput.value = full;
+    }catch(ex){
       resetLinkInput.value = "";
-      showResetErr(map[err] || ("שגיאה: " + err));
-      return;
+      showResetErr(String(ex));
     }
+  };
 
-    const relative = String(data.resetUrl || "");
-    const full = relative.startsWith("http") ? relative : (window.location.origin + relative);
-    resetLinkInput.value = full;
-  }catch(ex){
-    resetLinkInput.value = "";
-    showResetErr(String(ex));
-  }
-};
+  resetOverlay.addEventListener("click", closeResetModal);
+  resetCloseBtn.addEventListener("click", closeResetModal);
+  resetCloseBtn2.addEventListener("click", closeResetModal);
 
-resetOverlay.addEventListener("click", closeResetModal);
-resetCloseBtn.addEventListener("click", closeResetModal);
-resetCloseBtn2.addEventListener("click", closeResetModal);
+  btnCopy.addEventListener("click", async ()=>{
+    try{
+      await navigator.clipboard.writeText(resetLinkInput.value || "");
+      btnCopy.textContent = "הועתק!";
+      setTimeout(()=>btnCopy.textContent="העתק", 900);
+    }catch{
+      showResetErr("לא הצלחתי להעתיק. אפשר לסמן ולהעתיק ידנית.");
+    }
+  });
+  btnOpen.addEventListener("click", ()=>{
+    const v = resetLinkInput.value || "";
+    if(v) window.open(v, "_blank");
+  });
 
-btnCopy.addEventListener("click", async ()=>{
-  try{
-    await navigator.clipboard.writeText(resetLinkInput.value || "");
-    btnCopy.textContent = "הועתק!";
-    setTimeout(()=>btnCopy.textContent="העתק", 900);
-  }catch{
-    showResetErr("לא הצלחתי להעתיק. אפשר לסמן ולהעתיק ידנית.");
-  }
-});
-btnOpen.addEventListener("click", ()=>{
-  const v = resetLinkInput.value || "";
-  if(v) window.open(v, "_blank");
-});
-
-// ESC closes
   document.addEventListener("keydown", (e)=>{
     if(e.key === "Escape" && !modal.classList.contains("hidden")) hideModal();
   });
@@ -1031,5 +1011,4 @@ btnOpen.addEventListener("click", ()=>{
     if(e.key === "Escape" && auditModal && !auditModal.classList.contains("hidden")) close();
   });
 })();
-
 </script>
