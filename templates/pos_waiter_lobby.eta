@@ -62,13 +62,13 @@
                   </div>
                   <div class="open-sub">
                     <% if (people) { %>
-                      <span><%= people %> סועדים</span>
+                      <span><%= people %> <%= tt('host.people_unit', 'סועדים') %></span>
                     <% } %>
                     <% if (time) { %>
                       <span>• <%= time %></span>
                     <% } %>
                     <% if (itemsCount !== "" && itemsCount != null) { %>
-                      <span>• <%= itemsCount %> פריטים</span>
+                      <span>• <%= itemsCount %> <%= tt('pos.waiter.items_count', 'פריטים') %></span>
                     <% } %>
                     <% if (subtotal !== "" && subtotal != null) { %>
                       <span>• <%= subtotal %> ₪</span>
@@ -76,7 +76,7 @@
                   </div>
                 </button>
                 <button type="button" class="open-pos-link">
-                  למסך הזמנה
+                  <%= tt('pos.waiter.btn_to_order', 'למסך הזמנה') %>
                 </button>
               </div>
             </li>

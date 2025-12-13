@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import './RestaurantLiveView.css';
 import TableContextMenu from './TableContextMenu';
+import { t } from '../i18n';
 
 interface TableStatus {
   tableId: string;
@@ -50,10 +51,10 @@ const STATUS_COLORS = {
 };
 
 const STATUS_LABELS = {
-  empty: 'Empty',
-  occupied: 'Occupied',
-  reserved: 'Reserved',
-  dirty: 'Dirty',
+  empty: t('floor.status.empty', 'Empty'),
+  occupied: t('floor.status.occupied', 'Occupied'),
+  reserved: t('floor.status.reserved', 'Reserved'),
+  dirty: t('floor.status.dirty', 'Dirty'),
 };
 
 export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewProps) {
@@ -139,13 +140,13 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
   }, [restaurantId, autoRefresh, refreshInterval, currentLayout]);
 
   if (loading) {
-    return <div className="live-view-loading">Loading floor layouts...</div>;
+    return <div className="live-view-loading">{t('floor.loading', 'Loading floor layouts...')}</div>;
   }
 
   if (!currentLayout) {
     return (
       <div className="live-view-error">
-        <p>No floor layouts found. Please create a floor layout first.</p>
+        <p>{t('floor.empty_state', 'No floor layouts found. Please create a floor layout first.')}</p>
       </div>
     );
   }
@@ -218,7 +219,7 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
               checked={autoRefresh}
               onChange={(e) => setAutoRefresh(e.target.checked)}
             />
-            Auto-refresh
+            {t('live.auto_refresh', 'Auto-refresh')}
           </label>
           <select
             value={refreshInterval}
@@ -235,7 +236,7 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
             className="refresh-btn"
             onClick={() => currentLayout && loadLayout(currentLayout.id)}
           >
-            🔄 Refresh
+            🔄 {t('common.btn_refresh', 'Refresh')}
           </button>
         </div>
       </div>
@@ -284,19 +285,19 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
 
                 {status.status === 'reserved' && (
                   <div className="table-info">
-                    <span>Reserved</span>
+                    <span>{t('floor.status.reserved', 'Reserved')}</span>
                   </div>
                 )}
 
                 {status.status === 'dirty' && (
                   <div className="table-info">
-                    <span>🧹 Needs cleaning</span>
+                    <span>🧹 {t('floor.status_text.dirty', 'Needs cleaning')}</span>
                   </div>
                 )}
 
                 {status.status === 'empty' && (
                   <div className="table-info">
-                    <span>Available</span>
+                    <span>{t('floor.status_text.available', 'Available')}</span>
                   </div>
                 )}
               </div>
@@ -307,7 +308,7 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
 
       <div className="live-view-footer">
         <div className="status-legend">
-          <h3>Status Legend</h3>
+          <h3>{t('live.status_legend', 'Status Legend')}</h3>
           <div className="legend-items">
             {Object.entries(STATUS_COLORS).map(([status, color]) => (
               <div key={status} className="legend-item">
@@ -323,23 +324,23 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
 
         <div className="stats-panel">
         <div className="stat">
-          <span className="label">Total Tables:</span>
+          <span className="label">{t('live.stats.total_tables', 'Total Tables:')}</span>
           <span className="value">{currentLayout.tables.length}</span>
         </div>
         <div className="stat">
-          <span className="label">Occupied:</span>
+          <span className="label">{t('live.stats.occupied', 'Occupied:')}</span>
           <span className="value" style={{ color: STATUS_COLORS.occupied }}>
             {Array.from(tableStatuses.values()).filter(ts => ts.status === 'occupied').length}
           </span>
         </div>
         <div className="stat">
-          <span className="label">Empty:</span>
+          <span className="label">{t('live.stats.empty', 'Empty:')}</span>
           <span className="value" style={{ color: STATUS_COLORS.empty }}>
             {Array.from(tableStatuses.values()).filter(ts => ts.status === 'empty').length}
           </span>
         </div>
         <div className="stat">
-          <span className="label">Occupancy:</span>
+          <span className="label">{t('live.stats.occupancy', 'Occupancy:')}</span>
           <span className="value">
             {currentLayout.tables.length > 0 ? Math.round(
               (Array.from(tableStatuses.values()).filter(ts => ts.status === 'occupied').length /

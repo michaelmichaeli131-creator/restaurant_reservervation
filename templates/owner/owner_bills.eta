@@ -37,10 +37,10 @@ function formatDateTime(ts){
           <thead>
             <tr>
               <th>#</th>
-              <th>תאריך</th>
-              <th>שולחן</th>
-              <th>סכום</th>
-              <th>פעולות</th>
+              <th><%= tt('owner.bills.tbl.date', 'תאריך') %></th>
+              <th><%= tt('owner.bills.tbl.table', 'שולחן') %></th>
+              <th><%= tt('owner.bills.tbl.amount', 'סכום') %></th>
+              <th><%= tt('owner.bills.tbl.actions', 'פעולות') %></th>
             </tr>
           </thead>
           <tbody>
@@ -56,7 +56,7 @@ function formatDateTime(ts){
                 </td>
                 <td class="bills-actions">
                   <a class="btn ghost sm" href="/owner/<%= it.restaurant.id %>/bills/<%= b.id %>">
-                    הצג
+                    <%= tt('common.btn_open', 'הצג') %>
                   </a>
                   <a
                     class="btn ghost sm"
@@ -64,16 +64,16 @@ function formatDateTime(ts){
                     target="_blank"
                     rel="noopener"
                   >
-                    הדפס
+                    <%= tt('owner.bills.btn_print', 'הדפס') %>
                   </a>
                   <form
                     action="/owner/<%= it.restaurant.id %>/bills/<%= b.id %>/delete"
                     method="post"
                     class="inline-form"
-                    onsubmit="return confirm('למחוק את החשבון הזה?');"
+                    onsubmit="return confirm('<%= tt('owner.bills.confirm_delete', 'למחוק את החשבון הזה?') %>');"
                   >
                     <button type="submit" class="btn ghost sm danger">
-                      מחיקה
+                      <%= tt('common.btn_delete', 'מחיקה') %>
                     </button>
                   </form>
                 </td>
@@ -83,7 +83,7 @@ function formatDateTime(ts){
         </table>
       <% } else { %>
         <p class="muted" style="margin-top:10px">
-          עדיין אין חשבונות שמורים למסעדה זו.
+          <%= tt('owner.bills.empty', 'עדיין אין חשבונות שמורים למסעדה זו.') %>
         </p>
       <% } %>
     </div>

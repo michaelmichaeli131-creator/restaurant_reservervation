@@ -136,16 +136,16 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
         }
       } else {
         const data = await response.json();
-        alert(data.error || 'Failed to delete layout');
+        alert(data.error || t('floor.error.delete', 'Delete failed'));
       }
     } catch (err) {
       console.error('Delete failed:', err);
-      alert('Error deleting layout');
+      alert(t('floor.error.delete_general', 'Error deleting layout'));
     }
   };
 
   const duplicateLayout = async (layoutId: string) => {
-    const name = prompt('Enter name for duplicated layout:');
+    const name = prompt(t('floor.prompt.duplicate_name', 'Enter name for duplicated layout:'));
     if (!name) return;
 
     try {
@@ -161,11 +161,11 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
         setLayouts([...layouts, newLayout]);
         setCurrentLayout(newLayout);
       } else {
-        alert('Failed to duplicate layout');
+        alert(t('floor.error.duplicate', 'Error duplicating layout'));
       }
     } catch (err) {
       console.error('Duplicate failed:', err);
-      alert('Error duplicating layout');
+      alert(t('floor.error.duplicate', 'Error duplicating layout'));
     }
   };
 
@@ -262,42 +262,42 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
       });
 
       if (response.ok) {
-        alert('✅ Layout saved successfully!');
+        alert('✅ ' + t('floor.success.save', 'Layout saved successfully!'));
         setLayouts(layouts.map(l => l.id === currentLayout.id ? currentLayout : l));
       } else {
         const data = await response.json();
-        alert(`❌ Failed to save: ${data.error || 'Unknown error'}`);
+        alert('❌ ' + t('floor.error.save', 'Error saving: {error}').replace('{error}', data.error || 'Unknown error'));
       }
     } catch (err) {
       console.error('Save failed:', err);
-      alert(`❌ Error saving: ${err instanceof Error ? err.message : String(err)}`);
+      alert('❌ ' + t('floor.error.save', 'Error saving: {error}').replace('{error}', err instanceof Error ? err.message : String(err)));
     }
   };
 
   if (!currentLayout) {
     return (
       <div className="floor-editor-empty">
-        <h2>No Floor Layouts</h2>
-        <p>Create your first floor layout to get started.</p>
+        <h2>{t('floor.empty_state', 'No floor layouts found. Please create a floor layout first.')}</h2>
+        <p>{t('floor.empty_hint', 'Create your first floor layout to get started.')}</p>
         <button className="btn-primary" onClick={() => setIsCreateModalOpen(true)}>
-          ➕ Create New Layout
+          ➕ {t('floor.btn_create_new', 'Create New Layout')}
         </button>
 
         {isCreateModalOpen && (
           <div className="modal-overlay" onClick={() => setIsCreateModalOpen(false)}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <h3>Create New Layout</h3>
+              <h3>{t('floor.btn_create_new', 'Create New Layout')}</h3>
               <input
                 type="text"
-                placeholder="Layout name (e.g., Main Floor, Patio)"
+                placeholder={t('floor.placeholder.layout_name', 'Layout name (e.g., Main Floor, Patio)')}
                 value={newLayoutName}
                 onChange={(e) => setNewLayoutName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && createNewLayout()}
                 autoFocus
               />
               <div className="modal-actions">
-                <button onClick={createNewLayout} className="btn-primary">Create</button>
-                <button onClick={() => setIsCreateModalOpen(false)} className="btn-secondary">Cancel</button>
+                <button onClick={createNewLayout} className="btn-primary">{t('common.btn_add', 'Create')}</button>
+                <button onClick={() => setIsCreateModalOpen(false)} className="btn-secondary">{t('common.btn_cancel', 'Cancel')}</button>
               </div>
             </div>
           </div>
