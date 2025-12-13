@@ -2,10 +2,8 @@
 // --------------------------------------------------------
 // שכבת DB לעובדי מסעדה (StaffMember):
 // - יצירת עובד ע"י בעל המסעדה (מאושר מראש)
-// - יצירת עובד בהרשמה עצמית (pending)
-// - יצירת עובד מאושר מתוך בקשת הצטרפות (signup approval)
-// - רשימות עובדים למסעדה
-// - עדכון סטטוס / הרשאות
+// - רשימות עובדים למסעדה / לפי משתמש
+// - עדכון סטטוס / הרשאות / אישור
 // --------------------------------------------------------
 
 import { kv } from "../database.ts";
@@ -41,117 +39,10 @@ function staffByUserKey(userId: string, staffId: string) {
   return ["staff_by_user", userId, staffId] as const;
 }
 
-/* ─────────────── יצירה ─────────────── */
+type StaffIdIndex = { restaurantId: string; userId: string };
 
-/**
- * יצירת עובד ע"י בעל המסעדה:
- * - approvalStatus = "approved"
- * - permissions = ברירת מחדל לפי role או מה שהבעלים ביקש
- */
-export async function createStaffByOwner(data: {
-  restaurantId: string;
-  userId: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string;
-  role: StaffRole;
-  hourlyRate?: number;
-  hireDate?: number;
-  permissionsOverride?: StaffPermission[]; // אופציונלי: הבעלים קובע ידנית
-}): Promise<StaffMember> {
-  const id = crypto.randomUUID();
-  const ts = now();
+/* ─────────────── Fetch helpers ─────────────── */
 
-  const staff: StaffMember = {
-    id,
-    restaurantId: data.restaurantId,
-    userId: data.userId,
-    firstName: data.firstName.trim(),
-    lastName: data.lastName.trim(),
-    email: data.email.toLowerCase(),
-    phone: data.phone?.trim(),
-    role: data.role,
-    hourlyRate: data.hourlyRate,
-    status: "active",
-    approvalStatus: "approved",
-    permissions: data.permissionsOverride && data.permissionsOverride.length
-      ? data.permissionsOverride.slice()
-      : defaultPermissionsForRole(data.role),
-    hireDate: data.hireDate ?? ts,
-    createdAt: ts,
-  };
-
-  const mainKey = staffMainKey(staff.restaurantId, staff.userId);
-  const idKey = staffIdKey(staff.id);
-  const byRestKey = staffByRestaurantKey(staff.restaurantId, staff.id);
-  const byUserKey = staffByUserKey(staff.userId, staff.id);
-
-  const tx = kv.atomic()
-    .set(mainKey, staff)
-    .set(idKey, { restaurantId: staff.restaurantId, userId: staff.userId })
-    .set(byRestKey, 1)
-    .set(byUserKey, 1);
-
-  const res = await tx.commit();
-  if (!res.ok) throw new Error("create_staff_race");
-
-  return staff;
-}
-
-/**
- * יצירת עובד בהרשמה עצמית:
- * - approvalStatus = "pending"
- * - permissions = [] (הבעלים יקבע אח"כ)
- */
-export async function createStaffSelfRegistration(data: {
-  restaurantId: string;
-  userId: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string;
-  role: StaffRole;
-}): Promise<StaffMember> {
-  const id = crypto.randomUUID();
-  const ts = now();
-
-  const staff: StaffMember = {
-    id,
-    restaurantId: data.restaurantId,
-    userId: data.userId,
-    firstName: data.firstName.trim(),
-    lastName: data.lastName.trim(),
-    email: data.email.toLowerCase(),
-    phone: data.phone?.trim(),
-    role: data.role,
-    status: "active",
-    approvalStatus: "pending",
-    permissions: [], // יקבלו אח"כ ע"י בעל המסעדה
-    hireDate: ts,
-    createdAt: ts,
-  };
-
-  const mainKey = staffMainKey(staff.restaurantId, staff.userId);
-  const idKey = staffIdKey(staff.id);
-  const byRestKey = staffByRestaurantKey(staff.restaurantId, staff.id);
-  const byUserKey = staffByUserKey(staff.userId, staff.id);
-
-  const tx = kv.atomic()
-    .set(mainKey, staff)
-    .set(idKey, { restaurantId: staff.restaurantId, userId: staff.userId })
-    .set(byRestKey, 1)
-    .set(byUserKey, 1);
-
-  const res = await tx.commit();
-  if (!res.ok) throw new Error("create_staff_race");
-
-  return staff;
-}
-
-/* ─────────────── קריאה ─────────────── */
-
-/** קבלת StaffMember לפי (restaurantId, userId) – תואם ל-authz.ts */
 export async function getStaffByRestaurantAndUser(
   restaurantId: string,
   userId: string,
@@ -160,179 +51,154 @@ export async function getStaffByRestaurantAndUser(
   return res.value ?? null;
 }
 
-/** קבלת StaffMember לפי staffId */
 export async function getStaffById(staffId: string): Promise<StaffMember | null> {
-  const ref = await kv.get<{ restaurantId: string; userId: string }>(staffIdKey(staffId));
-  if (!ref.value) return null;
-  const { restaurantId, userId } = ref.value;
-  const staff = await kv.get<StaffMember>(staffMainKey(restaurantId, userId));
-  return staff.value ?? null;
+  const idx = await kv.get<StaffIdIndex>(staffIdKey(staffId));
+  if (!idx.value) return null;
+  const res = await kv.get<StaffMember>(staffMainKey(idx.value.restaurantId, idx.value.userId));
+  return res.value ?? null;
 }
 
-/** כל העובדים במסעדה */
+export async function listStaffMembershipsByUser(userId: string): Promise<StaffMember[]> {
+  const out: StaffMember[] = [];
+  for await (const row of kv.list({ prefix: ["staff_by_user", userId] })) {
+    const staffId = row.key[row.key.length - 1] as string;
+    const s = await getStaffById(staffId);
+    if (s) out.push(s);
+  }
+  // newest first
+  out.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  return out;
+}
+
 export async function listStaffByRestaurant(
   restaurantId: string,
-  opts: { includeInactive?: boolean; onlyPending?: boolean } = {},
+  opts: { includeInactive?: boolean } = {},
 ): Promise<StaffMember[]> {
-  const staff: StaffMember[] = [];
-
+  const out: StaffMember[] = [];
   for await (const row of kv.list({ prefix: ["staff_by_restaurant", restaurantId] })) {
     const staffId = row.key[row.key.length - 1] as string;
     const s = await getStaffById(staffId);
     if (!s) continue;
+    if (!opts.includeInactive && s.status === "inactive") continue;
+    out.push(s);
+  }
+  out.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  return out;
+}
 
-    if (!opts.includeInactive && s.status !== "active") continue;
-    if (opts.onlyPending && s.approvalStatus !== "pending") continue;
+/* ─────────────── Create ─────────────── */
 
-    staff.push(s);
+export async function createStaffByOwner(args: {
+  restaurantId: string;
+  userId: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  role: StaffRole;
+  permissions?: StaffPermission[];
+  useDefaults?: boolean;
+}): Promise<StaffMember> {
+  const restaurantId = args.restaurantId;
+  const userId = args.userId;
+
+  const existing = await getStaffByRestaurantAndUser(restaurantId, userId);
+  if (existing) {
+    const err: any = new Error("Staff already exists for this user+restaurant");
+    err.code = "staff_exists";
+    throw err;
   }
 
-  // חדש → ישן
-  staff.sort((a, b) => b.createdAt - a.createdAt);
+  const id = crypto.randomUUID();
+  const createdAt = now();
+
+  const permissions = (args.useDefaults || !args.permissions?.length)
+    ? defaultPermissionsForRole(args.role)
+    : args.permissions;
+
+  const staff: StaffMember = {
+    id,
+    restaurantId,
+    userId,
+    email: args.email,
+    firstName: args.firstName || "",
+    lastName: args.lastName || "",
+    phone: args.phone,
+    role: args.role,
+    status: "active",
+    approvalStatus: "approved",
+    permissions,
+    hireDate: createdAt,
+    createdAt,
+  };
+
+  // atomic write
+  const idx: StaffIdIndex = { restaurantId, userId };
+  const tx = kv.atomic()
+    .check({ key: staffMainKey(restaurantId, userId), versionstamp: null })
+    .check({ key: staffIdKey(id), versionstamp: null })
+    .set(staffMainKey(restaurantId, userId), staff)
+    .set(staffIdKey(id), idx)
+    .set(staffByRestaurantKey(restaurantId, id), true)
+    .set(staffByUserKey(userId, id), true);
+
+  const res = await tx.commit();
+  if (!res.ok) throw new Error("Failed to create staff (atomic commit failed)");
+
   return staff;
 }
 
-/** כל המסעדות שבהן המשתמש רשום כעובד (מאושר או לא) */
-export async function listStaffMembershipsByUser(userId: string): Promise<StaffMember[]> {
-  const items: StaffMember[] = [];
+/* ─────────────── Updates ─────────────── */
 
-  for await (const row of kv.list({ prefix: ["staff_by_user", userId] })) {
-    const staffId = row.key[row.key.length - 1] as string;
-    const s = await getStaffById(staffId);
-    if (s) items.push(s);
+async function updateStaff(staffId: string, patch: Partial<StaffMember>): Promise<StaffMember> {
+  const current = await getStaffById(staffId);
+  if (!current) {
+    const err: any = new Error("Staff not found");
+    err.code = "not_found";
+    throw err;
   }
 
-  items.sort((a, b) => b.createdAt - a.createdAt);
-  return items;
+  const next: StaffMember = { ...current, ...patch };
+  const tx = kv.atomic()
+    .set(staffMainKey(current.restaurantId, current.userId), next)
+    .set(staffIdKey(staffId), { restaurantId: current.restaurantId, userId: current.userId });
+
+  const res = await tx.commit();
+  if (!res.ok) throw new Error("Failed to update staff");
+  return next;
 }
 
-/* ─────────────── עדכון ─────────────── */
-
-export async function updateStaff(
-  staffId: string,
-  patch: Partial<StaffMember>,
-): Promise<StaffMember | null> {
-  const cur = await getStaffById(staffId);
-  if (!cur) return null;
-
-  const merged: StaffMember = {
-    ...cur,
-    ...patch,
-    id: cur.id,
-    restaurantId: cur.restaurantId,
-    userId: cur.userId,
-    createdAt: cur.createdAt,
-  };
-
-  await kv.set(staffMainKey(merged.restaurantId, merged.userId), merged);
-  return merged;
-}
-
-/** שינוי סטטוס אישור (pending/approved/rejected) */
 export async function setStaffApproval(
   staffId: string,
   approvalStatus: StaffApprovalStatus,
-): Promise<StaffMember | null> {
+): Promise<StaffMember> {
   return await updateStaff(staffId, { approvalStatus });
 }
 
-/** שינוי סטטוס תעסוקה (active / inactive / on_leave) */
-export async function setStaffStatus(
-  staffId: string,
-  status: StaffMember["status"],
-): Promise<StaffMember | null> {
-  return await updateStaff(staffId, { status });
-}
-
-/** עדכון הרשאות מלאות לעובד */
 export async function setStaffPermissions(
   staffId: string,
   permissions: StaffPermission[],
-): Promise<StaffMember | null> {
-  return await updateStaff(staffId, {
-    permissions: permissions.slice(),
-  });
+): Promise<StaffMember> {
+  return await updateStaff(staffId, { permissions });
 }
 
-/** איפוס הרשאות לברירת המחדל לפי role */
 export async function resetStaffPermissionsToDefault(
   staffId: string,
-): Promise<StaffMember | null> {
-  const cur = await getStaffById(staffId);
-  if (!cur) return null;
-  return await updateStaff(staffId, {
-    permissions: defaultPermissionsForRole(cur.role),
-  });
+): Promise<StaffMember> {
+  const current = await getStaffById(staffId);
+  if (!current) {
+    const err: any = new Error("Staff not found");
+    err.code = "not_found";
+    throw err;
+  }
+  const perms = defaultPermissionsForRole(current.role);
+  return await updateStaff(staffId, { permissions: perms });
 }
 
-/* ─────────────── מחיקה רכה/קשיחה ─────────────── */
-
-/**
- * "מחיקה רכה" – הופך ל-inactive + מוריד הרשאות.
- * (כדי לשמור היסטוריה במשמרות / דוחות)
- */
-export async function softDeleteStaff(
+// שלב 7.1: השבתה/הפעלה של עובד
+export async function setStaffStatus(
   staffId: string,
-): Promise<StaffMember | null> {
-  return await updateStaff(staffId, {
-    status: "inactive",
-    permissions: [],
-  });
+  status: StaffMember["status"],
+): Promise<StaffMember> {
+  return await updateStaff(staffId, { status });
 }
-
-/**
- * מחיקה קשיחה של עובד + אינדקסים.
- * ⚠️ שימוש בזה בזהירות – ייתכן שתשבור רפרנסים בהמשך (למשמרות וכו').
- */
-export async function hardDeleteStaff(staffId: string): Promise<boolean> {
-  const ref = await kv.get<{ restaurantId: string; userId: string }>(staffIdKey(staffId));
-  if (!ref.value) return false;
-  const { restaurantId, userId } = ref.value;
-
-  const mainKey = staffMainKey(restaurantId, userId);
-  const byRestKey = staffByRestaurantKey(restaurantId, staffId);
-  const byUserKey = staffByUserKey(userId, staffId);
-
-  const tx = kv.atomic()
-    .delete(mainKey)
-    .delete(staffIdKey(staffId))
-    .delete(byRestKey)
-    .delete(byUserKey);
-
-  const res = await tx.commit();
-  return res.ok;
-}
-
-/* ─────────────── יצירת עובד מאושר מתוך בקשת הצטרפות ─────────────── */
-/**
- * helper קטן לשימוש במסך בעלים:
- * כשבעלים מאשר StaffSignupRequest, אפשר לקרוא לפונקציה הזו
- * כדי ליצור רשומת StaffMember מאושרת עם הרשאות דיפולטיות (או override).
- *
- * ⚠️ הפונקציה *לא* נוגעת בבקשת ההצטרפות עצמה (לא משנה status של signup),
- * זה נעשה בשכבה אחרת (owner_staff.ts / database.ts).
- */
-export async function createApprovedStaffFromSignup(args: {
-  restaurantId: string;
-  userId: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string;
-  role: StaffRole;
-  permissionsOverride?: StaffPermission[];
-}): Promise<StaffMember> {
-  return await createStaffByOwner({
-    restaurantId: args.restaurantId,
-    userId: args.userId,
-    firstName: args.firstName,
-    lastName: args.lastName,
-    email: args.email,
-    phone: args.phone,
-    role: args.role,
-    hourlyRate: undefined,
-    hireDate: undefined,
-    permissionsOverride: args.permissionsOverride,
-  });
-}
-

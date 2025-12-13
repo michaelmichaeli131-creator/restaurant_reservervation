@@ -3,6 +3,7 @@
 
 import { Router } from "jsr:@oak/oak";
 import { requireOwner, requireStaff } from "../lib/auth.ts";
+import { requireRestaurantAccess } from "../services/authz.ts";
 import { kv, getRestaurant, listReservationsFor } from "../database.ts";
 import { render } from "../lib/view.ts";
 import {
@@ -124,6 +125,8 @@ ownerFloorRouter.post(
       return;
     }
 
+    if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
+
     const body = await (ctx.request as any).originalRequest?.json?.().catch?.(() => null)
       ?? await (async () => {
         try {
@@ -190,6 +193,12 @@ ownerFloorRouter.get(
       ctx.response.body = { error: "Missing restaurant ID" };
       return;
     }
+
+    if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
+
+    if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
+
+    if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
 
     const user = ctx.state.user;
 
@@ -641,6 +650,8 @@ ownerFloorRouter.get(
       ctx.response.body = { error: "Missing restaurant ID or layout ID" };
       return;
     }
+
+    if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
 
     const user = ctx.state.user;
 

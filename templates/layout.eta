@@ -25,7 +25,7 @@
             </form>
           <% } else { %>
             <a class="link" href="/login">התחברות</a>
-            <a class="link" href="/signup">הרשמה</a>
+            <a class="link" href="/auth/register">הרשמה</a>
           <% } %>
         </div>
       </nav>

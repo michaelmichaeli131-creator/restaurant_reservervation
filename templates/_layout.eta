@@ -98,6 +98,7 @@
       <nav class="sb-actions" aria-label="Main actions">
         <% if (it.user) { %>
           <a class="btn primary btn-manage" href="/owner"><%= it.t ? it.t('nav.manage') : 'נהל מסעדה' %></a>
+          <a class="btn ghost" href="/auth/change-password"><%= it.t ? (it.t('nav.changePassword') || 'שנה סיסמה') : 'שנה סיסמה' %></a>
           <a class="btn ghost btn-logout" href="/auth/logout"><%= it.t ? it.t('nav.logout') : 'התנתק' %></a>
         <% } else { %>
           <a class="btn ghost" href="/auth/login"><%= it.t ? it.t('nav.login') : 'התחבר' %></a>

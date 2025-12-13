@@ -75,6 +75,7 @@ export async function userHasPermission(
   if (!membership) return false;
 
   if (membership.approvalStatus !== "approved") return false;
+  if (membership.status !== "active") return false;
 
   return hasPermission(membership.permissions || [], permission);
 }
@@ -93,6 +94,7 @@ export async function userHasAnyPermission(
   const membership = await getStaffMembership(restaurantId, user.id);
   if (!membership) return false;
   if (membership.approvalStatus !== "approved") return false;
+  if (membership.status !== "active") return false;
 
   return hasAnyPermission(membership.permissions || [], permissions);
 }
@@ -114,9 +116,23 @@ export async function requireRestaurantAccess(
   // Owner — תמיד יכול
   if (user.role === "owner") return true;
 
+  // Fast-path: אם יש staff loaded ב-ctx.state (מה-middleware)
+  // ונראה שהוא תואם למסעדה — נשתמש בו בלי עוד KV lookup.
+  if (user.role === "staff") {
+    const s = (ctx.state as any).staff as StaffMember | null;
+    if (s && s.restaurantId === restaurantId) {
+      if (s.approvalStatus !== "approved" || s.status !== "active") {
+        ctx.response.status = 403;
+        ctx.response.body = "No restaurant access";
+        return false;
+      }
+      return true;
+    }
+  }
+
   // Staff — חייב membership מאושר
   const membership = await getStaffMembership(restaurantId, user.id);
-  if (!membership || membership.approvalStatus !== "approved") {
+  if (!membership || membership.approvalStatus !== "approved" || membership.status !== "active") {
     ctx.response.status = 403;
     ctx.response.body = "No restaurant access";
     return false;

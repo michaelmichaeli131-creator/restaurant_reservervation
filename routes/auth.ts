@@ -17,8 +17,6 @@ import {
   setEmailVerified,
   updateUserPassword,
   getUserById,
-  findRestaurantByNameExact,       // ← חדש
-  createStaffSignupRequest,        // ← חדש
 } from "../database.ts";
 
 import { hashPassword, verifyPassword } from "../lib/auth.ts";
@@ -27,6 +25,18 @@ import { render } from "../lib/view.ts";
 import { sendVerifyEmail, sendResetEmail } from "../lib/mail_wrappers.ts";
 
 export const authRouter = new Router();
+
+function requireLoggedIn(ctx: any): boolean {
+  const user = ctx.state?.user;
+  if (!user) {
+    const redirect = "/auth/login?redirect=" +
+      encodeURIComponent(ctx.request.url.pathname);
+    ctx.response.status = Status.SeeOther;
+    ctx.response.headers.set("Location", redirect);
+    return false;
+  }
+  return true;
+}
 
 /* ---------------- Utils ---------------- */
 
@@ -96,30 +106,34 @@ authRouter.post("/auth/register", async (ctx) => {
   const lastName = String(b.lastName ?? "").trim();
   const email = lower(String(b.email ?? ""));
   const password = String(b.password ?? "");
+  const confirm = String(b.confirm ?? b.passwordConfirm ?? "");
   const businessType = String(b.businessType ?? "").trim();
   const phone = String(b.phone ?? "").trim();
 
-  // 🔥 חדש – שדות סיווג חשבון
+  // סוג חשבון ציבורי: customer / owner בלבד
   const rawAccountType = String(b.accountType ?? "").trim();
-  const accountType: "customer" | "owner" | "staff" =
-    rawAccountType === "customer" || rawAccountType === "staff"
-      ? (rawAccountType as any)
-      : "owner";
+  if (rawAccountType === "staff") {
+    ctx.response.status = Status.BadRequest;
+    await render(ctx, "auth/register", {
+      title: "הרשמה",
+      page: "register",
+      error: "אין הרשמה לעובדים. פנה לבעל המסעדה כדי שיצור עבורך משתמש.",
+      prefill: {
+        firstName,
+        lastName,
+        email,
+        businessType,
+        phone,
+        accountType: "owner",
+      },
+    });
+    return;
+  }
 
-  const staffRole = String(b.staffRole ?? "").trim();
-  const staffRestaurantName = String(b.staffRestaurantName ?? "").trim();
+  const accountType: "customer" | "owner" =
+    rawAccountType === "customer" ? "customer" : "owner";
 
-  // אובייקט prefill שמתאים ל-register.eta החדש
-  const prefill = {
-    firstName,
-    lastName,
-    email,
-    businessType,
-    phone,
-    accountType,
-    staffRole,
-    staffRestaurantName,
-  };
+  const prefill = { firstName, lastName, email, businessType, phone, accountType };
 
   if (!firstName || !lastName || !email || !password) {
     ctx.response.status = Status.BadRequest;
@@ -132,34 +146,16 @@ authRouter.post("/auth/register", async (ctx) => {
     return;
   }
 
-  // אם נרשם כעובד – חובה תפקיד + שם מסעדה
-  if (accountType === "staff" && (!staffRole || !staffRestaurantName)) {
+  // אימות סיסמה מול confirm (הטופס שולח confirm)
+  if (confirm && password !== confirm) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/register", {
       title: "הרשמה",
       page: "register",
-      error: "לעובדי מסעדה חובה לבחור תפקיד ולהזין לאיזו מסעדה אתה שייך.",
+      error: "הסיסמאות אינן תואמות",
       prefill,
     });
     return;
-  }
-
-  // אם זה עובד – נוודא שהמסעדה באמת קיימת ונשמור אותה ליצירת הבקשה
-  let targetRestaurant: any = null;
-  if (accountType === "staff") {
-    const restaurant = await findRestaurantByNameExact(staffRestaurantName);
-    if (!restaurant) {
-      ctx.response.status = Status.BadRequest;
-      await render(ctx, "auth/register", {
-        title: "הרשמה",
-        page: "register",
-        error:
-          "לא נמצאה מסעדה בשם הזה. ודא שבעל המסעדה כבר פתח אותה במערכת, והקלד את השם בדיוק.",
-        prefill,
-      });
-      return;
-    }
-    targetRestaurant = restaurant;
   }
 
   if (password.length < 8) {
@@ -188,15 +184,8 @@ authRouter.post("/auth/register", async (ctx) => {
   const passwordHash = await hashPassword(password);
 
   // מיפוי accountType → user.role
-  // customer → user, owner → owner, staff → staff
-  let targetRole: "user" | "owner" | "staff" | "manager";
-  if (accountType === "customer") {
-    targetRole = "user";
-  } else if (accountType === "staff") {
-    targetRole = "staff";
-  } else {
-    targetRole = "owner";
-  }
+  // customer → user, owner → owner
+  const targetRole: "user" | "owner" = accountType === "customer" ? "user" : "owner";
 
   const created = await createUser({
     firstName,
@@ -209,20 +198,7 @@ authRouter.post("/auth/register", async (ctx) => {
     provider: "local",
   } as any);
 
-  // אם זה עובד – ליצור בקשת הצטרפות עבור בעל המסעדה
-  if (accountType === "staff" && targetRestaurant) {
-    try {
-      await createStaffSignupRequest({
-        userId: created.id,
-        restaurantId: targetRestaurant.id,
-        ownerId: targetRestaurant.ownerId,
-        staffRole: (staffRole || "waiter") as any,
-        restaurantName: targetRestaurant.name,
-      });
-    } catch (e) {
-      console.error("[auth.register] createStaffSignupRequest failed:", e);
-    }
-  }
+  // אין הרשמה ציבורית לעובדים — יצירת StaffMember מתבצעת רק ע"י בעלים מתוך /owner/staff
 
   const token = await createVerifyToken(created.id);
   const lang = (ctx.state?.lang as string | undefined) ?? "he";
@@ -342,6 +318,100 @@ async function doLogout(ctx: any) {
 // תמיכה גם ב-POST (מכפתור/טופס) וגם ב-GET (מלינק פשוט)
 authRouter.post("/auth/logout", doLogout);
 authRouter.get("/auth/logout", doLogout);
+
+
+
+/* ---------------- Change password (logged-in) ---------------- */
+
+authRouter.get("/auth/change-password", async (ctx) => {
+  if (!requireLoggedIn(ctx)) return;
+
+  await render(ctx, "auth/change_password", {
+    title: "שינוי סיסמה",
+    page: "change_password",
+  });
+});
+
+authRouter.post("/auth/change-password", async (ctx) => {
+  if (!requireLoggedIn(ctx)) return;
+
+  const user = ctx.state.user as any;
+  const b = await readForm(ctx);
+
+  const currentPassword = String(b.currentPassword ?? "");
+  const newPassword = String(b.newPassword ?? "");
+  const confirm = String(b.confirm ?? b.passwordConfirm ?? "");
+
+  // Google / חשבונות ללא סיסמה
+  if (user?.provider !== "local" || !user?.passwordHash) {
+    ctx.response.status = Status.BadRequest;
+    await render(ctx, "auth/change_password", {
+      title: "שינוי סיסמה",
+      page: "change_password",
+      error:
+        "החשבון שלך אינו משתמש בסיסמה מקומית (למשל התחברות עם Google). אין אפשרות לשנות סיסמה כאן.",
+    });
+    return;
+  }
+
+  if (!currentPassword || !newPassword || !confirm) {
+    ctx.response.status = Status.BadRequest;
+    await render(ctx, "auth/change_password", {
+      title: "שינוי סיסמה",
+      page: "change_password",
+      error: "נא למלא את כל השדות",
+    });
+    return;
+  }
+
+  if (newPassword.length < 8) {
+    ctx.response.status = Status.BadRequest;
+    await render(ctx, "auth/change_password", {
+      title: "שינוי סיסמה",
+      page: "change_password",
+      error: "הסיסמה החדשה צריכה להכיל לפחות 8 תווים",
+    });
+    return;
+  }
+
+  if (newPassword !== confirm) {
+    ctx.response.status = Status.BadRequest;
+    await render(ctx, "auth/change_password", {
+      title: "שינוי סיסמה",
+      page: "change_password",
+      error: "הסיסמאות אינן תואמות",
+    });
+    return;
+  }
+
+  // וידוא סיסמה נוכחית
+  const ok = await verifyPassword(currentPassword, user.passwordHash);
+  if (!ok) {
+    ctx.response.status = Status.BadRequest;
+    await render(ctx, "auth/change_password", {
+      title: "שינוי סיסמה",
+      page: "change_password",
+      error: "הסיסמה הנוכחית שגויה",
+    });
+    return;
+  }
+
+  const newHash = await hashPassword(newPassword);
+  await updateUserPassword(user.id, newHash);
+
+  // עדכון אובייקט המשתמש ב-ctx.state כך שבאותה בקשה/רינדור הוא מעודכן
+  try {
+    (ctx.state.user as any).passwordHash = newHash;
+  } catch {
+    // ignore
+  }
+
+  await render(ctx, "auth/change_password", {
+    title: "שינוי סיסמה",
+    page: "change_password",
+    info: "הסיסמה עודכנה בהצלחה",
+  });
+});
 
 
 
