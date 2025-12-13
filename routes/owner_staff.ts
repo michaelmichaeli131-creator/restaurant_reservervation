@@ -16,7 +16,8 @@ import {
   type User,
   type Restaurant,
   type StaffPermission,
-  type StaffRole,  getRestaurant,
+  type StaffRole,
+  getRestaurant,
   getUserById,
   findUserByEmail,
   createUser,
@@ -116,8 +117,6 @@ type OwnerCreateStaffPayload = {
   useDefaults?: boolean;
 };
 
-
-
 const STAFF_ROLE_OPTIONS: Array<{ value: StaffRole; label: string }> = [
   { value: "manager", label: "מנהל/ת" },
   { value: "shift_manager", label: "אחמ״ש/ית" },
@@ -128,7 +127,6 @@ const STAFF_ROLE_OPTIONS: Array<{ value: StaffRole; label: string }> = [
   { value: "chef", label: "שף/ית" },
   { value: "kitchen", label: "מטבח" },
 ];
-
 
 const STAFF_ROLES: StaffRole[] = [
   "manager",
@@ -145,39 +143,86 @@ function isStaffRole(x: unknown): x is StaffRole {
   return typeof x === "string" && STAFF_ROLES.includes(x as StaffRole);
 }
 
+/* ✅ MIN FIX: קריאה יציבה של body (JSON / form / form-data) לפי Content-Type
+   - בלי לקרוא ctx.request.body() פעמיים
+   - זה פותר invalid_body כשאתה שולח fetch עם application/json
+*/
+function parseBool(x: unknown): boolean {
+  return x === true || x === "true" || x === "on" || x === 1 || x === "1";
+}
+
+function parsePerms(x: unknown): string[] | undefined {
+  if (Array.isArray(x)) return x.map((v) => String(v));
+  if (typeof x === "string") {
+    const s = x.trim();
+    if (!s) return undefined;
+    // תומך גם ב-"a,b,c" וגם ב-"a"
+    return s.includes(",")
+      ? s.split(",").map((t) => t.trim()).filter(Boolean)
+      : [s];
+  }
+  return undefined;
+}
+
 async function readOwnerCreateStaffPayload(ctx: any): Promise<OwnerCreateStaffPayload> {
-  const body = ctx.request.body();
+  const ct = (ctx.request.headers.get("content-type") || "").toLowerCase();
 
   // JSON
-  if (body.type === "json") {
-    const v = await body.value;
+  if (ct.includes("application/json")) {
+    const v = await ctx.request.body({ type: "json" }).value;
     return {
-      restaurantId: String(v.restaurantId ?? "").trim(),
-      email: String(v.email ?? "").trim(),
-      password: String(v.password ?? ""),
-      firstName: v.firstName ? String(v.firstName).trim() : undefined,
-      lastName: v.lastName ? String(v.lastName).trim() : undefined,
-      phone: v.phone ? String(v.phone).trim() : undefined,
-      role: v.role as StaffRole,
-      permissions: Array.isArray(v.permissions) ? v.permissions.map(String) : undefined,
-      useDefaults: Boolean(v.useDefaults),
+      restaurantId: String(v?.restaurantId ?? "").trim(),
+      email: String(v?.email ?? "").trim(),
+      password: String(v?.password ?? ""),
+      firstName: v?.firstName ? String(v.firstName).trim() : undefined,
+      lastName: v?.lastName ? String(v.lastName).trim() : undefined,
+      phone: v?.phone ? String(v.phone).trim() : undefined,
+      role: String(v?.role ?? "") as StaffRole,
+      permissions: parsePerms(v?.permissions),
+      useDefaults: parseBool(v?.useDefaults),
     };
   }
 
-  // Form
-  const form = await ctx.request.body({ type: "form" }).value;
-  const perms = form.getAll("permissions") as string[] | undefined;
-  return {
-    restaurantId: String(form.get("restaurantId") ?? "").trim(),
-    email: String(form.get("email") ?? "").trim(),
-    password: String(form.get("password") ?? ""),
-    firstName: form.get("firstName") ? String(form.get("firstName")).trim() : undefined,
-    lastName: form.get("lastName") ? String(form.get("lastName")).trim() : undefined,
-    phone: form.get("phone") ? String(form.get("phone")).trim() : undefined,
-    role: String(form.get("role") ?? "") as StaffRole,
-    permissions: perms,
-    useDefaults: form.get("useDefaults") === "on",
-  };
+  // Form (x-www-form-urlencoded)
+  try {
+    const form = await ctx.request.body({ type: "form" }).value;
+    const perms = (form.getAll("permissions") as string[] | undefined) ?? undefined;
+
+    return {
+      restaurantId: String(form.get("restaurantId") ?? "").trim(),
+      email: String(form.get("email") ?? "").trim(),
+      password: String(form.get("password") ?? ""),
+      firstName: form.get("firstName") ? String(form.get("firstName")).trim() : undefined,
+      lastName: form.get("lastName") ? String(form.get("lastName")).trim() : undefined,
+      phone: form.get("phone") ? String(form.get("phone")).trim() : undefined,
+      role: String(form.get("role") ?? "") as StaffRole,
+      permissions: perms && perms.length ? perms.map(String) : undefined,
+      useDefaults: form.get("useDefaults") === "on",
+    };
+  } catch {
+    // multipart/form-data (fallback)
+    const fd = await ctx.request.body({ type: "form-data" }).value;
+    const data = await fd.read();
+    const fields = data.fields || {};
+
+    // permissions יכול להיות שדה יחיד או מערך – תלוי איך נשלח
+    const permsRaw: unknown = (fields as any).permissions;
+    const perms = Array.isArray(permsRaw)
+      ? permsRaw.map((x) => String(x))
+      : (typeof permsRaw === "string" && permsRaw ? [permsRaw] : undefined);
+
+    return {
+      restaurantId: String((fields as any).restaurantId ?? "").trim(),
+      email: String((fields as any).email ?? "").trim(),
+      password: String((fields as any).password ?? ""),
+      firstName: (fields as any).firstName ? String((fields as any).firstName).trim() : undefined,
+      lastName: (fields as any).lastName ? String((fields as any).lastName).trim() : undefined,
+      phone: (fields as any).phone ? String((fields as any).phone).trim() : undefined,
+      role: String((fields as any).role ?? "") as StaffRole,
+      permissions: perms,
+      useDefaults: parseBool((fields as any).useDefaults),
+    };
+  }
 }
 
 /* ─────────────── GET: מסך ניהול עובדים ─────────────── */
@@ -206,11 +251,11 @@ ownerStaffRouter.get("/owner/staff", async (ctx) => {
 
   // Staff signup requests removed (staff is created only by owners)
 
-
   const items: Array<{
     restaurant: Restaurant;
     staff: Awaited<ReturnType<typeof listStaffByRestaurant>>;
-    pending: Awaited<ReturnType<typeof listStaffByRestaurant>>;  }> = [];
+    pending: Awaited<ReturnType<typeof listStaffByRestaurant>>;
+  }> = [];
 
   for (const r of restaurants) {
     const all = await listStaffByRestaurant(r.id, { includeInactive: true });
@@ -228,7 +273,8 @@ ownerStaffRouter.get("/owner/staff", async (ctx) => {
     items.push({
       restaurant: r,
       staff: active,
-      pending    });
+      pending,
+    });
   }
 
   await render(ctx, "owner/staff", {
@@ -394,7 +440,8 @@ ownerStaffRouter.post("/owner/staff/create", async (ctx) => {
   });
 
   // decide response type
-  const wantsJson = ctx.request.headers.get("accept")?.includes("application/json") ||
+  const wantsJson =
+    ctx.request.headers.get("accept")?.includes("application/json") ||
     ctx.request.headers.get("content-type")?.includes("application/json");
 
   if (wantsJson) {
@@ -556,8 +603,6 @@ ownerStaffRouter.post("/owner/staff/:id/reject", async (ctx) => {
   ctx.response.redirect(String(redirectTo));
 });
 
-
-
 /* ─────────────── POST: השבתה/הפעלה של עובד ─────────────── */
 // שלב 7.1: toggle active/inactive
 ownerStaffRouter.post("/owner/staff/:id/status", async (ctx) => {
@@ -606,7 +651,9 @@ ownerStaffRouter.post("/owner/staff/:id/status", async (ctx) => {
 
   const redirectTo = form.get("redirectTo") || "/owner/staff";
   ctx.response.redirect(String(redirectTo));
-});/* ─────────────── POST: יצירת קישור איפוס סיסמה לעובד ─────────────── */
+});
+
+/* ─────────────── POST: יצירת קישור איפוס סיסמה לעובד ─────────────── */
 // Owner generates a reset link for a staff user (no email sending here).
 // Returns JSON: { ok:true, resetUrl:"/auth/reset?token=..." }
 ownerStaffRouter.post("/owner/staff/:id/password-reset-link", async (ctx) => {
@@ -679,7 +726,10 @@ ownerStaffRouter.get("/owner/staff/audit", async (ctx) => {
     return;
   }
 
-  const events = await listAuditEventsForRestaurant(restaurantId, Number.isFinite(limit) ? Math.max(1, Math.min(200, limit)) : 50);
+  const events = await listAuditEventsForRestaurant(
+    restaurantId,
+    Number.isFinite(limit) ? Math.max(1, Math.min(200, limit)) : 50,
+  );
   ctx.response.status = Status.OK;
   ctx.response.body = { ok: true, restaurantId, events };
 });
@@ -731,9 +781,7 @@ ownerStaffRouter.post("/owner/staff/:id/permissions", async (ctx) => {
       targetId: staffId,
       meta: { mode: "defaults" },
     });
-    console.log("[owner_staff] permissions reset to defaults", {
-      staffId,
-    });
+    console.log("[owner_staff] permissions reset to defaults", { staffId });
   } else {
     const filtered: StaffPermission[] = [];
     if (rawPerms) {
@@ -763,8 +811,6 @@ ownerStaffRouter.post("/owner/staff/:id/permissions", async (ctx) => {
   const redirectTo = form.get("redirectTo") || "/owner/staff";
   ctx.response.redirect(String(redirectTo));
 });
-
-
 
 /** אישור בקשת הצטרפות */
 /** דחיית בקשת הצטרפות */
