@@ -6,9 +6,232 @@
     "login": "התחבר",
     "register": "הרשם",
     "admin": "Admin",
-    "language": "בחר שפה"
+    "language": "בחר שפה",
+    "changePassword": "שנה סיסמה"
   },
   "footer": {
     "rights": "כל הזכויות שמורות"
+  },
+  "common": {
+    "btn_save": "שמור",
+    "btn_cancel": "ביטול",
+    "btn_delete": "מחק",
+    "btn_edit": "ערוך",
+    "btn_add": "הוסף",
+    "btn_close": "סגור",
+    "btn_back": "חזרה",
+    "btn_copy": "העתק",
+    "btn_open": "פתח",
+    "btn_refresh": "רענון",
+    "btn_check": "בדוק",
+    "people_unit": "סועדים",
+    "items_unit": "פריטים"
+  },
+  "lang": {
+    "hebrew": "עברית",
+    "english": "English",
+    "georgian": "ქართული"
+  },
+  "owner": {
+    "dashboard": {
+      "title": "דשבורד בעלים",
+      "aria_section": "דשבורד בעלים",
+      "btn_floor": "סידור שולחנות",
+      "btn_menu": "עריכת תפריט",
+      "btn_waiter": "מסך מלצרים",
+      "btn_kitchen": "מסך מטבח",
+      "btn_host": "מסך מארחת",
+      "btn_bar": "מסך בר",
+      "btn_bills": "חשבונות אחרונים",
+      "btn_stats": "סטטיסטיקות ודוחות",
+      "btn_inventory": "מלאי חומרי גלם",
+      "btn_costs": "עלויות חומרי גלם",
+      "btn_counts": "ספירות מלאי",
+      "btn_foodcost": "עלות מנה ורווחיות",
+      "btn_suppliers": "ספקים",
+      "btn_po": "הזמנות רכש (PO)",
+      "btn_recipes": "מתכוני מנות",
+      "btn_photos": "תמונות",
+      "btn_shifts": "ניהול משמרות"
+    },
+    "staff": {
+      "manage_title": "ניהול עובדים",
+      "btn_add": "➕ הוסף עובד",
+      "modal_title": "הוסף עובד",
+      "empty_hint": "לחץ למעלה על \"הוסף עובד\" כדי ליצור עובד",
+      "btn_activate": "הפעל",
+      "btn_deactivate": "השבת",
+      "confirm_deactivate": "להשבית את העובד? הוא לא יוכל להיכנס/לעבוד",
+      "permissions": "הרשאות",
+      "btn_save_permissions": "שמור הרשאות",
+      "reset_pw": {
+        "label": "קישור"
+      },
+      "tbl": {
+        "name": "שם",
+        "role": "תפקיד",
+        "email": "אימייל",
+        "phone": "טלפון",
+        "created": "נרשם",
+        "actions": "פעולות"
+      }
+    },
+    "menu": {
+      "categories": "קטגוריות",
+      "confirm_delete_category": "למחוק קטגוריה?",
+      "btn_add_category": "הוסף קטגוריה",
+      "items": "מנות",
+      "btn_add_item": "הוסף מנה",
+      "dest_kitchen": "מטבח",
+      "dest_bar": "בר",
+      "tbl": {
+        "name": "שם",
+        "price": "מחיר",
+        "destination": "יעד",
+        "category": "קטגוריה"
+      }
+    },
+    "bills": {
+      "tbl": {
+        "date": "תאריך",
+        "table": "שולחן",
+        "amount": "סכום",
+        "actions": "פעולות"
+      },
+      "empty": "עדיין אין חשבונות"
+    },
+    "inventory": {
+      "title": "מלאי חומרי גלם",
+      "add_new": "הוספת חומר גלם חדש",
+      "all_items": "כל חומרי הגלם",
+      "empty": "עדיין אין חומרי גלם",
+      "btn_add": "➕ הוסף חומר גלם",
+      "form": {
+        "name": "שם חומר גלם *",
+        "unit": "יחידת מידה",
+        "current_qty": "כמות נוכחית",
+        "min_qty": "מינימום רצוי",
+        "cost_per_unit": "עלות ליחידה (₪)",
+        "supplier": "ספק מועדף",
+        "notes": "הערות"
+      }
+    }
+  },
+  "pos": {
+    "waiter": {
+      "items_count": "פריטים",
+      "btn_close_order": "סגירת שולחן / הוצאת חשבון",
+      "btn_mark_served": "סמן הוגש"
+    },
+    "menu": {
+      "title": "תפריט",
+      "help_text": "בחר מנות מהתפריט",
+      "empty": "אין מנות בתפריט כרגע",
+      "no_category": "ללא קטגוריה"
+    },
+    "order": {
+      "title": "הזמנה לשולחן",
+      "tbl": {
+        "dish": "מנה",
+        "quantity": "כמות",
+        "destination": "יעד",
+        "status": "סטטוס",
+        "total": "סה״כ",
+        "actions": "פעולות"
+      }
+    },
+    "status": {
+      "received": "התקבל",
+      "in_progress": "בהכנה",
+      "ready": "מוכן",
+      "served": "הוגש",
+      "cancelled": "בוטל"
+    },
+    "error": {
+      "load_menu": "שגיאה בטעינת התפריט"
+    },
+    "kitchen": {
+      "title": "מסך מטבח —",
+      "orders_title": "הזמנות מטבח",
+      "instructions": "החצים משנים סטטוס..."
+    },
+    "bar": {
+      "title": "מסך בר —",
+      "orders_title": "הזמנות בבר"
+    }
+  },
+  "host": {
+    "people_unit": "סועדים",
+    "table_status": {
+      "reserved": "שמורה"
+    },
+    "status": {
+      "reserved": "שמורה"
+    }
+  },
+  "restaurant": {
+    "menu": {
+      "title": "תפריט"
+    },
+    "photos": {
+      "title": "תמונות"
+    },
+    "reviews": {
+      "title": "ביקורות"
+    },
+    "form": {
+      "date": "תאריך",
+      "time": "שעה"
+    }
+  },
+  "reservation": {
+    "form": {
+      "title": "הזמנה"
+    }
+  },
+  "review": {
+    "form": {
+      "rating": "דירוג"
+    }
+  },
+  "auth": {
+    "signup": {
+      "title": "הרשמה",
+      "btn_submit": "הרשמה"
+    },
+    "register": {
+      "form": {
+        "role_user": "משתמש"
+      }
+    }
+  },
+  "floor": {
+    "loading": "טוען תכניות רצפה...",
+    "empty_state": "לא נמצאו תכניות רצפה. אנא צור תכנית רצפה תחילה.",
+    "btn_create_new": "צור תכנית חדשה",
+    "btn_duplicate": "שכפל",
+    "btn_add_table": "הוסף שולחן",
+    "btn_save_layout": "שמור תכנית",
+    "error": {
+      "enter_name": "אנא הזן שם תכנית",
+      "server": "שגיאת שרת: {status} {statusText}",
+      "create": "שגיאה ביצירת תכנית: {error}",
+      "delete": "מחיקה נכשלה",
+      "delete_general": "שגיאה במחיקת תכנית",
+      "duplicate": "שגיאה בשכפול תכנית",
+      "save": "שגיאה בשמירה"
+    },
+    "confirm": {
+      "delete_layout": "האם אתה בטוח שברצונך למחוק תכנית זו?"
+    },
+    "prompt": {
+      "duplicate_name": "הזן שם עבור תכנית משוכפלת:"
+    },
+    "status": {
+      "empty": "פנוי",
+      "occupied": "תפוס",
+      "reserved": "שמור",
+      "dirty": "מלוכלך"
+    }
   }
 }

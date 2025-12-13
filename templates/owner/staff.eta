@@ -338,13 +338,13 @@
   <div class="card">
     <div class="owner-hd">
       <div>
-        <h1>👥 ניהול עובדים</h1>
+        <h1>👥 <%= tt('owner.staff.manage_title', 'ניהול עובדים') %></h1>
         <div class="muted">
           רשימת עובדים מינימלית. לניהול הרשאות ופרטים נוספים — כנס לעמוד העובד.
         </div>
       </div>
       <div class="pill-row">
-        <button type="button" class="btn sm" id="btnOpenCreateStaff">➕ הוסף עובד</button>
+        <button type="button" class="btn sm" id="btnOpenCreateStaff"><%= tt('owner.staff.btn_add', '➕ הוסף עובד') %></button>
         <button type="button" class="btn sm ghost" id="btnOpenAudit">🧾 לוג פעולות</button>
         <span class="pill">בעלים: <b><%= owner?.firstName %> <%= owner?.lastName %></b></span>
         <span class="pill">אימייל: <b><%= owner?.email %></b></span>
@@ -391,12 +391,12 @@
                 <table>
                   <thead>
                     <tr>
-                      <th>שם</th>
-                      <th>תפקיד</th>
-                      <th>אימייל</th>
-                      <th>טלפון</th>
-                      <th>נרשם</th>
-                      <th class="actions">פעולות</th>
+                      <th><%= tt('owner.staff.tbl.name', 'שם') %></th>
+                      <th><%= tt('owner.staff.tbl.role', 'תפקיד') %></th>
+                      <th><%= tt('owner.staff.tbl.email', 'אימייל') %></th>
+                      <th><%= tt('owner.staff.tbl.phone', 'טלפון') %></th>
+                      <th><%= tt('owner.staff.tbl.created', 'נרשם') %></th>
+                      <th class="actions"><%= tt('owner.staff.tbl.actions', 'פעולות') %></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -477,10 +477,10 @@
                       <input type="hidden" name="redirectTo" value="/owner/staff" />
                       <input type="hidden" name="status" value="<%= isInactive ? "active" : "inactive" %>" />
                       <% if (isInactive) { %>
-                        <button class="btn sm" type="submit">הפעל</button>
+                        <button class="btn sm" type="submit"><%= tt('owner.staff.btn_activate', 'הפעל') %></button>
                       <% } else { %>
                         <button class="btn ghost sm" type="submit"
-                          onclick="return confirm('להשבית את העובד? הוא לא יוכל להיכנס/לעבוד במערכת.');">השבת</button>
+                          onclick="return confirm('<%= tt('owner.staff.confirm_deactivate', 'להשבית את העובד? הוא לא יוכל להיכנס/לעבוד במערכת.') %>');"><%= tt('owner.staff.btn_deactivate', 'השבת') %></button>
                       <% } %>
                     </form>
 
@@ -504,7 +504,7 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="createStaffTitle">
     <div class="dialog-hd">
       <div>
-        <div style="font-size:16px;font-weight:800" id="createStaffTitle">➕ הוסף עובד</div>
+        <div style="font-size:16px;font-weight:800" id="createStaffTitle"><%= tt('owner.staff.btn_add', '➕ הוסף עובד') %></div>
         <div class="muted" style="margin-top:4px">יוצר משתמש עובד (staff) למסעדה הנבחרת. אין הרשמה ציבורית לעובדים.</div>
       </div>
       <button type="button" class="btn ghost sm" id="btnCloseCreateStaff">✕</button>
@@ -587,7 +587,7 @@
     </div>
 
     <div class="dialog-ft">
-      <button type="button" class="btn ghost" id="btnCancelCreateStaff">ביטול</button>
+      <button type="button" class="btn ghost" id="btnCancelCreateStaff"><%= tt('common.btn_cancel', 'ביטול') %></button>
       <button type="submit" class="btn" form="createStaffForm" id="btnSubmitCreateStaff">צור עובד</button>
     </div>
   </div>
@@ -606,11 +606,11 @@
 
     <div class="dialog-bd">
       <div class="field">
-        <label>קישור</label>
+        <label><%= tt('owner.staff.reset_pw.label', 'קישור') %></label>
         <input id="resetPwLink" type="text" readonly value="" />
         <div style="display:flex; gap:8px; margin-top:10px">
-          <button type="button" class="btn" id="btnCopyResetPw">העתק</button>
-          <button type="button" class="btn ghost" id="btnOpenResetPw">פתח</button>
+          <button type="button" class="btn" id="btnCopyResetPw"><%= tt('common.btn_copy', 'העתק') %></button>
+          <button type="button" class="btn ghost" id="btnOpenResetPw"><%= tt('common.btn_open', 'פתח') %></button>
         </div>
         <div class="hint" style="margin-top:8px; opacity:.85">
           מומלץ לשלוח לעובד את הקישור בהודעה פרטית. הקישור חד-פעמי.
@@ -620,7 +620,7 @@
     </div>
 
     <div class="dialog-ft">
-      <button type="button" class="btn ghost" id="btnCloseResetPw2">סגור</button>
+      <button type="button" class="btn ghost" id="btnCloseResetPw2"><%= tt('common.btn_close', 'סגור') %></button>
     </div>
   </div>
 </div>
@@ -667,7 +667,7 @@
     </div>
 
     <div class="dialog-ft">
-      <button class="btn ghost" type="button" id="auditCloseBtn2">סגור</button>
+      <button class="btn ghost" type="button" id="auditCloseBtn2"><%= tt('common.btn_close', 'סגור') %></button>
     </div>
   </div>
 </div>

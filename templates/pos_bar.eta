@@ -8,7 +8,7 @@
 <main class="container pos-bar-page" dir="rtl">
   <header class="page-header bar-header">
     <div>
-      <h1>מסך בר — <%= r.name %></h1>
+      <h1><%= tt('pos.bar.title', 'מסך בר —') %> <%= r.name %></h1>
       <p class="muted"><%= r.city %> • <%= r.address %></p>
     </div>
     <div class="header-actions">
@@ -16,8 +16,8 @@
     </div>
   </header>
 
-  <section class="panel card bar-board" aria-label="הזמנות בר פעילות">
-    <h2 class="card-title">הזמנות בבר</h2>
+  <section class="panel card bar-board" aria-label="<%= tt('pos.bar.orders_title', 'הזמנות בבר') %>">
+    <h2 class="card-title"><%= tt('pos.bar.orders_title', 'הזמנות בבר') %></h2>
     <p class="muted" style="font-size:12px;margin-bottom:6px">
       החצים משנים סטטוס משקאות: קדימה (התקבל → בהכנה → מוכן) או אחורה.<br>
       סטטוס "הוגש" מתעדכן על ידי המלצר.
@@ -25,17 +25,17 @@
 
     <div id="bar-columns" class="bar-columns" data-rid="<%= rid %>">
       <div class="bar-col" data-status="received">
-        <div class="col-head">התקבל</div>
+        <div class="col-head"><%= tt('pos.status.received', 'התקבל') %></div>
         <div class="col-body" id="bar-col-received"></div>
       </div>
 
       <div class="bar-col" data-status="in_progress">
-        <div class="col-head">בהכנה</div>
+        <div class="col-head"><%= tt('pos.status.in_progress', 'בהכנה') %></div>
         <div class="col-body" id="bar-col-in-progress"></div>
       </div>
 
       <div class="bar-col" data-status="ready">
-        <div class="col-head">מוכן</div>
+        <div class="col-head"><%= tt('pos.status.ready', 'מוכן') %></div>
         <div class="col-body" id="bar-col-ready"></div>
       </div>
     </div>

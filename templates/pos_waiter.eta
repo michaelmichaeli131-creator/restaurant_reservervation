@@ -21,7 +21,7 @@
       data-rid="<%= rid %>"
       data-table="<%= tbl %>"
     >
-      <span id="bill-items"><%= totals.itemsCount %> פריטים</span>
+      <span id="bill-items"><%= totals.itemsCount %> <%= tt('pos.waiter.items_count', 'פריטים') %></span>
       <span>•</span>
       <span id="bill-total"><%= totals.subtotal.toFixed(2) %> ₪</span>
     </div>
@@ -33,8 +33,8 @@
 
   <section class="waiter-layout">
     <!-- תפריט -->
-    <aside class="panel card menu-panel" aria-label="תפריט מנות">
-      <h2 class="card-title">תפריט</h2>
+    <aside class="panel card menu-panel" aria-label="<%= tt('pos.menu.title', 'תפריט') %> מנות">
+      <h2 class="card-title"><%= tt('pos.menu.title', 'תפריט') %></h2>
       <p class="muted" style="font-size:12px">
         בחר מנות מהתפריט כדי להוסיף להזמנה של השולחן.
       </p>
@@ -44,18 +44,18 @@
     </aside>
 
     <!-- הזמנה -->
-    <section class="panel card order-panel" aria-label="הזמנה לשולחן">
-      <h2 class="card-title">הזמנה לשולחן <%= tbl %></h2>
+    <section class="panel card order-panel" aria-label="<%= tt('pos.order.title', 'הזמנה לשולחן') %>">
+      <h2 class="card-title"><%= tt('pos.order.title', 'הזמנה לשולחן') %> <%= tbl %></h2>
 
       <table class="order-table">
         <thead>
           <tr>
-            <th>מנה</th>
-            <th>כמות</th>
-            <th>יעד</th>
-            <th>סטטוס</th>
-            <th>סה״כ</th>
-            <th>פעולות</th>
+            <th><%= tt('pos.order.tbl.dish', 'מנה') %></th>
+            <th><%= tt('pos.order.tbl.quantity', 'כמות') %></th>
+            <th><%= tt('pos.order.tbl.destination', 'יעד') %></th>
+            <th><%= tt('pos.order.tbl.status', 'סטטוס') %></th>
+            <th><%= tt('pos.order.tbl.total', 'סה״כ') %></th>
+            <th><%= tt('pos.order.tbl.actions', 'פעולות') %></th>
           </tr>
         </thead>
         <tbody id="order-items">
@@ -76,14 +76,14 @@
                 </td>
                 <td class="col-qty">x<%= row.quantity %></td>
                 <td class="col-dest">
-                  <%= row.destination === 'bar' ? 'בר' : 'מטבח' %>
+                  <%= row.destination === 'bar' ? tt('owner.menu.dest_bar', 'בר') : tt('owner.menu.dest_kitchen', 'מטבח') %>
                 </td>
                 <td class="col-status">
-                  <% if (row.status === 'received') { %>התקבל
-                  <% } else if (row.status === 'in_progress') { %>בהכנה
-                  <% } else if (row.status === 'ready') { %>מוכן
-                  <% } else if (row.status === 'served') { %>הוגש
-                  <% } else if (row.status === 'cancelled') { %>בוטל
+                  <% if (row.status === 'received') { %><%= tt('pos.status.received', 'התקבל') %>
+                  <% } else if (row.status === 'in_progress') { %><%= tt('pos.status.in_progress', 'בהכנה') %>
+                  <% } else if (row.status === 'ready') { %><%= tt('pos.status.ready', 'מוכן') %>
+                  <% } else if (row.status === 'served') { %><%= tt('pos.status.served', 'הוגש') %>
+                  <% } else if (row.status === 'cancelled') { %><%= tt('pos.status.cancelled', 'בוטל') %>
                   <% } else { %><%= row.status %><% } %>
                 </td>
                 <td class="col-total">
@@ -91,16 +91,16 @@
                 </td>
                 <td class="col-actions">
                   <% if (row.status === 'cancelled') { %>
-                    <span class="muted">בוטל</span>
+                    <span class="muted"><%= tt('pos.status.cancelled', 'בוטל') %></span>
                   <% } else if (row.status === 'served') { %>
-                    <span class="muted">הוגש</span>
+                    <span class="muted"><%= tt('pos.status.served', 'הוגש') %></span>
                   <% } else { %>
                     <button type="button" class="btn ghost btn-cancel-item">
-                      🗑 ביטול
+                      🗑 <%= tt('common.btn_cancel', 'ביטול') %>
                     </button>
                     <% if (row.status === 'ready' || row.status === 'in_progress') { %>
                       <button type="button" class="btn ghost btn-mark-served" style="margin-inline-start:4px;">
-                        ✅ סמן הוגש
+                        ✅ <%= tt('pos.waiter.btn_mark_served', 'סמן הוגש') %>
                       </button>
                     <% } %>
                   <% } %>
@@ -121,7 +121,7 @@
 
       <div class="bill-actions">
         <button type="button" id="btn-close-order" class="btn primary">
-          סגירת שולחן / הוצאת חשבון
+          <%= tt('pos.waiter.btn_close_order', 'סגירת שולחן / הוצאת חשבון') %>
         </button>
       </div>
     </section>
@@ -146,14 +146,14 @@
         const items = await res.json();
         renderMenu(items);
       }catch(e){
-        root.innerHTML = '<p class="muted">שגיאה בטעינת התפריט.</p>';
+        root.innerHTML = '<p class="muted"><%= tt('pos.error.load_menu', 'שגיאה בטעינת התפריט.') %></p>';
         console.error(e);
       }
     }
 
     function renderMenu(items){
       if(!Array.isArray(items) || !items.length){
-        root.innerHTML = '<p class="muted">אין מנות בתפריט כרגע.</p>';
+        root.innerHTML = '<p class="muted"><%= tt('pos.menu.empty', 'אין מנות בתפריט כרגע.') %></p>';
         return;
       }
       const byCat = new Map();
@@ -169,7 +169,7 @@
         section.className = "menu-section";
         const title = document.createElement("h3");
         title.className = "menu-section-title";
-        title.textContent = cid === "__no_cat__" ? "ללא קטגוריה" : (list[0].categoryName || "קטגוריה");
+        title.textContent = cid === "__no_cat__" ? "<%= tt('pos.menu.no_category', 'ללא קטגוריה') %>" : (list[0].categoryName || "קטגוריה");
         section.appendChild(title);
 
         const grid = document.createElement("div");
@@ -187,7 +187,7 @@
             <div class="menu-item-desc muted">${m.desc_he || m.desc_en || ''}</div>
             <div class="menu-item-footer">
               <span class="price">${Number(m.price || 0).toFixed(2)} ₪</span>
-              <span class="dest">${m.destination === 'bar' ? 'בר' : 'מטבח'}</span>
+              <span class="dest">${m.destination === 'bar' ? '<%= tt('owner.menu.dest_bar', 'בר') %>' : '<%= tt('owner.menu.dest_kitchen', 'מטבח') %>'}</span>
             </div>
           `;
           grid.appendChild(card);
@@ -248,18 +248,18 @@
           </td>
           <td class="col-qty">x${item.quantity}</td>
           <td class="col-dest">
-            ${item.destination === 'bar' ? 'בר' : 'מטבח'}
+            ${item.destination === 'bar' ? '<%= tt('owner.menu.dest_bar', 'בר') %>' : '<%= tt('owner.menu.dest_kitchen', 'מטבח') %>'}
           </td>
-          <td class="col-status">התקבל</td>
+          <td class="col-status"><%= tt('pos.status.received', 'התקבל') %></td>
           <td class="col-total">
             ${(item.unitPrice * item.quantity).toFixed(2)} ₪
           </td>
           <td class="col-actions">
             <button type="button" class="btn ghost btn-cancel-item">
-              🗑 ביטול
+              🗑 <%= tt('common.btn_cancel', 'ביטול') %>
             </button>
             <button type="button" class="btn ghost btn-mark-served" style="margin-inline-start:4px;">
-              ✅ סמן הוגש
+              ✅ <%= tt('pos.waiter.btn_mark_served', 'סמן הוגש') %>
             </button>
           </td>
         `;

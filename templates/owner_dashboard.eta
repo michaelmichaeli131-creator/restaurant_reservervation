@@ -28,7 +28,7 @@ function tt(k, fb){
         <!-- 🔥 כפתור חדש: ניהול עובדים והרשאות -->
         <a href="/owner/staff" class="btn sm ghost owner-staff-btn">
           <span class="icon">👥</span>
-          ניהול עובדים
+          <%= tt('owner.staff.manage_title', 'ניהול עובדים') %>
         </a>
       </div>
     </header>
@@ -114,70 +114,70 @@ function tt(k, fb){
                 <div class="actions pos-actions">
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/menu">
                     <span class="icon">🧾</span>
-                    עריכת תפריט
+                    <%= tt('owner.dashboard.btn_menu', 'עריכת תפריט') %>
                   </a>
                   <a class="btn ghost wide" href="/waiter/<%= r.id %>">
                     <span class="icon">🍽️</span>
-                    מסך מלצרים
+                    <%= tt('owner.dashboard.btn_waiter', 'מסך מלצרים') %>
                   </a>
                   <a class="btn ghost wide" href="/kitchen/<%= r.id %>">
                     <span class="icon">🧑‍🍳</span>
-                    מסך מטבח
+                    <%= tt('owner.dashboard.btn_kitchen', 'מסך מטבח') %>
                   </a>
                   <!-- מסך מארחת -->
                   <a class="btn ghost wide" href="/host/<%= r.id %>">
                     <span class="icon">🪑</span>
-                    מסך מארחת
+                    <%= tt('owner.dashboard.btn_host', 'מסך מארחת') %>
                   </a>
                   <!-- מסך בר -->
                   <a class="btn ghost wide" href="/bar/<%= r.id %>">
                     <span class="icon">🍸</span>
-                    מסך בר
+                    <%= tt('owner.dashboard.btn_bar', 'מסך בר') %>
                   </a>
                   <!-- ✅ חשבונות -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/bills">
                     <span class="icon">💳</span>
-                    חשבונות אחרונים
+                    <%= tt('owner.dashboard.btn_bills', 'חשבונות אחרונים') %>
                   </a>
                   <!-- ✅ סטטיסטיקות -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/stats">
                     <span class="icon">📊</span>
-                    סטטיסטיקות ודוחות
+                    <%= tt('owner.dashboard.btn_stats', 'סטטיסטיקות ודוחות') %>
                   </a>
                   <!-- ✅ מלאי חומרי גלם -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/stock">
                     <span class="icon">📦</span>
-                    מלאי חומרי גלם
+                    <%= tt('owner.dashboard.btn_inventory', 'מלאי חומרי גלם') %>
                   </a>
                   <!-- ✅ עלויות חומרי גלם -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/costs">
                     <span class="icon">💰</span>
-                    עלויות חומרי גלם
+                    <%= tt('owner.dashboard.btn_costs', 'עלויות חומרי גלם') %>
                   </a>
                   <!-- ✅ ספירות מלאי -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/counts">
                     <span class="icon">📋</span>
-                    ספירות מלאי	
+                    <%= tt('owner.dashboard.btn_counts', 'ספירות מלאי') %>
                   </a>
                   <!-- ✅ עלות מנה ורווחיות (Food Cost) -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/foodcost">
                     <span class="icon">💰</span>
-                    עלות מנה ורווחיות
+                    <%= tt('owner.dashboard.btn_foodcost', 'עלות מנה ורווחיות') %>
                   </a>
                   <!-- ✅ ספקים -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/suppliers">
                     <span class="icon">🚚</span>
-                    ספקים		
+                    <%= tt('owner.dashboard.btn_suppliers', 'ספקים') %>
                   </a>
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/purchase_orders">
                     <span class="icon">📄</span>
-                    הזמנות רכש (PO)
+                    <%= tt('owner.dashboard.btn_po', 'הזמנות רכש (PO)') %>
                   </a>
 
                   <!-- ✅ מתכוני מנות -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/recipes">
                     <span class="icon">📖</span>
-                    מתכוני מנות
+                    <%= tt('owner.dashboard.btn_recipes', 'מתכוני מנות') %>
                   </a>
                 </div>
               </li>

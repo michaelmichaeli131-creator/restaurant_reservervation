@@ -7,13 +7,13 @@
   </header>
 
   <section class="card">
-    <h2 class="card-title">קטגוריות</h2>
+    <h2 class="card-title"><%= tt('owner.menu.categories', 'קטגוריות') %></h2>
     <ul class="list">
       <% it.cats.forEach(c => { %>
         <li class="item">
           <strong><%= c.name_he || c.name_en || '(ללא שם)' %></strong>
           <form method="post" action="/owner/<%= it.restaurant.id %>/menu/category/<%= c.id %>/delete" style="display:inline">
-            <button class="btn ghost" onclick="return confirm('למחוק קטגוריה?')">מחק</button>
+            <button class="btn ghost" onclick="return confirm('<%= tt('owner.menu.confirm_delete_category', 'למחוק קטגוריה?') %>')"><%= tt('common.btn_delete', 'מחק') %></button>
           </form>
         </li>
       <% }) %>
@@ -21,14 +21,14 @@
     <form method="post" action="/owner/<%= it.restaurant.id %>/menu/category" class="form row">
       <label class="fld"><span>שם (EN)</span><input name="name_en" required></label>
       <label class="fld"><span>שם (HE)</span><input name="name_he"></label>
-      <button class="btn">הוסף קטגוריה</button>
+      <button class="btn"><%= tt('owner.menu.btn_add_category', 'הוסף קטגוריה') %></button>
     </form>
   </section>
 
   <section class="card">
-    <h2 class="card-title">מנות</h2>
+    <h2 class="card-title"><%= tt('owner.menu.items', 'מנות') %></h2>
     <table class="table">
-      <thead><tr><th>שם</th><th>מחיר</th><th>יעד</th><th>קטגוריה</th><th></th></tr></thead>
+      <thead><tr><th><%= tt('owner.menu.tbl.name', 'שם') %></th><th><%= tt('owner.menu.tbl.price', 'מחיר') %></th><th><%= tt('owner.menu.tbl.destination', 'יעד') %></th><th><%= tt('owner.menu.tbl.category', 'קטגוריה') %></th><th></th></tr></thead>
       <tbody>
         <% it.items.forEach(m => { %>
           <tr>
@@ -38,7 +38,7 @@
             <td><%= (it.cats.find(c=>c.id===m.categoryId)?.name_he || it.cats.find(c=>c.id===m.categoryId)?.name_en || '-') %></td>
             <td>
               <form method="post" action="/owner/<%= it.restaurant.id %>/menu/item/<%= m.id %>/delete">
-                <button class="btn ghost">מחק</button>
+                <button class="btn ghost"><%= tt('common.btn_delete', 'מחק') %></button>
               </form>
             </td>
           </tr>
@@ -53,8 +53,8 @@
       <label class="fld">
         <span>יעד</span>
         <select name="destination">
-          <option value="kitchen">מטבח</option>
-          <option value="bar">בר</option>
+          <option value="kitchen"><%= tt('owner.menu.dest_kitchen', 'מטבח') %></option>
+          <option value="bar"><%= tt('owner.menu.dest_bar', 'בר') %></option>
         </select>
       </label>
       <label class="fld">
@@ -66,7 +66,7 @@
           <% }) %>
         </select>
       </label>
-      <button class="btn">הוסף מנה</button>
+      <button class="btn"><%= tt('owner.menu.btn_add_item', 'הוסף מנה') %></button>
     </form>
   </section>
 </main>

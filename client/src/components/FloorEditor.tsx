@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import './FloorEditor.css';
+import { t } from '../i18n';
 
 interface FloorTable {
   id: string;
@@ -83,7 +84,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
   const createNewLayout = async () => {
     if (!newLayoutName.trim()) {
-      alert('Please enter a layout name');
+      alert(t('floor.error.enter_name', 'Please enter a layout name'));
       return;
     }
 
@@ -109,17 +110,17 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
         setIsCreateModalOpen(false);
       } else {
         const errorData = await response.json().catch(() => null);
-        const errorMsg = errorData?.error || `Server error: ${response.status} ${response.statusText}`;
-        alert(`Failed to create layout: ${errorMsg}`);
+        const errorMsg = errorData?.error || t('floor.error.server', 'Server error: {status} {statusText}').replace('{status}', String(response.status)).replace('{statusText}', response.statusText);
+        alert(t('floor.error.create', 'Error creating layout: {error}').replace('{error}', errorMsg));
       }
     } catch (err) {
       console.error('Create layout failed:', err);
-      alert(`Error creating layout: ${err instanceof Error ? err.message : String(err)}`);
+      alert(t('floor.error.create', 'Error creating layout: {error}').replace('{error}', err instanceof Error ? err.message : String(err)));
     }
   };
 
   const deleteLayout = async (layoutId: string) => {
-    if (!confirm('Are you sure you want to delete this layout?')) return;
+    if (!confirm(t('floor.confirm.delete_layout', 'Are you sure you want to delete this layout?'))) return;
 
     try {
       const response = await fetch(`/api/floor-layouts/${restaurantId}/${layoutId}`, {

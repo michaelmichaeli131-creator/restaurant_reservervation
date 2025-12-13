@@ -39,7 +39,7 @@
                   <div class="line">
                     <strong><%= r.time %></strong>
                     <span>•</span>
-                    <span><%= r.people %> סועדים</span>
+                    <span><%= r.people %> <%= tt('host.people_unit', 'סועדים') %></span>
                   </div>
                   <div class="muted small resv-name"><%= r.name || '—' %></div>
                 </div>

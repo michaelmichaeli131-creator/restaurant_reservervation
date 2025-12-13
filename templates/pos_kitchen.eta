@@ -8,7 +8,7 @@
 <main class="container pos-kitchen-page" dir="rtl">
   <header class="page-header kitchen-header">
     <div>
-      <h1>מסך מטבח — <%= r.name %></h1>
+      <h1><%= tt('pos.kitchen.title', 'מסך מטבח —') %> <%= r.name %></h1>
       <p class="muted"><%= r.city %> • <%= r.address %></p>
     </div>
     <div class="header-actions">
@@ -16,26 +16,26 @@
     </div>
   </header>
 
-  <section class="panel card kitchen-board" aria-label="הזמנות פעילות במטבח">
-    <h2 class="card-title">הזמנות מטבח</h2>
+  <section class="panel card kitchen-board" aria-label="<%= tt('pos.kitchen.orders_title', 'הזמנות מטבח') %>">
+    <h2 class="card-title"><%= tt('pos.kitchen.orders_title', 'הזמנות מטבח') %></h2>
     <p class="muted" style="font-size:12px;margin-bottom:6px">
-      החצים משנים סטטוס: קדימה (התקבל → בהכנה → מוכן) או אחורה.<br>
+      <%= tt('pos.kitchen.instructions', 'החצים משנים סטטוס: קדימה (התקבל → בהכנה → מוכן) או אחורה.') %><br>
       סטטוס "הוגש" מתעדכן רק על ידי המלצר.
     </p>
 
     <div id="kitchen-columns" class="kitchen-columns" data-rid="<%= rid %>">
       <div class="kitchen-col" data-status="received">
-        <div class="col-head">התקבל</div>
+        <div class="col-head"><%= tt('pos.status.received', 'התקבל') %></div>
         <div class="col-body" id="col-received"></div>
       </div>
 
       <div class="kitchen-col" data-status="in_progress">
-        <div class="col-head">בהכנה</div>
+        <div class="col-head"><%= tt('pos.status.in_progress', 'בהכנה') %></div>
         <div class="col-body" id="col-in-progress"></div>
       </div>
 
       <div class="kitchen-col" data-status="ready">
-        <div class="col-head">מוכן</div>
+        <div class="col-head"><%= tt('pos.status.ready', 'מוכן') %></div>
         <div class="col-body" id="col-ready"></div>
       </div>
     </div>
