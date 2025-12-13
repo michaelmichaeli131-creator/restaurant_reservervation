@@ -270,6 +270,14 @@
   const restaurantsData = it.restaurantsData || [];
   const allPermissions = it.allPermissions || [];
 
+  // ✅ FIX 1: היה שימוש ב-staffRoleOptions בלי הגדרה → עלול להפיל את Eta
+  const staffRoleOptions = it.staffRoleOptions || [];
+
+  // ✅ FIX 2: נבנה רשימת מסעדות פשוטה (לשימוש ב-selectים) עם fallback בטוח
+  const restaurantOptions = (Array.isArray(restaurantsData) ? restaurantsData : [])
+    .map((b) => (b && (b.restaurant || b.res)) || null)
+    .filter(Boolean);
+
   const permLabels = {
     "pos.waiter": "POS - מלצר (קליטת הזמנות וטיפול בשולחנות)",
     "pos.kitchen": "POS - מטבח (מסך הזמנות למטבח/בר)",
@@ -431,9 +439,9 @@
                         <% } %>
                       </form>
 
-<button type="button" class="btn ghost sm" onclick="openResetLinkModal('<%= s.id %>','<%= s.email %>')" style="margin-inline-start:8px">
-  צור קישור לאיפוס סיסמה
-</button>
+                      <button type="button" class="btn ghost sm" onclick="openResetLinkModal('<%= s.id %>','<%= s.email %>')" style="margin-inline-start:8px">
+                        צור קישור לאיפוס סיסמה
+                      </button>
                     </div>
                   </div>
 
@@ -504,8 +512,8 @@
             <label>מסעדה (חובה)</label>
             <select name="restaurantId" required>
               <option value="">בחר מסעדה…</option>
-              <% (restaurantsData || []).forEach(function(x){ %>
-                <option value="<%= x.restaurant.id %>"><%= x.restaurant.name %></option>
+              <% (restaurantOptions || []).forEach(function(r){ %>
+                <option value="<%= r.id %>"><%= r.name %></option>
               <% }) %>
             </select>
           </div>
@@ -631,7 +639,7 @@
         <label>
           <div class="lbl">מסעדה</div>
           <select id="auditRestaurantId" class="input">
-            <% restaurantsData.forEach(function(block){ const r = block.res; %>
+            <% (restaurantOptions || []).forEach(function(r){ %>
               <option value="<%= r.id %>"><%= r.name %></option>
             <% }) %>
           </select>
@@ -988,4 +996,3 @@ btnOpen.addEventListener("click", ()=>{
 })();
 
 </script>
-
