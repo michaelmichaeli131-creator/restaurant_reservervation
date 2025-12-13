@@ -307,7 +307,8 @@
     if (!id) continue;
     __restOpts.push(`<option value="${escAttr(id)}">${escText(name)}</option>`);
   }
-  const __restOptsHtml = __restOpts.join("");
+  // ✅ FIX: keep on it (stable scope in Eta)
+  it.__restOptsHtml = __restOpts.join("");
 
   const __roleOpts = [];
   for (const rr of (staffRoleOptions || [])) {
@@ -316,10 +317,12 @@
     if (!v) continue;
     __roleOpts.push(`<option value="${escAttr(v)}">${escText(l)}</option>`);
   }
-  const __roleOptsHtml = __roleOpts.join("");
+  // ✅ FIX: keep on it (stable scope in Eta)
+  it.__roleOptsHtml = __roleOpts.join("");
 
   // audit uses same restaurant options
-  const __auditOptsHtml = __restOptsHtml;
+  // ✅ FIX: keep on it (stable scope in Eta)
+  it.__auditOptsHtml = it.__restOptsHtml;
 %>
 
 <div class="sb-owner container">
@@ -541,7 +544,7 @@
             <!-- ✅ MIN-FIX: no loops inside select -->
             <select name="restaurantId" required>
               <option value="">בחר מסעדה…</option>
-              <%~ __restOptsHtml %>
+              <%~ (it.__restOptsHtml || "") %>
             </select>
           </div>
 
@@ -556,7 +559,7 @@
             <!-- ✅ MIN-FIX: no loops inside select -->
             <select name="role" required>
               <option value="">בחר תפקיד…</option>
-              <%~ __roleOptsHtml %>
+              <%~ (it.__roleOptsHtml || "") %>
             </select>
           </div>
 
@@ -668,7 +671,7 @@
 
           <!-- ✅ MIN-FIX: no loops inside select -->
           <select id="auditRestaurantId" class="input">
-            <%~ __auditOptsHtml %>
+            <%~ (it.__auditOptsHtml || "") %>
           </select>
         </label>
 
