@@ -1,0 +1,472 @@
+<% layout("../_layout", it) %>
+
+<style>
+  .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
+
+  .card{
+    background: var(--panel,#121622);
+    border:1px solid var(--bd,#222834);
+    border-radius:18px;
+    padding:18px;
+    margin-bottom:18px;
+    color: var(--ink,#e6e8ef);
+    box-shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+
+  .owner-hd{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:10px;
+  }
+  .owner-hd h1{
+    margin:0;
+    font-size:18px;
+    line-height:1.2;
+    letter-spacing:.2px;
+  }
+  .muted{color:var(--ink-muted,#9aa3b2)}
+  .pill-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-start}
+  .pill{
+    display:inline-flex;align-items:center;gap:6px;
+    font-size:12px;
+    padding:6px 10px;
+    border-radius:999px;
+    border:1px solid rgba(148,163,184,.25);
+    background:rgba(15,23,42,.55);
+    color:var(--ink,#e6e8ef);
+  }
+  .pill b{font-weight:700}
+
+  .grid{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:14px;
+    margin-top:14px;
+  }
+  @media (max-width: 980px){
+    .grid{grid-template-columns:1fr}
+  }
+
+  .staff-card{
+    border-radius:16px;
+    border:1px solid rgba(148,163,184,.22);
+    background:rgba(15,23,42,.35);
+    padding:14px;
+  }
+  .staff-hd{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    align-items:flex-start;
+    margin-bottom:10px;
+  }
+  .staff-name{
+    margin:0;
+    font-size:14px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .avatar{
+    width:28px;height:28px;border-radius:10px;
+    display:inline-flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg, rgba(245,158,11,.25), rgba(59,130,246,.18));
+    border:1px solid rgba(148,163,184,.22);
+    font-weight:700;
+    font-size:12px;
+    color:var(--ink,#e6e8ef);
+  }
+  .tag{
+    font-size:12px;
+    padding:5px 9px;
+    border-radius:999px;
+    border:1px solid rgba(148,163,184,.22);
+    background:rgba(15,23,42,.65);
+    color:var(--ink,#e6e8ef);
+  }
+  .actions-row{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; align-items:center}
+
+  .perm-title{margin:10px 0 8px 0;font-size:13px;color:var(--ink,#e6e8ef)}
+  .perm-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+  @media (max-width: 680px){.perm-grid{grid-template-columns:1fr}}
+  .perm-item{
+    display:flex;gap:10px;align-items:flex-start;
+    padding:8px 10px;border-radius:12px;
+    border:1px solid rgba(148,163,184,.16);
+    background:rgba(2,6,23,.25);
+  }
+  .perm-item input{margin-top:2px}
+  .perm-item strong{font-size:12.5px}
+
+  .perm-actions{
+    margin-top:10px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+
+  .sb-modal{
+    position:fixed; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.55);
+    padding:18px;
+    z-index:1200;
+  }
+  .sb-modal.hidden{display:none}
+  .sb-modal .dialog{
+    width:min(720px, 100%);
+    background: var(--panel,#121622);
+    border:1px solid var(--bd,#222834);
+    border-radius:18px;
+    box-shadow:0 18px 60px rgba(0,0,0,.55);
+    color: var(--ink,#e6e8ef);
+    overflow:hidden;
+  }
+  .sb-modal .dialog-hd{
+    padding:16px 18px;
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    align-items:center;
+    border-bottom:1px solid rgba(148,163,184,.12);
+  }
+  .sb-modal .dialog-bd{padding:16px 18px}
+  .sb-modal .dialog-ft{
+    padding:14px 18px;
+    display:flex;
+    justify-content:flex-end;
+    gap:10px;
+    border-top:1px solid rgba(148,163,184,.12);
+    background:rgba(2,6,23,.18);
+  }
+  .field label{
+    display:block;
+    font-size:12px;
+    color:var(--ink-muted,#9aa3b2);
+    margin-bottom:6px;
+  }
+  .field input{
+    width:100%;
+    padding:10px 12px;
+    border-radius:12px;
+    border:1px solid rgba(148,163,184,.18);
+    background:rgba(2,6,23,.30);
+    color:var(--ink,#e6e8ef);
+    outline:none;
+  }
+  .alert.err{
+    margin-top:10px;
+    padding:10px 12px;
+    border-radius:12px;
+    border:1px solid rgba(239,68,68,.35);
+    background:rgba(239,68,68,.08);
+    color:#fecaca;
+    font-size:13px;
+  }
+  .hidden{display:none}
+</style>
+
+<%
+  const owner = it.owner;
+  const staff = it.staff;
+  const restaurant = it.restaurant;
+  const allPermissions = it.allPermissions || [];
+  const error = it.error;
+
+  const permLabels = {
+    "pos.waiter": "POS - מלצר (קליטת הזמנות וטיפול בשולחנות)",
+    "pos.kitchen": "POS - מטבח (מסך הזמנות למטבח/בר)",
+    "host.seating": "מארחת - השמת שולחנות וניהול רצפת המסעדה",
+    "reservations.view": "צפייה בהזמנות למסעדה",
+    "reservations.manage": "ניהול הזמנות (אישור/ביטול/עדכון)",
+    "floor.view": "צפייה במפת השולחנות",
+    "floor.edit": "עריכת מפת שולחנות",
+    "shifts.view": "צפייה במשמרות",
+    "shifts.manage": "ניהול משמרות (שיבוץ, שינוי, ביטול)",
+    "inventory.view": "צפייה במלאי וחומרי גלם",
+    "inventory.manage": "ניהול מלאי (עדכון, הזמנות, התאמות)",
+    "reports.view": "צפייה בדוחות (מכירות, תפוסה וכו')",
+    "menu.manage": "ניהול תפריט (מנות, מחירים, זמינות)"
+  };
+%>
+
+<div class="sb-owner container">
+  <div class="card">
+    <div class="owner-hd">
+      <div>
+        <h1>👤 ניהול עובד</h1>
+        <div class="muted" style="margin-top:6px;font-size:13px">
+          כאן נמצאות ההרשאות והגדרות העובד. (אפשר להרחיב בהמשך: משמרות, פעילות וכו׳)
+        </div>
+      </div>
+      <div class="pill-row">
+        <a href="/owner/staff" class="btn sm ghost">← חזרה לניהול עובדים</a>
+        <span class="pill">בעלים: <b><%= owner?.firstName %> <%= owner?.lastName %></b></span>
+        <span class="pill">אימייל: <b><%= owner?.email %></b></span>
+      </div>
+    </div>
+  </div>
+
+  <% if (!staff || !restaurant) { %>
+    <div class="card">
+      <div class="alert err">
+        <% if (error === "staff_not_found") { %>
+          עובד לא נמצא.
+        <% } else if (error === "not_your_restaurant") { %>
+          אין לך הרשאה לעובד הזה.
+        <% } else { %>
+          שגיאה בטעינת עובד.
+        <% } %>
+      </div>
+      <div style="margin-top:12px">
+        <a href="/owner/staff" class="btn">חזרה</a>
+      </div>
+    </div>
+  <% } else { %>
+
+    <div class="grid">
+      <div class="card">
+        <div class="staff-card">
+          <div class="staff-hd">
+            <div>
+              <h3 class="staff-name">
+                <span class="avatar">
+                  <%= (((staff.firstName||"").slice(0,1)+(staff.lastName||"").slice(0,1)).toUpperCase() || "SB") %>
+                </span>
+                <span><%= staff.firstName %> <%= staff.lastName %></span>
+              </h3>
+              <div class="muted" style="margin-top:4px;font-size:12px">
+                <%= staff.email %><% if (staff.phone) { %> · <%= staff.phone %><% } %>
+              </div>
+              <div class="muted" style="margin-top:6px;font-size:12px">
+                מסעדה: <b><%= restaurant.name %></b>
+              </div>
+            </div>
+
+            <div class="actions-row">
+              <span class="tag">תפקיד: <b><%= staff.role %></b></span>
+
+              <% const isInactive = (staff.status === "inactive"); %>
+              <% if (isInactive) { %>
+                <span class="tag" style="border-color:rgba(239,68,68,.35); background:rgba(239,68,68,.10)">סטטוס: מושבת</span>
+              <% } else { %>
+                <span class="tag" style="border-color:rgba(34,197,94,.28); background:rgba(34,197,94,.10)">סטטוס: פעיל</span>
+              <% } %>
+
+              <form method="post" action="/owner/staff/<%= staff.id %>/status">
+                <input type="hidden" name="redirectTo" value="/owner/staff/<%= staff.id %>" />
+                <input type="hidden" name="status" value="<%= isInactive ? "active" : "inactive" %>" />
+                <% if (isInactive) { %>
+                  <button class="btn sm" type="submit">הפעל</button>
+                <% } else { %>
+                  <button class="btn ghost sm" type="submit"
+                    onclick="return confirm('להשבית את העובד? הוא לא יוכל להיכנס/לעבוד במערכת.');">השבת</button>
+                <% } %>
+              </form>
+
+              <button type="button" class="btn ghost sm" id="btnOpenResetLink"
+                data-staff-id="<%= staff.id %>" data-staff-email="<%= staff.email %>">
+                צור קישור לאיפוס סיסמה
+              </button>
+            </div>
+          </div>
+
+          <div class="muted" style="font-size:12px;margin-top:8px">
+            מזהה עובד: <b><%= staff.id %></b> · userId: <b><%= staff.userId %></b>
+          </div>
+        </div>
+
+        <div class="staff-card" style="margin-top:12px">
+          <div style="font-weight:900; margin-bottom:8px">בקרוב</div>
+          <div class="muted" style="font-size:12px">
+            אזור להרחבות: משמרות, פעילות אחרונה, הערות מנהל, מגבלות עבודה וכו׳.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+          <div>
+            <div style="font-weight:900">הרשאות</div>
+            <div class="muted" style="font-size:12px;margin-top:4px">
+              עדכן הרשאות לעובד. (איפוס לברירת־מחדל לפי תפקיד דרך הכפתור)
+            </div>
+          </div>
+          <div class="pill">Approval: <b><%= staff.approvalStatus || "-" %></b></div>
+        </div>
+
+        <form method="post" action="/owner/staff/<%= staff.id %>/permissions" style="margin-top:12px">
+          <input type="hidden" name="redirectTo" value="/owner/staff/<%= staff.id %>" />
+
+          <div class="perm-grid" style="<%= staff.status === 'inactive' ? "opacity:.55" : "" %>">
+            <% (allPermissions || []).forEach(function(p){ 
+                 const checked = (staff.permissions || []).includes(p);
+            %>
+              <label class="perm-item">
+                <input type="checkbox" name="permissions" value="<%= p %>"
+                  <%= checked ? "checked" : "" %>
+                  <%= staff.status === 'inactive' ? "disabled" : "" %> />
+                <div>
+                  <strong><%= p %></strong>
+                  <div class="muted" style="font-size:12px"><%= permLabels[p] || "" %></div>
+                </div>
+              </label>
+            <% }) %>
+          </div>
+
+          <div class="perm-actions">
+            <div class="muted" style="font-size:12px">
+              <% if (staff.status === 'inactive') { %>
+                העובד מושבת — לא ניתן לערוך הרשאות עד להפעלה.
+              <% } else { %>
+                שמור שינויים או אפס לברירת מחדל.
+              <% } %>
+            </div>
+
+            <div style="display:flex; gap:8px; flex-wrap:wrap">
+              <button type="submit" class="btn sm" <%= staff.status === 'inactive' ? "disabled" : "" %>>שמור הרשאות</button>
+            </div>
+          </div>
+        </form>
+
+        <form method="post" action="/owner/staff/<%= staff.id %>/permissions" style="margin-top:10px">
+          <input type="hidden" name="redirectTo" value="/owner/staff/<%= staff.id %>" />
+          <input type="hidden" name="resetToDefaults" value="on" />
+          <button type="submit" class="btn ghost sm" <%= staff.status === 'inactive' ? "disabled" : "" %>>
+            אפס לברירת מחדל
+          </button>
+        </form>
+      </div>
+    </div>
+
+  <% } %>
+</div>
+
+<!-- Reset password link modal -->
+<div class="sb-modal hidden" id="resetPwModal" aria-hidden="true">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="resetTitle">
+    <div class="dialog-hd">
+      <div>
+        <div style="font-size:16px;font-weight:900" id="resetTitle">קישור לאיפוס סיסמה</div>
+        <div class="muted" style="margin-top:4px" id="resetPwSub">צור קישור והעתק לעובד.</div>
+      </div>
+      <button class="btn ghost sm" type="button" id="btnCloseResetPw">✕</button>
+    </div>
+
+    <div class="dialog-bd">
+      <div class="field">
+        <label>קישור</label>
+        <input id="resetPwLink" type="text" readonly value="" />
+        <div style="display:flex; gap:8px; margin-top:10px">
+          <button type="button" class="btn" id="btnCopyResetPw">העתק</button>
+          <button type="button" class="btn ghost" id="btnOpenResetPw">פתח</button>
+        </div>
+      </div>
+      <div class="alert err hidden" id="resetPwErr"></div>
+    </div>
+
+    <div class="dialog-ft">
+      <button type="button" class="btn ghost" id="btnCloseResetPw2">סגור</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const btn = document.getElementById("btnOpenResetLink");
+  const modal = document.getElementById("resetPwModal");
+  const close1 = document.getElementById("btnCloseResetPw");
+  const close2 = document.getElementById("btnCloseResetPw2");
+  const sub = document.getElementById("resetPwSub");
+  const linkInp = document.getElementById("resetPwLink");
+  const err = document.getElementById("resetPwErr");
+  const btnCopy = document.getElementById("btnCopyResetPw");
+  const btnOpen = document.getElementById("btnOpenResetPw");
+
+  function openModal(){
+    modal.classList.remove("hidden");
+    modal.setAttribute("aria-hidden","false");
+  }
+  function closeModal(){
+    modal.classList.add("hidden");
+    modal.setAttribute("aria-hidden","true");
+  }
+  function showErr(msg){
+    err.textContent = msg || "";
+    err.classList.toggle("hidden", !msg);
+  }
+
+  async function createLink(staffId, email){
+    try{
+      showErr("");
+      sub.textContent = "יוצר קישור עבור: " + (email || "");
+      linkInp.value = "טוען...";
+      openModal();
+
+      const res = await fetch(`/owner/staff/${staffId}/password-reset-link`, {
+        method: "POST",
+        headers: { "Accept": "application/json" }
+      });
+      const data = await res.json().catch(()=>null);
+
+      if(!res.ok || !data || !data.ok){
+        const errCode = (data && data.error) ? data.error : "unknown";
+        const map = {
+          "staff_not_found": "העובד לא נמצא.",
+          "not_your_restaurant": "אין לך הרשאה למסעדה הזו.",
+          "user_not_found": "המשתמש לא נמצא.",
+          "non_local_user": "לא ניתן לאפס סיסמה למשתמש שאינו Local.",
+          "unknown": "שגיאה לא ידועה."
+        };
+        linkInp.value = "";
+        showErr(map[errCode] || ("שגיאה: " + errCode));
+        return;
+      }
+
+      const relative = String(data.resetUrl || "");
+      const full = relative.startsWith("http") ? relative : (window.location.origin + relative);
+      linkInp.value = full;
+    }catch(ex){
+      linkInp.value = "";
+      showErr(String(ex));
+    }
+  }
+
+  if(btn){
+    btn.addEventListener("click", ()=>{
+      const staffId = btn.getAttribute("data-staff-id") || "";
+      const email = btn.getAttribute("data-staff-email") || "";
+      if(staffId) createLink(staffId, email);
+    });
+  }
+
+  if(close1) close1.addEventListener("click", closeModal);
+  if(close2) close2.addEventListener("click", closeModal);
+
+  if(btnCopy){
+    btnCopy.addEventListener("click", async ()=>{
+      try{
+        await navigator.clipboard.writeText(linkInp.value || "");
+        btnCopy.textContent = "הועתק!";
+        setTimeout(()=>btnCopy.textContent="העתק", 900);
+      }catch{
+        showErr("לא הצלחתי להעתיק. אפשר לסמן ולהעתיק ידנית.");
+      }
+    });
+  }
+  if(btnOpen){
+    btnOpen.addEventListener("click", ()=>{
+      const v = linkInp.value || "";
+      if(v) window.open(v, "_blank");
+    });
+  }
+
+  document.addEventListener("keydown", (e)=>{
+    if(e.key === "Escape" && modal && !modal.classList.contains("hidden")) closeModal();
+  });
+})();
+</script>

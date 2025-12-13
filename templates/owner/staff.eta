@@ -133,6 +133,7 @@
     gap:8px;
     flex-wrap:wrap;
     justify-content:flex-end;
+    align-items:center;
   }
   .tag{
     font-size:12px;
@@ -143,45 +144,23 @@
     color:var(--ink,#e6e8ef);
   }
 
-  /* Permissions */
-  .perm-title{
-    margin:10px 0 8px 0;
-    font-size:13px;
-    color:var(--ink,#e6e8ef);
-  }
-  .perm-grid{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:8px 10px;
-  }
-  @media (max-width: 680px){
-    .perm-grid{grid-template-columns:1fr}
-  }
-  .perm-item{
-    display:flex;
-    gap:10px;
-    align-items:flex-start;
-    padding:8px 10px;
-    border-radius:12px;
-    border:1px solid rgba(148,163,184,.16);
-    background:rgba(2,6,23,.25);
-  }
-  .perm-item input{margin-top:2px}
-  .perm-item strong{font-size:12.5px}
-  .perm-actions{
-    margin-top:10px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-    flex-wrap:wrap;
-  }
-  .inline-check{
+  /* Minimal rows under staff */
+  .staff-mini{
     display:flex;
     gap:8px;
+    flex-wrap:wrap;
     align-items:center;
-    color:var(--ink-muted,#9aa3b2);
-    font-size:12px;
+    justify-content:flex-start;
+    margin-top:10px;
+  }
+  .staff-mini .muted{color:var(--ink-muted,#9aa3b2);font-size:12px}
+  .staff-actions{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+    align-items:center;
+    margin-top:10px;
   }
 
   /* Empty state */
@@ -261,6 +240,36 @@
     color:#fecaca;
     font-size:13px;
   }
+  .alert.err{
+    margin-top:10px;
+    padding:10px 12px;
+    border-radius:12px;
+    border:1px solid rgba(239,68,68,.35);
+    background:rgba(239,68,68,.08);
+    color:#fecaca;
+    font-size:13px;
+  }
+
+  /* Permissions (still used only in Create modal) */
+  .perm-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px 10px;
+  }
+  @media (max-width: 680px){
+    .perm-grid{grid-template-columns:1fr}
+  }
+  .perm-item{
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+    padding:8px 10px;
+    border-radius:12px;
+    border:1px solid rgba(148,163,184,.16);
+    background:rgba(2,6,23,.25);
+  }
+  .perm-item input{margin-top:2px}
+  .perm-item strong{font-size:12.5px}
   .perm-panel{margin-top:10px}
 </style>
 
@@ -331,7 +340,7 @@
       <div>
         <h1>👥 ניהול עובדים</h1>
         <div class="muted">
-          מאשרים עובדים ומגדירים הרשאות לפי אזורים במערכת.
+          רשימת עובדים מינימלית. לניהול הרשאות ופרטים נוספים — כנס לעמוד העובד.
         </div>
       </div>
       <div class="pill-row">
@@ -420,7 +429,7 @@
           </div>
         </div>
 
-        <!-- RIGHT: approved staff cards -->
+        <!-- RIGHT: approved staff cards (MINIMAL) -->
         <div>
           <div class="section-title">
             <h2>עובדים (מאושרים)</h2>
@@ -458,60 +467,29 @@
                       <% } else { %>
                         <span class="tag" style="border-color:rgba(34,197,94,.28); background:rgba(34,197,94,.10)">סטטוס: פעיל</span>
                       <% } %>
-
-                      <form method="post" action="/owner/staff/<%= s.id %>/status">
-                        <input type="hidden" name="redirectTo" value="/owner/staff" />
-                        <input type="hidden" name="status" value="<%= isInactive ? "active" : "inactive" %>" />
-                        <% if (isInactive) { %>
-                          <button class="btn sm" type="submit">הפעל</button>
-                        <% } else { %>
-                          <button class="btn ghost sm" type="submit" onclick="return confirm('להשבית את העובד? הוא לא יוכל להיכנס/לעבוד במערכת.');">השבת</button>
-                        <% } %>
-                      </form>
-
-                      <button type="button" class="btn ghost sm" onclick="openResetLinkModal('<%= s.id %>','<%= s.email %>')" style="margin-inline-start:8px">
-                        צור קישור לאיפוס סיסמה
-                      </button>
                     </div>
                   </div>
 
-                  <div class="perm-title">הרשאות</div>
+                  <div class="staff-actions">
+                    <a class="btn sm" href="/owner/staff/<%= s.id %>">ניהול עובד</a>
 
-                  <form method="post" action="/owner/staff/<%= s.id %>/permissions">
-                    <input type="hidden" name="redirectTo" value="/owner/staff" />
+                    <form method="post" action="/owner/staff/<%= s.id %>/status">
+                      <input type="hidden" name="redirectTo" value="/owner/staff" />
+                      <input type="hidden" name="status" value="<%= isInactive ? "active" : "inactive" %>" />
+                      <% if (isInactive) { %>
+                        <button class="btn sm" type="submit">הפעל</button>
+                      <% } else { %>
+                        <button class="btn ghost sm" type="submit"
+                          onclick="return confirm('להשבית את העובד? הוא לא יוכל להיכנס/לעבוד במערכת.');">השבת</button>
+                      <% } %>
+                    </form>
 
-                    <div class="perm-grid" style="<%= isInactive ? "opacity:.55" : "" %>">
-                      <% ;((it.__permsSafe || [])).forEach(function(p){
-                           const checked = (s.permissions || []).includes(p);
-                      %>
-                        <label class="perm-item">
-                          <input type="checkbox" name="permissions" value="<%= p %>" <%= checked ? "checked" : "" %> <%= isInactive ? "disabled" : "" %> />
-                          <div>
-                            <strong><%= p %></strong>
-                            <div class="muted"><%= permLabels[p] || "" %></div>
-                          </div>
-                        </label>
-                      <% }) %>
-                    </div>
-
-                    <div class="perm-actions">
-                      <div class="inline-check">
-                        <% if (isInactive) { %>
-                          <span>העובד מושבת — לא ניתן לערוך הרשאות עד להפעלה.</span>
-                        <% } else { %>
-                          <span>שמור או אפס לברירת מחדל לפי תפקיד.</span>
-                        <% } %>
-                      </div>
-                      <div style="display:flex; gap:8px; flex-wrap:wrap">
-                        <button type="submit" class="btn sm" <%= isInactive ? "disabled" : "" %>>שמור הרשאות</button>
-                      </div>
-                    </div>
-                  </form>
+                    <button type="button" class="btn ghost sm"
+                      onclick="openResetLinkModal('<%= s.id %>','<%= s.email %>')">
+                      צור קישור לאיפוס סיסמה
+                    </button>
+                  </div>
                 </div>
-                <form method="post" action="/owner/staff/<%= s.id %>/permissions/reset" style="margin-top:8px">
-                  <input type="hidden" name="redirectTo" value="/owner/staff" />
-                  <button type="submit" class="btn ghost sm" <%= isInactive ? "disabled" : "" %>>אפס לברירת מחדל</button>
-                </form>
               <% }) %>
             </div>
           <% } %>
@@ -521,6 +499,7 @@
   <% }) %>
 </div>
 
+<!-- Create staff modal -->
 <div class="sb-modal hidden" id="createStaffModal" aria-hidden="true">
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="createStaffTitle">
     <div class="dialog-hd">
@@ -538,7 +517,6 @@
         <div class="form-grid">
           <div class="field full">
             <label>מסעדה (חובה)</label>
-
             <select name="restaurantId" required>
               <option value="">בחר מסעדה…</option>
               <%~ (it.__restOptsHtml || "") %>
@@ -552,7 +530,6 @@
 
           <div class="field">
             <label>תפקיד (חובה)</label>
-
             <select name="role" required>
               <option value="">בחר תפקיד…</option>
               <%~ (it.__roleOptsHtml || "") %>
@@ -616,19 +593,18 @@
   </div>
 </div>
 
-<!-- Reset password link modal -->
-<div class="sb-modal hidden" id="resetPwModal" style="z-index:1200">
-  <div class="sb-modal__overlay" id="resetPwOverlay"></div>
-  <div class="sb-modal__panel" style="max-width:640px">
-    <div class="sb-modal__head">
+<!-- Reset password link modal (fixed to match .sb-modal .dialog styling) -->
+<div class="sb-modal hidden" id="resetPwModal" aria-hidden="true" style="z-index:1200">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="resetTitle">
+    <div class="dialog-hd">
       <div>
-        <div class="sb-modal__title">קישור לאיפוס סיסמה</div>
-        <div class="sb-modal__sub" id="resetPwSub">צור קישור והעתק לעובד.</div>
+        <div style="font-size:16px;font-weight:800" id="resetTitle">קישור לאיפוס סיסמה</div>
+        <div class="muted" style="margin-top:4px" id="resetPwSub">צור קישור והעתק לעובד.</div>
       </div>
-      <button class="btn icon" type="button" id="btnCloseResetPw" aria-label="Close">✕</button>
+      <button class="btn ghost sm" type="button" id="btnCloseResetPw" aria-label="Close">✕</button>
     </div>
 
-    <div class="sb-modal__body">
+    <div class="dialog-bd">
       <div class="field">
         <label>קישור</label>
         <input id="resetPwLink" type="text" readonly value="" />
@@ -643,12 +619,13 @@
       <div class="alert err hidden" id="resetPwErr"></div>
     </div>
 
-    <div class="sb-modal__foot">
+    <div class="dialog-ft">
       <button type="button" class="btn ghost" id="btnCloseResetPw2">סגור</button>
     </div>
   </div>
 </div>
 
+<!-- Audit modal (kept) -->
 <div class="sb-modal hidden" id="auditModal" aria-hidden="true">
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="auditTitle">
     <div class="dialog-hd">
@@ -656,29 +633,29 @@
         <div style="font-size:16px;font-weight:800" id="auditTitle">🧾 לוג פעולות</div>
         <div class="muted" style="margin-top:4px">מציג את הפעולות האחרונות שבוצעו במסך ניהול עובדים.</div>
       </div>
-      <button class="x" type="button" id="auditCloseBtn" aria-label="Close">✕</button>
+      <button class="btn ghost sm" type="button" id="auditCloseBtn" aria-label="Close">✕</button>
     </div>
 
     <div class="dialog-bd">
-      <div class="grid">
-        <label>
-          <div class="lbl">מסעדה</div>
-          <select id="auditRestaurantId" class="input">
+      <div class="form-grid">
+        <div class="field">
+          <label>מסעדה</label>
+          <select id="auditRestaurantId">
             <%~ (it.__auditOptsHtml || "") %>
           </select>
-        </label>
+        </div>
 
-        <label>
-          <div class="lbl">כמות</div>
-          <input id="auditLimit" class="input" type="number" min="1" max="200" value="50" />
-        </label>
+        <div class="field">
+          <label>כמות</label>
+          <input id="auditLimit" type="number" min="1" max="200" value="50" />
+        </div>
 
-        <div style="display:flex; gap:10px; align-items:flex-end">
+        <div class="field full" style="display:flex; gap:10px; align-items:flex-end">
           <button type="button" class="btn sm" id="auditRefreshBtn">רענן</button>
+          <div class="muted" id="auditHint"></div>
         </div>
       </div>
 
-      <div class="muted" id="auditHint" style="margin-top:10px"></div>
       <div class="alert err hidden" id="auditErr" style="margin-top:10px"></div>
 
       <div class="card" style="margin-top:12px; padding:0">
@@ -693,11 +670,11 @@
       <button class="btn ghost" type="button" id="auditCloseBtn2">סגור</button>
     </div>
   </div>
-  <div class="overlay" id="auditOverlay"></div>
 </div>
 
 <script>
 (function(){
+  // ───────── Create Staff modal ─────────
   const modal = document.getElementById("createStaffModal");
   const openBtn = document.getElementById("btnOpenCreateStaff");
   const closeBtn = document.getElementById("btnCloseCreateStaff");
@@ -705,7 +682,7 @@
   const form = document.getElementById("createStaffForm");
   const errBox = document.getElementById("createStaffError");
   const genBtn = document.getElementById("btnGenTempPass");
-  const permToggle = form.querySelector('input[name="useDefaults"]');
+  const permToggle = form ? form.querySelector('input[name="useDefaults"]') : null;
   const permBox = document.getElementById("permOverrideBox");
   const submitBtn = document.getElementById("btnSubmitCreateStaff");
 
@@ -737,7 +714,7 @@
     inp.select();
   }
   function setPermUi(){
-    const useDefaults = !!permToggle.checked;
+    const useDefaults = permToggle ? !!permToggle.checked : true;
     permBox.style.display = useDefaults ? "none" : "block";
   }
 
@@ -749,73 +726,74 @@
   if(permToggle) permToggle.addEventListener("change", setPermUi);
   setPermUi();
 
-  form.addEventListener("submit", async (e)=>{
-    e.preventDefault();
-    errBox.style.display="none";
-    errBox.textContent="";
-    submitBtn.disabled = true;
-    submitBtn.textContent = "יוצר…";
+  if(form){
+    form.addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      errBox.style.display="none";
+      errBox.textContent="";
+      submitBtn.disabled = true;
+      submitBtn.textContent = "יוצר…";
 
-    try{
-      const fd = new FormData(form);
-      const useDefaults = fd.get("useDefaults") === "on";
-      const permissions = [];
-      if(!useDefaults){
-        form.querySelectorAll('input[name="permissions"]:checked').forEach((x)=>permissions.push(x.value));
-      }
+      try{
+        const fd = new FormData(form);
+        const useDefaults = fd.get("useDefaults") === "on";
+        const permissions = [];
+        if(!useDefaults){
+          form.querySelectorAll('input[name="permissions"]:checked').forEach((x)=>permissions.push(x.value));
+        }
 
-      const payload = {
-        restaurantId: String(fd.get("restaurantId")||""),
-        email: String(fd.get("email")||"").trim(),
-        password: String(fd.get("password")||""),
-        firstName: String(fd.get("firstName")||"").trim() || undefined,
-        lastName: String(fd.get("lastName")||"").trim() || undefined,
-        phone: String(fd.get("phone")||"").trim() || undefined,
-        role: String(fd.get("role")||""),
-        useDefaults: useDefaults,
-        permissions: permissions
-      };
-
-      const res = await fetch("/owner/staff/create", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "accept": "application/json"
-        },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json().catch(()=>null);
-
-      if(!res.ok || !data || data.ok !== true){
-        const err = (data && (data.error || data.message)) ? (data.error || data.message) : ("HTTP " + res.status);
-        const map = {
-          "email_required": "חובה להזין אימייל.",
-          "password_too_short": "הסיסמה קצרה מדי (מינימום 8).",
-          "role_invalid": "תפקיד לא תקין.",
-          "restaurant_required": "חובה לבחור מסעדה.",
-          "not_your_restaurant": "אין לך הרשאה למסעדה הזו.",
-          "user_email_in_use": "האימייל הזה כבר שייך ללקוח/בעלים. בחר אימייל אחר.",
-          "staff_exists": "לעובד הזה כבר יש שיוך למסעדה הזו.",
-          "invalid_body": "קלט לא תקין."
+        const payload = {
+          restaurantId: String(fd.get("restaurantId")||""),
+          email: String(fd.get("email")||"").trim(),
+          password: String(fd.get("password")||""),
+          firstName: String(fd.get("firstName")||"").trim() || undefined,
+          lastName: String(fd.get("lastName")||"").trim() || undefined,
+          phone: String(fd.get("phone")||"").trim() || undefined,
+          role: String(fd.get("role")||""),
+          useDefaults: useDefaults,
+          permissions: permissions
         };
-        showError(map[err] || ("שגיאה: " + err));
+
+        const res = await fetch("/owner/staff/create", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "accept": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(()=>null);
+
+        if(!res.ok || !data || data.ok !== true){
+          const err = (data && (data.error || data.message)) ? (data.error || data.message) : ("HTTP " + res.status);
+          const map = {
+            "email_required": "חובה להזין אימייל.",
+            "password_too_short": "הסיסמה קצרה מדי (מינימום 8).",
+            "role_invalid": "תפקיד לא תקין.",
+            "restaurant_required": "חובה לבחור מסעדה.",
+            "not_your_restaurant": "אין לך הרשאה למסעדה הזו.",
+            "user_email_in_use": "האימייל הזה כבר שייך ללקוח/בעלים. בחר אימייל אחר.",
+            "staff_exists": "לעובד הזה כבר יש שיוך למסעדה הזו.",
+            "invalid_body": "קלט לא תקין."
+          };
+          showError(map[err] || ("שגיאה: " + err));
+          submitBtn.disabled = false;
+          submitBtn.textContent = "צור עובד";
+          return;
+        }
+
+        hideModal();
+        window.location.reload();
+      }catch(ex){
+        showError(String(ex));
         submitBtn.disabled = false;
         submitBtn.textContent = "צור עובד";
-        return;
       }
+    });
+  }
 
-      hideModal();
-      window.location.reload();
-    }catch(ex){
-      showError(String(ex));
-      submitBtn.disabled = false;
-      submitBtn.textContent = "צור עובד";
-    }
-  });
-
-  // ───────── Password reset link (Owner → Staff) ─────────
+  // ───────── Reset password link modal ─────────
   const resetModal = document.getElementById("resetPwModal");
-  const resetOverlay = document.getElementById("resetPwOverlay");
   const resetCloseBtn = document.getElementById("btnCloseResetPw");
   const resetCloseBtn2 = document.getElementById("btnCloseResetPw2");
   const resetSub = document.getElementById("resetPwSub");
@@ -825,7 +803,7 @@
   const btnOpen = document.getElementById("btnOpenResetPw");
 
   function showResetErr(msg){
-    resetErr.textContent = msg;
+    resetErr.textContent = msg || "";
     resetErr.classList.remove("hidden");
   }
   function clearResetErr(){
@@ -835,9 +813,11 @@
   function openResetModal(){
     clearResetErr();
     resetModal.classList.remove("hidden");
+    resetModal.setAttribute("aria-hidden","false");
   }
   function closeResetModal(){
     resetModal.classList.add("hidden");
+    resetModal.setAttribute("aria-hidden","true");
   }
 
   window.openResetLinkModal = async function(staffId, email){
@@ -852,6 +832,7 @@
         headers: { "Accept": "application/json" }
       });
       const data = await res.json().catch(()=>null);
+
       if(!res.ok || !data || !data.ok){
         const err = (data && data.error) ? data.error : "unknown";
         const map = {
@@ -875,33 +856,30 @@
     }
   };
 
-  resetOverlay.addEventListener("click", closeResetModal);
-  resetCloseBtn.addEventListener("click", closeResetModal);
-  resetCloseBtn2.addEventListener("click", closeResetModal);
+  if(resetModal) resetModal.addEventListener("click", (e)=>{ if(e.target === resetModal) closeResetModal(); });
+  if(resetCloseBtn) resetCloseBtn.addEventListener("click", closeResetModal);
+  if(resetCloseBtn2) resetCloseBtn2.addEventListener("click", closeResetModal);
 
-  btnCopy.addEventListener("click", async ()=>{
-    try{
-      await navigator.clipboard.writeText(resetLinkInput.value || "");
-      btnCopy.textContent = "הועתק!";
-      setTimeout(()=>btnCopy.textContent="העתק", 900);
-    }catch{
-      showResetErr("לא הצלחתי להעתיק. אפשר לסמן ולהעתיק ידנית.");
-    }
-  });
-  btnOpen.addEventListener("click", ()=>{
-    const v = resetLinkInput.value || "";
-    if(v) window.open(v, "_blank");
-  });
+  if(btnCopy){
+    btnCopy.addEventListener("click", async ()=>{
+      try{
+        await navigator.clipboard.writeText(resetLinkInput.value || "");
+        btnCopy.textContent = "הועתק!";
+        setTimeout(()=>btnCopy.textContent="העתק", 900);
+      }catch{
+        showResetErr("לא הצלחתי להעתיק. אפשר לסמן ולהעתיק ידנית.");
+      }
+    });
+  }
+  if(btnOpen){
+    btnOpen.addEventListener("click", ()=>{
+      const v = resetLinkInput.value || "";
+      if(v) window.open(v, "_blank");
+    });
+  }
 
-  document.addEventListener("keydown", (e)=>{
-    if(e.key === "Escape" && !modal.classList.contains("hidden")) hideModal();
-  });
-})();
-
-/* ─────────────── Audit modal (7.4 UI) ─────────────── */
-(function(){
+  // ───────── Audit modal ─────────
   const auditModal = document.getElementById("auditModal");
-  const auditOverlay = document.getElementById("auditOverlay");
   const btnOpenAudit = document.getElementById("btnOpenAudit");
   const btnClose1 = document.getElementById("auditCloseBtn");
   const btnClose2 = document.getElementById("auditCloseBtn2");
@@ -912,22 +890,26 @@
   const err = document.getElementById("auditErr");
   const hint = document.getElementById("auditHint");
 
-  function open(){
+  function openAudit(){
     if(!auditModal) return;
     auditModal.classList.remove("hidden");
     auditModal.setAttribute("aria-hidden","false");
   }
-  function close(){
+  function closeAudit(){
     if(!auditModal) return;
     auditModal.classList.add("hidden");
     auditModal.setAttribute("aria-hidden","true");
   }
-  function showErr(msg){
+  function showAuditErr(msg){
     err.textContent = msg || "";
     err.classList.toggle("hidden", !msg);
   }
   function setHint(msg){
     hint.textContent = msg || "";
+  }
+
+  function escapeHtml(s){
+    return String(s || "").replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   }
 
   function renderEvents(events){
@@ -952,10 +934,10 @@
       return `
         <div style="padding:12px 0; border-bottom:1px solid rgba(148,163,184,.14)">
           <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:baseline">
-            <div style="font-weight:800">${action}</div>
-            <div class="pill sm">${when}</div>
-            ${actor ? `<div class="pill sm">by <b>${escapeHtml(actor)}</b></div>` : ``}
-            ${target ? `<div class="pill sm">target <b>${escapeHtml(target)}</b></div>` : ``}
+            <div style="font-weight:800">${escapeHtml(action)}</div>
+            <div class="pill">${escapeHtml(when)}</div>
+            ${actor ? `<div class="pill">by <b>${escapeHtml(actor)}</b></div>` : ``}
+            ${target ? `<div class="pill">target <b>${escapeHtml(target)}</b></div>` : ``}
           </div>
           ${meta ? `<div class="muted" style="margin-top:6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size:12px; white-space:pre-wrap">${escapeHtml(meta)}</div>` : ``}
         </div>
@@ -965,16 +947,12 @@
     list.innerHTML = `<div>${rows}</div>`;
   }
 
-  function escapeHtml(s){
-    return String(s || "").replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-  }
-
-  async function refresh(){
+  async function refreshAudit(){
     const restaurantId = selRid && selRid.value ? selRid.value : "";
     const limit = Math.max(1, Math.min(200, parseInt(inpLimit.value || "50",10) || 50));
     inpLimit.value = String(limit);
 
-    showErr("");
+    showAuditErr("");
     setHint("טוען…");
     list.innerHTML = "";
 
@@ -982,33 +960,39 @@
       const url = `/owner/staff/audit?restaurantId=${encodeURIComponent(restaurantId)}&limit=${encodeURIComponent(String(limit))}`;
       const res = await fetch(url, { headers: { "Accept": "application/json" } });
       const data = await res.json().catch(()=>({}));
+
       if(!res.ok || !data.ok){
         const msg = data && (data.message || data.error) ? (data.message || data.error) : `HTTP ${res.status}`;
         setHint("");
-        showErr(String(msg));
+        showAuditErr(String(msg));
         return;
       }
+
       setHint(`מציג ${data.events?.length || 0} אירועים אחרונים.`);
       renderEvents(data.events || []);
     }catch(ex){
       setHint("");
-      showErr(String(ex));
+      showAuditErr(String(ex));
     }
   }
 
   if(btnOpenAudit){
     btnOpenAudit.addEventListener("click", ()=>{
-      open();
-      refresh();
+      openAudit();
+      refreshAudit();
     });
   }
-  if(btnRefresh) btnRefresh.addEventListener("click", refresh);
-  if(btnClose1) btnClose1.addEventListener("click", close);
-  if(btnClose2) btnClose2.addEventListener("click", close);
-  if(auditOverlay) auditOverlay.addEventListener("click", close);
+  if(btnRefresh) btnRefresh.addEventListener("click", refreshAudit);
+  if(btnClose1) btnClose1.addEventListener("click", closeAudit);
+  if(btnClose2) btnClose2.addEventListener("click", closeAudit);
+  if(auditModal) auditModal.addEventListener("click", (e)=>{ if(e.target === auditModal) closeAudit(); });
 
   document.addEventListener("keydown", (e)=>{
-    if(e.key === "Escape" && auditModal && !auditModal.classList.contains("hidden")) close();
+    if(e.key === "Escape"){
+      if(modal && !modal.classList.contains("hidden")) hideModal();
+      if(resetModal && !resetModal.classList.contains("hidden")) closeResetModal();
+      if(auditModal && !auditModal.classList.contains("hidden")) closeAudit();
+    }
   });
 })();
 </script>
