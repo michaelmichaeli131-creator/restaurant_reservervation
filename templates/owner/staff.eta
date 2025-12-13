@@ -323,6 +323,13 @@
   // audit uses same restaurant options
   // ✅ FIX: keep on it (stable scope in Eta)
   it.__auditOptsHtml = it.__restOptsHtml;
+
+  // ✅ FIX (MIN): normalize permissions to an Array so ".forEach" never crashes
+  const permsSafe = Array.isArray(allPermissions)
+    ? allPermissions
+    : (typeof allPermissions === "string"
+        ? allPermissions.split(",").map((s)=>s.trim()).filter(Boolean)
+        : []);
 %>
 
 <div class="sb-owner container">
@@ -435,7 +442,7 @@
             </div>
           <% } else { %>
             <div class="cards">
-              <% staff.forEach(function(s){ 
+              <% staff.forEach(function(s){
                    const initials = ((s.firstName||"").slice(0,1) + (s.lastName||"").slice(0,1)).toUpperCase() || "SB";
                    const isInactive = (s.status === "inactive");
               %>
@@ -481,7 +488,7 @@
                     <input type="hidden" name="redirectTo" value="/owner/staff" />
 
                     <div class="perm-grid" style="<%= isInactive ? "opacity:.55" : "" %>">
-                      <% (allPermissions || []).forEach(function(p){ 
+                      <% permsSafe.forEach(function(p){
                            const checked = (s.permissions || []).includes(p);
                       %>
                         <label class="perm-item">
@@ -596,7 +603,7 @@
             <div id="permOverrideBox" style="display:none; margin-top:10px">
               <div class="muted" style="margin-bottom:8px">בחר הרשאות ספציפיות (אופציונלי):</div>
               <div class="perm-grid">
-                <% (allPermissions || []).forEach(function(p){ %>
+                <% permsSafe.forEach(function(p){ %>
                   <label class="perm-item">
                     <input type="checkbox" name="permissions" value="<%= p %>" />
                     <div>
