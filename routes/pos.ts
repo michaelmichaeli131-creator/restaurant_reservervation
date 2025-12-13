@@ -4,6 +4,7 @@
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
 import { requireOwner, requireStaff } from "../lib/auth.ts";
+import { requireRestaurantAccess } from "../services/authz.ts";
 import { getRestaurant } from "../database.ts";
 import { isTableSeated } from "../services/seating_service.ts";
 import {
@@ -33,6 +34,26 @@ import {
 } from "../pos/pos_ws.ts";
 
 export const posRouter = new Router();
+
+function resolveRestaurantIdForStaff(ctx: any, rid: string): string | null {
+  const user = ctx.state.user;
+  if (user?.role === "staff") {
+    const locked = (ctx.state as any).staffRestaurantId as string | null;
+    const effective = rid || locked || "";
+    if (!effective) {
+      ctx.response.status = Status.Forbidden;
+      ctx.response.body = "No restaurant access";
+      return null;
+    }
+    if (rid && locked && rid !== locked) {
+      ctx.response.status = Status.Forbidden;
+      ctx.response.body = "No restaurant access";
+      return null;
+    }
+    return effective;
+  }
+  return rid;
+}
 
 // WS endpoint
 posRouter.get("/ws/pos", handlePosSocket);
@@ -345,7 +366,10 @@ posRouter.get("/pos/:rid/table/:tableNumber", async (ctx) => {
   if (!requireStaff(ctx)) return;
 
   const user = ctx.state.user;
-  const rid = ctx.params.rid!;
+  const rid0 = ctx.params.rid!;
+  const rid = resolveRestaurantIdForStaff(ctx, rid0);
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
   const tableParam = ctx.params.tableNumber;
   const tableNumber = Number(tableParam);
 
@@ -383,9 +407,54 @@ posRouter.get("/pos/:rid/table/:tableNumber", async (ctx) => {
 
 /* ------------ Waiter lobby ------------ */
 
+// Convenience routes for staff: restaurantId is inferred from the locked staff membership.
+// These routes redirect to the canonical URLs that include :rid, so existing templates keep working.
+posRouter.get("/waiter", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const rid = resolveRestaurantIdForStaff(ctx, "");
+  if (!rid) return;
+  ctx.response.redirect(`/waiter/${rid}`);
+});
+
+posRouter.get("/waiter-map", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const rid = resolveRestaurantIdForStaff(ctx, "");
+  if (!rid) return;
+  ctx.response.redirect(`/waiter-map/${rid}`);
+});
+
+posRouter.get("/kitchen", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const rid = resolveRestaurantIdForStaff(ctx, "");
+  if (!rid) return;
+  ctx.response.redirect(`/kitchen/${rid}`);
+});
+
+posRouter.get("/bar", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const rid = resolveRestaurantIdForStaff(ctx, "");
+  if (!rid) return;
+  ctx.response.redirect(`/bar/${rid}`);
+});
+
+posRouter.get("/pos/table/:tableNumber", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const rid = resolveRestaurantIdForStaff(ctx, "");
+  if (!rid) return;
+  const tn = ctx.params.tableNumber!;
+  ctx.response.redirect(`/pos/${rid}/table/${tn}`);
+});
+
+
+
+
 posRouter.get("/waiter/:rid", async (ctx) => {
   if (!requireStaff(ctx)) return;
-  const rid = ctx.params.rid!;
+  const rid0 = ctx.params.rid!;
+  const rid = resolveRestaurantIdForStaff(ctx, rid0);
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
+
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);
 
@@ -413,11 +482,16 @@ posRouter.get("/waiter/:rid", async (ctx) => {
   });
 });
 
+
 /* ------------ Waiter table page (נתיב ישן /waiter/:rid/:table) ------------ */
 
 posRouter.get("/waiter/:rid/:table", async (ctx) => {
   if (!requireStaff(ctx)) return;
-  const rid = ctx.params.rid!;
+  const rid0 = ctx.params.rid!;
+  const rid = resolveRestaurantIdForStaff(ctx, rid0);
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
+
   const table = Number(ctx.params.table!);
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);
@@ -436,11 +510,16 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
   });
 });
 
+
 /* ------------ Waiter map (click table to open) ------------ */
 
 posRouter.get("/waiter-map/:rid", async (ctx) => {
   if (!requireStaff(ctx)) return;
-  const rid = ctx.params.rid!;
+  const rid0 = ctx.params.rid!;
+  const rid = resolveRestaurantIdForStaff(ctx, rid0);
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
+
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);
   await render(ctx, "pos_waiter_map", {
@@ -451,11 +530,16 @@ posRouter.get("/waiter-map/:rid", async (ctx) => {
   });
 });
 
+
 /* ------------ Kitchen & Bar dashboards ------------ */
 
 posRouter.get("/kitchen/:rid", async (ctx) => {
   if (!requireStaff(ctx)) return;
-  const rid = ctx.params.rid!;
+  const rid0 = ctx.params.rid!;
+  const rid = resolveRestaurantIdForStaff(ctx, rid0);
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
+
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);
 
@@ -467,9 +551,13 @@ posRouter.get("/kitchen/:rid", async (ctx) => {
   });
 });
 
+
 posRouter.get("/bar/:rid", async (ctx) => {
   if (!requireStaff(ctx)) return;
-  const rid = ctx.params.rid!;
+  const rid0 = ctx.params.rid!;
+  const rid = resolveRestaurantIdForStaff(ctx, rid0);
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);
 
@@ -493,13 +581,33 @@ posRouter.get("/api/pos/menu/:rid", async (ctx) => {
   ctx.response.body = JSON.stringify(items);
 });
 
+// Staff convenience: menu API without :rid (restaurant inferred from locked staff membership)
+posRouter.get("/api/pos/menu", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const rid = resolveRestaurantIdForStaff(ctx, "");
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
+
+  const items = await listItems(rid);
+  ctx.response.headers.set(
+    "Content-Type",
+    "application/json; charset=utf-8",
+  );
+  ctx.response.body = JSON.stringify(items);
+});
+
+
+
 /* ------------ API: waiter adds item ------------ */
 
 posRouter.post("/api/pos/order-item/add", async (ctx) => {
   if (!requireStaff(ctx)) return;
 
   const body = await ctx.request.body.json();
-  const restaurantId = String(body.restaurantId ?? "");
+  const restaurantId0 = String(body.restaurantId ?? "");
+  const restaurantId = resolveRestaurantIdForStaff(ctx, restaurantId0);
+  if (!restaurantId) return;
+  if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
   const table = Number(body.table ?? 0);
   const menuItemId = String(body.menuItemId ?? "");
   const quantity = Number(body.quantity ?? 1);
@@ -543,7 +651,10 @@ posRouter.post("/api/pos/order-item/add", async (ctx) => {
 posRouter.post("/api/pos/order-item/cancel", async (ctx) => {
   if (!requireStaff(ctx)) return;
   const body = await ctx.request.body.json();
-  const restaurantId = String(body.restaurantId ?? "");
+  const restaurantId0 = String(body.restaurantId ?? "");
+  const restaurantId = resolveRestaurantIdForStaff(ctx, restaurantId0);
+  if (!restaurantId) return;
+  if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
   const orderId = String(body.orderId ?? "");
   const orderItemId = String(body.orderItemId ?? "");
   const table = Number(body.table ?? 0);
@@ -573,8 +684,13 @@ posRouter.post("/api/pos/order-item/cancel", async (ctx) => {
 /* ------------ API: mark item served (waiter) ------------ */
 
 posRouter.post("/api/pos/order-item/serve", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+
   const body = await ctx.request.body.json();
-  const restaurantId = String(body.restaurantId ?? "");
+  const restaurantId0 = String(body.restaurantId ?? "");
+  const restaurantId = resolveRestaurantIdForStaff(ctx, restaurantId0);
+  if (!restaurantId) return;
+  if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
   const orderId = String(body.orderId ?? "");
   const orderItemId = String(body.orderItemId ?? "");
   const table = Number(body.table ?? 0);
@@ -610,7 +726,10 @@ posRouter.post("/api/pos/order-item/serve", async (ctx) => {
 posRouter.post("/api/pos/order/close", async (ctx) => {
   if (!requireStaff(ctx)) return;
   const body = await ctx.request.body.json();
-  const restaurantId = String(body.restaurantId ?? "");
+  const restaurantId0 = String(body.restaurantId ?? "");
+  const restaurantId = resolveRestaurantIdForStaff(ctx, restaurantId0);
+  if (!restaurantId) return;
+  if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
   const table = Number(body.table ?? 0);
 
   if (!restaurantId || !table) {

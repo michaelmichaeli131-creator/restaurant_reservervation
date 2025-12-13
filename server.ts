@@ -47,6 +47,7 @@ import { diagRouter } from "./routes/diag.ts";
 import openingRouter from "./routes/opening.ts";
 import { posRouter } from "./routes/pos.ts";
 import { hostRouter } from "./routes/host.ts";
+import { staffContextMiddleware } from "./middleware/staff_context.ts";
 import ownerBillsRouter from "./routes/owner_bills.ts";
 import inventoryRouter from "./routes/inventory.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
@@ -210,6 +211,9 @@ app.use(async (ctx, next) => {
   }
   await next();
 });
+
+// --- Load staff context (for role="staff") ---
+app.use(staffContextMiddleware());
 
 // --- 🔎 Request logger המפורט שלך — ממוקם מוקדם כדי לעטוף הכל ---
 app.use(requestLogger());

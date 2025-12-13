@@ -4,6 +4,7 @@
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
 import { requireStaff } from "../lib/auth.ts";
+import { requireRestaurantAccess } from "../services/authz.ts";
 
 import {
   getRestaurant,
@@ -49,6 +50,30 @@ function toIntLoose(v: unknown): number | null {
     if (Number.isFinite(n)) return Math.trunc(n);
   }
   return null;
+}
+
+function resolveRestaurantIdForRequest(ctx: any, rid: string): string | null {
+  const user = ctx.state.user;
+
+  // עבור staff: אם לא נשלח restaurantId בבקשה, נשתמש במסעדה שננעלה במידלוור.
+  if (user?.role === "staff") {
+    const locked = (ctx.state as any).staffRestaurantId as string | null;
+    const effective = rid || locked || "";
+    if (!effective) {
+      ctx.response.status = 403;
+      ctx.response.body = "No restaurant access";
+      return null;
+    }
+    // אם נשלח rid והוא לא תואם לנעילה — חסימה.
+    if (rid && locked && rid !== locked) {
+      ctx.response.status = 403;
+      ctx.response.body = "No restaurant access";
+      return null;
+    }
+    return effective;
+  }
+
+  return rid;
 }
 
 /** קריאת body גמישה: JSON / form / text (עם ניסיון ל־JSON) */
@@ -139,6 +164,14 @@ async function loadHostReservations(rid: string) {
   });
 }
 
+/** GET /host – נוח לעובדים: מסעדה ננעלת מה־StaffMember */
+hostRouter.get("/host", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const rid = resolveRestaurantIdForRequest(ctx, "");
+  if (!rid) return;
+  ctx.response.redirect(`/host/${rid}`);
+});
+
 /** GET /host/:rid – עמוד המארחת עם מפת המסעדה והזמנות להיום */
 hostRouter.get("/host/:rid", async (ctx) => {
   if (!requireStaff(ctx)) return; // דורש לוגין
@@ -150,14 +183,10 @@ hostRouter.get("/host/:rid", async (ctx) => {
     role: user?.role,
   });
 
-  // רק owner/manager למסך המארחת
-  if (user.role !== "owner" && user.role !== "manager") {
-    ctx.response.status = Status.Forbidden;
-    ctx.response.body = "Forbidden";
-    return;
-  }
-
-  const rid = ctx.params.rid!;
+  const rid0 = ctx.params.rid!;
+  const rid = resolveRestaurantIdForRequest(ctx, rid0);
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
   const r = await getRestaurant(rid);
   if (!r) {
     hlog("restaurant not found", { rid });
@@ -194,6 +223,21 @@ hostRouter.get("/host/:rid", async (ctx) => {
   });
 });
 
+/** GET /api/host/reservations – נוח לעובדים: ללא :rid (מסעדה ננעלת מה־StaffMember) */
+hostRouter.get("/api/host/reservations", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const rid = resolveRestaurantIdForRequest(ctx, "");
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
+
+  const reservations = await loadHostReservations(rid);
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = JSON.stringify({
+    rid,
+    reservations,
+  });
+});
+
 /** GET /api/host/:rid/reservations – רשימת הזמנות להיום */
 hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
   if (!requireStaff(ctx)) return;
@@ -205,13 +249,10 @@ hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
     role: user?.role,
   });
 
-  if (user.role !== "owner" && user.role !== "manager") {
-    ctx.response.status = Status.Forbidden;
-    ctx.response.body = "Forbidden";
-    return;
-  }
-
-  const rid = ctx.params.rid!;
+  const rid0 = ctx.params.rid!;
+  const rid = resolveRestaurantIdForRequest(ctx, rid0);
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound, "restaurant not found");
 
@@ -337,15 +378,12 @@ hostRouter.post("/api/host/seat", async (ctx) => {
     role: user?.role,
   });
 
-  if (user.role !== "owner" && user.role !== "manager") {
-    hlog("seat forbidden: role not allowed", { role: user?.role });
-    ctx.response.status = Status.Forbidden;
-    ctx.response.body = "Forbidden";
-    return;
-  }
-
-  const { rid, reservationId, tableNumber, raw, query } =
+  const { rid: ridRaw, reservationId, tableNumber, raw, query } =
     await extractSeatPayload(ctx);
+
+  const rid = resolveRestaurantIdForRequest(ctx, ridRaw);
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
 
   hlog("seat extracted fields", {
     rid,
@@ -356,7 +394,7 @@ hostRouter.post("/api/host/seat", async (ctx) => {
     query,
   });
 
-  if (!rid || !reservationId || !tableNumber) {
+  if (!reservationId || !tableNumber) {
     hlog("seat -> missing_fields", {
       ridOk: !!rid,
       reservationIdOk: !!reservationId,
@@ -434,15 +472,12 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
     role: user?.role,
   });
 
-  if (user.role !== "owner" && user.role !== "manager") {
-    hlog("seat-multi forbidden: role not allowed", { role: user?.role });
-    ctx.response.status = Status.Forbidden;
-    ctx.response.body = "Forbidden";
-    return;
-  }
-
-  const { rid, reservationId, tables, raw, query } =
+  const { rid: ridRaw, reservationId, tables, raw, query } =
     await extractSeatMultiPayload(ctx);
+
+  const rid = resolveRestaurantIdForRequest(ctx, ridRaw);
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
 
   hlog("seat-multi extracted fields", {
     rid,
@@ -452,7 +487,7 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
     query,
   });
 
-  if (!rid || !reservationId || !tables.length) {
+  if (!reservationId || !tables.length) {
     hlog("seat-multi -> missing_fields", {
       ridOk: !!rid,
       reservationIdOk: !!reservationId,
@@ -539,14 +574,10 @@ hostRouter.post("/api/host/table/unseat", async (ctx) => {
     role: user?.role,
   });
 
-  if (user.role !== "owner" && user.role !== "manager") {
-    hlog("table/unseat forbidden: role not allowed", { role: user?.role });
-    ctx.response.status = Status.Forbidden;
-    ctx.response.body = "Forbidden";
-    return;
-  }
-
-  const { rid, tables, payload, query } = await extractUnseatPayload(ctx);
+  const { rid: ridRaw, tables, payload, query } = await extractUnseatPayload(ctx);
+  const rid = resolveRestaurantIdForRequest(ctx, ridRaw);
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
 
   hlog("table/unseat extracted fields", {
     rid,
@@ -606,17 +637,13 @@ hostRouter.get("/api/host/table/info", async (ctx) => {
     role: user?.role,
   });
 
-  if (user.role !== "owner" && user.role !== "manager") {
-    hlog("table/info forbidden: role not allowed", { role: user?.role });
-    ctx.response.status = Status.Forbidden;
-    ctx.response.body = "Forbidden";
-    return;
-  }
-
   const url = ctx.request.url;
   const sp = url.searchParams;
 
-  const rid = (sp.get("restaurantId") ?? sp.get("rid") ?? "").toString();
+  const ridRaw = (sp.get("restaurantId") ?? sp.get("rid") ?? "").toString();
+  const rid = resolveRestaurantIdForRequest(ctx, ridRaw);
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
   const tStr = (sp.get("table") ?? sp.get("tableNumber") ?? "").toString();
   const tableNumber = toIntLoose(tStr) ?? 0;
 
@@ -692,13 +719,6 @@ hostRouter.post("/api/host/reservation/status", async (ctx) => {
     role: user?.role,
   });
 
-  if (user.role !== "owner" && user.role !== "manager") {
-    hlog("reservation/status forbidden: role not allowed", { role: user?.role });
-    ctx.response.status = Status.Forbidden;
-    ctx.response.body = "Forbidden";
-    return;
-  }
-
   const data = await readJsonLikeBody(ctx);
   hlog("reservation/status payload (after readJsonLikeBody)", data);
 
@@ -709,7 +729,10 @@ hostRouter.post("/api/host/reservation/status", async (ctx) => {
   const qReservationId = sp.get("reservationId") ?? "";
   const qStatus = sp.get("status") ?? "";
 
-  const rid = (data.restaurantId ?? data.rid ?? qRid ?? "").toString();
+  const ridRaw = (data.restaurantId ?? data.rid ?? qRid ?? "").toString();
+  const rid = resolveRestaurantIdForRequest(ctx, ridRaw);
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
   const reservationId = (data.reservationId ?? qReservationId ?? "").toString();
   const status = (data.status ?? qStatus ?? "").toString().toLowerCase();
 

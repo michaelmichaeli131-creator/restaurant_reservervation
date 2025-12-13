@@ -67,8 +67,8 @@ function tt(k, fb){
         <label for="password"><%= tt('auth.register.form.password','סיסמה') %></label>
         <div class="pw-wrap">
           <input id="password" name="password" type="password" required autocomplete="new-password"
-                 minlength="6"
-                 placeholder="<%= tt('auth.register.form.passwordPh','לפחות 6 תווים') %>"/>
+                 minlength="8"
+                 placeholder="<%= tt('auth.register.form.passwordPh','לפחות 8 תווים') %>"/>
           <button class="pw-toggle" type="button"
                   aria-label="<%= tt('auth.register.form.pwToggleAria','הצג/הסתר סיסמה') %>">👁</button>
         </div>
@@ -79,7 +79,7 @@ function tt(k, fb){
         <label for="confirm"><%= tt('auth.register.form.confirm','אימות סיסמה') %></label>
         <div class="pw-wrap">
           <input id="confirm" name="confirm" type="password" required autocomplete="new-password"
-                 minlength="6"
+                 minlength="8"
                  placeholder="<%= tt('auth.register.form.confirmPh','הקלד/י שוב את הסיסמה') %>"/>
           <button class="pw-toggle" type="button"
                   aria-label="<%= tt('auth.register.form.pwToggleAria','הצג/הסתר סיסמה') %>">👁</button>
@@ -118,7 +118,7 @@ function tt(k, fb){
         </select>
       </div>
 
-      <!-- 🔥 חדש: סוג חשבון (לקוח / בעל מסעדה / עובד) -->
+      <!-- סוג חשבון (לקוח / בעל מסעדה) -->
       <div class="form-row">
         <label for="accountType"><%= tt('auth.register.form.accountType','סוג חשבון') %></label>
         <select id="accountType" name="accountType" required>
@@ -131,54 +131,13 @@ function tt(k, fb){
           <option value="owner"    <%= acc === 'owner' ? 'selected' : '' %>>
             <%= tt('auth.register.form.accountType.owner','בעל / מנהל מסעדה') %>
           </option>
-          <option value="staff"    <%= acc === 'staff' ? 'selected' : '' %>>
-            <%= tt('auth.register.form.accountType.staff','עובד/ת מסעדה') %>
-          </option>
         </select>
         <small class="muted">
           <%= tt(
                 'auth.register.form.accountTypeHint',
-                'לקוח יכול להזמין שולחנות בלבד. בעל מסעדה מקבל גישה לניהול. עובד חייב לקבל אישור מהבעלים לפני התחברות למערכת.'
+                'לקוח יכול להזמין שולחנות בלבד. בעל מסעדה מקבל גישה לניהול.'
           ) %>
         </small>
-      </div>
-
-      <!-- 🔥 חדש: בלוק לעובדי מסעדה – נפתח רק כשנבחר staff -->
-      <div id="staff-extra" class="staff-extra" style="display:none; grid-column:1/-1">
-        <div class="form-row">
-          <label for="staffRole"><%= tt('auth.register.form.staffRole','תפקיד במסעדה') %></label>
-          <select id="staffRole" name="staffRole">
-            <%
-              const sr = it.prefill?.staffRole || '';
-            %>
-            <option value="" disabled <%= sr ? '' : 'selected' %>>
-              <%= tt('auth.register.form.staffRole.choose','בחר/י תפקיד') %>
-            </option>
-            <option value="host"      <%= sr === 'host' ? 'selected' : '' %>><%= tt('staff.role.host','מארחת') %></option>
-            <option value="waiter"    <%= sr === 'waiter' ? 'selected' : '' %>><%= tt('staff.role.waiter','מלצר/ית') %></option>
-            <option value="bartender" <%= sr === 'bartender' ? 'selected' : '' %>><%= tt('staff.role.bartender','ברמן/ית') %></option>
-            <option value="chef"      <%= sr === 'chef' ? 'selected' : '' %>><%= tt('staff.role.chef','שף / מטבח') %></option>
-            <option value="manager"   <%= sr === 'manager' ? 'selected' : '' %>><%= tt('staff.role.manager','מנהל/ת משמרת') %></option>
-            <option value="busser"    <%= sr === 'busser' ? 'selected' : '' %>><%= tt('staff.role.busser','עובד/ת רצפה') %></option>
-          </select>
-        </div>
-
-        <div class="form-row">
-          <label for="staffRestaurantName">
-            <%= tt('auth.register.form.staffRestaurantName','לאיזו מסעדה את/ה שייך?') %>
-          </label>
-          <input id="staffRestaurantName"
-                 name="staffRestaurantName"
-                 type="text"
-                 placeholder="<%= tt('auth.register.form.staffRestaurantNamePh','שם מסעדה או קוד שהבעלים נתן לך') %>"
-                 value="<%= it.prefill?.staffRestaurantName || '' %>"/>
-          <small class="muted">
-            <%= tt(
-                  'auth.register.form.staffRestaurantNameHint',
-                  'הבקשה תישלח לבעל המסעדה. הוא יראה את הפרטים, יאשר אותך ויקבע אילו מסכים תראה (מלצרים, מטבח, מארחת וכו׳).'
-            ) %>
-          </small>
-        </div>
       </div>
 
       <!-- טלפון (קיים במקור – נשאר) -->
@@ -234,33 +193,6 @@ function tt(k, fb){
       inp.type = (inp.type === 'password') ? 'text' : 'password';
       t.classList.toggle('on', inp.type === 'text');
     }, {passive:true});
-
-    // 🔥 הצגת בלוק העובד לפי accountType
-    const accountType = document.getElementById('accountType');
-    const staffExtra  = document.getElementById('staff-extra');
-    const staffRole   = document.getElementById('staffRole');
-    const staffRest   = document.getElementById('staffRestaurantName');
-
-    function updateStaffVisibility(){
-      if (!accountType || !staffExtra) return;
-      const isStaff = accountType.value === 'staff';
-      staffExtra.style.display = isStaff ? '' : 'none';
-
-      if (staffRole) {
-        if (isStaff) staffRole.setAttribute('required', 'required');
-        else staffRole.removeAttribute('required');
-      }
-      if (staffRest) {
-        if (isStaff) staffRest.setAttribute('required', 'required');
-        else staffRest.removeAttribute('required');
-      }
-    }
-
-    if (accountType) {
-      accountType.addEventListener('change', updateStaffVisibility, {passive:true});
-      // אתחול לפי ערך מקדים מהשרת
-      updateStaffVisibility();
-    }
 
     // ולידציה לקוח: התאמת סיסמאות
     if (form) {
@@ -435,15 +367,6 @@ function tt(k, fb){
   .btn.ghost{
     background:color-mix(in srgb, #0f172a 80%, transparent);
     border-color:var(--bd);
-  }
-
-  /* בלוק פרטי עובד */
-  .staff-extra{
-    padding:10px 12px;
-    border-radius:var(--radius-sm);
-    background:rgba(59,130,246,.06);
-    border:1px dashed rgba(59,130,246,.5);
-    margin-top:4px;
   }
 
   @media (max-width:760px){

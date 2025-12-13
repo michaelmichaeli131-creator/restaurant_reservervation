@@ -133,6 +133,7 @@
     gap:8px;
     flex-wrap:wrap;
     justify-content:flex-end;
+    align-items:center;
   }
   .tag{
     font-size:12px;
@@ -143,12 +144,113 @@
     color:var(--ink,#e6e8ef);
   }
 
-  /* Permissions */
-  .perm-title{
-    margin:10px 0 8px 0;
-    font-size:13px;
-    color:var(--ink,#e6e8ef);
+  /* Minimal rows under staff */
+  .staff-mini{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:flex-start;
+    margin-top:10px;
   }
+  .staff-mini .muted{color:var(--ink-muted,#9aa3b2);font-size:12px}
+  .staff-actions{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+    align-items:center;
+    margin-top:10px;
+  }
+
+  /* Empty state */
+  .empty{
+    text-align:center;
+    padding:26px 16px;
+  }
+  .empty .icon{font-size:28px;margin-bottom:8px}
+  .empty h2{margin:0 0 6px 0;font-size:16px}
+  .empty p{margin:0 0 14px 0;color:var(--ink-muted,#9aa3b2);font-size:13px}
+
+  /* Modal */
+  .sb-modal{
+    position:fixed; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.55);
+    padding:18px;
+    z-index:1000;
+  }
+  .sb-modal.hidden{display:none}
+  .sb-modal .dialog{
+    width:min(720px, 100%);
+    background: var(--panel,#121622);
+    border:1px solid var(--bd,#222834);
+    border-radius:18px;
+    box-shadow:0 18px 60px rgba(0,0,0,.55);
+    color: var(--ink,#e6e8ef);
+    overflow:hidden;
+  }
+  .sb-modal .dialog-hd{
+    padding:16px 18px;
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    align-items:center;
+    border-bottom:1px solid rgba(148,163,184,.12);
+  }
+  .sb-modal .dialog-bd{padding:16px 18px}
+  .sb-modal .dialog-ft{
+    padding:14px 18px;
+    display:flex;
+    justify-content:flex-end;
+    gap:10px;
+    border-top:1px solid rgba(148,163,184,.12);
+    background:rgba(2,6,23,.18);
+  }
+  .form-grid{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:12px;
+    margin-top:10px;
+  }
+  .form-grid .full{grid-column:1 / -1}
+  .field label{
+    display:block;
+    font-size:12px;
+    color:var(--ink-muted,#9aa3b2);
+    margin-bottom:6px;
+  }
+  .field input, .field select{
+    width:100%;
+    padding:10px 12px;
+    border-radius:12px;
+    border:1px solid rgba(148,163,184,.18);
+    background:rgba(2,6,23,.30);
+    color:var(--ink,#e6e8ef);
+    outline:none;
+  }
+  .hint{font-size:12px;color:var(--ink-muted,#9aa3b2);margin-top:6px}
+  .errbox{
+    display:none;
+    margin-top:10px;
+    padding:10px 12px;
+    border-radius:12px;
+    border:1px solid rgba(239,68,68,.35);
+    background:rgba(239,68,68,.08);
+    color:#fecaca;
+    font-size:13px;
+  }
+  .alert.err{
+    margin-top:10px;
+    padding:10px 12px;
+    border-radius:12px;
+    border:1px solid rgba(239,68,68,.35);
+    background:rgba(239,68,68,.08);
+    color:#fecaca;
+    font-size:13px;
+  }
+
+  /* Permissions (still used only in Create modal) */
   .perm-grid{
     display:grid;
     grid-template-columns:1fr 1fr;
@@ -168,36 +270,19 @@
   }
   .perm-item input{margin-top:2px}
   .perm-item strong{font-size:12.5px}
-  .perm-actions{
-    margin-top:10px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-    flex-wrap:wrap;
-  }
-  .inline-check{
-    display:flex;
-    gap:8px;
-    align-items:center;
-    color:var(--ink-muted,#9aa3b2);
-    font-size:12px;
-  }
-
-  /* Empty state */
-  .empty{
-    text-align:center;
-    padding:26px 16px;
-  }
-  .empty .icon{font-size:28px;margin-bottom:8px}
-  .empty h2{margin:0 0 6px 0;font-size:16px}
-  .empty p{margin:0 0 14px 0;color:var(--ink-muted,#9aa3b2);font-size:13px}
+  .perm-panel{margin-top:10px}
 </style>
 
 <%
   const owner = it.owner;
   const restaurantsData = it.restaurantsData || [];
   const allPermissions = it.allPermissions || [];
+
+  const staffRoleOptions = it.staffRoleOptions || [];
+
+  const restaurantOptions = (Array.isArray(restaurantsData) ? restaurantsData : [])
+    .map((b) => (b && (b.restaurant || b.res)) || null)
+    .filter(Boolean);
 
   const permLabels = {
     "pos.waiter": "POS - מלצר (קליטת הזמנות וטיפול בשולחנות)",
@@ -214,6 +299,39 @@
     "reports.view": "צפייה בדוחות (מכירות, תפוסה וכו')",
     "menu.manage": "ניהול תפריט (מנות, מחירים, זמינות)"
   };
+
+  function escAttr(s){
+    return String(s || "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+  function escText(s){
+    return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  const __restOpts = [];
+  for (const r of (restaurantOptions || [])) {
+    const id = String(r && r.id ? r.id : "");
+    const name = String(r && r.name ? r.name : "");
+    if (!id) continue;
+    __restOpts.push(`<option value="${escAttr(id)}">${escText(name)}</option>`);
+  }
+  it.__restOptsHtml = __restOpts.join("");
+
+  const __roleOpts = [];
+  for (const rr of (staffRoleOptions || [])) {
+    const v = String(rr && rr.value ? rr.value : "");
+    const l = String(rr && rr.label ? rr.label : "");
+    if (!v) continue;
+    __roleOpts.push(`<option value="${escAttr(v)}">${escText(l)}</option>`);
+  }
+  it.__roleOptsHtml = __roleOpts.join("");
+
+  it.__auditOptsHtml = it.__restOptsHtml;
+
+  it.__permsSafe = Array.isArray(allPermissions)
+    ? allPermissions
+    : (typeof allPermissions === "string"
+        ? allPermissions.split(",").map((s)=>s.trim()).filter(Boolean)
+        : []);
 %>
 
 <div class="sb-owner container">
@@ -222,10 +340,12 @@
       <div>
         <h1>👥 ניהול עובדים</h1>
         <div class="muted">
-          מאשרים עובדים, מטפלים בבקשות הצטרפות ומגדירים הרשאות לפי אזורים במערכת.
+          רשימת עובדים מינימלית. לניהול הרשאות ופרטים נוספים — כנס לעמוד העובד.
         </div>
       </div>
       <div class="pill-row">
+        <button type="button" class="btn sm" id="btnOpenCreateStaff">➕ הוסף עובד</button>
+        <button type="button" class="btn sm ghost" id="btnOpenAudit">🧾 לוג פעולות</button>
         <span class="pill">בעלים: <b><%= owner?.firstName %> <%= owner?.lastName %></b></span>
         <span class="pill">אימייל: <b><%= owner?.email %></b></span>
       </div>
@@ -244,9 +364,7 @@
   <% restaurantsData.forEach(function(block) {
        const restaurant = block.restaurant;
        const staff = block.staff || [];
-       const pending = block.pending || [];
-       const signupRequests = block.signupRequests || [];
-  %>
+       const pending = block.pending || [];  %>
     <div class="card">
       <div class="owner-hd" style="margin-bottom:14px">
         <div>
@@ -256,14 +374,12 @@
         <div class="pill-row">
           <span class="pill">מאושרים: <b><%= staff.length %></b></span>
           <span class="pill">pending (staff_db): <b><%= pending.length %></b></span>
-          <span class="pill">self-signup: <b><%= signupRequests.length %></b></span>
         </div>
       </div>
 
       <div class="grid">
-        <!-- LEFT: pending + signup requests -->
+        <!-- LEFT: pending staff -->
         <div>
-          <!-- Pending staff_db -->
           <div style="margin-bottom:14px">
             <div class="section-title">
               <h2>ממתינים לאישור (staff_db)</h2>
@@ -311,114 +427,68 @@
               </div>
             <% } %>
           </div>
-
-          <!-- Signup requests -->
-          <div>
-            <div class="section-title">
-              <h2>בקשות הצטרפות (self-signup)</h2>
-              <% if (!signupRequests.length) { %><span class="muted">אין בקשות כרגע</span><% } %>
-            </div>
-
-            <% if (signupRequests.length) { %>
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>שם</th>
-                      <th>תפקיד</th>
-                      <th>אימייל</th>
-                      <th>טלפון</th>
-                      <th>נשלח</th>
-                      <th>סטטוס</th>
-                      <th class="actions">פעולות</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <% signupRequests.forEach(function(entry){
-                         const req = entry.request;
-                         const user = entry.user || {};
-                    %>
-                      <tr>
-                        <td><%= user.firstName || "-" %> <%= user.lastName || "" %></td>
-                        <td><%= req.staffRole %></td>
-                        <td><%= user.email || req.userEmail || "-" %></td>
-                        <td><%= user.phone || req.userPhone || "-" %></td>
-                        <td><%= req.createdAt ? new Date(req.createdAt).toLocaleString("he-IL") : "-" %></td>
-                        <td><%= req.status %></td>
-                        <td class="actions">
-                          <div class="row">
-                            <form method="post" action="/owner/staff-signup/<%= req.id %>/approve">
-                              <input type="hidden" name="redirectTo" value="/owner/staff" />
-                              <button type="submit" class="btn sm">✓ אשר</button>
-                            </form>
-                            <form method="post" action="/owner/staff-signup/<%= req.id %>/reject">
-                              <input type="hidden" name="redirectTo" value="/owner/staff" />
-                              <button type="submit" class="btn ghost sm">✕ דחה</button>
-                            </form>
-                          </div>
-                        </td>
-                      </tr>
-                    <% }) %>
-                  </tbody>
-                </table>
-              </div>
-            <% } %>
-          </div>
         </div>
 
-        <!-- RIGHT: approved staff + permissions -->
+        <!-- RIGHT: approved staff cards (MINIMAL) -->
         <div>
           <div class="section-title">
-            <h2>עובדים מאושרים והרשאות</h2>
-            <% if (!staff.length) { %><span class="muted">אין עובדים מאושרים</span><% } %>
+            <h2>עובדים (מאושרים)</h2>
+            <% if (!staff.length) { %><span class="muted">עדיין אין עובדים</span><% } %>
           </div>
 
-          <% if (staff.length) { %>
+          <% if (!staff.length) { %>
+            <div class="staff-card empty" style="padding:18px">
+              <div class="icon" style="font-size:22px">🧑‍🍳</div>
+              <h2 style="font-size:14px">אין עובדים למסעדה הזו</h2>
+              <p>לחץ למעלה על “הוסף עובד” כדי ליצור עובד למסעדה.</p>
+            </div>
+          <% } else { %>
             <div class="cards">
-              <% staff.forEach(function(s){ %>
+              <% staff.forEach(function(s){
+                   const initials = ((s.firstName||"").slice(0,1) + (s.lastName||"").slice(0,1)).toUpperCase() || "SB";
+                   const isInactive = (s.status === "inactive");
+              %>
                 <div class="staff-card">
                   <div class="staff-hd">
                     <div>
-                      <div class="staff-name">
-                        <span class="avatar"><%= (s.firstName || " ")[0] %></span>
+                      <h3 class="staff-name">
+                        <span class="avatar"><%= initials %></span>
                         <span><%= s.firstName %> <%= s.lastName %></span>
-                      </div>
+                      </h3>
                       <div class="muted" style="margin-top:4px;font-size:12px">
-                        תפקיד: <b><%= s.role %></b> · אימייל: <%= s.email %> · טלפון: <%= s.phone || "-" %>
+                        <%= s.email %><% if (s.phone) { %> · <%= s.phone %><% } %>
                       </div>
                     </div>
+
                     <div class="staff-meta">
-                      <span class="tag">status: <b><%= s.status %></b></span>
-                      <span class="tag">approval: <b><%= s.approvalStatus %></b></span>
+                      <span class="tag">תפקיד: <b><%= s.role %></b></span>
+                      <% if (isInactive) { %>
+                        <span class="tag" style="border-color:rgba(239,68,68,.35); background:rgba(239,68,68,.10)">סטטוס: מושבת</span>
+                      <% } else { %>
+                        <span class="tag" style="border-color:rgba(34,197,94,.28); background:rgba(34,197,94,.10)">סטטוס: פעיל</span>
+                      <% } %>
                     </div>
                   </div>
 
-                  <div class="perm-title">הרשאות</div>
-                  <form method="post" action="/owner/staff/<%= s.id %>/permissions">
-                    <input type="hidden" name="redirectTo" value="/owner/staff" />
+                  <div class="staff-actions">
+                    <a class="btn sm" href="/owner/staff/<%= s.id %>">ניהול עובד</a>
 
-                    <div class="perm-grid">
-                      <%
-                        const currentPerms = s.permissions || [];
-                        allPermissions.forEach(function(p){
-                          const checked = currentPerms.includes(p);
-                      %>
-                        <label class="perm-item">
-                          <input type="checkbox" name="permissions" value="<%= p %>" <%= checked ? "checked" : "" %> />
-                          <span><strong><%= permLabels[p] || p %></strong></span>
-                        </label>
-                      <% }) %>
-                    </div>
+                    <form method="post" action="/owner/staff/<%= s.id %>/status">
+                      <input type="hidden" name="redirectTo" value="/owner/staff" />
+                      <input type="hidden" name="status" value="<%= isInactive ? "active" : "inactive" %>" />
+                      <% if (isInactive) { %>
+                        <button class="btn sm" type="submit">הפעל</button>
+                      <% } else { %>
+                        <button class="btn ghost sm" type="submit"
+                          onclick="return confirm('להשבית את העובד? הוא לא יוכל להיכנס/לעבוד במערכת.');">השבת</button>
+                      <% } %>
+                    </form>
 
-                    <div class="perm-actions">
-                      <label class="inline-check">
-                        <input type="checkbox" name="resetToDefaults" />
-                        <span>איפוס לברירת מחדל לפי תפקיד</span>
-                      </label>
-
-                      <button type="submit" class="btn sm">💾 שמור</button>
-                    </div>
-                  </form>
+                    <button type="button" class="btn ghost sm"
+                      onclick="openResetLinkModal('<%= s.id %>','<%= s.email %>')">
+                      צור קישור לאיפוס סיסמה
+                    </button>
+                  </div>
                 </div>
               <% }) %>
             </div>
@@ -428,3 +498,501 @@
     </div>
   <% }) %>
 </div>
+
+<!-- Create staff modal -->
+<div class="sb-modal hidden" id="createStaffModal" aria-hidden="true">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="createStaffTitle">
+    <div class="dialog-hd">
+      <div>
+        <div style="font-size:16px;font-weight:800" id="createStaffTitle">➕ הוסף עובד</div>
+        <div class="muted" style="margin-top:4px">יוצר משתמש עובד (staff) למסעדה הנבחרת. אין הרשמה ציבורית לעובדים.</div>
+      </div>
+      <button type="button" class="btn ghost sm" id="btnCloseCreateStaff">✕</button>
+    </div>
+
+    <div class="dialog-bd">
+      <div class="errbox" id="createStaffError"></div>
+
+      <form id="createStaffForm">
+        <div class="form-grid">
+          <div class="field full">
+            <label>מסעדה (חובה)</label>
+            <select name="restaurantId" required>
+              <option value="">בחר מסעדה…</option>
+              <%~ (it.__restOptsHtml || "") %>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>אימייל (חובה)</label>
+            <input name="email" type="email" autocomplete="email" placeholder="staff@restaurant.com" required />
+          </div>
+
+          <div class="field">
+            <label>תפקיד (חובה)</label>
+            <select name="role" required>
+              <option value="">בחר תפקיד…</option>
+              <%~ (it.__roleOptsHtml || "") %>
+            </select>
+          </div>
+
+          <div class="field full">
+            <label>סיסמה זמנית (חובה)</label>
+            <div style="display:flex; gap:10px; align-items:center">
+              <input name="password" type="text" autocomplete="new-password" placeholder="לפחות 8 תווים" minlength="8" required />
+              <button type="button" class="btn sm" id="btnGenTempPass">Generate</button>
+            </div>
+            <div class="hint">מומלץ שהעובד ישנה סיסמה אחרי כניסה (או דרך “שכחתי סיסמה”).</div>
+          </div>
+
+          <div class="field">
+            <label>שם פרטי (רשות)</label>
+            <input name="firstName" type="text" autocomplete="given-name" />
+          </div>
+
+          <div class="field">
+            <label>שם משפחה (רשות)</label>
+            <input name="lastName" type="text" autocomplete="family-name" />
+          </div>
+
+          <div class="field full">
+            <label>טלפון (רשות)</label>
+            <input name="phone" type="tel" autocomplete="tel" />
+          </div>
+
+          <div class="field full perm-panel">
+            <label style="display:flex; align-items:center; gap:10px">
+              <input type="checkbox" name="useDefaults" checked />
+              <span>השתמש בהרשאות ברירת מחדל לפי תפקיד</span>
+            </label>
+
+            <div id="permOverrideBox" style="display:none; margin-top:10px">
+              <div class="muted" style="margin-bottom:8px">בחר הרשאות ספציפיות (אופציונלי):</div>
+              <div class="perm-grid">
+                <% ;((it.__permsSafe || [])).forEach(function(p){ %>
+                  <label class="perm-item">
+                    <input type="checkbox" name="permissions" value="<%= p %>" />
+                    <div>
+                      <strong><%= p %></strong>
+                      <div class="muted"><%= permLabels[p] || "" %></div>
+                    </div>
+                  </label>
+                <% }) %>
+              </div>
+              <div class="hint">אם לא תבחר הרשאות, יישמרו הרשאות ברירת מחדל.</div>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="dialog-ft">
+      <button type="button" class="btn ghost" id="btnCancelCreateStaff">ביטול</button>
+      <button type="submit" class="btn" form="createStaffForm" id="btnSubmitCreateStaff">צור עובד</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reset password link modal (fixed to match .sb-modal .dialog styling) -->
+<div class="sb-modal hidden" id="resetPwModal" aria-hidden="true" style="z-index:1200">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="resetTitle">
+    <div class="dialog-hd">
+      <div>
+        <div style="font-size:16px;font-weight:800" id="resetTitle">קישור לאיפוס סיסמה</div>
+        <div class="muted" style="margin-top:4px" id="resetPwSub">צור קישור והעתק לעובד.</div>
+      </div>
+      <button class="btn ghost sm" type="button" id="btnCloseResetPw" aria-label="Close">✕</button>
+    </div>
+
+    <div class="dialog-bd">
+      <div class="field">
+        <label>קישור</label>
+        <input id="resetPwLink" type="text" readonly value="" />
+        <div style="display:flex; gap:8px; margin-top:10px">
+          <button type="button" class="btn" id="btnCopyResetPw">העתק</button>
+          <button type="button" class="btn ghost" id="btnOpenResetPw">פתח</button>
+        </div>
+        <div class="hint" style="margin-top:8px; opacity:.85">
+          מומלץ לשלוח לעובד את הקישור בהודעה פרטית. הקישור חד-פעמי.
+        </div>
+      </div>
+      <div class="alert err hidden" id="resetPwErr"></div>
+    </div>
+
+    <div class="dialog-ft">
+      <button type="button" class="btn ghost" id="btnCloseResetPw2">סגור</button>
+    </div>
+  </div>
+</div>
+
+<!-- Audit modal (kept) -->
+<div class="sb-modal hidden" id="auditModal" aria-hidden="true">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="auditTitle">
+    <div class="dialog-hd">
+      <div>
+        <div style="font-size:16px;font-weight:800" id="auditTitle">🧾 לוג פעולות</div>
+        <div class="muted" style="margin-top:4px">מציג את הפעולות האחרונות שבוצעו במסך ניהול עובדים.</div>
+      </div>
+      <button class="btn ghost sm" type="button" id="auditCloseBtn" aria-label="Close">✕</button>
+    </div>
+
+    <div class="dialog-bd">
+      <div class="form-grid">
+        <div class="field">
+          <label>מסעדה</label>
+          <select id="auditRestaurantId">
+            <%~ (it.__auditOptsHtml || "") %>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>כמות</label>
+          <input id="auditLimit" type="number" min="1" max="200" value="50" />
+        </div>
+
+        <div class="field full" style="display:flex; gap:10px; align-items:flex-end">
+          <button type="button" class="btn sm" id="auditRefreshBtn">רענן</button>
+          <div class="muted" id="auditHint"></div>
+        </div>
+      </div>
+
+      <div class="alert err hidden" id="auditErr" style="margin-top:10px"></div>
+
+      <div class="card" style="margin-top:12px; padding:0">
+        <div style="padding:12px 14px; border-bottom:1px solid rgba(148,163,184,.18); font-weight:800">
+          אירועים אחרונים
+        </div>
+        <div id="auditList" style="padding:10px 14px"></div>
+      </div>
+    </div>
+
+    <div class="dialog-ft">
+      <button class="btn ghost" type="button" id="auditCloseBtn2">סגור</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ───────── Create Staff modal ─────────
+  const modal = document.getElementById("createStaffModal");
+  const openBtn = document.getElementById("btnOpenCreateStaff");
+  const closeBtn = document.getElementById("btnCloseCreateStaff");
+  const cancelBtn = document.getElementById("btnCancelCreateStaff");
+  const form = document.getElementById("createStaffForm");
+  const errBox = document.getElementById("createStaffError");
+  const genBtn = document.getElementById("btnGenTempPass");
+  const permToggle = form ? form.querySelector('input[name="useDefaults"]') : null;
+  const permBox = document.getElementById("permOverrideBox");
+  const submitBtn = document.getElementById("btnSubmitCreateStaff");
+
+  function showModal(){
+    modal.classList.remove("hidden");
+    modal.setAttribute("aria-hidden","false");
+    errBox.style.display="none";
+    errBox.textContent="";
+    const sel = form.querySelector('select[name="restaurantId"]');
+    if (sel) sel.focus();
+  }
+  function hideModal(){
+    modal.classList.add("hidden");
+    modal.setAttribute("aria-hidden","true");
+  }
+  function showError(msg){
+    errBox.textContent = msg || "שגיאה לא ידועה";
+    errBox.style.display="block";
+  }
+  function genPass(){
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+    let out = "";
+    for(let i=0;i<12;i++){
+      out += chars[Math.floor(Math.random()*chars.length)];
+    }
+    const inp = form.querySelector('input[name="password"]');
+    inp.value = out;
+    inp.focus();
+    inp.select();
+  }
+  function setPermUi(){
+    const useDefaults = permToggle ? !!permToggle.checked : true;
+    permBox.style.display = useDefaults ? "none" : "block";
+  }
+
+  if(openBtn) openBtn.addEventListener("click", showModal);
+  if(closeBtn) closeBtn.addEventListener("click", hideModal);
+  if(cancelBtn) cancelBtn.addEventListener("click", hideModal);
+  if(modal) modal.addEventListener("click", (e)=>{ if(e.target === modal) hideModal(); });
+  if(genBtn) genBtn.addEventListener("click", genPass);
+  if(permToggle) permToggle.addEventListener("change", setPermUi);
+  setPermUi();
+
+  if(form){
+    form.addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      errBox.style.display="none";
+      errBox.textContent="";
+      submitBtn.disabled = true;
+      submitBtn.textContent = "יוצר…";
+
+      try{
+        const fd = new FormData(form);
+        const useDefaults = fd.get("useDefaults") === "on";
+        const permissions = [];
+        if(!useDefaults){
+          form.querySelectorAll('input[name="permissions"]:checked').forEach((x)=>permissions.push(x.value));
+        }
+
+        const payload = {
+          restaurantId: String(fd.get("restaurantId")||""),
+          email: String(fd.get("email")||"").trim(),
+          password: String(fd.get("password")||""),
+          firstName: String(fd.get("firstName")||"").trim() || undefined,
+          lastName: String(fd.get("lastName")||"").trim() || undefined,
+          phone: String(fd.get("phone")||"").trim() || undefined,
+          role: String(fd.get("role")||""),
+          useDefaults: useDefaults,
+          permissions: permissions
+        };
+
+        const res = await fetch("/owner/staff/create", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "accept": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(()=>null);
+
+        if(!res.ok || !data || data.ok !== true){
+          const err = (data && (data.error || data.message)) ? (data.error || data.message) : ("HTTP " + res.status);
+          const map = {
+            "email_required": "חובה להזין אימייל.",
+            "password_too_short": "הסיסמה קצרה מדי (מינימום 8).",
+            "role_invalid": "תפקיד לא תקין.",
+            "restaurant_required": "חובה לבחור מסעדה.",
+            "not_your_restaurant": "אין לך הרשאה למסעדה הזו.",
+            "user_email_in_use": "האימייל הזה כבר שייך ללקוח/בעלים. בחר אימייל אחר.",
+            "staff_exists": "לעובד הזה כבר יש שיוך למסעדה הזו.",
+            "invalid_body": "קלט לא תקין."
+          };
+          showError(map[err] || ("שגיאה: " + err));
+          submitBtn.disabled = false;
+          submitBtn.textContent = "צור עובד";
+          return;
+        }
+
+        hideModal();
+        window.location.reload();
+      }catch(ex){
+        showError(String(ex));
+        submitBtn.disabled = false;
+        submitBtn.textContent = "צור עובד";
+      }
+    });
+  }
+
+  // ───────── Reset password link modal ─────────
+  const resetModal = document.getElementById("resetPwModal");
+  const resetCloseBtn = document.getElementById("btnCloseResetPw");
+  const resetCloseBtn2 = document.getElementById("btnCloseResetPw2");
+  const resetSub = document.getElementById("resetPwSub");
+  const resetLinkInput = document.getElementById("resetPwLink");
+  const resetErr = document.getElementById("resetPwErr");
+  const btnCopy = document.getElementById("btnCopyResetPw");
+  const btnOpen = document.getElementById("btnOpenResetPw");
+
+  function showResetErr(msg){
+    resetErr.textContent = msg || "";
+    resetErr.classList.remove("hidden");
+  }
+  function clearResetErr(){
+    resetErr.textContent = "";
+    resetErr.classList.add("hidden");
+  }
+  function openResetModal(){
+    clearResetErr();
+    resetModal.classList.remove("hidden");
+    resetModal.setAttribute("aria-hidden","false");
+  }
+  function closeResetModal(){
+    resetModal.classList.add("hidden");
+    resetModal.setAttribute("aria-hidden","true");
+  }
+
+  window.openResetLinkModal = async function(staffId, email){
+    try{
+      clearResetErr();
+      resetSub.textContent = "יוצר קישור עבור: " + (email || "");
+      resetLinkInput.value = "טוען...";
+      openResetModal();
+
+      const res = await fetch(`/owner/staff/${staffId}/password-reset-link`, {
+        method: "POST",
+        headers: { "Accept": "application/json" }
+      });
+      const data = await res.json().catch(()=>null);
+
+      if(!res.ok || !data || !data.ok){
+        const err = (data && data.error) ? data.error : "unknown";
+        const map = {
+          "staff_not_found": "העובד לא נמצא.",
+          "not_your_restaurant": "אין לך הרשאה למסעדה הזו.",
+          "user_not_found": "המשתמש לא נמצא.",
+          "non_local_user": "לא ניתן לאפס סיסמה למשתמש שאינו Local.",
+          "unknown": "שגיאה לא ידועה."
+        };
+        resetLinkInput.value = "";
+        showResetErr(map[err] || ("שגיאה: " + err));
+        return;
+      }
+
+      const relative = String(data.resetUrl || "");
+      const full = relative.startsWith("http") ? relative : (window.location.origin + relative);
+      resetLinkInput.value = full;
+    }catch(ex){
+      resetLinkInput.value = "";
+      showResetErr(String(ex));
+    }
+  };
+
+  if(resetModal) resetModal.addEventListener("click", (e)=>{ if(e.target === resetModal) closeResetModal(); });
+  if(resetCloseBtn) resetCloseBtn.addEventListener("click", closeResetModal);
+  if(resetCloseBtn2) resetCloseBtn2.addEventListener("click", closeResetModal);
+
+  if(btnCopy){
+    btnCopy.addEventListener("click", async ()=>{
+      try{
+        await navigator.clipboard.writeText(resetLinkInput.value || "");
+        btnCopy.textContent = "הועתק!";
+        setTimeout(()=>btnCopy.textContent="העתק", 900);
+      }catch{
+        showResetErr("לא הצלחתי להעתיק. אפשר לסמן ולהעתיק ידנית.");
+      }
+    });
+  }
+  if(btnOpen){
+    btnOpen.addEventListener("click", ()=>{
+      const v = resetLinkInput.value || "";
+      if(v) window.open(v, "_blank");
+    });
+  }
+
+  // ───────── Audit modal ─────────
+  const auditModal = document.getElementById("auditModal");
+  const btnOpenAudit = document.getElementById("btnOpenAudit");
+  const btnClose1 = document.getElementById("auditCloseBtn");
+  const btnClose2 = document.getElementById("auditCloseBtn2");
+  const selRid = document.getElementById("auditRestaurantId");
+  const inpLimit = document.getElementById("auditLimit");
+  const btnRefresh = document.getElementById("auditRefreshBtn");
+  const list = document.getElementById("auditList");
+  const err = document.getElementById("auditErr");
+  const hint = document.getElementById("auditHint");
+
+  function openAudit(){
+    if(!auditModal) return;
+    auditModal.classList.remove("hidden");
+    auditModal.setAttribute("aria-hidden","false");
+  }
+  function closeAudit(){
+    if(!auditModal) return;
+    auditModal.classList.add("hidden");
+    auditModal.setAttribute("aria-hidden","true");
+  }
+  function showAuditErr(msg){
+    err.textContent = msg || "";
+    err.classList.toggle("hidden", !msg);
+  }
+  function setHint(msg){
+    hint.textContent = msg || "";
+  }
+
+  function escapeHtml(s){
+    return String(s || "").replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
+
+  function renderEvents(events){
+    if(!Array.isArray(events) || !events.length){
+      list.innerHTML = `<div class="muted" style="padding:10px 0">אין אירועים להצגה.</div>`;
+      return;
+    }
+
+    const rows = events.map(e=>{
+      const when = e && e.ts ? new Date(e.ts).toLocaleString("he-IL") : "";
+      const actor = e && e.actorEmail ? e.actorEmail : (e && e.actorUserId ? e.actorUserId : "");
+      const action = e && e.action ? e.action : "";
+      const target = e && (e.targetId || e.targetType) ? `${e.targetType || ""} ${e.targetId || ""}`.trim() : "";
+      let meta = "";
+      if(e && e.meta){
+        try{
+          const s = JSON.stringify(e.meta);
+          meta = s.length > 280 ? (s.slice(0, 280) + "…") : s;
+        }catch{}
+      }
+
+      return `
+        <div style="padding:12px 0; border-bottom:1px solid rgba(148,163,184,.14)">
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:baseline">
+            <div style="font-weight:800">${escapeHtml(action)}</div>
+            <div class="pill">${escapeHtml(when)}</div>
+            ${actor ? `<div class="pill">by <b>${escapeHtml(actor)}</b></div>` : ``}
+            ${target ? `<div class="pill">target <b>${escapeHtml(target)}</b></div>` : ``}
+          </div>
+          ${meta ? `<div class="muted" style="margin-top:6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size:12px; white-space:pre-wrap">${escapeHtml(meta)}</div>` : ``}
+        </div>
+      `;
+    }).join("");
+
+    list.innerHTML = `<div>${rows}</div>`;
+  }
+
+  async function refreshAudit(){
+    const restaurantId = selRid && selRid.value ? selRid.value : "";
+    const limit = Math.max(1, Math.min(200, parseInt(inpLimit.value || "50",10) || 50));
+    inpLimit.value = String(limit);
+
+    showAuditErr("");
+    setHint("טוען…");
+    list.innerHTML = "";
+
+    try{
+      const url = `/owner/staff/audit?restaurantId=${encodeURIComponent(restaurantId)}&limit=${encodeURIComponent(String(limit))}`;
+      const res = await fetch(url, { headers: { "Accept": "application/json" } });
+      const data = await res.json().catch(()=>({}));
+
+      if(!res.ok || !data.ok){
+        const msg = data && (data.message || data.error) ? (data.message || data.error) : `HTTP ${res.status}`;
+        setHint("");
+        showAuditErr(String(msg));
+        return;
+      }
+
+      setHint(`מציג ${data.events?.length || 0} אירועים אחרונים.`);
+      renderEvents(data.events || []);
+    }catch(ex){
+      setHint("");
+      showAuditErr(String(ex));
+    }
+  }
+
+  if(btnOpenAudit){
+    btnOpenAudit.addEventListener("click", ()=>{
+      openAudit();
+      refreshAudit();
+    });
+  }
+  if(btnRefresh) btnRefresh.addEventListener("click", refreshAudit);
+  if(btnClose1) btnClose1.addEventListener("click", closeAudit);
+  if(btnClose2) btnClose2.addEventListener("click", closeAudit);
+  if(auditModal) auditModal.addEventListener("click", (e)=>{ if(e.target === auditModal) closeAudit(); });
+
+  document.addEventListener("keydown", (e)=>{
+    if(e.key === "Escape"){
+      if(modal && !modal.classList.contains("hidden")) hideModal();
+      if(resetModal && !resetModal.classList.contains("hidden")) closeResetModal();
+      if(auditModal && !auditModal.classList.contains("hidden")) closeAudit();
+    }
+  });
+})();
+</script>
