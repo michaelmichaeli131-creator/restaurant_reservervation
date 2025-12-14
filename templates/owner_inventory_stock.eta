@@ -1,6 +1,17 @@
 <% layout("_layout", it) %>
 
 <%
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t==='function'){
+        const s = it.t(k);
+        if(!s || s===k || s===`(${k})`) return fb;
+        return s;
+      }
+    }catch(e){}
+    return fb;
+  }
+
   const restaurant = it.restaurant || {};
   const ingredients = Array.isArray(it.ingredients) ? it.ingredients : [];
   const suppliers  = Array.isArray(it.suppliers) ? it.suppliers : [];
@@ -29,40 +40,40 @@
 
     <!-- טופס יצירת חומר גלם חדש -->
     <div class="panel card" style="margin-top:14px">
-      <h2 class="card-title">הוספת חומר גלם חדש</h2>
+      <h2 class="card-title"><%= tt('owner.inventory.add_new', 'הוספת חומר גלם חדש') %></h2>
 
       <form class="form row" method="post" action="/owner/<%= restaurant.id %>/inventory/stock/ingredient">
         <input type="hidden" name="id" value="">
 
         <label class="lbl">
-          שם חומר גלם *
-          <input name="name" required placeholder="לדוגמה: קמח לבן 00">
+          <%= tt('owner.inventory.form.name', 'שם חומר גלם') %> *
+          <input name="name" required placeholder="<%= tt('owner.inventory.placeholder.name', 'לדוגמה: קמח לבן 00') %>">
         </label>
 
         <label class="lbl">
-          יחידת מידה
+          <%= tt('owner.inventory.form.unit', 'יחידת מידה') %>
           <input name="unit" placeholder="ק״ג / ליטר / יח׳" value="ק״ג">
         </label>
 
         <label class="lbl">
-          כמות נוכחית
+          <%= tt('owner.inventory.form.current_qty', 'כמות נוכחית') %>
           <input name="currentQty" type="number" step="0.01" placeholder="0">
         </label>
 
         <label class="lbl">
-          מינימום רצוי
+          <%= tt('owner.inventory.form.min_qty', 'מינימום רצוי') %>
           <input name="minQty" type="number" step="0.01" placeholder="0">
         </label>
 
         <label class="lbl">
-          עלות ליחידה (₪)
-          <input name="costPerUnit" type="number" step="0.01" placeholder="אופציונלי">
+          <%= tt('owner.inventory.form.cost_per_unit', 'עלות ליחידה (₪)') %>
+          <input name="costPerUnit" type="number" step="0.01" placeholder="<%= tt('common.optional', 'אופציונלי') %>">
         </label>
 
         <label class="lbl">
-          ספק מועדף
+          <%= tt('owner.inventory.form.supplier', 'ספק מועדף') %>
           <select name="supplierId">
-            <option value="">— ללא —</option>
+            <option value="">— <%= tt('common.none', 'ללא') %> —</option>
             <% activeSuppliers.forEach(function(s){ %>
               <option value="<%= esc(s.id) %>"><%= esc(s.name) %></option>
             <% }) %>
@@ -70,29 +81,29 @@
         </label>
 
         <label class="lbl" style="min-width:220px;flex:1">
-          הערות
-          <input name="notes" placeholder="מידע נוסף: סוג, אחסון, אלרגנים וכו׳">
+          <%= tt('owner.inventory.form.notes', 'הערות') %>
+          <input name="notes" placeholder="<%= tt('owner.inventory.placeholder.notes', 'מידע נוסף: סוג, אחסון, אלרגנים וכו׳') %>">
         </label>
 
-        <button class="btn primary sm" type="submit">➕ הוסף חומר גלם</button>
+        <button class="btn primary sm" type="submit">➕ <%= tt('owner.inventory.btn_add', 'הוסף חומר גלם') %></button>
       </form>
     </div>
 
     <!-- טבלת כל חומרי הגלם -->
     <div class="panel card" style="margin-top:16px">
-      <h2 class="card-title">כל חומרי הגלם</h2>
+      <h2 class="card-title"><%= tt('owner.inventory.all_items', 'כל חומרי הגלם') %></h2>
 
       <% if (!ingredients.length) { %>
-        <p class="muted">עדיין אין חומרי גלם. הוסף חומר גלם ראשון למעלה.</p>
+        <p class="muted"><%= tt('owner.inventory.empty', 'עדיין אין חומרי גלם. הוסף חומר גלם ראשון למעלה.') %></p>
       <% } else { %>
 
         <div class="table">
           <div class="tr th">
-            <div>שם</div>
-            <div>כמות נוכחית</div>
-            <div>מינימום</div>
-            <div>עלות ליח׳</div>
-            <div>ספק מועדף</div>
+            <div><%= tt('owner.inventory.form.name', 'שם') %></div>
+            <div><%= tt('owner.inventory.form.current_qty', 'כמות נוכחית') %></div>
+            <div><%= tt('owner.inventory.form.min_qty', 'מינימום') %></div>
+            <div><%= tt('owner.inventory.form.cost_per_unit', 'עלות ליח׳') %></div>
+            <div><%= tt('owner.inventory.form.supplier', 'ספק מועדף') %></div>
             <div></div>
           </div>
 

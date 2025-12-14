@@ -1,5 +1,18 @@
 <% layout("_layout", it) %>
 
+<%
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t==='function'){
+        const s = it.t(k);
+        if(!s || s===k || s===`(${k})`) return fb;
+        return s;
+      }
+    }catch(e){}
+    return fb;
+  }
+%>
+
 <main class="container sb-rest">
   <header class="page-header">
     <h1><%= it.r.name %></h1>
@@ -8,7 +21,7 @@
 
   <% if (it.r.photos && it.r.photos.length) { %>
     <section class="card">
-      <h2 class="card-title">תמונות</h2>
+      <h2 class="card-title"><%= tt('restaurant.photos.title', 'תמונות') %></h2>
       <div class="photo-grid">
         <% it.r.photos.forEach((p)=>{ %>
           <img class="photo" src="<%= p %>" alt="<%= it.r.name %>" loading="lazy" onerror="this.style.opacity='.3'"/>
@@ -19,13 +32,13 @@
 
   <!-- בחירת תאריך (נשמר) -->
   <section class="card">
-    <h2 class="card-title">בחירת תאריך</h2>
+    <h2 class="card-title"><%= tt('restaurant.select_date', 'בחירת תאריך') %></h2>
     <form method="get" action="/restaurants/<%= it.r.id %>" class="toolbar inline">
       <label class="fld">
-        <span>תאריך</span>
+        <span><%= tt('restaurant.form.date', 'תאריך') %></span>
         <input type="date" name="date" value="<%= it.date %>"/>
       </label>
-      <button class="btn primary" type="submit">רענון</button>
+      <button class="btn primary" type="submit"><%= tt('common.btn_refresh', 'רענון') %></button>
     </form>
 
     <% if (it.error) { %><p class="alert warn"><%= it.error %></p><% } %>
@@ -34,46 +47,46 @@
 
   <!-- בדיקת זמינות (שלב 1: כאן מותר לערוך מס' סועדים) -->
   <section class="card">
-    <h2 class="card-title">בדיקת זמינות</h2>
+    <h2 class="card-title"><%= tt('restaurant.check_availability', 'בדיקת זמינות') %></h2>
     <form id="checkForm" class="form inline" onsubmit="return false;">
       <label class="fld">
-        <span>שעה</span>
+        <span><%= tt('restaurant.form.time', 'שעה') %></span>
         <input type="time" id="checkTime" value="<%= it.time || '19:00' %>" required>
       </label>
       <label class="fld">
-        <span>מס' סועדים</span>
+        <span><%= tt('restaurant.form.guests', 'מס\' סועדים') %></span>
         <input type="number" id="checkPeople" value="<%= it.people || 2 %>" min="1" required>
       </label>
-      <button class="btn ghost" id="checkBtn" type="button">בדוק</button>
+      <button class="btn ghost" id="checkBtn" type="button"><%= tt('common.btn_check', 'בדוק') %></button>
     </form>
     <div id="checkResult" class="muted" style="margin-top:10px"></div>
   </section>
 
   <!-- טופס הזמנה (שלב 2: מס' סועדים מוצג + נשלח כ-hidden בלבד) -->
   <section class="card">
-    <h2 class="card-title">הזמנה</h2>
+    <h2 class="card-title"><%= tt('reservation.form.title', 'הזמנה') %></h2>
     <form method="post" action="/restaurants/<%= it.r.id %>/reserve" class="form-grid">
       <input type="hidden" name="date" value="<%= it.date %>"/>
 
       <div class="form-row">
-        <label>שעה
+        <label><%= tt('restaurant.form.time', 'שעה') %>
           <input type="time" name="time" value="<%= it.time || '19:00' %>" required />
         </label>
       </div>
 
       <!-- הצגה בלבד + hidden במקום שדה לעריכה -->
       <div class="form-row">
-        <label>מס' סועדים</label>
+        <label><%= tt('restaurant.form.guests', 'מס\' סועדים') %></label>
         <div class="readonly-box"><%= it.people || 2 %></div>
         <input type="hidden" name="people" value="<%= it.people || 2 %>"/>
       </div>
 
-      <label class="form-row" style="grid-column:1 / -1">הערות להזמנה (אופציונלי)
-        <textarea name="note" rows="3" placeholder="אלרגיות, העדפות ישיבה..."><%= it.note || '' %></textarea>
+      <label class="form-row" style="grid-column:1 / -1"><%= tt('reservation.form.notes', 'הערות להזמנה') %> (<%= tt('common.optional', 'אופציונלי') %>)
+        <textarea name="note" rows="3" placeholder="<%= tt('reservation.form.notes_placeholder', 'אלרגיות, העדפות ישיבה...') %>"><%= it.note || '' %></textarea>
       </label>
 
       <div class="form-actions" style="grid-column:1 / -1">
-        <button class="btn primary" type="submit">בצע הזמנה</button>
+        <button class="btn primary" type="submit"><%= tt('reservation.form.submit', 'בצע הזמנה') %></button>
       </div>
     </form>
   </section>
