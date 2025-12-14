@@ -1,94 +1,4 @@
-<%
-  // ---- Robust layout call (prevents shadowing by it.layout string) ----
-  // Eta with useWith can get "layout" shadowed by locals. We try multiple places.
-  const __layoutFn =
-    (typeof layout === "function") ? layout :
-    (this && typeof this.layout === "function") ? this.layout :
-    (it && typeof it.layout === "function") ? it.layout :
-    null;
-
-  if (__layoutFn) {
-    __layoutFn("../_layout", it);
-  } else {
-    // Debug hint inside HTML comment (won't break render)
-    // You can view source to confirm.
-    // eslint-disable-next-line no-unused-vars
-    const __layoutType = typeof (it && it.layout);
-  }
-
-  function escAttr(s){
-    return String(s ?? "")
-      .replace(/&/g,"&amp;")
-      .replace(/"/g,"&quot;")
-      .replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;");
-  }
-  function escText(s){
-    return String(s ?? "")
-      .replace(/&/g,"&amp;")
-      .replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;");
-  }
-  function jsSingleQuote(s){
-    // Safe for putting inside single-quoted JS string in HTML attributes
-    return String(s ?? "")
-      .replace(/\\/g, "\\\\")
-      .replace(/'/g, "\\'")
-      .replace(/\r/g, "\\r")
-      .replace(/\n/g, "\\n");
-  }
-
-  const owner = it.owner || null;
-
-  // Be resilient to naming
-  const staff = it.staff || it.staffMember || it.member || null;
-  const restaurant = it.restaurant || it.res || null;
-
-  // allow string list too
-  const allPermissions = Array.isArray(it.allPermissions)
-    ? it.allPermissions
-    : (typeof it.allPermissions === "string"
-        ? it.allPermissions.split(",").map((x)=>x.trim()).filter(Boolean)
-        : []);
-
-  const staffPermissions = Array.isArray(staff && staff.permissions) ? staff.permissions : [];
-
-  const staffId = staff && staff.id ? String(staff.id) : "";
-  const staffEmail = staff && staff.email ? String(staff.email) : "";
-  const staffPhone = staff && staff.phone ? String(staff.phone) : "";
-  const staffRole = staff && staff.role ? String(staff.role) : "";
-  const staffStatus = staff && staff.status ? String(staff.status) : "active";
-  const isInactive = staffStatus === "inactive";
-
-  const staffFirst = staff && staff.firstName ? String(staff.firstName) : "";
-  const staffLast  = staff && staff.lastName ? String(staff.lastName) : "";
-  const fullName = (staffFirst + " " + staffLast).trim() || staffEmail || "Staff";
-
-  const initials = ((staffFirst||"").slice(0,1) + (staffLast||"").slice(0,1)).toUpperCase() || "SB";
-
-  const permLabels = {
-    "pos.waiter": "POS - מלצר (קליטת הזמנות וטיפול בשולחנות)",
-    "pos.kitchen": "POS - מטבח (מסך הזמנות למטבח/בר)",
-    "host.seating": "מארחת - השמת שולחנות וניהול רצפת המסעדה",
-    "reservations.view": "צפייה בהזמנות למסעדה",
-    "reservations.manage": "ניהול הזמנות (אישור/ביטול/עדכון)",
-    "floor.view": "צפייה במפת השולחנות",
-    "floor.edit": "עריכת מפת שולחנות",
-    "shifts.view": "צפייה במשמרות",
-    "shifts.manage": "ניהול משמרות (שיבוץ, שינוי, ביטול)",
-    "inventory.view": "צפייה במלאי וחומרי גלם",
-    "inventory.manage": "ניהול מלאי (עדכון, הזמנות, התאמות)",
-    "reports.view": "צפייה בדוחות (מכירות, תפוסה וכו')",
-    "menu.manage": "ניהול תפריט (מנות, מחירים, זמינות)"
-  };
-
-  const __staffEmailJs = jsSingleQuote(staffEmail);
-  const __staffIdJs = jsSingleQuote(staffId);
-%>
-
-<!-- debug: if you still get layout errors, check these values:
-layout_type_in_scope=<%= escText(typeof layout) %>, it.layout_type=<%= escText(typeof (it && it.layout)) %>
--->
+<%~ it.layout("../_layout", it) %>
 
 <style>
   .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
@@ -103,74 +13,84 @@ layout_type_in_scope=<%= escText(typeof layout) %>, it.layout_type=<%= escText(t
     box-shadow:0 10px 30px rgba(0,0,0,.35);
   }
 
-  .hdr{
-    display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  .owner-hd{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:10px;
   }
-  .hdr h1{margin:0;font-size:18px;letter-spacing:.2px}
-  .muted{color:var(--ink-muted,#9aa3b2);font-size:13px;line-height:1.35}
-
-  .pill-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .owner-hd h1{
+    margin:0;
+    font-size:18px;
+    line-height:1.2;
+    letter-spacing:.2px;
+  }
+  .muted{color:var(--ink-muted,#9aa3b2)}
+  .pill-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-start}
   .pill{
     display:inline-flex;align-items:center;gap:6px;
-    font-size:12px;padding:6px 10px;border-radius:999px;
+    font-size:12px;
+    padding:6px 10px;
+    border-radius:999px;
     border:1px solid rgba(148,163,184,.25);
     background:rgba(15,23,42,.55);
     color:var(--ink,#e6e8ef);
   }
   .pill b{font-weight:700}
 
-  .row{
-    display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:flex-end;
-    margin-top:12px;
-  }
-
-  .split{
+  .grid{
     display:grid;
     grid-template-columns: 1fr 1fr;
     gap:14px;
     margin-top:14px;
   }
   @media (max-width: 980px){
-    .split{grid-template-columns:1fr}
+    .grid{grid-template-columns:1fr}
   }
 
-  .section-title{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 10px 0}
-  .section-title h2{margin:0;font-size:14px;letter-spacing:.2px}
-
-  .staff-box{
+  .staff-card{
     border-radius:16px;
     border:1px solid rgba(148,163,184,.22);
     background:rgba(15,23,42,.35);
     padding:14px;
   }
-
+  .staff-hd{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    align-items:flex-start;
+    margin-bottom:10px;
+  }
+  .staff-name{
+    margin:0;
+    font-size:14px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
   .avatar{
-    width:34px;height:34px;border-radius:12px;
+    width:28px;height:28px;border-radius:10px;
     display:inline-flex;align-items:center;justify-content:center;
     background:linear-gradient(135deg, rgba(245,158,11,.25), rgba(59,130,246,.18));
     border:1px solid rgba(148,163,184,.22);
-    font-weight:800;font-size:12px;color:var(--ink,#e6e8ef);
+    font-weight:700;
+    font-size:12px;
+    color:var(--ink,#e6e8ef);
   }
-
-  .staff-head{display:flex;gap:12px;align-items:flex-start}
-  .staff-name{margin:0;font-size:15px}
-  .tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
   .tag{
-    font-size:12px;padding:5px 9px;border-radius:999px;
+    font-size:12px;
+    padding:5px 9px;
+    border-radius:999px;
     border:1px solid rgba(148,163,184,.22);
     background:rgba(15,23,42,.65);
     color:var(--ink,#e6e8ef);
   }
+  .actions-row{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; align-items:center}
 
-  /* Permissions */
-  .perm-grid{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:8px 10px;
-  }
-  @media (max-width: 680px){
-    .perm-grid{grid-template-columns:1fr}
-  }
+  .perm-title{margin:10px 0 8px 0;font-size:13px;color:var(--ink,#e6e8ef)}
+  .perm-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+  @media (max-width: 680px){.perm-grid{grid-template-columns:1fr}}
   .perm-item{
     display:flex;gap:10px;align-items:flex-start;
     padding:8px 10px;border-radius:12px;
@@ -181,20 +101,14 @@ layout_type_in_scope=<%= escText(typeof layout) %>, it.layout_type=<%= escText(t
   .perm-item strong{font-size:12.5px}
 
   .perm-actions{
-    margin-top:12px;
-    display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between;align-items:center;
+    margin-top:10px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    flex-wrap:wrap;
   }
 
-  .alert{
-    margin-top:10px;padding:10px 12px;border-radius:12px;
-    border:1px solid rgba(239,68,68,.35);
-    background:rgba(239,68,68,.08);
-    color:#fecaca;
-    font-size:13px;
-  }
-  .hidden{display:none}
-
-  /* Modal (reset link) */
   .sb-modal{
     position:fixed; inset:0;
     display:flex; align-items:center; justify-content:center;
@@ -214,150 +128,219 @@ layout_type_in_scope=<%= escText(typeof layout) %>, it.layout_type=<%= escText(t
   }
   .sb-modal .dialog-hd{
     padding:16px 18px;
-    display:flex;justify-content:space-between;gap:12px;align-items:center;
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    align-items:center;
     border-bottom:1px solid rgba(148,163,184,.12);
   }
   .sb-modal .dialog-bd{padding:16px 18px}
   .sb-modal .dialog-ft{
     padding:14px 18px;
-    display:flex;justify-content:flex-end;gap:10px;
+    display:flex;
+    justify-content:flex-end;
+    gap:10px;
     border-top:1px solid rgba(148,163,184,.12);
     background:rgba(2,6,23,.18);
   }
-  .field label{display:block;font-size:12px;color:var(--ink-muted,#9aa3b2);margin-bottom:6px}
+  .field label{
+    display:block;
+    font-size:12px;
+    color:var(--ink-muted,#9aa3b2);
+    margin-bottom:6px;
+  }
   .field input{
-    width:100%;padding:10px 12px;border-radius:12px;
+    width:100%;
+    padding:10px 12px;
+    border-radius:12px;
     border:1px solid rgba(148,163,184,.18);
     background:rgba(2,6,23,.30);
     color:var(--ink,#e6e8ef);
     outline:none;
   }
+  .alert.err{
+    margin-top:10px;
+    padding:10px 12px;
+    border-radius:12px;
+    border:1px solid rgba(239,68,68,.35);
+    background:rgba(239,68,68,.08);
+    color:#fecaca;
+    font-size:13px;
+  }
+  .hidden{display:none}
 </style>
+
+<%
+  const owner = it.owner;
+  const staff = it.staff;
+  const restaurant = it.restaurant;
+  const allPermissions = it.allPermissions || [];
+  const error = it.error;
+
+  const permLabels = {
+    "pos.waiter": "POS - מלצר (קליטת הזמנות וטיפול בשולחנות)",
+    "pos.kitchen": "POS - מטבח (מסך הזמנות למטבח/בר)",
+    "host.seating": "מארחת - השמת שולחנות וניהול רצפת המסעדה",
+    "reservations.view": "צפייה בהזמנות למסעדה",
+    "reservations.manage": "ניהול הזמנות (אישור/ביטול/עדכון)",
+    "floor.view": "צפייה במפת השולחנות",
+    "floor.edit": "עריכת מפת שולחנות",
+    "shifts.view": "צפייה במשמרות",
+    "shifts.manage": "ניהול משמרות (שיבוץ, שינוי, ביטול)",
+    "inventory.view": "צפייה במלאי וחומרי גלם",
+    "inventory.manage": "ניהול מלאי (עדכון, הזמנות, התאמות)",
+    "reports.view": "צפייה בדוחות (מכירות, תפוסה וכו')",
+    "menu.manage": "ניהול תפריט (מנות, מחירים, זמינות)"
+  };
+%>
 
 <div class="sb-owner container">
   <div class="card">
-    <div class="hdr">
+    <div class="owner-hd">
       <div>
         <h1>👤 ניהול עובד</h1>
-        <div class="muted" style="margin-top:6px">
-          <a href="/owner/staff" class="btn sm ghost">← חזרה לניהול עובדים</a>
-          <% if (restaurant && restaurant.name) { %>
-            <span class="pill" style="margin-inline-start:8px">מסעדה: <b><%= escText(restaurant.name) %></b></span>
-          <% } %>
+        <div class="muted" style="margin-top:6px;font-size:13px">
+          כאן נמצאות ההרשאות והגדרות העובד. (אפשר להרחיב בהמשך: משמרות, פעילות וכו׳)
         </div>
       </div>
-
       <div class="pill-row">
-        <% if (owner && owner.email) { %>
-          <span class="pill">בעלים: <b><%= escText(owner.email) %></b></span>
-        <% } %>
+        <a href="/owner/staff" class="btn sm ghost">← חזרה לניהול עובדים</a>
+        <span class="pill">בעלים: <b><%= owner?.firstName %> <%= owner?.lastName %></b></span>
+        <span class="pill">אימייל: <b><%= owner?.email %></b></span>
       </div>
     </div>
   </div>
 
-  <% if (!staffId) { %>
+  <% if (!staff || !restaurant) { %>
     <div class="card">
-      <div class="alert">
-        שגיאה: לא נמצא מזהה עובד (staffId).
-        <br/>בדוק שה־route מעביר it.staff עם id.
+      <div class="alert err">
+        <% if (error === "staff_not_found") { %>
+          עובד לא נמצא.
+        <% } else if (error === "not_your_restaurant") { %>
+          אין לך הרשאה לעובד הזה.
+        <% } else { %>
+          שגיאה בטעינת עובד.
+        <% } %>
       </div>
-      <a class="btn" href="/owner/staff">חזרה</a>
+      <div style="margin-top:12px">
+        <a href="/owner/staff" class="btn">חזרה</a>
+      </div>
     </div>
   <% } else { %>
 
-    <div class="card">
-      <div class="section-title">
-        <h2>פרטי עובד</h2>
-        <span class="muted">ID: <%= escText(staffId) %></span>
-      </div>
-
-      <div class="staff-box">
-        <div class="staff-head">
-          <span class="avatar"><%= escText(initials) %></span>
-          <div style="flex:1">
-            <h3 class="staff-name"><%= escText(fullName) %></h3>
-            <div class="muted" style="margin-top:4px">
-              <%= escText(staffEmail) %><% if (staffPhone) { %> · <%= escText(staffPhone) %><% } %>
+    <div class="grid">
+      <div class="card">
+        <div class="staff-card">
+          <div class="staff-hd">
+            <div>
+              <h3 class="staff-name">
+                <span class="avatar">
+                  <%= (((staff.firstName||"").slice(0,1)+(staff.lastName||"").slice(0,1)).toUpperCase() || "SB") %>
+                </span>
+                <span><%= staff.firstName %> <%= staff.lastName %></span>
+              </h3>
+              <div class="muted" style="margin-top:4px;font-size:12px">
+                <%= staff.email %><% if (staff.phone) { %> · <%= staff.phone %><% } %>
+              </div>
+              <div class="muted" style="margin-top:6px;font-size:12px">
+                מסעדה: <b><%= restaurant.name %></b>
+              </div>
             </div>
 
-            <div class="tags">
-              <span class="tag">תפקיד: <b><%= escText(staffRole || "-") %></b></span>
+            <div class="actions-row">
+              <span class="tag">תפקיד: <b><%= staff.role %></b></span>
+
+              <% const isInactive = (staff.status === "inactive"); %>
               <% if (isInactive) { %>
                 <span class="tag" style="border-color:rgba(239,68,68,.35); background:rgba(239,68,68,.10)">סטטוס: מושבת</span>
               <% } else { %>
                 <span class="tag" style="border-color:rgba(34,197,94,.28); background:rgba(34,197,94,.10)">סטטוס: פעיל</span>
               <% } %>
-            </div>
 
-            <div class="row">
-              <form method="post" action="/owner/staff/<%= escAttr(staffId) %>/status">
-                <input type="hidden" name="redirectTo" value="/owner/staff/<%= escAttr(staffId) %>" />
-                <input type="hidden" name="status" value="<%= escAttr(isInactive ? "active" : "inactive") %>" />
+              <form method="post" action="/owner/staff/<%= staff.id %>/status">
+                <input type="hidden" name="redirectTo" value="/owner/staff/<%= staff.id %>" />
+                <input type="hidden" name="status" value="<%= isInactive ? "active" : "inactive" %>" />
                 <% if (isInactive) { %>
-                  <button class="btn sm" type="submit">הפעל עובד</button>
+                  <button class="btn sm" type="submit">הפעל</button>
                 <% } else { %>
                   <button class="btn ghost sm" type="submit"
-                    onclick="return confirm('להשבית את העובד? הוא לא יוכל להיכנס/לעבוד במערכת.');">השבת עובד</button>
+                    onclick="return confirm('להשבית את העובד? הוא לא יוכל להיכנס/לעבוד במערכת.');">השבת</button>
                 <% } %>
               </form>
 
-              <button type="button" class="btn ghost sm"
-                onclick="openResetLinkModal('<%= escAttr(__staffIdJs) %>','<%= escAttr(__staffEmailJs) %>')">
+              <button type="button" class="btn ghost sm" id="btnOpenResetLink"
+                data-staff-id="<%= staff.id %>" data-staff-email="<%= staff.email %>">
                 צור קישור לאיפוס סיסמה
               </button>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
 
-    <div class="card">
-      <div class="section-title">
-        <h2>הרשאות</h2>
-        <span class="muted">כאן מנהלים הרשאות (בדף הראשי מוצגים מינימום פרטים בלבד).</span>
-      </div>
-
-      <% if (!allPermissions.length) { %>
-        <div class="alert">אין allPermissions ב־render. בדוק שב־route אתה מעביר it.allPermissions.</div>
-      <% } %>
-
-      <form method="post" action="/owner/staff/<%= escAttr(staffId) %>/permissions">
-        <input type="hidden" name="redirectTo" value="/owner/staff/<%= escAttr(staffId) %>" />
-
-        <div class="perm-grid" style="<%= isInactive ? "opacity:.55" : "" %>">
-          <% (allPermissions || []).forEach(function(p){
-               const checked = (staffPermissions || []).includes(p);
-          %>
-            <label class="perm-item">
-              <input type="checkbox" name="permissions" value="<%= escAttr(p) %>" <%= checked ? "checked" : "" %> <%= isInactive ? "disabled" : "" %> />
-              <div>
-                <strong><%= escText(p) %></strong>
-                <div class="muted"><%= escText(permLabels[p] || "") %></div>
-              </div>
-            </label>
-          <% }) %>
-        </div>
-
-        <div class="perm-actions">
-          <div class="muted">
-            <% if (isInactive) { %>
-              העובד מושבת — לא ניתן לערוך הרשאות עד להפעלה.
-            <% } else { %>
-              שמור הרשאות או אפס לברירת מחדל.
-            <% } %>
-          </div>
-
-          <div style="display:flex; gap:8px; flex-wrap:wrap">
-            <button type="submit" class="btn sm" <%= isInactive ? "disabled" : "" %>>שמור הרשאות</button>
-
-            <button type="submit" class="btn ghost sm" name="resetToDefaults" value="on"
-              <%= isInactive ? "disabled" : "" %>
-              onclick="return confirm('לאפס הרשאות לברירת מחדל לפי תפקיד?');">
-              אפס לברירת מחדל
-            </button>
+          <div class="muted" style="font-size:12px;margin-top:8px">
+            מזהה עובד: <b><%= staff.id %></b> · userId: <b><%= staff.userId %></b>
           </div>
         </div>
-      </form>
+
+        <div class="staff-card" style="margin-top:12px">
+          <div style="font-weight:900; margin-bottom:8px">בקרוב</div>
+          <div class="muted" style="font-size:12px">
+            אזור להרחבות: משמרות, פעילות אחרונה, הערות מנהל, מגבלות עבודה וכו׳.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+          <div>
+            <div style="font-weight:900">הרשאות</div>
+            <div class="muted" style="font-size:12px;margin-top:4px">
+              עדכן הרשאות לעובד. (איפוס לברירת־מחדל לפי תפקיד דרך הכפתור)
+            </div>
+          </div>
+          <div class="pill">Approval: <b><%= staff.approvalStatus || "-" %></b></div>
+        </div>
+
+        <form method="post" action="/owner/staff/<%= staff.id %>/permissions" style="margin-top:12px">
+          <input type="hidden" name="redirectTo" value="/owner/staff/<%= staff.id %>" />
+
+          <div class="perm-grid" style="<%= staff.status === 'inactive' ? "opacity:.55" : "" %>">
+            <% (allPermissions || []).forEach(function(p){ 
+                 const checked = (staff.permissions || []).includes(p);
+            %>
+              <label class="perm-item">
+                <input type="checkbox" name="permissions" value="<%= p %>"
+                  <%= checked ? "checked" : "" %>
+                  <%= staff.status === 'inactive' ? "disabled" : "" %> />
+                <div>
+                  <strong><%= p %></strong>
+                  <div class="muted" style="font-size:12px"><%= permLabels[p] || "" %></div>
+                </div>
+              </label>
+            <% }) %>
+          </div>
+
+          <div class="perm-actions">
+            <div class="muted" style="font-size:12px">
+              <% if (staff.status === 'inactive') { %>
+                העובד מושבת — לא ניתן לערוך הרשאות עד להפעלה.
+              <% } else { %>
+                שמור שינויים או אפס לברירת מחדל.
+              <% } %>
+            </div>
+
+            <div style="display:flex; gap:8px; flex-wrap:wrap">
+              <button type="submit" class="btn sm" <%= staff.status === 'inactive' ? "disabled" : "" %>>שמור הרשאות</button>
+            </div>
+          </div>
+        </form>
+
+        <form method="post" action="/owner/staff/<%= staff.id %>/permissions" style="margin-top:10px">
+          <input type="hidden" name="redirectTo" value="/owner/staff/<%= staff.id %>" />
+          <input type="hidden" name="resetToDefaults" value="on" />
+          <button type="submit" class="btn ghost sm" <%= staff.status === 'inactive' ? "disabled" : "" %>>
+            אפס לברירת מחדל
+          </button>
+        </form>
+      </div>
     </div>
 
   <% } %>
@@ -368,10 +351,10 @@ layout_type_in_scope=<%= escText(typeof layout) %>, it.layout_type=<%= escText(t
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="resetTitle">
     <div class="dialog-hd">
       <div>
-        <div style="font-size:16px;font-weight:800" id="resetTitle">קישור לאיפוס סיסמה</div>
+        <div style="font-size:16px;font-weight:900" id="resetTitle">קישור לאיפוס סיסמה</div>
         <div class="muted" style="margin-top:4px" id="resetPwSub">צור קישור והעתק לעובד.</div>
       </div>
-      <button class="btn ghost sm" type="button" id="btnCloseResetPw" aria-label="Close">✕</button>
+      <button class="btn ghost sm" type="button" id="btnCloseResetPw">✕</button>
     </div>
 
     <div class="dialog-bd">
@@ -382,11 +365,8 @@ layout_type_in_scope=<%= escText(typeof layout) %>, it.layout_type=<%= escText(t
           <button type="button" class="btn" id="btnCopyResetPw">העתק</button>
           <button type="button" class="btn ghost" id="btnOpenResetPw">פתח</button>
         </div>
-        <div class="muted" style="margin-top:8px; opacity:.85">
-          מומלץ לשלוח לעובד את הקישור בהודעה פרטית. הקישור חד-פעמי.
-        </div>
       </div>
-      <div class="alert hidden" id="resetPwErr"></div>
+      <div class="alert err hidden" id="resetPwErr"></div>
     </div>
 
     <div class="dialog-ft">
@@ -397,48 +377,44 @@ layout_type_in_scope=<%= escText(typeof layout) %>, it.layout_type=<%= escText(t
 
 <script>
 (function(){
-  const resetModal = document.getElementById("resetPwModal");
-  const resetCloseBtn = document.getElementById("btnCloseResetPw");
-  const resetCloseBtn2 = document.getElementById("btnCloseResetPw2");
-  const resetSub = document.getElementById("resetPwSub");
-  const resetLinkInput = document.getElementById("resetPwLink");
-  const resetErr = document.getElementById("resetPwErr");
+  const btn = document.getElementById("btnOpenResetLink");
+  const modal = document.getElementById("resetPwModal");
+  const close1 = document.getElementById("btnCloseResetPw");
+  const close2 = document.getElementById("btnCloseResetPw2");
+  const sub = document.getElementById("resetPwSub");
+  const linkInp = document.getElementById("resetPwLink");
+  const err = document.getElementById("resetPwErr");
   const btnCopy = document.getElementById("btnCopyResetPw");
   const btnOpen = document.getElementById("btnOpenResetPw");
 
-  function showResetErr(msg){
-    resetErr.textContent = msg || "";
-    resetErr.classList.remove("hidden");
+  function openModal(){
+    modal.classList.remove("hidden");
+    modal.setAttribute("aria-hidden","false");
   }
-  function clearResetErr(){
-    resetErr.textContent = "";
-    resetErr.classList.add("hidden");
+  function closeModal(){
+    modal.classList.add("hidden");
+    modal.setAttribute("aria-hidden","true");
   }
-  function openResetModal(){
-    clearResetErr();
-    resetModal.classList.remove("hidden");
-    resetModal.setAttribute("aria-hidden","false");
-  }
-  function closeResetModal(){
-    resetModal.classList.add("hidden");
-    resetModal.setAttribute("aria-hidden","true");
+  function showErr(msg){
+    err.textContent = msg || "";
+    err.classList.toggle("hidden", !msg);
   }
 
-  window.openResetLinkModal = async function(staffId, email){
+  async function createLink(staffId, email){
     try{
-      clearResetErr();
-      resetSub.textContent = "יוצר קישור עבור: " + (email || "");
-      resetLinkInput.value = "טוען...";
-      openResetModal();
+      showErr("");
+      sub.textContent = "יוצר קישור עבור: " + (email || "");
+      linkInp.value = "טוען...";
+      openModal();
 
-      const res = await fetch(`/owner/staff/${encodeURIComponent(staffId)}/password-reset-link`, {
+      const res = await fetch(`/owner/staff/${staffId}/password-reset-link`, {
         method: "POST",
         headers: { "Accept": "application/json" }
       });
       const data = await res.json().catch(()=>null);
 
       if(!res.ok || !data || !data.ok){
-        const err = (data && data.error) ? data.error : "unknown";
+        const errCode = (data && data.error) ? data.error : "unknown";
         const map = {
           "staff_not_found": "העובד לא נמצא.",
           "not_your_restaurant": "אין לך הרשאה למסעדה הזו.",
@@ -446,44 +422,51 @@ layout_type_in_scope=<%= escText(typeof layout) %>, it.layout_type=<%= escText(t
           "non_local_user": "לא ניתן לאפס סיסמה למשתמש שאינו Local.",
           "unknown": "שגיאה לא ידועה."
         };
-        resetLinkInput.value = "";
-        showResetErr(map[err] || ("שגיאה: " + err));
+        linkInp.value = "";
+        showErr(map[errCode] || ("שגיאה: " + errCode));
         return;
       }
 
       const relative = String(data.resetUrl || "");
       const full = relative.startsWith("http") ? relative : (window.location.origin + relative);
-      resetLinkInput.value = full;
+      linkInp.value = full;
     }catch(ex){
-      resetLinkInput.value = "";
-      showResetErr(String(ex));
+      linkInp.value = "";
+      showErr(String(ex));
     }
-  };
+  }
 
-  if(resetModal) resetModal.addEventListener("click", (e)=>{ if(e.target === resetModal) closeResetModal(); });
-  if(resetCloseBtn) resetCloseBtn.addEventListener("click", closeResetModal);
-  if(resetCloseBtn2) resetCloseBtn2.addEventListener("click", closeResetModal);
+  if(btn){
+    btn.addEventListener("click", ()=>{
+      const staffId = btn.getAttribute("data-staff-id") || "";
+      const email = btn.getAttribute("data-staff-email") || "";
+      if(staffId) createLink(staffId, email);
+    });
+  }
+
+  if(close1) close1.addEventListener("click", closeModal);
+  if(close2) close2.addEventListener("click", closeModal);
 
   if(btnCopy){
     btnCopy.addEventListener("click", async ()=>{
       try{
-        await navigator.clipboard.writeText(resetLinkInput.value || "");
+        await navigator.clipboard.writeText(linkInp.value || "");
         btnCopy.textContent = "הועתק!";
         setTimeout(()=>btnCopy.textContent="העתק", 900);
       }catch{
-        showResetErr("לא הצלחתי להעתיק. אפשר לסמן ולהעתיק ידנית.");
+        showErr("לא הצלחתי להעתיק. אפשר לסמן ולהעתיק ידנית.");
       }
     });
   }
   if(btnOpen){
     btnOpen.addEventListener("click", ()=>{
-      const v = resetLinkInput.value || "";
+      const v = linkInp.value || "";
       if(v) window.open(v, "_blank");
     });
   }
 
   document.addEventListener("keydown", (e)=>{
-    if(e.key === "Escape" && resetModal && !resetModal.classList.contains("hidden")) closeResetModal();
+    if(e.key === "Escape" && modal && !modal.classList.contains("hidden")) closeModal();
   });
 })();
 </script>
