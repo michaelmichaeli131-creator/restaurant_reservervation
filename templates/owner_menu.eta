@@ -1,5 +1,19 @@
 
 <% layout("_layout", it) %>
+
+<%
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t==='function'){
+        const s = it.t(k);
+        if(!s || s===k || s===`(${k})`) return fb;
+        return s;
+      }
+    }catch(e){}
+    return fb;
+  }
+%>
+
 <main class="container">
   <header class="page-header">
     <h1>עריכת תפריט — <%= it.restaurant.name %></h1>

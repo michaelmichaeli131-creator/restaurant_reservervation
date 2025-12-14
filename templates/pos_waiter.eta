@@ -1,6 +1,17 @@
 <% layout("_layout", it) %>
 
 <%
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t==='function'){
+        const s = it.t(k);
+        if(!s || s===k || s===`(${k})`) return fb;
+        return s;
+      }
+    }catch(e){}
+    return fb;
+  }
+
   const r   = it.restaurant;
   const rid = it.rid;
   const tbl = it.table;

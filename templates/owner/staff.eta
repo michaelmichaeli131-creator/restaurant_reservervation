@@ -1,5 +1,18 @@
 <% layout("../_layout", it) %>
 
+<%
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t==='function'){
+        const s = it.t(k);
+        if(!s || s===k || s===`(${k})`) return fb;
+        return s;
+      }
+    }catch(e){}
+    return fb;
+  }
+%>
+
 <style>
   /* Match existing owner pages look (see owner_bills.eta style) */
   .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
