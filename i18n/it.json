@@ -1,0 +1,275 @@
+{
+  "nav": {
+    "manage": "Gestisci Ristorante",
+    "logout": "Esci",
+    "signedin": "Connesso",
+    "login": "Accedi",
+    "register": "Registrati",
+    "admin": "Admin",
+    "language": "Scegli lingua",
+    "changePassword": "Cambia Password"
+  },
+  "footer": {
+    "rights": "Tutti i diritti riservati"
+  },
+  "common": {
+    "btn_save": "Salva",
+    "btn_cancel": "Annulla",
+    "btn_delete": "Elimina",
+    "btn_edit": "Modifica",
+    "btn_add": "Aggiungi",
+    "btn_close": "Chiudi",
+    "btn_back": "Indietro",
+    "btn_copy": "Copia",
+    "btn_open": "Apri",
+    "btn_refresh": "Aggiorna",
+    "btn_check": "Controlla",
+    "people_unit": "Ospiti",
+    "items_unit": "Articoli",
+    "optional": "Opzionale",
+    "none": "Nessuno"
+  },
+  "lang": {
+    "hebrew": "עברית",
+    "english": "English",
+    "georgian": "ქართული",
+    "italian": "Italiano"
+  },
+  "owner": {
+    "dashboard": {
+      "title": "Dashboard Proprietario",
+      "aria_section": "Dashboard Proprietario",
+      "btn_floor": "Planimetria",
+      "btn_menu": "Modifica Menu",
+      "btn_waiter": "Schermo Cameriere",
+      "btn_kitchen": "Schermo Cucina",
+      "btn_host": "Schermo Host",
+      "btn_bar": "Schermo Bar",
+      "btn_bills": "Conti Recenti",
+      "btn_stats": "Statistiche e Report",
+      "btn_inventory": "Inventario Materie Prime",
+      "btn_costs": "Costi Materie Prime",
+      "btn_counts": "Conteggi Inventario",
+      "btn_foodcost": "Costo Cibo e Redditività",
+      "btn_suppliers": "Fornitori",
+      "btn_po": "Ordini di Acquisto (PO)",
+      "btn_recipes": "Ricette Piatti",
+      "btn_photos": "Foto",
+      "btn_shifts": "Gestione Turni"
+    },
+    "staff": {
+      "manage_title": "Gestione Personale",
+      "btn_add": "➕ Aggiungi Dipendente",
+      "modal_title": "Aggiungi Dipendente",
+      "empty_hint": "Clicca 'Aggiungi Dipendente' sopra per creare un dipendente",
+      "btn_activate": "Attiva",
+      "btn_deactivate": "Disattiva",
+      "confirm_deactivate": "Disattivare questo dipendente? Non potrà accedere o lavorare",
+      "permissions": "Permessi",
+      "btn_save_permissions": "Salva Permessi",
+      "reset_pw": {
+        "label": "Link"
+      },
+      "tbl": {
+        "name": "Nome",
+        "role": "Ruolo",
+        "email": "Email",
+        "phone": "Telefono",
+        "created": "Registrato",
+        "actions": "Azioni"
+      }
+    },
+    "menu": {
+      "categories": "Categorie",
+      "confirm_delete_category": "Eliminare categoria?",
+      "btn_add_category": "Aggiungi Categoria",
+      "items": "Piatti",
+      "btn_add_item": "Aggiungi Piatto",
+      "dest_kitchen": "Cucina",
+      "dest_bar": "Bar",
+      "tbl": {
+        "name": "Nome",
+        "price": "Prezzo",
+        "destination": "Destinazione",
+        "category": "Categoria"
+      }
+    },
+    "bills": {
+      "tbl": {
+        "date": "Data",
+        "table": "Tavolo",
+        "amount": "Importo",
+        "actions": "Azioni"
+      },
+      "empty": "Nessun conto ancora",
+      "btn_print": "Stampa",
+      "confirm_delete": "Eliminare questo conto?"
+    },
+    "inventory": {
+      "title": "Inventario Materie Prime",
+      "add_new": "Aggiungi Nuova Materia Prima",
+      "all_items": "Tutte le Materie Prime",
+      "empty": "Nessuna materia prima ancora",
+      "btn_add": "➕ Aggiungi Materia Prima",
+      "form": {
+        "name": "Nome Materia Prima",
+        "unit": "Unità di Misura",
+        "current_qty": "Quantità Attuale",
+        "min_qty": "Minimo Desiderato",
+        "cost_per_unit": "Costo per Unità (₪)",
+        "supplier": "Fornitore Preferito",
+        "notes": "Note"
+      },
+      "placeholder": {
+        "name": "Es: Farina bianca 00",
+        "notes": "Info aggiuntive: tipo, conservazione, allergeni ecc."
+      }
+    }
+  },
+  "pos": {
+    "waiter": {
+      "items_count": "Articoli",
+      "btn_close_order": "Chiudi Tavolo / Emetti Conto",
+      "btn_mark_served": "Segna come Servito",
+      "btn_to_order": "Allo schermo ordine"
+    },
+    "menu": {
+      "title": "Menu",
+      "help_text": "Seleziona piatti dal menu",
+      "empty": "Nessun piatto nel menu attualmente",
+      "no_category": "Senza categoria"
+    },
+    "order": {
+      "title": "Ordine Tavolo",
+      "tbl": {
+        "dish": "Piatto",
+        "quantity": "Quantità",
+        "destination": "Destinazione",
+        "status": "Stato",
+        "total": "Totale",
+        "actions": "Azioni"
+      }
+    },
+    "status": {
+      "received": "Ricevuto",
+      "in_progress": "In Corso",
+      "ready": "Pronto",
+      "served": "Servito",
+      "cancelled": "Annullato"
+    },
+    "error": {
+      "load_menu": "Errore caricamento menu"
+    },
+    "kitchen": {
+      "title": "Schermo Cucina —",
+      "orders_title": "Ordini Cucina",
+      "instructions": "Le frecce cambiano stato..."
+    },
+    "bar": {
+      "title": "Schermo Bar —",
+      "orders_title": "Ordini Bar"
+    }
+  },
+  "host": {
+    "people_unit": "Ospiti",
+    "table_status": {
+      "reserved": "Riservato"
+    },
+    "status": {
+      "reserved": "Riservato"
+    }
+  },
+  "restaurant": {
+    "menu": {
+      "title": "Menu"
+    },
+    "photos": {
+      "title": "Foto"
+    },
+    "reviews": {
+      "title": "Recensioni"
+    },
+    "form": {
+      "date": "Data",
+      "time": "Ora",
+      "guests": "N° Ospiti"
+    },
+    "select_date": "Seleziona Data",
+    "check_availability": "Verifica Disponibilità"
+  },
+  "reservation": {
+    "form": {
+      "title": "Prenotazione",
+      "notes": "Note per la prenotazione",
+      "notes_placeholder": "Allergie, preferenze posti...",
+      "submit": "Effettua Prenotazione"
+    }
+  },
+  "review": {
+    "form": {
+      "rating": "Valutazione",
+      "submit": "Invia Recensione"
+    }
+  },
+  "auth": {
+    "signup": {
+      "title": "Registrazione",
+      "btn_submit": "Registrati"
+    },
+    "register": {
+      "form": {
+        "role_user": "Utente"
+      }
+    }
+  },
+  "floor": {
+    "loading": "Caricamento planimetrie...",
+    "empty_state": "Nessuna planimetria trovata. Si prega di creare prima una planimetria.",
+    "empty_hint": "Crea la tua prima planimetria per iniziare.",
+    "btn_create_new": "Crea Nuova Planimetria",
+    "btn_duplicate": "Duplica",
+    "btn_add_table": "Aggiungi Tavolo",
+    "btn_save_layout": "Salva Planimetria",
+    "error": {
+      "enter_name": "Inserisci un nome per la planimetria",
+      "server": "Errore server: {status} {statusText}",
+      "create": "Errore creazione planimetria: {error}",
+      "delete": "Eliminazione fallita",
+      "delete_general": "Errore eliminazione planimetria",
+      "duplicate": "Errore duplicazione planimetria",
+      "save": "Errore salvataggio: {error}"
+    },
+    "success": {
+      "save": "Planimetria salvata con successo!"
+    },
+    "confirm": {
+      "delete_layout": "Sei sicuro di voler eliminare questa planimetria?"
+    },
+    "prompt": {
+      "duplicate_name": "Inserisci nome per planimetria duplicata:"
+    },
+    "placeholder": {
+      "layout_name": "Nome planimetria (es: Piano Principale, Patio)"
+    },
+    "status": {
+      "empty": "Vuoto",
+      "occupied": "Occupato",
+      "reserved": "Riservato",
+      "dirty": "Da Pulire"
+    },
+    "status_text": {
+      "available": "Disponibile",
+      "dirty": "Necessita pulizia"
+    }
+  },
+  "live": {
+    "auto_refresh": "Auto-aggiornamento",
+    "status_legend": "Legenda Stato",
+    "stats": {
+      "total_tables": "Tavoli Totali:",
+      "occupied": "Occupati:",
+      "empty": "Vuoti:",
+      "occupancy": "Occupazione:"
+    }
+  }
+}
