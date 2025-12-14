@@ -1,4 +1,94 @@
-<% layout("../_layout", it) %>
+<%
+  // ---- Robust layout call (prevents shadowing by it.layout string) ----
+  // Eta with useWith can get "layout" shadowed by locals. We try multiple places.
+  const __layoutFn =
+    (typeof layout === "function") ? layout :
+    (this && typeof this.layout === "function") ? this.layout :
+    (it && typeof it.layout === "function") ? it.layout :
+    null;
+
+  if (__layoutFn) {
+    __layoutFn("../_layout", it);
+  } else {
+    // Debug hint inside HTML comment (won't break render)
+    // You can view source to confirm.
+    // eslint-disable-next-line no-unused-vars
+    const __layoutType = typeof (it && it.layout);
+  }
+
+  function escAttr(s){
+    return String(s ?? "")
+      .replace(/&/g,"&amp;")
+      .replace(/"/g,"&quot;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;");
+  }
+  function escText(s){
+    return String(s ?? "")
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;");
+  }
+  function jsSingleQuote(s){
+    // Safe for putting inside single-quoted JS string in HTML attributes
+    return String(s ?? "")
+      .replace(/\\/g, "\\\\")
+      .replace(/'/g, "\\'")
+      .replace(/\r/g, "\\r")
+      .replace(/\n/g, "\\n");
+  }
+
+  const owner = it.owner || null;
+
+  // Be resilient to naming
+  const staff = it.staff || it.staffMember || it.member || null;
+  const restaurant = it.restaurant || it.res || null;
+
+  // allow string list too
+  const allPermissions = Array.isArray(it.allPermissions)
+    ? it.allPermissions
+    : (typeof it.allPermissions === "string"
+        ? it.allPermissions.split(",").map((x)=>x.trim()).filter(Boolean)
+        : []);
+
+  const staffPermissions = Array.isArray(staff && staff.permissions) ? staff.permissions : [];
+
+  const staffId = staff && staff.id ? String(staff.id) : "";
+  const staffEmail = staff && staff.email ? String(staff.email) : "";
+  const staffPhone = staff && staff.phone ? String(staff.phone) : "";
+  const staffRole = staff && staff.role ? String(staff.role) : "";
+  const staffStatus = staff && staff.status ? String(staff.status) : "active";
+  const isInactive = staffStatus === "inactive";
+
+  const staffFirst = staff && staff.firstName ? String(staff.firstName) : "";
+  const staffLast  = staff && staff.lastName ? String(staff.lastName) : "";
+  const fullName = (staffFirst + " " + staffLast).trim() || staffEmail || "Staff";
+
+  const initials = ((staffFirst||"").slice(0,1) + (staffLast||"").slice(0,1)).toUpperCase() || "SB";
+
+  const permLabels = {
+    "pos.waiter": "POS - מלצר (קליטת הזמנות וטיפול בשולחנות)",
+    "pos.kitchen": "POS - מטבח (מסך הזמנות למטבח/בר)",
+    "host.seating": "מארחת - השמת שולחנות וניהול רצפת המסעדה",
+    "reservations.view": "צפייה בהזמנות למסעדה",
+    "reservations.manage": "ניהול הזמנות (אישור/ביטול/עדכון)",
+    "floor.view": "צפייה במפת השולחנות",
+    "floor.edit": "עריכת מפת שולחנות",
+    "shifts.view": "צפייה במשמרות",
+    "shifts.manage": "ניהול משמרות (שיבוץ, שינוי, ביטול)",
+    "inventory.view": "צפייה במלאי וחומרי גלם",
+    "inventory.manage": "ניהול מלאי (עדכון, הזמנות, התאמות)",
+    "reports.view": "צפייה בדוחות (מכירות, תפוסה וכו')",
+    "menu.manage": "ניהול תפריט (מנות, מחירים, זמינות)"
+  };
+
+  const __staffEmailJs = jsSingleQuote(staffEmail);
+  const __staffIdJs = jsSingleQuote(staffId);
+%>
+
+<!-- debug: if you still get layout errors, check these values:
+layout_type_in_scope=<%= escText(typeof layout) %>, it.layout_type=<%= escText(typeof (it && it.layout)) %>
+-->
 
 <style>
   .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
@@ -144,46 +234,6 @@
   }
 </style>
 
-<%
-  const owner = it.owner || null;
-
-  // Be resilient to naming
-  const staff = it.staff || it.staffMember || it.member || null;
-  const restaurant = it.restaurant || it.res || null;
-
-  const allPermissions = Array.isArray(it.allPermissions) ? it.allPermissions : [];
-  const staffPermissions = Array.isArray(staff && staff.permissions) ? staff.permissions : [];
-
-  const staffId = staff && staff.id ? String(staff.id) : "";
-  const staffEmail = staff && staff.email ? String(staff.email) : "";
-  const staffPhone = staff && staff.phone ? String(staff.phone) : "";
-  const staffRole = staff && staff.role ? String(staff.role) : "";
-  const staffStatus = staff && staff.status ? String(staff.status) : "active";
-  const isInactive = staffStatus === "inactive";
-
-  const staffFirst = staff && staff.firstName ? String(staff.firstName) : "";
-  const staffLast  = staff && staff.lastName ? String(staff.lastName) : "";
-  const fullName = (staffFirst + " " + staffLast).trim() || staffEmail || "Staff";
-
-  const initials = ((staffFirst||"").slice(0,1) + (staffLast||"").slice(0,1)).toUpperCase() || "SB";
-
-  const permLabels = {
-    "pos.waiter": "POS - מלצר (קליטת הזמנות וטיפול בשולחנות)",
-    "pos.kitchen": "POS - מטבח (מסך הזמנות למטבח/בר)",
-    "host.seating": "מארחת - השמת שולחנות וניהול רצפת המסעדה",
-    "reservations.view": "צפייה בהזמנות למסעדה",
-    "reservations.manage": "ניהול הזמנות (אישור/ביטול/עדכון)",
-    "floor.view": "צפייה במפת השולחנות",
-    "floor.edit": "עריכת מפת שולחנות",
-    "shifts.view": "צפייה במשמרות",
-    "shifts.manage": "ניהול משמרות (שיבוץ, שינוי, ביטול)",
-    "inventory.view": "צפייה במלאי וחומרי גלם",
-    "inventory.manage": "ניהול מלאי (עדכון, הזמנות, התאמות)",
-    "reports.view": "צפייה בדוחות (מכירות, תפוסה וכו')",
-    "menu.manage": "ניהול תפריט (מנות, מחירים, זמינות)"
-  };
-%>
-
 <div class="sb-owner container">
   <div class="card">
     <div class="hdr">
@@ -192,14 +242,14 @@
         <div class="muted" style="margin-top:6px">
           <a href="/owner/staff" class="btn sm ghost">← חזרה לניהול עובדים</a>
           <% if (restaurant && restaurant.name) { %>
-            <span class="pill" style="margin-inline-start:8px">מסעדה: <b><%= restaurant.name %></b></span>
+            <span class="pill" style="margin-inline-start:8px">מסעדה: <b><%= escText(restaurant.name) %></b></span>
           <% } %>
         </div>
       </div>
 
       <div class="pill-row">
         <% if (owner && owner.email) { %>
-          <span class="pill">בעלים: <b><%= owner.email %></b></span>
+          <span class="pill">בעלים: <b><%= escText(owner.email) %></b></span>
         <% } %>
       </div>
     </div>
@@ -207,27 +257,31 @@
 
   <% if (!staffId) { %>
     <div class="card">
-      <div class="alert">שגיאה: לא נמצא מזהה עובד (staffId). בדוק שה־route מעביר it.staff עם id.</div>
+      <div class="alert">
+        שגיאה: לא נמצא מזהה עובד (staffId).
+        <br/>בדוק שה־route מעביר it.staff עם id.
+      </div>
       <a class="btn" href="/owner/staff">חזרה</a>
     </div>
   <% } else { %>
+
     <div class="card">
       <div class="section-title">
         <h2>פרטי עובד</h2>
-        <span class="muted">ID: <%= staffId %></span>
+        <span class="muted">ID: <%= escText(staffId) %></span>
       </div>
 
       <div class="staff-box">
         <div class="staff-head">
-          <span class="avatar"><%= initials %></span>
+          <span class="avatar"><%= escText(initials) %></span>
           <div style="flex:1">
-            <h3 class="staff-name"><%= fullName %></h3>
+            <h3 class="staff-name"><%= escText(fullName) %></h3>
             <div class="muted" style="margin-top:4px">
-              <%= staffEmail %><% if (staffPhone) { %> · <%= staffPhone %><% } %>
+              <%= escText(staffEmail) %><% if (staffPhone) { %> · <%= escText(staffPhone) %><% } %>
             </div>
 
             <div class="tags">
-              <span class="tag">תפקיד: <b><%= staffRole || "-" %></b></span>
+              <span class="tag">תפקיד: <b><%= escText(staffRole || "-") %></b></span>
               <% if (isInactive) { %>
                 <span class="tag" style="border-color:rgba(239,68,68,.35); background:rgba(239,68,68,.10)">סטטוס: מושבת</span>
               <% } else { %>
@@ -236,9 +290,9 @@
             </div>
 
             <div class="row">
-              <form method="post" action="/owner/staff/<%= staffId %>/status">
-                <input type="hidden" name="redirectTo" value="/owner/staff/<%= staffId %>" />
-                <input type="hidden" name="status" value="<%= isInactive ? "active" : "inactive" %>" />
+              <form method="post" action="/owner/staff/<%= escAttr(staffId) %>/status">
+                <input type="hidden" name="redirectTo" value="/owner/staff/<%= escAttr(staffId) %>" />
+                <input type="hidden" name="status" value="<%= escAttr(isInactive ? "active" : "inactive") %>" />
                 <% if (isInactive) { %>
                   <button class="btn sm" type="submit">הפעל עובד</button>
                 <% } else { %>
@@ -248,7 +302,7 @@
               </form>
 
               <button type="button" class="btn ghost sm"
-                onclick="openResetLinkModal('<%= staffId %>','<%= staffEmail %>')">
+                onclick="openResetLinkModal('<%= escAttr(__staffIdJs) %>','<%= escAttr(__staffEmailJs) %>')">
                 צור קישור לאיפוס סיסמה
               </button>
             </div>
@@ -267,18 +321,18 @@
         <div class="alert">אין allPermissions ב־render. בדוק שב־route אתה מעביר it.allPermissions.</div>
       <% } %>
 
-      <form method="post" action="/owner/staff/<%= staffId %>/permissions">
-        <input type="hidden" name="redirectTo" value="/owner/staff/<%= staffId %>" />
+      <form method="post" action="/owner/staff/<%= escAttr(staffId) %>/permissions">
+        <input type="hidden" name="redirectTo" value="/owner/staff/<%= escAttr(staffId) %>" />
 
         <div class="perm-grid" style="<%= isInactive ? "opacity:.55" : "" %>">
           <% (allPermissions || []).forEach(function(p){
                const checked = (staffPermissions || []).includes(p);
           %>
             <label class="perm-item">
-              <input type="checkbox" name="permissions" value="<%= p %>" <%= checked ? "checked" : "" %> <%= isInactive ? "disabled" : "" %> />
+              <input type="checkbox" name="permissions" value="<%= escAttr(p) %>" <%= checked ? "checked" : "" %> <%= isInactive ? "disabled" : "" %> />
               <div>
-                <strong><%= p %></strong>
-                <div class="muted"><%= permLabels[p] || "" %></div>
+                <strong><%= escText(p) %></strong>
+                <div class="muted"><%= escText(permLabels[p] || "") %></div>
               </div>
             </label>
           <% }) %>
@@ -305,6 +359,7 @@
         </div>
       </form>
     </div>
+
   <% } %>
 </div>
 
@@ -376,7 +431,7 @@
       resetLinkInput.value = "טוען...";
       openResetModal();
 
-      const res = await fetch(`/owner/staff/${staffId}/password-reset-link`, {
+      const res = await fetch(`/owner/staff/${encodeURIComponent(staffId)}/password-reset-link`, {
         method: "POST",
         headers: { "Accept": "application/json" }
       });
