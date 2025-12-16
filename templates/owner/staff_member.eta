@@ -1,4 +1,4 @@
-<%~ it.layout("../_layout", it) %>
+<% layout("../_layout", it) %>
 
 <style>
   .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
