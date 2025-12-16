@@ -174,7 +174,7 @@
   const owner = it.owner;
   const staff = it.staff;
   const restaurant = it.restaurant;
-  const allPermissions = it.allPermissions || [];
+  const allPermissions = Array.isArray(it.allPermissions) ? it.allPermissions : [];
   const error = it.error;
 
   const permLabels = {
@@ -228,15 +228,25 @@
     </div>
   <% } else { %>
 
+    <%
+      const isInactive = (staff.status === 'inactive');
+      const nextStatus = isInactive ? 'active' : 'inactive';
+
+      const permGridStyle = (staff.status === 'inactive') ? 'opacity:.55' : '';
+      const permDisabledAttr = (staff.status === 'inactive') ? 'disabled' : '';
+      const saveDisabledAttr = (staff.status === 'inactive') ? 'disabled' : '';
+
+      const initials = (((staff.firstName||"").slice(0,1)+(staff.lastName||"").slice(0,1)).toUpperCase() || "SB");
+      const staffPerms = Array.isArray(staff.permissions) ? staff.permissions : [];
+    %>
+
     <div class="grid">
       <div class="card">
         <div class="staff-card">
           <div class="staff-hd">
             <div>
               <h3 class="staff-name">
-                <span class="avatar">
-                  <%= (((staff.firstName||"").slice(0,1)+(staff.lastName||"").slice(0,1)).toUpperCase() || "SB") %>
-                </span>
+                <span class="avatar"><%= initials %></span>
                 <span><%= staff.firstName %> <%= staff.lastName %></span>
               </h3>
               <div class="muted" style="margin-top:4px;font-size:12px">
@@ -250,7 +260,6 @@
             <div class="actions-row">
               <span class="tag">תפקיד: <b><%= staff.role %></b></span>
 
-              <% const isInactive = (staff.status === "inactive"); %>
               <% if (isInactive) { %>
                 <span class="tag" style="border-color:rgba(239,68,68,.35); background:rgba(239,68,68,.10)">סטטוס: מושבת</span>
               <% } else { %>
@@ -259,7 +268,7 @@
 
               <form method="post" action="/owner/staff/<%= staff.id %>/status">
                 <input type="hidden" name="redirectTo" value="/owner/staff/<%= staff.id %>" />
-                <input type="hidden" name="status" value="<%= isInactive ? "active" : "inactive" %>" />
+                <input type="hidden" name="status" value="<%= nextStatus %>" />
                 <% if (isInactive) { %>
                   <button class="btn sm" type="submit">הפעל</button>
                 <% } else { %>
@@ -302,20 +311,20 @@
         <form method="post" action="/owner/staff/<%= staff.id %>/permissions" style="margin-top:12px">
           <input type="hidden" name="redirectTo" value="/owner/staff/<%= staff.id %>" />
 
-          <div class="perm-grid" style="<%= staff.status === 'inactive' ? "opacity:.55" : "" %>">
-            <% (allPermissions || []).forEach(function(p){ 
-                 const checked = (staff.permissions || []).includes(p);
+          <div class="perm-grid" style="<%= permGridStyle %>">
+            <% for (const p of allPermissions) { 
+                 const checked = staffPerms.includes(p);
             %>
               <label class="perm-item">
                 <input type="checkbox" name="permissions" value="<%= p %>"
                   <%= checked ? "checked" : "" %>
-                  <%= staff.status === 'inactive' ? "disabled" : "" %> />
+                  <%= permDisabledAttr %> />
                 <div>
                   <strong><%= p %></strong>
                   <div class="muted" style="font-size:12px"><%= permLabels[p] || "" %></div>
                 </div>
               </label>
-            <% }) %>
+            <% } %>
           </div>
 
           <div class="perm-actions">
@@ -328,7 +337,7 @@
             </div>
 
             <div style="display:flex; gap:8px; flex-wrap:wrap">
-              <button type="submit" class="btn sm" <%= staff.status === 'inactive' ? "disabled" : "" %>>שמור הרשאות</button>
+              <button type="submit" class="btn sm" <%= saveDisabledAttr %>>שמור הרשאות</button>
             </div>
           </div>
         </form>
@@ -336,7 +345,7 @@
         <form method="post" action="/owner/staff/<%= staff.id %>/permissions" style="margin-top:10px">
           <input type="hidden" name="redirectTo" value="/owner/staff/<%= staff.id %>" />
           <input type="hidden" name="resetToDefaults" value="on" />
-          <button type="submit" class="btn ghost sm" <%= staff.status === 'inactive' ? "disabled" : "" %>>
+          <button type="submit" class="btn ghost sm" <%= saveDisabledAttr %>>
             אפס לברירת מחדל
           </button>
         </form>
