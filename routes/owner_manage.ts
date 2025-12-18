@@ -1,5 +1,5 @@
 // src/routes/owner_manage.ts
-// דשבורד + עריכת פרטי מסעדה — בעלים בלבד
+// דשבורד + עריכת פרטי מסעדה
 // - /owner/manage : דשבורד מסעדות עם קיצור ל-Calendar וסיכומים יומיים
 // - /owner/restaurants/:id/edit : טופס עריכה (GET)
 // - /owner/restaurants/:id/edit/save : שמירה ב-GET דרך url.searchParams (ללא body)
@@ -15,7 +15,8 @@ import {
   computeOccupancy,
   type Restaurant,
 } from "../database.ts";
-import { requireOwner } from "../lib/auth.ts";
+import { requireAuth, requireOwner } from "../lib/auth.ts";
+import { requireRestaurantAccess } from "../services/authz.ts";
 
 function trim(s?: string | null) { return (s ?? "").trim(); }
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -26,21 +27,75 @@ function todayISO(): string {
 
 const ownerManageRouter = new Router();
 
-/* ───────────────────────── דשבורד בעלים ───────────────────────── */
+/* ───────────────────────── דשבורד ───────────────────────── */
 
 ownerManageRouter.get("/owner/manage", async (ctx) => {
-  if (!requireOwner(ctx)) return;
+  // מאפשר גם לבעלים וגם לעובד (staff) להיכנס למסך – עם הגבלות נכונות
+  if (!requireAuth(ctx)) return;
 
   const user = (ctx.state as any)?.user;
-  const all = await listRestaurants("", /*onlyApproved*/ false);
-  const mine = all.filter(r => r.ownerId === user.id);
-
   const date = ctx.request.url.searchParams.get("date") || todayISO();
 
-  const restaurants = await Promise.all(mine.map(async (r) => {
+  // --- 1) Owner: כל המסעדות בבעלותו ---
+  if (user?.role === "owner") {
+    const all = await listRestaurants("", /*onlyApproved*/ false);
+    const mine = all.filter((r) => r.ownerId === user.id);
+
+    const restaurants = await Promise.all(mine.map(async (r) => {
+      const reservations = await listReservationsFor(r.id, date);
+      const peopleToday = reservations.reduce((acc, x) => acc + (x.people || 0), 0);
+      const occMap = await computeOccupancy(r, date); // Map<HH:MM, usedSeats>
+      let peakUsed = 0;
+      for (const used of occMap.values()) peakUsed = Math.max(peakUsed, used);
+      const capacity = Math.max(1, Number(r.capacity || 0));
+      const peakPct = Math.min(100, Math.round((peakUsed / capacity) * 100));
+
+      const photos = Array.isArray(r.photos) ? r.photos : [];
+      const normPhotos = photos.map((p: any) =>
+        typeof p === "string" ? { dataUrl: p, alt: "" } : p
+      );
+
+      return {
+        ...r,
+        photos: normPhotos,
+        _today: date,
+        _reservationsCount: reservations.length,
+        _peopleToday: peopleToday,
+        _peakOccupancyPct: peakPct,
+        _calendarUrl: `/owner/restaurants/${r.id}/calendar?date=${encodeURIComponent(date)}`,
+      };
+    }));
+
+    await render(ctx, "owner_dashboard", {
+      title: "דשבורד בעלים",
+      page: "owner_dashboard",
+      user,
+      restaurants,
+    });
+    return;
+  }
+
+  // --- 2) Staff: מסעדה אחת לפי staff_context ---
+  if (user?.role === "staff") {
+    const rid = (ctx.state as any).staffRestaurantId as string | null;
+    if (!rid) {
+      ctx.response.status = Status.Forbidden;
+      ctx.response.body = "Forbidden";
+      return;
+    }
+
+    if (!(await requireRestaurantAccess(ctx, rid))) return;
+
+    const r = await getRestaurant(rid);
+    if (!r) {
+      ctx.response.status = Status.NotFound;
+      await render(ctx, "error", { title: "לא נמצא", message: "מסעדה לא נמצאה." });
+      return;
+    }
+
     const reservations = await listReservationsFor(r.id, date);
     const peopleToday = reservations.reduce((acc, x) => acc + (x.people || 0), 0);
-    const occMap = await computeOccupancy(r, date); // Map<HH:MM, usedSeats>
+    const occMap = await computeOccupancy(r, date);
     let peakUsed = 0;
     for (const used of occMap.values()) peakUsed = Math.max(peakUsed, used);
     const capacity = Math.max(1, Number(r.capacity || 0));
@@ -51,7 +106,7 @@ ownerManageRouter.get("/owner/manage", async (ctx) => {
       typeof p === "string" ? { dataUrl: p, alt: "" } : p
     );
 
-    return {
+    const restaurants = [{
       ...r,
       photos: normPhotos,
       _today: date,
@@ -59,16 +114,21 @@ ownerManageRouter.get("/owner/manage", async (ctx) => {
       _peopleToday: peopleToday,
       _peakOccupancyPct: peakPct,
       _calendarUrl: `/owner/restaurants/${r.id}/calendar?date=${encodeURIComponent(date)}`,
-    };
-  }));
+      _asStaff: true,
+    }];
 
-  // ⬅️ שינוי כאן: טעינת תבנית owner_dashboard (כי זה השם שהדבקת)
-  await render(ctx, "owner_dashboard", {
-    title: "דשבורד בעלים",
-    page: "owner_dashboard",
-    user,
-    restaurants,
-  });
+    await render(ctx, "owner_dashboard", {
+      title: "דשבורד מסעדה",
+      page: "owner_dashboard",
+      user,
+      restaurants,
+    });
+    return;
+  }
+
+  // --- 3) תפקידים אחרים: אין גישה ---
+  ctx.response.status = Status.Forbidden;
+  ctx.response.body = "Forbidden";
 });
 
 /** הפניה נוחה לשורש אזור הבעלים */
@@ -134,12 +194,9 @@ ownerManageRouter.get("/owner/restaurants/:id/edit/save", async (ctx) => {
   if (typeof phone !== "undefined") patch.phone = phone || "";
   if (typeof description !== "undefined") patch.description = description || "";
 
-  // Handle categories (multi-select)
   if (sp.has("categories")) {
     const categories = sp.getAll("categories").filter(Boolean);
-    if (categories.length > 0) {
-      patch.kitchenCategories = categories as any;
-    }
+    if (categories.length > 0) patch.kitchenCategories = categories as any;
   }
 
   await updateRestaurant(id, patch);
