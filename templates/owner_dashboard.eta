@@ -16,6 +16,38 @@ function tt(k, fb){
 const role = (it.user && it.user.role) ? it.user.role : '';
 const isOwner = role === 'owner';
 const isStaff = role === 'staff';
+
+// ✅ תואם owner_staff.ts: permissions הם StaffPermission[] (מחרוזות)
+const perms = Array.isArray(it.user?.permissions) ? it.user.permissions : [];
+
+// permission helpers
+function hasPerm(p){
+  if (isOwner) return true;
+  if (!isStaff) return false;
+  return perms.includes(p);
+}
+function hasAny(list){
+  if (isOwner) return true;
+  if (!isStaff) return false;
+  for (var i=0;i<list.length;i++){
+    if (perms.includes(list[i])) return true;
+  }
+  return false;
+}
+
+// “קיצורים” סמנטיים לפי המפתחות שלך
+const canCalendar = function(){ return hasAny(['reservations.view','reservations.manage']); };
+const canFloor    = function(){ return hasAny(['floor.view','floor.edit']); };
+const canShifts   = function(){ return hasAny(['shifts.view','shifts.manage']); };
+const canWaiter   = function(){ return hasPerm('pos.waiter'); };
+const canKitchen  = function(){ return hasPerm('pos.kitchen'); };
+const canHost     = function(){ return hasPerm('host.seating'); };
+const canReports  = function(){ return hasPerm('reports.view'); };
+const canInventory= function(){ return hasAny(['inventory.view','inventory.manage']); };
+const canMenu     = function(){ return hasPerm('menu.manage'); };
+
+// אין permission לבר בתצורה הנוכחית ב-owner_staff.ts
+const canBar = function(){ return isOwner; }; // Staff: לא מוצג עד שתוסיפו permission
 %>
 
 <section class="sb-owner container" aria-label="<%= isOwner ? tt('owner.dashboard.aria_section','דשבורד בעלים') : tt('staff.dashboard.aria_section','דשבורד מסעדה') %>">
@@ -31,11 +63,17 @@ const isStaff = role === 'staff';
             <%= it.user?.firstName || it.user?.username || (isOwner ? tt('owner.dashboard.owner_fallback','בעלים') : tt('staff.dashboard.staff_fallback','עובד')) %>
           </strong>
         </span>
+
+        <% if (isStaff && (!perms || !perms.length)) { %>
+          <div class="muted" style="font-size:12px;margin-top:4px">
+            <%= tt('staff.dashboard.no_permissions','אין לך הרשאות מוגדרות. פנה/י לבעל/ת המסעדה.') %>
+          </div>
+        <% } %>
       </div>
 
       <div class="owner-hd-actions">
         <% if (isOwner) { %>
-          <!-- 🔥 כפתור חדש: ניהול עובדים והרשאות (Owner בלבד) -->
+          <!-- ניהול עובדים והרשאות (Owner בלבד) -->
           <a href="/owner/staff" class="btn sm ghost owner-staff-btn">
             <span class="icon">👥</span>
             <%= tt('owner.staff.manage_title', 'ניהול עובדים') %>
@@ -97,10 +135,12 @@ const isStaff = role === 'staff';
 
                 <!-- פעולות כלליות -->
                 <div class="actions primary-actions">
-                  <a class="btn ghost" href="<%= r._calendarUrl %>" target="_self" rel="nofollow">
-                    <span class="icon">📅</span>
-                    <%= tt('owner.dashboard.btn_calendar','Calendar יומי') %>
-                  </a>
+                  <% if (isOwner || canCalendar()) { %>
+                    <a class="btn ghost" href="<%= r._calendarUrl %>" target="_self" rel="nofollow">
+                      <span class="icon">📅</span>
+                      <%= tt('owner.dashboard.btn_calendar','Calendar יומי') %>
+                    </a>
+                  <% } %>
 
                   <% if (isOwner) { %>
                     <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/edit"   target="_self" rel="nofollow">
@@ -117,12 +157,14 @@ const isStaff = role === 'staff';
                     </a>
                   <% } %>
 
-                  <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/floor" target="_self" rel="nofollow">
-                    <span class="icon">🍽️</span>
-                    <%= tt('owner.dashboard.btn_floor','סידור שולחנות') %>
-                  </a>
+                  <% if (isOwner || canFloor()) { %>
+                    <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/floor" target="_self" rel="nofollow">
+                      <span class="icon">🍽️</span>
+                      <%= tt('owner.dashboard.btn_floor','סידור שולחנות') %>
+                    </a>
+                  <% } %>
 
-                  <% if (isOwner) { %>
+                  <% if (isOwner || canShifts()) { %>
                     <a class="btn ghost" href="/owner/<%= r.id %>/shifts" target="_self" rel="nofollow">
                       <span class="icon">📅</span>
                       <%= tt('owner.dashboard.btn_shifts','ניהול משמרות') %>
@@ -132,67 +174,83 @@ const isStaff = role === 'staff';
 
                 <!-- שורת POS + ניהול תפעולי -->
                 <div class="actions pos-actions">
-                  <% if (isOwner) { %>
+                  <% if (isOwner || canMenu()) { %>
                     <a class="btn ghost wide" href="/owner/<%= r.id %>/menu">
                       <span class="icon">🧾</span>
                       <%= tt('owner.dashboard.btn_menu', 'עריכת תפריט') %>
                     </a>
                   <% } %>
 
-                  <a class="btn ghost wide" href="/waiter/<%= r.id %>">
-                    <span class="icon">🍽️</span>
-                    <%= tt('owner.dashboard.btn_waiter', 'מסך מלצרים') %>
-                  </a>
-                  <a class="btn ghost wide" href="/kitchen/<%= r.id %>">
-                    <span class="icon">🧑‍🍳</span>
-                    <%= tt('owner.dashboard.btn_kitchen', 'מסך מטבח') %>
-                  </a>
-                  <a class="btn ghost wide" href="/host/<%= r.id %>">
-                    <span class="icon">🪑</span>
-                    <%= tt('owner.dashboard.btn_host', 'מסך מארחת') %>
-                  </a>
-                  <a class="btn ghost wide" href="/bar/<%= r.id %>">
-                    <span class="icon">🍸</span>
-                    <%= tt('owner.dashboard.btn_bar', 'מסך בר') %>
-                  </a>
+                  <% if (isOwner || canWaiter()) { %>
+                    <a class="btn ghost wide" href="/waiter/<%= r.id %>">
+                      <span class="icon">🍽️</span>
+                      <%= tt('owner.dashboard.btn_waiter', 'מסך מלצרים') %>
+                    </a>
+                  <% } %>
 
-                  <a class="btn ghost wide" href="/owner/<%= r.id %>/bills">
-                    <span class="icon">💳</span>
-                    <%= tt('owner.dashboard.btn_bills', 'חשבונות אחרונים') %>
-                  </a>
-                  <a class="btn ghost wide" href="/owner/<%= r.id %>/stats">
-                    <span class="icon">📊</span>
-                    <%= tt('owner.dashboard.btn_stats', 'סטטיסטיקות ודוחות') %>
-                  </a>
+                  <% if (isOwner || canKitchen()) { %>
+                    <a class="btn ghost wide" href="/kitchen/<%= r.id %>">
+                      <span class="icon">🧑‍🍳</span>
+                      <%= tt('owner.dashboard.btn_kitchen', 'מסך מטבח') %>
+                    </a>
+                  <% } %>
 
-                  <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/stock">
-                    <span class="icon">📦</span>
-                    <%= tt('owner.dashboard.btn_inventory', 'מלאי חומרי גלם') %>
-                  </a>
-                  <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/costs">
-                    <span class="icon">💰</span>
-                    <%= tt('owner.dashboard.btn_costs', 'עלויות חומרי גלם') %>
-                  </a>
-                  <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/counts">
-                    <span class="icon">📋</span>
-                    <%= tt('owner.dashboard.btn_counts', 'ספירות מלאי') %>
-                  </a>
-                  <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/foodcost">
-                    <span class="icon">💰</span>
-                    <%= tt('owner.dashboard.btn_foodcost', 'עלות מנה ורווחיות') %>
-                  </a>
-                  <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/suppliers">
-                    <span class="icon">🚚</span>
-                    <%= tt('owner.dashboard.btn_suppliers', 'ספקים') %>
-                  </a>
-                  <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/purchase_orders">
-                    <span class="icon">📄</span>
-                    <%= tt('owner.dashboard.btn_po', 'הזמנות רכש (PO)') %>
-                  </a>
-                  <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/recipes">
-                    <span class="icon">📖</span>
-                    <%= tt('owner.dashboard.btn_recipes', 'מתכוני מנות') %>
-                  </a>
+                  <% if (isOwner || canHost()) { %>
+                    <a class="btn ghost wide" href="/host/<%= r.id %>">
+                      <span class="icon">🪑</span>
+                      <%= tt('owner.dashboard.btn_host', 'מסך מארחת') %>
+                    </a>
+                  <% } %>
+
+                  <% if (canBar()) { %>
+                    <a class="btn ghost wide" href="/bar/<%= r.id %>">
+                      <span class="icon">🍸</span>
+                      <%= tt('owner.dashboard.btn_bar', 'מסך בר') %>
+                    </a>
+                  <% } %>
+
+                  <% if (isOwner || canReports()) { %>
+                    <a class="btn ghost wide" href="/owner/<%= r.id %>/bills">
+                      <span class="icon">💳</span>
+                      <%= tt('owner.dashboard.btn_bills', 'חשבונות אחרונים') %>
+                    </a>
+
+                    <a class="btn ghost wide" href="/owner/<%= r.id %>/stats">
+                      <span class="icon">📊</span>
+                      <%= tt('owner.dashboard.btn_stats', 'סטטיסטיקות ודוחות') %>
+                    </a>
+                  <% } %>
+
+                  <% if (isOwner || canInventory()) { %>
+                    <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/stock">
+                      <span class="icon">📦</span>
+                      <%= tt('owner.dashboard.btn_inventory', 'מלאי חומרי גלם') %>
+                    </a>
+                    <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/costs">
+                      <span class="icon">💰</span>
+                      <%= tt('owner.dashboard.btn_costs', 'עלויות חומרי גלם') %>
+                    </a>
+                    <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/counts">
+                      <span class="icon">📋</span>
+                      <%= tt('owner.dashboard.btn_counts', 'ספירות מלאי') %>
+                    </a>
+                    <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/foodcost">
+                      <span class="icon">💰</span>
+                      <%= tt('owner.dashboard.btn_foodcost', 'עלות מנה ורווחיות') %>
+                    </a>
+                    <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/suppliers">
+                      <span class="icon">🚚</span>
+                      <%= tt('owner.dashboard.btn_suppliers', 'ספקים') %>
+                    </a>
+                    <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/purchase_orders">
+                      <span class="icon">📄</span>
+                      <%= tt('owner.dashboard.btn_po', 'הזמנות רכש (PO)') %>
+                    </a>
+                    <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/recipes">
+                      <span class="icon">📖</span>
+                      <%= tt('owner.dashboard.btn_recipes', 'מתכוני מנות') %>
+                    </a>
+                  <% } %>
                 </div>
               </li>
             <% }) %>
@@ -404,15 +462,9 @@ const isStaff = role === 'staff';
     flex-wrap:wrap;
     margin-top:8px;
   }
-  .primary-actions{
-    justify-content:flex-start;
-  }
-  .pos-actions{
-    justify-content:flex-start;
-  }
-  .pos-actions .btn.wide{
-    min-width:180px;
-  }
+  .primary-actions{ justify-content:flex-start; }
+  .pos-actions{ justify-content:flex-start; }
+  .pos-actions .btn.wide{ min-width:180px; }
 
   .form label{ display:block; font-weight:600; font-size:14px; margin-top:8px }
   .form input{
