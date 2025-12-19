@@ -12,31 +12,44 @@ function tt(k, fb){
   }catch(e){}
   return fb;
 }
+
+const role = (it.user && it.user.role) ? it.user.role : '';
+const isOwner = role === 'owner';
+const isStaff = role === 'staff';
 %>
 
-<section class="sb-owner container" aria-label="<%= tt('owner.dashboard.aria_section','דשבורד בעלים') %>">
+<section class="sb-owner container" aria-label="<%= isOwner ? tt('owner.dashboard.aria_section','דשבורד בעלים') : tt('staff.dashboard.aria_section','דשבורד מסעדה') %>">
   <div class="card">
     <header class="owner-hd">
       <div class="owner-hd-main">
-        <h1><%= tt('owner.dashboard.title','דשבורד בעלים') %></h1>
+        <h1>
+          <%= isOwner ? tt('owner.dashboard.title','דשבורד בעלים') : tt('staff.dashboard.title','דשבורד מסעדה') %>
+        </h1>
         <span class="muted">
           <%= tt('owner.dashboard.hello','שלום') %>,
-          <strong><%= it.user?.firstName || it.user?.username || tt('owner.dashboard.owner_fallback','בעלים') %></strong>
+          <strong>
+            <%= it.user?.firstName || it.user?.username || (isOwner ? tt('owner.dashboard.owner_fallback','בעלים') : tt('staff.dashboard.staff_fallback','עובד')) %>
+          </strong>
         </span>
       </div>
+
       <div class="owner-hd-actions">
-        <!-- 🔥 כפתור חדש: ניהול עובדים והרשאות -->
-        <a href="/owner/staff" class="btn sm ghost owner-staff-btn">
-          <span class="icon">👥</span>
-          <%= tt('owner.staff.manage_title', 'ניהול עובדים') %>
-        </a>
+        <% if (isOwner) { %>
+          <!-- 🔥 כפתור חדש: ניהול עובדים והרשאות (Owner בלבד) -->
+          <a href="/owner/staff" class="btn sm ghost owner-staff-btn">
+            <span class="icon">👥</span>
+            <%= tt('owner.staff.manage_title', 'ניהול עובדים') %>
+          </a>
+        <% } %>
       </div>
     </header>
 
     <div class="owner-grid">
       <!-- רשימת מסעדות -->
       <div class="panel card">
-        <h2 class="card-title"><%= tt('owner.dashboard.my_restaurants','המסעדות שלי') %></h2>
+        <h2 class="card-title">
+          <%= isOwner ? tt('owner.dashboard.my_restaurants','המסעדות שלי') : tt('staff.dashboard.my_restaurant','המסעדה שלי') %>
+        </h2>
 
         <% if (it.restaurants && it.restaurants.length) { %>
           <ul class="list">
@@ -82,40 +95,50 @@ function tt(k, fb){
                   </div>
                 </div>
 
-                <!-- פעולות כלליות (כמו קודם) -->
+                <!-- פעולות כלליות -->
                 <div class="actions primary-actions">
                   <a class="btn ghost" href="<%= r._calendarUrl %>" target="_self" rel="nofollow">
                     <span class="icon">📅</span>
                     <%= tt('owner.dashboard.btn_calendar','Calendar יומי') %>
                   </a>
-                  <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/edit"   target="_self" rel="nofollow">
-                    <span class="icon">✏️</span>
-                    <%= tt('owner.dashboard.btn_edit','עריכת פרטים') %>
-                  </a>
-                  <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/hours"  target="_self" rel="nofollow">
-                    <span class="icon">⏰</span>
-                    <%= tt('owner.dashboard.btn_hours','שעות פתיחה') %>
-                  </a>
-                  <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/photos" target="_self" rel="nofollow">
-                    <span class="icon">🖼️</span>
-                    <%= tt('owner.dashboard.btn_photos','תמונות') %>
-                  </a>
+
+                  <% if (isOwner) { %>
+                    <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/edit"   target="_self" rel="nofollow">
+                      <span class="icon">✏️</span>
+                      <%= tt('owner.dashboard.btn_edit','עריכת פרטים') %>
+                    </a>
+                    <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/hours"  target="_self" rel="nofollow">
+                      <span class="icon">⏰</span>
+                      <%= tt('owner.dashboard.btn_hours','שעות פתיחה') %>
+                    </a>
+                    <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/photos" target="_self" rel="nofollow">
+                      <span class="icon">🖼️</span>
+                      <%= tt('owner.dashboard.btn_photos','תמונות') %>
+                    </a>
+                  <% } %>
+
                   <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/floor" target="_self" rel="nofollow">
                     <span class="icon">🍽️</span>
                     <%= tt('owner.dashboard.btn_floor','סידור שולחנות') %>
                   </a>
-                  <a class="btn ghost" href="/owner/<%= r.id %>/shifts" target="_self" rel="nofollow">
-                    <span class="icon">📅</span>
-                    <%= tt('owner.dashboard.btn_shifts','ניהול משמרות') %>
-                  </a>
+
+                  <% if (isOwner) { %>
+                    <a class="btn ghost" href="/owner/<%= r.id %>/shifts" target="_self" rel="nofollow">
+                      <span class="icon">📅</span>
+                      <%= tt('owner.dashboard.btn_shifts','ניהול משמרות') %>
+                    </a>
+                  <% } %>
                 </div>
 
                 <!-- שורת POS + ניהול תפעולי -->
                 <div class="actions pos-actions">
-                  <a class="btn ghost wide" href="/owner/<%= r.id %>/menu">
-                    <span class="icon">🧾</span>
-                    <%= tt('owner.dashboard.btn_menu', 'עריכת תפריט') %>
-                  </a>
+                  <% if (isOwner) { %>
+                    <a class="btn ghost wide" href="/owner/<%= r.id %>/menu">
+                      <span class="icon">🧾</span>
+                      <%= tt('owner.dashboard.btn_menu', 'עריכת תפריט') %>
+                    </a>
+                  <% } %>
+
                   <a class="btn ghost wide" href="/waiter/<%= r.id %>">
                     <span class="icon">🍽️</span>
                     <%= tt('owner.dashboard.btn_waiter', 'מסך מלצרים') %>
@@ -124,47 +147,40 @@ function tt(k, fb){
                     <span class="icon">🧑‍🍳</span>
                     <%= tt('owner.dashboard.btn_kitchen', 'מסך מטבח') %>
                   </a>
-                  <!-- מסך מארחת -->
                   <a class="btn ghost wide" href="/host/<%= r.id %>">
                     <span class="icon">🪑</span>
                     <%= tt('owner.dashboard.btn_host', 'מסך מארחת') %>
                   </a>
-                  <!-- מסך בר -->
                   <a class="btn ghost wide" href="/bar/<%= r.id %>">
                     <span class="icon">🍸</span>
                     <%= tt('owner.dashboard.btn_bar', 'מסך בר') %>
                   </a>
-                  <!-- ✅ חשבונות -->
+
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/bills">
                     <span class="icon">💳</span>
                     <%= tt('owner.dashboard.btn_bills', 'חשבונות אחרונים') %>
                   </a>
-                  <!-- ✅ סטטיסטיקות -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/stats">
                     <span class="icon">📊</span>
                     <%= tt('owner.dashboard.btn_stats', 'סטטיסטיקות ודוחות') %>
                   </a>
-                  <!-- ✅ מלאי חומרי גלם -->
+
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/stock">
                     <span class="icon">📦</span>
                     <%= tt('owner.dashboard.btn_inventory', 'מלאי חומרי גלם') %>
                   </a>
-                  <!-- ✅ עלויות חומרי גלם -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/costs">
                     <span class="icon">💰</span>
                     <%= tt('owner.dashboard.btn_costs', 'עלויות חומרי גלם') %>
                   </a>
-                  <!-- ✅ ספירות מלאי -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/counts">
                     <span class="icon">📋</span>
                     <%= tt('owner.dashboard.btn_counts', 'ספירות מלאי') %>
                   </a>
-                  <!-- ✅ עלות מנה ורווחיות (Food Cost) -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/foodcost">
                     <span class="icon">💰</span>
                     <%= tt('owner.dashboard.btn_foodcost', 'עלות מנה ורווחיות') %>
                   </a>
-                  <!-- ✅ ספקים -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/suppliers">
                     <span class="icon">🚚</span>
                     <%= tt('owner.dashboard.btn_suppliers', 'ספקים') %>
@@ -173,8 +189,6 @@ function tt(k, fb){
                     <span class="icon">📄</span>
                     <%= tt('owner.dashboard.btn_po', 'הזמנות רכש (PO)') %>
                   </a>
-
-                  <!-- ✅ מתכוני מנות -->
                   <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/recipes">
                     <span class="icon">📖</span>
                     <%= tt('owner.dashboard.btn_recipes', 'מתכוני מנות') %>
@@ -188,7 +202,8 @@ function tt(k, fb){
         <% } %>
       </div>
 
-      <!-- פתיחת מסעדה חדשה -->
+      <!-- פתיחת מסעדה חדשה (Owner בלבד) -->
+      <% if (isOwner) { %>
       <div class="panel card">
         <h2 class="card-title"><%= tt('owner.dashboard.open_new_title','פתח/י מסעדה חדשה') %></h2>
 
@@ -235,6 +250,7 @@ function tt(k, fb){
           <%= tt('owner.dashboard.after_create_hint','לאחר יצירה ניתן לעדכן שעות פתיחה, פרטים, ותמונות במסך “עריכת פרטים” או “תמונות”.') %>
         </p>
       </div>
+      <% } %>
     </div>
   </div>
 </section>
@@ -253,6 +269,7 @@ function tt(k, fb){
   (function(){
     var input = document.getElementById('create-files');
     var form = document.getElementById('create-restaurant-form');
+    if (!form) return; // אם Staff - אין את הטופס
 
     function readFileAsDataURL(file) {
       return new Promise(function(resolve, reject){
