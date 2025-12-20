@@ -240,6 +240,12 @@ function hasAny(perms){
                       <span class="icon">🚚</span>
                       <%= tt('owner.dashboard.btn_suppliers', 'ספקים') %>
                     </a>
+
+		<a href="/owner/time" class="btn sm ghost">
+  		<span class="icon">🕒</span>
+  		נוכחות עובדים	
+		</a>
+
                     <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/purchase_orders">
                       <span class="icon">📄</span>
                       <%= tt('owner.dashboard.btn_po', 'הזמנות רכש (PO)') %>

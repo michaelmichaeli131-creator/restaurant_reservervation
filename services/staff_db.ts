@@ -1,204 +1,195 @@
-// src/services/staff_db.ts
+// src/services/time_db.ts
 // --------------------------------------------------------
-// שכבת DB לעובדי מסעדה (StaffMember):
-// - יצירת עובד ע"י בעל המסעדה (מאושר מראש)
-// - רשימות עובדים למסעדה / לפי משתמש
-// - עדכון סטטוס / הרשאות / אישור
+// Time clock DB (KV)
+// - Staff clock-in/out
+// - Enforce: only 1 open entry per staffId
+// - Index by id and by restaurant/day for future calendar/report
 // --------------------------------------------------------
 
 import { kv } from "../database.ts";
-import type {
-  StaffMember,
-  StaffRole,
-  StaffPermission,
-  StaffApprovalStatus,
-} from "../database.ts";
-import { defaultPermissionsForRole } from "./staff_permissions.ts";
+
+export type TimeEntrySource = "staff" | "owner" | "manager";
+
+export type TimeEntry = {
+  id: string;
+  restaurantId: string;
+  staffId: string;
+  userId: string;
+
+  clockInAt: number;
+  clockOutAt?: number | null;
+
+  source: TimeEntrySource;
+
+  createdAt: number;
+  updatedAt?: number;
+
+  // audit-like fields (optional)
+  createdByUserId?: string;
+  updatedByUserId?: string;
+  closedByUserId?: string;
+  closedByRole?: string;
+};
 
 const now = () => Date.now();
 
-/* ─────────────── Key helpers ─────────────── */
-
-// הערך המלא של העובד לפי מסעדה+משתמש
-function staffMainKey(restaurantId: string, userId: string) {
-  return ["staff", restaurantId, userId] as const;
+// -------- KV keys --------
+function entryKey(restaurantId: string, entryId: string) {
+  return ["time_entry", restaurantId, entryId] as const;
 }
 
-// אינדקס לפי staffId → { restaurantId, userId }
-function staffIdKey(staffId: string) {
-  return ["staff_by_id", staffId] as const;
+function entryByIdKey(entryId: string) {
+  return ["time_entry_by_id", entryId] as const;
 }
 
-// אינדקס: כל העובדים במסעדה
-function staffByRestaurantKey(restaurantId: string, staffId: string) {
-  return ["staff_by_restaurant", restaurantId, staffId] as const;
+function openByStaffKey(staffId: string) {
+  return ["time_open_by_staff", staffId] as const;
 }
 
-// אינדקס: כל המסעדות שבהן משתמש הוא עובד
-function staffByUserKey(userId: string, staffId: string) {
-  return ["staff_by_user", userId, staffId] as const;
+function byRestaurantDayKey(restaurantId: string, dayKey: string, entryId: string) {
+  return ["time_by_restaurant_day", restaurantId, dayKey, entryId] as const;
 }
 
-type StaffIdIndex = { restaurantId: string; userId: string };
+function byStaffDayKey(staffId: string, dayKey: string, entryId: string) {
+  return ["time_by_staff_day", staffId, dayKey, entryId] as const;
+}
 
-/* ─────────────── Fetch helpers ─────────────── */
+type EntryIdIndex = { restaurantId: string };
+type OpenIndex = { entryId: string; restaurantId: string };
 
-export async function getStaffByRestaurantAndUser(
-  restaurantId: string,
-  userId: string,
-): Promise<StaffMember | null> {
-  const res = await kv.get<StaffMember>(staffMainKey(restaurantId, userId));
+function ymdKeyUTC(ts: number): string {
+  const d = new Date(ts);
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// -------- reads --------
+
+export async function getOpenEntryIdByStaff(staffId: string): Promise<string | null> {
+  const res = await kv.get<OpenIndex>(openByStaffKey(staffId));
+  return res.value?.entryId ?? null;
+}
+
+export async function getTimeEntry(entryId: string): Promise<TimeEntry | null> {
+  const idx = await kv.get<EntryIdIndex>(entryByIdKey(entryId));
+  if (!idx.value?.restaurantId) return null;
+
+  const res = await kv.get<TimeEntry>(entryKey(idx.value.restaurantId, entryId));
   return res.value ?? null;
 }
 
-export async function getStaffById(staffId: string): Promise<StaffMember | null> {
-  const idx = await kv.get<StaffIdIndex>(staffIdKey(staffId));
-  if (!idx.value) return null;
-  const res = await kv.get<StaffMember>(staffMainKey(idx.value.restaurantId, idx.value.userId));
-  return res.value ?? null;
-}
+// -------- writes --------
 
-export async function listStaffMembershipsByUser(userId: string): Promise<StaffMember[]> {
-  const out: StaffMember[] = [];
-  for await (const row of kv.list({ prefix: ["staff_by_user", userId] })) {
-    const staffId = row.key[row.key.length - 1] as string;
-    const s = await getStaffById(staffId);
-    if (s) out.push(s);
-  }
-  // newest first
-  out.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-  return out;
-}
-
-export async function listStaffByRestaurant(
-  restaurantId: string,
-  opts: { includeInactive?: boolean } = {},
-): Promise<StaffMember[]> {
-  const out: StaffMember[] = [];
-  for await (const row of kv.list({ prefix: ["staff_by_restaurant", restaurantId] })) {
-    const staffId = row.key[row.key.length - 1] as string;
-    const s = await getStaffById(staffId);
-    if (!s) continue;
-    if (!opts.includeInactive && s.status === "inactive") continue;
-    out.push(s);
-  }
-  out.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-  return out;
-}
-
-/* ─────────────── Create ─────────────── */
-
-export async function createStaffByOwner(args: {
+export async function createClockIn(args: {
   restaurantId: string;
+  staffId: string;
   userId: string;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  phone?: string;
-  role: StaffRole;
-  permissions?: StaffPermission[];
-  useDefaults?: boolean;
-}): Promise<StaffMember> {
-  const restaurantId = args.restaurantId;
-  const userId = args.userId;
+  source: TimeEntrySource;
+  at?: number; // optional (tests/manual)
+}): Promise<
+  | { ok: true; entry: TimeEntry }
+  | { ok: false; error: "already_open"; openEntryId: string }
+> {
+  const ts = typeof args.at === "number" ? args.at : now();
+  const day = ymdKeyUTC(ts);
 
-  const existing = await getStaffByRestaurantAndUser(restaurantId, userId);
-  if (existing) {
-    const err: any = new Error("Staff already exists for this user+restaurant");
-    err.code = "staff_exists";
-    throw err;
+  // Check existing open
+  const open = await kv.get<OpenIndex>(openByStaffKey(args.staffId));
+  if (open.value?.entryId) {
+    return { ok: false, error: "already_open", openEntryId: open.value.entryId };
   }
 
   const id = crypto.randomUUID();
-  const createdAt = now();
 
-  const permissions = (args.useDefaults || !args.permissions?.length)
-    ? defaultPermissionsForRole(args.role)
-    : args.permissions;
-
-  const staff: StaffMember = {
+  const entry: TimeEntry = {
     id,
-    restaurantId,
-    userId,
-    email: args.email,
-    firstName: args.firstName || "",
-    lastName: args.lastName || "",
-    phone: args.phone,
-    role: args.role,
-    status: "active",
-    approvalStatus: "approved",
-    permissions,
-    hireDate: createdAt,
-    createdAt,
+    restaurantId: args.restaurantId,
+    staffId: args.staffId,
+    userId: args.userId,
+    clockInAt: ts,
+    clockOutAt: null,
+    source: args.source,
+    createdAt: ts,
+    updatedAt: ts,
+    createdByUserId: args.userId,
+    updatedByUserId: args.userId,
   };
 
-  // atomic write
-  const idx: StaffIdIndex = { restaurantId, userId };
+  // Atomic: create entry + create open pointer
   const tx = kv.atomic()
-    .check({ key: staffMainKey(restaurantId, userId), versionstamp: null })
-    .check({ key: staffIdKey(id), versionstamp: null })
-    .set(staffMainKey(restaurantId, userId), staff)
-    .set(staffIdKey(id), idx)
-    .set(staffByRestaurantKey(restaurantId, id), true)
-    .set(staffByUserKey(userId, id), true);
+    // ensure no open pointer exists
+    .check({ key: openByStaffKey(args.staffId), versionstamp: null })
+    // ensure entry id index doesn't exist
+    .check({ key: entryByIdKey(id), versionstamp: null })
+    .set(entryKey(args.restaurantId, id), entry)
+    .set(entryByIdKey(id), { restaurantId: args.restaurantId })
+    .set(openByStaffKey(args.staffId), { entryId: id, restaurantId: args.restaurantId })
+    // future calendar/report indexes
+    .set(byRestaurantDayKey(args.restaurantId, day, id), true)
+    .set(byStaffDayKey(args.staffId, day, id), true);
 
   const res = await tx.commit();
-  if (!res.ok) throw new Error("Failed to create staff (atomic commit failed)");
-
-  return staff;
-}
-
-/* ─────────────── Updates ─────────────── */
-
-async function updateStaff(staffId: string, patch: Partial<StaffMember>): Promise<StaffMember> {
-  const current = await getStaffById(staffId);
-  if (!current) {
-    const err: any = new Error("Staff not found");
-    err.code = "not_found";
-    throw err;
+  if (!res.ok) {
+    // someone raced and created open pointer
+    const open2 = await kv.get<OpenIndex>(openByStaffKey(args.staffId));
+    if (open2.value?.entryId) {
+      return { ok: false, error: "already_open", openEntryId: open2.value.entryId };
+    }
+    throw new Error("createClockIn atomic commit failed");
   }
 
-  const next: StaffMember = { ...current, ...patch };
+  return { ok: true, entry };
+}
+
+export async function clockOut(args: {
+  staffId: string;
+  userId: string;
+  roleForAudit: string; // "staff" / "owner" ...
+  at?: number;
+}): Promise<
+  | { ok: true; entry: TimeEntry }
+  | { ok: false; error: "no_open" | "not_found" | "already_closed" | "conflict"; entry?: TimeEntry }
+> {
+  const ts = typeof args.at === "number" ? args.at : now();
+
+  const open = await kv.get<OpenIndex>(openByStaffKey(args.staffId));
+  if (!open.value?.entryId) return { ok: false, error: "no_open" };
+
+  const entryId = open.value.entryId;
+  const entry = await getTimeEntry(entryId);
+  if (!entry) {
+    // stale pointer
+    // try cleanup (best-effort)
+    await kv.delete(openByStaffKey(args.staffId));
+    return { ok: false, error: "not_found" };
+  }
+
+  if (entry.clockOutAt) {
+    // already closed; clear open pointer if exists
+    await kv.delete(openByStaffKey(args.staffId));
+    return { ok: false, error: "already_closed", entry };
+  }
+
+  const next: TimeEntry = {
+    ...entry,
+    clockOutAt: ts,
+    updatedAt: ts,
+    updatedByUserId: args.userId,
+    closedByUserId: args.userId,
+    closedByRole: args.roleForAudit,
+  };
+
+  // Atomic: ensure open pointer unchanged, update entry, delete open pointer
   const tx = kv.atomic()
-    .set(staffMainKey(current.restaurantId, current.userId), next)
-    .set(staffIdKey(staffId), { restaurantId: current.restaurantId, userId: current.userId });
+    .check({ key: openByStaffKey(args.staffId), versionstamp: open.versionstamp })
+    .set(entryKey(entry.restaurantId, entryId), next)
+    .set(entryByIdKey(entryId), { restaurantId: entry.restaurantId })
+    .delete(openByStaffKey(args.staffId));
 
   const res = await tx.commit();
-  if (!res.ok) throw new Error("Failed to update staff");
-  return next;
-}
+  if (!res.ok) return { ok: false, error: "conflict" };
 
-export async function setStaffApproval(
-  staffId: string,
-  approvalStatus: StaffApprovalStatus,
-): Promise<StaffMember> {
-  return await updateStaff(staffId, { approvalStatus });
-}
-
-export async function setStaffPermissions(
-  staffId: string,
-  permissions: StaffPermission[],
-): Promise<StaffMember> {
-  return await updateStaff(staffId, { permissions });
-}
-
-export async function resetStaffPermissionsToDefault(
-  staffId: string,
-): Promise<StaffMember> {
-  const current = await getStaffById(staffId);
-  if (!current) {
-    const err: any = new Error("Staff not found");
-    err.code = "not_found";
-    throw err;
-  }
-  const perms = defaultPermissionsForRole(current.role);
-  return await updateStaff(staffId, { permissions: perms });
-}
-
-// שלב 7.1: השבתה/הפעלה של עובד
-export async function setStaffStatus(
-  staffId: string,
-  status: StaffMember["status"],
-): Promise<StaffMember> {
-  return await updateStaff(staffId, { status });
+  return { ok: true, entry: next };
 }

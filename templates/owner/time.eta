@@ -1,0 +1,214 @@
+<% layout("_layout", it) %>
+
+<%
+function tt(k, fb){
+  try{
+    if (it && typeof it.t==='function'){
+      const s = it.t(k);
+      if(!s || s===k || s===`(${k})`) return fb;
+      return s;
+    }
+  }catch(e){}
+  return fb;
+}
+
+const restaurants = it.restaurants || [];
+const restaurantId = it.restaurantId || '';
+const day = it.day || '';
+%>
+
+<section class="container" style="max-width:1100px;margin:20px auto;padding:0 16px">
+  <div class="card">
+    <header style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+      <div>
+        <h1 style="margin:0"><%= tt('owner.time.title','נוכחות עובדים') %></h1>
+        <div class="muted" style="margin-top:4px">
+          <%= tt('owner.time.subtitle','צפייה ועריכה ידנית של כניסות/יציאות לפי יום') %>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <label style="display:flex;flex-direction:column;gap:6px;font-weight:700">
+          <span class="muted" style="font-weight:600"><%= tt('owner.time.restaurant','מסעדה') %></span>
+          <select id="restaurant" class="inp">
+            <% restaurants.forEach(function(r){ %>
+              <option value="<%= r.id %>" <%= r.id===restaurantId ? 'selected' : '' %>><%= r.name %></option>
+            <% }) %>
+          </select>
+        </label>
+
+        <label style="display:flex;flex-direction:column;gap:6px;font-weight:700">
+          <span class="muted" style="font-weight:600"><%= tt('owner.time.day','תאריך') %></span>
+          <input id="day" class="inp" type="date" value="<%= day %>"/>
+        </label>
+
+        <button id="load" class="btn primary sm"><%= tt('owner.time.load','טען') %></button>
+      </div>
+    </header>
+
+    <div class="sep" style="margin:14px 0"></div>
+
+    <div id="err" class="muted" style="display:none;color:#ffb4b4"></div>
+
+    <div style="overflow:auto">
+      <table class="tbl" style="width:100%;border-collapse:collapse;min-width:850px">
+        <thead>
+          <tr>
+            <th>Entry ID</th>
+            <th>Staff ID</th>
+            <th>User ID</th>
+            <th>כניסה</th>
+            <th>יציאה</th>
+            <th>דקות</th>
+            <th>הערה</th>
+            <th>פעולות</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr><td colspan="8" class="muted">טוען...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<style>
+  .card{
+    background: var(--panel, #121622);
+    border:1px solid var(--bd, #222834);
+    border-radius:18px; padding:18px; margin-bottom:18px;
+    color: var(--ink, #e6e8ef);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  .muted{ color: var(--ink-muted, #9aa3b2); }
+  .sep{height:1px;background:#23293a;border-radius:999px}
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
+    border:1px solid var(--bd, #23293a); background:transparent;
+    color: var(--ink, #e6e8ef); font-weight:800;
+  }
+  .btn.primary{
+    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
+    box-shadow: 0 8px 24px rgba(59,130,246,.35);
+  }
+  .btn.sm{ padding:8px 12px; border-radius:10px; font-size:13px }
+  .inp{
+    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
+    padding:10px 12px; font-size:14px; outline:none;
+  }
+  .tbl th,.tbl td{ border-bottom:1px solid rgba(255,255,255,.06); padding:10px 8px; text-align:left; vertical-align:top; }
+  .tbl th{ position:sticky; top:0; background:#121622; z-index:1; }
+  code{background:#0f1320;border:1px solid #23293a;padding:2px 6px;border-radius:8px}
+</style>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  function showErr(msg){
+    const el = $('err');
+    el.textContent = msg || '';
+    el.style.display = msg ? 'block' : 'none';
+  }
+
+  function msToLocalInput(ms){
+    // YYYY-MM-DDTHH:mm (local)
+    const d = new Date(ms);
+    const pad = (n)=> String(n).padStart(2,'0');
+    const y = d.getFullYear();
+    const m = pad(d.getMonth()+1);
+    const da = pad(d.getDate());
+    const h = pad(d.getHours());
+    const mi = pad(d.getMinutes());
+    return `${y}-${m}-${da}T${h}:${mi}`;
+  }
+
+  async function loadDay(){
+    showErr('');
+    const rid = $('restaurant').value;
+    const day = $('day').value;
+    const tbody = $('rows');
+    tbody.innerHTML = `<tr><td colspan="8" class="muted">טוען...</td></tr>`;
+
+    try{
+      const res = await fetch(`/owner/time/day?restaurantId=${encodeURIComponent(rid)}&day=${encodeURIComponent(day)}`, {
+        headers: { 'accept': 'application/json' }
+      });
+      const data = await res.json();
+      if(!res.ok || !data.ok){
+        throw new Error(data.error || 'failed');
+      }
+
+      const rows = data.rows || [];
+      if(!rows.length){
+        tbody.innerHTML = `<tr><td colspan="8" class="muted">אין כניסות/יציאות ליום הזה.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = rows.map(r => {
+        const note = r.note ? String(r.note) : '';
+        const outLabel = r.clockOutLabel || 'פתוח';
+        return `
+          <tr data-id="${r.id}">
+            <td><code>${r.id}</code></td>
+            <td><code>${r.staffId}</code></td>
+            <td><code>${r.userId}</code></td>
+            <td>${r.clockInLabel || ''}</td>
+            <td>${outLabel}</td>
+            <td>${r.minutes ?? ''}</td>
+            <td>${note ? note.replace(/</g,'&lt;') : ''}</td>
+            <td>
+              <button class="btn sm" onclick="editEntry('${r.id}')">ערוך</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }catch(e){
+      showErr('שגיאה בטעינת נוכחות: ' + (e?.message || e));
+      tbody.innerHTML = `<tr><td colspan="8" class="muted">שגיאה.</td></tr>`;
+    }
+  }
+
+  window.editEntry = async function(entryId){
+    try{
+      // נביא שורה קיימת כדי להציג ערכים
+      const tr = document.querySelector(`tr[data-id="${entryId}"]`);
+      if(!tr) return;
+
+      // נשתמש בפרומפטים מינימליים (MVP). אחר כך נעשה modal יפה.
+      const inStr = prompt('clockInAt (ISO או epoch ms). לדוגמה: 2025-12-20T10:00', '');
+      if(inStr === null) return;
+
+      const outStr = prompt('clockOutAt (ISO או epoch ms). השאר ריק כדי להשאיר כמו שיש. כתוב "null" כדי להסיר (פתוח).', '');
+      if(outStr === null) return;
+
+      const note = prompt('הערה (אופציונלי):', '') || '';
+
+      const payload = {
+        clockInAt: inStr.trim(),
+        clockOutAt: outStr.trim() === 'null' ? null : (outStr.trim() ? outStr.trim() : undefined),
+        note
+      };
+
+      const res = await fetch(`/owner/time/entry/${encodeURIComponent(entryId)}/manual`, {
+        method: 'POST',
+        headers: { 'content-type':'application/json', 'accept':'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if(!res.ok || !data.ok) throw new Error(data.error || 'update_failed');
+
+      await loadDay();
+      alert('עודכן בהצלחה');
+    }catch(e){
+      alert('שגיאה בעדכון: ' + (e?.message || e));
+    }
+  }
+
+  $('load').addEventListener('click', loadDay);
+  $('restaurant').addEventListener('change', loadDay);
+  $('day').addEventListener('change', loadDay);
+
+  // load on first paint
+  loadDay();
+</script>

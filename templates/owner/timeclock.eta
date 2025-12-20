@@ -1,0 +1,328 @@
+<% layout("../_layout", it) %>
+
+<%
+  const restaurant = it.restaurant;
+  const month = it.month; // YYYY-MM
+  const rows = Array.isArray(it.rows) ? it.rows : [];
+  const staffList = Array.isArray(it.staffList) ? it.staffList : [];
+  const payroll = Array.isArray(it.payroll) ? it.payroll : [];
+
+  const staffById = {};
+  staffList.forEach(s => staffById[s.id] = s);
+
+  function fmtHM(ms){
+    if(!ms) return '';
+    try{
+      const d = new Date(ms);
+      return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    }catch(e){ return ''; }
+  }
+  function minsWorked(r){
+    if(!r.checkInAt || !r.checkOutAt) return 0;
+    return Math.max(0, Math.floor((r.checkOutAt - r.checkInAt)/60000));
+  }
+%>
+
+<section class="container" style="max-width:1100px;margin:20px auto;padding:0 16px">
+  <div class="card">
+    <h1 style="margin:0 0 8px 0">📅 נוכחות ושכר</h1>
+    <div class="muted">
+      מסעדה: <strong><%= restaurant?.name %></strong> • חודש: <strong><%= month %></strong>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2 style="margin:0 0 10px 0;font-size:16px">רשומות חודשיות</h2>
+
+      <div class="muted" style="margin-bottom:10px">
+        טיפ: לחץ על שורה כדי לערוך ידנית כניסה/יציאה (ולשנות hourlyRate אם צריך).
+      </div>
+
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>תאריך</th>
+            <th>עובד</th>
+            <th>כניסה</th>
+            <th>יציאה</th>
+            <th>דקות</th>
+            <th>הערה</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% rows.forEach(r => {
+            const s = staffById[r.staffId] || null;
+            const name = s ? ((s.firstName||'') + ' ' + (s.lastName||'')).trim() : r.staffId;
+            const mins = minsWorked(r);
+          %>
+            <tr class="row" data-staff="<%= r.staffId %>" data-ymd="<%= r.ymd %>"
+                data-in="<%= r.checkInAt || '' %>" data-out="<%= r.checkOutAt || '' %>"
+                data-note="<%= r.note || '' %>">
+              <td><%= r.ymd %></td>
+              <td><%= name %></td>
+              <td><%= fmtHM(r.checkInAt) %></td>
+              <td><%= fmtHM(r.checkOutAt) %></td>
+              <td><%= mins %></td>
+              <td class="muted"><%= r.note || '' %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 10px 0;font-size:16px">שכר חודשי (ברוטו)</h2>
+
+      <% if(!payroll.length){ %>
+        <div class="muted">אין נתונים לחודש זה עדיין.</div>
+      <% } else { %>
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>עובד</th>
+              <th>ש"ח/שעה</th>
+              <th>שעות</th>
+              <th>ברוטו</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% payroll.forEach(p => { %>
+              <tr>
+                <td><%= p.staffName %></td>
+                <td><%= p.hourlyRate %></td>
+                <td><%= p.totalHours %></td>
+                <td><strong><%= p.gross %></strong></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+  </div>
+</section>
+
+<!-- Modal Edit -->
+<div id="modal" class="modal hidden" aria-hidden="true">
+  <div class="dialog">
+    <div class="hd">
+      <div><strong>✏️ עריכת רשומה</strong></div>
+      <button id="close" class="btn ghost sm">סגור</button>
+    </div>
+    <div class="bd">
+      <div class="muted" id="meta"></div>
+
+      <div class="form">
+        <label>כניסה (HH:MM)</label>
+        <input id="inTime" placeholder="09:00" />
+
+        <label>יציאה (HH:MM)</label>
+        <input id="outTime" placeholder="17:00" />
+
+        <label>הערה</label>
+        <input id="note" placeholder="תיקון ידני..." />
+
+        <label>שכר לשעה (אופציונלי)</label>
+        <input id="hourlyRate" type="number" min="0" step="0.5" placeholder="למשל 45" />
+      </div>
+
+      <div id="err" class="err hidden"></div>
+    </div>
+    <div class="ft">
+      <button id="save" class="btn primary">שמירה</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const restaurantId = <%- JSON.stringify(restaurant?.id || '') %>;
+
+  const modal = document.getElementById('modal');
+  const closeBtn = document.getElementById('close');
+  const saveBtn = document.getElementById('save');
+  const errBox = document.getElementById('err');
+  const meta = document.getElementById('meta');
+
+  const inTime = document.getElementById('inTime');
+  const outTime = document.getElementById('outTime');
+  const note = document.getElementById('note');
+  const hourlyRate = document.getElementById('hourlyRate');
+
+  let cur = null;
+
+  function openModal(payload){
+    cur = payload;
+    errBox.classList.add('hidden');
+    errBox.textContent = '';
+    meta.textContent = payload.ymd + ' • staffId=' + payload.staffId;
+
+    inTime.value = payload.inHHMM || '';
+    outTime.value = payload.outHHMM || '';
+    note.value = payload.note || '';
+    hourlyRate.value = '';
+
+    modal.classList.remove('hidden');
+    modal.setAttribute('aria-hidden','false');
+  }
+
+  function closeModal(){
+    modal.classList.add('hidden');
+    modal.setAttribute('aria-hidden','true');
+    cur = null;
+  }
+
+  function hhmmToEpoch(ymd, hhmm){
+    if(!hhmm) return null;
+    const m = String(hhmm).trim().match(/^(\d{1,2}):(\d{2})$/);
+    if(!m) return null;
+    const hh = Number(m[1]);
+    const mm = Number(m[2]);
+    const d = new Date(ymd + 'T00:00:00');
+    d.setHours(hh, mm, 0, 0);
+    return d.getTime();
+  }
+
+  document.querySelectorAll('tr.row').forEach(tr=>{
+    tr.addEventListener('click', ()=>{
+      const staffId = tr.getAttribute('data-staff');
+      const ymd = tr.getAttribute('data-ymd');
+      const inMs = tr.getAttribute('data-in');
+      const outMs = tr.getAttribute('data-out');
+      const noteVal = tr.getAttribute('data-note') || '';
+
+      function msToHHMM(ms){
+        if(!ms) return '';
+        const d = new Date(Number(ms));
+        const hh = String(d.getHours()).padStart(2,'0');
+        const mm = String(d.getMinutes()).padStart(2,'0');
+        return hh + ':' + mm;
+      }
+
+      openModal({
+        staffId, ymd,
+        inHHMM: msToHHMM(inMs),
+        outHHMM: msToHHMM(outMs),
+        note: noteVal
+      });
+    });
+  });
+
+  closeBtn.addEventListener('click', closeModal);
+  modal.addEventListener('click', (e)=>{
+    if(e.target === modal) closeModal();
+  });
+
+  saveBtn.addEventListener('click', async ()=>{
+    if(!cur) return;
+
+    const cin = hhmmToEpoch(cur.ymd, inTime.value);
+    const cout = hhmmToEpoch(cur.ymd, outTime.value);
+
+    const body = {
+      restaurantId,
+      staffId: cur.staffId,
+      ymd: cur.ymd,
+      checkInAt: cin,     // null -> יאפס, number -> יקבע
+      checkOutAt: cout,
+      note: (note.value || '').trim() || null,
+    };
+
+    const hr = hourlyRate.value !== '' ? Number(hourlyRate.value) : null;
+    if(hr !== null && !Number.isNaN(hr)) body.hourlyRate = hr;
+
+    errBox.classList.add('hidden');
+    errBox.textContent = '';
+
+    const r = await fetch('/owner/timeclock/edit', {
+      method:'POST',
+      headers:{ 'content-type':'application/json', 'accept':'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    const j = await r.json().catch(()=>({ok:false,error:'bad_json'}));
+    if(!r.ok || !j.ok){
+      errBox.textContent = 'שגיאה: ' + (j.error || r.status);
+      errBox.classList.remove('hidden');
+      return;
+    }
+
+    location.reload();
+  });
+</script>
+
+<style>
+  .card{
+    background: var(--panel, #121622);
+    border:1px solid var(--bd, #222834);
+    border-radius:18px; padding:18px; margin-bottom:18px;
+    color: var(--ink, #e6e8ef);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  .muted{ color: var(--ink-muted, #9aa3b2); }
+
+  .grid{ display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; }
+  @media (max-width: 980px){ .grid{ grid-template-columns:1fr; } }
+
+  .tbl{ width:100%; border-collapse:collapse; font-size:13px; }
+  .tbl th, .tbl td{ padding:10px 10px; border-bottom:1px solid rgba(148,163,184,.15); }
+  .tbl th{ text-align:right; color:#cbd5e1; font-weight:800; }
+  tr.row{ cursor:pointer; }
+  tr.row:hover{ background: rgba(148,163,184,.06); }
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
+    border:1px solid var(--bd, #23293a); background:transparent;
+    color: var(--ink, #e6e8ef); font-weight:700;
+  }
+  .btn.primary{ background: var(--brand, #3b82f6); color:#fff; border-color:transparent; }
+  .btn.ghost{ background: color-mix(in srgb, var(--panel, #121622) 88%, transparent); }
+  .btn.sm{ padding:7px 10px; border-radius:10px; }
+
+  .modal{
+    position:fixed; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    background: rgba(0,0,0,.55);
+    padding: 18px;
+    z-index: 1200;
+  }
+  .hidden{ display:none; }
+  .dialog{
+    width:min(720px, 100%);
+    background: var(--panel, #121622);
+    border:1px solid var(--bd, #222834);
+    border-radius:18px;
+    box-shadow:0 18px 60px rgba(0,0,0,.55);
+    overflow:hidden;
+  }
+  .hd{
+    padding:14px 16px;
+    display:flex; justify-content:space-between; align-items:center;
+    border-bottom:1px solid rgba(148,163,184,.12);
+  }
+  .bd{ padding:14px 16px; }
+  .ft{
+    padding:12px 16px;
+    display:flex; justify-content:flex-end; gap:10px;
+    border-top:1px solid rgba(148,163,184,.12);
+    background: rgba(2,6,23,.18);
+  }
+  .form label{ display:block; margin-top:10px; font-size:12px; color: var(--ink-muted,#9aa3b2); }
+  .form input{
+    width:100%; padding:10px 12px; margin-top:6px;
+    border-radius:12px;
+    border:1px solid rgba(148,163,184,.18);
+    background: rgba(2,6,23,.30);
+    color: var(--ink,#e6e8ef);
+    outline:none;
+  }
+  .err{
+    margin-top:10px;
+    padding:10px 12px;
+    border-radius:12px;
+    border:1px solid rgba(239,68,68,.35);
+    background:rgba(239,68,68,.08);
+    color:#fecaca;
+    font-size:13px;
+  }
+</style>

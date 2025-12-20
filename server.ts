@@ -51,6 +51,10 @@ import { staffContextMiddleware } from "./middleware/staff_context.ts";
 import ownerBillsRouter from "./routes/owner_bills.ts";
 import inventoryRouter from "./routes/inventory.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
+import { staffTimeRouter } from "./routes/staff_time.ts";
+import { ownerTimeRouter } from "./routes/owner_time.ts";
+import { timeClockRouter } from "./routes/timeclock.ts";
+
 
 // ✅ i18n: טעינה בטוחה (תומך גם default וגם named export)
 import * as i18nModule from "./middleware/i18n.ts";
@@ -536,6 +540,19 @@ app.use(openingRouter.allowedMethods());
 
 app.use(inventoryRouter.routes());
 app.use(inventoryRouter.allowedMethods());
+
+app.use(staffTimeRouter.routes());
+app.use(staffTimeRouter.allowedMethods());
+
+app.use(ownerTimeRouter.routes());
+app.use(ownerTimeRouter.allowedMethods());
+
+app.use(ownerStaffRouter.routes());
+app.use(ownerStaffRouter.allowedMethods());
+
+// ⬅️ TimeClock (staff + owner/manager)
+app.use(timeClockRouter.routes());
+app.use(timeClockRouter.allowedMethods());
 
 // --- 404 (כללי) ---
 app.use((ctx) => {
