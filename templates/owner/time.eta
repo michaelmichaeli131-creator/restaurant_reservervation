@@ -1,4 +1,4 @@
-<% layout("_layout", it) %>
+<% layout("../_layout", it) %>
 
 <%
 function tt(k, fb){
