@@ -63,6 +63,9 @@ const ALL_PERMISSIONS: StaffPermission[] = [
   "inventory.manage",
   "reports.view",
   "menu.manage",
+
+  // ✅ NEW: clock-in/out permission
+  "time.clock",
 ];
 
 // מסעדות של הבעלים (מבוסס על restaurant_by_owner)

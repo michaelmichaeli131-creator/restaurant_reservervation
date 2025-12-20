@@ -18,6 +18,7 @@ export function defaultPermissionsForRole(role: StaffRole): StaffPermission[] {
         "pos.waiter",
         "host.seating",
         "reservations.view",
+        "time.clock",
       ];
 
     case "host":
@@ -25,11 +26,13 @@ export function defaultPermissionsForRole(role: StaffRole): StaffPermission[] {
         "host.seating",
         "reservations.view",
         "reservations.manage",
+        "time.clock",
       ];
 
     case "kitchen":
       return [
         "pos.kitchen",
+        "time.clock",
       ];
 
     case "shift_manager":
@@ -41,9 +44,11 @@ export function defaultPermissionsForRole(role: StaffRole): StaffPermission[] {
         "reservations.manage",
         "shifts.view",
         "shifts.manage",
+        "time.clock",
       ];
 
     case "manager":
+      // מנהל/ת משמרת / מנהל/ת מסעדה (לא Owner) – עדיין עובד, ולכן הגיוני שיהיה clock
       return [
         "pos.waiter",
         "pos.kitchen",
@@ -58,29 +63,34 @@ export function defaultPermissionsForRole(role: StaffRole): StaffPermission[] {
         "inventory.manage",
         "reports.view",
         "menu.manage",
+        "time.clock",
       ];
 
     case "chef":
       return [
         "pos.kitchen",
+        "time.clock",
       ];
 
     case "bartender":
       // בהמשך אפשר להפריד למסך בר ייעודי
       return [
         "pos.kitchen",
+        "time.clock",
       ];
 
     case "busser":
       return [
         "pos.waiter",
         "host.seating",
+        "time.clock",
       ];
 
     default:
       // ברירת מחדל זהירה לתפקידים עתידיים/לא מוכרים
       return [
         "reservations.view",
+        "time.clock",
       ];
   }
 }
