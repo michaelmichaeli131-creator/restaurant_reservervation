@@ -7,6 +7,9 @@
 // NEW2:  תמיכה במילוני עמודים לפי it.page → /i18n/pages/<page>.<lang>.json, עם קדימות מעל המילון הכללי.
 // NEW3:  הזרקת staff-context לתבניות: ctx.state.staff / staffRestaurantId / staffMemberships
 //        כדי ש-FE יוכל להציג יכולות לפי הרשאות עובד (staff_db).
+//
+// FIX:   סדר merge של payload שונה כדי למנוע דריסה של data.staff בעמודים כמו owner/staff_member.
+//        כלומר: context קודם, ואז ...data בסוף.
 
 import { Eta } from "npm:eta@3.5.0";
 import type { Context } from "jsr:@oak/oak";
@@ -218,15 +221,11 @@ export async function render(
     stateAny?.t ?? ((k: string) => `(${k})`);
 
   // ---- NEW3: staff context (מגיע מ-middleware של staff_db) ----
-  // חשוב: אל תשנה את המבנים האלה אם הם כבר בשימוש אצלך.
-  // אם אין middleware שמגדיר אותם, הם פשוט יהיו null/[].
   const staff = stateAny?.staff ?? null;
   const staffRestaurantId = stateAny?.staffRestaurantId ?? null;
   const staffMemberships = stateAny?.staffMemberships ?? [];
 
   // נסה לטעון מילון-עמוד (אם ניתן להסיק page מהדאטה)
-  // מוסכמה: אם data.page === "home" נטען /i18n/pages/home.<lang>.json
-  // אם לא הועבר page, ננסה לגזור מהשם "index" -> "home"
   const pageNs =
     (typeof data.page === "string" && data.page) ||
     (template === "index" ? "home" : "");
@@ -240,17 +239,23 @@ export async function render(
   const t = makePageAwareT(baseT, pageDict);
 
   // payload שמגיע לכל תבנית + layout
+  // FIX: context קודם, ואז data בסוף כדי למנוע דריסת data.staff בעמוד ניהול עובד
   const payload = {
-    ...data,
+    // בסיס
     user,
+
     // i18n
     lang,
     dir,
     t,
-    // staff context
+
+    // staff context של המשתמש המחובר
     staff,
     staffRestaurantId,
     staffMemberships,
+
+    // חשוב: data אחרון
+    ...data,
   };
 
   if (wantsJSON(ctx)) {
