@@ -5,6 +5,8 @@
 //        כך שהתבניות (לרבות ה-layout) יוכלו להציג "פתח/י מסעדה" כשמחוברים.
 // NEW:   הזרקת i18n לכל רינדור: lang/dir/t מתוך ctx.state (מ-middleware), עם ברירות מחדל.
 // NEW2:  תמיכה במילוני עמודים לפי it.page → /i18n/pages/<page>.<lang>.json, עם קדימות מעל המילון הכללי.
+// NEW3:  הזרקת staff-context לתבניות: ctx.state.staff / staffRestaurantId / staffMemberships
+//        כדי ש-FE יוכל להציג יכולות לפי הרשאות עובד (staff_db).
 
 import { Eta } from "npm:eta@3.5.0";
 import type { Context } from "jsr:@oak/oak";
@@ -21,8 +23,12 @@ function candidatePaths(): string[] {
   const p1 = "/templates";
   const p2 = "/src/templates";
   let p3 = "", p4 = "";
-  try { p3 = new URL("../../templates", import.meta.url).pathname; } catch {}
-  try { p4 = new URL("../templates", import.meta.url).pathname; } catch {}
+  try {
+    p3 = new URL("../../templates", import.meta.url).pathname;
+  } catch {}
+  try {
+    p4 = new URL("../templates", import.meta.url).pathname;
+  } catch {}
   const p5 = "./templates";
   const p6 = "templates";
   return Array.from(new Set([p0, p1, p2, p3, p4, p5, p6].filter(Boolean)));
@@ -154,8 +160,12 @@ function interpolate(s: string, vars?: Record<string, unknown>) {
 function pageDictFile(page: string, lang: string): string[] {
   // ננסה כמה וריאציות יחסיות לקובץ הזה ואל ה־CWD
   const arr: string[] = [];
-  try { arr.push(new URL(`../i18n/pages/${page}.${lang}.json`, import.meta.url).pathname); } catch {}
-  try { arr.push(new URL(`../../i18n/pages/${page}.${lang}.json`, import.meta.url).pathname); } catch {}
+  try {
+    arr.push(new URL(`../i18n/pages/${page}.${lang}.json`, import.meta.url).pathname);
+  } catch {}
+  try {
+    arr.push(new URL(`../../i18n/pages/${page}.${lang}.json`, import.meta.url).pathname);
+  } catch {}
   arr.push(`./i18n/pages/${page}.${lang}.json`);
   arr.push(`i18n/pages/${page}.${lang}.json`);
   return Array.from(new Set(arr));
@@ -178,7 +188,10 @@ async function tryLoadJson(paths: string[]): Promise<Dict | null> {
  * בונה פונקציית t שמעניקה קדימות למילון-עמוד (אם קיים),
  * ואז נופלת ל-t הבסיסית שמגיע מה־middleware.
  */
-function makePageAwareT(baseT: (k: string, v?: Record<string, unknown>) => string, pageDict: Dict | null) {
+function makePageAwareT(
+  baseT: (k: string, v?: Record<string, unknown>) => string,
+  pageDict: Dict | null,
+) {
   return (key: string, vars?: Record<string, unknown>) => {
     if (pageDict) {
       const hit = getPath(pageDict, key);
@@ -198,10 +211,18 @@ export async function render(
 
   // deno-lint-ignore no-explicit-any
   const stateAny = ctx.state as any;
+
   const lang = stateAny?.lang ?? "he";
   const dir: "rtl" | "ltr" = stateAny?.dir ?? (lang === "he" ? "rtl" : "ltr");
   const baseT: (key: string, vars?: Record<string, unknown>) => string =
     stateAny?.t ?? ((k: string) => `(${k})`);
+
+  // ---- NEW3: staff context (מגיע מ-middleware של staff_db) ----
+  // חשוב: אל תשנה את המבנים האלה אם הם כבר בשימוש אצלך.
+  // אם אין middleware שמגדיר אותם, הם פשוט יהיו null/[].
+  const staff = stateAny?.staff ?? null;
+  const staffRestaurantId = stateAny?.staffRestaurantId ?? null;
+  const staffMemberships = stateAny?.staffMemberships ?? [];
 
   // נסה לטעון מילון-עמוד (אם ניתן להסיק page מהדאטה)
   // מוסכמה: אם data.page === "home" נטען /i18n/pages/home.<lang>.json
@@ -218,7 +239,19 @@ export async function render(
   // פונקציית תרגום שנותנת קדימות למילון העמוד
   const t = makePageAwareT(baseT, pageDict);
 
-  const payload = { ...data, user, lang, dir, t };
+  // payload שמגיע לכל תבנית + layout
+  const payload = {
+    ...data,
+    user,
+    // i18n
+    lang,
+    dir,
+    t,
+    // staff context
+    staff,
+    staffRestaurantId,
+    staffMemberships,
+  };
 
   if (wantsJSON(ctx)) {
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
@@ -235,15 +268,23 @@ export async function render(
     }
     console.warn(`[view] empty render for "${template}". views="${PICKED_VIEWS_DIR}"`);
     ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-    ctx.response.body = fallbackHtml(String(data?.title ?? template), {
-      template,
-      views: PICKED_VIEWS_DIR,
-      candidates: CANDIDATES,
-      data,
-    }, lang, dir);
+    ctx.response.body = fallbackHtml(
+      String((data as any)?.title ?? template),
+      {
+        template,
+        views: PICKED_VIEWS_DIR,
+        candidates: CANDIDATES,
+        data,
+      },
+      lang,
+      dir,
+    );
   } catch (err) {
     const reqId = (ctx.state as any)?.reqId ?? "-";
-    console.warn(`[view ${reqId}] render failed for "${template}" (views="${PICKED_VIEWS_DIR}") → fallback:`, err);
+    console.warn(
+      `[view ${reqId}] render failed for "${template}" (views="${PICKED_VIEWS_DIR}") → fallback:`,
+      err,
+    );
     const info = {
       message: "תבנית לא נמצאה או נכשלה ברינדור. מוצג fallback.",
       error: String((err as Error)?.message ?? err),
@@ -253,6 +294,6 @@ export async function render(
       data,
     };
     ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
-    ctx.response.body = fallbackHtml(String(data?.title ?? template), info, lang, dir);
+    ctx.response.body = fallbackHtml(String((data as any)?.title ?? template), info, lang, dir);
   }
 }
