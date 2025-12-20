@@ -1,14 +1,14 @@
-// routes/timeclock.ts
+// src/routes/timeclock.ts
 // --------------------------------------------------------
 // Staff:
-//  - GET  /staff/timeclock?restaurantId=...
+//  - GET  /staff/timeclock
 //  - POST /staff/timeclock/checkin
 //  - POST /staff/timeclock/checkout
 //
 // Owner/Manager:
 //  - GET  /owner/timeclock?restaurantId=...&month=YYYY-MM
 //  - GET  /owner/timeclock/api?restaurantId=...&month=YYYY-MM
-//  - POST /owner/timeclock/edit   (manual edit)
+//  - POST /owner/timeclock/edit   (manual edit + optional hourlyRate)
 //
 // שים לב: Manager הוא user.role === "manager" (לא staff).
 // --------------------------------------------------------
@@ -17,17 +17,20 @@ import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
 import { getRestaurant } from "../database.ts";
 import type { User, StaffMember } from "../database.ts";
-import { listStaffByRestaurant, getStaffById, setStaffHourlyRate } from "../services/staff_db.ts";
+import { listStaffByRestaurant, getStaffById } from "../services/staff_db.ts";
+
 import {
   checkInNow,
   checkOutNow,
-  upsertManual,
-  listMonthForRestaurant,
-  computeMonthlyPayroll,
-  minutesWorked,
+  upsertManualEntry,
+  listMonthRows,
+  computePayrollForMonth,
+  setHourlyRate,
 } from "../services/timeclock_db.ts";
 
 export const timeClockRouter = new Router();
+
+/* ─────────────── Helpers ─────────────── */
 
 function ensureAuthed(ctx: any): User {
   const u = ctx.state.user as User | undefined;
@@ -54,19 +57,39 @@ function wantsJSON(ctx: any) {
   return acc.includes("application/json") || acc.includes("json");
 }
 
+/** גוף JSON בצורה תואמת גרסאות Oak שונות */
 async function readJsonCompat(ctx: any): Promise<any> {
-  // Oak versions differ; simplest:
+  // Oak (ישן): ctx.request.body() -> { type, value }
   try {
-    const b = ctx.request.body?.();
+    const b = typeof ctx.request.body === "function" ? ctx.request.body() : undefined;
     if (b?.type === "json") return await b.value;
   } catch {}
+
+  // Oak (חדש): ctx.request.body.json()
   try {
-    return await ctx.request.body?.json();
+    if (ctx.request.body && typeof ctx.request.body.json === "function") {
+      return await ctx.request.body.json();
+    }
   } catch {}
-  // fallback
-  const txt = await ctx.request.body?.text?.();
-  if (txt) return JSON.parse(txt);
+
+  // fallback: text -> parse
+  try {
+    const txt = typeof ctx.request.body === "function"
+      ? await (await ctx.request.body()).value
+      : (ctx.request.body && typeof ctx.request.body.text === "function"
+        ? await ctx.request.body.text()
+        : null);
+
+    if (typeof txt === "string" && txt.trim()) return JSON.parse(txt);
+  } catch {}
+
   return {};
+}
+
+/** חישוב דקות לרשומה (למענה של API) */
+function minutesWorkedLocal(row: any): number {
+  if (!row?.checkInAt || !row?.checkOutAt) return 0;
+  return Math.max(0, Math.floor((Number(row.checkOutAt) - Number(row.checkInAt)) / 60000));
 }
 
 /* ─────────────── Staff UI ─────────────── */
@@ -74,7 +97,7 @@ async function readJsonCompat(ctx: any): Promise<any> {
 timeClockRouter.get("/staff/timeclock", async (ctx) => {
   const user = ensureAuthed(ctx);
 
-  // staff context מגיע מ-middleware שלך (לפי NEW3 ב-view.ts)
+  // staff context מגיע מ-middleware שלך
   const staff = (ctx.state as any).staff as StaffMember | null;
   const staffRestaurantId = (ctx.state as any).staffRestaurantId as string | null;
 
@@ -110,9 +133,15 @@ timeClockRouter.post("/staff/timeclock/checkin", async (ctx) => {
     return;
   }
 
-  const res = await checkInNow(staffRestaurantId, staff.id);
+  const res = await checkInNow({
+    restaurantId: staffRestaurantId,
+    staffId: staff.id,
+    userId: user.id,
+    source: "staff",
+  });
+
   if (!res.ok) {
-    ctx.response.status = Status.BadRequest;
+    ctx.response.status = Status.Conflict;
     ctx.response.body = res;
     return;
   }
@@ -125,17 +154,21 @@ timeClockRouter.post("/staff/timeclock/checkout", async (ctx) => {
   const user = ensureAuthed(ctx);
 
   const staff = (ctx.state as any).staff as StaffMember | null;
-  const staffRestaurantId = (ctx.state as any).staffRestaurantId as string | null;
 
-  if (user.role !== "staff" || !staff || !staffRestaurantId) {
+  if (user.role !== "staff" || !staff) {
     ctx.response.status = Status.Forbidden;
     ctx.response.body = { ok: false, error: "forbidden" };
     return;
   }
 
-  const res = await checkOutNow(staffRestaurantId, staff.id);
+  const res = await checkOutNow({
+    staffId: staff.id,
+    userId: user.id,
+    roleForAudit: "staff",
+  });
+
   if (!res.ok) {
-    ctx.response.status = Status.BadRequest;
+    ctx.response.status = Status.Conflict;
     ctx.response.body = res;
     return;
   }
@@ -150,7 +183,7 @@ timeClockRouter.get("/owner/timeclock", async (ctx) => {
   const user = ensureOwnerOrManager(ctx);
 
   const restaurantId = String(ctx.request.url.searchParams.get("restaurantId") || "").trim();
-  const month = String(ctx.request.url.searchParams.get("month") || "").trim(); // YYYY-MM
+  const monthQ = String(ctx.request.url.searchParams.get("month") || "").trim(); // YYYY-MM
 
   if (!restaurantId) {
     ctx.response.status = Status.BadRequest;
@@ -165,25 +198,28 @@ timeClockRouter.get("/owner/timeclock", async (ctx) => {
     return;
   }
 
-  // Owner יכול רק שלו; Manager – כרגע נותנים גישה (אם תרצה גם בדיקה לפי UserRestaurantRole נוסיף)
   if (user.role === "owner" && r.ownerId !== user.id) {
     ctx.response.status = Status.Forbidden;
     ctx.response.body = "not your restaurant";
     return;
   }
 
-  const ym = month || (() => {
+  const ym = monthQ || (() => {
     const d = new Date();
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, "0");
     return `${y}-${m}`;
   })();
 
-  const rows = await listMonthForRestaurant(restaurantId, ym);
+  const rows = await listMonthRows(restaurantId, ym);
   const staffList = await listStaffByRestaurant(restaurantId, { includeInactive: true });
 
-  const staffById = new Map(staffList.map((s) => [s.id, s]));
-  const payroll = computeMonthlyPayroll(rows, staffById);
+  const payroll = await computePayrollForMonth({
+    restaurantId,
+    month: ym,
+    staffList: staffList.map((s) => ({ id: s.id, firstName: s.firstName, lastName: s.lastName })),
+    rows,
+  });
 
   if (wantsJSON(ctx)) {
     ctx.response.status = Status.OK;
@@ -202,7 +238,6 @@ timeClockRouter.get("/owner/timeclock", async (ctx) => {
 });
 
 timeClockRouter.get("/owner/timeclock/api", async (ctx) => {
-  // זהה ל-HTML אבל תמיד JSON
   const user = ensureOwnerOrManager(ctx);
 
   const restaurantId = String(ctx.request.url.searchParams.get("restaurantId") || "").trim();
@@ -227,10 +262,15 @@ timeClockRouter.get("/owner/timeclock/api", async (ctx) => {
     return;
   }
 
-  const rows = await listMonthForRestaurant(restaurantId, month);
+  const rows = await listMonthRows(restaurantId, month);
   const staffList = await listStaffByRestaurant(restaurantId, { includeInactive: true });
-  const staffById = new Map(staffList.map((s) => [s.id, s]));
-  const payroll = computeMonthlyPayroll(rows, staffById);
+
+  const payroll = await computePayrollForMonth({
+    restaurantId,
+    month,
+    staffList: staffList.map((s) => ({ id: s.id, firstName: s.firstName, lastName: s.lastName })),
+    rows,
+  });
 
   ctx.response.status = Status.OK;
   ctx.response.body = { ok: true, restaurantId, month, rows, payroll };
@@ -244,9 +284,13 @@ timeClockRouter.post("/owner/timeclock/edit", async (ctx) => {
   const staffId = String(v?.staffId || "").trim();
   const ymd = String(v?.ymd || "").trim(); // YYYY-MM-DD
 
-  const checkInAt = v?.checkInAt === null ? null : (v?.checkInAt ? Number(v.checkInAt) : undefined);
-  const checkOutAt = v?.checkOutAt === null ? null : (v?.checkOutAt ? Number(v.checkOutAt) : undefined);
-  const note = v?.note === null ? null : (v?.note ? String(v.note) : undefined);
+  // allow null to clear; allow number to set; undefined => keep
+  const checkInAt =
+    v?.checkInAt === null ? null : (v?.checkInAt !== undefined ? Number(v.checkInAt) : undefined);
+  const checkOutAt =
+    v?.checkOutAt === null ? null : (v?.checkOutAt !== undefined ? Number(v.checkOutAt) : undefined);
+  const note =
+    v?.note === null ? null : (v?.note !== undefined ? String(v.note) : undefined);
 
   if (!restaurantId || !staffId || !ymd) {
     ctx.response.status = Status.BadRequest;
@@ -273,20 +317,35 @@ timeClockRouter.post("/owner/timeclock/edit", async (ctx) => {
     return;
   }
 
-  const row = await upsertManual(restaurantId, staffId, ymd, { checkInAt, checkOutAt, note }, user.id);
+  const edited = await upsertManualEntry({
+    restaurantId,
+    staffId,
+    ymd,
+    checkInAt,
+    checkOutAt,
+    note,
+    actorUserId: user.id,
+    actorRole: user.role,
+  });
 
-  // אופציונלי: עדכון hourlyRate באותו מסך
-  if (v?.hourlyRate !== undefined) {
+  if (!edited.ok) {
+    ctx.response.status = Status.Conflict;
+    ctx.response.body = { ok: false, error: edited.error, open: edited.open };
+    return;
+  }
+
+  // optional: hourlyRate update from same modal
+  if (v?.hourlyRate !== undefined && v.hourlyRate !== null && v.hourlyRate !== "") {
     const hr = Number(v.hourlyRate);
     if (Number.isFinite(hr) && hr >= 0) {
-      await setStaffHourlyRate(staffId, hr);
+      await setHourlyRate(staffId, hr);
     }
   }
 
   ctx.response.status = Status.OK;
   ctx.response.body = {
     ok: true,
-    row,
-    minutes: minutesWorked(row),
+    row: edited.row,
+    minutes: minutesWorkedLocal(edited.row),
   };
 });
