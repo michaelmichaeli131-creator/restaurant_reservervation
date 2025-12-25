@@ -50,9 +50,22 @@ function hasAny(perms){
 
       <div class="owner-hd-actions">
         <% if (isOwner) { %>
+          <!-- נוכחות עובדים – רק לבעלים -->
+          <a href="/owner/time" class="btn sm ghost owner-staff-btn">
+            <span class="icon">🕒</span>
+            נוכחות עובדים
+          </a>
+
+          <!-- ניהול עובדים -->
           <a href="/owner/staff" class="btn sm ghost owner-staff-btn">
             <span class="icon">👥</span>
             <%= tt('owner.staff.manage_title', 'ניהול עובדים') %>
+          </a>
+        <% } else if (isStaff) { %>
+          <!-- כניסה/יציאה – לכל עובד -->
+          <a href="/staff/timeclock" class="btn sm ghost owner-staff-btn">
+            <span class="icon">🕒</span>
+            כניסה / יציאה
           </a>
         <% } %>
       </div>
@@ -76,23 +89,21 @@ function hasAny(perms){
                  // ---- מיפוי הרשאות -> כפתורים ----
                  const canCalendar = hasAny(['reservations.view','reservations.manage']);
                  const canFloor    = hasAny(['floor.view','floor.edit']);
-                 const canShifts    = hasAny(['shifts.view','shifts.manage']);
-                 const canMenu      = hasPerm('menu.manage');
+                 const canShifts   = hasAny(['shifts.view','shifts.manage']);
+                 const canMenu     = hasPerm('menu.manage');
 
-                 const canWaiter    = hasPerm('pos.waiter');
-                 const canKitchen   = hasPerm('pos.kitchen');
-                 const canHost      = hasPerm('host.seating');
+                 const canWaiter   = hasPerm('pos.waiter');
+                 const canKitchen  = hasPerm('pos.kitchen');
+                 const canHost     = hasPerm('host.seating');
 
                  // אין permission ייעודי ל-bar ברשימה שלך → נשתמש ב-pos.waiter כברירת מחדל
-                 const canBar       = hasPerm('pos.waiter');
+                 const canBar      = hasPerm('pos.waiter');
 
                  // Bills/Reports/Stats: נשתמש ב-reports.view (או owner)
-                 const canReports   = hasPerm('reports.view');
+                 const canReports  = hasPerm('reports.view');
 
                  const canInvView   = hasPerm('inventory.view') || hasPerm('inventory.manage');
                  const canInvManage = hasPerm('inventory.manage');
-
-                 // אם זה staff בלי שום הרשאה רלוונטית — עדיין נציג KPI + שם מסעדה, אבל בלי כפתורים.
             %>
               <li class="item">
                 <div class="meta">
@@ -240,12 +251,6 @@ function hasAny(perms){
                       <span class="icon">🚚</span>
                       <%= tt('owner.dashboard.btn_suppliers', 'ספקים') %>
                     </a>
-
-		<a href="/owner/time" class="btn sm ghost">
-  		<span class="icon">🕒</span>
-  		נוכחות עובדים	
-		</a>
-
                     <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/purchase_orders">
                       <span class="icon">📄</span>
                       <%= tt('owner.dashboard.btn_po', 'הזמנות רכש (PO)') %>
@@ -387,6 +392,8 @@ function hasAny(perms){
     display:flex;
     align-items:center;
     gap:8px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
   }
   .owner-staff-btn{
     font-size:12px;
