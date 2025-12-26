@@ -1,18 +1,18 @@
 // src/services/timeclock_db.ts
 // --------------------------------------------------------
-// TimeClock DB (KV) – נוכחות + שכר (פתרון B)
-// - Staff check-in/out (כניסה/יציאה) לפי staffId
+// TimeClock DB (KV) – נוכחות + שכר
+// - Staff check-in/out (כניסה/יציאה)
 // - רשומה יומית פר עובד: (restaurantId, staffId, ymd)
 // - אינדקס חודשי למסעדה בשביל לוח שנה/דוחות
-// - עריכה ידנית ע"י בעל המסעדה (upsertManual)
-// - חישוב שכר חודשי – hourlyRate מגיע מ-StaffMember (staff_db), לא מכאן
+// - עריכה ידנית ע"י בעל המסעדה (edit)
+// - שכר לשעה לכל עובד (hourlyRate) + חישוב שכר חודשי
 // --------------------------------------------------------
 
 import { kv } from "../database.ts";
 
 const now = () => Date.now();
 
-/** YYYY-MM-DD לפי זמן מקומי (כמו ב־UI) */
+/** YYYY-MM-DD לפי זמן מקומי (כמו ה-UI שלך) */
 export function ymdKeyLocal(ts: number): string {
   const d = new Date(ts);
   const yyyy = d.getFullYear();
@@ -24,6 +24,13 @@ export function ymdKeyLocal(ts: number): string {
 /** YYYY-MM מתוך YYYY-MM-DD */
 function monthFromYmd(ymd: string): string {
   return String(ymd || "").slice(0, 7); // "YYYY-MM"
+}
+
+/** Epoch של תחילת יום מקומי ל-ymd */
+function startOfDayLocalMs(ymd: string): number {
+  // Important: זה תואם ל-template שלך שעושה new Date(ymd+'T00:00:00')
+  const d = new Date(`${ymd}T00:00:00`);
+  return d.getTime();
 }
 
 /* ─────────────── Types ─────────────── */
@@ -51,6 +58,7 @@ export type TimeClockRow = {
   updatedByUserId?: string;
 };
 
+/** חישוב שכר חודשי */
 export type PayrollRow = {
   staffId: string;
   staffName: string;
@@ -62,31 +70,39 @@ export type PayrollRow = {
 
 /* ─────────────── KV keys ─────────────── */
 
+// תמיד ממירים ל־string כדי למנוע TypeError של KV
+
 // הרשומה היומית
 function rowKey(restaurantId: string, staffId: string, ymd: string) {
   const rid = String(restaurantId ?? "").trim();
   const sid = String(staffId ?? "").trim();
   const day = String(ymd ?? "").trim();
-  return ["timeclock_row", rid, sid, day] as const;
+  return ["timeclock", rid, sid, day] as const;
 }
 
 // אינדקס חודשי למסעדה (לרשומות של חודש מסוים)
-function idxRestaurantMonthKey(restaurantId: string, month: string, ymd: string, staffId: string) {
+function idxRestaurantMonthKey(restaurantId: string, month: string, staffId: string, ymd: string) {
   const rid = String(restaurantId ?? "").trim();
   const m = String(month ?? "").trim();
-  const day = String(ymd ?? "").trim();
   const sid = String(staffId ?? "").trim();
-  return ["timeclock_by_restaurant_month", rid, m, day, sid] as const;
+  const day = String(ymd ?? "").trim();
+  return ["timeclock_by_restaurant_month", rid, m, sid, day] as const;
 }
 
 // "פתוח" פר עובד – מוודא שלא יהיו 2 כניסות פתוחות במקביל
 // value: { restaurantId, ymd }
-function openKey(staffId: string | number) {
+function openKey(staffId: string) {
   const sid = String(staffId ?? "").trim();
   return ["timeclock_open", sid] as const;
 }
 
 type OpenPtr = { restaurantId: string; ymd: string };
+
+// שכר לשעה פר עובד (staffId)
+function hourlyRateKey(staffId: string) {
+  const sid = String(staffId ?? "").trim();
+  return ["staff_hourly_rate", sid] as const;
+}
 
 /* ─────────────── Helpers ─────────────── */
 
@@ -99,7 +115,7 @@ export function minutesWorked(r: TimeClockRow): number {
   return Math.max(0, Math.floor((r.checkOutAt - r.checkInAt) / 60000));
 }
 
-/* ─────────────── Low-level reads ─────────────── */
+/* ─────────────── Reads ─────────────── */
 
 export async function getRow(
   restaurantId: string,
@@ -115,75 +131,150 @@ export async function getOpenForStaff(staffId: string): Promise<OpenPtr | null> 
   return res.value ?? null;
 }
 
+/**
+ * מחזיר את כל הרשומות של חודש למסעדה.
+ * חוזר כ-Array של TimeClockRow (כמו rows בטמפלייט).
+ */
+export async function listMonthRows(
+  restaurantId: string,
+  month: string, // YYYY-MM
+): Promise<TimeClockRow[]> {
+  const rid = String(restaurantId ?? "").trim();
+  const m = String(month ?? "").trim();
+  const out: TimeClockRow[] = [];
+
+  for await (
+    const row of kv.list<boolean>({
+      prefix: ["timeclock_by_restaurant_month", rid, m],
+    })
+  ) {
+    // key shape: ["timeclock_by_restaurant_month", rid, month, staffId, ymd]
+    const staffId = String(row.key[3] ?? "");
+    const ymd = String(row.key[4] ?? "");
+    if (!staffId || !ymd) continue;
+
+    const full = await getRow(rid, staffId, ymd);
+    if (full) out.push(full);
+  }
+
+  // סדר: לפי תאריך ואז לפי staffId (יציב)
+  out.sort((a, b) => {
+    if (a.ymd === b.ymd) return String(a.staffId).localeCompare(String(b.staffId));
+    return String(a.ymd).localeCompare(String(b.ymd));
+  });
+
+  return out;
+}
+
+// עטיפה אופציונלית – אם יש קוד שעדיין משתמש בשם הזה
+export async function listMonthForRestaurant(
+  restaurantId: string,
+  month: string,
+): Promise<TimeClockRow[]> {
+  return listMonthRows(restaurantId, month);
+}
+
+/* ─────────────── Hourly rate ─────────────── */
+
+export async function getHourlyRate(staffId: string): Promise<number | null> {
+  const res = await kv.get<number>(hourlyRateKey(staffId));
+  return typeof res.value === "number" ? res.value : null;
+}
+
+export async function setHourlyRate(staffId: string, hourlyRate: number): Promise<void> {
+  const n = Number(hourlyRate);
+  if (!Number.isFinite(n) || n < 0) {
+    const e: any = new Error("Invalid hourlyRate");
+    e.code = "invalid_hourly_rate";
+    throw e;
+  }
+  await kv.set(hourlyRateKey(staffId), n);
+}
+
 /* ─────────────── Staff actions: check-in/out ─────────────── */
 
 /**
- * כניסה עכשיו (Staff)
- * נחתך ל־API: checkInNow(restaurantId, staffId)
- * - יוצר/מעדכן רשומה ליום הנוכחי (ymd) לפי הזמן המקומי
- * - מוודא שיש רק רשומה פתוחה אחת (open pointer) לעובד
+ * כניסה עכשיו
+ * enforce: רק כניסה פתוחה אחת פר staffId (באמצעות open pointer)
+ *
+ * חתימה לפי הבסיס שלך:
+ *   checkInNow({
+ *     restaurantId, staffId, userId, source: "staff", note?, at?
+ *   })
  */
-export async function checkInNow(
-  rawRestaurantId: string,
-  rawStaffId: string,
-): Promise<
+export async function checkInNow(args: {
+  restaurantId: string;
+  staffId: string;
+  userId: string;
+  source: TimeClockSource;
+  note?: string | null;
+  at?: number;
+}): Promise<
   | { ok: true; row: TimeClockRow }
   | { ok: false; error: "already_open"; open: OpenPtr; row?: TimeClockRow | null }
 > {
-  const restaurantId = String(rawRestaurantId ?? "").trim();
-  const staffId = String(rawStaffId ?? "").trim();
-
+  const restaurantId = String(args.restaurantId ?? "").trim();
+  const staffId = String(args.staffId ?? "").trim();
   if (!restaurantId || !staffId) {
     throw new Error("checkInNow: missing restaurantId or staffId");
   }
 
-  const ts = now();
+  const ts = typeof args.at === "number" ? args.at : now();
   const ymd = ymdKeyLocal(ts);
   const month = monthFromYmd(ymd);
 
   // בדוק open pointer קודם
-  const openRes = await kv.get<OpenPtr>(openKey(staffId));
-  const open = openRes.value;
-  if (open?.ymd) {
-    const row = await getRow(open.restaurantId, staffId, open.ymd);
-    return { ok: false, error: "already_open", open, row };
+  const open = await kv.get<OpenPtr>(openKey(staffId));
+  if (open.value?.ymd) {
+    // כבר פתוח
+    const row = await getRow(open.value.restaurantId, staffId, open.value.ymd);
+    return { ok: false, error: "already_open", open: open.value, row };
   }
 
   const existing = await getRow(restaurantId, staffId, ymd);
 
   // אם כבר יש רשומה של היום עם checkInAt אבל בלי checkOutAt -> זה בעצם פתוח
   if (existing?.checkInAt && !existing?.checkOutAt) {
-    // ננסה לייצב open pointer (best-effort)
+    // ננסה לייצב open pointer (best-effort) כדי שהמערכת תהיה עקבית
     const ptr: OpenPtr = { restaurantId, ymd };
     await kv.set(openKey(staffId), ptr);
-    return { ok: false, error: "already_open", open: ptr, row: existing };
+    return {
+      ok: false,
+      error: "already_open",
+      open: ptr,
+      row: existing,
+    };
   }
 
   const row: TimeClockRow = {
     restaurantId,
     staffId,
-    userId: existing?.userId ?? null,
+    userId: args.userId,
     ymd,
     checkInAt: ts,
     checkOutAt: null,
-    note: existing?.note ?? null,
-    source: "staff",
+    note: args.note ?? existing?.note ?? null,
+    source: args.source,
     createdAt: existing?.createdAt ?? ts,
     updatedAt: ts,
-    createdByUserId: existing?.createdByUserId ?? staffId,
-    updatedByUserId: staffId,
+    createdByUserId: existing?.createdByUserId ?? args.userId,
+    updatedByUserId: args.userId,
   };
 
-  // Atomic: אין pointer פתוח + כתיבת הרשומה + open pointer + אינדקס חודשי
+  // Atomic:
+  // 1) ensure open pointer not exists
+  // 2) upsert row
+  // 3) set open pointer
+  // 4) set monthly index
   const tx = kv.atomic()
     .check({ key: openKey(staffId), versionstamp: null })
     .set(rowKey(restaurantId, staffId, ymd), row)
     .set(openKey(staffId), { restaurantId, ymd })
-    .set(idxRestaurantMonthKey(restaurantId, month, ymd, staffId), true);
+    .set(idxRestaurantMonthKey(restaurantId, month, staffId, ymd), true);
 
   const res = await tx.commit();
   if (!res.ok) {
-    // רייס: מישהו פתח pointer בינתיים
+    // רייס: מישהו פתח open pointer
     const open2 = await kv.get<OpenPtr>(openKey(staffId));
     if (open2.value?.ymd) {
       const row2 = await getRow(open2.value.restaurantId, staffId, open2.value.ymd);
@@ -196,30 +287,33 @@ export async function checkInNow(
 }
 
 /**
- * יציאה עכשיו (Staff)
- * נחתך ל־API: checkOutNow(restaurantId, staffId)
- * - מתבסס על open pointer כדי לדעת מאיזו מסעדה/יום לסגור
+ * יציאה עכשיו
+ * מחייב open pointer, מעדכן checkOutAt ומוחק open pointer
+ *
+ * חתימה לפי הבסיס שלך:
+ *   checkOutNow({
+ *     staffId, userId, roleForAudit, at?
+ *   })
  */
-export async function checkOutNow(
-  _rawRestaurantId: string, // לא באמת משתמשים בו – הולכים לפי ה-open pointer
-  rawStaffId: string,
-): Promise<
+export async function checkOutNow(args: {
+  staffId: string;
+  userId: string;
+  roleForAudit: TimeClockSource | string;
+  at?: number;
+}): Promise<
   | { ok: true; row: TimeClockRow }
   | { ok: false; error: "no_open" | "not_found" | "already_closed" | "conflict"; row?: TimeClockRow | null }
 > {
-  const staffId = String(rawStaffId ?? "").trim();
-  if (!staffId) {
-    throw new Error("checkOutNow: missing staffId");
-  }
+  const staffId = String(args.staffId ?? "").trim();
+  if (!staffId) throw new Error("checkOutNow: missing staffId");
 
-  const ts = now();
+  const ts = typeof args.at === "number" ? args.at : now();
 
-  const openRes = await kv.get<OpenPtr>(openKey(staffId));
-  const open = openRes.value;
-  if (!open?.ymd || !open?.restaurantId) return { ok: false, error: "no_open" };
+  const open = await kv.get<OpenPtr>(openKey(staffId));
+  if (!open.value?.ymd || !open.value?.restaurantId) return { ok: false, error: "no_open" };
 
-  const restaurantId = open.restaurantId;
-  const ymd = open.ymd;
+  const restaurantId = open.value.restaurantId;
+  const ymd = open.value.ymd;
 
   const currentRes = await kv.get<TimeClockRow>(rowKey(restaurantId, staffId, ymd));
   const current = currentRes.value;
@@ -239,11 +333,13 @@ export async function checkOutNow(
     ...current,
     checkOutAt: ts,
     updatedAt: ts,
-    updatedByUserId: staffId,
+    updatedByUserId: args.userId,
+    // אפשר לשמור roleForAudit אם תרצה בעתיד:
+    // note: current.note ?? null,
   };
 
   const tx = kv.atomic()
-    .check({ key: openKey(staffId), versionstamp: openRes.versionstamp })
+    .check({ key: openKey(staffId), versionstamp: open.versionstamp })
     .set(rowKey(restaurantId, staffId, ymd), next)
     .delete(openKey(staffId));
 
@@ -256,39 +352,39 @@ export async function checkOutNow(
 /* ─────────────── Owner/Manager manual edit ─────────────── */
 
 /**
- * upsertManual – משמש את /owner/timeclock/edit
- *
- * Args:
- *  - restaurantId, staffId, ymd: מזהי הרשומה
- *  - patch: { checkInAt?: number|null|undefined, checkOutAt?: number|null|undefined, note?: string|null|undefined }
- *      undefined -> השאר כמו שהיה
- *      null      -> אפס את השדה
- *  - actorUserId: מי ערך (owner/manager)
- *
- * לוגיקה:
- *  - יוצר רשומה אם אין
- *  - מעדכן אינדקס חודשי
- *  - מנהל open pointer בהתאם:
- *      * אם אחרי העריכה יש checkInAt ואין checkOutAt → pointer פתוח
- *      * אחרת → אם pointer מצביע על אותה רשומה → נמחק אותו
+ * עריכה ידנית לרשומה יומית.
+ * מאפשר:
+ * - לקבוע checkInAt/checkOutAt (number או null כדי לאפס)
+ * - note
+ * - יוצר רשומה גם אם לא קיימת עדיין
+ * - אם אחרי העריכה הרשומה פתוחה (יש checkInAt ואין checkOutAt) – נעדכן open pointer
+ *   אבל אם כבר יש open pointer ליום אחר – נחסום.
  */
-export async function upsertManual(
-  rawRestaurantId: string,
-  rawStaffId: string,
-  rawYmd: string,
-  patch: { checkInAt?: number | null; checkOutAt?: number | null; note?: string | null },
-  actorUserId: string,
-): Promise<TimeClockRow> {
-  const restaurantId = String(rawRestaurantId ?? "").trim();
-  const staffId = String(rawStaffId ?? "").trim();
-  const ymd = String(rawYmd ?? "").trim();
+export async function upsertManualEntry(args: {
+  restaurantId: string;
+  staffId: string;
+  ymd: string;
+  checkInAt?: number | null;
+  checkOutAt?: number | null;
+  note?: string | null;
+  actorUserId: string;
+  actorRole: TimeClockSource | string;
+}): Promise<
+  | { ok: true; row: TimeClockRow }
+  | { ok: false; error: "open_conflict"; open: OpenPtr }
+> {
+  const restaurantId = String(args.restaurantId ?? "").trim();
+  const staffId = String(args.staffId ?? "").trim();
+  const ymd = String(args.ymd || "").trim();
 
   if (!restaurantId || !staffId || !ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
-    throw new Error("upsertManual: invalid restaurantId/staffId/ymd");
+    const e: any = new Error("Invalid ymd or ids");
+    e.code = "invalid_ymd";
+    throw e;
   }
 
-  const ts = now();
   const month = monthFromYmd(ymd);
+  const ts = now();
 
   const current = await getRow(restaurantId, staffId, ymd);
 
@@ -297,89 +393,115 @@ export async function upsertManual(
     staffId,
     userId: current?.userId ?? null,
     ymd,
-    checkInAt: patch.checkInAt === undefined ? (current?.checkInAt ?? null) : patch.checkInAt,
-    checkOutAt: patch.checkOutAt === undefined ? (current?.checkOutAt ?? null) : patch.checkOutAt,
-    note: patch.note === undefined ? (current?.note ?? null) : patch.note,
+    checkInAt: args.checkInAt === undefined ? (current?.checkInAt ?? null) : args.checkInAt,
+    checkOutAt: args.checkOutAt === undefined ? (current?.checkOutAt ?? null) : args.checkOutAt,
+    note: args.note === undefined ? (current?.note ?? null) : args.note,
     source: current?.source ?? "owner",
     createdAt: current?.createdAt ?? ts,
     updatedAt: ts,
-    createdByUserId: current?.createdByUserId ?? actorUserId,
-    updatedByUserId: actorUserId,
+    createdByUserId: current?.createdByUserId ?? args.actorUserId,
+    updatedByUserId: args.actorUserId,
   };
 
+  // לוגיקה של open pointer לפי מצב הרשומה אחרי העריכה:
   const wantsOpen = Boolean(next.checkInAt) && !next.checkOutAt;
 
-  const openRes = await kv.get<OpenPtr>(openKey(staffId));
-  const open = openRes.value ?? null;
-
-  const tx = kv.atomic()
-    .set(rowKey(restaurantId, staffId, ymd), next)
-    .set(idxRestaurantMonthKey(restaurantId, month, ymd, staffId), true);
+  const open = await kv.get<OpenPtr>(openKey(staffId));
+  const openVal = open.value ?? null;
 
   if (wantsOpen) {
-    // פשוט נעדכן/ניצור pointer ליום הזה
-    tx.set(openKey(staffId), { restaurantId, ymd });
+    // אם כבר פתוח ליום אחר – קונפליקט
+    if (openVal && (openVal.ymd !== ymd || openVal.restaurantId !== restaurantId)) {
+      return { ok: false, error: "open_conflict", open: openVal };
+    }
+  }
+
+  // Atomic commit:
+  // - כתיבת הרשומה
+  // - כתיבת אינדקס חודשי
+  // - ניהול open pointer בהתאם
+  const tx = kv.atomic()
+    .set(rowKey(restaurantId, staffId, ymd), next)
+    .set(idxRestaurantMonthKey(restaurantId, month, staffId, ymd), true);
+
+  if (wantsOpen) {
+    // אם אין pointer – ניצור. אם יש ונכון – נעדכן אותו (לא חובה אבל טוב לעקביות)
+    if (openVal) {
+      tx.set(openKey(staffId), { restaurantId, ymd });
+    } else {
+      tx.check({ key: openKey(staffId), versionstamp: null })
+        .set(openKey(staffId), { restaurantId, ymd });
+    }
   } else {
-    // אם pointer מצביע על אותה רשומה → נמחק אותו
-    if (open && open.restaurantId === restaurantId && open.ymd === ymd) {
+    // אם לא פתוח – נמחק pointer רק אם הוא מצביע על אותו יום/מסעדה
+    if (openVal && openVal.ymd === ymd && openVal.restaurantId === restaurantId) {
       tx.delete(openKey(staffId));
     }
   }
 
   const res = await tx.commit();
-  if (!res.ok) throw new Error("upsertManual atomic commit failed");
+  if (!res.ok) throw new Error("upsertManualEntry atomic commit failed");
 
-  return next;
-}
-
-/* ─────────────── Month listing ─────────────── */
-
-/**
- * מחזיר את כל הרשומות של חודש למסעדה.
- * משמש את /owner/timeclock (HTML + API)
- */
-export async function listMonthForRestaurant(
-  rawRestaurantId: string,
-  rawMonth: string, // YYYY-MM
-): Promise<TimeClockRow[]> {
-  const restaurantId = String(rawRestaurantId ?? "").trim();
-  const month = String(rawMonth ?? "").trim();
-
-  const out: TimeClockRow[] = [];
-
-  for await (
-    const row of kv.list<boolean>({
-      prefix: ["timeclock_by_restaurant_month", restaurantId, month],
-    })
-  ) {
-    // key shape: ["timeclock_by_restaurant_month", rid, month, ymd, staffId]
-    const ymd = String(row.key[3] ?? "");
-    const staffId = String(row.key[4] ?? "");
-    if (!staffId || !ymd) continue;
-
-    const full = await getRow(restaurantId, staffId, ymd);
-    if (full) out.push(full);
-  }
-
-  // סדר: לפי תאריך ואז לפי staffId
-  out.sort((a, b) => {
-    if (a.ymd === b.ymd) return String(a.staffId).localeCompare(String(b.staffId));
-    return String(a.ymd).localeCompare(String(b.ymd));
-  });
-
-  return out;
+  return { ok: true, row: next };
 }
 
 /* ─────────────── Payroll ─────────────── */
 
 /**
- * חישוב שכר חודשי על בסיס rows + map של staff:
- *  - hourlyRate מגיע מ־StaffMember (שנשלח מה־route)
- *  - staffName מגיע firstName/lastName מה־StaffMember
- *
- * signature תואם ל־owner/timeclock.ts:
- *   const staffById = new Map(staffList.map((s) => [s.id, s]));
- *   const payroll = computeMonthlyPayroll(rows, staffById);
+ * חישוב שכר חודשי על בסיס rows של חודש (API "גבוה"):
+ * - hourlyRate מגיע מ-KV (staff_hourly_rate)
+ * - אם אין hourlyRate -> 0
+ * - staffName מגיע מ-staffList (first/last name)
+ */
+export async function computePayrollForMonth(args: {
+  restaurantId: string;
+  month: string; // YYYY-MM
+  staffList: Array<{ id: string; firstName?: string; lastName?: string }>;
+  rows?: TimeClockRow[]; // אפשר להעביר כדי לחסוך קריאה כפולה
+}): Promise<PayrollRow[]> {
+  const rows = args.rows ?? (await listMonthRows(args.restaurantId, args.month));
+
+  const staffById = new Map<string, { id: string; name: string }>();
+  for (const s of args.staffList || []) {
+    const name = `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() || s.id;
+    staffById.set(s.id, { id: s.id, name });
+  }
+
+  const minsByStaff = new Map<string, number>();
+  for (const r of rows) {
+    const m = minutesWorked(r);
+    if (!m) continue;
+    minsByStaff.set(r.staffId, (minsByStaff.get(r.staffId) ?? 0) + m);
+  }
+
+  const out: PayrollRow[] = [];
+
+  for (const [staffId, totalMinutes] of minsByStaff.entries()) {
+    const hr = (await getHourlyRate(staffId)) ?? 0;
+    const totalHours = round2(totalMinutes / 60);
+    const gross = round2(totalHours * hr);
+
+    const staffName = staffById.get(staffId)?.name ?? staffId;
+
+    out.push({
+      staffId,
+      staffName,
+      hourlyRate: hr,
+      totalMinutes,
+      totalHours,
+      gross,
+    });
+  }
+
+  // מיון: הכי גבוה למעלה
+  out.sort((a, b) => (b.gross - a.gross) || a.staffName.localeCompare(b.staffName));
+
+  return out;
+}
+
+/**
+ * עטיפה "נמוכה" יותר – אם יש לך כבר Map של staffById עם hourlyRate בפנים
+ * (כמו ב־owner/timeclock.ts החדש שלך)
  */
 export function computeMonthlyPayroll(
   rows: TimeClockRow[],
@@ -416,7 +538,6 @@ export function computeMonthlyPayroll(
     });
   }
 
-  // מיון: ברוטו מהגבוה לנמוך, ואז לפי שם
   out.sort((a, b) => (b.gross - a.gross) || a.staffName.localeCompare(b.staffName));
 
   return out;
