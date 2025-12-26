@@ -13,6 +13,13 @@ import { kv, type User, type Restaurant, getRestaurant } from "../database.ts";
 import { getTimeEntry, listEntriesByRestaurantDay } from "../services/time_db.ts";
 import type { TimeEntry } from "../services/time_db.ts";
 
+// *** חדש – שימוש ב־timeclock_db (המערכת החדשה של נוכחות) ***
+import {
+  listMonthRows,
+  minutesWorked,
+  type TimeClockRow,
+} from "../services/timeclock_db.ts";
+
 export const ownerTimeRouter = new Router();
 
 console.log("[owner_time] router module loaded");
@@ -206,7 +213,9 @@ ownerTimeRouter.get("/owner/time/day", async (ctx) => {
     const restaurantId = String(ctx.request.url.searchParams.get("restaurantId") || "").trim();
     const day = String(ctx.request.url.searchParams.get("day") || "").trim();
 
-    if (!restaurantId) return json(ctx, Status.BadRequest, { ok: false, error: "restaurant_required" });
+    if (!restaurantId) {
+      return json(ctx, Status.BadRequest, { ok: false, error: "restaurant_required" });
+    }
     if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
       return json(ctx, Status.BadRequest, { ok: false, error: "day_invalid" });
     }
@@ -216,41 +225,126 @@ ownerTimeRouter.get("/owner/time/day", async (ctx) => {
       return json(ctx, Status.Forbidden, { ok: false, error: "not_your_restaurant" });
     }
 
-    const entries = await listEntriesByRestaurantDay(restaurantId, day);
+    const month = day.slice(0, 7); // "YYYY-MM"
 
-    // group by staffId with totals
-    const groups: Record<string, { staffId: string; userId: string; entries: TimeEntry[]; totalMinutes: number }> = {};
+    // 🔍 DEBUG: מה הבעלים מחפש
+    console.log("[OWNER_TIME] query", { restaurantId, day, month });
+
+    // שלב 1 – למשוך את כל רשומות הנוכחות של החודש עבור המסעדה הזו
+    const monthRows: TimeClockRow[] = await listMonthRows(restaurantId, month);
+
+    console.log("[OWNER_TIME] monthRows", {
+      restaurantId,
+      month,
+      count: monthRows.length,
+      rows: monthRows,
+    });
+
+    // שלב 2 – לסנן רק את היום המבוקש
+    const dayRows: TimeClockRow[] = monthRows.filter((r) => r.ymd === day);
+
+    console.log("[OWNER_TIME] dayRows_after_filter", {
+      restaurantId,
+      day,
+      count: dayRows.length,
+      rows: dayRows,
+    });
+
+    const debugWithMinutes = dayRows.map((r) => ({
+      staffId: r.staffId,
+      ymd: r.ymd,
+      checkInAt: r.checkInAt,
+      checkOutAt: r.checkOutAt,
+      minutes: minutesWorked(r),
+    }));
+    console.log("[OWNER_TIME] dayRows_with_minutes", debugWithMinutes);
+
+    // נבנה entries במבנה דומה ל-TimeEntry כדי לא לשבור את ה-UI
+    type UiEntry = {
+      id: string;
+      restaurantId: string;
+      staffId: string;
+      userId: string;
+      ymd: string;
+      clockInAt: number | null;
+      clockOutAt: number | null;
+      note: string | null;
+      source: string;
+      createdAt: number;
+      updatedAt?: number;
+      clockInLabel: string;
+      clockOutLabel: string;
+      minutes: number;
+    };
+
+    const nowMs = Date.now();
+    const entries: UiEntry[] = dayRows.map((r) => {
+      const clockIn = typeof r.checkInAt === "number" ? r.checkInAt : null;
+      const clockOut = typeof r.checkOutAt === "number" ? r.checkOutAt : null;
+
+      const minutes = clockIn
+        ? (clockOut
+          ? minutesBetween(clockIn, clockOut)
+          : minutesBetween(clockIn, nowMs))
+        : 0;
+
+      return {
+        id: `${r.staffId}-${r.ymd}-${clockIn ?? "0"}`, // מזהה סינתטי
+        restaurantId: r.restaurantId,
+        staffId: r.staffId,
+        userId: r.userId ?? "",
+        ymd: r.ymd,
+        clockInAt: clockIn,
+        clockOutAt: clockOut,
+        note: r.note ?? null,
+        source: r.source ?? "staff",
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt ?? r.createdAt,
+        clockInLabel: clockIn ? fmtTime(clockIn, tz) : "",
+        clockOutLabel: clockOut ? fmtTime(clockOut, tz) : "פתוח",
+        minutes,
+      };
+    });
+
+    // group by staffId עם סכום דקות
+    const groups: Record<
+      string,
+      { staffId: string; userId: string; entries: UiEntry[]; totalMinutes: number }
+    > = {};
+
     for (const e of entries) {
-      const end = typeof e.clockOutAt === "number" ? e.clockOutAt : Date.now();
-      const mins = minutesBetween(e.clockInAt, end);
-
       if (!groups[e.staffId]) {
-        groups[e.staffId] = { staffId: e.staffId, userId: e.userId, entries: [], totalMinutes: 0 };
+        groups[e.staffId] = {
+          staffId: e.staffId,
+          userId: e.userId,
+          entries: [],
+          totalMinutes: 0,
+        };
       }
       groups[e.staffId].entries.push(e);
-      groups[e.staffId].totalMinutes += mins;
+      groups[e.staffId].totalMinutes += e.minutes;
     }
 
-    // Flatten list for UI + add pretty fields
-    const rows = entries.map((e) => {
-      const end = typeof e.clockOutAt === "number" ? e.clockOutAt : null;
-      return {
-        ...e,
-        clockInLabel: fmtTime(e.clockInAt, tz),
-        clockOutLabel: end ? fmtTime(end, tz) : "פתוח",
-        minutes: end ? minutesBetween(e.clockInAt, end) : minutesBetween(e.clockInAt, Date.now()),
-      };
+    console.log("[OWNER_TIME] response_summary", {
+      restaurantId,
+      day,
+      rowsCount: entries.length,
+      groupsCount: Object.keys(groups).length,
     });
 
     return json(ctx, Status.OK, {
       ok: true,
       restaurantId,
       day,
-      rows,
+      rows: entries,
       grouped: Object.values(groups),
     });
   } catch (e: any) {
-    return json(ctx, e?.status ?? Status.InternalServerError, { ok: false, error: String(e?.message ?? e) });
+    console.error("[OWNER_TIME] /owner/time/day error", e);
+    return json(ctx, e?.status ?? Status.InternalServerError, {
+      ok: false,
+      error: String(e?.message ?? e),
+    });
   }
 });
 
