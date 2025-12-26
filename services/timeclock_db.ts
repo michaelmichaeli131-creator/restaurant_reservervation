@@ -12,6 +12,20 @@ import { kv } from "../database.ts";
 
 const now = () => Date.now();
 
+/** לוג מרכזי לשירות הנוכחות */
+function logTimeclock(event: string, payload: unknown = null) {
+  try {
+    console.log(
+      "[TIMECLOCK]",
+      new Date().toISOString(),
+      event,
+      payload ? JSON.stringify(payload) : "",
+    );
+  } catch {
+    console.log("[TIMECLOCK]", new Date().toISOString(), event, payload);
+  }
+}
+
 /** YYYY-MM-DD לפי זמן מקומי (כמו ה-UI שלך) */
 export function ymdKeyLocal(ts: number): string {
   const d = new Date(ts);
@@ -143,6 +157,8 @@ export async function listMonthRows(
   const m = String(month ?? "").trim();
   const out: TimeClockRow[] = [];
 
+  logTimeclock("listMonthRows.start", { restaurantId: rid, month: m });
+
   for await (
     const row of kv.list<boolean>({
       prefix: ["timeclock_by_restaurant_month", rid, m],
@@ -162,6 +178,8 @@ export async function listMonthRows(
     if (a.ymd === b.ymd) return String(a.staffId).localeCompare(String(b.staffId));
     return String(a.ymd).localeCompare(String(b.ymd));
   });
+
+  logTimeclock("listMonthRows.done", { restaurantId: rid, month: m, count: out.length });
 
   return out;
 }
@@ -216,6 +234,7 @@ export async function checkInNow(args: {
   const restaurantId = String(args.restaurantId ?? "").trim();
   const staffId = String(args.staffId ?? "").trim();
   if (!restaurantId || !staffId) {
+    logTimeclock("checkInNow.invalid_ids", { restaurantId, staffId, args });
     throw new Error("checkInNow: missing restaurantId or staffId");
   }
 
@@ -223,21 +242,36 @@ export async function checkInNow(args: {
   const ymd = ymdKeyLocal(ts);
   const month = monthFromYmd(ymd);
 
+  logTimeclock("checkInNow.start", {
+    restaurantId,
+    staffId,
+    userId: args.userId,
+    ymd,
+    month,
+    ts,
+    source: args.source,
+  });
+
   // בדוק open pointer קודם
   const open = await kv.get<OpenPtr>(openKey(staffId));
+  logTimeclock("checkInNow.openPtr_before", { staffId, open: open.value ?? null });
+
   if (open.value?.ymd) {
     // כבר פתוח
     const row = await getRow(open.value.restaurantId, staffId, open.value.ymd);
+    logTimeclock("checkInNow.already_open", { open: open.value, row });
     return { ok: false, error: "already_open", open: open.value, row };
   }
 
   const existing = await getRow(restaurantId, staffId, ymd);
+  logTimeclock("checkInNow.existing_row", { restaurantId, staffId, ymd, existing });
 
   // אם כבר יש רשומה של היום עם checkInAt אבל בלי checkOutAt -> זה בעצם פתוח
   if (existing?.checkInAt && !existing?.checkOutAt) {
     // ננסה לייצב open pointer (best-effort) כדי שהמערכת תהיה עקבית
     const ptr: OpenPtr = { restaurantId, ymd };
     await kv.set(openKey(staffId), ptr);
+    logTimeclock("checkInNow.existing_open_row", { ptr, existing });
     return {
       ok: false,
       error: "already_open",
@@ -261,6 +295,8 @@ export async function checkInNow(args: {
     updatedByUserId: args.userId,
   };
 
+  logTimeclock("checkInNow.row_before_commit", { row });
+
   // Atomic:
   // 1) ensure open pointer not exists
   // 2) upsert row
@@ -273,15 +309,20 @@ export async function checkInNow(args: {
     .set(idxRestaurantMonthKey(restaurantId, month, staffId, ymd), true);
 
   const res = await tx.commit();
+  logTimeclock("checkInNow.tx_result", { ok: res.ok });
+
   if (!res.ok) {
     // רייס: מישהו פתח open pointer
     const open2 = await kv.get<OpenPtr>(openKey(staffId));
+    logTimeclock("checkInNow.tx_failed_open2", { open2: open2.value ?? null });
     if (open2.value?.ymd) {
       const row2 = await getRow(open2.value.restaurantId, staffId, open2.value.ymd);
       return { ok: false, error: "already_open", open: open2.value, row: row2 };
     }
     throw new Error("checkInNow atomic commit failed");
   }
+
+  logTimeclock("checkInNow.success", { row });
 
   return { ok: true, row };
 }
@@ -305,27 +346,45 @@ export async function checkOutNow(args: {
   | { ok: false; error: "no_open" | "not_found" | "already_closed" | "conflict"; row?: TimeClockRow | null }
 > {
   const staffId = String(args.staffId ?? "").trim();
-  if (!staffId) throw new Error("checkOutNow: missing staffId");
+  if (!staffId) {
+    logTimeclock("checkOutNow.invalid_staffId", { args });
+    throw new Error("checkOutNow: missing staffId");
+  }
 
   const ts = typeof args.at === "number" ? args.at : now();
+  logTimeclock("checkOutNow.start", {
+    staffId,
+    userId: args.userId,
+    ts,
+    roleForAudit: args.roleForAudit,
+  });
 
   const open = await kv.get<OpenPtr>(openKey(staffId));
-  if (!open.value?.ymd || !open.value?.restaurantId) return { ok: false, error: "no_open" };
+  logTimeclock("checkOutNow.openPtr", { staffId, open: open.value ?? null });
+
+  if (!open.value?.ymd || !open.value?.restaurantId) {
+    logTimeclock("checkOutNow.no_open", { staffId });
+    return { ok: false, error: "no_open" };
+  }
 
   const restaurantId = open.value.restaurantId;
   const ymd = open.value.ymd;
 
   const currentRes = await kv.get<TimeClockRow>(rowKey(restaurantId, staffId, ymd));
   const current = currentRes.value;
+  logTimeclock("checkOutNow.current_row", { restaurantId, staffId, ymd, current });
+
   if (!current) {
     // pointer stale
     await kv.delete(openKey(staffId));
+    logTimeclock("checkOutNow.not_found_cleanup", { restaurantId, staffId, ymd });
     return { ok: false, error: "not_found" };
   }
 
   if (current.checkOutAt) {
     // כבר סגור - ננקה pointer
     await kv.delete(openKey(staffId));
+    logTimeclock("checkOutNow.already_closed_cleanup", { restaurantId, staffId, ymd, current });
     return { ok: false, error: "already_closed", row: current };
   }
 
@@ -338,13 +397,22 @@ export async function checkOutNow(args: {
     // note: current.note ?? null,
   };
 
+  logTimeclock("checkOutNow.row_before_commit", { next });
+
   const tx = kv.atomic()
     .check({ key: openKey(staffId), versionstamp: open.versionstamp })
     .set(rowKey(restaurantId, staffId, ymd), next)
     .delete(openKey(staffId));
 
   const res = await tx.commit();
-  if (!res.ok) return { ok: false, error: "conflict" };
+  logTimeclock("checkOutNow.tx_result", { ok: res.ok });
+
+  if (!res.ok) {
+    logTimeclock("checkOutNow.conflict", { restaurantId, staffId, ymd });
+    return { ok: false, error: "conflict" };
+  }
+
+  logTimeclock("checkOutNow.success", { row: next });
 
   return { ok: true, row: next };
 }
@@ -380,13 +448,24 @@ export async function upsertManualEntry(args: {
   if (!restaurantId || !staffId || !ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
     const e: any = new Error("Invalid ymd or ids");
     e.code = "invalid_ymd";
+    logTimeclock("upsertManualEntry.invalid_args", { restaurantId, staffId, ymd, args });
     throw e;
   }
 
   const month = monthFromYmd(ymd);
   const ts = now();
 
+  logTimeclock("upsertManualEntry.start", {
+    restaurantId,
+    staffId,
+    ymd,
+    month,
+    actorUserId: args.actorUserId,
+    actorRole: args.actorRole,
+  });
+
   const current = await getRow(restaurantId, staffId, ymd);
+  logTimeclock("upsertManualEntry.current_row", { current });
 
   const next: TimeClockRow = {
     restaurantId,
@@ -403,15 +482,25 @@ export async function upsertManualEntry(args: {
     updatedByUserId: args.actorUserId,
   };
 
+  logTimeclock("upsertManualEntry.next_row_before", { next });
+
   // לוגיקה של open pointer לפי מצב הרשומה אחרי העריכה:
   const wantsOpen = Boolean(next.checkInAt) && !next.checkOutAt;
 
   const open = await kv.get<OpenPtr>(openKey(staffId));
   const openVal = open.value ?? null;
 
+  logTimeclock("upsertManualEntry.openPtr_before", { open: openVal, wantsOpen });
+
   if (wantsOpen) {
     // אם כבר פתוח ליום אחר – קונפליקט
     if (openVal && (openVal.ymd !== ymd || openVal.restaurantId !== restaurantId)) {
+      logTimeclock("upsertManualEntry.open_conflict", {
+        open: openVal,
+        restaurantId,
+        staffId,
+        ymd,
+      });
       return { ok: false, error: "open_conflict", open: openVal };
     }
   }
@@ -439,8 +528,20 @@ export async function upsertManualEntry(args: {
     }
   }
 
+  logTimeclock("upsertManualEntry.tx_before_commit", {
+    wantsOpen,
+    openVal,
+  });
+
   const res = await tx.commit();
-  if (!res.ok) throw new Error("upsertManualEntry atomic commit failed");
+  logTimeclock("upsertManualEntry.tx_result", { ok: res.ok });
+
+  if (!res.ok) {
+    logTimeclock("upsertManualEntry.tx_failed", { restaurantId, staffId, ymd });
+    throw new Error("upsertManualEntry atomic commit failed");
+  }
+
+  logTimeclock("upsertManualEntry.success", { row: next });
 
   return { ok: true, row: next };
 }
