@@ -121,10 +121,10 @@ ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
       return json(ctx, Status.Forbidden, { ok: false, error: "not_your_restaurant" });
     }
 
-    // מושכים את כל הרשומות של החודש (TimeClockRow[])
+    // מושכים את כל רשומות הנוכחות של החודש (TimeClockRow[])
     const rows: TimeClockRow[] = await listMonthRows(restaurantId, month);
 
-    // בונים staffList בסיסי מתוך הרשומות (אפשר לחבר בעתיד ל־staff_db)
+    // בונים staffList בסיסי מתוך הרשומות (id בלבד – לשימוש ב-computePayrollForMonth)
     const staffMap = new Map<string, { id: string; firstName?: string; lastName?: string }>();
     for (const r of rows) {
       if (!staffMap.has(r.staffId)) {
@@ -133,7 +133,7 @@ ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
     }
     const staffList = Array.from(staffMap.values());
 
-    // משתמשים בפונקציה הקיימת שלך לחישוב שכר
+    // שימוש בפונקציה הקיימת שלך לחישוב השכר הבסיסי
     const payrollBase: PayrollRow[] = await computePayrollForMonth({
       restaurantId,
       month,
@@ -141,28 +141,50 @@ ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
       rows,
     });
 
-    // ── חיזוק: לצרף שם + אימייל של העובד (דינמי, על בסיס staff או user אם תרצה) ──
-    // כאן אני מניח שקיימים אובייקטי staff ב-KV במפתח ["staff", staffId]
-    // ואם לא – ניפול חזרה ל-staffId.
-    type StaffInfo = { name: string; email: string };
+    // ── כאן אנחנו מנסים להביא שם + מייל של העובד ──
+    // 1) נבנה סט של כל ה-staffId המעורבים
+    const staffIds = payrollBase.map((p) => p.staffId);
 
+    type StaffInfo = { name: string; email: string };
     const staffInfoById = new Map<string, StaffInfo>();
 
-    for (const p of payrollBase) {
-      const sid = p.staffId;
+    for (const sid of staffIds) {
       if (staffInfoById.has(sid)) continue;
 
+      let name = "";
+      let email = "";
+
       try {
-        const row = await kv.get<any>(["staff", sid]);
-        const v = row.value || {};
-        const fullName = `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim();
-        const name = fullName || p.staffName || sid;
-        const email = typeof v.email === "string" ? v.email : "";
-        staffInfoById.set(sid, { name, email });
+        // ניסיון ראשון: KV ראשי של staff
+        const s1 = await kv.get<any>(["staff", sid]);
+        if (s1.value) {
+          const v = s1.value;
+          const fullName = `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim();
+          name = fullName || v.fullName || v.name || "";
+          if (typeof v.email === "string") email = v.email;
+        }
+
+        // ניסיון שני (אופציונלי) – אם אין שם בכלל, ננסה staff_by_restaurant
+        if (!name) {
+          const s2 = await kv.get<any>(["staff_by_restaurant", restaurantId, sid]);
+          if (s2.value) {
+            const v = s2.value;
+            const fullName = `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim();
+            name = fullName || v.fullName || v.name || "";
+            if (typeof v.email === "string") email = email || v.email;
+          }
+        }
       } catch (e) {
         console.warn("[OWNER_PAYROLL] staff lookup failed", sid, e);
-        staffInfoById.set(sid, { name: p.staffName || sid, email: "" });
       }
+
+      // פולבאק – אם לא מצאנו כלום, נשתמש בשם שמגיע מ-computePayrollForMonth או ב-ID
+      if (!name) {
+        const base = payrollBase.find((p) => p.staffId === sid);
+        name = base?.staffName || sid;
+      }
+
+      staffInfoById.set(sid, { name, email });
     }
 
     const payroll = payrollBase.map((p) => {
