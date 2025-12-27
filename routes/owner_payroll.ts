@@ -124,16 +124,50 @@ ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
     // כל רשומות הנוכחות של החודש
     const rows: TimeClockRow[] = await listMonthRows(restaurantId, month);
 
-    // בונים staffList בסיסי עבור computePayrollForMonth
-    const staffMap = new Map<string, { id: string; firstName?: string; lastName?: string }>();
+    // אוסף כל staffIds שבאמת עבדו החודש
+    const staffIds = new Set<string>();
     for (const r of rows) {
-      if (!staffMap.has(r.staffId)) {
-        staffMap.set(r.staffId, { id: r.staffId });
-      }
+      if (r.staffId) staffIds.add(r.staffId);
     }
-    const staffList = Array.from(staffMap.values());
 
-    // חישוב שכר בסיסי
+    // ── מביאים אינפורמציה על הצוות מהאינדקס staff_by_restaurant ──
+    type StaffKV = {
+      id?: string;
+      staffId?: string;
+      firstName?: string;
+      lastName?: string;
+      fullName?: string;
+      name?: string;
+      email?: string;
+    };
+
+    const staffInfoById = new Map<string, { firstName?: string; lastName?: string; email?: string }>();
+
+    for await (const row of kv.list({ prefix: ["staff_by_restaurant", restaurantId] })) {
+      const v = row.value as StaffKV | undefined;
+      if (!v) continue;
+
+      const sid = String(v.id ?? v.staffId ?? row.key[row.key.length - 1] ?? "").trim();
+      if (!sid || !staffIds.has(sid)) continue; // מעניין רק עובדים שיש להם נוכחות בחודש הזה
+
+      const firstName = v.firstName ?? (v as any).first_name ?? "";
+      const lastName = v.lastName ?? (v as any).last_name ?? "";
+      const email = typeof v.email === "string" ? v.email : "";
+
+      staffInfoById.set(sid, { firstName, lastName, email });
+    }
+
+    // בונים staffList בשביל computePayrollForMonth, עם firstName/lastName
+    const staffList = Array.from(staffIds).map((sid) => {
+      const info = staffInfoById.get(sid);
+      return {
+        id: sid,
+        firstName: info?.firstName,
+        lastName: info?.lastName,
+      };
+    });
+
+    // חישוב שכר בסיסי (ישתמש firstName/lastName כשיש)
     const payrollBase: PayrollRow[] = await computePayrollForMonth({
       restaurantId,
       month,
@@ -141,61 +175,17 @@ ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
       rows,
     });
 
-    // ── בניית שם + מייל לעובד מתוך KV של staff ──
-    type StaffInfo = { name: string; email: string };
-    const staffInfoById = new Map<string, StaffInfo>();
-
-    const staffIds = payrollBase.map((p) => p.staffId);
-
-    for (const sid of staffIds) {
-      if (staffInfoById.has(sid)) continue;
-
-      let name = "";
-      let email = "";
-
-      // 1) staff_by_restaurant[restaurantId, staffId]
-      try {
-        const s2 = await kv.get<any>(["staff_by_restaurant", restaurantId, sid]);
-        if (s2.value) {
-          const v = s2.value;
-          const fullName = `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim();
-          name = fullName || v.fullName || v.name || "";
-          if (typeof v.email === "string") email = email || v.email;
-        }
-      } catch (e) {
-        console.warn("[OWNER_PAYROLL] staff_by_restaurant lookup failed", { restaurantId, sid, e });
-      }
-
-      // 2) staff[sid] (fallback)
-      if (!name) {
-        try {
-          const s1 = await kv.get<any>(["staff", sid]);
-          if (s1.value) {
-            const v = s1.value;
-            const fullName = `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim();
-            name = fullName || v.fullName || v.name || "";
-            if (typeof v.email === "string") email = email || v.email;
-          }
-        } catch (e) {
-          console.warn("[OWNER_PAYROLL] staff KV lookup failed", sid, e);
-        }
-      }
-
-      // 3) אם אין כלום – פולבאק למה שיש ב-payrollBase או ל-ID
-      if (!name) {
-        const base = payrollBase.find((p) => p.staffId === sid);
-        name = base?.staffName || sid;
-      }
-
-      staffInfoById.set(sid, { name, email });
-    }
-
+    // מוסיפים displayName + userEmail לתוצאה
     const payroll = payrollBase.map((p) => {
       const info = staffInfoById.get(p.staffId);
+      const fullName = `${info?.firstName ?? ""} ${info?.lastName ?? ""}`.trim();
+      const displayName = fullName || p.staffName || p.staffId;
+      const userEmail = info?.email ?? "";
+
       return {
         ...p,
-        displayName: info?.name || p.staffName || p.staffId,
-        userEmail: info?.email || "",
+        displayName,
+        userEmail,
       };
     });
 
