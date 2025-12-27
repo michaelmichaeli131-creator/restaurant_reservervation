@@ -1,14 +1,14 @@
 // src/routes/owner_payroll.ts
 // --------------------------------------------------------
 // Owner-only: Monthly payroll
-// - GET  /owner/payroll                     (HTML page)
+// - GET  /owner/payroll                         (HTML page)
 // - GET  /owner/payroll/data?restaurantId&month (JSON payroll for month)
-// - POST /owner/payroll/rate                (set hourly rate per staff)
+// - POST /owner/payroll/rate                    (set hourly rate per staff)
 // --------------------------------------------------------
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
-import { kv, type User, type Restaurant, getRestaurant } from "../database.ts";
+import { kv, type User, type Restaurant, getRestaurant, getUser } from "../database.ts";
 
 // שירות הנוכחות החדש
 import {
@@ -121,10 +121,24 @@ ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
       return json(ctx, Status.Forbidden, { ok: false, error: "not_your_restaurant" });
     }
 
-    // מושכים את כל רשומות הנוכחות של החודש (TimeClockRow[])
+    // כל רשומות הנוכחות של החודש
     const rows: TimeClockRow[] = await listMonthRows(restaurantId, month);
 
-    // בונים staffList בסיסי מתוך הרשומות (id בלבד – לשימוש ב-computePayrollForMonth)
+    // map staffId -> userId (לפי הרשומות)
+    const staffUserIdByStaffId = new Map<string, string>();
+    for (const r of rows) {
+      if (
+        r.staffId &&
+        typeof r.staffId === "string" &&
+        r.userId &&
+        typeof r.userId === "string" &&
+        !staffUserIdByStaffId.has(r.staffId)
+      ) {
+        staffUserIdByStaffId.set(r.staffId, r.userId);
+      }
+    }
+
+    // בונים staffList בסיסי עבור computePayrollForMonth
     const staffMap = new Map<string, { id: string; firstName?: string; lastName?: string }>();
     for (const r of rows) {
       if (!staffMap.has(r.staffId)) {
@@ -133,7 +147,7 @@ ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
     }
     const staffList = Array.from(staffMap.values());
 
-    // שימוש בפונקציה הקיימת שלך לחישוב השכר הבסיסי
+    // חישוב שכר בסיסי
     const payrollBase: PayrollRow[] = await computePayrollForMonth({
       restaurantId,
       month,
@@ -141,12 +155,11 @@ ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
       rows,
     });
 
-    // ── כאן אנחנו מנסים להביא שם + מייל של העובד ──
-    // 1) נבנה סט של כל ה-staffId המעורבים
-    const staffIds = payrollBase.map((p) => p.staffId);
-
+    // ── כאן בונים שם + מייל לעובד ──
     type StaffInfo = { name: string; email: string };
     const staffInfoById = new Map<string, StaffInfo>();
+
+    const staffIds = payrollBase.map((p) => p.staffId);
 
     for (const sid of staffIds) {
       if (staffInfoById.has(sid)) continue;
@@ -154,18 +167,39 @@ ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
       let name = "";
       let email = "";
 
-      try {
-        // ניסיון ראשון: KV ראשי של staff
-        const s1 = await kv.get<any>(["staff", sid]);
-        if (s1.value) {
-          const v = s1.value;
-          const fullName = `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim();
-          name = fullName || v.fullName || v.name || "";
-          if (typeof v.email === "string") email = v.email;
+      // 1) קודם כל – לפי userId מהנוכחות
+      const userId = staffUserIdByStaffId.get(sid);
+      if (userId) {
+        try {
+          const u = await getUser(userId);
+          if (u) {
+            const fullName = `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim();
+            name = fullName || u.email || "";
+            if (typeof u.email === "string") email = u.email;
+          }
+        } catch (e) {
+          console.warn("[OWNER_PAYROLL] getUser failed", { sid, userId, e });
         }
+      }
 
-        // ניסיון שני (אופציונלי) – אם אין שם בכלל, ננסה staff_by_restaurant
-        if (!name) {
+      // 2) אם אין – מנסים KV של staff (מותאם אם יש אצלך כזה)
+      if (!name) {
+        try {
+          const s1 = await kv.get<any>(["staff", sid]);
+          if (s1.value) {
+            const v = s1.value;
+            const fullName = `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim();
+            name = fullName || v.fullName || v.name || "";
+            if (typeof v.email === "string") email = email || v.email;
+          }
+        } catch (e) {
+          console.warn("[OWNER_PAYROLL] staff KV lookup failed", sid, e);
+        }
+      }
+
+      // 3) אם עדיין אין – ננסה staff_by_restaurant
+      if (!name) {
+        try {
           const s2 = await kv.get<any>(["staff_by_restaurant", restaurantId, sid]);
           if (s2.value) {
             const v = s2.value;
@@ -173,12 +207,12 @@ ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
             name = fullName || v.fullName || v.name || "";
             if (typeof v.email === "string") email = email || v.email;
           }
+        } catch (e) {
+          console.warn("[OWNER_PAYROLL] staff_by_restaurant lookup failed", { restaurantId, sid, e });
         }
-      } catch (e) {
-        console.warn("[OWNER_PAYROLL] staff lookup failed", sid, e);
       }
 
-      // פולבאק – אם לא מצאנו כלום, נשתמש בשם שמגיע מ-computePayrollForMonth או ב-ID
+      // 4) פולבאק – מה שיש ב-payrollBase או ה-ID
       if (!name) {
         const base = payrollBase.find((p) => p.staffId === sid);
         name = base?.staffName || sid;
@@ -242,8 +276,7 @@ ownerPayrollRouter.post("/owner/payroll/rate", async (ctx) => {
       return json(ctx, Status.BadRequest, { ok: false, error: "hourlyRate_invalid" });
     }
 
-    // כרגע אין בדיקת מסעדה כאן – השכר פר עובד גלובלי.
-    // אם תרצה, אפשר להרחיב למפתח לפי staff+restaurant.
+    // כרגע אין בדיקת מסעדה – השכר פר עובד גלובלי.
     await setHourlyRate(staffId, n);
 
     return json(ctx, Status.OK, {
