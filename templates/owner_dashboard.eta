@@ -56,6 +56,12 @@ function hasAny(perms){
             נוכחות עובדים
           </a>
 
+          <!-- ⭐ חדש – דף שכר עובדים כללי -->
+          <a href="/owner/payroll" class="btn sm ghost owner-staff-btn">
+            <span class="icon">💸</span>
+            <%= tt('owner.dashboard.btn_payroll_header','שכר עובדים') %>
+          </a>
+
           <!-- ניהול עובדים -->
           <a href="/owner/staff" class="btn sm ghost owner-staff-btn">
             <span class="icon">👥</span>
@@ -160,6 +166,12 @@ function hasAny(perms){
                     <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/photos" target="_self" rel="nofollow">
                       <span class="icon">🖼️</span>
                       <%= tt('owner.dashboard.btn_photos','תמונות') %>
+                    </a>
+
+                    <!-- ⭐ חדש – כפתור שכר חודשי למסעדה ספציפית -->
+                    <a class="btn ghost" href="/owner/payroll?restaurantId=<%= r.id %>" target="_self" rel="nofollow">
+                      <span class="icon">💸</span>
+                      <%= tt('owner.dashboard.btn_payroll','שכר חודשי') %>
                     </a>
                   <% } %>
 
