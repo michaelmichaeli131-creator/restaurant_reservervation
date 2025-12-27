@@ -163,13 +163,53 @@ function safeParseMs(v: any): number | null {
   return null;
 }
 
-// helper מקומי במקום getUser שלא קיים ב-database.ts
+// helper מקומי לקבלת User מה-KV (במקום getUser שלא קיים ב-database.ts)
 async function getUserById(userId: string): Promise<User | null> {
   const id = String(userId || "").trim();
   if (!id) return null;
   const res = await kv.get<User>(["user", id]);
   return res.value ?? null;
 }
+
+/* ─────────────── GET: HTML page /owner/time ─────────────── */
+// GET /owner/time?restaurantId=...&day=YYYY-MM-DD
+ownerTimeRouter.get("/owner/time", async (ctx) => {
+  const owner = ensureOwner(ctx);
+  const tz = "Asia/Jerusalem";
+
+  const restaurants = await listOwnerRestaurants(owner.id);
+  const qRestaurantId = String(ctx.request.url.searchParams.get("restaurantId") || "").trim();
+  const qDay = String(ctx.request.url.searchParams.get("day") || "").trim();
+
+  const restaurantId = qRestaurantId || (restaurants[0]?.id ?? "");
+  const day = qDay || todayInTZ(tz);
+
+  // verify restaurant belongs to owner
+  if (restaurantId) {
+    const r = await getRestaurant(restaurantId);
+    if (!r || r.ownerId !== owner.id) {
+      ctx.response.status = Status.Forbidden;
+      await render(ctx, "owner/time", {
+        title: "נוכחות עובדים",
+        owner,
+        restaurants,
+        restaurantId: "",
+        day,
+        error: "not_your_restaurant",
+      });
+      return;
+    }
+  }
+
+  await render(ctx, "owner/time", {
+    title: "נוכחות עובדים",
+    page: "owner_time",
+    owner,
+    restaurants,
+    restaurantId,
+    day,
+  });
+});
 
 /* ─────────────── GET: JSON של יום מסוים ─────────────── */
 // GET /owner/time/day?restaurantId=...&day=YYYY-MM-DD  (JSON)
@@ -395,8 +435,7 @@ ownerTimeRouter.post("/owner/time/entry/:id/manual", async (ctx) => {
 
     // Save (simple set). Indexes: day might change if clockInAt day changed.
     // MVP: keep indexes as-is (still queryable by the original day).
-    // If you want perfect reindex, we can add it next step.
-    // For now: owner edits are typically within same day.
+    // If you want perfect reindex, נוכל להוסיף בהמשך.
     await kv.set(["time_entry", entryId], updated);
 
     return json(ctx, Status.OK, { ok: true, entry: updated });
