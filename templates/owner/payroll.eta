@@ -1,212 +1,294 @@
-<% layout("../_layout", it) %>
+// src/routes/owner_payroll.ts
+// --------------------------------------------------------
+// Owner-only: Monthly payroll
+// - GET  /owner/payroll                         (HTML page)
+// - GET  /owner/payroll/data?restaurantId&month (JSON payroll for month)
+// - POST /owner/payroll/rate                    (set hourly rate per staff)
+// --------------------------------------------------------
 
-<%
-function tt(k, fb){
-  try{
-    if (it && typeof it.t==='function'){
-      const s = it.t(k);
-      if(!s || s===k || s===`(${k})`) return fb;
-      return s;
-    }
-  }catch(e){}
-  return fb;
+import { Router, Status } from "jsr:@oak/oak";
+import { render } from "../lib/view.ts";
+import { kv, type User, type Restaurant, getRestaurant, getUser } from "../database.ts";
+
+// שירות הנוכחות החדש
+import {
+  listMonthRows,
+  computePayrollForMonth,
+  setHourlyRate,
+  type TimeClockRow,
+  type PayrollRow,
+} from "../services/timeclock_db.ts";
+
+export const ownerPayrollRouter = new Router();
+
+console.log("[owner_payroll] router module loaded");
+
+/* ─────────────── Helpers ─────────────── */
+
+function ensureOwner(ctx: any): User {
+  const user = ctx.state.user as User | undefined;
+  if (!user || user.role !== "owner") {
+    const err: any = new Error("Not owner");
+    err.status = Status.Forbidden;
+    throw err;
+  }
+  return user;
 }
 
-const restaurants = it.restaurants || [];
-const restaurantId = it.restaurantId || '';
-const month = it.month || '';
-%>
+function json(ctx: any, status: number, body: any) {
+  ctx.response.status = status;
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = body;
+}
 
-<section class="container" style="max-width:1100px;margin:20px auto;padding:0 16px">
-  <div class="card">
-    <header style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
-      <div>
-        <h1 style="margin:0"><%= tt('owner.payroll.title','שכר עובדים') %></h1>
-        <div class="muted" style="margin-top:4px">
-          <%= tt('owner.payroll.subtitle','שכר שעתי לפי חודש, חישוב אוטומטי לפי נוכחות') %>
-        </div>
-      </div>
-
-      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-        <label style="display:flex;flex-direction:column;gap:6px;font-weight:700">
-          <span class="muted" style="font-weight:600"><%= tt('owner.payroll.restaurant','מסעדה') %></span>
-          <select id="restaurant" class="inp">
-            <% restaurants.forEach(function(r){ %>
-              <option value="<%= r.id %>" <%= r.id===restaurantId ? 'selected' : '' %>><%= r.name %></option>
-            <% }) %>
-          </select>
-        </label>
-
-        <label style="display:flex;flex-direction:column;gap:6px;font-weight:700">
-          <span class="muted" style="font-weight:600"><%= tt('owner.payroll.month','חודש') %></span>
-          <input id="month" class="inp" type="month" value="<%= month %>"/>
-        </label>
-
-        <button id="load" class="btn primary sm"><%= tt('owner.payroll.load','טען') %></button>
-      </div>
-    </header>
-
-    <div class="sep" style="margin:14px 0"></div>
-
-    <div id="err" class="muted" style="display:none;color:#ffb4b4"></div>
-
-    <div style="overflow:auto">
-      <table class="tbl" style="width:100%;border-collapse:collapse;min-width:850px">
-        <thead>
-          <tr>
-            <th>עובד</th>
-            <th>מייל</th>
-            <th>שכר לשעה (₪)</th>
-            <th>שעות</th>
-            <th>דקות</th>
-            <th>ברוטו לחודש (₪)</th>
-            <th>פעולות</th>
-          </tr>
-        </thead>
-        <tbody id="rows">
-          <tr><td colspan="7" class="muted">טוען...</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
-
-<style>
-  .card{
-    background: var(--panel, #121622);
-    border:1px solid var(--bd, #222834);
-    border-radius:18px; padding:18px; margin-bottom:18px;
-    color: var(--ink, #e6e8ef);
-    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+// מסעדות של הבעלים (מבוסס על restaurant_by_owner)
+async function listOwnerRestaurants(ownerId: string): Promise<Restaurant[]> {
+  const restaurants: Restaurant[] = [];
+  for await (const row of kv.list({ prefix: ["restaurant_by_owner", ownerId] })) {
+    const rid = row.key[row.key.length - 1] as string;
+    const r = await getRestaurant(rid);
+    if (r) restaurants.push(r);
   }
-  .muted{ color: var(--ink-muted, #9aa3b2); }
-  .sep{height:1px;background:#23293a;border-radius:999px}
-  .btn{
-    display:inline-flex; align-items:center; justify-content:center; gap:8px;
-    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
-    border:1px solid var(--bd, #23293a); background:transparent;
-    color: var(--ink, #e6e8ef); font-weight:800;
-  }
-  .btn.primary{
-    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
-    box-shadow: 0 8px 24px rgba(59,130,246,.35);
-  }
-  .btn.sm{ padding:8px 12px; border-radius:10px; font-size:13px }
-  .inp{
-    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
-    padding:10px 12px; font-size:14px; outline:none;
-  }
-  .tbl th,.tbl td{ border-bottom:1px solid rgba(255,255,255,.06); padding:10px 8px; text-align:left; vertical-align:top; }
-  .tbl th{ position:sticky; top:0; background:#121622; z-index:1; }
-  .inp-sm{
-    width:90px;
-    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:10px;
-    padding:6px 8px; font-size:13px;
-  }
-</style>
+  restaurants.sort((a, b) => b.createdAt - a.createdAt);
+  return restaurants;
+}
 
-<script>
-  const $ = (id) => document.getElementById(id);
+// YYYY-MM של החודש הנוכחי לפי Asia/Jerusalem
+function currentMonthInTZ(tz = "Asia/Jerusalem"): string {
+  const now = Date.now();
+  const d = new Date(now);
+  const y = d.toLocaleString("en-CA", { timeZone: tz, year: "numeric" });
+  const m = d.toLocaleString("en-CA", { timeZone: tz, month: "2-digit" });
+  return `${y}-${m}`; // YYYY-MM
+}
 
-  function showErr(msg){
-    const el = $('err');
-    el.textContent = msg || '';
-    el.style.display = msg ? 'block' : 'none';
-  }
+/* ─────────────── GET: HTML page ─────────────── */
+// GET /owner/payroll?restaurantId=...&month=YYYY-MM
+ownerPayrollRouter.get("/owner/payroll", async (ctx) => {
+  const owner = ensureOwner(ctx);
+  const restaurants = await listOwnerRestaurants(owner.id);
 
-  function formatMoney(n){
-    if (typeof n !== 'number' || !isFinite(n)) return '';
-    return n.toFixed(2);
-  }
+  const qRestaurantId = String(ctx.request.url.searchParams.get("restaurantId") || "").trim();
+  const qMonth = String(ctx.request.url.searchParams.get("month") || "").trim();
 
-  async function loadPayroll(){
-    showErr('');
-    const rid = $('restaurant').value;
-    const month = $('month').value;
-    const tbody = $('rows');
-    tbody.innerHTML = `<tr><td colspan="7" class="muted">טוען...</td></tr>`;
+  const restaurantId = qRestaurantId || (restaurants[0]?.id ?? "");
+  const month = qMonth || currentMonthInTZ("Asia/Jerusalem");
 
-    try{
-      const res = await fetch(`/owner/payroll/data?restaurantId=${encodeURIComponent(rid)}&month=${encodeURIComponent(month)}`, {
-        headers: { 'accept': 'application/json' }
+  if (restaurantId) {
+    const r = await getRestaurant(restaurantId);
+    if (!r || r.ownerId !== owner.id) {
+      ctx.response.status = Status.Forbidden;
+      await render(ctx, "owner/payroll", {
+        title: "שכר עובדים",
+        owner,
+        restaurants,
+        restaurantId: "",
+        month,
+        error: "not_your_restaurant",
       });
-      const data = await res.json();
-      if(!res.ok || !data.ok){
-        throw new Error(data.error || 'failed');
-      }
-
-      const rows = data.payroll || [];
-      if(!rows.length){
-        tbody.innerHTML = `<tr><td colspan="7" class="muted">אין שעות עבודה לחודש הזה.</td></tr>`;
-        return;
-      }
-
-      tbody.innerHTML = rows.map(r => {
-        const hours = r.totalHours ?? 0;
-        const mins = r.totalMinutes ?? 0;
-        const rate = typeof r.hourlyRate === 'number' ? r.hourlyRate : 0;
-        const name = r.displayName || r.staffName || r.staffId;
-        const email = r.userEmail || '';
-        return `
-          <tr data-staff-id="${r.staffId}">
-            <td><code>${name}</code></td>
-            <td>${email ? `<a href="mailto:${email}">${email}</a>` : ''}</td>
-            <td>
-              <input class="inp-sm" type="number" step="0.01" min="0"
-                     value="${rate}"
-                     data-hourly-rate-input="1"/>
-            </td>
-            <td>${hours}</td>
-            <td>${mins}</td>
-            <td>${formatMoney(r.gross ?? 0)}</td>
-            <td>
-              <button class="btn sm" onclick="saveRate('${r.staffId}')">שמור</button>
-            </td>
-          </tr>
-        `;
-      }).join('');
-    }catch(e){
-      console.error(e);
-      showErr('שגיאה בטעינת נתוני השכר: ' + (e?.message || e));
-      tbody.innerHTML = `<tr><td colspan="7" class="muted">שגיאה.</td></tr>`;
+      return;
     }
   }
 
-  window.saveRate = async function(staffId){
-    try{
-      const tr = document.querySelector(`tr[data-staff-id="${staffId}"]`);
-      if(!tr) return;
-      const inp = tr.querySelector('input[data-hourly-rate-input]');
-      if(!inp) return;
-      const v = inp.value.trim();
-      const n = Number(v);
-      if(!isFinite(n) || n < 0){
-        alert('שכר לשעה לא חוקי');
-        return;
-      }
+  await render(ctx, "owner/payroll", {
+    title: "שכר עובדים",
+    page: "owner_payroll",
+    owner,
+    restaurants,
+    restaurantId,
+    month,
+  });
+});
 
-      const res = await fetch('/owner/payroll/rate', {
-        method:'POST',
-        headers:{'content-type':'application/json','accept':'application/json'},
-        body: JSON.stringify({ staffId, hourlyRate: n })
-      });
-      const data = await res.json();
-      if(!res.ok || !data.ok){
-        throw new Error(data.error || 'update_failed');
-      }
+/* ─────────────── GET: Payroll data JSON ─────────────── */
+// GET /owner/payroll/data?restaurantId=...&month=YYYY-MM
+ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
+  try {
+    const owner = ensureOwner(ctx);
 
-      // נטען מחדש כדי לעדכן את הברוטו לפי השכר
-      await loadPayroll();
-      alert('השכר השעתי נשמר וחושב מחדש בהצלחה');
-    }catch(e){
-      alert('שגיאה בשמירת השכר: ' + (e?.message || e));
+    const restaurantId = String(ctx.request.url.searchParams.get("restaurantId") || "").trim();
+    const month = String(ctx.request.url.searchParams.get("month") || "").trim(); // YYYY-MM
+
+    if (!restaurantId) {
+      return json(ctx, Status.BadRequest, { ok: false, error: "restaurant_required" });
     }
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      return json(ctx, Status.BadRequest, { ok: false, error: "month_invalid" });
+    }
+
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant || restaurant.ownerId !== owner.id) {
+      return json(ctx, Status.Forbidden, { ok: false, error: "not_your_restaurant" });
+    }
+
+    // כל רשומות הנוכחות של החודש
+    const rows: TimeClockRow[] = await listMonthRows(restaurantId, month);
+
+    // map staffId -> userId (לפי הרשומות)
+    const staffUserIdByStaffId = new Map<string, string>();
+    for (const r of rows) {
+      if (
+        r.staffId &&
+        typeof r.staffId === "string" &&
+        r.userId &&
+        typeof r.userId === "string" &&
+        !staffUserIdByStaffId.has(r.staffId)
+      ) {
+        staffUserIdByStaffId.set(r.staffId, r.userId);
+      }
+    }
+
+    // בונים staffList בסיסי עבור computePayrollForMonth
+    const staffMap = new Map<string, { id: string; firstName?: string; lastName?: string }>();
+    for (const r of rows) {
+      if (!staffMap.has(r.staffId)) {
+        staffMap.set(r.staffId, { id: r.staffId });
+      }
+    }
+    const staffList = Array.from(staffMap.values());
+
+    // חישוב שכר בסיסי
+    const payrollBase: PayrollRow[] = await computePayrollForMonth({
+      restaurantId,
+      month,
+      staffList,
+      rows,
+    });
+
+    // ── כאן בונים שם + מייל לעובד ──
+    type StaffInfo = { name: string; email: string };
+    const staffInfoById = new Map<string, StaffInfo>();
+
+    const staffIds = payrollBase.map((p) => p.staffId);
+
+    for (const sid of staffIds) {
+      if (staffInfoById.has(sid)) continue;
+
+      let name = "";
+      let email = "";
+
+      // 1) קודם כל – לפי userId מהנוכחות
+      const userId = staffUserIdByStaffId.get(sid);
+      if (userId) {
+        try {
+          const u = await getUser(userId);
+          if (u) {
+            const fullName = `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim();
+            name = fullName || u.email || "";
+            if (typeof u.email === "string") email = u.email;
+          }
+        } catch (e) {
+          console.warn("[OWNER_PAYROLL] getUser failed", { sid, userId, e });
+        }
+      }
+
+      // 2) אם אין – מנסים KV של staff (מותאם אם יש אצלך כזה)
+      if (!name) {
+        try {
+          const s1 = await kv.get<any>(["staff", sid]);
+          if (s1.value) {
+            const v = s1.value;
+            const fullName = `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim();
+            name = fullName || v.fullName || v.name || "";
+            if (typeof v.email === "string") email = email || v.email;
+          }
+        } catch (e) {
+          console.warn("[OWNER_PAYROLL] staff KV lookup failed", sid, e);
+        }
+      }
+
+      // 3) אם עדיין אין – ננסה staff_by_restaurant
+      if (!name) {
+        try {
+          const s2 = await kv.get<any>(["staff_by_restaurant", restaurantId, sid]);
+          if (s2.value) {
+            const v = s2.value;
+            const fullName = `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim();
+            name = fullName || v.fullName || v.name || "";
+            if (typeof v.email === "string") email = email || v.email;
+          }
+        } catch (e) {
+          console.warn("[OWNER_PAYROLL] staff_by_restaurant lookup failed", { restaurantId, sid, e });
+        }
+      }
+
+      // 4) פולבאק – מה שיש ב-payrollBase או ה-ID
+      if (!name) {
+        const base = payrollBase.find((p) => p.staffId === sid);
+        name = base?.staffName || sid;
+      }
+
+      staffInfoById.set(sid, { name, email });
+    }
+
+    const payroll = payrollBase.map((p) => {
+      const info = staffInfoById.get(p.staffId);
+      return {
+        ...p,
+        displayName: info?.name || p.staffName || p.staffId,
+        userEmail: info?.email || "",
+      };
+    });
+
+    return json(ctx, Status.OK, {
+      ok: true,
+      restaurantId,
+      month,
+      payroll,
+    });
+  } catch (e: any) {
+    console.error("[OWNER_PAYROLL] /owner/payroll/data error", e);
+    return json(ctx, e?.status ?? Status.InternalServerError, {
+      ok: false,
+      error: String(e?.message ?? e),
+    });
   }
+});
 
-  $('load').addEventListener('click', loadPayroll);
-  $('restaurant').addEventListener('change', loadPayroll);
-  $('month').addEventListener('change', loadPayroll);
+/* ─────────────── POST: Set hourly rate ─────────────── */
+// POST /owner/payroll/rate
+// body: { staffId: string, hourlyRate: number }
+ownerPayrollRouter.post("/owner/payroll/rate", async (ctx) => {
+  try {
+    const owner = ensureOwner(ctx);
 
-  // טעינה ראשונית
-  loadPayroll();
-</script>
+    let body: any = {};
+    try {
+      body = await ctx.request.body({ type: "json" }).value;
+    } catch {
+      try {
+        body = await (ctx.request.originalRequest?.request?.json?.() ??
+          ctx.request.originalRequest?.json?.());
+      } catch {
+        body = {};
+      }
+    }
+
+    const staffId = String(body?.staffId || "").trim();
+    const hourlyRateRaw = body?.hourlyRate;
+
+    if (!staffId) {
+      return json(ctx, Status.BadRequest, { ok: false, error: "staff_required" });
+    }
+
+    const n = Number(hourlyRateRaw);
+    if (!Number.isFinite(n) || n < 0) {
+      return json(ctx, Status.BadRequest, { ok: false, error: "hourlyRate_invalid" });
+    }
+
+    // כרגע אין בדיקת מסעדה – השכר פר עובד גלובלי.
+    await setHourlyRate(staffId, n);
+
+    return json(ctx, Status.OK, {
+      ok: true,
+      staffId,
+      hourlyRate: n,
+    });
+  } catch (e: any) {
+    console.error("[OWNER_PAYROLL] /owner/payroll/rate error", e);
+    return json(ctx, e?.status ?? Status.InternalServerError, {
+      ok: false,
+      error: String(e?.message ?? e),
+    });
+  }
+});
