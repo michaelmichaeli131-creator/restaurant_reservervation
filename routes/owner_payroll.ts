@@ -62,6 +62,28 @@ function currentMonthInTZ(tz = "Asia/Jerusalem"): string {
   return `${y}-${m}`; // YYYY-MM
 }
 
+// User כמו שהוא נשמר ב-KV (הערכה סבירה)
+type AppUser = {
+  id: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+};
+
+/**
+ * ניסיון להביא User מתוך KV ישירות.
+ * אם המפתח בפועל שונה – הפונקציה פשוט תחזיר null והמערכת תמשיך לעבוד עם fallback.
+ */
+async function getUserFromKV(userId: string): Promise<AppUser | null> {
+  try {
+    const res = await kv.get<AppUser>(["user", userId]);
+    return res.value ?? null;
+  } catch (e) {
+    console.warn("[OWNER_PAYROLL] getUserFromKV failed", userId, e);
+    return null;
+  }
+}
+
 /* ─────────────── GET: HTML page ─────────────── */
 // GET /owner/payroll?restaurantId=...&month=YYYY-MM
 ownerPayrollRouter.get("/owner/payroll", async (ctx) => {
@@ -124,13 +146,23 @@ ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
     // כל רשומות הנוכחות של החודש
     const rows: TimeClockRow[] = await listMonthRows(restaurantId, month);
 
+    // אם אין רשומות – נחזיר ריק מהר
+    if (!rows.length) {
+      return json(ctx, Status.OK, {
+        ok: true,
+        restaurantId,
+        month,
+        payroll: [],
+      });
+    }
+
     // אוסף כל staffIds שבאמת עבדו החודש
     const staffIds = new Set<string>();
     for (const r of rows) {
       if (r.staffId) staffIds.add(r.staffId);
     }
 
-    // ── מביאים אינפורמציה על הצוות מהאינדקס staff_by_restaurant ──
+    // ── 1) staff_by_restaurant: ניסיון להביא firstName/lastName/email (fallback) ──
     type StaffKV = {
       id?: string;
       staffId?: string;
@@ -139,31 +171,80 @@ ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
       fullName?: string;
       name?: string;
       email?: string;
+      userId?: string;
     };
 
-    const staffInfoById = new Map<string, { firstName?: string; lastName?: string; email?: string }>();
+    const staffInfoById = new Map<
+      string,
+      { firstName?: string; lastName?: string; email?: string; userId?: string }
+    >();
 
     for await (const row of kv.list({ prefix: ["staff_by_restaurant", restaurantId] })) {
       const v = row.value as StaffKV | undefined;
       if (!v) continue;
 
-      const sid = String(v.id ?? v.staffId ?? row.key[row.key.length - 1] ?? "").trim();
-      if (!sid || !staffIds.has(sid)) continue; // מעניין רק עובדים שיש להם נוכחות בחודש הזה
+      // חשוב: staffId לפי ה-key קודם, כדי שיתאים ל-timeclock
+      const sid = String(
+        row.key[row.key.length - 1] ??
+        v.staffId ??
+        v.id ??
+        "",
+      ).trim();
 
-      const firstName = v.firstName ?? (v as any).first_name ?? "";
-      const lastName = v.lastName ?? (v as any).last_name ?? "";
+      if (!sid || !staffIds.has(sid)) continue; // מעניין רק מי שעבד החודש
+
+      const firstName =
+        v.firstName ??
+        (v as any).first_name ??
+        (v.fullName ? v.fullName.split(" ")[0] : "") ??
+        (v.name ? v.name.split(" ")[0] : "");
+
+      const lastName =
+        v.lastName ??
+        (v as any).last_name ??
+        (v.fullName ? v.fullName.split(" ").slice(1).join(" ") : "") ??
+        (v.name ? v.name.split(" ").slice(1).join(" ") : "");
+
       const email = typeof v.email === "string" ? v.email : "";
+      const userId = typeof v.userId === "string" ? v.userId : undefined;
 
-      staffInfoById.set(sid, { firstName, lastName, email });
+      staffInfoById.set(sid, { firstName, lastName, email, userId });
     }
 
-    // בונים staffList בשביל computePayrollForMonth, עם firstName/lastName
+    // ── 2) ממפים staffId -> userId מתוך timeclock עצמו ──
+    const staffToUser = new Map<string, string>();
+    for (const r of rows) {
+      if (!r.staffId || !r.userId) continue;
+      if (!staffToUser.has(r.staffId)) {
+        staffToUser.set(r.staffId, r.userId);
+      }
+    }
+
+    // ── 3) מביאים User מכל ה-userIds שנמצאו ──
+    const userIdsSet = new Set<string>();
+    for (const uid of staffToUser.values()) {
+      if (uid) userIdsSet.add(uid);
+    }
+
+    const userById = new Map<string, AppUser>();
+    for (const uid of userIdsSet) {
+      const u = await getUserFromKV(uid);
+      if (u) userById.set(uid, u);
+    }
+
+    // ── 4) בונים staffList בשביל computePayrollForMonth, עם firstName/lastName "אמיתיים" ──
     const staffList = Array.from(staffIds).map((sid) => {
-      const info = staffInfoById.get(sid);
+      const staffInfo = staffInfoById.get(sid);
+      const uid = staffToUser.get(sid);
+      const u = uid ? userById.get(uid) : undefined;
+
+      const firstName = staffInfo?.firstName || u?.firstName;
+      const lastName = staffInfo?.lastName || u?.lastName;
+
       return {
         id: sid,
-        firstName: info?.firstName,
-        lastName: info?.lastName,
+        firstName,
+        lastName,
       };
     });
 
@@ -175,12 +256,31 @@ ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
       rows,
     });
 
-    // מוסיפים displayName + userEmail לתוצאה
+    // ── 5) מוסיפים displayName + userEmail לתוצאה (עדיפות ל-User, אחר כך staffInfo, אחר כך fallback) ──
     const payroll = payrollBase.map((p) => {
-      const info = staffInfoById.get(p.staffId);
-      const fullName = `${info?.firstName ?? ""} ${info?.lastName ?? ""}`.trim();
+      const staffInfo = staffInfoById.get(p.staffId);
+      const uid =
+        staffToUser.get(p.staffId) ??
+        staffInfo?.userId;
+
+      const u = uid ? userById.get(uid) : undefined;
+
+      const first =
+        staffInfo?.firstName ||
+        u?.firstName ||
+        undefined;
+
+      const last =
+        staffInfo?.lastName ||
+        u?.lastName ||
+        undefined;
+
+      const fullName = `${first ?? ""} ${last ?? ""}`.trim();
       const displayName = fullName || p.staffName || p.staffId;
-      const userEmail = info?.email ?? "";
+      const userEmail =
+        staffInfo?.email ||
+        u?.email ||
+        "";
 
       return {
         ...p,
