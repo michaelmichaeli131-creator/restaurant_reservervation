@@ -54,9 +54,8 @@ const day = it.day || '';
       <table class="tbl" style="width:100%;border-collapse:collapse;min-width:850px">
         <thead>
           <tr>
-            <th>Entry ID</th>
-            <th>Staff ID</th>
-            <th>User ID</th>
+            <th>עובד</th>
+            <th>אימייל</th>
             <th>כניסה</th>
             <th>יציאה</th>
             <th>דקות</th>
@@ -65,12 +64,51 @@ const day = it.day || '';
           </tr>
         </thead>
         <tbody id="rows">
-          <tr><td colspan="8" class="muted">טוען...</td></tr>
+          <tr><td colspan="7" class="muted">טוען...</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 </section>
+
+<!-- Modal לעריכה ידנית -->
+<div id="edit-backdrop" class="time-modal-backdrop" style="display:none">
+  <div class="time-modal">
+    <div class="time-modal-header">
+      <h2>עריכת נוכחות</h2>
+      <button type="button" class="btn sm ghost" id="edit-close-x">✕</button>
+    </div>
+    <div class="time-modal-body">
+      <div class="time-modal-row">
+        <label class="lbl">עובד</label>
+        <div id="edit-staff-label" class="muted small"></div>
+      </div>
+
+      <div class="time-modal-row">
+        <label class="lbl">שעת כניסה</label>
+        <input id="edit-clock-in" type="datetime-local" class="inp full">
+      </div>
+
+      <div class="time-modal-row">
+        <label class="lbl">שעת יציאה</label>
+        <input id="edit-clock-out" type="datetime-local" class="inp full">
+        <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+          <input id="edit-clear-out" type="checkbox">
+          <label for="edit-clear-out" class="muted small">השאר את המשמרת פתוחה (מחק שעת יציאה)</label>
+        </div>
+      </div>
+
+      <div class="time-modal-row">
+        <label class="lbl">הערה</label>
+        <textarea id="edit-note" rows="3" class="inp full" style="resize:vertical"></textarea>
+      </div>
+    </div>
+    <div class="time-modal-actions">
+      <button type="button" class="btn sm" id="edit-cancel">ביטול</button>
+      <button type="button" class="btn primary sm" id="edit-save">שמור</button>
+    </div>
+  </div>
+</div>
 
 <style>
   .card{
@@ -81,6 +119,7 @@ const day = it.day || '';
     box-shadow: 0 10px 30px rgba(0,0,0,.35);
   }
   .muted{ color: var(--ink-muted, #9aa3b2); }
+  .muted.small{ font-size:12px; }
   .sep{height:1px;background:#23293a;border-radius:999px}
   .btn{
     display:inline-flex; align-items:center; justify-content:center; gap:8px;
@@ -93,17 +132,98 @@ const day = it.day || '';
     box-shadow: 0 8px 24px rgba(59,130,246,.35);
   }
   .btn.sm{ padding:8px 12px; border-radius:10px; font-size:13px }
+  .btn.ghost{
+    background:transparent;
+    box-shadow:none;
+    border-color:transparent;
+    padding-inline:8px;
+  }
   .inp{
     background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
     padding:10px 12px; font-size:14px; outline:none;
   }
-  .tbl th,.tbl td{ border-bottom:1px solid rgba(255,255,255,.06); padding:10px 8px; text-align:left; vertical-align:top; }
-  .tbl th{ position:sticky; top:0; background:#121622; z-index:1; }
+  .inp.full{ width:100%; box-sizing:border-box; }
+  .tbl th,.tbl td{
+    border-bottom:1px solid rgba(255,255,255,.06);
+    padding:10px 8px; text-align:left; vertical-align:top;
+  }
+  .tbl th{
+    position:sticky; top:0; background:#121622; z-index:1;
+  }
   code{background:#0f1320;border:1px solid #23293a;padding:2px 6px;border-radius:8px}
+
+  .staff-cell{
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+  }
+  .staff-name{
+    font-weight:600;
+  }
+  .staff-email{
+    font-size:12px;
+    color:var(--ink-muted,#9aa3b2);
+  }
+
+  /* Modal */
+  .time-modal-backdrop{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.55);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:9999;
+  }
+  .time-modal{
+    background:#111522;
+    border-radius:18px;
+    border:1px solid #23293a;
+    box-shadow:0 18px 45px rgba(0,0,0,.55);
+    width:100%;
+    max-width:480px;
+    padding:16px 18px 14px;
+  }
+  .time-modal-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin-bottom:10px;
+  }
+  .time-modal-header h2{
+    margin:0;
+    font-size:18px;
+  }
+  .time-modal-body{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    margin-bottom:10px;
+  }
+  .time-modal-row{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+  .time-modal-actions{
+    display:flex;
+    justify-content:flex-end;
+    gap:8px;
+    margin-top:4px;
+  }
+  .lbl{
+    font-size:13px;
+    font-weight:600;
+  }
 </style>
 
 <script>
   const $ = (id) => document.getElementById(id);
+
+  // map של השורות הנוכחיות לפי id (מה-JSON)
+  window.__timeRows = {};
+  let __editingId = null;
 
   function showErr(msg){
     const el = $('err');
@@ -123,12 +243,22 @@ const day = it.day || '';
     return `${y}-${m}-${da}T${h}:${mi}`;
   }
 
+  function escapeHtml(str){
+    return String(str ?? '')
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;');
+  }
+
   async function loadDay(){
     showErr('');
     const rid = $('restaurant').value;
     const day = $('day').value;
     const tbody = $('rows');
-    tbody.innerHTML = `<tr><td colspan="8" class="muted">טוען...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="muted">טוען...</td></tr>`;
+    window.__timeRows = {};
 
     try{
       const res = await fetch(`/owner/time/day?restaurantId=${encodeURIComponent(rid)}&day=${encodeURIComponent(day)}`, {
@@ -141,63 +271,109 @@ const day = it.day || '';
 
       const rows = data.rows || [];
       if(!rows.length){
-        tbody.innerHTML = `<tr><td colspan="8" class="muted">אין כניסות/יציאות ליום הזה.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="muted">אין כניסות/יציאות ליום הזה.</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = rows.map(r => {
+      const html = rows.map(r => {
+        window.__timeRows[r.id] = r;
         const note = r.note ? String(r.note) : '';
         const outLabel = r.clockOutLabel || 'פתוח';
+        const userName = r.userName || '';
+        const userEmail = r.userEmail || '';
+
         return `
-          <tr data-id="${r.id}">
-            <td><code>${r.id}</code></td>
-            <td><code>${r.staffId}</code></td>
-            <td><code>${r.userId}</code></td>
-            <td>${r.clockInLabel || ''}</td>
-            <td>${outLabel}</td>
-            <td>${r.minutes ?? ''}</td>
-            <td>${note ? note.replace(/</g,'&lt;') : ''}</td>
+          <tr data-id="${escapeHtml(r.id)}">
             <td>
-              <button class="btn sm" onclick="editEntry('${r.id}')">ערוך</button>
+              <div class="staff-cell">
+                <div class="staff-name">${escapeHtml(userName || userEmail || '—')}</div>
+                ${userEmail ? `<div class="staff-email">${escapeHtml(userEmail)}</div>` : ''}
+              </div>
+            </td>
+            <td>${escapeHtml(userEmail || '')}</td>
+            <td>${escapeHtml(r.clockInLabel || '')}</td>
+            <td>${escapeHtml(outLabel)}</td>
+            <td>${r.minutes ?? ''}</td>
+            <td>${escapeHtml(note)}</td>
+            <td>
+              <button class="btn sm" onclick="editEntry('${encodeURIComponent(r.id)}')">ערוך</button>
             </td>
           </tr>
         `;
       }).join('');
+
+      tbody.innerHTML = html;
     }catch(e){
       showErr('שגיאה בטעינת נוכחות: ' + (e?.message || e));
-      tbody.innerHTML = `<tr><td colspan="8" class="muted">שגיאה.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="muted">שגיאה.</td></tr>`;
     }
   }
 
-  window.editEntry = async function(entryId){
+  function openEditModal(entryIdRaw){
+    const entryId = decodeURIComponent(entryIdRaw);
+    const row = window.__timeRows[entryId];
+    if(!row){
+      alert('השורה לא נמצאה לעריכה');
+      return;
+    }
+    __editingId = entryId;
+
+    const staffLabel = row.userName || row.userEmail || row.staffId || row.id;
+    $('edit-staff-label').textContent = staffLabel;
+
+    $('edit-clock-in').value = row.clockInAt ? msToLocalInput(row.clockInAt) : '';
+    $('edit-clock-out').value = row.clockOutAt ? msToLocalInput(row.clockOutAt) : '';
+    $('edit-clear-out').checked = row.clockOutAt == null ? true : false;
+    $('edit-note').value = row.note || '';
+
+    $('edit-backdrop').style.display = 'flex';
+  }
+
+  function closeEditModal(){
+    __editingId = null;
+    $('edit-backdrop').style.display = 'none';
+  }
+
+  window.editEntry = function(entryIdRaw){
+    openEditModal(entryIdRaw);
+  };
+
+  async function saveEdit(){
+    if(!__editingId){
+      closeEditModal();
+      return;
+    }
+    const entryId = __editingId;
+    const row = window.__timeRows[entryId];
+    if(!row){
+      alert('השורה לא נמצאה');
+      closeEditModal();
+      return;
+    }
+
+    const clockInVal = $('edit-clock-in').value.trim();
+    const clockOutVal = $('edit-clock-out').value.trim();
+    const clearOut = $('edit-clear-out').checked;
+    const noteVal = $('edit-note').value || '';
+
+    const payload = {
+      clockInAt: clockInVal || undefined,
+      clockOutAt: clearOut ? null : (clockOutVal ? clockOutVal : undefined),
+      note: noteVal
+    };
+
     try{
-      // נביא שורה קיימת כדי להציג ערכים
-      const tr = document.querySelector(`tr[data-id="${entryId}"]`);
-      if(!tr) return;
-
-      // נשתמש בפרומפטים מינימליים (MVP). אחר כך נעשה modal יפה.
-      const inStr = prompt('clockInAt (ISO או epoch ms). לדוגמה: 2025-12-20T10:00', '');
-      if(inStr === null) return;
-
-      const outStr = prompt('clockOutAt (ISO או epoch ms). השאר ריק כדי להשאיר כמו שיש. כתוב "null" כדי להסיר (פתוח).', '');
-      if(outStr === null) return;
-
-      const note = prompt('הערה (אופציונלי):', '') || '';
-
-      const payload = {
-        clockInAt: inStr.trim(),
-        clockOutAt: outStr.trim() === 'null' ? null : (outStr.trim() ? outStr.trim() : undefined),
-        note
-      };
-
       const res = await fetch(`/owner/time/entry/${encodeURIComponent(entryId)}/manual`, {
         method: 'POST',
         headers: { 'content-type':'application/json', 'accept':'application/json' },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if(!res.ok || !data.ok) throw new Error(data.error || 'update_failed');
+      if(!res.ok || !data.ok){
+        throw new Error(data.error || 'update_failed');
+      }
 
+      closeEditModal();
       await loadDay();
       alert('עודכן בהצלחה');
     }catch(e){
@@ -208,6 +384,13 @@ const day = it.day || '';
   $('load').addEventListener('click', loadDay);
   $('restaurant').addEventListener('change', loadDay);
   $('day').addEventListener('change', loadDay);
+
+  $('edit-cancel').addEventListener('click', closeEditModal);
+  $('edit-close-x').addEventListener('click', closeEditModal);
+  $('edit-backdrop').addEventListener('click', (ev) => {
+    if(ev.target === $('edit-backdrop')) closeEditModal();
+  });
+  $('edit-save').addEventListener('click', saveEdit);
 
   // load on first paint
   loadDay();

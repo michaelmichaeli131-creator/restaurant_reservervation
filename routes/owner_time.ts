@@ -8,8 +8,7 @@
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
-
-import { kv, type User, type Restaurant, getRestaurant } from "../database.ts";
+import { kv, type User, type Restaurant, getRestaurant, getUser } from "../database.ts";
 import { getTimeEntry, listEntriesByRestaurantDay } from "../services/time_db.ts";
 import type { TimeEntry } from "../services/time_db.ts";
 
@@ -227,31 +226,48 @@ ownerTimeRouter.get("/owner/time/day", async (ctx) => {
 
     const month = day.slice(0, 7); // "YYYY-MM"
 
-    // 🔍 DEBUG: מה הבעלים מחפש
     console.log("[OWNER_TIME] query", { restaurantId, day, month });
 
-    // שלב 1 – למשוך את כל רשומות הנוכחות של החודש עבור המסעדה הזו
+    // 1) מושכים את כל רשומות הנוכחות של החודש
     const monthRows: TimeClockRow[] = await listMonthRows(restaurantId, month);
 
     console.log("[OWNER_TIME] monthRows", {
       restaurantId,
       month,
       count: monthRows.length,
-      rows: monthRows,
     });
 
-    // שלב 2 – לסנן רק את היום המבוקש
+    // 2) מסננים ליום הספציפי
     const dayRows: TimeClockRow[] = monthRows.filter((r) => r.ymd === day);
 
     console.log("[OWNER_TIME] dayRows_after_filter", {
       restaurantId,
       day,
       count: dayRows.length,
-      rows: dayRows,
     });
+
+    // 3) מושכים משתמשים לפי userId כדי להחזיר שמות / אימיילים
+    const userIds = Array.from(
+      new Set(
+        dayRows
+          .map((r) => r.userId)
+          .filter((x): x is string => typeof x === "string" && x.length > 0),
+      ),
+    );
+
+    const usersById = new Map<string, User>();
+    for (const uid of userIds) {
+      try {
+        const u = await getUser(uid);
+        if (u) usersById.set(uid, u);
+      } catch (e) {
+        console.warn("[OWNER_TIME] getUser failed", uid, e);
+      }
+    }
 
     const debugWithMinutes = dayRows.map((r) => ({
       staffId: r.staffId,
+      userId: r.userId,
       ymd: r.ymd,
       checkInAt: r.checkInAt,
       checkOutAt: r.checkOutAt,
@@ -259,12 +275,13 @@ ownerTimeRouter.get("/owner/time/day", async (ctx) => {
     }));
     console.log("[OWNER_TIME] dayRows_with_minutes", debugWithMinutes);
 
-    // נבנה entries במבנה דומה ל-TimeEntry כדי לא לשבור את ה-UI
     type UiEntry = {
       id: string;
       restaurantId: string;
       staffId: string;
       userId: string;
+      userName: string;
+      userEmail: string;
       ymd: string;
       clockInAt: number | null;
       clockOutAt: number | null;
@@ -288,11 +305,18 @@ ownerTimeRouter.get("/owner/time/day", async (ctx) => {
           : minutesBetween(clockIn, nowMs))
         : 0;
 
+      const u = r.userId ? usersById.get(r.userId) : undefined;
+      const fullName = `${u?.firstName ?? ""} ${u?.lastName ?? ""}`.trim();
+      const userName = fullName || u?.email || r.userId || "";
+      const userEmail = u?.email ?? "";
+
       return {
-        id: `${r.staffId}-${r.ymd}-${clockIn ?? "0"}`, // מזהה סינתטי
+        id: `${r.staffId}-${r.ymd}-${clockIn ?? "0"}`, // מזהה סינתטי, אפשרי לא להשתמש בו ב-UI
         restaurantId: r.restaurantId,
         staffId: r.staffId,
         userId: r.userId ?? "",
+        userName,
+        userEmail,
         ymd: r.ymd,
         clockInAt: clockIn,
         clockOutAt: clockOut,
@@ -306,17 +330,18 @@ ownerTimeRouter.get("/owner/time/day", async (ctx) => {
       };
     });
 
-    // group by staffId עם סכום דקות
+    // group by staffId
     const groups: Record<
       string,
-      { staffId: string; userId: string; entries: UiEntry[]; totalMinutes: number }
+      { staffId: string; userName: string; userEmail: string; entries: UiEntry[]; totalMinutes: number }
     > = {};
 
     for (const e of entries) {
       if (!groups[e.staffId]) {
         groups[e.staffId] = {
           staffId: e.staffId,
-          userId: e.userId,
+          userName: e.userName,
+          userEmail: e.userEmail,
           entries: [],
           totalMinutes: 0,
         };
