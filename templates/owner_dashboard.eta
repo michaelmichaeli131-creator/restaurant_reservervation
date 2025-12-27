@@ -183,7 +183,7 @@ function hasAny(perms){
                   <% } %>
 
                   <% if (isOwner || canShifts) { %>
-                    <a class="btn ghost" href="/owner/<%= r.id %>/shifts" target="_self" rel="nofollow">
+                    <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/shifts" target="_self" rel="nofollow">
                       <span class="icon">📅</span>
                       <%= tt('owner.dashboard.btn_shifts','ניהול משמרות') %>
                     </a>
