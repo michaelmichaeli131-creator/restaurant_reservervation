@@ -17,6 +17,7 @@ import {
   listMonthRows,
   minutesWorked,
   type TimeClockRow,
+  upsertManualEntry, // ← נוסיף גם את זה
 } from "../services/timeclock_db.ts";
 
 export const ownerTimeRouter = new Router();
@@ -163,14 +164,6 @@ function safeParseMs(v: any): number | null {
   return null;
 }
 
-// helper מקומי לקבלת User מה-KV (במקום getUser שלא קיים ב-database.ts)
-async function getUserById(userId: string): Promise<User | null> {
-  const id = String(userId || "").trim();
-  if (!id) return null;
-  const res = await kv.get<User>(["user", id]);
-  return res.value ?? null;
-}
-
 /* ─────────────── GET: HTML page /owner/time ─────────────── */
 // GET /owner/time?restaurantId=...&day=YYYY-MM-DD
 ownerTimeRouter.get("/owner/time", async (ctx) => {
@@ -237,7 +230,7 @@ ownerTimeRouter.get("/owner/time/day", async (ctx) => {
 
     console.log("[OWNER_TIME] query", { restaurantId, day, month });
 
-    // 1) מושכים את כל רשומות הנוכחות של החודש
+    // 1) כל רשומות הנוכחות של החודש
     const monthRows: TimeClockRow[] = await listMonthRows(restaurantId, month);
 
     console.log("[OWNER_TIME] monthRows", {
@@ -246,7 +239,7 @@ ownerTimeRouter.get("/owner/time/day", async (ctx) => {
       count: monthRows.length,
     });
 
-    // 2) מסננים ליום הספציפי
+    // 2) סינון ליום הספציפי
     const dayRows: TimeClockRow[] = monthRows.filter((r) => r.ymd === day);
 
     console.log("[OWNER_TIME] dayRows_after_filter", {
@@ -254,25 +247,6 @@ ownerTimeRouter.get("/owner/time/day", async (ctx) => {
       day,
       count: dayRows.length,
     });
-
-    // 3) מושכים משתמשים לפי userId כדי להחזיר שמות / אימיילים
-    const userIds = Array.from(
-      new Set(
-        dayRows
-          .map((r) => r.userId)
-          .filter((x): x is string => typeof x === "string" && x.length > 0),
-      ),
-    );
-
-    const usersById = new Map<string, User>();
-    for (const uid of userIds) {
-      try {
-        const u = await getUserById(uid);
-        if (u) usersById.set(uid, u);
-      } catch (e) {
-        console.warn("[OWNER_TIME] getUserById failed", uid, e);
-      }
-    }
 
     const debugWithMinutes = dayRows.map((r) => ({
       staffId: r.staffId,
@@ -289,8 +263,6 @@ ownerTimeRouter.get("/owner/time/day", async (ctx) => {
       restaurantId: string;
       staffId: string;
       userId: string;
-      userName: string;
-      userEmail: string;
       ymd: string;
       clockInAt: number | null;
       clockOutAt: number | null;
@@ -314,18 +286,12 @@ ownerTimeRouter.get("/owner/time/day", async (ctx) => {
           : minutesBetween(clockIn, nowMs))
         : 0;
 
-      const u = r.userId ? usersById.get(r.userId) : undefined;
-      const fullName = `${u?.firstName ?? ""} ${u?.lastName ?? ""}`.trim();
-      const userName = fullName || u?.email || r.userId || "";
-      const userEmail = u?.email ?? "";
-
       return {
-        id: `${r.staffId}-${r.ymd}-${clockIn ?? "0"}`, // מזהה סינתטי, אפשרי לא להשתמש בו ב-UI
+        // ← מזהה חדש שמקודד restaurantId + staffId + day כדי שנוכל לערוך ב־timeclock_db
+        id: `timeclock:${r.restaurantId}:${r.staffId}:${r.ymd}`,
         restaurantId: r.restaurantId,
         staffId: r.staffId,
         userId: r.userId ?? "",
-        userName,
-        userEmail,
         ymd: r.ymd,
         clockInAt: clockIn,
         clockOutAt: clockOut,
@@ -339,18 +305,16 @@ ownerTimeRouter.get("/owner/time/day", async (ctx) => {
       };
     });
 
-    // group by staffId
+    // group by staffId עם סכום דקות
     const groups: Record<
       string,
-      { staffId: string; userName: string; userEmail: string; entries: UiEntry[]; totalMinutes: number }
+      { staffId: string; entries: UiEntry[]; totalMinutes: number }
     > = {};
 
     for (const e of entries) {
       if (!groups[e.staffId]) {
         groups[e.staffId] = {
           staffId: e.staffId,
-          userName: e.userName,
-          userEmail: e.userEmail,
           entries: [],
           totalMinutes: 0,
         };
@@ -391,6 +355,55 @@ ownerTimeRouter.post("/owner/time/entry/:id/manual", async (ctx) => {
     const entryId = String(ctx.params.id || "").trim();
     if (!entryId) return json(ctx, Status.BadRequest, { ok: false, error: "entry_required" });
 
+    const body = await readJsonCompat(ctx);
+
+    const inMs = safeParseMs(body?.clockInAt);
+    const outMs = body?.clockOutAt === null ? null : safeParseMs(body?.clockOutAt);
+    const note = body?.note ? String(body.note).slice(0, 300) : undefined;
+
+    /* ───── Branch 1: רשומת timeclock_db החדשה (id מתחיל ב־timeclock:) ───── */
+    if (entryId.startsWith("timeclock:")) {
+      const parts = entryId.split(":");
+      // ["timeclock", restaurantId, staffId, ymd]
+      const restaurantId = parts[1] || "";
+      const staffId = parts[2] || "";
+      const ymd = parts[3] || "";
+
+      if (!restaurantId || !staffId || !ymd) {
+        return json(ctx, Status.BadRequest, { ok: false, error: "bad_timeclock_id" });
+      }
+
+      const restaurant = await getRestaurant(restaurantId);
+      if (!restaurant || restaurant.ownerId !== owner.id) {
+        return json(ctx, Status.Forbidden, { ok: false, error: "not_your_restaurant" });
+      }
+
+      // upsertManualEntry:
+      // checkInAt: number | null | undefined
+      // checkOutAt: number | null | undefined
+      const result = await upsertManualEntry({
+        restaurantId,
+        staffId,
+        ymd,
+        checkInAt: inMs ?? undefined,
+        checkOutAt: outMs === null ? null : (outMs ?? undefined),
+        note,
+        actorUserId: owner.id,
+        actorRole: owner.role,
+      });
+
+      if (!result.ok) {
+        if (result.error === "open_conflict") {
+          return json(ctx, Status.Conflict, { ok: false, error: "open_conflict", open: result.open });
+        }
+        return json(ctx, Status.BadRequest, { ok: false, error: result.error ?? "update_failed" });
+      }
+
+      // ה־UI בפועל משתמש רק ב־ok, ואחר כך עושה loadDay() מחדש, כך שזה מספיק
+      return json(ctx, Status.OK, { ok: true, row: result.row });
+    }
+
+    /* ───── Branch 2: תמיכה לאחור – time_db הישן (TimeEntry) ───── */
     const entry = await getTimeEntry(entryId);
     if (!entry) return json(ctx, Status.NotFound, { ok: false, error: "entry_not_found" });
 
@@ -399,12 +412,6 @@ ownerTimeRouter.post("/owner/time/entry/:id/manual", async (ctx) => {
     if (!restaurant || restaurant.ownerId !== owner.id) {
       return json(ctx, Status.Forbidden, { ok: false, error: "not_your_restaurant" });
     }
-
-    const body = await readJsonCompat(ctx);
-
-    const inMs = safeParseMs(body?.clockInAt);
-    const outMs = body?.clockOutAt === null ? null : safeParseMs(body?.clockOutAt);
-    const note = body?.note ? String(body.note).slice(0, 300) : undefined;
 
     const nextClockInAt = inMs ?? entry.clockInAt;
     const nextClockOutAt = outMs === null ? undefined : (outMs ?? entry.clockOutAt);
@@ -433,9 +440,6 @@ ownerTimeRouter.post("/owner/time/entry/:id/manual", async (ctx) => {
       source: "owner",
     };
 
-    // Save (simple set). Indexes: day might change if clockInAt day changed.
-    // MVP: keep indexes as-is (still queryable by the original day).
-    // If you want perfect reindex, נוכל להוסיף בהמשך.
     await kv.set(["time_entry", entryId], updated);
 
     return json(ctx, Status.OK, { ok: true, entry: updated });
