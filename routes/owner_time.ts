@@ -8,7 +8,7 @@
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
-import { kv, type User, type Restaurant, getRestaurant, getUser } from "../database.ts";
+import { kv, type User, type Restaurant, getRestaurant } from "../database.ts";
 import { getTimeEntry, listEntriesByRestaurantDay } from "../services/time_db.ts";
 import type { TimeEntry } from "../services/time_db.ts";
 
@@ -163,46 +163,15 @@ function safeParseMs(v: any): number | null {
   return null;
 }
 
-/* ─────────────── GET: HTML page ─────────────── */
-// GET /owner/time?restaurantId=...&day=YYYY-MM-DD
-ownerTimeRouter.get("/owner/time", async (ctx) => {
-  const owner = ensureOwner(ctx);
-  const tz = "Asia/Jerusalem";
+// helper מקומי במקום getUser שלא קיים ב-database.ts
+async function getUserById(userId: string): Promise<User | null> {
+  const id = String(userId || "").trim();
+  if (!id) return null;
+  const res = await kv.get<User>(["user", id]);
+  return res.value ?? null;
+}
 
-  const restaurants = await listOwnerRestaurants(owner.id);
-  const qRestaurantId = String(ctx.request.url.searchParams.get("restaurantId") || "").trim();
-  const qDay = String(ctx.request.url.searchParams.get("day") || "").trim();
-
-  const restaurantId = qRestaurantId || (restaurants[0]?.id ?? "");
-  const day = qDay || todayInTZ(tz);
-
-  // verify restaurant belongs to owner
-  if (restaurantId) {
-    const r = await getRestaurant(restaurantId);
-    if (!r || r.ownerId !== owner.id) {
-      ctx.response.status = Status.Forbidden;
-      await render(ctx, "owner/time", {
-        title: "נוכחות עובדים",
-        owner,
-        restaurants,
-        restaurantId: "",
-        day,
-        error: "not_your_restaurant",
-      });
-      return;
-    }
-  }
-
-  await render(ctx, "owner/time", {
-    title: "נוכחות עובדים",
-    page: "owner_time",
-    owner,
-    restaurants,
-    restaurantId,
-    day,
-  });
-});
-
+/* ─────────────── GET: JSON של יום מסוים ─────────────── */
 // GET /owner/time/day?restaurantId=...&day=YYYY-MM-DD  (JSON)
 ownerTimeRouter.get("/owner/time/day", async (ctx) => {
   try {
@@ -258,10 +227,10 @@ ownerTimeRouter.get("/owner/time/day", async (ctx) => {
     const usersById = new Map<string, User>();
     for (const uid of userIds) {
       try {
-        const u = await getUser(uid);
+        const u = await getUserById(uid);
         if (u) usersById.set(uid, u);
       } catch (e) {
-        console.warn("[OWNER_TIME] getUser failed", uid, e);
+        console.warn("[OWNER_TIME] getUserById failed", uid, e);
       }
     }
 
