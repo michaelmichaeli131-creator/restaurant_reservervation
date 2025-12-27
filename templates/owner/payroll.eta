@@ -1,0 +1,208 @@
+<% layout("../_layout", it) %>
+
+<%
+function tt(k, fb){
+  try{
+    if (it && typeof it.t==='function'){
+      const s = it.t(k);
+      if(!s || s===k || s===`(${k})`) return fb;
+      return s;
+    }
+  }catch(e){}
+  return fb;
+}
+
+const restaurants = it.restaurants || [];
+const restaurantId = it.restaurantId || '';
+const month = it.month || '';
+%>
+
+<section class="container" style="max-width:1100px;margin:20px auto;padding:0 16px">
+  <div class="card">
+    <header style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+      <div>
+        <h1 style="margin:0"><%= tt('owner.payroll.title','שכר עובדים') %></h1>
+        <div class="muted" style="margin-top:4px">
+          <%= tt('owner.payroll.subtitle','שכר שעתי לפי חודש, חישוב אוטומטי לפי נוכחות') %>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <label style="display:flex;flex-direction:column;gap:6px;font-weight:700">
+          <span class="muted" style="font-weight:600"><%= tt('owner.payroll.restaurant','מסעדה') %></span>
+          <select id="restaurant" class="inp">
+            <% restaurants.forEach(function(r){ %>
+              <option value="<%= r.id %>" <%= r.id===restaurantId ? 'selected' : '' %>><%= r.name %></option>
+            <% }) %>
+          </select>
+        </label>
+
+        <label style="display:flex;flex-direction:column;gap:6px;font-weight:700">
+          <span class="muted" style="font-weight:600"><%= tt('owner.payroll.month','חודש') %></span>
+          <input id="month" class="inp" type="month" value="<%= month %>"/>
+        </label>
+
+        <button id="load" class="btn primary sm"><%= tt('owner.payroll.load','טען') %></button>
+      </div>
+    </header>
+
+    <div class="sep" style="margin:14px 0"></div>
+
+    <div id="err" class="muted" style="display:none;color:#ffb4b4"></div>
+
+    <div style="overflow:auto">
+      <table class="tbl" style="width:100%;border-collapse:collapse;min-width:750px">
+        <thead>
+          <tr>
+            <th>עובד</th>
+            <th>שכר לשעה (₪)</th>
+            <th>שעות</th>
+            <th>דקות</th>
+            <th>ברוטו לחודש (₪)</th>
+            <th>פעולות</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr><td colspan="6" class="muted">טוען...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<style>
+  .card{
+    background: var(--panel, #121622);
+    border:1px solid var(--bd, #222834);
+    border-radius:18px; padding:18px; margin-bottom:18px;
+    color: var(--ink, #e6e8ef);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  .muted{ color: var(--ink-muted, #9aa3b2); }
+  .sep{height:1px;background:#23293a;border-radius:999px}
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
+    border:1px solid var(--bd, #23293a); background:transparent;
+    color: var(--ink, #e6e8ef); font-weight:800;
+  }
+  .btn.primary{
+    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
+    box-shadow: 0 8px 24px rgba(59,130,246,.35);
+  }
+  .btn.sm{ padding:8px 12px; border-radius:10px; font-size:13px }
+  .inp{
+    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
+    padding:10px 12px; font-size:14px; outline:none;
+  }
+  .tbl th,.tbl td{ border-bottom:1px solid rgba(255,255,255,.06); padding:10px 8px; text-align:left; vertical-align:top; }
+  .tbl th{ position:sticky; top:0; background:#121622; z-index:1; }
+  .inp-sm{
+    width:90px;
+    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:10px;
+    padding:6px 8px; font-size:13px;
+  }
+</style>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  function showErr(msg){
+    const el = $('err');
+    el.textContent = msg || '';
+    el.style.display = msg ? 'block' : 'none';
+  }
+
+  function formatMoney(n){
+    if (typeof n !== 'number' || !isFinite(n)) return '';
+    return n.toFixed(2);
+  }
+
+  async function loadPayroll(){
+    showErr('');
+    const rid = $('restaurant').value;
+    const month = $('month').value;
+    const tbody = $('rows');
+    tbody.innerHTML = `<tr><td colspan="6" class="muted">טוען...</td></tr>`;
+
+    try{
+      const res = await fetch(`/owner/payroll/data?restaurantId=${encodeURIComponent(rid)}&month=${encodeURIComponent(month)}`, {
+        headers: { 'accept': 'application/json' }
+      });
+      const data = await res.json();
+      if(!res.ok || !data.ok){
+        throw new Error(data.error || 'failed');
+      }
+
+      const rows = data.payroll || [];
+      if(!rows.length){
+        tbody.innerHTML = `<tr><td colspan="6" class="muted">אין שעות עבודה לחודש הזה.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = rows.map(r => {
+        const hours = r.totalHours ?? 0;
+        const mins = r.totalMinutes ?? 0;
+        const rate = typeof r.hourlyRate === 'number' ? r.hourlyRate : 0;
+        return `
+          <tr data-staff-id="${r.staffId}">
+            <td><code>${r.staffName || r.staffId}</code></td>
+            <td>
+              <input class="inp-sm" type="number" step="0.01" min="0"
+                     value="${rate}"
+                     data-hourly-rate-input="1"/>
+            </td>
+            <td>${hours}</td>
+            <td>${mins}</td>
+            <td>${formatMoney(r.gross ?? 0)}</td>
+            <td>
+              <button class="btn sm" onclick="saveRate('${r.staffId}')">שמור</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }catch(e){
+      console.error(e);
+      showErr('שגיאה בטעינת נתוני השכר: ' + (e?.message || e));
+      tbody.innerHTML = `<tr><td colspan="6" class="muted">שגיאה.</td></tr>`;
+    }
+  }
+
+  window.saveRate = async function(staffId){
+    try{
+      const tr = document.querySelector(`tr[data-staff-id="${staffId}"]`);
+      if(!tr) return;
+      const inp = tr.querySelector('input[data-hourly-rate-input]');
+      if(!inp) return;
+      const v = inp.value.trim();
+      const n = Number(v);
+      if(!isFinite(n) || n < 0){
+        alert('שכר לשעה לא חוקי');
+        return;
+      }
+
+      const res = await fetch('/owner/payroll/rate', {
+        method:'POST',
+        headers:{'content-type':'application/json','accept':'application/json'},
+        body: JSON.stringify({ staffId, hourlyRate: n })
+      });
+      const data = await res.json();
+      if(!res.ok || !data.ok){
+        throw new Error(data.error || 'update_failed');
+      }
+
+      // נטען מחדש כדי לעדכן את הברוטו לפי השכר
+      await loadPayroll();
+      alert('השכר השעתי נשמר וחושב מחדש בהצלחה');
+    }catch(e){
+      alert('שגיאה בשמירת השכר: ' + (e?.message || e));
+    }
+  }
+
+  $('load').addEventListener('click', loadPayroll);
+  $('restaurant').addEventListener('change', loadPayroll);
+  $('month').addEventListener('change', loadPayroll);
+
+  // טעינה ראשונית
+  loadPayroll();
+</script>

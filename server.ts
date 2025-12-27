@@ -54,6 +54,7 @@ import { reservationPortal } from "./routes/reservation_portal.ts";
 import { staffTimeRouter } from "./routes/staff_time.ts";
 import { ownerTimeRouter } from "./routes/owner_time.ts";
 import { timeClockRouter } from "./routes/timeclock.ts";
+import { ownerPayrollRouter } from "./routes/owner_payroll.ts";
 
 
 // ✅ i18n: טעינה בטוחה (תומך גם default וגם named export)
@@ -549,6 +550,9 @@ app.use(ownerTimeRouter.allowedMethods());
 
 app.use(ownerStaffRouter.routes());
 app.use(ownerStaffRouter.allowedMethods());
+
+app.use(ownerPayrollRouter.routes());
+app.use(ownerPayrollRouter.allowedMethods());
 
 // ⬅️ TimeClock (staff + owner/manager)
 app.use(timeClockRouter.routes());
