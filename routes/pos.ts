@@ -158,7 +158,7 @@ posRouter.get("/owner/:rid/bills", async (ctx) => {
     totalRevenue += billTotal;
   }
 
-  await render(ctx, "owner_bills", {
+await render(ctx, "owner/owner_bills", {
     page: "owner_bills",
     title: `חשבונות אחרונים · ${restaurant.name}`,
     restaurant,
