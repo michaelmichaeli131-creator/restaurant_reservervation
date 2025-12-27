@@ -34,17 +34,11 @@ export const ownerShiftsRouter = new Router();
 
 /* =================== UI ROUTES =================== */
 
-// GET /owner/restaurants/:id/shifts - Shift management page
-ownerShiftsRouter.get("/owner/restaurants/:id/shifts", async (ctx) => {
-  if (!requireOwner(ctx)) return;
-
-  const restaurantId = ctx.params.id;
-  if (!restaurantId) {
-    ctx.response.status = 400;
-    ctx.response.body = "Missing restaurant ID";
-    return;
-  }
-
+/**
+ * Shared render helper for shift management page.
+ * This lets us support both the canonical URL and the legacy URL without duplicating logic.
+ */
+async function renderShiftsPage(ctx: any, restaurantId: string) {
   const owner = ctx.state.user;
 
   // Verify ownership
@@ -60,6 +54,34 @@ ownerShiftsRouter.get("/owner/restaurants/:id/shifts", async (ctx) => {
     restaurantId,
     restaurant: restaurant,
   });
+}
+
+// LEGACY: GET /owner/:id/shifts - Shift management page (kept for backward compatibility)
+ownerShiftsRouter.get("/owner/:id/shifts", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const restaurantId = ctx.params.id;
+  if (!restaurantId) {
+    ctx.response.status = 400;
+    ctx.response.body = "Missing restaurant ID";
+    return;
+  }
+
+  await renderShiftsPage(ctx, restaurantId);
+});
+
+// GET /owner/restaurants/:id/shifts - Shift management page
+ownerShiftsRouter.get("/owner/restaurants/:id/shifts", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const restaurantId = ctx.params.id;
+  if (!restaurantId) {
+    ctx.response.status = 400;
+    ctx.response.body = "Missing restaurant ID";
+    return;
+  }
+
+  await renderShiftsPage(ctx, restaurantId);
 });
 
 /* =================== STAFF MEMBER ROUTES =================== */
@@ -93,7 +115,9 @@ ownerShiftsRouter.post("/api/restaurants/:rid/staff", async (ctx) => {
   }
 
   const body = await ctx.request.body.json();
-  if (!body.firstName || !body.lastName || !body.email || !body.role || !body.userId) {
+  if (
+    !body.firstName || !body.lastName || !body.email || !body.role || !body.userId
+  ) {
     ctx.response.status = Status.BadRequest;
     ctx.response.body = { error: "Missing required fields" };
     return;
@@ -279,7 +303,7 @@ ownerShiftsRouter.get("/api/restaurants/:rid/shifts", async (ctx) => {
   // Enrich shifts with staff details
   const enriched = shifts.map((shift) => ({
     ...shift,
-    staffName: staffMap.get(shift.staffId)?.firstName + " " + staffMap.get(shift.staffId)?.lastName,
+    staffName: (staffMap.get(shift.staffId)?.firstName ?? "") + " " + (staffMap.get(shift.staffId)?.lastName ?? ""),
     staffRole: staffMap.get(shift.staffId)?.role,
   }));
 
