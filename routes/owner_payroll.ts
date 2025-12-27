@@ -8,7 +8,7 @@
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
-import { kv, type User, type Restaurant, getRestaurant, getUser } from "../database.ts";
+import { kv, type User, type Restaurant, getRestaurant } from "../database.ts";
 
 // שירות הנוכחות החדש
 import {
@@ -124,20 +124,6 @@ ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
     // כל רשומות הנוכחות של החודש
     const rows: TimeClockRow[] = await listMonthRows(restaurantId, month);
 
-    // map staffId -> userId (לפי הרשומות)
-    const staffUserIdByStaffId = new Map<string, string>();
-    for (const r of rows) {
-      if (
-        r.staffId &&
-        typeof r.staffId === "string" &&
-        r.userId &&
-        typeof r.userId === "string" &&
-        !staffUserIdByStaffId.has(r.staffId)
-      ) {
-        staffUserIdByStaffId.set(r.staffId, r.userId);
-      }
-    }
-
     // בונים staffList בסיסי עבור computePayrollForMonth
     const staffMap = new Map<string, { id: string; firstName?: string; lastName?: string }>();
     for (const r of rows) {
@@ -155,7 +141,7 @@ ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
       rows,
     });
 
-    // ── כאן בונים שם + מייל לעובד ──
+    // ── בניית שם + מייל לעובד מתוך KV של staff ──
     type StaffInfo = { name: string; email: string };
     const staffInfoById = new Map<string, StaffInfo>();
 
@@ -167,22 +153,20 @@ ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
       let name = "";
       let email = "";
 
-      // 1) קודם כל – לפי userId מהנוכחות
-      const userId = staffUserIdByStaffId.get(sid);
-      if (userId) {
-        try {
-          const u = await getUser(userId);
-          if (u) {
-            const fullName = `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim();
-            name = fullName || u.email || "";
-            if (typeof u.email === "string") email = u.email;
-          }
-        } catch (e) {
-          console.warn("[OWNER_PAYROLL] getUser failed", { sid, userId, e });
+      // 1) staff_by_restaurant[restaurantId, staffId]
+      try {
+        const s2 = await kv.get<any>(["staff_by_restaurant", restaurantId, sid]);
+        if (s2.value) {
+          const v = s2.value;
+          const fullName = `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim();
+          name = fullName || v.fullName || v.name || "";
+          if (typeof v.email === "string") email = email || v.email;
         }
+      } catch (e) {
+        console.warn("[OWNER_PAYROLL] staff_by_restaurant lookup failed", { restaurantId, sid, e });
       }
 
-      // 2) אם אין – מנסים KV של staff (מותאם אם יש אצלך כזה)
+      // 2) staff[sid] (fallback)
       if (!name) {
         try {
           const s1 = await kv.get<any>(["staff", sid]);
@@ -197,22 +181,7 @@ ownerPayrollRouter.get("/owner/payroll/data", async (ctx) => {
         }
       }
 
-      // 3) אם עדיין אין – ננסה staff_by_restaurant
-      if (!name) {
-        try {
-          const s2 = await kv.get<any>(["staff_by_restaurant", restaurantId, sid]);
-          if (s2.value) {
-            const v = s2.value;
-            const fullName = `${v.firstName ?? ""} ${v.lastName ?? ""}`.trim();
-            name = fullName || v.fullName || v.name || "";
-            if (typeof v.email === "string") email = email || v.email;
-          }
-        } catch (e) {
-          console.warn("[OWNER_PAYROLL] staff_by_restaurant lookup failed", { restaurantId, sid, e });
-        }
-      }
-
-      // 4) פולבאק – מה שיש ב-payrollBase או ה-ID
+      // 3) אם אין כלום – פולבאק למה שיש ב-payrollBase או ל-ID
       if (!name) {
         const base = payrollBase.find((p) => p.staffId === sid);
         name = base?.staffName || sid;
