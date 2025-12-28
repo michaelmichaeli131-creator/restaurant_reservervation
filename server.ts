@@ -72,6 +72,7 @@ import { ownerFloorRouter } from "./routes/owner_floor.ts";
 
 // ✅ Shift management
 import { ownerShiftsRouter } from "./routes/owner_shifts.ts";
+import { staffShiftsRouter } from "./routes/staff_shifts.ts";
 
 // -------------------- ENV --------------------
 const PORT = Number(Deno.env.get("PORT") ?? "8000");

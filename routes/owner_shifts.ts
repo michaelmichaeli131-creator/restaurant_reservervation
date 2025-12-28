@@ -28,17 +28,29 @@ import {
   getUserRestaurantRole,
   listUsersByRestaurant,
   removeUserRole,
+
+  // ✅ NEW (Step 2):
+  listAvailabilityForStaff,
+  listRestaurantAvailabilityMatrix,
+  canAssignStaffToShift,
+  recommendStaffForShift,
 } from "../services/shift_service.ts";
 
 export const ownerShiftsRouter = new Router();
 
 /* =================== UI ROUTES =================== */
 
-/**
- * Shared render helper for shift management page.
- * This lets us support both the canonical URL and the legacy URL without duplicating logic.
- */
-async function renderShiftsPage(ctx: any, restaurantId: string) {
+// GET /owner/restaurants/:id/shifts - Shift management page
+ownerShiftsRouter.get("/owner/restaurants/:id/shifts", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const restaurantId = ctx.params.id;
+  if (!restaurantId) {
+    ctx.response.status = 400;
+    ctx.response.body = "Missing restaurant ID";
+    return;
+  }
+
   const owner = ctx.state.user;
 
   // Verify ownership
@@ -54,34 +66,6 @@ async function renderShiftsPage(ctx: any, restaurantId: string) {
     restaurantId,
     restaurant: restaurant,
   });
-}
-
-// LEGACY: GET /owner/:id/shifts - Shift management page (kept for backward compatibility)
-ownerShiftsRouter.get("/owner/:id/shifts", async (ctx) => {
-  if (!requireOwner(ctx)) return;
-
-  const restaurantId = ctx.params.id;
-  if (!restaurantId) {
-    ctx.response.status = 400;
-    ctx.response.body = "Missing restaurant ID";
-    return;
-  }
-
-  await renderShiftsPage(ctx, restaurantId);
-});
-
-// GET /owner/restaurants/:id/shifts - Shift management page
-ownerShiftsRouter.get("/owner/restaurants/:id/shifts", async (ctx) => {
-  if (!requireOwner(ctx)) return;
-
-  const restaurantId = ctx.params.id;
-  if (!restaurantId) {
-    ctx.response.status = 400;
-    ctx.response.body = "Missing restaurant ID";
-    return;
-  }
-
-  await renderShiftsPage(ctx, restaurantId);
 });
 
 /* =================== STAFF MEMBER ROUTES =================== */
@@ -115,9 +99,7 @@ ownerShiftsRouter.post("/api/restaurants/:rid/staff", async (ctx) => {
   }
 
   const body = await ctx.request.body.json();
-  if (
-    !body.firstName || !body.lastName || !body.email || !body.role || !body.userId
-  ) {
+  if (!body.firstName || !body.lastName || !body.email || !body.role || !body.userId) {
     ctx.response.status = Status.BadRequest;
     ctx.response.body = { error: "Missing required fields" };
     return;
@@ -204,6 +186,82 @@ ownerShiftsRouter.delete("/api/restaurants/:rid/staff/:staffId", async (ctx) => 
 
   await deleteStaff(rid, staffId);
   ctx.response.status = Status.NoContent;
+});
+
+/* =================== STAFF AVAILABILITY ROUTES (Step 2) =================== */
+
+// GET /api/restaurants/:rid/availability - Availability matrix for all staff
+ownerShiftsRouter.get("/api/restaurants/:rid/availability", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const rid = ctx.params.rid;
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant || (restaurant as any).ownerId !== ctx.state.user.id) {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = { error: "Forbidden" };
+    return;
+  }
+
+  const matrix = await listRestaurantAvailabilityMatrix(rid);
+  ctx.response.body = { restaurantId: rid, matrix };
+});
+
+// GET /api/restaurants/:rid/staff/:staffId/availability - 7 days availability
+ownerShiftsRouter.get("/api/restaurants/:rid/staff/:staffId/availability", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const rid = ctx.params.rid;
+  const staffId = ctx.params.staffId;
+
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant || (restaurant as any).ownerId !== ctx.state.user.id) {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = { error: "Forbidden" };
+    return;
+  }
+
+  const days = await listAvailabilityForStaff(staffId);
+  ctx.response.body = { restaurantId: rid, staffId, days };
+});
+
+// PUT /api/restaurants/:rid/staff/:staffId/availability - set one day
+ownerShiftsRouter.put("/api/restaurants/:rid/staff/:staffId/availability", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const rid = ctx.params.rid;
+  const staffId = ctx.params.staffId;
+
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant || (restaurant as any).ownerId !== ctx.state.user.id) {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = { error: "Forbidden" };
+    return;
+  }
+
+  const body = await ctx.request.body.json();
+  const dayOfWeek = Number(body.dayOfWeek);
+  if (!Number.isFinite(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { error: "Invalid dayOfWeek (0..6)" };
+    return;
+  }
+
+  if (typeof body.available !== "boolean") {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { error: "Missing/invalid available" };
+    return;
+  }
+
+  const row = await setStaffAvailability({
+    restaurantId: rid,
+    staffId,
+    dayOfWeek,
+    available: body.available,
+    preferredShift: body.preferredShift,
+    notes: body.notes,
+  });
+
+  ctx.response.body = row;
 });
 
 /* =================== SHIFT TEMPLATE ROUTES =================== */
@@ -303,11 +361,43 @@ ownerShiftsRouter.get("/api/restaurants/:rid/shifts", async (ctx) => {
   // Enrich shifts with staff details
   const enriched = shifts.map((shift) => ({
     ...shift,
-    staffName: (staffMap.get(shift.staffId)?.firstName ?? "") + " " + (staffMap.get(shift.staffId)?.lastName ?? ""),
+    staffName: staffMap.get(shift.staffId)?.firstName + " " + staffMap.get(shift.staffId)?.lastName,
     staffRole: staffMap.get(shift.staffId)?.role,
   }));
 
   ctx.response.body = enriched;
+});
+
+// ✅ NEW: POST /api/restaurants/:rid/shifts/recommendations
+// body: { date, startTime, endTime, role?, limit? }
+ownerShiftsRouter.post("/api/restaurants/:rid/shifts/recommendations", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
+  const rid = ctx.params.rid;
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant || (restaurant as any).ownerId !== ctx.state.user.id) {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = { error: "Forbidden" };
+    return;
+  }
+
+  const body = await ctx.request.body.json();
+  if (!body.date || !body.startTime || !body.endTime) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { error: "Missing required fields" };
+    return;
+  }
+
+  const suggestions = await recommendStaffForShift({
+    restaurantId: rid,
+    date: body.date,
+    startTime: body.startTime,
+    endTime: body.endTime,
+    role: body.role,
+    limit: body.limit,
+  });
+
+  ctx.response.body = { suggestions };
 });
 
 // POST /api/restaurants/:rid/shifts - Create shift assignment
@@ -327,6 +417,28 @@ ownerShiftsRouter.post("/api/restaurants/:rid/shifts", async (ctx) => {
     ctx.response.status = Status.BadRequest;
     ctx.response.body = { error: "Missing required fields" };
     return;
+  }
+
+  // ✅ Smart constraints (Step 2)
+  // - Prevent overlapping shifts for the same staff
+  // - Respect availability when explicitly marked unavailable
+  // You can override by sending { force: true } in the body
+  const force = Boolean(body.force);
+
+  if (!force) {
+    const can = await canAssignStaffToShift({
+      restaurantId: rid,
+      staffId: body.staffId,
+      date: body.date,
+      startTime: body.startTime,
+      endTime: body.endTime,
+    });
+
+    if (!can.ok) {
+      ctx.response.status = Status.Conflict;
+      ctx.response.body = { error: can.reason, code: "SHIFT_CONSTRAINT" };
+      return;
+    }
   }
 
   const assignment = await createShiftAssignment({

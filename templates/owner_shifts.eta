@@ -1,38 +1,712 @@
 <% layout("_layout", it) %>
 
-<link rel="stylesheet" href="/static/dist/floor-index.css">
+<%
+  const restaurant = it.restaurant;
+  const rid = it.restaurantId || restaurant?.id;
+  const user = it.user;
+%>
 
-<main class="shift-page">
-  <div class="shift-container">
-    <div id="root"></div>
+<section class="container sb-container">
+  <div class="card sb-card">
+    <header class="sb-hdr">
+      <div>
+        <h1 class="sb-title">ניהול משמרות</h1>
+        <div class="muted">
+          מסעדה: <strong><%= restaurant?.name || rid %></strong>
+          · בעלים: <strong><%= user?.email || user?.name || '' %></strong>
+        </div>
+      </div>
+
+      <div class="sb-weeknav">
+        <button class="btn ghost sm" id="prevWeek">◀ שבוע</button>
+        <div class="sb-weeklabel" id="weekLabel">—</div>
+        <button class="btn ghost sm" id="nextWeek">שבוע ▶</button>
+      </div>
+    </header>
+
+    <div id="msg" class="muted" style="margin-top:10px"></div>
+
+    <div class="sb-grid">
+      <!-- LEFT PANEL -->
+      <aside class="sb-left">
+        <!-- Create shift -->
+        <div class="panel">
+          <div class="panel-h">
+            <div class="panel-title">+ יצירת משמרת</div>
+            <div class="muted tiny">עם בדיקות חכמות (זמינות/חפיפות)</div>
+          </div>
+
+          <div class="form">
+            <label class="lbl">תאריך</label>
+            <input class="in" type="date" id="fDate" />
+
+            <div class="row2">
+              <div>
+                <label class="lbl">התחלה</label>
+                <input class="in" type="time" id="fStart" value="18:00" />
+              </div>
+              <div>
+                <label class="lbl">סיום</label>
+                <input class="in" type="time" id="fEnd" value="23:00" />
+              </div>
+            </div>
+
+            <label class="lbl">תבנית (אופציונלי)</label>
+            <select class="in" id="fTemplate">
+              <option value="">— ללא —</option>
+            </select>
+
+            <label class="lbl">עובד</label>
+            <select class="in" id="fStaff">
+              <option value="">טוען עובדים…</option>
+            </select>
+
+            <div class="row2">
+              <button class="btn ghost sm" id="btnSuggest" type="button">המלץ עובדים</button>
+              <label class="chk">
+                <input type="checkbox" id="fForce" />
+                <span>Force</span>
+              </label>
+            </div>
+
+            <div id="suggestBox" class="suggest" style="display:none"></div>
+
+            <button class="btn primary" id="btnCreate" type="button">צור משמרת</button>
+
+            <div class="muted tiny" style="margin-top:8px">
+              * אם העובד “לא זמין” או קיימת חפיפה — תקבל 409. אפשר לעקוף עם Force.
+            </div>
+          </div>
+        </div>
+
+        <!-- Availability matrix -->
+        <div class="panel">
+          <div class="panel-h">
+            <div class="panel-title">זמינות עובדים (שבועית)</div>
+            <div class="muted tiny">טוגל זמין/לא זמין לפי יום בשבוע</div>
+          </div>
+
+          <div class="muted tiny" style="margin-top:6px">
+            כאן אתה (כבעלים) יכול לעדכן זמינות לכל עובד.
+          </div>
+
+          <div class="availability">
+            <div class="av-head">
+              <div class="av-name">עובד</div>
+              <div class="av-days">
+                <div class="d">א</div>
+                <div class="d">ב</div>
+                <div class="d">ג</div>
+                <div class="d">ד</div>
+                <div class="d">ה</div>
+                <div class="d">ו</div>
+                <div class="d">ש</div>
+              </div>
+            </div>
+
+            <div id="avBody" class="av-body">
+              <div class="muted tiny" style="padding:10px">טוען…</div>
+            </div>
+
+            <div class="muted tiny" style="margin-top:8px">
+              הערה: “אין נתון” = נחשב זמין (נייטרלי). רק “לא זמין” חוסם שיבוץ.
+            </div>
+          </div>
+        </div>
+
+        <!-- Templates (view-only here) -->
+        <div class="panel">
+          <div class="panel-h">
+            <div class="panel-title">תבניות משמרת</div>
+            <div class="muted tiny">ניהול מלא אפשר להוסיף בהמשך</div>
+          </div>
+          <div id="tmplList" class="tmpl-list">
+            <div class="muted tiny" style="padding:10px">טוען…</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- RIGHT PANEL -->
+      <main class="sb-right">
+        <div class="panel" style="height:100%">
+          <div class="panel-h">
+            <div class="panel-title">לוח משמרות (שבוע)</div>
+            <div class="muted tiny">צפייה/ביטול משמרות</div>
+          </div>
+
+          <div id="weekBoard" class="board">
+            <div class="muted" style="padding:10px">טוען לוח…</div>
+          </div>
+        </div>
+      </main>
+    </div>
   </div>
-</main>
+</section>
 
 <script>
-  // Pass page and restaurantId to React app before it loads
-  window.__APP_CONFIG__ = {
-    page: 'shifts',
-    restaurantId: '<%= it.restaurantId %>'
-  };
+  // --- Config ---
+  const RID = "<%= String(rid || '') %>";
+
+  // --- Helpers ---
+  function pad2(n){ return String(n).padStart(2,'0'); }
+  function iso(d){ return d.getFullYear() + "-" + pad2(d.getMonth()+1) + "-" + pad2(d.getDate()); }
+  function addDays(d, days){ const x = new Date(d); x.setDate(x.getDate()+days); return x; }
+  function startOfWeekSunday(d){
+    const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const dow = x.getDay(); // 0=Sun
+    x.setDate(x.getDate() - dow);
+    return x;
+  }
+  function hebDay(d){
+    try { return d.toLocaleDateString("he-IL", { weekday:"long", month:"2-digit", day:"2-digit" }); }
+    catch { return iso(d); }
+  }
+  function esc(s){
+    return String(s ?? "").replace(/[&<>"']/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  }
+  async function jfetch(url, opt){
+    const r = await fetch(url, opt);
+    const j = await r.json().catch(()=>null);
+    if(!r.ok) {
+      const err = new Error((j && (j.error || j.message)) ? (j.error || j.message) : ("HTTP " + r.status));
+      err.status = r.status;
+      err.payload = j;
+      throw err;
+    }
+    return j;
+  }
+
+  // --- Elements ---
+  const msg = document.getElementById("msg");
+  const weekLabel = document.getElementById("weekLabel");
+  const prevWeek = document.getElementById("prevWeek");
+  const nextWeek = document.getElementById("nextWeek");
+
+  const fDate = document.getElementById("fDate");
+  const fStart = document.getElementById("fStart");
+  const fEnd = document.getElementById("fEnd");
+  const fTemplate = document.getElementById("fTemplate");
+  const fStaff = document.getElementById("fStaff");
+  const fForce = document.getElementById("fForce");
+  const btnCreate = document.getElementById("btnCreate");
+  const btnSuggest = document.getElementById("btnSuggest");
+  const suggestBox = document.getElementById("suggestBox");
+
+  const weekBoard = document.getElementById("weekBoard");
+  const avBody = document.getElementById("avBody");
+  const tmplList = document.getElementById("tmplList");
+
+  // --- State ---
+  let weekStart = startOfWeekSunday(new Date());
+  let staff = [];
+  let templates = [];
+  let availabilityMatrix = null; // {matrix: [...]}
+
+  function setWeekLabel(){
+    const end = addDays(weekStart, 6);
+    weekLabel.textContent = hebDay(weekStart) + " — " + hebDay(end);
+  }
+
+  function setDefaultDate(){
+    // default create date = today
+    const today = iso(new Date());
+    if (!fDate.value) fDate.value = today;
+  }
+
+  function staffName(s){ return [s.firstName, s.lastName].filter(Boolean).join(" "); }
+
+  function clearSuggest(){
+    suggestBox.style.display = "none";
+    suggestBox.innerHTML = "";
+  }
+
+  // --- Loaders ---
+  async function loadStaff(){
+    staff = await jfetch(`/api/restaurants/${encodeURIComponent(RID)}/staff`);
+    fStaff.innerHTML = `<option value="">בחר עובד…</option>` + staff.map(s => (
+      `<option value="${esc(s.id)}">${esc(staffName(s))} · ${esc(s.role||'')}</option>`
+    )).join("");
+  }
+
+  async function loadTemplates(){
+    templates = await jfetch(`/api/restaurants/${encodeURIComponent(RID)}/shift-templates`);
+    fTemplate.innerHTML = `<option value="">— ללא —</option>` + templates.map(t => (
+      `<option value="${esc(t.id)}">${esc(t.name)} (${esc(t.startTime)}–${esc(t.endTime)})</option>`
+    )).join("");
+
+    tmplList.innerHTML = templates.length
+      ? templates.map(t => (
+          `<div class="tmpl">
+            <div class="tmpl-n">${esc(t.name)}</div>
+            <div class="muted tiny">${esc(t.startTime)}–${esc(t.endTime)} · ימים: ${esc((t.daysOfWeek||[]).join(","))}</div>
+          </div>`
+        )).join("")
+      : `<div class="muted tiny" style="padding:10px">אין תבניות עדיין</div>`;
+  }
+
+  async function loadAvailabilityMatrix(){
+    availabilityMatrix = await jfetch(`/api/restaurants/${encodeURIComponent(RID)}/availability`);
+    renderAvailabilityMatrix();
+  }
+
+  function dayCellHtml(staffId, dow, availObj){
+    // availObj can be null => neutral (treated as available)
+    const isUnavailable = (availObj && availObj.available === false);
+    const cls = isUnavailable ? "cell off" : "cell on";
+    const title = isUnavailable ? "לא זמין" : "זמין/נייטרלי";
+    return `<button class="${cls}" data-staff="${esc(staffId)}" data-dow="${dow}" title="${esc(title)}"></button>`;
+  }
+
+  function renderAvailabilityMatrix(){
+    if(!availabilityMatrix || !availabilityMatrix.matrix){
+      avBody.innerHTML = `<div class="muted tiny" style="padding:10px">אין מידע</div>`;
+      return;
+    }
+
+    const rows = availabilityMatrix.matrix;
+
+    if(!rows.length){
+      avBody.innerHTML = `<div class="muted tiny" style="padding:10px">אין עובדים</div>`;
+      return;
+    }
+
+    const html = [];
+    for(const r of rows){
+      const days = r.days || [];
+      html.push(`<div class="av-row">
+        <div class="av-name">
+          <div class="nm">${esc([r.firstName, r.lastName].filter(Boolean).join(" "))}</div>
+          <div class="muted tiny">${esc(r.role||'')}</div>
+        </div>
+        <div class="av-days">` +
+          [0,1,2,3,4,5,6].map(dow => dayCellHtml(r.staffId, dow, days[dow] || null)).join("")
+        + `</div>
+      </div>`);
+    }
+
+    avBody.innerHTML = html.join("");
+  }
+
+  async function toggleAvailability(staffId, dow){
+    // We need current value. Read from availabilityMatrix.
+    const rows = availabilityMatrix?.matrix || [];
+    const row = rows.find(x => x.staffId === staffId);
+    if(!row) return;
+
+    const cur = row.days && row.days[dow] ? row.days[dow] : null;
+    const currentlyUnavailable = (cur && cur.available === false);
+    const newAvailable = currentlyUnavailable ? true : false; // toggle
+
+    // Save: if newAvailable === true we still keep record (ok).
+    // (you can later decide to "delete record" when setting true; for now keep simple.)
+    await jfetch(`/api/restaurants/${encodeURIComponent(RID)}/staff/${encodeURIComponent(staffId)}/availability`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        dayOfWeek: dow,
+        available: newAvailable,
+      }),
+    });
+
+    // Update local state minimally:
+    row.days = row.days || [];
+    row.days[dow] = { ...(row.days[dow] || {}), available: newAvailable };
+
+    renderAvailabilityMatrix();
+  }
+
+  async function loadWeekBoard(){
+    setWeekLabel();
+    const days = [];
+    for(let i=0;i<7;i++) days.push(addDays(weekStart, i));
+
+    // fetch shifts per day
+    const all = [];
+    for(const d of days){
+      const date = iso(d);
+      const shifts = await jfetch(`/api/restaurants/${encodeURIComponent(RID)}/shifts?date=${encodeURIComponent(date)}`);
+      all.push({ date, title: hebDay(d), shifts: Array.isArray(shifts) ? shifts : [] });
+    }
+    renderWeekBoard(all);
+  }
+
+  function statusBadge(status){
+    const s = String(status || "scheduled");
+    const map = {
+      scheduled: ["מתוזמן", "badge"],
+      checked_in: ["נכנס/ה", "badge ok"],
+      checked_out: ["יצא/ה", "badge done"],
+      cancelled: ["בוטל", "badge bad"],
+      called_out: ["היעדרות", "badge warn"],
+    };
+    const t = map[s] ? map[s][0] : s;
+    const c = map[s] ? map[s][1] : "badge";
+    return `<span class="${c}">${esc(t)}</span>`;
+  }
+
+  function renderWeekBoard(days){
+    const html = [];
+    html.push(`<div class="board-grid">`);
+
+    for(const day of days){
+      html.push(`<div class="day">
+        <div class="day-h">
+          <div class="day-title">${esc(day.title)}</div>
+          <div class="muted tiny">${esc(day.date)}</div>
+        </div>`);
+
+      if(!day.shifts.length){
+        html.push(`<div class="empty">אין משמרות</div>`);
+      } else {
+        html.push(`<div class="list">`);
+        for(const sh of day.shifts){
+          html.push(`<div class="shift">
+            <div class="row1">
+              <div class="time">${esc(sh.startTime)}–${esc(sh.endTime)}</div>
+              ${statusBadge(sh.status)}
+            </div>
+            <div class="row2 muted tiny">${esc(sh.staffName || "")} · ${esc(sh.staffRole || "")}</div>
+            <div class="row3">
+              <button class="btn ghost xs" data-cancel="1" data-id="${esc(sh.id)}" data-date="${esc(day.date)}">בטל</button>
+            </div>
+          </div>`);
+        }
+        html.push(`</div>`);
+      }
+
+      html.push(`</div>`);
+    }
+
+    html.push(`</div>`);
+    weekBoard.innerHTML = html.join("");
+  }
+
+  // --- Actions ---
+  async function createShift(){
+    clearSuggest();
+    msg.textContent = "";
+
+    const date = fDate.value;
+    const startTime = fStart.value;
+    const endTime = fEnd.value;
+    const staffId = fStaff.value;
+    const shiftTemplateId = fTemplate.value || undefined;
+    const force = !!fForce.checked;
+
+    if(!date || !startTime || !endTime || !staffId){
+      msg.textContent = "חסרים שדות חובה (תאריך/זמן/עובד)";
+      return;
+    }
+
+    try{
+      btnCreate.disabled = true;
+      btnCreate.textContent = "יוצר…";
+
+      await jfetch(`/api/restaurants/${encodeURIComponent(RID)}/shifts`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          staffId,
+          date,
+          startTime,
+          endTime,
+          shiftTemplateId,
+          force,
+        }),
+      });
+
+      msg.textContent = "✅ משמרת נוצרה";
+      await loadWeekBoard();
+    }catch(e){
+      if(e && e.status === 409){
+        msg.textContent = "⚠️ " + (e.payload && e.payload.error ? e.payload.error : "התנגשות בשיבוץ");
+      } else {
+        msg.textContent = "שגיאה: " + (e && e.message ? e.message : "unknown");
+      }
+    }finally{
+      btnCreate.disabled = false;
+      btnCreate.textContent = "צור משמרת";
+    }
+  }
+
+  async function suggestStaff(){
+    clearSuggest();
+    msg.textContent = "";
+
+    const date = fDate.value;
+    const startTime = fStart.value;
+    const endTime = fEnd.value;
+
+    if(!date || !startTime || !endTime){
+      msg.textContent = "כדי לקבל המלצות, בחר תאריך ושעות";
+      return;
+    }
+
+    try{
+      btnSuggest.disabled = true;
+      btnSuggest.textContent = "מחפש…";
+
+      const j = await jfetch(`/api/restaurants/${encodeURIComponent(RID)}/shifts/recommendations`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          date, startTime, endTime,
+          limit: 8,
+        }),
+      });
+
+      const arr = (j && j.suggestions) ? j.suggestions : [];
+      if(!arr.length){
+        suggestBox.style.display = "block";
+        suggestBox.innerHTML = `<div class="muted tiny">לא נמצאו המלצות (ייתכן שיש חפיפות או כולם לא זמינים).</div>`;
+        return;
+      }
+
+      suggestBox.style.display = "block";
+      suggestBox.innerHTML =
+        `<div class="muted tiny" style="margin-bottom:6px">לחץ כדי לבחור עובד:</div>` +
+        arr.map(s => (
+          `<button class="sug" data-pick="${esc(s.staffId)}">
+            <div class="sug-n">${esc((s.firstName||"") + " " + (s.lastName||""))}</div>
+            <div class="muted tiny">${esc(s.role||"")} · score ${esc(s.score)}</div>
+          </button>`
+        )).join("");
+    }catch(e){
+      msg.textContent = "שגיאה בהמלצות: " + (e && e.message ? e.message : "unknown");
+    }finally{
+      btnSuggest.disabled = false;
+      btnSuggest.textContent = "המלץ עובדים";
+    }
+  }
+
+  async function cancelShift(shiftId, date){
+    if(!confirm("לבטל את המשמרת?")) return;
+    msg.textContent = "";
+    try{
+      await jfetch(`/api/restaurants/${encodeURIComponent(RID)}/shifts/${encodeURIComponent(shiftId)}`, {
+        method: "DELETE",
+        headers: { "accept": "application/json" },
+      });
+      msg.textContent = "✅ בוטל";
+      await loadWeekBoard();
+    }catch(e){
+      msg.textContent = "שגיאה בביטול: " + (e && e.message ? e.message : "unknown");
+    }
+  }
+
+  // --- Events ---
+  prevWeek.addEventListener("click", async ()=>{ weekStart = addDays(weekStart, -7); await loadWeekBoard(); });
+  nextWeek.addEventListener("click", async ()=>{ weekStart = addDays(weekStart,  7); await loadWeekBoard(); });
+
+  btnCreate.addEventListener("click", createShift);
+  btnSuggest.addEventListener("click", suggestStaff);
+
+  suggestBox.addEventListener("click", (ev)=>{
+    const b = ev.target && ev.target.closest ? ev.target.closest("[data-pick]") : null;
+    if(!b) return;
+    const id = b.getAttribute("data-pick");
+    if(id){
+      fStaff.value = id;
+      clearSuggest();
+      msg.textContent = "נבחר עובד מהמלצות";
+    }
+  });
+
+  avBody.addEventListener("click", async (ev)=>{
+    const b = ev.target && ev.target.closest ? ev.target.closest("button[data-staff][data-dow]") : null;
+    if(!b) return;
+    const staffId = b.getAttribute("data-staff");
+    const dow = Number(b.getAttribute("data-dow"));
+    if(!staffId || !Number.isFinite(dow)) return;
+
+    try{
+      await toggleAvailability(staffId, dow);
+    }catch(e){
+      msg.textContent = "שגיאה בעדכון זמינות: " + (e && e.message ? e.message : "unknown");
+    }
+  });
+
+  weekBoard.addEventListener("click", async (ev)=>{
+    const b = ev.target && ev.target.closest ? ev.target.closest("button[data-cancel='1']") : null;
+    if(!b) return;
+    const shiftId = b.getAttribute("data-id");
+    const date = b.getAttribute("data-date");
+    if(shiftId) await cancelShift(shiftId, date);
+  });
+
+  // --- Init ---
+  async function init(){
+    try{
+      msg.textContent = "טוען…";
+      setWeekLabel();
+      setDefaultDate();
+
+      await loadStaff();
+      await loadTemplates();
+      await loadAvailabilityMatrix();
+      await loadWeekBoard();
+
+      msg.textContent = "";
+    }catch(e){
+      msg.textContent = "שגיאה בטעינה: " + (e && e.message ? e.message : "unknown");
+    }
+  }
+
+  init();
 </script>
 
-<script type="module" src="/static/dist/floor-app.js"></script>
-
 <style>
-.shift-page {
-  padding: 0;
-  margin: 0;
-  min-height: 100vh;
-}
+  .sb-container{max-width:1200px;margin:20px auto;padding:0 16px}
+  .sb-card{
+    background: var(--panel,#121622);
+    border:1px solid var(--bd,#222834);
+    border-radius:18px;
+    padding:18px;
+    color: var(--ink,#e6e8ef);
+    box-shadow:0 10px 30px rgba(0,0,0,.35);
+  }
 
-.shift-container {
-  width: 100%;
-  height: 100%;
-  min-height: 100vh;
-}
+  .sb-hdr{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .sb-title{margin:0 0 6px 0;font-size:22px;font-weight:900}
+  .muted{color:var(--ink-muted,#9aa3b2)}
+  .tiny{font-size:12px}
+  .sb-weeknav{display:flex;align-items:center;gap:10px}
+  .sb-weeklabel{font-weight:900;opacity:.95}
 
-#root {
-  width: 100%;
-  height: 100%;
-}
+  .sb-grid{display:grid;grid-template-columns:420px 1fr;gap:14px;margin-top:16px}
+  @media (max-width: 1100px){ .sb-grid{grid-template-columns:1fr; } }
+
+  .panel{
+    border:1px solid rgba(148,163,184,.22);
+    background: rgba(15,23,42,.55);
+    border-radius:16px;
+    padding:12px;
+  }
+  .panel + .panel{margin-top:12px}
+  .panel-h{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap}
+  .panel-title{font-weight:900}
+
+  .form{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+  .lbl{font-weight:800;font-size:12px;opacity:.9}
+  .in{
+    width:100%;
+    padding:10px 12px;
+    border-radius:12px;
+    border:1px solid rgba(148,163,184,.25);
+    background: rgba(2,6,23,.55);
+    color: var(--ink,#e6e8ef);
+    outline:none;
+  }
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .chk{display:flex;align-items:center;gap:8px;justify-content:flex-end;font-weight:900}
+
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    gap:8px;padding:10px 14px;border-radius:12px;
+    border:1px solid var(--bd,#23293a);
+    background:transparent;color: var(--ink,#e6e8ef);
+    font-weight:900;text-decoration:none;cursor:pointer;
+    transition:transform .08s ease,background .12s ease;
+  }
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+  .btn.ghost{background:color-mix(in srgb,var(--panel,#121622) 88%,transparent)}
+  .btn.primary{background:rgba(59,130,246,.18);border-color:rgba(59,130,246,.35)}
+  .btn.sm{padding:8px 10px;border-radius:12px}
+  .btn.xs{padding:6px 8px;border-radius:10px;font-size:12px}
+
+  .suggest{
+    border:1px solid rgba(148,163,184,.22);
+    border-radius:14px;
+    padding:10px;
+    background: rgba(2,6,23,.35);
+  }
+  .sug{
+    width:100%;
+    text-align:right;
+    display:flex;flex-direction:column;gap:2px;
+    padding:9px 10px;
+    border-radius:12px;
+    border:1px solid rgba(148,163,184,.18);
+    background: rgba(15,23,42,.55);
+    color: var(--ink,#e6e8ef);
+    cursor:pointer;
+    margin-top:6px;
+  }
+  .sug:hover{background: rgba(15,23,42,.75)}
+  .sug-n{font-weight:900}
+
+  /* Availability */
+  .availability{margin-top:10px}
+  .av-head,.av-row{
+    display:grid;
+    grid-template-columns: 1fr 210px;
+    gap:10px;
+    align-items:center;
+  }
+  .av-head{padding:8px 6px;border-bottom:1px solid rgba(148,163,184,.18)}
+  .av-row{padding:10px 6px;border-bottom:1px solid rgba(148,163,184,.12)}
+  .av-name .nm{font-weight:900}
+  .av-days{display:grid;grid-template-columns:repeat(7, 1fr);gap:6px}
+  .d{font-weight:900;font-size:12px;opacity:.75;text-align:center}
+
+  .cell{
+    height:22px;border-radius:8px;border:1px solid rgba(148,163,184,.25);
+    background: rgba(2,6,23,.45);
+    cursor:pointer;
+  }
+  .cell.on{background: rgba(34,197,94,.10);border-color: rgba(34,197,94,.35)}
+  .cell.off{background: rgba(239,68,68,.10);border-color: rgba(239,68,68,.35)}
+
+  /* Templates list */
+  .tmpl-list{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+  .tmpl{
+    border:1px solid rgba(148,163,184,.18);
+    background: rgba(2,6,23,.35);
+    border-radius:14px;
+    padding:10px;
+  }
+  .tmpl-n{font-weight:900}
+
+  /* Week board */
+  .board{margin-top:10px}
+  .board-grid{
+    display:grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap:12px;
+  }
+  @media (max-width: 900px){ .board-grid{grid-template-columns:1fr} }
+  .day{
+    border:1px solid rgba(148,163,184,.18);
+    background: rgba(2,6,23,.25);
+    border-radius:16px;
+    padding:12px;
+  }
+  .day-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .day-title{font-weight:900}
+  .empty{margin-top:10px;color:rgba(226,232,240,.7);font-weight:800}
+
+  .list{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+  .shift{
+    border:1px solid rgba(148,163,184,.18);
+    background: rgba(15,23,42,.55);
+    border-radius:14px;
+    padding:10px;
+  }
+  .row1{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .time{font-weight:900;letter-spacing:.2px}
+  .row3{margin-top:8px;display:flex;justify-content:flex-start}
+
+  .badge{
+    display:inline-flex;align-items:center;justify-content:center;
+    padding:4px 8px;border-radius:999px;
+    font-size:12px;font-weight:900;
+    border:1px solid rgba(148,163,184,.35);
+    background: rgba(15,23,42,.65);
+    color: rgba(226,232,240,.95);
+    white-space:nowrap;
+  }
+  .badge.ok{border-color:rgba(34,197,94,.45);color:rgba(187,247,208,.95);background:rgba(34,197,94,.08)}
+  .badge.done{border-color:rgba(59,130,246,.45);color:rgba(191,219,254,.95);background:rgba(59,130,246,.08)}
+  .badge.bad{border-color:rgba(239,68,68,.45);color:rgba(254,202,202,.95);background:rgba(239,68,68,.08)}
+  .badge.warn{border-color:rgba(245,158,11,.45);color:rgba(254,243,199,.95);background:rgba(245,158,11,.08)}
 </style>

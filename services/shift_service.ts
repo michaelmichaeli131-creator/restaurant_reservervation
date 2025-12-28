@@ -400,3 +400,168 @@ export async function removeUserRole(userId: string, restaurantId: string): Prom
     .delete(indexKey)
     .commit();
 }
+
+// ===================== Availability helpers + Smart assignment (Step #2) =====================
+
+function timeToMinutes(t: string): number {
+  // "HH:mm"
+  const [hh, mm] = (t || "").split(":").map((x) => Number(x));
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return NaN;
+  return hh * 60 + mm;
+}
+
+function overlaps(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
+  const aS = timeToMinutes(aStart);
+  const aE = timeToMinutes(aEnd);
+  const bS = timeToMinutes(bStart);
+  const bE = timeToMinutes(bEnd);
+  if (![aS, aE, bS, bE].every(Number.isFinite)) return false;
+  // overlap if intervals intersect
+  return aS < bE && bS < aE;
+}
+
+function getDayOfWeekFromIsoDate(date: string): number | null {
+  // date is "YYYY-MM-DD"
+  const d = new Date(date + "T00:00:00");
+  const dow = d.getDay(); // 0..6 (Sun..Sat)
+  return Number.isFinite(dow) ? dow : null;
+}
+
+export async function listAvailabilityForStaff(
+  staffId: string,
+): Promise<(StaffAvailability | null)[]> {
+  const out: (StaffAvailability | null)[] = [];
+  for (let dow = 0; dow <= 6; dow++) {
+    out.push(await getStaffAvailability(staffId, dow));
+  }
+  return out;
+}
+
+export async function listRestaurantAvailabilityMatrix(restaurantId: string) {
+  const staff = await listStaff(restaurantId);
+  const rows = [];
+  for (const s of staff) {
+    const days = await listAvailabilityForStaff(s.id);
+    rows.push({
+      staffId: s.id,
+      firstName: s.firstName,
+      lastName: s.lastName,
+      role: s.role,
+      email: s.email,
+      days,
+    });
+  }
+  return rows;
+}
+
+/**
+ * Check if staff can be assigned to a shift without conflicts.
+ * Rules:
+ * 1) If there is an availability record for that day and available=false → block
+ * 2) If there is time overlap with existing assignments on that date → block
+ * Missing availability record == allowed (neutral).
+ */
+export async function canAssignStaffToShift(args: {
+  restaurantId: string;
+  staffId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const dow = getDayOfWeekFromIsoDate(args.date);
+  if (dow === null) {
+    return { ok: false, reason: "Invalid date" };
+  }
+
+  // Availability (only blocks if explicitly marked unavailable)
+  const avail = await getStaffAvailability(args.staffId, dow);
+  if (avail && avail.available === false) {
+    return { ok: false, reason: "Staff marked as unavailable for this day" };
+  }
+
+  // Overlaps on same day for same staff
+  const existing = await listShiftsByStaff(args.staffId, args.date);
+  for (const sh of existing) {
+    if (overlaps(sh.startTime, sh.endTime, args.startTime, args.endTime)) {
+      return { ok: false, reason: "Overlapping shift for this staff on the same date" };
+    }
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Recommend staff for a desired shift.
+ * Scoring:
+ * - Not available (explicit) → excluded unless you want to include later
+ * - Overlap → excluded
+ * - Otherwise include, prioritize:
+ *   1) explicit available record
+ *   2) preferredShift match (soft)
+ */
+export async function recommendStaffForShift(args: {
+  restaurantId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  role?: string;
+  limit?: number;
+}) {
+  const limit = typeof args.limit === "number" ? args.limit : 10;
+
+  const dow = getDayOfWeekFromIsoDate(args.date);
+  if (dow === null) return [];
+
+  const staff = await listStaff(args.restaurantId);
+  const candidates: Array<{
+    staffId: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+    email: string;
+    score: number;
+    availability: StaffAvailability | null;
+  }> = [];
+
+  for (const s of staff) {
+    if (args.role && s.role !== args.role) continue;
+
+    const can = await canAssignStaffToShift({
+      restaurantId: args.restaurantId,
+      staffId: s.id,
+      date: args.date,
+      startTime: args.startTime,
+      endTime: args.endTime,
+    });
+    if (!can.ok) continue;
+
+    const avail = await getStaffAvailability(s.id, dow);
+
+    let score = 0;
+    if (avail) score += 10;
+    if (avail?.available) score += 10;
+
+    // soft match preferredShift
+    const pref = (avail?.preferredShift || "").toLowerCase();
+    const startMin = timeToMinutes(args.startTime);
+    if (Number.isFinite(startMin)) {
+      if (pref === "morning" && startMin < 12 * 60) score += 2;
+      if (pref === "afternoon" && startMin >= 12 * 60 && startMin < 17 * 60) score += 2;
+      if (pref === "evening" && startMin >= 17 * 60) score += 2;
+      if (pref === "closing" && startMin >= 20 * 60) score += 2;
+    }
+
+    candidates.push({
+      staffId: s.id,
+      firstName: s.firstName,
+      lastName: s.lastName,
+      role: s.role,
+      email: s.email,
+      score,
+      availability: avail,
+    });
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates.slice(0, limit);
+}
