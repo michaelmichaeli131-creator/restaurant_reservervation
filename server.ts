@@ -546,6 +546,10 @@ app.use(inventoryRouter.allowedMethods());
 app.use(staffTimeRouter.routes());
 app.use(staffTimeRouter.allowedMethods());
 
+// ✅ תוספת קריטית: staff shifts router
+app.use(staffShiftsRouter.routes());
+app.use(staffShiftsRouter.allowedMethods());
+
 app.use(ownerTimeRouter.routes());
 app.use(ownerTimeRouter.allowedMethods());
 

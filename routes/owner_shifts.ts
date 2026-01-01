@@ -457,8 +457,17 @@ ownerShiftsRouter.post("/api/restaurants/:rid/shifts", async (ctx) => {
 
 // POST /api/restaurants/:rid/shifts/:shiftId/check-in - Check in to shift
 ownerShiftsRouter.post("/api/restaurants/:rid/shifts/:shiftId/check-in", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
   const rid = ctx.params.rid;
   const shiftId = ctx.params.shiftId;
+
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant || (restaurant as any).ownerId !== ctx.state.user.id) {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = { error: "Forbidden" };
+    return;
+  }
 
   const body = await ctx.request.body.json();
   const assignment = await checkInShift(rid, shiftId, body?.notes);
@@ -474,8 +483,17 @@ ownerShiftsRouter.post("/api/restaurants/:rid/shifts/:shiftId/check-in", async (
 
 // POST /api/restaurants/:rid/shifts/:shiftId/check-out - Check out from shift
 ownerShiftsRouter.post("/api/restaurants/:rid/shifts/:shiftId/check-out", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+
   const rid = ctx.params.rid;
   const shiftId = ctx.params.shiftId;
+
+  const restaurant = await getRestaurant(rid);
+  if (!restaurant || (restaurant as any).ownerId !== ctx.state.user.id) {
+    ctx.response.status = Status.Forbidden;
+    ctx.response.body = { error: "Forbidden" };
+    return;
+  }
 
   const assignment = await checkOutShift(rid, shiftId);
 
