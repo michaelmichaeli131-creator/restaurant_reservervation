@@ -1,590 +1,598 @@
-// src/server.ts
-// GeoTable – Oak server (extended, cleaned & ordered)
-// -------------------------------------------------------------
-// כולל:
-// - Error handler גלובלי (עם סטאק ללוג)
-// - Request ID + Logger מפורט (שיטה, נתיב, סטטוס, משך, משתמש מחובר)
-// - כותרות אבטחה (CSP בסיסי, HSTS ב-HTTPS, X-Frame-Options, X-Content-Type-Options וכו')
-// - כפיית HTTPS בפרודקשן (במיוחד עבור cookies מאובטחים)
-// - Session middleware (cookie) + טעינת משתמש ל-ctx.state.user
-// - Static files /public/*
-// - Root router: דף בית (תוצאות גם כשיש q, לא רק כשsearch=1), /__health, /__echo, /__mailtest, /__env
-// - חיבור כל הראוטרים + owner_calendar + floor + shifts
-// - טיפול 404/405/OPTIONS, וכן graceful shutdown
-// -------------------------------------------------------------
+// services/shift_service.ts
+// Shift management business logic
 
-import {
-  Application,
-  Router,
-  isHttpError,
-  Status,
-} from "jsr:@oak/oak";
-import { send } from "jsr:@oak/oak/send";
+import { kv } from "../database.ts";
+import type { StaffMember, ShiftTemplate, ShiftAssignment, StaffAvailability, UserRestaurantRole } from "../database.ts";
 
-import { render } from "./lib/view.ts";
-import sessionMiddleware from "./lib/session.ts";
+// =========== Key Helpers ===========
 
-import { authRouter } from "./routes/auth.ts";
-import { restaurantsRouter } from "./routes/restaurants/index.ts";
-import { ownerRouter } from "./routes/owner.ts";
-import { adminRouter } from "./routes/admin.ts";
-import rootRouter from "./routes/root.ts";
-import ownerCapacityRouter from "./routes/owner_capacity.ts";
-import { ownerStaffRouter } from "./routes/owner_staff.ts";
-
-import {
-  listRestaurants,
-  listRestaurantsByCategory,
-  getUserById,
-  type KitchenCategory,
-} from "./database.ts";
-import { sendVerifyEmail } from "./lib/mail_wrappers.ts";
-import ownerManageRouter from "./routes/owner_manage.ts";
-import { ownerHoursRouter } from "./routes/owner_hours.ts";
-import ownerPhotosRouter from "./routes/owner_photos.ts";
-import { requestLogger } from "./lib/log_mw.ts";
-import { diagRouter } from "./routes/diag.ts";
-import openingRouter from "./routes/opening.ts";
-import { posRouter } from "./routes/pos.ts";
-import { hostRouter } from "./routes/host.ts";
-import { staffContextMiddleware } from "./middleware/staff_context.ts";
-import ownerBillsRouter from "./routes/owner_bills.ts";
-import inventoryRouter from "./routes/inventory.ts";
-import { reservationPortal } from "./routes/reservation_portal.ts";
-import { staffTimeRouter } from "./routes/staff_time.ts";
-import { ownerTimeRouter } from "./routes/owner_time.ts";
-import { timeClockRouter } from "./routes/timeclock.ts";
-import { ownerPayrollRouter } from "./routes/owner_payroll.ts";
-
-
-// ✅ i18n: טעינה בטוחה (תומך גם default וגם named export)
-import * as i18nModule from "./middleware/i18n.ts";
-
-import langRouter from "./routes/lang.ts";
-import reviewsRouter from "./routes/reviews.ts";
-import reviewPortalRouter from "./routes/review_portal.ts";
-
-// ✅ חדש: ראוטר ניהול תפוסה יומי (Calendar/Timeline)
-import { ownerCalendarRouter } from "./routes/owner_calendar.ts";
-
-// ✅ Floor plan management
-import { ownerFloorRouter } from "./routes/owner_floor.ts";
-
-// ✅ Shift management
-import { ownerShiftsRouter } from "./routes/owner_shifts.ts";
-import { staffShiftsRouter } from "./routes/staff_shifts.ts";
-
-// -------------------- ENV --------------------
-const PORT = Number(Deno.env.get("PORT") ?? "8000");
-const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
-const BASE_URL = Deno.env.get("BASE_URL") ?? ""; // לדוגמת קישורי אימות
-const NODE_ENV = Deno.env.get("NODE_ENV") ?? "production"; // "development" | "production"
-const TRUST_PROXY = true; // ב-Deno Deploy מאחורי פרוקסי
-
-// תג בנייה ללוג/דיבוג (עוזר לוודא שהגרסה החדשה עלתה)
-const BUILD_TAG = new Date().toISOString();
-
-// -------------------- UTIL --------------------
-function genReqId(): string {
-  return crypto.randomUUID().slice(0, 8);
-}
-function nowIso() {
-  return new Date().toISOString();
-}
-function getClientIp(ctx: any): string | undefined {
-  if (TRUST_PROXY) {
-    const fwd = ctx.request.headers.get("x-forwarded-for");
-    if (fwd) return fwd.split(",")[0]?.trim();
-  }
-  return (ctx.request as any).ip;
-}
-function isHttps(ctx: any): boolean {
-  // @ts-ignore oak adds .secure in some runtimes
-  if ((ctx.request as any).secure) return true;
-  if (TRUST_PROXY) {
-    const proto = ctx.request.headers.get("x-forwarded-proto");
-    if (proto && proto.toLowerCase() === "https") return true;
-  }
-  try {
-    const url = ctx.request.url;
-    return url.protocol === "https:";
-  } catch {
-    return false;
-  }
+function kUserRestaurantRole(userId: string, restaurantId: string): Deno.KvKey {
+  return ["user_restaurant_role", userId, restaurantId];
 }
 
-// -------------------- APP --------------------
-const app = new Application();
-
-// --- Request ID ---
-app.use(async (ctx, next) => {
-  (ctx.state as any).reqId = genReqId();
-  await next();
-});
-
-// --- Global error handler ---
-app.use(async (ctx, next) => {
-  try {
-    await next();
-  } catch (err) {
-    const reqId = (ctx.state as any).reqId;
-    if (isHttpError(err)) {
-      console.error(
-        `[ERR ${reqId}] ${err.status} ${err.message}\n${(err as any).stack ?? ""}`,
-      );
-      ctx.response.status = err.status;
-      ctx.response.body = (err as any).expose
-        ? (err as any).message
-        : "Internal Server Error";
-    } else {
-      console.error(`[ERR ${reqId}] UNCAUGHT:`, (err as any)?.stack ?? err);
-      ctx.response.status = 500;
-      ctx.response.body = "Internal Server Error";
-    }
-  }
-});
-
-// --- Security headers (CSP כולל blob: לתמונות preview) ---
-app.use(async (ctx, next) => {
-  ctx.response.headers.set(
-    "Content-Security-Policy",
-    "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';",
-  );
-  ctx.response.headers.set("X-Frame-Options", "DENY");
-  ctx.response.headers.set("X-Content-Type-Options", "nosniff");
-  ctx.response.headers.set(
-    "Referrer-Policy",
-    "strict-origin-when-cross-origin",
-  );
-  ctx.response.headers.set(
-    "Permissions-Policy",
-    "geolocation=(), microphone=()",
-  );
-  if (isHttps(ctx)) {
-    ctx.response.headers.set(
-      "Strict-Transport-Security",
-      "max-age=63072000; includeSubDomains; preload",
-    );
-  }
-  await next();
-});
-
-// --- Force HTTPS in production ---
-app.use(async (ctx, next) => {
-  if (NODE_ENV !== "development" && !isHttps(ctx)) {
-    const url = ctx.request.url;
-    const httpsUrl = `https://${url.host}${url.pathname}${url.search}`;
-    ctx.response.status = Status.PermanentRedirect;
-    ctx.response.headers.set("Location", httpsUrl);
-    return;
-  }
-  await next();
-});
-
-// --- Logger (פשוט) ---
-app.use(async (ctx, next) => {
-  const t0 = performance.now();
-  const reqId = (ctx.state as any).reqId;
-  const ip = getClientIp(ctx) ?? "-";
-  await next();
-  const user = (ctx.state as any).user;
-  const userTag = user ? `${user.email}(${user.id})` : "-";
-  const dt = performance.now() - t0;
-  console.log(
-    `[RES ${reqId}] ${ctx.response.status} ${ctx.request.method} ${ctx.request.url.pathname}` +
-      ` ${dt.toFixed(1)}ms ip=${ip} user=${userTag}`,
-  );
-});
-
-// --- Session middleware ---
-app.use(sessionMiddleware);
-
-// --- Load user from session ---
-app.use(async (ctx, next) => {
-  try {
-    const session = (ctx.state as any).session;
-    const uid = session ? await session.get("userId") : null;
-    if (uid) {
-      const user = await getUserById(uid);
-      if (user) (ctx.state as any).user = user;
-      else (ctx.state as any).user = null;
-    } else {
-      (ctx.state as any).user = null;
-    }
-  } catch (e) {
-    console.warn("[user-loader] failed:", e);
-    (ctx.state as any).user = null;
-  }
-  await next();
-});
-
-// --- Load staff context (for role="staff") ---
-app.use(staffContextMiddleware());
-
-// --- 🔎 Request logger המפורט שלך — ממוקם מוקדם כדי לעטוף הכל ---
-app.use(requestLogger());
-
-/* --- Static files (/public/* -> <CWD>/public/*) --- */
-app.use(async (ctx, next) => {
-  const p = ctx.request.url.pathname;
-  if (p.startsWith("/public/")) {
-    const rel = p.slice("/public/".length);
-    await send(ctx, rel, {
-      root: `${Deno.cwd()}/public`,
-    });
-    return;
-  }
-  await next();
-});
-
-// --- Static files (/static/* -> public/*) ---
-app.use(async (ctx, next) => {
-  const p = ctx.request.url.pathname;
-  if (!p.startsWith("/static/")) return await next();
-  const filePath = p.slice("/static".length) || "/";
-  try {
-    // @ts-ignore oak ctx.send
-    await (ctx as any).send({
-      root: "public",
-      path: filePath,
-      index: "index.html",
-    });
-  } catch {
-    await next();
-  }
-});
-
-// --- No-cache לאיזור האדמין + X-Build-Tag לכל תגובה ---
-app.use(async (ctx, next) => {
-  await next();
-  ctx.response.headers.set("X-Build-Tag", BUILD_TAG);
-  if (ctx.request.url.pathname.startsWith("/admin")) {
-    ctx.response.headers.set(
-      "Cache-Control",
-      "no-store, no-cache, must-revalidate, max-age=0",
-    );
-    ctx.response.headers.set("Pragma", "no-cache");
-    ctx.response.headers.set("Expires", "0");
-  }
-});
-
-// -------------------- i18n FIRST (חשוב!) --------------------
-const i18nMw =
-  (i18nModule as any).i18n ??
-  (i18nModule as any).default;
-
-if (typeof i18nMw !== "function") {
-  throw new Error(
-    "i18n middleware not found. Expected export const i18n or export default function in ./middleware/i18n.ts",
-  );
+function kUserRestaurantRoleByRestaurant(restaurantId: string): Deno.KvKey {
+  return ["user_restaurant_role_by_restaurant", restaurantId];
 }
 
-// ✅ i18n וה־/lang חייבים לבוא לפני כל ראוטר שמרנדר HTML
-app.use(i18nMw);
-app.use(langRouter.routes());
-app.use(langRouter.allowedMethods());
+function kStaff(restaurantId: string, staffId: string): Deno.KvKey {
+  return ["staff", restaurantId, staffId];
+}
 
-// -------------------- ROOT ROUTER (inline) --------------------
-const root = new Router();
+function kStaffByRestaurant(restaurantId: string): Deno.KvKey {
+  return ["staff", restaurantId];
+}
 
-// דף הבית – מציג תוצאות גם כשיש q, לא רק כשsearch=1
-root.get("/", async (ctx) => {
-  const url = ctx.request.url;
-  const q = url.searchParams.get("q")?.toString() ?? "";
-  const search = url.searchParams.get("search")?.toString() ?? "";
-  const category = url.searchParams.get("category")?.toString() ?? "";
+function kShiftTemplate(restaurantId: string, templateId: string): Deno.KvKey {
+  return ["shift_template", restaurantId, templateId];
+}
 
-  let restaurants: any[] = [];
+function kShiftTemplateByRestaurant(restaurantId: string): Deno.KvKey {
+  return ["shift_template", restaurantId];
+}
 
-  if (category && category.trim()) {
-    // Filter by category
-    restaurants = await listRestaurantsByCategory(
-      category as KitchenCategory,
-      true,
-    );
-  } else {
-    // Text search
-    const shouldSearch = search === "1" || q.trim().length > 0;
-    restaurants = shouldSearch ? await listRestaurants(q, true) : [];
-  }
+function kShiftAssignment(restaurantId: string, assignmentId: string): Deno.KvKey {
+  return ["shift_assignment", restaurantId, assignmentId];
+}
 
-  await render(ctx, "index", {
-    restaurants,
-    q,
-    search: (search === "1" || q.trim().length > 0) ? "1" : "",
-    category,
-    page: "home",
-    title: "GeoTable — חיפוש מסעדה",
-  });
-});
+function kShiftAssignmentByDate(
+  restaurantId: string,
+  date: string,
+  assignmentId?: string,
+): Deno.KvKey {
+  // Prefix key: ["shift_assignment_by_date", rid, date]
+  // Full index key: ["shift_assignment_by_date", rid, date, assignmentId]
+  const base: Deno.KvKey = ["shift_assignment_by_date", restaurantId, date];
+  if (assignmentId) return [...base, assignmentId] as Deno.KvKey;
+  return base;
+}
 
-// Health
-root.get("/__health", (ctx) => {
-  ctx.response.status = 200;
-  ctx.response.body = "OK " + nowIso();
-});
+function kShiftAssignmentByStaff(
+  staffId: string,
+  date: string,
+  assignmentId?: string,
+): Deno.KvKey {
+  // Prefix key: ["shift_assignment_by_staff", staffId, date]
+  // Full index key: ["shift_assignment_by_staff", staffId, date, assignmentId]
+  const base: Deno.KvKey = ["shift_assignment_by_staff", staffId, date];
+  if (assignmentId) return [...base, assignmentId] as Deno.KvKey;
+  return base;
+}
 
-// Echo
-root.get("/__echo", (ctx) => {
-  const info = {
-    method: ctx.request.method,
-    url: ctx.request.url.href,
-    path: ctx.request.url.pathname,
-    query: Object.fromEntries(ctx.request.url.searchParams),
-    headers: Object.fromEntries(ctx.request.headers),
-    now: nowIso(),
+function kAvailability(staffId: string, dayOfWeek: number): Deno.KvKey {
+  return ["staff_availability", staffId, dayOfWeek];
+}
+
+// =========== STAFF MEMBER OPERATIONS ===========
+
+export async function createStaff(data: {
+  restaurantId: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  role: string;
+  hourlyRate?: number;
+  hireDate?: number;
+}): Promise<StaffMember> {
+  const id = crypto.randomUUID();
+  const staff: StaffMember = {
+    id,
+    restaurantId: data.restaurantId,
+    userId: data.userId,
+    firstName: data.firstName,
+    lastName: data.lastName,
+    email: data.email,
+    phone: data.phone,
+    role: data.role as any,
+    hourlyRate: data.hourlyRate,
+    status: "active",
+    hireDate: data.hireDate || Date.now(),
+    createdAt: Date.now(),
   };
-  ctx.response.headers.set(
-    "Content-Type",
-    "application/json; charset=utf-8",
-  );
-  ctx.response.body = JSON.stringify(info, null, 2);
-});
-
-// Mail test (מאובטח ב-ADMIN_SECRET)
-root.get("/__mailtest", async (ctx) => {
-  const key = ctx.request.url.searchParams.get("key") ?? "";
-  const to = ctx.request.url.searchParams.get("to") ?? "";
-  if (!ADMIN_SECRET || key !== ADMIN_SECRET) {
-    ctx.response.status = Status.Unauthorized;
-    ctx.response.body = "Unauthorized";
-    return;
-  }
-  if (!to) {
-    ctx.response.status = Status.BadRequest;
-    ctx.response.body = "missing ?to=";
-    return;
-  }
-  const fakeToken = crypto.randomUUID().replace(/-/g, "");
-  await sendVerifyEmail(to, fakeToken);
-  ctx.response.body = "sent (or dry-run logged)";
-});
-
-// Env info (מאובטח)
-root.get("/__env", (ctx) => {
-  const key = ctx.request.url.searchParams.get("key") ?? "";
-  if (!ADMIN_SECRET || key !== ADMIN_SECRET) {
-    ctx.response.status = Status.Unauthorized;
-    ctx.response.body = "Unauthorized";
-    return;
-  }
-  ctx.response.headers.set(
-    "Content-Type",
-    "application/json; charset=utf-8",
-  );
-  ctx.response.body = JSON.stringify({
-    time: nowIso(),
-    port: PORT,
-    baseUrl: BASE_URL || "(not set)",
-    nodeEnv: NODE_ENV,
-    adminSecretSet: Boolean(ADMIN_SECRET),
-  }, null, 2);
-});
-
-app.use(root.routes());
-app.use(root.allowedMethods());
-
-// -------------------- AUTH GATE (חדש) --------------------
-app.use(async (ctx, next) => {
-  const path = ctx.request.url.pathname;
-
-  const needsAuth =
-    path.startsWith("/owner") ||
-    path.startsWith("/dashboard") ||
-    path.startsWith("/manage") ||
-    path.startsWith("/opening");
-
-  const user = (ctx.state as any).user;
-
-  // 🔎 לוג מפורט ל-Auth Gate
-  console.log("[AUTH_GATE] check", {
-    path,
-    needsAuth,
-    hasUser: Boolean(user),
-    userId: user?.id,
-    userEmail: user?.email,
-    role: user?.role,
-  });
-
-  if (!needsAuth) {
-    console.log("[AUTH_GATE] path does not need auth, continue", { path });
-    return await next();
-  }
-
-  if (!user) {
-    const redirect = "/auth/login?redirect=" +
-      encodeURIComponent(path);
-    console.log("[AUTH_GATE] no user, redirect to login", {
-      path,
-      redirect,
-    });
-    ctx.response.status = Status.SeeOther;
-    ctx.response.headers.set("Location", redirect);
-    return;
-  }
-
-  if (!user.emailVerified) {
-    console.warn("[AUTH_GATE] blocked – email not verified", {
-      userId: user.id,
-      email: user.email,
-      path,
-    });
-    ctx.response.status = Status.Forbidden;
-    ctx.response.body = "נדרש אימות דוא״ל לפני גישה לאזור זה.";
-    return;
-  }
-
-  if (user.isActive === false) {
-    console.warn("[AUTH_GATE] blocked – user inactive", {
-      userId: user.id,
-      email: user.email,
-      path,
-    });
-    ctx.response.status = Status.Forbidden;
-    ctx.response.body = "החשבון מבוטל. פנה/י לתמיכה.";
-    return;
-  }
-
-  console.log("[AUTH_GATE] access granted", {
-    path,
-    userId: user.id,
-    role: user.role,
-  });
-
-  await next();
-});
-
-// -------------------- FEATURE ROUTERS (ordered) --------------------
-
-// לוג קצר לכל בקשה (debug)
-app.use(async (ctx, next) => {
-  console.log(
-    `[DEBUG] incoming: ${ctx.request.method} ${ctx.request.url.pathname}`,
-  );
-  await next();
-});
-
-// אימות/משתמשים
-app.use(authRouter.routes());
-app.use(authRouter.allowedMethods());
-
-// Staff management (owner)
-app.use(ownerStaffRouter.routes());
-app.use(ownerStaffRouter.allowedMethods());
-
-// פורטל הזמנות (מייל)
-app.use(reservationPortal.routes());
-app.use(reservationPortal.allowedMethods());
-
-// אדמין
-app.use(adminRouter.routes());
-app.use(adminRouter.allowedMethods());
-
-// ראוטרים לבעלים - הספציפיים ביותר קודם
-app.use(ownerCalendarRouter.routes());
-app.use(ownerCalendarRouter.allowedMethods());
-
-app.use(ownerHoursRouter.routes());
-app.use(ownerHoursRouter.allowedMethods());
-
-app.use(ownerCapacityRouter.routes());
-app.use(ownerCapacityRouter.allowedMethods());
-
-app.use(ownerManageRouter.routes());
-app.use(ownerManageRouter.allowedMethods());
-
-// ✅ קודם ראוטרים ספציפיים
-app.use(ownerPhotosRouter.routes());
-app.use(ownerPhotosRouter.allowedMethods());
-
-app.use(ownerShiftsRouter.routes());
-app.use(ownerShiftsRouter.allowedMethods());
-
-// ✅ ואז ownerRouter הכללי
-app.use(ownerRouter.routes());
-app.use(ownerRouter.allowedMethods());
-
-// Floor plan management
-app.use(ownerFloorRouter.routes());
-app.use(ownerFloorRouter.allowedMethods());
-
-// debug/diag
-app.use(diagRouter.routes());
-app.use(diagRouter.allowedMethods());
-
-// ראוטרים ציבוריים של מסעדות
-app.use(restaurantsRouter.routes());
-app.use(restaurantsRouter.allowedMethods());
-
-// POS (כולל WS + מסכים)
-app.use(posRouter.routes());
-app.use(posRouter.allowedMethods());
-
-// Host (מארחת)
-app.use(hostRouter.routes());
-app.use(hostRouter.allowedMethods());
-
-// Reviews API
-app.use(reviewsRouter.routes());
-app.use(reviewsRouter.allowedMethods());
-
-// Review Portal (token-based review submission)
-app.use(reviewPortalRouter.routes());
-app.use(reviewPortalRouter.allowedMethods());
-
-// אחרי app.use(rootRouter.routes()) וכו׳
-app.use(ownerBillsRouter.routes());
-app.use(ownerBillsRouter.allowedMethods());
-
-// hours
-app.use(openingRouter.routes());
-app.use(openingRouter.allowedMethods());
-
-app.use(inventoryRouter.routes());
-app.use(inventoryRouter.allowedMethods());
-
-app.use(staffTimeRouter.routes());
-app.use(staffTimeRouter.allowedMethods());
-
-app.use(ownerTimeRouter.routes());
-app.use(ownerTimeRouter.allowedMethods());
-
-app.use(ownerStaffRouter.routes());
-app.use(ownerStaffRouter.allowedMethods());
-
-app.use(ownerPayrollRouter.routes());
-app.use(ownerPayrollRouter.allowedMethods());
-
-// ⬅️ TimeClock (staff + owner/manager)
-app.use(timeClockRouter.routes());
-app.use(timeClockRouter.allowedMethods());
-
-// --- 404 (כללי) ---
-app.use((ctx) => {
-  if (ctx.response.body == null) {
-    ctx.response.status = Status.NotFound;
-    ctx.response.body = "Not Found";
-  }
-});
-
-// -------------------- GRACEFUL SHUTDOWN --------------------
-const controller = new AbortController();
-const signals = Deno.build.os === "windows"
-  ? ["SIGINT", "SIGBREAK"] as const
-  : ["SIGINT", "SIGTERM"] as const;
-
-for (const s of signals) {
-  Deno.addSignalListener(s, () => {
-    console.log(`\n[SHUTDOWN] Received ${s}, closing...`);
-    controller.abort();
-  });
+  await kv.set(kStaff(data.restaurantId, id), staff);
+  return staff;
 }
 
-// -------------------- START --------------------
-console.log(
-  `[BOOT] GeoTable up on :${PORT} (env=${NODE_ENV}) BASE_URL=${
-    BASE_URL || "(not set)"
-  } BUILD_TAG=${BUILD_TAG}`,
-);
-await app.listen({ port: PORT, signal: controller.signal });
-console.log("[BOOT] server stopped");
+export async function listStaff(restaurantId: string): Promise<StaffMember[]> {
+  const staff: StaffMember[] = [];
+  for await (const entry of kv.list({ prefix: kStaffByRestaurant(restaurantId) })) {
+    if (entry.value) staff.push(entry.value as StaffMember);
+  }
+  return staff.sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function getStaff(restaurantId: string, staffId: string): Promise<StaffMember | null> {
+  const entry = await kv.get(kStaff(restaurantId, staffId));
+  return (entry.value as StaffMember) || null;
+}
+
+export async function updateStaff(
+  restaurantId: string,
+  staffId: string,
+  updates: Partial<StaffMember>,
+): Promise<StaffMember | null> {
+  const current = await getStaff(restaurantId, staffId);
+  if (!current) return null;
+  const updated = { ...current, ...updates };
+  await kv.set(kStaff(restaurantId, staffId), updated);
+  return updated;
+}
+
+export async function deleteStaff(restaurantId: string, staffId: string): Promise<void> {
+  await kv.delete(kStaff(restaurantId, staffId));
+}
+
+// =========== SHIFT TEMPLATE OPERATIONS ===========
+
+export async function createShiftTemplate(data: {
+  restaurantId: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  daysOfWeek: number[];
+  defaultStaffCount?: number;
+}): Promise<ShiftTemplate> {
+  const id = crypto.randomUUID();
+  const template: ShiftTemplate = {
+    id,
+    restaurantId: data.restaurantId,
+    name: data.name,
+    startTime: data.startTime,
+    endTime: data.endTime,
+    daysOfWeek: data.daysOfWeek as any,
+    defaultStaffCount: data.defaultStaffCount,
+    createdAt: Date.now(),
+  };
+  await kv.set(kShiftTemplate(data.restaurantId, id), template);
+  return template;
+}
+
+export async function listShiftTemplates(restaurantId: string): Promise<ShiftTemplate[]> {
+  const templates: ShiftTemplate[] = [];
+  for await (const entry of kv.list({ prefix: kShiftTemplateByRestaurant(restaurantId) })) {
+    if (entry.value) templates.push(entry.value as ShiftTemplate);
+  }
+  return templates.sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function getShiftTemplate(
+  restaurantId: string,
+  templateId: string,
+): Promise<ShiftTemplate | null> {
+  const entry = await kv.get(kShiftTemplate(restaurantId, templateId));
+  return (entry.value as ShiftTemplate) || null;
+}
+
+export async function deleteShiftTemplate(restaurantId: string, templateId: string): Promise<void> {
+  await kv.delete(kShiftTemplate(restaurantId, templateId));
+}
+
+// =========== SHIFT ASSIGNMENT OPERATIONS ===========
+
+export async function createShiftAssignment(data: {
+  restaurantId: string;
+  staffId: string;
+  shiftTemplateId?: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  tablesAssigned?: string[];
+}): Promise<ShiftAssignment> {
+  const id = crypto.randomUUID();
+  const assignment: ShiftAssignment = {
+    id,
+    restaurantId: data.restaurantId,
+    staffId: data.staffId,
+    shiftTemplateId: data.shiftTemplateId,
+    date: data.date,
+    startTime: data.startTime,
+    endTime: data.endTime,
+    status: "scheduled",
+    tablesAssigned: data.tablesAssigned,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+
+  // Store by ID and by date/staff for easy querying (INDEX KEYS include assignmentId)
+  const tx = kv.atomic()
+    .set(kShiftAssignment(data.restaurantId, id), assignment)
+    .set(kShiftAssignmentByDate(data.restaurantId, data.date, id), assignment)
+    .set(kShiftAssignmentByStaff(data.staffId, data.date, id), assignment);
+
+  await tx.commit();
+  return assignment;
+}
+
+export async function getShiftAssignment(
+  restaurantId: string,
+  assignmentId: string,
+): Promise<ShiftAssignment | null> {
+  const entry = await kv.get(kShiftAssignment(restaurantId, assignmentId));
+  return (entry.value as ShiftAssignment) || null;
+}
+
+export async function listShiftsByDate(
+  restaurantId: string,
+  date: string,
+): Promise<ShiftAssignment[]> {
+  const shifts: ShiftAssignment[] = [];
+  for await (const entry of kv.list({ prefix: kShiftAssignmentByDate(restaurantId, date) })) {
+    if (entry.value) shifts.push(entry.value as ShiftAssignment);
+  }
+  return shifts.sort((a, b) => a.startTime.localeCompare(b.startTime));
+}
+
+export async function listShiftsByStaff(staffId: string, date: string): Promise<ShiftAssignment[]> {
+  const shifts: ShiftAssignment[] = [];
+  for await (const entry of kv.list({ prefix: kShiftAssignmentByStaff(staffId, date) })) {
+    if (entry.value) shifts.push(entry.value as ShiftAssignment);
+  }
+  return shifts;
+}
+
+export async function checkInShift(
+  restaurantId: string,
+  assignmentId: string,
+  notes?: string,
+): Promise<ShiftAssignment | null> {
+  const assignment = await getShiftAssignment(restaurantId, assignmentId);
+  if (!assignment) return null;
+
+  const updated: ShiftAssignment = {
+    ...assignment,
+    status: "checked_in",
+    checkedInAt: Date.now(),
+    checkInNotes: notes,
+    updatedAt: Date.now(),
+  };
+
+  await kv.atomic()
+    .set(kShiftAssignment(restaurantId, assignmentId), updated)
+    .set(kShiftAssignmentByDate(updated.restaurantId, updated.date, updated.id), updated)
+    .set(kShiftAssignmentByStaff(updated.staffId, updated.date, updated.id), updated)
+    .commit();
+
+  return updated;
+}
+
+export async function checkOutShift(
+  restaurantId: string,
+  assignmentId: string,
+): Promise<ShiftAssignment | null> {
+  const assignment = await getShiftAssignment(restaurantId, assignmentId);
+  if (!assignment) return null;
+
+  const updated: ShiftAssignment = {
+    ...assignment,
+    status: "checked_out",
+    checkedOutAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+
+  await kv.atomic()
+    .set(kShiftAssignment(restaurantId, assignmentId), updated)
+    .set(kShiftAssignmentByDate(updated.restaurantId, updated.date, updated.id), updated)
+    .set(kShiftAssignmentByStaff(updated.staffId, updated.date, updated.id), updated)
+    .commit();
+
+  return updated;
+}
+
+export async function cancelShift(
+  restaurantId: string,
+  assignmentId: string,
+): Promise<ShiftAssignment | null> {
+  const assignment = await getShiftAssignment(restaurantId, assignmentId);
+  if (!assignment) return null;
+
+  const updated: ShiftAssignment = {
+    ...assignment,
+    status: "cancelled",
+    updatedAt: Date.now(),
+  };
+
+  await kv.atomic()
+    .set(kShiftAssignment(restaurantId, assignmentId), updated)
+    .set(kShiftAssignmentByDate(updated.restaurantId, updated.date, updated.id), updated)
+    .set(kShiftAssignmentByStaff(updated.staffId, updated.date, updated.id), updated)
+    .commit();
+
+  return updated;
+}
+
+// =========== AVAILABILITY OPERATIONS ===========
+
+export async function setStaffAvailability(data: {
+  staffId: string;
+  restaurantId: string;
+  dayOfWeek: number;
+  available: boolean;
+  preferredShift?: string;
+  notes?: string;
+}): Promise<StaffAvailability> {
+  const id = crypto.randomUUID();
+  const availability: StaffAvailability = {
+    id,
+    staffId: data.staffId,
+    restaurantId: data.restaurantId,
+    dayOfWeek: data.dayOfWeek as any,
+    available: data.available,
+    preferredShift: data.preferredShift as any,
+    notes: data.notes,
+    createdAt: Date.now(),
+  };
+
+  await kv.set(kAvailability(data.staffId, data.dayOfWeek), availability);
+  return availability;
+}
+
+export async function getStaffAvailability(
+  staffId: string,
+  dayOfWeek: number,
+): Promise<StaffAvailability | null> {
+  const entry = await kv.get(kAvailability(staffId, dayOfWeek));
+  return (entry.value as StaffAvailability) || null;
+}
+
+// =========== UTILITY FUNCTIONS ===========
+
+export async function getShiftStats(
+  restaurantId: string,
+  date: string,
+): Promise<{
+  totalShifts: number;
+  checkedIn: number;
+  checkedOut: number;
+  scheduled: number;
+  staffByRole: Record<string, number>;
+}> {
+  const shifts = await listShiftsByDate(restaurantId, date);
+  const staff = await listStaff(restaurantId);
+  const staffMap = new Map(staff.map((s) => [s.id, s]));
+
+  let checkedIn = 0;
+  let checkedOut = 0;
+  let scheduled = 0;
+  const staffByRole: Record<string, number> = {};
+
+  for (const shift of shifts) {
+    if (shift.status === "checked_in") checkedIn++;
+    else if (shift.status === "checked_out") checkedOut++;
+    else if (shift.status === "scheduled") scheduled++;
+
+    const s = staffMap.get(shift.staffId);
+    if (s) {
+      staffByRole[s.role] = (staffByRole[s.role] || 0) + 1;
+    }
+  }
+
+  return {
+    totalShifts: shifts.length,
+    checkedIn,
+    checkedOut,
+    scheduled,
+    staffByRole,
+  };
+}
+
+// =========== USER RESTAURANT ROLE OPERATIONS ===========
+
+export async function assignUserRole(data: {
+  userId: string;
+  restaurantId: string;
+  role: "owner" | "manager" | "staff";
+  assignedBy: string;
+}): Promise<UserRestaurantRole> {
+  const id = crypto.randomUUID();
+  const urr: UserRestaurantRole = {
+    id,
+    userId: data.userId,
+    restaurantId: data.restaurantId,
+    role: data.role,
+    assignedAt: Date.now(),
+    assignedBy: data.assignedBy,
+  };
+
+  const primaryKey = kUserRestaurantRole(data.userId, data.restaurantId);
+  const indexKey = [...kUserRestaurantRoleByRestaurant(data.restaurantId), id] as Deno.KvKey;
+
+  await kv.atomic()
+    .set(primaryKey, urr)
+    .set(indexKey, urr)
+    .commit();
+
+  return urr;
+}
+
+export async function getUserRestaurantRole(userId: string, restaurantId: string): Promise<UserRestaurantRole | null> {
+  const res = await kv.get(kUserRestaurantRole(userId, restaurantId));
+  return res.value as UserRestaurantRole | null;
+}
+
+export async function listUsersByRestaurant(restaurantId: string): Promise<UserRestaurantRole[]> {
+  const users: UserRestaurantRole[] = [];
+  const iter = kv.list({ prefix: kUserRestaurantRoleByRestaurant(restaurantId) });
+  for await (const res of iter) {
+    if (res.value) users.push(res.value as UserRestaurantRole);
+  }
+  return users;
+}
+
+export async function removeUserRole(userId: string, restaurantId: string): Promise<void> {
+  const urr = await getUserRestaurantRole(userId, restaurantId);
+  if (!urr) return;
+
+  const primaryKey = kUserRestaurantRole(userId, restaurantId);
+  const indexKey = [...kUserRestaurantRoleByRestaurant(restaurantId), urr.id] as Deno.KvKey;
+
+  await kv.atomic()
+    .delete(primaryKey)
+    .delete(indexKey)
+    .commit();
+}
+
+// ===================== Availability helpers + Smart assignment (Step #2) =====================
+
+function timeToMinutes(t: string): number {
+  // "HH:mm"
+  const [hh, mm] = (t || "").split(":").map((x) => Number(x));
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return NaN;
+  return hh * 60 + mm;
+}
+
+function overlaps(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
+  const aS = timeToMinutes(aStart);
+  const aE = timeToMinutes(aEnd);
+  const bS = timeToMinutes(bStart);
+  const bE = timeToMinutes(bEnd);
+  if (![aS, aE, bS, bE].every(Number.isFinite)) return false;
+  // overlap if intervals intersect
+  return aS < bE && bS < aE;
+}
+
+function getDayOfWeekFromIsoDate(date: string): number | null {
+  // date is "YYYY-MM-DD"
+  const d = new Date(date + "T00:00:00");
+  const dow = d.getDay(); // 0..6 (Sun..Sat)
+  return Number.isFinite(dow) ? dow : null;
+}
+
+export async function listAvailabilityForStaff(
+  staffId: string,
+): Promise<(StaffAvailability | null)[]> {
+  const out: (StaffAvailability | null)[] = [];
+  for (let dow = 0; dow <= 6; dow++) {
+    out.push(await getStaffAvailability(staffId, dow));
+  }
+  return out;
+}
+
+export async function listRestaurantAvailabilityMatrix(restaurantId: string) {
+  const staff = await listStaff(restaurantId);
+  const rows = [];
+  for (const s of staff) {
+    const days = await listAvailabilityForStaff(s.id);
+    rows.push({
+      staffId: s.id,
+      firstName: s.firstName,
+      lastName: s.lastName,
+      role: s.role,
+      email: s.email,
+      days,
+    });
+  }
+  return rows;
+}
+
+/**
+ * Check if staff can be assigned to a shift without conflicts.
+ * Rules:
+ * 1) If there is an availability record for that day and available=false → block
+ * 2) If there is time overlap with existing assignments on that date → block
+ * Missing availability record == allowed (neutral).
+ */
+export async function canAssignStaffToShift(args: {
+  restaurantId: string;
+  staffId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const dow = getDayOfWeekFromIsoDate(args.date);
+  if (dow === null) {
+    return { ok: false, reason: "Invalid date" };
+  }
+
+  // Availability (only blocks if explicitly marked unavailable)
+  const avail = await getStaffAvailability(args.staffId, dow);
+  if (avail && avail.available === false) {
+    return { ok: false, reason: "Staff marked as unavailable for this day" };
+  }
+
+  // Overlaps on same day for same staff
+  const existing = await listShiftsByStaff(args.staffId, args.date);
+  for (const sh of existing) {
+    if (overlaps(sh.startTime, sh.endTime, args.startTime, args.endTime)) {
+      return { ok: false, reason: "Overlapping shift for this staff on the same date" };
+    }
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Recommend staff for a desired shift.
+ * Scoring:
+ * - Not available (explicit) → excluded unless you want to include later
+ * - Overlap → excluded
+ * - Otherwise include, prioritize:
+ *   1) explicit available record
+ *   2) preferredShift match (soft)
+ */
+export async function recommendStaffForShift(args: {
+  restaurantId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  role?: string;
+  limit?: number;
+}) {
+  const limit = typeof args.limit === "number" ? args.limit : 10;
+
+  const dow = getDayOfWeekFromIsoDate(args.date);
+  if (dow === null) return [];
+
+  const staff = await listStaff(args.restaurantId);
+  const candidates: Array<{
+    staffId: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+    email: string;
+    score: number;
+    availability: StaffAvailability | null;
+  }> = [];
+
+  for (const s of staff) {
+    if (args.role && s.role !== args.role) continue;
+
+    const can = await canAssignStaffToShift({
+      restaurantId: args.restaurantId,
+      staffId: s.id,
+      date: args.date,
+      startTime: args.startTime,
+      endTime: args.endTime,
+    });
+    if (!can.ok) continue;
+
+    const avail = await getStaffAvailability(s.id, dow);
+
+    let score = 0;
+    if (avail) score += 10;
+    if (avail?.available) score += 10;
+
+    // soft match preferredShift
+    const pref = (avail?.preferredShift || "").toLowerCase();
+    const startMin = timeToMinutes(args.startTime);
+    if (Number.isFinite(startMin)) {
+      if (pref === "morning" && startMin < 12 * 60) score += 2;
+      if (pref === "afternoon" && startMin >= 12 * 60 && startMin < 17 * 60) score += 2;
+      if (pref === "evening" && startMin >= 17 * 60) score += 2;
+      if (pref === "closing" && startMin >= 20 * 60) score += 2;
+    }
+
+    candidates.push({
+      staffId: s.id,
+      firstName: s.firstName,
+      lastName: s.lastName,
+      role: s.role,
+      email: s.email,
+      score,
+      availability: avail,
+    });
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates.slice(0, limit);
+}
