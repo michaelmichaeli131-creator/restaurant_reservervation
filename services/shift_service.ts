@@ -34,12 +34,28 @@ function kShiftAssignment(restaurantId: string, assignmentId: string): Deno.KvKe
   return ["shift_assignment", restaurantId, assignmentId];
 }
 
-function kShiftAssignmentByDate(restaurantId: string, date: string): Deno.KvKey {
-  return ["shift_assignment_by_date", restaurantId, date];
+function kShiftAssignmentByDate(
+  restaurantId: string,
+  date: string,
+  assignmentId?: string,
+): Deno.KvKey {
+  // Prefix key: ["shift_assignment_by_date", rid, date]
+  // Full index key: ["shift_assignment_by_date", rid, date, assignmentId]
+  const base: Deno.KvKey = ["shift_assignment_by_date", restaurantId, date];
+  if (assignmentId) return [...base, assignmentId] as Deno.KvKey;
+  return base;
 }
 
-function kShiftAssignmentByStaff(staffId: string, date: string): Deno.KvKey {
-  return ["shift_assignment_by_staff", staffId, date];
+function kShiftAssignmentByStaff(
+  staffId: string,
+  date: string,
+  assignmentId?: string,
+): Deno.KvKey {
+  // Prefix key: ["shift_assignment_by_staff", staffId, date]
+  // Full index key: ["shift_assignment_by_staff", staffId, date, assignmentId]
+  const base: Deno.KvKey = ["shift_assignment_by_staff", staffId, date];
+  if (assignmentId) return [...base, assignmentId] as Deno.KvKey;
+  return base;
 }
 
 function kAvailability(staffId: string, dayOfWeek: number): Deno.KvKey {
@@ -178,11 +194,11 @@ export async function createShiftAssignment(data: {
     updatedAt: Date.now(),
   };
 
-  // Store by ID and by date for easy querying
+  // Store by ID and by date/staff for easy querying (INDEX KEYS include assignmentId)
   const tx = kv.atomic()
     .set(kShiftAssignment(data.restaurantId, id), assignment)
-    .set(kShiftAssignmentByDate(data.restaurantId, data.date), assignment)
-    .set(kShiftAssignmentByStaff(data.staffId, data.date), assignment);
+    .set(kShiftAssignmentByDate(data.restaurantId, data.date, id), assignment)
+    .set(kShiftAssignmentByStaff(data.staffId, data.date, id), assignment);
 
   await tx.commit();
   return assignment;
@@ -231,7 +247,12 @@ export async function checkInShift(
     updatedAt: Date.now(),
   };
 
-  await kv.set(kShiftAssignment(restaurantId, assignmentId), updated);
+  await kv.atomic()
+    .set(kShiftAssignment(restaurantId, assignmentId), updated)
+    .set(kShiftAssignmentByDate(updated.restaurantId, updated.date, updated.id), updated)
+    .set(kShiftAssignmentByStaff(updated.staffId, updated.date, updated.id), updated)
+    .commit();
+
   return updated;
 }
 
@@ -249,7 +270,12 @@ export async function checkOutShift(
     updatedAt: Date.now(),
   };
 
-  await kv.set(kShiftAssignment(restaurantId, assignmentId), updated);
+  await kv.atomic()
+    .set(kShiftAssignment(restaurantId, assignmentId), updated)
+    .set(kShiftAssignmentByDate(updated.restaurantId, updated.date, updated.id), updated)
+    .set(kShiftAssignmentByStaff(updated.staffId, updated.date, updated.id), updated)
+    .commit();
+
   return updated;
 }
 
@@ -266,7 +292,12 @@ export async function cancelShift(
     updatedAt: Date.now(),
   };
 
-  await kv.set(kShiftAssignment(restaurantId, assignmentId), updated);
+  await kv.atomic()
+    .set(kShiftAssignment(restaurantId, assignmentId), updated)
+    .set(kShiftAssignmentByDate(updated.restaurantId, updated.date, updated.id), updated)
+    .set(kShiftAssignmentByStaff(updated.staffId, updated.date, updated.id), updated)
+    .commit();
+
   return updated;
 }
 
