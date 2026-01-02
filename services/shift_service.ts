@@ -2,7 +2,13 @@
 // Shift management business logic
 
 import { kv } from "../database.ts";
-import type { StaffMember, ShiftTemplate, ShiftAssignment, StaffAvailability, UserRestaurantRole } from "../database.ts";
+import type {
+  StaffMember,
+  ShiftTemplate,
+  ShiftAssignment,
+  StaffAvailability,
+  UserRestaurantRole,
+} from "../database.ts";
 
 // =========== Key Helpers ===========
 
@@ -102,7 +108,10 @@ export async function listStaff(restaurantId: string): Promise<StaffMember[]> {
   return staff.sort((a, b) => a.createdAt - b.createdAt);
 }
 
-export async function getStaff(restaurantId: string, staffId: string): Promise<StaffMember | null> {
+export async function getStaff(
+  restaurantId: string,
+  staffId: string,
+): Promise<StaffMember | null> {
   const entry = await kv.get(kStaff(restaurantId, staffId));
   return (entry.value as StaffMember) || null;
 }
@@ -164,7 +173,10 @@ export async function getShiftTemplate(
   return (entry.value as ShiftTemplate) || null;
 }
 
-export async function deleteShiftTemplate(restaurantId: string, templateId: string): Promise<void> {
+export async function deleteShiftTemplate(
+  restaurantId: string,
+  templateId: string,
+): Promise<void> {
   await kv.delete(kShiftTemplate(restaurantId, templateId));
 }
 
@@ -223,7 +235,10 @@ export async function listShiftsByDate(
   return shifts.sort((a, b) => a.startTime.localeCompare(b.startTime));
 }
 
-export async function listShiftsByStaff(staffId: string, date: string): Promise<ShiftAssignment[]> {
+export async function listShiftsByStaff(
+  staffId: string,
+  date: string,
+): Promise<ShiftAssignment[]> {
   const shifts: ShiftAssignment[] = [];
   for await (const entry of kv.list({ prefix: kShiftAssignmentByStaff(staffId, date) })) {
     if (entry.value) shifts.push(entry.value as ShiftAssignment);
@@ -405,7 +420,10 @@ export async function assignUserRole(data: {
   return urr;
 }
 
-export async function getUserRestaurantRole(userId: string, restaurantId: string): Promise<UserRestaurantRole | null> {
+export async function getUserRestaurantRole(
+  userId: string,
+  restaurantId: string,
+): Promise<UserRestaurantRole | null> {
   const res = await kv.get(kUserRestaurantRole(userId, restaurantId));
   return res.value as UserRestaurantRole | null;
 }
@@ -573,12 +591,15 @@ export async function recommendStaffForShift(args: {
     if (avail?.available) score += 10;
 
     // soft match preferredShift
+    // Supported preferences from staff UI: morning / afternoon / evening / night
+    // Backward compatible: closing
     const pref = (avail?.preferredShift || "").toLowerCase();
     const startMin = timeToMinutes(args.startTime);
     if (Number.isFinite(startMin)) {
       if (pref === "morning" && startMin < 12 * 60) score += 2;
       if (pref === "afternoon" && startMin >= 12 * 60 && startMin < 17 * 60) score += 2;
-      if (pref === "evening" && startMin >= 17 * 60) score += 2;
+      if (pref === "evening" && startMin >= 17 * 60 && startMin < 21 * 60) score += 2;
+      if (pref === "night" && startMin >= 21 * 60) score += 2;
       if (pref === "closing" && startMin >= 20 * 60) score += 2;
     }
 

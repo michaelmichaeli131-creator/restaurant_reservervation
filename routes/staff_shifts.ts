@@ -1,18 +1,22 @@
-// src/routes/staff_shifts.ts
+// routes/staff_shifts.ts
 // --------------------------------------------------------
-// Staff shifts UI + API
+// Staff shifts UI + API + Availability preferences
 //
 // UI:
 //  - GET /staff/shifts
+//
 // API:
 //  - GET /api/staff/shifts?from=YYYY-MM-DD&to=YYYY-MM-DD
+//  - GET /api/staff/availability
+//  - PUT /api/staff/availability
 //
 // Context:
 //  - ctx.state.user must exist
 //  - ctx.state.staff + ctx.state.staffRestaurantId are provided by middleware/staff_context.ts
 //
-// Permission gate (UPDATED):
-//  - ❌ do NOT require "shifts.view" permission for staff (always allow)
+// Permission gate:
+//  - ❗ This page should be accessible to every approved/active staff member
+//    without requiring an explicit permission flag.
 //  - staff must be approvalStatus=approved (if present) and status not inactive
 // --------------------------------------------------------
 
@@ -24,6 +28,8 @@ import { getRestaurant, type StaffMember, type User } from "../database.ts";
 import {
   listShiftsByStaff,
   listShiftTemplates,
+  listAvailabilityForStaff,
+  setStaffAvailability,
 } from "../services/shift_service.ts";
 
 export const staffShiftsRouter = new Router();
@@ -100,12 +106,7 @@ function ensureCanView(ctx: Context): {
     throw e;
   }
 
-  // ✅ IMPORTANT: Always allow staff to view their shifts (no permission gating)
-  // if (!hasPerm(staff, "shifts.view")) {
-  //   const e: any = new Error("Missing shifts.view permission");
-  //   e.status = Status.Forbidden;
-  //   throw e;
-  // }
+  // ✅ No explicit permission required for staff to view their shifts/preferences.
 
   const restaurantId = String((ctx.state as any)?.staffRestaurantId ?? staff.restaurantId ?? "").trim();
   if (!restaurantId) {
@@ -138,6 +139,14 @@ function dateRangeInclusive(fromISO: string, toISO: string): string[] {
     cur = addDaysISO(cur, 1);
   }
   return out;
+}
+
+function normalizePreferredShift(v: any): string | null {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (!s) return null;
+  // supported
+  if (["morning", "afternoon", "evening", "night", "closing"].includes(s)) return s;
+  return null;
 }
 
 /* ─────────────── UI ─────────────── */
@@ -174,6 +183,85 @@ staffShiftsRouter.get("/staff/shifts", async (ctx) => {
     const st = e?.status ?? Status.Forbidden;
     ctx.response.status = st;
     ctx.response.body = st === Status.Forbidden ? "Forbidden" : String(e?.message ?? e);
+  }
+});
+
+/* ─────────────── Staff Availability API ─────────────── */
+
+// GET /api/staff/availability
+staffShiftsRouter.get("/api/staff/availability", async (ctx) => {
+  try {
+    const { staff } = ensureCanView(ctx);
+
+    const days = await listAvailabilityForStaff(staff.id);
+    return json(ctx, Status.OK, {
+      ok: true,
+      staffId: staff.id,
+      days: days.map((a, dow) => ({
+        dayOfWeek: dow,
+        available: a ? Boolean((a as any).available) : null,
+        preferredShift: a ? ((a as any).preferredShift ?? null) : null,
+      })),
+    });
+  } catch (e: any) {
+    return json(ctx, e?.status ?? Status.InternalServerError, {
+      ok: false,
+      error: String(e?.message ?? e),
+    });
+  }
+});
+
+// PUT /api/staff/availability
+// Accepts either:
+//  - { dayOfWeek, available, preferredShift }
+//  - { days: [ { dayOfWeek, available, preferredShift }, ... ] }
+staffShiftsRouter.put("/api/staff/availability", async (ctx) => {
+  try {
+    const { staff, restaurantId } = ensureCanView(ctx);
+
+    const body = await ctx.request.body.json().catch(() => ({}));
+    const items: any[] = Array.isArray(body?.days)
+      ? body.days
+      : [body];
+
+    const updated: any[] = [];
+
+    for (const it of items) {
+      const dayOfWeek = Number(it?.dayOfWeek);
+      if (!Number.isFinite(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) {
+        return json(ctx, Status.BadRequest, {
+          ok: false,
+          error: "invalid_dayOfWeek",
+          hint: "dayOfWeek must be 0..6",
+        });
+      }
+
+      const availableRaw = it?.available;
+      const available =
+        availableRaw === true ? true :
+        availableRaw === false ? false :
+        null;
+
+      // We store explicit records; if you want "neutral", you can send null and we'll set available=false by default.
+      const preferredShift = normalizePreferredShift(it?.preferredShift);
+
+      await setStaffAvailability({
+        restaurantId,
+        staffId: staff.id,
+        dayOfWeek,
+        available: available === null ? false : available,
+        preferredShift: preferredShift ?? undefined,
+      });
+
+      updated.push({ dayOfWeek, available: available === null ? false : available, preferredShift });
+    }
+
+    return json(ctx, Status.OK, { ok: true, staffId: staff.id, updated });
+  } catch (e: any) {
+    return json(ctx, e?.status ?? Status.InternalServerError, {
+      ok: false,
+      error: String(e?.message ?? e),
+    });
   }
 });
 
