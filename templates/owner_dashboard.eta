@@ -74,8 +74,8 @@ function hasAny(perms){
             כניסה / יציאה
           </a>
 
-          <!-- ⭐ המשמרות שלי – לעובד (רק אם יש הרשאת צפייה) -->
-          <% if (hasPerm('shifts.view')) { %>
+          <!-- ⭐ המשמרות שלי – לעובד (תמיד, ללא הרשאות) -->
+          <% if (isStaff) { %>
             <a href="/staff/shifts" class="btn sm ghost owner-staff-btn">
               <span class="icon">📅</span>
               המשמרות שלי
@@ -195,7 +195,7 @@ function hasAny(perms){
                       <span class="icon">📅</span>
                       <%= tt('owner.dashboard.btn_shifts','ניהול משמרות') %>
                     </a>
-                  <% } else if (isStaff && canShifts) { %>
+                  <% } else if (isStaff) { %>
                     <a class="btn ghost" href="/staff/shifts" target="_self" rel="nofollow">
                       <span class="icon">📅</span>
                       <%= tt('staff.dashboard.btn_my_shifts','המשמרות שלי') %>
