@@ -65,6 +65,10 @@
     return iso(d);
   }
 
+  function esc(s){
+    return String(s ?? '').replace(/[&<>"']/g, (c)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+
   // ---- availability UI ----
   const DOWS = [
     { id: 0, name: 'ראשון' },
@@ -223,9 +227,15 @@
           shifts.forEach(s=>{
             const item = document.createElement('div');
             item.className = 'shift';
-            const name = s.templateName ? ` • ${s.templateName}` : '';
-            item.innerHTML = `<div class="shiftLine"><strong>${s.startTime}–${s.endTime}</strong>${name}</div>` +
-              `<div class="muted tiny">${(s.role || '')}${s.note ? ' • ' + s.note : ''}</div>`;
+
+            const name = s.templateName ? ` • ${esc(s.templateName)}` : '';
+            const role = s.role ? esc(s.role) : '';
+            const note = s.note ? esc(s.note) : '';
+
+            item.innerHTML =
+              `<div class="shiftLine"><strong>${esc(s.startTime)}–${esc(s.endTime)}</strong>${name}</div>` +
+              `<div class="muted tiny">${role}${note ? ' • ' + note : ''}</div>`;
+
             box.appendChild(item);
           });
         }
