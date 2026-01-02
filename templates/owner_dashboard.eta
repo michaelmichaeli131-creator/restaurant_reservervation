@@ -73,6 +73,14 @@ function hasAny(perms){
             <span class="icon">🕒</span>
             כניסה / יציאה
           </a>
+
+          <!-- ⭐ המשמרות שלי – לעובד (רק אם יש הרשאת צפייה) -->
+          <% if (hasPerm('shifts.view')) { %>
+            <a href="/staff/shifts" class="btn sm ghost owner-staff-btn">
+              <span class="icon">📅</span>
+              המשמרות שלי
+            </a>
+          <% } %>
         <% } %>
       </div>
     </header>
@@ -182,10 +190,15 @@ function hasAny(perms){
                     </a>
                   <% } %>
 
-                  <% if (isOwner || canShifts) { %>
+                  <% if (isOwner) { %>
                     <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/shifts" target="_self" rel="nofollow">
                       <span class="icon">📅</span>
                       <%= tt('owner.dashboard.btn_shifts','ניהול משמרות') %>
+                    </a>
+                  <% } else if (isStaff && canShifts) { %>
+                    <a class="btn ghost" href="/staff/shifts" target="_self" rel="nofollow">
+                      <span class="icon">📅</span>
+                      <%= tt('staff.dashboard.btn_my_shifts','המשמרות שלי') %>
                     </a>
                   <% } %>
                 </div>
