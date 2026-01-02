@@ -1,4 +1,4 @@
-<% layout("_layout", it) %>
+<% layout("../_layout", it) %>
 
 <div class="wrap">
   <div class="card">
