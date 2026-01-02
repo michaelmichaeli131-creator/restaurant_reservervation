@@ -1,75 +1,194 @@
 <% layout("../_layout", it) %>
 
-<div class="wrap">
-  <div class="card">
-    <h1>המשמרות שלי</h1>
-    <div class="muted">
-      <%= it.restaurant?.name || '' %>
-    </div>
+<%
+  const staff = it.staff;
+  const restaurant = it.restaurant;
+%>
 
-    <div class="controls">
-      <button class="btn" id="prevWeek">◀ שבוע קודם</button>
-      <div id="weekLabel" class="weekLabel"></div>
-      <button class="btn" id="nextWeek">שבוע הבא ▶</button>
+<section class="container" style="max-width:980px;margin:20px auto;padding:0 16px">
+  <div class="card">
+    <div class="hdr">
+      <div>
+        <h1 style="margin:0 0 6px 0">📅 <%= it.t ? (it.t('staff.shifts.title') || 'המשמרות שלי') : 'המשמרות שלי' %></h1>
+        <div class="muted">
+          מסעדה: <strong><%= restaurant?.name %></strong>
+          <% if (staff) { %>
+            · עובד/ת: <strong><%= [staff.firstName, staff.lastName].filter(Boolean).join(' ') %></strong>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="nav">
+        <button class="btn ghost sm" id="prevWeek">◀</button>
+        <div class="weekLabel" id="weekLabel">—</div>
+        <button class="btn ghost sm" id="nextWeek">▶</button>
+      </div>
     </div>
 
     <div id="msg" class="muted" style="margin-top:8px"></div>
 
-    <!-- Availability / Preferences -->
-    <div class="card" id="availCard" style="margin-top:14px">
-      <div class="avail-hd">
-        <h2 style="margin:0">🗓️ העדפות זמינות</h2>
-        <button class="btn primary" id="saveAvail" type="button">שמירה</button>
-      </div>
-      <div class="muted" style="margin-top:6px">
-        סמן ימים שבהם נוח לך לעבוד ובחר העדפה (בוקר/צהריים/ערב/לילה). המנהל יראה זאת בהמלצות.
+    <div id="days" class="days" aria-live="polite" style="margin-top:12px"></div>
+
+    <!-- Availability / Preferences (NEW) -->
+    <div class="card availCard" id="availCard" style="margin-top:14px">
+      <div class="avail-hdr">
+        <div>
+          <div class="avail-title">🗓️ העדפות זמינות</div>
+          <div class="muted" style="margin-top:6px">
+            סמן ימים שבהם נוח לך לעבוד ובחר העדפה (בוקר/צהריים/ערב/לילה). המנהל יראה זאת בהמלצות.
+          </div>
+        </div>
+        <button class="btn primary sm" id="saveAvail" type="button">שמירה</button>
       </div>
 
       <div id="availabilityMsg" class="muted" style="margin-top:8px"></div>
       <div id="availabilityGrid" class="avail-grid" style="margin-top:10px"></div>
     </div>
-
-    <div id="days" class="days"></div>
   </div>
-</div>
+</section>
 
 <script>
+  // ---- helpers ----
+  function pad2(n){ return String(n).padStart(2,'0'); }
+  function toISO(d){
+    // local date -> YYYY-MM-DD
+    return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+  }
+  function addDays(d, days){
+    const x = new Date(d);
+    x.setDate(x.getDate() + days);
+    return x;
+  }
+  function startOfWeekSunday(d){
+    // Israel common week: Sunday..Saturday
+    const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const dow = x.getDay(); // 0=Sun
+    x.setDate(x.getDate() - dow);
+    return x;
+  }
+  function fmtHebDate(d){
+    try{ return d.toLocaleDateString('he-IL', { weekday:'long', year:'numeric', month:'2-digit', day:'2-digit' }); }
+    catch{ return toISO(d); }
+  }
+  function fmtDayLabel(d){
+    try{ return d.toLocaleDateString('he-IL', { weekday:'long', month:'2-digit', day:'2-digit' }); }
+    catch{ return toISO(d); }
+  }
+  function esc(s){
+    return String(s ?? '').replace(/[&<>"']/g, (c)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+
   const msg = document.getElementById('msg');
   const daysEl = document.getElementById('days');
   const weekLabel = document.getElementById('weekLabel');
   const prevBtn = document.getElementById('prevWeek');
   const nextBtn = document.getElementById('nextWeek');
-  const saveAvailBtn = document.getElementById('saveAvail');
 
+  let weekStart = startOfWeekSunday(new Date());
+
+  function setWeekLabel(){
+    const end = addDays(weekStart, 6);
+    weekLabel.textContent = fmtHebDate(weekStart) + ' — ' + fmtHebDate(end);
+  }
+
+  function groupByDate(shifts){
+    const m = new Map();
+    for(const s of shifts){
+      const key = String(s.date || '');
+      if(!m.has(key)) m.set(key, []);
+      m.get(key).push(s);
+    }
+    // sort inside each date
+    for(const [k, arr] of m.entries()){
+      arr.sort((a,b)=> String(a.startTime||'').localeCompare(String(b.startTime||'')));
+    }
+    return m;
+  }
+
+  function statusBadge(st){
+    const s = String(st||'scheduled');
+    const map = {
+      scheduled: ['מתוזמן', 'badge'],
+      checked_in: ['נכנס/ה', 'badge ok'],
+      checked_out: ['יצא/ה', 'badge done'],
+      cancelled: ['בוטל', 'badge bad'],
+      called_out: ['היעדרות', 'badge warn'],
+    };
+    const t = map[s] ? map[s][0] : s;
+    const c = map[s] ? map[s][1] : 'badge';
+    return '<span class="' + c + '">' + esc(t) + '</span>';
+  }
+
+  function renderWeek(shifts){
+    const byDate = groupByDate(shifts || []);
+    const html = [];
+    for(let i=0;i<7;i++){
+      const d = addDays(weekStart, i);
+      const iso = toISO(d);
+      const list = byDate.get(iso) || [];
+
+      html.push('<div class="day">');
+      html.push('  <div class="day-h">' + esc(fmtDayLabel(d)) + '<span class="day-iso">' + esc(iso) + '</span></div>');
+
+      if(!list.length){
+        html.push('  <div class="empty">אין משמרות</div>');
+      } else {
+        html.push('  <div class="shlist">');
+        for(const s of list){
+          const tname = s.templateName ? (' · ' + esc(s.templateName)) : '';
+          const time = esc(s.startTime || '') + '–' + esc(s.endTime || '');
+          html.push('    <div class="shift">');
+          html.push('      <div class="row1">');
+          html.push('        <div class="time">' + time + '</div>');
+          html.push('        ' + statusBadge(s.status));
+          html.push('      </div>');
+          html.push('      <div class="row2">' + tname + '</div>');
+          html.push('    </div>');
+        }
+        html.push('  </div>');
+      }
+      html.push('</div>');
+    }
+
+    daysEl.innerHTML = html.join('\n');
+  }
+
+  async function load(){
+    setWeekLabel();
+    msg.textContent = 'טוען...';
+
+    const from = toISO(weekStart);
+    const to = toISO(addDays(weekStart, 6));
+    const url = '/api/staff/shifts?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to);
+
+    try{
+      const r = await fetch(url, { headers: { 'accept': 'application/json' } });
+      const j = await r.json().catch(()=>null);
+      if(!r.ok || !j || !j.ok){
+        msg.textContent = 'שגיאה בטעינת משמרות: ' + (j && j.error ? j.error : r.status);
+        renderWeek([]);
+        return;
+      }
+      msg.textContent = '';
+      renderWeek(j.shifts || []);
+    }catch(e){
+      msg.textContent = 'שגיאת רשת';
+      renderWeek([]);
+    }
+  }
+
+  prevBtn.addEventListener('click', ()=>{ weekStart = addDays(weekStart, -7); load(); });
+  nextBtn.addEventListener('click', ()=>{ weekStart = addDays(weekStart, 7); load(); });
+
+  load();
+
+  // =========================
+  // Availability / Preferences (NEW)
+  // =========================
   const availabilityGrid = document.getElementById('availabilityGrid');
   const availabilityMsg = document.getElementById('availabilityMsg');
+  const saveAvailBtn = document.getElementById('saveAvail');
 
-  // ---- helpers ----
-  function pad(n){ return String(n).padStart(2,'0'); }
-  function iso(d){
-    const y = d.getFullYear();
-    const m = pad(d.getMonth()+1);
-    const day = pad(d.getDate());
-    return `${y}-${m}-${day}`;
-  }
-  function addDays(isoDate, days){
-    const d = new Date(isoDate + 'T00:00:00');
-    d.setDate(d.getDate()+days);
-    return iso(d);
-  }
-  function startOfWeek(date){
-    // Sunday start
-    const d = new Date(date + 'T00:00:00');
-    const dow = d.getDay(); // 0..6
-    d.setDate(d.getDate()-dow);
-    return iso(d);
-  }
-
-  function esc(s){
-    return String(s ?? '').replace(/[&<>"']/g, (c)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-  }
-
-  // ---- availability UI ----
   const DOWS = [
     { id: 0, name: 'ראשון' },
     { id: 1, name: 'שני' },
@@ -113,6 +232,7 @@
       opt.textContent = o.t;
       select.appendChild(opt);
     });
+
     select.value = (state.preferredShift || '').toLowerCase();
     select.disabled = !cb.checked;
 
@@ -136,9 +256,9 @@
   async function loadAvailability(){
     try{
       availabilityMsg.textContent = 'טוען...';
-      const r = await fetch('/api/staff/availability');
+      const r = await fetch('/api/staff/availability', { headers: { 'accept': 'application/json' } });
       const j = await r.json().catch(()=>null);
-      if (!r.ok || !j || !j.ok) throw new Error(j?.error || 'failed');
+      if (!r.ok || !j || !j.ok) throw new Error(j?.error || ('http_' + r.status));
 
       const byDow = new Map();
       (j.days || []).forEach(x => byDow.set(Number(x.dayOfWeek), x));
@@ -165,11 +285,11 @@
 
       const r = await fetch('/api/staff/availability', {
         method: 'PUT',
-        headers: { 'Content-Type':'application/json' },
+        headers: { 'Content-Type':'application/json', 'accept':'application/json' },
         body: JSON.stringify({ days })
       });
       const j = await r.json().catch(()=>null);
-      if (!r.ok || !j || !j.ok) throw new Error(j?.error || 'failed');
+      if (!r.ok || !j || !j.ok) throw new Error(j?.error || ('http_' + r.status));
 
       availabilityMsg.textContent = 'נשמר ✅';
       setTimeout(()=>{ if (availabilityMsg.textContent === 'נשמר ✅') availabilityMsg.textContent=''; }, 2000);
@@ -179,143 +299,113 @@
     }
   }
 
-  // ---- shifts page ----
-  let weekStart = startOfWeek(iso(new Date()));
-  function setWeekLabel(){
-    const end = addDays(weekStart, 6);
-    weekLabel.textContent = `${weekStart} → ${end}`;
-  }
-
-  async function load(){
-    setWeekLabel();
-    msg.textContent = 'טוען...';
-    daysEl.innerHTML = '';
-
-    const from = weekStart;
-    const to = addDays(weekStart, 6);
-
-    try{
-      const res = await fetch(`/api/staff/shifts?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
-      const data = await res.json().catch(()=>null);
-      if (!res.ok || !data || !data.ok) throw new Error(data?.error || 'failed');
-
-      const byDate = new Map();
-      for (let i=0;i<7;i++){
-        const d = addDays(from, i);
-        byDate.set(d, []);
-      }
-      (data.shifts || []).forEach(s => {
-        const d = String(s.date || '');
-        if (!byDate.has(d)) byDate.set(d, []);
-        byDate.get(d).push(s);
-      });
-
-      for (const [d, shifts] of byDate.entries()){
-        const box = document.createElement('div');
-        box.className = 'day';
-        const h = document.createElement('div');
-        h.className = 'dayHd';
-        h.textContent = d;
-        box.appendChild(h);
-
-        if (!shifts.length){
-          const em = document.createElement('div');
-          em.className = 'muted';
-          em.textContent = 'אין משמרות';
-          box.appendChild(em);
-        } else {
-          shifts.forEach(s=>{
-            const item = document.createElement('div');
-            item.className = 'shift';
-
-            const name = s.templateName ? ` • ${esc(s.templateName)}` : '';
-            const role = s.role ? esc(s.role) : '';
-            const note = s.note ? esc(s.note) : '';
-
-            item.innerHTML =
-              `<div class="shiftLine"><strong>${esc(s.startTime)}–${esc(s.endTime)}</strong>${name}</div>` +
-              `<div class="muted tiny">${role}${note ? ' • ' + note : ''}</div>`;
-
-            box.appendChild(item);
-          });
-        }
-
-        daysEl.appendChild(box);
-      }
-
-      msg.textContent = '';
-    }catch(e){
-      msg.textContent = 'שגיאה בטעינה';
-      console.warn(e);
-    }
-  }
-
-  prevBtn.addEventListener('click', ()=>{ weekStart = addDays(weekStart, -7); load(); });
-  nextBtn.addEventListener('click', ()=>{ weekStart = addDays(weekStart, 7); load(); });
-
-  // Availability init
   if (saveAvailBtn) saveAvailBtn.addEventListener('click', saveAvailability);
   loadAvailability();
-
-  load();
 </script>
 
 <style>
-  .wrap{max-width:980px;margin:18px auto;padding:0 14px}
   .card{
     background: var(--panel, #121622);
     border:1px solid var(--bd, #222834);
-    border-radius:18px; padding:18px; margin-bottom:18px;
+    border-radius:18px; padding:18px;
     color: var(--ink, #e6e8ef);
     box-shadow: 0 10px 30px rgba(0,0,0,.35);
   }
-  h1{margin:0 0 6px}
-  .muted{color:var(--ink-muted,#9aa3b2)}
-  .tiny{font-size:12px}
-
-  .controls{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px}
-  .weekLabel{font-weight:700}
+  .muted{ color: var(--ink-muted, #9aa3b2); }
+  .hdr{ display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap; }
+  .nav{ display:flex; align-items:center; gap:10px; }
+  .weekLabel{ font-weight:800; color:var(--ink,#e6e8ef); opacity:.95; }
 
   .btn{
-    display:inline-flex; align-items:center; justify-content:center;
-    padding:8px 12px; border-radius:12px; cursor:pointer; text-decoration:none;
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
     border:1px solid var(--bd, #23293a); background:transparent;
     color: var(--ink, #e6e8ef); font-weight:700;
-    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
   }
-  .btn:hover{ transform: translateY(-1px); }
+  .btn.ghost{ background: color-mix(in srgb, var(--panel, #121622) 88%, transparent); }
+  .btn.sm{ padding:8px 10px; border-radius:12px; }
+
   .btn.primary{
-    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
+    background: var(--brand, #3b82f6);
+    color: var(--brand-ink, #fff);
+    border-color: transparent;
     box-shadow: 0 8px 24px rgba(59,130,246,.35);
   }
 
-  .days{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-top:14px}
-  .day{border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:10px;background:rgba(0,0,0,.12)}
-  .dayHd{font-weight:800;margin-bottom:6px}
+  .days{ display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px; }
+  @media (max-width: 900px){ .days{ grid-template-columns: 1fr; } }
 
-  .shift{border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:8px;margin-top:8px;background:rgba(255,255,255,.04)}
-  .shiftLine{font-size:14px}
-
-  /* Availability UI */
-  .avail-hd{display:flex;align-items:center;justify-content:space-between;gap:10px}
-  .avail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .avail-row{
-    display:flex;align-items:center;justify-content:space-between;gap:10px;
-    border:1px solid rgba(255,255,255,.08);
-    border-radius:12px;padding:10px;background:rgba(255,255,255,.04);
+  .day{
+    border:1px solid rgba(148,163,184,.25);
+    border-radius:16px;
+    padding:12px;
+    background: rgba(15,23,42,.55);
   }
-  .avail-day{display:flex;align-items:center;gap:10px}
-  .avail-name{font-weight:800}
+  .day-h{ display:flex; justify-content:space-between; align-items:center; font-weight:900; }
+  .day-iso{ font-weight:700; opacity:.65; font-size:12px; }
+  .empty{ margin-top:10px; color:rgba(226,232,240,.7); font-weight:700; }
+
+  .shlist{ margin-top:10px; display:flex; flex-direction:column; gap:8px; }
+  .shift{ background: rgba(2,6,23,.55); border:1px solid rgba(148,163,184,.22); border-radius:14px; padding:10px; }
+  .row1{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .time{ font-weight:900; letter-spacing:.2px; }
+  .row2{ margin-top:4px; color:rgba(226,232,240,.75); font-weight:700; font-size:12px; }
+
+  .badge{
+    display:inline-flex; align-items:center; justify-content:center;
+    padding:4px 8px; border-radius:999px;
+    font-size:12px; font-weight:900;
+    border:1px solid rgba(148,163,184,.35);
+    background: rgba(15,23,42,.65);
+    color: rgba(226,232,240,.95);
+    white-space:nowrap;
+  }
+  .badge.ok{ border-color: rgba(34,197,94,.45); color: rgba(187,247,208,.95); background: rgba(34,197,94,.08); }
+  .badge.done{ border-color: rgba(59,130,246,.45); color: rgba(191,219,254,.95); background: rgba(59,130,246,.08); }
+  .badge.bad{ border-color: rgba(239,68,68,.45); color: rgba(254,202,202,.95); background: rgba(239,68,68,.08); }
+  .badge.warn{ border-color: rgba(245,158,11,.45); color: rgba(254,243,199,.95); background: rgba(245,158,11,.08); }
+
+  /* Availability styles (match old theme) */
+  .availCard{ padding:14px; }
+  .avail-hdr{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .avail-title{
+    font-weight:900;
+    font-size:16px;
+  }
+  .avail-grid{
+    display:grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap:10px;
+  }
+  @media (max-width: 900px){
+    .avail-grid{ grid-template-columns: 1fr; }
+  }
+  .avail-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    border:1px solid rgba(148,163,184,.22);
+    border-radius:14px;
+    padding:10px;
+    background: rgba(2,6,23,.45);
+  }
+  .avail-day{ display:flex; align-items:center; gap:10px; }
+  .avail-name{ font-weight:900; }
   .avail-select{
     min-width:150px;
     padding:8px 10px;
-    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
+    background:#171b29;
+    color:#e6e8ef;
+    border:1px solid #23293a;
+    border-radius:12px;
     outline:none;
   }
-  .avail-select:disabled{opacity:.55}
-
-  @media (max-width:920px){
-    .days{grid-template-columns:repeat(2,1fr)}
-    .avail-grid{grid-template-columns:1fr}
-  }
+  .avail-select:disabled{ opacity:.55; }
 </style>
