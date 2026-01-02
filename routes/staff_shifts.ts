@@ -11,8 +11,8 @@
 //  - ctx.state.user must exist
 //  - ctx.state.staff + ctx.state.staffRestaurantId are provided by middleware/staff_context.ts
 //
-// Permission gate:
-//  - staff.permissions must include "shifts.view"
+// Permission gate (UPDATED):
+//  - ❌ do NOT require "shifts.view" permission for staff (always allow)
 //  - staff must be approvalStatus=approved (if present) and status not inactive
 // --------------------------------------------------------
 
@@ -100,11 +100,12 @@ function ensureCanView(ctx: Context): {
     throw e;
   }
 
-  if (!hasPerm(staff, "shifts.view")) {
-    const e: any = new Error("Missing shifts.view permission");
-    e.status = Status.Forbidden;
-    throw e;
-  }
+  // ✅ IMPORTANT: Always allow staff to view their shifts (no permission gating)
+  // if (!hasPerm(staff, "shifts.view")) {
+  //   const e: any = new Error("Missing shifts.view permission");
+  //   e.status = Status.Forbidden;
+  //   throw e;
+  // }
 
   const restaurantId = String((ctx.state as any)?.staffRestaurantId ?? staff.restaurantId ?? "").trim();
   if (!restaurantId) {
