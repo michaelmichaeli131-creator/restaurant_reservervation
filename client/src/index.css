@@ -9,6 +9,22 @@
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
+
+  /* Spacing & typography tokens (used by AppShell + future UI kit) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+
+  --radius-1: 8px;
+  --radius-2: 12px;
+  --radius-3: 16px;
+
+  color-scheme: dark;
 }
 
 * {
@@ -22,10 +38,12 @@ body {
   background: var(--bg);
   color: var(--ink);
   line-height: 1.5;
+  min-height: 100dvh;
+  overscroll-behavior: none;
 }
 
 #root {
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .container {
@@ -40,6 +58,13 @@ button {
   border: none;
   background: none;
   color: inherit;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+button:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.55);
+  outline-offset: 2px;
 }
 
 input, select, textarea {
@@ -54,4 +79,11 @@ input, select, textarea {
 input:focus, select:focus, textarea:focus {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
+}
+
+/* Prefer dynamic viewport units on mobile; helps avoid “jumping” layouts in iOS */
+@supports (height: 100dvh) {
+  #root {
+    min-height: 100dvh;
+  }
 }
