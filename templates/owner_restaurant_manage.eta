@@ -249,7 +249,7 @@
       <% } %>
 
       <!-- Category cards -->
-      <div class="sb-grid cols-3" aria-label="קטגוריות ניהול">
+      <div class="sb-grid auto" aria-label="קטגוריות ניהול">
         <% if (canCalendar) { %>
         <section class="sb-surface sb-card" aria-label="הזמנות ולקוחות" data-sb-search="הזמנות לקוחות יומן calendar reservations guests">
           <header class="sb-card-hd">
@@ -316,7 +316,7 @@
         <% } %>
       </div>
 
-      <div class="sb-grid cols-3" aria-label="עוד קטגוריות">
+      <div class="sb-grid auto" aria-label="עוד קטגוריות">
         <% if (canReports) { %>
         <section class="sb-surface sb-card" aria-label="דוחות ותובנות" data-sb-search="דוחות תובנות סטטיסטיקה reports analytics stats">
           <header class="sb-card-hd">
