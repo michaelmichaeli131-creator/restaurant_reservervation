@@ -1,0 +1,371 @@
+<% layout("_layout", it) %>
+<%
+  const r = it.restaurant;
+  const restaurants = Array.isArray(it.restaurants) ? it.restaurants : [];
+  const isOwner = (it.user?.role === 'owner');
+
+  const tasks = Array.isArray(r?._tasks) ? r._tasks : [];
+  const alerts = Array.isArray(r?._alerts) ? r._alerts : [];
+  const preview = Array.isArray(r?._reservationsPreview) ? r._reservationsPreview : [];
+
+  const cover = (Array.isArray(r?.photos) && r.photos.length) ? (r.photos[0]?.dataUrl || r.photos[0]) : '';
+%>
+
+<section class="sb-page" aria-label="ניהול מסעדה">
+  <!-- Hero Header -->
+  <header class="sb-hero" <%= cover ? `style="background-image:url('${cover}')"` : '' %>>
+    <div class="sb-hero-overlay"></div>
+    <div class="sb-hero-inner">
+      <div class="sb-hero-top">
+        <div class="sb-hero-title">
+          <div class="sb-hero-kicker">ניהול מסעדה</div>
+          <h1><%= r?.name || 'מסעדה' %></h1>
+          <div class="sb-hero-sub muted">
+            <span><%= r?.city || '' %><%= (r?.city && r?.address) ? ' • ' : '' %><%= r?.address || '' %></span>
+            <% if (r?._today) { %>
+              <span class="sb-dot">•</span>
+              <span><%= r._today %></span>
+            <% } %>
+          </div>
+        </div>
+
+        <div class="sb-hero-tools">
+          <!-- Restaurant switcher -->
+          <div class="sb-switcher">
+            <label class="muted" for="restaurantSwitch">מסעדה:</label>
+            <select id="restaurantSwitch" class="sb-select" onchange="if(this.value) location.href=this.value;">
+              <% restaurants.forEach(function(x){ %>
+                <option value="/owner/restaurants/<%= x.id %>/manage" <%= (x.id===r?.id)?'selected':'' %>><%= x.name %></option>
+              <% }) %>
+              <% if (isOwner) { %>
+                <option value="/owner/restaurants/new">＋ פתיחת מסעדה חדשה</option>
+              <% } %>
+            </select>
+          </div>
+
+          <div class="sb-row" style="justify-content:flex-end">
+            <a class="btn sm ghost" href="/owner/manage">
+              <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#home"/></svg></span>
+              כל המסעדות
+            </a>
+            <% if (isOwner) { %>
+              <a class="btn sm ghost" href="<%= r?._urls?.edit %>">
+                <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#settings"/></svg></span>
+                עריכת פרטים
+              </a>
+            <% } %>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick actions -->
+      <div class="sb-quick sb-hero-quick" aria-label="פעולות מהירות">
+        <a class="btn md primary" href="<%= r?._urls?.calendar %>" data-sb-search="יומן יומי הזמנות calendar daily">
+          <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#calendar"/></svg></span>
+          יומן יומי
+        </a>
+        <a class="btn md" href="<%= r?._urls?.floor %>" data-sb-search="פלור שולחנות floor layout tables">
+          <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#floor"/></svg></span>
+          פלור ושולחנות
+        </a>
+        <a class="btn md" href="<%= r?._urls?.shifts %>" data-sb-search="משמרות shifts schedule">
+          <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#shifts"/></svg></span>
+          משמרות
+        </a>
+        <a class="btn md" href="<%= r?._urls?.staff %>" data-sb-search="צוות עובדים staff users">
+          <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#users"/></svg></span>
+          צוות
+        </a>
+        <a class="btn md" href="<%= r?._urls?.stats %>" data-sb-search="דוחות סטטיסטיקה reports stats analytics">
+          <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#chart"/></svg></span>
+          דוחות
+        </a>
+        <a class="btn md" href="<%= r?._urls?.inventory %>" data-sb-search="מלאי inventory stock">
+          <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#box"/></svg></span>
+          מלאי
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Dashboard -->
+  <div class="sb-dashboard" aria-label="Dashboard" data-sb-filter-root>
+    <main class="sb-dashboard-main">
+      <div class="sb-manage-toolbar" aria-label="חיפוש והגדרות תצוגה">
+        <div class="sb-search">
+          <span class="sb-icon sb-icon-20 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#search"/></svg></span>
+          <input id="sbFeatureSearch" class="sb-input" type="search" placeholder="חפש פעולה, דף או פיצ'ר…" aria-label="חיפוש פיצ'רים" />
+        </div>
+        <button id="sbDensityToggle" class="btn sm ghost" type="button" aria-pressed="false">תצוגה קומפקטית</button>
+      </div>
+
+      <div class="sb-empty" data-sb-empty style="display:none" aria-live="polite">לא נמצאו תוצאות. נסה ניסוח אחר.</div>
+
+      <!-- KPI row -->
+      <div class="sb-grid cols-4" aria-label="סטטוס מהיר">
+        <div class="sb-surface sb-kpi">
+          <div class="sb-kpi-label">הזמנות היום</div>
+          <div class="sb-kpi-value"><%= r?._reservationsCount ?? 0 %></div>
+          <div class="sb-kpi-foot muted">
+            <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#calendar"/></svg></span>
+            לפי תאריך <%= r?._today || '' %>
+          </div>
+        </div>
+        <div class="sb-surface sb-kpi">
+          <div class="sb-kpi-label">סועדים היום</div>
+          <div class="sb-kpi-value"><%= r?._peopleToday ?? 0 %></div>
+          <div class="sb-kpi-foot muted">
+            <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#users"/></svg></span>
+            סה"כ אנשים
+          </div>
+        </div>
+        <div class="sb-surface sb-kpi">
+          <div class="sb-kpi-label">Peak תפוסה</div>
+          <div class="sb-kpi-value"><%= r?._peakOccupancyPct ?? 0 %>%</div>
+          <div class="sb-kpi-foot muted">
+            <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#chart"/></svg></span>
+            יחס לקיבולת
+          </div>
+        </div>
+        <div class="sb-surface sb-kpi">
+          <div class="sb-kpi-label">קיבולת</div>
+          <div class="sb-kpi-value"><%= r?.capacity ?? '' %></div>
+          <div class="sb-kpi-foot muted">
+            <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#floor"/></svg></span>
+            seats מוגדרים
+          </div>
+        </div>
+      </div>
+
+      <!-- Category cards -->
+      <div class="sb-grid cols-3" aria-label="קטגוריות ניהול">
+        <section class="sb-surface sb-card" aria-label="הזמנות ולקוחות" data-sb-search="הזמנות לקוחות יומן calendar reservations guests">
+          <header class="sb-card-hd">
+            <div class="sb-card-ttl">
+              <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#calendar"/></svg></span>
+              <div>
+                <div class="sb-card-title">הזמנות ולקוחות</div>
+                <div class="sb-card-sub muted">יומן, סטטוסים, פרטי לקוח.</div>
+              </div>
+            </div>
+            <a class="btn sm ghost" href="<%= r?._urls?.calendar %>">פתח</a>
+          </header>
+          <div class="sb-card-links">
+            <a class="sb-link" href="<%= r?._urls?.calendar %>">יומן יומי</a>
+            <a class="sb-link" href="<%= r?._urls?.calendar %>">חיפוש הזמנות</a>
+            <a class="sb-link" href="<%= r?._urls?.calendar %>">הוספת הזמנה</a>
+          </div>
+        </section>
+
+        <section class="sb-surface sb-card" aria-label="פלור ושולחנות" data-sb-search="פלור שולחנות floor layout tables">
+          <header class="sb-card-hd">
+            <div class="sb-card-ttl">
+              <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#floor"/></svg></span>
+              <div>
+                <div class="sb-card-title">פלור ושולחנות</div>
+                <div class="sb-card-sub muted">עריכה, תצוגת לייב, מצבי שולחן.</div>
+              </div>
+            </div>
+            <a class="btn sm ghost" href="<%= r?._urls?.floor %>">פתח</a>
+          </header>
+          <div class="sb-card-links">
+            <a class="sb-link" href="<%= r?._urls?.floor %>">עריכת סידור שולחנות</a>
+            <a class="sb-link" href="<%= r?._urls?.calendar %>">שיוך הזמנה לשולחן</a>
+            <a class="sb-link" href="<%= r?._urls?.hours %>">שעות פעילות</a>
+          </div>
+        </section>
+
+        <section class="sb-surface sb-card" aria-label="צוות ומשמרות" data-sb-search="צוות משמרות עובדים staff shifts schedule">
+          <header class="sb-card-hd">
+            <div class="sb-card-ttl">
+              <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#shifts"/></svg></span>
+              <div>
+                <div class="sb-card-title">צוות ומשמרות</div>
+                <div class="sb-card-sub muted">שיבוץ, צוות, הרשאות.</div>
+              </div>
+            </div>
+            <a class="btn sm ghost" href="<%= r?._urls?.shifts %>">פתח</a>
+          </header>
+          <div class="sb-card-links">
+            <a class="sb-link" href="<%= r?._urls?.shifts %>">לוח משמרות</a>
+            <a class="sb-link" href="<%= r?._urls?.staff %>">ניהול צוות</a>
+            <a class="sb-link" href="<%= r?._urls?.shifts %>">תבניות משמרת</a>
+          </div>
+        </section>
+      </div>
+
+      <div class="sb-grid cols-3" aria-label="עוד קטגוריות">
+        <section class="sb-surface sb-card" aria-label="דוחות ותובנות" data-sb-search="דוחות תובנות סטטיסטיקה reports analytics stats">
+          <header class="sb-card-hd">
+            <div class="sb-card-ttl">
+              <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#chart"/></svg></span>
+              <div>
+                <div class="sb-card-title">דוחות ותובנות</div>
+                <div class="sb-card-sub muted">סטטיסטיקות, מגמות, ביצועים.</div>
+              </div>
+            </div>
+            <a class="btn sm ghost" href="<%= r?._urls?.stats %>">פתח</a>
+          </header>
+          <div class="sb-card-links">
+            <a class="sb-link" href="<%= r?._urls?.stats %>">דוחות כלליים</a>
+            <a class="sb-link" href="<%= r?._urls?.stats %>">תפוסה לפי שעה</a>
+            <a class="sb-link" href="<%= r?._urls?.stats %>">רווחיות (בהמשך)</a>
+          </div>
+        </section>
+
+        <section class="sb-surface sb-card" aria-label="מלאי" data-sb-search="מלאי inventory stock counts recipes">
+          <header class="sb-card-hd">
+            <div class="sb-card-ttl">
+              <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#box"/></svg></span>
+              <div>
+                <div class="sb-card-title">מלאי</div>
+                <div class="sb-card-sub muted">סטוק, ספירות, מתכונים.</div>
+              </div>
+            </div>
+            <a class="btn sm ghost" href="<%= r?._urls?.inventory %>">פתח</a>
+          </header>
+          <div class="sb-card-links">
+            <a class="sb-link" href="<%= r?._urls?.inventory %>">מלאי נוכחי</a>
+            <a class="sb-link" href="/owner/<%= encodeURIComponent(r?.id || '') %>/inventory/counts">ספירות מלאי</a>
+            <a class="sb-link" href="/owner/<%= encodeURIComponent(r?.id || '') %>/inventory/recipes">מתכונים</a>
+          </div>
+        </section>
+
+        <section class="sb-surface sb-card" aria-label="הגדרות" data-sb-search="הגדרות settings hours profile">
+          <header class="sb-card-hd">
+            <div class="sb-card-ttl">
+              <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#settings"/></svg></span>
+              <div>
+                <div class="sb-card-title">הגדרות</div>
+                <div class="sb-card-sub muted">פרטים, שעות, תמונות.</div>
+              </div>
+            </div>
+            <a class="btn sm ghost" href="<%= r?._urls?.edit %>">פתח</a>
+          </header>
+          <div class="sb-card-links">
+            <a class="sb-link" href="<%= r?._urls?.hours %>">שעות פעילות</a>
+            <a class="sb-link" href="<%= r?._urls?.photos %>">תמונות</a>
+            <a class="sb-link" href="<%= r?._urls?.edit %>">פרטי מסעדה</a>
+          </div>
+        </section>
+      </div>
+
+      <!-- Upcoming reservations preview -->
+      <section class="sb-surface sb-card" aria-label="הזמנות קרובות">
+        <header class="sb-card-hd">
+          <div class="sb-card-ttl">
+            <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#calendar"/></svg></span>
+            <div>
+              <div class="sb-card-title">הזמנות קרובות</div>
+              <div class="sb-card-sub muted">תצוגה מהירה של היום.</div>
+            </div>
+          </div>
+          <a class="btn sm ghost" href="<%= r?._urls?.calendar %>">לכל ההזמנות</a>
+        </header>
+        <div class="sb-table" role="table" aria-label="טבלת הזמנות">
+          <div class="sb-table-head" role="rowgroup">
+            <div class="sb-tr" role="row">
+              <div class="sb-th" role="columnheader">שעה</div>
+              <div class="sb-th" role="columnheader">שם</div>
+              <div class="sb-th" role="columnheader">סועדים</div>
+              <div class="sb-th" role="columnheader">סטטוס</div>
+            </div>
+          </div>
+          <div class="sb-table-body" role="rowgroup">
+            <% if (!preview.length) { %>
+              <div class="sb-empty muted">אין הזמנות להצגה.</div>
+            <% } else { %>
+              <% preview.forEach(function(x){ %>
+                <a class="sb-tr sb-rowlink" role="row" href="<%= r?._urls?.calendar %>" aria-label="פתח ביומן">
+                  <div class="sb-td" role="cell"><strong><%= x.time %></strong></div>
+                  <div class="sb-td" role="cell"><%= x.name %></div>
+                  <div class="sb-td" role="cell"><%= x.people %></div>
+                  <div class="sb-td" role="cell"><span class="sb-badge <%= (String(x.status).toLowerCase()==='new')?'warn':'' %>"><%= x.status %></span></div>
+                </a>
+              <% }) %>
+            <% } %>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <aside class="sb-dashboard-side" aria-label="צד">
+      <section class="sb-surface sb-card">
+        <header class="sb-card-hd">
+          <div class="sb-card-ttl">
+            <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#check"/></svg></span>
+            <div>
+              <div class="sb-card-title">משימות להיום</div>
+              <div class="sb-card-sub muted">דברים שצריך לסגור.</div>
+            </div>
+          </div>
+        </header>
+        <% if (!tasks.length) { %>
+          <div class="sb-empty muted">אין משימות כרגע.</div>
+        <% } else { %>
+          <div class="sb-list">
+            <% tasks.forEach(function(t){ %>
+              <a class="sb-list-item" href="<%= t.href || '#' %>">
+                <span class="sb-dotmark <%= t.tone || 'info' %>"></span>
+                <div class="sb-list-body">
+                  <div class="sb-list-title"><%= t.title %></div>
+                  <% if (t.desc) { %><div class="sb-list-sub muted"><%= t.desc %></div><% } %>
+                </div>
+                <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#chev"/></svg></span>
+              </a>
+            <% }) %>
+          </div>
+        <% } %>
+      </section>
+
+      <section class="sb-surface sb-card">
+        <header class="sb-card-hd">
+          <div class="sb-card-ttl">
+            <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#bell"/></svg></span>
+            <div>
+              <div class="sb-card-title">התראות</div>
+              <div class="sb-card-sub muted">מידע שחשוב לשים לב אליו.</div>
+            </div>
+          </div>
+        </header>
+        <% if (!alerts.length) { %>
+          <div class="sb-empty muted">אין התראות כרגע.</div>
+        <% } else { %>
+          <div class="sb-list">
+            <% alerts.forEach(function(a){ %>
+              <div class="sb-list-item" role="listitem">
+                <span class="sb-dotmark <%= a.tone || 'warn' %>"></span>
+                <div class="sb-list-body">
+                  <div class="sb-list-title"><%= a.title %></div>
+                </div>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+      </section>
+
+      <section class="sb-surface sb-card" aria-label="קיצורי הגדרות">
+        <header class="sb-card-hd">
+          <div class="sb-card-ttl">
+            <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#settings"/></svg></span>
+            <div>
+              <div class="sb-card-title">הגדרות מהירות</div>
+              <div class="sb-card-sub muted">עריכה מהירה של פרטים.</div>
+            </div>
+          </div>
+        </header>
+        <div class="sb-card-links">
+          <a class="sb-link" href="<%= r?._urls?.hours %>">שעות פעילות</a>
+          <a class="sb-link" href="<%= r?._urls?.photos %>">תמונות</a>
+          <a class="sb-link" href="<%= r?._urls?.edit %>">פרטי מסעדה</a>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <div class="sb-note" style="margin-top:10px">
+    טיפ: השתמש בחיפוש למעלה כדי למצוא במהירות דפים/פעולות. במחשב אפשר להפעיל "תצוגה קומפקטית" כדי לראות יותר מידע.
+  </div>
+
+  <script src="/public/js/owner-restaurant-manage.js?v=<%= it.BUILD_TAG || Date.now() %>" defer></script>
+</section>

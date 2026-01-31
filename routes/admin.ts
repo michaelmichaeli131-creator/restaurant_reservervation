@@ -113,10 +113,7 @@ function page(
   <meta name="color-scheme" content="dark light">
   <title>${layout.title}</title>
 
-  <!-- SpotBook core styles -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+  <!-- SpotBook core styles (external fonts intentionally not loaded to keep CSP strict) -->
   <link rel="stylesheet" href="/public/css/spotbook.css?v=${encodeURIComponent(BUILD_TAG)}"/>
 
   <!-- סגנונות משלימים ל־Admin (רובסטי לשפות/מסכים שונים) -->

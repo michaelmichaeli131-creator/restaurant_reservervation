@@ -131,6 +131,150 @@ ownerManageRouter.get("/owner/manage", async (ctx) => {
   ctx.response.body = "Forbidden";
 });
 
+
+/* ────────────────────── דשבורד מסעדה ספציפית ────────────────────── */
+
+ownerManageRouter.get("/owner/restaurants/:id/manage", async (ctx) => {
+  if (!requireAuth(ctx)) return;
+
+  const user = (ctx.state as any)?.user;
+  const id = ctx.params.id!;
+  const date = ctx.request.url.searchParams.get("date") || todayISO();
+
+  // Staff: מותר רק למסעדה שמוגדרת בהקשר
+  if (user?.role === "staff") {
+    const rid = (ctx.state as any).staffRestaurantId as string | null;
+    if (!rid || rid !== id) {
+      ctx.response.status = Status.Forbidden;
+      ctx.response.body = "Forbidden";
+      return;
+    }
+    if (!(await requireRestaurantAccess(ctx, id))) return;
+  }
+
+  // Owner: בדיקת בעלות
+  const r = await getRestaurant(id);
+  if (!r) {
+    ctx.response.status = Status.NotFound;
+    await render(ctx, "error", { title: "לא נמצא", message: "מסעדה לא נמצאה." });
+    return;
+  }
+
+  if (user?.role === "owner" && r.ownerId !== user.id) {
+    ctx.response.status = Status.NotFound;
+    await render(ctx, "error", { title: "לא נמצא", message: "מסעדה לא נמצאה או שאין הרשאה." });
+    return;
+  }
+
+  // Switcher: רשימת מסעדות לבעלים (לעובד – רק מסעדה אחת)
+  let switcherRestaurants: any[] = [];
+  if (user?.role === "owner") {
+    const all = await listRestaurants("", /*onlyApproved*/ false);
+    switcherRestaurants = all
+      .filter((x) => x.ownerId === user.id)
+      .map((x) => ({ id: x.id, name: x.name }));
+  } else {
+    switcherRestaurants = [{ id: r.id, name: r.name }];
+  }
+
+  const reservations = await listReservationsFor(r.id, date);
+  const peopleToday = reservations.reduce((acc, x) => acc + (x.people || 0), 0);
+  const occMap = await computeOccupancy(r, date);
+  let peakUsed = 0;
+  for (const used of occMap.values()) peakUsed = Math.max(peakUsed, used);
+  const capacity = Math.max(1, Number(r.capacity || 0));
+  const peakPct = Math.min(100, Math.round((peakUsed / capacity) * 100));
+
+  const photos = Array.isArray(r.photos) ? r.photos : [];
+  const normPhotos = photos.map((p: any) => (typeof p === "string" ? { dataUrl: p, alt: "" } : p));
+
+  // Preview: upcoming reservations for this date (first 6 by time)
+  const reservationsPreview = [...reservations]
+    .sort((a: any, b: any) => String(a.time || "").localeCompare(String(b.time || "")))
+    .slice(0, 6)
+    .map((x: any) => ({
+      id: x.id,
+      time: x.time,
+      people: x.people,
+      status: x.status || "confirmed",
+      name: [x.firstName, x.lastName].filter(Boolean).join(" ") || x.note || "לקוח/ה",
+      phone: x.phone || "",
+    }));
+
+  // Simple tasks/alerts derived from today's data (placeholder until full task engine)
+  const pending = reservations.filter((x: any) => (x.status || "").toLowerCase() === "new").length;
+  const tasks: Array<{ title: string; desc?: string; href?: string; tone?: string }> = [];
+  if (pending > 0) {
+    tasks.push({
+      title: `יש ${pending} הזמנות חדשות לבדיקה`,
+      desc: "בדוק/י את היומן ואשר/י אם צריך.",
+      href: `/owner/restaurants/${encodeURIComponent(r.id)}/calendar?date=${encodeURIComponent(date)}`,
+      tone: "warn",
+    });
+  }
+  tasks.push({
+    title: "עדכון סידור שולחנות", 
+    desc: "בדוק/י התאמה של פלור לעומס היום.",
+    href: `/owner/restaurants/${encodeURIComponent(r.id)}/floor`,
+    tone: "info",
+  });
+  if (peakPct >= 85) {
+    tasks.push({
+      title: "Peak תפוסה גבוה", 
+      desc: "שקול/י להוסיף צוות / לחזק ניהול תורים.",
+      href: `/owner/restaurants/${encodeURIComponent(r.id)}/shifts`,
+      tone: "danger",
+    });
+  }
+
+  const alerts: Array<{ title: string; tone?: string }> = [];
+  if (capacity <= 1) alerts.push({ title: "הקיבולת במסעדה לא מוגדרת (capacity)", tone: "warn" });
+
+  const viewModel = {
+    ...r,
+    photos: normPhotos,
+    _today: date,
+    _reservationsCount: reservations.length,
+    _peopleToday: peopleToday,
+    _peakOccupancyPct: peakPct,
+    _reservationsPreview: reservationsPreview,
+    _tasks: tasks,
+    _alerts: alerts,
+    _urls: {
+      manage: `/owner/restaurants/${encodeURIComponent(r.id)}/manage?date=${encodeURIComponent(date)}`,
+      calendar: `/owner/restaurants/${encodeURIComponent(r.id)}/calendar?date=${encodeURIComponent(date)}`,
+      floor: `/owner/restaurants/${encodeURIComponent(r.id)}/floor`,
+      shifts: `/owner/restaurants/${encodeURIComponent(r.id)}/shifts`,
+      staff: `/owner/staff?restaurantId=${encodeURIComponent(r.id)}`,
+      hours: `/owner/restaurants/${encodeURIComponent(r.id)}/hours`,
+      photos: `/owner/restaurants/${encodeURIComponent(r.id)}/photos`,
+      edit: `/owner/restaurants/${encodeURIComponent(r.id)}/edit`,
+      inventory: `/owner/${encodeURIComponent(r.id)}/inventory/stock`,
+      stats: `/owner/${encodeURIComponent(r.id)}/stats`,
+    },
+  };
+
+  await render(ctx, "owner_restaurant_manage", {
+    title: `ניהול — ${r.name}`,
+    page: "owner_restaurant_manage",
+    user,
+    restaurant: viewModel,
+    restaurants: switcherRestaurants,
+    createRestaurantUrl: "/owner/restaurants/new",
+  });
+});
+
+// דף יצירת מסעדה (GET) – כדי לאפשר "+ מסעדה חדשה" מה-Switcher
+ownerManageRouter.get("/owner/restaurants/new", async (ctx) => {
+  if (!requireOwner(ctx)) return;
+  await render(ctx, "owner_restaurant_new", {
+    title: "פתיחת מסעדה חדשה",
+    page: "owner_restaurant_new",
+    postUrl: "/owner/restaurant/new",
+    backUrl: "/owner/manage",
+  });
+});
+
 /** הפניה נוחה לשורש אזור הבעלים */
 ownerManageRouter.get("/owner", (ctx) => {
   ctx.response.status = Status.SeeOther;

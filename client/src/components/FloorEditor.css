@@ -1,9 +1,7 @@
 .floor-editor {
   display: flex;
   flex-direction: column;
-  /* AppShell controls height; keep this component flexible */
-  height: 100%;
-  min-height: 0;
+  height: calc(100vh - 80px);
   gap: 0;
 }
 

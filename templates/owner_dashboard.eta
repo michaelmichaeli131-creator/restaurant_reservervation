@@ -52,32 +52,32 @@ function hasAny(perms){
         <% if (isOwner) { %>
           <!-- נוכחות עובדים – רק לבעלים -->
           <a href="/owner/time" class="btn sm ghost owner-staff-btn">
-            <span class="icon">🕒</span>
+            <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#shifts"/></svg></span>
             נוכחות עובדים
           </a>
 
           <!-- ⭐ חדש – דף שכר עובדים כללי -->
           <a href="/owner/payroll" class="btn sm ghost owner-staff-btn">
-            <span class="icon">💸</span>
+            <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#chart"/></svg></span>
             <%= tt('owner.dashboard.btn_payroll_header','שכר עובדים') %>
           </a>
 
           <!-- ניהול עובדים -->
           <a href="/owner/staff" class="btn sm ghost owner-staff-btn">
-            <span class="icon">👥</span>
+            <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#users"/></svg></span>
             <%= tt('owner.staff.manage_title', 'ניהול עובדים') %>
           </a>
         <% } else if (isStaff) { %>
           <!-- כניסה/יציאה – לכל עובד -->
           <a href="/staff/timeclock" class="btn sm ghost owner-staff-btn">
-            <span class="icon">🕒</span>
+            <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#shifts"/></svg></span>
             כניסה / יציאה
           </a>
 
           <!-- ⭐ המשמרות שלי – לעובד (תמיד, ללא הרשאות) -->
           <% if (isStaff) { %>
             <a href="/staff/shifts" class="btn sm ghost owner-staff-btn">
-              <span class="icon">📅</span>
+              <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#calendar"/></svg></span>
               המשמרות שלי
             </a>
           <% } %>
@@ -155,6 +155,11 @@ function hasAny(perms){
 
                 <!-- פעולות כלליות -->
                 <div class="actions primary-actions">
+                  <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/manage?date=<%= r._today %>" target="_self" rel="nofollow">
+                    <span class="icon">🏠</span>
+                    ניהול
+                  </a>
+
                   <% if (canCalendar) { %>
                     <a class="btn ghost" href="<%= r._calendarUrl %>" target="_self" rel="nofollow">
                       <span class="icon">📅</span>

@@ -10,10 +10,10 @@
     <link rel="stylesheet" href="/static/styles.css?v=<%= it.BUILD_TAG || '' %>"/>
   <% } %>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+  <!-- External fonts intentionally not loaded to keep CSP strict (style-src 'self').
+       spotbook.css uses a system font stack fallback. -->
   <link rel="stylesheet" href="/public/css/spotbook.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
+  <link rel="stylesheet" href="/public/css/sb-ui.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
 
   <%~ it.head || '' %>
 
