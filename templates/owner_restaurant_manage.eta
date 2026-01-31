@@ -304,7 +304,11 @@
           </header>
           <div class="sb-card-links">
             <% if (canShifts) { %><a class="sb-link" href="<%= r?._urls?.shifts %>">לוח משמרות</a><% } %>
-            <% if (canStaff) { %><a class="sb-link" href="<%= r?._urls?.staff %>">ניהול צוות</a><% } %>
+            <% if (canStaff) { %><a class="sb-link" href="<%= r?._urls?.staff %>">ניהול עובדים</a><% } %>
+            <% if (isOwner) { %>
+              <a class="sb-link" href="<%= r?._urls?.time %>" data-sb-search="נוכחות עובדים timeclock attendance">נוכחות עובדים</a>
+              <a class="sb-link" href="<%= r?._urls?.payroll %>" data-sb-search="שכר עובדים payroll">שכר עובדים</a>
+            <% } %>
             <% if (isStaff) { %><a class="sb-link" href="/staff/shifts">המשמרות שלי</a><% } %>
             <% if (isOwner && canShifts) { %><a class="sb-link" href="<%= r?._urls?.shifts %>">תבניות משמרת</a><% } %>
           </div>

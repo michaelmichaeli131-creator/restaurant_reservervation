@@ -223,6 +223,8 @@ ownerManageRouter.get("/owner/restaurants/:id/manage", async (ctx) => {
       floor: `/owner/restaurants/${encodeURIComponent(r.id)}/floor`,
       shifts: `/owner/restaurants/${encodeURIComponent(r.id)}/shifts`,
       staff: `/owner/staff?restaurantId=${encodeURIComponent(r.id)}`,
+      time: `/owner/time?restaurantId=${encodeURIComponent(r.id)}`,
+      payroll: `/owner/payroll?restaurantId=${encodeURIComponent(r.id)}`,
       hours: `/owner/restaurants/${encodeURIComponent(r.id)}/hours`,
       photos: `/owner/restaurants/${encodeURIComponent(r.id)}/photos`,
       edit: `/owner/restaurants/${encodeURIComponent(r.id)}/edit`,
