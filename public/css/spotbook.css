@@ -1,3 +1,4 @@
+html{background:#070b16}
 :root{
   --bg:#0e1116;
   --panel:#121622;
@@ -16,8 +17,13 @@
 html,body{height:100%}
 body.sb-body{
   margin:0;
-  /* Smooth premium blue gradient (dark -> light) without 'restart' */
-  background: linear-gradient(180deg, #090e1b 0%, #0e1630 55%, #121f3a 100%);
+  /* Smooth premium blue gradient (dark -> light) with soft tail (no hard cutoff) */
+  background: linear-gradient(180deg,
+    #070b16 0%,
+    #0b1226 28%,
+    #0e1630 58%,
+    #112a52 100%
+  );
   color:var(--ink);
   font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
 }
