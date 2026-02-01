@@ -1,4 +1,13 @@
-html{background:#070b16}
+html{
+  /* Match body background to prevent cutoff at the end of long pages */
+  background: linear-gradient(180deg,
+    #070b16 0%,
+    #0b1226 28%,
+    #0e1630 58%,
+    #112a52 100%
+  );
+  background-color:#112a52;
+}
 :root{
   --bg:#0e1116;
   --panel:#121622;
@@ -17,7 +26,9 @@ html{background:#070b16}
 html,body{height:100%}
 body.sb-body{
   margin:0;
+  min-height: 100dvh;
   /* Smooth premium blue gradient (dark -> light) with soft tail (no hard cutoff) */
+  background-color:#112a52;
   background: linear-gradient(180deg,
     #070b16 0%,
     #0b1226 28%,
