@@ -1,456 +1,82 @@
 <% layout("_layout", it) %>
 
 <%
-  function tt(k, fb){
-    try{
-      if (it && typeof it.t==='function'){
-        const s = it.t(k);
-        if(!s || s===k || s===`(${k})`) return fb;
-        return s;
-      }
-    }catch(e){}
-    return fb;
-  }
-
   const restaurant = it.restaurant || {};
-  const openTables = it.openTables || []; // מגיע מהשרת כמו בגרסה הישנה
+  const openTables = Array.isArray(it.openTables) ? it.openTables : [];
   const rid = it.rid;
 %>
 
-<main class="waiter container" dir="rtl">
-  <header class="sb-page-header pos-header">
-    <div class="sb-page-title">
-      <h1 class="sb-h1">מסך מלצרים</h1>
-      <div class="muted"><%= restaurant.name %> • <%= restaurant.city %> • <%= restaurant.address %></div>
+<main class="sb-page" aria-label="מסך מלצרים">
+  <header class="sb-page-header">
+    <div>
+      <div class="sb-page-kicker muted">POS / Waiter</div>
+      <h1 class="sb-page-title">מסך מלצרים — <%= restaurant.name %></h1>
+      <div class="sb-page-subtitle muted"><%= restaurant.city %><%= (restaurant.city && restaurant.address) ? ' • ' : '' %><%= restaurant.address %></div>
     </div>
-
     <div class="sb-page-actions">
-      <a class="btn ghost" href="/waiter-map/<%= rid %>">מפה בלבד</a>
+      <a class="btn sm ghost" href="/waiter/map/<%= rid %>">לוח שולחנות</a>
     </div>
   </header>
 
-  <section class="waiter-grid">
-    <!-- כרטיסייה: שולחנות פתוחים -->
-    <div class="panel card">
-      <h2>שולחנות פתוחים</h2>
-      <p class="muted small">
-        רשימת כל השולחנות עם צ׳קים פתוחים / בשירות פעיל. לחיצה על שורה תציג פרטי שולחן,
-        וכפתור "למסך הזמנה" יפתח את מסך ה־POS לשולחן.
-      </p>
+  <section class="sb-dashboard" aria-label="תפעול מלצרים">
+    <div class="sb-dashboard-main">
+      <section class="sb-surface sb-card" aria-label="לוח שולחנות">
+        <div class="sb-card-hd">
+          <div class="sb-card-ttl">
+            <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#floor"/></svg></span>
+            <div>
+              <div class="sb-card-title">לוח שולחנות</div>
+              <div class="sb-card-sub muted">גדול ונוח, מתאים לכל מסך. לחץ על שולחן תפוס כדי לפתוח הזמנה.</div>
+            </div>
+          </div>
+        </div>
+        <div id="floor"></div>
+      </section>
+    </div>
 
-      <% if (openTables.length) { %>
-        <ul id="open-tables-list" class="list open-tables-list">
-          <% openTables.forEach(function(t){ 
+    <aside class="sb-dashboard-side" aria-label="שולחנות פתוחים">
+      <section class="sb-surface sb-card">
+        <div class="sb-card-hd">
+          <div class="sb-card-ttl">
+            <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#receipt"/></svg></span>
+            <div>
+              <div class="sb-card-title">שולחנות פתוחים</div>
+              <div class="sb-card-sub muted">רשימת שירות פעיל / צ׳קים פתוחים</div>
+            </div>
+          </div>
+        </div>
+
+        <% if (openTables.length) { %>
+          <div class="sb-card-links">
+            <% openTables.forEach(function(t){
               const tn = Number(t.tableNumber || t.table || 0);
               const guestName = t.guestName || t.name || t.customerName || "";
               const people = t.people || t.covers || "";
               const time = t.time || t.openedAt || "";
-              const status = t.status || "occupied";
-              const itemsCount = (t.totals && t.totals.itemsCount != null)
-                ? t.totals.itemsCount
-                : (t.itemsCount != null ? t.itemsCount : "");
-              const subtotal = (t.totals && t.totals.subtotal != null)
-                ? t.totals.subtotal
-                : (t.subtotal != null ? t.subtotal : "");
-
-              // URL למסך ההזמנה – קודם מהשרת, ואם אין אז fallback למסלול הישן: /pos/:rid/table/:tn
               const posUrl = t.posUrl || t.url || t.href || `/pos/${rid}/table/${tn}`;
-          %>
-            <li
-              class="item open-item"
-              data-table="<%= tn %>"
-              data-name="<%= guestName %>"
-              data-people="<%= people %>"
-              data-time="<%= time %>"
-              data-status="<%= status %>"
-              data-items-count="<%= itemsCount %>"
-              data-subtotal="<%= subtotal %>"
-              data-pos-url="<%= posUrl %>"
-            >
-              <div class="open-row">
-                <button type="button" class="open-table-btn">
-                  <div class="open-main">
-                    <span class="open-table-num">שולחן <%= tn %></span>
-                    <% if (guestName) { %>
-                      <span class="open-guest-name">• <%= guestName %></span>
-                    <% } %>
-                  </div>
-                  <div class="open-sub">
-                    <% if (people) { %>
-                      <span><%= people %> <%= tt('host.people_unit', 'סועדים') %></span>
-                    <% } %>
-                    <% if (time) { %>
-                      <span>• <%= time %></span>
-                    <% } %>
-                    <% if (itemsCount !== "" && itemsCount != null) { %>
-                      <span>• <%= itemsCount %> <%= tt('pos.waiter.items_count', 'פריטים') %></span>
-                    <% } %>
-                    <% if (subtotal !== "" && subtotal != null) { %>
-                      <span>• <%= subtotal %> ₪</span>
-                    <% } %>
-                  </div>
-                </button>
-                <button type="button" class="open-pos-link btn secondary sm">
-                  <%= tt('pos.waiter.btn_to_order', 'למסך הזמנה') %>
-                </button>
-              </div>
-            </li>
-          <% }) %>
-        </ul>
-      <% } else { %>
-        <div id="open-tables-empty" class="muted small">
-          אין כרגע שולחנות פתוחים.
-        </div>
-      <% } %>
-    </div>
-
-    <!-- כרטיסייה: מפת המסעדה (חי) -->
-    <div class="panel card">
-      <h2>מפת המסעדה (חי)</h2>
-      <p class="muted small">
-        לחיצה על שולחן תפוס תציג פרטי הזמנה; לחיצה על שולחן פנוי תציג מידע בסיסי.
-      </p>
-      <div id="floor" class="floor-wrapper">
-        <!-- המפה תיטען דינמית ע"י JS -->
-      </div>
-    </div>
+            %>
+              <a class="sb-link" href="<%= posUrl %>">
+                <span>
+                  שולחן <%= tn %>
+                  <% if (guestName) { %><span class="muted" style="font-weight:700"> • <%= guestName %></span><% } %>
+                  <% if (people) { %><span class="muted" style="font-weight:700"> • <%= people %> סועדים</span><% } %>
+                  <% if (time) { %><span class="muted" style="font-weight:700"> • <%= time %></span><% } %>
+                </span>
+              </a>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <div class="muted" style="font-size:13px">אין כרגע שולחנות פתוחים.</div>
+        <% } %>
+      </section>
+    </aside>
   </section>
 </main>
 
-<!-- כרטיסיית צד לפרטי שולחן -->
-<div id="table-info-backdrop" class="table-info-backdrop"></div>
-<aside id="table-info-panel" class="table-info-panel" aria-hidden="true">
-  <div class="table-info-inner">
-    <header class="table-info-header">
-      <div>
-        <div class="tip-label">פרטי שולחן</div>
-        <div class="tip-title">
-          שולחן <span id="tip-table-number">—</span>
-        </div>
-      </div>
-      <button type="button" class="tip-close-btn" id="tip-close-btn" aria-label="סגירת פרטי שולחן">
-        ✕
-      </button>
-    </header>
-
-    <div class="table-info-body">
-      <div class="tip-row">
-        <span class="tip-row-label">שם המזמין</span>
-        <span class="tip-row-value" id="tip-guest-name">—</span>
-      </div>
-      <div class="tip-row">
-        <span class="tip-row-label">מספר סועדים</span>
-        <span class="tip-row-value" id="tip-people">—</span>
-      </div>
-      <div class="tip-row">
-        <span class="tip-row-label">שעת ההזמנה</span>
-        <span class="tip-row-value" id="tip-time">—</span>
-      </div>
-      <div class="tip-row">
-        <span class="tip-row-label">סטטוס שולחן</span>
-        <span class="tip-row-value">
-          <span id="tip-status" class="tip-status-badge">—</span>
-        </span>
-      </div>
-      <div class="tip-row">
-        <span class="tip-row-label">מספר פריטים</span>
-        <span class="tip-row-value" id="tip-items-count">—</span>
-      </div>
-      <div class="tip-row">
-        <span class="tip-row-label">סכום ביניים</span>
-        <span class="tip-row-value" id="tip-subtotal">—</span>
-      </div>
-    </div>
-
-    <footer class="table-info-footer">
-      <p class="muted small">
-        המידע נלקח מההזמנה / צ׳ק האחרון בשולחן.
-      </p>
-    </footer>
-  </div>
-</aside>
-
+<script src="/public/js/floorboard.js"></script>
 <script>
-(function(){
-  const rid = "<%= it.rid %>";
-
-  const openList = document.getElementById("open-tables-list");
-  const floorHolder = document.getElementById("floor");
-
-  // צד פרטי שולחן
-  const tableInfoPanel = document.getElementById("table-info-panel");
-  const tableInfoBackdrop = document.getElementById("table-info-backdrop");
-  const tipCloseBtn = document.getElementById("tip-close-btn");
-  const tipTableNumber = document.getElementById("tip-table-number");
-  const tipGuestName = document.getElementById("tip-guest-name");
-  const tipPeople = document.getElementById("tip-people");
-  const tipTime = document.getElementById("tip-time");
-  const tipStatus = document.getElementById("tip-status");
-  const tipItemsCount = document.getElementById("tip-items-count");
-  const tipSubtotal = document.getElementById("tip-subtotal");
-
-  const statusMap = new Map(); // ממפת הרצפה
-  const guestMap = new Map();  // ממפת הרצפה
-
-  function mapStatusToLabel(status){
-    const s = (status || "").toLowerCase();
-    if (s === "occupied" || s === "open") return "תפוס";
-    if (s === "reserved") return "שמורה";
-    if (s === "dirty") return "דורש ניקוי";
-    if (s === "empty" || s === "free") return "פנוי";
-    return status || "לא ידוע";
-  }
-
-  function mapStatusToClass(status){
-    const s = (status || "").toLowerCase();
-    if (s === "occupied" || s === "open") return "tip-status-occupied";
-    if (s === "reserved") return "tip-status-reserved";
-    if (s === "dirty") return "tip-status-dirty";
-    if (s === "empty" || s === "free") return "tip-status-empty";
-    return "tip-status-unknown";
-  }
-
-  function formatMoney(v){
-    if (v == null || v === "" || isNaN(Number(v))) return "—";
-    return Number(v).toLocaleString("he-IL", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + " ₪";
-  }
-
-  function openTableInfoPanel(info){
-    if (!tableInfoPanel) return;
-    tipTableNumber.textContent = info.tableNumber != null ? info.tableNumber : "—";
-    tipGuestName.textContent = info.name || "—";
-    tipPeople.textContent = (info.people != null && info.people !== "") ? info.people : "—";
-    tipTime.textContent = info.time || "—";
-
-    const clsBase = ["tip-status-badge","tip-status-empty","tip-status-occupied","tip-status-reserved","tip-status-dirty","tip-status-unknown"];
-    if (tipStatus) {
-      tipStatus.textContent = mapStatusToLabel(info.status);
-      tipStatus.className = clsBase[0] + " " + mapStatusToClass(info.status);
-    }
-
-    tipItemsCount.textContent = (info.itemsCount != null && info.itemsCount !== "")
-      ? info.itemsCount
-      : "—";
-    tipSubtotal.textContent = formatMoney(info.subtotal);
-
-    tableInfoPanel.classList.add("open");
-    tableInfoBackdrop.classList.add("open");
-    tableInfoPanel.setAttribute("aria-hidden", "false");
-  }
-
-  function closeTableInfoPanel(){
-    tableInfoPanel.classList.remove("open");
-    tableInfoBackdrop.classList.remove("open");
-    tableInfoPanel.setAttribute("aria-hidden", "true");
-  }
-
-  if (tipCloseBtn) tipCloseBtn.addEventListener("click", closeTableInfoPanel);
-  if (tableInfoBackdrop) tableInfoBackdrop.addEventListener("click", closeTableInfoPanel);
-
-  // האזנה לרשימת שולחנות פתוחים – כולל מעבר למסך ההזמנה
-  if (openList) {
-    openList.addEventListener("click", function(ev){
-      const target = ev.target;
-      if (!(target instanceof HTMLElement)) return;
-
-      const li = target.closest("li[data-table]");
-      if (!li) return;
-
-      const tn = li.getAttribute("data-table");
-      let posUrl = li.getAttribute("data-pos-url") || "";
-      // fallback אם משום מה data-pos-url ריק:
-      if (!posUrl && tn) {
-        posUrl = `/pos/${rid}/table/${tn}`;
-      }
-
-      // כפתור "למסך הזמנה"
-      const posBtn = target.closest(".open-pos-link");
-      if (posBtn) {
-        console.log("[WAITER] go to POS:", { tn, posUrl });
-        if (posUrl) {
-          window.location.href = posUrl;
-        } else {
-          alert("לא הוגדר קישור למסך ההזמנה עבור שולחן זה.");
-        }
-        return;
-      }
-
-      // לחיצה על שורת השולחן - פתיחת כרטיסיית צד
-      const rowBtn = target.closest(".open-table-btn");
-      if (rowBtn) {
-        const name = li.getAttribute("data-name") || "";
-        const people = li.getAttribute("data-people") || "";
-        const time = li.getAttribute("data-time") || "";
-        const status = li.getAttribute("data-status") || "occupied";
-        const itemsCountAttr = li.getAttribute("data-items-count");
-        const subtotalAttr = li.getAttribute("data-subtotal");
-
-        const itemsCount = (itemsCountAttr != null && itemsCountAttr !== "")
-          ? Number(itemsCountAttr)
-          : null;
-        const subtotal = (subtotalAttr != null && subtotalAttr !== "")
-          ? Number(subtotalAttr)
-          : null;
-
-        const info = {
-          tableNumber: Number(tn),
-          name,
-          people,
-          time,
-          status,
-          itemsCount,
-          subtotal,
-        };
-        openTableInfoPanel(info);
-
-        // הדגשה במפת המסעדה
-        const floor = document.getElementById("floor");
-        if (floor && tn) {
-          const tableBtn = floor.querySelector('.table[data-table-number="'+tn+'"]');
-          if (tableBtn) {
-            tableBtn.classList.add("selected");
-            tableBtn.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-            setTimeout(() => tableBtn.classList.remove("selected"), 800);
-          }
-        }
-      }
-    }, { passive: true });
-  }
-
-  // === טעינת מפת המסעדה === (כמו אצל המארחת)
-  async function loadFloor(){
-    if (!floorHolder) return;
-    floorHolder.innerHTML = "";
-
-    try{
-      const res = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}`);
-      if (!res.ok) {
-        const p = document.createElement("p");
-        p.className = "muted";
-        p.textContent = "לא הוגדרה מפת שולחנות למסעדה זו.";
-        floorHolder.appendChild(p);
-        return;
-      }
-      const plan = await res.json();
-
-      const gridRows = Number(plan.gridRows || 8);
-      const gridCols = Number(plan.gridCols || 10);
-      const tables = Array.isArray(plan.tables) ? plan.tables : [];
-      const tableStatuses = Array.isArray(plan.tableStatuses) ? plan.tableStatuses : [];
-
-      statusMap.clear();
-      guestMap.clear();
-
-      tableStatuses.forEach(function(s){
-        const tn = Number(s.tableNumber);
-        if (!Number.isFinite(tn)) return;
-
-        const st = s.status || "empty";
-        statusMap.set(tn, st);
-
-        const gName = s.guestName || s.name || s.customerName || null;
-        if (gName) guestMap.set(tn, String(gName));
-      });
-
-      if (!tables.length) {
-        const p = document.createElement("p");
-        p.className = "muted";
-        p.textContent = "אין שולחנות מוגדרים במפת המסעדה.";
-        floorHolder.appendChild(p);
-        return;
-      }
-
-      const grid = document.createElement("div");
-      grid.className = "floor-grid";
-      grid.style.setProperty("--rows", gridRows);
-      grid.style.setProperty("--cols", gridCols);
-      floorHolder.appendChild(grid);
-
-      tables.forEach(function(t){
-        const num = Number(t.tableNumber);
-        const status = statusMap.get(num) || "empty";
-        const seats = Number(t.seats || 0);
-        const guestName = guestMap.get(num) || "";
-
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "table " + status;
-        btn.dataset.tableNumber = String(num);
-
-        const capText = seats > 0 ? (seats + " מקומות") : "";
-
-        btn.innerHTML = `
-          <div class="table-num">${num}</div>
-          <div class="table-cap">${capText}</div>
-          ${guestName ? `<div class="table-guest">${guestName}</div>` : ""}
-        `;
-
-        btn.style.gridRow = (t.gridY + 1) + " / span " + (t.spanY || 1);
-        btn.style.gridColumn = (t.gridX + 1) + " / span " + (t.spanX || 1);
-
-        btn.addEventListener("click", async function(){
-          const currentStatus = statusMap.get(num) || "empty";
-
-          if (currentStatus === "empty") {
-            const info = {
-              tableNumber: num,
-              name: "",
-              people: "",
-              time: "",
-              status: "empty",
-              itemsCount: null,
-              subtotal: null,
-            };
-            openTableInfoPanel(info);
-            return;
-          }
-
-          try {
-            const url = new URL("/api/host/table/info", window.location.origin);
-            url.searchParams.set("restaurantId", rid);
-            url.searchParams.set("table", String(num));
-
-            const res = await fetch(url.toString(), {
-              method: "GET",
-              headers: { "Accept": "application/json" },
-            });
-            const data = await res.json().catch(() => ({}));
-
-            if (!res.ok || !data.ok) {
-              const msg = data && data.error ? data.error : res.status;
-              alert("לא ניתן לטעון פרטי שולחן: " + msg);
-              return;
-            }
-
-            const info = {
-              tableNumber: num,
-              name: data.name || data.guestName || guestMap.get(num) || "",
-              people: data.people,
-              time: data.time,
-              status: currentStatus,
-              itemsCount: data.itemsCount ?? null,
-              subtotal: data.subtotal ?? null,
-            };
-            openTableInfoPanel(info);
-          } catch (e) {
-            console.error(e);
-            alert("שגיאה בטעינת פרטי השולחן.");
-          }
-        });
-
-        grid.appendChild(btn);
-      });
-    }catch(e){
-      console.error(e);
-      const p = document.createElement("p");
-      p.className = "muted";
-      p.textContent = "שגיאה בטעינת מפת המסעדה.";
-      floorHolder.appendChild(p);
-    }
-  }
-
-  loadFloor();
-})();
+  window.SB && window.SB.mountFloorBoard && window.SB.mountFloorBoard({
+    rid: "<%= rid %>",
+    holder: document.getElementById("floor")
+  });
 </script>
-
-<!-- Styles moved to /public/css/sb-pos.css -->
