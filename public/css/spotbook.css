@@ -1,5 +1,3 @@
-html, body { overflow-x: hidden; }
-*,*::before,*::after{box-sizing:border-box;}
 :root{
   --bg:#0e1116;
   --panel:#121622;
@@ -16,6 +14,8 @@ html, body { overflow-x: hidden; }
 
 *{box-sizing:border-box}
 html,body{height:100%}
+/* Prevent page-level horizontal scroll (only allow in dedicated scrollers) */
+html,body{max-width:100%; overflow-x:hidden;}
 body.sb-body{
   margin:0;
   background: radial-gradient(1200px 600px at 80% -100px, rgba(65,84,255,.18), transparent),
@@ -45,7 +45,14 @@ body.sb-body{
 .btn:disabled{opacity:.6;cursor:not-allowed}
 
 /* Containers */
-.sb-container{max-width:var(--max);margin:0 auto;padding:18px 16px}
+.sb-container{
+  max-width:var(--max);
+  margin:0 auto;
+  padding:18px 16px;
+  /* iOS safe areas (avoid visual "cut" on notched devices) */
+  padding-left: calc(16px + env(safe-area-inset-left));
+  padding-right: calc(16px + env(safe-area-inset-right));
+}
 
 /* Hero */
 .hero{position:relative;border-radius:28px;overflow:hidden;margin-top:16px}
@@ -261,6 +268,8 @@ body.sb-body {
 .sb-header .sb-container{
   min-height:0;
   padding:6px 16px;
+  padding-left: calc(16px + env(safe-area-inset-left));
+  padding-right: calc(16px + env(safe-area-inset-right));
   align-items:flex-start;
 }
 
@@ -269,6 +278,8 @@ body.sb-body {
   .sb-header .sb-container{
     min-height:0;
     padding:8px 16px;
+    padding-left: calc(16px + env(safe-area-inset-left));
+    padding-right: calc(16px + env(safe-area-inset-right));
   }
 }
 
@@ -329,10 +340,3 @@ body.sb-body {
     flex: 0 0 100%;   /* כרטיס אחד לכל רוחב */
   }
 }
-
-
-/* prevent header from forcing page horizontal scroll */
-.sb-header, .sb-header * { max-width: 100%; }
-.sb-header { overflow-x: hidden; }
-.sb-nav, .sb-actions { min-width: 0; flex-wrap: wrap; }
-.btn, .nav-link { min-width: 0; }
