@@ -1,11 +1,26 @@
 <% layout("_layout", it) %>
 
-<main class="container waiter-map-page">
-  <header class="page-header">
-    <h1>מפת מסעדה — <%= it.restaurant.name %></h1>
-    <p class="muted">לחיצה על שולחן תפוס תפתח את עמוד ההזמנה. רק המארחת יכולה להושיב.</p>
+<main class="container waiter-map-page" dir="rtl">
+  <header class="sb-page-header pos-header">
+    <div class="sb-page-title">
+      <h1 class="sb-h1">מפת מסעדה</h1>
+      <div class="muted"> <%= it.restaurant.name %> • לחיצה על שולחן תפוס תפתח הזמנה</div>
+    </div>
+
+    <div class="sb-page-actions">
+      <div class="sb-legend" aria-label="מקרא סטטוסים">
+        <span class="sb-chip status-empty"><span class="dot"></span>פנוי</span>
+        <span class="sb-chip status-occupied"><span class="dot"></span>תפוס</span>
+        <span class="sb-chip status-reserved"><span class="dot"></span>שמור</span>
+        <span class="sb-chip status-dirty"><span class="dot"></span>מלוכלך</span>
+      </div>
+    </div>
   </header>
-  <div id="floor"></div>
+
+  <section class="panel card sb-card pos-floor-card">
+    <div id="floor" class="sb-floor-root"></div>
+    <p class="muted sb-footnote">רק המארחת יכולה להושיב דרך מסך המארחת.</p>
+  </section>
 </main>
 
 <script>
@@ -123,27 +138,4 @@
 })();
 </script>
 
-<style>
-.floor-grid{
-  display:grid;
-  grid-template-rows: repeat(var(--rows), 40px);
-  grid-template-columns: repeat(var(--cols), 40px);
-  gap:6px;
-  background: rgba(255,255,255,.03);
-  padding:6px; border-radius:8px;
-}
-.table{
-  border:1px solid rgba(255,255,255,.3);
-  backdrop-filter: blur(8px);
-  padding:8px; border-radius:8px;
-  font-weight:700;
-  transition: background-color .25s ease, transform .1s ease;
-}
-.table.empty{ background:#2e7d32; }
-.table.occupied{ background:#c62828; }
-.table.reserved{ background:#f9a825; }
-.table.dirty{ background:#6a1b9a; }
-.table:active{
-  transform: scale(0.96);
-}
-</style>
+<!-- Styles moved to /public/css/sb-pos.css -->
