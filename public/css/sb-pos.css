@@ -6,13 +6,13 @@
 */
 
 :root{
-  --pos-cell: clamp(40px, 8vw, 56px);
+  --pos-cell: 52px; /* default, overridden per grid */
   --pos-gap: 10px;
 
   --pos-accent-empty: rgba(59,130,246,.95);
   --pos-accent-occupied: rgba(239,68,68,.95);
   --pos-accent-reserved: rgba(245,158,11,.95);
-  --pos-accent-dirty: rgba(168,85,247,.95);
+  --pos-accent-dirty: rgba(99,102,241,.95); /* indigo instead of purple */
 }
 
 /* ===== Page header ===== */
@@ -50,14 +50,30 @@
   display:flex;
   justify-content:center;
   align-items:flex-start;
+  width: 100%;
+  /* Allow panning by scroll (touch/trackpad) instead of browser zoom */
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 8px;
 }
 
 .floor-grid{
   --rows: 8;
   --cols: 10;
+  --cell: var(--pos-cell);
   display:grid;
-  grid-template-rows: repeat(var(--rows), var(--pos-cell));
-  grid-template-columns: repeat(var(--cols), var(--pos-cell));
+  /* Compute cell size to fit BOTH width & height without requiring browser zoom.
+     Works on desktop/tablet/phone, regardless of plan size. */
+  --avail-w: min(100%, 980px);
+  --avail-h: min(70dvh, 720px);
+  --cell: min(
+    64px,
+    calc((var(--avail-w) - 24px - ((var(--cols) - 1) * var(--pos-gap))) / var(--cols)),
+    calc((var(--avail-h) - 24px - ((var(--rows) - 1) * var(--pos-gap))) / var(--rows))
+  );
+  grid-template-rows: repeat(var(--rows), var(--cell));
+  grid-template-columns: repeat(var(--cols), var(--cell));
   gap: var(--pos-gap);
 
   padding: 12px;
@@ -69,12 +85,13 @@
     rgba(255,255,255,.03);
   box-shadow: 0 12px 36px rgba(0,0,0,.35);
 
-  /* Allow map to be usable on smaller screens */
-  max-width: 100%;
+  box-sizing: border-box;
+  max-inline-size: var(--avail-w);
+  max-block-size: var(--avail-h);
+  overflow: visible;
 }
 
-/* Map scrolling on small devices */
-.sb-floor-root{ overflow:auto; width:100%; }
+/* Map scrolling (touch/trackpad) */
 .sb-floor-root::-webkit-scrollbar{ height:10px; width:10px; }
 .sb-floor-root::-webkit-scrollbar-thumb{ background: rgba(255,255,255,.10); border-radius:999px; }
 
@@ -96,6 +113,9 @@
   user-select:none;
 
   min-height: 44px; /* touch */
+  box-sizing: border-box;
+  padding: 6px;
+  font-size: 14px;
   transition: transform .12s ease, box-shadow .16s ease, border-color .16s ease;
 }
 
@@ -133,8 +153,8 @@
   background: linear-gradient(180deg, rgba(245,158,11,.10), rgba(255,255,255,.02));
 }
 .table.dirty{
-  border-color: rgba(168,85,247,.22);
-  background: linear-gradient(180deg, rgba(168,85,247,.10), rgba(255,255,255,.02));
+  border-color: rgba(99,102,241,.24);
+  background: linear-gradient(180deg, rgba(99,102,241,.10), rgba(255,255,255,.02));
 }
 
 /* ===== Waiter lobby ===== */
@@ -297,3 +317,21 @@
   .menu-grid{ grid-template-columns: 1fr; }
 }
 
+
+
+/* ===== Mobile-first floor fit ===== */
+@media (max-width: 640px){
+  :root{ --pos-gap: 8px; }
+  .sb-floor-root{ padding: 0; }
+  .floor-grid{
+    /* On phone: use the full card width to compute cells so it fits without zoom */
+    width: 100%;
+    justify-content: center;
+    padding: 10px;
+  }
+  .pos-floor-card{ overflow: hidden; }
+  .table{ border-radius: 14px; }
+}
+
+/* Make table button-like links never turn purple */
+.table, .table:visited{ color: rgba(230,232,239,.98); }
