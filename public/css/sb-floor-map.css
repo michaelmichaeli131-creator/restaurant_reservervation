@@ -156,3 +156,14 @@
   .sb-floor-table{ border-radius: 16px; }
   .sb-floor-table .sb-tn{ font-size: 30px; }
 }
+
+
+/* keep the floor map fully within the viewport width (no page horizontal scroll) */
+.sb-floor-stage, .sb-floor-canvas-wrap, .sb-floor-canvasWrap {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.sb-floor-tabs { flex-wrap: wrap; }
+
+.sb-floor-topbar > * { min-width: 0; }

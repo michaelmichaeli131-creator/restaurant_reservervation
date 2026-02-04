@@ -1,3 +1,5 @@
+html, body { overflow-x: hidden; }
+*,*::before,*::after{box-sizing:border-box;}
 :root{
   --bg:#0e1116;
   --panel:#121622;
@@ -327,3 +329,10 @@ body.sb-body {
     flex: 0 0 100%;   /* כרטיס אחד לכל רוחב */
   }
 }
+
+
+/* prevent header from forcing page horizontal scroll */
+.sb-header, .sb-header * { max-width: 100%; }
+.sb-header { overflow-x: hidden; }
+.sb-nav, .sb-actions { min-width: 0; flex-wrap: wrap; }
+.btn, .nav-link { min-width: 0; }

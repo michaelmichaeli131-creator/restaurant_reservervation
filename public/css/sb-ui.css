@@ -1,3 +1,32 @@
+/* === Mobile/Tablet safety: prevent page-level horizontal scrolling === */
+html, body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+img, svg, video, canvas, iframe {
+  max-width: 100%;
+}
+
+pre, code {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.sb-container, .sb-page, .sb-main, .sb-shell {
+  width: 100%;
+  max-width: 100%;
+}
+
+.sb-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 :root{
   /* UI scale */
   --sb-space-1: 6px;
