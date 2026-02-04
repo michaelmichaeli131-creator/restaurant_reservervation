@@ -105,14 +105,14 @@
 }
 
 .sb-floor-table .sb-tn{
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 800;
   letter-spacing: .3px;
 }
 
 .sb-floor-table .sb-sub{
   margin-top: 4px;
-  font-size: 12px;
+  font-size: 13px;
   opacity: .85;
   white-space: nowrap;
   overflow: hidden;
@@ -138,5 +138,5 @@
 @media (max-width: 640px){
   .sb-floor-viewport{ height: clamp(480px, 72vh, 720px); border-radius: 14px; }
   .sb-floor-table{ border-radius: 16px; }
-  .sb-floor-table .sb-tn{ font-size: 26px; }
+  .sb-floor-table .sb-tn{ font-size: 30px; }
 }
