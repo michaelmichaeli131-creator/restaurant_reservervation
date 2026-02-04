@@ -289,10 +289,10 @@
             </div>
             <div class="title" id="cal-title">—</div>
           </div>
-          <table>
+          <div class="sb-table-scroll"><table class="sb-table">
             <thead><tr id="cal-weekdays"></tr></thead>
             <tbody id="cal-body"></tbody>
-          </table>
+          </table></div>
         </div>
 
         <div class="oc-section-title" style="margin-top:16px"><%= tt('owner.calendar.sidebar.daily_summary','סיכום יומי') %></div>

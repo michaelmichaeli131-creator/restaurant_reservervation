@@ -41,7 +41,7 @@
 
   <section class="card">
     <h2 class="card-title"><%= tt('owner.menu.items', 'מנות') %></h2>
-    <table class="table">
+    <div class="sb-table-scroll"><table class="table sb-table">
       <thead><tr><th><%= tt('owner.menu.tbl.name', 'שם') %></th><th><%= tt('owner.menu.tbl.price', 'מחיר') %></th><th><%= tt('owner.menu.tbl.destination', 'יעד') %></th><th><%= tt('owner.menu.tbl.category', 'קטגוריה') %></th><th></th></tr></thead>
       <tbody>
         <% it.items.forEach(m => { %>
@@ -58,7 +58,7 @@
           </tr>
         <% }) %>
       </tbody>
-    </table>
+    </table></div>
 
     <form method="post" action="/owner/<%= it.restaurant.id %>/menu/item" class="form row">
       <label class="fld"><span>שם (EN)</span><input name="name_en" required></label>

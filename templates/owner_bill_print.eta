@@ -85,7 +85,7 @@
       <h2 class="section-title">פריטים בחשבון</h2>
 
       <% if (Array.isArray(bill.items) && bill.items.length) { %>
-        <table class="bill-table">
+        <div class="sb-table-scroll"><table class="bill-table sb-table">
           <thead>
             <tr>
               <th class="col-qty">כמות</th>
@@ -113,7 +113,7 @@
               </tr>
             <% }) %>
           </tbody>
-        </table>
+        </table></div>
       <% } else { %>
         <p class="muted">אין פריטים בחשבון זה.</p>
       <% } %>

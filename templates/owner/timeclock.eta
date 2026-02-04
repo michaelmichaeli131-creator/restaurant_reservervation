@@ -39,7 +39,7 @@
         טיפ: לחץ על שורה כדי לערוך ידנית כניסה/יציאה (ולשנות hourlyRate אם צריך).
       </div>
 
-      <table class="tbl">
+      <div class="sb-table-scroll"><table class="tbl sb-table">
         <thead>
           <tr>
             <th>תאריך</th>
@@ -68,7 +68,7 @@
             </tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
     </div>
 
     <div class="card">

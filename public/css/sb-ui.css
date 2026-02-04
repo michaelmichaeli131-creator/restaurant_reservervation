@@ -1,3 +1,9 @@
+/*
+  SpotBook UI Foundation (Part 1)
+  - Tokens, defaults, and responsive-safe primitives shared by ALL pages
+  - Keep this file lightweight and framework-agnostic.
+*/
+
 :root{
   /* UI scale */
   --sb-space-1: 6px;
@@ -8,7 +14,25 @@
   --sb-radius-sm: 12px;
   --sb-radius-md: 16px;
   --sb-radius-lg: 22px;
+
+  /* Touch targets */
+  --sb-tap: 44px;
 }
+
+/* ===== Global defaults ===== */
+img, svg, video{max-width:100%; height:auto}
+
+/* Prevent browser default visited-purple from leaking into UI cards */
+.sb-page a:visited,
+.sb-surface a:visited,
+.sb-card a:visited,
+.sb-ops a:visited,
+.sb-quick a:visited{
+  color: inherit;
+}
+
+/* Container padding that adapts smoothly across devices
+   (actual layout is set further below in .sb-page) */
 
 /* ===== Icons (consistent) ===== */
 .sb-icon{display:inline-block;flex:0 0 auto;vertical-align:middle;inline-size:20px;block-size:20px}
@@ -50,7 +74,11 @@
 .sb-help{color:var(--ink-muted); font-size:13px}
 
 /* ===== Layout helpers ===== */
-.sb-page{max-width:var(--max); margin:0 auto; padding:18px 16px}
+.sb-page{
+  max-width:var(--max);
+  margin:0 auto;
+  padding: clamp(14px, 2.2vw, 18px) clamp(12px, 2vw, 16px);
+}
 .sb-pad-16{padding:16px}
 .sb-dot{margin:0 6px; opacity:.8}
 .sb-surface{
@@ -236,10 +264,165 @@ body.sb-compact .sb-quick .btn{padding:9px 14px; font-size:13px}
 
 /* ===== Touch targets ===== */
 @media (max-width: 768px){
-  .btn{min-height:44px}
+  .btn{min-height:var(--sb-tap)}
+  .sb-input,
+  .sb-select,
+  .sb-textarea{min-height:var(--sb-tap)}
 }
 
 /* ===== Reduce motion ===== */
 @media (prefers-reduced-motion: reduce){
   *{scroll-behavior:auto !important; transition:none !important; animation:none !important}
+}
+
+/* ===== Responsive helpers ===== */
+.sb-hide-mobile{display:block}
+.sb-only-mobile{display:none}
+@media (max-width: 640px){
+  .sb-hide-mobile{display:none !important}
+  .sb-only-mobile{display:block !important}
+}
+
+.sb-hide-tablet{display:block}
+@media (min-width: 641px) and (max-width: 1024px){
+  .sb-hide-tablet{display:none !important}
+}
+
+
+/* ===== Part 3: Unified Buttons + Layout Patterns ===== */
+
+/* Button variants */
+.btn.primary{
+  background: linear-gradient(180deg, rgba(59,130,246,.95), rgba(37,99,235,.95));
+  color: var(--brand-ink, #fff);
+  border: 1px solid rgba(59,130,246,.55);
+  box-shadow: 0 12px 22px rgba(59,130,246,.18);
+}
+.btn.primary:hover{filter: brightness(1.05)}
+.btn.primary:active{transform: translateY(1px)}
+
+.btn.secondary{
+  background: rgba(255,255,255,.06);
+  color: var(--ink, #e6e8ef);
+  border: 1px solid rgba(255,255,255,.10);
+}
+.btn.secondary:hover{background: rgba(255,255,255,.08)}
+.btn.secondary:active{transform: translateY(1px)}
+
+.btn.ghost{
+  background: transparent;
+  color: var(--ink, #e6e8ef);
+  border: 1px solid rgba(255,255,255,.10);
+}
+.btn.ghost:hover{background: rgba(255,255,255,.06)}
+.btn.ghost:active{transform: translateY(1px)}
+
+.btn.danger{
+  background: rgba(239,68,68,.12);
+  color: #fee2e2;
+  border: 1px solid rgba(239,68,68,.35);
+}
+.btn.danger:hover{background: rgba(239,68,68,.18)}
+.btn.danger:active{transform: translateY(1px)}
+
+.btn:focus-visible{
+  outline: 2px solid rgba(59,130,246,.55);
+  outline-offset: 2px;
+}
+
+/* Icon button */
+.sb-icon-btn{
+  inline-size: var(--sb-tap);
+  block-size: var(--sb-tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+  color: var(--ink, #e6e8ef);
+  text-decoration: none;
+}
+.sb-icon-btn:hover{background: rgba(255,255,255,.06)}
+.sb-icon-btn:active{transform: translateY(1px)}
+.sb-icon-btn:visited{color: inherit}
+
+/* Page patterns */
+.sb-page-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 14px;
+  margin: 4px 0 14px;
+}
+.sb-page-title{
+  font-size: clamp(18px, 2.2vw, 24px);
+  font-weight: 850;
+  margin: 0;
+  letter-spacing: .2px;
+}
+.sb-page-subtitle{
+  margin: 6px 0 0;
+  color: var(--ink-muted, #9aa3b2);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.sb-toolbar{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.sb-toolbar > *{flex: 0 0 auto}
+@media (max-width: 640px){
+  .sb-page-header{flex-direction: column; align-items: stretch}
+  .sb-toolbar{justify-content: flex-start}
+}
+
+/* Tables */
+.sb-table-scroll{
+  overflow:auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.02);
+}
+.sb-table{
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 640px; /* enables scroll on small screens */
+}
+.sb-table th,
+.sb-table td{
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  text-align: left;
+  vertical-align: middle;
+}
+.sb-table th{
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--ink-muted, #9aa3b2);
+  background: rgba(255,255,255,.03);
+}
+.sb-table tr:hover td{background: rgba(59,130,246,.06)}
+.sb-table tr:last-child td{border-bottom: 0}
+
+/* Small utility badges */
+.sb-badge{
+  display:inline-flex;
+  align-items:center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05);
+  color: var(--ink, #e6e8ef);
+  font-size: 12px;
+  line-height: 1;
+}
+.sb-badge.blue{
+  border-color: rgba(59,130,246,.35);
+  background: rgba(59,130,246,.14);
 }
