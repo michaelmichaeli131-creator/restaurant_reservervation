@@ -51,7 +51,7 @@ const day = it.day || '';
     <div id="err" class="muted" style="display:none;color:#ffb4b4"></div>
 
     <div style="overflow:auto">
-      <div class="sb-table-scroll"><table class="tbl sb-table" style="width:100%;border-collapse:collapse;min-width:850px">
+      <table class="tbl" style="width:100%;border-collapse:collapse;min-width:850px">
         <thead>
           <tr>
             <th>עובד</th>
@@ -66,7 +66,7 @@ const day = it.day || '';
         <tbody id="rows">
           <tr><td colspan="7" class="muted">טוען...</td></tr>
         </tbody>
-      </table></div>
+      </table>
     </div>
   </div>
 </section>

@@ -1,26 +1,20 @@
 <% layout("_layout", it) %>
 
-<main class="sb-page" aria-label="לוח שולחנות">
-  <header class="sb-page-header">
-    <div>
-      <div class="sb-page-kicker muted">מסך מלצרים</div>
-      <h1 class="sb-page-title">לוח שולחנות — <%= it.restaurant.name %></h1>
-      <div class="sb-page-subtitle muted">מסך גדול ונוח: אין צורך בזום. טפיחה על שולחן תפוס פותחת הזמנה.</div>
-    </div>
-    <div class="sb-page-actions">
-      <a class="btn sm ghost" href="/waiter/<%= it.rid %>">מסך מלצרים</a>
-    </div>
+<main class="container waiter-map-page" dir="rtl">
+  <header class="page-header">
+    <h1>מפת מסעדה — <%= it.restaurant.name %></h1>
+    <p class="muted">
+      לחיצה על שולחן תפוס תפתח את עמוד ההזמנה. הושבה מתבצעת דרך מסך המארחת.
+    </p>
   </header>
 
-  <section class="sb-surface sb-card">
-    <div id="floor"></div>
-  </section>
+  <div id="sb-floor-root" data-rid="<%= it.rid %>"></div>
 </main>
 
-<script src="/public/js/floorboard.js"></script>
+<script src="/public/js/sb_floor_map.js?v=<%= it.BUILD_TAG || '' %>"></script>
 <script>
-  window.SB && window.SB.mountFloorBoard && window.SB.mountFloorBoard({
-    rid: "<%= it.rid %>",
-    holder: document.getElementById("floor")
-  });
+  (function(){
+    const root = document.getElementById('sb-floor-root');
+    if (root && window.SBFloorMap) window.SBFloorMap.init(root);
+  })();
 </script>

@@ -68,7 +68,7 @@ var qrUrl = qrData
 
     <!-- רשימת פריטים -->
     <section class="receipt-items">
-      <div class="sb-table-scroll"><table class="sb-table">
+      <table>
         <thead>
           <tr>
             <th class="col-name">פריט</th>
@@ -94,7 +94,7 @@ var qrUrl = qrData
             </tr>
           <% } %>
         </tbody>
-      </table></div>
+      </table>
     </section>
 
     <div class="receipt-sep dotted"></div>

@@ -58,7 +58,7 @@
     <section class="panel card order-panel" aria-label="<%= tt('pos.order.title', 'הזמנה לשולחן') %>">
       <h2 class="card-title"><%= tt('pos.order.title', 'הזמנה לשולחן') %> <%= tbl %></h2>
 
-      <div class="sb-table-scroll"><table class="order-table sb-table">
+      <table class="order-table">
         <thead>
           <tr>
             <th><%= tt('pos.order.tbl.dish', 'מנה') %></th>
@@ -128,7 +128,7 @@
             </tr>
           <% } %>
         </tbody>
-      </table></div>
+      </table>
 
       <div class="bill-actions">
         <button type="button" id="btn-close-order" class="btn primary">

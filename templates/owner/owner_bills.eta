@@ -33,7 +33,7 @@ function formatDateTime(ts){
 
     <div class="owner-bills">
       <% if (it.bills && it.bills.length) { %>
-        <div class="sb-table-scroll"><table class="bills-table sb-table">
+        <table class="bills-table">
           <thead>
             <tr>
               <th>#</th>
@@ -80,7 +80,7 @@ function formatDateTime(ts){
               </tr>
             <% }) %>
           </tbody>
-        </table></div>
+        </table>
       <% } else { %>
         <p class="muted" style="margin-top:10px">
           <%= tt('owner.bills.empty', 'עדיין אין חשבונות שמורים למסעדה זו.') %>

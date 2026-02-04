@@ -401,7 +401,7 @@
 
             <% if (pending.length) { %>
               <div class="table-wrap">
-                <div class="sb-table-scroll"><table class="sb-table">
+                <table>
                   <thead>
                     <tr>
                       <th><%= tt('owner.staff.tbl.name', 'שם') %></th>
@@ -436,7 +436,7 @@
                       </tr>
                     <% }) %>
                   </tbody>
-                </table></div>
+                </table>
               </div>
             <% } %>
           </div>
