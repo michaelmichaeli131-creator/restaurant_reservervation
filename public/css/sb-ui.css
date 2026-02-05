@@ -156,6 +156,21 @@ body.sb-compact .sb-quick .btn{padding:9px 14px; font-size:13px}
 .sb-hero-tools{display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap; justify-content:flex-end}
 .sb-hero-quick{background: rgba(18,22,34,.7); border-radius: 18px}
 
+/* Mobile/tablet hero layout: keep one clean column, no horizontal overflow */
+@media (max-width: 860px){
+  .sb-hero-top{align-items:stretch}
+  .sb-hero-tools{justify-content:flex-start}
+}
+
+@media (max-width: 640px){
+  .sb-hero-inner{padding: 16px 14px 12px}
+  .sb-hero-top{flex-direction:column; gap:10px}
+  .sb-hero-tools{width:100%}
+  .sb-hero-tools .sb-row{width:100%; justify-content:space-between}
+  .sb-hero-title h1{font-size: 24px}
+  .sb-hero-sub{font-size: 13px}
+}
+
 .sb-dashboard{display:grid; grid-template-columns: minmax(0, 1fr) 360px; gap:14px; margin-top:14px}
 .sb-dashboard-main{display:flex; flex-direction:column; gap:14px}
 .sb-dashboard-side{display:flex; flex-direction:column; gap:14px}

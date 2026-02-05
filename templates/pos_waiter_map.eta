@@ -1,152 +1,20 @@
 <% layout("_layout", it) %>
 
-<main class="container waiter-map-page">
+<main class="container waiter-map-page" dir="rtl">
   <header class="page-header">
     <h1>מפת מסעדה — <%= it.restaurant.name %></h1>
-    <p class="muted">לחיצה על שולחן תפוס תפתח את עמוד ההזמנה. רק המארחת יכולה להושיב.</p>
+    <p class="muted">
+      לחיצה על שולחן תפוס תפתח את עמוד ההזמנה. הושבה מתבצעת דרך מסך המארחת.
+    </p>
   </header>
-  <div id="floor"><div class="floor-stage"></div></div>
+
+  <div id="sb-floor-root" data-rid="<%= it.rid %>"></div>
 </main>
 
+<script src="/public/js/sb_floor_map.js?v=<%= it.BUILD_TAG || '' %>"></script>
 <script>
-(function(){
-  const rid = "<%= it.rid %>";
-  const holder = document.querySelector("#floor .floor-stage");
-
-  // נשמור מפה: tableNumber -> כפתור DOM
-  const state = {
-    buttonsByTable: new Map()
-  };
-
-  const floorUrl = `/api/floor-plans/${encodeURIComponent(rid)}`;
-
-  function applyStatus(btn, status) {
-    btn.classList.remove("empty", "occupied", "reserved", "dirty");
-    btn.classList.add(status || "empty");
-  }
-
-  // שלב 1 – טעינה ראשונית: בונים את הגריד והכפתורים
-  async function initFloor(){
-    if (!holder) return;
-    try{
-      const res = await fetch(floorUrl);
-      if (!res.ok) {
-        holder.innerHTML = "<p class='muted'>לא הוגדרה מפת שולחנות למסעדה זו.</p>";
-        return;
-      }
-      const plan = await res.json();
-
-      const gridRows = Number(plan.gridRows || 8);
-      const gridCols = Number(plan.gridCols || 10);
-      const tables = Array.isArray(plan.tables) ? plan.tables : [];
-      const tableStatuses = Array.isArray(plan.tableStatuses) ? plan.tableStatuses : [];
-
-      if (!tables.length) {
-        holder.innerHTML = "<p class='muted'>אין שולחנות מוגדרים במפת המסעדה.</p>";
-        return;
-      }
-
-      // פעם יחידה: ננקה ונבנה את המבנה
-      holder.innerHTML = "";
-      const grid = document.createElement("div");
-      grid.className = "floor-grid";
-      grid.style.setProperty("--rows", gridRows);
-      grid.style.setProperty("--cols", gridCols);
-      holder.appendChild(grid);
-
-      // מיפוי סטטוסים התחלתי
-      const statusMap = new Map();
-      tableStatuses.forEach((s) => {
-        statusMap.set(Number(s.tableNumber), s.status || "empty");
-      });
-
-      // יצירת כפתורי השולחנות פעם אחת
-      tables.forEach((t) => {
-        const tn = Number(t.tableNumber);
-        const status = statusMap.get(tn) || "empty";
-
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "table";
-        if (t.shape) btn.classList.add(String(t.shape));
-        applyStatus(btn, status);
-        const seats = Number(t.seats || 0);
-        const capText = seats > 0 ? (seats + " מקומות") : "";
-        btn.innerHTML = `\n          <div class="table-num">${tn}</div>\n          <div class="table-cap">${capText}</div>\n        `;
-
-        btn.style.gridRow = (t.gridY + 1) + " / span " + (t.spanY || 1);
-        btn.style.gridColumn = (t.gridX + 1) + " / span " + (t.spanX || 1);
-
-        btn.addEventListener("click", () => {
-          const currentStatus = statusMap.get(tn) || "empty";
-          if (currentStatus === "occupied") {
-            window.location.href =
-              `/waiter/${encodeURIComponent(rid)}/${encodeURIComponent(tn)}`;
-          } else {
-            alert("שולחן לא הושב עדיין. רק המארחת יכולה להושיב דרך מסך המארחת.");
-          }
-        });
-
-        grid.appendChild(btn);
-        state.buttonsByTable.set(tn, btn);
-      });
-    } catch (e) {
-      console.error("initFloor error", e);
-      holder.innerHTML = "<p class='muted'>שגיאה בטעינת מפת המסעדה.</p>";
-    }
-  }
-
-  // שלב 2 – ריענון סטטוסים בלבד (בלי למחוק את המפה)
-  async function refreshStatuses(){
-    if (!state.buttonsByTable.size) return; // אם עוד לא נבנה הגריד
-
-    try{
-      const res = await fetch(floorUrl);
-      if (!res.ok) return;
-      const plan = await res.json();
-      const tableStatuses = Array.isArray(plan.tableStatuses) ? plan.tableStatuses : [];
-
-      const statusMap = new Map();
-      tableStatuses.forEach((s) => {
-        statusMap.set(Number(s.tableNumber), s.status || "empty");
-      });
-
-      state.buttonsByTable.forEach((btn, tn) => {
-        const status = statusMap.get(tn) || "empty";
-        applyStatus(btn, status);
-      });
-    } catch (e) {
-      console.warn("refreshStatuses error", e);
-    }
-  }
-
-  // אתחול ראשון + פולינג עדין
-  initFloor();
-  setInterval(refreshStatuses, 5000);
-})();
+  (function(){
+    const root = document.getElementById('sb-floor-root');
+    if (root && window.SBFloorMap) window.SBFloorMap.init(root);
+  })();
 </script>
-
-<style>
-.floor-grid{
-  display:grid;
-  grid-template-rows: repeat(var(--rows), 40px);
-  grid-template-columns: repeat(var(--cols), 40px);
-  gap:6px;
-  background: rgba(255,255,255,.03);
-  padding:6px; border-radius:8px;
-}
-.table{
-  border:1px solid rgba(255,255,255,.3);
-  backdrop-filter: blur(8px);
-  padding:8px; border-radius:8px;
-  font-weight:700;
-  transition: background-color .25s ease, transform .1s ease;
-}
-.table.empty{ background:#2e7d32; }
-.table.occupied{ background:#c62828; }
-.table.reserved{ background:#f9a825; }
-.table.dirty{ background:#6a1b9a; }
-.table:active{
-  transform: scale(0.96);
-}
-</style>
