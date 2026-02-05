@@ -106,7 +106,9 @@
       <p class="muted small">
         לחיצה על שולחן תפוס תציג פרטי הזמנה; לחיצה על שולחן פנוי תציג מידע בסיסי.
       </p>
-      <div id="sb-floor-root" class="floor-wrapper" data-rid="<%= it.rid %>"></div>
+      <div id="floor" class="floor-wrapper">
+        <!-- המפה תיטען דינמית ע"י JS -->
+      </div>
     </div>
   </section>
 </main>
@@ -164,13 +166,12 @@
   </div>
 </aside>
 
-<script src="/public/js/sb_floor_map.js?v=<%= it.BUILD_TAG || '' %>"></script>
 <script>
 (function(){
   const rid = "<%= it.rid %>";
 
   const openList = document.getElementById("open-tables-list");
-  const floorHolder = document.getElementById("sb-floor-root");
+  const floorHolder = document.getElementById("floor");
 
   // צד פרטי שולחן
   const tableInfoPanel = document.getElementById("table-info-panel");
@@ -299,9 +300,9 @@
         openTableInfoPanel(info);
 
         // הדגשה במפת המסעדה
-        const floor = document.getElementById("sb-floor-root");
+        const floor = document.getElementById("floor");
         if (floor && tn) {
-          const tableBtn = floor.querySelector('.sb-floor-table[data-table-number="'+tn+'"]');
+          const tableBtn = floor.querySelector('.table[data-table-number="'+tn+'"]');
           if (tableBtn) {
             tableBtn.classList.add("selected");
             tableBtn.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
@@ -312,10 +313,139 @@
     }, { passive: true });
   }
 
-  // === מפת מסעדה (קונספט חדש: Canvas + Fit-to-screen) ===
-  if (floorHolder && window.SBFloorMap) {
-    window.SBFloorMap.init(floorHolder);
+  // === טעינת מפת המסעדה === (כמו אצל המארחת)
+  async function loadFloor(){
+    if (!floorHolder) return;
+    floorHolder.innerHTML = "";
+
+    try{
+      const res = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}`);
+      if (!res.ok) {
+        const p = document.createElement("p");
+        p.className = "muted";
+        p.textContent = "לא הוגדרה מפת שולחנות למסעדה זו.";
+        floorHolder.appendChild(p);
+        return;
+      }
+      const plan = await res.json();
+
+      const gridRows = Number(plan.gridRows || 8);
+      const gridCols = Number(plan.gridCols || 10);
+      const tables = Array.isArray(plan.tables) ? plan.tables : [];
+      const tableStatuses = Array.isArray(plan.tableStatuses) ? plan.tableStatuses : [];
+
+      statusMap.clear();
+      guestMap.clear();
+
+      tableStatuses.forEach(function(s){
+        const tn = Number(s.tableNumber);
+        if (!Number.isFinite(tn)) return;
+
+        const st = s.status || "empty";
+        statusMap.set(tn, st);
+
+        const gName = s.guestName || s.name || s.customerName || null;
+        if (gName) guestMap.set(tn, String(gName));
+      });
+
+      if (!tables.length) {
+        const p = document.createElement("p");
+        p.className = "muted";
+        p.textContent = "אין שולחנות מוגדרים במפת המסעדה.";
+        floorHolder.appendChild(p);
+        return;
+      }
+
+      const grid = document.createElement("div");
+      grid.className = "floor-grid";
+      grid.style.setProperty("--rows", gridRows);
+      grid.style.setProperty("--cols", gridCols);
+      floorHolder.appendChild(grid);
+
+      tables.forEach(function(t){
+        const num = Number(t.tableNumber);
+        const status = statusMap.get(num) || "empty";
+        const seats = Number(t.seats || 0);
+        const guestName = guestMap.get(num) || "";
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "table " + status;
+        btn.dataset.tableNumber = String(num);
+
+        const capText = seats > 0 ? (seats + " מקומות") : "";
+
+        btn.innerHTML = `
+          <div class="table-num">${num}</div>
+          <div class="table-cap">${capText}</div>
+          ${guestName ? `<div class="table-guest">${guestName}</div>` : ""}
+        `;
+
+        btn.style.gridRow = (t.gridY + 1) + " / span " + (t.spanY || 1);
+        btn.style.gridColumn = (t.gridX + 1) + " / span " + (t.spanX || 1);
+
+        btn.addEventListener("click", async function(){
+          const currentStatus = statusMap.get(num) || "empty";
+
+          if (currentStatus === "empty") {
+            const info = {
+              tableNumber: num,
+              name: "",
+              people: "",
+              time: "",
+              status: "empty",
+              itemsCount: null,
+              subtotal: null,
+            };
+            openTableInfoPanel(info);
+            return;
+          }
+
+          try {
+            const url = new URL("/api/host/table/info", window.location.origin);
+            url.searchParams.set("restaurantId", rid);
+            url.searchParams.set("table", String(num));
+
+            const res = await fetch(url.toString(), {
+              method: "GET",
+              headers: { "Accept": "application/json" },
+            });
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok || !data.ok) {
+              const msg = data && data.error ? data.error : res.status;
+              alert("לא ניתן לטעון פרטי שולחן: " + msg);
+              return;
+            }
+
+            const info = {
+              tableNumber: num,
+              name: data.name || data.guestName || guestMap.get(num) || "",
+              people: data.people,
+              time: data.time,
+              status: currentStatus,
+              itemsCount: data.itemsCount ?? null,
+              subtotal: data.subtotal ?? null,
+            };
+            openTableInfoPanel(info);
+          } catch (e) {
+            console.error(e);
+            alert("שגיאה בטעינת פרטי השולחן.");
+          }
+        });
+
+        grid.appendChild(btn);
+      });
+    }catch(e){
+      console.error(e);
+      const p = document.createElement("p");
+      p.className = "muted";
+      p.textContent = "שגיאה בטעינת מפת המסעדה.";
+      floorHolder.appendChild(p);
+    }
   }
+
+  loadFloor();
 })();
 </script>
 
@@ -442,10 +572,77 @@
   .floor-wrapper{
     margin-top:8px;
     min-height: 260px;
-    width:100%;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
   }
 
-  /* מפה: הסטיילים נמצאים ב-public/css/sb-floor-map.css */
+  .floor-grid{
+    display:grid;
+    grid-template-rows: repeat(var(--rows,8), 40px);
+    grid-template-columns: repeat(var(--cols,10), 40px);
+    gap:6px;
+    background: rgba(255,255,255,.03);
+    padding:6px;
+    border-radius:10px;
+  }
+
+  .table{
+    border:1px solid rgba(255,255,255,.3);
+    border-radius:10px;
+    padding:6px;
+    font-weight:700;
+    font-size:14px;
+    cursor:pointer;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    backdrop-filter: blur(8px);
+    color:#fff;
+    text-align:center;
+    transition: transform .08s ease, box-shadow .12s ease, background-color .12s ease;
+  }
+
+  .table-num{
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  .table-cap{
+    font-size: 11px;
+    opacity: .86;
+    margin-top: 2px;
+  }
+
+  .table-guest{
+    font-size: 11px;
+    margin-top: 4px;
+    opacity: 0.95;
+    font-weight: 600;
+    color: #fff;
+    text-shadow: 0 0 4px rgba(0,0,0,.4);
+  }
+
+  .table.empty{
+    background:#2e7d32;  /* ירוק – פנוי */
+  }
+  .table.occupied{
+    background:#c62828;  /* אדום – תפוס */
+  }
+  .table.reserved{
+    background:#f9a825;  /* צהוב – שמור */
+  }
+  .table.dirty{
+    background:#6a1b9a;  /* סגול – מלוכלך */
+  }
+
+  .table.selected{
+    outline:2px solid #60a5fa;
+    outline-offset:2px;
+    transform: translateY(-1px);
+    box-shadow: 0 0 0 2px rgba(37,99,235,.5);
+  }
 
   /* כרטיסיית צד לפרטי שולחן */
 

@@ -397,7 +397,6 @@
             <a class="sb-link" href="<%= r?._urls?.hours %>">שעות פעילות</a>
             <a class="sb-link" href="<%= r?._urls?.photos %>">תמונות</a>
             <a class="sb-link" href="<%= r?._urls?.edit %>">פרטי מסעדה</a>
-            <a class="sb-link" href="/auth/change-password">שנה סיסמה</a>
           </div>
         </section>
         <% } %>

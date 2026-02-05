@@ -14,8 +14,6 @@
 
 *{box-sizing:border-box}
 html,body{height:100%}
-/* Prevent page-level horizontal scroll (only allow in dedicated scrollers) */
-html,body{max-width:100%; overflow-x:hidden;}
 body.sb-body{
   margin:0;
   background: radial-gradient(1200px 600px at 80% -100px, rgba(65,84,255,.18), transparent),
@@ -45,14 +43,7 @@ body.sb-body{
 .btn:disabled{opacity:.6;cursor:not-allowed}
 
 /* Containers */
-.sb-container{
-  max-width:var(--max);
-  margin:0 auto;
-  padding:18px 16px;
-  /* iOS safe areas (avoid visual "cut" on notched devices) */
-  padding-left: calc(16px + env(safe-area-inset-left));
-  padding-right: calc(16px + env(safe-area-inset-right));
-}
+.sb-container{max-width:var(--max);margin:0 auto;padding:18px 16px}
 
 /* Hero */
 .hero{position:relative;border-radius:28px;overflow:hidden;margin-top:16px}
@@ -230,46 +221,10 @@ body.sb-body {
   object-fit:contain;
 }
 
-
-/* ===== Mobile header: one-row actions (logo + manage + logout + language) ===== */
-.lang-switch{ display:flex; align-items:center; }
-.lang-btn{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  border-radius:999px;
-  padding:10px 12px;
-  border:1px solid var(--bd);
-  background:transparent;
-  color:var(--ink);
-  cursor:pointer;
-  text-decoration:none;
-}
-.lang-btn:hover{ background: rgba(255,255,255,.06); }
-.lang-btn .lang-ico{ font-size: 14px; line-height:1; }
-.lang-btn .lang-label{ font-size: 13px; line-height:1; }
-
-@media (max-width: 640px){
-  .sb-header-row{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-  }
-  .user-mobile{ display:none; }
-  .brand-logo{ height:48px; }
-  .sb-actions{ gap:6px; flex-wrap:nowrap; }
-  .sb-actions .btn{ padding:8px 10px; font-size:12px; }
-  .lang-btn{ padding:8px 10px; }
-  .lang-btn .lang-label{ font-size:12px; }
-}
-
 /* ↓ מצמצם רווח מיותר סביב הלוגו */
 .sb-header .sb-container{
   min-height:0;
   padding:6px 16px;
-  padding-left: calc(16px + env(safe-area-inset-left));
-  padding-right: calc(16px + env(safe-area-inset-right));
   align-items:flex-start;
 }
 
@@ -278,8 +233,6 @@ body.sb-body {
   .sb-header .sb-container{
     min-height:0;
     padding:8px 16px;
-    padding-left: calc(16px + env(safe-area-inset-left));
-    padding-right: calc(16px + env(safe-area-inset-right));
   }
 }
 

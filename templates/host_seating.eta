@@ -66,9 +66,9 @@
       <p class="muted small">
         יש לבחור הזמנה, לבחור שולחן או כמה שולחנות (איחוד), ואז ללחוץ על כפתור ההושבה.
       </p>
-      <div id="floor" class="floor-wrapper">
+      <div id="floor" class="floor-wrapper"><div class="floor-stage">
         <!-- המפה תיטען דינמית ע"י JS -->
-      </div>
+      </div></div>
       <div class="host-actions">
         <button id="seat-btn" type="button" class="btn primary sm">
           הושבה לשולחן/ות שנבחרו
