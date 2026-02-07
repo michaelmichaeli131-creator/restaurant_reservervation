@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160">
+  <defs>
+    <linearGradient id="wood" x1="0" x2="1">
+      <stop offset="0" stop-color="#c8924e"/>
+      <stop offset="1" stop-color="#6f3f1a"/>
+    </linearGradient>
+    <pattern id="grain" width="26" height="26" patternUnits="userSpaceOnUse">
+      <path d="M0 8c8-8 18 10 26 0" fill="none" stroke="#4a2a12" stroke-opacity=".18" stroke-width="2"/>
+      <path d="M0 20c8-8 18 10 26 0" fill="none" stroke="#4a2a12" stroke-opacity=".14" stroke-width="2"/>
+    </pattern>
+    <filter id="shadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000" flood-opacity=".33"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)">
+    <rect x="14" y="26" width="212" height="108" rx="24" fill="url(#wood)"/>
+    <rect x="14" y="26" width="212" height="108" rx="24" fill="url(#grain)" opacity=".65"/>
+    <rect x="26" y="38" width="188" height="84" rx="18" fill="#0b1a33" opacity=".28"/>
+    <rect x="22" y="34" width="196" height="92" rx="20" fill="none" stroke="#ffffff" stroke-opacity=".10"/>
+    <path d="M28 50c40-18 144-18 184 0" fill="none" stroke="#ffffff" stroke-opacity=".12" stroke-width="4" stroke-linecap="round"/>
+  </g>
+</svg>

@@ -1,7 +1,7 @@
 <% layout("_layout", it) %>
 
 <main class="waiter-map-page" dir="rtl">
-  <link rel="stylesheet" href="/static/dist/floor-index.css?v=waiter_stage2"/>
+  <link rel="stylesheet" href="/static/dist/floor-index.css?v=assets_v2"/>
   <div class="waiter-live-wrap">
     <div id="root"></div>
   </div>
@@ -15,7 +15,7 @@
     initialTab: 'live'
   };
 </script>
-<script type="module" src="/static/dist/floor-app.js?v=waiter_stage2"></script>
+<script type="module" src="/static/dist/floor-app.js?v=assets_v2"></script>
 
 <style>
 /* Fullscreen waiter map */
