@@ -1,35 +1,6 @@
 // src/lib/session.ts
 import type { Context } from "jsr:@oak/oak";
-
-/**
- * Session storage
- *
- * - Prefer Deno KV when available.
- * - Fall back to in-memory storage when KV isn't configured/available.
- *
- * This prevents the whole app from crashing in environments where Deno KV
- * isn't set up (e.g., missing transaction domain / tokens).
- */
-let kv: Deno.Kv | null = null;
-const memoryStore = new Map<string, Record<string, unknown>>();
-let warnedKvUnavailable = false;
-
-async function getKv(): Promise<Deno.Kv | null> {
-  if (kv) return kv;
-  try {
-    kv = await Deno.openKv();
-    return kv;
-  } catch (_err) {
-    if (!warnedKvUnavailable) {
-      warnedKvUnavailable = true;
-      console.warn(
-        "[session] Deno KV unavailable. Falling back to in-memory sessions. " +
-          "(Set up Deno KV/txnproxy to enable persistent sessions.)",
-      );
-    }
-    return null;
-  }
-}
+import { kv } from "./kv_store.ts";
 type SessionData = Record<string, unknown>;
 
 // זיהוי HTTPS מאחורי פרוקסי + אופציית אובררייד במשתנה סביבה
@@ -51,40 +22,14 @@ function isHttps(ctx: Context): boolean {
 }
 
 async function loadSession(sid: string): Promise<SessionData> {
-  const kvh = await getKv();
-  if (kvh) {
-    try {
-      const v = await kvh.get<SessionData>(["sess", sid]);
-      return v.value ?? {};
-    } catch {
-      // If KV fails at runtime, still don't crash requests.
-      return memoryStore.get(sid) ?? {};
-    }
-  }
-  return memoryStore.get(sid) ?? {};
+  const v = await kv.get<SessionData>(["sess", sid]);
+  return v.value ?? {};
 }
 async function saveSession(sid: string, data: SessionData) {
-  const kvh = await getKv();
-  if (kvh) {
-    try {
-      await kvh.set(["sess", sid], data);
-      return;
-    } catch {
-      // fall through to memory
-    }
-  }
-  memoryStore.set(sid, { ...data });
+  await kv.set(["sess", sid], data);
 }
 async function destroySession(sid: string) {
-  const kvh = await getKv();
-  if (kvh) {
-    try {
-      await kvh.delete(["sess", sid]);
-    } catch {
-      // ignore
-    }
-  }
-  memoryStore.delete(sid);
+  await kv.delete(["sess", sid]);
 }
 
 export default async function sessionMiddleware(ctx: Context, next: () => Promise<unknown>) {

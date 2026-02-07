@@ -223,26 +223,6 @@ hostRouter.get("/host/:rid", async (ctx) => {
   });
 });
 
-/** GET /host-map/:rid – מפה חדשה (תצוגה בלבד) המבוססת על React renderer */
-hostRouter.get("/host-map/:rid", async (ctx) => {
-  if (!requireStaff(ctx)) return;
-  const rid0 = ctx.params.rid!;
-  const rid = resolveRestaurantIdForRequest(ctx, rid0);
-  if (!rid) return;
-  if (!(await requireRestaurantAccess(ctx, rid))) return;
-
-  const r = await getRestaurant(rid);
-  if (!r) ctx.throw(Status.NotFound);
-
-  await render(ctx, "host_map", {
-    page: "host_map",
-    title: `מפת מסעדה · ${r.name}`,
-    restaurant: r,
-    rid,
-  });
-});
-
-
 /** GET /api/host/reservations – נוח לעובדים: ללא :rid (מסעדה ננעלת מה־StaffMember) */
 hostRouter.get("/api/host/reservations", async (ctx) => {
   if (!requireStaff(ctx)) return;

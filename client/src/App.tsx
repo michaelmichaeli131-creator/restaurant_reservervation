@@ -10,7 +10,7 @@ function App() {
   const params = new URLSearchParams(window.location.search);
 
   const role = config.role || params.get('role') || 'owner';
-  const initialTab = config.initialTab || params.get('tab') || (role === 'waiter' || role === 'host' ? 'live' : 'edit');
+  const initialTab = config.initialTab || params.get('tab') || (role === 'waiter' ? 'live' : 'edit');
   const [floorMode, setFloorMode] = useState<'edit' | 'live'>(initialTab === 'live' ? 'live' : 'edit');
 
   const restaurantId = config.restaurantId || params.get('restaurantId') || '';
@@ -24,13 +24,12 @@ function App() {
     );
   }
 
-  // Staff compact modes (waiter / host): live-only (no edit)
-  if (role === 'waiter' || role === 'host') {
-    const variant = (config.variant || params.get('variant') || (role === 'waiter' ? 'waiter' : 'map')) as any;
+  // Waiter mode: compact live view (no edit)
+  if (role === 'waiter') {
     return (
-      <div className={`app staff-mode role-${role}`}>
+      <div className="app waiter-mode">
         <main className="app-main">
-          <RestaurantLiveView restaurantId={restaurantId} variant={variant} />
+          <RestaurantLiveView restaurantId={restaurantId} variant="waiter" />
         </main>
       </div>
     );
@@ -42,10 +41,16 @@ function App() {
       <header className="app-header">
         <h1>🍽️ Floor Plan Manager</h1>
         <div className="mode-switch">
-          <button className={floorMode === 'edit' ? 'active' : ''} onClick={() => setFloorMode('edit')}>
+          <button
+            className={floorMode === 'edit' ? 'active' : ''}
+            onClick={() => setFloorMode('edit')}
+          >
             ✏️ Edit Layout
           </button>
-          <button className={floorMode === 'live' ? 'active' : ''} onClick={() => setFloorMode('live')}>
+          <button
+            className={floorMode === 'live' ? 'active' : ''}
+            onClick={() => setFloorMode('live')}
+          >
             👁️ Live View
           </button>
         </div>
