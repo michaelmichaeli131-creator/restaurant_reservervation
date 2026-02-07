@@ -28,6 +28,17 @@ interface FloorTable {
   sectionId?: string;
 }
 
+interface FloorObject {
+  id: string;
+  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider';
+  gridX: number;
+  gridY: number;
+  spanX: number;
+  spanY: number;
+  rotation?: 0 | 90 | 180 | 270;
+  label?: string;
+}
+
 interface FloorLayout {
   id: string;
   restaurantId: string;
@@ -35,6 +46,7 @@ interface FloorLayout {
   gridRows: number;
   gridCols: number;
   tables: FloorTable[];
+  objects?: FloorObject[];
   isActive: boolean;
   tableStatuses?: TableStatus[];
 }
@@ -246,6 +258,23 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
           gridTemplateColumns: `repeat(${currentLayout.gridCols}, 1fr)`,
           gridTemplateRows: `repeat(${currentLayout.gridRows}, 1fr)`,
         }}>
+          {(currentLayout.objects ?? []).map((obj) => (
+            <div
+              key={obj.id}
+              className={`floor-object-live type-${obj.type}`}
+              style={{
+                gridColumn: `${obj.gridX + 1} / span ${obj.spanX}`,
+                gridRow: `${obj.gridY + 1} / span ${obj.spanY}`,
+                transform: `rotate(${obj.rotation ?? 0}deg)`,
+              }}
+              title={obj.label || obj.type}
+            >
+              <span className="obj-icon">
+                {obj.type === 'wall' ? '🧱' : obj.type === 'door' ? '🚪' : obj.type === 'bar' ? '🍸' : obj.type === 'plant' ? '🪴' : '➖'}
+              </span>
+              {obj.label ? <span className="obj-label">{obj.label}</span> : null}
+            </div>
+          ))}
           {currentLayout.tables.map((table) => {
             const status = getTableStatus(table.id);
             const color = STATUS_COLORS[status.status];

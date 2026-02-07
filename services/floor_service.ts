@@ -300,6 +300,9 @@ export interface FloorLayout {
   name: string;
   gridRows: number;
   gridCols: number;
+  /**
+   * Tables placed on the floor grid.
+   */
   tables: Array<{
     id: string;
     name: string;
@@ -311,6 +314,21 @@ export interface FloorLayout {
     spanY: number;
     seats: number;
     shape: "square" | "round" | "rect" | "booth";
+  }>;
+
+  /**
+   * Decorative/structural objects rendered on the map (walls, doors, bar, plants, etc.).
+   * Backward-compatible: older layouts may not have this field.
+   */
+  objects?: Array<{
+    id: string;
+    type: "wall" | "door" | "bar" | "plant" | "divider";
+    gridX: number;
+    gridY: number;
+    spanX: number;
+    spanY: number;
+    rotation?: 0 | 90 | 180 | 270;
+    label?: string;
   }>;
   isActive: boolean;
   createdAt: number;
@@ -342,6 +360,7 @@ export async function createFloorLayout(data: {
   gridRows: number;
   gridCols: number;
   tables?: FloorLayout["tables"];
+  objects?: FloorLayout["objects"];
   isActive?: boolean;
 }): Promise<FloorLayout> {
   const id = crypto.randomUUID();
@@ -354,6 +373,7 @@ export async function createFloorLayout(data: {
     gridRows: data.gridRows,
     gridCols: data.gridCols,
     tables: data.tables ?? [],
+    objects: data.objects ?? [],
     isActive: data.isActive ?? false,
     createdAt: now,
     updatedAt: now,

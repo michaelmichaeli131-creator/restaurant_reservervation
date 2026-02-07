@@ -46,6 +46,17 @@ interface FloorTable {
   shape: "square" | "round" | "rect" | "booth";
 }
 
+interface FloorObject {
+  id: string;
+  type: "wall" | "door" | "bar" | "plant" | "divider";
+  gridX: number;
+  gridY: number;
+  spanX: number;
+  spanY: number;
+  rotation?: 0 | 90 | 180 | 270;
+  label?: string;
+}
+
 // Live table status computed from orders
 interface TableStatus {
   tableId: string;
@@ -68,6 +79,7 @@ interface FloorPlan {
   gridRows: number;
   gridCols: number;
   tables: FloorTable[];
+  objects?: FloorObject[];
   createdAt: number;
   updatedAt: number;
 }
@@ -414,6 +426,7 @@ ownerFloorRouter.post(
       gridRows: body.gridRows,
       gridCols: body.gridCols,
       tables: body.tables,
+      objects: Array.isArray(body.objects) ? body.objects : [],
       createdAt: existing.value ? (existing.value as any).createdAt : now,
       updatedAt: now,
     };
@@ -723,9 +736,9 @@ ownerFloorRouter.post(
 
     console.log("[DEBUG] POST /api/floor-layouts - Received body:", JSON.stringify(body));
 
-    const { name, gridRows, gridCols, tables, isActive } = body;
+    const { name, gridRows, gridCols, tables, objects, isActive } = body;
 
-    console.log("[DEBUG] Extracted fields:", { name, gridRows, gridCols, tables, isActive });
+    console.log("[DEBUG] Extracted fields:", { name, gridRows, gridCols, tables, objects, isActive });
 
     if (!name || !gridRows || !gridCols) {
       ctx.response.status = 400;
@@ -739,6 +752,7 @@ ownerFloorRouter.post(
       gridRows: Number(gridRows),
       gridCols: Number(gridCols),
       tables: tables ?? [],
+      objects: Array.isArray(objects) ? objects : [],
       isActive: isActive ?? false,
     });
 

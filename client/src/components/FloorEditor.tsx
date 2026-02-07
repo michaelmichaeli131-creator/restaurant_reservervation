@@ -15,6 +15,17 @@ interface FloorTable {
   sectionId?: string;
 }
 
+interface FloorObject {
+  id: string;
+  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider';
+  gridX: number;
+  gridY: number;
+  spanX: number;
+  spanY: number;
+  rotation?: 0 | 90 | 180 | 270;
+  label?: string;
+}
+
 interface FloorLayout {
   id: string;
   restaurantId: string;
@@ -22,6 +33,7 @@ interface FloorLayout {
   gridRows: number;
   gridCols: number;
   tables: FloorTable[];
+  objects?: FloorObject[];
   isActive: boolean;
   createdAt: number;
   updatedAt: number;
@@ -49,7 +61,15 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [activeSection, setActiveSection] = useState<FloorSection | null>(null);
 
   const [selectedTable, setSelectedTable] = useState<FloorTable | null>(null);
-  const [draggedItem, setDraggedItem] = useState<{ type: 'new' | 'existing', shape?: string, tableId?: string } | null>(null);
+  const [selectedObject, setSelectedObject] = useState<FloorObject | null>(null);
+  const [draggedItem, setDraggedItem] = useState<{
+    kind: 'table' | 'object';
+    mode: 'new' | 'existing';
+    shape?: string; // for tables
+    objectType?: FloorObject['type'];
+    tableId?: string;
+    objectId?: string;
+  } | null>(null);
   const [nextTableNumber, setNextTableNumber] = useState(1);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newLayoutName, setNewLayoutName] = useState('');
@@ -98,6 +118,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
           gridRows: 8,
           gridCols: 12,
           tables: [],
+          objects: [],
           isActive: layouts.length === 0,
         })
       });
@@ -187,8 +208,13 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     }
   };
 
-  const handleDragStart = (e: React.DragEvent, type: 'new' | 'existing', shape?: string, tableId?: string) => {
-    setDraggedItem({ type, shape, tableId });
+  const handleDragStart = (
+    e: React.DragEvent,
+    kind: 'table' | 'object',
+    mode: 'new' | 'existing',
+    opts?: { shape?: string; objectType?: FloorObject['type']; tableId?: string; objectId?: string }
+  ) => {
+    setDraggedItem({ kind, mode, ...opts });
     e.dataTransfer.effectAllowed = 'move';
   };
 
@@ -197,7 +223,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
     if (!draggedItem || !currentLayout) return;
 
-    if (draggedItem.type === 'new' && draggedItem.shape) {
+    // Drop NEW table
+    if (draggedItem.kind === 'table' && draggedItem.mode === 'new' && draggedItem.shape) {
       const newTable: FloorTable = {
         id: `T${Date.now()}`,
         name: `Table ${nextTableNumber}`,
@@ -216,12 +243,60 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
         tables: [...currentLayout.tables, newTable]
       });
       setNextTableNumber(nextTableNumber + 1);
-    } else if (draggedItem.type === 'existing' && draggedItem.tableId) {
+      setSelectedObject(null);
+      setSelectedTable(newTable);
+    }
+
+    // Move EXISTING table
+    else if (draggedItem.kind === 'table' && draggedItem.mode === 'existing' && draggedItem.tableId) {
       setCurrentLayout({
         ...currentLayout,
         tables: currentLayout.tables.map(t =>
           t.id === draggedItem.tableId ? { ...t, gridX, gridY } : t
         )
+      });
+    }
+
+    // Drop NEW object
+    else if (draggedItem.kind === 'object' && draggedItem.mode === 'new' && draggedItem.objectType) {
+      const objects = currentLayout.objects ?? [];
+
+      // reasonable defaults per object type
+      const defaults: Record<string, { spanX: number; spanY: number; rotation?: 0|90|180|270; label?: string }> = {
+        wall: { spanX: 3, spanY: 1, rotation: 0 },
+        divider: { spanX: 2, spanY: 1, rotation: 0 },
+        door: { spanX: 1, spanY: 1, rotation: 0, label: 'Door' },
+        bar: { spanX: 3, spanY: 2, rotation: 0, label: 'Bar' },
+        plant: { spanX: 1, spanY: 1, rotation: 0, label: '' },
+      };
+
+      const d = defaults[String(draggedItem.objectType)] ?? { spanX: 1, spanY: 1 };
+
+      const newObj: FloorObject = {
+        id: `O${Date.now()}`,
+        type: draggedItem.objectType,
+        gridX,
+        gridY,
+        spanX: d.spanX,
+        spanY: d.spanY,
+        rotation: d.rotation,
+        label: d.label,
+      };
+
+      setCurrentLayout({
+        ...currentLayout,
+        objects: [...objects, newObj],
+      });
+      setSelectedTable(null);
+      setSelectedObject(newObj);
+    }
+
+    // Move EXISTING object
+    else if (draggedItem.kind === 'object' && draggedItem.mode === 'existing' && draggedItem.objectId) {
+      const objects = currentLayout.objects ?? [];
+      setCurrentLayout({
+        ...currentLayout,
+        objects: objects.map(o => o.id === draggedItem.objectId ? { ...o, gridX, gridY } : o)
       });
     }
 
@@ -240,6 +315,25 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
       tables: currentLayout.tables.filter(t => t.id !== tableId)
     });
     setSelectedTable(null);
+  };
+
+  const deleteObject = (objectId: string) => {
+    if (!currentLayout) return;
+    const objects = currentLayout.objects ?? [];
+    setCurrentLayout({
+      ...currentLayout,
+      objects: objects.filter(o => o.id !== objectId),
+    });
+    setSelectedObject(null);
+  };
+
+  const updateObject = (objectId: string, updates: Partial<FloorObject>) => {
+    if (!currentLayout) return;
+    const objects = currentLayout.objects ?? [];
+    setCurrentLayout({
+      ...currentLayout,
+      objects: objects.map(o => o.id === objectId ? { ...o, ...updates } : o),
+    });
   };
 
   const updateTable = (tableId: string, updates: Partial<FloorTable>) => {
@@ -364,21 +458,45 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
           <h2>🎨 Palette</h2>
           <div className="palette">
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'new', 'round')}>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'round' })}>
               <div className="preview round">🪑</div>
               <span>2-Seat Round</span>
             </div>
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'new', 'square')}>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square' })}>
               <div className="preview square">🪑</div>
               <span>4-Seat Square</span>
             </div>
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'new', 'rect')}>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'rect' })}>
               <div className="preview rect">🪑</div>
               <span>6-Seat Rect</span>
             </div>
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'new', 'booth')}>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'booth' })}>
               <div className="preview booth">🛋️</div>
               <span>Booth</span>
+            </div>
+          </div>
+
+          <h2 style={{ marginTop: 18 }}>🏗️ Elements</h2>
+          <div className="palette">
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'wall' })}>
+              <div className="preview" style={{ fontSize: 16 }}>🧱</div>
+              <span>Wall</span>
+            </div>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'door' })}>
+              <div className="preview" style={{ fontSize: 16 }}>🚪</div>
+              <span>Door</span>
+            </div>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'bar' })}>
+              <div className="preview" style={{ fontSize: 16 }}>🍸</div>
+              <span>Bar</span>
+            </div>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'plant' })}>
+              <div className="preview" style={{ fontSize: 16 }}>🪴</div>
+              <span>Plant</span>
+            </div>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'divider' })}>
+              <div className="preview" style={{ fontSize: 16 }}>➖</div>
+              <span>Divider</span>
             </div>
           </div>
 
@@ -409,6 +527,57 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
             </div>
           )}
 
+          {selectedObject && (
+            <div className="properties-panel">
+              <h3>Selected: {selectedObject.type}</h3>
+              <label>
+                Label:
+                <input
+                  type="text"
+                  value={selectedObject.label ?? ''}
+                  onChange={(e) => updateObject(selectedObject.id, { label: e.target.value })}
+                />
+              </label>
+              <div className="row" style={{ display: 'flex', gap: 8 }}>
+                <label style={{ flex: 1 }}>
+                  W:
+                  <input
+                    type="number"
+                    min="1"
+                    max="12"
+                    value={selectedObject.spanX}
+                    onChange={(e) => updateObject(selectedObject.id, { spanX: Math.max(1, Number(e.target.value) || 1) })}
+                  />
+                </label>
+                <label style={{ flex: 1 }}>
+                  H:
+                  <input
+                    type="number"
+                    min="1"
+                    max="12"
+                    value={selectedObject.spanY}
+                    onChange={(e) => updateObject(selectedObject.id, { spanY: Math.max(1, Number(e.target.value) || 1) })}
+                  />
+                </label>
+              </div>
+              <label>
+                Rotation:
+                <select
+                  value={selectedObject.rotation ?? 0}
+                  onChange={(e) => updateObject(selectedObject.id, { rotation: Number(e.target.value) as any })}
+                >
+                  <option value={0}>0°</option>
+                  <option value={90}>90°</option>
+                  <option value={180}>180°</option>
+                  <option value={270}>270°</option>
+                </select>
+              </label>
+              <button className="btn-danger" onClick={() => deleteObject(selectedObject.id)}>
+                🗑️ Delete
+              </button>
+            </div>
+          )}
+
           <button className="btn-save" onClick={saveCurrentLayout}>
             💾 Save Layout
           </button>
@@ -431,7 +600,14 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
                 gridY >= t.gridY && gridY < t.gridY + t.spanY
               );
 
+              const objects = currentLayout.objects ?? [];
+              const objectHere = objects.find(o =>
+                gridX >= o.gridX && gridX < o.gridX + o.spanX &&
+                gridY >= o.gridY && gridY < o.gridY + o.spanY
+              );
+
               const isTopLeft = tableHere && tableHere.gridX === gridX && tableHere.gridY === gridY;
+              const isObjTopLeft = objectHere && objectHere.gridX === gridX && objectHere.gridY === gridY;
 
               return (
                 <div
@@ -440,12 +616,36 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
                   onDrop={(e) => handleDrop(e, gridX, gridY)}
                   onDragOver={handleDragOver}
                 >
+                  {isObjTopLeft && objectHere && (
+                    <div
+                      className={`floor-object type-${objectHere.type} ${selectedObject?.id === objectHere.id ? 'selected' : ''}`}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, 'object', 'existing', { objectId: objectHere.id })}
+                      onClick={() => {
+                        setSelectedTable(null);
+                        setSelectedObject(objectHere);
+                      }}
+                      style={{
+                        width: objectHere.spanX === 2 ? 'calc(200% + 2px)' : objectHere.spanX === 3 ? 'calc(300% + 4px)' : objectHere.spanX === 4 ? 'calc(400% + 6px)' : '100%',
+                        height: objectHere.spanY === 2 ? 'calc(200% + 2px)' : objectHere.spanY === 3 ? 'calc(300% + 4px)' : '100%',
+                        transform: `rotate(${objectHere.rotation ?? 0}deg)`,
+                      }}
+                    >
+                      <div className="obj-icon">
+                        {objectHere.type === 'wall' ? '🧱' : objectHere.type === 'door' ? '🚪' : objectHere.type === 'bar' ? '🍸' : objectHere.type === 'plant' ? '🪴' : '➖'}
+                      </div>
+                      {objectHere.label && <div className="obj-label">{objectHere.label}</div>}
+                    </div>
+                  )}
                   {isTopLeft && (
                     <div
                       className={`table ${tableHere.shape} ${selectedTable?.id === tableHere.id ? 'selected' : ''}`}
                       draggable
-                      onDragStart={(e) => handleDragStart(e, 'existing', undefined, tableHere.id)}
-                      onClick={() => setSelectedTable(tableHere)}
+                      onDragStart={(e) => handleDragStart(e, 'table', 'existing', { tableId: tableHere.id })}
+                      onClick={() => {
+                        setSelectedObject(null);
+                        setSelectedTable(tableHere);
+                      }}
                       style={{
                         width: tableHere.spanX === 2 ? 'calc(200% + 2px)' : '100%',
                         height: tableHere.spanY === 2 ? 'calc(200% + 2px)' : '100%'

@@ -182,6 +182,27 @@
     return btn;
   }
 
+  function makeObjectEl(obj){
+    const el = document.createElement('div');
+    el.className = 'sb-floor-object type-' + String(obj.type||'divider');
+    const icon = document.createElement('div');
+    icon.className = 'sb-obj-icon';
+    const type = String(obj.type||'divider');
+    icon.textContent = type === 'wall' ? '🧱' : type === 'door' ? '🚪' : type === 'bar' ? '🍸' : type === 'plant' ? '🪴' : '➖';
+    el.appendChild(icon);
+    if (obj.label) {
+      const lbl = document.createElement('div');
+      lbl.className = 'sb-obj-label';
+      lbl.textContent = String(obj.label);
+      el.appendChild(lbl);
+    }
+    const rot = Number(obj.rotation || 0);
+    if (!Number.isNaN(rot) && rot) {
+      el.style.transform = `rotate(${rot}deg)`;
+    }
+    return el;
+  }
+
   async function loadPlan(rid){
     const res = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}`);
     if (!res.ok) throw new Error('failed');
@@ -271,6 +292,21 @@
       const fit = fitToViewport(ui.viewport, layout.boardW, layout.boardH, state.zoom);
       state.fit = fit;
       ui.stage.style.transform = `translate(${fit.x}px, ${fit.y}px) scale(${fit.scale})`;
+
+      // Place objects (walls/doors/bar/plants) behind tables
+      const objects = Array.isArray(plan.objects) ? plan.objects : [];
+      objects.forEach((o) => {
+        const el = makeObjectEl(o);
+        const x = layout.pad + (o.gridX * (layout.cell + layout.gap));
+        const y = layout.pad + (o.gridY * (layout.cell + layout.gap));
+        const w = (o.spanX || 1) * layout.cell + Math.max(0, (o.spanX||1)-1)*layout.gap;
+        const h = (o.spanY || 1) * layout.cell + Math.max(0, (o.spanY||1)-1)*layout.gap;
+        el.style.left = x + 'px';
+        el.style.top = y + 'px';
+        el.style.width = w + 'px';
+        el.style.height = h + 'px';
+        ui.stage.appendChild(el);
+      });
 
       // place tables
       tables.forEach((t) => {

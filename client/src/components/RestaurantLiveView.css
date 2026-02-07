@@ -115,6 +115,31 @@
   width: fit-content;
 }
 
+/* Decorative/structural objects (walls/doors/bar/plants) */
+.floor-object-live{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px dashed rgba(0, 0, 0, 0.15);
+  color: #111827;
+  font-size: 12px;
+  z-index: 1;
+  user-select: none;
+}
+
+.floor-object-live .obj-icon{ font-size: 14px; }
+.floor-object-live .obj-label{ font-size: 11px; opacity: 0.85; }
+
+.floor-object-live.type-wall{ background: rgba(17, 24, 39, 0.18); border-style: solid; }
+.floor-object-live.type-divider{ background: rgba(2, 132, 199, 0.10); }
+.floor-object-live.type-bar{ background: rgba(245, 158, 11, 0.12); }
+.floor-object-live.type-door{ background: rgba(34, 197, 94, 0.12); }
+.floor-object-live.type-plant{ background: rgba(16, 185, 129, 0.10); }
+
 /* Table card base styling */
 .table-card {
   display: flex;
