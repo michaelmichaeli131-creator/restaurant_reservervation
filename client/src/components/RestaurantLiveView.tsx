@@ -53,6 +53,8 @@ interface FloorLayout {
 
 interface RestaurantLiveViewProps {
   restaurantId: string;
+  /** When true, renders map only (no header/legend) for Host/Waiter screens */
+  embedded?: boolean;
 }
 
 const STATUS_COLORS = {
@@ -69,7 +71,7 @@ const STATUS_LABELS = {
   dirty: t('floor.status.dirty', 'Dirty'),
 };
 
-export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewProps) {
+export default function RestaurantLiveView({ restaurantId, embedded }: RestaurantLiveViewProps) {
   const [layouts, setLayouts] = useState<FloorLayout[]>([]);
   const [currentLayout, setCurrentLayout] = useState<FloorLayout | null>(null);
   const [tableStatuses, setTableStatuses] = useState<Map<string, TableStatus>>(new Map());
@@ -203,7 +205,8 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
   };
 
   return (
-    <div className="restaurant-live-view">
+    <div className={`restaurant-live-view ${embedded ? 'is-embedded' : ''}`}>
+      {!embedded && (
       <div className="live-view-header">
         <div className="header-title">
           <h1>🔴 Live Floor View</h1>
@@ -252,6 +255,7 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
           </button>
         </div>
       </div>
+      )}
 
       <div className="live-view-container">
         <div className="floor-grid" style={{
@@ -290,51 +294,29 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
                 }}
                 onClick={() => handleTableClick(status)}
               >
-                <div className="table-number">{status.tableNumber}</div>
-
-                {status.status === 'occupied' && (
-                  <>
-                    <div className="table-info">
-                      <span className="guests">👥 {status.guestCount || '-'}</span>
-                      <span className="seated">{timeSeated}</span>
-                    </div>
-                    <div className="order-summary">
-                      {status.itemsPending ? (
-                        <span className="pending">⏳ {status.itemsPending}</span>
-                      ) : null}
-                      {status.itemsReady ? (
-                        <span className="ready">✅ {status.itemsReady}</span>
-                      ) : null}
-                      {status.orderTotal ? (
-                        <span className="total">{formatPrice(status.orderTotal)}</span>
-                      ) : null}
-                    </div>
-                  </>
-                )}
-
-                {status.status === 'reserved' && (
-                  <div className="table-info">
-                    <span>{t('floor.status.reserved', 'Reserved')}</span>
-                  </div>
-                )}
-
-                {status.status === 'dirty' && (
-                  <div className="table-info">
-                    <span>🧹 {t('floor.status_text.dirty', 'Needs cleaning')}</span>
-                  </div>
-                )}
-
-                {status.status === 'empty' && (
-                  <div className="table-info">
-                    <span>{t('floor.status_text.available', 'Available')}</span>
-                  </div>
-                )}
+                <div className="table-num-badge">{status.tableNumber}</div>
+                <div className={`table-chip chip-${status.status}`}>
+                  <span className="chip-dot" />
+                  <span className="chip-text">
+                    {status.status === 'empty'
+                      ? t('floor.status_text.available', 'Available')
+                      : status.status === 'occupied'
+                      ? t('floor.status.occupied', 'Occupied')
+                      : status.status === 'reserved'
+                      ? t('floor.status.reserved', 'Reserved')
+                      : t('floor.status.dirty', 'Dirty')}
+                  </span>
+                  {status.status === 'occupied' && timeSeated ? (
+                    <span className="chip-sub">{timeSeated}</span>
+                  ) : null}
+                </div>
               </div>
             );
           })}
         </div>
       </div>
 
+      {!embedded && (
       <div className="live-view-footer">
         <div className="status-legend">
           <h3>{t('live.status_legend', 'Status Legend')}</h3>
@@ -380,6 +362,7 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
         </div>
         </div>
       </div>
+      )}
 
       {selectedTable && (
         <TableContextMenu

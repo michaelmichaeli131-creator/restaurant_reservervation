@@ -1,7 +1,6 @@
 <% layout("_layout", it) %>
 
-<!-- Cache-bust to ensure production always loads the latest editor bundle -->
-<link rel="stylesheet" href="/static/dist/floor-index.css?v=E2_20260207">
+<link rel="stylesheet" href="/static/dist/floor-index.css?v=editorA">
 
 <main class="floor-page">
   <div class="floor-container">
@@ -17,7 +16,7 @@
   };
 </script>
 
-<script type="module" src="/static/dist/floor-app.js?v=E2_20260207"></script>
+<script type="module" src="/static/dist/floor-app.js?v=editorA"></script>
 
 <style>
 .floor-page {
@@ -31,7 +30,7 @@
   height: 100vh;
 }
 
-#root {
+#floor-app {
   width: 100%;
   height: 100%;
 }

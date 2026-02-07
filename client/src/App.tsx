@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import FloorEditor from './components/FloorEditor';
 import ShiftBoard from './components/ShiftBoard';
 import RestaurantLiveView from './components/RestaurantLiveView';
@@ -12,12 +12,30 @@ function App() {
   const params = new URLSearchParams(window.location.search);
 
   const restaurantId = config.restaurantId || params.get('restaurantId') || '';
-  const page = config.page || params.get('page') || 'floor'; // 'floor' or 'shifts'
+  const page = config.page || params.get('page') || 'floor'; // 'floor' | 'shifts' | 'host' | 'waiter'
+  const embed = Boolean(config.embed || params.get('embed'));
+
+  // Some screens (Host/Waiter) should always show live view only (no editor UI)
+  const embeddedMode = useMemo(() => {
+    if (page === 'host' || page === 'waiter') return true;
+    return embed;
+  }, [page, embed]);
 
   if (page === 'shifts') {
     return (
       <div className="app shifts-app">
         <ShiftBoard restaurantId={restaurantId} />
+      </div>
+    );
+  }
+
+  // Embedded/live-only shell for Host/Waiter screens
+  if (embeddedMode) {
+    return (
+      <div className={`app embedded ${page}-embedded`}>
+        <main className="app-main embedded-main">
+          <RestaurantLiveView restaurantId={restaurantId} embedded />
+        </main>
       </div>
     );
   }

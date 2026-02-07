@@ -418,7 +418,6 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
           ))}
         </div>
         <div className="layout-actions">
-          <span className="build-badge" title="Floor Editor build">E2</span>
           <button className="btn-icon-small" onClick={() => setIsCreateModalOpen(true)} title="New Layout">
             ➕
           </button>
@@ -460,19 +459,19 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
           <h2>🎨 Palette</h2>
           <div className="palette">
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'round' })}>
-              <div className="preview round">🪑</div>
-              <span>2-Seat Round</span>
+              <div className="preview preview-table round" aria-hidden="true" />
+              <span>Round Table</span>
             </div>
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square' })}>
-              <div className="preview square">🪑</div>
-              <span>4-Seat Square</span>
+              <div className="preview preview-table square" aria-hidden="true" />
+              <span>Square Table</span>
             </div>
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'rect' })}>
-              <div className="preview rect">🪑</div>
-              <span>6-Seat Rect</span>
+              <div className="preview preview-table rect" aria-hidden="true" />
+              <span>Rect Table</span>
             </div>
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'booth' })}>
-              <div className="preview booth">🛋️</div>
+              <div className="preview preview-furniture booth" aria-hidden="true" />
               <span>Booth</span>
             </div>
           </div>
@@ -480,23 +479,23 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
           <h2 style={{ marginTop: 18 }}>🏗️ Elements</h2>
           <div className="palette">
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'wall' })}>
-              <div className="preview" style={{ fontSize: 16 }}>🧱</div>
+              <div className="preview preview-object wall" aria-hidden="true" />
               <span>Wall</span>
             </div>
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'door' })}>
-              <div className="preview" style={{ fontSize: 16 }}>🚪</div>
+              <div className="preview preview-object door" aria-hidden="true" />
               <span>Door</span>
             </div>
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'bar' })}>
-              <div className="preview" style={{ fontSize: 16 }}>🍸</div>
+              <div className="preview preview-furniture bar" aria-hidden="true" />
               <span>Bar</span>
             </div>
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'plant' })}>
-              <div className="preview" style={{ fontSize: 16 }}>🪴</div>
+              <div className="preview preview-furniture plant" aria-hidden="true" />
               <span>Plant</span>
             </div>
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'divider' })}>
-              <div className="preview" style={{ fontSize: 16 }}>➖</div>
+              <div className="preview preview-object divider" aria-hidden="true" />
               <span>Divider</span>
             </div>
           </div>
@@ -632,10 +631,10 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
                         transform: `rotate(${objectHere.rotation ?? 0}deg)`,
                       }}
                     >
-                      <div className="obj-icon">
-                        {objectHere.type === 'wall' ? '🧱' : objectHere.type === 'door' ? '🚪' : objectHere.type === 'bar' ? '🍸' : objectHere.type === 'plant' ? '🪴' : '➖'}
-                      </div>
-                      {objectHere.label && <div className="obj-label">{objectHere.label}</div>}
+                      <div className="obj-icon" aria-hidden="true" />
+                      {selectedObject?.id === objectHere.id && objectHere.label && (
+                        <div className="obj-label">{objectHere.label}</div>
+                      )}
                     </div>
                   )}
                   {isTopLeft && (
@@ -652,8 +651,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
                         height: tableHere.spanY === 2 ? 'calc(200% + 2px)' : '100%'
                       }}
                     >
-                      <div className="table-label">{tableHere.name}</div>
-                      <div className="table-seats">{tableHere.seats} seats</div>
+                      {/* Editor is structure-only: no operational status chips/timers */}
+                      <div className="table-number" title={tableHere.name}>T{tableHere.tableNumber}</div>
                     </div>
                   )}
                 </div>
