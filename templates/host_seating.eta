@@ -376,27 +376,6 @@
       grid.style.setProperty("--cols", gridCols);
       holder.appendChild(grid);
 
-      // Render objects (walls/doors/furniture) behind tables - view only
-      const objects = Array.isArray(plan.objects) ? plan.objects : [];
-      objects.forEach(function(o){
-        const el = document.createElement("div");
-        const type = String(o.type || "").toLowerCase();
-        // Map possible editor shapes to host classes
-        const clsType = (type === "booth" || type === "sofa") ? type
-                      : (type === "bar" ? "bar"
-                      : (type === "plant" ? "plant"
-                      : (type === "divider" ? "divider"
-                      : (type === "door" ? "door" : "wall")));
-        el.className = "floor-obj type-" + clsType;
-        el.style.gridRow = (o.gridY + 1) + " / span " + (o.spanY || 1);
-        el.style.gridColumn = (o.gridX + 1) + " / span " + (o.spanX || 1);
-        // Rotation for doors/walls (optional)
-        const rot = Number(o.rotation || 0);
-        if (rot) el.style.transform = `rotate(${rot}deg)`;
-        grid.appendChild(el);
-      });
-
-
       tables.forEach(function(t){
         const num = Number(t.tableNumber);
         const status = statusMap.get(num) || "empty";
@@ -405,7 +384,7 @@
 
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "table " + status + (t.shape ? (" " + t.shape) : "");
+        btn.className = "table " + status;
         btn.dataset.tableNumber = String(num);
 
         const capText = seats > 0 ? (seats + " מקומות") : "";
@@ -966,170 +945,6 @@
     margin-top:auto;
     padding-top:8px;
     border-top:1px solid rgba(148,163,184,0.25);
-  }
-
-
-
-  /* === SpotBook Host Floor (view-only) v2 === */
-  .host-grid{
-    grid-template-columns: minmax(280px, 420px) 1fr;
-    align-items: stretch;
-  }
-  .host-card.floor-card{
-    padding: 0;
-    overflow: hidden;
-    border-radius: 18px;
-    border: 1px solid rgba(255,255,255,.08);
-    background: linear-gradient(180deg, rgba(10,22,46,.55), rgba(10,22,46,.35));
-  }
-  #floor{
-    position: relative;
-    height: clamp(520px, 72vh, 820px);
-    padding: 14px;
-  }
-  .floor-grid{
-    position: relative;
-    width: 100%;
-    height: 100%;
-    display: grid;
-    gap: 12px;
-    padding: 12px;
-    border-radius: 16px;
-    border: 1px solid rgba(255,255,255,.10);
-    background:
-      radial-gradient(1200px 420px at 30% 10%, rgba(59,130,246,.18), transparent 55%),
-      radial-gradient(900px 360px at 80% 90%, rgba(34,197,94,.10), transparent 55%),
-      repeating-linear-gradient(0deg, rgba(255,255,255,.055) 0 1px, transparent 1px 36px),
-      repeating-linear-gradient(90deg, rgba(255,255,255,.055) 0 1px, transparent 1px 36px),
-      rgba(8,18,38,.58);
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
-    isolation: isolate;
-  }
-
-  /* Objects layer */
-  .floor-obj{
-    position: relative;
-    border-radius: 14px;
-    pointer-events: none;
-    z-index: 1;
-  }
-  .floor-obj.type-wall{
-    border-radius: 10px;
-    background: linear-gradient(180deg, rgba(16,22,33,.95), rgba(8,10,16,.9));
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.08),
-      inset 0 -1px 0 rgba(0,0,0,.35),
-      0 10px 22px rgba(0,0,0,.25);
-  }
-  .floor-obj.type-wall::after{
-    content:"";
-    position:absolute; inset: 2px;
-    border-radius: 9px;
-    border: 1px solid rgba(255,255,255,.08);
-    opacity: .7;
-  }
-  .floor-obj.type-door{
-    border-radius: 12px;
-    background: rgba(34,197,94,.10);
-    border: 1px solid rgba(34,197,94,.35);
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
-  }
-  .floor-obj.type-door::before{
-    content:"";
-    position:absolute; inset: 10%;
-    border-radius: 10px;
-    border: 2px solid rgba(34,197,94,.45);
-    opacity: .9;
-  }
-  .floor-obj.type-bar{
-    background: linear-gradient(180deg, rgba(142,92,55,.65), rgba(86,48,22,.55));
-    border: 1px solid rgba(255,255,255,.10);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 12px 26px rgba(0,0,0,.22);
-  }
-  .floor-obj.type-booth, .floor-obj.type-sofa{
-    background: linear-gradient(180deg, rgba(37,99,235,.30), rgba(37,99,235,.14));
-    border: 1px solid rgba(59,130,246,.35);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 10px 22px rgba(0,0,0,.22);
-  }
-  .floor-obj.type-plant{
-    background: radial-gradient(circle at 35% 35%, rgba(34,197,94,.55), rgba(16,80,44,.15));
-    border: 1px solid rgba(34,197,94,.28);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.10);
-  }
-  .floor-obj.type-divider{
-    background: linear-gradient(90deg, rgba(255,255,255,.10), rgba(255,255,255,.05));
-    border: 1px solid rgba(255,255,255,.10);
-  }
-
-  /* Tables */
-  .table{
-    position: relative;
-    border: 1px solid rgba(255,255,255,.10);
-    border-radius: 18px;
-    padding: 10px 10px 12px;
-    background: linear-gradient(180deg, rgba(170,120,70,.32), rgba(90,55,28,.18));
-    color: #eaf2ff;
-    box-shadow: 0 18px 30px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.10);
-    z-index: 3;
-    overflow: hidden;
-  }
-  .table::before{
-    content:"";
-    position:absolute; inset: 8px;
-    border-radius: 14px;
-    background: linear-gradient(180deg, rgba(190,140,88,.55), rgba(120,72,32,.35));
-    opacity: .9;
-  }
-  .table::after{
-    /* chairs hint */
-    content:"";
-    position:absolute; inset: 0;
-    background:
-      radial-gradient(circle at 20% 28%, rgba(59,130,246,.55) 0 7px, transparent 8px),
-      radial-gradient(circle at 80% 28%, rgba(59,130,246,.55) 0 7px, transparent 8px),
-      radial-gradient(circle at 20% 72%, rgba(59,130,246,.55) 0 7px, transparent 8px),
-      radial-gradient(circle at 80% 72%, rgba(59,130,246,.55) 0 7px, transparent 8px);
-    opacity: .55;
-    pointer-events:none;
-  }
-  .table > *{ position: relative; z-index: 1; }
-
-  .table.round{ border-radius: 999px; }
-  .table.round::before{ border-radius: 999px; }
-
-  .table.empty{ outline: 1px solid rgba(34,197,94,.28); }
-  .table.occupied{ outline: 1px solid rgba(239,68,68,.28); }
-  .table.reserved{ outline: 1px solid rgba(245,158,11,.30); }
-  .table.dirty{ outline: 1px solid rgba(168,85,247,.28); }
-
-  .table.selected{
-    outline: 2px solid rgba(59,130,246,.85);
-    box-shadow: 0 0 0 4px rgba(59,130,246,.18), 0 18px 30px rgba(0,0,0,.28);
-  }
-  .table-num{
-    font-weight: 800;
-    font-size: 18px;
-    letter-spacing: .2px;
-  }
-  .table-cap{
-    font-size: 12px;
-    opacity: .85;
-    margin-top: 2px;
-  }
-  .table-guest{
-    margin-top: 6px;
-    display:inline-flex;
-    align-items:center;
-    gap:6px;
-    padding: 4px 8px;
-    border-radius: 999px;
-    background: rgba(255,255,255,.08);
-    border: 1px solid rgba(255,255,255,.10);
-    font-size: 12px;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
 </style>

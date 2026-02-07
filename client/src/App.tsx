@@ -5,13 +5,11 @@ import RestaurantLiveView from './components/RestaurantLiveView';
 import './App.css';
 
 function App() {
+  const [floorMode, setFloorMode] = useState<'edit' | 'live'>('edit');
+
   // Get restaurant ID and page from window config (set by server) or URL params
   const config = (window as any).__APP_CONFIG__ || {};
   const params = new URLSearchParams(window.location.search);
-
-  const role = config.role || params.get('role') || 'owner';
-  const initialTab = config.initialTab || params.get('tab') || (role === 'waiter' ? 'live' : 'edit');
-  const [floorMode, setFloorMode] = useState<'edit' | 'live'>(initialTab === 'live' ? 'live' : 'edit');
 
   const restaurantId = config.restaurantId || params.get('restaurantId') || '';
   const page = config.page || params.get('page') || 'floor'; // 'floor' or 'shifts'
@@ -24,18 +22,7 @@ function App() {
     );
   }
 
-  // Waiter mode: compact live view (no edit)
-  if (role === 'waiter') {
-    return (
-      <div className="app waiter-mode">
-        <main className="app-main">
-          <RestaurantLiveView restaurantId={restaurantId} variant="waiter" />
-        </main>
-      </div>
-    );
-  }
-
-  // Default: Floor Plan page (owner)
+  // Default: Floor Plan page
   return (
     <div className="app">
       <header className="app-header">

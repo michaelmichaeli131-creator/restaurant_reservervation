@@ -1,6 +1,7 @@
 // src/lib/session.ts
 import type { Context } from "jsr:@oak/oak";
-import { kv } from "./kv_store.ts";
+
+const kv = await Deno.openKv();
 type SessionData = Record<string, unknown>;
 
 // זיהוי HTTPS מאחורי פרוקסי + אופציית אובררייד במשתנה סביבה

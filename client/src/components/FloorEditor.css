@@ -74,6 +74,20 @@
   flex-shrink: 0;
 }
 
+.build-badge{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,.88);
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(59,130,246,.18);
+}
+
 .btn-icon-small {
   padding: 8px 12px;
   background: transparent;
@@ -199,50 +213,6 @@
   justify-content: center;
   border-radius: 6px;
   font-size: 20px;
-}
-
-/* Premium previews for Elements palette (match canvas look) */
-.preview.preview-obj{
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,.12);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 10px 18px rgba(0,0,0,.22);
-  background: rgba(255,255,255,.04);
-}
-
-.preview.preview-wall{
-  background: linear-gradient(180deg, rgba(51,65,85,.92), rgba(15,23,42,.92));
-}
-
-.preview.preview-door{
-  background: linear-gradient(180deg, rgba(34,197,94,.22), rgba(34,197,94,.06));
-}
-
-.preview.preview-bar{
-  background:
-    linear-gradient(180deg, rgba(245,158,11,.18), rgba(245,158,11,.05)),
-    linear-gradient(135deg, rgba(160,98,49,.95), rgba(92,55,27,.95));
-}
-
-.preview.preview-plant{
-  background:
-    radial-gradient(circle at 50% 40%, rgba(34,197,94,.45), rgba(34,197,94,.08) 60%),
-    radial-gradient(circle at 50% 75%, rgba(15,23,42,.55), rgba(15,23,42,.25));
-}
-
-.preview.preview-divider{
-  background: linear-gradient(180deg, rgba(56,156,255,.14), rgba(56,156,255,.04));
-}
-
-.preview.preview-booth{
-  background:
-    linear-gradient(180deg, rgba(56,156,255,.32), rgba(56,156,255,.12)),
-    linear-gradient(135deg, rgba(183,123,67,.90), rgba(118,72,34,.90));
-}
-
-.preview.preview-sofa{
-  background:
-    linear-gradient(180deg, rgba(56,156,255,.28), rgba(56,156,255,.10)),
-    linear-gradient(180deg, rgba(15,23,42,.65), rgba(15,23,42,.35));
 }
 
 .preview.round {
@@ -372,21 +342,6 @@
   text-align: center;
   z-index: 10;
   pointer-events: auto;
-  background:
-    linear-gradient(135deg, rgba(183,123,67,.95), rgba(118,72,34,.95));
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.18),
-    inset 0 -2px 0 rgba(0,0,0,.25),
-    0 10px 20px rgba(0,0,0,.25);
-  color: rgba(255,255,255,.95);
-}
-
-.table::after{
-  content: "";
-  position: absolute;
-  inset: -10px;
-  pointer-events: none;
-  opacity: .95;
 }
 
 .table:hover {
@@ -401,82 +356,34 @@
 }
 
 .table.round {
-  border-radius: 999px;
-}
-
-.table.round::after{
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(56,156,255,.95) 0 6px, transparent 7px),
-    radial-gradient(circle at 85% 15%, rgba(56,156,255,.95) 0 6px, transparent 7px),
-    radial-gradient(circle at 100% 50%, rgba(56,156,255,.95) 0 6px, transparent 7px),
-    radial-gradient(circle at 85% 85%, rgba(56,156,255,.95) 0 6px, transparent 7px),
-    radial-gradient(circle at 50% 100%, rgba(56,156,255,.95) 0 6px, transparent 7px),
-    radial-gradient(circle at 15% 85%, rgba(56,156,255,.95) 0 6px, transparent 7px),
-    radial-gradient(circle at 0% 50%, rgba(56,156,255,.95) 0 6px, transparent 7px),
-    radial-gradient(circle at 15% 15%, rgba(56,156,255,.95) 0 6px, transparent 7px);
+  background: #3b82f6;
+  border-radius: 50%;
 }
 
 .table.square {
-  border-radius: 14px;
-}
-
-.table.square::after{
-  border-radius: 16px;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(56,156,255,.95) 0 6px, transparent 7px),
-    radial-gradient(circle at 100% 50%, rgba(56,156,255,.95) 0 6px, transparent 7px),
-    radial-gradient(circle at 50% 100%, rgba(56,156,255,.95) 0 6px, transparent 7px),
-    radial-gradient(circle at 0% 50%, rgba(56,156,255,.95) 0 6px, transparent 7px);
+  background: #10b981;
+  border-radius: 8px;
 }
 
 .table.rect {
-  border-radius: 14px;
-}
-
-.table.rect::after{
-  border-radius: 16px;
-  background:
-    radial-gradient(circle at 20% 0%, rgba(56,156,255,.95) 0 6px, transparent 7px),
-    radial-gradient(circle at 80% 0%, rgba(56,156,255,.95) 0 6px, transparent 7px),
-    radial-gradient(circle at 100% 50%, rgba(56,156,255,.95) 0 6px, transparent 7px),
-    radial-gradient(circle at 80% 100%, rgba(56,156,255,.95) 0 6px, transparent 7px),
-    radial-gradient(circle at 20% 100%, rgba(56,156,255,.95) 0 6px, transparent 7px),
-    radial-gradient(circle at 0% 50%, rgba(56,156,255,.95) 0 6px, transparent 7px);
+  background: #f59e0b;
+  border-radius: 8px;
 }
 
 .table.booth {
-  border-radius: 14px;
-  background:
-    linear-gradient(180deg, rgba(56,156,255,.22), rgba(56,156,255,.08)),
-    linear-gradient(135deg, rgba(183,123,67,.95), rgba(118,72,34,.95));
+  background: #8b5cf6;
+  border-radius: 8px;
 }
 
-.table-badge{
-  width: 28px;
-  height: 28px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(15,23,42,.55);
-  border: 1px solid rgba(255,255,255,.16);
-  box-shadow: 0 8px 16px rgba(0,0,0,.25);
-  font-weight: 800;
-  letter-spacing: .2px;
+.table-label {
+  font-weight: 700;
+  margin-bottom: 2px;
 }
 
-.table-meta{
-  margin-top: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  align-items: center;
-  opacity: .95;
+.table-seats {
+  font-size: 10px;
+  opacity: 0.9;
 }
-
-.table-name{ font-size: 10px; font-weight: 700; }
-.table-seats{ font-size: 10px; opacity: .9; }
 
 /* ========== FLOOR OBJECTS ========== */
 .floor-object{
@@ -504,25 +411,6 @@
 .floor-object .obj-icon{ font-size: 16px; line-height: 1; }
 .floor-object .obj-label{ font-size: 11px; opacity: 0.9; text-align: center; }
 
-.floor-object .obj-furniture{
-  width: 100%;
-  height: 100%;
-  border-radius: 14px;
-  position: relative;
-  overflow: hidden;
-}
-
-.floor-object .obj-furniture::before{
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 14px;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.10),
-    inset 0 -2px 0 rgba(0,0,0,.20),
-    0 12px 22px rgba(0,0,0,.25);
-}
-
 .floor-object.type-wall{
   background: rgba(17, 24, 39, 0.55);
   border-style: solid;
@@ -534,9 +422,8 @@
 }
 
 .floor-object.type-bar{
-  background: transparent;
-  border: none;
-  padding: 0;
+  background: rgba(15, 23, 42, 0.65);
+  border-color: rgba(245, 158, 11, 0.25);
 }
 
 .floor-object.type-door{
@@ -545,247 +432,8 @@
 }
 
 .floor-object.type-plant{
-  background: transparent;
-  border: none;
-  padding: 0;
-}
-
-.floor-object.type-divider{
-  background: transparent;
-  border: none;
-  padding: 0;
-}
-
-.floor-object.type-booth,
-.floor-object.type-sofa{
-  background: transparent;
-  border: none;
-  padding: 0;
-}
-
-.floor-object.type-bar .obj-furniture{
-  background:
-    linear-gradient(180deg, rgba(245,158,11,.18), rgba(245,158,11,.05)),
-    linear-gradient(135deg, rgba(160,98,49,.95), rgba(92,55,27,.95));
-}
-
-.floor-object.type-bar .obj-furniture::after{
-  content: "";
-  position: absolute;
-  inset: 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,.12);
-  background: rgba(15,23,42,.20);
-}
-
-.floor-object.type-plant .obj-furniture{
-  background:
-    radial-gradient(circle at 50% 45%, rgba(34,197,94,.35), rgba(34,197,94,.05) 55%),
-    radial-gradient(circle at 50% 70%, rgba(15,23,42,.55), rgba(15,23,42,.25));
-}
-
-.floor-object.type-plant .obj-furniture::after{
-  content: "";
-  position: absolute;
-  width: 44%;
-  height: 44%;
-  left: 50%;
-  top: 56%;
-  transform: translate(-50%,-50%);
-  border-radius: 12px;
-  background: linear-gradient(180deg, rgba(148,163,184,.20), rgba(15,23,42,.60));
-  border: 1px solid rgba(255,255,255,.10);
-}
-
-.floor-object.type-divider .obj-furniture{
-  background: linear-gradient(180deg, rgba(56,156,255,.12), rgba(56,156,255,.04));
-}
-
-.floor-object.type-divider .obj-furniture::after{
-  content: "";
-  position: absolute;
-  inset: 18px 10px;
-  border-radius: 999px;
-  background: rgba(15,23,42,.55);
-  border: 1px solid rgba(255,255,255,.10);
-}
-
-.floor-object.type-booth .obj-furniture{
-  background:
-    linear-gradient(180deg, rgba(56,156,255,.32), rgba(56,156,255,.12)),
-    linear-gradient(135deg, rgba(183,123,67,.90), rgba(118,72,34,.90));
-}
-
-.floor-object.type-booth .obj-furniture::after{
-  content: "";
-  position: absolute;
-  inset: 10px;
-  border-radius: 14px;
-  background:
-    linear-gradient(180deg, rgba(15,23,42,.40), rgba(15,23,42,.15));
-  border: 1px solid rgba(255,255,255,.10);
-}
-
-.floor-object.type-sofa .obj-furniture{
-  background:
-    linear-gradient(180deg, rgba(56,156,255,.28), rgba(56,156,255,.10)),
-    linear-gradient(180deg, rgba(15,23,42,.65), rgba(15,23,42,.35));
-}
-
-.floor-object.type-sofa .obj-furniture::after{
-  content: "";
-  position: absolute;
-  inset: 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(255,255,255,.12);
-  background: rgba(255,255,255,.04);
-}
-
-
-/* Wall + Door premium rendering */
-.floor-object.type-wall{
-  background: transparent;
-  border: none;
-  padding: 0;
-}
-
-.floor-object.type-wall .obj-wall{
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.floor-object.type-wall.orient-h .obj-wall{
-  flex-direction: row;
-}
-
-.floor-object.type-wall.orient-v .obj-wall{
-  flex-direction: column;
-}
-
-.floor-object.type-wall .obj-wall-body{
-  display: block;
-  flex: 1;
-  height: 14px;
-  border-radius: 10px;
-  background: linear-gradient(180deg, rgba(30,41,59,.92), rgba(15,23,42,.92));
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.10),
-    inset 0 -1px 0 rgba(0,0,0,.35),
-    0 6px 14px rgba(0,0,0,.25);
-  border: 1px solid rgba(148,163,184,.18);
-}
-
-.floor-object.type-wall.orient-v .obj-wall-body{
-  width: 14px;
-  height: 100%;
-}
-
-.floor-object.type-wall .obj-wall-cap{
-  display: block;
-  width: 18px;
-  height: 18px;
-  border-radius: 9px;
-  background: linear-gradient(180deg, rgba(51,65,85,.92), rgba(30,41,59,.92));
-  border: 1px solid rgba(148,163,184,.18);
-  box-shadow:
-    0 6px 14px rgba(0,0,0,.22),
-    inset 0 1px 0 rgba(255,255,255,.10),
-    inset 0 -2px 0 rgba(0,0,0,.30);
-}
-
-/* Hide end-caps when a junction connector is drawn at that endpoint */
-.floor-object.type-wall .obj-wall-cap.cap-hidden{
-  opacity: 0;
-  transform: scale(0.6);
-}
-
-.floor-object.type-wall.orient-v .obj-wall-cap{
-  width: 18px;
-  height: 18px;
-}
-
-/* Wall junction connectors (L / T / +)
-   These are drawn at wall endpoints where 2+ wall directions meet.
-   Purely decorative for a more "architectural" look. */
-.wall-joint{
-  position: absolute;
-  pointer-events: none;
-  border-radius: 6px;
-  background: linear-gradient(180deg, rgba(30,41,59,.95), rgba(15,23,42,.95));
-  box-shadow:
-    0 12px 28px rgba(0,0,0,.45),
-    inset 0 1px 0 rgba(255,255,255,.10),
-    inset 0 -2px 0 rgba(0,0,0,.35);
-  border: 1px solid rgba(148,163,184,.18);
-}
-
-/* Each active direction draws a small "stem" from the joint */
-.wall-joint::before,
-.wall-joint::after{ content: ''; position: absolute; background: rgba(15,23,42,.92); }
-
-.wall-joint.d-n::before{ left: 50%; top: -10px; width: 6px; height: 10px; transform: translateX(-50%); border-radius: 6px 6px 0 0; }
-.wall-joint.d-s::after{ left: 50%; bottom: -10px; width: 6px; height: 10px; transform: translateX(-50%); border-radius: 0 0 6px 6px; }
-
-/* Horizontal stems use an inner span via box-shadow trick */
-.wall-joint.d-e{ box-shadow: 12px 0 0 -6px rgba(15,23,42,.92), 0 12px 28px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.10), inset 0 -2px 0 rgba(0,0,0,.35); }
-.wall-joint.d-w{ box-shadow: -12px 0 0 -6px rgba(15,23,42,.92), 0 12px 28px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.10), inset 0 -2px 0 rgba(0,0,0,.35); }
-
-/* When both east and west are active, strengthen the horizontal connector */
-.wall-joint.d-e.d-w{ box-shadow: 12px 0 0 -6px rgba(15,23,42,.92), -12px 0 0 -6px rgba(15,23,42,.92), 0 12px 28px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.10), inset 0 -2px 0 rgba(0,0,0,.35); }
-
-.floor-object.type-door{
-  background: transparent;
-  border: none;
-  padding: 0;
-}
-
-.floor-object.type-door .obj-door{
-  width: 100%;
-  height: 100%;
-  position: relative;
-}
-
-.floor-object.type-door .obj-door-frame{
-  position: absolute;
-  inset: 10px;
-  border-radius: 12px;
-  border: 2px solid rgba(34,197,94,.35);
-  background: rgba(34,197,94,.06);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
-}
-
-.floor-object.type-door.orient-h .obj-door-frame{
-  inset: 18px 10px;
-}
-
-.floor-object.type-door.orient-v .obj-door-frame{
-  inset: 10px 18px;
-}
-
-.floor-object.type-door .obj-door-swing{
-  position: absolute;
-  width: 42%;
-  height: 42%;
-  border: 2px solid rgba(34,197,94,.45);
-  border-left-color: transparent;
-  border-bottom-color: transparent;
-  border-radius: 0 100% 0 0;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%,-50%) rotate(0deg);
-  opacity: 0.8;
-}
-
-.floor-object.type-door.orient-h .obj-door-swing{
-  transform: translate(-50%,-50%) rotate(90deg);
-}
-
-.floor-object.type-door.selected .obj-door-frame{
-  outline: 2px solid rgba(59,130,246,.75);
-  outline-offset: 2px;
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.25);
 }
 
 /* ========== MULTI-LAYOUT UI ========== */
@@ -1006,92 +654,4 @@
   .layout-actions{ justify-content: flex-end; }
   .palette{ flex-direction: row; overflow-x: auto; }
   .palette-item{ min-width: 180px; }
-}
-
-/* --- SpotBook assets (auto) --- */
-.floor-object.type-bar .obj-furniture{
-  background-image: url('/static/floor/assets/bar-wood.svg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-/* --- SpotBook assets (auto) --- */
-.floor-object.type-booth .obj-furniture{
-  background-image: url('/static/floor/assets/booth-blue.svg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-/* --- SpotBook assets (auto) --- */
-.floor-object.type-sofa .obj-furniture{
-  background-image: url('/static/floor/assets/sofa-blue.svg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-/* --- SpotBook assets (auto) --- */
-.floor-object.type-plant .obj-furniture{
-  background-image: url('/static/floor/assets/plant.svg');
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-/* --- SpotBook assets (auto) --- */
-.floor-object.type-divider .obj-furniture{
-  background-image: url('/static/floor/assets/divider.svg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-/* --- SpotBook assets (auto) --- */
-.preview-bar{
-  background-image: url('/static/floor/assets/bar-wood.svg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-/* --- SpotBook assets (auto) --- */
-.preview-booth{
-  background-image: url('/static/floor/assets/booth-blue.svg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-/* --- SpotBook assets (auto) --- */
-.preview-sofa{
-  background-image: url('/static/floor/assets/sofa-blue.svg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-/* --- SpotBook assets (auto) --- */
-.preview-plant{
-  background-image: url('/static/floor/assets/plant.svg');
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-/* --- SpotBook assets (auto) --- */
-.preview-divider{
-  background-image: url('/static/floor/assets/divider.svg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-/* --- SpotBook assets (auto) --- */
-.preview-door{
-  background-image: url('/static/floor/assets/door.svg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
 }

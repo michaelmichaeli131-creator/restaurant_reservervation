@@ -4,16 +4,6 @@
   flex-direction: column;
 }
 
-/* Waiter mode: embed the live map inside POS page without the editor header */
-.app.waiter-mode {
-  height: 100vh;
-}
-
-.app.waiter-mode .app-main {
-  padding: 0 !important;
-  height: 100%;
-}
-
 .app-header {
   background: var(--panel);
   border-bottom: 1px solid var(--bd);

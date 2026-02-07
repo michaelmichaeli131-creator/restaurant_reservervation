@@ -53,12 +53,6 @@ interface FloorLayout {
 
 interface RestaurantLiveViewProps {
   restaurantId: string;
-  /**
-   * UI variant.
-   * - default: full "Live Floor View" with header/footer controls
-   * - waiter: compact layout with left panel + map + table drawer
-   */
-  variant?: 'default' | 'waiter';
 }
 
 const STATUS_COLORS = {
@@ -75,7 +69,7 @@ const STATUS_LABELS = {
   dirty: t('floor.status.dirty', 'Dirty'),
 };
 
-export default function RestaurantLiveView({ restaurantId, variant = 'default' }: RestaurantLiveViewProps) {
+export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewProps) {
   const [layouts, setLayouts] = useState<FloorLayout[]>([]);
   const [currentLayout, setCurrentLayout] = useState<FloorLayout | null>(null);
   const [tableStatuses, setTableStatuses] = useState<Map<string, TableStatus>>(new Map());
@@ -84,9 +78,6 @@ export default function RestaurantLiveView({ restaurantId, variant = 'default' }
   const [refreshInterval, setRefreshInterval] = useState(5000); // 5 seconds
   const [selectedTable, setSelectedTable] = useState<TableStatus | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  // Waiter UI filters
-  const [filter, setFilter] = useState<'all' | 'attention' | 'occupied' | 'dirty' | 'reserved'>('all');
 
   // Load all layouts
   useEffect(() => {
@@ -210,179 +201,6 @@ export default function RestaurantLiveView({ restaurantId, variant = 'default' }
       loadLayout(layoutId);
     }
   };
-
-  // --- Waiter compact UI helpers ---
-  const [waiterFilter, setWaiterFilter] = useState<'all' | 'attention' | 'occupied'>('attention');
-
-  const isAttention = (s: TableStatus) => s.status === 'occupied' || s.status === 'dirty' || s.status === 'reserved';
-
-  const waiterList = currentLayout.tables
-    .map(t => ({
-      table: t,
-      status: getTableStatus(t.id),
-    }))
-    .filter(({ status }) => {
-      if (waiterFilter === 'all') return true;
-      if (waiterFilter === 'occupied') return status.status === 'occupied';
-      return isAttention(status);
-    })
-    .sort((a, b) => (a.status.tableNumber || a.table.tableNumber) - (b.status.tableNumber || b.table.tableNumber));
-
-  const counts = {
-    total: currentLayout.tables.length,
-    attention: currentLayout.tables.map(t => getTableStatus(t.id)).filter(isAttention).length,
-    occupied: currentLayout.tables.map(t => getTableStatus(t.id)).filter(s => s.status === 'occupied').length,
-    dirty: currentLayout.tables.map(t => getTableStatus(t.id)).filter(s => s.status === 'dirty').length,
-  };
-
-  if (variant === 'waiter') {
-    const total = currentLayout.tables.length;
-    const occupied = Array.from(tableStatuses.values()).filter(s => s.status === 'occupied').length;
-    const dirty = Array.from(tableStatuses.values()).filter(s => s.status === 'dirty').length;
-    const reserved = Array.from(tableStatuses.values()).filter(s => s.status === 'reserved').length;
-    const attention = dirty + reserved + occupied;
-
-    return (
-      <div className="restaurant-live-view waiter-variant">
-        <div className="waiter-shell">
-          <aside className="waiter-panel">
-            <div className="waiter-panel-header">
-              <div className="waiter-title">מפת מסעדה</div>
-              <div className="waiter-sub">סטטוס בזמן אמת</div>
-            </div>
-
-            <div className="waiter-stats">
-              <div className="wstat">
-                <div className="wstat-label">סה״כ</div>
-                <div className="wstat-value">{total}</div>
-              </div>
-              <div className="wstat">
-                <div className="wstat-label">תפוס</div>
-                <div className="wstat-value" style={{ color: STATUS_COLORS.occupied }}>{occupied}</div>
-              </div>
-              <div className="wstat">
-                <div className="wstat-label">שמורות</div>
-                <div className="wstat-value" style={{ color: STATUS_COLORS.reserved }}>{reserved}</div>
-              </div>
-              <div className="wstat">
-                <div className="wstat-label">לניקוי</div>
-                <div className="wstat-value" style={{ color: STATUS_COLORS.dirty }}>{dirty}</div>
-              </div>
-            </div>
-
-            <div className="waiter-filters">
-              <button className={waiterFilter === 'attention' ? 'active' : ''} onClick={() => setWaiterFilter('attention')}>חריגים ({attention})</button>
-              <button className={waiterFilter === 'occupied' ? 'active' : ''} onClick={() => setWaiterFilter('occupied')}>תפוסים</button>
-              <button className={waiterFilter === 'all' ? 'active' : ''} onClick={() => setWaiterFilter('all')}>הכל</button>
-            </div>
-
-            <div className="waiter-list">
-              {waiterList.map(({ table, status }) => {
-                const num = status.tableNumber || table.tableNumber;
-                const time = status.status === 'occupied' ? formatTime(status.occupiedSince) : '';
-                const totalPrice = status.status === 'occupied' ? formatPrice(status.orderTotal) : '';
-                return (
-                  <button key={table.id} className={`waiter-item status-${status.status}`} onClick={() => handleTableClick(status)}>
-                    <div className="wi-left">
-                      <div className="wi-num">{num || '—'}</div>
-                      <div className="wi-seat">{table.seats} מק׳</div>
-                    </div>
-                    <div className="wi-mid">
-                      <div className="wi-status">
-                        <span className="dot" style={{ backgroundColor: STATUS_COLORS[status.status] }} />
-                        {STATUS_LABELS[status.status]}
-                      </div>
-                      {time && <div className="wi-meta">{time} • {totalPrice}</div>}
-                      {status.status === 'reserved' && <div className="wi-meta">שמורה</div>}
-                      {status.status === 'dirty' && <div className="wi-meta">צריך ניקוי</div>}
-                    </div>
-                    <div className="wi-right">›</div>
-                  </button>
-                );
-              })}
-            </div>
-          </aside>
-
-          <section className="waiter-map">
-            <div className="live-view-container compact">
-              <div className="floor-grid" style={{
-                gridTemplateColumns: `repeat(${currentLayout.gridCols}, 1fr)`,
-                gridTemplateRows: `repeat(${currentLayout.gridRows}, 1fr)`,
-              }}>
-                {(currentLayout.objects ?? []).map((obj) => (
-                  <div
-                    key={obj.id}
-                    className={`floor-object-live type-${obj.type}`}
-                    style={{
-                      gridColumn: `${obj.gridX + 1} / span ${obj.spanX}`,
-                      gridRow: `${obj.gridY + 1} / span ${obj.spanY}`,
-                      transform: `rotate(${obj.rotation ?? 0}deg)`,
-                    }}
-                    title={obj.label || obj.type}
-                  >
-                    {obj.type === 'wall' ? null : (
-                      <div className="obj-furniture" aria-hidden="true" />
-                    )}
-                    {obj.label ? <span className="obj-label">{obj.label}</span> : null}
-                  </div>
-                ))}
-
-                {currentLayout.tables.map((table) => {
-                  const status = getTableStatus(table.id);
-                  const seatedFor = formatTime(status.occupiedSince);
-                  return (
-                    <div
-                      key={table.id}
-                      className={`table-card table-${table.shape} status-${status.status}`}
-                      style={{
-                        gridColumn: `${table.gridX + 1} / span ${table.spanX}`,
-                        gridRow: `${table.gridY + 1} / span ${table.spanY}`,
-                      }}
-                      onClick={() => handleTableClick(status)}
-                    >
-                      <div className="table-number">{status.tableNumber || table.tableNumber}</div>
-                      {status.status === 'occupied' && (
-                        <>
-                          <div className="table-info">
-                            <span className="guests">👥 {status.guestCount || '-'}</span>
-                            <span className="seated">{seatedFor}</span>
-                          </div>
-                          <div className="order-summary">
-                            {status.itemsPending ? <span className="pending">⏳ {status.itemsPending}</span> : null}
-                            {status.itemsReady ? <span className="ready">✅ {status.itemsReady}</span> : null}
-                            {status.orderTotal ? <span className="total">{formatPrice(status.orderTotal)}</span> : null}
-                          </div>
-                        </>
-                      )}
-                      {status.status === 'reserved' && (
-                        <div className="table-info"><span>שמורה</span></div>
-                      )}
-                      {status.status === 'dirty' && (
-                        <div className="table-info"><span>🧹 לניקוי</span></div>
-                      )}
-                      {status.status === 'empty' && (
-                        <div className="table-info"><span>זמין</span></div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </section>
-        </div>
-
-        {selectedTable && (
-          <TableContextMenu
-            table={selectedTable}
-            restaurantId={restaurantId}
-            isOpen={isMenuOpen}
-            onClose={() => setIsMenuOpen(false)}
-            onStatusChange={handleStatusChange}
-          />
-        )}
-      </div>
-    );
-  }
 
   return (
     <div className="restaurant-live-view">

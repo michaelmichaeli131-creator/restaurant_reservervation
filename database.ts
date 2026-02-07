@@ -1,5 +1,4 @@
 // src/database.ts
-import { kv } from "./lib/kv_store.ts";
 // Deno KV – אינדקסים עם prefix ועסקאות atomic
 // שדרוגים: נירמול חלקי מפתח (Key Parts) + קשיחות createUser לגזירת username מה-email במקרה הצורך.
 
@@ -184,7 +183,8 @@ export interface Review {
   ownerRepliedAt?: number;
 }
 
-// KV יחיד לכל התהליכים (מיובא מה-wrapper עם fallback)
+// KV יחיד לכל התהליכים
+export const kv = await Deno.openKv();
 
 const lower = (s?: string) => (s ?? "").trim().toLowerCase();
 const now = () => Date.now();
