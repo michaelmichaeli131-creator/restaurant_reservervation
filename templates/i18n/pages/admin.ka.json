@@ -1,0 +1,118 @@
+{
+  "common": {
+    "none": "არ არის"
+  },
+  "admin": {
+    "app": { "title": "SpotBook · ადმინისტრატორი" },
+    "header": { "brand": "SpotBook · Admin", "badge": "ADMIN" },
+
+    "tabs": {
+      "restaurants": "რესტორნები",
+      "users": "მომხმარებლები",
+      "tools": "ხელსაწყოები"
+    },
+
+    "login": {
+      "title": "ადმინისტრატორის შესვლა",
+      "desc": "შეიყვანეთ ADMIN_SECRET, რომელიც განსაზღვრულია გარემოს ცვლადებში.",
+      "key_label": "ადმინის გასაღები",
+      "key_placeholder": "ჩასვით გასაღები აქ",
+      "submit": "შესვლა"
+    },
+
+    "key_masked": "გასაღები დამალულია",
+
+    "reset": {
+      "title": "ადმინის ქმედებები (Reset)",
+      "tabs": {
+        "restaurants": "რესტორნები",
+        "users": "მომხმარებლები",
+        "tools": "ხელსაწყოები"
+      },
+      "btn": {
+        "restaurants": "რესტორნების განულება",
+        "reservations": "ჯავშნების განულება",
+        "users": "მომხმარებლების განულება",
+        "all": "ყველაფრის განულება"
+      },
+      "more_tools": "კიდევ ხელსაწყოები…"
+    },
+
+    "tables": {
+      "pending_title": "მოლოდინში ({count})",
+      "approved_title": "დამტკიცებული ({count})",
+      "th": {
+        "restaurant": "რესტორანი",
+        "owner": "მფლობელი",
+        "owner_status": "მფლობელის სტატუსი",
+        "status": "სტატუსი",
+        "actions": "ქმედებები"
+      }
+    },
+
+    "status": {
+      "approved": "დამტკიცებული",
+      "pending": "მოლოდინში"
+    },
+    "owner": { "active": "აქტიური", "inactive": "გათიშული" },
+
+    "row": {
+      "capacity": "ტევადობა",
+      "slot": "სლოტი",
+      "minutes": "წთ",
+      "service": "მომსახურება"
+    },
+
+    "actions": {
+      "approve": "დამტკიცება",
+      "disable": "გათიშვა",
+      "enable": "ჩართვა",
+      "restaurant_page": "რესტორნის გვერდი",
+      "remove": "წაშლა",
+      "back_dashboard": "დაბრუნება დაფაზე",
+      "back_tools": "დაბრუნება ხელსაწყოებში"
+    },
+
+    "confirm": {
+      "delete_restaurant": "წავშალოთ სამუდამოდ {name} და მისი ყველა ჯავშანი?",
+      "reset_all": "გავანულოთ ყველაფერი?",
+      "reset_restaurants": "გავანულოთ ყველა რესტორნი?",
+      "reset_reservations": "გავანულოთ ყველა ჯავშანი?",
+      "reset_users": "გავანულოთ ყველა მომხმარებელი?"
+    },
+
+    "tools": {
+      "title": "ადმინის ხელსაწყოები",
+      "desc": "ქვემოთ მოცემული ბმულებით შეგიძლიათ განახორციელოთ reset-ები.",
+      "reset_reservations": "ჯავშნების განულება",
+      "reset_restaurants": "რესტორნების განულება",
+      "reset_users": "მომხმარებლების განულება",
+      "reset_all": "ყველაფრის განულება"
+    },
+
+    "done": {
+      "title": "დასრულებულია",
+      "reset_done": "განულება დასრულდა: {what}",
+      "back_tools": "დაბრუნება ხელსაწყოებში",
+      "back_dashboard": "დაბრუნება დაფაზე"
+    },
+
+    "users": {
+      "title": "მომხმარებლების მართვა",
+      "active": "აქტიური მომხმარებლები ({n})",
+      "inactive": "გათიშული მომხმარებლები ({n})",
+      "th": {
+        "user": "მომხმარებელი",
+        "role": "როლი",
+        "status": "სტატუსი",
+        "restaurants": "რესტორნები",
+        "actions": "ქმედებები"
+      },
+      "activate": "ჩართვა",
+      "deactivate": "გათიშვა",
+      "delete": "წაშლა",
+      "none": "არ არის",
+      "not_implemented": "ეს ფუნქცია მოითხოვს listUsersWithRestaurants-ს database.ts-ში."
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "confirm": {
+    "header": {
+      "title": "הזמנה אושרה ✔",
+      "subtitle": "תודה שהזמנת ב־"
+    },
+    "details": {
+      "title": "פרטי הזמנה",
+      "restaurant": "מסעדה",
+      "address": "כתובת",
+      "date": "תאריך",
+      "time": "שעה",
+      "people": "סועדים",
+      "customerName": "שם לקוח",
+      "customerPhone": "נייד",
+      "customerEmail": "אימייל",
+      "note": "הערות",
+      "id": "מס׳ הזמנה"
+    },
+    "actions": {
+      "backToRestaurant": "חזרה לעמוד המסעדה",
+      "edit": "עריכת תאריך/שעה/סועדים",
+      "home": "חזרה לעמוד הראשי"
+    },
+    "footer": {
+      "emailSent": "נשלח אליך אימייל עם פרטי ההזמנה. נתראה!"
+    }
+  }
+}
