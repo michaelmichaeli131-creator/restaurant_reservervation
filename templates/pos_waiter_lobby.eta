@@ -23,11 +23,22 @@
       <h1>מסך מלצרים — <%= restaurant.name %></h1>
       <p class="muted"><%= restaurant.city %> • <%= restaurant.address %></p>
     </div>
+    <div class="header-actions">
+      <button id="waiter-panel-toggle" class="sb-waiter-panel-toggle" type="button" aria-label="פתיחת לוח שמאל">
+        <span class="sb-dot" aria-hidden="true"></span>
+        <span>לוח</span>
+      </button>
+    </div>
   </header>
 
-  <section class="waiter-grid">
-    <!-- כרטיסייה: שולחנות פתוחים -->
-    <div class="panel card">
+  <!-- Mobile backdrop for the left panel -->
+  <div id="waiter-mobile-backdrop" class="sb-waiter-mobile-backdrop" aria-hidden="true"></div>
+
+  <section class="sb-waiter-shell" aria-label="Waiter layout">
+    <!-- Left panel (sticky on desktop, offcanvas on mobile) -->
+    <aside class="sb-waiter-left" aria-label="לוח מלצרים">
+      <!-- כרטיסייה: שולחנות פתוחים -->
+      <div class="panel card">
       <h2>שולחנות פתוחים</h2>
       <p class="muted small">
         רשימת כל השולחנות עם צ׳קים פתוחים / בשירות פעיל. לחיצה על שורה תציג פרטי שולחן,
@@ -98,15 +109,19 @@
           אין כרגע שולחנות פתוחים.
         </div>
       <% } %>
-    </div>
+      </div>
+    </aside>
 
-    <!-- כרטיסייה: מפת המסעדה (חי) -->
-    <div class="panel card">
+    <!-- Right content: Live map -->
+    <div class="sb-waiter-right">
+      <!-- כרטיסייה: מפת המסעדה (חי) -->
+      <div class="panel card sb-waiter-map-card">
       <h2>מפת המסעדה (חי)</h2>
       <p class="muted small">
         לחיצה על שולחן תפוס תציג פרטי הזמנה; לחיצה על שולחן פנוי תציג מידע בסיסי.
       </p>
-      <div id="sb-floor-root" class="floor-wrapper" data-rid="<%= it.rid %>"></div>
+      <div id="sb-floor-root" class="floor-wrapper" data-rid="<%= it.rid %>" data-click-mode="lobby"></div>
+      </div>
     </div>
   </section>
 </main>
@@ -157,7 +172,15 @@
     </div>
 
     <footer class="table-info-footer">
-      <p class="muted small">
+      <div class="tip-actions">
+        <button type="button" class="tip-primary-btn" id="tip-go-order" disabled>
+          פתח הזמנה
+        </button>
+        <button type="button" class="tip-secondary-btn" id="tip-close-secondary">
+          סגור
+        </button>
+      </div>
+      <p class="muted small" style="margin-top:10px">
         המידע נלקח מההזמנה / צ׳ק האחרון בשולחן.
       </p>
     </footer>
@@ -165,6 +188,19 @@
 </aside>
 
 <script src="/public/js/sb_floor_map.js?v=<%= it.BUILD_TAG || '' %>"></script>
+<script>
+  // Stage 3.2a: responsive shell toggle (mobile)
+  (function(){
+    const btn = document.getElementById('waiter-panel-toggle');
+    const backdrop = document.getElementById('waiter-mobile-backdrop');
+    function close(){ document.documentElement.classList.remove('sb-waiter-left-open'); }
+    function toggle(){ document.documentElement.classList.toggle('sb-waiter-left-open'); }
+    if(btn){ btn.addEventListener('click', toggle); }
+    if(backdrop){ backdrop.addEventListener('click', close); }
+    // Close when switching to desktop size
+    window.addEventListener('resize', function(){ if(window.innerWidth > 820) close(); });
+  })();
+</script>
 <script>
 (function(){
   const rid = "<%= it.rid %>";
@@ -183,6 +219,8 @@
   const tipStatus = document.getElementById("tip-status");
   const tipItemsCount = document.getElementById("tip-items-count");
   const tipSubtotal = document.getElementById("tip-subtotal");
+  const tipGoOrder = document.getElementById("tip-go-order");
+  const tipCloseSecondary = document.getElementById("tip-close-secondary");
 
   const statusMap = new Map(); // ממפת הרצפה
   const guestMap = new Map();  // ממפת הרצפה
@@ -228,6 +266,13 @@
       : "—";
     tipSubtotal.textContent = formatMoney(info.subtotal);
 
+    // Primary action: open order screen (only when occupied and URL exists)
+    if (tipGoOrder) {
+      const enabled = !!info.posUrl && (String(info.status||'').toLowerCase() === 'occupied' || String(info.status||'').toLowerCase() === 'open');
+      tipGoOrder.disabled = !enabled;
+      tipGoOrder.dataset.posUrl = info.posUrl || '';
+    }
+
     tableInfoPanel.classList.add("open");
     tableInfoBackdrop.classList.add("open");
     tableInfoPanel.setAttribute("aria-hidden", "false");
@@ -241,6 +286,13 @@
 
   if (tipCloseBtn) tipCloseBtn.addEventListener("click", closeTableInfoPanel);
   if (tableInfoBackdrop) tableInfoBackdrop.addEventListener("click", closeTableInfoPanel);
+  if (tipCloseSecondary) tipCloseSecondary.addEventListener("click", closeTableInfoPanel);
+  if (tipGoOrder) {
+    tipGoOrder.addEventListener('click', function(){
+      const url = this.dataset.posUrl || '';
+      if (url) window.location.href = url;
+    });
+  }
 
   // האזנה לרשימת שולחנות פתוחים – כולל מעבר למסך ההזמנה
   if (openList) {
@@ -295,18 +347,17 @@
           status,
           itemsCount,
           subtotal,
+          posUrl,
         };
         openTableInfoPanel(info);
 
-        // הדגשה במפת המסעדה
-        const floor = document.getElementById("sb-floor-root");
-        if (floor && tn) {
-          const tableBtn = floor.querySelector('.sb-floor-table[data-table-number="'+tn+'"]');
-          if (tableBtn) {
-            tableBtn.classList.add("selected");
-            tableBtn.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-            setTimeout(() => tableBtn.classList.remove("selected"), 800);
-          }
+        // הדגשה במפת המסעדה + סימון ברשימה
+        if (floorHolder && window.SBFloorMap && tn) {
+          window.SBFloorMap.select(floorHolder, Number(tn));
+        }
+        if (openList && tn) {
+          openList.querySelectorAll('li.open-item').forEach(x => x.classList.remove('is-selected'));
+          li.classList.add('is-selected');
         }
       }
     }, { passive: true });
@@ -315,6 +366,45 @@
   // === מפת מסעדה (קונספט חדש: Canvas + Fit-to-screen) ===
   if (floorHolder && window.SBFloorMap) {
     window.SBFloorMap.init(floorHolder);
+
+    // When a table is clicked on the map (event mode), open the drawer instead of navigating.
+    floorHolder.addEventListener('sb:floor-table-click', function(ev){
+      const d = (ev && ev.detail) ? ev.detail : {};
+      const tn = d.tableNumber != null ? Number(d.tableNumber) : null;
+      if (!tn) return;
+
+      // Try to find matching info from the open tables list (more complete data)
+      let li = openList ? openList.querySelector('li[data-table="' + tn + '"]') : null;
+      let name = li ? (li.getAttribute('data-name') || '') : (d.guestName || '');
+      let people = li ? (li.getAttribute('data-people') || '') : (d.guestCount || '');
+      let time = li ? (li.getAttribute('data-time') || '') : '';
+      let status = li ? (li.getAttribute('data-status') || d.status || 'empty') : (d.status || 'empty');
+      let itemsCountAttr = li ? li.getAttribute('data-items-count') : '';
+      let subtotalAttr = li ? li.getAttribute('data-subtotal') : '';
+      let posUrl = li ? (li.getAttribute('data-pos-url') || '') : '';
+      if (!posUrl && tn) posUrl = `/waiter/${rid}/${tn}`;
+
+      const itemsCount = (itemsCountAttr != null && itemsCountAttr !== "") ? Number(itemsCountAttr) : null;
+      const subtotal = (subtotalAttr != null && subtotalAttr !== "") ? Number(subtotalAttr) : null;
+
+      openTableInfoPanel({
+        tableNumber: tn,
+        name,
+        people,
+        time,
+        status,
+        itemsCount,
+        subtotal,
+        posUrl,
+      });
+
+      // Sync selection
+      if (openList) {
+        openList.querySelectorAll('li.open-item').forEach(x => x.classList.remove('is-selected'));
+        if (li) li.classList.add('is-selected');
+      }
+      window.SBFloorMap.select(floorHolder, tn);
+    });
   }
 })();
 </script>
@@ -584,6 +674,39 @@
     margin-top:auto;
     padding-top:8px;
     border-top:1px solid rgba(148,163,184,0.25);
+  }
+
+  .tip-actions{
+    display:flex;
+    gap:10px;
+  }
+
+  .tip-primary-btn,
+  .tip-secondary-btn{
+    flex:1;
+    height: 40px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(15,23,42,0.65);
+    color: var(--ink, #e6e8ef);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .tip-primary-btn{
+    border-color: rgba(96,165,250,0.55);
+    background: linear-gradient(180deg, rgba(96,165,250,0.18), rgba(15,23,42,0.72));
+  }
+
+  .tip-primary-btn:disabled{
+    opacity: .45;
+    cursor: not-allowed;
+  }
+
+  .tip-secondary-btn{
+    border-color: rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
   }
 
   @media (max-width: 900px){

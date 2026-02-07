@@ -15,6 +15,8 @@
   <link rel="stylesheet" href="/public/css/spotbook.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
   <link rel="stylesheet" href="/public/css/sb-ui.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
   <link rel="stylesheet" href="/public/css/sb-floor-map.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
+  <link rel="stylesheet" href="/public/css/sb-floor-theme.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
+  <link rel="stylesheet" href="/public/css/sb-waiter-shell.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
 
   <%~ it.head || '' %>
 
