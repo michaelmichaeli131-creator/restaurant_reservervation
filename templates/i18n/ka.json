@@ -1,0 +1,237 @@
+{
+  "nav": {
+    "manage": "რესტორნის მართვა",
+    "logout": "გასვლა",
+    "signedin": "შესულია",
+    "login": "შესვლა",
+    "register": "რეგისტრაცია",
+    "admin": "ადმინი",
+    "language": "აირჩიეთ ენა",
+    "changePassword": "პაროლის შეცვლა"
+  },
+  "footer": {
+    "rights": "ყველა უფლება დაცულია"
+  },
+  "common": {
+    "btn_save": "შენახვა",
+    "btn_cancel": "გაუქმება",
+    "btn_delete": "წაშლა",
+    "btn_edit": "რედაქტირება",
+    "btn_add": "დამატება",
+    "btn_close": "დახურვა",
+    "btn_back": "უკან",
+    "btn_copy": "კოპირება",
+    "btn_open": "გახსნა",
+    "btn_refresh": "განახლება",
+    "btn_check": "შემოწმება",
+    "people_unit": "სტუმარი",
+    "items_unit": "ნივთი"
+  },
+  "lang": {
+    "hebrew": "עברית",
+    "english": "English",
+    "georgian": "ქართული"
+  },
+  "owner": {
+    "dashboard": {
+      "title": "მფლობელის პანელი",
+      "aria_section": "მფლობელის პანელი",
+      "btn_floor": "იატაკის გეგმა",
+      "btn_menu": "მენიუს რედაქტირება",
+      "btn_waiter": "ოფიციანტის ეკრანი",
+      "btn_kitchen": "სამზარეულოს ეკრანი",
+      "btn_host": "მასპინძლის ეკრანი",
+      "btn_bar": "ბარის ეკრანი",
+      "btn_bills": "ბოლო ანგარიშები",
+      "btn_stats": "სტატისტიკა და რეპორტები",
+      "btn_inventory": "ნედლეულის მარაგი",
+      "btn_costs": "ნედლეულის ხარჯები",
+      "btn_counts": "მარაგის დათვლა",
+      "btn_foodcost": "კერძის ღირებულება",
+      "btn_suppliers": "მომწოდებლები",
+      "btn_po": "შესყიდვის ორდერები",
+      "btn_recipes": "რეცეპტები",
+      "btn_photos": "ფოტოები",
+      "btn_shifts": "ცვლების მართვა"
+    },
+    "staff": {
+      "manage_title": "თანამშრომლების მართვა",
+      "btn_add": "➕ თანამშრომლის დამატება",
+      "modal_title": "თანამშრომლის დამატება",
+      "empty_hint": "დააჭირეთ 'თანამშრომლის დამატება' თანამშრომლის შესაქმნელად",
+      "btn_activate": "გააქტიურება",
+      "btn_deactivate": "გამორთვა",
+      "confirm_deactivate": "გამოვრთოთ თანამშრომელი? ვერ შეძლებს შესვლას",
+      "permissions": "უფლებები",
+      "btn_save_permissions": "უფლებების შენახვა",
+      "reset_pw": {
+        "label": "ბმული"
+      },
+      "tbl": {
+        "name": "სახელი",
+        "role": "როლი",
+        "email": "ელ-ფოსტა",
+        "phone": "ტელეფონი",
+        "created": "რეგისტრირებული",
+        "actions": "მოქმედებები"
+      }
+    },
+    "menu": {
+      "categories": "კატეგორიები",
+      "confirm_delete_category": "წავშალოთ კატეგორია?",
+      "btn_add_category": "კატეგორიის დამატება",
+      "items": "კერძები",
+      "btn_add_item": "კერძის დამატება",
+      "dest_kitchen": "სამზარეულო",
+      "dest_bar": "ბარი",
+      "tbl": {
+        "name": "სახელი",
+        "price": "ფასი",
+        "destination": "დანიშნულება",
+        "category": "კატეგორია"
+      }
+    },
+    "bills": {
+      "tbl": {
+        "date": "თარიღი",
+        "table": "მაგიდა",
+        "amount": "თანხა",
+        "actions": "მოქმედებები"
+      },
+      "empty": "ჯერ არ არის ანგარიშები"
+    },
+    "inventory": {
+      "title": "ნედლეულის მარაგი",
+      "add_new": "ახალი ნედლეულის დამატება",
+      "all_items": "ყველა ნედლეული",
+      "empty": "ჯერ არ არის ნედლეული",
+      "btn_add": "➕ ნედლეულის დამატება",
+      "form": {
+        "name": "ნედლეულის სახელი *",
+        "unit": "საზომი ერთეული",
+        "current_qty": "მიმდინარე რაოდენობა",
+        "min_qty": "მინიმალური რაოდენობა",
+        "cost_per_unit": "ერთეულის ღირებულება",
+        "supplier": "სასურველი მომწოდებელი",
+        "notes": "შენიშვნები"
+      }
+    }
+  },
+  "pos": {
+    "waiter": {
+      "items_count": "ნივთები",
+      "btn_close_order": "მაგიდის დახურვა / ანგარიშის გაცემა",
+      "btn_mark_served": "მიტანილად მონიშვნა"
+    },
+    "menu": {
+      "title": "მენიუ",
+      "help_text": "აირჩიეთ კერძები მენიუდან",
+      "empty": "მენიუში ჯერ არ არის კერძები",
+      "no_category": "კატეგორიის გარეშე"
+    },
+    "order": {
+      "title": "მაგიდის შეკვეთა",
+      "tbl": {
+        "dish": "კერძი",
+        "quantity": "რაოდენობა",
+        "destination": "დანიშნულება",
+        "status": "სტატუსი",
+        "total": "სულ",
+        "actions": "მოქმედებები"
+      }
+    },
+    "status": {
+      "received": "მიღებული",
+      "in_progress": "მიმდინარეობს",
+      "ready": "მზადაა",
+      "served": "მიტანილი",
+      "cancelled": "გაუქმებული"
+    },
+    "error": {
+      "load_menu": "მენიუს ჩატვირთვის შეცდომა"
+    },
+    "kitchen": {
+      "title": "სამზარეულოს ეკრანი —",
+      "orders_title": "სამზარეულოს შეკვეთები",
+      "instructions": "ისრები ცვლის სტატუსს..."
+    },
+    "bar": {
+      "title": "ბარის ეკრანი —",
+      "orders_title": "ბარის შეკვეთები"
+    }
+  },
+  "host": {
+    "people_unit": "სტუმარი",
+    "table_status": {
+      "reserved": "დაჯავშნილი"
+    },
+    "status": {
+      "reserved": "დაჯავშნილი"
+    }
+  },
+  "restaurant": {
+    "menu": {
+      "title": "მენიუ"
+    },
+    "photos": {
+      "title": "ფოტოები"
+    },
+    "reviews": {
+      "title": "მიმოხილვები"
+    },
+    "form": {
+      "date": "თარიღი",
+      "time": "დრო"
+    }
+  },
+  "reservation": {
+    "form": {
+      "title": "ჯავშანი"
+    }
+  },
+  "review": {
+    "form": {
+      "rating": "შეფასება"
+    }
+  },
+  "auth": {
+    "signup": {
+      "title": "რეგისტრაცია",
+      "btn_submit": "რეგისტრაცია"
+    },
+    "register": {
+      "form": {
+        "role_user": "მომხმარებელი"
+      }
+    }
+  },
+  "floor": {
+    "loading": "იატაკის გეგმის ჩატვირთვა...",
+    "empty_state": "არ მოიძებნა იატაკის გეგმა. გთხოვთ შექმნათ იატაკის გეგმა.",
+    "btn_create_new": "ახალი გეგმის შექმნა",
+    "btn_duplicate": "დუბლირება",
+    "btn_add_table": "მაგიდის დამატება",
+    "btn_save_layout": "გეგმის შენახვა",
+    "error": {
+      "enter_name": "გთხოვთ შეიყვანოთ გეგმის სახელი",
+      "server": "სერვერის შეცდომა: {status} {statusText}",
+      "create": "გეგმის შექმნის შეცდომა: {error}",
+      "delete": "წაშლა ვერ მოხერხდა",
+      "delete_general": "გეგმის წაშლის შეცდომა",
+      "duplicate": "დუბლირების შეცდომა",
+      "save": "შენახვის შეცდომა"
+    },
+    "confirm": {
+      "delete_layout": "დარწმუნებული ხართ, რომ გსურთ ამ გეგმის წაშლა?"
+    },
+    "prompt": {
+      "duplicate_name": "შეიყვანეთ დუბლირებული გეგმის სახელი:"
+    },
+    "status": {
+      "empty": "ცარიელი",
+      "occupied": "დაკავებული",
+      "reserved": "დაჯავშნილი",
+      "dirty": "გასუფთავებელი"
+    }
+  }
+}

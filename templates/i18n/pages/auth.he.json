@@ -1,0 +1,80 @@
+{
+  "auth": {
+    "forgot": {
+      "title": "שחזור סיסמה",
+      "subtitle": "נשלח לך מייל עם קישור לאיפוס סיסמה",
+      "alerts": {
+        "ok": "הודעה נשלחה — בדוק/י את תיבת הדוא״ל"
+      },
+      "form": {
+        "emailLabel": "אימייל לחשבון",
+        "emailPh": "you@example.com"
+      },
+      "actions": {
+        "send": "שלחו לי קישור",
+        "back": "חזרה להתחברות"
+      }
+    },
+	"login": {
+      "title": "התחברות",
+      "form": {
+        "email": "אימייל",
+        "emailPh": "name@example.com",
+        "password": "סיסמה",
+        "pwToggleAria": "הצג/הסתר סיסמה",
+        "remember": "זכור אותי"
+      },
+      "links": {
+        "forgot": "שכחת סיסמה?",
+        "newHere": "חדש/ה כאן?",
+        "register": "פתיחת חשבון"
+      },
+      "actions": {
+        "submit": "התחבר/י"
+      }
+    },
+    "register": {
+      "title": "הרשמה",
+      "subtitle": "פתח/י חשבון חדש ל־GeoTable",
+      "form": {
+        "firstName": "שם פרטי",
+        "firstNamePh": "לדוגמה: דניאל",
+        "lastName": "שם משפחה",
+        "lastNamePh": "לדוגמה: כהן",
+        "email": "אימייל",
+        "emailHint": "נשתמש באימייל לצורך התחברות והתראות.",
+        "password": "סיסמה",
+        "passwordPh": "לפחות 6 תווים",
+        "confirm": "אימות סיסמה",
+        "confirmPh": "הקלד/י שוב את הסיסמה",
+        "pwToggleAria": "הצג/הסתר סיסמה",
+        "businessType": "סוג העסק",
+        "chooseType": "בחר/י סוג עסק",
+        "optRestaurant": "מסעדה",
+        "optCafe": "בית קפה",
+        "optBar": "בר",
+        "optHotel": "מלון / אירוח",
+        "optOther": "אחר",
+        "phone": "נייד (לא חובה)",
+        "phonePh": "050-1234567"
+      },
+      "actions": {
+        "submit": "הירשם/י",
+        "back": "יש כבר חשבון? התחברות"
+      }
+    },    
+	"reset": {
+      "title": "איפוס סיסמה",
+      "form": {
+        "password": "סיסמה חדשה",
+        "passwordHint": "לפחות 8 תווים",
+        "confirm": "אימות סיסמה",
+        "pwToggleAria": "הצג/הסתר סיסמה"
+      },
+      "actions": {
+        "save": "שמור",
+        "cancel": "ביטול"
+      }
+    }
+  }
+}

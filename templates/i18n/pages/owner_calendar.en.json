@@ -1,0 +1,38 @@
+{
+  "nav": { "language": "Language" },
+  "owner": {
+    "calendar": {
+      "head": "Owner Calendar · SpotBook",
+      "title": "Owner Calendar",
+      "prev_day_aria": "Previous day",
+      "next_day_aria": "Next day",
+      "jump_to_date_aria": "Jump to date",
+      "pick_date": "Pick a date",
+      "search_day_aria": "Search in current day",
+      "search_placeholder": "Search name",
+      "sidebar": { "calendar": "Calendar", "daily_summary": "Daily Summary" },
+      "loading": "loading…",
+      "cap_line": "Capacity: People — • Tables — • Step: —",
+      "th": {
+        "time": "Time",
+        "occupancy": "Occupancy",
+        "people_tables_pct": "People • Tables • %"
+      },
+      "hint": "Hint: Click a slot to manage customers",
+      "daily_summary_loading": "Daily Summary — loading…",
+      "drawer": {
+        "title": "Customers",
+        "close": "Close",
+        "search_placeholder": "Search name in this slot",
+        "add_customer": "Add customer"
+      },
+      "tbl": {
+        "first_name": "First Name",
+        "last_name": "Last Name",
+        "party_size": "Party size",
+        "status": "Status",
+        "phone": "Phone"
+      }
+    }
+  }
+}
