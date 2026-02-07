@@ -1,7 +1,6 @@
 <% layout("_layout", it) %>
 
-<!-- Cache-bust to ensure production always loads the latest editor bundle -->
-<link rel="stylesheet" href="/static/dist/floor-index.css?v=E2_20260207">
+<link rel="stylesheet" href="/static/dist/floor-index.css">
 
 <main class="floor-page">
   <div class="floor-container">
@@ -17,7 +16,7 @@
   };
 </script>
 
-<script type="module" src="/static/dist/floor-app.js?v=E2_20260207"></script>
+<script type="module" src="/static/dist/floor-app.js"></script>
 
 <style>
 .floor-page {

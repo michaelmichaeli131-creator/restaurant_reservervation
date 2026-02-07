@@ -418,7 +418,6 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
           ))}
         </div>
         <div className="layout-actions">
-          <span className="build-badge" title="Floor Editor build">E2</span>
           <button className="btn-icon-small" onClick={() => setIsCreateModalOpen(true)} title="New Layout">
             ➕
           </button>
