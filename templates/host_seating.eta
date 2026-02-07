@@ -1,7 +1,5 @@
 <% layout("_layout", it) %>
 
-<link rel="stylesheet" href="/static/dist/floor-index.css?v=hostB">
-
 <%
   function tt(k, fb){
     try{
@@ -68,8 +66,8 @@
       <p class="muted small">
         יש לבחור הזמנה, לבחור שולחן או כמה שולחנות (איחוד), ואז ללחוץ על כפתור ההושבה.
       </p>
-      <div class="floor-wrapper">
-        <div id="root"></div>
+      <div id="floor" class="floor-wrapper">
+        <!-- המפה תיטען דינמית ע"י JS -->
       </div>
       <div class="host-actions">
         <button id="seat-btn" type="button" class="btn primary sm">
@@ -124,16 +122,507 @@
   </div>
 </aside>
 
-
 <script>
-  // Stage B: Host screen uses embedded Live renderer (no edit UI)
-  window.__APP_CONFIG__ = {
-    page: 'host',
-    embed: true,
-    restaurantId: '<%= it.rid %>'
+(function(){
+  const rid = "<%= it.rid %>";
+  const state = {
+    selectedResId: null,
+    selectedTables: new Set(),   // מספרי שולחנות שנבחרו
   };
+
+  const resvList = document.getElementById("resv-list");
+  const seatBtn = document.getElementById("seat-btn");
+
+  // צד פרטי שולחן
+  const tableInfoPanel = document.getElementById("table-info-panel");
+  const tableInfoBackdrop = document.getElementById("table-info-backdrop");
+  const tipCloseBtn = document.getElementById("tip-close-btn");
+  const tipTableNumber = document.getElementById("tip-table-number");
+  const tipGuestName = document.getElementById("tip-guest-name");
+  const tipPeople = document.getElementById("tip-people");
+  const tipTime = document.getElementById("tip-time");
+  const tipStatus = document.getElementById("tip-status");
+
+  function mapStatusToLabel(status){
+    const s = (status || "").toLowerCase();
+    if (s === "occupied" || s === "open") return "תפוס";
+    if (s === "reserved") return "שמורה";
+    if (s === "dirty") return "דורש ניקוי";
+    if (s === "empty" || s === "free") return "פנוי";
+    return status || "לא ידוע";
+  }
+
+  function mapStatusToClass(status){
+    const s = (status || "").toLowerCase();
+    if (s === "occupied" || s === "open") return "tip-status-occupied";
+    if (s === "reserved") return "tip-status-reserved";
+    if (s === "dirty") return "tip-status-dirty";
+    if (s === "empty" || s === "free") return "tip-status-empty";
+    return "tip-status-unknown";
+  }
+
+  function openTableInfoPanel(info){
+    if (!tableInfoPanel) return;
+    tipTableNumber.textContent = info.tableNumber != null ? info.tableNumber : "—";
+    tipGuestName.textContent = info.name || "—";
+    tipPeople.textContent = (info.people != null && info.people !== "") ? info.people : "—";
+    tipTime.textContent = info.time || "—";
+
+    // סטטוס עם באדג׳
+    const clsBase = ["tip-status-badge","tip-status-empty","tip-status-occupied","tip-status-reserved","tip-status-dirty","tip-status-unknown"];
+    if (tipStatus) {
+      tipStatus.textContent = mapStatusToLabel(info.status);
+      tipStatus.className = clsBase[0] + " " + mapStatusToClass(info.status);
+    }
+
+    tableInfoPanel.classList.add("open");
+    tableInfoBackdrop.classList.add("open");
+    tableInfoPanel.setAttribute("aria-hidden","false");
+  }
+
+  function closeTableInfoPanel(){
+    if (!tableInfoPanel) return;
+    tableInfoPanel.classList.remove("open");
+    tableInfoBackdrop.classList.remove("open");
+    tableInfoPanel.setAttribute("aria-hidden","true");
+  }
+
+  if (tipCloseBtn) {
+    tipCloseBtn.addEventListener("click", closeTableInfoPanel);
+  }
+  if (tableInfoBackdrop) {
+    tableInfoBackdrop.addEventListener("click", closeTableInfoPanel);
+  }
+
+  // ---------- עזר: שחרור שולחן/ות תקועים דרך ה-API ----------
+  async function forceUnseatTables(rid, tables){
+    if (!tables || !tables.length) return { ok: false };
+
+    try {
+      const url = new URL("/api/host/table/unseat", window.location.origin);
+      url.searchParams.set("restaurantId", rid);
+      url.searchParams.set("tables", tables.join(","));
+
+      const res = await fetch(url.toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId: rid,
+          tables: tables,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      console.log("[HOST] forceUnseatTables result", res.status, data);
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || ("HTTP " + res.status));
+      }
+      return data;
+    } catch (e) {
+      console.error("[HOST] forceUnseatTables error", e);
+      throw e;
+    }
+  }
+
+  // בחירת הזמנה (radio)
+  if (resvList) {
+    resvList.addEventListener("change", function(ev){
+      const input = ev.target;
+      if (input && input.name === "resv") {
+        state.selectedResId = input.value;
+      }
+    });
+
+    // כפתורי ביטול / לא הגיע
+    resvList.addEventListener("click", async function(ev){
+      const btn = ev.target;
+      if (!(btn instanceof HTMLElement)) return;
+
+      const action = btn.dataset.action;
+      if (!action) return;
+
+      ev.preventDefault();
+      ev.stopPropagation();
+
+      const li = btn.closest("li[data-res-id]");
+      if (!li) return;
+      const resId = li.getAttribute("data-res-id");
+      if (!resId) return;
+
+      let status = "";
+      if (action === "cancel") {
+        if (!confirm("לסמן את ההזמנה כבוטלה?")) return;
+        status = "cancelled";
+      } else if (action === "no_show") {
+        if (!confirm("לסמן את ההזמנה כ'לא הגיע'?")) return;
+        status = "no_show";
+      } else {
+        return;
+      }
+
+      try {
+        const url = new URL("/api/host/reservation/status", window.location.origin);
+        url.searchParams.set("restaurantId", rid);
+        url.searchParams.set("reservationId", resId);
+        url.searchParams.set("status", status);
+
+        const res = await fetch(url.toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            restaurantId: rid,
+            reservationId: resId,
+            status,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) {
+          alert("שגיאה בעדכון סטטוס ההזמנה: " + (data.error || res.status));
+          return;
+        }
+
+        // אם ההזמנה שסימנו היא גם זו שנבחרה – ננקה מה-state
+        const radio = li.querySelector('input[name="resv"]');
+        if (radio && radio.checked) {
+          state.selectedResId = null;
+        }
+
+        // הסרת השורה מה-UI
+        const ul = li.parentElement;
+        ul.removeChild(li);
+        if (!ul.querySelector("li")) {
+          const p = document.createElement("p");
+          p.className = "muted";
+          p.textContent = "אין הזמנות להיום למסעדה הזו.";
+          ul.replaceWith(p);
+        }
+      } catch (e) {
+        console.error(e);
+        alert("שגיאת רשת בזמן עדכון סטטוס.");
+      }
+    });
+  }
+
+  function getSelectedReservationName(){
+    if (!state.selectedResId || !resvList) return "";
+    const li = resvList.querySelector('li[data-res-id="'+state.selectedResId+'"]');
+    if (!li) return "";
+    const nameEl = li.querySelector(".resv-name");
+    return (nameEl && nameEl.textContent || "").trim();
+  }
+
+  function toggleTableSelection(tableNumber, btnEl){
+    const tn = Number(tableNumber);
+    if (!Number.isFinite(tn) || !btnEl) return;
+
+    if (state.selectedTables.has(tn)) {
+      state.selectedTables.delete(tn);
+      btnEl.classList.remove("selected");
+    } else {
+      state.selectedTables.add(tn);
+      btnEl.classList.add("selected");
+    }
+  }
+
+  async function loadFloor(){
+    const holder = document.getElementById("floor");
+    if (!holder) return;
+    holder.innerHTML = "";
+
+    try{
+      const res = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}`);
+      if (!res.ok) {
+        const p = document.createElement("p");
+        p.className = "muted";
+        p.textContent = "לא הוגדרה מפת שולחנות למסעדה זו.";
+        holder.appendChild(p);
+        return;
+      }
+      const plan = await res.json();
+
+      const gridRows = Number(plan.gridRows || 8);
+      const gridCols = Number(plan.gridCols || 10);
+      const tables = Array.isArray(plan.tables) ? plan.tables : [];
+      const tableStatuses = Array.isArray(plan.tableStatuses) ? plan.tableStatuses : [];
+
+      const statusMap = new Map();
+      const guestMap = new Map();
+
+      tableStatuses.forEach(function(s){
+        const tn = Number(s.tableNumber);
+        if (!Number.isFinite(tn)) return;
+
+        const st = s.status || "empty";
+        statusMap.set(tn, st);
+
+        const gName = s.guestName || s.name || s.customerName || null;
+        if (gName) {
+          guestMap.set(tn, String(gName));
+        }
+      });
+
+      if (!tables.length) {
+        const p = document.createElement("p");
+        p.className = "muted";
+        p.textContent = "אין שולחנות מוגדרים במפת המסעדה.";
+        holder.appendChild(p);
+        return;
+      }
+
+      const grid = document.createElement("div");
+      grid.className = "floor-grid";
+      grid.style.setProperty("--rows", gridRows);
+      grid.style.setProperty("--cols", gridCols);
+      holder.appendChild(grid);
+
+      // Render objects (walls/doors/furniture) behind tables - view only
+      const objects = Array.isArray(plan.objects) ? plan.objects : [];
+      objects.forEach(function(o){
+        const el = document.createElement("div");
+        const type = String(o.type || "").toLowerCase();
+        // Map possible editor shapes to host classes
+        const clsType = (type === "booth" || type === "sofa") ? type
+                      : (type === "bar" ? "bar"
+                      : (type === "plant" ? "plant"
+                      : (type === "divider" ? "divider"
+                      : (type === "door" ? "door" : "wall")));
+        el.className = "floor-obj type-" + clsType;
+        el.style.gridRow = (o.gridY + 1) + " / span " + (o.spanY || 1);
+        el.style.gridColumn = (o.gridX + 1) + " / span " + (o.spanX || 1);
+        // Rotation for doors/walls (optional)
+        const rot = Number(o.rotation || 0);
+        if (rot) el.style.transform = `rotate(${rot}deg)`;
+        grid.appendChild(el);
+      });
+
+
+      tables.forEach(function(t){
+        const num = Number(t.tableNumber);
+        const status = statusMap.get(num) || "empty";
+        const seats = Number(t.seats || 0);
+        const guestName = guestMap.get(num) || "";
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "table " + status + (t.shape ? (" " + t.shape) : "");
+        btn.dataset.tableNumber = String(num);
+
+        const capText = seats > 0 ? (seats + " מקומות") : "";
+
+        btn.innerHTML = `
+          <div class="table-num">${num}</div>
+          <div class="table-cap">${capText}</div>
+          ${guestName ? `<div class="table-guest">${guestName}</div>` : ""}
+        `;
+
+        btn.style.gridRow = (t.gridY + 1) + " / span " + (t.spanY || 1);
+        btn.style.gridColumn = (t.gridX + 1) + " / span " + (t.spanX || 1);
+
+        // לחיצה על שולחן
+        btn.addEventListener("click", async function(){
+          const currentStatus = statusMap.get(num) || "empty";
+
+          // שולחן פנוי – בחירה/ביטול להושבה
+          if (currentStatus === "empty") {
+            closeTableInfoPanel(); // אם היה פתוח, נסגור
+            toggleTableSelection(num, btn);
+            return;
+          }
+
+          // שולחן תפוס/שמורה/מלוכלך – נטען מידע מפורט מהשרת
+          try {
+            const url = new URL("/api/host/table/info", window.location.origin);
+            url.searchParams.set("restaurantId", rid);
+            url.searchParams.set("table", String(num));
+
+            const res = await fetch(url.toString(), {
+              method: "GET",
+              headers: { "Accept": "application/json" },
+            });
+
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.ok) {
+              const msg = data && data.error ? data.error : res.status;
+              alert("לא ניתן לטעון פרטי שולחן: " + msg);
+              return;
+            }
+
+            openTableInfoPanel({
+              tableNumber: num,
+              name: data.name || data.guestName || "",
+              people: data.people,
+              time: data.time,
+              status: currentStatus,
+            });
+          } catch (e) {
+            console.error(e);
+            alert("שגיאה בטעינת פרטי השולחן.");
+          }
+        });
+
+        grid.appendChild(btn);
+      });
+    }catch(e){
+      console.error(e);
+      const p = document.createElement("p");
+      p.className = "muted";
+      p.textContent = "שגיאה בטעינת מפת המסעדה.";
+      holder.appendChild(p);
+    }
+  }
+
+  async function seatSelected(){
+    if (!state.selectedResId) {
+      alert("יש לבחור הזמנה קודם.");
+      return;
+    }
+    if (!state.selectedTables.size) {
+      alert("יש לבחור לפחות שולחן אחד.");
+      return;
+    }
+
+    const tables = Array.from(state.selectedTables.values());
+    const guestName = getSelectedReservationName();
+
+    const msg = tables.length === 1
+      ? `להושיב את ההזמנה לשולחן ${tables[0]}?`
+      : `להושיב את ההזמנה לשולחנות ${tables.join(", ")} (איחוד שולחנות)?`;
+    if (!confirm(msg)) return;
+
+    async function doSeatOnce() {
+      let res, data;
+
+      if (tables.length === 1) {
+        const url = new URL("/api/host/seat", window.location.origin);
+        url.searchParams.set("restaurantId", rid);
+        url.searchParams.set("reservationId", state.selectedResId);
+        url.searchParams.set("table", String(tables[0]));
+
+        res = await fetch(url.toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            restaurantId: rid,
+            reservationId: state.selectedResId,
+            table: tables[0],
+            guestName,
+          }),
+        });
+      } else {
+        const url = new URL("/api/host/seat-multi", window.location.origin);
+        url.searchParams.set("restaurantId", rid);
+        url.searchParams.set("reservationId", state.selectedResId);
+        url.searchParams.set("tables", tables.join(","));
+
+        res = await fetch(url.toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            restaurantId: rid,
+            reservationId: state.selectedResId,
+            tables,
+            guestName,
+          }),
+        });
+      }
+
+      data = await res.json().catch(() => ({}));
+      return { res, data };
+    }
+
+    try {
+      // ניסיון ראשון
+      let { res, data } = await doSeatOnce();
+
+      if (!res.ok || !data.ok) {
+        if (data && data.error === "table_already_seated") {
+          const confirmUnseat = confirm(
+            "השולחן מסומן כתפוס במערכת (כנראה מישיבה קודמת). לשחרר אותו ולאפשר הושבה מחדש?"
+          );
+          if (!confirmUnseat) return;
+
+          // שחרור השולחן /ות
+          await forceUnseatTables(rid, tables);
+
+          // ניסיון שני אחרי שחרור
+          const second = await doSeatOnce();
+          res = second.res;
+          data = second.data;
+
+          if (!res.ok || !data.ok) {
+            alert("שגיאה בהושבה אחרי שחרור שולחן: " + (data.error || res.status));
+            return;
+          }
+        } else {
+          alert("שגיאה בהושבה: " + (data.error || res.status));
+          return;
+        }
+      }
+
+      // === הצלחה: עדכון ה-UI ===
+      const floor = document.getElementById("floor");
+      if (floor) {
+        tables.forEach(function(tn){
+          const btn = floor.querySelector('.table[data-table-number="'+tn+'"]');
+          if (!btn) return;
+          btn.classList.remove("empty", "selected");
+          btn.classList.add("occupied");
+
+          if (guestName) {
+            let guestDiv = btn.querySelector(".table-guest");
+            if (!guestDiv) {
+              guestDiv = document.createElement("div");
+              guestDiv.className = "table-guest";
+              btn.appendChild(guestDiv);
+            }
+            guestDiv.textContent = guestName;
+          }
+        });
+      }
+
+      // הסרת ההזמנה מהרשימה
+      if (resvList && state.selectedResId) {
+        const li = resvList.querySelector('li[data-res-id="'+state.selectedResId+'"]');
+        if (li) {
+          const ul = li.parentElement;
+          const radio = li.querySelector('input[name="resv"]');
+          if (radio && radio.checked) {
+            state.selectedResId = null;
+          }
+          ul.removeChild(li);
+          if (!ul.querySelector("li")) {
+            const p = document.createElement("p");
+            p.className = "muted";
+            p.textContent = "אין הזמנות להיום למסעדה הזו.";
+            ul.replaceWith(p);
+          }
+        }
+      }
+
+      state.selectedTables.clear();
+      closeTableInfoPanel();
+
+      alert(
+        tables.length === 1
+          ? `ההזמנה הושבה לשולחן ${tables[0]} ונפתח צ׳ק במסעדה.`
+          : `ההזמנה הושבה לשולחנות ${tables.join(", ")} ונפתחו צ׳קים בהתאם.`
+      );
+    } catch (e) {
+      console.error(e);
+      alert("שגיאת רשת בזמן הושבה.");
+    }
+  }
+
+  if (seatBtn) {
+    seatBtn.addEventListener("click", function(){
+      seatSelected();
+    });
+  }
+
+  loadFloor();
+})();
 </script>
-<script type="module" src="/static/dist/floor-app.js?v=hostB"></script>
 
 <style>
   .host.container{
@@ -477,6 +966,170 @@
     margin-top:auto;
     padding-top:8px;
     border-top:1px solid rgba(148,163,184,0.25);
+  }
+
+
+
+  /* === SpotBook Host Floor (view-only) v2 === */
+  .host-grid{
+    grid-template-columns: minmax(280px, 420px) 1fr;
+    align-items: stretch;
+  }
+  .host-card.floor-card{
+    padding: 0;
+    overflow: hidden;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,.08);
+    background: linear-gradient(180deg, rgba(10,22,46,.55), rgba(10,22,46,.35));
+  }
+  #floor{
+    position: relative;
+    height: clamp(520px, 72vh, 820px);
+    padding: 14px;
+  }
+  .floor-grid{
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,.10);
+    background:
+      radial-gradient(1200px 420px at 30% 10%, rgba(59,130,246,.18), transparent 55%),
+      radial-gradient(900px 360px at 80% 90%, rgba(34,197,94,.10), transparent 55%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.055) 0 1px, transparent 1px 36px),
+      repeating-linear-gradient(90deg, rgba(255,255,255,.055) 0 1px, transparent 1px 36px),
+      rgba(8,18,38,.58);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
+    isolation: isolate;
+  }
+
+  /* Objects layer */
+  .floor-obj{
+    position: relative;
+    border-radius: 14px;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .floor-obj.type-wall{
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(16,22,33,.95), rgba(8,10,16,.9));
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.08),
+      inset 0 -1px 0 rgba(0,0,0,.35),
+      0 10px 22px rgba(0,0,0,.25);
+  }
+  .floor-obj.type-wall::after{
+    content:"";
+    position:absolute; inset: 2px;
+    border-radius: 9px;
+    border: 1px solid rgba(255,255,255,.08);
+    opacity: .7;
+  }
+  .floor-obj.type-door{
+    border-radius: 12px;
+    background: rgba(34,197,94,.10);
+    border: 1px solid rgba(34,197,94,.35);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
+  }
+  .floor-obj.type-door::before{
+    content:"";
+    position:absolute; inset: 10%;
+    border-radius: 10px;
+    border: 2px solid rgba(34,197,94,.45);
+    opacity: .9;
+  }
+  .floor-obj.type-bar{
+    background: linear-gradient(180deg, rgba(142,92,55,.65), rgba(86,48,22,.55));
+    border: 1px solid rgba(255,255,255,.10);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 12px 26px rgba(0,0,0,.22);
+  }
+  .floor-obj.type-booth, .floor-obj.type-sofa{
+    background: linear-gradient(180deg, rgba(37,99,235,.30), rgba(37,99,235,.14));
+    border: 1px solid rgba(59,130,246,.35);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 10px 22px rgba(0,0,0,.22);
+  }
+  .floor-obj.type-plant{
+    background: radial-gradient(circle at 35% 35%, rgba(34,197,94,.55), rgba(16,80,44,.15));
+    border: 1px solid rgba(34,197,94,.28);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10);
+  }
+  .floor-obj.type-divider{
+    background: linear-gradient(90deg, rgba(255,255,255,.10), rgba(255,255,255,.05));
+    border: 1px solid rgba(255,255,255,.10);
+  }
+
+  /* Tables */
+  .table{
+    position: relative;
+    border: 1px solid rgba(255,255,255,.10);
+    border-radius: 18px;
+    padding: 10px 10px 12px;
+    background: linear-gradient(180deg, rgba(170,120,70,.32), rgba(90,55,28,.18));
+    color: #eaf2ff;
+    box-shadow: 0 18px 30px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.10);
+    z-index: 3;
+    overflow: hidden;
+  }
+  .table::before{
+    content:"";
+    position:absolute; inset: 8px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(190,140,88,.55), rgba(120,72,32,.35));
+    opacity: .9;
+  }
+  .table::after{
+    /* chairs hint */
+    content:"";
+    position:absolute; inset: 0;
+    background:
+      radial-gradient(circle at 20% 28%, rgba(59,130,246,.55) 0 7px, transparent 8px),
+      radial-gradient(circle at 80% 28%, rgba(59,130,246,.55) 0 7px, transparent 8px),
+      radial-gradient(circle at 20% 72%, rgba(59,130,246,.55) 0 7px, transparent 8px),
+      radial-gradient(circle at 80% 72%, rgba(59,130,246,.55) 0 7px, transparent 8px);
+    opacity: .55;
+    pointer-events:none;
+  }
+  .table > *{ position: relative; z-index: 1; }
+
+  .table.round{ border-radius: 999px; }
+  .table.round::before{ border-radius: 999px; }
+
+  .table.empty{ outline: 1px solid rgba(34,197,94,.28); }
+  .table.occupied{ outline: 1px solid rgba(239,68,68,.28); }
+  .table.reserved{ outline: 1px solid rgba(245,158,11,.30); }
+  .table.dirty{ outline: 1px solid rgba(168,85,247,.28); }
+
+  .table.selected{
+    outline: 2px solid rgba(59,130,246,.85);
+    box-shadow: 0 0 0 4px rgba(59,130,246,.18), 0 18px 30px rgba(0,0,0,.28);
+  }
+  .table-num{
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: .2px;
+  }
+  .table-cap{
+    font-size: 12px;
+    opacity: .85;
+    margin-top: 2px;
+  }
+  .table-guest{
+    margin-top: 6px;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.10);
+    font-size: 12px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
 </style>

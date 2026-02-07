@@ -1,25 +1,20 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import FloorEditor from './components/FloorEditor';
 import ShiftBoard from './components/ShiftBoard';
 import RestaurantLiveView from './components/RestaurantLiveView';
 import './App.css';
 
 function App() {
-  const [floorMode, setFloorMode] = useState<'edit' | 'live'>('edit');
-
   // Get restaurant ID and page from window config (set by server) or URL params
   const config = (window as any).__APP_CONFIG__ || {};
   const params = new URLSearchParams(window.location.search);
 
-  const restaurantId = config.restaurantId || params.get('restaurantId') || '';
-  const page = config.page || params.get('page') || 'floor'; // 'floor' | 'shifts' | 'host' | 'waiter'
-  const embed = Boolean(config.embed || params.get('embed'));
+  const role = config.role || params.get('role') || 'owner';
+  const initialTab = config.initialTab || params.get('tab') || (role === 'waiter' ? 'live' : 'edit');
+  const [floorMode, setFloorMode] = useState<'edit' | 'live'>(initialTab === 'live' ? 'live' : 'edit');
 
-  // Some screens (Host/Waiter) should always show live view only (no editor UI)
-  const embeddedMode = useMemo(() => {
-    if (page === 'host' || page === 'waiter') return true;
-    return embed;
-  }, [page, embed]);
+  const restaurantId = config.restaurantId || params.get('restaurantId') || '';
+  const page = config.page || params.get('page') || 'floor'; // 'floor' or 'shifts'
 
   if (page === 'shifts') {
     return (
@@ -29,18 +24,18 @@ function App() {
     );
   }
 
-  // Embedded/live-only shell for Host/Waiter screens
-  if (embeddedMode) {
+  // Waiter mode: compact live view (no edit)
+  if (role === 'waiter') {
     return (
-      <div className={`app embedded ${page}-embedded`}>
-        <main className="app-main embedded-main">
-          <RestaurantLiveView restaurantId={restaurantId} embedded />
+      <div className="app waiter-mode">
+        <main className="app-main">
+          <RestaurantLiveView restaurantId={restaurantId} variant="waiter" />
         </main>
       </div>
     );
   }
 
-  // Default: Floor Plan page
+  // Default: Floor Plan page (owner)
   return (
     <div className="app">
       <header className="app-header">

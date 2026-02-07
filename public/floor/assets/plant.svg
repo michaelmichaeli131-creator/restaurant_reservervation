@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140">
+  <defs>
+    <radialGradient id="leaf" cx=".5" cy=".35" r=".75">
+      <stop offset="0" stop-color="#34d399" stop-opacity=".75"/>
+      <stop offset="1" stop-color="#065f46" stop-opacity=".85"/>
+    </radialGradient>
+    <linearGradient id="pot" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#9ca3af"/>
+      <stop offset="1" stop-color="#374151"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity=".30"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <circle cx="70" cy="58" r="46" fill="url(#leaf)"/>
+    <path d="M70 18c-8 18-8 32 0 52c8-20 8-34 0-52z" fill="#d1fae5" opacity=".20"/>
+    <path d="M42 44c14 6 22 16 28 30c-18-4-28-14-28-30z" fill="#d1fae5" opacity=".18"/>
+    <path d="M98 44c-14 6-22 16-28 30c18-4 28-14 28-30z" fill="#d1fae5" opacity=".18"/>
+    <rect x="44" y="86" width="52" height="32" rx="10" fill="url(#pot)"/>
+    <rect x="40" y="84" width="60" height="12" rx="6" fill="#111827" opacity=".45"/>
+  </g>
+</svg>
