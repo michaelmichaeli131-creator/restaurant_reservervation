@@ -58,7 +58,7 @@ interface RestaurantLiveViewProps {
    * - default: full "Live Floor View" with header/footer controls
    * - waiter: compact layout with left panel + map + table drawer
    */
-  variant?: 'default' | 'waiter';
+  variant?: 'default' | 'waiter' | 'map';
 }
 
 const STATUS_COLORS = {
@@ -383,6 +383,68 @@ export default function RestaurantLiveView({ restaurantId, variant = 'default' }
       </div>
     );
   }
+
+  // Map-only variant: show just the map (no side panel, no headers). Useful for embedding in other pages.
+  if (variant === 'map') {
+    return (
+      <div className="restaurant-live-view map-only">
+        <div className="live-view-container compact">
+          <div
+            className="floor-grid"
+            style={{
+              gridTemplateColumns: `repeat(${currentLayout.gridCols}, 1fr)`,
+              gridTemplateRows: `repeat(${currentLayout.gridRows}, 1fr)`,
+            }}
+          >
+            {(currentLayout.objects ?? []).map((obj) => (
+              <div
+                key={obj.id}
+                className={`floor-object-live type-${obj.type}`}
+                style={{
+                  gridColumn: `${obj.gridX + 1} / span ${obj.spanX}`,
+                  gridRow: `${obj.gridY + 1} / span ${obj.spanY}`,
+                  transform: `rotate(${obj.rotation ?? 0}deg)`,
+                }}
+              />
+            ))}
+
+            {currentLayout.tables.map((table) => {
+              const status = getTableStatus(table.id);
+              const num = status.tableNumber || table.tableNumber;
+              const time = status.status === 'occupied' ? formatTime(status.occupiedSince) : '';
+              return (
+                <div
+                  key={table.id}
+                  className={`floor-table-live status-${status.status} shape-${table.shape}`}
+                  style={{
+                    gridColumn: `${table.gridX + 1} / span ${table.spanX}`,
+                    gridRow: `${table.gridY + 1} / span ${table.spanY}`,
+                  }}
+                  onClick={() => handleTableClick(status)}
+                >
+                  <div className="table-number">{num}</div>
+                  <div className="table-status">
+                    <span className="status-dot" style={{ backgroundColor: STATUS_COLORS[status.status] }} />
+                    <span className="status-label">{STATUS_LABELS[status.status]}</span>
+                  </div>
+                  {time && <div className="table-time">{time}</div>}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Drawer */}
+          <TableContextMenu
+            isOpen={isMenuOpen}
+            onClose={() => setIsMenuOpen(false)}
+            selectedTable={selectedTable}
+            onStatusChange={handleStatusChange}
+          />
+        </div>
+      </div>
+    );
+  }
+
 
   return (
     <div className="restaurant-live-view">

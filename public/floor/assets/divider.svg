@@ -1,15 +1,3 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 60">
-  <defs>
-    <linearGradient id="g" x1="0" x2="1">
-      <stop offset="0" stop-color="#0ea5e9" stop-opacity=".25"/>
-      <stop offset=".5" stop-color="#93c5fd" stop-opacity=".20"/>
-      <stop offset="1" stop-color="#0ea5e9" stop-opacity=".25"/>
-    </linearGradient>
-  </defs>
-  <rect x="10" y="22" width="220" height="16" rx="8" fill="url(#g)" stroke="#ffffff" stroke-opacity=".16"/>
-  <circle cx="40" cy="30" r="3" fill="#e0f2fe" opacity=".6"/>
-  <circle cx="80" cy="30" r="3" fill="#e0f2fe" opacity=".6"/>
-  <circle cx="120" cy="30" r="3" fill="#e0f2fe" opacity=".6"/>
-  <circle cx="160" cy="30" r="3" fill="#e0f2fe" opacity=".6"/>
-  <circle cx="200" cy="30" r="3" fill="#e0f2fe" opacity=".6"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="20" viewBox="0 0 120 20">
+<rect x="2" y="2" width="116" height="16" rx="8" fill="#8aa0c8" opacity="0.55"/>
 </svg>

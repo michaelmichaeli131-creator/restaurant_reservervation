@@ -1,7 +1,7 @@
 <% layout("_layout", it) %>
 
 <main class="waiter-map-page" dir="rtl">
-  <link rel="stylesheet" href="/static/dist/floor-index.css?v=assets_v2"/>
+  <link rel="stylesheet" href="/static/dist/floor-index.css?v=wire_v1"/>
   <div class="waiter-live-wrap">
     <div id="root"></div>
   </div>
@@ -10,12 +10,12 @@
 <script>
   window.__APP_CONFIG__ = {
     page: 'floor',
-    restaurantId: '<%= it.rid %>',
     role: 'waiter',
-    initialTab: 'live'
+    variant: (new URLSearchParams(window.location.search).get('variant') || 'waiter'),
+    restaurantId: '<%= it.rid %>'
   };
 </script>
-<script type="module" src="/static/dist/floor-app.js?v=assets_v2"></script>
+<script type="module" src="/static/dist/floor-app.js?v=wire_v1"></script>
 
 <style>
 /* Fullscreen waiter map */

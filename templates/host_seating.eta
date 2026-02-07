@@ -18,6 +18,7 @@
 
 <main class="host container">
   <header class="host-header">
+  <a class="btn sm" href="/host-map/<%= it.rid %>" style="margin-inline-start:auto">מפה חדשה</a>
     <div>
       <h1>מסך מארחת — <%= restaurant.name %></h1>
       <p class="muted"><%= restaurant.city %> • <%= restaurant.address %></p>

@@ -1,0 +1,40 @@
+<% layout("_layout", it) %>
+
+<link rel="stylesheet" href="/static/dist/floor-index.css?v=wire_v1"/>
+
+<main class="host-map-page" dir="rtl">
+  <div class="host-map-shell">
+    <div class="host-map-header">
+      <div class="hm-title">מפת מסעדה</div>
+      <div class="hm-sub">תצוגה (ללא עריכה)</div>
+      <a class="hm-back" href="/host/<%= it.rid %>">חזרה למסך המארחת</a>
+    </div>
+
+    <div class="host-map-canvas">
+      <div id="root"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+  window.__APP_CONFIG__ = {
+    page: 'floor',
+    role: 'host',
+    variant: 'map',
+    restaurantId: '<%= it.rid %>',
+  };
+</script>
+
+<script type="module" src="/static/dist/floor-app.js?v=wire_v1"></script>
+
+<style>
+.host-map-page{padding:0;margin:0;min-height:100vh;background:linear-gradient(180deg,#0b1730,#071025);}
+.host-map-shell{display:flex;flex-direction:column;min-height:100vh;}
+.host-map-header{display:flex;gap:12px;align-items:baseline;padding:14px 16px;color:#e9f0ff}
+.hm-title{font-weight:700;font-size:18px}
+.hm-sub{opacity:.8;font-size:12px}
+.hm-back{margin-right:auto;color:#9cc3ff;text-decoration:none;font-size:13px}
+.hm-back:hover{text-decoration:underline}
+.host-map-canvas{flex:1;min-height:0}
+.host-map-canvas #root{height:100%}
+</style>
