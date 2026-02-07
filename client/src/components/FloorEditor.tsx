@@ -74,23 +74,6 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newLayoutName, setNewLayoutName] = useState('');
 
-  // --- Canvas interaction (Stage E1): pan/zoom foundation ---
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
-  const [panStart, setPanStart] = useState<{ x: number; y: number; px: number; py: number } | null>(null);
-
-  const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
-
-  const zoomBy = (delta: number) => {
-    setZoom(z => clamp(Number((z + delta).toFixed(3)), 0.35, 2.2));
-  };
-
-  const centerView = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  };
-
   // Load all layouts
   useEffect(() => {
     if (!restaurantId) return;
@@ -325,37 +308,6 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleCanvasWheel = (e: React.WheelEvent) => {
-    // Trackpads often send pinch-zoom as ctrlKey+wheel
-    if (e.ctrlKey) {
-      e.preventDefault();
-      const dir = e.deltaY > 0 ? -1 : 1;
-      zoomBy(dir * 0.08);
-    }
-  };
-
-  const startPan = (e: React.MouseEvent) => {
-    // Pan with middle click OR holding Space OR holding Shift
-    // (keeps normal left-click selection working)
-    if (e.button === 1 || e.shiftKey || (e as any).nativeEvent?.code === 'Space') {
-      e.preventDefault();
-      setIsPanning(true);
-      setPanStart({ x: e.clientX, y: e.clientY, px: pan.x, py: pan.y });
-    }
-  };
-
-  const movePan = (e: React.MouseEvent) => {
-    if (!isPanning || !panStart) return;
-    const dx = e.clientX - panStart.x;
-    const dy = e.clientY - panStart.y;
-    setPan({ x: panStart.px + dx, y: panStart.py + dy });
-  };
-
-  const endPan = () => {
-    setIsPanning(false);
-    setPanStart(null);
-  };
-
   const deleteTable = (tableId: string) => {
     if (!currentLayout) return;
     setCurrentLayout({
@@ -466,6 +418,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
           ))}
         </div>
         <div className="layout-actions">
+          <span className="build-badge" title="Floor Editor build">E2</span>
           <button className="btn-icon-small" onClick={() => setIsCreateModalOpen(true)} title="New Layout">
             ➕
           </button>
@@ -486,103 +439,6 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
       </div>
 
       <div className="editor-content">
-        {/* Canvas on the left, palette/inspector on the right (target UX) */}
-        <div
-          className="editor-canvas"
-          onWheel={handleCanvasWheel}
-          onMouseDown={startPan}
-          onMouseMove={movePan}
-          onMouseUp={endPan}
-          onMouseLeave={endPan}
-        >
-          <div className="canvas-hud" aria-label="Floor editor controls">
-            <button className="hud-btn" onClick={() => zoomBy(0.1)} title="Zoom in">＋</button>
-            <button className="hud-btn" onClick={() => zoomBy(-0.1)} title="Zoom out">－</button>
-            <button className="hud-btn" onClick={centerView} title="Center view">⌖</button>
-            <div className="hud-zoom">{Math.round(zoom * 100)}%</div>
-          </div>
-
-          <div className="grid-viewport">
-            <div
-              className="grid"
-              style={{
-                gridTemplateColumns: `repeat(${currentLayout.gridCols}, 60px)`,
-                gridTemplateRows: `repeat(${currentLayout.gridRows}, 60px)`,
-                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-                transformOrigin: '0 0',
-              }}
-            >
-              {Array.from({ length: currentLayout.gridRows * currentLayout.gridCols }).map((_, i) => {
-                const gridY = Math.floor(i / currentLayout.gridCols);
-                const gridX = i % currentLayout.gridCols;
-
-                const tableHere = currentLayout.tables.find(t =>
-                  gridX >= t.gridX && gridX < t.gridX + t.spanX &&
-                  gridY >= t.gridY && gridY < t.gridY + t.spanY
-                );
-
-                const objects = currentLayout.objects ?? [];
-                const objectHere = objects.find(o =>
-                  gridX >= o.gridX && gridX < o.gridX + o.spanX &&
-                  gridY >= o.gridY && gridY < o.gridY + o.spanY
-                );
-
-                const isTopLeft = tableHere && tableHere.gridX === gridX && tableHere.gridY === gridY;
-                const isObjTopLeft = objectHere && objectHere.gridX === gridX && objectHere.gridY === gridY;
-
-                return (
-                  <div
-                    key={i}
-                    className="grid-cell"
-                    onDrop={(e) => handleDrop(e, gridX, gridY)}
-                    onDragOver={handleDragOver}
-                  >
-                    {isObjTopLeft && objectHere && (
-                      <div
-                        className={`floor-object type-${objectHere.type} ${selectedObject?.id === objectHere.id ? 'selected' : ''}`}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, 'object', 'existing', { objectId: objectHere.id })}
-                        onClick={() => {
-                          setSelectedTable(null);
-                          setSelectedObject(objectHere);
-                        }}
-                        style={{
-                          width: objectHere.spanX === 2 ? 'calc(200% + 2px)' : objectHere.spanX === 3 ? 'calc(300% + 4px)' : objectHere.spanX === 4 ? 'calc(400% + 6px)' : '100%',
-                          height: objectHere.spanY === 2 ? 'calc(200% + 2px)' : objectHere.spanY === 3 ? 'calc(300% + 4px)' : '100%',
-                          transform: `rotate(${objectHere.rotation ?? 0}deg)`,
-                        }}
-                      >
-                        <div className="obj-icon">
-                          {objectHere.type === 'wall' ? '🧱' : objectHere.type === 'door' ? '🚪' : objectHere.type === 'bar' ? '🍸' : objectHere.type === 'plant' ? '🪴' : '➖'}
-                        </div>
-                        {objectHere.label && <div className="obj-label">{objectHere.label}</div>}
-                      </div>
-                    )}
-                    {isTopLeft && tableHere && (
-                      <div
-                        className={`table ${tableHere.shape} ${selectedTable?.id === tableHere.id ? 'selected' : ''}`}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, 'table', 'existing', { tableId: tableHere.id })}
-                        onClick={() => {
-                          setSelectedObject(null);
-                          setSelectedTable(tableHere);
-                        }}
-                        style={{
-                          width: tableHere.spanX === 2 ? 'calc(200% + 2px)' : '100%',
-                          height: tableHere.spanY === 2 ? 'calc(200% + 2px)' : '100%'
-                        }}
-                      >
-                        <div className="table-label">{tableHere.name}</div>
-                        <div className="table-seats">{tableHere.seats} seats</div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
         <div className="editor-sidebar">
           {sections.length > 0 && (
             <div className="sections-tabs">
@@ -726,6 +582,84 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
           <button className="btn-save" onClick={saveCurrentLayout}>
             💾 Save Layout
           </button>
+        </div>
+
+        <div className="editor-canvas">
+          <div
+            className="grid"
+            style={{
+              gridTemplateColumns: `repeat(${currentLayout.gridCols}, 60px)`,
+              gridTemplateRows: `repeat(${currentLayout.gridRows}, 60px)`
+            }}
+          >
+            {Array.from({ length: currentLayout.gridRows * currentLayout.gridCols }).map((_, i) => {
+              const gridY = Math.floor(i / currentLayout.gridCols);
+              const gridX = i % currentLayout.gridCols;
+
+              const tableHere = currentLayout.tables.find(t =>
+                gridX >= t.gridX && gridX < t.gridX + t.spanX &&
+                gridY >= t.gridY && gridY < t.gridY + t.spanY
+              );
+
+              const objects = currentLayout.objects ?? [];
+              const objectHere = objects.find(o =>
+                gridX >= o.gridX && gridX < o.gridX + o.spanX &&
+                gridY >= o.gridY && gridY < o.gridY + o.spanY
+              );
+
+              const isTopLeft = tableHere && tableHere.gridX === gridX && tableHere.gridY === gridY;
+              const isObjTopLeft = objectHere && objectHere.gridX === gridX && objectHere.gridY === gridY;
+
+              return (
+                <div
+                  key={i}
+                  className="grid-cell"
+                  onDrop={(e) => handleDrop(e, gridX, gridY)}
+                  onDragOver={handleDragOver}
+                >
+                  {isObjTopLeft && objectHere && (
+                    <div
+                      className={`floor-object type-${objectHere.type} ${selectedObject?.id === objectHere.id ? 'selected' : ''}`}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, 'object', 'existing', { objectId: objectHere.id })}
+                      onClick={() => {
+                        setSelectedTable(null);
+                        setSelectedObject(objectHere);
+                      }}
+                      style={{
+                        width: objectHere.spanX === 2 ? 'calc(200% + 2px)' : objectHere.spanX === 3 ? 'calc(300% + 4px)' : objectHere.spanX === 4 ? 'calc(400% + 6px)' : '100%',
+                        height: objectHere.spanY === 2 ? 'calc(200% + 2px)' : objectHere.spanY === 3 ? 'calc(300% + 4px)' : '100%',
+                        transform: `rotate(${objectHere.rotation ?? 0}deg)`,
+                      }}
+                    >
+                      <div className="obj-icon">
+                        {objectHere.type === 'wall' ? '🧱' : objectHere.type === 'door' ? '🚪' : objectHere.type === 'bar' ? '🍸' : objectHere.type === 'plant' ? '🪴' : '➖'}
+                      </div>
+                      {objectHere.label && <div className="obj-label">{objectHere.label}</div>}
+                    </div>
+                  )}
+                  {isTopLeft && (
+                    <div
+                      className={`table ${tableHere.shape} ${selectedTable?.id === tableHere.id ? 'selected' : ''}`}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, 'table', 'existing', { tableId: tableHere.id })}
+                      onClick={() => {
+                        setSelectedObject(null);
+                        setSelectedTable(tableHere);
+                      }}
+                      style={{
+                        width: tableHere.spanX === 2 ? 'calc(200% + 2px)' : '100%',
+                        height: tableHere.spanY === 2 ? 'calc(200% + 2px)' : '100%'
+                      }}
+                    >
+                      <div className="table-label">{tableHere.name}</div>
+                      <div className="table-seats">{tableHere.seats} seats</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
