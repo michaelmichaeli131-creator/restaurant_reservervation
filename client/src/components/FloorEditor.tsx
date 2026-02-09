@@ -55,6 +55,10 @@ interface FloorEditorProps {
 }
 
 export default function FloorEditor({ restaurantId }: FloorEditorProps) {
+  // NOTE: In production, Oak serves static files from <project>/public under /static/*
+  // (see server.ts). Keep all floor-plan SVG references behind a single base URL.
+  const ASSET_BASE = '/static/floor_assets/';
+
   const [layouts, setLayouts] = useState<FloorLayout[]>([]);
   const [currentLayout, setCurrentLayout] = useState<FloorLayout | null>(null);
   const [sections, setSections] = useState<FloorSection[]>([]);
@@ -79,21 +83,21 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const assetForTable = (shape: string, seats: number) => {
     const s = String(shape || 'rect').toLowerCase();
     const n = Number(seats || 0);
-    if (s === 'round') return n >= 9 ? '/floor_assets/round_table_10.svg' : '/floor_assets/round_table4.svg';
-    if (s === 'booth') return n >= 6 ? '/floor_assets/large_booth.svg' : '/floor_assets/booth4.svg';
+    if (s === 'round') return n >= 9 ? (ASSET_BASE + 'round_table_10.svg') : (ASSET_BASE + 'round_table4.svg');
+    if (s === 'booth') return n >= 6 ? (ASSET_BASE + 'large_booth.svg') : (ASSET_BASE + 'booth4.svg');
     const targets = [2, 4, 6, 8, 10];
     const nearest = targets.reduce((best, v) => (Math.abs(v - n) < Math.abs(best - n) ? v : best), 4);
-    return `/floor_assets/square_table${nearest}.svg`;
+    return `${ASSET_BASE}square_table${nearest}.svg`;
   };
 
   const assetForObject = (type: FloorObject['type'], spanX: number, spanY: number) => {
-    if (type === 'door') return '/floor_assets/door.svg';
-    if (type === 'bar') return '/floor_assets/bar.svg';
-    if (type === 'plant') return '/floor_assets/plant.svg';
+    if (type === 'door') return ASSET_BASE + 'door.svg';
+    if (type === 'bar') return ASSET_BASE + 'bar.svg';
+    if (type === 'plant') return ASSET_BASE + 'plant.svg';
     // wall/divider
-    if ((spanX || 1) === 1 && (spanY || 1) === 1) return '/floor_assets/corner_partitaion.svg';
-    if ((spanX || 1) > (spanY || 1)) return '/floor_assets/horizintal_partitaion.svg';
-    return '/floor_assets/vertical_partition.svg';
+    if ((spanX || 1) === 1 && (spanY || 1) === 1) return ASSET_BASE + 'corner_partitaion.svg';
+    if ((spanX || 1) > (spanY || 1)) return ASSET_BASE + 'horizintal_partitaion.svg';
+    return ASSET_BASE + 'vertical_partition.svg';
   };
 
   // Load all layouts
