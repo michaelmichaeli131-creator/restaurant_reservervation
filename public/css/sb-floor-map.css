@@ -345,3 +345,74 @@
   .sb-floor-table{ border-radius: 16px; }
   .sb-floor-table .sb-tn{ font-size: 30px; }
 }
+
+/* ================= Interactive parquet grid cells ================= */
+.sb-floor-grid{
+  position:absolute;
+  inset:0;
+  z-index: 0;
+}
+
+.sb-floor-cell{
+  position:absolute;
+  border: 1px solid rgba(255,255,255,.06);
+  background: url('/static/floor_assets/floor_tile_grid_6x6.svg') center/cover no-repeat;
+  opacity: .92;
+  transition: background .15s ease, box-shadow .15s ease, opacity .15s ease;
+}
+
+.sb-floor-cell:hover{
+  box-shadow: inset 0 0 0 2px rgba(56,156,255,.25);
+  opacity: .98;
+}
+
+.sb-floor-cell.selected{
+  box-shadow: inset 0 0 0 2px rgba(56,156,255,.65), 0 10px 22px rgba(0,0,0,.18);
+  opacity: 1;
+}
+
+/* Ensure interactive elements are above the grid */
+.sb-floor-object{ z-index: 2; }
+.sb-floor-table{ z-index: 3; }
+
+
+/* ================= GRID ================= */
+
+.sb-floor-grid{
+  position:absolute;
+  inset:0;
+  z-index: 1; /* under tables (tables come after in DOM) */
+  pointer-events:auto;
+}
+
+.sb-floor-cell{
+  position:absolute;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.06);
+  background:
+    url('/static/floor_assets/floor_tile_grid_6x6.svg') center/cover no-repeat;
+  opacity: .92;
+  transition: transform .08s ease, box-shadow .18s ease, background-color .18s ease, border-color .18s ease;
+}
+
+.sb-floor-cell::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius: inherit;
+  background: radial-gradient(120px 120px at 50% 40%, rgba(255,255,255,.06), transparent 60%);
+  pointer-events:none;
+  opacity: .85;
+}
+
+.sb-floor-cell:hover{
+  border-color: rgba(56,156,255,.22);
+  box-shadow: 0 10px 22px rgba(0,0,0,.18);
+  transform: translateY(-1px);
+  cursor: pointer;
+}
+
+.sb-floor-cell.selected{
+  border-color: rgba(56,156,255,.60);
+  box-shadow: 0 0 0 3px rgba(56,156,255,.18), 0 16px 40px rgba(0,0,0,.22);
+}

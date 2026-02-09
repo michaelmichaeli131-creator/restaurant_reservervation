@@ -378,7 +378,61 @@ function objectAssetUrl(o){
       ui.stage.innerHTML = '';
       state.tablesByNumber.clear();
 
+      // === Interactive parquet grid layer (clickable cells) ===
+      // Note: placed first so tables/objects render above it.
+      const gridLayer = document.createElement('div');
+      gridLayer.className = 'sb-floor-grid';
+
+      // Clear previous cell selection on each render
+      state.selectedCell = null;
+
+      // We will size it after layout is computed.
+
       const layout = computeLayout(plan, tables);
+      gridLayer.style.width = layout.boardW + 'px';
+      gridLayer.style.height = layout.boardH + 'px';
+      ui.stage.appendChild(gridLayer);
+
+      for (let row = 0; row < layout.rows; row++) {
+        for (let col = 0; col < layout.cols; col++) {
+          const cellEl = document.createElement('div');
+          cellEl.className = 'sb-floor-cell';
+          cellEl.dataset.row = String(row);
+          cellEl.dataset.col = String(col);
+
+          const x = layout.pad + (col * (layout.cell + layout.gap));
+          const y = layout.pad + (row * (layout.cell + layout.gap));
+
+          cellEl.style.left = x + 'px';
+          cellEl.style.top = y + 'px';
+          cellEl.style.width = layout.cell + 'px';
+          cellEl.style.height = layout.cell + 'px';
+
+          // Click on empty space in the map. Tables remain clickable above the grid.
+          cellEl.addEventListener('click', () => {
+            const mode = String(root.dataset.mode || '').toLowerCase();
+
+            // Only show a “selected cell” state in edit mode for now.
+            if (mode === 'edit') {
+              // Clear previous
+              const prev = gridLayer.querySelector('.sb-floor-cell.selected');
+              if (prev) prev.classList.remove('selected');
+              cellEl.classList.add('selected');
+              state.selectedCell = { row, col };
+            }
+
+            // Expose a generic event for waiter/host screens to use if needed
+            root.dispatchEvent(new CustomEvent('sb:floor-cell-click', {
+              detail: { rid, row, col, mode }
+            }));
+          });
+
+          gridLayer.appendChild(cellEl);
+        }
+      }
+
+      // layout computed above
+
       state.layout = layout;
 
       // compute fit
@@ -386,7 +440,53 @@ function objectAssetUrl(o){
       state.fit = fit;
       ui.stage.style.transform = `translate(${fit.x}px, ${fit.y}px) scale(${fit.scale})`;
 
-      // Place objects (walls/doors/bar/plants) behind tables
+      
+// ================= GRID LAYER (interactive parquet tiles) =================
+const mode = String(root.dataset.mode || '').toLowerCase();
+
+const gridLayer = document.createElement('div');
+gridLayer.className = 'sb-floor-grid';
+gridLayer.style.width = layout.boardW + 'px';
+gridLayer.style.height = layout.boardH + 'px';
+ui.stage.appendChild(gridLayer);
+
+const selectCell = (cellEl, row, col) => {
+  if (state.selectedCellEl) state.selectedCellEl.classList.remove('selected');
+  state.selectedCellEl = cellEl;
+  state.selectedCell = { row, col };
+  if (cellEl) cellEl.classList.add('selected');
+};
+
+for (let row = 0; row < layout.rows; row++) {
+  for (let col = 0; col < layout.cols; col++) {
+    const cellEl = document.createElement('div');
+    cellEl.className = 'sb-floor-cell';
+    cellEl.dataset.row = String(row);
+    cellEl.dataset.col = String(col);
+
+    const x = layout.pad + col * (layout.cell + layout.gap);
+    const y = layout.pad + row * (layout.cell + layout.gap);
+
+    cellEl.style.left = x + 'px';
+    cellEl.style.top = y + 'px';
+    cellEl.style.width = layout.cell + 'px';
+    cellEl.style.height = layout.cell + 'px';
+
+    cellEl.addEventListener('click', () => {
+      // Keep tables clickable (tables are rendered above the grid layer).
+      selectCell(cellEl, row, col);
+
+      // Optional: let pages react (waiter/host/edit)
+      root.dispatchEvent(new CustomEvent('sb:floor-cell-click', {
+        detail: { rid, row, col, mode }
+      }));
+    });
+
+    gridLayer.appendChild(cellEl);
+  }
+}
+
+// Place objects (walls/doors/bar/plants) behind tables
       const objects = Array.isArray(plan.objects) ? plan.objects : [];
       objects.forEach((o) => {
         const el = makeObjectEl(o);

@@ -356,7 +356,7 @@
 }
 
 .grid-cell {
-  background: transparent;
+  background: url('/static/floor_assets/floor_tile_grid_6x6.svg') center/cover no-repeat;
   border: 1px solid rgba(255,255,255,.06);
   width: 60px;
   height: 60px;
