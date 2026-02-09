@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="476" viewBox="0.00 4.32 480.00 475.68">
+  <defs>
+    <!-- subtle concrete texture -->
+    <filter id="concrete" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed="7" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" values="
+        0 0 0 0 0.62
+        0 0 0 0 0.62
+        0 0 0 0 0.62
+        0 0 0 0.12 0" result="tint"/>
+      <feGaussianBlur in="tint" stdDeviation="0.6" result="blur"/>
+      <feBlend in="SourceGraphic" in2="blur" mode="multiply"/>
+    </filter>
+
+    <linearGradient id="tileFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e3e1dc"/>
+      <stop offset="55%" stop-color="#dedbd5"/>
+      <stop offset="100%" stop-color="#e7e5e0"/>
+    </linearGradient>
+
+    <!-- soft shadow for the whole slab -->
+    <filter id="slabShadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="6" result="b"/>
+      <feOffset dx="0" dy="6" result="o"/>
+      <feColorMatrix in="o" type="matrix" values="
+        0 0 0 0 0
+        0 0 0 0 0
+        0 0 0 0 0
+        0 0 0 0.22 0" result="s"/>
+      <feMerge>
+        <feMergeNode in="s"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Transparent background -->
+  <g filter="url(#slabShadow)">
+    <!-- slab -->
+    <rect x="60" y="60" width="480" height="480" rx="2" fill="url(#tileFill)" filter="url(#concrete)"/>
+
+    <!-- grid lines (6x6) -->
+    <g stroke="#8f8f8f" stroke-width="2" opacity="0.78">
+      <!-- outer border -->
+      <rect x="60" y="60" width="480" height="480" fill="none"/>
+      <!-- vertical lines -->
+      <line x1="140" y1="60" x2="140" y2="540"/>
+      <line x1="220" y1="60" x2="220" y2="540"/>
+      <line x1="300" y1="60" x2="300" y2="540"/>
+      <line x1="380" y1="60" x2="380" y2="540"/>
+      <line x1="460" y1="60" x2="460" y2="540"/>
+      <!-- horizontal lines -->
+      <line x1="60" y1="140" x2="540" y2="140"/>
+      <line x1="60" y1="220" x2="540" y2="220"/>
+      <line x1="60" y1="300" x2="540" y2="300"/>
+      <line x1="60" y1="380" x2="540" y2="380"/>
+      <line x1="60" y1="460" x2="540" y2="460"/>
+    </g>
+
+    <!-- extra speckles overlay (very subtle) -->
+    <g opacity="0.08">
+      <rect x="60" y="60" width="480" height="480" fill="#000" filter="url(#concrete)"/>
+    </g>
+  </g>
+</svg>
