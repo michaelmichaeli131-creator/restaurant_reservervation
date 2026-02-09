@@ -139,13 +139,72 @@
       pill.style.display = 'none';
     }
 
-    const inner = document.createElement('div');
-    inner.style.display = 'flex';
-    inner.style.flexDirection = 'column';
-    inner.style.alignItems = 'center';
-    inner.style.justifyContent = 'center';
-    inner.style.width = '100%';
-    inner.style.height = '100%';
+    function tableAssetUrl(tbl){
+      const seats = Number(tbl.seats || 0);
+      const shape = String(tbl.shape || 'rect').toLowerCase();
+      if (shape === 'round') {
+        return seats >= 9 ? '/floor_assets/round_table_10.svg' : '/floor_assets/round_table4.svg';
+      }
+      if (shape === 'booth') {
+        return seats >= 6 ? '/floor_assets/large_booth.svg' : '/floor_assets/booth4.svg';
+      }
+      // rect/square fallback
+      const targets = [2,4,6,8,10];
+      const nearest = targets.reduce((best, v) => (Math.abs(v-seats) < Math.abs(best-seats) ? v : best), 4);
+      return `/floor_assets/square_table${nearest}.svg`;
+    }
+
+    function shouldShowChairs(tbl){
+      const shape = String(tbl.shape || 'rect').toLowerCase();
+      return shape !== 'booth';
+    }
+
+    function chairPositions(count){
+      // Generic: distribute chairs around an ellipse (good enough for both round and square)
+      const n = Math.max(0, Number(count||0));
+      const out = [];
+      if (!n) return out;
+      const rX = 44; // percent
+      const rY = 44;
+      for (let i=0;i<n;i++){
+        const a = (Math.PI * 2 * i) / n;
+        const x = 50 + rX * Math.cos(a);
+        const y = 50 + rY * Math.sin(a);
+        const deg = (a * 180 / Math.PI) + 90;
+        out.push({ x, y, deg });
+      }
+      return out;
+    }
+
+    // Visual layer (asset + optional chairs)
+    const visual = document.createElement('div');
+    visual.className = 'sb-floor-visual';
+
+    const img = document.createElement('img');
+    img.className = 'sb-floor-asset';
+    img.alt = '';
+    img.decoding = 'async';
+    img.loading = 'lazy';
+    img.src = tableAssetUrl(t);
+    visual.appendChild(img);
+
+    if (shouldShowChairs(t)) {
+      const chairs = document.createElement('div');
+      chairs.className = 'sb-floor-chairs';
+      const n = Math.min(10, Math.max(0, Number(t.seats || 0)));
+      chairPositions(n).forEach((p, idx) => {
+        const c = document.createElement('div');
+        c.className = 'sb-floor-chair';
+        c.style.left = p.x + '%';
+        c.style.top = p.y + '%';
+        c.style.transform = `translate(-50%, -50%) rotate(${p.deg}deg)`;
+        chairs.appendChild(c);
+      });
+      visual.appendChild(chairs);
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'sb-floor-overlay';
 
     const tn = document.createElement('div');
     tn.className = 'sb-tn';
@@ -155,8 +214,8 @@
     sub.className = 'sb-sub';
     sub.textContent = status === 'occupied' ? (t.guestName || 'בהושבה') : (status === 'reserved' ? 'בהמתנה' : '');
 
-    inner.appendChild(tn);
-    if (sub.textContent) inner.appendChild(sub);
+    overlay.appendChild(tn);
+    if (sub.textContent) overlay.appendChild(sub);
     // Seats chip (subtle, bottom-left)
     const seats = document.createElement('div');
     seats.className = 'sb-floor-seats';
@@ -169,7 +228,8 @@
     btn.appendChild(badge);
     btn.appendChild(pill);
     btn.appendChild(seats);
-    btn.appendChild(inner);
+    btn.appendChild(visual);
+    btn.appendChild(overlay);
 
     const trigger = () => onClick(t, status, extra);
     btn.addEventListener('click', trigger);
@@ -185,11 +245,28 @@
   function makeObjectEl(obj){
     const el = document.createElement('div');
     el.className = 'sb-floor-object type-' + String(obj.type||'divider');
-    const icon = document.createElement('div');
-    icon.className = 'sb-obj-icon';
     const type = String(obj.type||'divider');
-    icon.textContent = type === 'wall' ? '🧱' : type === 'door' ? '🚪' : type === 'bar' ? '🍸' : type === 'plant' ? '🪴' : '➖';
-    el.appendChild(icon);
+
+    function objectAssetUrl(o){
+      const t = String(o.type||'divider');
+      if (t === 'door') return '/floor_assets/door.svg';
+      if (t === 'bar') return '/floor_assets/bar.svg';
+      if (t === 'plant') return '/floor_assets/plant.svg';
+      // wall / divider: pick based on span and special cases
+      const sx = Number(o.spanX || 1);
+      const sy = Number(o.spanY || 1);
+      if (sx === 1 && sy === 1) return '/floor_assets/corner_partitaion.svg';
+      if (sx > sy) return '/floor_assets/horizintal_partitaion.svg';
+      return '/floor_assets/vertical_partition.svg';
+    }
+
+    const img = document.createElement('img');
+    img.className = 'sb-obj-asset';
+    img.alt = '';
+    img.decoding = 'async';
+    img.loading = 'lazy';
+    img.src = objectAssetUrl(obj);
+    el.appendChild(img);
     if (obj.label) {
       const lbl = document.createElement('div');
       lbl.className = 'sb-obj-label';

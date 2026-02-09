@@ -74,6 +74,26 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newLayoutName, setNewLayoutName] = useState('');
 
+  const assetForTable = (shape: string, seats: number) => {
+    const s = String(shape || 'rect').toLowerCase();
+    const n = Number(seats || 0);
+    if (s === 'round') return n >= 9 ? '/floor_assets/round_table_10.svg' : '/floor_assets/round_table4.svg';
+    if (s === 'booth') return n >= 6 ? '/floor_assets/large_booth.svg' : '/floor_assets/booth4.svg';
+    const targets = [2, 4, 6, 8, 10];
+    const nearest = targets.reduce((best, v) => (Math.abs(v - n) < Math.abs(best - n) ? v : best), 4);
+    return `/floor_assets/square_table${nearest}.svg`;
+  };
+
+  const assetForObject = (type: FloorObject['type'], spanX: number, spanY: number) => {
+    if (type === 'door') return '/floor_assets/door.svg';
+    if (type === 'bar') return '/floor_assets/bar.svg';
+    if (type === 'plant') return '/floor_assets/plant.svg';
+    // wall/divider
+    if ((spanX || 1) === 1 && (spanY || 1) === 1) return '/floor_assets/corner_partitaion.svg';
+    if ((spanX || 1) > (spanY || 1)) return '/floor_assets/horizintal_partitaion.svg';
+    return '/floor_assets/vertical_partition.svg';
+  };
+
   // Load all layouts
   useEffect(() => {
     if (!restaurantId) return;
@@ -459,19 +479,19 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
           <h2>🎨 Palette</h2>
           <div className="palette">
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'round' })}>
-              <div className="preview round">🪑</div>
+              <div className="preview"><img className="preview-img" src={assetForTable('round', 4)} alt="" /></div>
               <span>2-Seat Round</span>
             </div>
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square' })}>
-              <div className="preview square">🪑</div>
+              <div className="preview"><img className="preview-img" src={assetForTable('square', 4)} alt="" /></div>
               <span>4-Seat Square</span>
             </div>
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'rect' })}>
-              <div className="preview rect">🪑</div>
+              <div className="preview"><img className="preview-img" src={assetForTable('rect', 6)} alt="" /></div>
               <span>6-Seat Rect</span>
             </div>
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'booth' })}>
-              <div className="preview booth">🛋️</div>
+              <div className="preview"><img className="preview-img" src={assetForTable('booth', 4)} alt="" /></div>
               <span>Booth</span>
             </div>
           </div>
@@ -479,23 +499,23 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
           <h2 style={{ marginTop: 18 }}>🏗️ Elements</h2>
           <div className="palette">
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'wall' })}>
-              <div className="preview" style={{ fontSize: 16 }}>🧱</div>
+              <div className="preview"><img className="preview-img" src={assetForObject('wall', 1, 2)} alt="" /></div>
               <span>Wall</span>
             </div>
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'door' })}>
-              <div className="preview" style={{ fontSize: 16 }}>🚪</div>
+              <div className="preview"><img className="preview-img" src={assetForObject('door', 1, 1)} alt="" /></div>
               <span>Door</span>
             </div>
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'bar' })}>
-              <div className="preview" style={{ fontSize: 16 }}>🍸</div>
+              <div className="preview"><img className="preview-img" src={assetForObject('bar', 2, 1)} alt="" /></div>
               <span>Bar</span>
             </div>
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'plant' })}>
-              <div className="preview" style={{ fontSize: 16 }}>🪴</div>
+              <div className="preview"><img className="preview-img" src={assetForObject('plant', 1, 1)} alt="" /></div>
               <span>Plant</span>
             </div>
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'divider' })}>
-              <div className="preview" style={{ fontSize: 16 }}>➖</div>
+              <div className="preview"><img className="preview-img" src={assetForObject('divider', 2, 1)} alt="" /></div>
               <span>Divider</span>
             </div>
           </div>
@@ -631,9 +651,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
                         transform: `rotate(${objectHere.rotation ?? 0}deg)`,
                       }}
                     >
-                      <div className="obj-icon">
-                        {objectHere.type === 'wall' ? '🧱' : objectHere.type === 'door' ? '🚪' : objectHere.type === 'bar' ? '🍸' : objectHere.type === 'plant' ? '🪴' : '➖'}
-                      </div>
+                      <img className="fe-asset" src={assetForObject(objectHere.type, objectHere.spanX, objectHere.spanY)} alt="" />
                       {objectHere.label && <div className="obj-label">{objectHere.label}</div>}
                     </div>
                   )}
@@ -651,8 +669,31 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
                         height: tableHere.spanY === 2 ? 'calc(200% + 2px)' : '100%'
                       }}
                     >
-                      <div className="table-label">{tableHere.name}</div>
-                      <div className="table-seats">{tableHere.seats} seats</div>
+                      <div className="fe-table-visual">
+                        <img className="fe-asset" src={assetForTable(tableHere.shape, tableHere.seats)} alt="" />
+                        {tableHere.shape !== 'booth' && (
+                          <div className="fe-chairs" aria-hidden="true">
+                            {Array.from({ length: Math.min(10, Math.max(0, tableHere.seats)) }).map((_, idx, arr) => {
+                              const n = arr.length || 1;
+                              const a = (Math.PI * 2 * idx) / n;
+                              const x = 50 + 44 * Math.cos(a);
+                              const y = 50 + 44 * Math.sin(a);
+                              const deg = (a * 180 / Math.PI) + 90;
+                              return (
+                                <div
+                                  key={idx}
+                                  className="fe-chair"
+                                  style={{ left: `${x}%`, top: `${y}%`, transform: `translate(-50%, -50%) rotate(${deg}deg)` }}
+                                />
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      <div className="fe-table-overlay">
+                        <div className="table-label">{tableHere.name}</div>
+                        <div className="table-seats">{tableHere.seats} seats</div>
+                      </div>
                     </div>
                   )}
                 </div>
