@@ -139,20 +139,31 @@
       pill.style.display = 'none';
     }
 
-    function tableAssetUrl(tbl){
-      const seats = Number(tbl.seats || 0);
-      const shape = String(tbl.shape || 'rect').toLowerCase();
-      if (shape === 'round') {
-        return seats >= 9 ? '/floor_assets/round_table_10.svg' : '/floor_assets/round_table4.svg';
-      }
-      if (shape === 'booth') {
-        return seats >= 6 ? '/floor_assets/large_booth.svg' : '/floor_assets/booth4.svg';
-      }
-      // rect/square fallback
-      const targets = [2,4,6,8,10];
-      const nearest = targets.reduce((best, v) => (Math.abs(v-seats) < Math.abs(best-seats) ? v : best), 4);
-      return `/floor_assets/square_table${nearest}.svg`;
-    }
+ 
+function tableAssetUrl(tbl){
+  const BASE = '/static/floor_assets/';
+  const seats = Number(tbl.seats || 0);
+  const shape = String(tbl.shape || 'rect').toLowerCase();
+
+  if (shape === 'round') {
+    return seats >= 9 
+      ? BASE + 'round_table_10.svg' 
+      : BASE + 'round_table4.svg';
+  }
+
+  if (shape === 'booth') {
+    return seats >= 6 
+      ? BASE + 'large_booth.svg' 
+      : BASE + 'booth4.svg';
+  }
+
+  // rect/square fallback
+  const targets = [2,4,6,8,10];
+  const nearest = targets.reduce((best, v) => 
+    (Math.abs(v-seats) < Math.abs(best-seats) ? v : best), 4);
+
+  return BASE + `square_table${nearest}.svg`;
+}
 
     function shouldShowChairs(tbl){
       const shape = String(tbl.shape || 'rect').toLowerCase();
@@ -247,18 +258,23 @@
     el.className = 'sb-floor-object type-' + String(obj.type||'divider');
     const type = String(obj.type||'divider');
 
-    function objectAssetUrl(o){
-      const t = String(o.type||'divider');
-      if (t === 'door') return '/floor_assets/door.svg';
-      if (t === 'bar') return '/floor_assets/bar.svg';
-      if (t === 'plant') return '/floor_assets/plant.svg';
-      // wall / divider: pick based on span and special cases
-      const sx = Number(o.spanX || 1);
-      const sy = Number(o.spanY || 1);
-      if (sx === 1 && sy === 1) return '/floor_assets/corner_partitaion.svg';
-      if (sx > sy) return '/floor_assets/horizintal_partitaion.svg';
-      return '/floor_assets/vertical_partition.svg';
-    }
+function objectAssetUrl(o){
+  const BASE = '/static/floor_assets/';
+  const t = String(o.type||'divider');
+
+  if (t === 'door') return BASE + 'door.svg';
+  if (t === 'bar') return BASE + 'bar.svg';
+  if (t === 'plant') return BASE + 'plant.svg';
+
+  // wall / divider logic
+  const sx = Number(o.spanX || 1);
+  const sy = Number(o.spanY || 1);
+
+  if (sx === 1 && sy === 1) return BASE + 'corner_partitaion.svg';
+  if (sx > sy) return BASE + 'horizintal_partitaion.svg';
+  return BASE + 'vertical_partition.svg';
+}
+
 
     const img = document.createElement('img');
     img.className = 'sb-obj-asset';
