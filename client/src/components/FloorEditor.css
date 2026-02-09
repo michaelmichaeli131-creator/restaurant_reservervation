@@ -142,6 +142,22 @@
   gap: 6px;
 }
 
+.fe-toggle{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.02);
+  font-size: 13px;
+  color: rgba(234,242,255,.92);
+  user-select: none;
+}
+
+.fe-toggle input{ width: 16px; height: 16px; }
+
 .tab {
   padding: 10px 12px;
   background: transparent;
@@ -328,6 +344,17 @@
   position: relative;
 }
 
+.fe-drop-preview{
+  position: absolute;
+  z-index: 50;
+  border-radius: 14px;
+  border: 2px solid rgba(59,130,246,.85);
+  background: rgba(59,130,246,.10);
+  box-shadow: 0 0 0 4px rgba(59,130,246,.18), 0 18px 50px rgba(0,0,0,.25);
+  pointer-events: none;
+  transform: translateZ(0);
+}
+
 .grid-cell {
   background: transparent;
   border: 1px solid rgba(255,255,255,.06);
@@ -359,14 +386,36 @@
 }
 
 .table:hover {
-  transform: scale(1.05);
+  transform: translateY(-2px);
   z-index: 10;
 }
 
 .table.selected {
-  border-color: white;
-  box-shadow: 0 0 0 2px var(--brand);
+  border-color: rgba(255,255,255,.22);
+  outline: 2px solid rgba(56,156,255,.95);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 3px rgba(37,99,235,.35), 0 12px 30px rgba(0,0,0,.22);
   z-index: 20;
+}
+
+.table-section{
+  margin-top: 6px;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(15,18,28,.45);
+  backdrop-filter: blur(10px) saturate(120%);
+  max-width: 92%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: .95;
+}
+
+.table.dimmed{
+  opacity: .55;
+  filter: saturate(.75);
 }
 
 
@@ -427,6 +476,19 @@
   opacity: 0.9;
 }
 
+.table-section{
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .2px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(0,0,0,.20);
+  backdrop-filter: blur(10px) saturate(120%);
+  opacity: .95;
+}
+
 /* ========== FLOOR OBJECTS ========== */
 .floor-object{
   position: absolute;
@@ -448,6 +510,10 @@
   outline: 2px solid rgba(59, 130, 246, 0.75);
   outline-offset: 1px;
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+}
+
+.floor-object:hover{
+  transform: translateY(-1px);
 }
 
 .floor-object .obj-label{ font-size: 11px; opacity: 0.9; text-align: center; }

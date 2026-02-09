@@ -73,6 +73,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [nextTableNumber, setNextTableNumber] = useState(1);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newLayoutName, setNewLayoutName] = useState('');
+  const [showOnlyActiveSection, setShowOnlyActiveSection] = useState(false);
+  const [hoverCell, setHoverCell] = useState<{ x: number; y: number } | null>(null);
 
   const assetForTable = (shape: string, seats: number) => {
     const s = String(shape || 'rect').toLowerCase();
@@ -235,7 +237,73 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     opts?: { shape?: string; objectType?: FloorObject['type']; tableId?: string; objectId?: string }
   ) => {
     setDraggedItem({ kind, mode, ...opts });
+    setHoverCell(null);
     e.dataTransfer.effectAllowed = 'move';
+  };
+
+  // ===== Smart snapping (Stage 5 polish) =====
+  const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+
+  const clampToGrid = (x: number, y: number, spanX: number, spanY: number) => {
+    if (!currentLayout) return { x, y };
+    return {
+      x: clamp(x, 0, Math.max(0, currentLayout.gridCols - spanX)),
+      y: clamp(y, 0, Math.max(0, currentLayout.gridRows - spanY)),
+    };
+  };
+
+  const snapToNearbyWalls = (x: number, y: number, spanX: number, spanY: number) => {
+    if (!currentLayout) return { x, y };
+    const objects = currentLayout.objects ?? [];
+    const walls = objects.filter(o => o.type === 'wall' || o.type === 'divider');
+    if (!walls.length) return { x, y };
+
+    const want = { x, y };
+    const candidates: { x: number; y: number; score: number }[] = [];
+
+    // Helper: add candidate with Manhattan distance score
+    const add = (cx: number, cy: number) => {
+      const c = clampToGrid(cx, cy, spanX, spanY);
+      const score = Math.abs(c.x - want.x) + Math.abs(c.y - want.y);
+      candidates.push({ ...c, score });
+    };
+
+    // Snap to closest wall edge if overlapping in the perpendicular axis.
+    walls.forEach(w => {
+      const wx1 = w.gridX;
+      const wy1 = w.gridY;
+      const wx2 = w.gridX + (w.spanX || 1); // exclusive
+      const wy2 = w.gridY + (w.spanY || 1);
+
+      // If we overlap X-range, we can snap above/below the wall
+      const overlapsX = (x + spanX) > wx1 && x < wx2;
+      if (overlapsX) {
+        add(x, wy1 - spanY); // above
+        add(x, wy2);         // below
+      }
+      // If we overlap Y-range, we can snap left/right of the wall
+      const overlapsY = (y + spanY) > wy1 && y < wy2;
+      if (overlapsY) {
+        add(wx1 - spanX, y); // left
+        add(wx2, y);         // right
+      }
+    });
+
+    if (!candidates.length) return { x, y };
+    candidates.sort((a, b) => a.score - b.score);
+    // Only snap if it's a small adjustment (keeps control in user's hands)
+    if (candidates[0].score <= 1) return { x: candidates[0].x, y: candidates[0].y };
+    return { x, y };
+  };
+
+  const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind: 'table' | 'object', subtype?: string, disableSnap?: boolean) => {
+    // Always clamp
+    const base = clampToGrid(x, y, spanX, spanY);
+    if (disableSnap) return base;
+    // For furniture that visually "wants" to hug a wall (booth / bar), snap to nearby walls.
+    const wantsWallSnap = (kind === 'table' && String(subtype).toLowerCase() === 'booth') || (kind === 'object' && (subtype === 'bar' || subtype === 'door'));
+    if (wantsWallSnap) return snapToNearbyWalls(base.x, base.y, spanX, spanY);
+    return base;
   };
 
   const handleDrop = (e: React.DragEvent, gridX: number, gridY: number) => {
@@ -243,16 +311,23 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
     if (!draggedItem || !currentLayout) return;
 
+    // Shift = temporarily disable smart snapping
+    const disableSnap = Boolean((e as any).shiftKey);
+
     // Drop NEW table
     if (draggedItem.kind === 'table' && draggedItem.mode === 'new' && draggedItem.shape) {
+      const initialSpanX = draggedItem.shape === 'rect' || draggedItem.shape === 'booth' ? 2 : 1;
+      const initialSpanY = 1;
+      const snapped = snapPlacement(gridX, gridY, initialSpanX, initialSpanY, 'table', draggedItem.shape, disableSnap);
+
       const newTable: FloorTable = {
         id: `T${Date.now()}`,
         name: `Table ${nextTableNumber}`,
         tableNumber: nextTableNumber,
-        gridX,
-        gridY,
-        spanX: draggedItem.shape === 'rect' || draggedItem.shape === 'booth' ? 2 : 1,
-        spanY: 1,
+        gridX: snapped.x,
+        gridY: snapped.y,
+        spanX: initialSpanX,
+        spanY: initialSpanY,
         seats: draggedItem.shape === 'booth' ? 4 : 2,
         shape: draggedItem.shape as any,
         sectionId: activeSection?.id
@@ -269,10 +344,13 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
     // Move EXISTING table
     else if (draggedItem.kind === 'table' && draggedItem.mode === 'existing' && draggedItem.tableId) {
+      const moving = currentLayout.tables.find(t => t.id === draggedItem.tableId);
+      if (!moving) return;
+      const snapped = snapPlacement(gridX, gridY, moving.spanX || 1, moving.spanY || 1, 'table', moving.shape, disableSnap);
       setCurrentLayout({
         ...currentLayout,
         tables: currentLayout.tables.map(t =>
-          t.id === draggedItem.tableId ? { ...t, gridX, gridY } : t
+          t.id === draggedItem.tableId ? { ...t, gridX: snapped.x, gridY: snapped.y } : t
         )
       });
     }
@@ -292,11 +370,12 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
       const d = defaults[String(draggedItem.objectType)] ?? { spanX: 1, spanY: 1 };
 
+      const snapped = snapPlacement(gridX, gridY, d.spanX, d.spanY, 'object', draggedItem.objectType, disableSnap);
       const newObj: FloorObject = {
         id: `O${Date.now()}`,
         type: draggedItem.objectType,
-        gridX,
-        gridY,
+        gridX: snapped.x,
+        gridY: snapped.y,
         spanX: d.spanX,
         spanY: d.spanY,
         rotation: d.rotation,
@@ -314,13 +393,17 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     // Move EXISTING object
     else if (draggedItem.kind === 'object' && draggedItem.mode === 'existing' && draggedItem.objectId) {
       const objects = currentLayout.objects ?? [];
+      const moving = objects.find(o => o.id === draggedItem.objectId);
+      if (!moving) return;
+      const snapped = snapPlacement(gridX, gridY, moving.spanX || 1, moving.spanY || 1, 'object', moving.type, disableSnap);
       setCurrentLayout({
         ...currentLayout,
-        objects: objects.map(o => o.id === draggedItem.objectId ? { ...o, gridX, gridY } : o)
+        objects: objects.map(o => o.id === draggedItem.objectId ? { ...o, gridX: snapped.x, gridY: snapped.y } : o)
       });
     }
 
     setDraggedItem(null);
+    setHoverCell(null);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -473,6 +556,14 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
                   </button>
                 ))}
               </div>
+              <label className="fe-toggle">
+                <input
+                  type="checkbox"
+                  checked={showOnlyActiveSection}
+                  onChange={(e) => setShowOnlyActiveSection(e.target.checked)}
+                />
+                <span>Show only active section</span>
+              </label>
             </div>
           )}
 
@@ -611,14 +702,69 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
               gridTemplateRows: `repeat(${currentLayout.gridRows}, 60px)`
             }}
           >
+            {(() => {
+              // Drop preview: shows where the dragged item will land (with snapping)
+              if (!hoverCell || !draggedItem || !currentLayout) return null;
+              const cellPx = 60;
+              const padPx = 10;
+
+              const spanFromDragged = () => {
+                if (draggedItem.kind === 'table') {
+                  if (draggedItem.mode === 'new') {
+                    const sh = String(draggedItem.shape || 'square');
+                    return { spanX: (sh === 'rect' || sh === 'booth') ? 2 : 1, spanY: 1, subtype: sh };
+                  }
+                  const t = currentLayout.tables.find(tt => tt.id === draggedItem.tableId);
+                  if (t) return { spanX: t.spanX || 1, spanY: t.spanY || 1, subtype: t.shape };
+                }
+                if (draggedItem.kind === 'object') {
+                  if (draggedItem.mode === 'new') {
+                    const defaults: Record<string, { spanX: number; spanY: number }> = {
+                      wall: { spanX: 3, spanY: 1 },
+                      divider: { spanX: 2, spanY: 1 },
+                      door: { spanX: 1, spanY: 1 },
+                      bar: { spanX: 3, spanY: 2 },
+                      plant: { spanX: 1, spanY: 1 },
+                    };
+                    const d = defaults[String(draggedItem.objectType)] || { spanX: 1, spanY: 1 };
+                    return { spanX: d.spanX, spanY: d.spanY, subtype: draggedItem.objectType };
+                  }
+                  const o = (currentLayout.objects ?? []).find(oo => oo.id === draggedItem.objectId);
+                  if (o) return { spanX: o.spanX || 1, spanY: o.spanY || 1, subtype: o.type };
+                }
+                return { spanX: 1, spanY: 1, subtype: '' };
+              };
+
+              const { spanX, spanY, subtype } = spanFromDragged();
+              // Use snapping logic (same as onDrop). Shift disables snap.
+              const snapped = snapPlacement(hoverCell.x, hoverCell.y, spanX, spanY, draggedItem.kind, String(subtype), false);
+              const left = padPx + snapped.x * cellPx;
+              const top = padPx + snapped.y * cellPx;
+
+              return (
+                <div
+                  className="fe-drop-preview"
+                  style={{
+                    left,
+                    top,
+                    width: spanX * cellPx,
+                    height: spanY * cellPx,
+                  }}
+                />
+              );
+            })()}
+
             {Array.from({ length: currentLayout.gridRows * currentLayout.gridCols }).map((_, i) => {
               const gridY = Math.floor(i / currentLayout.gridCols);
               const gridX = i % currentLayout.gridCols;
 
-              const tableHere = currentLayout.tables.find(t =>
-                gridX >= t.gridX && gridX < t.gridX + t.spanX &&
-                gridY >= t.gridY && gridY < t.gridY + t.spanY
-              );
+              const tableHere = currentLayout.tables.find(t => {
+                if (showOnlyActiveSection && activeSection && String(t.sectionId || '') !== String(activeSection.id)) return false;
+                return (
+                  gridX >= t.gridX && gridX < t.gridX + t.spanX &&
+                  gridY >= t.gridY && gridY < t.gridY + t.spanY
+                );
+              });
 
               const objects = currentLayout.objects ?? [];
               const objectHere = objects.find(o =>
@@ -635,6 +781,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
                   className="grid-cell"
                   onDrop={(e) => handleDrop(e, gridX, gridY)}
                   onDragOver={handleDragOver}
+                  onDragEnter={() => setHoverCell({ x: gridX, y: gridY })}
+                  onDragLeave={() => setHoverCell(null)}
                 >
                   {isObjTopLeft && objectHere && (
                     <div
@@ -657,7 +805,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
                   )}
                   {isTopLeft && (
                     <div
-                      className={`table ${tableHere.shape} ${selectedTable?.id === tableHere.id ? 'selected' : ''}`}
+                      className={`table ${tableHere.shape} ${selectedTable?.id === tableHere.id ? 'selected' : ''} ${(!showOnlyActiveSection && activeSection && String(tableHere.sectionId || '') && String(tableHere.sectionId || '') !== String(activeSection.id)) ? 'dimmed' : ''}`}
                       draggable
                       onDragStart={(e) => handleDragStart(e, 'table', 'existing', { tableId: tableHere.id })}
                       onClick={() => {
@@ -693,6 +841,11 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
                       <div className="fe-table-overlay">
                         <div className="table-label">{tableHere.name}</div>
                         <div className="table-seats">{tableHere.seats} seats</div>
+                        {tableHere.sectionId && sections.length > 0 && (
+                          <div className="table-section">
+                            {sections.find(s => String(s.id) === String(tableHere.sectionId))?.name || 'Section'}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
