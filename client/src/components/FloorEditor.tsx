@@ -83,7 +83,9 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
-  const ASSET_BASE = '/static/floor_assets/';
+  // Vite serves files from /public at the app base URL.
+  // Using BASE_URL keeps it working if the app is hosted under a sub-path.
+  const ASSET_BASE = `${import.meta.env.BASE_URL}floor_assets/`;
   const CELL_PX = 60;
   const GRID_PAD_PX = 10;
 

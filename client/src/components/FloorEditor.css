@@ -248,8 +248,8 @@
   position:absolute;
   width: 22%;
   height: 22%;
-  /* Assets are served from /static/floor_assets (same as waiter/live view) */
-  background: url('/static/floor_assets/chair.svg') center/contain no-repeat;
+  /* Assets are served from /public/floor_assets (Vite -> /floor_assets/...) */
+  background: url('/floor_assets/chair.svg') center/contain no-repeat;
   filter: drop-shadow(0 6px 12px rgba(0,0,0,.18));
   opacity: .96;
 }
@@ -335,7 +335,7 @@
   display: grid;
   gap: 0;
   background:
-    url('/static/floor_assets/floor_tile_grid_6x6.svg') center/cover no-repeat,
+    url('/floor_assets/floor_tile_grid_6x6.svg') center/cover no-repeat,
     repeating-linear-gradient(0deg, rgba(255,255,255,.045) 0, rgba(255,255,255,.045) 1px, transparent 1px, transparent 60px),
     repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0, rgba(255,255,255,.035) 1px, transparent 1px, transparent 60px),
     rgba(0,0,0,.10);
@@ -450,8 +450,8 @@
   position:absolute;
   width: 22%;
   height: 22%;
-  /* Assets are served from /static/floor_assets (same as waiter/live view) */
-  background: url('/static/floor_assets/chair.svg') center/contain no-repeat;
+  /* Assets are served from /public/floor_assets (Vite -> /floor_assets/...) */
+  background: url('/floor_assets/chair.svg') center/contain no-repeat;
   filter: drop-shadow(0 8px 14px rgba(0,0,0,.18));
   opacity: .96;
 }
@@ -782,7 +782,7 @@
 /* ================= Grid parquet tiles (Stage 3) ================= */
 /* Editor grid cells */
 .grid-cell, .fe-grid-cell, .floor-grid-cell {
-  background-image: url('/static/floor_assets/floor_brown.svg');
+  background-image: url('/floor_assets/floor_brown.svg');
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;
