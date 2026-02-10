@@ -84,6 +84,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
   const ASSET_BASE = '/static/floor_assets/';
+  const CELL_PX = 60;
+  const GRID_PAD_PX = 10;
 
   const scaleForTable = (shape: string, seats: number) => {
     const s = String(shape || 'rect').toLowerCase();
@@ -542,10 +544,32 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     return computeSnap(x, y, spanX, spanY, kind, subtype, disableSnap, exclude);
   };
 
-  const handleDrop = (e: React.DragEvent, gridX: number, gridY: number) => {
+  const clientPointToGridCell = (clientX: number, clientY: number) => {
+    if (!currentLayout) return null;
+    // Use the transformed grid's bounding box so zoom/pan works reliably.
+    const gridEl = document.querySelector('.grid') as HTMLDivElement | null;
+    if (!gridEl) return null;
+
+    const rect = gridEl.getBoundingClientRect();
+    const xPx = (clientX - rect.left) / zoom - GRID_PAD_PX;
+    const yPx = (clientY - rect.top) / zoom - GRID_PAD_PX;
+
+    const gx = Math.floor(xPx / CELL_PX);
+    const gy = Math.floor(yPx / CELL_PX);
+    if (Number.isNaN(gx) || Number.isNaN(gy)) return null;
+    if (gx < 0 || gy < 0 || gx >= currentLayout.gridCols || gy >= currentLayout.gridRows) return null;
+    return { x: gx, y: gy };
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
 
     if (!draggedItem || !currentLayout) return;
+
+    const target = hoverCell ?? clientPointToGridCell(e.clientX, e.clientY);
+    if (!target) return;
+    const gridX = target.x;
+    const gridY = target.y;
 
     // Shift = temporarily disable smart snapping
     const disableSnap = Boolean((e as any).shiftKey);
@@ -640,12 +664,27 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
     setDraggedItem(null);
     setHoverCell(null);
-    
+
+  };
+
+  const handleGridDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const cell = clientPointToGridCell(e.clientX, e.clientY);
+    if (cell) setHoverCell(cell);
+  };
+
+  const handleGridDragLeave = () => {
+    setHoverCell(null);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+
+    // Update hover cell from mouse position (works even when grid is transformed)
+    const cell = clientPointToGridCell(e.clientX, e.clientY);
+    if (cell) setHoverCell(cell);
   };
 
   const deleteTable = (tableId: string) => {
@@ -948,6 +987,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: '0 0'
             }}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            onDragLeave={() => setHoverCell(null)}
           >
             {(() => {
               // Drop preview: shows where the dragged item will land (with snapping)
@@ -1034,10 +1076,6 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                 <div
                   key={i}
                   className="grid-cell"
-                  onDrop={(e) => handleDrop(e, gridX, gridY)}
-                  onDragOver={handleDragOver}
-                  onDragEnter={() => setHoverCell({ x: gridX, y: gridY })}
-                  onDragLeave={() => setHoverCell(null)}
                 >
                   {isObjTopLeft && objectHere && (
                     <div
