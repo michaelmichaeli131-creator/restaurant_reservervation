@@ -24,19 +24,20 @@ interface FloorTable {
   spanX: number;
   spanY: number;
   seats: number;
-  shape: 'square' | 'round' | 'rect' | 'booth';
+  shape: 'square' | 'round' | 'rect' | 'booth' | 'bar';
   sectionId?: string;
 }
 
 interface FloorObject {
   id: string;
-  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider';
+  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider' | 'chair' | 'floor';
   gridX: number;
   gridY: number;
   spanX: number;
   spanY: number;
   rotation?: 0 | 90 | 180 | 270;
   label?: string;
+  asset?: string;
 }
 
 interface FloorLayout {

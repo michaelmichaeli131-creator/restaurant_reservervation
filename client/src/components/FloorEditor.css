@@ -123,13 +123,6 @@
   margin-bottom: 12px;
 }
 
-.fe-subtitle{
-  font-size: 13px;
-  font-weight: 700;
-  opacity: 0.85;
-  margin: 6px 0 8px;
-}
-
 .sections-tabs {
   border-bottom: 1px solid var(--bd);
   padding-bottom: 16px;
@@ -237,7 +230,7 @@
 .fe-asset{
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   pointer-events: none;
   user-select: none;
   filter: drop-shadow(0 8px 16px rgba(0,0,0,.22));
@@ -245,12 +238,21 @@
 
 .fe-table-visual{
   position:absolute;
-  inset: 2px;
+  inset: 6px;
   border-radius: 12px;
   pointer-events:none;
 }
 
-/* Removed auto-added chairs around tables (chairs are separate palette assets now) */
+.fe-chairs{ position:absolute; inset: 0; }
+.fe-chair{
+  position:absolute;
+  width: 22%;
+  height: 22%;
+  /* Assets are served from /public/floor_assets (Vite -> /floor_assets/...) */
+  background: url('/floor_assets/chair.svg') center/contain no-repeat;
+  filter: drop-shadow(0 6px 12px rgba(0,0,0,.18));
+  opacity: .96;
+}
 
 .fe-table-overlay{
   position:absolute;
@@ -332,11 +334,11 @@
 .grid {
   display: grid;
   gap: 0;
-  /* Blue-grey grid background (no images -> faster) */
   background:
-    repeating-linear-gradient(0deg, rgba(255,255,255,.07) 0, rgba(255,255,255,.07) 1px, transparent 1px, transparent 60px),
-    repeating-linear-gradient(90deg, rgba(255,255,255,.07) 0, rgba(255,255,255,.07) 1px, transparent 1px, transparent 60px),
-    #495a6b;
+    url('/floor_assets/floor_tile_grid_6x6.svg') center/cover no-repeat,
+    repeating-linear-gradient(0deg, rgba(255,255,255,.045) 0, rgba(255,255,255,.045) 1px, transparent 1px, transparent 60px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0, rgba(255,255,255,.035) 1px, transparent 1px, transparent 60px),
+    rgba(0,0,0,.10);
   padding: 10px;
   border-radius: 12px;
   overflow: visible;
@@ -424,7 +426,7 @@
 
 .fe-table-visual{
   position:absolute;
-  inset: 2px;
+  inset: 4px;
   border-radius: inherit;
   display:flex;
   align-items:center;
@@ -435,8 +437,23 @@
 .fe-asset{
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   filter: drop-shadow(0 10px 16px rgba(0,0,0,.22));
+}
+
+.fe-chairs{
+  position:absolute;
+  inset: 0;
+}
+
+.fe-chair{
+  position:absolute;
+  width: 22%;
+  height: 22%;
+  /* Assets are served from /public/floor_assets (Vite -> /floor_assets/...) */
+  background: url('/floor_assets/chair.svg') center/contain no-repeat;
+  filter: drop-shadow(0 8px 14px rgba(0,0,0,.18));
+  opacity: .96;
 }
 
 .fe-table-overlay{
@@ -477,7 +494,7 @@
 /* ========== FLOOR OBJECTS ========== */
 .floor-object{
   position: absolute;
-  inset: 2px;
+  inset: 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -762,9 +779,10 @@
 }
 
 
-/* Editor grid cells: no background images (faster) */
+/* ================= Grid background ================= */
+/* Fast background (no images) */
 .grid-cell, .fe-grid-cell, .floor-grid-cell {
-  background-image: none;
+  background: #d6dee9; /* blue-gray */
 }
 
 
