@@ -317,12 +317,9 @@
 
 .editor-canvas {
   flex: 1;
-  background:
-    radial-gradient(900px 540px at 50% 0%, rgba(255,255,255,.05), transparent 60%),
-    radial-gradient(1000px 520px at 20% 10%, rgba(56,156,255,.10), transparent 60%),
-    radial-gradient(900px 520px at 90% 70%, rgba(56,156,255,.06), transparent 60%),
-    rgba(255,255,255,.02);
-  border: 1px solid var(--bd);
+  /* Plain white canvas for better performance and a cleaner editing experience */
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,.12);
   border-radius: 12px;
   padding: 20px;
   overflow: hidden;
@@ -334,11 +331,8 @@
 .grid {
   display: grid;
   gap: 0;
-  background:
-    url('/floor_assets/floor_tile_grid_6x6.svg') center/cover no-repeat,
-    repeating-linear-gradient(0deg, rgba(255,255,255,.045) 0, rgba(255,255,255,.045) 1px, transparent 1px, transparent 60px),
-    repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0, rgba(255,255,255,.035) 1px, transparent 1px, transparent 60px),
-    rgba(0,0,0,.10);
+  /* Plain white background (no image assets) for faster editing */
+  background: #ffffff;
   padding: 10px;
   border-radius: 12px;
   overflow: visible;
@@ -358,7 +352,8 @@
 
 .grid-cell {
   background: transparent;
-  border: 1px solid rgba(255,255,255,.06);
+  /* Light grid lines over white background */
+  border: 1px solid rgba(0,0,0,.08);
   width: 60px;
   height: 60px;
   position: relative;
@@ -782,10 +777,8 @@
 /* ================= Grid parquet tiles (Stage 3) ================= */
 /* Editor grid cells */
 .grid-cell, .fe-grid-cell, .floor-grid-cell {
-  background-image: url('/floor_assets/floor_brown.svg');
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-position: center;
+  /* Plain white background (no image assets) for faster editing */
+  background: #ffffff;
 }
 
 
