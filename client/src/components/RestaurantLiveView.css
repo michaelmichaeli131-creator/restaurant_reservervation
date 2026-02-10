@@ -96,7 +96,7 @@
 .live-view-container {
   flex: 1;
   padding: 20px;
-  overflow: auto;
+  overflow: hidden;
   background: white;
   border-radius: 8px;
   margin: 0 20px;
@@ -109,10 +109,7 @@
 .floor-grid {
   display: grid;
   gap: 8px;
-  background-image: url('/static/floor_assets/floor_brown.svg');
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-position: center;
+  background: #f9f9f9;
   padding: 16px;
   border-radius: 6px;
   width: fit-content;
@@ -143,22 +140,6 @@
 .floor-object-live.type-door{ background: rgba(34, 197, 94, 0.12); }
 .floor-object-live.type-plant{ background: rgba(16, 185, 129, 0.10); }
 
-.live-asset{
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  pointer-events: none;
-}
-
-.live-wall{
-  width: 100%;
-  height: 100%;
-  border-radius: 10px;
-  background: linear-gradient(180deg, rgba(13,15,23,0.85), rgba(13,15,23,0.55));
-  border: 1px solid rgba(255,255,255,0.10);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 6px 18px rgba(0,0,0,0.25);
-}
-
 /* Table card base styling */
 .table-card {
   display: flex;
@@ -166,7 +147,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  color: #e5e7eb;
+  color: white;
   cursor: pointer;
   transition: all 0.2s;
   position: relative;
@@ -175,24 +156,9 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(0, 0, 0, 0.15);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-  background: rgba(10, 15, 25, 0.10);
   min-width: 70px;
   min-height: 70px;
   font-size: 13px;
-}
-
-.table-card > .live-asset{
-  position: absolute;
-  inset: 4px;
-  width: calc(100% - 8px);
-  height: calc(100% - 8px);
-  z-index: 0;
-  filter: drop-shadow(0 8px 18px rgba(0,0,0,0.30));
-}
-
-.table-card > *:not(.live-asset){
-  position: relative;
-  z-index: 1;
 }
 
 .table-card:hover {
@@ -567,4 +533,35 @@
   .stat .value {
     font-size: 14px;
   }
+}
+
+
+/* Zoom / pan controls (shared look with editor) */
+.live-view-container.is-panning {
+  cursor: grabbing;
+}
+.live-view-container .fe-canvas-controls{
+  position: sticky;
+  top: 12px;
+  z-index: 80;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 10px;
+  border-radius: 12px;
+  background: rgba(10,16,24,.08);
+  border: 1px solid rgba(0,0,0,.10);
+  backdrop-filter: blur(8px);
+}
+.live-view-container .fe-zoom-readout{
+  font-size: 12px;
+  opacity: .9;
+  padding: 0 6px;
+}
+.live-view-container .fe-hint{
+  font-size: 12px;
+  opacity: .65;
+  padding-left: 6px;
+  white-space: nowrap;
 }

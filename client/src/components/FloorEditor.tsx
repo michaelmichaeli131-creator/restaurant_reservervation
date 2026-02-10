@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './FloorEditor.css';
 import { t } from '../i18n';
 
@@ -17,8 +17,7 @@ interface FloorTable {
 
 interface FloorObject {
   id: string;
-  // Stored as JSON; keep union flexible for new asset types.
-  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider' | 'chair';
+  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider';
   gridX: number;
   gridY: number;
   spanX: number;
@@ -67,9 +66,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     kind: 'table' | 'object';
     mode: 'new' | 'existing';
     shape?: string; // for tables
-    seats?: number; // for tables
     objectType?: FloorObject['type'];
-    variant?: string; // for objects (stored as label)
     tableId?: string;
     objectId?: string;
   } | null>(null);
@@ -79,60 +76,33 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [showOnlyActiveSection, setShowOnlyActiveSection] = useState(false);
   const [hoverCell, setHoverCell] = useState<{ x: number; y: number } | null>(null);
 
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [spacePressed, setSpacePressed] = useState(false); 
+
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+
   const ASSET_BASE = '/static/floor_assets/';
 
-  // =============================================================
-  // Asset architecture (clean & consistent)
-  // - One source of truth for default sizes (grid spans)
-  // - Visual size follows logical size (no extra ad-hoc scaling)
-  // - Variants are stored in object.label (e.g., wall_h / wall_v)
-  // =============================================================
-  const BASE_TABLE_UNIT = 2; // Table for 2 = 2x2. Table for 4 = 4x4, etc.
-
-  const clampInt = (v: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(v)));
-
-  const tableSpanFor = (shape: string, seats: number) => {
-    const s = String(shape || 'square').toLowerCase();
-    const n = Math.max(2, Number(seats || 2));
-
-    // Requested ratio: 4-seat table length = 2x of 2-seat. So spans scale linearly by (seats/2).
-    const k = Math.max(1, n / 2);
-
-    if (s === 'booth') {
-      // Sofas / booths: wide, not perfectly square.
-      const w = clampInt(BASE_TABLE_UNIT * k, 2, 12);
-      const h = clampInt(Math.max(2, BASE_TABLE_UNIT), 2, 6);
-      return { spanX: w, spanY: h };
-    }
-
-    const span = clampInt(BASE_TABLE_UNIT * k, 2, 12);
-    return { spanX: span, spanY: span };
+  const scaleForTable = (shape: string, seats: number) => {
+    const s = String(shape || 'rect').toLowerCase();
+    const n = Number(seats || 0);
+    if (s === 'booth') return n <= 4 ? 1.15 : 1.35;
+    if (n <= 2) return 0.75;
+    if (n <= 4) return 1.0;
+    if (n <= 6) return 1.5;
+    if (n <= 8) return 1.75;
+    return 2.0;
   };
 
-  const objectSpanFor = (type: FloorObject['type'], variant?: string) => {
-    const v = String(variant || '').toLowerCase();
-    if (type === 'bar') return { spanX: 5, spanY: 2 };
-    if (type === 'door') return { spanX: 1, spanY: 1 };
-    if (type === 'plant') return { spanX: 1, spanY: 1 };
-    if (type === 'chair') return { spanX: 1, spanY: 1 };
-
-    if (type === 'wall') {
-      if (v === 'wall_v') return { spanX: 1, spanY: 6 };
-      return { spanX: 6, spanY: 1 }; // wall_h default
-    }
-
-    // divider variants
-    if (type === 'divider') {
-      if (v === 'divider_round') return { spanX: 2, spanY: 2 };
-      if (v === 'divider_corner') return { spanX: 1, spanY: 1 };
-      if (v === 'divider_v') return { spanX: 1, spanY: 5 };
-      return { spanX: 5, spanY: 1 }; // divider_h default
-    }
-
-    return { spanX: 1, spanY: 1 };
+  const scaleForObject = (type: string) => {
+    const t = String(type || '').toLowerCase();
+    if (t === 'bar') return 1.8;
+    return 1.0;
   };
 
-  const assetForTable = (shape: string, seats: number) => {
+const assetForTable = (shape: string, seats: number) => {
     const s = String(shape || 'rect').toLowerCase();
     const n = Number(seats || 0);
     if (s === 'round') return n >= 9 ? `${ASSET_BASE}round_table_10.svg` : `${ASSET_BASE}round_table4.svg`;
@@ -143,27 +113,16 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   };
 
 
-  const assetForObject = (type: FloorObject['type'], spanX: number, spanY: number, variant?: string) => {
-    if (type === 'door') return `${ASSET_BASE}door.svg`;
-    if (type === 'bar') return `${ASSET_BASE}bar.svg`;
-    if (type === 'plant') return `${ASSET_BASE}plant.svg`;
-    if (type === 'chair') return `${ASSET_BASE}chair.svg`;
-
-    // Walls are drawn with clean CSS (more consistent, crisp, and scalable)
-    if (type === 'wall') return '';
-
-    // Divider variants
-    const v = String(variant || '').toLowerCase();
-    if (v === 'divider_round') return `${ASSET_BASE}cyclic_partition.svg`;
-    if (v === 'divider_corner') return `${ASSET_BASE}corner_partitaion.svg`;
-    if (v === 'divider_v') return `${ASSET_BASE}vertical_partition.svg`;
-    if (v === 'divider_h') return `${ASSET_BASE}horizintal_partitaion.svg`;
-
-    // Fallback based on aspect
-    if ((spanX || 1) === 1 && (spanY || 1) === 1) return `${ASSET_BASE}corner_partitaion.svg`;
-    if ((spanX || 1) > (spanY || 1)) return `${ASSET_BASE}horizintal_partitaion.svg`;
-    return `${ASSET_BASE}vertical_partition.svg`;
-  };
+    const assetForObject = (type: FloorObject['type'], spanX: number, spanY: number) => {
+      if (type === 'door') return `${ASSET_BASE}door.svg`;
+      if (type === 'bar') return `${ASSET_BASE}bar.svg`;
+      if (type === 'plant') return `${ASSET_BASE}plant.svg`;
+    if (type === 'cyclic_partition' || type === 'cyclic') return `${ASSET_BASE}cyclic_partition.svg`;
+      // wall/divider
+      if ((spanX || 1) === 1 && (spanY || 1) === 1) return `${ASSET_BASE}corner_partitaion.svg`;
+      if ((spanX || 1) > (spanY || 1)) return `${ASSET_BASE}horizintal_partitaion.svg`;
+      return `${ASSET_BASE}vertical_partition.svg`;
+    };
 
 
   // Load all layouts
@@ -193,6 +152,28 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
       })
       .catch(err => console.error('Failed to load sections:', err));
   }, [restaurantId]);
+
+  // Canvas keyboard helpers (Space = pan)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setSpacePressed(true);
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setSpacePressed(false);
+        setIsPanning(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, []);
+
 
   const createNewLayout = async () => {
     if (!newLayoutName.trim()) {
@@ -304,7 +285,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     e: React.DragEvent,
     kind: 'table' | 'object',
     mode: 'new' | 'existing',
-    opts?: { shape?: string; seats?: number; objectType?: FloorObject['type']; variant?: string; tableId?: string; objectId?: string }
+    opts?: { shape?: string; objectType?: FloorObject['type']; tableId?: string; objectId?: string }
   ) => {
     setDraggedItem({ kind, mode, ...opts });
     setHoverCell(null);
@@ -366,14 +347,199 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     return { x, y };
   };
 
-  const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind: 'table' | 'object', subtype?: string, disableSnap?: boolean) => {
+  
+  const clampZoom = (z: number) => Math.max(0.35, Math.min(2.5, z));
+
+  const fitToScreen = () => {
+    if (!canvasRef.current || !currentLayout) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const cellPx = 60;
+    const gridW = (currentLayout.gridCols * cellPx) + 20; // grid padding
+    const gridH = (currentLayout.gridRows * cellPx) + 20;
+
+    const scale = clampZoom(Math.min((rect.width - 40) / gridW, (rect.height - 40) / gridH, 1.2));
+    setZoom(scale);
+
+    // center
+    const panX = Math.round((rect.width - gridW * scale) / 2);
+    const panY = Math.round(20);
+    setPan({ x: panX, y: panY });
+  };
+
+  const zoomAtPoint = (nextZoom: number, clientX: number, clientY: number) => {
+    if (!canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const ox = clientX - rect.left;
+    const oy = clientY - rect.top;
+
+    setPan((p) => {
+      const z = zoom;
+      const dz = nextZoom / z;
+
+      // keep the point under cursor stable: newPan = cursor - (cursor - pan) * dz
+      const nx = Math.round(ox - (ox - p.x) * dz);
+      const ny = Math.round(oy - (oy - p.y) * dz);
+      return { x: nx, y: ny };
+    });
+    setZoom(nextZoom);
+  };
+
+  const onCanvasWheel = (e: React.WheelEvent) => {
+    // Ctrl/Meta + wheel -> zoom. Otherwise let the browser scroll naturally.
+    if (!(e.ctrlKey || (e as any).metaKey)) return;
+    e.preventDefault();
+    const delta = e.deltaY;
+    const next = clampZoom(zoom * (delta > 0 ? 0.9 : 1.1));
+    zoomAtPoint(next, e.clientX, e.clientY);
+  };
+
+  const onCanvasMouseDown = (e: React.MouseEvent) => {
+    // Middle mouse OR Space+Left mouse -> pan
+    const isMiddle = e.button === 1;
+    const isSpaceLeft = spacePressed && e.button === 0;
+    if (!isMiddle && !isSpaceLeft) return;
+
+    e.preventDefault();
+    setIsPanning(true);
+    const start = { x: e.clientX, y: e.clientY };
+    const startPan = { ...pan };
+
+    const onMove = (ev: MouseEvent) => {
+      const dx = ev.clientX - start.x;
+      const dy = ev.clientY - start.y;
+      setPan({ x: startPan.x + dx, y: startPan.y + dy });
+    };
+    const onUp = () => {
+      setIsPanning(false);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+
+  const computeAlignmentSnap = (
+    x: number,
+    y: number,
+    spanX: number,
+    spanY: number,
+    exclude?: { kind: 'table' | 'object'; id?: string }
+  ) => {
+    if (!currentLayout) return { x, y, guides: { v: [] as number[], h: [] as number[] } };
+
+    const others: Array<{ left: number; top: number; right: number; bottom: number; cx2: number; cy2: number }> = [];
+
+    // Collect other items (tables + objects) in grid units
+    for (const t of currentLayout.tables) {
+      if (exclude?.kind === 'table' && exclude?.id && t.id === exclude.id) continue;
+      others.push({
+        left: t.gridX,
+        top: t.gridY,
+        right: t.gridX + (t.spanX || 1),
+        bottom: t.gridY + (t.spanY || 1),
+        cx2: (t.gridX * 2) + (t.spanX || 1),
+        cy2: (t.gridY * 2) + (t.spanY || 1),
+      });
+    }
+    for (const o of (currentLayout.objects ?? [])) {
+      if (exclude?.kind === 'object' && exclude?.id && o.id === exclude.id) continue;
+      others.push({
+        left: o.gridX,
+        top: o.gridY,
+        right: o.gridX + (o.spanX || 1),
+        bottom: o.gridY + (o.spanY || 1),
+        cx2: (o.gridX * 2) + (o.spanX || 1),
+        cy2: (o.gridY * 2) + (o.spanY || 1),
+      });
+    }
+
+    const myLeft = x;
+    const myTop = y;
+    const myRight = x + spanX;
+    const myBottom = y + spanY;
+    const myCx2 = (x * 2) + spanX;
+    const myCy2 = (y * 2) + spanY;
+
+    // threshold in grid units (<= 1 cell)
+    const thr = 1;
+
+    let bestDx: number | null = null;
+    let bestDy: number | null = null;
+    const guides = { v: [] as number[], h: [] as number[] };
+
+    const considerDx = (dx: number, guideX: number) => {
+      if (Math.abs(dx) > thr) return;
+      if (bestDx === null || Math.abs(dx) < Math.abs(bestDx)) {
+        bestDx = dx;
+        guides.v = [guideX];
+      }
+    };
+    const considerDy = (dy: number, guideY: number) => {
+      if (Math.abs(dy) > thr) return;
+      if (bestDy === null || Math.abs(dy) < Math.abs(bestDy)) {
+        bestDy = dy;
+        guides.h = [guideY];
+      }
+    };
+
+    for (const it of others) {
+      // Left align
+      considerDx(it.left - myLeft, it.left);
+      // Right align
+      considerDx(it.right - myRight, it.right);
+      // Center align (only if integer shift possible)
+      const dx2 = it.cx2 - myCx2; // in half-units
+      if (dx2 % 2 === 0) considerDx(dx2 / 2, it.cx2 / 2);
+
+      // Top align
+      considerDy(it.top - myTop, it.top);
+      // Bottom align
+      considerDy(it.bottom - myBottom, it.bottom);
+      const dy2 = it.cy2 - myCy2;
+      if (dy2 % 2 === 0) considerDy(dy2 / 2, it.cy2 / 2);
+    }
+
+    return {
+      x: bestDx !== null ? x + bestDx : x,
+      y: bestDy !== null ? y + bestDy : y,
+      guides,
+    };
+  };
+
+  const computeSnap = (
+    x: number,
+    y: number,
+    spanX: number,
+    spanY: number,
+    kind: 'table' | 'object',
+    subtype?: string,
+    disableSnap?: boolean,
+    exclude?: { kind: 'table' | 'object'; id?: string }
+  ) => {
     // Always clamp
     const base = clampToGrid(x, y, spanX, spanY);
-    if (disableSnap) return base;
-    // For furniture that visually "wants" to hug a wall (booth / bar), snap to nearby walls.
-    const wantsWallSnap = (kind === 'table' && String(subtype).toLowerCase() === 'booth') || (kind === 'object' && (subtype === 'bar' || subtype === 'door'));
-    if (wantsWallSnap) return snapToNearbyWalls(base.x, base.y, spanX, spanY);
-    return base;
+
+    if (disableSnap) return { x: base.x, y: base.y, guides: { v: [] as number[], h: [] as number[] } };
+
+    // For furniture that visually "wants" to hug a wall (booth / bar / door), snap to nearby walls.
+    const wantsWallSnap =
+      (kind === 'table' && String(subtype).toLowerCase() === 'booth') ||
+      (kind === 'object' && (subtype === 'bar' || subtype === 'door'));
+
+    const wallSnapped = wantsWallSnap ? snapToNearbyWalls(base.x, base.y, spanX, spanY) : base;
+
+    // Alignment snap to other items
+    const aligned = computeAlignmentSnap(wallSnapped.x, wallSnapped.y, spanX, spanY, exclude);
+
+    // Clamp again after alignment
+    const clamped = clampToGrid(aligned.x, aligned.y, spanX, spanY);
+    return { x: clamped.x, y: clamped.y, guides: aligned.guides };
+  };
+
+const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind: 'table' | 'object', subtype?: string, disableSnap?: boolean, exclude?: { kind: 'table' | 'object'; id?: string }) => {
+    return computeSnap(x, y, spanX, spanY, kind, subtype, disableSnap, exclude);
   };
 
   const handleDrop = (e: React.DragEvent, gridX: number, gridY: number) => {
@@ -386,8 +552,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
     // Drop NEW table
     if (draggedItem.kind === 'table' && draggedItem.mode === 'new' && draggedItem.shape) {
-      const seats = Number(draggedItem.seats || (draggedItem.shape === 'booth' ? 4 : 2));
-      const { spanX: initialSpanX, spanY: initialSpanY } = tableSpanFor(draggedItem.shape, seats);
+      const initialSpanX = draggedItem.shape === 'rect' || draggedItem.shape === 'booth' ? 2 : 1;
+      const initialSpanY = 1;
       const snapped = snapPlacement(gridX, gridY, initialSpanX, initialSpanY, 'table', draggedItem.shape, disableSnap);
 
       const newTable: FloorTable = {
@@ -398,7 +564,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
         gridY: snapped.y,
         spanX: initialSpanX,
         spanY: initialSpanY,
-        seats,
+        seats: draggedItem.shape === 'booth' ? 4 : 2,
         shape: draggedItem.shape as any,
         sectionId: activeSection?.id
       };
@@ -416,7 +582,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     else if (draggedItem.kind === 'table' && draggedItem.mode === 'existing' && draggedItem.tableId) {
       const moving = currentLayout.tables.find(t => t.id === draggedItem.tableId);
       if (!moving) return;
-      const snapped = snapPlacement(gridX, gridY, moving.spanX || 1, moving.spanY || 1, 'table', moving.shape, disableSnap);
+      const snapped = snapPlacement(gridX, gridY, moving.spanX || 1, moving.spanY || 1, 'table', moving.shape, disableSnap, { kind: 'table', id: moving.id });
       setCurrentLayout({
         ...currentLayout,
         tables: currentLayout.tables.map(t =>
@@ -429,8 +595,17 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     else if (draggedItem.kind === 'object' && draggedItem.mode === 'new' && draggedItem.objectType) {
       const objects = currentLayout.objects ?? [];
 
-      const variant = draggedItem.variant;
-      const d = objectSpanFor(draggedItem.objectType, variant);
+      // reasonable defaults per object type
+      const defaults: Record<string, { spanX: number; spanY: number; rotation?: 0|90|180|270; label?: string }> = {
+        wall: { spanX: 3, spanY: 1, rotation: 0 },
+        divider: { spanX: 2, spanY: 1, rotation: 0 },
+        door: { spanX: 1, spanY: 1, rotation: 0, label: 'Door' },
+        bar: { spanX: 3, spanY: 2, rotation: 0, label: 'Bar' },
+        plant: { spanX: 1, spanY: 1, rotation: 0, label: '' },
+      };
+
+      const d = defaults[String(draggedItem.objectType)] ?? { spanX: 1, spanY: 1 };
+
       const snapped = snapPlacement(gridX, gridY, d.spanX, d.spanY, 'object', draggedItem.objectType, disableSnap);
       const newObj: FloorObject = {
         id: `O${Date.now()}`,
@@ -439,8 +614,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
         gridY: snapped.y,
         spanX: d.spanX,
         spanY: d.spanY,
-        rotation: 0,
-        label: variant || '',
+        rotation: d.rotation,
+        label: d.label,
       };
 
       setCurrentLayout({
@@ -456,7 +631,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
       const objects = currentLayout.objects ?? [];
       const moving = objects.find(o => o.id === draggedItem.objectId);
       if (!moving) return;
-      const snapped = snapPlacement(gridX, gridY, moving.spanX || 1, moving.spanY || 1, 'object', moving.type, disableSnap);
+      const snapped = snapPlacement(gridX, gridY, moving.spanX || 1, moving.spanY || 1, 'object', moving.type, disableSnap, { kind: 'object', id: moving.id });
       setCurrentLayout({
         ...currentLayout,
         objects: objects.map(o => o.id === draggedItem.objectId ? { ...o, gridX: snapped.x, gridY: snapped.y } : o)
@@ -465,6 +640,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
     setDraggedItem(null);
     setHoverCell(null);
+    
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -630,62 +806,45 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
           <h2>🎨 Palette</h2>
           <div className="palette">
-            {/* Square tables */}
-            {[2,4,6,8,10].map((seats) => (
-              <div key={`sq-${seats}`} className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats })}>
-                <div className="preview"><img className="preview-img" src={assetForTable('square', seats)} alt="" /></div>
-                <span>Square · {seats}</span>
-              </div>
-            ))}
-
-            {/* Round tables */}
-            {[4,10].map((seats) => (
-              <div key={`rd-${seats}`} className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'round', seats })}>
-                <div className="preview"><img className="preview-img" src={assetForTable('round', seats)} alt="" /></div>
-                <span>Round · {seats}</span>
-              </div>
-            ))}
-
-            {/* Sofas (implemented as booths) */}
-            {[2,4].map((seats) => (
-              <div key={`sofa-${seats}`} className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'booth', seats })}>
-                <div className="preview"><img className="preview-img" src={assetForTable('booth', seats)} alt="" /></div>
-                <span>Sofa · {seats}</span>
-              </div>
-            ))}
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'round' })}>
+              <div className="preview"><img className="preview-img" src={assetForTable('round', 4)} alt="" /></div>
+              <span>2-Seat Round</span>
+            </div>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square' })}>
+              <div className="preview"><img className="preview-img" src={assetForTable('square', 4)} alt="" /></div>
+              <span>4-Seat Square</span>
+            </div>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'rect' })}>
+              <div className="preview"><img className="preview-img" src={assetForTable('rect', 6)} alt="" /></div>
+              <span>6-Seat Rect</span>
+            </div>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'booth' })}>
+              <div className="preview"><img className="preview-img" src={assetForTable('booth', 4)} alt="" /></div>
+              <span>Booth</span>
+            </div>
           </div>
 
           <h2 style={{ marginTop: 18 }}>🏗️ Elements</h2>
           <div className="palette">
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'bar' })}>
-              <div className="preview"><img className="preview-img" src={assetForObject('bar', 5, 2)} alt="" /></div>
-              <span>Bar · 5</span>
-            </div>
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'chair' })}>
-              <div className="preview"><img className="preview-img" src={assetForObject('chair', 1, 1)} alt="" /></div>
-              <span>Chair</span>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'wall' })}>
+              <div className="preview"><img className="preview-img" src={assetForObject('wall', 1, 2)} alt="" /></div>
+              <span>Wall</span>
             </div>
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'door' })}>
               <div className="preview"><img className="preview-img" src={assetForObject('door', 1, 1)} alt="" /></div>
               <span>Door</span>
             </div>
-
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'divider', variant: 'divider_h' })}>
-              <div className="preview"><img className="preview-img" src={assetForObject('divider', 5, 1, 'divider_h')} alt="" /></div>
-              <span>Partition</span>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'bar' })}>
+              <div className="preview"><img className="preview-img" src={assetForObject('bar', 2, 1)} alt="" /></div>
+              <span>Bar</span>
             </div>
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'divider', variant: 'divider_round' })}>
-              <div className="preview"><img className="preview-img" src={assetForObject('divider', 2, 2, 'divider_round')} alt="" /></div>
-              <span>Round Partition</span>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'plant' })}>
+              <div className="preview"><img className="preview-img" src={assetForObject('plant', 1, 1)} alt="" /></div>
+              <span>Plant</span>
             </div>
-
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'wall', variant: 'wall_h' })}>
-              <div className="preview fe-wall-preview" />
-              <span>Wall · Horizontal</span>
-            </div>
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'wall', variant: 'wall_v' })}>
-              <div className="preview fe-wall-preview fe-wall-preview-v" />
-              <span>Wall · Vertical</span>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'divider' })}>
+              <div className="preview"><img className="preview-img" src={assetForObject('divider', 2, 1)} alt="" /></div>
+              <span>Divider</span>
             </div>
           </div>
 
@@ -772,12 +931,22 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
           </button>
         </div>
 
-        <div className="editor-canvas">
-          <div
+        <div className={`editor-canvas ${isPanning ? "is-panning" : ""}`} ref={canvasRef} onWheel={onCanvasWheel} onMouseDown={onCanvasMouseDown}>
+          
+          <div className="fe-canvas-controls">
+            <button className="btn-icon-small" onClick={() => zoomAtPoint(clampZoom(zoom * 1.1), (canvasRef.current?.getBoundingClientRect().left || 0) + 40, (canvasRef.current?.getBoundingClientRect().top || 0) + 40)} title="Zoom in">＋</button>
+            <button className="btn-icon-small" onClick={() => zoomAtPoint(clampZoom(zoom * 0.9), (canvasRef.current?.getBoundingClientRect().left || 0) + 40, (canvasRef.current?.getBoundingClientRect().top || 0) + 40)} title="Zoom out">－</button>
+            <button className="btn-icon-small" onClick={fitToScreen} title="Fit to screen">⤢</button>
+            <div className="fe-zoom-readout">{Math.round(zoom * 100)}%</div>
+            <div className="fe-hint">{spacePressed ? 'Pan: drag' : 'Tip: hold Space to pan, Ctrl+wheel to zoom'}</div>
+          </div>
+<div
             className="grid"
             style={{
               gridTemplateColumns: `repeat(${currentLayout.gridCols}, 60px)`,
-              gridTemplateRows: `repeat(${currentLayout.gridRows}, 60px)`
+              gridTemplateRows: `repeat(${currentLayout.gridRows}, 60px)`,
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+              transformOrigin: '0 0'
             }}
           >
             {(() => {
@@ -815,12 +984,19 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
               const { spanX, spanY, subtype } = spanFromDragged();
               // Use snapping logic (same as onDrop). Shift disables snap.
-              const snapped = snapPlacement(hoverCell.x, hoverCell.y, spanX, spanY, draggedItem.kind, String(subtype), false);
+              const snapped = snapPlacement(hoverCell.x, hoverCell.y, spanX, spanY, draggedItem.kind, String(subtype), false, draggedItem.mode === 'existing' ? { kind: draggedItem.kind, id: draggedItem.kind === 'table' ? draggedItem.tableId : draggedItem.objectId } : undefined);
               const left = padPx + snapped.x * cellPx;
               const top = padPx + snapped.y * cellPx;
 
               return (
-                <div
+                <>
+                  {snapped.guides.v.map((gx, idx) => (
+                    <div key={`pv-v-${idx}`} className="fe-guide-line v" style={{ left: 10 + gx * cellPx }} />
+                  ))}
+                  {snapped.guides.h.map((gy, idx) => (
+                    <div key={`pv-h-${idx}`} className="fe-guide-line h" style={{ top: 10 + gy * cellPx }} />
+                  ))}
+                  <div
                   className="fe-drop-preview"
                   style={{
                     left,
@@ -829,6 +1005,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
                     height: spanY * cellPx,
                   }}
                 />
+                </>
               );
             })()}
 
@@ -872,17 +1049,13 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
                         setSelectedObject(objectHere);
                       }}
                       style={{
-                        width: `calc(${(objectHere.spanX || 1) * 100}% + ${Math.max(0, (objectHere.spanX || 1) - 1) * 2}px)`,
-                        height: `calc(${(objectHere.spanY || 1) * 100}% + ${Math.max(0, (objectHere.spanY || 1) - 1) * 2}px)`,
+                        width: objectHere.spanX === 2 ? 'calc(200% + 2px)' : objectHere.spanX === 3 ? 'calc(300% + 4px)' : objectHere.spanX === 4 ? 'calc(400% + 6px)' : '100%',
+                        height: objectHere.spanY === 2 ? 'calc(200% + 2px)' : objectHere.spanY === 3 ? 'calc(300% + 4px)' : '100%',
                         transform: `rotate(${objectHere.rotation ?? 0}deg)`,
                       }}
                     >
-                      {objectHere.type === 'wall' ? (
-                        <div className={`fe-wall ${String(objectHere.label || 'wall_h')}`} />
-                      ) : (
-                        <img className="fe-asset" src={assetForObject(objectHere.type, objectHere.spanX, objectHere.spanY, objectHere.label)} alt="" />
-                      )}
-                      {objectHere.label && !/^wall_|^divider_/.test(String(objectHere.label)) && <div className="obj-label">{objectHere.label}</div>}
+                      <img className="fe-asset" style={{ transform: `scale(${scaleForObject(objectHere.type)})` }} src={assetForObject(objectHere.type, objectHere.spanX, objectHere.spanY)} alt="" />
+                      {objectHere.label && <div className="obj-label">{objectHere.label}</div>}
                     </div>
                   )}
                   {isTopLeft && (
@@ -895,12 +1068,12 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
                         setSelectedTable(tableHere);
                       }}
                       style={{
-                        width: `calc(${(tableHere.spanX || 1) * 100}% + ${Math.max(0, (tableHere.spanX || 1) - 1) * 2}px)`,
-                        height: `calc(${(tableHere.spanY || 1) * 100}% + ${Math.max(0, (tableHere.spanY || 1) - 1) * 2}px)`,
+                        width: tableHere.spanX === 2 ? 'calc(200% + 2px)' : '100%',
+                        height: tableHere.spanY === 2 ? 'calc(200% + 2px)' : '100%'
                       }}
                     >
                       <div className="fe-table-visual">
-                        <img className="fe-asset" src={assetForTable(tableHere.shape, tableHere.seats)} alt="" />
+                        <img className="fe-asset" style={{ transform: `scale(${scaleForTable(tableHere.shape, tableHere.seats)})` }} src={assetForTable(tableHere.shape, tableHere.seats)} alt="" />
                         {tableHere.shape !== 'booth' && (
                           <div className="fe-chairs" aria-hidden="true">
                             {Array.from({ length: Math.min(10, Math.max(0, tableHere.seats)) }).map((_, idx, arr) => {

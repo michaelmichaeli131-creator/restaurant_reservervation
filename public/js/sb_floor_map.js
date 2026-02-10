@@ -298,15 +298,7 @@ function objectAssetUrl(o){
   if (t === 'door') return BASE + 'door.svg';
   if (t === 'bar') return BASE + 'bar.svg';
   if (t === 'plant') return BASE + 'plant.svg';
-  if (t === 'chair') return BASE + 'chair.svg';
-  // Walls are rendered via CSS (crisper)
-  if (t === 'wall') return '';
-
-  const v = String(o.label||'').toLowerCase();
-  if (v === 'divider_round') return BASE + 'cyclic_partition.svg';
-  if (v === 'divider_corner') return BASE + 'corner_partitaion.svg';
-  if (v === 'divider_v') return BASE + 'vertical_partition.svg';
-  if (v === 'divider_h') return BASE + 'horizintal_partitaion.svg';
+      if (t === 'cyclic_partition' || t === 'cyclic') return BASE + 'cyclic_partition.svg';
 
   // wall / divider logic
   const sx = Number(o.spanX || 1);
@@ -318,20 +310,14 @@ function objectAssetUrl(o){
 }
 
 
-    if (type === 'wall'){
-      const w = document.createElement('div');
-      w.className = 'sb-wall ' + String(obj.label||'wall_h');
-      el.appendChild(w);
-    } else {
-      const img = document.createElement('img');
-      img.className = 'sb-obj-asset';
-      img.alt = '';
-      img.decoding = 'async';
-      img.loading = 'lazy';
-      img.src = objectAssetUrl(obj);
-      el.appendChild(img);
-    }
-    if (obj.label && !/^wall_|^divider_/.test(String(obj.label))) {
+    const img = document.createElement('img');
+    img.className = 'sb-obj-asset';
+    img.alt = '';
+    img.decoding = 'async';
+    img.loading = 'lazy';
+    img.src = objectAssetUrl(obj);
+    el.appendChild(img);
+    if (obj.label) {
       const lbl = document.createElement('div');
       lbl.className = 'sb-obj-label';
       lbl.textContent = String(obj.label);

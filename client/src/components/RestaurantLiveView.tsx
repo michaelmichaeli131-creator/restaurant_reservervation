@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './RestaurantLiveView.css';
 import TableContextMenu from './TableContextMenu';
 import { t } from '../i18n';
@@ -30,7 +30,7 @@ interface FloorTable {
 
 interface FloorObject {
   id: string;
-  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider' | 'chair';
+  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider';
   gridX: number;
   gridY: number;
   spanX: number;
@@ -69,34 +69,6 @@ const STATUS_LABELS = {
   dirty: t('floor.status.dirty', 'Dirty'),
 };
 
-const ASSET_BASE = '/static/floor_assets/';
-
-function assetForTable(shape: string, seats: number){
-  const s = String(shape || 'square').toLowerCase();
-  const n = Number(seats || 0);
-  if (s === 'round') return n >= 9 ? `${ASSET_BASE}round_table_10.svg` : `${ASSET_BASE}round_table4.svg`;
-  if (s === 'booth') return n >= 6 ? `${ASSET_BASE}large_booth.svg` : `${ASSET_BASE}booth4.svg`;
-  const targets = [2,4,6,8,10];
-  const nearest = targets.reduce((best, v) => (Math.abs(v-n) < Math.abs(best-n) ? v : best), 4);
-  return `${ASSET_BASE}square_table${nearest}.svg`;
-}
-
-function assetForObject(type: string, spanX: number, spanY: number, variant?: string){
-  if (type === 'door') return `${ASSET_BASE}door.svg`;
-  if (type === 'bar') return `${ASSET_BASE}bar.svg`;
-  if (type === 'plant') return `${ASSET_BASE}plant.svg`;
-  if (type === 'chair') return `${ASSET_BASE}chair.svg`;
-  if (type === 'wall') return '';
-  const v = String(variant||'').toLowerCase();
-  if (v === 'divider_round') return `${ASSET_BASE}cyclic_partition.svg`;
-  if (v === 'divider_corner') return `${ASSET_BASE}corner_partitaion.svg`;
-  if (v === 'divider_v') return `${ASSET_BASE}vertical_partition.svg`;
-  if (v === 'divider_h') return `${ASSET_BASE}horizintal_partitaion.svg`;
-  if ((spanX||1) === 1 && (spanY||1) === 1) return `${ASSET_BASE}corner_partitaion.svg`;
-  if ((spanX||1) > (spanY||1)) return `${ASSET_BASE}horizintal_partitaion.svg`;
-  return `${ASSET_BASE}vertical_partition.svg`;
-}
-
 export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewProps) {
   const [layouts, setLayouts] = useState<FloorLayout[]>([]);
   const [currentLayout, setCurrentLayout] = useState<FloorLayout | null>(null);
@@ -106,6 +78,14 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
   const [refreshInterval, setRefreshInterval] = useState(5000); // 5 seconds
   const [selectedTable, setSelectedTable] = useState<TableStatus | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [spacePressed, setSpacePressed] = useState(false);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+
 
   // Load all layouts
   useEffect(() => {
@@ -131,6 +111,26 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
 
     loadLayouts();
   }, [restaurantId]);
+
+  // Space = pan in live view as well
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space') setSpacePressed(true);
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setSpacePressed(false);
+        setIsPanning(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, []);
+
 
   // Load specific layout with table statuses
   const loadLayout = async (layoutId: string) => {
@@ -281,10 +281,20 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
         </div>
       </div>
 
-      <div className="live-view-container">
-        <div className="floor-grid" style={{
-          gridTemplateColumns: `repeat(${currentLayout.gridCols}, 1fr)`,
-          gridTemplateRows: `repeat(${currentLayout.gridRows}, 1fr)`,
+      <div className={`live-view-container ${isPanning ? "is-panning" : ""}`} ref={canvasRef} onWheel={onCanvasWheel} onMouseDown={onCanvasMouseDown}>
+        
+        <div className="fe-canvas-controls live">
+          <button className="btn-icon-small" onClick={() => zoomAtPoint(clampZoom(zoom * 1.1), (canvasRef.current?.getBoundingClientRect().left || 0) + 40, (canvasRef.current?.getBoundingClientRect().top || 0) + 40)} title="Zoom in">＋</button>
+          <button className="btn-icon-small" onClick={() => zoomAtPoint(clampZoom(zoom * 0.9), (canvasRef.current?.getBoundingClientRect().left || 0) + 40, (canvasRef.current?.getBoundingClientRect().top || 0) + 40)} title="Zoom out">－</button>
+          <button className="btn-icon-small" onClick={fitToScreen} title="Fit to screen">⤢</button>
+          <div className="fe-zoom-readout">{Math.round(zoom * 100)}%</div>
+          <div className="fe-hint">{spacePressed ? 'Pan: drag' : 'Tip: hold Space to pan, Ctrl+wheel to zoom'}</div>
+        </div>
+<div className="floor-grid" style={{
+          gridTemplateColumns: `repeat(${currentLayout.gridCols}, 72px)`,
+          gridTemplateRows: `repeat(${currentLayout.gridRows}, 72px)`,
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+          transformOrigin: '0 0'
         }}>
           {(currentLayout.objects ?? []).map((obj) => (
             <div
@@ -297,12 +307,10 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
               }}
               title={obj.label || obj.type}
             >
-              {obj.type === 'wall' ? (
-                <div className={`live-wall ${String(obj.label || 'wall_h')}`} />
-              ) : (
-                <img className="live-asset" src={assetForObject(obj.type, obj.spanX, obj.spanY, obj.label)} alt="" />
-              )}
-              {obj.label && !/^wall_|^divider_/.test(String(obj.label)) ? <span className="obj-label">{obj.label}</span> : null}
+              <span className="obj-icon">
+                {obj.type === 'wall' ? '🧱' : obj.type === 'door' ? '🚪' : obj.type === 'bar' ? '🍸' : obj.type === 'plant' ? '🪴' : '➖'}
+              </span>
+              {obj.label ? <span className="obj-label">{obj.label}</span> : null}
             </div>
           ))}
           {currentLayout.tables.map((table) => {
@@ -310,7 +318,63 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
             const color = STATUS_COLORS[status.status];
             const timeSeated = formatTime(status.occupiedSince);
 
-            return (
+            
+  const clampZoom = (z: number) => Math.max(0.4, Math.min(2.5, z));
+
+  const fitToScreen = () => {
+    if (!canvasRef.current || !currentLayout) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const cellPx = 72; // live view uses a bit larger cells
+    const gridW = (currentLayout.gridCols * cellPx) + 32;
+    const gridH = (currentLayout.gridRows * cellPx) + 32;
+    const scale = clampZoom(Math.min((rect.width - 40) / gridW, (rect.height - 40) / gridH, 1.2));
+    setZoom(scale);
+    setPan({ x: Math.round((rect.width - gridW * scale) / 2), y: 20 });
+  };
+
+  const zoomAtPoint = (nextZoom: number, clientX: number, clientY: number) => {
+    if (!canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const ox = clientX - rect.left;
+    const oy = clientY - rect.top;
+
+    setPan((p) => {
+      const dz = nextZoom / zoom;
+      return { x: Math.round(ox - (ox - p.x) * dz), y: Math.round(oy - (oy - p.y) * dz) };
+    });
+    setZoom(nextZoom);
+  };
+
+  const onCanvasWheel = (e: React.WheelEvent) => {
+    if (!(e.ctrlKey || (e as any).metaKey)) return;
+    e.preventDefault();
+    const next = clampZoom(zoom * (e.deltaY > 0 ? 0.9 : 1.1));
+    zoomAtPoint(next, e.clientX, e.clientY);
+  };
+
+  const onCanvasMouseDown = (e: React.MouseEvent) => {
+    const isMiddle = e.button === 1;
+    const isSpaceLeft = spacePressed && e.button === 0;
+    if (!isMiddle && !isSpaceLeft) return;
+
+    e.preventDefault();
+    setIsPanning(true);
+    const start = { x: e.clientX, y: e.clientY };
+    const startPan = { ...pan };
+
+    const onMove = (ev: MouseEvent) => {
+      setPan({ x: startPan.x + (ev.clientX - start.x), y: startPan.y + (ev.clientY - start.y) });
+    };
+    const onUp = () => {
+      setIsPanning(false);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+return (
               <div
                 key={table.id}
                 className={`table-card table-${table.shape} status-${status.status}`}
@@ -320,7 +384,6 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
                 }}
                 onClick={() => handleTableClick(status)}
               >
-                <img className="live-asset" src={assetForTable(table.shape, table.seats)} alt="" />
                 <div className="table-number">{status.tableNumber}</div>
 
                 {status.status === 'occupied' && (
