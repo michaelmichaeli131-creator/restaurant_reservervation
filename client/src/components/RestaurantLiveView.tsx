@@ -30,7 +30,7 @@ interface FloorTable {
 
 interface FloorObject {
   id: string;
-  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider' | 'chair' | 'cyclic_partition';
+  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider';
   gridX: number;
   gridY: number;
   spanX: number;
