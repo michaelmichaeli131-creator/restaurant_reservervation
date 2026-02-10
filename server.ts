@@ -254,6 +254,20 @@ app.use(async (ctx, next) => {
   }
 });
 
+// --- Static floor assets (compat): /floor_assets/* -> public/floor_assets/* ---
+// Some client pages reference assets via /floor_assets/... while the server serves public/*.
+app.use(async (ctx, next) => {
+  const p = ctx.request.url.pathname;
+  if (!p.startsWith("/floor_assets/")) return await next();
+  const rel = p.slice("/".length); // floor_assets/...
+  try {
+    await send(ctx, rel, { root: `${Deno.cwd()}/public` });
+    return;
+  } catch {
+    return await next();
+  }
+});
+
 // --- No-cache לאיזור האדמין + X-Build-Tag לכל תגובה ---
 app.use(async (ctx, next) => {
   await next();
