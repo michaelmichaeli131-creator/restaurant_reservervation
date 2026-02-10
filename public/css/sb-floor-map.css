@@ -70,7 +70,7 @@
   border-radius: var(--sb-canvas-radius, 16px);
   border: 1px solid var(--sb-map-border);
   background:
-    url('/static/floor_assets/floor_brown.svg') center/cover no-repeat,
+    url('/floor_assets/floor_brown.svg') center/cover no-repeat,
     /* major grid (every 4 cells) */
     repeating-linear-gradient(0deg,
       rgba(255,255,255,.060) 0,
@@ -189,7 +189,7 @@
   position:absolute;
   width: 22%;
   height: 22%;
-  background: url('/static/floor_assets/chair.svg') center/contain no-repeat;
+  background: url('/floor_assets/chair.svg') center/contain no-repeat;
   filter: drop-shadow(0 8px 14px rgba(0,0,0,.18));
   opacity: .96;
 }
@@ -346,73 +346,45 @@
   .sb-floor-table .sb-tn{ font-size: 30px; }
 }
 
-/* ================= Interactive parquet grid cells ================= */
-.sb-floor-grid{
-  position:absolute;
-  inset:0;
-  z-index: 0;
+
+/* ================= Logical sizing / centering ================= */
+.sb-floor-visual,
+.sb-floor-object {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
+.sb-floor-asset {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: scale(var(--sb-asset-scale, 1));
+  transform-origin: center;
+}
+
+.sb-obj-asset {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: scale(var(--sb-obj-scale, 1));
+  transform-origin: center;
+}
+
+
+/* ================= Grid parquet tiles (Stage 3) ================= */
 .sb-floor-cell{
-  position:absolute;
-  border: 1px solid rgba(255,255,255,.06);
-  background: url('/static/floor_assets/floor_tile_grid_6x6.svg') center/cover no-repeat;
-  opacity: .92;
-  transition: background .15s ease, box-shadow .15s ease, opacity .15s ease;
+  background-image: url('/static/floor_assets/floor_brown.svg');
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
 }
 
-.sb-floor-cell:hover{
-  box-shadow: inset 0 0 0 2px rgba(56,156,255,.25);
-  opacity: .98;
-}
 
-.sb-floor-cell.selected{
-  box-shadow: inset 0 0 0 2px rgba(56,156,255,.65), 0 10px 22px rgba(0,0,0,.18);
-  opacity: 1;
-}
-
-/* Ensure interactive elements are above the grid */
-.sb-floor-object{ z-index: 2; }
-.sb-floor-table{ z-index: 3; }
-
-
-/* ================= GRID ================= */
-
-.sb-floor-grid{
-  position:absolute;
-  inset:0;
-  z-index: 1; /* under tables (tables come after in DOM) */
-  pointer-events:auto;
-}
-
-.sb-floor-cell{
-  position:absolute;
-  border-radius: 14px;
-  border: 1px solid rgba(255,255,255,.06);
-  background:
-    url('/static/floor_assets/floor_tile_grid_6x6.svg') center/cover no-repeat;
-  opacity: .92;
-  transition: transform .08s ease, box-shadow .18s ease, background-color .18s ease, border-color .18s ease;
-}
-
-.sb-floor-cell::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  border-radius: inherit;
-  background: radial-gradient(120px 120px at 50% 40%, rgba(255,255,255,.06), transparent 60%);
-  pointer-events:none;
-  opacity: .85;
-}
-
-.sb-floor-cell:hover{
-  border-color: rgba(56,156,255,.22);
-  box-shadow: 0 10px 22px rgba(0,0,0,.18);
-  transform: translateY(-1px);
-  cursor: pointer;
-}
-
-.sb-floor-cell.selected{
-  border-color: rgba(56,156,255,.60);
-  box-shadow: 0 0 0 3px rgba(56,156,255,.18), 0 16px 40px rgba(0,0,0,.22);
+/* Optional overlay grid texture (enable by adding .has-grid-texture on .sb-floor-grid) */
+.sb-floor-grid.has-grid-texture{
+  background-image: url('/static/floor_assets/floor_tile_grid_6x6.svg');
+  background-repeat: repeat;
+  background-position: 0 0;
+  opacity: 0.9;
 }

@@ -120,7 +120,7 @@
       <p class="muted small">
         לחיצה על שולחן תפוס תציג פרטי הזמנה; לחיצה על שולחן פנוי תציג מידע בסיסי.
       </p>
-      <div id="sb-floor-root" class="floor-wrapper" data-rid="<%= it.rid %>" data-mode="waiter" data-click-mode="lobby"></div>
+      <div id="sb-floor-root" class="floor-wrapper" data-rid="<%= it.rid %>" data-click-mode="lobby"></div>
       </div>
     </div>
   </section>

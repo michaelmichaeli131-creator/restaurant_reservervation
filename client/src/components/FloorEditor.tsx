@@ -76,25 +76,47 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [showOnlyActiveSection, setShowOnlyActiveSection] = useState(false);
   const [hoverCell, setHoverCell] = useState<{ x: number; y: number } | null>(null);
 
-  const assetForTable = (shape: string, seats: number) => {
+    const ASSET_BASE = '/static/floor_assets/';
+
+  const scaleForTable = (shape: string, seats: number) => {
     const s = String(shape || 'rect').toLowerCase();
     const n = Number(seats || 0);
-    if (s === 'round') return n >= 9 ? '/static/floor_assets/round_table_10.svg' : '/static/floor_assets/round_table4.svg';
-    if (s === 'booth') return n >= 6 ? '/static/floor_assets/large_booth.svg' : '/static/floor_assets/booth4.svg';
-    const targets = [2, 4, 6, 8, 10];
-    const nearest = targets.reduce((best, v) => (Math.abs(v - n) < Math.abs(best - n) ? v : best), 4);
-    return `/static/floor_assets/square_table${nearest}.svg`;
+    if (s === 'booth') return n <= 4 ? 1.15 : 1.35;
+    if (n <= 2) return 0.75;
+    if (n <= 4) return 1.0;
+    if (n <= 6) return 1.5;
+    if (n <= 8) return 1.75;
+    return 2.0;
   };
 
-  const assetForObject = (type: FloorObject['type'], spanX: number, spanY: number) => {
-    if (type === 'door') return '/static/floor_assets/door.svg';
-    if (type === 'bar') return '/static/floor_assets/bar.svg';
-    if (type === 'plant') return '/static/floor_assets/plant.svg';
-    // wall/divider
-    if ((spanX || 1) === 1 && (spanY || 1) === 1) return '/static/floor_assets/corner_partitaion.svg';
-    if ((spanX || 1) > (spanY || 1)) return '/static/floor_assets/horizintal_partitaion.svg';
-    return '/static/floor_assets/vertical_partition.svg';
+  const scaleForObject = (type: string) => {
+    const t = String(type || '').toLowerCase();
+    if (t === 'bar') return 1.8;
+    return 1.0;
   };
+
+const assetForTable = (shape: string, seats: number) => {
+    const s = String(shape || 'rect').toLowerCase();
+    const n = Number(seats || 0);
+    if (s === 'round') return n >= 9 ? `${ASSET_BASE}round_table_10.svg` : `${ASSET_BASE}round_table4.svg`;
+    if (s === 'booth') return n >= 6 ? `${ASSET_BASE}large_booth.svg` : `${ASSET_BASE}booth4.svg`;
+    const targets = [2, 4, 6, 8, 10];
+    const nearest = targets.reduce((best, v) => (Math.abs(v - n) < Math.abs(best - n) ? v : best), 4);
+    return `${ASSET_BASE}square_table${nearest}.svg`;
+  };
+
+
+    const assetForObject = (type: FloorObject['type'], spanX: number, spanY: number) => {
+      if (type === 'door') return `${ASSET_BASE}door.svg`;
+      if (type === 'bar') return `${ASSET_BASE}bar.svg`;
+      if (type === 'plant') return `${ASSET_BASE}plant.svg`;
+    if (type === 'cyclic_partition' || type === 'cyclic') return `${ASSET_BASE}cyclic_partition.svg`;
+      // wall/divider
+      if ((spanX || 1) === 1 && (spanY || 1) === 1) return `${ASSET_BASE}corner_partitaion.svg`;
+      if ((spanX || 1) > (spanY || 1)) return `${ASSET_BASE}horizintal_partitaion.svg`;
+      return `${ASSET_BASE}vertical_partition.svg`;
+    };
+
 
   // Load all layouts
   useEffect(() => {
@@ -799,7 +821,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
                         transform: `rotate(${objectHere.rotation ?? 0}deg)`,
                       }}
                     >
-                      <img className="fe-asset" src={assetForObject(objectHere.type, objectHere.spanX, objectHere.spanY)} alt="" />
+                      <img className="fe-asset" style={{ transform: `scale(${scaleForObject(objectHere.type)})` }} src={assetForObject(objectHere.type, objectHere.spanX, objectHere.spanY)} alt="" />
                       {objectHere.label && <div className="obj-label">{objectHere.label}</div>}
                     </div>
                   )}
@@ -818,7 +840,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
                       }}
                     >
                       <div className="fe-table-visual">
-                        <img className="fe-asset" src={assetForTable(tableHere.shape, tableHere.seats)} alt="" />
+                        <img className="fe-asset" style={{ transform: `scale(${scaleForTable(tableHere.shape, tableHere.seats)})` }} src={assetForTable(tableHere.shape, tableHere.seats)} alt="" />
                         {tableHere.shape !== 'booth' && (
                           <div className="fe-chairs" aria-hidden="true">
                             {Array.from({ length: Math.min(10, Math.max(0, tableHere.seats)) }).map((_, idx, arr) => {

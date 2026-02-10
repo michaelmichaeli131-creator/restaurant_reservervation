@@ -114,14 +114,45 @@
     return { scale, x, y };
   }
 
-  function makeTableEl(t, status, onClick, extra){
+  
+  // ================= Logical sizing =================
+  // Scale furniture visually based on logical size (seats/type), without changing grid spans.
+  function tableScale(tbl){
+    const seats = Number(tbl.seats || 0);
+    const shape = String(tbl.shape || 'rect').toLowerCase();
+
+    // Booths: slightly larger and stable
+    if (shape === 'booth') {
+      if (seats <= 4) return 1.15;
+      return 1.35;
+    }
+
+    // Default tables
+    if (seats <= 2) return 0.75;   // smallest
+    if (seats <= 4) return 1.00;   // baseline (round/rect equal)
+    if (seats <= 6) return 1.50;   // 6 seats = 1.5x of 4
+    if (seats <= 8) return 1.75;
+    return 2.00;                  // 10+
+  }
+
+  function objectScale(obj){
+    const t = String(obj.type || 'divider').toLowerCase();
+    if (t === 'bar') return 1.80;
+    return 1.00;
+  }
+
+function makeTableEl(t, status, onClick, extra){
     const btn = document.createElement('div');
     btn.className = 'sb-floor-table ' + (status || 'empty') + ' ' + ('shape-' + String((t.shape||'rect')).toLowerCase());
     btn.setAttribute('role', 'button');
     btn.setAttribute('tabindex', '0');
     btn.dataset.tableNumber = String(t.tableNumber);
 
-    const badge = document.createElement('span');
+    
+
+    // logical scale for assets
+    btn.style.setProperty('--sb-asset-scale', String(tableScale(t)));
+const badge = document.createElement('span');
     badge.className = 'sb-floor-badge';
 
     // Status pill (reference-like). Keep empty clean.
@@ -256,7 +287,9 @@ function tableAssetUrl(tbl){
   function makeObjectEl(obj){
     const el = document.createElement('div');
     el.className = 'sb-floor-object type-' + String(obj.type||'divider');
-    const type = String(obj.type||'divider');
+    
+    el.style.setProperty('--sb-obj-scale', String(objectScale(obj)));
+const type = String(obj.type||'divider');
 
 function objectAssetUrl(o){
   const BASE = '/static/floor_assets/';
@@ -265,6 +298,7 @@ function objectAssetUrl(o){
   if (t === 'door') return BASE + 'door.svg';
   if (t === 'bar') return BASE + 'bar.svg';
   if (t === 'plant') return BASE + 'plant.svg';
+      if (t === 'cyclic_partition' || t === 'cyclic') return BASE + 'cyclic_partition.svg';
 
   // wall / divider logic
   const sx = Number(o.spanX || 1);
@@ -368,6 +402,8 @@ function objectAssetUrl(o){
     };
 
     function renderSection(sectionId){
+      let gridLayer;
+
       const plan = state.plan;
       if (!plan) return;
       const statusMap = mapStatuses(plan);
@@ -378,61 +414,7 @@ function objectAssetUrl(o){
       ui.stage.innerHTML = '';
       state.tablesByNumber.clear();
 
-      // === Interactive parquet grid layer (clickable cells) ===
-      // Note: placed first so tables/objects render above it.
-      const gridLayer = document.createElement('div');
-      gridLayer.className = 'sb-floor-grid';
-
-      // Clear previous cell selection on each render
-      state.selectedCell = null;
-
-      // We will size it after layout is computed.
-
       const layout = computeLayout(plan, tables);
-      gridLayer.style.width = layout.boardW + 'px';
-      gridLayer.style.height = layout.boardH + 'px';
-      ui.stage.appendChild(gridLayer);
-
-      for (let row = 0; row < layout.rows; row++) {
-        for (let col = 0; col < layout.cols; col++) {
-          const cellEl = document.createElement('div');
-          cellEl.className = 'sb-floor-cell';
-          cellEl.dataset.row = String(row);
-          cellEl.dataset.col = String(col);
-
-          const x = layout.pad + (col * (layout.cell + layout.gap));
-          const y = layout.pad + (row * (layout.cell + layout.gap));
-
-          cellEl.style.left = x + 'px';
-          cellEl.style.top = y + 'px';
-          cellEl.style.width = layout.cell + 'px';
-          cellEl.style.height = layout.cell + 'px';
-
-          // Click on empty space in the map. Tables remain clickable above the grid.
-          cellEl.addEventListener('click', () => {
-            const mode = String(root.dataset.mode || '').toLowerCase();
-
-            // Only show a “selected cell” state in edit mode for now.
-            if (mode === 'edit') {
-              // Clear previous
-              const prev = gridLayer.querySelector('.sb-floor-cell.selected');
-              if (prev) prev.classList.remove('selected');
-              cellEl.classList.add('selected');
-              state.selectedCell = { row, col };
-            }
-
-            // Expose a generic event for waiter/host screens to use if needed
-            root.dispatchEvent(new CustomEvent('sb:floor-cell-click', {
-              detail: { rid, row, col, mode }
-            }));
-          });
-
-          gridLayer.appendChild(cellEl);
-        }
-      }
-
-      // layout computed above
-
       state.layout = layout;
 
       // compute fit
@@ -440,53 +422,7 @@ function objectAssetUrl(o){
       state.fit = fit;
       ui.stage.style.transform = `translate(${fit.x}px, ${fit.y}px) scale(${fit.scale})`;
 
-      
-// ================= GRID LAYER (interactive parquet tiles) =================
-const mode = String(root.dataset.mode || '').toLowerCase();
-
-const gridLayer = document.createElement('div');
-gridLayer.className = 'sb-floor-grid';
-gridLayer.style.width = layout.boardW + 'px';
-gridLayer.style.height = layout.boardH + 'px';
-ui.stage.appendChild(gridLayer);
-
-const selectCell = (cellEl, row, col) => {
-  if (state.selectedCellEl) state.selectedCellEl.classList.remove('selected');
-  state.selectedCellEl = cellEl;
-  state.selectedCell = { row, col };
-  if (cellEl) cellEl.classList.add('selected');
-};
-
-for (let row = 0; row < layout.rows; row++) {
-  for (let col = 0; col < layout.cols; col++) {
-    const cellEl = document.createElement('div');
-    cellEl.className = 'sb-floor-cell';
-    cellEl.dataset.row = String(row);
-    cellEl.dataset.col = String(col);
-
-    const x = layout.pad + col * (layout.cell + layout.gap);
-    const y = layout.pad + row * (layout.cell + layout.gap);
-
-    cellEl.style.left = x + 'px';
-    cellEl.style.top = y + 'px';
-    cellEl.style.width = layout.cell + 'px';
-    cellEl.style.height = layout.cell + 'px';
-
-    cellEl.addEventListener('click', () => {
-      // Keep tables clickable (tables are rendered above the grid layer).
-      selectCell(cellEl, row, col);
-
-      // Optional: let pages react (waiter/host/edit)
-      root.dispatchEvent(new CustomEvent('sb:floor-cell-click', {
-        detail: { rid, row, col, mode }
-      }));
-    });
-
-    gridLayer.appendChild(cellEl);
-  }
-}
-
-// Place objects (walls/doors/bar/plants) behind tables
+      // Place objects (walls/doors/bar/plants) behind tables
       const objects = Array.isArray(plan.objects) ? plan.objects : [];
       objects.forEach((o) => {
         const el = makeObjectEl(o);

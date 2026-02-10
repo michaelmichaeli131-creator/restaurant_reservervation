@@ -248,7 +248,7 @@
   position:absolute;
   width: 22%;
   height: 22%;
-  background: url('/static/floor_assets/chair.svg') center/contain no-repeat;
+  background: url('/floor_assets/chair.svg') center/contain no-repeat;
   filter: drop-shadow(0 6px 12px rgba(0,0,0,.18));
   opacity: .96;
 }
@@ -334,7 +334,7 @@
   display: grid;
   gap: 0;
   background:
-    url('/static/floor_assets/floor_tile_grid_6x6.svg') center/cover no-repeat,
+    url('/floor_assets/floor_tile_grid_6x6.svg') center/cover no-repeat,
     repeating-linear-gradient(0deg, rgba(255,255,255,.045) 0, rgba(255,255,255,.045) 1px, transparent 1px, transparent 60px),
     repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0, rgba(255,255,255,.035) 1px, transparent 1px, transparent 60px),
     rgba(0,0,0,.10);
@@ -356,7 +356,7 @@
 }
 
 .grid-cell {
-  background: url('/static/floor_assets/floor_tile_grid_6x6.svg') center/cover no-repeat;
+  background: transparent;
   border: 1px solid rgba(255,255,255,.06);
   width: 60px;
   height: 60px;
@@ -449,7 +449,7 @@
   position:absolute;
   width: 22%;
   height: 22%;
-  background: url('/static/floor_assets/chair.svg') center/contain no-repeat;
+  background: url('/floor_assets/chair.svg') center/contain no-repeat;
   filter: drop-shadow(0 8px 14px rgba(0,0,0,.18));
   opacity: .96;
 }
@@ -759,4 +759,29 @@
   .layout-actions{ justify-content: flex-end; }
   .palette{ flex-direction: row; overflow-x: auto; }
   .palette-item{ min-width: 180px; }
+}
+
+
+/* === Logical sizing / centering (Stage 2) === */
+.fe-table-visual, .floor-object {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fe-asset {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform-origin: center;
+}
+
+
+/* ================= Grid parquet tiles (Stage 3) ================= */
+/* Editor grid cells */
+.grid-cell, .fe-grid-cell, .floor-grid-cell {
+  background-image: url('/static/floor_assets/floor_brown.svg');
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
 }
