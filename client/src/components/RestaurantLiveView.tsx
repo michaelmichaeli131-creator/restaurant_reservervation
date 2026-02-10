@@ -30,7 +30,7 @@ interface FloorTable {
 
 interface FloorObject {
   id: string;
-  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider';
+  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider' | 'chair';
   gridX: number;
   gridY: number;
   spanX: number;
@@ -68,6 +68,34 @@ const STATUS_LABELS = {
   reserved: t('floor.status.reserved', 'Reserved'),
   dirty: t('floor.status.dirty', 'Dirty'),
 };
+
+const ASSET_BASE = '/static/floor_assets/';
+
+function assetForTable(shape: string, seats: number){
+  const s = String(shape || 'square').toLowerCase();
+  const n = Number(seats || 0);
+  if (s === 'round') return n >= 9 ? `${ASSET_BASE}round_table_10.svg` : `${ASSET_BASE}round_table4.svg`;
+  if (s === 'booth') return n >= 6 ? `${ASSET_BASE}large_booth.svg` : `${ASSET_BASE}booth4.svg`;
+  const targets = [2,4,6,8,10];
+  const nearest = targets.reduce((best, v) => (Math.abs(v-n) < Math.abs(best-n) ? v : best), 4);
+  return `${ASSET_BASE}square_table${nearest}.svg`;
+}
+
+function assetForObject(type: string, spanX: number, spanY: number, variant?: string){
+  if (type === 'door') return `${ASSET_BASE}door.svg`;
+  if (type === 'bar') return `${ASSET_BASE}bar.svg`;
+  if (type === 'plant') return `${ASSET_BASE}plant.svg`;
+  if (type === 'chair') return `${ASSET_BASE}chair.svg`;
+  if (type === 'wall') return '';
+  const v = String(variant||'').toLowerCase();
+  if (v === 'divider_round') return `${ASSET_BASE}cyclic_partition.svg`;
+  if (v === 'divider_corner') return `${ASSET_BASE}corner_partitaion.svg`;
+  if (v === 'divider_v') return `${ASSET_BASE}vertical_partition.svg`;
+  if (v === 'divider_h') return `${ASSET_BASE}horizintal_partitaion.svg`;
+  if ((spanX||1) === 1 && (spanY||1) === 1) return `${ASSET_BASE}corner_partitaion.svg`;
+  if ((spanX||1) > (spanY||1)) return `${ASSET_BASE}horizintal_partitaion.svg`;
+  return `${ASSET_BASE}vertical_partition.svg`;
+}
 
 export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewProps) {
   const [layouts, setLayouts] = useState<FloorLayout[]>([]);
@@ -269,10 +297,12 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
               }}
               title={obj.label || obj.type}
             >
-              <span className="obj-icon">
-                {obj.type === 'wall' ? '🧱' : obj.type === 'door' ? '🚪' : obj.type === 'bar' ? '🍸' : obj.type === 'plant' ? '🪴' : '➖'}
-              </span>
-              {obj.label ? <span className="obj-label">{obj.label}</span> : null}
+              {obj.type === 'wall' ? (
+                <div className={`live-wall ${String(obj.label || 'wall_h')}`} />
+              ) : (
+                <img className="live-asset" src={assetForObject(obj.type, obj.spanX, obj.spanY, obj.label)} alt="" />
+              )}
+              {obj.label && !/^wall_|^divider_/.test(String(obj.label)) ? <span className="obj-label">{obj.label}</span> : null}
             </div>
           ))}
           {currentLayout.tables.map((table) => {
@@ -290,6 +320,7 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
                 }}
                 onClick={() => handleTableClick(status)}
               >
+                <img className="live-asset" src={assetForTable(table.shape, table.seats)} alt="" />
                 <div className="table-number">{status.tableNumber}</div>
 
                 {status.status === 'occupied' && (

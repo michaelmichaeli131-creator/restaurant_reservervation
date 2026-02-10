@@ -17,7 +17,8 @@ interface FloorTable {
 
 interface FloorObject {
   id: string;
-  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider';
+  // Stored as JSON; keep union flexible for new asset types.
+  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider' | 'chair';
   gridX: number;
   gridY: number;
   spanX: number;
@@ -66,7 +67,9 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     kind: 'table' | 'object';
     mode: 'new' | 'existing';
     shape?: string; // for tables
+    seats?: number; // for tables
     objectType?: FloorObject['type'];
+    variant?: string; // for objects (stored as label)
     tableId?: string;
     objectId?: string;
   } | null>(null);
@@ -76,26 +79,60 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [showOnlyActiveSection, setShowOnlyActiveSection] = useState(false);
   const [hoverCell, setHoverCell] = useState<{ x: number; y: number } | null>(null);
 
-    const ASSET_BASE = '/static/floor_assets/';
+  const ASSET_BASE = '/static/floor_assets/';
 
-  const scaleForTable = (shape: string, seats: number) => {
-    const s = String(shape || 'rect').toLowerCase();
-    const n = Number(seats || 0);
-    if (s === 'booth') return n <= 4 ? 1.15 : 1.35;
-    if (n <= 2) return 0.75;
-    if (n <= 4) return 1.0;
-    if (n <= 6) return 1.5;
-    if (n <= 8) return 1.75;
-    return 2.0;
+  // =============================================================
+  // Asset architecture (clean & consistent)
+  // - One source of truth for default sizes (grid spans)
+  // - Visual size follows logical size (no extra ad-hoc scaling)
+  // - Variants are stored in object.label (e.g., wall_h / wall_v)
+  // =============================================================
+  const BASE_TABLE_UNIT = 2; // Table for 2 = 2x2. Table for 4 = 4x4, etc.
+
+  const clampInt = (v: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(v)));
+
+  const tableSpanFor = (shape: string, seats: number) => {
+    const s = String(shape || 'square').toLowerCase();
+    const n = Math.max(2, Number(seats || 2));
+
+    // Requested ratio: 4-seat table length = 2x of 2-seat. So spans scale linearly by (seats/2).
+    const k = Math.max(1, n / 2);
+
+    if (s === 'booth') {
+      // Sofas / booths: wide, not perfectly square.
+      const w = clampInt(BASE_TABLE_UNIT * k, 2, 12);
+      const h = clampInt(Math.max(2, BASE_TABLE_UNIT), 2, 6);
+      return { spanX: w, spanY: h };
+    }
+
+    const span = clampInt(BASE_TABLE_UNIT * k, 2, 12);
+    return { spanX: span, spanY: span };
   };
 
-  const scaleForObject = (type: string) => {
-    const t = String(type || '').toLowerCase();
-    if (t === 'bar') return 1.8;
-    return 1.0;
+  const objectSpanFor = (type: FloorObject['type'], variant?: string) => {
+    const v = String(variant || '').toLowerCase();
+    if (type === 'bar') return { spanX: 5, spanY: 2 };
+    if (type === 'door') return { spanX: 1, spanY: 1 };
+    if (type === 'plant') return { spanX: 1, spanY: 1 };
+    if (type === 'chair') return { spanX: 1, spanY: 1 };
+
+    if (type === 'wall') {
+      if (v === 'wall_v') return { spanX: 1, spanY: 6 };
+      return { spanX: 6, spanY: 1 }; // wall_h default
+    }
+
+    // divider variants
+    if (type === 'divider') {
+      if (v === 'divider_round') return { spanX: 2, spanY: 2 };
+      if (v === 'divider_corner') return { spanX: 1, spanY: 1 };
+      if (v === 'divider_v') return { spanX: 1, spanY: 5 };
+      return { spanX: 5, spanY: 1 }; // divider_h default
+    }
+
+    return { spanX: 1, spanY: 1 };
   };
 
-const assetForTable = (shape: string, seats: number) => {
+  const assetForTable = (shape: string, seats: number) => {
     const s = String(shape || 'rect').toLowerCase();
     const n = Number(seats || 0);
     if (s === 'round') return n >= 9 ? `${ASSET_BASE}round_table_10.svg` : `${ASSET_BASE}round_table4.svg`;
@@ -106,16 +143,27 @@ const assetForTable = (shape: string, seats: number) => {
   };
 
 
-    const assetForObject = (type: FloorObject['type'], spanX: number, spanY: number) => {
-      if (type === 'door') return `${ASSET_BASE}door.svg`;
-      if (type === 'bar') return `${ASSET_BASE}bar.svg`;
-      if (type === 'plant') return `${ASSET_BASE}plant.svg`;
-    if (type === 'cyclic_partition' || type === 'cyclic') return `${ASSET_BASE}cyclic_partition.svg`;
-      // wall/divider
-      if ((spanX || 1) === 1 && (spanY || 1) === 1) return `${ASSET_BASE}corner_partitaion.svg`;
-      if ((spanX || 1) > (spanY || 1)) return `${ASSET_BASE}horizintal_partitaion.svg`;
-      return `${ASSET_BASE}vertical_partition.svg`;
-    };
+  const assetForObject = (type: FloorObject['type'], spanX: number, spanY: number, variant?: string) => {
+    if (type === 'door') return `${ASSET_BASE}door.svg`;
+    if (type === 'bar') return `${ASSET_BASE}bar.svg`;
+    if (type === 'plant') return `${ASSET_BASE}plant.svg`;
+    if (type === 'chair') return `${ASSET_BASE}chair.svg`;
+
+    // Walls are drawn with clean CSS (more consistent, crisp, and scalable)
+    if (type === 'wall') return '';
+
+    // Divider variants
+    const v = String(variant || '').toLowerCase();
+    if (v === 'divider_round') return `${ASSET_BASE}cyclic_partition.svg`;
+    if (v === 'divider_corner') return `${ASSET_BASE}corner_partitaion.svg`;
+    if (v === 'divider_v') return `${ASSET_BASE}vertical_partition.svg`;
+    if (v === 'divider_h') return `${ASSET_BASE}horizintal_partitaion.svg`;
+
+    // Fallback based on aspect
+    if ((spanX || 1) === 1 && (spanY || 1) === 1) return `${ASSET_BASE}corner_partitaion.svg`;
+    if ((spanX || 1) > (spanY || 1)) return `${ASSET_BASE}horizintal_partitaion.svg`;
+    return `${ASSET_BASE}vertical_partition.svg`;
+  };
 
 
   // Load all layouts
@@ -256,7 +304,7 @@ const assetForTable = (shape: string, seats: number) => {
     e: React.DragEvent,
     kind: 'table' | 'object',
     mode: 'new' | 'existing',
-    opts?: { shape?: string; objectType?: FloorObject['type']; tableId?: string; objectId?: string }
+    opts?: { shape?: string; seats?: number; objectType?: FloorObject['type']; variant?: string; tableId?: string; objectId?: string }
   ) => {
     setDraggedItem({ kind, mode, ...opts });
     setHoverCell(null);
@@ -338,8 +386,8 @@ const assetForTable = (shape: string, seats: number) => {
 
     // Drop NEW table
     if (draggedItem.kind === 'table' && draggedItem.mode === 'new' && draggedItem.shape) {
-      const initialSpanX = draggedItem.shape === 'rect' || draggedItem.shape === 'booth' ? 2 : 1;
-      const initialSpanY = 1;
+      const seats = Number(draggedItem.seats || (draggedItem.shape === 'booth' ? 4 : 2));
+      const { spanX: initialSpanX, spanY: initialSpanY } = tableSpanFor(draggedItem.shape, seats);
       const snapped = snapPlacement(gridX, gridY, initialSpanX, initialSpanY, 'table', draggedItem.shape, disableSnap);
 
       const newTable: FloorTable = {
@@ -350,7 +398,7 @@ const assetForTable = (shape: string, seats: number) => {
         gridY: snapped.y,
         spanX: initialSpanX,
         spanY: initialSpanY,
-        seats: draggedItem.shape === 'booth' ? 4 : 2,
+        seats,
         shape: draggedItem.shape as any,
         sectionId: activeSection?.id
       };
@@ -381,17 +429,8 @@ const assetForTable = (shape: string, seats: number) => {
     else if (draggedItem.kind === 'object' && draggedItem.mode === 'new' && draggedItem.objectType) {
       const objects = currentLayout.objects ?? [];
 
-      // reasonable defaults per object type
-      const defaults: Record<string, { spanX: number; spanY: number; rotation?: 0|90|180|270; label?: string }> = {
-        wall: { spanX: 3, spanY: 1, rotation: 0 },
-        divider: { spanX: 2, spanY: 1, rotation: 0 },
-        door: { spanX: 1, spanY: 1, rotation: 0, label: 'Door' },
-        bar: { spanX: 3, spanY: 2, rotation: 0, label: 'Bar' },
-        plant: { spanX: 1, spanY: 1, rotation: 0, label: '' },
-      };
-
-      const d = defaults[String(draggedItem.objectType)] ?? { spanX: 1, spanY: 1 };
-
+      const variant = draggedItem.variant;
+      const d = objectSpanFor(draggedItem.objectType, variant);
       const snapped = snapPlacement(gridX, gridY, d.spanX, d.spanY, 'object', draggedItem.objectType, disableSnap);
       const newObj: FloorObject = {
         id: `O${Date.now()}`,
@@ -400,8 +439,8 @@ const assetForTable = (shape: string, seats: number) => {
         gridY: snapped.y,
         spanX: d.spanX,
         spanY: d.spanY,
-        rotation: d.rotation,
-        label: d.label,
+        rotation: 0,
+        label: variant || '',
       };
 
       setCurrentLayout({
@@ -591,45 +630,62 @@ const assetForTable = (shape: string, seats: number) => {
 
           <h2>🎨 Palette</h2>
           <div className="palette">
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'round' })}>
-              <div className="preview"><img className="preview-img" src={assetForTable('round', 4)} alt="" /></div>
-              <span>2-Seat Round</span>
-            </div>
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square' })}>
-              <div className="preview"><img className="preview-img" src={assetForTable('square', 4)} alt="" /></div>
-              <span>4-Seat Square</span>
-            </div>
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'rect' })}>
-              <div className="preview"><img className="preview-img" src={assetForTable('rect', 6)} alt="" /></div>
-              <span>6-Seat Rect</span>
-            </div>
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'booth' })}>
-              <div className="preview"><img className="preview-img" src={assetForTable('booth', 4)} alt="" /></div>
-              <span>Booth</span>
-            </div>
+            {/* Square tables */}
+            {[2,4,6,8,10].map((seats) => (
+              <div key={`sq-${seats}`} className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats })}>
+                <div className="preview"><img className="preview-img" src={assetForTable('square', seats)} alt="" /></div>
+                <span>Square · {seats}</span>
+              </div>
+            ))}
+
+            {/* Round tables */}
+            {[4,10].map((seats) => (
+              <div key={`rd-${seats}`} className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'round', seats })}>
+                <div className="preview"><img className="preview-img" src={assetForTable('round', seats)} alt="" /></div>
+                <span>Round · {seats}</span>
+              </div>
+            ))}
+
+            {/* Sofas (implemented as booths) */}
+            {[2,4].map((seats) => (
+              <div key={`sofa-${seats}`} className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'booth', seats })}>
+                <div className="preview"><img className="preview-img" src={assetForTable('booth', seats)} alt="" /></div>
+                <span>Sofa · {seats}</span>
+              </div>
+            ))}
           </div>
 
           <h2 style={{ marginTop: 18 }}>🏗️ Elements</h2>
           <div className="palette">
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'wall' })}>
-              <div className="preview"><img className="preview-img" src={assetForObject('wall', 1, 2)} alt="" /></div>
-              <span>Wall</span>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'bar' })}>
+              <div className="preview"><img className="preview-img" src={assetForObject('bar', 5, 2)} alt="" /></div>
+              <span>Bar · 5</span>
+            </div>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'chair' })}>
+              <div className="preview"><img className="preview-img" src={assetForObject('chair', 1, 1)} alt="" /></div>
+              <span>Chair</span>
             </div>
             <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'door' })}>
               <div className="preview"><img className="preview-img" src={assetForObject('door', 1, 1)} alt="" /></div>
               <span>Door</span>
             </div>
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'bar' })}>
-              <div className="preview"><img className="preview-img" src={assetForObject('bar', 2, 1)} alt="" /></div>
-              <span>Bar</span>
+
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'divider', variant: 'divider_h' })}>
+              <div className="preview"><img className="preview-img" src={assetForObject('divider', 5, 1, 'divider_h')} alt="" /></div>
+              <span>Partition</span>
             </div>
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'plant' })}>
-              <div className="preview"><img className="preview-img" src={assetForObject('plant', 1, 1)} alt="" /></div>
-              <span>Plant</span>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'divider', variant: 'divider_round' })}>
+              <div className="preview"><img className="preview-img" src={assetForObject('divider', 2, 2, 'divider_round')} alt="" /></div>
+              <span>Round Partition</span>
             </div>
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'divider' })}>
-              <div className="preview"><img className="preview-img" src={assetForObject('divider', 2, 1)} alt="" /></div>
-              <span>Divider</span>
+
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'wall', variant: 'wall_h' })}>
+              <div className="preview fe-wall-preview" />
+              <span>Wall · Horizontal</span>
+            </div>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'wall', variant: 'wall_v' })}>
+              <div className="preview fe-wall-preview fe-wall-preview-v" />
+              <span>Wall · Vertical</span>
             </div>
           </div>
 
@@ -816,13 +872,17 @@ const assetForTable = (shape: string, seats: number) => {
                         setSelectedObject(objectHere);
                       }}
                       style={{
-                        width: objectHere.spanX === 2 ? 'calc(200% + 2px)' : objectHere.spanX === 3 ? 'calc(300% + 4px)' : objectHere.spanX === 4 ? 'calc(400% + 6px)' : '100%',
-                        height: objectHere.spanY === 2 ? 'calc(200% + 2px)' : objectHere.spanY === 3 ? 'calc(300% + 4px)' : '100%',
+                        width: `calc(${(objectHere.spanX || 1) * 100}% + ${Math.max(0, (objectHere.spanX || 1) - 1) * 2}px)`,
+                        height: `calc(${(objectHere.spanY || 1) * 100}% + ${Math.max(0, (objectHere.spanY || 1) - 1) * 2}px)`,
                         transform: `rotate(${objectHere.rotation ?? 0}deg)`,
                       }}
                     >
-                      <img className="fe-asset" style={{ transform: `scale(${scaleForObject(objectHere.type)})` }} src={assetForObject(objectHere.type, objectHere.spanX, objectHere.spanY)} alt="" />
-                      {objectHere.label && <div className="obj-label">{objectHere.label}</div>}
+                      {objectHere.type === 'wall' ? (
+                        <div className={`fe-wall ${String(objectHere.label || 'wall_h')}`} />
+                      ) : (
+                        <img className="fe-asset" src={assetForObject(objectHere.type, objectHere.spanX, objectHere.spanY, objectHere.label)} alt="" />
+                      )}
+                      {objectHere.label && !/^wall_|^divider_/.test(String(objectHere.label)) && <div className="obj-label">{objectHere.label}</div>}
                     </div>
                   )}
                   {isTopLeft && (
@@ -835,12 +895,12 @@ const assetForTable = (shape: string, seats: number) => {
                         setSelectedTable(tableHere);
                       }}
                       style={{
-                        width: tableHere.spanX === 2 ? 'calc(200% + 2px)' : '100%',
-                        height: tableHere.spanY === 2 ? 'calc(200% + 2px)' : '100%'
+                        width: `calc(${(tableHere.spanX || 1) * 100}% + ${Math.max(0, (tableHere.spanX || 1) - 1) * 2}px)`,
+                        height: `calc(${(tableHere.spanY || 1) * 100}% + ${Math.max(0, (tableHere.spanY || 1) - 1) * 2}px)`,
                       }}
                     >
                       <div className="fe-table-visual">
-                        <img className="fe-asset" style={{ transform: `scale(${scaleForTable(tableHere.shape, tableHere.seats)})` }} src={assetForTable(tableHere.shape, tableHere.seats)} alt="" />
+                        <img className="fe-asset" src={assetForTable(tableHere.shape, tableHere.seats)} alt="" />
                         {tableHere.shape !== 'booth' && (
                           <div className="fe-chairs" aria-hidden="true">
                             {Array.from({ length: Math.min(10, Math.max(0, tableHere.seats)) }).map((_, idx, arr) => {
