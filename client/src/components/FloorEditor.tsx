@@ -32,6 +32,7 @@ interface FloorLayout {
   name: string;
   gridRows: number;
   gridCols: number;
+  gridMask?: number[];
   tables: FloorTable[];
   objects?: FloorObject[];
   isActive: boolean;
@@ -80,6 +81,9 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [newLayoutName, setNewLayoutName] = useState('');
   const [showOnlyActiveSection, setShowOnlyActiveSection] = useState(false);
   const [hoverCell, setHoverCell] = useState<{ x: number; y: number } | null>(null);
+  const [shapeEditMode, setShapeEditMode] = useState(false);
+  const [isPaintingMask, setIsPaintingMask] = useState(false);
+  const [paintValue, setPaintValue] = useState<0|1>(1);
 
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -91,14 +95,14 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   // Vite serves files from /public at the app base URL.
   // Using BASE_URL keeps it working if the app is hosted under a sub-path.
   const ASSET_BASE = `${import.meta.env.BASE_URL}floor_assets/`;
-  const CELL_PX = 60;
+  const [cellPx, setCellPx] = useState(60);
   const GRID_PAD_PX = 10;
 
   // Compute pixel size for an item that spans N cells, accounting for the
   // ~2px total border between adjacent cells (each cell has a 1px border).
   const spanToPx = (span: number) => {
     const s = Math.max(1, Number(span) || 1);
-    return s * CELL_PX + (s - 1) * 2;
+    return s * cellPx + (s - 1) * 2;
   };
 
   // Cell-based sizing: total cells ~= seats for tables/booths.
@@ -208,6 +212,24 @@ const assetForTable = (shape: string, seats: number) => {
       .catch(err => console.error('Failed to load sections:', err));
   }, [restaurantId]);
 
+
+  const normalizeGridMask = (layout: FloorLayout): FloorLayout => {
+    const rows = Number(layout.gridRows || 0);
+    const cols = Number(layout.gridCols || 0);
+    const need = rows * cols;
+    const cur = Array.isArray(layout.gridMask) ? layout.gridMask.slice(0, need) : [];
+    while (cur.length < need) cur.push(1);
+    return { ...layout, gridMask: cur };
+  };
+
+  useEffect(() => {
+    if (!currentLayout) return;
+    // ensure gridMask exists and correct length (backward compatible)
+    setCurrentLayout((prev) => (prev ? normalizeGridMask(prev) : prev));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentLayout?.id]);
+
+
   // Canvas keyboard helpers (Space = pan)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -245,6 +267,7 @@ const assetForTable = (shape: string, seats: number) => {
           name: newLayoutName,
           gridRows: 8,
           gridCols: 12,
+          gridMask: new Array(8*12).fill(1),
           tables: [],
           objects: [],
           isActive: layouts.length === 0,
@@ -418,7 +441,7 @@ const assetForTable = (shape: string, seats: number) => {
   const fitToScreen = () => {
     if (!canvasRef.current || !currentLayout) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    const cellPx = 60;
+    const cellPxLocal = cellPx;
     const gridW = (currentLayout.gridCols * cellPx) + 20; // grid padding
     const gridH = (currentLayout.gridRows * cellPx) + 20;
 
@@ -617,11 +640,27 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     const xPx = (clientX - rect.left) / zoom - GRID_PAD_PX;
     const yPx = (clientY - rect.top) / zoom - GRID_PAD_PX;
 
-    const gx = Math.floor(xPx / CELL_PX);
-    const gy = Math.floor(yPx / CELL_PX);
+    const gx = Math.floor(xPx / cellPx);
+    const gy = Math.floor(yPx / cellPx);
     if (Number.isNaN(gx) || Number.isNaN(gy)) return null;
     if (gx < 0 || gy < 0 || gx >= currentLayout.gridCols || gy >= currentLayout.gridRows) return null;
     return { x: gx, y: gy };
+  };
+
+  const canPlaceAt = (x: number, y: number, spanX: number, spanY: number) => {
+    if (!currentLayout) return false;
+    const rows = currentLayout.gridRows;
+    const cols = currentLayout.gridCols;
+    if (x < 0 || y < 0 || x + spanX > cols || y + spanY > rows) return false;
+    const mask = currentLayout.gridMask;
+    if (!Array.isArray(mask) || mask.length !== rows * cols) return true;
+    for (let yy = y; yy < y + spanY; yy++) {
+      for (let xx = x; xx < x + spanX; xx++) {
+        const idx = yy * cols + xx;
+        if (mask[idx] === 0) return false;
+      }
+    }
+    return true;
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -645,6 +684,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         : spansForTable(draggedItem.shape, seats);
 
       const snapped = snapPlacement(gridX, gridY, sp.spanX, sp.spanY, 'table', draggedItem.shape, disableSnap);
+      if (!canPlaceAt(snapped.x, snapped.y, sp.spanX, sp.spanY)) { alert('❌ Outside floor shape'); return; }
 
       const newTable: FloorTable = {
         id: `T${Date.now()}`,
@@ -673,6 +713,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       const moving = currentLayout.tables.find(t => t.id === draggedItem.tableId);
       if (!moving) return;
       const snapped = snapPlacement(gridX, gridY, moving.spanX || 1, moving.spanY || 1, 'table', moving.shape, disableSnap, { kind: 'table', id: moving.id });
+      if (!canPlaceAt(snapped.x, snapped.y, moving.spanX || 1, moving.spanY || 1)) { alert('❌ Outside floor shape'); return; }
       setCurrentLayout({
         ...currentLayout,
         tables: currentLayout.tables.map(t =>
@@ -701,6 +742,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       };
 
       const snapped = snapPlacement(gridX, gridY, sp.spanX, sp.spanY, 'object', draggedItem.objectType, disableSnap);
+      if (!canPlaceAt(snapped.x, snapped.y, sp.spanX, sp.spanY)) { alert('❌ Outside floor shape'); return; }
       const newObj: FloorObject = {
         id: `O${Date.now()}`,
         type: draggedItem.objectType,
@@ -726,6 +768,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       const moving = objects.find(o => o.id === draggedItem.objectId);
       if (!moving) return;
       const snapped = snapPlacement(gridX, gridY, moving.spanX || 1, moving.spanY || 1, 'object', moving.type, disableSnap, { kind: 'object', id: moving.id });
+      if (!canPlaceAt(snapped.x, snapped.y, moving.spanX || 1, moving.spanY || 1)) { alert('❌ Outside floor shape'); return; }
       setCurrentLayout({
         ...currentLayout,
         objects: objects.map(o => o.id === draggedItem.objectId ? { ...o, gridX: snapped.x, gridY: snapped.y } : o)
@@ -1141,6 +1184,105 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             </div>
           )}
 
+          <div className="fe-panel">
+            <h3>Grid</h3>
+            <div className="row" style={{ display: 'flex', gap: 8 }}>
+              <label style={{ flex: 1 }}>
+                Rows:
+                <input
+                  type="number"
+                  min="1"
+                  max="60"
+                  value={currentLayout.gridRows}
+                  onChange={(e) => {
+                    const rows = Math.max(1, Number(e.target.value) || 1);
+                    const cols = currentLayout.gridCols;
+                    const nextMask = (() => {
+                      const prev = Array.isArray(currentLayout.gridMask) ? currentLayout.gridMask : new Array(currentLayout.gridRows * currentLayout.gridCols).fill(1);
+                      const out = new Array(rows * cols).fill(1);
+                      const minRows = Math.min(rows, currentLayout.gridRows);
+                      const minCols = Math.min(cols, currentLayout.gridCols);
+                      for (let y=0; y<minRows; y++){
+                        for (let x=0; x<minCols; x++){
+                          out[y*cols + x] = prev[y*currentLayout.gridCols + x] ?? 1;
+                        }
+                      }
+                      return out;
+                    })();
+                    setCurrentLayout({ ...currentLayout, gridRows: rows, gridMask: nextMask });
+                  }}
+                />
+              </label>
+              <label style={{ flex: 1 }}>
+                Cols:
+                <input
+                  type="number"
+                  min="1"
+                  max="60"
+                  value={currentLayout.gridCols}
+                  onChange={(e) => {
+                    const cols = Math.max(1, Number(e.target.value) || 1);
+                    const rows = currentLayout.gridRows;
+                    const nextMask = (() => {
+                      const prev = Array.isArray(currentLayout.gridMask) ? currentLayout.gridMask : new Array(currentLayout.gridRows * currentLayout.gridCols).fill(1);
+                      const out = new Array(rows * cols).fill(1);
+                      const minRows = Math.min(rows, currentLayout.gridRows);
+                      const minCols = Math.min(cols, currentLayout.gridCols);
+                      for (let y=0; y<minRows; y++){
+                        for (let x=0; x<minCols; x++){
+                          out[y*cols + x] = prev[y*currentLayout.gridCols + x] ?? 1;
+                        }
+                      }
+                      return out;
+                    })();
+                    setCurrentLayout({ ...currentLayout, gridCols: cols, gridMask: nextMask });
+                  }}
+                />
+              </label>
+            </div>
+
+            <label>
+              Cell size: {cellPx}px
+              <input type="range" min="40" max="110" value={cellPx} onChange={(e) => setCellPx(Number(e.target.value) || 60)} />
+            </label>
+
+            <div className="row" style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className={`btn-secondary ${shapeEditMode ? 'active' : ''}`}
+                onClick={() => setShapeEditMode(!shapeEditMode)}
+                title="Paint active/inactive cells"
+              >
+                ✏️ Edit shape
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setCurrentLayout({ ...currentLayout, gridMask: new Array(currentLayout.gridRows * currentLayout.gridCols).fill(1) })}
+              >
+                Reset
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  const rows = currentLayout.gridRows;
+                  const cols = currentLayout.gridCols;
+                  const cur = Array.isArray(currentLayout.gridMask) ? currentLayout.gridMask : new Array(rows*cols).fill(1);
+                  setCurrentLayout({ ...currentLayout, gridMask: cur.map(v => (v ? 0 : 1)) });
+                }}
+              >
+                Invert
+              </button>
+            </div>
+
+            {shapeEditMode && (
+              <div className="fe-hint" style={{ marginTop: 8 }}>
+                Paint: click/drag to toggle cells. Green = active, Dark = cut-out.
+              </div>
+            )}
+          </div>
+
           <button className="btn-save" onClick={saveCurrentLayout}>
             💾 Save Layout
           </button>
@@ -1158,19 +1300,20 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 <div
             className="grid"
             style={{
-              gridTemplateColumns: `repeat(${currentLayout.gridCols}, 60px)`,
-              gridTemplateRows: `repeat(${currentLayout.gridRows}, 60px)`,
+              gridTemplateColumns: `repeat(${currentLayout.gridCols}, ${cellPx}px)`,
+              gridTemplateRows: `repeat(${currentLayout.gridRows}, ${cellPx}px)`,
+              ['--fe-cell' as any]: `${cellPx}px`,
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: '0 0'
             }}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
+            onDragOver={shapeEditMode ? undefined : handleDragOver}
+            onDrop={shapeEditMode ? undefined : handleDrop}
             onDragLeave={() => setHoverCell(null)}
           >
             {(() => {
               // Drop preview: shows where the dragged item will land (with snapping)
               if (!hoverCell || !draggedItem || !currentLayout) return null;
-              const cellPx = 60;
+              const cellPxLocal = cellPx;
               const padPx = 10;
 
               const spanFromDragged = () => {
@@ -1203,24 +1346,24 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               const { spanX, spanY, subtype } = spanFromDragged();
               // Use snapping logic (same as onDrop). Shift disables snap.
               const snapped = snapPlacement(hoverCell.x, hoverCell.y, spanX, spanY, draggedItem.kind, String(subtype), false, draggedItem.mode === 'existing' ? { kind: draggedItem.kind, id: draggedItem.kind === 'table' ? draggedItem.tableId : draggedItem.objectId } : undefined);
-              const left = padPx + snapped.x * cellPx;
-              const top = padPx + snapped.y * cellPx;
+              const left = padPx + snapped.x * cellPxLocal;
+              const top = padPx + snapped.y * cellPxLocal;
 
               return (
                 <>
                   {snapped.guides.v.map((gx, idx) => (
-                    <div key={`pv-v-${idx}`} className="fe-guide-line v" style={{ left: 10 + gx * cellPx }} />
+                    <div key={`pv-v-${idx}`} className="fe-guide-line v" style={{ left: 10 + gx * cellPxLocal }} />
                   ))}
                   {snapped.guides.h.map((gy, idx) => (
-                    <div key={`pv-h-${idx}`} className="fe-guide-line h" style={{ top: 10 + gy * cellPx }} />
+                    <div key={`pv-h-${idx}`} className="fe-guide-line h" style={{ top: 10 + gy * cellPxLocal }} />
                   ))}
                   <div
                   className="fe-drop-preview"
                   style={{
                     left,
                     top,
-                    width: spanX * cellPx,
-                    height: spanY * cellPx,
+                    width: spanX * cellPxLocal,
+                    height: spanY * cellPxLocal,
                   }}
                 />
                 </>
@@ -1251,7 +1394,34 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               return (
                 <div
                   key={i}
-                  className="grid-cell"
+                  className={`grid-cell ${(() => {
+                    const mask = currentLayout.gridMask;
+                    const idx = gridY * currentLayout.gridCols + gridX;
+                    const active = !Array.isArray(mask) || mask[idx] !== 0;
+                    return active ? "is-active" : "is-inactive";
+                  })()}`}
+                  onMouseDown={(e) => {
+                    if (!shapeEditMode) return;
+                    e.preventDefault();
+                    const idx = gridY * currentLayout.gridCols + gridX;
+                    const cur = Array.isArray(currentLayout.gridMask) ? currentLayout.gridMask.slice() : new Array(currentLayout.gridRows * currentLayout.gridCols).fill(1);
+                    const next = cur[idx] === 0 ? 1 : 0;
+                    setPaintValue(next as any);
+                    cur[idx] = next;
+                    setCurrentLayout({ ...currentLayout, gridMask: cur });
+                    setIsPaintingMask(true);
+                  }}
+                  onMouseEnter={() => {
+                    if (!shapeEditMode || !isPaintingMask) return;
+                    const idx = gridY * currentLayout.gridCols + gridX;
+                    const cur = Array.isArray(currentLayout.gridMask) ? currentLayout.gridMask.slice() : new Array(currentLayout.gridRows * currentLayout.gridCols).fill(1);
+                    cur[idx] = paintValue;
+                    setCurrentLayout({ ...currentLayout, gridMask: cur });
+                  }}
+                  onMouseUp={() => {
+                    if (!shapeEditMode) return;
+                    setIsPaintingMask(false);
+                  }}
                 >
                   {isObjTopLeft && objectHere && (
                     <div

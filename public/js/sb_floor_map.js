@@ -102,15 +102,16 @@
   }
 
   function fitToViewport(viewport, boardW, boardH, zoom){
-    const vw = viewport.clientWidth || 1;
-    const vh = viewport.clientHeight || 1;
+    const SAFE = Number(getComputedStyle(document.documentElement).getPropertyValue('--sb-map-safe-inset').trim().replace('px','')) || 12;
+    const vw = (viewport.clientWidth || 1) - SAFE*2;
+    const vh = (viewport.clientHeight || 1) - SAFE*2;
     const s = Math.min(vw/boardW, vh/boardH);
     // allow a bit of upscale on large displays, but keep it stable
     const base = Math.min(Math.max(s, 0.35), 1.15);
     const z = Number(zoom || 1);
     const scale = Math.min(Math.max(base * z, 0.25), 2.0);
-    const x = Math.max(0, (vw - boardW*scale)/2);
-    const y = Math.max(0, (vh - boardH*scale)/2);
+    const x = SAFE + Math.max(0, (vw - boardW*scale)/2);
+    const y = SAFE + Math.max(0, (vh - boardH*scale)/2);
     return { scale, x, y };
   }
 
@@ -173,7 +174,6 @@ const badge = document.createElement('span');
  
 function tableAssetUrl(tbl){
   const BASE = '/floor_assets/';
-  // Prefer explicit assetFile from editor/data model if present
   if (tbl && tbl.assetFile) return BASE + String(tbl.assetFile);
   const seats = Number(tbl.seats || 0);
   const shape = String(tbl.shape || 'rect').toLowerCase();
@@ -199,8 +199,8 @@ function tableAssetUrl(tbl){
 }
 
     function shouldShowChairs(tbl){
-      const shape = String(tbl.shape || 'rect').toLowerCase();
-      return shape !== 'booth';
+      // Disabled: no automatic chairs around tables
+      return false;
     }
 
     function chairPositions(count){
@@ -232,7 +232,20 @@ function tableAssetUrl(tbl){
     img.src = tableAssetUrl(t);
     visual.appendChild(img);
 
-    // IMPORTANT: do not auto-render chairs around tables. Chairs are explicit objects.
+    if (shouldShowChairs(t)) {
+      const chairs = document.createElement('div');
+      chairs.className = 'sb-floor-chairs';
+      const n = Math.min(10, Math.max(0, Number(t.seats || 0)));
+      chairPositions(n).forEach((p, idx) => {
+        const c = document.createElement('div');
+        c.className = 'sb-floor-chair';
+        c.style.left = p.x + '%';
+        c.style.top = p.y + '%';
+        c.style.transform = `translate(-50%, -50%) rotate(${p.deg}deg)`;
+        chairs.appendChild(c);
+      });
+      visual.appendChild(chairs);
+    }
 
     const overlay = document.createElement('div');
     overlay.className = 'sb-floor-overlay';
@@ -282,8 +295,7 @@ const type = String(obj.type||'divider');
 
 function objectAssetUrl(o){
   const BASE = '/floor_assets/';
-  // Prefer explicit assetFile from editor/data model if present
-  if (o && o.assetFile) return BASE + String(o.assetFile);
+  if (tbl && tbl.assetFile) return BASE + String(tbl.assetFile);
   const t = String(o.type||'divider');
 
   if (t === 'door') return BASE + 'door.svg';
@@ -412,6 +424,37 @@ function objectAssetUrl(o){
       const fit = fitToViewport(ui.viewport, layout.boardW, layout.boardH, state.zoom);
       state.fit = fit;
       ui.stage.style.transform = `translate(${fit.x}px, ${fit.y}px) scale(${fit.scale})`;
+
+      // Grid mask (shape): shade inactive cells
+      const mask = Array.isArray(plan.gridMask) ? plan.gridMask : null;
+      if (mask && mask.length === layout.cols * layout.rows) {
+        const maskLayer = document.createElement('div');
+        maskLayer.className = 'sb-floor-gridmask';
+        maskLayer.style.position = 'absolute';
+        maskLayer.style.left = '0';
+        maskLayer.style.top = '0';
+        maskLayer.style.width = layout.boardW + 'px';
+        maskLayer.style.height = layout.boardH + 'px';
+
+        for (let y=0; y<layout.rows; y++){
+          for (let x=0; x<layout.cols; x++){
+            const idx = y*layout.cols + x;
+            if (mask[idx] === 0 || mask[idx] === false) {
+              const hole = document.createElement('div');
+              hole.className = 'sb-floor-hole';
+              const px = layout.pad + (x * (layout.cell + layout.gap));
+              const py = layout.pad + (y * (layout.cell + layout.gap));
+              hole.style.left = px + 'px';
+              hole.style.top = py + 'px';
+              hole.style.width = layout.cell + 'px';
+              hole.style.height = layout.cell + 'px';
+              maskLayer.appendChild(hole);
+            }
+          }
+        }
+        ui.stage.appendChild(maskLayer);
+      }
+
 
       // Place objects (walls/doors/bar/plants) behind tables
       const objects = Array.isArray(plan.objects) ? plan.objects : [];

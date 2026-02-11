@@ -153,6 +153,11 @@ export interface FloorSection {
   name: string;
   gridRows: number;
   gridCols: number;
+  /**
+   * Grid shape mask: length = gridRows*gridCols. 1=active cell, 0=inactive.
+   * Optional for backward compatibility.
+   */
+  gridMask?: number[];
   displayOrder: number;
   createdAt: number;
   updatedAt: number;
@@ -185,6 +190,11 @@ export async function createFloorSection(data: {
   name: string;
   gridRows: number;
   gridCols: number;
+  /**
+   * Grid shape mask: length = gridRows*gridCols. 1=active cell, 0=inactive.
+   * Optional for backward compatibility.
+   */
+  gridMask?: number[];
   displayOrder?: number;
 }): Promise<FloorSection> {
   const id = crypto.randomUUID();
@@ -196,6 +206,7 @@ export async function createFloorSection(data: {
     name: data.name,
     gridRows: data.gridRows,
     gridCols: data.gridCols,
+    gridMask: (data as any).gridMask ?? new Array(data.gridRows * data.gridCols).fill(1),
     displayOrder: data.displayOrder ?? 0,
     createdAt: now,
     updatedAt: now,
@@ -301,6 +312,11 @@ export interface FloorLayout {
   gridRows: number;
   gridCols: number;
   /**
+   * Grid shape mask: length = gridRows*gridCols. 1=active cell, 0=inactive.
+   * Optional for backward compatibility.
+   */
+  gridMask?: number[];
+  /**
    * Tables placed on the floor grid.
    */
   tables: Array<{
@@ -359,6 +375,11 @@ export async function createFloorLayout(data: {
   name: string;
   gridRows: number;
   gridCols: number;
+  /**
+   * Grid shape mask: length = gridRows*gridCols. 1=active cell, 0=inactive.
+   * Optional for backward compatibility.
+   */
+  gridMask?: number[];
   tables?: FloorLayout["tables"];
   objects?: FloorLayout["objects"];
   isActive?: boolean;
@@ -372,6 +393,7 @@ export async function createFloorLayout(data: {
     name: data.name,
     gridRows: data.gridRows,
     gridCols: data.gridCols,
+    gridMask: (data as any).gridMask ?? new Array(data.gridRows * data.gridCols).fill(1),
     tables: data.tables ?? [],
     objects: data.objects ?? [],
     isActive: data.isActive ?? false,
