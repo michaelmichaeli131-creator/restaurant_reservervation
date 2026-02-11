@@ -173,7 +173,7 @@ const badge = document.createElement('span');
  
 function tableAssetUrl(tbl){
   const BASE = '/floor_assets/';
-  // Prefer explicit assetFile (critical for new palette items)
+  // Prefer explicit assetFile from editor/data model if present
   if (tbl && tbl.assetFile) return BASE + String(tbl.assetFile);
   const seats = Number(tbl.seats || 0);
   const shape = String(tbl.shape || 'rect').toLowerCase();
@@ -198,7 +198,27 @@ function tableAssetUrl(tbl){
   return BASE + `square_table${nearest}.svg`;
 }
 
-    // No auto-chairs: chairs are explicit objects/assets in the layout.
+    function shouldShowChairs(tbl){
+      const shape = String(tbl.shape || 'rect').toLowerCase();
+      return shape !== 'booth';
+    }
+
+    function chairPositions(count){
+      // Generic: distribute chairs around an ellipse (good enough for both round and square)
+      const n = Math.max(0, Number(count||0));
+      const out = [];
+      if (!n) return out;
+      const rX = 44; // percent
+      const rY = 44;
+      for (let i=0;i<n;i++){
+        const a = (Math.PI * 2 * i) / n;
+        const x = 50 + rX * Math.cos(a);
+        const y = 50 + rY * Math.sin(a);
+        const deg = (a * 180 / Math.PI) + 90;
+        out.push({ x, y, deg });
+      }
+      return out;
+    }
 
     // Visual layer (asset + optional chairs)
     const visual = document.createElement('div');
@@ -212,7 +232,7 @@ function tableAssetUrl(tbl){
     img.src = tableAssetUrl(t);
     visual.appendChild(img);
 
-    // No auto-chairs: chairs are explicit assets in the layout.
+    // IMPORTANT: do not auto-render chairs around tables. Chairs are explicit objects.
 
     const overlay = document.createElement('div');
     overlay.className = 'sb-floor-overlay';
@@ -262,13 +282,13 @@ const type = String(obj.type||'divider');
 
 function objectAssetUrl(o){
   const BASE = '/floor_assets/';
+  // Prefer explicit assetFile from editor/data model if present
   if (o && o.assetFile) return BASE + String(o.assetFile);
   const t = String(o.type||'divider');
 
   if (t === 'door') return BASE + 'door.svg';
   if (t === 'bar') return BASE + 'bar.svg';
   if (t === 'plant') return BASE + 'plant.svg';
-  if (t === 'chair') return BASE + 'chair.svg';
       if (t === 'cyclic_partition' || t === 'cyclic') return BASE + 'cyclic_partition.svg';
 
   // wall / divider logic

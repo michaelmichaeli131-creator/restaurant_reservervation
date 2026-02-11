@@ -11,7 +11,7 @@
   <div id="sb-floor-root" data-rid="<%= it.rid %>"></div>
 </main>
 
-<script src="/public/js/sb_floor_map.js?v=<%= it.BUILD_TAG || '' %>"></script>
+<script src="/public/js/sb_floor_map.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>
 <script>
   (function(){
     const root = document.getElementById('sb-floor-root');

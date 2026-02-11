@@ -16,7 +16,7 @@
   };
 </script>
 
-<script type="module" src="/static/dist/floor-app.js"></script>
+<script type="module" src="/static/dist/floor-app.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>
 
 <style>
 .floor-page {
