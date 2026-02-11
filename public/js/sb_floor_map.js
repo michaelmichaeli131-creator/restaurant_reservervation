@@ -173,6 +173,7 @@ const badge = document.createElement('span');
  
 function tableAssetUrl(tbl){
   const BASE = '/floor_assets/';
+  // Prefer explicit assetFile (critical for new palette items)
   if (tbl && tbl.assetFile) return BASE + String(tbl.assetFile);
   const seats = Number(tbl.seats || 0);
   const shape = String(tbl.shape || 'rect').toLowerCase();
@@ -197,7 +198,9 @@ function tableAssetUrl(tbl){
   return BASE + `square_table${nearest}.svg`;
 }
 
-    // Visual layer (asset only - no auto-chairs)
+    // No auto-chairs: chairs are explicit objects/assets in the layout.
+
+    // Visual layer (asset + optional chairs)
     const visual = document.createElement('div');
     visual.className = 'sb-floor-visual';
 
@@ -208,6 +211,8 @@ function tableAssetUrl(tbl){
     img.loading = 'lazy';
     img.src = tableAssetUrl(t);
     visual.appendChild(img);
+
+    // No auto-chairs: chairs are explicit assets in the layout.
 
     const overlay = document.createElement('div');
     overlay.className = 'sb-floor-overlay';

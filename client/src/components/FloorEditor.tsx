@@ -12,26 +12,23 @@ interface FloorTable {
   spanY: number;
   seats: number;
   shape: 'square' | 'round' | 'rect' | 'booth';
+  // Critical: without assetFile we fall back to default rendering.
+  assetFile?: string; // e.g. "square_table6.svg"
   kind?: 'table';
-  // Persist the exact SVG file name (under /floor_assets/) used to render this item.
-  // This prevents other views (waiter/host) from falling back to default assets.
-  assetFile?: string;
   sectionId?: string;
 }
 
 interface FloorObject {
   id: string;
-  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider' | 'chair';
-  // Distinguish between real objects and purely visual/decoration items.
-  kind?: 'object' | 'visualOnly';
-  // Persist the exact SVG file name (under /floor_assets/) used to render this item.
-  assetFile?: string;
+  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider' | 'chair' | 'visual';
   gridX: number;
   gridY: number;
   spanX: number;
   spanY: number;
   rotation?: 0 | 90 | 180 | 270;
   label?: string;
+  assetFile?: string; // e.g. "door.svg"
+  kind?: 'object' | 'visualOnly';
 }
 
 interface FloorLayout {
@@ -71,7 +68,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [selectedTable, setSelectedTable] = useState<FloorTable | null>(null);
   const [selectedObject, setSelectedObject] = useState<FloorObject | null>(null);
   const [draggedItem, setDraggedItem] = useState<{
-    kind: 'table' | 'object' | 'visualOnly';
+    kind: 'table' | 'object';
     mode: 'new' | 'existing';
     shape?: string; // for tables
     seats?: number; // for new tables
@@ -79,7 +76,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     spanY?: number; // for new items
     objectType?: FloorObject['type'];
     objectLabel?: string;
-    assetFile?: string; // exact SVG file name
+    objectKind?: 'object' | 'visualOnly';
+    assetFile?: string; // e.g. "square_table6.svg"
     rotation?: 0 | 90 | 180 | 270;
     tableId?: string;
     objectId?: string;
@@ -97,9 +95,9 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
-  // Vite serves files from /public at the app base URL.
-  // Using BASE_URL keeps it working if the app is hosted under a sub-path.
-  const ASSET_BASE = `${import.meta.env.BASE_URL}floor_assets/`;
+  // Always load assets from the server static path.
+  // Requirement: /floor_assets/<file>.svg
+  const ASSET_BASE = `/floor_assets/`;
   const CELL_PX = 60;
   const GRID_PAD_PX = 10;
 
@@ -347,7 +345,7 @@ const assetForTable = (shape: string, seats: number) => {
 
   const handleDragStart = (
     e: React.DragEvent,
-    kind: 'table' | 'object' | 'visualOnly',
+    kind: 'table' | 'object',
     mode: 'new' | 'existing',
     opts?: {
       shape?: string;
@@ -357,7 +355,6 @@ const assetForTable = (shape: string, seats: number) => {
       rotation?: 0 | 90 | 180 | 270;
       objectType?: FloorObject['type'];
       objectLabel?: string;
-      assetFile?: string;
       tableId?: string;
       objectId?: string;
     }
@@ -666,8 +663,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         spanY: sp.spanY,
         seats,
         shape: draggedItem.shape as any,
+        assetFile: draggedItem.assetFile,
         kind: 'table',
-        assetFile: draggedItem.assetFile ?? undefined,
         sectionId: activeSection?.id
       };
 
@@ -694,7 +691,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     }
 
     // Drop NEW object
-    else if ((draggedItem.kind === 'object' || draggedItem.kind === 'visualOnly') && draggedItem.mode === 'new' && draggedItem.objectType) {
+    else if (draggedItem.kind === 'object' && draggedItem.mode === 'new' && draggedItem.objectType) {
       const objects = currentLayout.objects ?? [];
 
       // Prefer explicit palette-provided sizing. Fallback to old defaults.
@@ -702,8 +699,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         wall: { spanX: 4, spanY: 1, rotation: 0, label: 'wall_h' },
         divider: { spanX: 2, spanY: 1, rotation: 0, label: 'partition' },
         door: { spanX: 1, spanY: 1, rotation: 0, label: 'Door' },
+        bar: { spanX: 5, spanY: 1, rotation: 0, label: 'Bar' },
         plant: { spanX: 1, spanY: 1, rotation: 0, label: '' },
-        chair: { spanX: 1, spanY: 1, rotation: 0, label: '' },
       };
 
       const d = defaults[String(draggedItem.objectType)] ?? { spanX: 1, spanY: 1 };
@@ -716,14 +713,14 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       const newObj: FloorObject = {
         id: `O${Date.now()}`,
         type: draggedItem.objectType,
-        kind: draggedItem.kind === 'visualOnly' ? 'visualOnly' : 'object',
-        assetFile: draggedItem.assetFile ?? undefined,
         gridX: snapped.x,
         gridY: snapped.y,
         spanX: sp.spanX,
         spanY: sp.spanY,
         rotation: (draggedItem.rotation ?? d.rotation) as any,
         label: draggedItem.objectLabel ?? d.label,
+        assetFile: draggedItem.assetFile,
+        kind: draggedItem.objectKind ?? 'object',
       };
 
       setCurrentLayout({
@@ -961,7 +958,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'chair', spanX: 1, spanY: 1, assetFile: 'chair.svg' })}
+              onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'chair', spanX: 1, spanY: 1, objectLabel: 'chair', assetFile: 'chair.svg', objectKind: 'object' })}
             >
               <div className="preview"><img className="preview-img" src={`${ASSET_BASE}chair.svg`} alt="" /></div>
               <span>chair.svg • 1 (1×1)</span>
@@ -970,7 +967,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'plant', spanX: 1, spanY: 1, assetFile: 'plant.svg' })}
+              onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'plant', spanX: 1, spanY: 1, objectLabel: 'plant', assetFile: 'plant.svg', objectKind: 'object' })}
             >
               <div className="preview"><img className="preview-img" src={`${ASSET_BASE}plant.svg`} alt="" /></div>
               <span>plant.svg • 1 (1×1)</span>
@@ -1042,33 +1039,33 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
           <h3 className="fe-subtitle" style={{ marginTop: 14 }}>Visual only</h3>
           <div className="palette">
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'visualOnly', 'new', { objectType: 'divider', spanX: 1, spanY: 1, assetFile: 'corner_partitaion.svg', objectLabel: 'corner_partitaion' })}>
-              <div className="preview"><img className="preview-img" src={`${ASSET_BASE}corner_partitaion.svg`} alt="" /></div>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'visual', spanX: 1, spanY: 1, objectLabel: 'corner_partitaion', assetFile: 'corner_partitaion.svg', objectKind: 'visualOnly' })}>
+              <div className="preview"><img className="preview-img" src={assetForObject('divider', 1, 1, 'corner_partitaion')} alt="" /></div>
               <span>corner_partitaion.svg</span>
             </div>
 
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'visualOnly', 'new', { objectType: 'divider', spanX: 2, spanY: 2, assetFile: 'cyclic_partition.svg', objectLabel: 'cyclic_partition' })}>
-              <div className="preview"><img className="preview-img" src={`${ASSET_BASE}cyclic_partition.svg`} alt="" /></div>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'visual', spanX: 2, spanY: 2, objectLabel: 'cyclic_partition', assetFile: 'cyclic_partition.svg', objectKind: 'visualOnly' })}>
+              <div className="preview"><img className="preview-img" src={assetForObject('divider', 2, 2, 'cyclic_partition')} alt="" /></div>
               <span>cyclic_partition.svg</span>
             </div>
 
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'visualOnly', 'new', { objectType: 'door', spanX: 1, spanY: 1, assetFile: 'door.svg', objectLabel: 'door' })}>
-              <div className="preview"><img className="preview-img" src={`${ASSET_BASE}door.svg`} alt="" /></div>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'door', spanX: 1, spanY: 1, objectLabel: 'door', assetFile: 'door.svg', objectKind: 'visualOnly' })}>
+              <div className="preview"><img className="preview-img" src={assetForObject('door', 1, 1, 'door')} alt="" /></div>
               <span>door.svg</span>
             </div>
 
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'visualOnly', 'new', { objectType: 'divider', spanX: 1, spanY: 1, assetFile: 'floor_brown.svg', objectLabel: 'floor_brown' })}>
-              <div className="preview"><img className="preview-img" src={`${ASSET_BASE}floor_brown.svg`} alt="" /></div>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'visual', spanX: 1, spanY: 1, objectLabel: 'floor_brown', assetFile: 'floor_brown.svg', objectKind: 'visualOnly' })}>
+              <div className="preview"><img className="preview-img" src={assetForObject('divider', 1, 1, 'floor_brown')} alt="" /></div>
               <span>floor_brown.svg</span>
             </div>
 
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'visualOnly', 'new', { objectType: 'divider', spanX: 4, spanY: 1, assetFile: 'horizintal_partitaion.svg', objectLabel: 'horizintal_partitaion' })}>
-              <div className="preview"><img className="preview-img" src={`${ASSET_BASE}horizintal_partitaion.svg`} alt="" /></div>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'visual', spanX: 4, spanY: 1, objectLabel: 'horizintal_partitaion', assetFile: 'horizintal_partitaion.svg', objectKind: 'visualOnly' })}>
+              <div className="preview"><img className="preview-img" src={assetForObject('divider', 4, 1, 'horizintal_partitaion')} alt="" /></div>
               <span>horizintal_partitaion.svg</span>
             </div>
 
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'visualOnly', 'new', { objectType: 'divider', spanX: 1, spanY: 4, assetFile: 'vertical_partition.svg', objectLabel: 'vertical_partition' })}>
-              <div className="preview"><img className="preview-img" src={`${ASSET_BASE}vertical_partition.svg`} alt="" /></div>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'visual', spanX: 1, spanY: 4, objectLabel: 'vertical_partition', assetFile: 'vertical_partition.svg', objectKind: 'visualOnly' })}>
+              <div className="preview"><img className="preview-img" src={assetForObject('divider', 1, 4, 'vertical_partition')} alt="" /></div>
               <span>vertical_partition.svg</span>
             </div>
           </div>
