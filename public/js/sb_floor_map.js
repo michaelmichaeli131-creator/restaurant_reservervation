@@ -172,7 +172,8 @@ const badge = document.createElement('span');
 
  
 function tableAssetUrl(tbl){
-  const BASE = '/static/floor_assets/';
+  const BASE = '/floor_assets/';
+  if (tbl && tbl.assetFile) return BASE + String(tbl.assetFile);
   const seats = Number(tbl.seats || 0);
   const shape = String(tbl.shape || 'rect').toLowerCase();
 
@@ -196,29 +197,7 @@ function tableAssetUrl(tbl){
   return BASE + `square_table${nearest}.svg`;
 }
 
-    function shouldShowChairs(tbl){
-      const shape = String(tbl.shape || 'rect').toLowerCase();
-      return shape !== 'booth';
-    }
-
-    function chairPositions(count){
-      // Generic: distribute chairs around an ellipse (good enough for both round and square)
-      const n = Math.max(0, Number(count||0));
-      const out = [];
-      if (!n) return out;
-      const rX = 44; // percent
-      const rY = 44;
-      for (let i=0;i<n;i++){
-        const a = (Math.PI * 2 * i) / n;
-        const x = 50 + rX * Math.cos(a);
-        const y = 50 + rY * Math.sin(a);
-        const deg = (a * 180 / Math.PI) + 90;
-        out.push({ x, y, deg });
-      }
-      return out;
-    }
-
-    // Visual layer (asset + optional chairs)
+    // Visual layer (asset only - no auto-chairs)
     const visual = document.createElement('div');
     visual.className = 'sb-floor-visual';
 
@@ -229,21 +208,6 @@ function tableAssetUrl(tbl){
     img.loading = 'lazy';
     img.src = tableAssetUrl(t);
     visual.appendChild(img);
-
-    if (shouldShowChairs(t)) {
-      const chairs = document.createElement('div');
-      chairs.className = 'sb-floor-chairs';
-      const n = Math.min(10, Math.max(0, Number(t.seats || 0)));
-      chairPositions(n).forEach((p, idx) => {
-        const c = document.createElement('div');
-        c.className = 'sb-floor-chair';
-        c.style.left = p.x + '%';
-        c.style.top = p.y + '%';
-        c.style.transform = `translate(-50%, -50%) rotate(${p.deg}deg)`;
-        chairs.appendChild(c);
-      });
-      visual.appendChild(chairs);
-    }
 
     const overlay = document.createElement('div');
     overlay.className = 'sb-floor-overlay';
@@ -292,12 +256,14 @@ function tableAssetUrl(tbl){
 const type = String(obj.type||'divider');
 
 function objectAssetUrl(o){
-  const BASE = '/static/floor_assets/';
+  const BASE = '/floor_assets/';
+  if (o && o.assetFile) return BASE + String(o.assetFile);
   const t = String(o.type||'divider');
 
   if (t === 'door') return BASE + 'door.svg';
   if (t === 'bar') return BASE + 'bar.svg';
   if (t === 'plant') return BASE + 'plant.svg';
+  if (t === 'chair') return BASE + 'chair.svg';
       if (t === 'cyclic_partition' || t === 'cyclic') return BASE + 'cyclic_partition.svg';
 
   // wall / divider logic
@@ -421,6 +387,38 @@ function objectAssetUrl(o){
       const fit = fitToViewport(ui.viewport, layout.boardW, layout.boardH, state.zoom);
       state.fit = fit;
       ui.stage.style.transform = `translate(${fit.x}px, ${fit.y}px) scale(${fit.scale})`;
+
+      // Grid mask: hide inactive cells (outside restaurant shape)
+      const mask = Array.isArray(plan.gridMask) ? plan.gridMask : null;
+      if (mask) {
+        gridLayer = document.createElement('div');
+        gridLayer.className = 'sb-floor-gridmask';
+        gridLayer.style.position = 'absolute';
+        gridLayer.style.left = '0px';
+        gridLayer.style.top = '0px';
+        gridLayer.style.width = layout.boardW + 'px';
+        gridLayer.style.height = layout.boardH + 'px';
+        gridLayer.style.pointerEvents = 'none';
+
+        // render only INACTIVE cells as "holes" overlay
+        for (let r = 0; r < layout.rows; r++) {
+          for (let c = 0; c < layout.cols; c++) {
+            const idx = r * layout.cols + c;
+            const active = mask[idx] ? 1 : 0;
+            if (active) continue;
+            const hole = document.createElement('div');
+            hole.className = 'sb-floor-hole';
+            hole.style.position = 'absolute';
+            hole.style.left = (layout.pad + c * (layout.cell + layout.gap)) + 'px';
+            hole.style.top = (layout.pad + r * (layout.cell + layout.gap)) + 'px';
+            hole.style.width = layout.cell + 'px';
+            hole.style.height = layout.cell + 'px';
+            gridLayer.appendChild(hole);
+          }
+        }
+
+        ui.stage.appendChild(gridLayer);
+      }
 
       // Place objects (walls/doors/bar/plants) behind tables
       const objects = Array.isArray(plan.objects) ? plan.objects : [];

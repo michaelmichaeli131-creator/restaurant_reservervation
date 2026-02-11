@@ -44,17 +44,21 @@ interface FloorTable {
   spanY: number;
   seats: number;
   shape: "square" | "round" | "rect" | "booth";
+  assetFile?: string;
+  kind?: "table";
 }
 
 interface FloorObject {
   id: string;
-  type: "wall" | "door" | "bar" | "plant" | "divider";
+  type: "wall" | "door" | "bar" | "plant" | "divider" | "chair";
   gridX: number;
   gridY: number;
   spanX: number;
   spanY: number;
   rotation?: 0 | 90 | 180 | 270;
   label?: string;
+  kind?: "object" | "visualOnly";
+  assetFile?: string;
 }
 
 // Live table status computed from orders
@@ -78,6 +82,7 @@ interface FloorPlan {
   name: string;
   gridRows: number;
   gridCols: number;
+  gridMask?: number[];
   tables: FloorTable[];
   objects?: FloorObject[];
   createdAt: number;
@@ -239,17 +244,19 @@ ownerFloorRouter.get(
       return;
     }
 
-    // Get floor plan
-    const floorPlanKey = toKey("floor_plan", restaurantId);
-    const floorPlanRes = await kv.get(floorPlanKey);
+    // Get active floor plan (multi-layout). Fallback to legacy single-plan storage.
+    let floorPlan = await getActiveFloorLayout(restaurantId) as unknown as (FloorPlan | null);
 
-    if (!floorPlanRes.value) {
-      ctx.response.status = 404;
-      ctx.response.body = { error: "Floor plan not found" };
-      return;
+    if (!floorPlan) {
+      const floorPlanKey = toKey("floor_plan", restaurantId);
+      const floorPlanRes = await kv.get(floorPlanKey);
+      if (!floorPlanRes.value) {
+        ctx.response.status = 404;
+        ctx.response.body = { error: "Floor plan not found" };
+        return;
+      }
+      floorPlan = floorPlanRes.value as FloorPlan;
     }
-
-    const floorPlan = floorPlanRes.value as FloorPlan;
 
     // Compute live table statuses (empty/occupied/reserved/dirty)
     const baseStatuses = await computeAllTableStatuses(
@@ -341,17 +348,19 @@ ownerFloorRouter.get(
       return;
     }
 
-    // Get floor plan
-    const floorPlanKey = toKey("floor_plan", restaurantId);
-    const floorPlanRes = await kv.get(floorPlanKey);
+    // Get active floor plan (multi-layout). Fallback to legacy single-plan storage.
+    let floorPlan = await getActiveFloorLayout(restaurantId) as unknown as (FloorPlan | null);
 
-    if (!floorPlanRes.value) {
-      ctx.response.status = 404;
-      ctx.response.body = { error: "Floor plan not found" };
-      return;
+    if (!floorPlan) {
+      const floorPlanKey = toKey("floor_plan", restaurantId);
+      const floorPlanRes = await kv.get(floorPlanKey);
+      if (!floorPlanRes.value) {
+        ctx.response.status = 404;
+        ctx.response.body = { error: "Floor plan not found" };
+        return;
+      }
+      floorPlan = floorPlanRes.value as FloorPlan;
     }
-
-    const floorPlan = floorPlanRes.value as FloorPlan;
 
     // Compute live table statuses
     const tableStatuses = await computeAllTableStatuses(

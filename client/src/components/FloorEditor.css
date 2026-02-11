@@ -241,11 +241,12 @@
   pointer-events: none;
   user-select: none;
   filter: drop-shadow(0 8px 16px rgba(0,0,0,.22));
+  display: block;
 }
 
 .fe-table-visual{
   position:absolute;
-  inset: 2px;
+  inset: 0;
   border-radius: 12px;
   pointer-events:none;
 }
@@ -368,6 +369,25 @@
   background: rgba(56,156,255,.06);
   border-color: rgba(56,156,255,.22);
 }
+
+
+.grid-cell.inactive{
+  background: rgba(0,0,0,.25);
+  border-color: rgba(255,255,255,.04);
+}
+.grid-cell.inactive:hover{
+  background: rgba(0,0,0,.35);
+  border-color: rgba(255,255,255,.06);
+}
+
+/* Shape edit mode: let user paint cells without grabbing items */
+.grid.shape-mode .table,
+.grid.shape-mode .floor-object{
+  pointer-events: none;
+}
+.grid.shape-mode{
+  cursor: cell;
+}
 .table {
   position: absolute;
   top: 0;
@@ -424,11 +444,8 @@
 
 .fe-table-visual{
   position:absolute;
-  inset: 2px;
+  inset: 0;
   border-radius: inherit;
-  display:flex;
-  align-items:center;
-  justify-content:center;
   pointer-events:none;
 }
 
@@ -437,17 +454,19 @@
   height: 100%;
   object-fit: cover;
   filter: drop-shadow(0 10px 16px rgba(0,0,0,.22));
+  pointer-events: none;
+  user-select: none;
+  display: block;
 }
 
 .fe-table-overlay{
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 2;
   display:flex;
   flex-direction: column;
   align-items:center;
   justify-content:center;
-  width: 100%;
-  height: 100%;
   pointer-events:none;
 }
 
@@ -477,18 +496,37 @@
 /* ========== FLOOR OBJECTS ========== */
 .floor-object{
   position: absolute;
-  inset: 2px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+  top: 0;
+  left: 0;
   border-radius: 14px;
   background: transparent;
   border: none;
   color: #eaf2ff;
   cursor: grab;
   z-index: 1;
+}
+
+/* Make the asset fill the allocated span exactly */
+.floor-object > .fe-asset{
+  position: absolute;
+  inset: 0;
+}
+
+.floor-object .obj-label{
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  text-align: center;
+  padding: 2px 6px;
+  background: rgba(0,0,0,.18);
+  border-radius: 999px;
+  margin: 0 auto;
+  width: fit-content;
+  max-width: 92%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .floor-object.selected{
@@ -747,18 +785,9 @@
 }
 
 
-/* === Logical sizing / centering (Stage 2) === */
-.fe-table-visual, .floor-object {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.fe-asset {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transform-origin: center;
+/* === Keep assets fully filling their allocated spans (Part 2) === */
+.fe-table-visual{
+  display: block;
 }
 
 
