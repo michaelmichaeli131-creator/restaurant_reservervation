@@ -388,38 +388,6 @@ function objectAssetUrl(o){
       state.fit = fit;
       ui.stage.style.transform = `translate(${fit.x}px, ${fit.y}px) scale(${fit.scale})`;
 
-      // Grid mask: hide inactive cells (outside restaurant shape)
-      const mask = Array.isArray(plan.gridMask) ? plan.gridMask : null;
-      if (mask) {
-        gridLayer = document.createElement('div');
-        gridLayer.className = 'sb-floor-gridmask';
-        gridLayer.style.position = 'absolute';
-        gridLayer.style.left = '0px';
-        gridLayer.style.top = '0px';
-        gridLayer.style.width = layout.boardW + 'px';
-        gridLayer.style.height = layout.boardH + 'px';
-        gridLayer.style.pointerEvents = 'none';
-
-        // render only INACTIVE cells as "holes" overlay
-        for (let r = 0; r < layout.rows; r++) {
-          for (let c = 0; c < layout.cols; c++) {
-            const idx = r * layout.cols + c;
-            const active = mask[idx] ? 1 : 0;
-            if (active) continue;
-            const hole = document.createElement('div');
-            hole.className = 'sb-floor-hole';
-            hole.style.position = 'absolute';
-            hole.style.left = (layout.pad + c * (layout.cell + layout.gap)) + 'px';
-            hole.style.top = (layout.pad + r * (layout.cell + layout.gap)) + 'px';
-            hole.style.width = layout.cell + 'px';
-            hole.style.height = layout.cell + 'px';
-            gridLayer.appendChild(hole);
-          }
-        }
-
-        ui.stage.appendChild(gridLayer);
-      }
-
       // Place objects (walls/doors/bar/plants) behind tables
       const objects = Array.isArray(plan.objects) ? plan.objects : [];
       objects.forEach((o) => {

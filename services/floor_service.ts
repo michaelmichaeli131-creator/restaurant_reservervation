@@ -300,13 +300,6 @@ export interface FloorLayout {
   name: string;
   gridRows: number;
   gridCols: number;
-
-  /**
-   * Optional per-cell mask (1 = active cell, 0 = inactive / outside restaurant shape).
-   * Length should be gridRows * gridCols. Missing => all active.
-   */
-  gridMask?: number[];
-
   /**
    * Tables placed on the floor grid.
    */
@@ -321,9 +314,6 @@ export interface FloorLayout {
     spanY: number;
     seats: number;
     shape: "square" | "round" | "rect" | "booth";
-    // Persist exact SVG file name (under /floor_assets/)
-    assetFile?: string;
-    kind?: "table";
   }>;
 
   /**
@@ -332,15 +322,13 @@ export interface FloorLayout {
    */
   objects?: Array<{
     id: string;
-    type: "wall" | "door" | "bar" | "plant" | "divider" | "chair";
+    type: "wall" | "door" | "bar" | "plant" | "divider";
     gridX: number;
     gridY: number;
     spanX: number;
     spanY: number;
     rotation?: 0 | 90 | 180 | 270;
     label?: string;
-    kind?: "object" | "visualOnly";
-    assetFile?: string;
   }>;
   isActive: boolean;
   createdAt: number;
@@ -371,7 +359,6 @@ export async function createFloorLayout(data: {
   name: string;
   gridRows: number;
   gridCols: number;
-  gridMask?: number[];
   tables?: FloorLayout["tables"];
   objects?: FloorLayout["objects"];
   isActive?: boolean;
@@ -385,7 +372,6 @@ export async function createFloorLayout(data: {
     name: data.name,
     gridRows: data.gridRows,
     gridCols: data.gridCols,
-    gridMask: Array.isArray((data as any).gridMask) ? (data as any).gridMask : Array(data.gridRows * data.gridCols).fill(1),
     tables: data.tables ?? [],
     objects: data.objects ?? [],
     isActive: data.isActive ?? false,
@@ -568,9 +554,7 @@ export async function duplicateFloorLayout(
     name: newName ?? `${source.name} (Copy)`,
     gridRows: source.gridRows,
     gridCols: source.gridCols,
-    gridMask: source.gridMask ? JSON.parse(JSON.stringify(source.gridMask)) : undefined,
     tables: JSON.parse(JSON.stringify(source.tables)), // Deep clone
-    objects: source.objects ? JSON.parse(JSON.stringify(source.objects)) : [],
     isActive: false,
   });
 }

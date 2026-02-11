@@ -40,7 +40,6 @@ interface FloorLayout {
   name: string;
   gridRows: number;
   gridCols: number;
-  gridMask?: number[];
   tables: FloorTable[];
   objects?: FloorObject[];
   isActive: boolean;
@@ -91,11 +90,6 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [showOnlyActiveSection, setShowOnlyActiveSection] = useState(false);
   const [hoverCell, setHoverCell] = useState<{ x: number; y: number } | null>(null);
 
-  // Grid shape editor (mask): paint active/inactive cells to match restaurant shape
-  const [isShapeEditMode, setIsShapeEditMode] = useState(false);
-  const [isPaintingMask, setIsPaintingMask] = useState(false);
-  const [paintMaskValue, setPaintMaskValue] = useState<0 | 1>(1);
-
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -109,56 +103,11 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const CELL_PX = 60;
   const GRID_PAD_PX = 10;
 
-  // Compute pixel size for an item that spans N cells.
-  // IMPORTANT: keep sizing strictly cell-based so an item spanning X×Y cells
-  // visually occupies exactly X×Y cells.
+  // Compute pixel size for an item that spans N cells, accounting for the
+  // ~2px total border between adjacent cells (each cell has a 1px border).
   const spanToPx = (span: number) => {
     const s = Math.max(1, Number(span) || 1);
-    return s * CELL_PX;
-  };
-
-  // ---- Grid mask helpers ----
-  const normalizeMask = (layout: FloorLayout): number[] => {
-    const len = Math.max(0, Number(layout.gridRows) || 0) * Math.max(0, Number(layout.gridCols) || 0);
-    const src = Array.isArray(layout.gridMask) ? layout.gridMask : [];
-    const m = new Array(len).fill(1);
-    for (let i = 0; i < len && i < src.length; i++) m[i] = src[i] ? 1 : 0;
-    return m;
-  };
-
-  const isCellActive = (layout: FloorLayout, x: number, y: number): boolean => {
-    const cols = Math.max(0, Number(layout.gridCols) || 0);
-    const rows = Math.max(0, Number(layout.gridRows) || 0);
-    if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
-    const m = normalizeMask(layout);
-    const idx = y * cols + x;
-    return (m[idx] ?? 1) === 1;
-  };
-
-  const isFootprintActive = (layout: FloorLayout, x: number, y: number, spanX: number, spanY: number): boolean => {
-    for (let yy = y; yy < y + spanY; yy++) {
-      for (let xx = x; xx < x + spanX; xx++) {
-        if (!isCellActive(layout, xx, yy)) return false;
-      }
-    }
-    return true;
-  };
-
-  const resizeMask = (layout: FloorLayout, newRows: number, newCols: number): number[] => {
-    const oldRows = Math.max(0, Number(layout.gridRows) || 0);
-    const oldCols = Math.max(0, Number(layout.gridCols) || 0);
-    const oldMask = normalizeMask(layout);
-    const nr = Math.max(1, Number(newRows) || 1);
-    const nc = Math.max(1, Number(newCols) || 1);
-    const next = new Array(nr * nc).fill(1);
-    const copyRows = Math.min(oldRows, nr);
-    const copyCols = Math.min(oldCols, nc);
-    for (let r = 0; r < copyRows; r++) {
-      for (let c = 0; c < copyCols; c++) {
-        next[r * nc + c] = oldMask[r * oldCols + c] ? 1 : 0;
-      }
-    }
-    return next;
+    return s * CELL_PX + (s - 1) * 2;
   };
 
   // Cell-based sizing: total cells ~= seats for tables/booths.
@@ -183,7 +132,22 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     return { spanX: 5, spanY: 2 };
   };
 
-  // Part 2: assets must fill their allocated wrapper (no additional scaling).
+  const scaleForTable = (shape: string, seats: number) => {
+    const s = String(shape || 'rect').toLowerCase();
+    const n = Number(seats || 0);
+    if (s === 'booth') return n <= 4 ? 1.15 : 1.35;
+    if (n <= 2) return 0.75;
+    if (n <= 4) return 1.0;
+    if (n <= 6) return 1.5;
+    if (n <= 8) return 1.75;
+    return 2.0;
+  };
+
+  const scaleForObject = (type: string) => {
+    const t = String(type || '').toLowerCase();
+    if (t === 'bar') return 1.8;
+    return 1.0;
+  };
 
 const assetForTable = (shape: string, seats: number) => {
     const s = String(shape || 'rect').toLowerCase();
@@ -274,19 +238,6 @@ const assetForTable = (shape: string, seats: number) => {
     };
   }, []);
 
-  // Stop mask painting on mouse up (anywhere)
-  useEffect(() => {
-    const onUp = () => {
-      if (isPaintingMask) setIsPaintingMask(false);
-    };
-    window.addEventListener('mouseup', onUp);
-    window.addEventListener('blur', onUp);
-    return () => {
-      window.removeEventListener('mouseup', onUp);
-      window.removeEventListener('blur', onUp);
-    };
-  }, [isPaintingMask]);
-
 
   const createNewLayout = async () => {
     if (!newLayoutName.trim()) {
@@ -303,7 +254,6 @@ const assetForTable = (shape: string, seats: number) => {
           name: newLayoutName,
           gridRows: 8,
           gridCols: 12,
-          gridMask: Array.from({ length: 8 * 12 }, () => 1),
           tables: [],
           objects: [],
           isActive: layouts.length === 0,
@@ -685,7 +635,6 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   };
 
   const handleDrop = (e: React.DragEvent) => {
-    if (isShapeEditMode) return;
     e.preventDefault();
 
     if (!draggedItem || !currentLayout) return;
@@ -706,11 +655,6 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         : spansForTable(draggedItem.shape, seats);
 
       const snapped = snapPlacement(gridX, gridY, sp.spanX, sp.spanY, 'table', draggedItem.shape, disableSnap);
-
-      if (!isFootprintActive(currentLayout, snapped.x, snapped.y, sp.spanX, sp.spanY)) {
-        alert('❌ Item is outside the restaurant shape. Enable cells in Grid settings.');
-        return;
-      }
 
       const newTable: FloorTable = {
         id: `T${Date.now()}`,
@@ -741,10 +685,6 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       const moving = currentLayout.tables.find(t => t.id === draggedItem.tableId);
       if (!moving) return;
       const snapped = snapPlacement(gridX, gridY, moving.spanX || 1, moving.spanY || 1, 'table', moving.shape, disableSnap, { kind: 'table', id: moving.id });
-      if (!isFootprintActive(currentLayout, snapped.x, snapped.y, moving.spanX || 1, moving.spanY || 1)) {
-        alert('❌ Item is outside the restaurant shape. Enable cells in Grid settings.');
-        return;
-      }
       setCurrentLayout({
         ...currentLayout,
         tables: currentLayout.tables.map(t =>
@@ -773,10 +713,6 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       };
 
       const snapped = snapPlacement(gridX, gridY, sp.spanX, sp.spanY, 'object', draggedItem.objectType, disableSnap);
-      if (!isFootprintActive(currentLayout, snapped.x, snapped.y, sp.spanX, sp.spanY)) {
-        alert('❌ Item is outside the restaurant shape. Enable cells in Grid settings.');
-        return;
-      }
       const newObj: FloorObject = {
         id: `O${Date.now()}`,
         type: draggedItem.objectType,
@@ -804,10 +740,6 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       const moving = objects.find(o => o.id === draggedItem.objectId);
       if (!moving) return;
       const snapped = snapPlacement(gridX, gridY, moving.spanX || 1, moving.spanY || 1, 'object', moving.type, disableSnap, { kind: 'object', id: moving.id });
-      if (!isFootprintActive(currentLayout, snapped.x, snapped.y, moving.spanX || 1, moving.spanY || 1)) {
-        alert('❌ Item is outside the restaurant shape. Enable cells in Grid settings.');
-        return;
-      }
       setCurrentLayout({
         ...currentLayout,
         objects: objects.map(o => o.id === draggedItem.objectId ? { ...o, gridX: snapped.x, gridY: snapped.y } : o)
@@ -831,7 +763,6 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   };
 
   const handleDragOver = (e: React.DragEvent) => {
-    if (isShapeEditMode) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
 
@@ -995,88 +926,6 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               </label>
             </div>
           )}
-
-
-
-          <div className="fe-grid-settings">
-            <h3>Grid settings</h3>
-            <div className="row" style={{ display: 'flex', gap: 8 }}>
-              <label style={{ flex: 1 }}>
-                Rows
-                <input
-                  type="number"
-                  min="1"
-                  max="40"
-                  value={currentLayout.gridRows}
-                  onChange={(e) => {
-                    const nr = Math.max(1, Number(e.target.value) || 1);
-                    const nc = Number(currentLayout.gridCols || 1);
-                    setCurrentLayout({
-                      ...currentLayout,
-                      gridRows: nr,
-                      gridMask: resizeMask(currentLayout, nr, nc),
-                    });
-                  }}
-                />
-              </label>
-              <label style={{ flex: 1 }}>
-                Cols
-                <input
-                  type="number"
-                  min="1"
-                  max="60"
-                  value={currentLayout.gridCols}
-                  onChange={(e) => {
-                    const nc = Math.max(1, Number(e.target.value) || 1);
-                    const nr = Number(currentLayout.gridRows || 1);
-                    setCurrentLayout({
-                      ...currentLayout,
-                      gridCols: nc,
-                      gridMask: resizeMask(currentLayout, nr, nc),
-                    });
-                  }}
-                />
-              </label>
-            </div>
-
-            <label className="fe-toggle" style={{ marginTop: 10 }}>
-              <input
-                type="checkbox"
-                checked={isShapeEditMode}
-                onChange={(e) => setIsShapeEditMode(e.target.checked)}
-              />
-              <span>Edit grid shape (paint)</span>
-            </label>
-
-            <div className="row" style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => {
-                  setCurrentLayout({
-                    ...currentLayout,
-                    gridMask: Array.from({ length: currentLayout.gridRows * currentLayout.gridCols }, () => 1),
-                  });
-                }}
-              >
-                Reset shape
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => {
-                  const m = normalizeMask(currentLayout);
-                  const next = m.map(v => (v ? 0 : 1));
-                  setCurrentLayout({ ...currentLayout, gridMask: next });
-                }}
-              >
-                Invert
-              </button>
-            </div>
-            <div className="fe-small-hint" style={{ marginTop: 8 }}>
-              Tip: in shape mode, click/drag on cells to toggle active/inactive. Drops are disabled.
-            </div>
-          </div>
 
           <h2>🧩 Assets</h2>
 
@@ -1321,7 +1170,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div className="fe-hint">{spacePressed ? 'Pan: drag' : 'Tip: hold Space to pan, Ctrl+wheel to zoom'}</div>
           </div>
 <div
-            className={`grid ${isShapeEditMode ? "shape-mode" : ""}`}
+            className="grid"
             style={{
               gridTemplateColumns: `repeat(${currentLayout.gridCols}, 60px)`,
               gridTemplateRows: `repeat(${currentLayout.gridRows}, 60px)`,
@@ -1395,7 +1244,6 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             {Array.from({ length: currentLayout.gridRows * currentLayout.gridCols }).map((_, i) => {
               const gridY = Math.floor(i / currentLayout.gridCols);
               const gridX = i % currentLayout.gridCols;
-              const cellActive = isCellActive(currentLayout, gridX, gridY);
 
               const tableHere = currentLayout.tables.find(t => {
                 if (showOnlyActiveSection && activeSection && String(t.sectionId || '') !== String(activeSection.id)) return false;
@@ -1417,28 +1265,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               return (
                 <div
                   key={i}
-                  className={`grid-cell ${cellActive ? '' : 'inactive'} ${isShapeEditMode ? 'shape-mode' : ''}`}
-                  onMouseDown={(e) => {
-                    if (!isShapeEditMode) return;
-                    e.preventDefault();
-                    const next = (cellActive ? 0 : 1) as 0 | 1;
-                    setIsPaintingMask(true);
-                    setPaintMaskValue(next);
-                    const idx = gridY * currentLayout.gridCols + gridX;
-                    const m = normalizeMask(currentLayout);
-                    m[idx] = next;
-                    setCurrentLayout({ ...currentLayout, gridMask: m });
-                  }}
-                  onMouseEnter={() => {
-                    if (!isShapeEditMode || !isPaintingMask) return;
-                    const idx = gridY * currentLayout.gridCols + gridX;
-                    const m = normalizeMask(currentLayout);
-                    if ((m[idx] ?? 1) === paintMaskValue) return;
-                    m[idx] = paintMaskValue;
-                    setCurrentLayout({ ...currentLayout, gridMask: m });
-                  }}
+                  className="grid-cell"
                 >
-                  {cellActive && isObjTopLeft && objectHere && (
+                  {isObjTopLeft && objectHere && (
                     <div
                       className={`floor-object type-${objectHere.type} ${selectedObject?.id === objectHere.id ? 'selected' : ''}`}
                       draggable
@@ -1455,13 +1284,14 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                     >
                       <img
                         className="fe-asset"
+                        style={{ transform: `scale(${scaleForObject(objectHere.type)})` }}
                         src={objectHere.assetFile ? `${ASSET_BASE}${objectHere.assetFile}` : assetForObject(objectHere.type, objectHere.spanX, objectHere.spanY, objectHere.label)}
                         alt=""
                       />
                       {objectHere.label && <div className="obj-label">{objectHere.label}</div>}
                     </div>
                   )}
-                  {cellActive && isTopLeft && (
+                  {isTopLeft && (
                     <div
                       className={`table ${tableHere.shape} ${selectedTable?.id === tableHere.id ? 'selected' : ''} ${(!showOnlyActiveSection && activeSection && String(tableHere.sectionId || '') && String(tableHere.sectionId || '') !== String(activeSection.id)) ? 'dimmed' : ''}`}
                       draggable
@@ -1478,6 +1308,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                       <div className="fe-table-visual">
                         <img
                           className="fe-asset"
+                          style={{ transform: `scale(${scaleForTable(tableHere.shape, tableHere.seats)})` }}
                           src={tableHere.assetFile ? `${ASSET_BASE}${tableHere.assetFile}` : assetForTable(tableHere.shape, tableHere.seats)}
                           alt=""
                         />
