@@ -100,18 +100,18 @@
 
 .editor-content {
   display: flex;
-  gap: 24px;
+  gap: 14px;
   flex: 1;
   overflow: hidden;
-  padding: 20px;
+  padding: 18px 14px 18px 8px;
 }
 
 .editor-sidebar {
-  width: 280px;
+  width: 250px;
   background: var(--panel);
   border: 1px solid var(--bd);
   border-radius: 12px;
-  padding: 20px;
+  padding: 18px 14px 18px 8px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -252,6 +252,16 @@
   pointer-events:none;
 }
 
+/* Asset-specific sizing tweaks */
+.fe-table-visual[data-asset="round_table4.svg"],
+.fe-table-visual[data-asset="square_table2.svg"]{
+  inset: 0;
+}
+.fe-table-visual[data-asset="round_table4.svg"] .fe-asset,
+.fe-table-visual[data-asset="square_table2.svg"] .fe-asset{
+  padding: 0;
+}
+
 /* Removed auto-added chairs around tables (chairs are separate palette assets now) */
 
 .fe-table-overlay{
@@ -324,7 +334,7 @@
     rgba(255,255,255,.02);
   border: 1px solid var(--bd);
   border-radius: 12px;
-  padding: 20px;
+  padding: 18px 14px 18px 8px;
   overflow: auto;
   display: flex;
   justify-content: center;
@@ -350,7 +360,7 @@
       transparent 1px,
       transparent var(--cell)
     ),
-    rgba(255,255,255,.015);
+    var(--floor, #5b3d2b);
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 12px;
   box-shadow: 0 16px 40px rgba(0,0,0,.35);
@@ -839,4 +849,20 @@
   left: 10px;
   right: 10px;
   height: 2px;
+}
+
+
+/* Floor color themes (active area) */
+.grid{
+  --fe-floor: #5b3d2b; /* brown */
+}
+.grid[style*='--floor: slate']{ --fe-floor: #2f3a45; }
+.grid[style*='--floor: navy']{ --fe-floor: #1f2f4a; }
+.grid[style*='--floor: teal']{ --fe-floor: #255b61; }
+
+
+/* Asset-specific fitting tweaks */
+.floor-table .fe-asset[data-asset='round_table4.svg'],
+.floor-table .fe-asset[data-asset='square_table2.svg']{
+  padding: 0 !important;
 }

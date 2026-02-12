@@ -38,6 +38,7 @@ interface FloorLayout {
   gridRows: number;
   gridCols: number;
   gridMask?: number[]; // 1=active cell, 0=inactive
+  floorColor?: string; // active-floor color theme
   tables: FloorTable[];
   objects?: FloorObject[];
   isActive: boolean;
@@ -91,6 +92,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
   const [cellSize, setCellSize] = useState(60);
 
+  const [floorColor, setFloorColor] = useState<string>('#5b3d2b');
+
   // Center the map inside the scrollable canvas whenever grid size / cell size changes
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -110,6 +113,12 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   }, [currentLayout?.id, currentLayout?.gridCols, currentLayout?.gridRows, cellSize]);
 
   const [shapeMode, setShapeMode] = useState(false);
+  // Sync floor color from the loaded layout
+  useEffect(() => {
+    if (!currentLayout) return;
+    setFloorColor((currentLayout as any).floorColor || '#5b3d2b');
+  }, [currentLayout?.id]);
+
   const [isPainting, setIsPainting] = useState(false);
 
   const [zoom, setZoom] = useState(1);
@@ -134,24 +143,32 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
   // Cell-based sizing: total cells ~= seats for tables/booths.
   // The editor renders items by spanX/spanY in grid cells.
-  const spansForTable = (shape: string, seats: number) => {
+      const spansForTable = (shape: string, seats: number) => {
     const s = String(shape || 'square').toLowerCase();
     const n = Number(seats || 0);
+
+    // Booths
     if (s === 'booth') {
-      // Booth assets are explicit (booth4=2x2, large_booth=2x6).
-      if (n >= 6) return { spanX: 2, spanY: 6 };
+      // large_booth6: 6×2 (user request). booth4 remains 2×2.
+      if (n >= 6) return { spanX: 6, spanY: 2 };
       return { spanX: 2, spanY: 2 };
     }
+
+    // Round tables
     if (s === 'round') {
-      if (n >= 9) return { spanX: 5, spanY: 2 };
+      // round_table_10: 4×4 (user request)
+      if (n >= 9) return { spanX: 4, spanY: 4 };
+      // round_table4: 2×2
       return { spanX: 2, spanY: 2 };
     }
-    // Square/rect tables: 2->2, 4->4, 6->6, 8->8, 10->10 cells.
+
+    // Square/rect tables
     if (n <= 2) return { spanX: 2, spanY: 1 };
     if (n <= 4) return { spanX: 2, spanY: 2 };
-    if (n <= 6) return { spanX: 3, spanY: 2 };
-    if (n <= 8) return { spanX: 4, spanY: 2 };
-    return { spanX: 5, spanY: 2 };
+
+    // For 6/8/10-seat square tables, keep width but reduce length to 2 cells (2×2)
+    // to avoid overly long tables (user request).
+    return { spanX: 2, spanY: 2 };
   };
 
   const scaleForTable = (shape: string, seats: number) => {
@@ -217,7 +234,7 @@ const assetForTable = (shape: string, seats: number) => {
     const size = Math.max(0, rows * cols);
     const base = Array.isArray((l as any).gridMask) ? (l as any).gridMask.slice(0, size) : [];
     while (base.length < size) base.push(1);
-    return { ...l, gridMask: base };
+    return { ...l, gridMask: base, floorColor: (l as any).floorColor || '#5b3d2b' };
   };
 
   const maskAllows = (x: number, y: number, spanX: number, spanY: number) => {
@@ -1015,10 +1032,10 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'booth', seats: 6, spanX: 2, spanY: 6, assetFile: 'large_booth.svg' })}
+              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'booth', seats: 6, spanX: 6, spanY: 2, assetFile: 'large_booth.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('booth', 6)} alt="" /></div>
-              <span>large_booth.svg • 6 (2×6)</span>
+              <span>large_booth.svg • 6 (6×2)</span>
             </div>
 
             <div
@@ -1051,10 +1068,10 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'round', seats: 10, spanX: 5, spanY: 2, assetFile: 'round_table_10.svg' })}
+              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'round', seats: 10, spanX: 4, spanY: 4, assetFile: 'round_table_10.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('round', 10)} alt="" /></div>
-              <span>round_table_10.svg • 10 (5×2)</span>
+              <span>round_table_10.svg • 10 (4×4)</span>
             </div>
 
             <div
@@ -1078,28 +1095,28 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 6, spanX: 3, spanY: 2, assetFile: 'square_table6.svg' })}
+              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 6, spanX: 2, spanY: 2, assetFile: 'square_table6.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('square', 6)} alt="" /></div>
-              <span>square_table6.svg • 6 (3×2)</span>
+              <span>square_table6.svg • 6 (2×2)</span>
             </div>
 
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 8, spanX: 4, spanY: 2, assetFile: 'square_table8.svg' })}
+              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 8, spanX: 2, spanY: 2, assetFile: 'square_table8.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('square', 8)} alt="" /></div>
-              <span>square_table8.svg • 8 (4×2)</span>
+              <span>square_table8.svg • 8 (2×2)</span>
             </div>
 
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 10, spanX: 5, spanY: 2, assetFile: 'square_table10.svg' })}
+              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 10, spanX: 2, spanY: 2, assetFile: 'square_table10.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('square', 10)} alt="" /></div>
-              <span>square_table10.svg • 10 (5×2)</span>
+              <span>square_table10.svg • 10 (2×2)</span>
             </div>
           </div>
 
@@ -1148,6 +1165,23 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                 value={cellSize}
                 onChange={(e) => setCellSize(Number(e.target.value))}
               />
+            </label>
+
+            <label>
+              Floor color:
+              <select
+                value={floorColor}
+                onChange={(e) => {
+                  const v = String(e.target.value || '#5b3d2b');
+                  setFloorColor(v);
+                  if (currentLayout) setCurrentLayout({ ...currentLayout, floorColor: v });
+                }}
+              >
+                <option value="#5b3d2b">Brown parquet</option>
+                <option value="#2f3646">Slate</option>
+                <option value="#1f3356">Deep navy</option>
+                <option value="#245863">Muted teal</option>
+              </select>
             </label>
             <div className="row" style={{ display: 'flex', gap: 8 }}
             >
@@ -1298,6 +1332,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: '0 0',
               ['--cell' as any]: `${cellSize}px`,
+              ['--floor' as any]: floorColor,
             }}
             onDragOver={shapeMode ? undefined : handleDragOver}
             onDrop={shapeMode ? undefined : handleDrop}
@@ -1452,7 +1487,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                         height: `${spanToPx(tableHere.spanY)}px`,
                       }}
                     >
-                      <div className="fe-table-visual">
+                      <div className="fe-table-visual" data-asset={tableHere.assetFile || ""}>
                         <img
                           className="fe-asset"
                           style={{ transform: `scale(${scaleForTable(tableHere.shape, tableHere.seats)})` }}

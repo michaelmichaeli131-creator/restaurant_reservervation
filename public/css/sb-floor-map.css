@@ -443,3 +443,22 @@
   padding: 6px;
   box-sizing: border-box;
 }
+
+
+/* Active floor color themes (Waiter/Host view) */
+.sb-floor-grid{
+  --sb-floor-fill: #5b3d2b;
+}
+.sb-floor-root{
+  --sb-floor-fill: #5b3d2b;
+}
+.sb-floor-root[style*='--sb-floor: slate']{ --sb-floor-fill: #2f3a45; }
+.sb-floor-root[style*='--sb-floor: navy']{ --sb-floor-fill: #1f2f4a; }
+.sb-floor-root[style*='--sb-floor: teal']{ --sb-floor-fill: #255b61; }
+
+
+.sb-floor-visual[data-asset='round_table4.svg'] img,
+.sb-floor-visual[data-asset='square_table2.svg'] img{
+  transform: scale(1.05);
+  transform-origin: center;
+}

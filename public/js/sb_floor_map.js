@@ -211,6 +211,7 @@ function tableAssetUrl(tbl){
     // Visual layer (asset + optional chairs)
     const visual = document.createElement('div');
     visual.className = 'sb-floor-visual';
+    if (assetFile) visual.dataset.asset = assetFile;
 
     const img = document.createElement('img');
     img.className = 'sb-floor-asset';
@@ -395,6 +396,7 @@ function objectAssetUrl(o){
 
       const layout = computeLayout(plan, tables);
       state.layout = layout;
+    try { state.root && state.root.style && state.root.style.setProperty('--sb-floor', String(layout.floorColor || '#5b3d2b')); } catch(e) {}
 
       // compute fit
       const fit = fitToViewport(ui.viewport, layout.boardW, layout.boardH, state.zoom);
