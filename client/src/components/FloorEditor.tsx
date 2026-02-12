@@ -12,18 +12,23 @@ interface FloorTable {
   spanY: number;
   seats: number;
   shape: 'square' | 'round' | 'rect' | 'booth';
+  // Critical: without assetFile we fall back to default rendering.
+  assetFile?: string; // e.g. "square_table6.svg"
+  kind?: 'table';
   sectionId?: string;
 }
 
 interface FloorObject {
   id: string;
-  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider';
+  type: 'wall' | 'door' | 'bar' | 'plant' | 'divider' | 'chair' | 'visual';
   gridX: number;
   gridY: number;
   spanX: number;
   spanY: number;
   rotation?: 0 | 90 | 180 | 270;
   label?: string;
+  assetFile?: string; // e.g. "door.svg"
+  kind?: 'object' | 'visualOnly';
 }
 
 interface FloorLayout {
@@ -32,7 +37,7 @@ interface FloorLayout {
   name: string;
   gridRows: number;
   gridCols: number;
-  gridMask?: number[];
+  gridMask?: number[]; // 1=active cell, 0=inactive
   tables: FloorTable[];
   objects?: FloorObject[];
   isActive: boolean;
@@ -72,6 +77,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     spanY?: number; // for new items
     objectType?: FloorObject['type'];
     objectLabel?: string;
+    objectKind?: 'object' | 'visualOnly';
+    assetFile?: string; // e.g. "square_table6.svg"
     rotation?: 0 | 90 | 180 | 270;
     tableId?: string;
     objectId?: string;
@@ -81,9 +88,29 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [newLayoutName, setNewLayoutName] = useState('');
   const [showOnlyActiveSection, setShowOnlyActiveSection] = useState(false);
   const [hoverCell, setHoverCell] = useState<{ x: number; y: number } | null>(null);
-  const [shapeEditMode, setShapeEditMode] = useState(false);
-  const [isPaintingMask, setIsPaintingMask] = useState(false);
-  const [paintValue, setPaintValue] = useState<0|1>(1);
+
+  const [cellSize, setCellSize] = useState(60);
+
+  // Center the map inside the scrollable canvas whenever grid size / cell size changes
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !currentLayout) return;
+
+    // Wait for DOM layout
+    requestAnimationFrame(() => {
+      const gridW = currentLayout.gridCols * cellSize + 48; // + 2*24px margin (see CSS)
+      const gridH = currentLayout.gridRows * cellSize + 48;
+
+      const targetLeft = Math.max(0, (gridW - canvas.clientWidth) / 2);
+      const targetTop  = Math.max(0, (gridH - canvas.clientHeight) / 2);
+
+      canvas.scrollLeft = targetLeft;
+      canvas.scrollTop  = targetTop;
+    });
+  }, [currentLayout?.id, currentLayout?.gridCols, currentLayout?.gridRows, cellSize]);
+
+  const [shapeMode, setShapeMode] = useState(false);
+  const [isPainting, setIsPainting] = useState(false);
 
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -91,18 +118,18 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [spacePressed, setSpacePressed] = useState(false); 
 
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  const paintValueRef = useRef<0 | 1 | null>(null);
 
-  // Vite serves files from /public at the app base URL.
-  // Using BASE_URL keeps it working if the app is hosted under a sub-path.
-  const ASSET_BASE = `${import.meta.env.BASE_URL}floor_assets/`;
-  const [cellPx, setCellPx] = useState(60);
+  // Always load assets from the server static path.
+  // Requirement: /floor_assets/<file>.svg
+  const ASSET_BASE = `/floor_assets/`;
   const GRID_PAD_PX = 10;
 
   // Compute pixel size for an item that spans N cells, accounting for the
   // ~2px total border between adjacent cells (each cell has a 1px border).
   const spanToPx = (span: number) => {
     const s = Math.max(1, Number(span) || 1);
-    return s * cellPx + (s - 1) * 2;
+    return s * cellSize;
   };
 
   // Cell-based sizing: total cells ~= seats for tables/booths.
@@ -184,7 +211,29 @@ const assetForTable = (shape: string, seats: number) => {
   };
 
 
-  // Load all layouts
+    const ensureMask = (l: FloorLayout): FloorLayout => {
+    const rows = Number(l.gridRows || 0);
+    const cols = Number(l.gridCols || 0);
+    const size = Math.max(0, rows * cols);
+    const base = Array.isArray((l as any).gridMask) ? (l as any).gridMask.slice(0, size) : [];
+    while (base.length < size) base.push(1);
+    return { ...l, gridMask: base };
+  };
+
+  const maskAllows = (x: number, y: number, spanX: number, spanY: number) => {
+    if (!currentLayout?.gridMask) return true;
+    const cols = currentLayout.gridCols;
+    for (let yy = y; yy < y + spanY; yy++) {
+      for (let xx = x; xx < x + spanX; xx++) {
+        if (xx < 0 || yy < 0 || xx >= cols || yy >= currentLayout.gridRows) return false;
+        const idx = yy * cols + xx;
+        if (currentLayout.gridMask[idx] !== 1) return false;
+      }
+    }
+    return true;
+  };
+
+// Load all layouts
   useEffect(() => {
     if (!restaurantId) return;
 
@@ -193,7 +242,7 @@ const assetForTable = (shape: string, seats: number) => {
       .then(data => {
         setLayouts(data);
         const active = data.find((l: FloorLayout) => l.isActive);
-        setCurrentLayout(active || data[0] || null);
+        setCurrentLayout(active ? ensureMask(active) : (data[0] ? ensureMask(data[0]) : null));
 
         const allTables = data.flatMap((l: FloorLayout) => l.tables);
         const maxNum = Math.max(...allTables.map((t: FloorTable) => t.tableNumber), 0);
@@ -211,24 +260,6 @@ const assetForTable = (shape: string, seats: number) => {
       })
       .catch(err => console.error('Failed to load sections:', err));
   }, [restaurantId]);
-
-
-  const normalizeGridMask = (layout: FloorLayout): FloorLayout => {
-    const rows = Number(layout.gridRows || 0);
-    const cols = Number(layout.gridCols || 0);
-    const need = rows * cols;
-    const cur = Array.isArray(layout.gridMask) ? layout.gridMask.slice(0, need) : [];
-    while (cur.length < need) cur.push(1);
-    return { ...layout, gridMask: cur };
-  };
-
-  useEffect(() => {
-    if (!currentLayout) return;
-    // ensure gridMask exists and correct length (backward compatible)
-    setCurrentLayout((prev) => (prev ? normalizeGridMask(prev) : prev));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentLayout?.id]);
-
 
   // Canvas keyboard helpers (Space = pan)
   useEffect(() => {
@@ -267,7 +298,7 @@ const assetForTable = (shape: string, seats: number) => {
           name: newLayoutName,
           gridRows: 8,
           gridCols: 12,
-          gridMask: new Array(8*12).fill(1),
+          gridMask: Array.from({ length: 8 * 12 }, () => 1),
           tables: [],
           objects: [],
           isActive: layouts.length === 0,
@@ -441,7 +472,7 @@ const assetForTable = (shape: string, seats: number) => {
   const fitToScreen = () => {
     if (!canvasRef.current || !currentLayout) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    const cellPxLocal = cellPx;
+    const cellPx = cellSize;
     const gridW = (currentLayout.gridCols * cellPx) + 20; // grid padding
     const gridH = (currentLayout.gridRows * cellPx) + 20;
 
@@ -639,28 +670,11 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     const rect = gridEl.getBoundingClientRect();
     const xPx = (clientX - rect.left) / zoom - GRID_PAD_PX;
     const yPx = (clientY - rect.top) / zoom - GRID_PAD_PX;
-
-    const gx = Math.floor(xPx / cellPx);
-    const gy = Math.floor(yPx / cellPx);
+    const gx = Math.floor(xPx / cellSize);
+    const gy = Math.floor(yPx / cellSize);
     if (Number.isNaN(gx) || Number.isNaN(gy)) return null;
     if (gx < 0 || gy < 0 || gx >= currentLayout.gridCols || gy >= currentLayout.gridRows) return null;
     return { x: gx, y: gy };
-  };
-
-  const canPlaceAt = (x: number, y: number, spanX: number, spanY: number) => {
-    if (!currentLayout) return false;
-    const rows = currentLayout.gridRows;
-    const cols = currentLayout.gridCols;
-    if (x < 0 || y < 0 || x + spanX > cols || y + spanY > rows) return false;
-    const mask = currentLayout.gridMask;
-    if (!Array.isArray(mask) || mask.length !== rows * cols) return true;
-    for (let yy = y; yy < y + spanY; yy++) {
-      for (let xx = x; xx < x + spanX; xx++) {
-        const idx = yy * cols + xx;
-        if (mask[idx] === 0) return false;
-      }
-    }
-    return true;
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -684,7 +698,11 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         : spansForTable(draggedItem.shape, seats);
 
       const snapped = snapPlacement(gridX, gridY, sp.spanX, sp.spanY, 'table', draggedItem.shape, disableSnap);
-      if (!canPlaceAt(snapped.x, snapped.y, sp.spanX, sp.spanY)) { alert('❌ Outside floor shape'); return; }
+
+      if (!maskAllows(snapped.x, snapped.y, sp.spanX, sp.spanY)) {
+        alert('Cannot place item outside the restaurant shape');
+        return;
+      }
 
       const newTable: FloorTable = {
         id: `T${Date.now()}`,
@@ -696,6 +714,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         spanY: sp.spanY,
         seats,
         shape: draggedItem.shape as any,
+        assetFile: draggedItem.assetFile,
+        kind: 'table',
         sectionId: activeSection?.id
       };
 
@@ -713,7 +733,11 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       const moving = currentLayout.tables.find(t => t.id === draggedItem.tableId);
       if (!moving) return;
       const snapped = snapPlacement(gridX, gridY, moving.spanX || 1, moving.spanY || 1, 'table', moving.shape, disableSnap, { kind: 'table', id: moving.id });
-      if (!canPlaceAt(snapped.x, snapped.y, moving.spanX || 1, moving.spanY || 1)) { alert('❌ Outside floor shape'); return; }
+
+      if (!maskAllows(snapped.x, snapped.y, moving.spanX || 1, moving.spanY || 1)) {
+        alert('Cannot move item outside the restaurant shape');
+        return;
+      }
       setCurrentLayout({
         ...currentLayout,
         tables: currentLayout.tables.map(t =>
@@ -742,7 +766,11 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       };
 
       const snapped = snapPlacement(gridX, gridY, sp.spanX, sp.spanY, 'object', draggedItem.objectType, disableSnap);
-      if (!canPlaceAt(snapped.x, snapped.y, sp.spanX, sp.spanY)) { alert('❌ Outside floor shape'); return; }
+
+      if (!maskAllows(snapped.x, snapped.y, sp.spanX, sp.spanY)) {
+        alert('Cannot place item outside the restaurant shape');
+        return;
+      }
       const newObj: FloorObject = {
         id: `O${Date.now()}`,
         type: draggedItem.objectType,
@@ -752,6 +780,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         spanY: sp.spanY,
         rotation: (draggedItem.rotation ?? d.rotation) as any,
         label: draggedItem.objectLabel ?? d.label,
+        assetFile: draggedItem.assetFile,
+        kind: draggedItem.objectKind ?? 'object',
       };
 
       setCurrentLayout({
@@ -768,7 +798,11 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       const moving = objects.find(o => o.id === draggedItem.objectId);
       if (!moving) return;
       const snapped = snapPlacement(gridX, gridY, moving.spanX || 1, moving.spanY || 1, 'object', moving.type, disableSnap, { kind: 'object', id: moving.id });
-      if (!canPlaceAt(snapped.x, snapped.y, moving.spanX || 1, moving.spanY || 1)) { alert('❌ Outside floor shape'); return; }
+
+      if (!maskAllows(snapped.x, snapped.y, moving.spanX || 1, moving.spanY || 1)) {
+        alert('Cannot move item outside the restaurant shape');
+        return;
+      }
       setCurrentLayout({
         ...currentLayout,
         objects: objects.map(o => o.id === draggedItem.objectId ? { ...o, gridX: snapped.x, gridY: snapped.y } : o)
@@ -901,7 +935,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <button
               key={layout.id}
               className={`layout-tab ${currentLayout.id === layout.id ? 'active' : ''} ${layout.isActive ? 'is-active' : ''}`}
-              onClick={() => setCurrentLayout(layout)}
+              onClick={() => setCurrentLayout(ensureMask(layout))}
               title={layout.isActive ? 'Active layout (shown in live view)' : ''}
             >
               {layout.name}
@@ -963,16 +997,16 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'bar', spanX: 5, spanY: 2, objectLabel: 'bar' })}
+              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'rect', seats: 5, spanX: 5, spanY: 2, assetFile: 'bar.svg' })}
             >
-              <div className="preview"><img className="preview-img" src={assetForObject('bar', 5, 2, 'bar')} alt="" /></div>
+              <div className="preview"><img className="preview-img" src={`${ASSET_BASE}bar.svg`} alt="" /></div>
               <span>bar.svg • 5 (5×2)</span>
             </div>
 
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'booth', seats: 4, spanX: 2, spanY: 2 })}
+              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'booth', seats: 4, spanX: 2, spanY: 2, assetFile: 'booth4.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('booth', 4)} alt="" /></div>
               <span>booth4.svg • 4 (2×2)</span>
@@ -981,7 +1015,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'booth', seats: 6, spanX: 2, spanY: 6 })}
+              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'booth', seats: 6, spanX: 2, spanY: 6, assetFile: 'large_booth.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('booth', 6)} alt="" /></div>
               <span>large_booth.svg • 6 (2×6)</span>
@@ -990,25 +1024,25 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'plant', spanX: 1, spanY: 1, objectLabel: 'chair' })}
+              onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'chair', spanX: 1, spanY: 1, objectLabel: 'chair', assetFile: 'chair.svg', objectKind: 'object' })}
             >
-              <div className="preview"><img className="preview-img" src={assetForObject('plant', 1, 1, 'chair')} alt="" /></div>
+              <div className="preview"><img className="preview-img" src={`${ASSET_BASE}chair.svg`} alt="" /></div>
               <span>chair.svg • 1 (1×1)</span>
             </div>
 
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'plant', spanX: 1, spanY: 1, objectLabel: 'plant' })}
+              onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'plant', spanX: 1, spanY: 1, objectLabel: 'plant', assetFile: 'plant.svg', objectKind: 'object' })}
             >
-              <div className="preview"><img className="preview-img" src={assetForObject('plant', 1, 1, 'plant')} alt="" /></div>
+              <div className="preview"><img className="preview-img" src={`${ASSET_BASE}plant.svg`} alt="" /></div>
               <span>plant.svg • 1 (1×1)</span>
             </div>
 
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'round', seats: 4, spanX: 2, spanY: 2 })}
+              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'round', seats: 4, spanX: 2, spanY: 2, assetFile: 'round_table4.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('round', 4)} alt="" /></div>
               <span>round_table4.svg • 4 (2×2)</span>
@@ -1017,7 +1051,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'round', seats: 10, spanX: 5, spanY: 2 })}
+              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'round', seats: 10, spanX: 5, spanY: 2, assetFile: 'round_table_10.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('round', 10)} alt="" /></div>
               <span>round_table_10.svg • 10 (5×2)</span>
@@ -1026,7 +1060,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 2, spanX: 2, spanY: 1 })}
+              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 2, spanX: 2, spanY: 1, assetFile: 'square_table2.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('square', 2)} alt="" /></div>
               <span>square_table2.svg • 2 (2×1)</span>
@@ -1035,7 +1069,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 4, spanX: 2, spanY: 2 })}
+              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 4, spanX: 2, spanY: 2, assetFile: 'square_table4.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('square', 4)} alt="" /></div>
               <span>square_table4.svg • 4 (2×2)</span>
@@ -1044,7 +1078,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 6, spanX: 3, spanY: 2 })}
+              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 6, spanX: 3, spanY: 2, assetFile: 'square_table6.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('square', 6)} alt="" /></div>
               <span>square_table6.svg • 6 (3×2)</span>
@@ -1053,7 +1087,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 8, spanX: 4, spanY: 2 })}
+              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 8, spanX: 4, spanY: 2, assetFile: 'square_table8.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('square', 8)} alt="" /></div>
               <span>square_table8.svg • 8 (4×2)</span>
@@ -1062,7 +1096,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 10, spanX: 5, spanY: 2 })}
+              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 10, spanX: 5, spanY: 2, assetFile: 'square_table10.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('square', 10)} alt="" /></div>
               <span>square_table10.svg • 10 (5×2)</span>
@@ -1071,38 +1105,96 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
           <h3 className="fe-subtitle" style={{ marginTop: 14 }}>Visual only</h3>
           <div className="palette">
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'divider', spanX: 1, spanY: 1, objectLabel: 'corner_partitaion' })}>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'visual', spanX: 1, spanY: 1, objectLabel: 'corner_partitaion', assetFile: 'corner_partitaion.svg', objectKind: 'visualOnly' })}>
               <div className="preview"><img className="preview-img" src={assetForObject('divider', 1, 1, 'corner_partitaion')} alt="" /></div>
               <span>corner_partitaion.svg</span>
             </div>
 
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'divider', spanX: 2, spanY: 2, objectLabel: 'cyclic_partition' })}>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'visual', spanX: 2, spanY: 2, objectLabel: 'cyclic_partition', assetFile: 'cyclic_partition.svg', objectKind: 'visualOnly' })}>
               <div className="preview"><img className="preview-img" src={assetForObject('divider', 2, 2, 'cyclic_partition')} alt="" /></div>
               <span>cyclic_partition.svg</span>
             </div>
 
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'door', spanX: 1, spanY: 1, objectLabel: 'door' })}>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'door', spanX: 1, spanY: 1, objectLabel: 'door', assetFile: 'door.svg', objectKind: 'visualOnly' })}>
               <div className="preview"><img className="preview-img" src={assetForObject('door', 1, 1, 'door')} alt="" /></div>
               <span>door.svg</span>
             </div>
 
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'divider', spanX: 1, spanY: 1, objectLabel: 'floor_brown' })}>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'visual', spanX: 1, spanY: 1, objectLabel: 'floor_brown', assetFile: 'floor_brown.svg', objectKind: 'visualOnly' })}>
               <div className="preview"><img className="preview-img" src={assetForObject('divider', 1, 1, 'floor_brown')} alt="" /></div>
               <span>floor_brown.svg</span>
             </div>
 
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'divider', spanX: 4, spanY: 1, objectLabel: 'horizintal_partitaion' })}>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'visual', spanX: 4, spanY: 1, objectLabel: 'horizintal_partitaion', assetFile: 'horizintal_partitaion.svg', objectKind: 'visualOnly' })}>
               <div className="preview"><img className="preview-img" src={assetForObject('divider', 4, 1, 'horizintal_partitaion')} alt="" /></div>
               <span>horizintal_partitaion.svg</span>
             </div>
 
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'divider', spanX: 1, spanY: 4, objectLabel: 'vertical_partition' })}>
+            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'visual', spanX: 1, spanY: 4, objectLabel: 'vertical_partition', assetFile: 'vertical_partition.svg', objectKind: 'visualOnly' })}>
               <div className="preview"><img className="preview-img" src={assetForObject('divider', 1, 4, 'vertical_partition')} alt="" /></div>
               <span>vertical_partition.svg</span>
             </div>
           </div>
 
-          {selectedTable && (
+          
+          <div className="properties-panel">
+            <h3>Map</h3>
+            <label>
+              Cell size: {cellSize}px
+              <input
+                type="range"
+                min="40"
+                max="110"
+                value={cellSize}
+                onChange={(e) => setCellSize(Number(e.target.value))}
+              />
+            </label>
+            <div className="row" style={{ display: 'flex', gap: 8 }}
+            >
+              <button
+                className="btn-icon-small"
+                onClick={() => {
+                  setShapeMode(v => !v);
+                  setSelectedTable(null);
+                  setSelectedObject(null);
+                }}
+              >
+                {shapeMode ? '✅ Done shape' : '✏️ Edit shape'}
+              </button>
+              <button
+                className="btn-icon-small"
+                onClick={() => {
+                  if (!currentLayout) return;
+                  const size = currentLayout.gridRows * currentLayout.gridCols;
+                  setCurrentLayout({ ...currentLayout, gridMask: Array.from({ length: size }, () => 1) });
+                }}
+                title="Reset shape"
+              >
+                ↺ Reset
+              </button>
+              <button
+                className="btn-icon-small"
+                onClick={() => {
+                  if (!currentLayout?.gridMask) return;
+                  setCurrentLayout({
+                    ...currentLayout,
+                    gridMask: currentLayout.gridMask.map(v => (v === 1 ? 0 : 1)),
+                  });
+                }}
+                title="Invert shape"
+              >
+                ⇄ Invert
+              </button>
+            </div>
+            {shapeMode && (
+              <div className="fe-hint" style={{ marginTop: 8 }}
+              >
+                Paint the restaurant shape: click/drag cells to enable/disable.
+              </div>
+            )}
+          </div>
+
+{selectedTable && (
             <div className="properties-panel">
               <h3>Selected: {selectedTable.name}</h3>
               <label>
@@ -1184,105 +1276,6 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             </div>
           )}
 
-          <div className="fe-panel">
-            <h3>Grid</h3>
-            <div className="row" style={{ display: 'flex', gap: 8 }}>
-              <label style={{ flex: 1 }}>
-                Rows:
-                <input
-                  type="number"
-                  min="1"
-                  max="60"
-                  value={currentLayout.gridRows}
-                  onChange={(e) => {
-                    const rows = Math.max(1, Number(e.target.value) || 1);
-                    const cols = currentLayout.gridCols;
-                    const nextMask = (() => {
-                      const prev = Array.isArray(currentLayout.gridMask) ? currentLayout.gridMask : new Array(currentLayout.gridRows * currentLayout.gridCols).fill(1);
-                      const out = new Array(rows * cols).fill(1);
-                      const minRows = Math.min(rows, currentLayout.gridRows);
-                      const minCols = Math.min(cols, currentLayout.gridCols);
-                      for (let y=0; y<minRows; y++){
-                        for (let x=0; x<minCols; x++){
-                          out[y*cols + x] = prev[y*currentLayout.gridCols + x] ?? 1;
-                        }
-                      }
-                      return out;
-                    })();
-                    setCurrentLayout({ ...currentLayout, gridRows: rows, gridMask: nextMask });
-                  }}
-                />
-              </label>
-              <label style={{ flex: 1 }}>
-                Cols:
-                <input
-                  type="number"
-                  min="1"
-                  max="60"
-                  value={currentLayout.gridCols}
-                  onChange={(e) => {
-                    const cols = Math.max(1, Number(e.target.value) || 1);
-                    const rows = currentLayout.gridRows;
-                    const nextMask = (() => {
-                      const prev = Array.isArray(currentLayout.gridMask) ? currentLayout.gridMask : new Array(currentLayout.gridRows * currentLayout.gridCols).fill(1);
-                      const out = new Array(rows * cols).fill(1);
-                      const minRows = Math.min(rows, currentLayout.gridRows);
-                      const minCols = Math.min(cols, currentLayout.gridCols);
-                      for (let y=0; y<minRows; y++){
-                        for (let x=0; x<minCols; x++){
-                          out[y*cols + x] = prev[y*currentLayout.gridCols + x] ?? 1;
-                        }
-                      }
-                      return out;
-                    })();
-                    setCurrentLayout({ ...currentLayout, gridCols: cols, gridMask: nextMask });
-                  }}
-                />
-              </label>
-            </div>
-
-            <label>
-              Cell size: {cellPx}px
-              <input type="range" min="40" max="110" value={cellPx} onChange={(e) => setCellPx(Number(e.target.value) || 60)} />
-            </label>
-
-            <div className="row" style={{ display: 'flex', gap: 8 }}>
-              <button
-                type="button"
-                className={`btn-secondary ${shapeEditMode ? 'active' : ''}`}
-                onClick={() => setShapeEditMode(!shapeEditMode)}
-                title="Paint active/inactive cells"
-              >
-                ✏️ Edit shape
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => setCurrentLayout({ ...currentLayout, gridMask: new Array(currentLayout.gridRows * currentLayout.gridCols).fill(1) })}
-              >
-                Reset
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => {
-                  const rows = currentLayout.gridRows;
-                  const cols = currentLayout.gridCols;
-                  const cur = Array.isArray(currentLayout.gridMask) ? currentLayout.gridMask : new Array(rows*cols).fill(1);
-                  setCurrentLayout({ ...currentLayout, gridMask: cur.map(v => (v ? 0 : 1)) });
-                }}
-              >
-                Invert
-              </button>
-            </div>
-
-            {shapeEditMode && (
-              <div className="fe-hint" style={{ marginTop: 8 }}>
-                Paint: click/drag to toggle cells. Green = active, Dark = cut-out.
-              </div>
-            )}
-          </div>
-
           <button className="btn-save" onClick={saveCurrentLayout}>
             💾 Save Layout
           </button>
@@ -1300,20 +1293,20 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 <div
             className="grid"
             style={{
-              gridTemplateColumns: `repeat(${currentLayout.gridCols}, ${cellPx}px)`,
-              gridTemplateRows: `repeat(${currentLayout.gridRows}, ${cellPx}px)`,
-              ['--fe-cell' as any]: `${cellPx}px`,
+              gridTemplateColumns: `repeat(${currentLayout.gridCols}, ${cellSize}px)`,
+              gridTemplateRows: `repeat(${currentLayout.gridRows}, ${cellSize}px)`,
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-              transformOrigin: '0 0'
+              transformOrigin: '0 0',
+              ['--cell' as any]: `${cellSize}px`,
             }}
-            onDragOver={shapeEditMode ? undefined : handleDragOver}
-            onDrop={shapeEditMode ? undefined : handleDrop}
+            onDragOver={shapeMode ? undefined : handleDragOver}
+            onDrop={shapeMode ? undefined : handleDrop}
             onDragLeave={() => setHoverCell(null)}
           >
             {(() => {
               // Drop preview: shows where the dragged item will land (with snapping)
               if (!hoverCell || !draggedItem || !currentLayout) return null;
-              const cellPxLocal = cellPx;
+              const cellPx = cellSize;
               const padPx = 10;
 
               const spanFromDragged = () => {
@@ -1346,24 +1339,24 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               const { spanX, spanY, subtype } = spanFromDragged();
               // Use snapping logic (same as onDrop). Shift disables snap.
               const snapped = snapPlacement(hoverCell.x, hoverCell.y, spanX, spanY, draggedItem.kind, String(subtype), false, draggedItem.mode === 'existing' ? { kind: draggedItem.kind, id: draggedItem.kind === 'table' ? draggedItem.tableId : draggedItem.objectId } : undefined);
-              const left = padPx + snapped.x * cellPxLocal;
-              const top = padPx + snapped.y * cellPxLocal;
+              const left = padPx + snapped.x * cellPx;
+              const top = padPx + snapped.y * cellPx;
 
               return (
                 <>
                   {snapped.guides.v.map((gx, idx) => (
-                    <div key={`pv-v-${idx}`} className="fe-guide-line v" style={{ left: 10 + gx * cellPxLocal }} />
+                    <div key={`pv-v-${idx}`} className="fe-guide-line v" style={{ left: padPx + gx * cellPx }} />
                   ))}
                   {snapped.guides.h.map((gy, idx) => (
-                    <div key={`pv-h-${idx}`} className="fe-guide-line h" style={{ top: 10 + gy * cellPxLocal }} />
+                    <div key={`pv-h-${idx}`} className="fe-guide-line h" style={{ top: padPx + gy * cellPx }} />
                   ))}
                   <div
                   className="fe-drop-preview"
                   style={{
                     left,
                     top,
-                    width: spanX * cellPxLocal,
-                    height: spanY * cellPxLocal,
+                    width: spanX * cellPx,
+                    height: spanY * cellPx,
                   }}
                 />
                 </>
@@ -1394,33 +1387,31 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               return (
                 <div
                   key={i}
-                  className={`grid-cell ${(() => {
-                    const mask = currentLayout.gridMask;
-                    const idx = gridY * currentLayout.gridCols + gridX;
-                    const active = !Array.isArray(mask) || mask[idx] !== 0;
-                    return active ? "is-active" : "is-inactive";
-                  })()}`}
+                  className={`grid-cell ${(() => { const idx = gridY * currentLayout.gridCols + gridX; const active = (currentLayout.gridMask?.[idx] ?? 1) === 1; return active ? "" : "inactive"; })()}` }
                   onMouseDown={(e) => {
-                    if (!shapeEditMode) return;
+                    if (!shapeMode || !currentLayout) return;
                     e.preventDefault();
+                    setIsPainting(true);
                     const idx = gridY * currentLayout.gridCols + gridX;
-                    const cur = Array.isArray(currentLayout.gridMask) ? currentLayout.gridMask.slice() : new Array(currentLayout.gridRows * currentLayout.gridCols).fill(1);
-                    const next = cur[idx] === 0 ? 1 : 0;
-                    setPaintValue(next as any);
-                    cur[idx] = next;
-                    setCurrentLayout({ ...currentLayout, gridMask: cur });
-                    setIsPaintingMask(true);
+                    const size = currentLayout.gridRows * currentLayout.gridCols;
+                    const m = (currentLayout.gridMask ?? Array.from({ length: size }, () => 1)).slice();
+                    const newVal = (m[idx] === 1 ? 0 : 1) as 0 | 1;
+                    paintValueRef.current = newVal;
+                    m[idx] = newVal;
+                    setCurrentLayout({ ...currentLayout, gridMask: m });
                   }}
-                  onMouseEnter={() => {
-                    if (!shapeEditMode || !isPaintingMask) return;
+                  onMouseEnter={(e) => {
+                    if (!shapeMode || !isPainting || !currentLayout) return;
+                    e.preventDefault();
+                    const targetVal = paintValueRef.current;
+                    if (targetVal == null) return;
                     const idx = gridY * currentLayout.gridCols + gridX;
-                    const cur = Array.isArray(currentLayout.gridMask) ? currentLayout.gridMask.slice() : new Array(currentLayout.gridRows * currentLayout.gridCols).fill(1);
-                    cur[idx] = paintValue;
-                    setCurrentLayout({ ...currentLayout, gridMask: cur });
-                  }}
-                  onMouseUp={() => {
-                    if (!shapeEditMode) return;
-                    setIsPaintingMask(false);
+                    const size = currentLayout.gridRows * currentLayout.gridCols;
+                    const m = (currentLayout.gridMask ?? Array.from({ length: size }, () => 1)).slice();
+                    if (m[idx] !== targetVal) {
+                      m[idx] = targetVal;
+                      setCurrentLayout({ ...currentLayout, gridMask: m });
+                    }
                   }}
                 >
                   {isObjTopLeft && objectHere && (
@@ -1438,7 +1429,12 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                         transform: `rotate(${objectHere.rotation ?? 0}deg)`,
                       }}
                     >
-                      <img className="fe-asset" style={{ transform: `scale(${scaleForObject(objectHere.type)})` }} src={assetForObject(objectHere.type, objectHere.spanX, objectHere.spanY, objectHere.label)} alt="" />
+                      <img
+                        className="fe-asset"
+                        style={{ transform: `scale(${scaleForObject(objectHere.type)})` }}
+                        src={objectHere.assetFile ? `${ASSET_BASE}${objectHere.assetFile}` : assetForObject(objectHere.type, objectHere.spanX, objectHere.spanY, objectHere.label)}
+                        alt=""
+                      />
                       {objectHere.label && <div className="obj-label">{objectHere.label}</div>}
                     </div>
                   )}
@@ -1457,7 +1453,12 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                       }}
                     >
                       <div className="fe-table-visual">
-                        <img className="fe-asset" style={{ transform: `scale(${scaleForTable(tableHere.shape, tableHere.seats)})` }} src={assetForTable(tableHere.shape, tableHere.seats)} alt="" />
+                        <img
+                          className="fe-asset"
+                          style={{ transform: `scale(${scaleForTable(tableHere.shape, tableHere.seats)})` }}
+                          src={tableHere.assetFile ? `${ASSET_BASE}${tableHere.assetFile}` : assetForTable(tableHere.shape, tableHere.seats)}
+                          alt=""
+                        />
                         {/* No auto-chairs: chairs are independent assets in the palette */}
                       </div>
                       <div className="fe-table-overlay">

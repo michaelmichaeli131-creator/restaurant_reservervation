@@ -78,7 +78,6 @@ interface FloorPlan {
   name: string;
   gridRows: number;
   gridCols: number;
-  gridMask?: number[];
   tables: FloorTable[];
   objects?: FloorObject[];
   createdAt: number;
@@ -737,7 +736,7 @@ ownerFloorRouter.post(
 
     console.log("[DEBUG] POST /api/floor-layouts - Received body:", JSON.stringify(body));
 
-    const { name, gridRows, gridCols, gridMask, tables, objects, isActive } = body;
+    const { name, gridRows, gridCols, tables, objects, isActive } = body;
 
     console.log("[DEBUG] Extracted fields:", { name, gridRows, gridCols, tables, objects, isActive });
 
@@ -752,7 +751,6 @@ ownerFloorRouter.post(
       name,
       gridRows: Number(gridRows),
       gridCols: Number(gridCols),
-      gridMask: Array.isArray(gridMask) ? gridMask : undefined,
       tables: tables ?? [],
       objects: Array.isArray(objects) ? objects : [],
       isActive: isActive ?? false,
