@@ -12,6 +12,8 @@ interface FloorTable {
   spanY: number;
   seats: number;
   shape: 'square' | 'round' | 'rect' | 'booth';
+  scale?: number; // 1.0 default
+  rotationDeg?: number; // multiples of 45
   // Critical: without assetFile we fall back to default rendering.
   assetFile?: string; // e.g. "square_table6.svg"
   kind?: 'table';
@@ -25,7 +27,9 @@ interface FloorObject {
   gridY: number;
   spanX: number;
   spanY: number;
-  rotation?: 0 | 90 | 180 | 270;
+  rotationDeg?: number; // multiples of 45
+  scale?: number; // 1.0 default
+  rotation?: number; // degrees (legacy 0/90/180/270)
   label?: string;
   assetFile?: string; // e.g. "door.svg"
   kind?: 'object' | 'visualOnly';
@@ -80,7 +84,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     objectLabel?: string;
     objectKind?: 'object' | 'visualOnly';
     assetFile?: string; // e.g. "square_table6.svg"
-    rotation?: 0 | 90 | 180 | 270;
+    rotation?: number; // degrees (multiples of 45)
     tableId?: string;
     objectId?: string;
   } | null>(null);
@@ -237,7 +241,21 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     return 1.0;
   };
 
-  const scaleForObject = (type: string) => {
+  
+
+  const getItemScale = (itemScale?: number, fallback = 1) => {
+    const v = Number(itemScale);
+    if (!Number.isFinite(v)) return fallback;
+    return Math.max(0.5, Math.min(1.6, v));
+  };
+
+  const getItemRotation = (deg?: number) => {
+    const v = Number(deg);
+    if (!Number.isFinite(v)) return 0;
+    // snap to 45-degree steps
+    return Math.round(v / 45) * 45;
+  };
+const scaleForObject = (type: string) => {
     const t = String(type || '').toLowerCase();
     if (t === 'bar') return 1.8;
     return 1.0;
@@ -471,7 +489,7 @@ const assetForTable = (shape: string, seats: number) => {
       seats?: number;
       spanX?: number;
       spanY?: number;
-      rotation?: 0 | 90 | 180 | 270;
+      rotation?: number; // degrees (multiples of 45)
       objectType?: FloorObject['type'];
       objectLabel?: string;
       tableId?: string;
@@ -481,6 +499,11 @@ const assetForTable = (shape: string, seats: number) => {
     setDraggedItem({ kind, mode, ...opts });
     setHoverCell(null);
     e.dataTransfer.effectAllowed = 'move';
+    try {
+      const img = new Image();
+      img.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221%22 height=%221%22%3E%3C/svg%3E';
+      e.dataTransfer.setDragImage(img, 0, 0);
+    } catch {}
   };
 
   // ===== Smart snapping (Stage 5 polish) =====
@@ -751,8 +774,15 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     const xLocal = (clientX - rect.left) / scaleX;
     const yLocal = (clientY - rect.top) / scaleY;
 
-    const gx = Math.floor(xLocal / cellSize);
+    let gx = Math.floor(xLocal / cellSize);
     const gy = Math.floor(yLocal / cellSize);
+
+    // In RTL layouts, CSS grid columns are laid out from right-to-left.
+    // Convert logical x so drop/drag matches the visual position.
+    const dir = getComputedStyle(gridEl).direction;
+    if (dir === 'rtl') {
+      gx = (currentLayout.gridCols - 1) - gx;
+    }
 
     if (Number.isNaN(gx) || Number.isNaN(gy)) return null;
     if (gx < 0 || gy < 0 || gx >= currentLayout.gridCols || gy >= currentLayout.gridRows) return null;
@@ -764,7 +794,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
     if (!draggedItem || !currentLayout) return;
 
-    const target = hoverCell ?? clientPointToGridCell(e.clientX, e.clientY);
+    const target = clientPointToGridCell(e.clientX, e.clientY);
     if (!target) return;
     const gridX = target.x;
     const gridY = target.y;
@@ -798,7 +828,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         shape: draggedItem.shape as any,
         assetFile: draggedItem.assetFile,
         kind: 'table',
-        sectionId: activeSection?.id
+        sectionId: activeSection?.id,
+        scale: 1,
+        rotationDeg: 0
       };
 
       setCurrentLayout({
@@ -864,6 +896,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         label: draggedItem.objectLabel ?? d.label,
         assetFile: draggedItem.assetFile,
         kind: draggedItem.objectKind ?? 'object',
+        scale: 1,
+        rotationDeg: 0,
       };
 
       setCurrentLayout({
@@ -1316,7 +1350,35 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                     updateTable(selectedTable.id, { seats, spanX: sp.spanX, spanY: sp.spanY });
                   }}
                 />
-              </label>
+              
+<label>
+  Size:
+  <input
+    type="range"
+    min="0.6"
+    max="1.4"
+    step="0.05"
+    value={(selectedTable as any).scale ?? 1}
+    onChange={(e) => updateTable(selectedTable.id, { scale: Number(e.target.value) })}
+  />
+  <span style={{ marginInlineStart: 8 }}>{Math.round((((selectedTable as any).scale ?? 1) as number) * 100)}%</span>
+</label>
+
+<div className="row" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+  <span style={{ opacity: .85 }}>Rotate:</span>
+  <button
+    className="btn-icon-small"
+    onClick={() => updateTable(selectedTable.id, { rotationDeg: getItemRotation(((selectedTable as any).rotationDeg ?? 0) - 45) })}
+    title="Rotate -45°"
+  >↺</button>
+  <div style={{ minWidth: 44, textAlign: 'center' }}>{getItemRotation((selectedTable as any).rotationDeg ?? 0)}°</div>
+  <button
+    className="btn-icon-small"
+    onClick={() => updateTable(selectedTable.id, { rotationDeg: getItemRotation(((selectedTable as any).rotationDeg ?? 0) + 45) })}
+    title="Rotate +45°"
+  >↻</button>
+</div>
+
               <button className="btn-danger" onClick={() => deleteTable(selectedTable.id)}>
                 🗑️ Delete
               </button>
@@ -1357,17 +1419,32 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                 </label>
               </div>
               <label>
-                Rotation:
-                <select
-                  value={selectedObject.rotation ?? 0}
-                  onChange={(e) => updateObject(selectedObject.id, { rotation: Number(e.target.value) as any })}
-                >
-                  <option value={0}>0°</option>
-                  <option value={90}>90°</option>
-                  <option value={180}>180°</option>
-                  <option value={270}>270°</option>
-                </select>
-              </label>
+  Size:
+  <input
+    type="range"
+    min="0.6"
+    max="1.4"
+    step="0.05"
+    value={(selectedObject as any).scale ?? 1}
+    onChange={(e) => updateObject(selectedObject.id, { scale: Number(e.target.value) })}
+  />
+  <span style={{ marginInlineStart: 8 }}>{Math.round((((selectedObject as any).scale ?? 1) as number) * 100)}%</span>
+</label>
+
+<div className="row" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+  <span style={{ opacity: .85 }}>Rotate:</span>
+  <button
+    className="btn-icon-small"
+    onClick={() => updateObject(selectedObject.id, { rotationDeg: getItemRotation((((selectedObject as any).rotationDeg ?? selectedObject.rotation ?? 0) as number) - 45) })}
+    title="Rotate -45°"
+  >↺</button>
+  <div style={{ minWidth: 44, textAlign: 'center' }}>{getItemRotation((selectedObject as any).rotationDeg ?? selectedObject.rotation ?? 0)}°</div>
+  <button
+    className="btn-icon-small"
+    onClick={() => updateObject(selectedObject.id, { rotationDeg: getItemRotation((((selectedObject as any).rotationDeg ?? selectedObject.rotation ?? 0) as number) + 45) })}
+    title="Rotate +45°"
+  >↻</button>
+</div>
               <button className="btn-danger" onClick={() => deleteObject(selectedObject.id)}>
                 🗑️ Delete
               </button>
@@ -1531,12 +1608,12 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                       style={{
                         width: `${spanToPx(objectHere.spanX)}px`,
                         height: `${spanToPx(objectHere.spanY)}px`,
-                        transform: `rotate(${objectHere.rotation ?? 0}deg)`,
+                        transform: `rotate(${getItemRotation((objectHere as any).rotationDeg ?? objectHere.rotation ?? 0)}deg)`,
                       }}
                     >
                       <img
                         className={`fe-asset fe-asset--${(objectHere.assetFile || "").replace(/[^a-z0-9]+/gi,"_").toLowerCase()}`}
-                        style={{ transform: `scale(${scaleForObject(objectHere.type)})` }}
+                        style={{ transform: `scale(${getItemScale((objectHere as any).scale, scaleForObject(objectHere.type))})` }}
                         src={objectHere.assetFile ? `${ASSET_BASE}${objectHere.assetFile}` : assetForObject(objectHere.type, objectHere.spanX, objectHere.spanY, objectHere.label)}
                         alt=""
                       />
@@ -1560,7 +1637,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                       <div className="fe-table-visual" data-asset={tableHere.assetFile || ""}>
                         <img
                           className={`fe-asset fe-asset--${(tableHere.assetFile || "").replace(/[^a-z0-9]+/gi,"_").toLowerCase()}`}
-                          style={{ transform: `scale(${scaleForTable(tableHere.shape, tableHere.seats, tableHere.assetFile)})` }}
+                          style={{ transform: `rotate(${getItemRotation((tableHere as any).rotationDeg ?? 0)}deg) scale(${getItemScale((tableHere as any).scale, scaleForTable(tableHere.shape, tableHere.seats, tableHere.assetFile))})` }}
                           src={tableHere.assetFile ? `${ASSET_BASE}${tableHere.assetFile}` : assetForTable(tableHere.shape, tableHere.seats)}
                           alt=""
                         />
