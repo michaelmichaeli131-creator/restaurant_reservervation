@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
+  <defs>
+    <pattern id="weave" width="12" height="12" patternUnits="userSpaceOnUse">
+      <rect width="12" height="12" fill="#0b1930"/>
+      <path d="M0 3H12 M0 9H12" stroke="#ffffff" stroke-opacity="0.05" stroke-width="1"/>
+      <path d="M3 0V12 M9 0V12" stroke="#ffffff" stroke-opacity="0.035" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="v" cx="50%" cy="40%" r="70%">
+      <stop offset="0" stop-color="#1a3d66" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.25"/>
+    </radialGradient>
+  </defs>
+  <rect width="240" height="240" fill="#071327"/>
+  <rect width="240" height="240" fill="url(#weave)"/>
+  <rect width="240" height="240" fill="url(#v)"/>
+</svg>

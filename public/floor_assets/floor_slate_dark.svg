@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1e2a36"/>
+      <stop offset="1" stop-color="#2b3a48"/>
+    </linearGradient>
+    <pattern id="tile" width="60" height="60" patternUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="60" height="60" fill="url(#g)"/>
+      <!-- tile seams -->
+      <path d="M0 0H60V60H0Z" fill="none" stroke="#000" stroke-opacity="0.35"/>
+      <!-- micro texture -->
+      <circle cx="12" cy="14" r="1" fill="#fff" opacity="0.04"/>
+      <circle cx="38" cy="44" r="1" fill="#fff" opacity="0.03"/>
+      <path d="M8 36C18 30 28 42 52 34" fill="none" stroke="#fff" opacity="0.03"/>
+    </pattern>
+  </defs>
+  <rect width="240" height="240" fill="#18222c"/>
+  <rect width="240" height="240" fill="url(#tile)"/>
+</svg>

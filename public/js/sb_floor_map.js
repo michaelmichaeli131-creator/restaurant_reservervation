@@ -396,7 +396,12 @@ function objectAssetUrl(o){
 
       const layout = computeLayout(plan, tables);
       state.layout = layout;
-    try { state.root && state.root.style && state.root.style.setProperty('--sb-floor', String(layout.floorColor || '#5b3d2b')); } catch(e) {}
+      // Floor theme (stored in layout.floorColor). Back-compat: if old hex string, default to parquet_blue.
+      try {
+        const raw = String(layout.floorColor || 'parquet_blue');
+        const theme = raw.startsWith('#') ? 'parquet_blue' : raw;
+        if (state.root) state.root.setAttribute('data-floor-theme', theme);
+      } catch(e) {}
 
       // compute fit
       const fit = fitToViewport(ui.viewport, layout.boardW, layout.boardH, state.zoom);

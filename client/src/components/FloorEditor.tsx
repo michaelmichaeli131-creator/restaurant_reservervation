@@ -38,7 +38,7 @@ interface FloorLayout {
   gridRows: number;
   gridCols: number;
   gridMask?: number[]; // 1=active cell, 0=inactive
-  floorColor?: string; // active-floor color theme
+  floorColor?: string; // floor theme key (kept as string for backwards compatibility)
   tables: FloorTable[];
   objects?: FloorObject[];
   isActive: boolean;
@@ -92,7 +92,55 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
   const [cellSize, setCellSize] = useState(60);
 
-  const [floorColor, setFloorColor] = useState<string>('#5b3d2b');
+  type FloorThemeKey = 'parquet_blue' | 'parquet_brown' | 'slate_dark' | 'navy_carpet' | 'teal_terrazzo';
+
+  const FLOOR_THEMES: Record<FloorThemeKey, { label: string; bg: string; size: string; repeat: string; pos: string }> = {
+    parquet_blue: {
+      label: 'Blue parquet',
+      bg: `url(${`/floor_assets/floor_parquet_blue.svg`})`,
+      size: '240px 240px',
+      repeat: 'repeat',
+      pos: 'center',
+    },
+    parquet_brown: {
+      label: 'Brown parquet',
+      bg: `url(${`/floor_assets/floor_parquet_brown.svg`})`,
+      size: '240px 240px',
+      repeat: 'repeat',
+      pos: 'center',
+    },
+    slate_dark: {
+      label: 'Dark slate',
+      bg: `url(${`/floor_assets/floor_slate_dark.svg`})`,
+      size: '240px 240px',
+      repeat: 'repeat',
+      pos: 'center',
+    },
+    navy_carpet: {
+      label: 'Deep navy',
+      bg: `url(${`/floor_assets/floor_navy_carpet.svg`})`,
+      size: '240px 240px',
+      repeat: 'repeat',
+      pos: 'center',
+    },
+    teal_terrazzo: {
+      label: 'Muted teal',
+      bg: `url(${`/floor_assets/floor_teal_terrazzo.svg`})`,
+      size: '240px 240px',
+      repeat: 'repeat',
+      pos: 'center',
+    },
+  };
+
+  const normalizeTheme = (v?: string): FloorThemeKey => {
+    // Backwards compatibility: previous versions stored hex colors.
+    if (!v) return 'parquet_blue';
+    if (v.startsWith('#')) return 'parquet_blue';
+    if ((v as FloorThemeKey) in FLOOR_THEMES) return v as FloorThemeKey;
+    return 'parquet_blue';
+  };
+
+  const [floorTheme, setFloorTheme] = useState<FloorThemeKey>('parquet_blue');
 
   // Center the map inside the scrollable canvas whenever grid size / cell size changes
   useEffect(() => {
@@ -113,10 +161,10 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   }, [currentLayout?.id, currentLayout?.gridCols, currentLayout?.gridRows, cellSize]);
 
   const [shapeMode, setShapeMode] = useState(false);
-  // Sync floor color from the loaded layout
+  // Sync floor theme from the loaded layout
   useEffect(() => {
     if (!currentLayout) return;
-    setFloorColor((currentLayout as any).floorColor || '#5b3d2b');
+    setFloorTheme(normalizeTheme((currentLayout as any).floorColor));
   }, [currentLayout?.id]);
 
   const [isPainting, setIsPainting] = useState(false);
@@ -127,6 +175,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [spacePressed, setSpacePressed] = useState(false); 
 
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
+
   const paintValueRef = useRef<0 | 1 | null>(null);
 
   // Always load assets from the server static path.
@@ -156,8 +206,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
     // Round tables
     if (s === 'round') {
-      // round_table_10: 4×4 (user request)
-      if (n >= 9) return { spanX: 4, spanY: 4 };
+      // round_table_10: 3×3 (user request)
+      if (n >= 9) return { spanX: 3, spanY: 3 };
       // round_table4: 2×2
       return { spanX: 2, spanY: 2 };
     }
@@ -239,7 +289,7 @@ const assetForTable = (shape: string, seats: number) => {
     const size = Math.max(0, rows * cols);
     const base = Array.isArray((l as any).gridMask) ? (l as any).gridMask.slice(0, size) : [];
     while (base.length < size) base.push(1);
-    return { ...l, gridMask: base, floorColor: (l as any).floorColor || '#5b3d2b' };
+    return { ...l, gridMask: base, floorColor: (l as any).floorColor || 'parquet_blue' };
   };
 
   const maskAllows = (x: number, y: number, spanX: number, spanY: number) => {
@@ -688,7 +738,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
     // Convert viewport point -> grid cell robustly even when zoom/pan are applied.
     // We derive the effective scale from the rendered grid bounding box.
-    const gridEl = document.querySelector('.grid') as HTMLDivElement | null;
+    const gridEl = gridRef.current;
     if (!gridEl) return null;
 
     const rect = gridEl.getBoundingClientRect();
@@ -1083,10 +1133,10 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div
               className="palette-item"
               draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'round', seats: 10, spanX: 4, spanY: 4, assetFile: 'round_table_10.svg' })}
+              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'round', seats: 10, spanX: 3, spanY: 3, assetFile: 'round_table_10.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('round', 10)} alt="" /></div>
-              <span>round_table_10.svg • 10 (4×4)</span>
+              <span>round_table_10.svg • 10 (3×3)</span>
             </div>
 
             <div
@@ -1183,19 +1233,18 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             </label>
 
             <label>
-              Floor color:
+              Floor:
               <select
-                value={floorColor}
+                value={floorTheme}
                 onChange={(e) => {
-                  const v = String(e.target.value || '#5b3d2b');
-                  setFloorColor(v);
-                  if (currentLayout) setCurrentLayout({ ...currentLayout, floorColor: v });
+                  const k = normalizeTheme(String(e.target.value || 'parquet_blue'));
+                  setFloorTheme(k);
+                  if (currentLayout) setCurrentLayout({ ...currentLayout, floorColor: k });
                 }}
               >
-                <option value="#5b3d2b">Brown parquet</option>
-                <option value="#2f3646">Slate</option>
-                <option value="#1f3356">Deep navy</option>
-                <option value="#245863">Muted teal</option>
+                {(Object.keys(FLOOR_THEMES) as FloorThemeKey[]).map((k) => (
+                  <option key={k} value={k}>{FLOOR_THEMES[k].label}</option>
+                ))}
               </select>
             </label>
             <div className="row" style={{ display: 'flex', gap: 8 }}
@@ -1339,20 +1388,26 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div className="fe-zoom-readout">{Math.round(zoom * 100)}%</div>
             <div className="fe-hint">{spacePressed ? 'Pan: drag' : 'Tip: hold Space to pan, Ctrl+wheel to zoom'}</div>
           </div>
-<div
-            className="grid"
-            style={{
+          {(() => {
+            const ft = FLOOR_THEMES[floorTheme];
+            return (
+              <div
+                className="fe-grid" ref={gridRef}
+                style={{
               gridTemplateColumns: `repeat(${currentLayout.gridCols}, ${cellSize}px)`,
               gridTemplateRows: `repeat(${currentLayout.gridRows}, ${cellSize}px)`,
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: '0 0',
               ['--cell' as any]: `${cellSize}px`,
-              ['--floor' as any]: floorColor,
-            }}
-            onDragOver={shapeMode ? undefined : handleDragOver}
-            onDrop={shapeMode ? undefined : handleDrop}
-            onDragLeave={() => setHoverCell(null)}
-          >
+                  ['--floor-bg' as any]: ft.bg,
+                  ['--floor-bg-size' as any]: ft.size,
+                  ['--floor-bg-repeat' as any]: ft.repeat,
+                  ['--floor-bg-position' as any]: ft.pos,
+                }}
+                onDragOver={shapeMode ? undefined : handleDragOver}
+                onDrop={shapeMode ? undefined : handleDrop}
+                onDragLeave={() => setHoverCell(null)}
+              >
             {(() => {
               // Drop preview: shows where the dragged item will land (with snapping)
               if (!hoverCell || !draggedItem || !currentLayout) return null;
@@ -1437,7 +1492,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               return (
                 <div
                   key={i}
-                  className={`grid-cell ${(() => { const idx = gridY * currentLayout.gridCols + gridX; const active = (currentLayout.gridMask?.[idx] ?? 1) === 1; return active ? "" : "inactive"; })()}` }
+                  className={`fe-grid-cell ${(() => { const idx = gridY * currentLayout.gridCols + gridX; const active = (currentLayout.gridMask?.[idx] ?? 1) === 1; return active ? "active" : "inactive"; })()}` }
                   onMouseDown={(e) => {
                     if (!shapeMode || !currentLayout) return;
                     e.preventDefault();
@@ -1480,7 +1535,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                       }}
                     >
                       <img
-                        className="fe-asset"
+                        className={`fe-asset fe-asset--${(assetFile || "").replace(/[^a-z0-9]+/gi,"_").toLowerCase()}`}
                         style={{ transform: `scale(${scaleForObject(objectHere.type)})` }}
                         src={objectHere.assetFile ? `${ASSET_BASE}${objectHere.assetFile}` : assetForObject(objectHere.type, objectHere.spanX, objectHere.spanY, objectHere.label)}
                         alt=""
@@ -1504,7 +1559,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                     >
                       <div className="fe-table-visual" data-asset={tableHere.assetFile || ""}>
                         <img
-                          className="fe-asset"
+                          className={`fe-asset fe-asset--${(assetFile || "").replace(/[^a-z0-9]+/gi,"_").toLowerCase()}`}
                           style={{ transform: `scale(${scaleForTable(tableHere.shape, tableHere.seats, tableHere.assetFile)})` }}
                           src={tableHere.assetFile ? `${ASSET_BASE}${tableHere.assetFile}` : assetForTable(tableHere.shape, tableHere.seats)}
                           alt=""
@@ -1526,6 +1581,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               );
             })}
           </div>
+            );
+          })()}
         </div>
       </div>
 

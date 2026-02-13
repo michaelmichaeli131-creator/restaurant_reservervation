@@ -341,26 +341,21 @@
   align-items: center;
 }
 
- .grid{
+ .fe-grid{
   --cell: 60px;
+  --floor-bg: #5b3d2b;
+  --floor-bg-size: auto;
+  --floor-bg-repeat: repeat;
+  --floor-bg-position: center;
   position: relative;
   display: grid;
   gap: 0;
-  /* Clean square grid lines (no external texture) */
-  background:
-    repeating-linear-gradient(0deg,
-      rgba(255,255,255,.10) 0,
-      rgba(255,255,255,.10) 1px,
-      transparent 1px,
-      transparent var(--cell)
-    ),
-    repeating-linear-gradient(90deg,
-      rgba(255,255,255,.10) 0,
-      rgba(255,255,255,.10) 1px,
-      transparent 1px,
-      transparent var(--cell)
-    ),
-    var(--floor, #5b3d2b);
+  /* Floor texture only. Grid lines are drawn per-cell ONLY in the active area
+     so cells outside the restaurant shape completely disappear. */
+  background: var(--floor-bg, #5b3d2b);
+  background-size: var(--floor-bg-size, auto);
+  background-repeat: var(--floor-bg-repeat, repeat);
+  background-position: var(--floor-bg-position, center);
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 12px;
   box-shadow: 0 16px 40px rgba(0,0,0,.35);
@@ -378,11 +373,23 @@
   transform: translateZ(0);
 }
 
-.grid-cell{
+.grid-cell, .fe-grid-cell{
   width: var(--cell);
   height: var(--cell);
   position: relative;
   /* No borders here: the parent grid draws the lines cleanly */
+}
+
+/* Grid lines only on ACTIVE cells */
+.grid-cell.active, .fe-grid-cell.active{
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.10);
+}
+
+/* Cells outside the restaurant shape: blend into the canvas background */
+.grid-cell.inactive, .fe-grid-cell.inactive{
+  background: rgba(8,12,18,.96);
+  box-shadow: none;
+  pointer-events: none;
 }
 
 .grid-cell:hover {
@@ -390,15 +397,7 @@
   border-color: rgba(56,156,255,.22);
 }
 
-.grid-cell.inactive{
-  /* Hide grid squares entirely outside the restaurant shape */
-}
-.grid-cell.inactive::before{
-  content:'';
-  position:absolute;
-  inset:0;
-  background: rgba(0,0,0,.55);
-}
+
 .table {
   position: absolute;
   top: 0;
@@ -852,17 +851,30 @@
 }
 
 
-/* Floor color themes (active area) */
-.grid{
-  --fe-floor: #5b3d2b; /* brown */
-}
-.grid[style*='--floor: slate']{ --fe-floor: #2f3a45; }
-.grid[style*='--floor: navy']{ --fe-floor: #1f2f4a; }
-.grid[style*='--floor: teal']{ --fe-floor: #255b61; }
-
-
 /* Asset-specific fitting tweaks */
 .floor-table .fe-asset[data-asset='round_table4.svg'],
 .floor-table .fe-asset[data-asset='square_table2.svg']{
   padding: 0 !important;
+}
+
+
+/* Per-asset visual tuning */
+.fe-asset--booth4_svg{
+  padding: 0;
+}
+
+.fe-asset--large_booth_svg{
+  padding: 18px; /* reduce apparent size (length+width) */
+}
+
+.fe-asset--round_table_10_svg{
+  padding: 8px; /* tuned for 3x3 */
+}
+
+.fe-asset--square_table8_svg{
+  padding: 2px; /* slightly larger appearance */
+}
+
+.fe-asset--square_table10_svg{
+  padding: 2px; /* slightly larger appearance */
 }

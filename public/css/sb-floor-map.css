@@ -149,7 +149,7 @@
 }
 
 .sb-floor-mask{position:absolute;inset:0;pointer-events:none;}
-.sb-floor-hole{position:absolute;border-radius:10px;background:rgba(0,0,0,.35);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);}
+.sb-floor-hole{position:absolute;border-radius:10px;background:rgba(8,12,18,.98);box-shadow:none;}
 
 
 .sb-floor-table{
@@ -407,6 +407,10 @@
 /* Clean square grid lines derived from --sb-map-cell (no texture SVG that can distort) */
 .sb-floor-grid{
   position: relative;
+  --sb-floor-bg: #0b1a2a;
+  --sb-floor-bg-size: auto;
+  --sb-floor-bg-repeat: repeat;
+  --sb-floor-bg-position: center;
   background:
     repeating-linear-gradient(0deg,
       rgba(255,255,255,.10) 0,
@@ -419,7 +423,20 @@
       rgba(255,255,255,.10) 1px,
       transparent 1px,
       transparent var(--sb-map-cell)
-    );
+    ),
+    var(--sb-floor-bg);
+  background-size:
+    auto,
+    auto,
+    var(--sb-floor-bg-size, auto);
+  background-repeat:
+    repeat,
+    repeat,
+    var(--sb-floor-bg-repeat, repeat);
+  background-position:
+    0 0,
+    0 0,
+    var(--sb-floor-bg-position, center);
 }
 
 /* Remove the old texture class effect if present */
@@ -429,7 +446,7 @@
 
 /* Holes: fully hide grid outside the restaurant shape (no visible squares) */
 .sb-hole{
-  background: rgba(0,0,0,.60) !important;
+  background: rgba(8,12,18,.98) !important;
   border: none !important;
 }
 
@@ -444,19 +461,28 @@
   box-sizing: border-box;
 }
 
-
-/* Active floor color themes (Waiter/Host view) */
-.sb-floor-grid{
-  --sb-floor-fill: #5b3d2b;
-}
+/* Floor background themes (active area) */
 .sb-floor-root{
-  --sb-floor-fill: #5b3d2b;
+  --sb-floor-bg: url('/floor_assets/floor_parquet_blue.svg');
+  --sb-floor-bg-size: 240px 240px;
+  --sb-floor-bg-repeat: repeat;
+  --sb-floor-bg-position: center;
 }
-.sb-floor-root[style*='--sb-floor: slate']{ --sb-floor-fill: #2f3a45; }
-.sb-floor-root[style*='--sb-floor: navy']{ --sb-floor-fill: #1f2f4a; }
-.sb-floor-root[style*='--sb-floor: teal']{ --sb-floor-fill: #255b61; }
-
-
+.sb-floor-root[data-floor-theme="parquet_blue"]{
+  --sb-floor-bg: url('/floor_assets/floor_parquet_blue.svg');
+}
+.sb-floor-root[data-floor-theme="parquet_brown"]{
+  --sb-floor-bg: url('/floor_assets/floor_parquet_brown.svg');
+}
+.sb-floor-root[data-floor-theme="slate_dark"]{
+  --sb-floor-bg: url('/floor_assets/floor_slate_dark.svg');
+}
+.sb-floor-root[data-floor-theme="navy_carpet"]{
+  --sb-floor-bg: url('/floor_assets/floor_navy_carpet.svg');
+}
+.sb-floor-root[data-floor-theme="teal_terrazzo"]{
+  --sb-floor-bg: url('/floor_assets/floor_teal_terrazzo.svg');
+}
 .sb-floor-visual[data-asset='round_table4.svg'] img,
 .sb-floor-visual[data-asset='square_table2.svg'] img{
   transform: scale(1.05);

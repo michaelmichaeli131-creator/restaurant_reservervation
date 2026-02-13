@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
+  <defs>
+    <pattern id="ter" width="80" height="80" patternUnits="userSpaceOnUse">
+      <rect width="80" height="80" fill="#0f3b43"/>
+      <!-- terrazzo chips -->
+      <ellipse cx="14" cy="20" rx="7" ry="3" fill="#a0c4ff" opacity="0.22"/>
+      <ellipse cx="46" cy="18" rx="5" ry="2" fill="#ffd6a5" opacity="0.18"/>
+      <ellipse cx="60" cy="44" rx="8" ry="3" fill="#caffbf" opacity="0.16"/>
+      <ellipse cx="22" cy="56" rx="6" ry="2" fill="#ffadad" opacity="0.14"/>
+      <ellipse cx="50" cy="62" rx="7" ry="3" fill="#bdb2ff" opacity="0.16"/>
+      <ellipse cx="72" cy="26" rx="4" ry="2" fill="#ffffff" opacity="0.08"/>
+      <path d="M0 0H80V80H0Z" fill="none" stroke="#000" stroke-opacity="0.18"/>
+    </pattern>
+  </defs>
+  <rect width="240" height="240" fill="#0b2f36"/>
+  <rect width="240" height="240" fill="url(#ter)"/>
+</svg>
