@@ -1535,7 +1535,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                       }}
                     >
                       <img
-                        className={`fe-asset fe-asset--${(assetFile || "").replace(/[^a-z0-9]+/gi,"_").toLowerCase()}`}
+                        className={`fe-asset fe-asset--${(objectHere.assetFile || "").replace(/[^a-z0-9]+/gi,"_").toLowerCase()}`}
                         style={{ transform: `scale(${scaleForObject(objectHere.type)})` }}
                         src={objectHere.assetFile ? `${ASSET_BASE}${objectHere.assetFile}` : assetForObject(objectHere.type, objectHere.spanX, objectHere.spanY, objectHere.label)}
                         alt=""
@@ -1559,7 +1559,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                     >
                       <div className="fe-table-visual" data-asset={tableHere.assetFile || ""}>
                         <img
-                          className={`fe-asset fe-asset--${(assetFile || "").replace(/[^a-z0-9]+/gi,"_").toLowerCase()}`}
+                          className={`fe-asset fe-asset--${(tableHere.assetFile || "").replace(/[^a-z0-9]+/gi,"_").toLowerCase()}`}
                           style={{ transform: `scale(${scaleForTable(tableHere.shape, tableHere.seats, tableHere.assetFile)})` }}
                           src={tableHere.assetFile ? `${ASSET_BASE}${tableHere.assetFile}` : assetForTable(tableHere.shape, tableHere.seats)}
                           alt=""
