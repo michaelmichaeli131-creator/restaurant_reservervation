@@ -1350,35 +1350,51 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                     updateTable(selectedTable.id, { seats, spanX: sp.spanX, spanY: sp.spanY });
                   }}
                 />
-              
-<label>
-  Size:
-  <input
-    type="range"
-    min="0.6"
-    max="1.4"
-    step="0.05"
-    value={(selectedTable as any).scale ?? 1}
-    onChange={(e) => updateTable(selectedTable.id, { scale: Number(e.target.value) })}
-  />
-  <span style={{ marginInlineStart: 8 }}>{Math.round((((selectedTable as any).scale ?? 1) as number) * 100)}%</span>
-</label>
+	              </label>
 
-<div className="row" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-  <span style={{ opacity: .85 }}>Rotate:</span>
-  <button
-    className="btn-icon-small"
-    onClick={() => updateTable(selectedTable.id, { rotationDeg: getItemRotation(((selectedTable as any).rotationDeg ?? 0) - 45) })}
-    title="Rotate -45°"
-  >↺</button>
-  <div style={{ minWidth: 44, textAlign: 'center' }}>{getItemRotation((selectedTable as any).rotationDeg ?? 0)}°</div>
-  <button
-    className="btn-icon-small"
-    onClick={() => updateTable(selectedTable.id, { rotationDeg: getItemRotation(((selectedTable as any).rotationDeg ?? 0) + 45) })}
-    title="Rotate +45°"
-  >↻</button>
-</div>
+	              <label>
+	                Size:
+	                <input
+	                  type="range"
+	                  min="0.6"
+	                  max="1.4"
+	                  step="0.05"
+	                  value={(selectedTable as any).scale ?? 1}
+	                  onChange={(e) => updateTable(selectedTable.id, { scale: Number(e.target.value) })}
+	                />
+	                <span style={{ marginInlineStart: 8 }}>
+	                  {Math.round((((selectedTable as any).scale ?? 1) as number) * 100)}%
+	                </span>
+	              </label>
 
+	              <div className="row" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+	                <span style={{ opacity: 0.85 }}>Rotate:</span>
+	                <button
+	                  className="btn-icon-small"
+	                  onClick={() =>
+	                    updateTable(selectedTable.id, {
+	                      rotationDeg: getItemRotation(((selectedTable as any).rotationDeg ?? 0) - 45),
+	                    })
+	                  }
+	                  title="Rotate -45°"
+	                >
+	                  ↺
+	                </button>
+	                <div style={{ minWidth: 44, textAlign: "center" }}>
+	                  {getItemRotation((selectedTable as any).rotationDeg ?? 0)}°
+	                </div>
+	                <button
+	                  className="btn-icon-small"
+	                  onClick={() =>
+	                    updateTable(selectedTable.id, {
+	                      rotationDeg: getItemRotation(((selectedTable as any).rotationDeg ?? 0) + 45),
+	                    })
+	                  }
+	                  title="Rotate +45°"
+	                >
+	                  ↻
+	                </button>
+	              </div>
               <button className="btn-danger" onClick={() => deleteTable(selectedTable.id)}>
                 🗑️ Delete
               </button>
