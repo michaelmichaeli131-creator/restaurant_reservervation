@@ -171,15 +171,20 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     return { spanX: 2, spanY: 2 };
   };
 
-  const scaleForTable = (shape: string, seats: number) => {
-    const s = String(shape || 'rect').toLowerCase();
-    const n = Number(seats || 0);
-    if (s === 'booth') return n <= 4 ? 1.15 : 1.35;
-    if (n <= 2) return 0.75;
-    if (n <= 4) return 1.0;
-    if (n <= 6) return 1.5;
-    if (n <= 8) return 1.75;
-    return 2.0;
+  const scaleForTable = (shape: string, seats: number, assetFile?: string) => {
+    // Keep assets inside their allocated cell-span (no overflow).
+    // Use small, asset-specific nudges only where needed.
+    const af = String(assetFile || '').toLowerCase();
+
+    // Reported as too large -> clamp down so it never bleeds outside its span.
+    if (af === 'large_booth.svg') return 0.88;
+    if (af === 'round_table_10.svg') return 0.88;
+
+    // Visually fill their full span but remain fully visible.
+    if (af === 'round_table4.svg') return 1.06;
+    if (af === 'square_table2.svg') return 1.06;
+
+    return 1.0;
   };
 
   const scaleForObject = (type: string) => {
@@ -680,15 +685,25 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
   const clientPointToGridCell = (clientX: number, clientY: number) => {
     if (!currentLayout) return null;
-    // Use the transformed grid's bounding box so zoom/pan works reliably.
+
+    // Convert viewport point -> grid cell robustly even when zoom/pan are applied.
+    // We derive the effective scale from the rendered grid bounding box.
     const gridEl = document.querySelector('.grid') as HTMLDivElement | null;
     if (!gridEl) return null;
 
     const rect = gridEl.getBoundingClientRect();
-    const xPx = (clientX - rect.left) / zoom - GRID_PAD_PX;
-    const yPx = (clientY - rect.top) / zoom - GRID_PAD_PX;
-    const gx = Math.floor(xPx / cellSize);
-    const gy = Math.floor(yPx / cellSize);
+    const gridW = currentLayout.gridCols * cellSize;
+    const gridH = currentLayout.gridRows * cellSize;
+
+    const scaleX = rect.width / Math.max(1, gridW);
+    const scaleY = rect.height / Math.max(1, gridH);
+
+    const xLocal = (clientX - rect.left) / scaleX;
+    const yLocal = (clientY - rect.top) / scaleY;
+
+    const gx = Math.floor(xLocal / cellSize);
+    const gy = Math.floor(yLocal / cellSize);
+
     if (Number.isNaN(gx) || Number.isNaN(gy)) return null;
     if (gx < 0 || gy < 0 || gx >= currentLayout.gridCols || gy >= currentLayout.gridRows) return null;
     return { x: gx, y: gy };
@@ -1490,7 +1505,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                       <div className="fe-table-visual" data-asset={tableHere.assetFile || ""}>
                         <img
                           className="fe-asset"
-                          style={{ transform: `scale(${scaleForTable(tableHere.shape, tableHere.seats)})` }}
+                          style={{ transform: `scale(${scaleForTable(tableHere.shape, tableHere.seats, tableHere.assetFile)})` }}
                           src={tableHere.assetFile ? `${ASSET_BASE}${tableHere.assetFile}` : assetForTable(tableHere.shape, tableHere.seats)}
                           alt=""
                         />
