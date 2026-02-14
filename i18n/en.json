@@ -208,10 +208,15 @@
   "floor": {
     "loading": "Loading floor layouts...",
     "empty_state": "No floor layouts found. Please create a floor layout first.",
+    "empty_hint": "Create your first floor layout to get started.",
     "btn_create_new": "Create New Layout",
     "btn_duplicate": "Duplicate",
     "btn_add_table": "Add Table",
     "btn_save_layout": "Save Layout",
+    "btn_delete": "Delete",
+    "btn_new_layout": "New Layout",
+    "btn_set_active": "Set as Active",
+    "btn_create": "Create",
     "error": {
       "enter_name": "Please enter a layout name",
       "server": "Server error: {status} {statusText}",
@@ -219,7 +224,9 @@
       "delete": "Delete failed",
       "delete_general": "Error deleting layout",
       "duplicate": "Error duplicating layout",
-      "save": "Error saving"
+      "save": "Error saving: {error}",
+      "placement_outside": "Cannot place item outside the restaurant shape",
+      "move_outside": "Cannot move item outside the restaurant shape"
     },
     "confirm": {
       "delete_layout": "Are you sure you want to delete this layout?"
@@ -227,11 +234,68 @@
     "prompt": {
       "duplicate_name": "Enter name for duplicated layout:"
     },
+    "success": {
+      "save": "Layout saved successfully!"
+    },
     "status": {
       "empty": "Empty",
       "occupied": "Occupied",
       "reserved": "Reserved",
       "dirty": "Dirty"
+    },
+    "sections": {
+      "title": "Sections",
+      "show_only_active": "Show only active section"
+    },
+    "assets": {
+      "title": "Assets",
+      "seating": "Seating",
+      "visual_only": "Visual only"
+    },
+    "map": {
+      "title": "Map",
+      "cell_size": "Cell size: {size}px",
+      "floor_label": "Floor:"
+    },
+    "shape": {
+      "done": "Done shape",
+      "edit": "Edit shape",
+      "reset": "Reset",
+      "reset_title": "Reset shape",
+      "invert": "Invert",
+      "invert_title": "Invert shape",
+      "paint_hint": "Paint the restaurant shape: click/drag cells to enable/disable."
+    },
+    "properties": {
+      "selected_table": "Selected: {name}",
+      "selected_object": "Selected: {type}",
+      "name": "Name:",
+      "seats": "Seats:",
+      "seats_unit": "seats",
+      "size": "Size:",
+      "rotate": "Rotate:",
+      "section": "Section"
+    },
+    "toolbar": {
+      "active_hint": "Active layout (shown in live view)",
+      "zoom_in": "Zoom in",
+      "zoom_out": "Zoom out",
+      "fit_screen": "Fit to screen"
+    },
+    "hints": {
+      "pan_drag": "Pan: drag",
+      "controls": "Tip: hold Space to pan, Ctrl+wheel to zoom"
+    },
+    "modal": {
+      "create_title": "Create New Layout",
+      "placeholder_name": "Layout name (e.g., Main Floor, Patio)"
+    },
+    "themes": {
+      "parquet_blue": "Blue parquet",
+      "parquet_brown": "Brown parquet",
+      "slate_dark": "Dark slate",
+      "navy_carpet": "Deep navy",
+      "teal_terrazzo": "Muted teal"
     }
   }
 }
