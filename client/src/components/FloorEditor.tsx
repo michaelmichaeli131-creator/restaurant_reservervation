@@ -94,6 +94,25 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [showOnlyActiveSection, setShowOnlyActiveSection] = useState(false);
   const [hoverCell, setHoverCell] = useState<{ x: number; y: number } | null>(null);
 
+  // "Real" pointer-based dragging (no HTML5 drag/drop) for precise placement.
+  const [pointerDrag, setPointerDrag] = useState<null | {
+    kind: 'table' | 'object';
+    mode: 'new' | 'existing';
+    spanX: number;
+    spanY: number;
+    tableId?: string;
+    objectId?: string;
+    payload?: {
+      shape?: string;
+      seats?: number;
+      objectType?: FloorObject['type'];
+      objectLabel?: string;
+      objectKind?: 'object' | 'visualOnly';
+      assetFile?: string;
+    };
+  }>(null);
+  const [dragPreviewCell, setDragPreviewCell] = useState<{ x: number; y: number } | null>(null);
+
   const [cellSize, setCellSize] = useState(60);
 
   type FloorThemeKey = 'parquet_blue' | 'parquet_brown' | 'slate_dark' | 'navy_carpet' | 'teal_terrazzo';
@@ -252,8 +271,10 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const getItemRotation = (deg?: number) => {
     const v = Number(deg);
     if (!Number.isFinite(v)) return 0;
-    // snap to 45-degree steps
-    return Math.round(v / 45) * 45;
+    // snap to 45-degree steps, wrap to 0..315
+    const snapped = Math.round(v / 45) * 45;
+    const wrapped = ((snapped % 360) + 360) % 360;
+    return wrapped;
   };
 const scaleForObject = (type: string) => {
     const t = String(type || '').toLowerCase();
@@ -789,6 +810,167 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     return { x: gx, y: gy };
   };
 
+  // ---- Pointer-based drag (precise, stable) ----
+  const beginPointerDragNew = (
+    e: React.MouseEvent,
+    kind: 'table' | 'object',
+    spanX: number,
+    spanY: number,
+    payload: {
+      shape?: string;
+      seats?: number;
+      objectType?: FloorObject['type'];
+      objectLabel?: string;
+      objectKind?: 'object' | 'visualOnly';
+      assetFile?: string;
+    }
+  ) => {
+    if (!currentLayout) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedTable(null);
+    setSelectedObject(null);
+    setPointerDrag({ kind, mode: 'new', spanX, spanY, payload });
+    setDragPreviewCell(null);
+  };
+
+  const beginPointerDragExisting = (
+    e: React.MouseEvent,
+    kind: 'table' | 'object',
+    id: string,
+    spanX: number,
+    spanY: number
+  ) => {
+    if (!currentLayout) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setPointerDrag({
+      kind,
+      mode: 'existing',
+      spanX,
+      spanY,
+      tableId: kind === 'table' ? id : undefined,
+      objectId: kind === 'object' ? id : undefined,
+    });
+    setDragPreviewCell(null);
+  };
+
+  useEffect(() => {
+    if (!pointerDrag || !currentLayout) return;
+
+    const onMove = (ev: MouseEvent) => {
+      const cell = clientPointToGridCell(ev.clientX, ev.clientY);
+      if (!cell) {
+        setDragPreviewCell(null);
+        return;
+      }
+
+      // Anchor at center of the item
+      const baseX = cell.x - Math.floor(pointerDrag.spanX / 2);
+      const baseY = cell.y - Math.floor(pointerDrag.spanY / 2);
+
+      const disableSnap = ev.shiftKey;
+      const exclude = pointerDrag.mode === 'existing'
+        ? { kind: pointerDrag.kind as any, id: pointerDrag.kind === 'table' ? pointerDrag.tableId : pointerDrag.objectId }
+        : undefined;
+
+      const snapped = snapPlacement(baseX, baseY, pointerDrag.spanX, pointerDrag.spanY, pointerDrag.kind, pointerDrag.payload?.shape ?? pointerDrag.payload?.objectType, disableSnap, exclude);
+
+      if (!maskAllows(snapped.x, snapped.y, pointerDrag.spanX, pointerDrag.spanY)) {
+        setDragPreviewCell(null);
+        return;
+      }
+
+      setDragPreviewCell({ x: snapped.x, y: snapped.y });
+      setHoverCell({ x: snapped.x, y: snapped.y });
+    };
+
+    const onUp = () => {
+      if (!dragPreviewCell) {
+        setPointerDrag(null);
+        setDragPreviewCell(null);
+        setHoverCell(null);
+        return;
+      }
+
+      const x = dragPreviewCell.x;
+      const y = dragPreviewCell.y;
+
+      if (pointerDrag.mode === 'existing') {
+        if (pointerDrag.kind === 'table' && pointerDrag.tableId) {
+          updateTable(pointerDrag.tableId, { gridX: x, gridY: y });
+        } else if (pointerDrag.kind === 'object' && pointerDrag.objectId) {
+          updateObject(pointerDrag.objectId, { gridX: x, gridY: y });
+        }
+      } else {
+        // New item
+        if (pointerDrag.kind === 'table') {
+          const seats = Number(pointerDrag.payload?.seats ?? 2);
+          const shape = (pointerDrag.payload?.shape ?? 'square') as any;
+          const newTable: FloorTable = {
+            id: `T${Date.now()}`,
+            name: `T${nextTableNumber}`,
+            tableNumber: nextTableNumber,
+            gridX: x,
+            gridY: y,
+            spanX: pointerDrag.spanX,
+            spanY: pointerDrag.spanY,
+            seats,
+            shape,
+            scale: 1,
+            rotationDeg: 0,
+            assetFile: pointerDrag.payload?.assetFile,
+            kind: 'table',
+            sectionId: activeSection?.id,
+          };
+          setNextTableNumber((n) => n + 1);
+          setCurrentLayout({
+            ...currentLayout,
+            tables: [...currentLayout.tables, newTable],
+          });
+        } else {
+          const newObj: FloorObject = {
+            id: `O${Date.now()}`,
+            type: (pointerDrag.payload?.objectType ?? 'visual') as any,
+            gridX: x,
+            gridY: y,
+            spanX: pointerDrag.spanX,
+            spanY: pointerDrag.spanY,
+            label: pointerDrag.payload?.objectLabel,
+            assetFile: pointerDrag.payload?.assetFile,
+            kind: pointerDrag.payload?.objectKind ?? 'object',
+            scale: 1,
+            rotationDeg: 0,
+          };
+          setCurrentLayout({
+            ...currentLayout,
+            objects: [...(currentLayout.objects ?? []), newObj],
+          });
+        }
+      }
+
+      setPointerDrag(null);
+      setDragPreviewCell(null);
+      setHoverCell(null);
+    };
+
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        setPointerDrag(null);
+        setDragPreviewCell(null);
+        setHoverCell(null);
+      }
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp, { once: true });
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [pointerDrag, currentLayout, cellSize, dragPreviewCell, nextTableNumber, activeSection?.id]);
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
 
@@ -1112,8 +1294,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
           <div className="palette">
             <div
               className="palette-item"
-              draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'rect', seats: 5, spanX: 5, spanY: 2, assetFile: 'bar.svg' })}
+              onMouseDown={(e) => beginPointerDragNew(e, 'table', 5, 2, { shape: 'rect', seats: 5, assetFile: 'bar.svg' })}
             >
               <div className="preview"><img className="preview-img" src={`${ASSET_BASE}bar.svg`} alt="" /></div>
               <span>bar.svg • 5 (5×2)</span>
@@ -1121,8 +1302,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
             <div
               className="palette-item"
-              draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'booth', seats: 4, spanX: 2, spanY: 2, assetFile: 'booth4.svg' })}
+              onMouseDown={(e) => beginPointerDragNew(e, 'table', 2, 2, { shape: 'booth', seats: 4, assetFile: 'booth4.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('booth', 4)} alt="" /></div>
               <span>booth4.svg • 4 (2×2)</span>
@@ -1130,8 +1310,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
             <div
               className="palette-item"
-              draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'booth', seats: 6, spanX: 6, spanY: 2, assetFile: 'large_booth.svg' })}
+              onMouseDown={(e) => beginPointerDragNew(e, 'table', 6, 2, { shape: 'booth', seats: 6, assetFile: 'large_booth.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('booth', 6)} alt="" /></div>
               <span>large_booth.svg • 6 (6×2)</span>
@@ -1139,8 +1318,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
             <div
               className="palette-item"
-              draggable
-              onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'chair', spanX: 1, spanY: 1, objectLabel: 'chair', assetFile: 'chair.svg', objectKind: 'object' })}
+              onMouseDown={(e) => beginPointerDragNew(e, 'object', 1, 1, { objectType: 'chair', objectLabel: 'chair', assetFile: 'chair.svg', objectKind: 'object' })}
             >
               <div className="preview"><img className="preview-img" src={`${ASSET_BASE}chair.svg`} alt="" /></div>
               <span>chair.svg • 1 (1×1)</span>
@@ -1148,8 +1326,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
             <div
               className="palette-item"
-              draggable
-              onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'plant', spanX: 1, spanY: 1, objectLabel: 'plant', assetFile: 'plant.svg', objectKind: 'object' })}
+              onMouseDown={(e) => beginPointerDragNew(e, 'object', 1, 1, { objectType: 'plant', objectLabel: 'plant', assetFile: 'plant.svg', objectKind: 'object' })}
             >
               <div className="preview"><img className="preview-img" src={`${ASSET_BASE}plant.svg`} alt="" /></div>
               <span>plant.svg • 1 (1×1)</span>
@@ -1157,8 +1334,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
             <div
               className="palette-item"
-              draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'round', seats: 4, spanX: 2, spanY: 2, assetFile: 'round_table4.svg' })}
+              onMouseDown={(e) => beginPointerDragNew(e, 'table', 2, 2, { shape: 'round', seats: 4, assetFile: 'round_table4.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('round', 4)} alt="" /></div>
               <span>round_table4.svg • 4 (2×2)</span>
@@ -1166,8 +1342,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
             <div
               className="palette-item"
-              draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'round', seats: 10, spanX: 3, spanY: 3, assetFile: 'round_table_10.svg' })}
+              onMouseDown={(e) => beginPointerDragNew(e, 'table', 3, 3, { shape: 'round', seats: 10, assetFile: 'round_table_10.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('round', 10)} alt="" /></div>
               <span>round_table_10.svg • 10 (3×3)</span>
@@ -1175,8 +1350,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
             <div
               className="palette-item"
-              draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 2, spanX: 2, spanY: 1, assetFile: 'square_table2.svg' })}
+              onMouseDown={(e) => beginPointerDragNew(e, 'table', 2, 1, { shape: 'square', seats: 2, assetFile: 'square_table2.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('square', 2)} alt="" /></div>
               <span>square_table2.svg • 2 (2×1)</span>
@@ -1184,8 +1358,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
             <div
               className="palette-item"
-              draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 4, spanX: 2, spanY: 2, assetFile: 'square_table4.svg' })}
+              onMouseDown={(e) => beginPointerDragNew(e, 'table', 2, 2, { shape: 'square', seats: 4, assetFile: 'square_table4.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('square', 4)} alt="" /></div>
               <span>square_table4.svg • 4 (2×2)</span>
@@ -1193,8 +1366,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
             <div
               className="palette-item"
-              draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 6, spanX: 2, spanY: 2, assetFile: 'square_table6.svg' })}
+              onMouseDown={(e) => beginPointerDragNew(e, 'table', 2, 2, { shape: 'square', seats: 6, assetFile: 'square_table6.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('square', 6)} alt="" /></div>
               <span>square_table6.svg • 6 (2×2)</span>
@@ -1202,8 +1374,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
             <div
               className="palette-item"
-              draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 8, spanX: 2, spanY: 2, assetFile: 'square_table8.svg' })}
+              onMouseDown={(e) => beginPointerDragNew(e, 'table', 2, 2, { shape: 'square', seats: 8, assetFile: 'square_table8.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('square', 8)} alt="" /></div>
               <span>square_table8.svg • 8 (2×2)</span>
@@ -1211,8 +1382,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
             <div
               className="palette-item"
-              draggable
-              onDragStart={(e) => handleDragStart(e, 'table', 'new', { shape: 'square', seats: 10, spanX: 2, spanY: 2, assetFile: 'square_table10.svg' })}
+              onMouseDown={(e) => beginPointerDragNew(e, 'table', 2, 2, { shape: 'square', seats: 10, assetFile: 'square_table10.svg' })}
             >
               <div className="preview"><img className="preview-img" src={assetForTable('square', 10)} alt="" /></div>
               <span>square_table10.svg • 10 (2×2)</span>
@@ -1221,32 +1391,32 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
           <h3 className="fe-subtitle" style={{ marginTop: 14 }}>Visual only</h3>
           <div className="palette">
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'visual', spanX: 1, spanY: 1, objectLabel: 'corner_partitaion', assetFile: 'corner_partitaion.svg', objectKind: 'visualOnly' })}>
+            <div className="palette-item" onMouseDown={(e) => beginPointerDragNew(e, 'object', 1, 1, { objectType: 'visual', objectLabel: 'corner_partitaion', assetFile: 'corner_partitaion.svg', objectKind: 'visualOnly' })}>
               <div className="preview"><img className="preview-img" src={assetForObject('divider', 1, 1, 'corner_partitaion')} alt="" /></div>
               <span>corner_partitaion.svg</span>
             </div>
 
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'visual', spanX: 2, spanY: 2, objectLabel: 'cyclic_partition', assetFile: 'cyclic_partition.svg', objectKind: 'visualOnly' })}>
+            <div className="palette-item" onMouseDown={(e) => beginPointerDragNew(e, 'object', 2, 2, { objectType: 'visual', objectLabel: 'cyclic_partition', assetFile: 'cyclic_partition.svg', objectKind: 'visualOnly' })}>
               <div className="preview"><img className="preview-img" src={assetForObject('divider', 2, 2, 'cyclic_partition')} alt="" /></div>
               <span>cyclic_partition.svg</span>
             </div>
 
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'door', spanX: 1, spanY: 1, objectLabel: 'door', assetFile: 'door.svg', objectKind: 'visualOnly' })}>
+            <div className="palette-item" onMouseDown={(e) => beginPointerDragNew(e, 'object', 1, 1, { objectType: 'door', objectLabel: 'door', assetFile: 'door.svg', objectKind: 'visualOnly' })}>
               <div className="preview"><img className="preview-img" src={assetForObject('door', 1, 1, 'door')} alt="" /></div>
               <span>door.svg</span>
             </div>
 
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'visual', spanX: 1, spanY: 1, objectLabel: 'floor_brown', assetFile: 'floor_brown.svg', objectKind: 'visualOnly' })}>
+            <div className="palette-item" onMouseDown={(e) => beginPointerDragNew(e, 'object', 1, 1, { objectType: 'visual', objectLabel: 'floor_brown', assetFile: 'floor_brown.svg', objectKind: 'visualOnly' })}>
               <div className="preview"><img className="preview-img" src={assetForObject('divider', 1, 1, 'floor_brown')} alt="" /></div>
               <span>floor_brown.svg</span>
             </div>
 
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'visual', spanX: 4, spanY: 1, objectLabel: 'horizintal_partitaion', assetFile: 'horizintal_partitaion.svg', objectKind: 'visualOnly' })}>
+            <div className="palette-item" onMouseDown={(e) => beginPointerDragNew(e, 'object', 4, 1, { objectType: 'visual', objectLabel: 'horizintal_partitaion', assetFile: 'horizintal_partitaion.svg', objectKind: 'visualOnly' })}>
               <div className="preview"><img className="preview-img" src={assetForObject('divider', 4, 1, 'horizintal_partitaion')} alt="" /></div>
               <span>horizintal_partitaion.svg</span>
             </div>
 
-            <div className="palette-item" draggable onDragStart={(e) => handleDragStart(e, 'object', 'new', { objectType: 'visual', spanX: 1, spanY: 4, objectLabel: 'vertical_partition', assetFile: 'vertical_partition.svg', objectKind: 'visualOnly' })}>
+            <div className="palette-item" onMouseDown={(e) => beginPointerDragNew(e, 'object', 1, 4, { objectType: 'visual', objectLabel: 'vertical_partition', assetFile: 'vertical_partition.svg', objectKind: 'visualOnly' })}>
               <div className="preview"><img className="preview-img" src={assetForObject('divider', 1, 4, 'vertical_partition')} alt="" /></div>
               <span>vertical_partition.svg</span>
             </div>
@@ -1346,8 +1516,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   value={selectedTable.seats}
                   onChange={(e) => {
                     const seats = Math.max(1, Number(e.target.value) || 1);
-                    const sp = spansForTable(selectedTable.shape, seats);
-                    updateTable(selectedTable.id, { seats, spanX: sp.spanX, spanY: sp.spanY });
+                    // Allow changing diners count without resizing the table footprint.
+                    updateTable(selectedTable.id, { seats });
                   }}
                 />
 	              </label>
@@ -1359,6 +1529,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 	                  min="0.6"
 	                  max="1.4"
 	                  step="0.05"
+	                  className="range-ltr"
 	                  value={(selectedTable as any).scale ?? 1}
 	                  onChange={(e) => updateTable(selectedTable.id, { scale: Number(e.target.value) })}
 	                />
@@ -1380,9 +1551,17 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 	                >
 	                  ↺
 	                </button>
-	                <div style={{ minWidth: 44, textAlign: "center" }}>
-	                  {getItemRotation((selectedTable as any).rotationDeg ?? 0)}°
-	                </div>
+	                <select
+	                  className="range-ltr"
+	                  style={{ maxWidth: 110 }}
+	                  value={getItemRotation((selectedTable as any).rotationDeg ?? 0)}
+	                  onChange={(e) => updateTable(selectedTable.id, { rotationDeg: Number(e.target.value) })}
+	                  title="Rotation"
+	                >
+	                  {[0,45,90,135,180,225,270,315].map((d) => (
+	                    <option key={d} value={d}>{d}°</option>
+	                  ))}
+	                </select>
 	                <button
 	                  className="btn-icon-small"
 	                  onClick={() =>
@@ -1441,6 +1620,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     min="0.6"
     max="1.4"
     step="0.05"
+    className="range-ltr"
     value={(selectedObject as any).scale ?? 1}
     onChange={(e) => updateObject(selectedObject.id, { scale: Number(e.target.value) })}
   />
@@ -1454,7 +1634,17 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     onClick={() => updateObject(selectedObject.id, { rotationDeg: getItemRotation((((selectedObject as any).rotationDeg ?? selectedObject.rotation ?? 0) as number) - 45) })}
     title="Rotate -45°"
   >↺</button>
-  <div style={{ minWidth: 44, textAlign: 'center' }}>{getItemRotation((selectedObject as any).rotationDeg ?? selectedObject.rotation ?? 0)}°</div>
+  <select
+    className="range-ltr"
+    style={{ maxWidth: 110 }}
+    value={getItemRotation((selectedObject as any).rotationDeg ?? selectedObject.rotation ?? 0)}
+    onChange={(e) => updateObject(selectedObject.id, { rotationDeg: Number(e.target.value) })}
+    title="Rotation"
+  >
+    {[0,45,90,135,180,225,270,315].map((d) => (
+      <option key={d} value={d}>{d}°</option>
+    ))}
+  </select>
   <button
     className="btn-icon-small"
     onClick={() => updateObject(selectedObject.id, { rotationDeg: getItemRotation((((selectedObject as any).rotationDeg ?? selectedObject.rotation ?? 0) as number) + 45) })}
@@ -1561,6 +1751,59 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               );
             })()}
 
+            {/* Pointer-drag preview (used for the new precise dragging system) */}
+            {pointerDrag && dragPreviewCell && (() => {
+              const cellPx = cellSize;
+              const padPx = 10;
+              const left = padPx + dragPreviewCell.x * cellPx;
+              const top = padPx + dragPreviewCell.y * cellPx;
+
+              let src = '';
+              if (pointerDrag.mode === 'existing') {
+                if (pointerDrag.kind === 'table' && pointerDrag.tableId) {
+                  const t = currentLayout.tables.find(tt => tt.id === pointerDrag.tableId);
+                  if (t) src = t.assetFile ? `${ASSET_BASE}${t.assetFile}` : assetForTable(t.shape, t.seats);
+                }
+                if (pointerDrag.kind === 'object' && pointerDrag.objectId) {
+                  const o = (currentLayout.objects ?? []).find(oo => oo.id === pointerDrag.objectId);
+                  if (o) src = o.assetFile ? `${ASSET_BASE}${o.assetFile}` : assetForObject(o.type, o.spanX, o.spanY, o.label);
+                }
+              } else {
+                if (pointerDrag.kind === 'table') {
+                  const sh = String(pointerDrag.payload?.shape ?? 'square');
+                  const seats = Number(pointerDrag.payload?.seats ?? 2);
+                  src = pointerDrag.payload?.assetFile ? `${ASSET_BASE}${pointerDrag.payload?.assetFile}` : assetForTable(sh, seats);
+                } else {
+                  const type = pointerDrag.payload?.objectType ?? 'visual';
+                  src = pointerDrag.payload?.assetFile ? `${ASSET_BASE}${pointerDrag.payload?.assetFile}` : assetForObject(type, pointerDrag.spanX, pointerDrag.spanY, pointerDrag.payload?.objectLabel);
+                }
+              }
+
+              return (
+                <div
+                  className="fe-drop-preview"
+                  style={{
+                    left,
+                    top,
+                    width: pointerDrag.spanX * cellPx,
+                    height: pointerDrag.spanY * cellPx,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  {src && (
+                    <img
+                      src={src}
+                      alt=""
+                      style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', opacity: 0.75 }}
+                    />
+                  )}
+                </div>
+              );
+            })()}
+
             {Array.from({ length: currentLayout.gridRows * currentLayout.gridCols }).map((_, i) => {
               const gridY = Math.floor(i / currentLayout.gridCols);
               const gridX = i % currentLayout.gridCols;
@@ -1615,8 +1858,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   {isObjTopLeft && objectHere && (
                     <div
                       className={`floor-object type-${objectHere.type} ${selectedObject?.id === objectHere.id ? 'selected' : ''}`}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, 'object', 'existing', { objectId: objectHere.id })}
+                      onMouseDown={(e) => beginPointerDragExisting(e, 'object', objectHere.id, objectHere.spanX || 1, objectHere.spanY || 1)}
                       onClick={() => {
                         setSelectedTable(null);
                         setSelectedObject(objectHere);
@@ -1639,8 +1881,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   {isTopLeft && (
                     <div
                       className={`table ${tableHere.shape} ${selectedTable?.id === tableHere.id ? 'selected' : ''} ${(!showOnlyActiveSection && activeSection && String(tableHere.sectionId || '') && String(tableHere.sectionId || '') !== String(activeSection.id)) ? 'dimmed' : ''}`}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, 'table', 'existing', { tableId: tableHere.id })}
+                      onMouseDown={(e) => beginPointerDragExisting(e, 'table', tableHere.id, tableHere.spanX || 1, tableHere.spanY || 1)}
                       onClick={() => {
                         setSelectedObject(null);
                         setSelectedTable(tableHere);
