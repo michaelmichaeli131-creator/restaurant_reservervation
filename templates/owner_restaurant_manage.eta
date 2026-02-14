@@ -41,15 +41,15 @@
   const cover = (Array.isArray(r?.photos) && r.photos.length) ? (r.photos[0]?.dataUrl || r.photos[0]) : '';
 %>
 
-<section class="sb-page" aria-label="ניהול מסעדה">
+<section class="sb-page" aria-label="<%= it.t('owner_manage.aria_section') %>">
   <!-- Hero Header -->
   <header class="sb-hero" <%= cover ? `style="background-image:url('${cover}')"` : '' %>>
     <div class="sb-hero-overlay"></div>
     <div class="sb-hero-inner">
       <div class="sb-hero-top">
         <div class="sb-hero-title">
-          <div class="sb-hero-kicker">ניהול מסעדה</div>
-          <h1><%= r?.name || 'מסעדה' %></h1>
+          <div class="sb-hero-kicker"><%= it.t('owner_manage.hero_kicker') %></div>
+          <h1><%= r?.name || it.t('owner_manage.restaurant_fallback') %></h1>
           <div class="sb-hero-sub muted">
             <span><%= r?.city || '' %><%= (r?.city && r?.address) ? ' • ' : '' %><%= r?.address || '' %></span>
             <% if (r?._today) { %>
@@ -62,13 +62,13 @@
         <div class="sb-hero-tools">
           <!-- Restaurant switcher -->
           <div class="sb-switcher">
-            <label class="muted" for="restaurantSwitch">מסעדה:</label>
+            <label class="muted" for="restaurantSwitch"><%= it.t('owner_manage.switcher_label') %></label>
             <select id="restaurantSwitch" class="sb-select" onchange="if(this.value) location.href=this.value;">
               <% restaurants.forEach(function(x){ %>
                 <option value="/owner/restaurants/<%= x.id %>/manage" <%= (x.id===r?.id)?'selected':'' %>><%= x.name %></option>
               <% }) %>
               <% if (isOwner) { %>
-                <option value="/owner/restaurants/new">＋ פתיחת מסעדה חדשה</option>
+                <option value="/owner/restaurants/new"><%= it.t('owner_manage.new_restaurant') %></option>
               <% } %>
             </select>
           </div>
@@ -77,18 +77,18 @@
             <% if (isOwner) { %>
               <a class="btn sm ghost" href="/owner/restaurants">
                 <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#home"/></svg></span>
-                כל המסעדות
+                <%= it.t('owner_manage.all_restaurants') %>
               </a>
             <% } else { %>
               <a class="btn sm ghost" href="/owner/manage">
                 <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#home"/></svg></span>
-                דף הבית
+                <%= it.t('owner_manage.home') %>
               </a>
             <% } %>
             <% if (isOwner) { %>
               <a class="btn sm ghost" href="<%= r?._urls?.edit %>">
                 <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#settings"/></svg></span>
-                עריכת פרטים
+                <%= it.t('owner_manage.edit_details') %>
               </a>
             <% } %>
           </div>
@@ -96,41 +96,41 @@
       </div>
 
       <!-- Quick actions -->
-      <div class="sb-quick sb-hero-quick" aria-label="פעולות מהירות">
+      <div class="sb-quick sb-hero-quick" aria-label="<%= it.t('owner_manage.quick_actions') %>">
         <% if (canCalendar) { %>
         <a class="btn md primary" href="<%= r?._urls?.calendar %>" data-sb-search="יומן יומי הזמנות calendar daily">
           <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#calendar"/></svg></span>
-          יומן יומי
+          <%= it.t('owner_manage.daily_calendar') %>
         </a>
         <% } %>
         <% if (canFloor) { %>
         <a class="btn md" href="<%= r?._urls?.floor %>" data-sb-search="פלור שולחנות floor layout tables">
           <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#floor"/></svg></span>
-          פלור ושולחנות
+          <%= it.t('owner_manage.floor_tables') %>
         </a>
         <% } %>
         <% if (canShifts) { %>
         <a class="btn md" href="<%= r?._urls?.shifts %>" data-sb-search="משמרות shifts schedule">
           <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#shifts"/></svg></span>
-          משמרות
+          <%= it.t('owner_manage.shifts') %>
         </a>
         <% } %>
         <% if (canStaff) { %>
         <a class="btn md" href="<%= r?._urls?.staff %>" data-sb-search="צוות עובדים staff users">
           <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#users"/></svg></span>
-          צוות
+          <%= it.t('owner_manage.staff') %>
         </a>
         <% } %>
         <% if (canReports) { %>
         <a class="btn md" href="<%= r?._urls?.stats %>" data-sb-search="דוחות סטטיסטיקה reports stats analytics">
           <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#chart"/></svg></span>
-          דוחות
+          <%= it.t('owner_manage.reports') %>
         </a>
         <% } %>
         <% if (canInvView) { %>
         <a class="btn md" href="<%= r?._urls?.inventory %>" data-sb-search="מלאי inventory stock">
           <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#box"/></svg></span>
-          מלאי
+          <%= it.t('owner_manage.inventory') %>
         </a>
         <% } %>
       </div>
@@ -140,108 +140,108 @@
   <!-- Dashboard -->
   <div class="sb-dashboard" aria-label="Dashboard" data-sb-filter-root>
     <main class="sb-dashboard-main">
-      <div class="sb-manage-toolbar" aria-label="חיפוש והגדרות תצוגה">
+      <div class="sb-manage-toolbar" aria-label="<%= it.t('owner_manage.toolbar_aria') %>">
         <div class="sb-search">
           <span class="sb-icon sb-icon-20 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#search"/></svg></span>
-          <input id="sbFeatureSearch" class="sb-input" type="search" placeholder="חפש פעולה, דף או פיצ'ר…" aria-label="חיפוש פיצ'רים" />
+          <input id="sbFeatureSearch" class="sb-input" type="search" placeholder="<%= it.t('owner_manage.search_placeholder') %>" aria-label="<%= it.t('owner_manage.search_aria') %>" />
         </div>
-        <button id="sbDensityToggle" class="btn sm ghost" type="button" aria-pressed="false">תצוגה קומפקטית</button>
+        <button id="sbDensityToggle" class="btn sm ghost" type="button" aria-pressed="false"><%= it.t('owner_manage.compact_view') %></button>
       </div>
 
-      <div class="sb-empty" data-sb-empty style="display:none" aria-live="polite">לא נמצאו תוצאות. נסה ניסוח אחר.</div>
+      <div class="sb-empty" data-sb-empty style="display:none" aria-live="polite"><%= it.t('owner_manage.no_results') %></div>
 
       <!-- KPI row -->
-      <div class="sb-grid cols-4" aria-label="סטטוס מהיר">
+      <div class="sb-grid cols-4" aria-label="<%= it.t('owner_manage.kpi_aria') %>">
         <div class="sb-surface sb-kpi">
-          <div class="sb-kpi-label">הזמנות היום</div>
+          <div class="sb-kpi-label"><%= it.t('owner_manage.kpi_reservations_today') %></div>
           <div class="sb-kpi-value"><%= r?._reservationsCount ?? 0 %></div>
           <div class="sb-kpi-foot muted">
             <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#calendar"/></svg></span>
-            לפי תאריך <%= r?._today || '' %>
+            <%= it.t('owner_manage.kpi_by_date', { date: r?._today || '' }) %>
           </div>
         </div>
         <div class="sb-surface sb-kpi">
-          <div class="sb-kpi-label">סועדים היום</div>
+          <div class="sb-kpi-label"><%= it.t('owner_manage.kpi_guests_today') %></div>
           <div class="sb-kpi-value"><%= r?._peopleToday ?? 0 %></div>
           <div class="sb-kpi-foot muted">
             <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#users"/></svg></span>
-            סה"כ אנשים
+            <%= it.t('owner_manage.kpi_total_people') %>
           </div>
         </div>
         <div class="sb-surface sb-kpi">
-          <div class="sb-kpi-label">Peak תפוסה</div>
+          <div class="sb-kpi-label"><%= it.t('owner_manage.kpi_peak_occupancy') %></div>
           <div class="sb-kpi-value"><%= r?._peakOccupancyPct ?? 0 %>%</div>
           <div class="sb-kpi-foot muted">
             <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#chart"/></svg></span>
-            יחס לקיבולת
+            <%= it.t('owner_manage.kpi_capacity_ratio') %>
           </div>
         </div>
         <div class="sb-surface sb-kpi">
-          <div class="sb-kpi-label">קיבולת</div>
+          <div class="sb-kpi-label"><%= it.t('owner_manage.kpi_capacity') %></div>
           <div class="sb-kpi-value"><%= r?.capacity ?? '' %></div>
           <div class="sb-kpi-foot muted">
             <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#floor"/></svg></span>
-            seats מוגדרים
+            <%= it.t('owner_manage.kpi_seats_defined') %>
           </div>
         </div>
       </div>
 
       <!-- Operational screens (Host / Waiter / Kitchen / Bar / Menu) -->
       <% if (canHost || canWaiter || canKitchen || canBar || canMenu) { %>
-        <section class="sb-surface sb-ops" aria-label="מסכי תפעול" data-sb-search="תפעול pos מארחת מלצרים מטבח בר menu waiter kitchen host">
+        <section class="sb-surface sb-ops" aria-label="<%= it.t('owner_manage.ops_aria') %>" data-sb-search="תפעול pos מארחת מלצרים מטבח בר menu waiter kitchen host">
           <header class="sb-ops-hd">
             <div class="sb-card-ttl">
               <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#ops"/></svg></span>
               <div>
-                <div class="sb-card-title">מסכי תפעול</div>
-                <div class="sb-card-sub muted">למארחת, למלצרים, למטבח ולבר — במראה אפליקציה.</div>
+                <div class="sb-card-title"><%= it.t('owner_manage.ops_title') %></div>
+                <div class="sb-card-sub muted"><%= it.t('owner_manage.ops_sub') %></div>
               </div>
             </div>
           </header>
 
           <div class="sb-ops-grid">
             <% if (canHost) { %>
-              <a class="sb-ops-btn" href="<%= r?._urls?.host %>" data-sb-search="מארחת host seating" aria-label="מסך מארחת">
+              <a class="sb-ops-btn" href="<%= r?._urls?.host %>" data-sb-search="מארחת host seating" aria-label="<%= it.t('owner_manage.host_screen') %>">
                 <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#chair"/></svg></span>
-                <span class="sb-ops-label">מסך מארחת</span>
-                <span class="sb-ops-sub muted">שולחנות, הושבה, סטטוסים</span>
+                <span class="sb-ops-label"><%= it.t('owner_manage.host_screen') %></span>
+                <span class="sb-ops-sub muted"><%= it.t('owner_manage.host_sub') %></span>
               </a>
             <% } %>
 
             <% if (canWaiter) { %>
-              <a class="sb-ops-btn" href="<%= r?._urls?.waiter %>" data-sb-search="מלצרים waiter pos" aria-label="מסך מלצרים">
+              <a class="sb-ops-btn" href="<%= r?._urls?.waiter %>" data-sb-search="מלצרים waiter pos" aria-label="<%= it.t('owner_manage.waiter_screen') %>">
                 <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#plate"/></svg></span>
-                <span class="sb-ops-label">מסך מלצרים</span>
-                <span class="sb-ops-sub muted">פתיחת שולחן, הזמנות, חיובים</span>
+                <span class="sb-ops-label"><%= it.t('owner_manage.waiter_screen') %></span>
+                <span class="sb-ops-sub muted"><%= it.t('owner_manage.waiter_sub') %></span>
               </a>
-              <a class="sb-ops-btn" href="<%= r?._urls?.waiterMap %>" data-sb-search="מפת שולחנות waiter map" aria-label="מפת מלצרים">
+              <a class="sb-ops-btn" href="<%= r?._urls?.waiterMap %>" data-sb-search="מפת שולחנות waiter map" aria-label="<%= it.t('owner_manage.table_map') %>">
                 <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#map"/></svg></span>
-                <span class="sb-ops-label">מפת שולחנות</span>
-                <span class="sb-ops-sub muted">כניסה מהירה לשולחן</span>
+                <span class="sb-ops-label"><%= it.t('owner_manage.table_map') %></span>
+                <span class="sb-ops-sub muted"><%= it.t('owner_manage.table_map_sub') %></span>
               </a>
             <% } %>
 
             <% if (canKitchen) { %>
-              <a class="sb-ops-btn" href="<%= r?._urls?.kitchen %>" data-sb-search="מטבח kitchen pos" aria-label="מסך מטבח">
+              <a class="sb-ops-btn" href="<%= r?._urls?.kitchen %>" data-sb-search="מטבח kitchen pos" aria-label="<%= it.t('owner_manage.kitchen_screen') %>">
                 <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#chef"/></svg></span>
-                <span class="sb-ops-label">מסך מטבח</span>
-                <span class="sb-ops-sub muted">תורים, סטטוסים, עדכונים</span>
+                <span class="sb-ops-label"><%= it.t('owner_manage.kitchen_screen') %></span>
+                <span class="sb-ops-sub muted"><%= it.t('owner_manage.kitchen_sub') %></span>
               </a>
             <% } %>
 
             <% if (canBar) { %>
-              <a class="sb-ops-btn" href="<%= r?._urls?.bar %>" data-sb-search="בר bar drinks" aria-label="מסך בר">
+              <a class="sb-ops-btn" href="<%= r?._urls?.bar %>" data-sb-search="בר bar drinks" aria-label="<%= it.t('owner_manage.bar_screen') %>">
                 <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#cocktail"/></svg></span>
-                <span class="sb-ops-label">מסך בר</span>
-                <span class="sb-ops-sub muted">הזמנות שתייה, הכנה</span>
+                <span class="sb-ops-label"><%= it.t('owner_manage.bar_screen') %></span>
+                <span class="sb-ops-sub muted"><%= it.t('owner_manage.bar_sub') %></span>
               </a>
             <% } %>
 
             <% if (isOwner && canMenu) { %>
-              <a class="sb-ops-btn" href="<%= r?._urls?.menu %>" data-sb-search="תפריט menu" aria-label="עריכת תפריט">
+              <a class="sb-ops-btn" href="<%= r?._urls?.menu %>" data-sb-search="תפריט menu" aria-label="<%= it.t('owner_manage.edit_menu') %>">
                 <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#receipt"/></svg></span>
-                <span class="sb-ops-label">עריכת תפריט</span>
-                <span class="sb-ops-sub muted">קטגוריות, פריטים, מחירים</span>
+                <span class="sb-ops-label"><%= it.t('owner_manage.edit_menu') %></span>
+                <span class="sb-ops-sub muted"><%= it.t('owner_manage.menu_sub') %></span>
               </a>
             <% } %>
           </div>
@@ -249,175 +249,175 @@
       <% } %>
 
       <!-- Category cards -->
-      <div class="sb-grid cols-3" aria-label="קטגוריות ניהול">
+      <div class="sb-grid cols-3" aria-label="<%= it.t('owner_manage.categories_aria') %>">
         <% if (canCalendar) { %>
-        <section class="sb-surface sb-card" aria-label="הזמנות ולקוחות" data-sb-search="הזמנות לקוחות יומן calendar reservations guests">
+        <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.card_reservations_title') %>" data-sb-search="הזמנות לקוחות יומן calendar reservations guests">
           <header class="sb-card-hd">
             <div class="sb-card-ttl">
               <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#calendar"/></svg></span>
               <div>
-                <div class="sb-card-title">הזמנות ולקוחות</div>
-                <div class="sb-card-sub muted">יומן, סטטוסים, פרטי לקוח.</div>
+                <div class="sb-card-title"><%= it.t('owner_manage.card_reservations_title') %></div>
+                <div class="sb-card-sub muted"><%= it.t('owner_manage.card_reservations_sub') %></div>
               </div>
             </div>
-            <a class="btn sm ghost" href="<%= r?._urls?.calendar %>">פתח</a>
+            <a class="btn sm ghost" href="<%= r?._urls?.calendar %>"><%= it.t('owner_manage.btn_open') %></a>
           </header>
           <div class="sb-card-links">
-            <a class="sb-link" href="<%= r?._urls?.calendar %>">יומן יומי</a>
-            <a class="sb-link" href="<%= r?._urls?.calendar %>">חיפוש הזמנות</a>
-            <a class="sb-link" href="<%= r?._urls?.calendar %>">הוספת הזמנה</a>
+            <a class="sb-link" href="<%= r?._urls?.calendar %>"><%= it.t('owner_manage.link_daily_calendar') %></a>
+            <a class="sb-link" href="<%= r?._urls?.calendar %>"><%= it.t('owner_manage.link_search_reservations') %></a>
+            <a class="sb-link" href="<%= r?._urls?.calendar %>"><%= it.t('owner_manage.link_add_reservation') %></a>
           </div>
         </section>
         <% } %>
 
         <% if (canFloor) { %>
-        <section class="sb-surface sb-card" aria-label="פלור ושולחנות" data-sb-search="פלור שולחנות floor layout tables">
+        <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.card_floor_title') %>" data-sb-search="פלור שולחנות floor layout tables">
           <header class="sb-card-hd">
             <div class="sb-card-ttl">
               <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#floor"/></svg></span>
               <div>
-                <div class="sb-card-title">פלור ושולחנות</div>
-                <div class="sb-card-sub muted">עריכה, תצוגת לייב, מצבי שולחן.</div>
+                <div class="sb-card-title"><%= it.t('owner_manage.card_floor_title') %></div>
+                <div class="sb-card-sub muted"><%= it.t('owner_manage.card_floor_sub') %></div>
               </div>
             </div>
-            <a class="btn sm ghost" href="<%= r?._urls?.floor %>">פתח</a>
+            <a class="btn sm ghost" href="<%= r?._urls?.floor %>"><%= it.t('owner_manage.btn_open') %></a>
           </header>
           <div class="sb-card-links">
-            <a class="sb-link" href="<%= r?._urls?.floor %>">עריכת סידור שולחנות</a>
-            <a class="sb-link" href="<%= r?._urls?.calendar %>">שיוך הזמנה לשולחן</a>
-            <a class="sb-link" href="<%= r?._urls?.hours %>">שעות פעילות</a>
+            <a class="sb-link" href="<%= r?._urls?.floor %>"><%= it.t('owner_manage.link_edit_layout') %></a>
+            <a class="sb-link" href="<%= r?._urls?.calendar %>"><%= it.t('owner_manage.link_assign_table') %></a>
+            <a class="sb-link" href="<%= r?._urls?.hours %>"><%= it.t('owner_manage.link_hours') %></a>
           </div>
         </section>
         <% } %>
 
         <% if (canShifts || canStaff) { %>
-        <section class="sb-surface sb-card" aria-label="צוות ומשמרות" data-sb-search="צוות משמרות עובדים staff shifts schedule">
+        <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.card_staff_title') %>" data-sb-search="צוות משמרות עובדים staff shifts schedule">
           <header class="sb-card-hd">
             <div class="sb-card-ttl">
               <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#shifts"/></svg></span>
               <div>
-                <div class="sb-card-title">צוות ומשמרות</div>
-                <div class="sb-card-sub muted">שיבוץ, צוות, הרשאות.</div>
+                <div class="sb-card-title"><%= it.t('owner_manage.card_staff_title') %></div>
+                <div class="sb-card-sub muted"><%= it.t('owner_manage.card_staff_sub') %></div>
               </div>
             </div>
-            <a class="btn sm ghost" href="<%= (canShifts ? r?._urls?.shifts : r?._urls?.staff) %>">פתח</a>
+            <a class="btn sm ghost" href="<%= (canShifts ? r?._urls?.shifts : r?._urls?.staff) %>"><%= it.t('owner_manage.btn_open') %></a>
           </header>
           <div class="sb-card-links">
-            <% if (canShifts) { %><a class="sb-link" href="<%= r?._urls?.shifts %>">לוח משמרות</a><% } %>
-            <% if (canStaff) { %><a class="sb-link" href="<%= r?._urls?.staff %>">ניהול עובדים</a><% } %>
+            <% if (canShifts) { %><a class="sb-link" href="<%= r?._urls?.shifts %>"><%= it.t('owner_manage.link_shift_board') %></a><% } %>
+            <% if (canStaff) { %><a class="sb-link" href="<%= r?._urls?.staff %>"><%= it.t('owner_manage.link_manage_staff') %></a><% } %>
             <% if (isOwner) { %>
-              <a class="sb-link" href="<%= r?._urls?.time %>" data-sb-search="נוכחות עובדים timeclock attendance">נוכחות עובדים</a>
-              <a class="sb-link" href="<%= r?._urls?.payroll %>" data-sb-search="שכר עובדים payroll">שכר עובדים</a>
+              <a class="sb-link" href="<%= r?._urls?.time %>" data-sb-search="נוכחות עובדים timeclock attendance"><%= it.t('owner_manage.link_attendance') %></a>
+              <a class="sb-link" href="<%= r?._urls?.payroll %>" data-sb-search="שכר עובדים payroll"><%= it.t('owner_manage.link_payroll') %></a>
             <% } %>
-            <% if (isStaff) { %><a class="sb-link" href="/staff/shifts">המשמרות שלי</a><% } %>
-            <% if (isOwner && canShifts) { %><a class="sb-link" href="<%= r?._urls?.shifts %>">תבניות משמרת</a><% } %>
+            <% if (isStaff) { %><a class="sb-link" href="/staff/shifts"><%= it.t('owner_manage.link_my_shifts') %></a><% } %>
+            <% if (isOwner && canShifts) { %><a class="sb-link" href="<%= r?._urls?.shifts %>"><%= it.t('owner_manage.link_shift_templates') %></a><% } %>
           </div>
         </section>
         <% } %>
       </div>
 
-      <div class="sb-grid cols-3" aria-label="עוד קטגוריות">
+      <div class="sb-grid cols-3" aria-label="<%= it.t('owner_manage.more_categories_aria') %>">
         <% if (canReports) { %>
-        <section class="sb-surface sb-card" aria-label="דוחות ותובנות" data-sb-search="דוחות תובנות סטטיסטיקה reports analytics stats">
+        <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.card_reports_title') %>" data-sb-search="דוחות תובנות סטטיסטיקה reports analytics stats">
           <header class="sb-card-hd">
             <div class="sb-card-ttl">
               <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#chart"/></svg></span>
               <div>
-                <div class="sb-card-title">דוחות ותובנות</div>
-                <div class="sb-card-sub muted">סטטיסטיקות, מגמות, ביצועים.</div>
+                <div class="sb-card-title"><%= it.t('owner_manage.card_reports_title') %></div>
+                <div class="sb-card-sub muted"><%= it.t('owner_manage.card_reports_sub') %></div>
               </div>
             </div>
-            <a class="btn sm ghost" href="<%= r?._urls?.stats %>">פתח</a>
+            <a class="btn sm ghost" href="<%= r?._urls?.stats %>"><%= it.t('owner_manage.btn_open') %></a>
           </header>
           <div class="sb-card-links">
-            <a class="sb-link" href="<%= r?._urls?.stats %>">דוחות כלליים</a>
-            <a class="sb-link" href="<%= r?._urls?.stats %>">תפוסה לפי שעה</a>
-            <a class="sb-link" href="<%= r?._urls?.stats %>">רווחיות (בהמשך)</a>
+            <a class="sb-link" href="<%= r?._urls?.stats %>"><%= it.t('owner_manage.link_general_reports') %></a>
+            <a class="sb-link" href="<%= r?._urls?.stats %>"><%= it.t('owner_manage.link_hourly_occupancy') %></a>
+            <a class="sb-link" href="<%= r?._urls?.stats %>"><%= it.t('owner_manage.link_profitability') %></a>
           </div>
         </section>
         <% } %>
 
         <% if (canInvView) { %>
-        <section class="sb-surface sb-card" aria-label="מלאי" data-sb-search="מלאי inventory stock counts recipes">
+        <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.card_inventory_title') %>" data-sb-search="מלאי inventory stock counts recipes">
           <header class="sb-card-hd">
             <div class="sb-card-ttl">
               <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#box"/></svg></span>
               <div>
-                <div class="sb-card-title">מלאי</div>
-                <div class="sb-card-sub muted">סטוק, ספירות, מתכונים.</div>
+                <div class="sb-card-title"><%= it.t('owner_manage.card_inventory_title') %></div>
+                <div class="sb-card-sub muted"><%= it.t('owner_manage.card_inventory_sub') %></div>
               </div>
             </div>
-            <a class="btn sm ghost" href="<%= r?._urls?.inventory %>">פתח</a>
+            <a class="btn sm ghost" href="<%= r?._urls?.inventory %>"><%= it.t('owner_manage.btn_open') %></a>
           </header>
           <div class="sb-card-links">
-            <a class="sb-link" href="<%= r?._urls?.inventory %>">מלאי נוכחי</a>
-            <a class="sb-link" href="/owner/<%= encodeURIComponent(r?.id || '') %>/inventory/counts">ספירות מלאי</a>
-            <a class="sb-link" href="/owner/<%= encodeURIComponent(r?.id || '') %>/inventory/recipes">מתכונים</a>
+            <a class="sb-link" href="<%= r?._urls?.inventory %>"><%= it.t('owner_manage.link_current_stock') %></a>
+            <a class="sb-link" href="/owner/<%= encodeURIComponent(r?.id || '') %>/inventory/counts"><%= it.t('owner_manage.link_inventory_counts') %></a>
+            <a class="sb-link" href="/owner/<%= encodeURIComponent(r?.id || '') %>/inventory/recipes"><%= it.t('owner_manage.link_recipes') %></a>
           </div>
         </section>
         <% } %>
 
         <% if (canHost || canWaiter || canKitchen || canBar || canMenu || canReports) { %>
-        <section class="sb-surface sb-card" aria-label="מסכי תפעול" data-sb-search="מסכי תפעול מארחת מלצרים מטבח בר POS waiter kitchen host bar">
+        <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.card_ops_title') %>" data-sb-search="מסכי תפעול מארחת מלצרים מטבח בר POS waiter kitchen host bar">
           <header class="sb-card-hd">
             <div class="sb-card-ttl">
               <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#screen"/></svg></span>
               <div>
-                <div class="sb-card-title">מסכי תפעול</div>
-                <div class="sb-card-sub muted">מארחת, מלצרים, מטבח ובר – עבודה בזמן אמת.</div>
+                <div class="sb-card-title"><%= it.t('owner_manage.card_ops_title') %></div>
+                <div class="sb-card-sub muted"><%= it.t('owner_manage.card_ops_sub') %></div>
               </div>
             </div>
-            <a class="btn sm ghost" href="<%= (canHost ? r?._urls?.host : (canWaiter ? r?._urls?.waiter : (canKitchen ? r?._urls?.kitchen : '#'))) %>">פתח</a>
+            <a class="btn sm ghost" href="<%= (canHost ? r?._urls?.host : (canWaiter ? r?._urls?.waiter : (canKitchen ? r?._urls?.kitchen : '#'))) %>"><%= it.t('owner_manage.btn_open') %></a>
           </header>
           <div class="sb-card-links">
-            <% if (canHost) { %><a class="sb-link" href="<%= r?._urls?.host %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#chair"/></svg></span>מסך מארחת</span></a><% } %>
-            <% if (canWaiter) { %><a class="sb-link" href="<%= r?._urls?.waiter %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#utensils"/></svg></span>מסך מלצרים</span></a><% } %>
-            <% if (canWaiter) { %><a class="sb-link" href="<%= r?._urls?.waiterMap %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#map"/></svg></span>מפת מלצרים</span></a><% } %>
-            <% if (canKitchen) { %><a class="sb-link" href="<%= r?._urls?.kitchen %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#chef"/></svg></span>מסך מטבח</span></a><% } %>
-            <% if (canBar) { %><a class="sb-link" href="<%= r?._urls?.bar %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#cocktail"/></svg></span>מסך בר</span></a><% } %>
-            <% if (isOwner && canMenu) { %><a class="sb-link" href="<%= r?._urls?.menu %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#receipt"/></svg></span>עריכת תפריט</span></a><% } %>
-            <% if (canReports) { %><a class="sb-link" href="<%= r?._urls?.bills %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#card"/></svg></span>חשבונות אחרונים</span></a><% } %>
+            <% if (canHost) { %><a class="sb-link" href="<%= r?._urls?.host %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#chair"/></svg></span><%= it.t('owner_manage.host_screen') %></span></a><% } %>
+            <% if (canWaiter) { %><a class="sb-link" href="<%= r?._urls?.waiter %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#utensils"/></svg></span><%= it.t('owner_manage.waiter_screen') %></span></a><% } %>
+            <% if (canWaiter) { %><a class="sb-link" href="<%= r?._urls?.waiterMap %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#map"/></svg></span><%= it.t('owner_manage.table_map') %></span></a><% } %>
+            <% if (canKitchen) { %><a class="sb-link" href="<%= r?._urls?.kitchen %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#chef"/></svg></span><%= it.t('owner_manage.kitchen_screen') %></span></a><% } %>
+            <% if (canBar) { %><a class="sb-link" href="<%= r?._urls?.bar %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#cocktail"/></svg></span><%= it.t('owner_manage.bar_screen') %></span></a><% } %>
+            <% if (isOwner && canMenu) { %><a class="sb-link" href="<%= r?._urls?.menu %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#receipt"/></svg></span><%= it.t('owner_manage.edit_menu') %></span></a><% } %>
+            <% if (canReports) { %><a class="sb-link" href="<%= r?._urls?.bills %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#card"/></svg></span><%= it.t('owner_manage.link_recent_bills') %></span></a><% } %>
           </div>
         </section>
         <% } %>
 
         <% if (isOwner) { %>
-        <section class="sb-surface sb-card" aria-label="הגדרות" data-sb-search="הגדרות settings hours profile">
+        <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.card_settings_title') %>" data-sb-search="הגדרות settings hours profile">
           <header class="sb-card-hd">
             <div class="sb-card-ttl">
               <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#settings"/></svg></span>
               <div>
-                <div class="sb-card-title">הגדרות</div>
-                <div class="sb-card-sub muted">פרטים, שעות, תמונות.</div>
+                <div class="sb-card-title"><%= it.t('owner_manage.card_settings_title') %></div>
+                <div class="sb-card-sub muted"><%= it.t('owner_manage.card_settings_sub') %></div>
               </div>
             </div>
-            <a class="btn sm ghost" href="<%= r?._urls?.edit %>">פתח</a>
+            <a class="btn sm ghost" href="<%= r?._urls?.edit %>"><%= it.t('owner_manage.btn_open') %></a>
           </header>
           <div class="sb-card-links">
-            <a class="sb-link" href="<%= r?._urls?.hours %>">שעות פעילות</a>
-            <a class="sb-link" href="<%= r?._urls?.photos %>">תמונות</a>
-            <a class="sb-link" href="<%= r?._urls?.edit %>">פרטי מסעדה</a>
-            <a class="sb-link" href="/auth/change-password">שנה סיסמה</a>
+            <a class="sb-link" href="<%= r?._urls?.hours %>"><%= it.t('owner_manage.link_opening_hours') %></a>
+            <a class="sb-link" href="<%= r?._urls?.photos %>"><%= it.t('owner_manage.link_photos') %></a>
+            <a class="sb-link" href="<%= r?._urls?.edit %>"><%= it.t('owner_manage.link_restaurant_details') %></a>
+            <a class="sb-link" href="/auth/change-password"><%= it.t('owner_manage.link_change_password') %></a>
           </div>
         </section>
         <% } %>
 
         <% if (isStaff) { %>
-        <section class="sb-surface sb-card" aria-label="העבודה שלי" data-sb-search="עובד משמרות נוכחות timeclock shifts">
+        <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.card_my_work_title') %>" data-sb-search="עובד משמרות נוכחות timeclock shifts">
           <header class="sb-card-hd">
             <div class="sb-card-ttl">
               <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#shifts"/></svg></span>
               <div>
-                <div class="sb-card-title">העבודה שלי</div>
-                <div class="sb-card-sub muted">כניסה/יציאה, משמרות, זמינות.</div>
+                <div class="sb-card-title"><%= it.t('owner_manage.card_my_work_title') %></div>
+                <div class="sb-card-sub muted"><%= it.t('owner_manage.card_my_work_sub') %></div>
               </div>
             </div>
-            <a class="btn sm ghost" href="/staff/shifts">פתח</a>
+            <a class="btn sm ghost" href="/staff/shifts"><%= it.t('owner_manage.btn_open') %></a>
           </header>
           <div class="sb-card-links">
-            <a class="sb-link" href="/staff/timeclock">כניסה / יציאה</a>
-            <a class="sb-link" href="/staff/shifts">המשמרות שלי</a>
-            <a class="sb-link" href="/staff/shifts">הגדרת זמינות</a>
+            <a class="sb-link" href="/staff/timeclock"><%= it.t('owner_manage.link_clock_in_out') %></a>
+            <a class="sb-link" href="/staff/shifts"><%= it.t('owner_manage.link_my_shifts') %></a>
+            <a class="sb-link" href="/staff/shifts"><%= it.t('owner_manage.link_set_availability') %></a>
           </div>
         </section>
         <% } %>
@@ -425,32 +425,32 @@
 
       <!-- Upcoming reservations preview -->
       <% if (canCalendar) { %>
-      <section class="sb-surface sb-card" aria-label="הזמנות קרובות">
+      <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.upcoming_title') %>">
         <header class="sb-card-hd">
           <div class="sb-card-ttl">
             <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#calendar"/></svg></span>
             <div>
-              <div class="sb-card-title">הזמנות קרובות</div>
-              <div class="sb-card-sub muted">תצוגה מהירה של היום.</div>
+              <div class="sb-card-title"><%= it.t('owner_manage.upcoming_title') %></div>
+              <div class="sb-card-sub muted"><%= it.t('owner_manage.upcoming_sub') %></div>
             </div>
           </div>
-          <a class="btn sm ghost" href="<%= r?._urls?.calendar %>">לכל ההזמנות</a>
+          <a class="btn sm ghost" href="<%= r?._urls?.calendar %>"><%= it.t('owner_manage.link_all_reservations') %></a>
         </header>
-        <div class="sb-table" role="table" aria-label="טבלת הזמנות">
+        <div class="sb-table" role="table" aria-label="<%= it.t('owner_manage.upcoming_title') %>">
           <div class="sb-table-head" role="rowgroup">
             <div class="sb-tr" role="row">
-              <div class="sb-th" role="columnheader">שעה</div>
-              <div class="sb-th" role="columnheader">שם</div>
-              <div class="sb-th" role="columnheader">סועדים</div>
-              <div class="sb-th" role="columnheader">סטטוס</div>
+              <div class="sb-th" role="columnheader"><%= it.t('owner_manage.table_time') %></div>
+              <div class="sb-th" role="columnheader"><%= it.t('owner_manage.table_name') %></div>
+              <div class="sb-th" role="columnheader"><%= it.t('owner_manage.table_guests') %></div>
+              <div class="sb-th" role="columnheader"><%= it.t('owner_manage.table_status') %></div>
             </div>
           </div>
           <div class="sb-table-body" role="rowgroup">
             <% if (!preview.length) { %>
-              <div class="sb-empty muted">אין הזמנות להצגה.</div>
+              <div class="sb-empty muted"><%= it.t('owner_manage.no_reservations') %></div>
             <% } else { %>
               <% preview.forEach(function(x){ %>
-                <a class="sb-tr sb-rowlink" role="row" href="<%= r?._urls?.calendar %>" aria-label="פתח ביומן">
+                <a class="sb-tr sb-rowlink" role="row" href="<%= r?._urls?.calendar %>" aria-label="<%= it.t('owner_manage.open_in_calendar') %>">
                   <div class="sb-td" role="cell"><strong><%= x.time %></strong></div>
                   <div class="sb-td" role="cell"><%= x.name %></div>
                   <div class="sb-td" role="cell"><%= x.people %></div>
@@ -464,19 +464,19 @@
       <% } %>
     </main>
 
-    <aside class="sb-dashboard-side" aria-label="צד">
+    <aside class="sb-dashboard-side" aria-label="Sidebar">
       <section class="sb-surface sb-card">
         <header class="sb-card-hd">
           <div class="sb-card-ttl">
             <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#check"/></svg></span>
             <div>
-              <div class="sb-card-title">משימות להיום</div>
-              <div class="sb-card-sub muted">דברים שצריך לסגור.</div>
+              <div class="sb-card-title"><%= it.t('owner_manage.tasks_title') %></div>
+              <div class="sb-card-sub muted"><%= it.t('owner_manage.tasks_sub') %></div>
             </div>
           </div>
         </header>
         <% if (!tasks.length) { %>
-          <div class="sb-empty muted">אין משימות כרגע.</div>
+          <div class="sb-empty muted"><%= it.t('owner_manage.no_tasks') %></div>
         <% } else { %>
           <div class="sb-list">
             <% tasks.forEach(function(t){ %>
@@ -498,13 +498,13 @@
           <div class="sb-card-ttl">
             <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#bell"/></svg></span>
             <div>
-              <div class="sb-card-title">התראות</div>
-              <div class="sb-card-sub muted">מידע שחשוב לשים לב אליו.</div>
+              <div class="sb-card-title"><%= it.t('owner_manage.alerts_title') %></div>
+              <div class="sb-card-sub muted"><%= it.t('owner_manage.alerts_sub') %></div>
             </div>
           </div>
         </header>
         <% if (!alerts.length) { %>
-          <div class="sb-empty muted">אין התראות כרגע.</div>
+          <div class="sb-empty muted"><%= it.t('owner_manage.no_alerts') %></div>
         <% } else { %>
           <div class="sb-list">
             <% alerts.forEach(function(a){ %>
@@ -519,27 +519,27 @@
         <% } %>
       </section>
 
-      <section class="sb-surface sb-card" aria-label="קיצורי הגדרות">
+      <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.quick_settings_title') %>">
         <header class="sb-card-hd">
           <div class="sb-card-ttl">
             <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#settings"/></svg></span>
             <div>
-              <div class="sb-card-title">הגדרות מהירות</div>
-              <div class="sb-card-sub muted">עריכה מהירה של פרטים.</div>
+              <div class="sb-card-title"><%= it.t('owner_manage.quick_settings_title') %></div>
+              <div class="sb-card-sub muted"><%= it.t('owner_manage.quick_settings_sub') %></div>
             </div>
           </div>
         </header>
         <div class="sb-card-links">
-          <a class="sb-link" href="<%= r?._urls?.hours %>">שעות פעילות</a>
-          <a class="sb-link" href="<%= r?._urls?.photos %>">תמונות</a>
-          <a class="sb-link" href="<%= r?._urls?.edit %>">פרטי מסעדה</a>
+          <a class="sb-link" href="<%= r?._urls?.hours %>"><%= it.t('owner_manage.link_opening_hours') %></a>
+          <a class="sb-link" href="<%= r?._urls?.photos %>"><%= it.t('owner_manage.link_photos') %></a>
+          <a class="sb-link" href="<%= r?._urls?.edit %>"><%= it.t('owner_manage.link_restaurant_details') %></a>
         </div>
       </section>
     </aside>
   </div>
 
   <div class="sb-note" style="margin-top:10px">
-    טיפ: השתמש בחיפוש למעלה כדי למצוא במהירות דפים/פעולות. במחשב אפשר להפעיל "תצוגה קומפקטית" כדי לראות יותר מידע.
+    <%= it.t('owner_manage.tip') %>
   </div>
 
   <script src="/public/js/owner-restaurant-manage.js?v=<%= it.BUILD_TAG || Date.now() %>" defer></script>
