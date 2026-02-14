@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import './FloorEditor.css';
-import { t } from '../i18n';
+import { t, getCurrentLang } from '../i18n';
 
 interface FloorTable {
   id: string;
@@ -117,7 +117,9 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
   type FloorThemeKey = 'parquet_blue' | 'parquet_brown' | 'slate_dark' | 'navy_carpet' | 'teal_terrazzo';
 
-  const getFloorThemes = (): Record<FloorThemeKey, { label: string; bg: string; size: string; repeat: string; pos: string }> => ({
+  const currentLang = getCurrentLang();
+
+  const FLOOR_THEMES = useMemo(() => ({
     parquet_blue: {
       label: t('floor.themes.parquet_blue', 'Blue parquet'),
       bg: `url(${`/floor_assets/floor_parquet_blue.svg`})`,
@@ -153,9 +155,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
       repeat: 'repeat',
       pos: 'center',
     },
-  });
-
-  const FLOOR_THEMES = getFloorThemes();
+  } as Record<FloorThemeKey, { label: string; bg: string; size: string; repeat: string; pos: string }>), [currentLang]);
 
   const normalizeTheme = (v?: string): FloorThemeKey => {
     // Backwards compatibility: previous versions stored hex colors.

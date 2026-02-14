@@ -9,10 +9,11 @@
 </main>
 
 <script>
-  // Pass page and restaurantId to React app before it loads
+  // Pass page, restaurantId, and language to React app before it loads
   window.__APP_CONFIG__ = {
     page: 'floor',
-    restaurantId: '<%= it.restaurantId %>'
+    restaurantId: '<%= it.restaurantId %>',
+    lang: '<%= it.lang || "he" %>'
   };
 </script>
 
