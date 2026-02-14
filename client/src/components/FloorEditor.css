@@ -360,6 +360,15 @@
   border-radius: 12px;
   box-shadow: 0 16px 40px rgba(0,0,0,.35);
   margin: 24px;
+  /* Critical for Hebrew/RTL pages: keep the grid coordinate system LTR so
+     pointer-drag math matches what users see (prevents mirrored X placement). */
+  direction: ltr;
+}
+
+/* Range inputs behave oddly under RTL; force LTR so the thumb moves naturally */
+.range-ltr{
+  direction: ltr;
+  width: 100%;
 }
 
 .fe-drop-preview{

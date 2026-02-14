@@ -792,18 +792,17 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     const scaleX = rect.width / Math.max(1, gridW);
     const scaleY = rect.height / Math.max(1, gridH);
 
-    const xLocal = (clientX - rect.left) / scaleX;
+    // Important: in RTL pages, CSS grid can lay out columns right-to-left.
+    // If we calculate from rect.left we'll see a mirrored ("X axis") placement.
+    // Fix: when direction is rtl, measure X from rect.right instead.
+    const dir = getComputedStyle(gridEl).direction;
+    const xLocal = (dir === 'rtl')
+      ? (rect.right - clientX) / scaleX
+      : (clientX - rect.left) / scaleX;
     const yLocal = (clientY - rect.top) / scaleY;
 
-    let gx = Math.floor(xLocal / cellSize);
+    const gx = Math.floor(xLocal / cellSize);
     const gy = Math.floor(yLocal / cellSize);
-
-    // In RTL layouts, CSS grid columns are laid out from right-to-left.
-    // Convert logical x so drop/drag matches the visual position.
-    const dir = getComputedStyle(gridEl).direction;
-    if (dir === 'rtl') {
-      gx = (currentLayout.gridCols - 1) - gx;
-    }
 
     if (Number.isNaN(gx) || Number.isNaN(gy)) return null;
     if (gx < 0 || gy < 0 || gx >= currentLayout.gridCols || gy >= currentLayout.gridRows) return null;
@@ -1154,18 +1153,26 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   const updateObject = (objectId: string, updates: Partial<FloorObject>) => {
     if (!currentLayout) return;
     const objects = currentLayout.objects ?? [];
-    setCurrentLayout({
-      ...currentLayout,
-      objects: objects.map(o => o.id === objectId ? { ...o, ...updates } : o),
-    });
+    const nextObjects = objects.map(o => o.id === objectId ? { ...o, ...updates } : o);
+    setCurrentLayout({ ...currentLayout, objects: nextObjects });
+
+    // Keep the right-side inspector in sync
+    if (selectedObject?.id === objectId) {
+      const updated = nextObjects.find(o => o.id === objectId);
+      if (updated) setSelectedObject(updated);
+    }
   };
 
   const updateTable = (tableId: string, updates: Partial<FloorTable>) => {
     if (!currentLayout) return;
-    setCurrentLayout({
-      ...currentLayout,
-      tables: currentLayout.tables.map(t => t.id === tableId ? { ...t, ...updates } : t)
-    });
+    const nextTables = currentLayout.tables.map(t => t.id === tableId ? { ...t, ...updates } : t);
+    setCurrentLayout({ ...currentLayout, tables: nextTables });
+
+    // Keep the right-side inspector in sync
+    if (selectedTable?.id === tableId) {
+      const updated = nextTables.find(t => t.id === tableId);
+      if (updated) setSelectedTable(updated);
+    }
   };
 
   const saveCurrentLayout = async () => {
@@ -1551,17 +1558,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 	                >
 	                  ↺
 	                </button>
-	                <select
-	                  className="range-ltr"
-	                  style={{ maxWidth: 110 }}
-	                  value={getItemRotation((selectedTable as any).rotationDeg ?? 0)}
-	                  onChange={(e) => updateTable(selectedTable.id, { rotationDeg: Number(e.target.value) })}
-	                  title="Rotation"
-	                >
-	                  {[0,45,90,135,180,225,270,315].map((d) => (
-	                    <option key={d} value={d}>{d}°</option>
-	                  ))}
-	                </select>
+	                <span style={{ minWidth: 54, textAlign: 'center', opacity: 0.9 }}>
+	                  {getItemRotation((selectedTable as any).rotationDeg ?? 0)}°
+	                </span>
 	                <button
 	                  className="btn-icon-small"
 	                  onClick={() =>
@@ -1634,17 +1633,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     onClick={() => updateObject(selectedObject.id, { rotationDeg: getItemRotation((((selectedObject as any).rotationDeg ?? selectedObject.rotation ?? 0) as number) - 45) })}
     title="Rotate -45°"
   >↺</button>
-  <select
-    className="range-ltr"
-    style={{ maxWidth: 110 }}
-    value={getItemRotation((selectedObject as any).rotationDeg ?? selectedObject.rotation ?? 0)}
-    onChange={(e) => updateObject(selectedObject.id, { rotationDeg: Number(e.target.value) })}
-    title="Rotation"
-  >
-    {[0,45,90,135,180,225,270,315].map((d) => (
-      <option key={d} value={d}>{d}°</option>
-    ))}
-  </select>
+  <span style={{ minWidth: 54, textAlign: 'center', opacity: 0.9 }}>
+    {getItemRotation((selectedObject as any).rotationDeg ?? selectedObject.rotation ?? 0)}°
+  </span>
   <button
     className="btn-icon-small"
     onClick={() => updateObject(selectedObject.id, { rotationDeg: getItemRotation((((selectedObject as any).rotationDeg ?? selectedObject.rotation ?? 0) as number) + 45) })}
