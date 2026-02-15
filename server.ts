@@ -374,6 +374,26 @@ root.get("/__mailtest", async (ctx) => {
   ctx.response.body = "sent (or dry-run logged)";
 });
 
+// i18n API endpoint - serves translation JSON for React client
+root.get("/api/i18n/:lang", async (ctx) => {
+  const lang = ctx.params.lang?.toLowerCase() || "he";
+  const supported = ["he", "en", "ka"];
+  const safeLang = supported.includes(lang) ? lang : "he";
+
+  try {
+    const filePath = `./i18n/${safeLang}.json`;
+    const txt = await Deno.readTextFile(filePath);
+    const json = JSON.parse(txt);
+    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+    ctx.response.headers.set("Cache-Control", "public, max-age=300"); // cache 5 min
+    ctx.response.body = JSON.stringify(json);
+  } catch (err) {
+    console.error(`[i18n API] failed to load ${safeLang}.json:`, err);
+    ctx.response.status = 500;
+    ctx.response.body = JSON.stringify({ error: "Failed to load translations" });
+  }
+});
+
 // Env info (מאובטח)
 root.get("/__env", (ctx) => {
   const key = ctx.request.url.searchParams.get("key") ?? "";

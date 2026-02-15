@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import './FloorEditor.css';
-import { t } from '../i18n';
+import { t, getCurrentLang } from '../i18n';
 
 interface FloorTable {
   id: string;
@@ -71,8 +71,18 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [sections, setSections] = useState<FloorSection[]>([]);
   const [activeSection, setActiveSection] = useState<FloorSection | null>(null);
 
-  const [selectedTable, setSelectedTable] = useState<FloorTable | null>(null);
-  const [selectedObject, setSelectedObject] = useState<FloorObject | null>(null);
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+
+  const selectedTable = useMemo(() => {
+    if (!currentLayout || !selectedTableId) return null;
+    return currentLayout.tables.find(t => t.id === selectedTableId) ?? null;
+  }, [currentLayout, selectedTableId]);
+
+  const selectedObject = useMemo(() => {
+    if (!currentLayout || !selectedObjectId) return null;
+    return (currentLayout.objects ?? []).find(o => o.id === selectedObjectId) ?? null;
+  }, [currentLayout, selectedObjectId]);
   const [draggedItem, setDraggedItem] = useState<{
     kind: 'table' | 'object';
     mode: 'new' | 'existing';
@@ -117,43 +127,45 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
   type FloorThemeKey = 'parquet_blue' | 'parquet_brown' | 'slate_dark' | 'navy_carpet' | 'teal_terrazzo';
 
-  const FLOOR_THEMES: Record<FloorThemeKey, { label: string; bg: string; size: string; repeat: string; pos: string }> = {
+  const currentLang = getCurrentLang();
+
+  const FLOOR_THEMES = useMemo(() => ({
     parquet_blue: {
-      label: 'Blue parquet',
+      label: t('floor.themes.parquet_blue', 'Blue parquet'),
       bg: `url(${`/floor_assets/floor_parquet_blue.svg`})`,
       size: '240px 240px',
       repeat: 'repeat',
       pos: 'center',
     },
     parquet_brown: {
-      label: 'Brown parquet',
+      label: t('floor.themes.parquet_brown', 'Brown parquet'),
       bg: `url(${`/floor_assets/floor_parquet_brown.svg`})`,
       size: '240px 240px',
       repeat: 'repeat',
       pos: 'center',
     },
     slate_dark: {
-      label: 'Dark slate',
+      label: t('floor.themes.slate_dark', 'Dark slate'),
       bg: `url(${`/floor_assets/floor_slate_dark.svg`})`,
       size: '240px 240px',
       repeat: 'repeat',
       pos: 'center',
     },
     navy_carpet: {
-      label: 'Deep navy',
+      label: t('floor.themes.navy_carpet', 'Deep navy'),
       bg: `url(${`/floor_assets/floor_navy_carpet.svg`})`,
       size: '240px 240px',
       repeat: 'repeat',
       pos: 'center',
     },
     teal_terrazzo: {
-      label: 'Muted teal',
+      label: t('floor.themes.teal_terrazzo', 'Muted teal'),
       bg: `url(${`/floor_assets/floor_teal_terrazzo.svg`})`,
       size: '240px 240px',
       repeat: 'repeat',
       pos: 'center',
     },
-  };
+  } as Record<FloorThemeKey, { label: string; bg: string; size: string; repeat: string; pos: string }>), [currentLang]);
 
   const normalizeTheme = (v?: string): FloorThemeKey => {
     // Backwards compatibility: previous versions stored hex colors.
@@ -827,9 +839,12 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     if (!currentLayout) return;
     e.preventDefault();
     e.stopPropagation();
-    setSelectedTable(null);
-    setSelectedObject(null);
-    setPointerDrag({ kind, mode: 'new', spanX, spanY, payload });
+    setSelectedTableId(null);
+      setSelectedObjectId(null);
+      setSelectedTableId(null);
+      setSelectedObjectId(null);
+      setSelectedTableId(null);
+      setPointerDrag({ kind, mode: 'new', spanX, spanY, payload });
     setDragPreviewCell(null);
   };
 
@@ -993,7 +1008,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       const snapped = snapPlacement(gridX, gridY, sp.spanX, sp.spanY, 'table', draggedItem.shape, disableSnap);
 
       if (!maskAllows(snapped.x, snapped.y, sp.spanX, sp.spanY)) {
-        alert('Cannot place item outside the restaurant shape');
+        alert(t('floor.error.placement_outside', 'Cannot place item outside the restaurant shape'));
         return;
       }
 
@@ -1019,9 +1034,12 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         tables: [...currentLayout.tables, newTable]
       });
       setNextTableNumber(nextTableNumber + 1);
-      setSelectedObject(null);
-      setSelectedTable(newTable);
-    }
+      setSelectedObjectId(null);
+      setSelectedTableId(null);
+      setSelectedTableId(newTable.id);
+      setSelectedObjectId(null);
+      setSelectedTableId(null);
+      }
 
     // Move EXISTING table
     else if (draggedItem.kind === 'table' && draggedItem.mode === 'existing' && draggedItem.tableId) {
@@ -1030,7 +1048,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       const snapped = snapPlacement(gridX, gridY, moving.spanX || 1, moving.spanY || 1, 'table', moving.shape, disableSnap, { kind: 'table', id: moving.id });
 
       if (!maskAllows(snapped.x, snapped.y, moving.spanX || 1, moving.spanY || 1)) {
-        alert('Cannot move item outside the restaurant shape');
+        alert(t('floor.error.move_outside', 'Cannot move item outside the restaurant shape'));
         return;
       }
       setCurrentLayout({
@@ -1063,7 +1081,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       const snapped = snapPlacement(gridX, gridY, sp.spanX, sp.spanY, 'object', draggedItem.objectType, disableSnap);
 
       if (!maskAllows(snapped.x, snapped.y, sp.spanX, sp.spanY)) {
-        alert('Cannot place item outside the restaurant shape');
+        alert(t('floor.error.placement_outside', 'Cannot place item outside the restaurant shape'));
         return;
       }
       const newObj: FloorObject = {
@@ -1085,9 +1103,12 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         ...currentLayout,
         objects: [...objects, newObj],
       });
-      setSelectedTable(null);
-      setSelectedObject(newObj);
-    }
+      setSelectedTableId(null);
+      setSelectedObjectId(null);
+      setSelectedTableId(null);
+      setSelectedObjectId(newObj.id);
+      setSelectedTableId(null);
+      }
 
     // Move EXISTING object
     else if (draggedItem.kind === 'object' && draggedItem.mode === 'existing' && draggedItem.objectId) {
@@ -1097,7 +1118,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       const snapped = snapPlacement(gridX, gridY, moving.spanX || 1, moving.spanY || 1, 'object', moving.type, disableSnap, { kind: 'object', id: moving.id });
 
       if (!maskAllows(snapped.x, snapped.y, moving.spanX || 1, moving.spanY || 1)) {
-        alert('Cannot move item outside the restaurant shape');
+        alert(t('floor.error.move_outside', 'Cannot move item outside the restaurant shape'));
         return;
       }
       setCurrentLayout({
@@ -1137,8 +1158,10 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       ...currentLayout,
       tables: currentLayout.tables.filter(t => t.id !== tableId)
     });
-    setSelectedTable(null);
-  };
+    setSelectedTableId(null);
+      setSelectedObjectId(null);
+      setSelectedTableId(null);
+      };
 
   const deleteObject = (objectId: string) => {
     if (!currentLayout) return;
@@ -1147,33 +1170,22 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       ...currentLayout,
       objects: objects.filter(o => o.id !== objectId),
     });
-    setSelectedObject(null);
-  };
+    setSelectedObjectId(null);
+      setSelectedTableId(null);
+      };
 
   const updateObject = (objectId: string, updates: Partial<FloorObject>) => {
     if (!currentLayout) return;
     const objects = currentLayout.objects ?? [];
     const nextObjects = objects.map(o => o.id === objectId ? { ...o, ...updates } : o);
     setCurrentLayout({ ...currentLayout, objects: nextObjects });
-
-    // Keep the right-side inspector in sync
-    if (selectedObject?.id === objectId) {
-      const updated = nextObjects.find(o => o.id === objectId);
-      if (updated) setSelectedObject(updated);
-    }
-  };
+};
 
   const updateTable = (tableId: string, updates: Partial<FloorTable>) => {
     if (!currentLayout) return;
     const nextTables = currentLayout.tables.map(t => t.id === tableId ? { ...t, ...updates } : t);
     setCurrentLayout({ ...currentLayout, tables: nextTables });
-
-    // Keep the right-side inspector in sync
-    if (selectedTable?.id === tableId) {
-      const updated = nextTables.find(t => t.id === tableId);
-      if (updated) setSelectedTable(updated);
-    }
-  };
+};
 
   const saveCurrentLayout = async () => {
     if (!currentLayout) return;
@@ -1211,10 +1223,10 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         {isCreateModalOpen && (
           <div className="modal-overlay" onClick={() => setIsCreateModalOpen(false)}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <h3>{t('floor.btn_create_new', 'Create New Layout')}</h3>
+              <h3>{t('floor.modal.create_title', 'Create New Layout')}</h3>
               <input
                 type="text"
-                placeholder={t('floor.placeholder.layout_name', 'Layout name (e.g., Main Floor, Patio)')}
+                placeholder={t('floor.modal.placeholder_name', 'Layout name (e.g., Main Floor, Patio)')}
                 value={newLayoutName}
                 onChange={(e) => setNewLayoutName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && createNewLayout()}
@@ -1241,7 +1253,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               key={layout.id}
               className={`layout-tab ${currentLayout.id === layout.id ? 'active' : ''} ${layout.isActive ? 'is-active' : ''}`}
               onClick={() => setCurrentLayout(ensureMask(layout))}
-              title={layout.isActive ? 'Active layout (shown in live view)' : ''}
+              title={layout.isActive ? t('floor.toolbar.active_hint', 'Active layout (shown in live view)') : ''}
             >
               {layout.name}
               {layout.isActive && <span className="active-badge">★</span>}
@@ -1249,19 +1261,19 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
           ))}
         </div>
         <div className="layout-actions">
-          <button className="btn-icon-small" onClick={() => setIsCreateModalOpen(true)} title="New Layout">
+          <button className="btn-icon-small" onClick={() => setIsCreateModalOpen(true)} title={t('floor.btn_new_layout', 'New Layout')}>
             ➕
           </button>
-          <button className="btn-icon-small" onClick={() => duplicateLayout(currentLayout.id)} title="Duplicate">
+          <button className="btn-icon-small" onClick={() => duplicateLayout(currentLayout.id)} title={t('floor.btn_duplicate', 'Duplicate')}>
             📋
           </button>
           {!currentLayout.isActive && (
-            <button className="btn-icon-small" onClick={() => setActiveLayout(currentLayout.id)} title="Set as Active">
+            <button className="btn-icon-small" onClick={() => setActiveLayout(currentLayout.id)} title={t('floor.btn_set_active', 'Set as Active')}>
               ⭐
             </button>
           )}
           {layouts.length > 1 && (
-            <button className="btn-icon-small btn-danger" onClick={() => deleteLayout(currentLayout.id)} title="Delete">
+            <button className="btn-icon-small btn-danger" onClick={() => deleteLayout(currentLayout.id)} title={t('floor.btn_delete', 'Delete')}>
               🗑️
             </button>
           )}
@@ -1272,7 +1284,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         <div className="editor-sidebar">
           {sections.length > 0 && (
             <div className="sections-tabs">
-              <h3>Sections</h3>
+              <h3>{t('floor.sections.title', 'Sections')}</h3>
               <div className="tabs">
                 {sections.map((section) => (
                   <button
@@ -1290,14 +1302,14 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   checked={showOnlyActiveSection}
                   onChange={(e) => setShowOnlyActiveSection(e.target.checked)}
                 />
-                <span>Show only active section</span>
+                <span>{t('floor.sections.show_only_active', 'Show only active section')}</span>
               </label>
             </div>
           )}
 
-          <h2>🧩 Assets</h2>
+          <h2>🧩 {t('floor.assets.title', 'Assets')}</h2>
 
-          <h3 className="fe-subtitle">Seating</h3>
+          <h3 className="fe-subtitle">{t('floor.assets.seating', 'Seating')}</h3>
           <div className="palette">
             <div
               className="palette-item"
@@ -1396,7 +1408,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             </div>
           </div>
 
-          <h3 className="fe-subtitle" style={{ marginTop: 14 }}>Visual only</h3>
+          <h3 className="fe-subtitle" style={{ marginTop: 14 }}>{t('floor.assets.visual_only', 'Visual only')}</h3>
           <div className="palette">
             <div className="palette-item" onMouseDown={(e) => beginPointerDragNew(e, 'object', 1, 1, { objectType: 'visual', objectLabel: 'corner_partitaion', assetFile: 'corner_partitaion.svg', objectKind: 'visualOnly' })}>
               <div className="preview"><img className="preview-img" src={assetForObject('divider', 1, 1, 'corner_partitaion')} alt="" /></div>
@@ -1431,9 +1443,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
           
           <div className="properties-panel">
-            <h3>Map</h3>
+            <h3>{t('floor.map.title', 'Map')}</h3>
             <label>
-              Cell size: {cellSize}px
+              {t('floor.map.cell_size', 'Cell size: {size}px').replace('{size}', String(cellSize))}
               <input
                 type="range"
                 min="40"
@@ -1444,7 +1456,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             </label>
 
             <label>
-              Floor:
+              {t('floor.map.floor_label', 'Floor:')}
               <select
                 value={floorTheme}
                 onChange={(e) => {
@@ -1464,11 +1476,14 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                 className="btn-icon-small"
                 onClick={() => {
                   setShapeMode(v => !v);
-                  setSelectedTable(null);
-                  setSelectedObject(null);
-                }}
+                  setSelectedTableId(null);
+      setSelectedObjectId(null);
+      setSelectedTableId(null);
+      setSelectedObjectId(null);
+      setSelectedTableId(null);
+      }}
               >
-                {shapeMode ? '✅ Done shape' : '✏️ Edit shape'}
+                {shapeMode ? `✅ ${t('floor.shape.done', 'Done shape')}` : `✏️ ${t('floor.shape.edit', 'Edit shape')}`}
               </button>
               <button
                 className="btn-icon-small"
@@ -1477,9 +1492,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   const size = currentLayout.gridRows * currentLayout.gridCols;
                   setCurrentLayout({ ...currentLayout, gridMask: Array.from({ length: size }, () => 1) });
                 }}
-                title="Reset shape"
+                title={t('floor.shape.reset_title', 'Reset shape')}
               >
-                ↺ Reset
+                ↺ {t('floor.shape.reset', 'Reset')}
               </button>
               <button
                 className="btn-icon-small"
@@ -1490,24 +1505,24 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                     gridMask: currentLayout.gridMask.map(v => (v === 1 ? 0 : 1)),
                   });
                 }}
-                title="Invert shape"
+                title={t('floor.shape.invert_title', 'Invert shape')}
               >
-                ⇄ Invert
+                ⇄ {t('floor.shape.invert', 'Invert')}
               </button>
             </div>
             {shapeMode && (
               <div className="fe-hint" style={{ marginTop: 8 }}
               >
-                Paint the restaurant shape: click/drag cells to enable/disable.
+                {t('floor.shape.paint_hint', 'Paint the restaurant shape: click/drag cells to enable/disable.')}
               </div>
             )}
           </div>
 
 {selectedTable && (
             <div className="properties-panel">
-              <h3>Selected: {selectedTable.name}</h3>
+              <h3>{t('floor.properties.selected_table', 'Selected: {name}').replace('{name}', selectedTable.name)}</h3>
               <label>
-                Name:
+                {t('floor.properties.name', 'Name:')}
                 <input
                   type="text"
                   value={selectedTable.name}
@@ -1515,7 +1530,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                 />
               </label>
               <label>
-                Seats:
+                {t('floor.properties.seats', 'Seats:')}
                 <input
                   type="number"
                   min="1"
@@ -1530,7 +1545,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 	              </label>
 
 	              <label>
-	                Size:
+	                {t('floor.properties.size', 'Size:')}
 	                <input
 	                  type="range"
 	                  min="0.6"
@@ -1546,7 +1561,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 	              </label>
 
 	              <div className="row" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-	                <span style={{ opacity: 0.85 }}>Rotate:</span>
+	                <span style={{ opacity: 0.85 }}>{t('floor.properties.rotate', 'Rotate:')}</span>
 	                <button
 	                  className="btn-icon-small"
 	                  onClick={() =>
@@ -1574,16 +1589,16 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 	                </button>
 	              </div>
               <button className="btn-danger" onClick={() => deleteTable(selectedTable.id)}>
-                🗑️ Delete
+                🗑️ {t('common.btn_delete', 'Delete')}
               </button>
             </div>
           )}
 
           {selectedObject && (
             <div className="properties-panel">
-              <h3>Selected: {selectedObject.type}</h3>
+              <h3>{t('floor.properties.selected_object', 'Selected: {type}').replace('{type}', selectedObject.type)}</h3>
               <label>
-                Label:
+                {t('floor.properties.name', 'Name:')}
                 <input
                   type="text"
                   value={selectedObject.label ?? ''}
@@ -1613,7 +1628,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                 </label>
               </div>
               <label>
-  Size:
+  {t('floor.properties.size', 'Size:')}
   <input
     type="range"
     min="0.6"
@@ -1627,7 +1642,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 </label>
 
 <div className="row" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-  <span style={{ opacity: .85 }}>Rotate:</span>
+  <span style={{ opacity: .85 }}>{t('floor.properties.rotate', 'Rotate:')}</span>
   <button
     className="btn-icon-small"
     onClick={() => updateObject(selectedObject.id, { rotationDeg: getItemRotation((((selectedObject as any).rotationDeg ?? selectedObject.rotation ?? 0) as number) - 45) })}
@@ -1643,24 +1658,24 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   >↻</button>
 </div>
               <button className="btn-danger" onClick={() => deleteObject(selectedObject.id)}>
-                🗑️ Delete
+                🗑️ {t('common.btn_delete', 'Delete')}
               </button>
             </div>
           )}
 
           <button className="btn-save" onClick={saveCurrentLayout}>
-            💾 Save Layout
+            💾 {t('floor.btn_save_layout', 'Save Layout')}
           </button>
         </div>
 
         <div className={`editor-canvas ${isPanning ? "is-panning" : ""}`} ref={canvasRef} onWheel={onCanvasWheel} onMouseDown={onCanvasMouseDown}>
           
           <div className="fe-canvas-controls">
-            <button className="btn-icon-small" onClick={() => zoomAtPoint(clampZoom(zoom * 1.1), (canvasRef.current?.getBoundingClientRect().left || 0) + 40, (canvasRef.current?.getBoundingClientRect().top || 0) + 40)} title="Zoom in">＋</button>
-            <button className="btn-icon-small" onClick={() => zoomAtPoint(clampZoom(zoom * 0.9), (canvasRef.current?.getBoundingClientRect().left || 0) + 40, (canvasRef.current?.getBoundingClientRect().top || 0) + 40)} title="Zoom out">－</button>
-            <button className="btn-icon-small" onClick={fitToScreen} title="Fit to screen">⤢</button>
+            <button className="btn-icon-small" onClick={() => zoomAtPoint(clampZoom(zoom * 1.1), (canvasRef.current?.getBoundingClientRect().left || 0) + 40, (canvasRef.current?.getBoundingClientRect().top || 0) + 40)} title={t('floor.toolbar.zoom_in', 'Zoom in')}>＋</button>
+            <button className="btn-icon-small" onClick={() => zoomAtPoint(clampZoom(zoom * 0.9), (canvasRef.current?.getBoundingClientRect().left || 0) + 40, (canvasRef.current?.getBoundingClientRect().top || 0) + 40)} title={t('floor.toolbar.zoom_out', 'Zoom out')}>－</button>
+            <button className="btn-icon-small" onClick={fitToScreen} title={t('floor.toolbar.fit_screen', 'Fit to screen')}>⤢</button>
             <div className="fe-zoom-readout">{Math.round(zoom * 100)}%</div>
-            <div className="fe-hint">{spacePressed ? 'Pan: drag' : 'Tip: hold Space to pan, Ctrl+wheel to zoom'}</div>
+            <div className="fe-hint">{spacePressed ? t('floor.hints.pan_drag', 'Pan: drag') : t('floor.hints.controls', 'Tip: hold Space to pan, Ctrl+wheel to zoom')}</div>
           </div>
           {(() => {
             const ft = FLOOR_THEMES[floorTheme];
@@ -1668,6 +1683,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               <div
                 className="fe-grid" ref={gridRef}
                 style={{
+                  direction: 'ltr',
               gridTemplateColumns: `repeat(${currentLayout.gridCols}, ${cellSize}px)`,
               gridTemplateRows: `repeat(${currentLayout.gridRows}, ${cellSize}px)`,
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
@@ -1851,9 +1867,12 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                       className={`floor-object type-${objectHere.type} ${selectedObject?.id === objectHere.id ? 'selected' : ''}`}
                       onMouseDown={(e) => beginPointerDragExisting(e, 'object', objectHere.id, objectHere.spanX || 1, objectHere.spanY || 1)}
                       onClick={() => {
-                        setSelectedTable(null);
-                        setSelectedObject(objectHere);
-                      }}
+                        setSelectedTableId(null);
+      setSelectedObjectId(null);
+      setSelectedTableId(null);
+      setSelectedObjectId(objectHere.id);
+      setSelectedTableId(null);
+      }}
                       style={{
                         width: `${spanToPx(objectHere.spanX)}px`,
                         height: `${spanToPx(objectHere.spanY)}px`,
@@ -1874,9 +1893,12 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                       className={`table ${tableHere.shape} ${selectedTable?.id === tableHere.id ? 'selected' : ''} ${(!showOnlyActiveSection && activeSection && String(tableHere.sectionId || '') && String(tableHere.sectionId || '') !== String(activeSection.id)) ? 'dimmed' : ''}`}
                       onMouseDown={(e) => beginPointerDragExisting(e, 'table', tableHere.id, tableHere.spanX || 1, tableHere.spanY || 1)}
                       onClick={() => {
-                        setSelectedObject(null);
-                        setSelectedTable(tableHere);
-                      }}
+                        setSelectedObjectId(null);
+      setSelectedTableId(null);
+      setSelectedTableId(tableHere.id);
+      setSelectedObjectId(null);
+      setSelectedTableId(null);
+      }}
                       style={{
                         width: `${spanToPx(tableHere.spanX)}px`,
                         height: `${spanToPx(tableHere.spanY)}px`,
@@ -1893,10 +1915,10 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                       </div>
                       <div className="fe-table-overlay">
                         <div className="table-label">{tableHere.name}</div>
-                        <div className="table-seats">{tableHere.seats} seats</div>
+                        <div className="table-seats">{tableHere.seats} {t('floor.properties.seats_unit', 'seats')}</div>
                         {tableHere.sectionId && sections.length > 0 && (
                           <div className="table-section">
-                            {sections.find(s => String(s.id) === String(tableHere.sectionId))?.name || 'Section'}
+                            {sections.find(s => String(s.id) === String(tableHere.sectionId))?.name || t('floor.properties.section', 'Section')}
                           </div>
                         )}
                       </div>
@@ -1914,18 +1936,18 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       {isCreateModalOpen && (
         <div className="modal-overlay" onClick={() => setIsCreateModalOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Create New Layout</h3>
+            <h3>{t('floor.modal.create_title', 'Create New Layout')}</h3>
             <input
               type="text"
-              placeholder="Layout name (e.g., Main Floor, Patio)"
+              placeholder={t('floor.modal.placeholder_name', 'Layout name (e.g., Main Floor, Patio)')}
               value={newLayoutName}
               onChange={(e) => setNewLayoutName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && createNewLayout()}
               autoFocus
             />
             <div className="modal-actions">
-              <button onClick={createNewLayout} className="btn-primary">Create</button>
-              <button onClick={() => setIsCreateModalOpen(false)} className="btn-secondary">Cancel</button>
+              <button onClick={createNewLayout} className="btn-primary">{t('floor.btn_create', 'Create')}</button>
+              <button onClick={() => setIsCreateModalOpen(false)} className="btn-secondary">{t('common.btn_cancel', 'Cancel')}</button>
             </div>
           </div>
         </div>

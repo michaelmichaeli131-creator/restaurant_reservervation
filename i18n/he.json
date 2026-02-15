@@ -208,10 +208,15 @@
   "floor": {
     "loading": "טוען תכניות רצפה...",
     "empty_state": "לא נמצאו תכניות רצפה. אנא צור תכנית רצפה תחילה.",
+    "empty_hint": "צור את תכנית הרצפה הראשונה שלך כדי להתחיל.",
     "btn_create_new": "צור תכנית חדשה",
     "btn_duplicate": "שכפל",
     "btn_add_table": "הוסף שולחן",
     "btn_save_layout": "שמור תכנית",
+    "btn_delete": "מחק",
+    "btn_new_layout": "תכנית חדשה",
+    "btn_set_active": "הגדר כפעיל",
+    "btn_create": "צור",
     "error": {
       "enter_name": "אנא הזן שם תכנית",
       "server": "שגיאת שרת: {status} {statusText}",
@@ -219,7 +224,9 @@
       "delete": "מחיקה נכשלה",
       "delete_general": "שגיאה במחיקת תכנית",
       "duplicate": "שגיאה בשכפול תכנית",
-      "save": "שגיאה בשמירה"
+      "save": "שגיאה בשמירה: {error}",
+      "placement_outside": "לא ניתן למקם פריט מחוץ לצורת המסעדה",
+      "move_outside": "לא ניתן להזיז פריט מחוץ לצורת המסעדה"
     },
     "confirm": {
       "delete_layout": "האם אתה בטוח שברצונך למחוק תכנית זו?"
@@ -227,11 +234,68 @@
     "prompt": {
       "duplicate_name": "הזן שם עבור תכנית משוכפלת:"
     },
+    "success": {
+      "save": "התכנית נשמרה בהצלחה!"
+    },
     "status": {
       "empty": "פנוי",
       "occupied": "תפוס",
       "reserved": "שמור",
       "dirty": "מלוכלך"
+    },
+    "sections": {
+      "title": "אזורים",
+      "show_only_active": "הצג רק אזור פעיל"
+    },
+    "assets": {
+      "title": "רכיבים",
+      "seating": "ישיבה",
+      "visual_only": "ויזואלי בלבד"
+    },
+    "map": {
+      "title": "מפה",
+      "cell_size": "גודל תא: {size}px",
+      "floor_label": "רצפה:"
+    },
+    "shape": {
+      "done": "סיום עריכת צורה",
+      "edit": "עריכת צורה",
+      "reset": "איפוס",
+      "reset_title": "איפוס צורה",
+      "invert": "היפוך",
+      "invert_title": "היפוך צורה",
+      "paint_hint": "צייר את צורת המסעדה: לחץ/גרור תאים להפעלה/כיבוי."
+    },
+    "properties": {
+      "selected_table": "נבחר: {name}",
+      "selected_object": "נבחר: {type}",
+      "name": "שם:",
+      "seats": "מושבים:",
+      "seats_unit": "מושבים",
+      "size": "גודל:",
+      "rotate": "סיבוב:",
+      "section": "אזור"
+    },
+    "toolbar": {
+      "active_hint": "תכנית פעילה (מוצגת בתצוגה חיה)",
+      "zoom_in": "הגדלה",
+      "zoom_out": "הקטנה",
+      "fit_screen": "התאם למסך"
+    },
+    "hints": {
+      "pan_drag": "גרירה: גרור",
+      "controls": "טיפ: החזק רווח לגרירה, Ctrl+גלגל לזום"
+    },
+    "modal": {
+      "create_title": "צור תכנית חדשה",
+      "placeholder_name": "שם התכנית (לדוגמה: קומה ראשית, מרפסת)"
+    },
+    "themes": {
+      "parquet_blue": "פרקט כחול",
+      "parquet_brown": "פרקט חום",
+      "slate_dark": "צפחה כהה",
+      "navy_carpet": "שטיח כחול כהה",
+      "teal_terrazzo": "טראצו ירוק-כחול"
     }
   }
 }
