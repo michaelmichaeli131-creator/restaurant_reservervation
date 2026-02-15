@@ -65,7 +65,20 @@ export function requireManager(ctx: any) {
   return true;
 }
 export function requireStaff(ctx: any) {
-  if (!ctx.state.user || !["owner", "manager", "staff"].includes(ctx.state.user.role)) {
+  // "Staff" routes are used by operational roles (waiter/hostess/bar/etc.).
+  // Keep it permissive for authenticated operational accounts.
+  const allowed = [
+    "owner",
+    "manager",
+    "staff",
+    "waiter",
+    "hostess",
+    "bartender",
+    "bar",
+    "chef",
+    "cook",
+  ];
+  if (!ctx.state.user || !allowed.includes(ctx.state.user.role)) {
     ctx.response.status = 403; ctx.response.body = "Forbidden"; return false;
   }
   return true;

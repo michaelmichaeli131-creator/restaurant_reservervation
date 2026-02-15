@@ -219,6 +219,16 @@ function tableAssetUrl(tbl){
     img.decoding = 'async';
     img.loading = 'lazy';
     img.src = tableAssetUrl(t);
+    // Match editor rendering: rotate + scale inside the allocated span.
+    const rot = Number((t && (t.rotationDeg ?? t.rotation)) || 0);
+    const scl = Number((t && t.scale) || 1);
+    const r = Number.isFinite(rot) ? ((rot % 360) + 360) % 360 : 0;
+    const s = Number.isFinite(scl) ? Math.max(0.5, Math.min(1.6, scl)) : 1;
+    img.style.width = '100%';
+    img.style.height = '100%';
+    img.style.objectFit = 'contain';
+    img.style.display = 'block';
+    img.style.transform = `rotate(${r}deg) scale(${s})`;
     visual.appendChild(img);
 
     // No auto-chairs: chairs are explicit assets in the layout.
@@ -296,6 +306,15 @@ function objectAssetUrl(o){
     img.decoding = 'async';
     img.loading = 'lazy';
     img.src = objectAssetUrl(obj);
+    const rot = Number((obj && (obj.rotationDeg ?? obj.rotation)) || 0);
+    const scl = Number((obj && obj.scale) || objectScale(obj));
+    const r = Number.isFinite(rot) ? ((rot % 360) + 360) % 360 : 0;
+    const s = Number.isFinite(scl) ? Math.max(0.5, Math.min(1.6, scl)) : 1;
+    img.style.width = '100%';
+    img.style.height = '100%';
+    img.style.objectFit = 'contain';
+    img.style.display = 'block';
+    img.style.transform = `scale(${s})`;
     el.appendChild(img);
     if (obj.label) {
       const lbl = document.createElement('div');
@@ -303,16 +322,17 @@ function objectAssetUrl(o){
       lbl.textContent = String(obj.label);
       el.appendChild(lbl);
     }
-    const rot = Number(obj.rotation || 0);
-    if (!Number.isNaN(rot) && rot) {
-      el.style.transform = `rotate(${rot}deg)`;
-    }
+    if (r) el.style.transform = `rotate(${r}deg)`;
     return el;
   }
 
   async function loadPlan(rid){
-    // Use the active multi-layout API so waiter/host always render the latest saved map.
-    const res = await fetch(`/api/floor-layouts/${encodeURIComponent(rid)}/active`, { cache: 'no-store' });
+    // Always load the ACTIVE floor layout (with live statuses) so hostess/waiter
+    // see the latest saved version.
+    const res = await fetch(`/api/floor-layouts/${encodeURIComponent(rid)}/active`, {
+      credentials: 'include',
+      cache: 'no-store',
+    });
     if (!res.ok) throw new Error('failed');
     return await res.json();
   }

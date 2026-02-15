@@ -225,22 +225,6 @@
   pointer-events: none;
   user-select: none;
 }
-
-/* ===== Mobile / tablet ===== */
-@media (max-width: 900px){
-  .sb-floor-topbar{ gap: 8px; }
-  .sb-floor-legend{ width: 100%; justify-content: flex-start; }
-  .sb-floor-viewport{ height: clamp(360px, 62vh, 640px); }
-}
-
-@media (max-width: 560px){
-  :root{ --sb-map-pad: 10px; --sb-map-gap: 10px; }
-  .sb-floor-tab{ padding: 9px 11px; font-size: 12px; }
-  .sb-floor-viewport{ height: 72vh; border-radius: 14px; }
-  .sb-floor-viewport::after{ inset: 8px; }
-  .sb-floor-hud{ right: 10px; bottom: 10px; }
-  .sb-floor-hud .sb-floor-floatbtn{ width: 40px; height: 40px; }
-}
 .sb-floor-object .sb-obj-asset{ width: 100%; height: 100%; object-fit: cover; display: block; filter: drop-shadow(0 10px 18px rgba(0,0,0,.18)); }
 .sb-floor-object .sb-obj-label{ font-size: 12px; opacity: .9; text-align: center; max-width: 92%; }
 
