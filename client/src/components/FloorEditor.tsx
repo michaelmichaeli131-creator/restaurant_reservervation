@@ -110,6 +110,10 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     mode: 'new' | 'existing';
     spanX: number;
     spanY: number;
+    // Cursor anchor inside the footprint (in cells). Keeps dragging predictable
+    // and avoids center-jump, especially on RTL pages.
+    anchorCellX?: number;
+    anchorCellY?: number;
     tableId?: string;
     objectId?: string;
     payload?: {
@@ -804,13 +808,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     const scaleX = rect.width / Math.max(1, gridW);
     const scaleY = rect.height / Math.max(1, gridH);
 
-    // Important: in RTL pages, CSS grid can lay out columns right-to-left.
-    // If we calculate from rect.left we'll see a mirrored ("X axis") placement.
-    // Fix: when direction is rtl, measure X from rect.right instead.
-    const dir = getComputedStyle(gridEl).direction;
-    const xLocal = (dir === 'rtl')
-      ? (rect.right - clientX) / scaleX
-      : (clientX - rect.left) / scaleX;
+    // The grid container is forced to direction:ltr (see CSS) so pointer math
+    // is consistent in every language.
+    const xLocal = (clientX - rect.left) / scaleX;
     const yLocal = (clientY - rect.top) / scaleY;
 
     const gx = Math.floor(xLocal / cellSize);
@@ -840,11 +840,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     e.preventDefault();
     e.stopPropagation();
     setSelectedTableId(null);
-      setSelectedObjectId(null);
-      setSelectedTableId(null);
-      setSelectedObjectId(null);
-      setSelectedTableId(null);
-      setPointerDrag({ kind, mode: 'new', spanX, spanY, payload });
+    setSelectedObjectId(null);
+    // New items: anchor is top-left of the footprint for predictable placement.
+    setPointerDrag({ kind, mode: 'new', spanX, spanY, anchorCellX: 0, anchorCellY: 0, payload });
     setDragPreviewCell(null);
   };
 
@@ -858,11 +856,35 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     if (!currentLayout) return;
     e.preventDefault();
     e.stopPropagation();
+
+    // Determine which cell inside the item was grabbed, so dragging doesn't
+    // jump to the center.
+    let anchorCellX = 0;
+    let anchorCellY = 0;
+    const grab = clientPointToGridCell(e.clientX, e.clientY);
+    if (grab) {
+      if (kind === 'table') {
+        const t = currentLayout.tables.find(tt => tt.id === id);
+        if (t) {
+          anchorCellX = clamp(grab.x - t.gridX, 0, Math.max(0, (t.spanX || 1) - 1));
+          anchorCellY = clamp(grab.y - t.gridY, 0, Math.max(0, (t.spanY || 1) - 1));
+        }
+      } else {
+        const o = (currentLayout.objects ?? []).find(oo => oo.id === id);
+        if (o) {
+          anchorCellX = clamp(grab.x - o.gridX, 0, Math.max(0, (o.spanX || 1) - 1));
+          anchorCellY = clamp(grab.y - o.gridY, 0, Math.max(0, (o.spanY || 1) - 1));
+        }
+      }
+    }
+
     setPointerDrag({
       kind,
       mode: 'existing',
       spanX,
       spanY,
+      anchorCellX,
+      anchorCellY,
       tableId: kind === 'table' ? id : undefined,
       objectId: kind === 'object' ? id : undefined,
     });
@@ -879,9 +901,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         return;
       }
 
-      // Anchor at center of the item
-      const baseX = cell.x - Math.floor(pointerDrag.spanX / 2);
-      const baseY = cell.y - Math.floor(pointerDrag.spanY / 2);
+      // Anchor at the grabbed cell (or top-left for new items)
+      const baseX = cell.x - (pointerDrag.anchorCellX ?? 0);
+      const baseY = cell.y - (pointerDrag.anchorCellY ?? 0);
 
       const disableSnap = ev.shiftKey;
       const exclude = pointerDrag.mode === 'existing'
@@ -929,6 +951,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             gridY: y,
             spanX: pointerDrag.spanX,
             spanY: pointerDrag.spanY,
+            baseSpanX: pointerDrag.spanX,
+            baseSpanY: pointerDrag.spanY,
             seats,
             shape,
             scale: 1,
@@ -950,6 +974,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             gridY: y,
             spanX: pointerDrag.spanX,
             spanY: pointerDrag.spanY,
+            baseSpanX: pointerDrag.spanX,
+            baseSpanY: pointerDrag.spanY,
             label: pointerDrag.payload?.objectLabel,
             assetFile: pointerDrag.payload?.assetFile,
             kind: pointerDrag.payload?.objectKind ?? 'object',
@@ -1020,6 +1046,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         gridY: snapped.y,
         spanX: sp.spanX,
         spanY: sp.spanY,
+        baseSpanX: sp.spanX,
+        baseSpanY: sp.spanY,
         seats,
         shape: draggedItem.shape as any,
         assetFile: draggedItem.assetFile,
@@ -1035,11 +1063,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       });
       setNextTableNumber(nextTableNumber + 1);
       setSelectedObjectId(null);
-      setSelectedTableId(null);
       setSelectedTableId(newTable.id);
-      setSelectedObjectId(null);
-      setSelectedTableId(null);
-      }
+    }
 
     // Move EXISTING table
     else if (draggedItem.kind === 'table' && draggedItem.mode === 'existing' && draggedItem.tableId) {
@@ -1091,6 +1116,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         gridY: snapped.y,
         spanX: sp.spanX,
         spanY: sp.spanY,
+        baseSpanX: sp.spanX,
+        baseSpanY: sp.spanY,
         rotation: (draggedItem.rotation ?? d.rotation) as any,
         label: draggedItem.objectLabel ?? d.label,
         assetFile: draggedItem.assetFile,
@@ -1159,9 +1186,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       tables: currentLayout.tables.filter(t => t.id !== tableId)
     });
     setSelectedTableId(null);
-      setSelectedObjectId(null);
-      setSelectedTableId(null);
-      };
+    setSelectedObjectId(null);
+  };
 
   const deleteObject = (objectId: string) => {
     if (!currentLayout) return;
@@ -1171,21 +1197,115 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       objects: objects.filter(o => o.id !== objectId),
     });
     setSelectedObjectId(null);
-      setSelectedTableId(null);
-      };
+    setSelectedTableId(null);
+  };
 
   const updateObject = (objectId: string, updates: Partial<FloorObject>) => {
     if (!currentLayout) return;
     const objects = currentLayout.objects ?? [];
-    const nextObjects = objects.map(o => o.id === objectId ? { ...o, ...updates } : o);
+    const nextObjects = objects.map(o => {
+      if (o.id !== objectId) return o;
+
+      // If size changes, resize the footprint (span) using baseSpan.
+      if (typeof (updates as any).scale === 'number') {
+        const s = clamp(Number((updates as any).scale), 0.5, 2.0);
+        const bx = (o.baseSpanX ?? o.spanX ?? 1);
+        const by = (o.baseSpanY ?? o.spanY ?? 1);
+        const spanX = clamp(Math.round(bx * s), 1, currentLayout.gridCols);
+        const spanY = clamp(Math.round(by * s), 1, currentLayout.gridRows);
+        return {
+          ...o,
+          ...updates,
+          scale: s,
+          baseSpanX: o.baseSpanX ?? (o.spanX ?? 1),
+          baseSpanY: o.baseSpanY ?? (o.spanY ?? 1),
+          spanX,
+          spanY,
+          gridX: clamp(o.gridX, 0, Math.max(0, currentLayout.gridCols - spanX)),
+          gridY: clamp(o.gridY, 0, Math.max(0, currentLayout.gridRows - spanY)),
+        };
+      }
+
+      return { ...o, ...updates };
+    });
     setCurrentLayout({ ...currentLayout, objects: nextObjects });
-};
+  };
 
   const updateTable = (tableId: string, updates: Partial<FloorTable>) => {
     if (!currentLayout) return;
-    const nextTables = currentLayout.tables.map(t => t.id === tableId ? { ...t, ...updates } : t);
+    const nextTables = currentLayout.tables.map(t => {
+      if (t.id !== tableId) return t;
+
+      if (typeof (updates as any).scale === 'number') {
+        const s = clamp(Number((updates as any).scale), 0.5, 2.0);
+        const bx = (t.baseSpanX ?? t.spanX ?? 1);
+        const by = (t.baseSpanY ?? t.spanY ?? 1);
+        const spanX = clamp(Math.round(bx * s), 1, currentLayout.gridCols);
+        const spanY = clamp(Math.round(by * s), 1, currentLayout.gridRows);
+        return {
+          ...t,
+          ...updates,
+          scale: s,
+          baseSpanX: t.baseSpanX ?? (t.spanX ?? 1),
+          baseSpanY: t.baseSpanY ?? (t.spanY ?? 1),
+          spanX,
+          spanY,
+          gridX: clamp(t.gridX, 0, Math.max(0, currentLayout.gridCols - spanX)),
+          gridY: clamp(t.gridY, 0, Math.max(0, currentLayout.gridRows - spanY)),
+        };
+      }
+
+      return { ...t, ...updates };
+    });
     setCurrentLayout({ ...currentLayout, tables: nextTables });
-};
+  };
+
+  // Resize the grid (rows/cols) while preserving the current shape as much as possible.
+  const resizeGrid = (newRows: number, newCols: number) => {
+    if (!currentLayout) return;
+    const rows = clamp(Math.round(newRows), 4, 80);
+    const cols = clamp(Math.round(newCols), 4, 80);
+
+    const oldRows = currentLayout.gridRows;
+    const oldCols = currentLayout.gridCols;
+    const oldMask = currentLayout.gridMask ?? Array.from({ length: oldRows * oldCols }, () => 1);
+    const nextMask = Array.from({ length: rows * cols }, () => 1);
+
+    const copyRows = Math.min(rows, oldRows);
+    const copyCols = Math.min(cols, oldCols);
+    for (let y = 0; y < copyRows; y++) {
+      for (let x = 0; x < copyCols; x++) {
+        nextMask[y * cols + x] = oldMask[y * oldCols + x] ?? 1;
+      }
+    }
+
+    const clampItem = (x: number, y: number, spanX: number, spanY: number) => ({
+      x: clamp(x, 0, Math.max(0, cols - spanX)),
+      y: clamp(y, 0, Math.max(0, rows - spanY)),
+    });
+
+    const tables = currentLayout.tables.map(t => {
+      const sx = t.spanX || 1;
+      const sy = t.spanY || 1;
+      const p = clampItem(t.gridX, t.gridY, sx, sy);
+      return { ...t, gridX: p.x, gridY: p.y };
+    });
+    const objects = (currentLayout.objects ?? []).map(o => {
+      const sx = o.spanX || 1;
+      const sy = o.spanY || 1;
+      const p = clampItem(o.gridX, o.gridY, sx, sy);
+      return { ...o, gridX: p.x, gridY: p.y };
+    });
+
+    setCurrentLayout({
+      ...currentLayout,
+      gridRows: rows,
+      gridCols: cols,
+      gridMask: nextMask,
+      tables,
+      objects,
+    });
+  };
 
   const saveCurrentLayout = async () => {
     if (!currentLayout) return;
@@ -1452,8 +1572,32 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                 max="110"
                 value={cellSize}
                 onChange={(e) => setCellSize(Number(e.target.value))}
+                className="range-ltr"
               />
             </label>
+
+            <div className="row" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <label style={{ flex: 1 }}>
+                {t('floor.map.grid_cols', 'Grid X (cols):')}
+                <input
+                  type="number"
+                  min={4}
+                  max={80}
+                  value={currentLayout?.gridCols ?? 0}
+                  onChange={(e) => resizeGrid(currentLayout?.gridRows ?? 8, Number(e.target.value) || 8)}
+                />
+              </label>
+              <label style={{ flex: 1 }}>
+                {t('floor.map.grid_rows', 'Grid Y (rows):')}
+                <input
+                  type="number"
+                  min={4}
+                  max={80}
+                  value={currentLayout?.gridRows ?? 0}
+                  onChange={(e) => resizeGrid(Number(e.target.value) || 8, currentLayout?.gridCols ?? 12)}
+                />
+              </label>
+            </div>
 
             <label>
               {t('floor.map.floor_label', 'Floor:')}

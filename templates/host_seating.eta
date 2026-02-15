@@ -331,7 +331,8 @@
     holder.innerHTML = "";
 
     try{
-      const res = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}`);
+      // Always render the latest saved layout
+      const res = await fetch(`/api/floor-layouts/${encodeURIComponent(rid)}/active`, { cache: 'no-store' });
       if (!res.ok) {
         const p = document.createElement("p");
         p.className = "muted";
@@ -344,7 +345,9 @@
       const gridRows = Number(plan.gridRows || 8);
       const gridCols = Number(plan.gridCols || 10);
       const tables = Array.isArray(plan.tables) ? plan.tables : [];
-      const tableStatuses = Array.isArray(plan.tableStatuses) ? plan.tableStatuses : [];
+      const tableStatuses = Array.isArray(plan.tableStatuses)
+        ? plan.tableStatuses
+        : (Array.isArray(plan.statuses) ? plan.statuses : []);
 
       const statusMap = new Map();
       const guestMap = new Map();
@@ -718,6 +721,14 @@
     background: rgba(255,255,255,.03);
     padding:6px;
     border-radius:10px;
+  }
+
+  @media (max-width: 560px){
+    .page{ padding: 10px !important; }
+    .floor-wrapper{ padding: 10px !important; }
+    .floor-grid{ transform: scale(.92); transform-origin: top left; }
+    .table{ font-size: 11px !important; }
+    .controls{ flex-direction: column; align-items: stretch; }
   }
 
   .table{

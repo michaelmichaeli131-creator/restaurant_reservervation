@@ -311,7 +311,8 @@ function objectAssetUrl(o){
   }
 
   async function loadPlan(rid){
-    const res = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}`);
+    // Use the active multi-layout API so waiter/host always render the latest saved map.
+    const res = await fetch(`/api/floor-layouts/${encodeURIComponent(rid)}/active`, { cache: 'no-store' });
     if (!res.ok) throw new Error('failed');
     return await res.json();
   }
