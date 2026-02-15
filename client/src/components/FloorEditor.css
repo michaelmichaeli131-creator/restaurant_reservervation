@@ -424,8 +424,10 @@
 }
 
 .table:hover {
-  transform: translateY(-2px);
+  /* Don't use transform here: tables use inline transform for rotate/scale.
+     Using transform on hover overrides it and breaks precise drag. */
   z-index: 10;
+  box-shadow: 0 10px 24px rgba(0,0,0,.25);
 }
 
 .table.selected {
@@ -539,7 +541,8 @@
 }
 
 .floor-object:hover{
-  transform: translateY(-1px);
+  /* Avoid transform here: objects use inline transform for rotate/scale. */
+  box-shadow: 0 10px 24px rgba(0,0,0,.22);
 }
 
 .floor-object .obj-label{ font-size: 11px; opacity: 0.9; text-align: center; }

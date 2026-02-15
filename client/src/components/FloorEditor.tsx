@@ -71,18 +71,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [sections, setSections] = useState<FloorSection[]>([]);
   const [activeSection, setActiveSection] = useState<FloorSection | null>(null);
 
-  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
-  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
-
-  const selectedTable = useMemo(() => {
-    if (!currentLayout || !selectedTableId) return null;
-    return currentLayout.tables.find(t => t.id === selectedTableId) ?? null;
-  }, [currentLayout, selectedTableId]);
-
-  const selectedObject = useMemo(() => {
-    if (!currentLayout || !selectedObjectId) return null;
-    return (currentLayout.objects ?? []).find(o => o.id === selectedObjectId) ?? null;
-  }, [currentLayout, selectedObjectId]);
+  const [selectedTable, setSelectedTable] = useState<FloorTable | null>(null);
+  const [selectedObject, setSelectedObject] = useState<FloorObject | null>(null);
   const [draggedItem, setDraggedItem] = useState<{
     kind: 'table' | 'object';
     mode: 'new' | 'existing';
@@ -112,6 +102,9 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     spanY: number;
     tableId?: string;
     objectId?: string;
+    // Cursor grab offset in grid pixel space (improves placement precision)
+    offsetPxX?: number;
+    offsetPxY?: number;
     payload?: {
       shape?: string;
       seats?: number;
@@ -789,14 +782,14 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     return computeSnap(x, y, spanX, spanY, kind, subtype, disableSnap, exclude);
   };
 
-  const clientPointToGridCell = (clientX: number, clientY: number) => {
+  const clientPointToGridPx = (clientX: number, clientY: number) => {
     if (!currentLayout) return null;
-
-    // Convert viewport point -> grid cell robustly even when zoom/pan are applied.
-    // We derive the effective scale from the rendered grid bounding box.
     const gridEl = gridRef.current;
     if (!gridEl) return null;
 
+    // Convert viewport point -> grid pixel coordinate.
+    // IMPORTANT: we force the grid itself to be LTR (see render + CSS),
+    // so there is no RTL mirroring here.
     const rect = gridEl.getBoundingClientRect();
     const gridW = currentLayout.gridCols * cellSize;
     const gridH = currentLayout.gridRows * cellSize;
@@ -804,18 +797,18 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     const scaleX = rect.width / Math.max(1, gridW);
     const scaleY = rect.height / Math.max(1, gridH);
 
-    // Important: in RTL pages, CSS grid can lay out columns right-to-left.
-    // If we calculate from rect.left we'll see a mirrored ("X axis") placement.
-    // Fix: when direction is rtl, measure X from rect.right instead.
-    const dir = getComputedStyle(gridEl).direction;
-    const xLocal = (dir === 'rtl')
-      ? (rect.right - clientX) / scaleX
-      : (clientX - rect.left) / scaleX;
+    const xLocal = (clientX - rect.left) / scaleX;
     const yLocal = (clientY - rect.top) / scaleY;
 
-    const gx = Math.floor(xLocal / cellSize);
-    const gy = Math.floor(yLocal / cellSize);
+    if (Number.isNaN(xLocal) || Number.isNaN(yLocal)) return null;
+    return { xPx: xLocal, yPx: yLocal };
+  };
 
+  const clientPointToGridCell = (clientX: number, clientY: number) => {
+    const p = clientPointToGridPx(clientX, clientY);
+    if (!p || !currentLayout) return null;
+    const gx = Math.floor(p.xPx / cellSize);
+    const gy = Math.floor(p.yPx / cellSize);
     if (Number.isNaN(gx) || Number.isNaN(gy)) return null;
     if (gx < 0 || gy < 0 || gx >= currentLayout.gridCols || gy >= currentLayout.gridRows) return null;
     return { x: gx, y: gy };
@@ -839,12 +832,19 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     if (!currentLayout) return;
     e.preventDefault();
     e.stopPropagation();
-    setSelectedTableId(null);
-      setSelectedObjectId(null);
-      setSelectedTableId(null);
-      setSelectedObjectId(null);
-      setSelectedTableId(null);
-      setPointerDrag({ kind, mode: 'new', spanX, spanY, payload });
+    setSelectedTable(null);
+    setSelectedObject(null);
+    // For new items from palette: anchor the cursor to the visual center
+    // (gives a much more "precise" feeling when placing).
+    setPointerDrag({
+      kind,
+      mode: 'new',
+      spanX,
+      spanY,
+      payload,
+      offsetPxX: (spanX * cellSize) / 2,
+      offsetPxY: (spanY * cellSize) / 2,
+    });
     setDragPreviewCell(null);
   };
 
@@ -853,11 +853,18 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     kind: 'table' | 'object',
     id: string,
     spanX: number,
-    spanY: number
+    spanY: number,
+    gridX: number,
+    gridY: number
   ) => {
     if (!currentLayout) return;
     e.preventDefault();
     e.stopPropagation();
+    // Compute cursor "grab" offset within the item in grid pixel space.
+    const p = clientPointToGridPx(e.clientX, e.clientY);
+    const offsetPxX = p ? (p.xPx - gridX * cellSize) : (spanX * cellSize) / 2;
+    const offsetPxY = p ? (p.yPx - gridY * cellSize) : (spanY * cellSize) / 2;
+
     setPointerDrag({
       kind,
       mode: 'existing',
@@ -865,6 +872,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       spanY,
       tableId: kind === 'table' ? id : undefined,
       objectId: kind === 'object' ? id : undefined,
+      offsetPxX,
+      offsetPxY,
     });
     setDragPreviewCell(null);
   };
@@ -873,15 +882,19 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     if (!pointerDrag || !currentLayout) return;
 
     const onMove = (ev: MouseEvent) => {
-      const cell = clientPointToGridCell(ev.clientX, ev.clientY);
-      if (!cell) {
+      const p = clientPointToGridPx(ev.clientX, ev.clientY);
+      if (!p) {
         setDragPreviewCell(null);
         return;
       }
 
-      // Anchor at center of the item
-      const baseX = cell.x - Math.floor(pointerDrag.spanX / 2);
-      const baseY = cell.y - Math.floor(pointerDrag.spanY / 2);
+      // High-resolution placement: compute desired top-left based on the cursor grab offset.
+      // This removes the "jump" and makes placement feel much more accurate.
+      const ox = Number(pointerDrag.offsetPxX ?? (pointerDrag.spanX * cellSize) / 2);
+      const oy = Number(pointerDrag.offsetPxY ?? (pointerDrag.spanY * cellSize) / 2);
+
+      const baseX = Math.floor((p.xPx - ox) / cellSize);
+      const baseY = Math.floor((p.yPx - oy) / cellSize);
 
       const disableSnap = ev.shiftKey;
       const exclude = pointerDrag.mode === 'existing'
@@ -1034,12 +1047,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         tables: [...currentLayout.tables, newTable]
       });
       setNextTableNumber(nextTableNumber + 1);
-      setSelectedObjectId(null);
-      setSelectedTableId(null);
-      setSelectedTableId(newTable.id);
-      setSelectedObjectId(null);
-      setSelectedTableId(null);
-      }
+      setSelectedObject(null);
+      setSelectedTable(newTable);
+    }
 
     // Move EXISTING table
     else if (draggedItem.kind === 'table' && draggedItem.mode === 'existing' && draggedItem.tableId) {
@@ -1103,12 +1113,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         ...currentLayout,
         objects: [...objects, newObj],
       });
-      setSelectedTableId(null);
-      setSelectedObjectId(null);
-      setSelectedTableId(null);
-      setSelectedObjectId(newObj.id);
-      setSelectedTableId(null);
-      }
+      setSelectedTable(null);
+      setSelectedObject(newObj);
+    }
 
     // Move EXISTING object
     else if (draggedItem.kind === 'object' && draggedItem.mode === 'existing' && draggedItem.objectId) {
@@ -1158,10 +1165,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       ...currentLayout,
       tables: currentLayout.tables.filter(t => t.id !== tableId)
     });
-    setSelectedTableId(null);
-      setSelectedObjectId(null);
-      setSelectedTableId(null);
-      };
+    setSelectedTable(null);
+  };
 
   const deleteObject = (objectId: string) => {
     if (!currentLayout) return;
@@ -1170,22 +1175,33 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       ...currentLayout,
       objects: objects.filter(o => o.id !== objectId),
     });
-    setSelectedObjectId(null);
-      setSelectedTableId(null);
-      };
+    setSelectedObject(null);
+  };
 
   const updateObject = (objectId: string, updates: Partial<FloorObject>) => {
     if (!currentLayout) return;
     const objects = currentLayout.objects ?? [];
     const nextObjects = objects.map(o => o.id === objectId ? { ...o, ...updates } : o);
     setCurrentLayout({ ...currentLayout, objects: nextObjects });
-};
+
+    // Keep the right-side inspector in sync
+    if (selectedObject?.id === objectId) {
+      const updated = nextObjects.find(o => o.id === objectId);
+      if (updated) setSelectedObject(updated);
+    }
+  };
 
   const updateTable = (tableId: string, updates: Partial<FloorTable>) => {
     if (!currentLayout) return;
     const nextTables = currentLayout.tables.map(t => t.id === tableId ? { ...t, ...updates } : t);
     setCurrentLayout({ ...currentLayout, tables: nextTables });
-};
+
+    // Keep the right-side inspector in sync
+    if (selectedTable?.id === tableId) {
+      const updated = nextTables.find(t => t.id === tableId);
+      if (updated) setSelectedTable(updated);
+    }
+  };
 
   const saveCurrentLayout = async () => {
     if (!currentLayout) return;
@@ -1476,12 +1492,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                 className="btn-icon-small"
                 onClick={() => {
                   setShapeMode(v => !v);
-                  setSelectedTableId(null);
-      setSelectedObjectId(null);
-      setSelectedTableId(null);
-      setSelectedObjectId(null);
-      setSelectedTableId(null);
-      }}
+                  setSelectedTable(null);
+                  setSelectedObject(null);
+                }}
               >
                 {shapeMode ? `✅ ${t('floor.shape.done', 'Done shape')}` : `✏️ ${t('floor.shape.edit', 'Edit shape')}`}
               </button>
@@ -1683,7 +1696,6 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               <div
                 className="fe-grid" ref={gridRef}
                 style={{
-                  direction: 'ltr',
               gridTemplateColumns: `repeat(${currentLayout.gridCols}, ${cellSize}px)`,
               gridTemplateRows: `repeat(${currentLayout.gridRows}, ${cellSize}px)`,
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
@@ -1865,23 +1877,20 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   {isObjTopLeft && objectHere && (
                     <div
                       className={`floor-object type-${objectHere.type} ${selectedObject?.id === objectHere.id ? 'selected' : ''}`}
-                      onMouseDown={(e) => beginPointerDragExisting(e, 'object', objectHere.id, objectHere.spanX || 1, objectHere.spanY || 1)}
+                      onMouseDown={(e) => beginPointerDragExisting(e, 'object', objectHere.id, objectHere.spanX || 1, objectHere.spanY || 1, objectHere.gridX, objectHere.gridY)}
                       onClick={() => {
-                        setSelectedTableId(null);
-      setSelectedObjectId(null);
-      setSelectedTableId(null);
-      setSelectedObjectId(objectHere.id);
-      setSelectedTableId(null);
-      }}
+                        setSelectedTable(null);
+                        setSelectedObject(objectHere);
+                      }}
                       style={{
                         width: `${spanToPx(objectHere.spanX)}px`,
                         height: `${spanToPx(objectHere.spanY)}px`,
-                        transform: `rotate(${getItemRotation((objectHere as any).rotationDeg ?? objectHere.rotation ?? 0)}deg)`,
+                        transform: `rotate(${getItemRotation((objectHere as any).rotationDeg ?? objectHere.rotation ?? 0)}deg) scale(${getItemScale((objectHere as any).scale, scaleForObject(objectHere.type))})`,
+                        transformOrigin: 'center',
                       }}
                     >
                       <img
                         className={`fe-asset fe-asset--${(objectHere.assetFile || "").replace(/[^a-z0-9]+/gi,"_").toLowerCase()}`}
-                        style={{ transform: `scale(${getItemScale((objectHere as any).scale, scaleForObject(objectHere.type))})` }}
                         src={objectHere.assetFile ? `${ASSET_BASE}${objectHere.assetFile}` : assetForObject(objectHere.type, objectHere.spanX, objectHere.spanY, objectHere.label)}
                         alt=""
                       />
@@ -1891,23 +1900,21 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   {isTopLeft && (
                     <div
                       className={`table ${tableHere.shape} ${selectedTable?.id === tableHere.id ? 'selected' : ''} ${(!showOnlyActiveSection && activeSection && String(tableHere.sectionId || '') && String(tableHere.sectionId || '') !== String(activeSection.id)) ? 'dimmed' : ''}`}
-                      onMouseDown={(e) => beginPointerDragExisting(e, 'table', tableHere.id, tableHere.spanX || 1, tableHere.spanY || 1)}
+                      onMouseDown={(e) => beginPointerDragExisting(e, 'table', tableHere.id, tableHere.spanX || 1, tableHere.spanY || 1, tableHere.gridX, tableHere.gridY)}
                       onClick={() => {
-                        setSelectedObjectId(null);
-      setSelectedTableId(null);
-      setSelectedTableId(tableHere.id);
-      setSelectedObjectId(null);
-      setSelectedTableId(null);
-      }}
+                        setSelectedObject(null);
+                        setSelectedTable(tableHere);
+                      }}
                       style={{
                         width: `${spanToPx(tableHere.spanX)}px`,
                         height: `${spanToPx(tableHere.spanY)}px`,
+                        transform: `rotate(${getItemRotation((tableHere as any).rotationDeg ?? 0)}deg) scale(${getItemScale((tableHere as any).scale, scaleForTable(tableHere.shape, tableHere.seats, tableHere.assetFile))})`,
+                        transformOrigin: 'center',
                       }}
                     >
                       <div className="fe-table-visual" data-asset={tableHere.assetFile || ""}>
                         <img
                           className={`fe-asset fe-asset--${(tableHere.assetFile || "").replace(/[^a-z0-9]+/gi,"_").toLowerCase()}`}
-                          style={{ transform: `rotate(${getItemRotation((tableHere as any).rotationDeg ?? 0)}deg) scale(${getItemScale((tableHere as any).scale, scaleForTable(tableHere.shape, tableHere.seats, tableHere.assetFile))})` }}
                           src={tableHere.assetFile ? `${ASSET_BASE}${tableHere.assetFile}` : assetForTable(tableHere.shape, tableHere.seats)}
                           alt=""
                         />

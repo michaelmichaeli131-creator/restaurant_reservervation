@@ -211,7 +211,8 @@ function tableAssetUrl(tbl){
     // Visual layer (asset + optional chairs)
     const visual = document.createElement('div');
     visual.className = 'sb-floor-visual';
-    if (assetFile) visual.dataset.asset = assetFile;
+    // Prefer explicit assetFile on the table object.
+    if (t && t.assetFile) visual.dataset.asset = String(t.assetFile);
 
     const img = document.createElement('img');
     img.className = 'sb-floor-asset';
