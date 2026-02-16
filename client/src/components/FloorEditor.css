@@ -2,26 +2,7 @@
   display: flex;
   flex-direction: column;
   height: calc(100vh - 80px);
-  /* Better mobile behavior (iOS/Android address bar) */
-  min-height: calc(100dvh - 80px);
   gap: 0;
-}
-
-.fe-range-row{
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.fe-range-row input[type="range"]{
-  flex: 1;
-  min-width: 120px;
-}
-
-.fe-range-val{
-  min-width: 54px;
-  text-align: center;
-  opacity: .9;
 }
 
 .layout-tabs-bar {

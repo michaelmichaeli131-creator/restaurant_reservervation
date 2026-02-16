@@ -110,10 +110,6 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     mode: 'new' | 'existing';
     spanX: number;
     spanY: number;
-    // Anchor is the cell *inside* the item that the pointer is currently over.
-    // This makes dragging feel "real" (no jumping to center).
-    anchorX: number;
-    anchorY: number;
     tableId?: string;
     objectId?: string;
     payload?: {
@@ -848,16 +844,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       setSelectedTableId(null);
       setSelectedObjectId(null);
       setSelectedTableId(null);
-      setPointerDrag({
-        kind,
-        mode: 'new',
-        spanX,
-        spanY,
-        // New items: default anchor to center
-        anchorX: Math.floor(spanX / 2),
-        anchorY: Math.floor(spanY / 2),
-        payload,
-      });
+      setPointerDrag({ kind, mode: 'new', spanX, spanY, payload });
     setDragPreviewCell(null);
   };
 
@@ -871,44 +858,11 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     if (!currentLayout) return;
     e.preventDefault();
     e.stopPropagation();
-
-    // Select the item so properties are visible immediately.
-    if (kind === 'table') {
-      setSelectedObjectId(null);
-      setSelectedTableId(id);
-    } else {
-      setSelectedTableId(null);
-      setSelectedObjectId(id);
-    }
-
-    // Compute "grab" anchor inside the item (so it follows the pointer naturally).
-    const cell = clientPointToGridCell(e.clientX, e.clientY);
-    let anchorX = Math.floor(spanX / 2);
-    let anchorY = Math.floor(spanY / 2);
-
-    if (cell) {
-      if (kind === 'table') {
-        const t = currentLayout.tables.find(tt => tt.id === id);
-        if (t) {
-          anchorX = Math.max(0, Math.min(spanX - 1, cell.x - t.gridX));
-          anchorY = Math.max(0, Math.min(spanY - 1, cell.y - t.gridY));
-        }
-      } else {
-        const o = (currentLayout.objects ?? []).find(oo => oo.id === id);
-        if (o) {
-          anchorX = Math.max(0, Math.min(spanX - 1, cell.x - o.gridX));
-          anchorY = Math.max(0, Math.min(spanY - 1, cell.y - o.gridY));
-        }
-      }
-    }
-
     setPointerDrag({
       kind,
       mode: 'existing',
       spanX,
       spanY,
-      anchorX,
-      anchorY,
       tableId: kind === 'table' ? id : undefined,
       objectId: kind === 'object' ? id : undefined,
     });
@@ -925,21 +879,16 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         return;
       }
 
-      // "Real" drag: keep the grabbed point under the cursor.
-      const baseX = cell.x - pointerDrag.anchorX;
-      const baseY = cell.y - pointerDrag.anchorY;
+      // Anchor at center of the item
+      const baseX = cell.x - Math.floor(pointerDrag.spanX / 2);
+      const baseY = cell.y - Math.floor(pointerDrag.spanY / 2);
 
-      // During drag we keep it simple (clamp + mask). Smart snapping is optional:
-      // hold SHIFT while dragging to enable it.
-      const clamped = clampToGrid(baseX, baseY, pointerDrag.spanX, pointerDrag.spanY);
-      const snapped = ev.shiftKey
-        ? (() => {
-            const exclude = pointerDrag.mode === 'existing'
-              ? { kind: pointerDrag.kind as any, id: pointerDrag.kind === 'table' ? pointerDrag.tableId : pointerDrag.objectId }
-              : undefined;
-            return snapPlacement(clamped.x, clamped.y, pointerDrag.spanX, pointerDrag.spanY, pointerDrag.kind, pointerDrag.payload?.shape ?? pointerDrag.payload?.objectType, false, exclude);
-          })()
-        : clamped;
+      const disableSnap = ev.shiftKey;
+      const exclude = pointerDrag.mode === 'existing'
+        ? { kind: pointerDrag.kind as any, id: pointerDrag.kind === 'table' ? pointerDrag.tableId : pointerDrag.objectId }
+        : undefined;
+
+      const snapped = snapPlacement(baseX, baseY, pointerDrag.spanX, pointerDrag.spanY, pointerDrag.kind, pointerDrag.payload?.shape ?? pointerDrag.payload?.objectType, disableSnap, exclude);
 
       if (!maskAllows(snapped.x, snapped.y, pointerDrag.spanX, pointerDrag.spanY)) {
         setDragPreviewCell(null);
@@ -950,7 +899,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       setHoverCell({ x: snapped.x, y: snapped.y });
     };
 
-    const onUp = (ev: MouseEvent) => {
+    const onUp = () => {
       if (!dragPreviewCell) {
         setPointerDrag(null);
         setDragPreviewCell(null);
@@ -958,18 +907,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         return;
       }
 
-      // If SHIFT is held on release, finalize with smart snapping.
-      const baseX = dragPreviewCell.x;
-      const baseY = dragPreviewCell.y;
-      const exclude = pointerDrag.mode === 'existing'
-        ? { kind: pointerDrag.kind as any, id: pointerDrag.kind === 'table' ? pointerDrag.tableId : pointerDrag.objectId }
-        : undefined;
-      const finalPos = ev.shiftKey
-        ? snapPlacement(baseX, baseY, pointerDrag.spanX, pointerDrag.spanY, pointerDrag.kind, pointerDrag.payload?.shape ?? pointerDrag.payload?.objectType, false, exclude)
-        : { x: baseX, y: baseY };
-
-      const x = finalPos.x;
-      const y = finalPos.y;
+      const x = dragPreviewCell.x;
+      const y = dragPreviewCell.y;
 
       if (pointerDrag.mode === 'existing') {
         if (pointerDrag.kind === 'table' && pointerDrag.tableId) {
@@ -1271,45 +1210,6 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       alert('❌ ' + t('floor.error.save', 'Error saving: {error}').replace('{error}', err instanceof Error ? err.message : String(err)));
     }
   };
-
-  // Auto-save keeps hostess/waiter/live views synced without relying on manual Save.
-  // We debounce changes and skip while dragging for smooth UX.
-  const lastSavedJsonRef = useRef<string>('');
-  const autoSaveTimerRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (!currentLayout) return;
-    lastSavedJsonRef.current = JSON.stringify(currentLayout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentLayout?.id]);
-
-  useEffect(() => {
-    if (!currentLayout) return;
-    if (pointerDrag) return;
-
-    const json = JSON.stringify(currentLayout);
-    if (json === lastSavedJsonRef.current) return;
-
-    if (autoSaveTimerRef.current) window.clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = window.setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/floor-layouts/${restaurantId}/${currentLayout.id}` , {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(currentLayout),
-        });
-        if (res.ok) lastSavedJsonRef.current = JSON.stringify(currentLayout);
-      } catch {
-        // Silent (manual Save provides explicit feedback).
-      }
-    }, 800);
-
-    return () => {
-      if (autoSaveTimerRef.current) window.clearTimeout(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = null;
-    };
-  }, [currentLayout, pointerDrag, restaurantId]);
 
   if (!currentLayout) {
     return (
@@ -1646,42 +1546,18 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
 	              <label>
 	                {t('floor.properties.size', 'Size:')}
-	                <div className="fe-range-row">
-	                  <button
-	                    type="button"
-	                    className="btn-icon-small"
-	                    onClick={() => {
-	                      const cur = Number((selectedTable as any).scale ?? 1);
-	                      updateTable(selectedTable.id, { scale: Math.max(0.6, Math.round((cur - 0.05) * 100) / 100) });
-	                    }}
-	                    title={t('floor.properties.size_down', 'Smaller')}
-	                  >
-	                    －
-	                  </button>
-	                  <input
-	                    type="range"
-	                    min="0.6"
-	                    max="1.4"
-	                    step="0.05"
-	                    className="range-ltr"
-	                    value={(selectedTable as any).scale ?? 1}
-	                    onChange={(e) => updateTable(selectedTable.id, { scale: Number(e.target.value) })}
-	                  />
-	                  <button
-	                    type="button"
-	                    className="btn-icon-small"
-	                    onClick={() => {
-	                      const cur = Number((selectedTable as any).scale ?? 1);
-	                      updateTable(selectedTable.id, { scale: Math.min(1.4, Math.round((cur + 0.05) * 100) / 100) });
-	                    }}
-	                    title={t('floor.properties.size_up', 'Bigger')}
-	                  >
-	                    ＋
-	                  </button>
-	                  <span className="fe-range-val">
-	                    {Math.round((((selectedTable as any).scale ?? 1) as number) * 100)}%
-	                  </span>
-	                </div>
+	                <input
+	                  type="range"
+	                  min="0.6"
+	                  max="1.4"
+	                  step="0.05"
+	                  className="range-ltr"
+	                  value={(selectedTable as any).scale ?? 1}
+	                  onChange={(e) => updateTable(selectedTable.id, { scale: Number(e.target.value) })}
+	                />
+	                <span style={{ marginInlineStart: 8 }}>
+	                  {Math.round((((selectedTable as any).scale ?? 1) as number) * 100)}%
+	                </span>
 	              </label>
 
 	              <div className="row" style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -1752,44 +1628,18 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                 </label>
               </div>
               <label>
-                {t('floor.properties.size', 'Size:')}
-                <div className="fe-range-row">
-                  <button
-                    type="button"
-                    className="btn-icon-small"
-                    onClick={() => {
-                      const cur = Number((selectedObject as any).scale ?? 1);
-                      updateObject(selectedObject.id, { scale: Math.max(0.6, Math.round((cur - 0.05) * 100) / 100) });
-                    }}
-                    title={t('floor.properties.size_down', 'Smaller')}
-                  >
-                    －
-                  </button>
-                  <input
-                    type="range"
-                    min="0.6"
-                    max="1.4"
-                    step="0.05"
-                    className="range-ltr"
-                    value={(selectedObject as any).scale ?? 1}
-                    onChange={(e) => updateObject(selectedObject.id, { scale: Number(e.target.value) })}
-                  />
-                  <button
-                    type="button"
-                    className="btn-icon-small"
-                    onClick={() => {
-                      const cur = Number((selectedObject as any).scale ?? 1);
-                      updateObject(selectedObject.id, { scale: Math.min(1.4, Math.round((cur + 0.05) * 100) / 100) });
-                    }}
-                    title={t('floor.properties.size_up', 'Bigger')}
-                  >
-                    ＋
-                  </button>
-                  <span className="fe-range-val">
-                    {Math.round((((selectedObject as any).scale ?? 1) as number) * 100)}%
-                  </span>
-                </div>
-              </label>
+  {t('floor.properties.size', 'Size:')}
+  <input
+    type="range"
+    min="0.6"
+    max="1.4"
+    step="0.05"
+    className="range-ltr"
+    value={(selectedObject as any).scale ?? 1}
+    onChange={(e) => updateObject(selectedObject.id, { scale: Number(e.target.value) })}
+  />
+  <span style={{ marginInlineStart: 8 }}>{Math.round((((selectedObject as any).scale ?? 1) as number) * 100)}%</span>
+</label>
 
 <div className="row" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
   <span style={{ opacity: .85 }}>{t('floor.properties.rotate', 'Rotate:')}</span>

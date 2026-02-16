@@ -65,18 +65,18 @@ export function requireManager(ctx: any) {
   return true;
 }
 export function requireStaff(ctx: any) {
-  // "Staff" routes are used by operational roles (waiter/hostess/bar/etc.).
-  // Keep it permissive for authenticated operational accounts.
+  // Staff-facing pages include waiter/hostess/bar/cook roles as well.
+  // Keep this list permissive for read-only staff features like floor map.
   const allowed = [
     "owner",
     "manager",
     "staff",
     "waiter",
     "hostess",
-    "bartender",
     "bar",
-    "chef",
+    "bartender",
     "cook",
+    "kitchen",
   ];
   if (!ctx.state.user || !allowed.includes(ctx.state.user.role)) {
     ctx.response.status = 403; ctx.response.body = "Forbidden"; return false;
