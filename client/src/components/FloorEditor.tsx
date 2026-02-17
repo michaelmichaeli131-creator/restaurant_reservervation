@@ -430,8 +430,22 @@ const assetForTable = (shape: string, seats: number) => {
 
       if (response.ok) {
         const newLayout = await response.json();
-        setLayouts([...layouts, newLayout]);
-        setCurrentLayout(newLayout);
+        // Solution A: Always ensure there is an active layout.
+        // We auto-activate the newly created layout so waiter/host screens
+        // will always load via /api/floor-layouts/:rid/active.
+        try {
+          await fetch(`/api/floor-layouts/${restaurantId}/${newLayout.id}/activate`, {
+            method: 'POST',
+            credentials: 'include',
+          });
+        } catch (e) {
+          console.error('Auto-activate new layout failed:', e);
+        }
+
+        const nextLayouts = [...layouts, { ...newLayout, isActive: true }]
+          .map(l => ({ ...l, isActive: l.id === newLayout.id }));
+        setLayouts(nextLayouts);
+        setCurrentLayout({ ...newLayout, isActive: true });
         setNewLayoutName('');
         setIsCreateModalOpen(false);
       } else {
@@ -1199,8 +1213,21 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       });
 
       if (response.ok) {
+        // Solution A: Always activate the saved layout (single source of truth).
+        try {
+          await fetch(`/api/floor-layouts/${restaurantId}/${currentLayout.id}/activate`, {
+            method: 'POST',
+            credentials: 'include',
+          });
+        } catch (e) {
+          console.error('Auto-activate saved layout failed:', e);
+        }
+
         alert('✅ ' + t('floor.success.save', 'Layout saved successfully!'));
-        setLayouts(layouts.map(l => l.id === currentLayout.id ? currentLayout : l));
+        setLayouts(layouts.map(l => ({
+          ...(l.id === currentLayout.id ? currentLayout : l),
+          isActive: l.id === currentLayout.id,
+        })));
       } else {
         const data = await response.json();
         alert('❌ ' + t('floor.error.save', 'Error saving: {error}').replace('{error}', data.error || 'Unknown error'));
