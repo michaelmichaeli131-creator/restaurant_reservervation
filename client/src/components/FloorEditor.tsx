@@ -430,24 +430,26 @@ const assetForTable = (shape: string, seats: number) => {
 
       if (response.ok) {
         const newLayout = await response.json();
-        // Solution A: Always ensure there is an active layout.
-        // We auto-activate the newly created layout so waiter/host screens
-        // will always load via /api/floor-layouts/:rid/active.
+        setLayouts([...layouts, newLayout]);
+        setCurrentLayout(newLayout);
+        setNewLayoutName('');
+        setIsCreateModalOpen(false);
+
+        // Solution A: auto-activate immediately after creation
         try {
-          await fetch(`/api/floor-layouts/${restaurantId}/${newLayout.id}/activate`, {
+          const actRes = await fetch(`/api/floor-layouts/${restaurantId}/${newLayout.id}/activate`, {
             method: 'POST',
             credentials: 'include',
           });
+          if (!actRes.ok) {
+            const txt = await actRes.text().catch(() => '');
+            console.error('[FloorEditor] auto-activate after create failed', { status: actRes.status, statusText: actRes.statusText, body: txt });
+          } else {
+            setLayouts(prev => prev.map(l => ({ ...l, isActive: l.id === newLayout.id })));
+          }
         } catch (e) {
-          console.error('Auto-activate new layout failed:', e);
+          console.error('[FloorEditor] auto-activate after create threw', e);
         }
-
-        const nextLayouts = [...layouts, { ...newLayout, isActive: true }]
-          .map(l => ({ ...l, isActive: l.id === newLayout.id }));
-        setLayouts(nextLayouts);
-        setCurrentLayout({ ...newLayout, isActive: true });
-        setNewLayoutName('');
-        setIsCreateModalOpen(false);
       } else {
         const errorData = await response.json().catch(() => null);
         const errorMsg = errorData?.error || t('floor.error.server', 'Server error: {status} {statusText}').replace('{status}', String(response.status)).replace('{statusText}', response.statusText);
@@ -1213,21 +1215,35 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       });
 
       if (response.ok) {
-        // Solution A: Always activate the saved layout (single source of truth).
+        // ===== Solution A: Always activate after save =====
+        let activateOk = false;
+        let activateErr: string | null = null;
         try {
-          await fetch(`/api/floor-layouts/${restaurantId}/${currentLayout.id}/activate`, {
+          const actRes = await fetch(`/api/floor-layouts/${restaurantId}/${currentLayout.id}/activate`, {
             method: 'POST',
             credentials: 'include',
           });
+          activateOk = actRes.ok;
+          if (!actRes.ok) {
+            const txt = await actRes.text().catch(() => '');
+            activateErr = txt || `${actRes.status} ${actRes.statusText}`;
+            console.error('[FloorEditor] activate failed', { status: actRes.status, statusText: actRes.statusText, body: txt });
+          }
         } catch (e) {
-          console.error('Auto-activate saved layout failed:', e);
+          activateErr = e instanceof Error ? e.message : String(e);
+          console.error('[FloorEditor] activate threw', e);
         }
 
-        alert('✅ ' + t('floor.success.save', 'Layout saved successfully!'));
+        // Update local layouts list (and mark this one as active locally)
         setLayouts(layouts.map(l => ({
-          ...(l.id === currentLayout.id ? currentLayout : l),
+          ...l,
           isActive: l.id === currentLayout.id,
         })));
+
+        const msg = activateOk
+          ? t('floor.success.save_and_activate', 'Layout saved and activated ✅')
+          : t('floor.success.save_but_activate_failed', 'Layout saved ✅ but activation failed: {error}').replace('{error}', activateErr || 'unknown');
+        alert('✅ ' + msg);
       } else {
         const data = await response.json();
         alert('❌ ' + t('floor.error.save', 'Error saving: {error}').replace('{error}', data.error || 'Unknown error'));

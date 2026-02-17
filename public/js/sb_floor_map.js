@@ -311,53 +311,94 @@ function objectAssetUrl(o){
   }
 
   async function loadPlan(rid){
-    // Solution A: single source of truth.
-    // We ONLY use the active layout API and do not fall back to legacy /api/floor-plans.
-    const res1 = await fetch(`/api/floor-layouts/${encodeURIComponent(rid)}/active`, {
-      cache: 'no-store'
-    });
+    // Prefer new floor-layouts API (active layout), but keep backward compatibility
+    // with legacy floor-plans API.
+    try {
+      const url1 = `/api/floor-layouts/${encodeURIComponent(rid)}/active`;
+      const res1 = await fetch(url1, {
+        cache: 'no-store'
+      });
+      if (res1.ok) {
+        const layout = await res1.json();
+        // Convert layout shape -> plan shape expected by this legacy renderer.
+        const tables = Array.isArray(layout.tables) ? layout.tables : [];
+        const objects = Array.isArray(layout.objects) ? layout.objects : [];
 
-    if (res1.status === 404) {
-      const err = new Error('No active layout');
-      err.code = 'NO_ACTIVE_LAYOUT';
+        // Map tableStatuses from tableId -> tableNumber (legacy expects tableNumber)
+        const byId = new Map(tables.map(t => [String(t.id), t]));
+        const tableStatuses = (Array.isArray(layout.tableStatuses) ? layout.tableStatuses : [])
+          .map(s => {
+            const t = byId.get(String(s.tableId));
+            return {
+              tableId: s.tableId,
+              tableNumber: t ? Number(t.tableNumber) : Number(s.tableNumber || 0),
+              status: s.status || 'empty',
+              guestName: s.guestName || null,
+              guestCount: s.guestCount || null,
+              orderId: s.orderId || null,
+            };
+          })
+          .filter(s => Number.isFinite(Number(s.tableNumber)) && Number(s.tableNumber) > 0);
+
+        return {
+          // grid
+          gridRows: Number(layout.gridRows || layout.rows || 0) || 0,
+          gridCols: Number(layout.gridCols || layout.cols || 0) || 0,
+          gridMask: Array.isArray(layout.gridMask) ? layout.gridMask : null,
+          // content
+          tables,
+          objects,
+          tableStatuses,
+          // carry through theme if exists
+          floorColor: layout.floorColor || layout.floorTheme || null,
+        };
+      }
+
+      // Not OK: capture detailed diagnostics for the console + UI.
+      let bodyText = '';
+      let bodyJson = null;
+      try {
+        bodyText = await res1.text();
+        try { bodyJson = JSON.parse(bodyText); } catch { bodyJson = null; }
+      } catch { /* ignore */ }
+
+      console.error('[SBFloorMap] /active failed', {
+        url: url1,
+        status: res1.status,
+        statusText: res1.statusText,
+        body: bodyJson || bodyText || null,
+      });
+
+      // If it's a "no active layout" situation, fetch server debug snapshot.
+      if (res1.status === 404) {
+        try {
+          const dbgUrl = `/api/floor-layouts/${encodeURIComponent(rid)}/debug`;
+          const dbgRes = await fetch(dbgUrl, { cache: 'no-store' });
+          const dbgText = await dbgRes.text();
+          let dbgJson = null;
+          try { dbgJson = JSON.parse(dbgText); } catch { dbgJson = null; }
+          console.error('[SBFloorMap] debug snapshot', {
+            url: dbgUrl,
+            status: dbgRes.status,
+            body: dbgJson || dbgText || null,
+          });
+        } catch (e) {
+          console.error('[SBFloorMap] debug snapshot failed', e);
+        }
+      }
+
+      // Throw a rich error so init() can show something meaningful.
+      const err = new Error(`ACTIVE_LAYOUT_FETCH_FAILED:${res1.status}`);
+      err._sb = { status: res1.status, statusText: res1.statusText, body: bodyJson || bodyText || null };
       throw err;
+    } catch (_) {
+      // fall back below
     }
 
-    if (!res1.ok) throw new Error('failed');
-
-    const layout = await res1.json();
-    // Convert layout shape -> plan shape expected by this legacy renderer.
-    const tables = Array.isArray(layout.tables) ? layout.tables : [];
-    const objects = Array.isArray(layout.objects) ? layout.objects : [];
-
-    // Map tableStatuses from tableId -> tableNumber (legacy expects tableNumber)
-    const byId = new Map(tables.map(t => [String(t.id), t]));
-    const tableStatuses = (Array.isArray(layout.tableStatuses) ? layout.tableStatuses : [])
-      .map(s => {
-        const t = byId.get(String(s.tableId));
-        return {
-          tableId: s.tableId,
-          tableNumber: t ? Number(t.tableNumber) : Number(s.tableNumber || 0),
-          status: s.status || 'empty',
-          guestName: s.guestName || null,
-          guestCount: s.guestCount || null,
-          orderId: s.orderId || null,
-        };
-      })
-      .filter(s => Number.isFinite(Number(s.tableNumber)) && Number(s.tableNumber) > 0);
-
-    return {
-      // grid
-      gridRows: Number(layout.gridRows || layout.rows || 0) || 0,
-      gridCols: Number(layout.gridCols || layout.cols || 0) || 0,
-      gridMask: Array.isArray(layout.gridMask) ? layout.gridMask : null,
-      // content
-      tables,
-      objects,
-      tableStatuses,
-      // carry through theme if exists
-      floorColor: layout.floorColor || layout.floorTheme || null,
-    };
+    // Legacy API fallback
+    const res = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('failed');
+    return await res.json();
   }
 
   function mapStatuses(plan){
@@ -571,11 +612,18 @@ function objectAssetUrl(o){
         state.plan = plan;
         buildTabs();
       }catch(e){
-        if (e && e.code === 'NO_ACTIVE_LAYOUT') {
-          root.innerHTML = "<div class='sb-floor-empty'><p class='muted'>אין Layout פעיל למסעדה הזו.</p><p class='muted'>כדי להציג את המפה במסך המלצרים/מארחת, יש להיכנס למסך העריכה וללחוץ <b>Save Layout</b> (זה גם מפעיל את ה-Layout אוטומטית).</p></div>";
-        } else {
-          root.innerHTML = "<p class='muted'>לא הוגדרה מפת שולחנות למסעדה זו.</p>";
-        }
+        // Rich UI error with a quick hint + encourage checking the console.
+        const status = e && e._sb && e._sb.status ? String(e._sb.status) : '';
+        const hint = status === '404'
+          ? 'השרת לא מצא Layout פעיל למסעדה הזו (או שאין Layouts בכלל).'
+          : 'קרתה שגיאה בטעינת המפה.';
+        root.innerHTML = `
+          <div class="sb-floor-error-box" style="padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(0,0,0,.25)">
+            <p style="margin:0 0 6px 0;"><strong>לא ניתן לטעון את מפת המסעדה.</strong></p>
+            <p class="muted" style="margin:0;">${hint}</p>
+            <p class="muted" style="margin:6px 0 0 0;">(בדוק את ה-Console לפרטי דיבוג)</p>
+          </div>
+        `;
       }
     }
 
