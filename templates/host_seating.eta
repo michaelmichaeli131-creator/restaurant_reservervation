@@ -331,11 +331,11 @@
     holder.innerHTML = "";
 
     try{
-      const res = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}`);
+      const res = await fetch(`/api/floor-layouts/${encodeURIComponent(rid)}/active`);
       if (!res.ok) {
         const p = document.createElement("p");
         p.className = "muted";
-        p.textContent = "לא הוגדרה מפת שולחנות למסעדה זו.";
+        p.textContent = "אין Layout פעיל למסעדה זו. יש להיכנס למסך העריכה ולבצע שמירה (Save Layout) כדי להפעיל Layout.";
         holder.appendChild(p);
         return;
       }
