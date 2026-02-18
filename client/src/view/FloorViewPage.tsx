@@ -92,6 +92,19 @@ export default function FloorViewPage({ restaurantId }: { restaurantId: string }
     };
   }, [rid]);
 
+  // IMPORTANT: hooks must be called unconditionally.
+  // We compute the filtered layout before any early returns.
+  const filteredLayout = useMemo(() => {
+    if (!layout) return null;
+    if (!activeSectionId) return layout;
+    const sid = String(activeSectionId);
+    return {
+      ...layout,
+      tables: (layout.tables || []).filter((t: any) => String(t.sectionId || '') === sid),
+      // Keep statuses as-is; renderer resolves by id/number.
+    } as FloorLayoutLike;
+  }, [layout, activeSectionId]);
+
   if (state.kind === 'loading') {
     return (
       <div className="sb-floor-view-shell">
@@ -111,17 +124,6 @@ export default function FloorViewPage({ restaurantId }: { restaurantId: string }
       </div>
     );
   }
-
-  const filteredLayout = useMemo(() => {
-    if (!layout) return null;
-    if (!activeSectionId) return layout;
-    const sid = String(activeSectionId);
-    return {
-      ...layout,
-      tables: (layout.tables || []).filter((t: any) => String(t.sectionId || '') === sid),
-      // Keep statuses as-is; renderer resolves by id/number.
-    } as FloorLayoutLike;
-  }, [layout, activeSectionId]);
 
   return (
     <div className="floor-editor sb-floor-view">
