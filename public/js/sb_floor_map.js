@@ -319,14 +319,36 @@ function objectAssetUrl(o){
         cache: 'no-store'
       });
       if (res1.ok) {
-        const layout = await res1.json();
+        // Some deployments may respond with non-JSON or empty body due to proxy/caching.
+        // Parse defensively so we can surface the real problem.
+        const ct = res1.headers.get('content-type') || '';
+        const raw = await res1.text();
+        let layout;
+        try {
+          layout = raw ? JSON.parse(raw) : null;
+        } catch (parseErr) {
+          console.error('[SBFloorMap] /active JSON parse failed', {
+            url: url1,
+            contentType: ct,
+            rawPreview: String(raw).slice(0, 400),
+            rawLength: (raw || '').length,
+            error: String(parseErr)
+          });
+          const err = new Error('ACTIVE_LAYOUT_BAD_JSON');
+          err._sb = { status: res1.status, statusText: res1.statusText, contentType: ct, rawPreview: String(raw).slice(0, 400) };
+          throw err;
+        }
+
+        // Some server versions wrap the layout in {layout: ...}
+        if (layout && layout.layout && typeof layout.layout === 'object') layout = layout.layout;
+
         // Convert layout shape -> plan shape expected by this legacy renderer.
-        const tables = Array.isArray(layout.tables) ? layout.tables : [];
-        const objects = Array.isArray(layout.objects) ? layout.objects : [];
+        const tables = Array.isArray(layout?.tables) ? layout.tables : [];
+        const objects = Array.isArray(layout?.objects) ? layout.objects : [];
 
         // Map tableStatuses from tableId -> tableNumber (legacy expects tableNumber)
         const byId = new Map(tables.map(t => [String(t.id), t]));
-        const tableStatuses = (Array.isArray(layout.tableStatuses) ? layout.tableStatuses : [])
+        const tableStatuses = (Array.isArray(layout?.tableStatuses) ? layout.tableStatuses : [])
           .map(s => {
             const t = byId.get(String(s.tableId));
             return {
@@ -342,15 +364,15 @@ function objectAssetUrl(o){
 
         return {
           // grid
-          gridRows: Number(layout.gridRows || layout.rows || 0) || 0,
-          gridCols: Number(layout.gridCols || layout.cols || 0) || 0,
-          gridMask: Array.isArray(layout.gridMask) ? layout.gridMask : null,
+          gridRows: Number(layout?.gridRows || layout?.rows || 0) || 0,
+          gridCols: Number(layout?.gridCols || layout?.cols || 0) || 0,
+          gridMask: Array.isArray(layout?.gridMask) ? layout.gridMask : null,
           // content
           tables,
           objects,
           tableStatuses,
           // carry through theme if exists
-          floorColor: layout.floorColor || layout.floorTheme || null,
+          floorColor: layout?.floorColor || layout?.floorTheme || null,
         };
       }
 
@@ -391,14 +413,11 @@ function objectAssetUrl(o){
       const err = new Error(`ACTIVE_LAYOUT_FETCH_FAILED:${res1.status}`);
       err._sb = { status: res1.status, statusText: res1.statusText, body: bodyJson || bodyText || null };
       throw err;
-    } catch (_) {
-      // fall back below
+    } catch (e) {
+      // Do not silently fall back to legacy in Solution A.
+      console.error('[SBFloorMap] loadPlan failed', e);
+      throw e;
     }
-
-    // Legacy API fallback
-    const res = await fetch(`/api/floor-plans/${encodeURIComponent(rid)}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('failed');
-    return await res.json();
   }
 
   function mapStatuses(plan){
@@ -614,9 +633,11 @@ function objectAssetUrl(o){
       }catch(e){
         // Rich UI error with a quick hint + encourage checking the console.
         const status = e && e._sb && e._sb.status ? String(e._sb.status) : '';
-        const hint = status === '404'
-          ? 'השרת לא מצא Layout פעיל למסעדה הזו (או שאין Layouts בכלל).'
-          : 'קרתה שגיאה בטעינת המפה.';
+        const hint = (e && e.message === 'ACTIVE_LAYOUT_BAD_JSON')
+          ? 'השרת החזיר תשובה לא תקינה (לא JSON) ל- /active. בדוק Console כדי לראות preview של התגובה.'
+          : (status === '404'
+              ? 'השרת לא מצא Layout פעיל למסעדה הזו (או שאין Layouts בכלל).'
+              : 'קרתה שגיאה בטעינת המפה.');
         root.innerHTML = `
           <div class="sb-floor-error-box" style="padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(0,0,0,.25)">
             <p style="margin:0 0 6px 0;"><strong>לא ניתן לטעון את מפת המסעדה.</strong></p>
