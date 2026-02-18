@@ -345,11 +345,10 @@ export default function FloorMapRenderer({
                 <div
                   className={`floor-object type-${objectHere.type}`}
                   style={{
-                    left: padPx,
-                    top: padPx,
                     width: `${spanToPx(objectHere.spanX)}px`,
                     height: `${spanToPx(objectHere.spanY)}px`,
                     transform: `rotate(${getItemRotation((objectHere as any).rotationDeg ?? objectHere.rotation ?? 0)}deg)`,
+                    cursor: mode === 'view' ? 'default' : 'grab',
                   }}
                 >
                   <img
@@ -376,25 +375,31 @@ export default function FloorMapRenderer({
                 const count = st.guestCount != null && st.guestCount !== '' ? ` · ${st.guestCount}` : '';
                 return (
                   <div
-                    className={`floor-table shape-${String(tableHere.shape || 'square')} status-${status} ${selected ? 'is-selected' : ''}`}
+                    className={`table ${String(tableHere.shape || 'square')} ${selected ? 'selected' : ''}`}
                     onClick={() => onTableClick?.(tableHere.id)}
                     style={{
-                      position: 'relative',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
                       width: `${spanToPx(tableHere.spanX)}px`,
                       height: `${spanToPx(tableHere.spanY)}px`,
-                      transform: `rotate(${getItemRotation((tableHere as any).rotationDeg ?? tableHere.rotation ?? 0)}deg)`,
                       cursor: mode === 'view' ? 'pointer' : 'default',
                     }}
                   >
-                    <img
-                      className={`fe-asset fe-asset--${(tableHere.assetFile || '').replace(/[^a-z0-9]+/gi, '_').toLowerCase()}`}
-                      style={{ transform: `scale(${getItemScale((tableHere as any).scale, 1)})` }}
-                      src={tableHere.assetFile ? `${ASSET_BASE}${tableHere.assetFile}` : assetForTable(tableHere.shape, tableHere.seats)}
-                      alt=""
-                    />
-                    {tableHere.tableNumber != null && (
-                      <div className="table-number">{tableHere.tableNumber}</div>
-                    )}
+                    <div className="fe-table-visual" data-asset={tableHere.assetFile || ''}>
+                      <img
+                        className={`fe-asset fe-asset--${(tableHere.assetFile || '').replace(/[^a-z0-9]+/gi, '_').toLowerCase()}`}
+                        style={{
+                          transform: `rotate(${getItemRotation((tableHere as any).rotationDeg ?? tableHere.rotation ?? 0)}deg) scale(${getItemScale((tableHere as any).scale, 1)})`,
+                        }}
+                        src={tableHere.assetFile ? `${ASSET_BASE}${tableHere.assetFile}` : assetForTable(tableHere.shape, tableHere.seats)}
+                        alt=""
+                      />
+                    </div>
+                    <div className="fe-table-overlay">
+                      <div className="table-label">{tableHere.name || (tableHere.tableNumber != null ? `Table ${tableHere.tableNumber}` : 'Table')}</div>
+                      {tableHere.seats != null && <div className="table-seats">{tableHere.seats} seats</div>}
+                    </div>
                     {showPill && (
                       <div className={`sbv-status-pill is-${status}`}>
                         <span className="sbv-dot" />
