@@ -11,10 +11,5 @@
   <div id="sb-floor-root" data-rid="<%= it.rid %>"></div>
 </main>
 
-<script src="/public/js/sb_floor_map.js?v=<%= it.BUILD_TAG || '' %>"></script>
-<script>
-  (function(){
-    const root = document.getElementById('sb-floor-root');
-    if (root && window.SBFloorMap) window.SBFloorMap.init(root);
-  })();
-</script>
+<!-- React View Mode (Floor View App) -->
+<script type="module" src="/public/dist/floor-view-app.js?v=<%= it.BUILD_TAG || '' %>"></script>
