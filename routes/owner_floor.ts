@@ -649,6 +649,144 @@ ownerFloorRouter.get(
   }
 );
 
+// GET /api/floor-layouts/:restaurantId/active - Get active layout
+ownerFloorRouter.get(
+  "/api/floor-layouts/:restaurantId/active",
+  async (ctx) => {
+    if (!requireStaff(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    if (!restaurantId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID" };
+      return;
+    }
+
+    const user = ctx.state.user;
+
+    // Verify restaurant exists and user has access
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant) {
+      ctx.response.status = 404;
+      ctx.response.body = { error: "Restaurant not found" };
+      return;
+    }
+
+    if (user.role === "owner") {
+      if ((restaurant as any).ownerId !== user.id) {
+        ctx.response.status = 403;
+        ctx.response.body = { error: "Forbidden" };
+        return;
+      }
+    }
+
+    // --- DEBUG: helpful breadcrumbs for diagnosing missing active layouts ---
+    // NOTE: We keep logs lightweight and avoid dumping full layout content.
+    try {
+      console.log("[FLOOR][ACTIVE] request", {
+        restaurantId,
+        userId: user?.id,
+        role: user?.role,
+      });
+      const activeKey = ["active_floor_plan", restaurantId] as Deno.KvKey;
+      const activeRes = await kv.get(activeKey);
+      console.log("[FLOOR][ACTIVE] active_key", {
+        restaurantId,
+        activeLayoutId: activeRes.value ?? null,
+      });
+    } catch (_e) {
+      // ignore logging failures
+    }
+
+    const layout = await getActiveFloorLayout(restaurantId);
+    if (!layout) {
+      ctx.response.status = 404;
+      // Provide extra context to help the client understand WHAT is missing.
+      // This is safe for staff users and contains no sensitive data.
+      let layoutsCount = 0;
+      let activeLayoutId: string | null = null;
+      try {
+        const all = await listFloorLayouts(restaurantId);
+        layoutsCount = all.length;
+        const activeRes = await kv.get(["active_floor_plan", restaurantId] as Deno.KvKey);
+        activeLayoutId = (activeRes.value as string | null) ?? null;
+      } catch (_e) {}
+      ctx.response.body = {
+        error: "No active layout found",
+        debug: {
+          restaurantId,
+          layoutsCount,
+          activeLayoutId,
+          hint:
+            layoutsCount === 0
+              ? "No layouts exist yet for this restaurant. Create a layout in the editor first."
+              : "Layouts exist but none is active. Activate one from the editor (or publish).",
+        },
+      };
+      return;
+    }
+
+    // Compute live table statuses
+    const tableStatuses = await computeAllTableStatuses(restaurantId, layout.tables);
+
+    ctx.response.body = {
+      ...layout,
+      tableStatuses,
+    };
+  }
+);
+
+// GET /api/floor-layouts/:restaurantId/debug - Diagnostic endpoint (staff only)
+// Helps troubleshoot: do layouts exist? is active key set? what IDs are stored?
+ownerFloorRouter.get(
+  "/api/floor-layouts/:restaurantId/debug",
+  async (ctx) => {
+    if (!requireStaff(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    if (!restaurantId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID" };
+      return;
+    }
+
+    if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
+
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant) {
+      ctx.response.status = 404;
+      ctx.response.body = { error: "Restaurant not found" };
+      return;
+    }
+
+    const user = ctx.state.user;
+    const activeRes = await kv.get(["active_floor_plan", restaurantId] as Deno.KvKey);
+    const activeLayoutId = (activeRes.value as string | null) ?? null;
+    const layouts = await listFloorLayouts(restaurantId);
+
+    ctx.response.body = {
+      restaurantId,
+      user: { id: user?.id ?? null, role: user?.role ?? null },
+      activeLayoutId,
+      layoutsCount: layouts.length,
+      layouts: layouts.map((l) => ({
+        id: l.id,
+        name: l.name,
+        isActive: !!l.isActive,
+        updatedAt: l.updatedAt,
+        tablesCount: Array.isArray((l as any).tables) ? (l as any).tables.length : 0,
+        objectsCount: Array.isArray((l as any).objects) ? (l as any).objects.length : 0,
+      })),
+      note:
+        layouts.length === 0
+          ? "No layouts exist. Use the editor to create one."
+          : activeLayoutId
+            ? "Active key is set. /active should return the active layout."
+            : "Active key is NOT set. Activating any layout should set it.",
+    };
+  }
+);
+
 // GET /api/floor-layouts/:restaurantId/:layoutId - Get specific layout
 ownerFloorRouter.get(
   "/api/floor-layouts/:restaurantId/:layoutId",
@@ -898,143 +1036,6 @@ ownerFloorRouter.post(
   }
 );
 
-// GET /api/floor-layouts/:restaurantId/active - Get active layout
-ownerFloorRouter.get(
-  "/api/floor-layouts/:restaurantId/active",
-  async (ctx) => {
-    if (!requireStaff(ctx)) return;
-
-    const restaurantId = ctx.params.restaurantId;
-    if (!restaurantId) {
-      ctx.response.status = 400;
-      ctx.response.body = { error: "Missing restaurant ID" };
-      return;
-    }
-
-    const user = ctx.state.user;
-
-    // Verify restaurant exists and user has access
-    const restaurant = await getRestaurant(restaurantId);
-    if (!restaurant) {
-      ctx.response.status = 404;
-      ctx.response.body = { error: "Restaurant not found" };
-      return;
-    }
-
-    if (user.role === "owner") {
-      if ((restaurant as any).ownerId !== user.id) {
-        ctx.response.status = 403;
-        ctx.response.body = { error: "Forbidden" };
-        return;
-      }
-    }
-
-    // --- DEBUG: helpful breadcrumbs for diagnosing missing active layouts ---
-    // NOTE: We keep logs lightweight and avoid dumping full layout content.
-    try {
-      console.log("[FLOOR][ACTIVE] request", {
-        restaurantId,
-        userId: user?.id,
-        role: user?.role,
-      });
-      const activeKey = ["active_floor_plan", restaurantId] as Deno.KvKey;
-      const activeRes = await kv.get(activeKey);
-      console.log("[FLOOR][ACTIVE] active_key", {
-        restaurantId,
-        activeLayoutId: activeRes.value ?? null,
-      });
-    } catch (_e) {
-      // ignore logging failures
-    }
-
-    const layout = await getActiveFloorLayout(restaurantId);
-    if (!layout) {
-      ctx.response.status = 404;
-      // Provide extra context to help the client understand WHAT is missing.
-      // This is safe for staff users and contains no sensitive data.
-      let layoutsCount = 0;
-      let activeLayoutId: string | null = null;
-      try {
-        const all = await listFloorLayouts(restaurantId);
-        layoutsCount = all.length;
-        const activeRes = await kv.get(["active_floor_plan", restaurantId] as Deno.KvKey);
-        activeLayoutId = (activeRes.value as string | null) ?? null;
-      } catch (_e) {}
-      ctx.response.body = {
-        error: "No active layout found",
-        debug: {
-          restaurantId,
-          layoutsCount,
-          activeLayoutId,
-          hint:
-            layoutsCount === 0
-              ? "No layouts exist yet for this restaurant. Create a layout in the editor first."
-              : "Layouts exist but none is active. Activate one from the editor (or publish).",
-        },
-      };
-      return;
-    }
-
-    // Compute live table statuses
-    const tableStatuses = await computeAllTableStatuses(restaurantId, layout.tables);
-
-    ctx.response.body = {
-      ...layout,
-      tableStatuses,
-    };
-  }
-);
-
-// GET /api/floor-layouts/:restaurantId/debug - Diagnostic endpoint (staff only)
-// Helps troubleshoot: do layouts exist? is active key set? what IDs are stored?
-ownerFloorRouter.get(
-  "/api/floor-layouts/:restaurantId/debug",
-  async (ctx) => {
-    if (!requireStaff(ctx)) return;
-
-    const restaurantId = ctx.params.restaurantId;
-    if (!restaurantId) {
-      ctx.response.status = 400;
-      ctx.response.body = { error: "Missing restaurant ID" };
-      return;
-    }
-
-    if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
-
-    const restaurant = await getRestaurant(restaurantId);
-    if (!restaurant) {
-      ctx.response.status = 404;
-      ctx.response.body = { error: "Restaurant not found" };
-      return;
-    }
-
-    const user = ctx.state.user;
-    const activeRes = await kv.get(["active_floor_plan", restaurantId] as Deno.KvKey);
-    const activeLayoutId = (activeRes.value as string | null) ?? null;
-    const layouts = await listFloorLayouts(restaurantId);
-
-    ctx.response.body = {
-      restaurantId,
-      user: { id: user?.id ?? null, role: user?.role ?? null },
-      activeLayoutId,
-      layoutsCount: layouts.length,
-      layouts: layouts.map((l) => ({
-        id: l.id,
-        name: l.name,
-        isActive: !!l.isActive,
-        updatedAt: l.updatedAt,
-        tablesCount: Array.isArray((l as any).tables) ? (l as any).tables.length : 0,
-        objectsCount: Array.isArray((l as any).objects) ? (l as any).objects.length : 0,
-      })),
-      note:
-        layouts.length === 0
-          ? "No layouts exist. Use the editor to create one."
-          : activeLayoutId
-            ? "Active key is set. /active should return the active layout."
-            : "Active key is NOT set. Activating any layout should set it.",
-    };
-  }
-);
 
 // POST /api/floor-layouts/:restaurantId/:layoutId/duplicate - Duplicate layout
 ownerFloorRouter.post(
