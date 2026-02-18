@@ -12,4 +12,4 @@
 </main>
 
 <!-- React View Mode (Floor View App) -->
-<script type="module" src="/public/dist/floor-view-app.js?v=<%= it.BUILD_TAG || '' %>"></script>
+<script type="module" src="/dist/floor-view-app.js?v=<%= it.BUILD_TAG || '' %>"></script>

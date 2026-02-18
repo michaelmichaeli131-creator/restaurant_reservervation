@@ -237,6 +237,20 @@ app.use(async (ctx, next) => {
   await next();
 });
 
+/* --- Static files (/dist/* -> <CWD>/public/dist/*) --- */
+// Vite builds the React apps into public/dist. In production we want clean URLs like /dist/floor-view-app.js
+app.use(async (ctx, next) => {
+  const p = ctx.request.url.pathname;
+  if (p.startsWith("/dist/")) {
+    const rel = p.slice("/".length); // dist/...
+    await send(ctx, rel, {
+      root: `${Deno.cwd()}/public`,
+    });
+    return;
+  }
+  await next();
+});
+
 // --- Static files (/static/* -> public/*) ---
 app.use(async (ctx, next) => {
   const p = ctx.request.url.pathname;
