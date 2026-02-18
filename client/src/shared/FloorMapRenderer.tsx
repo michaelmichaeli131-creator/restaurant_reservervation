@@ -181,6 +181,16 @@ export default function FloorMapRenderer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout?.id]);
 
+  // Keep the map centered if the viewport size changes (waiter/host screens are often used on tablets).
+  useEffect(() => {
+    const onResize = () => {
+      requestAnimationFrame(fitToScreen);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout?.id]);
+
   const zoomAtPoint = (nextZoom: number, clientX: number, clientY: number) => {
     if (!canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
@@ -375,7 +385,7 @@ export default function FloorMapRenderer({
                 const count = st.guestCount != null && st.guestCount !== '' ? ` · ${st.guestCount}` : '';
                 return (
                   <div
-                    className={`table ${String(tableHere.shape || 'square')} ${selected ? 'selected' : ''}`}
+                    className={`table ${String(tableHere.shape || 'square')} ${mode === 'view' ? `status-${status}` : ''} ${selected ? 'selected' : ''}`}
                     onClick={() => onTableClick?.(tableHere.id)}
                     style={{
                       position: 'absolute',

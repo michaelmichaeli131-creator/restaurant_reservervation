@@ -40,61 +40,48 @@ export default function FloorViewPage({ restaurantId }: { restaurantId: string }
     const st = (layout as any)?.tableStatuses;
     if (!Array.isArray(st)) return { status: 'empty' as string };
     const byId = st.find((x: any) => x && String(x.tableId || '') === String(tableId));
-    if (byId) return { status: String(byId.status || 'empty') };
+    if (byId) {
+      return {
+        status: String(byId.status || 'empty'),
+        guestName: byId.guestName ?? null,
+        guestCount: byId.guestCount ?? null,
+        orderId: byId.orderId ?? null,
+        // Optional fields if the backend provides them in the future
+        reservationTime: (byId as any).reservationTime ?? null,
+        itemsCount: (byId as any).itemsCount ?? null,
+        subtotal: (byId as any).subtotal ?? null,
+      };
+    }
     return { status: 'empty' as string };
   };
 
-
-  const statusLabelHe = (status: string) => {
-    if (status === 'occupied') return 'תפוס';
-    if (status === 'reserved') return 'שמור';
-    if (status === 'dirty') return 'מלוכלך';
-    return 'פנוי';
-  };
-
-  const statusDotClass = (status: string) => {
-    if (status === 'occupied') return 'occupied';
-    if (status === 'reserved') return 'reserved';
-    if (status === 'dirty') return 'dirty';
+  const normalizeStatus = (raw: any): 'empty' | 'occupied' | 'reserved' | 'dirty' => {
+    const s = String(raw || '').toLowerCase();
+    if (s === 'occupied' || s === 'busy' || s === 'taken') return 'occupied';
+    if (s === 'reserved' || s === 'booked') return 'reserved';
+    if (s === 'dirty') return 'dirty';
     return 'empty';
   };
 
+  const statusLabelHe = (s: 'empty' | 'occupied' | 'reserved' | 'dirty') => {
+    if (s === 'occupied') return 'תפוס';
+    if (s === 'reserved') return 'שמור';
+    if (s === 'dirty') return 'מלוכלך';
+    return 'פנוי';
+  };
+
   const selectedTable = useMemo(() => {
-    if (!layout || !selectedTableId) return null;
-    return (layout.tables || []).find((t: any) => String(t.id) === String(selectedTableId)) || null;
-  }, [layout, selectedTableId]);
+    if (!selectedTableId) return null;
+    return (layout?.tables || []).find((t) => String(t.id) === String(selectedTableId)) || null;
+  }, [layout?.id, layout?.tables, selectedTableId]);
 
   const selectedStatus = useMemo(() => {
-    if (!selectedTableId) return { status: 'empty' as string };
-    return getTableStatus(selectedTableId);
+    if (!selectedTableId) return null;
+    const st: any = getTableStatus(selectedTableId);
+    const ns = normalizeStatus(st.status);
+    return { ...st, status: ns, label: statusLabelHe(ns), dotClass: ns };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout, selectedTableId]);
-
-  const selectedTableNumber = selectedTable?.tableNumber ?? null;
-
-  const selectedMeta = useMemo(() => {
-    const st: any = selectedStatus as any;
-    const guestName = st.guestName ?? st.customerName ?? null;
-    const guestCount = st.guestCount ?? st.partySize ?? null;
-    const reservedAt = st.reservationTime ?? st.reservedAt ?? null;
-    const occupiedSince = st.occupiedSince ?? null;
-    const orderTotal = st.orderTotal ?? st.subtotal ?? null;
-    const itemsCount = st.itemsCount ?? (Number.isFinite(st.itemsReady) || Number.isFinite(st.itemsPending)
-      ? (Number(st.itemsReady || 0) + Number(st.itemsPending || 0))
-      : null);
-
-    const timeStr = (() => {
-      const v = reservedAt ?? occupiedSince;
-      if (!v) return null;
-      const n = Number(v);
-      if (Number.isFinite(n) && n > 1000000000) {
-        try { return new Date(n).toLocaleTimeString(); } catch { return null; }
-      }
-      if (typeof v === 'string') return v;
-      return null;
-    })();
-
-    return { guestName, guestCount, timeStr, itemsCount, orderTotal };
-  }, [selectedStatus]);
 
   useEffect(() => {
     let cancelled = false;
@@ -174,10 +161,10 @@ export default function FloorViewPage({ restaurantId }: { restaurantId: string }
           <div className="hint">(בדוק את ה-Console לפרטי דיבוג)</div>
         </div>
       </div>
-
     );
   }
-return (
+
+  return (
     <>
     <div className="floor-editor sb-floor-view">
       <div className="layout-tabs-bar">
@@ -238,7 +225,6 @@ return (
               mode="view"
               selectedTableId={selectedTableId}
               onTableClick={(tableId) => {
-                // Always open details panel (like legacy waiter map)
                 setSelectedTableId(tableId);
               }}
             />
@@ -247,64 +233,64 @@ return (
       </div>
     </div>
 
-
-
-      {/* Table details modal */}
-      {selectedTableId && (
-        <div className="sbv-modal-backdrop" role="dialog" aria-modal="true" onMouseDown={(e) => {
+    {/* Table details modal (feature parity with legacy waiter map) */}
+    {selectedTableId && selectedTable && selectedStatus && (
+      <div
+        className="sbv-modal-backdrop"
+        role="dialog"
+        aria-modal="true"
+        onMouseDown={(e) => {
+          // Close when clicking the backdrop
           if (e.target === e.currentTarget) setSelectedTableId(null);
-        }}>
-          <div className="sbv-modal" dir="rtl">
-            <div className="sbv-modal-header">
+        }}
+      >
+        <div className="sbv-modal" dir="rtl" onMouseDown={(e) => e.stopPropagation()}>
+          <div className="sbv-modal-header">
+            <div>
               <div className="sbv-modal-title">פרטי שולחן</div>
-              <button className="sbv-x" type="button" aria-label="Close" onClick={() => setSelectedTableId(null)}>✕</button>
+              <div className="sbv-modal-sub">שולחן {selectedTable.tableNumber ?? selectedTable.name ?? selectedTable.id}</div>
             </div>
+            <button className="sbv-close" type="button" aria-label="Close" onClick={() => setSelectedTableId(null)}>
+              ✕
+            </button>
+          </div>
 
-            <div className="sbv-modal-subtitle">
-              שולחן {selectedTable?.tableNumber ?? selectedTable?.name ?? '—'}
+          <div className="sbv-modal-body">
+            <div className="sbv-row"><div className="sbv-k">שם המזמין</div><div className="sbv-v">{selectedStatus.guestName || '—'}</div></div>
+            <div className="sbv-row"><div className="sbv-k">מספר סועדים</div><div className="sbv-v">{selectedStatus.guestCount != null && selectedStatus.guestCount !== '' ? String(selectedStatus.guestCount) : '—'}</div></div>
+            <div className="sbv-row"><div className="sbv-k">שעת ההזמנה</div><div className="sbv-v">{selectedStatus.reservationTime || '—'}</div></div>
+            <div className="sbv-row">
+              <div className="sbv-k">סטטוס שולחן</div>
+              <div className="sbv-v">
+                <span className="sbv-status">
+                  <span className={`sbv-dot ${selectedStatus.dotClass}`} />
+                  {selectedStatus.label}
+                </span>
+              </div>
             </div>
+            <div className="sbv-row"><div className="sbv-k">מספר פריטים</div><div className="sbv-v">{selectedStatus.itemsCount != null && selectedStatus.itemsCount !== '' ? String(selectedStatus.itemsCount) : '—'}</div></div>
+            <div className="sbv-row"><div className="sbv-k">סכום ביניים</div><div className="sbv-v">{selectedStatus.subtotal != null && selectedStatus.subtotal !== '' ? String(selectedStatus.subtotal) : '—'}</div></div>
+          </div>
 
-            <div className="sbv-kv">
-              <div className="sbv-row">
-                <div className="k">שם המזמין</div>
-                <div className="v">{selectedMeta.guestName || '—'}</div>
-              </div>
-              <div className="sbv-row">
-                <div className="k">מספר סועדים</div>
-                <div className="v">{selectedMeta.guestCount ?? '—'}</div>
-              </div>
-              <div className="sbv-row">
-                <div className="k">שעת ההזמנה</div>
-                <div className="v">{selectedMeta.timeStr || '—'}</div>
-              </div>
-              <div className="sbv-row">
-                <div className="k">סטטוס שולחן</div>
-                <div className="v">
-                  <span className={`sbv-dot ${statusDotClass(String((selectedStatus as any).status || 'empty'))}`} />
-                  <span className="sbv-status-label">{statusLabelHe(String((selectedStatus as any).status || 'empty'))}</span>
-                </div>
-              </div>
-              <div className="sbv-row">
-                <div className="k">מספר פריטים</div>
-                <div className="v">{selectedMeta.itemsCount ?? '—'}</div>
-              </div>
-              <div className="sbv-row">
-                <div className="k">סכום ביניים</div>
-                <div className="v">{selectedMeta.orderTotal != null ? `${Number(selectedMeta.orderTotal).toFixed(2)} ₪` : '—'}</div>
-              </div>
-            </div>
-
-            <div className="sbv-modal-actions">
-              {selectedTableNumber != null && (
-                <a className="btn primary" href={`/waiter/${encodeURIComponent(rid)}/${encodeURIComponent(String(selectedTableNumber))}`}>
-                  פתח הזמנה
-                </a>
-              )}
-              <button className="btn ghost" type="button" onClick={() => setSelectedTableId(null)}>סגור</button>
-            </div>
+          <div className="sbv-modal-actions">
+            <button className="sbv-btn" type="button" onClick={() => setSelectedTableId(null)}>
+              סגור
+            </button>
+            {(selectedStatus.status === 'occupied' || selectedStatus.orderId) && selectedTable.tableNumber != null && (
+              <button
+                className="sbv-btn"
+                type="button"
+                onClick={() => {
+                  window.location.href = `/waiter/${encodeURIComponent(rid)}/${encodeURIComponent(String(selectedTable.tableNumber))}`;
+                }}
+              >
+                פתח הזמנה
+              </button>
+            )}
           </div>
         </div>
-      )}
+      </div>
+    )}
     </>
   );
 }

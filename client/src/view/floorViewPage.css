@@ -87,11 +87,12 @@
   padding-inline-start: 6px;
 }
 
-/* Status rendering for tables (applied on the table wrapper) */
-.floor-table.status-occupied{ outline: 2px solid rgba(239,68,68,.7); box-shadow: 0 0 0 6px rgba(239,68,68,.10); }
-.floor-table.status-reserved{ outline: 2px solid rgba(245,158,11,.7); box-shadow: 0 0 0 6px rgba(245,158,11,.10); }
-.floor-table.status-dirty{ outline: 2px solid rgba(168,85,247,.7); box-shadow: 0 0 0 6px rgba(168,85,247,.10); }
-.floor-table.is-selected{ outline: 2px solid rgba(59,130,246,.95); box-shadow: 0 0 0 7px rgba(59,130,246,.14); }
+/* Status rendering for tables (applied on the shared editor table wrapper) */
+.table.status-occupied{ outline: 2px solid rgba(239,68,68,.7); box-shadow: 0 0 0 6px rgba(239,68,68,.10); }
+.table.status-reserved{ outline: 2px solid rgba(245,158,11,.7); box-shadow: 0 0 0 6px rgba(245,158,11,.10); }
+.table.status-dirty{ outline: 2px solid rgba(168,85,247,.7); box-shadow: 0 0 0 6px rgba(168,85,247,.10); }
+.table.status-empty{ outline: 2px solid rgba(34,197,94,.45); box-shadow: 0 0 0 6px rgba(34,197,94,.08); }
+.table.selected{ outline: 2px solid rgba(59,130,246,.95); box-shadow: 0 0 0 7px rgba(59,130,246,.14); }
 
 /* Small pill similar to legacy waiter map */
 .sbv-status-pill{
@@ -117,110 +118,94 @@
 .sbv-status-pill.is-reserved .sbv-dot{ background: #f59e0b; }
 .sbv-status-pill.is-dirty .sbv-dot{ background: #a855f7; }
 
+/* =======================
+   Table details modal
+   ======================= */
 
-/* Center the canvas area (map) */
-.sb-floor-view .sbv-content{
-  height: calc(100vh - 140px);
-  display: flex;
-  flex-direction: column;
-}
-.sb-floor-view .sbv-main{
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-.sb-floor-view .editor-canvas{
-  width: 100%;
-  height: 100%;
-  border-radius: 16px;
-  overflow: hidden;
-}
-
-/* Table details modal */
 .sbv-modal-backdrop{
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,.55);
-  backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   z-index: 9999;
-  padding: 18px;
 }
 
 .sbv-modal{
-  width: min(420px, 96vw);
+  width: min(520px, calc(100vw - 24px));
   border-radius: 16px;
-  background: rgba(15,23,42,.92);
-  border: 1px solid rgba(255,255,255,.14);
-  box-shadow: 0 18px 60px rgba(0,0,0,.55);
+  background: rgba(10,14,24,.96);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 20px 80px rgba(0,0,0,.55);
   padding: 14px 14px 12px;
 }
 
 .sbv-modal-header{
   display: flex;
-  align-items: center;
+  align-items: start;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .sbv-modal-title{
   font-weight: 800;
-  font-size: 16px;
+  letter-spacing: .2px;
 }
 
-.sbv-x{
+.sbv-modal-sub{
+  opacity: .85;
+  margin-top: 4px;
+}
+
+.sbv-close{
   width: 34px;
   height: 34px;
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1px solid rgba(255,255,255,.12);
   background: rgba(255,255,255,.06);
-  color: rgba(255,255,255,.9);
+  color: #fff;
   cursor: pointer;
 }
 
-.sbv-modal-subtitle{
-  margin-top: 8px;
-  font-size: 14px;
-  opacity: .9;
-}
-
-.sbv-kv{
-  margin-top: 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(0,0,0,.18);
-  overflow: hidden;
+.sbv-modal-body{
+  display: grid;
+  gap: 8px;
 }
 
 .sbv-row{
   display: grid;
-  grid-template-columns: 140px 1fr;
+  grid-template-columns: 160px 1fr;
   gap: 10px;
-  padding: 10px 12px;
-  border-top: 1px solid rgba(255,255,255,.06);
+  padding: 10px 10px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.07);
 }
-.sbv-row:first-child{ border-top: 0; }
 
-.sbv-row .k{
-  opacity: .75;
-  font-size: 12.5px;
-}
-.sbv-row .v{
-  font-size: 13px;
+.sbv-k{ opacity: .8; font-size: 13px; }
+.sbv-v{ font-weight: 650; }
+
+.sbv-status{
   display: inline-flex;
   align-items: center;
   gap: 8px;
 }
 
-.sbv-status-label{ opacity: .95; }
+.sbv-status .sbv-dot{ width: 10px; height: 10px; }
 
 .sbv-modal-actions{
   display: flex;
   justify-content: flex-end;
   gap: 10px;
   margin-top: 12px;
+}
+
+.sbv-btn{
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(59,130,246,.18);
+  color: #fff;
+  cursor: pointer;
 }
