@@ -156,6 +156,10 @@ function makeTableEl(t, status, onClick, extra){
     btn.setAttribute('tabindex', '0');
     btn.dataset.tableNumber = String(t.tableNumber);
 
+    // Optional explicit asset filename (new layouts). Some older data may not have it.
+    // Used only for debugging / styling hooks; the actual image src is resolved by tableAssetUrl().
+    const assetFile = (t && t.assetFile) ? String(t.assetFile) : '';
+
     
 
     // logical scale for assets
