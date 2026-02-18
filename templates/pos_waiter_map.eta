@@ -1,29 +1,15 @@
 <% layout("_layout", it) %>
 
-<!-- Reuse the EXACT same Floor Editor styles so the map looks identical to "עדכון סידור השולחנות" -->
-<link rel="stylesheet" href="/static/dist/floor-index.css">
+<main class="container waiter-map-page" dir="rtl">
+  <header class="page-header">
+    <h1>מפת מסעדה — <%= it.restaurant.name %></h1>
+    <p class="muted">
+      לחיצה על שולחן תפוס תפתח את עמוד ההזמנה. הושבה מתבצעת דרך מסך המארחת.
+    </p>
+  </header>
 
-<!-- Match owner_floor.eta structure (full screen canvas) -->
-<main class="floor-page">
-  <div class="floor-container">
-    <div id="sb-floor-root" data-rid="<%= it.rid %>"></div>
-  </div>
+  <div id="sb-floor-root" data-rid="<%= it.rid %>"></div>
 </main>
 
-<script>
-  // Keep parity with the editor page (useful for future shared logic)
-  window.__APP_CONFIG__ = {
-    page: 'floor_view',
-    restaurantId: '<%= it.rid %>',
-    lang: '<%= it.lang || "he" %>'
-  };
-</script>
-
 <!-- React View Mode (Floor View App) -->
-<script type="module" src="/static/dist/floor-view-app.js?v=<%= it.BUILD_TAG || '' %>"></script>
-
-<style>
-  .floor-page { padding: 0; margin: 0; min-height: 100vh; }
-  .floor-container { width: 100%; height: 100vh; }
-  #sb-floor-root { width: 100%; height: 100%; }
-</style>
+<script type="module" src="/dist/floor-view-app.js?v=<%= it.BUILD_TAG || '' %>"></script>

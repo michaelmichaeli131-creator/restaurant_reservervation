@@ -44,6 +44,58 @@ export default function FloorViewPage({ restaurantId }: { restaurantId: string }
     return { status: 'empty' as string };
   };
 
+
+  const statusLabelHe = (status: string) => {
+    if (status === 'occupied') return 'תפוס';
+    if (status === 'reserved') return 'שמור';
+    if (status === 'dirty') return 'מלוכלך';
+    return 'פנוי';
+  };
+
+  const statusDotClass = (status: string) => {
+    if (status === 'occupied') return 'occupied';
+    if (status === 'reserved') return 'reserved';
+    if (status === 'dirty') return 'dirty';
+    return 'empty';
+  };
+
+  const selectedTable = useMemo(() => {
+    if (!layout || !selectedTableId) return null;
+    return (layout.tables || []).find((t: any) => String(t.id) === String(selectedTableId)) || null;
+  }, [layout, selectedTableId]);
+
+  const selectedStatus = useMemo(() => {
+    if (!selectedTableId) return { status: 'empty' as string };
+    return getTableStatus(selectedTableId);
+  }, [layout, selectedTableId]);
+
+  const selectedTableNumber = selectedTable?.tableNumber ?? null;
+
+  const selectedMeta = useMemo(() => {
+    const st: any = selectedStatus as any;
+    const guestName = st.guestName ?? st.customerName ?? null;
+    const guestCount = st.guestCount ?? st.partySize ?? null;
+    const reservedAt = st.reservationTime ?? st.reservedAt ?? null;
+    const occupiedSince = st.occupiedSince ?? null;
+    const orderTotal = st.orderTotal ?? st.subtotal ?? null;
+    const itemsCount = st.itemsCount ?? (Number.isFinite(st.itemsReady) || Number.isFinite(st.itemsPending)
+      ? (Number(st.itemsReady || 0) + Number(st.itemsPending || 0))
+      : null);
+
+    const timeStr = (() => {
+      const v = reservedAt ?? occupiedSince;
+      if (!v) return null;
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 1000000000) {
+        try { return new Date(n).toLocaleTimeString(); } catch { return null; }
+      }
+      if (typeof v === 'string') return v;
+      return null;
+    })();
+
+    return { guestName, guestCount, timeStr, itemsCount, orderTotal };
+  }, [selectedStatus]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -122,10 +174,11 @@ export default function FloorViewPage({ restaurantId }: { restaurantId: string }
           <div className="hint">(בדוק את ה-Console לפרטי דיבוג)</div>
         </div>
       </div>
+
     );
   }
-
-  return (
+return (
+    <>
     <div className="floor-editor sb-floor-view">
       <div className="layout-tabs-bar">
         <div className="layout-tabs" role="tablist" aria-label="Sections">
@@ -185,23 +238,73 @@ export default function FloorViewPage({ restaurantId }: { restaurantId: string }
               mode="view"
               selectedTableId={selectedTableId}
               onTableClick={(tableId) => {
+                // Always open details panel (like legacy waiter map)
                 setSelectedTableId(tableId);
-                const st = getTableStatus(tableId);
-                if (st.status === 'occupied') {
-                  // Preserve legacy navigation behavior
-                  const t = (layout?.tables || []).find((x) => String(x.id) === String(tableId));
-                  const tn = t?.tableNumber;
-                  if (tn != null) {
-                    window.location.href = `/waiter/${encodeURIComponent(rid)}/${encodeURIComponent(String(tn))}`;
-                    return;
-                  }
-                }
-                alert('שולחן לא תפוס כרגע. הושבה נעשית דרך מסך המארחת.');
               }}
             />
           )}
         </div>
       </div>
     </div>
+
+
+
+      {/* Table details modal */}
+      {selectedTableId && (
+        <div className="sbv-modal-backdrop" role="dialog" aria-modal="true" onMouseDown={(e) => {
+          if (e.target === e.currentTarget) setSelectedTableId(null);
+        }}>
+          <div className="sbv-modal" dir="rtl">
+            <div className="sbv-modal-header">
+              <div className="sbv-modal-title">פרטי שולחן</div>
+              <button className="sbv-x" type="button" aria-label="Close" onClick={() => setSelectedTableId(null)}>✕</button>
+            </div>
+
+            <div className="sbv-modal-subtitle">
+              שולחן {selectedTable?.tableNumber ?? selectedTable?.name ?? '—'}
+            </div>
+
+            <div className="sbv-kv">
+              <div className="sbv-row">
+                <div className="k">שם המזמין</div>
+                <div className="v">{selectedMeta.guestName || '—'}</div>
+              </div>
+              <div className="sbv-row">
+                <div className="k">מספר סועדים</div>
+                <div className="v">{selectedMeta.guestCount ?? '—'}</div>
+              </div>
+              <div className="sbv-row">
+                <div className="k">שעת ההזמנה</div>
+                <div className="v">{selectedMeta.timeStr || '—'}</div>
+              </div>
+              <div className="sbv-row">
+                <div className="k">סטטוס שולחן</div>
+                <div className="v">
+                  <span className={`sbv-dot ${statusDotClass(String((selectedStatus as any).status || 'empty'))}`} />
+                  <span className="sbv-status-label">{statusLabelHe(String((selectedStatus as any).status || 'empty'))}</span>
+                </div>
+              </div>
+              <div className="sbv-row">
+                <div className="k">מספר פריטים</div>
+                <div className="v">{selectedMeta.itemsCount ?? '—'}</div>
+              </div>
+              <div className="sbv-row">
+                <div className="k">סכום ביניים</div>
+                <div className="v">{selectedMeta.orderTotal != null ? `${Number(selectedMeta.orderTotal).toFixed(2)} ₪` : '—'}</div>
+              </div>
+            </div>
+
+            <div className="sbv-modal-actions">
+              {selectedTableNumber != null && (
+                <a className="btn primary" href={`/waiter/${encodeURIComponent(rid)}/${encodeURIComponent(String(selectedTableNumber))}`}>
+                  פתח הזמנה
+                </a>
+              )}
+              <button className="btn ghost" type="button" onClick={() => setSelectedTableId(null)}>סגור</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
