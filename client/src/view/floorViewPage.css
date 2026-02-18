@@ -87,12 +87,11 @@
   padding-inline-start: 6px;
 }
 
-/* Status rendering for tables (applied on the shared editor table wrapper) */
-.table.status-occupied{ outline: 2px solid rgba(239,68,68,.7); box-shadow: 0 0 0 6px rgba(239,68,68,.10); }
-.table.status-reserved{ outline: 2px solid rgba(245,158,11,.7); box-shadow: 0 0 0 6px rgba(245,158,11,.10); }
-.table.status-dirty{ outline: 2px solid rgba(168,85,247,.7); box-shadow: 0 0 0 6px rgba(168,85,247,.10); }
-.table.status-empty{ outline: 2px solid rgba(34,197,94,.45); box-shadow: 0 0 0 6px rgba(34,197,94,.08); }
-.table.selected{ outline: 2px solid rgba(59,130,246,.95); box-shadow: 0 0 0 7px rgba(59,130,246,.14); }
+/* Status rendering for tables (applied on the table wrapper) */
+.floor-table.status-occupied{ outline: 2px solid rgba(239,68,68,.7); box-shadow: 0 0 0 6px rgba(239,68,68,.10); }
+.floor-table.status-reserved{ outline: 2px solid rgba(245,158,11,.7); box-shadow: 0 0 0 6px rgba(245,158,11,.10); }
+.floor-table.status-dirty{ outline: 2px solid rgba(168,85,247,.7); box-shadow: 0 0 0 6px rgba(168,85,247,.10); }
+.floor-table.is-selected{ outline: 2px solid rgba(59,130,246,.95); box-shadow: 0 0 0 7px rgba(59,130,246,.14); }
 
 /* Small pill similar to legacy waiter map */
 .sbv-status-pill{
@@ -117,74 +116,96 @@
 .sbv-status-pill.is-occupied .sbv-dot{ background: #ef4444; }
 .sbv-status-pill.is-reserved .sbv-dot{ background: #f59e0b; }
 .sbv-status-pill.is-dirty .sbv-dot{ background: #a855f7; }
+.sbv-status-pill.is-empty .sbv-dot{ background: #22c55e; }
+
+/* Table outline by status (more visible) */
+.sbv-table.sbv-occupied{ outline: 2px solid rgba(239,68,68,.7); box-shadow: 0 0 0 6px rgba(239,68,68,.10); }
+.sbv-table.sbv-reserved{ outline: 2px solid rgba(245,158,11,.7); box-shadow: 0 0 0 6px rgba(245,158,11,.10); }
+.sbv-table.sbv-dirty{ outline: 2px solid rgba(168,85,247,.7); box-shadow: 0 0 0 6px rgba(168,85,247,.10); }
 
 /* =======================
-   Table details modal
+   Side drawer (table details)
    ======================= */
 
-.sbv-modal-backdrop{
+.sbv-drawer-backdrop{
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.55);
-  display: grid;
-  place-items: center;
-  z-index: 9999;
+  background: rgba(0,0,0,.45);
+  z-index: 80;
 }
 
-.sbv-modal{
-  width: min(520px, calc(100vw - 24px));
-  border-radius: 16px;
-  background: rgba(10,14,24,.96);
+.sbv-drawer{
+  position: fixed;
+  top: 84px; /* below top app header */
+  right: 18px;
+  width: min(380px, calc(100vw - 24px));
+  height: calc(100vh - 110px);
+  z-index: 90;
+  border-radius: 18px;
+  background: rgba(10,14,22,.92);
   border: 1px solid rgba(255,255,255,.12);
-  box-shadow: 0 20px 80px rgba(0,0,0,.55);
-  padding: 14px 14px 12px;
-}
-
-.sbv-modal-header{
+  box-shadow: 0 14px 40px rgba(0,0,0,.45);
+  backdrop-filter: blur(10px);
+  overflow: hidden;
   display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+  flex-direction: column;
 }
 
-.sbv-modal-title{
+.sbv-drawer-header{
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid rgba(255,255,255,.10);
+  position: relative;
+}
+
+.sbv-drawer-title{
   font-weight: 800;
   letter-spacing: .2px;
 }
 
-.sbv-modal-sub{
-  opacity: .85;
+.sbv-drawer-sub{
   margin-top: 4px;
+  opacity: .8;
+  font-size: 13px;
 }
 
-.sbv-close{
+.sbv-drawer-close{
+  position: absolute;
+  top: 10px;
+  left: 10px;
   width: 34px;
   height: 34px;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.10);
   background: rgba(255,255,255,.06);
-  color: #fff;
+  color: inherit;
   cursor: pointer;
 }
 
-.sbv-modal-body{
-  display: grid;
-  gap: 8px;
+.sbv-drawer-body{
+  padding: 12px 14px 14px;
+  overflow: auto;
 }
 
 .sbv-row{
-  display: grid;
-  grid-template-columns: 160px 1fr;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   gap: 10px;
-  padding: 10px 10px;
-  border-radius: 12px;
-  background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.07);
+  padding: 10px 0;
+  border-bottom: 1px dashed rgba(255,255,255,.08);
 }
 
-.sbv-k{ opacity: .8; font-size: 13px; }
-.sbv-v{ font-weight: 650; }
+.sbv-row:last-child{ border-bottom: 0; }
+
+.sbv-label{
+  opacity: .75;
+  font-size: 13px;
+}
+
+.sbv-value{
+  font-weight: 600;
+  text-align: left;
+}
 
 .sbv-status{
   display: inline-flex;
@@ -192,20 +213,39 @@
   gap: 8px;
 }
 
-.sbv-status .sbv-dot{ width: 10px; height: 10px; }
-
-.sbv-modal-actions{
+.sbv-actions{
   display: flex;
-  justify-content: flex-end;
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
-.sbv-btn{
-  padding: 9px 12px;
+.btn-primary{
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(59,130,246,.45);
+  background: rgba(59,130,246,.20);
+  color: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-secondary{
+  padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,.12);
-  background: rgba(59,130,246,.18);
-  color: #fff;
+  background: rgba(255,255,255,.06);
+  color: inherit;
+  font-weight: 700;
   cursor: pointer;
+}
+
+/* When drawer is open, avoid hiding the map under it by adding padding */
+.sbv-has-drawer .editor-main{
+  padding-right: 420px;
+}
+
+@media (max-width: 920px){
+  .sbv-has-drawer .editor-main{ padding-right: 0; }
+  .sbv-drawer{ right: 10px; left: 10px; width: auto; }
 }

@@ -181,13 +181,21 @@ export default function FloorMapRenderer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout?.id]);
 
-  // Keep the map centered if the viewport size changes (waiter/host screens are often used on tablets).
+  // Keep the map centered when the canvas size changes (responsive layout / side panel).
   useEffect(() => {
-    const onResize = () => {
-      requestAnimationFrame(fitToScreen);
+    if (!canvasRef.current) return;
+    const el = canvasRef.current;
+    let t: number | null = null;
+    const ro = new ResizeObserver(() => {
+      if (t) window.clearTimeout(t);
+      t = window.setTimeout(() => fitToScreen(), 60);
+    });
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      if (t) window.clearTimeout(t);
+      t = null;
     };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout?.id]);
 
@@ -375,7 +383,8 @@ export default function FloorMapRenderer({
                 const st = getStatusFor(tableHere);
                 const status = String(st.status || 'empty');
                 const selected = selectedTableId && String(selectedTableId) === String(tableHere.id);
-                const showPill = mode === 'view' && status && status !== 'empty';
+                // In waiter/host view we always show a status pill (including "פנוי").
+                const showPill = mode === 'view';
                 const pillText = (() => {
                   if (status === 'occupied') return 'תפוס';
                   if (status === 'reserved') return 'שמור';
@@ -385,7 +394,7 @@ export default function FloorMapRenderer({
                 const count = st.guestCount != null && st.guestCount !== '' ? ` · ${st.guestCount}` : '';
                 return (
                   <div
-                    className={`table ${String(tableHere.shape || 'square')} ${mode === 'view' ? `status-${status}` : ''} ${selected ? 'selected' : ''}`}
+                    className={`table ${String(tableHere.shape || 'square')} ${selected ? 'selected' : ''} sbv-table sbv-${status || 'empty'}`}
                     onClick={() => onTableClick?.(tableHere.id)}
                     style={{
                       position: 'absolute',

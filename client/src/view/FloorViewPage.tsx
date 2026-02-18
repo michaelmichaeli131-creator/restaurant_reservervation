@@ -45,43 +45,39 @@ export default function FloorViewPage({ restaurantId }: { restaurantId: string }
         status: String(byId.status || 'empty'),
         guestName: byId.guestName ?? null,
         guestCount: byId.guestCount ?? null,
+        reservationTime: (byId.reservationTime ?? byId.time ?? null) as any,
+        itemsCount: (byId.itemsCount ?? byId.items ?? null) as any,
+        subtotal: (byId.subtotal ?? byId.total ?? null) as any,
         orderId: byId.orderId ?? null,
-        // Optional fields if the backend provides them in the future
-        reservationTime: (byId as any).reservationTime ?? null,
-        itemsCount: (byId as any).itemsCount ?? null,
-        subtotal: (byId as any).subtotal ?? null,
       };
     }
     return { status: 'empty' as string };
   };
 
-  const normalizeStatus = (raw: any): 'empty' | 'occupied' | 'reserved' | 'dirty' => {
-    const s = String(raw || '').toLowerCase();
-    if (s === 'occupied' || s === 'busy' || s === 'taken') return 'occupied';
-    if (s === 'reserved' || s === 'booked') return 'reserved';
-    if (s === 'dirty') return 'dirty';
-    return 'empty';
-  };
+  const selectedTable = useMemo(() => {
+    if (!selectedTableId || !layout) return null;
+    return (layout.tables || []).find((t: any) => String(t.id) === String(selectedTableId)) || null;
+  }, [selectedTableId, layout?.id, layout?.tables]);
 
-  const statusLabelHe = (s: 'empty' | 'occupied' | 'reserved' | 'dirty') => {
-    if (s === 'occupied') return 'תפוס';
-    if (s === 'reserved') return 'שמור';
-    if (s === 'dirty') return 'מלוכלך';
+  const selectedStatus = useMemo(() => {
+    if (!selectedTableId) return { status: 'empty' as string };
+    return getTableStatus(selectedTableId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTableId, layout]);
+
+  const statusLabel = (status: string) => {
+    if (status === 'occupied') return 'תפוס';
+    if (status === 'reserved') return 'שמור';
+    if (status === 'dirty') return 'מלוכלך';
     return 'פנוי';
   };
 
-  const selectedTable = useMemo(() => {
-    if (!selectedTableId) return null;
-    return (layout?.tables || []).find((t) => String(t.id) === String(selectedTableId)) || null;
-  }, [layout?.id, layout?.tables, selectedTableId]);
-
-  const selectedStatus = useMemo(() => {
-    if (!selectedTableId) return null;
-    const st: any = getTableStatus(selectedTableId);
-    const ns = normalizeStatus(st.status);
-    return { ...st, status: ns, label: statusLabelHe(ns), dotClass: ns };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layout, selectedTableId]);
+  const statusDotClass = (status: string) => {
+    if (status === 'occupied') return 'occupied';
+    if (status === 'reserved') return 'reserved';
+    if (status === 'dirty') return 'dirty';
+    return 'empty';
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -166,7 +162,7 @@ export default function FloorViewPage({ restaurantId }: { restaurantId: string }
 
   return (
     <>
-    <div className="floor-editor sb-floor-view">
+    <div className={`floor-editor sb-floor-view ${selectedTableId ? 'sbv-has-drawer' : ''}`}>
       <div className="layout-tabs-bar">
         <div className="layout-tabs" role="tablist" aria-label="Sections">
           {sectionIds.map((sid, i) => (
@@ -232,64 +228,68 @@ export default function FloorViewPage({ restaurantId }: { restaurantId: string }
         </div>
       </div>
     </div>
-
-    {/* Table details modal (feature parity with legacy waiter map) */}
-    {selectedTableId && selectedTable && selectedStatus && (
-      <div
-        className="sbv-modal-backdrop"
-        role="dialog"
-        aria-modal="true"
-        onMouseDown={(e) => {
-          // Close when clicking the backdrop
-          if (e.target === e.currentTarget) setSelectedTableId(null);
-        }}
-      >
-        <div className="sbv-modal" dir="rtl" onMouseDown={(e) => e.stopPropagation()}>
-          <div className="sbv-modal-header">
-            <div>
-              <div className="sbv-modal-title">פרטי שולחן</div>
-              <div className="sbv-modal-sub">שולחן {selectedTable.tableNumber ?? selectedTable.name ?? selectedTable.id}</div>
-            </div>
-            <button className="sbv-close" type="button" aria-label="Close" onClick={() => setSelectedTableId(null)}>
-              ✕
-            </button>
+    {selectedTableId && (
+      <>
+        <div
+          className="sbv-drawer-backdrop"
+          onMouseDown={() => setSelectedTableId(null)}
+          aria-hidden="true"
+        />
+        <aside className="sbv-drawer" role="dialog" aria-modal="true" aria-label="פרטי שולחן">
+          <div className="sbv-drawer-header">
+            <div className="sbv-drawer-title">פרטי שולחן</div>
+            <div className="sbv-drawer-sub">שולחן {selectedTable?.tableNumber ?? selectedTable?.name ?? selectedTableId}</div>
+            <button className="sbv-drawer-close" type="button" aria-label="Close" onClick={() => setSelectedTableId(null)}>✕</button>
           </div>
 
-          <div className="sbv-modal-body">
-            <div className="sbv-row"><div className="sbv-k">שם המזמין</div><div className="sbv-v">{selectedStatus.guestName || '—'}</div></div>
-            <div className="sbv-row"><div className="sbv-k">מספר סועדים</div><div className="sbv-v">{selectedStatus.guestCount != null && selectedStatus.guestCount !== '' ? String(selectedStatus.guestCount) : '—'}</div></div>
-            <div className="sbv-row"><div className="sbv-k">שעת ההזמנה</div><div className="sbv-v">{selectedStatus.reservationTime || '—'}</div></div>
+          <div className="sbv-drawer-body">
             <div className="sbv-row">
-              <div className="sbv-k">סטטוס שולחן</div>
-              <div className="sbv-v">
-                <span className="sbv-status">
-                  <span className={`sbv-dot ${selectedStatus.dotClass}`} />
-                  {selectedStatus.label}
-                </span>
+              <div className="sbv-label">שם המזמין</div>
+              <div className="sbv-value">{selectedStatus.guestName ? String(selectedStatus.guestName) : '—'}</div>
+            </div>
+            <div className="sbv-row">
+              <div className="sbv-label">מספר סועדים</div>
+              <div className="sbv-value">{selectedStatus.guestCount != null && selectedStatus.guestCount !== '' ? String(selectedStatus.guestCount) : '—'}</div>
+            </div>
+            <div className="sbv-row">
+              <div className="sbv-label">שעת ההזמנה</div>
+              <div className="sbv-value">{selectedStatus.reservationTime ? String(selectedStatus.reservationTime) : '—'}</div>
+            </div>
+            <div className="sbv-row">
+              <div className="sbv-label">סטטוס שולחן</div>
+              <div className="sbv-value sbv-status">
+                <span className={`sbv-dot ${statusDotClass(String(selectedStatus.status || 'empty'))}`} />
+                {statusLabel(String(selectedStatus.status || 'empty'))}
               </div>
             </div>
-            <div className="sbv-row"><div className="sbv-k">מספר פריטים</div><div className="sbv-v">{selectedStatus.itemsCount != null && selectedStatus.itemsCount !== '' ? String(selectedStatus.itemsCount) : '—'}</div></div>
-            <div className="sbv-row"><div className="sbv-k">סכום ביניים</div><div className="sbv-v">{selectedStatus.subtotal != null && selectedStatus.subtotal !== '' ? String(selectedStatus.subtotal) : '—'}</div></div>
-          </div>
+            <div className="sbv-row">
+              <div className="sbv-label">מספר פריטים</div>
+              <div className="sbv-value">{selectedStatus.itemsCount != null && selectedStatus.itemsCount !== '' ? String(selectedStatus.itemsCount) : '—'}</div>
+            </div>
+            <div className="sbv-row">
+              <div className="sbv-label">סכום ביניים</div>
+              <div className="sbv-value">{selectedStatus.subtotal != null && selectedStatus.subtotal !== '' ? String(selectedStatus.subtotal) : '—'}</div>
+            </div>
 
-          <div className="sbv-modal-actions">
-            <button className="sbv-btn" type="button" onClick={() => setSelectedTableId(null)}>
-              סגור
-            </button>
-            {(selectedStatus.status === 'occupied' || selectedStatus.orderId) && selectedTable.tableNumber != null && (
+            <div className="sbv-actions">
               <button
-                className="sbv-btn"
                 type="button"
+                className="btn-primary"
                 onClick={() => {
-                  window.location.href = `/waiter/${encodeURIComponent(rid)}/${encodeURIComponent(String(selectedTable.tableNumber))}`;
+                  const tn = selectedTable?.tableNumber;
+                  if (tn == null) return;
+                  window.location.href = `/waiter/${encodeURIComponent(rid)}/${encodeURIComponent(String(tn))}`;
                 }}
               >
                 פתח הזמנה
               </button>
-            )}
+              <button type="button" className="btn-secondary" onClick={() => setSelectedTableId(null)}>
+                סגור
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
+        </aside>
+      </>
     )}
     </>
   );
