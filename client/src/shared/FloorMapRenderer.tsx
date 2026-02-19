@@ -440,7 +440,7 @@ export default function FloorMapRenderer({
           direction: 'ltr',
           gridTemplateColumns: `repeat(${layout.gridCols}, ${cellSize}px)`,
           gridTemplateRows: `repeat(${layout.gridRows}, ${cellSize}px)`,
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+          transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`,
           transformOrigin: '0 0',
           ['--cell' as any]: `${cellSize}px`,
           ['--floor-bg' as any]: theme.bg,

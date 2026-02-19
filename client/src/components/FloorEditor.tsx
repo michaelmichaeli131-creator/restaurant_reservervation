@@ -1729,7 +1729,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   direction: 'ltr',
               gridTemplateColumns: `repeat(${currentLayout.gridCols}, ${cellSize}px)`,
               gridTemplateRows: `repeat(${currentLayout.gridRows}, ${cellSize}px)`,
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+              transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`,
               transformOrigin: '0 0',
               ['--cell' as any]: `${cellSize}px`,
                   ['--floor-bg' as any]: ft.bg,
