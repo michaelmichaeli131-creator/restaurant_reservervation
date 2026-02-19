@@ -361,7 +361,7 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
           style={{
             gridTemplateColumns: `repeat(${currentLayout.gridCols}, ${cellPx}px)`,
             gridTemplateRows: `repeat(${currentLayout.gridRows}, ${cellPx}px)`,
-            transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`,
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             transformOrigin: '0 0',
           }}
           data-floor-theme={String(currentLayout.floorColor || '')}

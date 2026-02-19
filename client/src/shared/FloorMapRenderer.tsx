@@ -440,7 +440,7 @@ export default function FloorMapRenderer({
           direction: 'ltr',
           gridTemplateColumns: `repeat(${layout.gridCols}, ${cellSize}px)`,
           gridTemplateRows: `repeat(${layout.gridRows}, ${cellSize}px)`,
-          transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`,
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           transformOrigin: '0 0',
           ['--cell' as any]: `${cellSize}px`,
           ['--floor-bg' as any]: theme.bg,
@@ -509,7 +509,7 @@ export default function FloorMapRenderer({
                 const count = st.guestCount != null && st.guestCount !== '' ? ` · ${st.guestCount}` : '';
                 return (
                   <div
-                    className={`table ${String(tableHere.shape || 'square')} ${selected ? 'selected' : ''}`}
+                    className={`table floor-table status-${status} ${String(tableHere.shape || 'square')} ${selected ? 'is-selected' : ''}`}
                     onClick={() => onTableClick?.(tableHere.id)}
                     style={{
                       position: 'absolute',

@@ -337,8 +337,14 @@
   padding: 18px 14px 18px 8px;
   overflow: auto;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  /*
+    IMPORTANT:
+    Pan/Zoom (fit-to-screen) logic positions the grid via CSS transform translate().
+    If we center the grid via flexbox AND also translate it, the grid drifts (typically to the right).
+    Therefore, the canvas should be flex-start, and centering is handled ONLY by pan.
+  */
+  justify-content: flex-start;
+  align-items: flex-start;
 }
 
  .fe-grid{

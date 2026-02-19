@@ -165,100 +165,109 @@ export default function FloorViewPage({
 
   return (
     <div className={rootClass}>
-      {/* Use the same top-bar structure as the editor to avoid flex bugs (layout-tabs has flex:1 in editor CSS) */}
-      <div className="layout-tabs-bar sbv-view-topbar">
-        <div className="sbv-topbar-left">
-          <div className="sbv-topbar-title">עדכון סידור שולחנות</div>
-          <div className="sbv-topbar-sub">גרור כדי להזיז • Ctrl+גלגלת כדי להגדיל • ⤢ להתאמה למסך</div>
-        </div>
-
-        <div className="sbv-legend" aria-label="Legend">
-          <span className="sbv-pill is-empty">
-            <span className="sbv-dot" /> פנוי
-          </span>
-          <span className="sbv-pill is-occupied">
-            <span className="sbv-dot" /> תפוס
-          </span>
-          <span className="sbv-pill is-reserved">
-            <span className="sbv-dot" /> שמור
-          </span>
-          <span className="sbv-pill is-dirty">
-            <span className="sbv-dot" /> מלוכלך
-          </span>
-        </div>
-      </div>
-
-      {/* IMPORTANT: renderer root is `.editor-canvas` which expects to be a direct flex-item of `.editor-content` */}
-      <div className="editor-content sbv-editor-content">
-        <FloorMapRenderer
-          layout={currentLayout}
-          selectedTableId={selectedTableId}
-          onTableClick={onTableClick}
-          mode="view"
-        />
-      </div>
-
-      {/* Side drawer */}
-      {selectedTableId && (
-        <>
-          <div className="sbv-drawer-backdrop" onMouseDown={closeDrawer} />
-          <aside className="sbv-drawer" role="dialog" aria-modal="true">
-            <div className="sbv-drawer-header">
-              <div className="sbv-drawer-title">פרטי שולחן</div>
-              <button className="sbv-close" onClick={closeDrawer} aria-label="Close">
-                ✕
-              </button>
+      <div className="sbv-shell">
+        {/* LEFT: map frame (same chrome as editor) */}
+        <div className="sbv-left">
+          {/* Use the same top-bar structure as the editor to avoid flex bugs (layout-tabs has flex:1 in editor CSS) */}
+          <div className="layout-tabs-bar sbv-view-topbar">
+            <div className="sbv-topbar-left">
+              <div className="sbv-topbar-title">עדכון סידור שולחנות</div>
+              <div className="sbv-topbar-sub">גרור כדי להזיז • Ctrl+גלגלת כדי להגדיל • ⤢ להתאמה למסך</div>
             </div>
 
-            <div className="sbv-drawer-body">
-              <div className="sbv-table-number">שולחן {(selectedTable as any)?.number ?? "—"}</div>
+            <div className="sbv-legend" aria-label="Legend">
+              <span className="sbv-pill is-empty">
+                <span className="sbv-dot" /> פנוי
+              </span>
+              <span className="sbv-pill is-occupied">
+                <span className="sbv-dot" /> תפוס
+              </span>
+              <span className="sbv-pill is-reserved">
+                <span className="sbv-dot" /> שמור
+              </span>
+              <span className="sbv-pill is-dirty">
+                <span className="sbv-dot" /> מלוכלך
+              </span>
+            </div>
+          </div>
 
-              <div className={`sbv-status-row is-${selectedStatus}`}>
-                <span className="sbv-status-dot" />
-                <span className="sbv-status-label">סטטוס שולחן</span>
-                <span className="sbv-status-value">{statusLabelHe(selectedStatus)}</span>
+          {/* IMPORTANT: renderer root is `.editor-canvas` which expects to be a direct flex-item of `.editor-content` */}
+          <div className="editor-content sbv-editor-content">
+            <FloorMapRenderer
+              layout={currentLayout}
+              selectedTableId={selectedTableId}
+              onTableClick={onTableClick}
+              mode="view"
+            />
+          </div>
+        </div>
+
+        {/* RIGHT: details panel OUTSIDE the map frame (as requested) */}
+        <aside className="sbv-right" aria-label="Table details">
+          {selectedTableId ? (
+            <div className="sbv-right-panel" role="dialog" aria-modal="false">
+              <div className="sbv-drawer-header">
+                <div className="sbv-drawer-title">פרטי שולחן</div>
+                <button className="sbv-close" onClick={closeDrawer} aria-label="Close">
+                  ✕
+                </button>
               </div>
 
-              <div className="sbv-kv">
-                <div className="sbv-kv-row">
-                  <div className="sbv-kv-key">שם המזמין</div>
-                  <div className="sbv-kv-val">{(selectedStatusEntry as any)?.guestName ?? "—"}</div>
+              <div className="sbv-drawer-body">
+                <div className="sbv-table-number">שולחן {(selectedTable as any)?.number ?? "—"}</div>
+
+                <div className={`sbv-status-row is-${selectedStatus}`}>
+                  <span className="sbv-status-dot" />
+                  <span className="sbv-status-label">סטטוס שולחן</span>
+                  <span className="sbv-status-value">{statusLabelHe(selectedStatus)}</span>
                 </div>
-                <div className="sbv-kv-row">
-                  <div className="sbv-kv-key">מספר סועדים</div>
-                  <div className="sbv-kv-val">
-                    {(selectedStatusEntry as any)?.guestCount != null ? String((selectedStatusEntry as any).guestCount) : "—"}
+
+                <div className="sbv-kv">
+                  <div className="sbv-kv-row">
+                    <div className="sbv-kv-key">שם המזמין</div>
+                    <div className="sbv-kv-val">{(selectedStatusEntry as any)?.guestName ?? "—"}</div>
+                  </div>
+                  <div className="sbv-kv-row">
+                    <div className="sbv-kv-key">מספר סועדים</div>
+                    <div className="sbv-kv-val">
+                      {(selectedStatusEntry as any)?.guestCount != null ? String((selectedStatusEntry as any).guestCount) : "—"}
+                    </div>
+                  </div>
+                  <div className="sbv-kv-row">
+                    <div className="sbv-kv-key">שעת ההזמנה</div>
+                    <div className="sbv-kv-val">{(selectedStatusEntry as any)?.reservationTime ?? "—"}</div>
+                  </div>
+                  <div className="sbv-kv-row">
+                    <div className="sbv-kv-key">מספר פריטים</div>
+                    <div className="sbv-kv-val">{(selectedStatusEntry as any)?.itemsCount ?? "—"}</div>
+                  </div>
+                  <div className="sbv-kv-row">
+                    <div className="sbv-kv-key">סכום ביניים</div>
+                    <div className="sbv-kv-val">{(selectedStatusEntry as any)?.subtotal ?? "—"}</div>
                   </div>
                 </div>
-                <div className="sbv-kv-row">
-                  <div className="sbv-kv-key">שעת ההזמנה</div>
-                  <div className="sbv-kv-val">{(selectedStatusEntry as any)?.reservationTime ?? "—"}</div>
-                </div>
-                <div className="sbv-kv-row">
-                  <div className="sbv-kv-key">מספר פריטים</div>
-                  <div className="sbv-kv-val">{(selectedStatusEntry as any)?.itemsCount ?? "—"}</div>
-                </div>
-                <div className="sbv-kv-row">
-                  <div className="sbv-kv-key">סכום ביניים</div>
-                  <div className="sbv-kv-val">{(selectedStatusEntry as any)?.subtotal ?? "—"}</div>
-                </div>
+              </div>
+
+              <div className="sbv-drawer-footer">
+                {selectedStatus === "occupied" && (selectedTable as any)?.number ? (
+                  <a className="sbv-primary-btn" href={`/waiter/${restaurantId}/${(selectedTable as any).number}`}>
+                    פתח הזמנה
+                  </a>
+                ) : (
+                  <button className="sbv-secondary-btn" onClick={closeDrawer}>
+                    סגור
+                  </button>
+                )}
               </div>
             </div>
-
-            <div className="sbv-drawer-footer">
-              {selectedStatus === "occupied" && (selectedTable as any)?.number ? (
-                <a className="sbv-primary-btn" href={`/waiter/${restaurantId}/${(selectedTable as any).number}`}>
-                  פתח הזמנה
-                </a>
-              ) : (
-                <button className="sbv-secondary-btn" onClick={closeDrawer}>
-                  סגור
-                </button>
-              )}
+          ) : (
+            <div className="sbv-right-empty">
+              <div className="sbv-right-empty-title">פרטי שולחן</div>
+              <div className="sbv-right-empty-sub">בחר שולחן במפה כדי לראות סטטוס ופרטים.</div>
             </div>
-          </aside>
-        </>
-      )}
+          )}
+        </aside>
+      </div>
     </div>
   );
 }

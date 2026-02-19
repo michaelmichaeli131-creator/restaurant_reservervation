@@ -40,6 +40,37 @@
   min-height: calc(100vh - 80px);
 }
 
+/* =======================
+   Two-column layout (map on left, details on the right OUTSIDE the map frame)
+   ======================= */
+
+.sbv-shell{
+  height: 100%;
+  display: flex;
+  gap: 18px;
+  align-items: stretch;
+}
+
+.sbv-left{
+  /* Keep the map in the "big frame" like the editor; right side stays free for details */
+  flex: 0 0 min(980px, 100%);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sbv-right{
+  flex: 1;
+  min-width: 280px;
+  display: flex;
+}
+
+@media (max-width: 1050px){
+  .sbv-shell{ flex-direction: column; }
+  .sbv-left{ flex: 1 1 auto; }
+  .sbv-right{ min-width: 0; }
+}
+
 .sb-floor-view .editor-sidebar{
   display: none;
 }
@@ -180,28 +211,36 @@
   background: #22c55e;
 }
 
-/* Drawer */
-.sbv-drawer-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(2px);
-  z-index: 60;
-}
-
-.sbv-drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  height: 100vh;
-  width: min(420px, 92vw);
-  background: rgba(10, 20, 35, 0.96);
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: -24px 0 70px rgba(0, 0, 0, 0.45);
-  z-index: 61;
+/* Right details panel */
+.sbv-right-panel{
+  width: 100%;
+  height: 100%;
+  background: rgba(10, 20, 35, 0.70);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 14px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
+
+.sbv-right-empty{
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  border: 1px dashed rgba(255,255,255,.14);
+  background: rgba(255,255,255,.03);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 20px;
+  text-align: center;
+  opacity: .9;
+}
+.sbv-right-empty-title{ font-weight: 900; }
+.sbv-right-empty-sub{ font-size: 13px; opacity: .75; }
 
 .sbv-drawer-header {
   display: flex;
