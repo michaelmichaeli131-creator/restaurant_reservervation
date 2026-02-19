@@ -1,7 +1,20 @@
 import React from "react";
 import FloorMapRenderer from "../shared/FloorMapRenderer";
-import type { FloorLayout, TableStatusEntry } from "../shared/floorTypes";
+import type { FloorLayoutLike as FloorLayout } from "../shared/FloorMapRenderer";
 import "./floorViewPage.css";
+
+// Shape mirrors what the backend attaches as `tableStatuses` on the active layout.
+type TableStatusEntry = {
+  tableId?: string;
+  tableNumber?: number;
+  status?: string;
+  guestName?: string | null;
+  guestCount?: number | string | null;
+  reservationTime?: string | null;
+  itemsCount?: number | string | null;
+  subtotal?: number | string | null;
+  orderId?: string | null;
+};
 
 type MountMode = "page" | "lobby";
 
@@ -55,7 +68,12 @@ export default function FloorViewPage({
       }
 
       const data = await res.json();
-      const active: FloorLayout | null = data?.activeLayout ?? null;
+      // Backend compatibility:
+      // - Preferred: the API returns the active layout object directly (with tableStatuses attached).
+      // - Legacy/alternate: { activeLayout: <layout> }.
+      const active: FloorLayout | null = (data && (data as any).id)
+        ? (data as FloorLayout)
+        : (data?.activeLayout ?? null);
 
       if (!active) {
         setLayouts([]);
