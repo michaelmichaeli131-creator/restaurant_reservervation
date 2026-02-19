@@ -35,7 +35,9 @@
    ======================= */
 
 .sb-floor-view{
+  /* Fill the available viewport height like the editor page */
   height: calc(100vh - 80px);
+  min-height: calc(100vh - 80px);
 }
 
 .sb-floor-view .editor-sidebar{
@@ -43,7 +45,30 @@
 }
 
 .sb-floor-view .editor-content{
-  padding: 18px 14px;
+  /* In view-mode we want maximum canvas area (no extra padding/gaps) */
+  padding: 0;
+  gap: 0;
+}
+
+.sbv-view-topbar {
+  /* layout-tabs-bar already styles the bar; just tighten for view */
+  padding: 12px 16px;
+}
+
+.sbv-topbar-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sbv-topbar-title {
+  font-weight: 900;
+  font-size: 15px;
+}
+
+.sbv-topbar-sub {
+  font-size: 12px;
+  opacity: 0.8;
 }
 
 .sb-floor-view .sbv-main{
@@ -54,19 +79,23 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 10px;
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: 10px;
-  background: rgba(0,0,0,.12);
 }
 
-.sbv-leg{
+.sbv-pill{
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 999px;
+  background: rgba(0,0,0,.12);
   font-size: 12px;
-  opacity: .9;
+  opacity: .92;
+  white-space: nowrap;
 }
+
+/* legacy (unused) */
+.sbv-leg{ display: inline-flex; align-items: center; gap: 6px; font-size: 12px; opacity: .9; }
 
 .sbv-dot{
   width: 8px;
@@ -76,6 +105,13 @@
   background: rgba(255,255,255,.35);
 }
 
+/* Color dots based on the parent pill (used by the legend) */
+.sbv-pill.is-empty .sbv-dot { background: #22c55e; }
+.sbv-pill.is-occupied .sbv-dot { background: #ef4444; }
+.sbv-pill.is-reserved .sbv-dot { background: #f59e0b; }
+.sbv-pill.is-dirty .sbv-dot { background: #a855f7; }
+
+/* Also support direct dot classes (kept for compatibility) */
 .sbv-dot.occupied{ background: #ef4444; }
 .sbv-dot.reserved{ background: #f59e0b; }
 .sbv-dot.dirty{ background: #a855f7; }
@@ -130,6 +166,7 @@
   overflow: hidden;
   cursor: grab;
   touch-action: none;
+  padding: 0;
 }
 .sb-floor-view .editor-canvas.is-panning {
   cursor: grabbing;

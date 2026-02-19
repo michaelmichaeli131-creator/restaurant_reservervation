@@ -134,6 +134,9 @@ export default function FloorMapRenderer({
   const [spacePressed, setSpacePressed] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
 
+  // Track if the user dragged to pan (so we can swallow a click on tables/objects after dragging)
+  const dragRef = useRef<{ moved: boolean } | null>(null);
+
   // Keep the editor defaults for now, to match its look.
   const cellSize = 60;
   const padPx = 10;
@@ -177,21 +180,44 @@ export default function FloorMapRenderer({
     const baseH = grid.offsetHeight + marginY;
     if (!baseW || !baseH) return;
 
+    // Account for canvas padding so the map is truly centered.
+    const csCanvas = getComputedStyle(canvas);
+    const padL = parseFloat(csCanvas.paddingLeft || '0') || 0;
+    const padR = parseFloat(csCanvas.paddingRight || '0') || 0;
+    const padT = parseFloat(csCanvas.paddingTop || '0') || 0;
+    const padB = parseFloat(csCanvas.paddingBottom || '0') || 0;
+
     const inset = 24;
-    const availW = Math.max(1, canvas.clientWidth - inset * 2);
-    const availH = Math.max(1, canvas.clientHeight - inset * 2);
+    const availW = Math.max(1, canvas.clientWidth - padL - padR - inset * 2);
+    const availH = Math.max(1, canvas.clientHeight - padT - padB - inset * 2);
 
     const scale = clampZoom(Math.min(availW / baseW, availH / baseH, 1.2));
     setZoom(scale);
 
-    const cx = Math.round((canvas.clientWidth - baseW * scale) / 2);
-    const cy = Math.round((canvas.clientHeight - baseH * scale) / 2);
+    const cx = Math.round(padL + inset + (availW - baseW * scale) / 2);
+    const cy = Math.round(padT + inset + (availH - baseH * scale) / 2);
     setPan({ x: cx, y: cy });
   };
 
   useEffect(() => {
     // Fit once after first render
     requestAnimationFrame(fitToScreen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout?.id]);
+
+  useEffect(() => {
+    // Refit when the canvas resizes (responsive layout, drawer opening, etc.)
+    if (!canvasRef.current) return;
+    let raf = 0;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(fitToScreen);
+    });
+    ro.observe(canvasRef.current);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout?.id]);
 
@@ -220,18 +246,37 @@ export default function FloorMapRenderer({
     // View mode: allow grab-to-pan with left mouse on empty canvas (no Space required)
     if (mode === 'view') {
       if (e.button !== 0) return;
-      if (target?.closest('.table, .floor-object, .fe-canvas-controls, button, a, input, textarea, select')) return;
+      // Don't pan when interacting with zoom controls/inputs.
+      if (target?.closest('.fe-canvas-controls, button, a, input, textarea, select')) return;
       e.preventDefault();
-      setIsPanning(true);
+
+      dragRef.current = { moved: false };
       const start = { x: e.clientX, y: e.clientY };
       const startPan = { ...pan };
+
+      let activated = false;
       const onMove = (ev: MouseEvent) => {
-        setPan({ x: startPan.x + (ev.clientX - start.x), y: startPan.y + (ev.clientY - start.y) });
+        const dx = ev.clientX - start.x;
+        const dy = ev.clientY - start.y;
+        const dist = Math.abs(dx) + Math.abs(dy);
+
+        if (!activated && dist > 4) {
+          activated = true;
+          if (dragRef.current) dragRef.current.moved = true;
+          setIsPanning(true);
+        }
+
+        if (activated) {
+          setPan({ x: startPan.x + dx, y: startPan.y + dy });
+        }
       };
       const onUp = () => {
-        setIsPanning(false);
+        if (activated) setIsPanning(false);
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
+
+        // If it was just a click (no drag), clear the flag immediately.
+        if (dragRef.current && !dragRef.current.moved) dragRef.current = null;
       };
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
@@ -382,6 +427,15 @@ export default function FloorMapRenderer({
       <div
         className="fe-grid"
         ref={gridRef}
+        onClickCapture={(e) => {
+          // If the user dragged to pan, swallow the click so a table click doesn't open the drawer.
+          if (mode !== 'view') return;
+          if (dragRef.current?.moved) {
+            e.preventDefault();
+            e.stopPropagation();
+            dragRef.current = null;
+          }
+        }}
         style={{
           direction: 'ltr',
           gridTemplateColumns: `repeat(${layout.gridCols}, ${cellSize}px)`,

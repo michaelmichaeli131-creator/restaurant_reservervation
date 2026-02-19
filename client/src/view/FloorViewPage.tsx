@@ -165,38 +165,37 @@ export default function FloorViewPage({
 
   return (
     <div className={rootClass}>
-      <div className="layout-tabs">
-        <div className="layout-tabs-left">
-          <div className="layout-tabs-title">תצוגת מפת מסעדה</div>
-          <div className="layout-tabs-sub">גרור כדי להזיז • גלגלת כדי להגדיל</div>
+      {/* Use the same top-bar structure as the editor to avoid flex bugs (layout-tabs has flex:1 in editor CSS) */}
+      <div className="layout-tabs-bar sbv-view-topbar">
+        <div className="sbv-topbar-left">
+          <div className="sbv-topbar-title">עדכון סידור שולחנות</div>
+          <div className="sbv-topbar-sub">גרור כדי להזיז • Ctrl+גלגלת כדי להגדיל • ⤢ להתאמה למסך</div>
         </div>
-        <div className="layout-tabs-right">
-          <div className="sbv-legend">
-            <span className="sbv-pill is-empty">
-              <span className="sbv-dot" /> פנוי
-            </span>
-            <span className="sbv-pill is-occupied">
-              <span className="sbv-dot" /> תפוס
-            </span>
-            <span className="sbv-pill is-reserved">
-              <span className="sbv-dot" /> שמור
-            </span>
-            <span className="sbv-pill is-dirty">
-              <span className="sbv-dot" /> מלוכלך
-            </span>
-          </div>
+
+        <div className="sbv-legend" aria-label="Legend">
+          <span className="sbv-pill is-empty">
+            <span className="sbv-dot" /> פנוי
+          </span>
+          <span className="sbv-pill is-occupied">
+            <span className="sbv-dot" /> תפוס
+          </span>
+          <span className="sbv-pill is-reserved">
+            <span className="sbv-dot" /> שמור
+          </span>
+          <span className="sbv-pill is-dirty">
+            <span className="sbv-dot" /> מלוכלך
+          </span>
         </div>
       </div>
 
-      <div className="editor-content">
-        <div className="editor-main">
-          <FloorMapRenderer
-            layout={currentLayout}
-            selectedTableId={selectedTableId}
-            onTableClick={onTableClick}
-            mode="view"
-          />
-        </div>
+      {/* IMPORTANT: renderer root is `.editor-canvas` which expects to be a direct flex-item of `.editor-content` */}
+      <div className="editor-content sbv-editor-content">
+        <FloorMapRenderer
+          layout={currentLayout}
+          selectedTableId={selectedTableId}
+          onTableClick={onTableClick}
+          mode="view"
+        />
       </div>
 
       {/* Side drawer */}
