@@ -35,6 +35,19 @@ import {
 
 export const posRouter = new Router();
 
+let _floorViewBuildTag: string | null = null;
+async function getFloorViewBuildTag(): Promise<string> {
+  if (_floorViewBuildTag) return _floorViewBuildTag;
+  try {
+    const st = await Deno.stat('./public/dist/floor-view-app.js');
+    _floorViewBuildTag = String(st.mtime?.getTime() ?? Date.now());
+  } catch {
+    _floorViewBuildTag = String(Date.now());
+  }
+  return _floorViewBuildTag;
+}
+
+
 function resolveRestaurantIdForStaff(ctx: any, rid: string): string | null {
   const user = ctx.state.user;
   if (user?.role === "staff") {
@@ -474,6 +487,7 @@ posRouter.get("/waiter/:rid", async (ctx) => {
   }
 
   await render(ctx, "pos_waiter_lobby", {
+    BUILD_TAG: await getFloorViewBuildTag(),
     page: "pos_waiter_lobby",
     title: `מסך מלצרים · ${r.name}`,
     restaurant: r,
@@ -523,6 +537,7 @@ posRouter.get("/waiter-map/:rid", async (ctx) => {
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);
   await render(ctx, "pos_waiter_map", {
+    BUILD_TAG: await getFloorViewBuildTag(),
     page: "pos_waiter_map",
     title: `מפת מסעדה · ${r.name}`,
     rid,

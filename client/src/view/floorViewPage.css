@@ -116,136 +116,184 @@
 .sbv-status-pill.is-occupied .sbv-dot{ background: #ef4444; }
 .sbv-status-pill.is-reserved .sbv-dot{ background: #f59e0b; }
 .sbv-status-pill.is-dirty .sbv-dot{ background: #a855f7; }
-.sbv-status-pill.is-empty .sbv-dot{ background: #22c55e; }
 
-/* Table outline by status (more visible) */
-.sbv-table.sbv-occupied{ outline: 2px solid rgba(239,68,68,.7); box-shadow: 0 0 0 6px rgba(239,68,68,.10); }
-.sbv-table.sbv-reserved{ outline: 2px solid rgba(245,158,11,.7); box-shadow: 0 0 0 6px rgba(245,158,11,.10); }
-.sbv-table.sbv-dirty{ outline: 2px solid rgba(168,85,247,.7); box-shadow: 0 0 0 6px rgba(168,85,247,.10); }
-
-/* =======================
-   Side drawer (table details)
-   ======================= */
-
-.sbv-drawer-backdrop{
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.45);
-  z-index: 80;
+/* Embedded (inside POS lobby) */
+.sb-floor-view.is-embed {
+  height: 100%;
+  min-height: 0;
 }
 
-.sbv-drawer{
-  position: fixed;
-  top: 84px; /* below top app header */
-  right: 18px;
-  width: min(380px, calc(100vw - 24px));
-  height: calc(100vh - 110px);
-  z-index: 90;
-  border-radius: 18px;
-  background: rgba(10,14,22,.92);
-  border: 1px solid rgba(255,255,255,.12);
-  box-shadow: 0 14px 40px rgba(0,0,0,.45);
-  backdrop-filter: blur(10px);
+/* View-only canvas: avoid double-centering and allow grab-pan */
+.sb-floor-view .editor-canvas {
+  justify-content: flex-start;
+  align-items: flex-start;
   overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+.sb-floor-view .editor-canvas.is-panning {
+  cursor: grabbing;
+}
+.sb-floor-view .fe-grid {
+  margin: 0;
+}
+
+/* Status dot: also color "empty" */
+.sbv-status-pill.is-empty .sbv-dot {
+  background: #22c55e;
+}
+
+/* Drawer */
+.sbv-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(2px);
+  z-index: 60;
+}
+
+.sbv-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: min(420px, 92vw);
+  background: rgba(10, 20, 35, 0.96);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: -24px 0 70px rgba(0, 0, 0, 0.45);
+  z-index: 61;
   display: flex;
   flex-direction: column;
 }
 
-.sbv-drawer-header{
-  padding: 14px 14px 10px;
-  border-bottom: 1px solid rgba(255,255,255,.10);
-  position: relative;
+.sbv-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.sbv-drawer-title{
+.sbv-drawer-title {
   font-weight: 800;
-  letter-spacing: .2px;
+  letter-spacing: 0.2px;
 }
 
-.sbv-drawer-sub{
-  margin-top: 4px;
-  opacity: .8;
-  font-size: 13px;
-}
-
-.sbv-drawer-close{
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  width: 34px;
-  height: 34px;
+.sbv-close {
+  width: 36px;
+  height: 36px;
   border-radius: 10px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(255,255,255,.06);
-  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
   cursor: pointer;
 }
 
-.sbv-drawer-body{
-  padding: 12px 14px 14px;
+.sbv-drawer-body {
+  padding: 16px;
   overflow: auto;
+  flex: 1;
 }
 
-.sbv-row{
+.sbv-table-number {
+  font-size: 18px;
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+
+.sbv-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.06);
+  margin-bottom: 12px;
+}
+
+.sbv-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #22c55e;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
+}
+
+.sbv-status-row.is-occupied .sbv-status-dot {
+  background: #ef4444;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.16);
+}
+.sbv-status-row.is-reserved .sbv-status-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.18);
+}
+.sbv-status-row.is-dirty .sbv-status-dot {
+  background: #a855f7;
+  box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.18);
+}
+
+.sbv-status-label {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.sbv-status-value {
+  margin-inline-start: auto;
+  font-weight: 900;
+}
+
+.sbv-kv {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.sbv-kv-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 0;
-  border-bottom: 1px dashed rgba(255,255,255,.08);
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.sbv-row:last-child{ border-bottom: 0; }
-
-.sbv-label{
-  opacity: .75;
-  font-size: 13px;
+.sbv-kv-key {
+  color: rgba(255, 255, 255, 0.75);
 }
 
-.sbv-value{
-  font-weight: 600;
-  text-align: left;
+.sbv-kv-val {
+  font-weight: 800;
 }
 
-.sbv-status{
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.sbv-actions{
+.sbv-drawer-footer {
+  padding: 14px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   gap: 10px;
-  margin-top: 14px;
+  justify-content: flex-end;
 }
 
-.btn-primary{
-  flex: 1;
-  padding: 10px 12px;
+.sbv-primary-btn,
+.sbv-secondary-btn {
+  height: 40px;
+  padding: 0 14px;
   border-radius: 12px;
-  border: 1px solid rgba(59,130,246,.45);
-  background: rgba(59,130,246,.20);
-  color: inherit;
-  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   cursor: pointer;
+  font-weight: 900;
 }
 
-.btn-secondary{
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,.12);
-  background: rgba(255,255,255,.06);
-  color: inherit;
-  font-weight: 700;
-  cursor: pointer;
+.sbv-primary-btn {
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.92), rgba(99, 102, 241, 0.92));
+  color: #fff;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* When drawer is open, avoid hiding the map under it by adding padding */
-.sbv-has-drawer .editor-main{
-  padding-right: 420px;
-}
-
-@media (max-width: 920px){
-  .sbv-has-drawer .editor-main{ padding-right: 0; }
-  .sbv-drawer{ right: 10px; left: 10px; width: auto; }
+.sbv-secondary-btn {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
 }

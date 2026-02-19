@@ -1,296 +1,247 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import FloorMapRenderer, { type FloorLayoutLike } from '../shared/FloorMapRenderer';
-import './floorViewPage.css';
+import React from "react";
+import FloorMapRenderer from "../shared/FloorMapRenderer";
+import type { FloorLayout, TableStatusEntry } from "../shared/floorTypes";
+import "./floorViewPage.css";
 
-type LoadState =
-  | { kind: 'loading' }
-  | { kind: 'error'; message: string }
-  | { kind: 'ready' };
+type MountMode = "page" | "lobby";
 
-export default function FloorViewPage({ restaurantId }: { restaurantId: string }) {
-  const [state, setState] = useState<LoadState>({ kind: 'loading' });
-  const [layout, setLayout] = useState<FloorLayoutLike | null>(null);
-  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
-  const [activeSectionId, setActiveSectionId] = useState<string>('');
-  const [lastRefreshAt, setLastRefreshAt] = useState<number>(0);
-  const refreshTimer = useRef<number | null>(null);
+type NormalStatus = "empty" | "occupied" | "reserved" | "dirty";
 
-  const rid = useMemo(() => String(restaurantId || '').trim(), [restaurantId]);
+function normalizeStatus(s?: string | null): NormalStatus {
+  const v = (s || "").toLowerCase();
+  if (v === "occupied" || v === "busy" || v === "taken") return "occupied";
+  if (v === "reserved" || v === "booked") return "reserved";
+  if (v === "dirty" || v === "needs_cleaning") return "dirty";
+  return "empty";
+}
 
-  const sectionIds = useMemo(() => {
-    const ids = new Set<string>();
-    (layout?.tables || []).forEach((t) => {
-      const sid = String((t as any).sectionId || '').trim();
-      if (sid) ids.add(sid);
-    });
-    const arr = Array.from(ids);
-    // Always show "All" first
-    return [''].concat(arr);
-  }, [layout?.id, layout?.tables]);
+function statusLabelHe(s: NormalStatus): string {
+  switch (s) {
+    case "occupied":
+      return "תפוס";
+    case "reserved":
+      return "שמור";
+    case "dirty":
+      return "מלוכלך";
+    default:
+      return "פנוי";
+  }
+}
 
-  const sectionLabel = (sid: string, idx: number) => {
-    if (!sid) return 'כל המסעדה';
-    // If it's a friendly name already - show as is
-    const s = String(sid);
-    if (s.length <= 22) return s;
-    return `אזור ${idx}`;
-  };
+export default function FloorViewPage({
+  restaurantId,
+  mountMode = "page",
+}: {
+  restaurantId: string;
+  mountMode?: MountMode;
+}) {
+  const [layouts, setLayouts] = React.useState<FloorLayout[]>([]);
+  const [activeLayoutId, setActiveLayoutId] = React.useState<string | null>(null);
+  const [selectedLayoutId, setSelectedLayoutId] = React.useState<string | null>(null);
 
-  const getTableStatus = (tableId: string) => {
-    const st = (layout as any)?.tableStatuses;
-    if (!Array.isArray(st)) return { status: 'empty' as string };
-    const byId = st.find((x: any) => x && String(x.tableId || '') === String(tableId));
-    if (byId) {
-      return {
-        status: String(byId.status || 'empty'),
-        guestName: byId.guestName ?? null,
-        guestCount: byId.guestCount ?? null,
-        reservationTime: (byId.reservationTime ?? byId.time ?? null) as any,
-        itemsCount: (byId.itemsCount ?? byId.items ?? null) as any,
-        subtotal: (byId.subtotal ?? byId.total ?? null) as any,
-        orderId: byId.orderId ?? null,
-      };
-    }
-    return { status: 'empty' as string };
-  };
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const selectedTable = useMemo(() => {
-    if (!selectedTableId || !layout) return null;
-    return (layout.tables || []).find((t: any) => String(t.id) === String(selectedTableId)) || null;
-  }, [selectedTableId, layout?.id, layout?.tables]);
+  const [selectedTableId, setSelectedTableId] = React.useState<string | null>(null);
 
-  const selectedStatus = useMemo(() => {
-    if (!selectedTableId) return { status: 'empty' as string };
-    return getTableStatus(selectedTableId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTableId, layout]);
+  const loadActive = React.useCallback(async () => {
+    try {
+      const res = await fetch(`/api/floor-layouts/${restaurantId}/active`, {
+        headers: { "Content-Type": "application/json" },
+      });
 
-  const statusLabel = (status: string) => {
-    if (status === 'occupied') return 'תפוס';
-    if (status === 'reserved') return 'שמור';
-    if (status === 'dirty') return 'מלוכלך';
-    return 'פנוי';
-  };
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
 
-  const statusDotClass = (status: string) => {
-    if (status === 'occupied') return 'occupied';
-    if (status === 'reserved') return 'reserved';
-    if (status === 'dirty') return 'dirty';
-    return 'empty';
-  };
+      const data = await res.json();
+      const active: FloorLayout | null = data?.activeLayout ?? null;
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadActive = async (silent = false) => {
-      if (!rid) {
-        setState({ kind: 'error', message: 'Missing restaurant id (rid)' });
+      if (!active) {
+        setLayouts([]);
+        setActiveLayoutId(null);
+        setSelectedLayoutId(null);
+        setError("אין מפת מסעדה פעילה");
+        setLoading(false);
         return;
       }
 
-      if (!silent) setState({ kind: 'loading' });
-      try {
-        const res = await fetch(`/api/floor-layouts/${encodeURIComponent(rid)}/active`);
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          const msg = (body && (body.error || body.message)) || `${res.status} ${res.statusText}`;
-          throw new Error(msg);
-        }
-        const data = (await res.json()) as FloorLayoutLike;
-        if (cancelled) return;
-        setLayout(data);
-        setState({ kind: 'ready' });
-        setLastRefreshAt(Date.now());
+      // In this project, we only keep a single active layout.
+      setLayouts([active]);
+      setActiveLayoutId(active.id);
+      setSelectedLayoutId((prev) => prev ?? active.id);
+      setError(null);
+      setLoading(false);
 
-        // If current active section doesn't exist anymore, reset to "All"
-        const exists = !activeSectionId || (data.tables || []).some((t: any) => String(t.sectionId || '') === String(activeSectionId));
-        if (!exists) setActiveSectionId('');
-      } catch (e) {
-        if (cancelled) return;
-        setLayout(null);
-        setState({ kind: 'error', message: e instanceof Error ? e.message : String(e) });
+      // If the selected table no longer exists, close the drawer
+      if (selectedTableId) {
+        const stillExists = (active.tables || []).some((t) => String(t.id) === String(selectedTableId));
+        if (!stillExists) setSelectedTableId(null);
       }
-    };
+    } catch (e: any) {
+      setError(`שגיאה בטעינת המפה: ${e?.message ?? "unknown"}`);
+      setLoading(false);
+    }
+  }, [restaurantId, selectedTableId]);
 
+  React.useEffect(() => {
     loadActive();
+    const id = setInterval(loadActive, 5000);
+    return () => clearInterval(id);
+  }, [loadActive]);
 
-    // Poll like legacy sb_floor_map.js (every 5s) to keep table statuses in sync.
-    if (refreshTimer.current) window.clearInterval(refreshTimer.current);
-    refreshTimer.current = window.setInterval(() => {
-      loadActive(true);
-    }, 5000);
+  const currentLayout = React.useMemo(() => {
+    if (!selectedLayoutId) return null;
+    return layouts.find((l) => l.id === selectedLayoutId) ?? null;
+  }, [layouts, selectedLayoutId]);
 
-    return () => {
-      cancelled = true;
-      if (refreshTimer.current) window.clearInterval(refreshTimer.current);
-      refreshTimer.current = null;
-    };
-  }, [rid]);
+  const selectedTable = React.useMemo(() => {
+    if (!currentLayout || !selectedTableId) return null;
+    return (currentLayout.tables || []).find((t) => String(t.id) === String(selectedTableId)) ?? null;
+  }, [currentLayout, selectedTableId]);
 
-  // IMPORTANT: hooks must be called unconditionally.
-  // We compute the filtered layout before any early returns.
-  const filteredLayout = useMemo(() => {
-    if (!layout) return null;
-    if (!activeSectionId) return layout;
-    const sid = String(activeSectionId);
-    return {
-      ...layout,
-      tables: (layout.tables || []).filter((t: any) => String(t.sectionId || '') === sid),
-      // Keep statuses as-is; renderer resolves by id/number.
-    } as FloorLayoutLike;
-  }, [layout, activeSectionId]);
+  const selectedStatusEntry = React.useMemo<TableStatusEntry | null>(() => {
+    if (!currentLayout || !selectedTable) return null;
+    const statuses = (currentLayout as any).tableStatuses as TableStatusEntry[] | undefined;
+    if (!Array.isArray(statuses)) return null;
 
-  if (state.kind === 'loading') {
+    // prefer by id, fall back to number
+    const byId = statuses.find((s) => String((s as any).tableId) === String(selectedTable.id));
+    if (byId) return byId;
+    return statuses.find((s) => (s as any).tableNumber === (selectedTable as any).number) ?? null;
+  }, [currentLayout, selectedTable]);
+
+  const selectedStatus: NormalStatus = React.useMemo(() => {
+    return normalizeStatus((selectedStatusEntry as any)?.status);
+  }, [selectedStatusEntry]);
+
+  const onTableClick = (tableId: string) => {
+    setSelectedTableId(tableId);
+  };
+
+  const closeDrawer = () => setSelectedTableId(null);
+
+  const rootClass = `floor-editor sb-floor-view ${mountMode === "lobby" ? "is-embed" : ""}`;
+
+  if (loading) {
     return (
-      <div className="sb-floor-view-shell">
-        <div className="sb-floor-view-loading">Loading floor map…</div>
+      <div className={rootClass}>
+        <div className="sbv-loading">טוען מפת מסעדה…</div>
       </div>
     );
   }
 
-  if (state.kind === 'error') {
+  if (error || !currentLayout) {
     return (
-      <div className="sb-floor-view-shell">
-        <div className="sb-floor-view-error">
-          <div className="title">לא ניתן לטעון את מפת המסעדה.</div>
-          <div className="desc">{state.message}</div>
-          <div className="hint">(בדוק את ה-Console לפרטי דיבוג)</div>
+      <div className={rootClass}>
+        <div className="sbv-error">
+          <div className="sbv-error-title">לא ניתן לטעון את מפת המסעדה</div>
+          <div className="sbv-error-sub">{error ?? "קרתה שגיאה בטעינת המפה"}</div>
+          <button className="sbv-retry" onClick={loadActive}>
+            נסה שוב
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <>
-    <div className={`floor-editor sb-floor-view ${selectedTableId ? 'sbv-has-drawer' : ''}`}>
-      <div className="layout-tabs-bar">
-        <div className="layout-tabs" role="tablist" aria-label="Sections">
-          {sectionIds.map((sid, i) => (
-            <button
-              key={sid || 'all'}
-              className={`layout-tab ${String(activeSectionId) === String(sid) ? 'active' : ''}`}
-              onClick={() => setActiveSectionId(String(sid))}
-              type="button"
-              role="tab"
-              aria-selected={String(activeSectionId) === String(sid)}
-            >
-              {sectionLabel(String(sid), i)}
-            </button>
-          ))}
+    <div className={rootClass}>
+      <div className="layout-tabs">
+        <div className="layout-tabs-left">
+          <div className="layout-tabs-title">תצוגת מפת מסעדה</div>
+          <div className="layout-tabs-sub">גרור כדי להזיז • גלגלת כדי להגדיל</div>
         </div>
-
-        <div className="layout-actions">
-          <div className="sbv-legend" title="Legend">
-            <span className="sbv-leg"><span className="sbv-dot empty"/>פנוי</span>
-            <span className="sbv-leg"><span className="sbv-dot occupied"/>תפוס</span>
-            <span className="sbv-leg"><span className="sbv-dot reserved"/>שמור</span>
-            <span className="sbv-leg"><span className="sbv-dot dirty"/>מלוכלך</span>
-          </div>
-
-          <button
-            type="button"
-            className="btn-icon-small"
-            title="Refresh"
-            onClick={async () => {
-              // Manual refresh
-              try {
-                const res = await fetch(`/api/floor-layouts/${encodeURIComponent(rid)}/active`, { cache: 'no-store' });
-                if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-                const data = (await res.json()) as FloorLayoutLike;
-                setLayout(data);
-                setLastRefreshAt(Date.now());
-              } catch (e) {
-                console.error('[FloorView] manual refresh failed', e);
-              }
-            }}
-          >
-            ↻
-          </button>
-
-          <div className="sbv-refresh">
-            {lastRefreshAt ? `עודכן: ${new Date(lastRefreshAt).toLocaleTimeString()}` : ''}
+        <div className="layout-tabs-right">
+          <div className="sbv-legend">
+            <span className="sbv-pill is-empty">
+              <span className="sbv-dot" /> פנוי
+            </span>
+            <span className="sbv-pill is-occupied">
+              <span className="sbv-dot" /> תפוס
+            </span>
+            <span className="sbv-pill is-reserved">
+              <span className="sbv-dot" /> שמור
+            </span>
+            <span className="sbv-pill is-dirty">
+              <span className="sbv-dot" /> מלוכלך
+            </span>
           </div>
         </div>
       </div>
 
-      <div className="editor-content sbv-content">
-        <div className="editor-main sbv-main">
-          {filteredLayout && (
-            <FloorMapRenderer
-              layout={filteredLayout}
-              mode="view"
-              selectedTableId={selectedTableId}
-              onTableClick={(tableId) => {
-                setSelectedTableId(tableId);
-              }}
-            />
-          )}
+      <div className="editor-content">
+        <div className="editor-main">
+          <FloorMapRenderer
+            layout={currentLayout}
+            selectedTableId={selectedTableId}
+            onTableClick={onTableClick}
+            mode="view"
+          />
         </div>
       </div>
-    </div>
-    {selectedTableId && (
-      <>
-        <div
-          className="sbv-drawer-backdrop"
-          onMouseDown={() => setSelectedTableId(null)}
-          aria-hidden="true"
-        />
-        <aside className="sbv-drawer" role="dialog" aria-modal="true" aria-label="פרטי שולחן">
-          <div className="sbv-drawer-header">
-            <div className="sbv-drawer-title">פרטי שולחן</div>
-            <div className="sbv-drawer-sub">שולחן {selectedTable?.tableNumber ?? selectedTable?.name ?? selectedTableId}</div>
-            <button className="sbv-drawer-close" type="button" aria-label="Close" onClick={() => setSelectedTableId(null)}>✕</button>
-          </div>
 
-          <div className="sbv-drawer-body">
-            <div className="sbv-row">
-              <div className="sbv-label">שם המזמין</div>
-              <div className="sbv-value">{selectedStatus.guestName ? String(selectedStatus.guestName) : '—'}</div>
+      {/* Side drawer */}
+      {selectedTableId && (
+        <>
+          <div className="sbv-drawer-backdrop" onMouseDown={closeDrawer} />
+          <aside className="sbv-drawer" role="dialog" aria-modal="true">
+            <div className="sbv-drawer-header">
+              <div className="sbv-drawer-title">פרטי שולחן</div>
+              <button className="sbv-close" onClick={closeDrawer} aria-label="Close">
+                ✕
+              </button>
             </div>
-            <div className="sbv-row">
-              <div className="sbv-label">מספר סועדים</div>
-              <div className="sbv-value">{selectedStatus.guestCount != null && selectedStatus.guestCount !== '' ? String(selectedStatus.guestCount) : '—'}</div>
-            </div>
-            <div className="sbv-row">
-              <div className="sbv-label">שעת ההזמנה</div>
-              <div className="sbv-value">{selectedStatus.reservationTime ? String(selectedStatus.reservationTime) : '—'}</div>
-            </div>
-            <div className="sbv-row">
-              <div className="sbv-label">סטטוס שולחן</div>
-              <div className="sbv-value sbv-status">
-                <span className={`sbv-dot ${statusDotClass(String(selectedStatus.status || 'empty'))}`} />
-                {statusLabel(String(selectedStatus.status || 'empty'))}
+
+            <div className="sbv-drawer-body">
+              <div className="sbv-table-number">שולחן {(selectedTable as any)?.number ?? "—"}</div>
+
+              <div className={`sbv-status-row is-${selectedStatus}`}>
+                <span className="sbv-status-dot" />
+                <span className="sbv-status-label">סטטוס שולחן</span>
+                <span className="sbv-status-value">{statusLabelHe(selectedStatus)}</span>
+              </div>
+
+              <div className="sbv-kv">
+                <div className="sbv-kv-row">
+                  <div className="sbv-kv-key">שם המזמין</div>
+                  <div className="sbv-kv-val">{(selectedStatusEntry as any)?.guestName ?? "—"}</div>
+                </div>
+                <div className="sbv-kv-row">
+                  <div className="sbv-kv-key">מספר סועדים</div>
+                  <div className="sbv-kv-val">
+                    {(selectedStatusEntry as any)?.guestCount != null ? String((selectedStatusEntry as any).guestCount) : "—"}
+                  </div>
+                </div>
+                <div className="sbv-kv-row">
+                  <div className="sbv-kv-key">שעת ההזמנה</div>
+                  <div className="sbv-kv-val">{(selectedStatusEntry as any)?.reservationTime ?? "—"}</div>
+                </div>
+                <div className="sbv-kv-row">
+                  <div className="sbv-kv-key">מספר פריטים</div>
+                  <div className="sbv-kv-val">{(selectedStatusEntry as any)?.itemsCount ?? "—"}</div>
+                </div>
+                <div className="sbv-kv-row">
+                  <div className="sbv-kv-key">סכום ביניים</div>
+                  <div className="sbv-kv-val">{(selectedStatusEntry as any)?.subtotal ?? "—"}</div>
+                </div>
               </div>
             </div>
-            <div className="sbv-row">
-              <div className="sbv-label">מספר פריטים</div>
-              <div className="sbv-value">{selectedStatus.itemsCount != null && selectedStatus.itemsCount !== '' ? String(selectedStatus.itemsCount) : '—'}</div>
-            </div>
-            <div className="sbv-row">
-              <div className="sbv-label">סכום ביניים</div>
-              <div className="sbv-value">{selectedStatus.subtotal != null && selectedStatus.subtotal !== '' ? String(selectedStatus.subtotal) : '—'}</div>
-            </div>
 
-            <div className="sbv-actions">
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => {
-                  const tn = selectedTable?.tableNumber;
-                  if (tn == null) return;
-                  window.location.href = `/waiter/${encodeURIComponent(rid)}/${encodeURIComponent(String(tn))}`;
-                }}
-              >
-                פתח הזמנה
-              </button>
-              <button type="button" className="btn-secondary" onClick={() => setSelectedTableId(null)}>
-                סגור
-              </button>
+            <div className="sbv-drawer-footer">
+              {selectedStatus === "occupied" && (selectedTable as any)?.number ? (
+                <a className="sbv-primary-btn" href={`/waiter/${restaurantId}/${(selectedTable as any).number}`}>
+                  פתח הזמנה
+                </a>
+              ) : (
+                <button className="sbv-secondary-btn" onClick={closeDrawer}>
+                  סגור
+                </button>
+              )}
             </div>
-          </div>
-        </aside>
-      </>
-    )}
-    </>
+          </aside>
+        </>
+      )}
+    </div>
   );
 }

@@ -163,39 +163,35 @@ export default function FloorMapRenderer({
   const clampZoom = (z: number) => Math.max(0.4, Math.min(2.5, z));
 
   const fitToScreen = () => {
-    if (!canvasRef.current) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const gridW = layout.gridCols * cellSize + padPx * 2;
-    const gridH = layout.gridRows * cellSize + padPx * 2;
+    if (!canvasRef.current || !gridRef.current) return;
+
+    const canvas = canvasRef.current;
+    const grid = gridRef.current;
+
+    // Measure the real rendered grid size (offsetWidth/offsetHeight are not affected by CSS transforms).
+    const cs = getComputedStyle(grid);
+    const marginX = (parseFloat(cs.marginLeft) || 0) + (parseFloat(cs.marginRight) || 0);
+    const marginY = (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+
+    const baseW = grid.offsetWidth + marginX;
+    const baseH = grid.offsetHeight + marginY;
+    if (!baseW || !baseH) return;
+
     const inset = 24;
-    const scale = clampZoom(Math.min((rect.width - inset * 2) / gridW, (rect.height - inset * 2) / gridH, 1.2));
+    const availW = Math.max(1, canvas.clientWidth - inset * 2);
+    const availH = Math.max(1, canvas.clientHeight - inset * 2);
+
+    const scale = clampZoom(Math.min(availW / baseW, availH / baseH, 1.2));
     setZoom(scale);
-    const cx = Math.round((rect.width - gridW * scale) / 2);
-    const cy = Math.round((rect.height - gridH * scale) / 2);
+
+    const cx = Math.round((canvas.clientWidth - baseW * scale) / 2);
+    const cy = Math.round((canvas.clientHeight - baseH * scale) / 2);
     setPan({ x: cx, y: cy });
   };
 
   useEffect(() => {
     // Fit once after first render
     requestAnimationFrame(fitToScreen);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layout?.id]);
-
-  // Keep the map centered when the canvas size changes (responsive layout / side panel).
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    const el = canvasRef.current;
-    let t: number | null = null;
-    const ro = new ResizeObserver(() => {
-      if (t) window.clearTimeout(t);
-      t = window.setTimeout(() => fitToScreen(), 60);
-    });
-    ro.observe(el);
-    return () => {
-      ro.disconnect();
-      if (t) window.clearTimeout(t);
-      t = null;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout?.id]);
 
@@ -219,6 +215,30 @@ export default function FloorMapRenderer({
   };
 
   const onCanvasMouseDown = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement | null;
+
+    // View mode: allow grab-to-pan with left mouse on empty canvas (no Space required)
+    if (mode === 'view') {
+      if (e.button !== 0) return;
+      if (target?.closest('.table, .floor-object, .fe-canvas-controls, button, a, input, textarea, select')) return;
+      e.preventDefault();
+      setIsPanning(true);
+      const start = { x: e.clientX, y: e.clientY };
+      const startPan = { ...pan };
+      const onMove = (ev: MouseEvent) => {
+        setPan({ x: startPan.x + (ev.clientX - start.x), y: startPan.y + (ev.clientY - start.y) });
+      };
+      const onUp = () => {
+        setIsPanning(false);
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+      return;
+    }
+
+    // Edit mode: Space-to-pan or middle mouse
     const isMiddle = e.button === 1;
     const isSpaceLeft = spacePressed && e.button === 0;
     if (!isMiddle && !isSpaceLeft) return;
@@ -238,7 +258,46 @@ export default function FloorMapRenderer({
     window.addEventListener('mouseup', onUp);
   };
 
+  const touchPanRef = useRef<{ startX: number; startY: number; panX: number; panY: number; active: boolean } | null>(null);
+
+  const onCanvasTouchStart = (e: React.TouchEvent) => {
+    if (mode !== 'view') return;
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('.table, .floor-object, .fe-canvas-controls, button, a, input, textarea, select')) return;
+    e.preventDefault();
+    setIsPanning(true);
+    touchPanRef.current = { startX: t.clientX, startY: t.clientY, panX: pan.x, panY: pan.y, active: true };
+  };
+
+  const onCanvasTouchMove = (e: React.TouchEvent) => {
+    if (mode !== 'view') return;
+    const s = touchPanRef.current;
+    if (!s || !s.active) return;
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    e.preventDefault();
+    setPan({ x: s.panX + (t.clientX - s.startX), y: s.panY + (t.clientY - s.startY) });
+  };
+
+  const onCanvasTouchEnd = () => {
+    if (mode !== 'view') return;
+    touchPanRef.current = null;
+    setIsPanning(false);
+  };
+
   const spanToPx = (span: number) => Math.max(1, Number(span) || 1) * cellSize;
+
+  
+  const normalizeTableStatus = (raw: string): 'empty' | 'occupied' | 'reserved' | 'dirty' => {
+    const v = (raw || '').toLowerCase();
+    if (v.includes('occup') || v === 'busy' || v === 'taken') return 'occupied';
+    if (v.includes('reserv') || v.includes('book')) return 'reserved';
+    if (v.includes('dirty') || v.includes('need') || v.includes('clean')) return 'dirty';
+    return 'empty';
+  };
+
 
   const statusByTableId = useMemo(() => {
     const m = new Map<string, { status: string; guestName?: string | null; guestCount?: any; orderId?: string | null }>();
@@ -246,7 +305,7 @@ export default function FloorMapRenderer({
       const tid = s && s.tableId ? String(s.tableId) : '';
       if (!tid) return;
       m.set(tid, {
-        status: String(s.status || 'empty'),
+        status: normalizeTableStatus(String(s.status || 'empty')),
         guestName: s.guestName ?? null,
         guestCount: s.guestCount ?? null,
         orderId: s.orderId ?? null,
@@ -261,7 +320,7 @@ export default function FloorMapRenderer({
       const tn = Number(s && (s.tableNumber ?? 0));
       if (!Number.isFinite(tn) || tn <= 0) return;
       m.set(tn, {
-        status: String(s.status || 'empty'),
+        status: normalizeTableStatus(String(s.status || 'empty')),
         guestName: s.guestName ?? null,
         guestCount: s.guestCount ?? null,
         orderId: s.orderId ?? null,
@@ -287,6 +346,9 @@ export default function FloorMapRenderer({
       ref={canvasRef}
       onWheel={onCanvasWheel}
       onMouseDown={onCanvasMouseDown}
+      onTouchStart={onCanvasTouchStart}
+      onTouchMove={onCanvasTouchMove}
+      onTouchEnd={onCanvasTouchEnd}
       style={{ position: 'relative' }}
     >
       <div className="fe-canvas-controls">
@@ -383,7 +445,6 @@ export default function FloorMapRenderer({
                 const st = getStatusFor(tableHere);
                 const status = String(st.status || 'empty');
                 const selected = selectedTableId && String(selectedTableId) === String(tableHere.id);
-                // In waiter/host view we always show a status pill (including "פנוי").
                 const showPill = mode === 'view';
                 const pillText = (() => {
                   if (status === 'occupied') return 'תפוס';
@@ -394,7 +455,7 @@ export default function FloorMapRenderer({
                 const count = st.guestCount != null && st.guestCount !== '' ? ` · ${st.guestCount}` : '';
                 return (
                   <div
-                    className={`table ${String(tableHere.shape || 'square')} ${selected ? 'selected' : ''} sbv-table sbv-${status || 'empty'}`}
+                    className={`table ${String(tableHere.shape || 'square')} ${selected ? 'selected' : ''}`}
                     onClick={() => onTableClick?.(tableHere.id)}
                     style={{
                       position: 'absolute',
