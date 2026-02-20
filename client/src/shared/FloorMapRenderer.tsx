@@ -126,6 +126,7 @@ export default function FloorMapRenderer({
   onTableClick?: (tableId: string) => void;
   selectedTableId?: string | null;
 }) {
+  const allowZoom = mode === 'edit';
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
 
@@ -133,6 +134,12 @@ export default function FloorMapRenderer({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [spacePressed, setSpacePressed] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
+
+  // Refs used by a non-passive wheel listener (prevents React passive warnings for preventDefault)
+  const zoomRef = useRef(zoom);
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
 
   // Track if the user dragged to pan (so we can swallow a click on tables/objects after dragging)
   const dragRef = useRef<{ moved: boolean } | null>(null);
@@ -227,18 +234,35 @@ export default function FloorMapRenderer({
     const ox = clientX - rect.left;
     const oy = clientY - rect.top;
     setPan((p) => {
-      const dz = nextZoom / zoom;
+      const dz = nextZoom / (zoomRef.current || 1);
       return { x: Math.round(ox - (ox - p.x) * dz), y: Math.round(oy - (oy - p.y) * dz) };
     });
     setZoom(nextZoom);
   };
 
-  const onCanvasWheel = (e: React.WheelEvent) => {
-    if (!(e.ctrlKey || (e as any).metaKey)) return;
-    e.preventDefault();
-    const next = clampZoom(zoom * (e.deltaY > 0 ? 0.9 : 1.1));
-    zoomAtPoint(next, e.clientX, e.clientY);
-  };
+  // Non-passive wheel handler (blocks browser zoom; enables internal zoom only in edit mode)
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      const isZoomGesture = !!(e.ctrlKey || (e as any).metaKey);
+      if (!isZoomGesture) return;
+
+      // Always block browser zoom on ctrl/cmd+wheel
+      e.preventDefault();
+
+      // View mode: no manual zoom
+      if (!allowZoom) return;
+
+      const factor = e.deltaY > 0 ? 0.9 : 1.1;
+      const next = clampZoom((zoomRef.current || 1) * factor);
+      zoomAtPoint(next, e.clientX, e.clientY);
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel as any);
+  }, [allowZoom]);
 
   const onCanvasMouseDown = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement | null;
@@ -389,7 +413,6 @@ export default function FloorMapRenderer({
     <div
       className={`editor-canvas ${isPanning ? 'is-panning' : ''}`}
       ref={canvasRef}
-      onWheel={onCanvasWheel}
       onMouseDown={onCanvasMouseDown}
       onTouchStart={onCanvasTouchStart}
       onTouchMove={onCanvasTouchMove}
@@ -397,31 +420,37 @@ export default function FloorMapRenderer({
       style={{ position: 'relative' }}
     >
       <div className="fe-canvas-controls">
-        <button
-          className="btn-icon-small"
-          onClick={() => {
-            const rect = canvasRef.current?.getBoundingClientRect();
-            zoomAtPoint(clampZoom(zoom * 1.1), (rect?.left || 0) + 40, (rect?.top || 0) + 40);
-          }}
-          title="Zoom in"
-        >
-          ＋
-        </button>
-        <button
-          className="btn-icon-small"
-          onClick={() => {
-            const rect = canvasRef.current?.getBoundingClientRect();
-            zoomAtPoint(clampZoom(zoom * 0.9), (rect?.left || 0) + 40, (rect?.top || 0) + 40);
-          }}
-          title="Zoom out"
-        >
-          －
-        </button>
-        <button className="btn-icon-small" onClick={fitToScreen} title="Fit to screen">
+        {allowZoom ? (
+          <>
+            <button
+              className="btn-icon-small"
+              onClick={() => {
+                const rect = canvasRef.current?.getBoundingClientRect();
+                zoomAtPoint(clampZoom(zoom * 1.1), (rect?.left || 0) + 40, (rect?.top || 0) + 40);
+              }}
+              title="Zoom in"
+            >
+              ＋
+            </button>
+            <button
+              className="btn-icon-small"
+              onClick={() => {
+                const rect = canvasRef.current?.getBoundingClientRect();
+                zoomAtPoint(clampZoom(zoom * 0.9), (rect?.left || 0) + 40, (rect?.top || 0) + 40);
+              }}
+              title="Zoom out"
+            >
+              －
+            </button>
+          </>
+        ) : null}
+        <button className="btn-icon-small" onClick={fitToScreen} title="Center">
           ⤢
         </button>
-        <div className="fe-zoom-readout">{Math.round(zoom * 100)}%</div>
-        <div className="fe-hint">{spacePressed ? 'Pan: drag' : 'Tip: hold Space to pan, Ctrl+wheel to zoom'}</div>
+        {allowZoom ? <div className="fe-zoom-readout">{Math.round(zoom * 100)}%</div> : null}
+        <div className="fe-hint">
+          {mode === 'view' ? 'Drag to pan' : spacePressed ? 'Pan: drag' : 'Tip: hold Space to pan, Ctrl+wheel to zoom'}
+        </div>
       </div>
 
       <div
@@ -509,7 +538,7 @@ export default function FloorMapRenderer({
                 const count = st.guestCount != null && st.guestCount !== '' ? ` · ${st.guestCount}` : '';
                 return (
                   <div
-                    className={`table floor-table status-${status} ${String(tableHere.shape || 'square')} ${selected ? 'is-selected' : ''}`}
+                    className={`table ${String(tableHere.shape || 'square')} ${selected ? 'selected' : ''}`}
                     onClick={() => onTableClick?.(tableHere.id)}
                     style={{
                       position: 'absolute',
