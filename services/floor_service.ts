@@ -7,6 +7,10 @@ import type { Order, OrderItem } from "../pos/pos_db.ts";
 export type TableStatus = "empty" | "occupied" | "reserved" | "dirty";
 
 export interface TableStatusData {
+  guestName?: string;
+  reservationTime?: string;
+  itemsCount?: number;
+  subtotal?: number;
   tableId: string;
   tableNumber: number;
   status: TableStatus;
@@ -85,8 +89,37 @@ export async function computeTableStatus(
     status: "empty",
   };
 
-  // If no open order, table is empty
+  // Seating info (set by hostess). Even if no order exists yet, we want to show guest details.
+  // Key: ["seat","by_table", restaurantId, tableNumber]
+  let seatGuestName: string | undefined;
+  let seatPeople: number | undefined;
+  let seatTime: string | undefined;
+  try {
+    const seatKey = ["seat", "by_table", restaurantId, tableNumber] as Deno.KvKey;
+    const seatRow = await kv.get(seatKey);
+    const seat = seatRow.value as any;
+    if (seat) {
+      if (seat.guestName) seatGuestName = String(seat.guestName);
+      if (seat.people != null && Number.isFinite(Number(seat.people))) seatPeople = Number(seat.people);
+      if (seat.time) seatTime = String(seat.time);
+    }
+  } catch {
+    // ignore
+  }
+
+  // If no open order, still show seating info (if exists) and treat as occupied
   if (!order || order.status !== "open") {
+    if (seatGuestName || seatPeople != null || seatTime) {
+      return {
+        ...base,
+        status: "occupied",
+        guestName: seatGuestName,
+        guestCount: seatPeople,
+        reservationTime: seatTime,
+        itemsCount: 0,
+        subtotal: 0,
+      };
+    }
     return base;
   }
 
@@ -116,8 +149,13 @@ export async function computeTableStatus(
     tableId: floorTableId,
     tableNumber,
     status: "occupied",
+    guestName: seatGuestName,
+    guestCount: seatPeople,
+    reservationTime: seatTime,
     orderId: order.id,
     orderTotal: subtotal,
+    subtotal,
+    itemsCount: itemsReady + itemsPending,
     occupiedSince: order.createdAt,
     itemsReady,
     itemsPending,

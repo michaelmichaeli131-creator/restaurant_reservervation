@@ -342,3 +342,26 @@
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
 }
+
+
+/* Ensure drawer is outside the map frame (portal to body) */
+.sbv-drawer-backdrop{
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9998 !important;
+}
+
+.sbv-drawer{
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  height: 100vh !important;
+  z-index: 9999 !important;
+}
+
+.sbv-primary-btn{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}

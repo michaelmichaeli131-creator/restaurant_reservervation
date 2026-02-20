@@ -1,4 +1,5 @@
 import React from "react";
+import ReactDOM from "react-dom";
 import FloorMapRenderer from "../shared/FloorMapRenderer";
 import type { FloorLayoutLike as FloorLayout } from "../shared/FloorMapRenderer";
 import "./floorViewPage.css";
@@ -26,6 +27,15 @@ function normalizeStatus(s?: string | null): NormalStatus {
   if (v === "reserved" || v === "booked") return "reserved";
   if (v === "dirty" || v === "needs_cleaning") return "dirty";
   return "empty";
+}
+
+
+
+function getTableNumber(t: any): number | null {
+  const n =
+    t?.tableNumber ?? t?.number ?? t?.table_number ?? t?.tableNum ?? t?.table;
+  const v = Number(n);
+  return Number.isFinite(v) && v > 0 ? v : null;
 }
 
 function statusLabelHe(s: NormalStatus): string {
@@ -264,102 +274,95 @@ export default function FloorViewPage({
       </div>
 
       {/* Side drawer */}
-      {selectedTableId && !isHostMode && (
-        <>
-          <div className="sbv-drawer-backdrop" onMouseDown={closeDrawer} />
-          <aside className="sbv-drawer" role="dialog" aria-modal="true">
-            <div className="sbv-drawer-header">
-              <div className="sbv-drawer-title">פרטי שולחן</div>
-              <button className="sbv-close" onClick={closeDrawer} aria-label="Close">
-                ✕
-              </button>
-            </div>
-
-            <div className="sbv-drawer-body">
-              <div className="sbv-table-number">שולחן {(selectedTable as any)?.number ?? "—"}</div>
-
-              <div className={`sbv-status-row is-${selectedStatus}`}>
-                <span className="sbv-status-dot" />
-                <span className="sbv-status-label">סטטוס שולחן</span>
-                <span className="sbv-status-value">{statusLabelHe(selectedStatus)}</span>
-              </div>
-
-              <div className="sbv-kv">
-                <div className="sbv-kv-row">
-                  <div className="sbv-kv-key">שם המזמין</div>
-                  <div className="sbv-kv-val">{(selectedStatusEntry as any)?.guestName ?? "—"}</div>
-                </div>
-                <div className="sbv-kv-row">
-                  <div className="sbv-kv-key">מספר סועדים</div>
-                  <div className="sbv-kv-val">
-                    {(selectedStatusEntry as any)?.guestCount != null ? String((selectedStatusEntry as any).guestCount) : "—"}
-                  </div>
-                </div>
-                <div className="sbv-kv-row">
-                  <div className="sbv-kv-key">שעת ההזמנה</div>
-                  <div className="sbv-kv-val">{(selectedStatusEntry as any)?.reservationTime ?? "—"}</div>
-                </div>
-                <div className="sbv-kv-row">
-                  <div className="sbv-kv-key">מספר פריטים</div>
-                  <div className="sbv-kv-val">{(selectedStatusEntry as any)?.itemsCount ?? "—"}</div>
-                </div>
-                <div className="sbv-kv-row">
-                  <div className="sbv-kv-key">סכום ביניים</div>
-                  <div className="sbv-kv-val">{(selectedStatusEntry as any)?.subtotal ?? "—"}</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="sbv-drawer-footer">
-              <div className="sbv-actions-row">
-                {isWaiterLobby && selectedStatus !== "occupied" ? (
-                  <>
-                    <button
-                      className="sbv-secondary-btn"
-                      onClick={() => updateTableStatus(selectedTableId, "dirty")}
-                    >
-                      סמן מלוכלך
-                    </button>
-                    <button
-                      className="sbv-secondary-btn"
-                      onClick={() => updateTableStatus(selectedTableId, "empty")}
-                    >
-                      סמן פנוי
-                    </button>
-                  </>
-                ) : null}
-
-                {!isWaiterLobby && selectedStatus !== "occupied" ? (
-                  <>
-                    <button
-                      className="sbv-secondary-btn"
-                      onClick={() => updateTableStatus(selectedTableId, "reserved")}
-                    >
-                      סמן שמור
-                    </button>
-                    <button
-                      className="sbv-secondary-btn"
-                      onClick={() => updateTableStatus(selectedTableId, "empty")}
-                    >
-                      סמן פנוי
-                    </button>
-                  </>
-                ) : null}
-
-                {selectedStatus === "occupied" && (selectedTable as any)?.number ? (
-                  <a className="sbv-primary-btn" href={`/waiter/${restaurantId}/${(selectedTable as any).number}`}>
-                    פתח הזמנה
-                  </a>
-                ) : (
-                  <button className="sbv-secondary-btn" onClick={closeDrawer}>
-                    סגור
-                  </button>
-                )}
-              </div>
-            </div>
-          </aside>
-        </>
-      )}
+      {selectedTableId && !isHostMode
+        ? ReactDOM.createPortal(
+            <>
+              <div className="sbv-drawer-backdrop" onMouseDown={closeDrawer} />
+                        <aside className="sbv-drawer" role="dialog" aria-modal="true">
+                          <div className="sbv-drawer-header">
+                            <div className="sbv-drawer-title">פרטי שולחן</div>
+                            <button className="sbv-close" onClick={closeDrawer} aria-label="Close">
+                              ✕
+                            </button>
+                          </div>
+              
+                          <div className="sbv-drawer-body">
+                            <div className="sbv-table-number">שולחן {getTableNumber(selectedTable) ?? "—"}</div>
+              
+                            <div className={`sbv-status-row is-${selectedStatus}`}>
+                              <span className="sbv-status-dot" />
+                              <span className="sbv-status-label">סטטוס שולחן</span>
+                              <span className="sbv-status-value">{statusLabelHe(selectedStatus)}</span>
+                            </div>
+              
+                            <div className="sbv-kv">
+                              <div className="sbv-kv-row">
+                                <div className="sbv-kv-key">שם המזמין</div>
+                                <div className="sbv-kv-val">{(selectedStatusEntry as any)?.guestName ?? "—"}</div>
+                              </div>
+                              <div className="sbv-kv-row">
+                                <div className="sbv-kv-key">מספר סועדים</div>
+                                <div className="sbv-kv-val">
+                                  {(selectedStatusEntry as any)?.guestCount ?? (selectedStatusEntry as any)?.people != null ? String((selectedStatusEntry as any).guestCount) : "—"}
+                                </div>
+                              </div>
+                              <div className="sbv-kv-row">
+                                <div className="sbv-kv-key">שעת ההזמנה</div>
+                                <div className="sbv-kv-val">{(selectedStatusEntry as any)?.reservationTime ?? (selectedStatusEntry as any)?.time ?? "—"}</div>
+                              </div>
+                              <div className="sbv-kv-row">
+                                <div className="sbv-kv-key">מספר פריטים</div>
+                                <div className="sbv-kv-val">{(selectedStatusEntry as any)?.itemsCount ?? ((selectedStatusEntry as any)?.itemsReady != null && (selectedStatusEntry as any)?.itemsPending != null ? ((selectedStatusEntry as any).itemsReady + (selectedStatusEntry as any).itemsPending) : null) ?? "—"}</div>
+                              </div>
+                              <div className="sbv-kv-row">
+                                <div className="sbv-kv-key">סכום ביניים</div>
+                                <div className="sbv-kv-val">{(selectedStatusEntry as any)?.subtotal ?? (selectedStatusEntry as any)?.orderTotal ?? "—"}</div>
+                              </div>
+                            </div>
+                          </div>
+              
+                          <div className="sbv-drawer-footer">
+                            <div className="sbv-actions-row">
+                              {/* Waiter: mark dirty / clean */}
+                              {isWaiterLobby ? (
+                                <>
+                                  <button
+                                    className="sbv-secondary-btn"
+                                    onClick={(e) => { e.stopPropagation(); updateTableStatus(selectedTableId, "dirty"); }}
+                                  >
+                                    סמן מלוכלך
+                                  </button>
+                                  <button
+                                    className="sbv-secondary-btn"
+                                    onClick={(e) => { e.stopPropagation(); updateTableStatus(selectedTableId, "clean"); }}
+                                  >
+                                    סמן נקי
+                                  </button>
+                                </>
+                              ) : null}
+              
+                              {/* Quick jump to the order screen */}
+                              <a
+                                className="sbv-primary-btn"
+                                href={(() => {
+                                  const num = getTableNumber(selectedTable);
+                                  return num ? `/pos/${encodeURIComponent(restaurantId)}/table/${encodeURIComponent(String(num))}` : "#";
+                                })()}
+                                onClick={(e) => {
+                                  const num = getTableNumber(selectedTable);
+                                  if (!num) e.preventDefault();
+                                  e.stopPropagation();
+                                }}
+                              >
+                                למסך ההזמנה
+                              </a>
+                            </div>
+                          </div>
+                        </aside>
+            </>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

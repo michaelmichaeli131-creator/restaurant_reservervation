@@ -1015,4 +1015,10 @@
     border-top:1px solid rgba(148,163,184,0.25);
   }
 
+
+  .host-grid .floor-wrapper{
+    height: min(72vh, 860px);
+    border-radius: 18px;
+    overflow: hidden;
+  }
 </style>

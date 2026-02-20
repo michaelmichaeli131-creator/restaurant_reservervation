@@ -152,11 +152,19 @@ ownerFloorRouter.post(
 
     const { status } = body as any;
 
-    if (!status || !["empty", "occupied", "reserved", "dirty"].includes(status)) {
+    const raw = String(status ?? "").trim().toLowerCase();
+    // Accept common synonyms from UI (free/clean) for robustness.
+    const normalized =
+      raw === "free" || raw === "available" || raw === "clean" ? "empty"
+      : raw === "booked" ? "reserved"
+      : raw;
+
+    if (!normalized || !["empty", "occupied", "reserved", "dirty"].includes(normalized)) {
       ctx.response.status = 400;
       ctx.response.body = { error: "Invalid status" };
       return;
     }
+
 
     // Verify the restaurant exists
     const restaurant = await getRestaurant(restaurantId);
@@ -182,7 +190,7 @@ ownerFloorRouter.post(
     const statusKey = toKey("table_status", restaurantId, tableId);
     const statusData = {
       tableId,
-      status,
+      status: normalized,
       updatedAt: Date.now(),
       updatedBy: user.id,
     };
