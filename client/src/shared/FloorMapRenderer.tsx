@@ -120,11 +120,13 @@ export default function FloorMapRenderer({
   mode,
   onTableClick,
   selectedTableId,
+  selectedTableIds,
 }: {
   layout: FloorLayoutLike;
   mode: 'view' | 'edit';
   onTableClick?: (tableId: string) => void;
   selectedTableId?: string | null;
+  selectedTableIds?: string[] | null;
 }) {
   const allowZoom = mode === 'edit';
   const canvasRef = useRef<HTMLDivElement | null>(null);
@@ -527,7 +529,10 @@ export default function FloorMapRenderer({
               {isTopLeft && tableHere && (() => {
                 const st = getStatusFor(tableHere);
                 const status = String(st.status || 'empty');
-                const selected = selectedTableId && String(selectedTableId) === String(tableHere.id);
+                const selected =
+                  (selectedTableId && String(selectedTableId) === String(tableHere.id)) ||
+                  (Array.isArray(selectedTableIds) &&
+                    selectedTableIds.some((x) => String(x) === String(tableHere.id)));
                 const showPill = mode === 'view';
                 const pillText = (() => {
                   if (status === 'occupied') return 'תפוס';

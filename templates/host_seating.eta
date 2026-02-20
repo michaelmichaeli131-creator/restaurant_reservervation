@@ -66,13 +66,20 @@
       <p class="muted small">
         יש לבחור הזמנה, לבחור שולחן או כמה שולחנות (איחוד), ואז ללחוץ על כפתור ההושבה.
       </p>
-      <div id="floor" class="floor-wrapper">
-        <!-- המפה תיטען דינמית ע"י JS -->
-      </div>
+      <div
+        id="sb-floor-root"
+        class="floor-wrapper"
+        data-rid="<%= it.rid %>"
+        data-click-mode="host"
+      ></div>
       <div class="host-actions">
         <button id="seat-btn" type="button" class="btn primary sm">
           הושבה לשולחן/ות שנבחרו
         </button>
+        <div class="host-mini-actions">
+          <button id="mark-reserved-btn" type="button" class="btn ghost sm">סמן שמור</button>
+          <button id="mark-empty-btn" type="button" class="btn ghost sm">סמן פנוי</button>
+        </div>
         <p class="muted small">ניתן לבחור מספר שולחנות עבור אותה הזמנה (איחוד שולחנות).</p>
       </div>
     </div>
@@ -122,16 +129,39 @@
   </div>
 </aside>
 
+<!-- Same floor-view assets as the waiter lobby -->
+<link rel="stylesheet" href="/css/sb-floor-theme.css">
+<link rel="stylesheet" href="/css/sb-floor-map.css">
+<link rel="stylesheet" href="/static/dist/floor-index.css?v=<%= it.BUILD_TAG || Date.now() %>">
+<link rel="stylesheet" href="/static/dist/floor-floor-view-app.css?v=<%= it.BUILD_TAG || Date.now() %>">
+<script type="module" src="/static/dist/floor-view-app.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>
+
 <script>
 (function(){
   const rid = "<%= it.rid %>";
   const state = {
     selectedResId: null,
     selectedTables: new Set(),   // מספרי שולחנות שנבחרו
+    selectedTableIds: new Set(), // IDs של שולחנות שנבחרו (לסטטוסים)
   };
 
   const resvList = document.getElementById("resv-list");
   const seatBtn = document.getElementById("seat-btn");
+  const markReservedBtn = document.getElementById("mark-reserved-btn");
+  const markEmptyBtn = document.getElementById("mark-empty-btn");
+
+  // Selection updates from the embedded floor-view app
+  window.addEventListener("sb-floor-selection", function(ev){
+    try {
+      const d = (ev && ev.detail) ? ev.detail : {};
+      const nums = Array.isArray(d.tableNumbers) ? d.tableNumbers : [];
+      const ids = Array.isArray(d.tableIds) ? d.tableIds : [];
+      state.selectedTables = new Set(nums.map(Number).filter(n => Number.isFinite(n) && n > 0));
+      state.selectedTableIds = new Set(ids.map(String).filter(Boolean));
+    } catch (e) {
+      console.warn("[HOST] selection event error", e);
+    }
+  });
 
   // צד פרטי שולחן
   const tableInfoPanel = document.getElementById("table-info-panel");
@@ -580,6 +610,8 @@
       }
 
       state.selectedTables.clear();
+      state.selectedTableIds.clear();
+      try { window.dispatchEvent(new CustomEvent("sb-floor-clear-selection")); } catch(_e) {}
       closeTableInfoPanel();
 
       alert(
@@ -599,7 +631,43 @@
     });
   }
 
-  loadFloor();
+  async function markStatusForSelected(status){
+    const ids = Array.from(state.selectedTableIds.values());
+    if (!ids.length) {
+      alert("בחר שולחן אחד לפחות במפה.");
+      return;
+    }
+
+    try{
+      await Promise.all(ids.map(async (tid) => {
+        const res = await fetch(`/api/tables/${encodeURIComponent(rid)}/${encodeURIComponent(tid)}/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || ("HTTP " + res.status));
+        }
+      }));
+    } catch (e) {
+      console.error(e);
+      alert("שגיאה בעדכון סטטוס שולחן: " + (e && e.message ? e.message : "unknown"));
+    }
+  }
+
+  if (markReservedBtn) {
+    markReservedBtn.addEventListener("click", function(){
+      markStatusForSelected("reserved");
+    });
+  }
+  if (markEmptyBtn) {
+    markEmptyBtn.addEventListener("click", function(){
+      markStatusForSelected("empty");
+    });
+  }
+
+  // Floor map is mounted by /dist/floor-view-app.js
 })();
 </script>
 

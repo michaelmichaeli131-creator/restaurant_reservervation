@@ -16,7 +16,7 @@ type TableStatusEntry = {
   orderId?: string | null;
 };
 
-type MountMode = "page" | "lobby";
+type MountMode = "page" | "lobby" | "host";
 
 type NormalStatus = "empty" | "occupied" | "reserved" | "dirty";
 
@@ -56,6 +56,7 @@ export default function FloorViewPage({
   const [error, setError] = React.useState<string | null>(null);
 
   const [selectedTableId, setSelectedTableId] = React.useState<string | null>(null);
+  const [selectedTableIds, setSelectedTableIds] = React.useState<string[]>([]);
 
   const loadActive = React.useCallback(async () => {
     try {
@@ -133,13 +134,76 @@ export default function FloorViewPage({
     return normalizeStatus((selectedStatusEntry as any)?.status);
   }, [selectedStatusEntry]);
 
+  const isHostMode = mountMode === "host";
+  const isWaiterLobby = mountMode === "lobby";
+
+  // Host mode: allow multi-select for seating flow.
   const onTableClick = (tableId: string) => {
+    if (isHostMode) {
+      setSelectedTableIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(tableId)) next.delete(tableId);
+        else next.add(tableId);
+        return Array.from(next);
+      });
+      return;
+    }
     setSelectedTableId(tableId);
   };
 
   const closeDrawer = () => setSelectedTableId(null);
 
-  const rootClass = `floor-editor sb-floor-view ${mountMode === "lobby" ? "is-embed" : ""}`;
+  // Dispatch selected tables for the host page (so the existing template logic can remain mostly unchanged).
+  React.useEffect(() => {
+    if (!isHostMode) return;
+    const layout = currentLayout;
+    if (!layout) return;
+
+    const byId = new Map<string, any>();
+    (layout.tables || []).forEach((t: any) => byId.set(String(t.id), t));
+
+    const tableNumbers = selectedTableIds
+      .map((id) => byId.get(String(id)))
+      .filter(Boolean)
+      .map((t: any) => Number(t.tableNumber ?? t.number ?? 0))
+      .filter((n: number) => Number.isFinite(n) && n > 0);
+
+    window.dispatchEvent(
+      new CustomEvent("sb-floor-selection", {
+        detail: {
+          tableIds: selectedTableIds,
+          tableNumbers,
+        },
+      })
+    );
+  }, [isHostMode, currentLayout, selectedTableIds]);
+
+  // Allow host template to clear selection after seating.
+  React.useEffect(() => {
+    if (!isHostMode) return;
+    const handler = () => setSelectedTableIds([]);
+    window.addEventListener("sb-floor-clear-selection", handler as any);
+    return () => window.removeEventListener("sb-floor-clear-selection", handler as any);
+  }, [isHostMode]);
+
+  const updateTableStatus = React.useCallback(
+    async (tableId: string, status: NormalStatus) => {
+      try {
+        const res = await fetch(`/api/tables/${restaurantId}/${tableId}/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await loadActive();
+      } catch (e) {
+        console.warn("Failed to update table status", e);
+      }
+    },
+    [restaurantId, loadActive]
+  );
+
+  const rootClass = `floor-editor sb-floor-view ${mountMode === "lobby" || mountMode === "host" ? "is-embed" : ""}`;
 
   if (loading) {
     return (
@@ -193,13 +257,14 @@ export default function FloorViewPage({
         <FloorMapRenderer
           layout={currentLayout}
           selectedTableId={selectedTableId}
+          selectedTableIds={isHostMode ? selectedTableIds : null}
           onTableClick={onTableClick}
           mode="view"
         />
       </div>
 
       {/* Side drawer */}
-      {selectedTableId && (
+      {selectedTableId && !isHostMode && (
         <>
           <div className="sbv-drawer-backdrop" onMouseDown={closeDrawer} />
           <aside className="sbv-drawer" role="dialog" aria-modal="true">
@@ -246,15 +311,51 @@ export default function FloorViewPage({
             </div>
 
             <div className="sbv-drawer-footer">
-              {selectedStatus === "occupied" && (selectedTable as any)?.number ? (
-                <a className="sbv-primary-btn" href={`/waiter/${restaurantId}/${(selectedTable as any).number}`}>
-                  פתח הזמנה
-                </a>
-              ) : (
-                <button className="sbv-secondary-btn" onClick={closeDrawer}>
-                  סגור
-                </button>
-              )}
+              <div className="sbv-actions-row">
+                {isWaiterLobby && selectedStatus !== "occupied" ? (
+                  <>
+                    <button
+                      className="sbv-secondary-btn"
+                      onClick={() => updateTableStatus(selectedTableId, "dirty")}
+                    >
+                      סמן מלוכלך
+                    </button>
+                    <button
+                      className="sbv-secondary-btn"
+                      onClick={() => updateTableStatus(selectedTableId, "empty")}
+                    >
+                      סמן פנוי
+                    </button>
+                  </>
+                ) : null}
+
+                {!isWaiterLobby && selectedStatus !== "occupied" ? (
+                  <>
+                    <button
+                      className="sbv-secondary-btn"
+                      onClick={() => updateTableStatus(selectedTableId, "reserved")}
+                    >
+                      סמן שמור
+                    </button>
+                    <button
+                      className="sbv-secondary-btn"
+                      onClick={() => updateTableStatus(selectedTableId, "empty")}
+                    >
+                      סמן פנוי
+                    </button>
+                  </>
+                ) : null}
+
+                {selectedStatus === "occupied" && (selectedTable as any)?.number ? (
+                  <a className="sbv-primary-btn" href={`/waiter/${restaurantId}/${(selectedTable as any).number}`}>
+                    פתח הזמנה
+                  </a>
+                ) : (
+                  <button className="sbv-secondary-btn" onClick={closeDrawer}>
+                    סגור
+                  </button>
+                )}
+              </div>
             </div>
           </aside>
         </>

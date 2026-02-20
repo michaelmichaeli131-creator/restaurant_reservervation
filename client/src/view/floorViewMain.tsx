@@ -10,7 +10,7 @@ if (!rootEl) {
 
 const rid = rootEl.getAttribute('data-rid') || rootEl.getAttribute('data-restaurant-id') || '';
 const clickMode = rootEl.getAttribute('data-click-mode') || rootEl.getAttribute('data-mode') || 'page';
-const mountMode = clickMode === 'lobby' ? 'lobby' : 'page';
+const mountMode = clickMode === 'lobby' ? 'lobby' : (clickMode === 'host' ? 'host' : 'page');
 
 console.info('[FloorView] mount', { rid, mountMode, clickMode });
 

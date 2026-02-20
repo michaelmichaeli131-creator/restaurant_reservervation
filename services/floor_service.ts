@@ -134,12 +134,37 @@ export async function computeAllTableStatuses(
   const statuses: TableStatusData[] = [];
 
   for (const table of tables) {
-    const status = await computeTableStatus(
+    const base = await computeTableStatus(
       restaurantId,
       table.id,
-      table.tableNumber
+      table.tableNumber,
     );
-    statuses.push(status);
+
+    // Optional manual override (reserved/dirty/empty) stored by staff.
+    // Key: ["table_status", restaurantId, tableId]
+    // Rules:
+    // - If the table is currently occupied by an open order, we keep it as "occupied".
+    // - Otherwise, we allow a manual override to mark it as "reserved" or "dirty".
+    // - Setting "empty" effectively clears the override (we simply keep base "empty").
+    try {
+      const overrideKey = ["table_status", restaurantId, table.id] as Deno.KvKey;
+      const ov = await kv.get(overrideKey);
+      const manual = (ov.value as any)?.status as TableStatus | undefined;
+      if (
+        base.status !== "occupied" &&
+        manual &&
+        ["empty", "reserved", "dirty"].includes(String(manual))
+      ) {
+        if (manual === "reserved" || manual === "dirty") {
+          base.status = manual;
+        }
+        // manual === "empty" -> keep base as-is (usually "empty")
+      }
+    } catch {
+      // ignore override lookup failures
+    }
+
+    statuses.push(base);
   }
 
   return statuses;
