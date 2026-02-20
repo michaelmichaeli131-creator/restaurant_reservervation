@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useToast } from './Toast';
 import './ShiftBoard.css';
 
 interface StaffMember {
@@ -70,6 +71,7 @@ const formatDateDisplay = (date: Date): string => date.toLocaleDateString('en-US
 const formatMonthYear = (date: Date): string => date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
 export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
+  const { toast } = useToast();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [shifts, setShifts] = useState<ShiftAssignment[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -115,7 +117,7 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
 
   const handleAddStaff = async () => {
     if (!newStaff.firstName || !newStaff.lastName || !newStaff.email) {
-      alert('Please fill in required fields');
+      toast('Please fill in required fields', 'warning');
       return;
     }
 
@@ -137,7 +139,7 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
 
   const handleAddShift = async () => {
     if (!newShift.staffId) {
-      alert('Please select a staff member');
+      toast('Please select a staff member', 'warning');
       return;
     }
 
