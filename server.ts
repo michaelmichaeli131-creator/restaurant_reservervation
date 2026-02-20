@@ -1,5 +1,6 @@
 // src/server.ts
 // GeoTable – Oak server (extended, cleaned & ordered)
+// Deploy test: 2026-02-20
 // -------------------------------------------------------------
 // כולל:
 // - Error handler גלובלי (עם סטאק ללוג)
