@@ -23,6 +23,77 @@ export interface TableStatusData {
   assignedWaiterId?: string;
 }
 
+
+// ========== MANUAL TABLE STATUS OVERRIDES ==========
+
+export interface TableStatusOverride {
+  tableId: string;
+  status: TableStatus; // "empty" clears override
+  updatedAt: number;
+  updatedBy: string;
+}
+
+function kTableStatusOverride(restaurantId: string, tableId: string): Deno.KvKey {
+  // Stored as: ["table_status", restaurantId, tableId]
+  return ["table_status", restaurantId, tableId] as Deno.KvKey;
+}
+
+/**
+ * Persist a manual status override for a table.
+ * - status="empty" will CLEAR the override (delete key)
+ */
+export async function setTableStatusOverride(
+  restaurantId: string,
+  tableId: string,
+  status: TableStatus,
+  userId: string,
+): Promise<void> {
+  if (status === "empty") {
+    await kv.delete(kTableStatusOverride(restaurantId, tableId));
+    return;
+  }
+  const data: TableStatusOverride = {
+    tableId,
+    status,
+    updatedAt: Date.now(),
+    updatedBy: userId,
+  };
+  await kv.set(kTableStatusOverride(restaurantId, tableId), data);
+}
+
+/**
+ * Get the manual status override for a table, if any.
+ */
+export async function getTableStatusOverride(
+  restaurantId: string,
+  tableId: string,
+): Promise<TableStatusOverride | null> {
+  const res = await kv.get(kTableStatusOverride(restaurantId, tableId));
+  return (res.value as TableStatusOverride) ?? null;
+}
+
+/**
+ * Convenience: mark table as dirty (manual override).
+ */
+export async function markTableDirty(
+  restaurantId: string,
+  tableId: string,
+  userId: string,
+): Promise<void> {
+  await setTableStatusOverride(restaurantId, tableId, "dirty", userId);
+}
+
+/**
+ * Convenience: mark table as clean (clears dirty/reserved override).
+ */
+export async function markTableClean(
+  restaurantId: string,
+  tableId: string,
+  userId: string,
+): Promise<void> {
+  await setTableStatusOverride(restaurantId, tableId, "empty", userId);
+}
+
 // ========== TABLE NUMBER → TABLE ID MAPPING ==========
 
 /**
