@@ -49,6 +49,25 @@ export default function FloorViewPage({
 
   const [selectedTableId, setSelectedTableId] = React.useState<string | null>(null);
 
+  // Section filtering
+  type SectionInfo = { id: string; name: string; displayOrder?: number };
+  const [sections, setSections] = React.useState<SectionInfo[]>([]);
+  const [activeSectionId, setActiveSectionId] = React.useState<string | null>(null);
+
+  // Load sections once
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/floor-sections/${restaurantId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : (data?.sections ?? []);
+        list.sort((a: SectionInfo, b: SectionInfo) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+        setSections(list);
+      } catch { /* sections are optional */ }
+    })();
+  }, [restaurantId]);
+
   const loadActive = React.useCallback(async () => {
     try {
       const res = await fetch(`/api/floor-layouts/${restaurantId}/active`, {
@@ -99,6 +118,18 @@ export default function FloorViewPage({
     if (!selectedLayoutId) return null;
     return layouts.find((l) => l.id === selectedLayoutId) ?? null;
   }, [layouts, selectedLayoutId]);
+
+  // Filter layout by active section
+  const filteredLayout = React.useMemo(() => {
+    if (!currentLayout) return null;
+    if (!activeSectionId) return currentLayout; // "All" - show everything
+    return {
+      ...currentLayout,
+      tables: (currentLayout.tables || []).filter(
+        (tbl: any) => tbl.sectionId === activeSectionId
+      ),
+    };
+  }, [currentLayout, activeSectionId]);
 
   const selectedTable = React.useMemo(() => {
     if (!currentLayout || !selectedTableId) return null;
@@ -188,11 +219,35 @@ export default function FloorViewPage({
                 <span className="sbv-dot" /> {statusLabel("dirty")}
               </span>
             </div>
+
+            {sections.length > 1 && (
+              <div className="sbv-section-tabs" role="tablist" aria-label={t("floor.sections.title", "Sections")}>
+                <button
+                  className={`sbv-section-tab ${activeSectionId === null ? "is-active" : ""}`}
+                  onClick={() => setActiveSectionId(null)}
+                  role="tab"
+                  aria-selected={activeSectionId === null}
+                >
+                  {t("common.all", "All")}
+                </button>
+                {sections.map((sec) => (
+                  <button
+                    key={sec.id}
+                    className={`sbv-section-tab ${activeSectionId === sec.id ? "is-active" : ""}`}
+                    onClick={() => setActiveSectionId(sec.id)}
+                    role="tab"
+                    aria-selected={activeSectionId === sec.id}
+                  >
+                    {sec.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="editor-content sbv-editor-content">
             <FloorMapRenderer
-              layout={currentLayout}
+              layout={filteredLayout!}
               selectedTableId={selectedTableId}
               onTableClick={onTableClick}
               mode="view"
