@@ -203,8 +203,19 @@ ownerFloorRouter.post(
       return;
     }
 
+
     // Store table status update
     const statusKey = toKey("table_status", restaurantId, tableId);
+
+    // "empty" means: clear any manual override (reserved/dirty). The actual live status
+    // (occupied/empty) is derived from seating + open orders.
+    if (normalized === "empty") {
+      await kv.delete(statusKey);
+      ctx.response.status = 200;
+      ctx.response.body = { success: true, cleared: true, status: { tableId, status: "empty" } };
+      return;
+    }
+
     const statusData = {
       tableId,
       status: normalized,

@@ -365,7 +365,7 @@ export default function FloorMapRenderer({
     const v = (raw || '').toLowerCase();
     if (v.includes('occup') || v === 'busy' || v === 'taken') return 'occupied';
     if (v.includes('reserv') || v.includes('book')) return 'reserved';
-    if (v.includes('dirty') || v.includes('need') || v.includes('clean')) return 'dirty';
+    if (v.includes('dirty') || v.includes('need')) return 'dirty';
     return 'empty';
   };
 

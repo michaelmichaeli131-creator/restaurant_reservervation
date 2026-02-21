@@ -188,15 +188,17 @@ export async function computeAllTableStatuses(
       const overrideKey = ["table_status", restaurantId, table.id] as Deno.KvKey;
       const ov = await kv.get(overrideKey);
       const manual = (ov.value as any)?.status as TableStatus | undefined;
-      if (
-        base.status !== "occupied" &&
-        manual &&
-        ["empty", "reserved", "dirty"].includes(String(manual))
-      ) {
-        if (manual === "reserved" || manual === "dirty") {
-          base.status = manual;
+
+      // Manual overrides:
+      // - "dirty" should be visible even if the table is currently occupied (waiters need to flag it).
+      // - "reserved" only applies when the table is not occupied.
+      // - "empty" means "no manual override" (base status wins).
+      if (manual && ["empty", "reserved", "dirty"].includes(String(manual))) {
+        if (manual === "dirty") {
+          base.status = "dirty";
+        } else if (manual === "reserved" && base.status !== "occupied") {
+          base.status = "reserved";
         }
-        // manual === "empty" -> keep base as-is (usually "empty")
       }
     } catch {
       // ignore override lookup failures

@@ -84,12 +84,29 @@ export async function seatReservation(params: {
     : undefined;
   const time = reservation.time ? String(reservation.time) : undefined;
 
+  const resolvedGuestName = (() => {
+    const direct = guestName?.trim();
+    if (direct) return direct;
+
+    const cand = [
+      (reservation as any).name,
+      (reservation as any).guestName,
+      (reservation as any).fullName,
+      (reservation as any).customerName,
+      (reservation as any).contactName,
+    ]
+      .map((v) => (v == null ? "" : String(v).trim()))
+      .find((v) => v.length > 0);
+
+    return cand || undefined;
+  })();
+
   const data: SeatingInfo = {
     restaurantId,
     table,
     reservationId,
     seatedAt: now,
-    guestName: guestName?.trim() || undefined,
+    guestName: resolvedGuestName,
     people,
     time,
   };

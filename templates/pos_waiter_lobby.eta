@@ -202,9 +202,44 @@
     // Close when switching to desktop size
     window.addEventListener('resize', function(){ if(window.innerWidth > 820) close(); });
   })();
+
+  // Open tables list interactions (server-rendered list)
+  (function () {
+    const list = document.getElementById("open-tables-list");
+    if (!list) return;
+
+    list.addEventListener("click", function (e) {
+      const target = e.target;
+      if (!(target instanceof Element)) return;
+
+      const li = target.closest(".open-table-item");
+      if (!li) return;
+
+      const tableNumber = Number(li.getAttribute("data-table-number") || "0");
+      const posUrl = li.getAttribute("data-pos-url") || "";
+
+      // Go directly to POS screen (only relevant when order is open)
+      if (target.closest(".open-pos-link")) {
+        if (posUrl) window.location.href = posUrl;
+        return;
+      }
+
+      // Focus this table in the floor view (opens the React drawer)
+      if (target.closest(".open-table-btn")) {
+        if (Number.isFinite(tableNumber) && tableNumber > 0) {
+          try {
+            window.dispatchEvent(
+              new CustomEvent("sb-floor-select-table-number", { detail: { tableNumber } })
+            );
+          } catch (_e) {}
+          if (window.innerWidth <= 820) document.documentElement.classList.remove("sb-waiter-left-open");
+        }
+        return;
+      }
+    });
+  })();
+
 </script>
-
-
 
 <style>
   .waiter.container{

@@ -650,7 +650,7 @@
           throw new Error(data.error || ("HTTP " + res.status));
         }
       }));
-      try { window.dispatchEvent(new Event(\"sb-floor-refresh\")); } catch(_e) {}
+      try { window.dispatchEvent(new Event("sb-floor-refresh")); } catch(_e) {}
     } catch (e) {
       console.error(e);
       alert("שגיאה בעדכון סטטוס שולחן: " + (e && e.message ? e.message : "unknown"));

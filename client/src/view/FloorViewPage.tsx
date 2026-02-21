@@ -226,6 +226,29 @@ export default function FloorViewPage({
     return () => window.removeEventListener("sb-floor-clear-selection", handler as any);
   }, [isHostMode]);
 
+  // Allow waiter lobby (and the server-rendered "open tables" list) to select a table in the React view.
+  React.useEffect(() => {
+    if (mountMode !== "lobby") return;
+
+    const handler = (ev: Event) => {
+      const ce = ev as CustomEvent;
+      const tableNumber = Number((ce as any)?.detail?.tableNumber);
+      if (!Number.isFinite(tableNumber) || tableNumber <= 0) return;
+
+      const tables = (activeLayout as any)?.tables;
+      if (!Array.isArray(tables)) return;
+
+      const t = tables.find((x: any) => Number(x?.tableNumber) === tableNumber);
+      if (t?.id) {
+        setSelectedTableId(String(t.id));
+        setSelectedTableIds([]);
+      }
+    };
+
+    window.addEventListener("sb-floor-select-table-number", handler as any);
+    return () => window.removeEventListener("sb-floor-select-table-number", handler as any);
+  }, [mountMode, activeLayout]);
+
   const updateTableStatus = React.useCallback(
     async (tableId: string, status: NormalStatus) => {
       try {
@@ -238,6 +261,12 @@ export default function FloorViewPage({
         await loadActive();
       } catch (e) {
         console.warn("Failed to update table status", e);
+        try {
+          const msg = (e as any)?.message ? String((e as any).message) : "unknown";
+          alert("שגיאה בעדכון סטטוס שולחן: " + msg);
+        } catch {
+          // ignore
+        }
       }
     },
     [restaurantId, loadActive]
