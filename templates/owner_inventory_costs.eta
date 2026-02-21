@@ -1,6 +1,17 @@
 <% layout("_layout", it) %>
 
 <%
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t==='function'){
+        const s = it.t(k);
+        if(!s || s===k || s===`(${k})`) return fb;
+        return s;
+      }
+    }catch(e){}
+    return fb;
+  }
+
   const restaurant    = it.restaurant || {};
   const ingredients   = Array.isArray(it.ingredients) ? it.ingredients : [];
   const monthKey      = it.monthKey || '';
@@ -19,21 +30,21 @@
   const hasOverride = override && typeof override.overrideTotal === 'number' && Number.isFinite(override.overrideTotal);
 %>
 
-<section class="sb-owner container" aria-label="עלויות חומרי גלם">
+<section class="sb-owner container" aria-label="<%= tt('owner.costs.title', 'Raw Material Costs') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
-        <h1>עלויות חומרי גלם · <%= restaurant.name || 'מסעדה' %></h1>
+        <h1><%= tt('owner.costs.title', 'Raw Material Costs') %> · <%= restaurant.name || tt('common.restaurant', 'Restaurant') %></h1>
         <p class="muted">
-          ההוצאות מחושבות <strong>אוטומטית</strong> לפי תנועות מלאי מסוג <code>delivery</code> שיש בהן <code>costTotal</code>.
+          <%= tt('owner.costs.description', 'Costs are calculated <strong>automatically</strong> from inventory movements of type <code>delivery</code> that have a <code>costTotal</code>.') %>
           <% if (hasOverride) { %>
-            <span class="pill warn" title="יש Override ידני לחודש הזה">Override פעיל</span>
+            <span class="pill warn" title="<%= tt('owner.costs.override_active_hint', 'Manual override is active for this month') %>"><%= tt('owner.costs.override_active', 'Override active') %></span>
           <% } %>
         </p>
       </div>
       <div class="actions">
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">⬅ מלאי חומרי גלם</a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/recipes">🧾 מתכונים</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">⬅ <%= tt('owner.costs.btn_stock', 'Raw Materials Inventory') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/recipes">🧾 <%= tt('owner.costs.btn_recipes', 'Recipes') %></a>
       </div>
     </header>
 
@@ -41,97 +52,96 @@
       <div class="panel card">
         <form method="get" action="/owner/<%= restaurant.id %>/inventory/costs" class="row">
           <label class="lbl">
-            חודש
+            <%= tt('owner.costs.month', 'Month') %>
             <input name="month" value="<%= monthKey %>" placeholder="YYYY-MM" inputmode="numeric" />
           </label>
-          <button class="btn primary sm" type="submit">הצג</button>
+          <button class="btn primary sm" type="submit"><%= tt('owner.costs.btn_show', 'Show') %></button>
         </form>
 
         <div class="stats">
           <div class="stat">
-            <div class="k">סה״כ הוצאה בחודש</div>
+            <div class="k"><%= tt('owner.costs.total_monthly', 'Total Monthly Spend') %></div>
             <div class="v">
               ₪ <%= num(summary.totalSpend, 2) %>
               <% if (hasOverride) { %>
-                <span class="badge warn" title="הסכום הוזן ידנית ודורס את החישוב">Override</span>
+                <span class="badge warn" title="<%= tt('owner.costs.override_manual_hint', 'Amount entered manually, overrides calculation') %>">Override</span>
               <% } %>
             </div>
             <% if (hasOverride) { %>
               <div class="muted small" style="margin-top:4px">
-                מחושב אוטומטי: ₪ <%= num(summary.computedTotal, 2) %>
+                <%= tt('owner.costs.auto_computed', 'Auto-computed') %>: ₪ <%= num(summary.computedTotal, 2) %>
               </div>
             <% } %>
           </div>
 
           <div class="stat">
-            <div class="k">משלוחים עם עלות</div>
+            <div class="k"><%= tt('owner.costs.deliveries_with_cost', 'Deliveries with Cost') %></div>
             <div class="v"><%= Number(summary.deliveriesWithCost || 0) %></div>
             <% if (Number(summary.deliveriesMissingCost || 0) > 0) { %>
               <div class="muted small" style="margin-top:4px">
-                חסר costTotal ב-<%= Number(summary.deliveriesMissingCost) %> משלוחים
+                <%= tt('owner.costs.missing_cost', 'Missing costTotal in') %> <%= Number(summary.deliveriesMissingCost) %> <%= tt('owner.costs.deliveries', 'deliveries') %>
               </div>
             <% } %>
           </div>
 
           <div class="stat">
-            <div class="k">ממוצע עלות למשלוח</div>
+            <div class="k"><%= tt('owner.costs.avg_per_delivery', 'Average Cost per Delivery') %></div>
             <div class="v">₪ <%= num(summary.avgPerDelivery, 2) %></div>
           </div>
         </div>
 
         <div class="spark">
           <div class="spark-hd">
-            <span class="muted small">הוצאה יומית (Sparkline)</span>
+            <span class="muted small"><%= tt('owner.costs.daily_spend', 'Daily Spend (Sparkline)') %></span>
             <span class="muted small">Max day: ₪ <%= num(summary.maxDaily, 2) %></span>
           </div>
-          <svg id="spark-svg" viewBox="0 0 300 60" preserveAspectRatio="none" aria-label="גרף הוצאה יומית"></svg>
+          <svg id="spark-svg" viewBox="0 0 300 60" preserveAspectRatio="none" aria-label="<%= tt('owner.costs.daily_spend_chart', 'Daily spend chart') %>"></svg>
         </div>
 
-        <!-- ✅ Override מפורש (שומר על העיצוב ולא כופה) -->
         <details class="override">
           <summary>
-            <span>Override חודשי (מפורש — דורס אוטומטי)</span>
-            <% if (hasOverride) { %><span class="pill warn">פעיל</span><% } else { %><span class="pill">כבוי</span><% } %>
+            <span><%= tt('owner.costs.override_monthly', 'Monthly Override (explicit — overrides auto)') %></span>
+            <% if (hasOverride) { %><span class="pill warn"><%= tt('owner.costs.override_on', 'Active') %></span><% } else { %><span class="pill"><%= tt('owner.costs.override_off', 'Off') %></span><% } %>
           </summary>
 
           <form method="post" action="/owner/<%= restaurant.id %>/inventory/costs/override" class="form" style="margin-top:10px">
             <input type="hidden" name="month" value="<%= monthKey %>">
 
             <label class="lbl2">
-              סכום ידני (₪) — להשאיר ריק כדי לחזור לאוטומטי
+              <%= tt('owner.costs.override_amount_label', 'Manual amount (₪) — leave empty to revert to auto') %>
               <input
                 class="in"
                 name="overrideTotal"
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder="השאר ריק = אוטומטי"
+                placeholder="<%= tt('owner.costs.override_placeholder', 'Leave empty = auto') %>"
                 value="<%= hasOverride ? String(override.overrideTotal) : '' %>"
               />
             </label>
 
             <label class="lbl2">
-              הערה (אופציונלי)
-              <input class="in" name="note" placeholder="למשל: תיקון/חשבונית חריגה" value="<%= (override && override.note) ? String(override.note) : '' %>">
+              <%= tt('owner.costs.override_note_label', 'Note (optional)') %>
+              <input class="in" name="note" placeholder="<%= tt('owner.costs.override_note_placeholder', 'e.g.: correction / irregular invoice') %>" value="<%= (override && override.note) ? String(override.note) : '' %>">
             </label>
 
             <div class="actions" style="margin-top:10px">
-              <button class="btn primary sm" type="submit">שמור Override</button>
-              <button class="btn ghost sm" type="submit" name="overrideTotal" value="">אפס Override</button>
+              <button class="btn primary sm" type="submit"><%= tt('owner.costs.btn_save_override', 'Save Override') %></button>
+              <button class="btn ghost sm" type="submit" name="overrideTotal" value=""><%= tt('owner.costs.btn_reset_override', 'Reset Override') %></button>
             </div>
 
             <p class="muted small" style="margin-top:8px">
-              ⚠️ Override נשמר רק אם הזנת מספר. אם תשאיר ריק ותשמור — חוזרים לחישוב האוטומטי.
+              <%= tt('owner.costs.override_warning', 'Override is saved only if you enter a number. If left empty and saved — reverts to auto calculation.') %>
             </p>
           </form>
         </details>
       </div>
 
       <div class="panel card">
-        <h2 class="card-title">Top חומרי גלם לפי הוצאה בחודש</h2>
+        <h2 class="card-title"><%= tt('owner.costs.top_ingredients', 'Top Ingredients by Monthly Spend') %></h2>
 
         <% if (!topIngredients.length) { %>
-          <p class="muted">אין עדיין נתוני עלויות לחודש הזה (אין deliveries עם costTotal).</p>
+          <p class="muted"><%= tt('owner.costs.no_cost_data', 'No cost data for this month yet (no deliveries with costTotal).') %></p>
         <% } else { %>
           <div class="top-list">
             <% const max = Math.max.apply(null, topIngredients.map(x => Number(x.spend||0)).concat([1])); %>
@@ -154,20 +164,19 @@
     </div>
 
     <div class="panel card" style="margin-top:16px">
-      <h2 class="card-title">מחיר ליחידה לחומרי גלם</h2>
+      <h2 class="card-title"><%= tt('owner.costs.unit_price_title', 'Unit Price for Ingredients') %></h2>
       <p class="muted small">
-        השדה <strong>מחיר ליחידה</strong> משמש לחישוב Food Cost למנה.
-        אפשר להשאיר ריק (ואז אין Override ידני למחיר ליחידה).
+        <%= tt('owner.costs.unit_price_desc', 'The <strong>unit price</strong> field is used for food cost calculation per dish. Leave empty for no manual override.') %>
       </p>
 
       <% if (!ingredients.length) { %>
-        <p class="muted">אין עדיין חומרי גלם. עבור לעמוד מלאי והוסף חומרי גלם.</p>
+        <p class="muted"><%= tt('owner.costs.no_ingredients', 'No ingredients yet. Go to the inventory page to add ingredients.') %></p>
       <% } else { %>
         <div class="table">
           <div class="tr th">
-            <div>חומר גלם</div>
-            <div>יחידה</div>
-            <div>מחיר ליחידה (Override ידני)</div>
+            <div><%= tt('owner.costs.tbl_ingredient', 'Ingredient') %></div>
+            <div><%= tt('owner.costs.tbl_unit', 'Unit') %></div>
+            <div><%= tt('owner.costs.tbl_unit_price', 'Unit Price (Manual Override)') %></div>
             <div></div>
           </div>
 
@@ -176,7 +185,7 @@
               <div class="td">
                 <div class="name"><strong><%= ing.name %></strong></div>
                 <div class="muted small">
-                  במלאי: <%= Number(ing.currentQty || 0) %> • רף מינ׳: <%= Number(ing.minQty || 0) %>
+                  <%= tt('owner.costs.in_stock', 'In stock') %>: <%= Number(ing.currentQty || 0) %> • <%= tt('owner.costs.min_threshold', 'Min') %>: <%= Number(ing.minQty || 0) %>
                   <% if (typeof ing.costPerUnitAuto === 'number' && Number.isFinite(ing.costPerUnitAuto)) { %>
                     • AUTO: ₪ <%= num(ing.costPerUnitAuto, 2) %> / <%= ing.unit || 'unit' %>
                   <% } %>
@@ -194,7 +203,7 @@
                   type="number"
                   step="0.01"
                   min="0"
-                  placeholder="לדוגמה: 12.50 (ריק = ללא Override)"
+                  placeholder="<%= tt('owner.costs.unit_price_placeholder', 'e.g.: 12.50 (empty = no override)') %>"
                   value="<%= (typeof ing.costPerUnit === 'number' ? String(ing.costPerUnit) : '') %>"
                 />
                 <div class="muted small">₪ / <%= ing.unit || 'unit' %></div>
@@ -202,7 +211,7 @@
 
               <div class="td right">
                 <input type="hidden" name="month" value="<%= monthKey %>">
-                <button class="btn primary sm" type="submit">שמור</button>
+                <button class="btn primary sm" type="submit"><%= tt('common.btn_save', 'Save') %></button>
               </div>
             </form>
           <% }) %>
@@ -214,7 +223,7 @@
 
 <script>
   (function(){
-    // ⚠️ חשוב: חייב להיות ערך JS חוקי
+    // daily data must be valid JS
     var daily = <%- JSON.stringify(daily || []) %>;
     var svg = document.getElementById('spark-svg');
     if(!svg || !Array.isArray(daily) || !daily.length) return;

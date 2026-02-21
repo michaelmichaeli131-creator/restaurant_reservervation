@@ -8,7 +8,8 @@
     "admin": "Admin",
     "admin_area": "Admin Area",
     "language": "Choose language",
-    "changePassword": "Change Password"
+    "changePassword": "Change Password",
+    "greeting": "Hello,"
   },
   "footer": {
     "rights": "All rights reserved"
@@ -26,7 +27,8 @@
     "btn_refresh": "Refresh",
     "btn_check": "Check",
     "people_unit": "Guests",
-    "items_unit": "Items"
+    "items_unit": "Items",
+    "restaurant": "Restaurant"
   },
   "lang": {
     "hebrew": "\u05e2\u05d1\u05e8\u05d9\u05ea",
@@ -85,6 +87,12 @@
       "btn_add_item": "Add Dish",
       "dest_kitchen": "Kitchen",
       "dest_bar": "Bar",
+      "page_title": "Edit Menu \u2014",
+      "label_name_en": "Name (EN)",
+      "label_name_he": "Name (HE)",
+      "label_price": "Price (\u20aa)",
+      "no_name": "(No name)",
+      "no_category": "(None)",
       "tbl": {
         "name": "Name",
         "price": "Price",
@@ -116,6 +124,46 @@
         "supplier": "Preferred Supplier",
         "notes": "Notes"
       }
+    },
+    "costs": {
+      "title": "Raw Material Costs",
+      "description": "Costs are calculated <strong>automatically</strong> from inventory movements of type <code>delivery</code> that have a <code>costTotal</code>.",
+      "override_active": "Override active",
+      "override_active_hint": "Manual override is active for this month",
+      "btn_stock": "Raw Materials Inventory",
+      "btn_recipes": "Recipes",
+      "month": "Month",
+      "btn_show": "Show",
+      "total_monthly": "Total Monthly Spend",
+      "override_manual_hint": "Amount entered manually, overrides calculation",
+      "auto_computed": "Auto-computed",
+      "deliveries_with_cost": "Deliveries with Cost",
+      "missing_cost": "Missing costTotal in",
+      "deliveries": "deliveries",
+      "avg_per_delivery": "Average Cost per Delivery",
+      "daily_spend": "Daily Spend (Sparkline)",
+      "daily_spend_chart": "Daily spend chart",
+      "override_monthly": "Monthly Override (explicit \u2014 overrides auto)",
+      "override_on": "Active",
+      "override_off": "Off",
+      "override_amount_label": "Manual amount (\u20aa) \u2014 leave empty to revert to auto",
+      "override_placeholder": "Leave empty = auto",
+      "override_note_label": "Note (optional)",
+      "override_note_placeholder": "e.g.: correction / irregular invoice",
+      "btn_save_override": "Save Override",
+      "btn_reset_override": "Reset Override",
+      "override_warning": "Override is saved only if you enter a number. If left empty and saved \u2014 reverts to auto calculation.",
+      "top_ingredients": "Top Ingredients by Monthly Spend",
+      "no_cost_data": "No cost data for this month yet (no deliveries with costTotal).",
+      "unit_price_title": "Unit Price for Ingredients",
+      "unit_price_desc": "The <strong>unit price</strong> field is used for food cost calculation per dish. Leave empty for no manual override.",
+      "no_ingredients": "No ingredients yet. Go to the inventory page to add ingredients.",
+      "tbl_ingredient": "Ingredient",
+      "tbl_unit": "Unit",
+      "tbl_unit_price": "Unit Price (Manual Override)",
+      "in_stock": "In stock",
+      "min_threshold": "Min",
+      "unit_price_placeholder": "e.g.: 12.50 (empty = no override)"
     }
   },
   "pos": {

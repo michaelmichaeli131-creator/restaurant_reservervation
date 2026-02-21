@@ -18,7 +18,7 @@
 
           <% if (it.user) { %>
             <span class="user-chip">
-              שלום, <strong><%= it.user.firstName || it.user.username || it.user.email %></strong>
+              <%= (it.t && it.t('nav.greeting')) || 'Hello,' %> <strong><%= it.user.firstName || it.user.username || it.user.email %></strong>
             </span>
             <form class="inline" method="post" action="/logout">
               <button class="btn secondary" type="submit"><%= (it.t && it.t('nav.logout')) || 'Logout' %></button>
