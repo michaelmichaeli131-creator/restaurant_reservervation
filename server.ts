@@ -1,5 +1,6 @@
 // src/server.ts
 // GeoTable – Oak server (extended, cleaned & ordered)
+// Deploy test: 2026-02-20
 // -------------------------------------------------------------
 // כולל:
 // - Error handler גלובלי (עם סטאק ללוג)
@@ -609,17 +610,12 @@ app.use(staffTimeRouter.allowedMethods());
 
 // Staff shifts (My Shifts + Availability)
 app.use(staffShiftsRouter.routes());
-app.use(staffShiftsRouter.allowedMethods())
-
-// ✅ תוספת קריטית: staff shifts router
-app.use(staffShiftsRouter.routes());
 app.use(staffShiftsRouter.allowedMethods());
 
 app.use(ownerTimeRouter.routes());
 app.use(ownerTimeRouter.allowedMethods());
 
-app.use(ownerStaffRouter.routes());
-app.use(ownerStaffRouter.allowedMethods());
+// ownerStaffRouter already registered above (line 521-522) – no duplicate needed
 
 app.use(ownerPayrollRouter.routes());
 app.use(ownerPayrollRouter.allowedMethods());
