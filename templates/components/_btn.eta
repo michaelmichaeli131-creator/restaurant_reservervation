@@ -1,0 +1,40 @@
+<%
+/**
+ * SpotBook Button Component
+ *
+ * Usage:
+ *   <%~ include("components/_btn", { text: "Save", variant: "primary" }) %>
+ *   <%~ include("components/_btn", { text: "Delete", variant: "danger", icon: "trash-icon" }) %>
+ *   <%~ include("components/_btn", { icon: "menu-icon", variant: "icon-only", ariaLabel: "Open menu" }) %>
+ *   <%~ include("components/_btn", { text: "Go", variant: "primary", href: "/page" }) %>
+ *
+ * Params:
+ *   text      (string) - Button label text (optional for icon-only)
+ *   variant   (string) - "primary" | "secondary" | "ghost" | "danger" | "icon-only" (default: "secondary")
+ *   icon      (string) - Emoji or HTML to prepend inside the button (optional)
+ *   href      (string) - If provided, renders an <a> tag instead of <button>
+ *   type      (string) - Button type attribute: "button" | "submit" | "reset" (default: "button")
+ *   cls       (string) - Extra CSS classes (optional)
+ *   id        (string) - HTML id attribute (optional)
+ *   disabled  (bool)   - Disable the button (optional)
+ *   ariaLabel (string) - Accessible label, useful for icon-only buttons (optional)
+ *   name      (string) - Form name attribute (optional)
+ *   value     (string) - Form value attribute (optional)
+ */
+%>
+<% const variant = it.variant || 'secondary'; %>
+<% const tag = it.href ? 'a' : 'button'; %>
+<% const cls = 'sb-btn sb-btn--' + variant + (it.cls ? ' ' + it.cls : ''); %>
+<<%= tag %>
+  class="<%= cls %>"
+  <% if (it.id) { %>id="<%= it.id %>"<% } %>
+  <% if (it.href) { %>href="<%= it.href %>"<% } %>
+  <% if (!it.href) { %>type="<%= it.type || 'button' %>"<% } %>
+  <% if (it.disabled) { %>disabled<% } %>
+  <% if (it.ariaLabel) { %>aria-label="<%= it.ariaLabel %>"<% } %>
+  <% if (it.name) { %>name="<%= it.name %>"<% } %>
+  <% if (it.value) { %>value="<%= it.value %>"<% } %>
+>
+  <% if (it.icon) { %><span class="sb-btn__icon"><%~ it.icon %></span><% } %>
+  <% if (it.text) { %><span class="sb-btn__text"><%= it.text %></span><% } %>
+</<%= tag %>>

@@ -28,9 +28,9 @@
     "items_unit": "Items"
   },
   "lang": {
-    "hebrew": "עברית",
+    "hebrew": "\u05e2\u05d1\u05e8\u05d9\u05ea",
     "english": "English",
-    "georgian": "ქართული"
+    "georgian": "\u10e5\u10d0\u10e0\u10d7\u10e3\u10da\u10d8"
   },
   "owner": {
     "dashboard": {
@@ -56,7 +56,7 @@
     },
     "staff": {
       "manage_title": "Staff Management",
-      "btn_add": "➕ Add Employee",
+      "btn_add": "\u27a5 Add Employee",
       "modal_title": "Add Employee",
       "empty_hint": "Click 'Add Employee' above to create an employee",
       "btn_activate": "Activate",
@@ -105,13 +105,13 @@
       "add_new": "Add New Raw Material",
       "all_items": "All Raw Materials",
       "empty": "No raw materials yet",
-      "btn_add": "➕ Add Raw Material",
+      "btn_add": "\u27a5 Add Raw Material",
       "form": {
         "name": "Raw Material Name *",
         "unit": "Unit of Measure",
         "current_qty": "Current Quantity",
         "min_qty": "Desired Minimum",
-        "cost_per_unit": "Cost per Unit (₪)",
+        "cost_per_unit": "Cost per Unit",
         "supplier": "Preferred Supplier",
         "notes": "Notes"
       }
@@ -121,13 +121,34 @@
     "waiter": {
       "items_count": "Items",
       "btn_close_order": "Close Table / Issue Bill",
-      "btn_mark_served": "Mark as Served"
+      "btn_mark_served": "Mark as Served",
+      "table_label": "Table",
+      "btn_back_lobby": "Back to Waiter Screen",
+      "created_at": "Created at",
+      "no_items": "No items in the order yet. Select dishes from the menu.",
+      "lobby_title": "Waiter Screen",
+      "open_panel": "Open panel",
+      "panel": "Panel",
+      "panel_label": "Waiter Panel",
+      "open_tables": "Open Tables",
+      "open_tables_help": "List of all tables with open checks / active service. Click a row for table details, and the \"Go to Order\" button opens the POS screen for that table.",
+      "btn_to_order": "Go to Order",
+      "no_open_tables": "No open tables at the moment.",
+      "floor_map_title": "Restaurant Map (Live)",
+      "floor_map_help": "Click on an occupied table to view order details; click on an empty table for basic info.",
+      "items_label": "Number of Items",
+      "subtotal": "Subtotal",
+      "btn_open_order": "Open Order",
+      "table_info_note": "Information is taken from the last order / check at this table."
     },
     "menu": {
       "title": "Menu",
-      "help_text": "Select dishes from the menu",
+      "help_text": "Select dishes from the menu to add to the table order.",
       "empty": "No dishes in menu currently",
-      "no_category": "Uncategorized"
+      "no_category": "Uncategorized",
+      "loading": "Loading menu...",
+      "category": "Category",
+      "dish": "Dish"
     },
     "order": {
       "title": "Table Order",
@@ -151,23 +172,73 @@
       "load_menu": "Error loading menu"
     },
     "kitchen": {
-      "title": "Kitchen Screen —",
+      "title": "Kitchen Screen \u2014",
       "orders_title": "Kitchen Orders",
-      "instructions": "Arrows change status..."
+      "instructions": "Arrows change status: forward (Received > In Progress > Ready) or backward.",
+      "served_note": "\"Served\" status is updated only by the waiter.",
+      "quantity": "Qty",
+      "no_items": "No items."
     },
     "bar": {
-      "title": "Bar Screen —",
-      "orders_title": "Bar Orders"
-    }
+      "title": "Bar Screen \u2014",
+      "orders_title": "Bar Orders",
+      "instructions": "Arrows change drink status: forward (Received > In Progress > Ready) or backward.",
+      "served_note": "\"Served\" status is updated by the waiter."
+    },
+    "btn_back_dashboard": "Back to Dashboard"
   },
   "host": {
+    "title": "Host Screen",
     "people_unit": "Guests",
     "table_status": {
       "reserved": "Reserved"
     },
     "status": {
-      "reserved": "Reserved"
-    }
+      "reserved": "Reserved",
+      "occupied": "Occupied",
+      "dirty": "Needs Cleaning",
+      "empty": "Empty",
+      "unknown": "Unknown"
+    },
+    "reservations_today": "Today's Reservations",
+    "btn_cancel": "Cancel",
+    "btn_no_show": "No Show",
+    "no_reservations": "No reservations for today at this restaurant.",
+    "floor_map_title": "Restaurant Map (Live)",
+    "floor_map_help": "Select a reservation, choose a table or multiple tables (merge), then click the seat button.",
+    "btn_seat": "Seat at Selected Table(s)",
+    "merge_hint": "You can select multiple tables for the same reservation (table merge).",
+    "table_details": "Table Details",
+    "table_label": "Table",
+    "close_table_details": "Close table details",
+    "guest_name": "Guest Name",
+    "num_guests": "Number of Guests",
+    "reservation_time": "Reservation Time",
+    "table_status_label": "Table Status",
+    "table_info_note": "Information is taken from the last reservation assigned to this table.",
+    "no_floor_plan": "No floor plan has been defined for this restaurant.",
+    "no_tables_defined": "No tables defined in the restaurant map.",
+    "seats": "seats",
+    "err_load_table": "Cannot load table details",
+    "err_load_table_general": "Error loading table details.",
+    "err_load_map": "Error loading the restaurant map.",
+    "err_select_reservation": "Please select a reservation first.",
+    "err_select_table": "Please select at least one table.",
+    "confirm_seat_single": "Seat the reservation at table",
+    "confirm_seat_multi": "Seat the reservation at tables",
+    "table_merge": "table merge",
+    "confirm_cancel": "Mark this reservation as cancelled?",
+    "confirm_no_show": "Mark this reservation as 'No Show'?",
+    "err_update_status": "Error updating reservation status",
+    "err_network_status": "Network error while updating status.",
+    "confirm_unseat": "The table is marked as occupied (probably from a previous session). Release it and allow re-seating?",
+    "err_seat_after_release": "Error seating after table release",
+    "err_seating": "Seating error",
+    "success_seat_single": "Reservation seated at table",
+    "success_seat_multi": "Reservation seated at tables",
+    "check_opened": "Check opened.",
+    "checks_opened": "Checks opened accordingly.",
+    "err_network_seat": "Network error during seating."
   },
   "restaurant": {
     "menu": {
@@ -191,7 +262,19 @@
   },
   "review": {
     "form": {
-      "rating": "Rating"
+      "rating": "Rating",
+      "title_heading": "How was your visit?",
+      "visit_on": "Visit on",
+      "choose_rating": "Choose a rating",
+      "comment_label": "Tell us more (optional)",
+      "comment_placeholder": "What did you like? What could be improved?",
+      "max_chars": "Up to 1000 characters",
+      "submit": "Submit Review",
+      "rating_1": "Terrible",
+      "rating_2": "Bad",
+      "rating_3": "OK",
+      "rating_4": "Good",
+      "rating_5": "Excellent!"
     }
   },
   "auth": {
@@ -243,6 +326,8 @@
       "reserved": "Reserved",
       "dirty": "Dirty"
     },
+    "btn_mark_clean": "Mark as Clean",
+    "btn_mark_dirty": "Mark as Dirty",
     "sections": {
       "title": "Sections",
       "show_only_active": "Show only active section"

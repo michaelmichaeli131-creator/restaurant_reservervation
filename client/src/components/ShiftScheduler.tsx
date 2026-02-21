@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useToast } from './Toast';
 import './ShiftScheduler.css';
 
 interface StaffMember {
@@ -36,6 +37,7 @@ interface ShiftSchedulerProps {
 }
 
 export default function ShiftScheduler({ restaurantId }: ShiftSchedulerProps) {
+  const { toast, confirmDialog } = useToast();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
   const [shifts, setShifts] = useState<ShiftAssignment[]>([]);
@@ -88,7 +90,7 @@ export default function ShiftScheduler({ restaurantId }: ShiftSchedulerProps) {
 
   const handleCreateShift = async () => {
     if (!newShift.staffId) {
-      alert('Please select a staff member');
+      toast('Please select a staff member', 'warning');
       return;
     }
 
@@ -117,7 +119,7 @@ export default function ShiftScheduler({ restaurantId }: ShiftSchedulerProps) {
 
   const handleCreateStaff = async () => {
     if (!newStaff.firstName || !newStaff.lastName || !newStaff.email) {
-      alert('Please fill in all required fields');
+      toast('Please fill in all required fields', 'warning');
       return;
     }
 
@@ -170,7 +172,8 @@ export default function ShiftScheduler({ restaurantId }: ShiftSchedulerProps) {
   };
 
   const handleCancelShift = async (shiftId: string) => {
-    if (confirm('Are you sure you want to cancel this shift?')) {
+    const confirmed = await confirmDialog('Are you sure you want to cancel this shift?');
+    if (confirmed) {
       try {
         const res = await fetch(`/api/restaurants/${restaurantId}/shifts/${shiftId}`, {
           method: 'DELETE',

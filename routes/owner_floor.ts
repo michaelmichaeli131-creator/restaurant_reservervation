@@ -9,6 +9,9 @@ import { render } from "../lib/view.ts";
 import {
   computeAllTableStatuses,
   setTableMappingsFromFloorPlan,
+  setTableStatusOverride,
+  markTableDirty,
+  markTableClean,
   createFloorSection,
   getFloorSection,
   listFloorSections,
@@ -24,6 +27,7 @@ import {
   getActiveFloorLayout,
   duplicateFloorLayout,
   type FloorLayout,
+  type TableStatus as FloorTableStatus,
 } from "../services/floor_service.ts";
 
 export const ownerFloorRouter = new Router();
@@ -138,50 +142,25 @@ ownerFloorRouter.post(
     }
 
     if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
-    // Read body robustly (some clients miss Content-Type, and Oak's json body parser can be strict).
-    let body: any = {};
-    try {
-      const req = (ctx.request as any).originalRequest?.request;
-      if (req && typeof req.json === "function") {
-        body = await req.json();
-      } else {
-        throw new Error("no request.json");
-      }
-    } catch {
-      try {
-        const b = (ctx.request as any).body?.({ type: "json" });
-        if (b && b.value != null) {
-          body = await b.value;
-        } else {
-          throw new Error("no ctx.request.body json");
-        }
-      } catch {
+
+    const body = await (ctx.request as any).originalRequest?.json?.().catch?.(() => null)
+      ?? await (async () => {
         try {
-          const bt = (ctx.request as any).body?.({ type: "text" });
-          const txt = bt && bt.value != null ? await bt.value : "";
-          body = txt ? JSON.parse(txt) : {};
+          const b = (ctx.request as any).body?.({ type: "json" });
+          return b ? await b.value : null;
         } catch {
-          body = {};
+          return null;
         }
-      }
-    }
-    if (!body || typeof body !== "object") body = {};
+      })()
+      ?? {};
 
     const { status } = body as any;
 
-    const raw = String(status ?? "").trim().toLowerCase();
-    // Accept common synonyms from UI (free/clean) for robustness.
-    const normalized =
-      raw === "free" || raw === "available" || raw === "clean" ? "empty"
-      : raw === "booked" ? "reserved"
-      : raw;
-
-    if (!normalized || !["empty", "occupied", "reserved", "dirty"].includes(normalized)) {
+    if (!status || !["empty", "occupied", "reserved", "dirty"].includes(status)) {
       ctx.response.status = 400;
       ctx.response.body = { error: "Invalid status" };
       return;
     }
-
 
     // Verify the restaurant exists
     const restaurant = await getRestaurant(restaurantId);
@@ -203,29 +182,11 @@ ownerFloorRouter.post(
       return;
     }
 
-
-    // Store table status update
-    const statusKey = toKey("table_status", restaurantId, tableId);
-
-    // "empty" means: clear any manual override (reserved/dirty). The actual live status
-    // (occupied/empty) is derived from seating + open orders.
-    if (normalized === "empty") {
-      await kv.delete(statusKey);
-      ctx.response.status = 200;
-      ctx.response.body = { success: true, cleared: true, status: { tableId, status: "empty" } };
-      return;
-    }
-
-    const statusData = {
-      tableId,
-      status: normalized,
-      updatedAt: Date.now(),
-      updatedBy: user.id,
-    };
-    await kv.set(statusKey, statusData);
+    // Persist table status override via the floor service
+    await setTableStatusOverride(restaurantId, tableId, status as FloorTableStatus, user.id);
 
     ctx.response.status = 200;
-    ctx.response.body = { success: true, status: statusData };
+    ctx.response.body = { success: true, tableId, status };
   }
 );
 

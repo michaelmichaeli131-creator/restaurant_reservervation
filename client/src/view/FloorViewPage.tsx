@@ -1,7 +1,7 @@
 import React from "react";
-import ReactDOM from "react-dom";
 import FloorMapRenderer from "../shared/FloorMapRenderer";
 import type { FloorLayoutLike as FloorLayout } from "../shared/FloorMapRenderer";
+import { t } from "../i18n";
 import "./floorViewPage.css";
 
 // Shape mirrors what the backend attaches as `tableStatuses` on the active layout.
@@ -17,7 +17,7 @@ type TableStatusEntry = {
   orderId?: string | null;
 };
 
-type MountMode = "page" | "lobby" | "host";
+type MountMode = "page" | "lobby";
 
 type NormalStatus = "empty" | "occupied" | "reserved" | "dirty";
 
@@ -29,50 +29,8 @@ function normalizeStatus(s?: string | null): NormalStatus {
   return "empty";
 }
 
-
-
-function getTableNumber(t: any): number | null {
-  const candidates = [
-    t?.tableNumber,
-    t?.number,
-    t?.table_number,
-    t?.tableNum,
-    t?.table,
-    t?.name,
-    t?.label,
-  ];
-
-  for (const c of candidates) {
-    if (c == null) continue;
-    const s = String(c).trim();
-    if (!s) continue;
-
-    // 1) direct numeric
-    const v = Number(s);
-    if (Number.isFinite(v) && v > 0) return v;
-
-    // 2) extract first number from strings like "Table 12" / "שולחן 12" / "T12"
-    const m = s.match(/(\d{1,4})/);
-    if (m) {
-      const vv = Number(m[1]);
-      if (Number.isFinite(vv) && vv > 0) return vv;
-    }
-  }
-
-  return null;
-}
-
-function statusLabelHe(s: NormalStatus): string {
-  switch (s) {
-    case "occupied":
-      return "תפוס";
-    case "reserved":
-      return "שמור";
-    case "dirty":
-      return "מלוכלך";
-    default:
-      return "פנוי";
-  }
+function statusLabel(s: NormalStatus): string {
+  return t(`floor.status.${s}`, s);
 }
 
 export default function FloorViewPage({
@@ -90,7 +48,6 @@ export default function FloorViewPage({
   const [error, setError] = React.useState<string | null>(null);
 
   const [selectedTableId, setSelectedTableId] = React.useState<string | null>(null);
-  const [selectedTableIds, setSelectedTableIds] = React.useState<string[]>([]);
 
   const loadActive = React.useCallback(async () => {
     try {
@@ -103,9 +60,6 @@ export default function FloorViewPage({
       }
 
       const data = await res.json();
-      // Backend compatibility:
-      // - Preferred: the API returns the active layout object directly (with tableStatuses attached).
-      // - Legacy/alternate: { activeLayout: <layout> }.
       const active: FloorLayout | null = (data && (data as any).id)
         ? (data as FloorLayout)
         : (data?.activeLayout ?? null);
@@ -114,25 +68,23 @@ export default function FloorViewPage({
         setLayouts([]);
         setActiveLayoutId(null);
         setSelectedLayoutId(null);
-        setError("אין מפת מסעדה פעילה");
+        setError(t("host.no_floor_plan", "No active floor plan"));
         setLoading(false);
         return;
       }
 
-      // In this project, we only keep a single active layout.
       setLayouts([active]);
       setActiveLayoutId(active.id);
       setSelectedLayoutId((prev) => prev ?? active.id);
       setError(null);
       setLoading(false);
 
-      // If the selected table no longer exists, close the drawer
       if (selectedTableId) {
         const stillExists = (active.tables || []).some((t) => String(t.id) === String(selectedTableId));
         if (!stillExists) setSelectedTableId(null);
       }
     } catch (e: any) {
-      setError(`שגיאה בטעינת המפה: ${e?.message ?? "unknown"}`);
+      setError(t("host.err_load_map", "Error loading floor map") + `: ${e?.message ?? "unknown"}`);
       setLoading(false);
     }
   }, [restaurantId, selectedTableId]);
@@ -141,12 +93,6 @@ export default function FloorViewPage({
     loadActive();
     const id = setInterval(loadActive, 5000);
     return () => clearInterval(id);
-  }, [loadActive]);
-
-  React.useEffect(() => {
-    const handler = () => loadActive();
-    window.addEventListener("sb-floor-refresh", handler as any);
-    return () => window.removeEventListener("sb-floor-refresh", handler as any);
   }, [loadActive]);
 
   const currentLayout = React.useMemo(() => {
@@ -164,122 +110,42 @@ export default function FloorViewPage({
     const statuses = (currentLayout as any).tableStatuses as TableStatusEntry[] | undefined;
     if (!Array.isArray(statuses)) return null;
 
-    // prefer by id, fall back to number
     const byId = statuses.find((s) => String((s as any).tableId) === String(selectedTable.id));
     if (byId) return byId;
-    return statuses.find((s) => (s as any).tableNumber === getTableNumber(selectedTable)) ?? null;
+    return statuses.find((s) => (s as any).tableNumber === (selectedTable as any).number) ?? null;
   }, [currentLayout, selectedTable]);
 
   const selectedStatus: NormalStatus = React.useMemo(() => {
     return normalizeStatus((selectedStatusEntry as any)?.status);
   }, [selectedStatusEntry]);
 
-  const isHostMode = mountMode === "host";
-  const isWaiterLobby = mountMode === "lobby";
-
-  // Host mode: allow multi-select for seating flow.
   const onTableClick = (tableId: string) => {
-    if (isHostMode) {
-      setSelectedTableIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(tableId)) next.delete(tableId);
-        else next.add(tableId);
-        return Array.from(next);
-      });
-      return;
-    }
     setSelectedTableId(tableId);
   };
 
   const closeDrawer = () => setSelectedTableId(null);
 
-  // Dispatch selected tables for the host page (so the existing template logic can remain mostly unchanged).
-  React.useEffect(() => {
-    if (!isHostMode) return;
-    const layout = currentLayout;
-    if (!layout) return;
+  const handleMarkClean = async () => {
+    const tn = (selectedTable as any)?.number ?? (selectedTable as any)?.tableNumber;
+    if (!tn) return;
+    try {
+      await fetch("/api/host/table/clean", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurantId, table: tn }),
+      });
+      await loadActive();
+    } catch (err) {
+      console.error("Failed to mark table clean:", err);
+    }
+  };
 
-    const byId = new Map<string, any>();
-    (layout.tables || []).forEach((t: any) => byId.set(String(t.id), t));
-
-    const tableNumbers = selectedTableIds
-      .map((id) => byId.get(String(id)))
-      .filter(Boolean)
-      .map((t: any) => getTableNumber(t) ?? 0)
-      .filter((n: number) => Number.isFinite(n) && n > 0);
-
-    window.dispatchEvent(
-      new CustomEvent("sb-floor-selection", {
-        detail: {
-          tableIds: selectedTableIds,
-          tableNumbers,
-        },
-      })
-    );
-  }, [isHostMode, currentLayout, selectedTableIds]);
-
-  // Allow host template to clear selection after seating.
-  React.useEffect(() => {
-    if (!isHostMode) return;
-    const handler = () => setSelectedTableIds([]);
-    window.addEventListener("sb-floor-clear-selection", handler as any);
-    return () => window.removeEventListener("sb-floor-clear-selection", handler as any);
-  }, [isHostMode]);
-
-  // Allow waiter lobby (and the server-rendered "open tables" list) to select a table in the React view.
-  React.useEffect(() => {
-    if (mountMode !== "lobby") return;
-
-    const handler = (ev: Event) => {
-      const ce = ev as CustomEvent;
-      const tableNumber = Number((ce as any)?.detail?.tableNumber);
-      if (!Number.isFinite(tableNumber) || tableNumber <= 0) return;
-
-      // Use the currently loaded active layout (fallback to the first layout in state).
-      const layout: any = currentLayout ?? (layouts.length ? layouts[0] : null);
-      const tables = layout?.tables;
-      if (!Array.isArray(tables)) return;
-
-      const t = tables.find((x: any) => getTableNumber(x) === tableNumber);
-      if (t?.id) {
-        setSelectedTableId(String(t.id));
-        setSelectedTableIds([]);
-      }
-    };
-
-    window.addEventListener("sb-floor-select-table-number", handler as any);
-    return () => window.removeEventListener("sb-floor-select-table-number", handler as any);
-  }, [mountMode, currentLayout, layouts]);
-
-  const updateTableStatus = React.useCallback(
-    async (tableId: string, status: NormalStatus) => {
-      try {
-        const res = await fetch(`/api/tables/${restaurantId}/${tableId}/status`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        await loadActive();
-      } catch (e) {
-        console.warn("Failed to update table status", e);
-        try {
-          const msg = (e as any)?.message ? String((e as any).message) : "unknown";
-          alert("שגיאה בעדכון סטטוס שולחן: " + msg);
-        } catch {
-          // ignore
-        }
-      }
-    },
-    [restaurantId, loadActive]
-  );
-
-  const rootClass = `floor-editor sb-floor-view ${mountMode === "lobby" || mountMode === "host" ? "is-embed" : ""}`;
+  const rootClass = `floor-editor sb-floor-view ${mountMode === "lobby" ? "is-embed" : ""}`;
 
   if (loading) {
     return (
       <div className={rootClass}>
-        <div className="sbv-loading">טוען מפת מסעדה…</div>
+        <div className="sbv-loading">{t("floor.loading", "Loading floor plan...")}</div>
       </div>
     );
   }
@@ -288,10 +154,10 @@ export default function FloorViewPage({
     return (
       <div className={rootClass}>
         <div className="sbv-error">
-          <div className="sbv-error-title">לא ניתן לטעון את מפת המסעדה</div>
-          <div className="sbv-error-sub">{error ?? "קרתה שגיאה בטעינת המפה"}</div>
+          <div className="sbv-error-title">{t("host.err_load_map", "Cannot load floor map")}</div>
+          <div className="sbv-error-sub">{error ?? t("host.err_load_map", "Error loading floor map")}</div>
           <button className="sbv-retry" onClick={loadActive}>
-            נסה שוב
+            {t("common.btn_refresh", "Retry")}
           </button>
         </div>
       </div>
@@ -300,137 +166,109 @@ export default function FloorViewPage({
 
   return (
     <div className={rootClass}>
-      {/* Use the same top-bar structure as the editor to avoid flex bugs (layout-tabs has flex:1 in editor CSS) */}
-      <div className="layout-tabs-bar sbv-view-topbar">
-        <div className="sbv-topbar-left">
-          <div className="sbv-topbar-title">עדכון סידור שולחנות</div>
-          <div className="sbv-topbar-sub">גרור כדי להזיז • ⤢ למרכז למסך</div>
+      <div className="sbv-shell">
+        <div className="sbv-left">
+          <div className="layout-tabs-bar sbv-view-topbar">
+            <div className="sbv-topbar-left">
+              <div className="sbv-topbar-title">{t("host.floor_map_title", "Restaurant Map (Live)")}</div>
+              <div className="sbv-topbar-sub">{t("floor.hints.controls", "Drag to pan, Ctrl+wheel to zoom")}</div>
+            </div>
+
+            <div className="sbv-legend" aria-label="Legend">
+              <span className="sbv-pill is-empty">
+                <span className="sbv-dot" /> {statusLabel("empty")}
+              </span>
+              <span className="sbv-pill is-occupied">
+                <span className="sbv-dot" /> {statusLabel("occupied")}
+              </span>
+              <span className="sbv-pill is-reserved">
+                <span className="sbv-dot" /> {statusLabel("reserved")}
+              </span>
+              <span className="sbv-pill is-dirty">
+                <span className="sbv-dot" /> {statusLabel("dirty")}
+              </span>
+            </div>
+          </div>
+
+          <div className="editor-content sbv-editor-content">
+            <FloorMapRenderer
+              layout={currentLayout}
+              selectedTableId={selectedTableId}
+              onTableClick={onTableClick}
+              mode="view"
+            />
+          </div>
         </div>
 
-        <div className="sbv-legend" aria-label="Legend">
-          <span className="sbv-pill is-empty">
-            <span className="sbv-dot" /> פנוי
-          </span>
-          <span className="sbv-pill is-occupied">
-            <span className="sbv-dot" /> תפוס
-          </span>
-          <span className="sbv-pill is-reserved">
-            <span className="sbv-dot" /> שמור
-          </span>
-          <span className="sbv-pill is-dirty">
-            <span className="sbv-dot" /> מלוכלך
-          </span>
-        </div>
+        <aside className="sbv-right" aria-label={t("host.table_details", "Table details")}>
+          {selectedTableId ? (
+            <div className="sbv-right-panel" role="dialog" aria-modal="false">
+              <div className="sbv-drawer-header">
+                <div className="sbv-drawer-title">{t("host.table_details", "Table Details")}</div>
+                <button className="sbv-close" onClick={closeDrawer} aria-label={t("common.btn_close", "Close")}>
+                  &#10005;
+                </button>
+              </div>
+
+              <div className="sbv-drawer-body">
+                <div className="sbv-table-number">{t("host.table_label", "Table")} {(selectedTable as any)?.number ?? "—"}</div>
+
+                <div className={`sbv-status-row is-${selectedStatus}`}>
+                  <span className="sbv-status-dot" />
+                  <span className="sbv-status-label">{t("host.table_status_label", "Table Status")}</span>
+                  <span className="sbv-status-value">{statusLabel(selectedStatus)}</span>
+                </div>
+
+                <div className="sbv-kv">
+                  <div className="sbv-kv-row">
+                    <div className="sbv-kv-key">{t("host.guest_name", "Guest Name")}</div>
+                    <div className="sbv-kv-val">{(selectedStatusEntry as any)?.guestName ?? "—"}</div>
+                  </div>
+                  <div className="sbv-kv-row">
+                    <div className="sbv-kv-key">{t("host.num_guests", "Guests")}</div>
+                    <div className="sbv-kv-val">
+                      {(selectedStatusEntry as any)?.guestCount != null ? String((selectedStatusEntry as any).guestCount) : "—"}
+                    </div>
+                  </div>
+                  <div className="sbv-kv-row">
+                    <div className="sbv-kv-key">{t("host.reservation_time", "Reservation Time")}</div>
+                    <div className="sbv-kv-val">{(selectedStatusEntry as any)?.reservationTime ?? "—"}</div>
+                  </div>
+                  <div className="sbv-kv-row">
+                    <div className="sbv-kv-key">{t("pos.waiter.items_label", "Items")}</div>
+                    <div className="sbv-kv-val">{(selectedStatusEntry as any)?.itemsCount ?? "—"}</div>
+                  </div>
+                  <div className="sbv-kv-row">
+                    <div className="sbv-kv-key">{t("pos.waiter.subtotal", "Subtotal")}</div>
+                    <div className="sbv-kv-val">{(selectedStatusEntry as any)?.subtotal ?? "—"}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="sbv-drawer-footer">
+                {selectedStatus === "dirty" && (selectedTable as any)?.number ? (
+                  <button className="sbv-success-btn" onClick={handleMarkClean}>
+                    {t("floor.btn_mark_clean", "Mark as Clean")}
+                  </button>
+                ) : selectedStatus === "occupied" && (selectedTable as any)?.number ? (
+                  <a className="sbv-primary-btn" href={`/waiter/${restaurantId}/${(selectedTable as any).number}`}>
+                    {t("pos.waiter.btn_open_order", "Open Order")}
+                  </a>
+                ) : (
+                  <button className="sbv-secondary-btn" onClick={closeDrawer}>
+                    {t("common.btn_close", "Close")}
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="sbv-right-empty">
+              <div className="sbv-right-empty-title">{t("host.table_details", "Table Details")}</div>
+              <div className="sbv-right-empty-sub">{t("host.floor_map_help", "Select a table on the map to view details.")}</div>
+            </div>
+          )}
+        </aside>
       </div>
-
-      {/* IMPORTANT: renderer root is `.editor-canvas` which expects to be a direct flex-item of `.editor-content` */}
-      <div className="editor-content sbv-editor-content">
-        <FloorMapRenderer
-          layout={currentLayout}
-          selectedTableId={selectedTableId}
-          selectedTableIds={isHostMode ? selectedTableIds : null}
-          onTableClick={onTableClick}
-          mode="view"
-        />
-      </div>
-
-      {/* Side drawer */}
-      {selectedTableId && !isHostMode
-        ? ReactDOM.createPortal(
-            <>
-              <div className="sbv-drawer-backdrop" onMouseDown={closeDrawer} />
-                        <aside className="sbv-drawer" role="dialog" aria-modal="true">
-                          <div className="sbv-drawer-header">
-                            <div className="sbv-drawer-title">פרטי שולחן</div>
-                            <button className="sbv-close" onClick={closeDrawer} aria-label="Close">
-                              ✕
-                            </button>
-                          </div>
-              
-                          <div className="sbv-drawer-body">
-                            <div className="sbv-table-number">שולחן {getTableNumber(selectedTable) ?? "—"}</div>
-              
-                            <div className={`sbv-status-row is-${selectedStatus}`}>
-                              <span className="sbv-status-dot" />
-                              <span className="sbv-status-label">סטטוס שולחן</span>
-                              <span className="sbv-status-value">{statusLabelHe(selectedStatus)}</span>
-                            </div>
-              
-                            <div className="sbv-kv">
-                              <div className="sbv-kv-row">
-                                <div className="sbv-kv-key">שם המזמין</div>
-                                <div className="sbv-kv-val">{(selectedStatusEntry as any)?.guestName ?? "—"}</div>
-                              </div>
-                              <div className="sbv-kv-row">
-                                <div className="sbv-kv-key">מספר סועדים</div>
-                                <div className="sbv-kv-val">
-                                  {(() => { const gc = (selectedStatusEntry as any)?.guestCount ?? (selectedStatusEntry as any)?.people; return (gc != null && gc !== "") ? String(gc) : "—"; })()}
-                                </div>
-                              </div>
-                              <div className="sbv-kv-row">
-                                <div className="sbv-kv-key">שעת ההזמנה</div>
-                                <div className="sbv-kv-val">{(selectedStatusEntry as any)?.reservationTime ?? (selectedStatusEntry as any)?.time ?? "—"}</div>
-                              </div>
-                              <div className="sbv-kv-row">
-                                <div className="sbv-kv-key">מספר פריטים</div>
-                                <div className="sbv-kv-val">{(selectedStatusEntry as any)?.itemsCount ?? ((selectedStatusEntry as any)?.itemsReady != null && (selectedStatusEntry as any)?.itemsPending != null ? ((selectedStatusEntry as any).itemsReady + (selectedStatusEntry as any).itemsPending) : null) ?? "—"}</div>
-                              </div>
-                              <div className="sbv-kv-row">
-                                <div className="sbv-kv-key">סכום ביניים</div>
-                                <div className="sbv-kv-val">{(selectedStatusEntry as any)?.subtotal ?? (selectedStatusEntry as any)?.orderTotal ?? "—"}</div>
-                              </div>
-                            </div>
-                          </div>
-              
-                          <div className="sbv-drawer-footer">
-                            <div className="sbv-actions-row">
-                              {/* Waiter: mark dirty / clean */}
-                              {isWaiterLobby ? (
-                                <>
-                                  <button
-                                    className="sbv-secondary-btn"
-                                    onClick={async (e) => { e.stopPropagation(); await updateTableStatus(selectedTableId, "dirty"); window.dispatchEvent(new Event("sb-floor-refresh")); }}
-                                  >
-                                    סמן מלוכלך
-                                  </button>
-                                  <button
-                                    className="sbv-secondary-btn"
-                                    onClick={async (e) => { e.stopPropagation(); await updateTableStatus(selectedTableId, "empty"); window.dispatchEvent(new Event("sb-floor-refresh")); }}
-                                  >
-                                    סמן נקי
-                                  </button>
-                                </>
-                              ) : null}
-
-                              {/* Quick jump to the order screen (only if an open order exists) */}
-                              {(() => {
-                                const num = getTableNumber(selectedTable);
-                                const hasOpenOrder = Boolean((selectedStatusEntry as any)?.orderId);
-                                const canGo = Boolean(num) && (!isWaiterLobby || hasOpenOrder);
-                                const href = num ? `/pos/${encodeURIComponent(restaurantId)}/table/${encodeURIComponent(String(num))}` : "";
-                                return (
-                                  <button
-                                    type="button"
-                                    className="sbv-primary-btn"
-                                    disabled={!canGo}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (!canGo) return;
-                                      window.location.href = href;
-                                    }}
-                                    title={isWaiterLobby && !hasOpenOrder ? "אין הזמנה פתוחה לשולחן הזה" : undefined}
-                                  >
-                                    למסך ההזמנה
-                                  </button>
-                                );
-                              })()}
-                            </div>
-                          </div>
-                        </aside>
-            </>,
-            document.body
-          )
-        : null}
     </div>
   );
 }

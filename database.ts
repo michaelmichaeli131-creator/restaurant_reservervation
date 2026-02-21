@@ -700,6 +700,42 @@ export async function createReservation(r: Reservation) {
   return r;
 }
 
+/**
+ * createReservationSafe – atomic reservation with optimistic concurrency control.
+ * Uses a day-level lock key to detect concurrent writes.
+ * If another reservation was created between availability check and commit,
+ * the atomic check fails and we retry (up to MAX_RETRIES times).
+ */
+export async function createReservationSafe(r: Reservation): Promise<Reservation> {
+  const MAX_RETRIES = 3;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    // Read day-level lock to get its versionstamp
+    const dayLockKey = toKey("reservation_day_lock", r.restaurantId, r.date);
+    const lock = await kv.get(dayLockKey);
+
+    // Re-check availability right before atomic write
+    const avail = await checkAvailability(r.restaurantId, r.date, r.time, r.people);
+    if (!(avail as any).ok) {
+      throw new Error("no_availability");
+    }
+
+    // Atomic: create reservation + update lock (with version check)
+    const tx = kv.atomic()
+      .check(lock) // Fails if another reservation changed this day's lock
+      .set(toKey("reservation", r.id), r)
+      .set(toKey("reservation_by_day", r.restaurantId, r.date, r.id), 1)
+      .set(dayLockKey, Date.now()); // Bump lock so other concurrent writes detect the change
+    const res = await tx.commit();
+    if (res.ok) return r;
+
+    // Commit failed – another reservation was created concurrently, retry
+    console.log(
+      `[createReservationSafe] retry ${attempt + 1}/${MAX_RETRIES} for ${r.restaurantId}/${r.date}`,
+    );
+  }
+  throw new Error("create_reservation_race: max retries exceeded");
+}
+
 /** ← חדש: קבלת הזמנה לפי מזהה */
 export async function getReservationById(id: string): Promise<Reservation | null> {
   return (await kv.get<Reservation>(toKey("reservation", id))).value ?? null;

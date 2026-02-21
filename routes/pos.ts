@@ -7,6 +7,7 @@ import { requireOwner, requireStaff } from "../lib/auth.ts";
 import { requireRestaurantAccess } from "../services/authz.ts";
 import { getRestaurant } from "../database.ts";
 import { isTableSeated } from "../services/seating_service.ts";
+import { getTableIdByNumber, markTableDirty } from "../services/floor_service.ts";
 import {
   listItems,
   listCategories,
@@ -756,6 +757,13 @@ posRouter.post("/api/pos/order/close", async (ctx) => {
 
   if (order) {
     notifyOrderClosed(restaurantId, table);
+
+    // Auto-mark table as "dirty" after order close
+    const user = ctx.state.user;
+    const floorTableId = await getTableIdByNumber(restaurantId, table);
+    if (floorTableId) {
+      await markTableDirty(restaurantId, floorTableId, user?.id ?? "system");
+    }
   }
 
   ctx.response.headers.set(

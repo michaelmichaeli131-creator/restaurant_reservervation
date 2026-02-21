@@ -26,21 +26,25 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>🍽️ Floor Plan Manager</h1>
-        <div className="mode-switch">
+        <h1>Floor Plan Manager</h1>
+        <nav className="mode-switch" aria-label="View mode">
           <button
             className={floorMode === 'edit' ? 'active' : ''}
             onClick={() => setFloorMode('edit')}
+            aria-pressed={floorMode === 'edit'}
+            aria-label="Switch to edit layout mode"
           >
-            ✏️ Edit Layout
+            Edit Layout
           </button>
           <button
             className={floorMode === 'live' ? 'active' : ''}
             onClick={() => setFloorMode('live')}
+            aria-pressed={floorMode === 'live'}
+            aria-label="Switch to live view mode"
           >
-            👁️ Live View
+            Live View
           </button>
-        </div>
+        </nav>
       </header>
 
       <main className="app-main">

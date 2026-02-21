@@ -1,0 +1,48 @@
+<%
+/**
+ * SpotBook Loading Skeleton Component
+ *
+ * Usage:
+ *   <%~ include("components/_loading", { lines: 3 }) %>
+ *   <%~ include("components/_loading", { lines: 5, heading: true }) %>
+ *   <%~ include("components/_loading", { type: "card" }) %>
+ *
+ * Params:
+ *   lines    (number) - Number of skeleton text lines to render (default: 3)
+ *   heading  (bool)   - Show a heading-width skeleton line first (optional)
+ *   type     (string) - "text" (default) | "card" | "avatar-text"
+ *   cls      (string) - Extra CSS classes (optional)
+ */
+%>
+<% const lines = it.lines || 3; %>
+<% const type = it.type || 'text'; %>
+
+<div class="sb-loading<%= it.cls ? ' ' + it.cls : '' %>" aria-busy="true" aria-label="Loading...">
+  <% if (type === 'card') { %>
+    <div class="sb-skeleton sb-skeleton-card"></div>
+    <div class="sb-skeleton-lines" style="margin-top: var(--sb-space-md)">
+      <div class="sb-skeleton sb-skeleton-heading"></div>
+      <div class="sb-skeleton sb-skeleton-text"></div>
+      <div class="sb-skeleton sb-skeleton-text"></div>
+    </div>
+
+  <% } else if (type === 'avatar-text') { %>
+    <div style="display:flex; gap: var(--sb-space-md); align-items:center">
+      <div class="sb-skeleton sb-skeleton-avatar"></div>
+      <div class="sb-skeleton-lines" style="flex:1">
+        <div class="sb-skeleton sb-skeleton-heading"></div>
+        <div class="sb-skeleton sb-skeleton-text"></div>
+      </div>
+    </div>
+
+  <% } else { %>
+    <div class="sb-skeleton-lines">
+      <% if (it.heading) { %>
+        <div class="sb-skeleton sb-skeleton-heading"></div>
+      <% } %>
+      <% for (let i = 0; i < lines; i++) { %>
+        <div class="sb-skeleton sb-skeleton-text"<%= (i === lines - 1) ? ' style="width:70%"' : '' %>></div>
+      <% } %>
+    </div>
+  <% } %>
+</div>

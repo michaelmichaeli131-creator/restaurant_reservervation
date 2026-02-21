@@ -177,7 +177,23 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
   const [floorTheme, setFloorTheme] = useState<FloorThemeKey>('parquet_blue');
 
-  // NOTE: We avoid using scrollLeft/scrollTop for centering because RTL browsers handle scroll offsets differently.
+  // Center the map inside the scrollable canvas whenever grid size / cell size changes
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !currentLayout) return;
+
+    // Wait for DOM layout
+    requestAnimationFrame(() => {
+      const gridW = currentLayout.gridCols * cellSize + 48; // + 2*24px margin (see CSS)
+      const gridH = currentLayout.gridRows * cellSize + 48;
+
+      const targetLeft = Math.max(0, (gridW - canvas.clientWidth) / 2);
+      const targetTop  = Math.max(0, (gridH - canvas.clientHeight) / 2);
+
+      canvas.scrollLeft = targetLeft;
+      canvas.scrollTop  = targetTop;
+    });
+  }, [currentLayout?.id, currentLayout?.gridCols, currentLayout?.gridRows, cellSize]);
 
   const [shapeMode, setShapeMode] = useState(false);
   // Sync floor theme from the loaded layout
@@ -612,13 +628,6 @@ const assetForTable = (shape: string, seats: number) => {
     const panY = Math.round(20);
     setPan({ x: panX, y: panY });
   };
-
-  // Auto-center / fit whenever a layout becomes active (avoids RTL scrollLeft quirks).
-  useEffect(() => {
-    if (!currentLayout) return;
-    requestAnimationFrame(() => fitToScreen());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentLayout?.id, currentLayout?.gridCols, currentLayout?.gridRows, cellSize]);
 
   const zoomAtPoint = (nextZoom: number, clientX: number, clientY: number) => {
     if (!canvasRef.current) return;

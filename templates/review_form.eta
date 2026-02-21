@@ -16,10 +16,10 @@
 <main class="review-page container">
   <div class="review-card">
     <header class="review-header">
-      <h1 class="title">כיצד היה הביקור שלך?</h1>
+      <h1 class="title"><%= tt('review.form.title_heading', 'How was your visit?') %></h1>
       <div class="restaurant-info">
         <h2 class="restaurant-name"><%= it.restaurant.name %></h2>
-        <p class="visit-date">ביקור ב-<%= new Date(it.reservation.date).toLocaleDateString('he-IL') %></p>
+        <p class="visit-date"><%= tt('review.form.visit_on', 'Visit on') %> <%= new Date(it.reservation.date).toLocaleDateString(it.lang === 'he' ? 'he-IL' : 'en-US') %></p>
       </div>
     </header>
 
@@ -49,25 +49,25 @@
           <input type="radio" name="rating" value="1" id="star1">
           <label for="star1" class="star" data-rating="1">★</label>
         </div>
-        <p class="rating-text" id="rating-text">בחר דירוג</p>
+        <p class="rating-text" id="rating-text"><%= tt('review.form.choose_rating', 'Choose a rating') %></p>
       </div>
 
       <!-- Comment (Optional) -->
       <div class="form-group">
-        <label for="comment" class="label">ספר לנו עוד (אופציונלי)</label>
+        <label for="comment" class="label"><%= tt('review.form.comment_label', 'Tell us more (optional)') %></label>
         <textarea
           id="comment"
           name="comment"
           rows="5"
-          placeholder="מה אהבת? מה ניתן לשפר?"
+          placeholder="<%= tt('review.form.comment_placeholder', 'What did you like? What could be improved?') %>"
           maxlength="1000"
         ></textarea>
-        <p class="hint">עד 1000 תווים</p>
+        <p class="hint"><%= tt('review.form.max_chars', 'Up to 1000 characters') %></p>
       </div>
 
       <!-- Submit Button -->
       <div class="form-actions">
-        <button type="submit" class="btn primary large"><%= tt('review.form.submit', 'שלח ביקורת') %></button>
+        <button type="submit" class="btn primary large"><%= tt('review.form.submit', 'Submit Review') %></button>
       </div>
     </form>
   </div>
@@ -82,11 +82,11 @@
   const inputs = container.querySelectorAll('input[type="radio"]');
 
   const ratingLabels = {
-    1: '⭐ גרוע',
-    2: '⭐⭐ לא טוב',
-    3: '⭐⭐⭐ בסדר',
-    4: '⭐⭐⭐⭐ טוב',
-    5: '⭐⭐⭐⭐⭐ מעולה!'
+    1: '<%= tt("review.form.rating_1", "Terrible") %>',
+    2: '<%= tt("review.form.rating_2", "Bad") %>',
+    3: '<%= tt("review.form.rating_3", "OK") %>',
+    4: '<%= tt("review.form.rating_4", "Good") %>',
+    5: '<%= tt("review.form.rating_5", "Excellent!") %>'
   };
 
   // Highlight stars on hover
@@ -106,7 +106,7 @@
       ratingText.textContent = ratingLabels[rating];
     } else {
       highlightStars(0);
-      ratingText.textContent = 'בחר דירוג';
+      ratingText.textContent = '<%= tt("review.form.choose_rating", "Choose a rating") %>';
     }
   });
 

@@ -1,14 +1,23 @@
+/* ==========================================================================
+   SpotBook Client-side CSS
+   Variables here are ALIGNED with the unified tokens in public/css/tokens.css.
+   The React client bundle uses the same back-compat aliases (--bg, --panel, ...)
+   so any React component referencing var(--bg) will get the canonical value.
+   ========================================================================== */
+
 :root {
-  --bg: #0d0f17;
-  --panel: #121622;
-  --panel-2: #171b29;
-  --bd: #222834;
-  --ink: #e6e8ef;
-  --ink-muted: #9aa3b2;
-  --brand: #3b82f6;
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
+  /* Unified values (match tokens.css) */
+  --bg:         #0e1116;
+  --panel:      #121622;
+  --panel-2:    #171b29;
+  --bd:         #23293a;
+  --ink:        #e6e8ef;
+  --ink-muted:  #9aa3b2;
+  --brand:      #3b82f6;
+  --brand-ink:  #ffffff;
+  --success:    #10b981;
+  --warning:    #f59e0b;
+  --danger:     #ef4444;
 }
 
 * {
@@ -18,7 +27,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-family: 'Rubik', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   background: var(--bg);
   color: var(--ink);
   line-height: 1.5;

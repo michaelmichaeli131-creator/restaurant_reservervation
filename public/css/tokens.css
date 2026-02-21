@@ -1,0 +1,505 @@
+/* ==========================================================================
+   SpotBook Design Tokens
+   Unified source of truth for the entire design system.
+   Import this file FIRST in any layout / page.
+   ========================================================================== */
+
+:root {
+  /* ----- Colors: Backgrounds ----- */
+  --sb-color-bg:         #0e1116;
+  --sb-color-panel:      #121622;
+  --sb-color-panel-2:    #171b29;
+
+  /* ----- Colors: Text / Ink ----- */
+  --sb-color-ink:        #e6e8ef;
+  --sb-color-ink-muted:  #9aa3b2;
+
+  /* ----- Colors: Borders ----- */
+  --sb-color-bd:         #23293a;
+
+  /* ----- Colors: Brand / Accent ----- */
+  --sb-color-brand:      #3b82f6;
+  --sb-color-brand-ink:  #ffffff;
+  --sb-color-accent:     #3b82f6;
+  --sb-color-accent-soft:  rgba(59, 130, 246, 0.18);
+  --sb-color-accent-border: rgba(59, 130, 246, 0.35);
+
+  /* ----- Colors: Semantic ----- */
+  --sb-color-success:    #10b981;
+  --sb-color-warning:    #f59e0b;
+  --sb-color-danger:     #ef4444;
+  --sb-color-muted:      #64748b;
+
+  /* ----- Colors: Semantic soft (backgrounds for badges / toasts) ----- */
+  --sb-color-success-soft:  rgba(16, 185, 129, 0.14);
+  --sb-color-warning-soft:  rgba(245, 158, 11, 0.14);
+  --sb-color-danger-soft:   rgba(239, 68, 68, 0.14);
+  --sb-color-muted-soft:    rgba(100, 116, 139, 0.14);
+
+  /* ----- Typography: Font Family ----- */
+  --sb-font-family:      'Rubik', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --sb-font-mono:        'Fira Code', 'Cascadia Code', ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  /* ----- Typography: Font Sizes ----- */
+  --sb-font-xs:   11px;
+  --sb-font-sm:   13px;
+  --sb-font-base: 15px;
+  --sb-font-lg:   17px;
+  --sb-font-xl:   20px;
+  --sb-font-2xl:  24px;
+  --sb-font-3xl:  32px;
+
+  /* ----- Typography: Font Weights ----- */
+  --sb-weight-normal:    400;
+  --sb-weight-medium:    500;
+  --sb-weight-semibold:  600;
+  --sb-weight-bold:      700;
+  --sb-weight-black:     900;
+
+  /* ----- Typography: Line Heights ----- */
+  --sb-leading-tight:    1.2;
+  --sb-leading-normal:   1.5;
+  --sb-leading-relaxed:  1.65;
+
+  /* ----- Spacing Scale ----- */
+  --sb-space-xs:   4px;
+  --sb-space-sm:   8px;
+  --sb-space-md:   12px;
+  --sb-space-lg:   16px;
+  --sb-space-xl:   24px;
+  --sb-space-2xl:  32px;
+  --sb-space-3xl:  48px;
+
+  /* ----- Border Radius ----- */
+  --sb-radius-sm:   6px;
+  --sb-radius-md:   8px;
+  --sb-radius-lg:   12px;
+  --sb-radius-xl:   16px;
+  --sb-radius-pill:  999px;
+
+  /* ----- Shadows ----- */
+  --sb-shadow-sm:  0 2px 8px rgba(0, 0, 0, 0.20);
+  --sb-shadow-md:  0 10px 30px rgba(0, 0, 0, 0.35);
+  --sb-shadow-lg:  0 18px 60px rgba(0, 0, 0, 0.45);
+
+  /* ----- Transitions ----- */
+  --sb-ease-fast:    150ms ease;
+  --sb-ease-normal:  250ms ease;
+  --sb-ease-slow:    400ms ease;
+
+  /* ----- Z-Index Scale ----- */
+  --sb-z-dropdown:  100;
+  --sb-z-modal:     200;
+  --sb-z-toast:     300;
+  --sb-z-overlay:   400;
+
+  /* ----- Layout ----- */
+  --sb-max-width:  1200px;
+
+  /* ===================================================================
+     Back-compat aliases:
+     These map old variable names (--bg, --panel, etc.) to the unified
+     tokens above so existing CSS files keep working without edits.
+     =================================================================== */
+  --bg:         var(--sb-color-bg);
+  --panel:      var(--sb-color-panel);
+  --panel-2:    var(--sb-color-panel-2);
+  --ink:        var(--sb-color-ink);
+  --ink-muted:  var(--sb-color-ink-muted);
+  --bd:         var(--sb-color-bd);
+  --brand:      var(--sb-color-brand);
+  --brand-ink:  var(--sb-color-brand-ink);
+  --success:    var(--sb-color-success);
+  --warning:    var(--sb-color-warning);
+  --danger:     var(--sb-color-danger);
+  --radius:     var(--sb-radius-xl);
+  --shadow:     var(--sb-shadow-md);
+  --max:        var(--sb-max-width);
+}
+
+
+/* ==========================================================================
+   Skeleton / Shimmer loading animation
+   Usage: <div class="sb-skeleton" style="--sb-skel-h: 16px"></div>
+          or use the .sb-skeleton-text, .sb-skeleton-heading, .sb-skeleton-avatar helpers.
+   ========================================================================== */
+
+@keyframes sb-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.sb-skeleton {
+  display: block;
+  height: var(--sb-skel-h, 14px);
+  width: var(--sb-skel-w, 100%);
+  border-radius: var(--sb-radius-sm);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.10) 40%,
+    rgba(255, 255, 255, 0.04) 80%
+  );
+  background-size: 800px 100%;
+  animation: sb-shimmer 1.6s ease-in-out infinite;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Preset skeleton sizes */
+.sb-skeleton-text {
+  --sb-skel-h: 14px;
+  --sb-skel-w: 100%;
+}
+
+.sb-skeleton-heading {
+  --sb-skel-h: 22px;
+  --sb-skel-w: 60%;
+}
+
+.sb-skeleton-avatar {
+  --sb-skel-h: 40px;
+  --sb-skel-w: 40px;
+  border-radius: var(--sb-radius-pill);
+}
+
+.sb-skeleton-card {
+  --sb-skel-h: 120px;
+  --sb-skel-w: 100%;
+  border-radius: var(--sb-radius-lg);
+}
+
+/* Skeleton line group helper */
+.sb-skeleton-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-space-sm);
+}
+
+.sb-skeleton-lines .sb-skeleton:last-child {
+  width: 70%;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .sb-skeleton {
+    animation: none;
+  }
+}
+
+
+/* ==========================================================================
+   Component: Card (.sb-card)
+   Matches the _card.eta partial.
+   ========================================================================== */
+
+.sb-card {
+  background: rgba(18, 22, 34, 0.78);
+  border: 1px solid var(--sb-color-bd);
+  border-radius: var(--sb-radius-xl);
+  box-shadow: var(--sb-shadow-sm);
+  overflow: hidden;
+}
+
+.sb-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-space-sm);
+  padding: var(--sb-space-lg);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sb-card__icon {
+  font-size: var(--sb-font-xl);
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.sb-card__title {
+  margin: 0;
+  font-size: var(--sb-font-lg);
+  font-weight: var(--sb-weight-bold);
+  color: var(--sb-color-ink);
+}
+
+.sb-card__body {
+  padding: var(--sb-space-lg);
+}
+
+.sb-card__footer {
+  padding: var(--sb-space-md) var(--sb-space-lg);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--sb-color-ink-muted);
+  font-size: var(--sb-font-sm);
+}
+
+
+/* ==========================================================================
+   Component: Button (.sb-btn)
+   Matches the _btn.eta partial.
+   ========================================================================== */
+
+.sb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sb-space-sm);
+  padding: 10px 16px;
+  border-radius: var(--sb-radius-pill);
+  border: 1px solid var(--sb-color-bd);
+  background: transparent;
+  color: var(--sb-color-ink);
+  font-family: var(--sb-font-family);
+  font-size: var(--sb-font-base);
+  font-weight: var(--sb-weight-bold);
+  line-height: 1;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--sb-ease-fast),
+              border-color var(--sb-ease-fast),
+              transform var(--sb-ease-fast),
+              box-shadow var(--sb-ease-fast);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.sb-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sb-btn:active {
+  transform: scale(0.98);
+}
+
+.sb-btn:disabled,
+.sb-btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.sb-btn__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  font-size: var(--sb-font-lg);
+  line-height: 1;
+}
+
+.sb-btn__text {
+  flex: 0 0 auto;
+}
+
+/* -- Primary -- */
+.sb-btn--primary {
+  background: var(--sb-color-brand);
+  border-color: transparent;
+  color: var(--sb-color-brand-ink);
+  box-shadow: 0 6px 18px rgba(59, 130, 246, 0.35);
+}
+
+.sb-btn--primary:hover {
+  filter: brightness(1.08);
+  background: var(--sb-color-brand);
+}
+
+/* -- Secondary (default) -- */
+.sb-btn--secondary {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--sb-color-bd);
+}
+
+.sb-btn--secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* -- Ghost -- */
+.sb-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+.sb-btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* -- Danger -- */
+.sb-btn--danger {
+  background: var(--sb-color-danger-soft);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+.sb-btn--danger:hover {
+  background: rgba(239, 68, 68, 0.22);
+}
+
+/* -- Icon-only -- */
+.sb-btn--icon-only {
+  padding: 10px;
+  border-radius: var(--sb-radius-lg);
+  min-width: 40px;
+  min-height: 40px;
+}
+
+
+/* ==========================================================================
+   Component: Empty State (.sb-empty-state)
+   Matches the _empty_state.eta partial.
+   ========================================================================== */
+
+.sb-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--sb-space-3xl) var(--sb-space-xl);
+  border: 1px dashed rgba(148, 163, 184, 0.25);
+  border-radius: var(--sb-radius-xl);
+  background: rgba(15, 23, 42, 0.25);
+}
+
+.sb-empty-state__icon {
+  font-size: 48px;
+  line-height: 1;
+  margin-bottom: var(--sb-space-lg);
+  opacity: 0.7;
+}
+
+.sb-empty-state__message {
+  margin: 0;
+  font-size: var(--sb-font-lg);
+  font-weight: var(--sb-weight-semibold);
+  color: var(--sb-color-ink);
+}
+
+.sb-empty-state__sub {
+  margin: var(--sb-space-sm) 0 0;
+  font-size: var(--sb-font-sm);
+  color: var(--sb-color-ink-muted);
+  max-width: 360px;
+}
+
+.sb-empty-state__cta {
+  margin-top: var(--sb-space-xl);
+}
+
+
+/* ==========================================================================
+   Component: Toast (.sb-toast)
+   Matches the _toast.eta partial.
+   ========================================================================== */
+
+.sb-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-space-md);
+  padding: var(--sb-space-md) var(--sb-space-lg);
+  border-radius: var(--sb-radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: var(--sb-color-panel);
+  color: var(--sb-color-ink);
+  font-size: var(--sb-font-sm);
+  box-shadow: var(--sb-shadow-md);
+  z-index: var(--sb-z-toast);
+  animation: sb-toast-in 250ms ease forwards;
+}
+
+@keyframes sb-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sb-toast__icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--sb-radius-pill);
+  font-size: var(--sb-font-sm);
+  font-weight: var(--sb-weight-bold);
+}
+
+.sb-toast__message {
+  flex: 1;
+  min-width: 0;
+}
+
+.sb-toast__close {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--sb-color-ink-muted);
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: var(--sb-radius-sm);
+  transition: background var(--sb-ease-fast);
+}
+
+.sb-toast__close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--sb-color-ink);
+}
+
+/* Toast variants */
+.sb-toast--success {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: linear-gradient(90deg, var(--sb-color-success-soft), var(--sb-color-panel));
+}
+
+.sb-toast--success .sb-toast__icon {
+  background: var(--sb-color-success-soft);
+  color: var(--sb-color-success);
+}
+
+.sb-toast--warning {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: linear-gradient(90deg, var(--sb-color-warning-soft), var(--sb-color-panel));
+}
+
+.sb-toast--warning .sb-toast__icon {
+  background: var(--sb-color-warning-soft);
+  color: var(--sb-color-warning);
+}
+
+.sb-toast--danger {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: linear-gradient(90deg, var(--sb-color-danger-soft), var(--sb-color-panel));
+}
+
+.sb-toast--danger .sb-toast__icon {
+  background: var(--sb-color-danger-soft);
+  color: var(--sb-color-danger);
+}
+
+.sb-toast--info {
+  border-color: rgba(59, 130, 246, 0.35);
+  background: linear-gradient(90deg, var(--sb-color-accent-soft), var(--sb-color-panel));
+}
+
+.sb-toast--info .sb-toast__icon {
+  background: var(--sb-color-accent-soft);
+  color: var(--sb-color-accent);
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .sb-toast {
+    animation: none;
+  }
+}

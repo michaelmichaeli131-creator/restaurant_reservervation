@@ -172,7 +172,10 @@ export default function FloorMapRenderer({
     };
   }, []);
 
-  const clampZoom = (z: number) => Math.max(0.4, Math.min(2.5, z));
+  // In view-mode (waiter/host) we must allow zooming out much further so the whole restaurant
+  // can fit inside smaller embedded frames.
+  const MIN_ZOOM = mode === 'view' ? 0.08 : 0.4;
+  const clampZoom = (z: number) => Math.max(MIN_ZOOM, Math.min(2.5, z));
 
   const fitToScreen = () => {
     if (!canvasRef.current || !gridRef.current) return;

@@ -3,11 +3,11 @@
 
 type Translations = Record<string, any>;
 
-let currentLang = 'he';
+let currentLang = 'en';
 let translations: Translations = {};
 
 // Initialize with embedded translations or fetch from server
-export async function initI18n(lang: string = 'he') {
+export async function initI18n(lang: string = 'en') {
   currentLang = lang;
 
   try {
@@ -18,7 +18,7 @@ export async function initI18n(lang: string = 'he') {
     }
   } catch (error) {
     console.warn('Failed to load translations:', error);
-    // Fallback to Hebrew defaults
+    // Fallback to default translations
     translations = getDefaultTranslations();
   }
 }

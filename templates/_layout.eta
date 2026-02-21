@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="<%= it.lang || 'he' %>" dir="<%= it.dir || 'rtl' %>">
+<html lang="<%= it.lang || 'en' %>" dir="<%= it.dir || ((it.lang === 'he') ? 'rtl' : 'ltr') %>">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -9,6 +9,9 @@
   <% if (!it.admin) { %>
     <link rel="stylesheet" href="/static/styles.css?v=<%= it.BUILD_TAG || '' %>"/>
   <% } %>
+
+  <!-- Design tokens (load FIRST - canonical source of all CSS variables) -->
+  <link rel="stylesheet" href="/public/css/tokens.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
 
   <!-- External fonts intentionally not loaded to keep CSP strict (style-src 'self').
        spotbook.css uses a system font stack fallback. -->
@@ -93,23 +96,23 @@
 
       <% if (it.user) { %>
       <div class="user-mobile">
-        <%= it.t ? it.t('nav.signedin') : 'מחובר/ת' %>:
+        <%= it.t ? it.t('nav.signedin') : 'Signed in' %>:
         <strong><%= [it.user.firstName, it.user.lastName].filter(Boolean).join(" ") %></strong>
       </div>
       <% } %>
 
       <nav class="sb-actions" aria-label="Main actions">
         <% if (it.user) { %>
-          <a class="btn primary btn-manage" href="/owner"><%= it.t ? it.t('nav.manage') : 'נהל מסעדה' %></a>
-          <a class="btn ghost btn-logout" href="/auth/logout"><%= it.t ? it.t('nav.logout') : 'התנתק' %></a>
+          <a class="btn primary btn-manage" href="/owner"><%= it.t ? it.t('nav.manage') : 'Manage Restaurant' %></a>
+          <a class="btn ghost btn-logout" href="/auth/logout"><%= it.t ? it.t('nav.logout') : 'Logout' %></a>
         <% } else { %>
-          <a class="btn ghost" href="/auth/login"><%= it.t ? it.t('nav.login') : 'התחבר' %></a>
-          <a class="btn" style="border-color:transparent;background:var(--brand);color:var(--brand-ink)" href="/auth/register"><%= it.t ? it.t('nav.register') : 'הרשם' %></a>
+          <a class="btn ghost" href="/auth/login"><%= it.t ? it.t('nav.login') : 'Login' %></a>
+          <a class="btn" style="border-color:transparent;background:var(--brand);color:var(--brand-ink)" href="/auth/register"><%= it.t ? it.t('nav.register') : 'Register' %></a>
         <% } %>
 
         <!-- Language switch -->
         <div class="lang-switch">
-          <button class="lang-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="langMenu" title="<%= it.t ? it.t('nav.language') : 'בחר שפה' %>"></button>
+          <button class="lang-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="langMenu" title="<%= it.t ? it.t('nav.language') : 'Choose language' %>"></button>
           <div class="lang-menu" id="langMenu" role="menu">
             <a class="lang-item <%= (it.lang==='en'?'active':'') %>" href="/lang/en" role="menuitem">EN</a>
             <a class="lang-item <%= (it.lang==='ka'?'active':'') %>" href="/lang/ka" role="menuitem">GE</a>
@@ -128,7 +131,7 @@
     <div class="admin-bottom-right">
       <a href="/admin/login"><%= it.t ? (it.t('nav.admin') || 'Admin') : 'Admin' %></a>
     </div>
-    <p>© <%= new Date().getFullYear() %> SpotBook · <%= it.t ? (it.t('footer.rights') || 'כל הזכויות שמורות') : 'כל הזכויות שמורות' %></p>
+    <p>© <%= new Date().getFullYear() %> SpotBook · <%= it.t ? (it.t('footer.rights') || 'All rights reserved') : 'All rights reserved' %></p>
   </footer>
 
   <script src="/static/app.js?v=<%= it.BUILD_TAG || '' %>" defer></script>

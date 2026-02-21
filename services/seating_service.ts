@@ -89,6 +89,15 @@ export async function seatReservation(params: {
     // Ignore placeholder names coming from the UI
     if (direct && direct !== "—" && direct !== "-") return direct;
 
+    // Common reservation schema: firstName/lastName
+    const firstLast = (() => {
+      const fn = (reservation as any).firstName == null ? "" : String((reservation as any).firstName).trim();
+      const ln = (reservation as any).lastName == null ? "" : String((reservation as any).lastName).trim();
+      const full = `${fn} ${ln}`.trim();
+      return full.length ? full : "";
+    })();
+    if (firstLast && firstLast !== "—" && firstLast !== "-") return firstLast;
+
     const cand = [
       (reservation as any).name,
       (reservation as any).guestName,

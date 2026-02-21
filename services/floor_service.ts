@@ -1,7 +1,7 @@
 // services/floor_service.ts
 // Floor management service - table status, sections, mappings
 
-import { kv } from "../database.ts";
+import { kv, getReservationById } from "../database.ts";
 import type { Order, OrderItem } from "../pos/pos_db.ts";
 
 export type TableStatus = "empty" | "occupied" | "reserved" | "dirty";
@@ -94,17 +94,57 @@ export async function computeTableStatus(
   let seatGuestName: string | undefined;
   let seatPeople: number | undefined;
   let seatTime: string | undefined;
+  let seatReservationId: string | undefined;
   try {
     const seatKey = ["seat", "by_table", restaurantId, tableNumber] as Deno.KvKey;
     const seatRow = await kv.get(seatKey);
     const seat = seatRow.value as any;
     if (seat) {
-      if (seat.guestName) seatGuestName = String(seat.guestName);
+      if (seat.reservationId) seatReservationId = String(seat.reservationId);
+
+      // Try multiple common field names.
+      const nameCandidate = [
+        seat.guestName,
+        seat.name,
+        seat.fullName,
+        seat.customerName,
+        seat.contactName,
+      ]
+        .map((v: any) => (v == null ? "" : String(v).trim()))
+        .find((v: string) => v.length > 0 && v !== "—" && v !== "-");
+
+      if (nameCandidate) seatGuestName = nameCandidate;
       if (seat.people != null && Number.isFinite(Number(seat.people))) seatPeople = Number(seat.people);
       if (seat.time) seatTime = String(seat.time);
     }
   } catch {
     // ignore
+  }
+
+  // Fallback: sometimes seating records were stored without guestName.
+  // If we still don't have a name but we have a reservationId, resolve it from the reservation.
+  if (!seatGuestName && seatReservationId) {
+    try {
+      const res = await getReservationById(seatReservationId);
+      if (res) {
+        const fn = (res as any).firstName == null ? "" : String((res as any).firstName).trim();
+        const ln = (res as any).lastName == null ? "" : String((res as any).lastName).trim();
+        const firstLast = `${fn} ${ln}`.trim();
+        const cand = [
+          firstLast,
+          (res as any).name,
+          (res as any).guestName,
+          (res as any).fullName,
+          (res as any).customerName,
+          (res as any).contactName,
+        ]
+          .map((v: any) => (v == null ? "" : String(v).trim()))
+          .find((v: string) => v.length > 0 && v !== "—" && v !== "-");
+        if (cand) seatGuestName = cand;
+      }
+    } catch {
+      // ignore
+    }
   }
 
   // If no open order, still show seating info (if exists) and treat as occupied

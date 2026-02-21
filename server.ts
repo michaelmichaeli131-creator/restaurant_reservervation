@@ -1,5 +1,6 @@
 // src/server.ts
 // GeoTable – Oak server (extended, cleaned & ordered)
+// Deploy test: 2026-02-20
 // -------------------------------------------------------------
 // כולל:
 // - Error handler גלובלי (עם סטאק ללוג)
@@ -251,19 +252,6 @@ app.use(async (ctx, next) => {
   await next();
 });
 
-
-/* --- Static files (/css/* -> <CWD>/public/css/*) --- */
-// Backwards compatibility: some pages reference stylesheets via /css/...
-app.use(async (ctx, next) => {
-  const p = ctx.request.url.pathname;
-  if (p.startsWith("/css/")) {
-    const rel = "css/" + p.slice("/css/".length);
-    await send(ctx, rel, { root: `${Deno.cwd()}/public` });
-    return;
-  }
-  await next();
-});
-
 // --- Static files (/static/* -> public/*) ---
 app.use(async (ctx, next) => {
   const p = ctx.request.url.pathname;
@@ -403,9 +391,9 @@ root.get("/__mailtest", async (ctx) => {
 
 // i18n API endpoint - serves translation JSON for React client
 root.get("/api/i18n/:lang", async (ctx) => {
-  const lang = ctx.params.lang?.toLowerCase() || "he";
-  const supported = ["he", "en", "ka"];
-  const safeLang = supported.includes(lang) ? lang : "he";
+  const lang = ctx.params.lang?.toLowerCase() || "en";
+  const supported = ["en", "he", "ka"];
+  const safeLang = supported.includes(lang) ? lang : "en";
 
   try {
     const filePath = `./i18n/${safeLang}.json`;
@@ -609,17 +597,12 @@ app.use(staffTimeRouter.allowedMethods());
 
 // Staff shifts (My Shifts + Availability)
 app.use(staffShiftsRouter.routes());
-app.use(staffShiftsRouter.allowedMethods())
-
-// ✅ תוספת קריטית: staff shifts router
-app.use(staffShiftsRouter.routes());
 app.use(staffShiftsRouter.allowedMethods());
 
 app.use(ownerTimeRouter.routes());
 app.use(ownerTimeRouter.allowedMethods());
 
-app.use(ownerStaffRouter.routes());
-app.use(ownerStaffRouter.allowedMethods());
+// ownerStaffRouter already registered above (line 521-522) – no duplicate needed
 
 app.use(ownerPayrollRouter.routes());
 app.use(ownerPayrollRouter.allowedMethods());

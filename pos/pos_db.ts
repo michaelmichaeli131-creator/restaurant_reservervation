@@ -496,6 +496,19 @@ export async function closeOrderForTable(
     // ignore
   }
 
+  // When a bill is closed we want the table to become "empty" automatically.
+  // Our floor status model uses an optional override stored under ["table_status", rid, tableId].
+  // Deleting that override makes the table fall back to its computed status (which is empty now
+  // because the open order is closed and seating was cleared).
+  try {
+    const tableId = await getTableIdByNumber(restaurantId, table);
+    if (tableId) {
+      await kv.delete(["table_status", restaurantId, tableId] as Deno.KvKey);
+    }
+  } catch {
+    // ignore
+  }
+
   return updated;
 }
 

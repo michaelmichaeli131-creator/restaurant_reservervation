@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 import { initI18n } from './i18n';
+import ErrorBoundary from './components/ErrorBoundary';
+import { ToastProvider } from './components/Toast';
 
 // Get language from server-provided config or cookie
 declare global {
@@ -25,15 +27,19 @@ function getLang(): string {
   if (match) {
     return match[1];
   }
-  // Default to Hebrew
-  return 'he';
+  // Default to English
+  return 'en';
 }
 
 // Initialize i18n before rendering
 initI18n(getLang()).then(() => {
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-      <App />
+      <ErrorBoundary>
+        <ToastProvider>
+          <App />
+        </ToastProvider>
+      </ErrorBoundary>
     </React.StrictMode>
   );
 });

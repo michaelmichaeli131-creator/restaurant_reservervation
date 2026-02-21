@@ -362,9 +362,16 @@
   /* מפת מסעדה */
 
   .floor-wrapper{
-    margin-top:8px;
-    min-height: 260px;
-    width:100%;
+    margin-top: 8px;
+    width: 100%;
+    height: min(72vh, 780px);
+    min-height: 520px;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,.06);
   }
 
   /* מפה: הסטיילים נמצאים ב-public/css/sb-floor-map.css */

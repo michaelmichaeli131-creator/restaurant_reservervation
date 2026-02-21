@@ -22,6 +22,7 @@ import {
 import {
   listFloorSections,
   getTableIdByNumber,
+  markTableDirty,
 } from "../services/floor_service.ts";
 
 import {
@@ -603,11 +604,17 @@ hostRouter.post("/api/host/table/unseat", async (ctx) => {
 
   for (const tn of tables) {
     try {
-      // 1) שחרור ישיבה (KV)
+      // 1) Release seating (KV)
       await unseatTable({ restaurantId: rid, table: tn });
 
-      // 2) סגירת הזמנה פתוחה (אם יש) – לא קריטי אם אין
+      // 2) Close open order (if any)
       await closeOrderForTable(rid, tn);
+
+      // 3) Auto-mark table as "dirty" for cleanup
+      const floorTableId = await getTableIdByNumber(rid, tn);
+      if (floorTableId) {
+        await markTableDirty(rid, floorTableId, user?.id ?? "system");
+      }
 
       freed.push(tn);
     } catch (err) {
@@ -624,7 +631,51 @@ hostRouter.post("/api/host/table/unseat", async (ctx) => {
   ctx.response.body = { ok: true, freed, errors };
 });
 
-/** GET /api/host/table/info – פרטים על שולחן תפוס למארחת */
+/** POST /api/host/table/clean - Mark a dirty table as clean (ready for new guests) */
+hostRouter.post("/api/host/table/clean", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+
+  const user = ctx.state.user;
+  const body = await ctx.request.body.json().catch(() => ({}));
+  const ridRaw = String(body.restaurantId ?? body.rid ?? "");
+  const rid = resolveRestaurantIdForRequest(ctx, ridRaw);
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
+
+  const tableNumbers: number[] = Array.isArray(body.tables)
+    ? body.tables.map(Number).filter((n: number) => n > 0)
+    : body.table ? [Number(body.table)] : [];
+
+  if (!tableNumbers.length) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "missing_tables" };
+    return;
+  }
+
+  const cleaned: number[] = [];
+  const errors: Array<{ table: number; message: string }> = [];
+
+  const { markTableClean: doClean } = await import("../services/floor_service.ts");
+
+  for (const tn of tableNumbers) {
+    try {
+      const floorTableId = await getTableIdByNumber(rid, tn);
+      if (floorTableId) {
+        await doClean(rid, floorTableId, user?.id ?? "system");
+        cleaned.push(tn);
+      } else {
+        errors.push({ table: tn, message: "table_not_found_in_floor_plan" });
+      }
+    } catch (err) {
+      errors.push({ table: tn, message: (err as Error).message || "unknown_error" });
+    }
+  }
+
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = { ok: true, cleaned, errors };
+});
+
+/** GET /api/host/table/info - Table occupant details for host */
 hostRouter.get("/api/host/table/info", async (ctx) => {
   if (!requireStaff(ctx)) return;
 

@@ -1,7 +1,7 @@
 // src/routes/restaurants/reservation.controller.ts
 import { Status } from "jsr:@oak/oak";
 import {
-  checkAvailability, createReservation, getRestaurant, getUserById,
+  checkAvailability, createReservation, createReservationSafe, getRestaurant, getUserById,
   type Reservation,
 } from "../../database.ts";
 import { render } from "../../lib/view.ts";
@@ -24,7 +24,7 @@ function getLang(ctx: any): string {
   if (/^en/i.test(al)) return "en";
   if (/^ka/i.test(al)) return "ka";
   if (/^he/i.test(al)) return "he";
-  return "he";
+  return "en";
 }
 function getT(ctx: any): (k: string, fb?: string) => string {
   const t = ctx.state?.t;
@@ -222,7 +222,10 @@ export async function confirmGet(ctx: any) {
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("תאריך לא תקין");
   if (!/^\d{2}:\d{2}$/.test(time))       return bad("שעה לא תקינה");
+  if (people < 1 || people > 100)        return bad("מספר סועדים לא תקין (1-100)");
   if (!customerName)                     return bad("נא להזין שם");
+  if (customerName.length > 100)         return bad("שם ארוך מדי (עד 100 תווים)");
+  if (customerNote.length > 500)         return bad("הערה ארוכה מדי (עד 500 תווים)");
   if (!customerPhone && !customerEmail)  return bad("נא להזין טלפון או אימייל");
   if (customerEmail && !isValidEmailStrict(customerEmail))
     return bad("נא להזין אימייל תקין", { customerEmail });
@@ -265,7 +268,7 @@ export async function confirmGet(ctx: any) {
     note: reservationNote,
     createdAt: Date.now(),
   };
-  await createReservation(reservation);
+  await createReservationSafe(reservation);
 
   // --- שפה/קישורי ניהול (רב-לשוני) ---
   const lang = ctx.state?.lang ?? getLang(ctx);
@@ -375,7 +378,10 @@ export async function confirmPost(ctx: any) {
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("תאריך לא תקין");
   if (!/^\d{2}:\d{2}$/.test(time))       return bad("שעה לא תקינה");
+  if (people < 1 || people > 100)        return bad("מספר סועדים לא תקין (1-100)");
   if (!customerName)                     return bad("נא להזין שם");
+  if (customerName.length > 100)         return bad("שם ארוך מדי (עד 100 תווים)");
+  if (customerNote.length > 500)         return bad("הערה ארוכה מדי (עד 500 תווים)");
   if (!customerPhone && !customerEmail)  return bad("נא להזין טלפון או אימייל");
   if (customerEmail && !isValidEmailStrict(customerEmail)) return bad("נא להזין אימייל תקין", { customerEmail, note: "strict check" });
 
@@ -417,7 +423,7 @@ export async function confirmPost(ctx: any) {
     note: reservationNote,
     createdAt: Date.now(),
   };
-  await createReservation(reservation);
+  await createReservationSafe(reservation);
 
   // --- שפה/קישורי ניהול (רב-לשוני) ---
   const lang = ctx.state?.lang ?? getLang(ctx);

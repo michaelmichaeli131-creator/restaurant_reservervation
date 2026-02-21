@@ -1,10 +1,10 @@
 // /src/middleware/i18n.ts
 import type { Context, Middleware } from "jsr:@oak/oak";
 
-export const SUPPORTED = ["he", "en", "ka"] as const;
+export const SUPPORTED = ["en", "he", "ka"] as const;
 export type Locale = typeof SUPPORTED[number];
 
-const DEFAULT: Locale = "he";
+const DEFAULT: Locale = "en";
 const DIR: Record<Locale, "rtl" | "ltr"> = { he: "rtl", en: "ltr", ka: "ltr" };
 
 const NODE_ENV = Deno.env.get("NODE_ENV") ?? "production";
@@ -77,7 +77,7 @@ async function loadDict(locale: Locale, page?: string): Promise<Record<string, u
   } catch (err) {
     console.warn(`[i18n] failed to load base dict ${basePath} →`, err);
     if (locale !== DEFAULT) {
-      // fallback לבסיס בעברית
+      // fallback to default language (English)
       try {
         const fbTxt = await Deno.readTextFile(baseDictPath(DEFAULT));
         baseDict = JSON.parse(fbTxt) as Record<string, unknown>;
