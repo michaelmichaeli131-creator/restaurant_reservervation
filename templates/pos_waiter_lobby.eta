@@ -212,11 +212,11 @@
       const target = e.target;
       if (!(target instanceof Element)) return;
 
-      const li = target.closest(".open-table-item");
+      const li = target.closest(".open-item");
       if (!li) return;
 
-      const tableNumber = Number(li.getAttribute("data-table-number") || "0");
-      const posUrl = li.getAttribute("data-pos-url") || "";
+      const tableNumber = Number(li.getAttribute("data-table") || li.getAttribute("data-table-number") || "0");
+      const posUrl = (li.getAttribute("data-pos-url") || "").trim();
 
       // Go directly to POS screen (only relevant when order is open)
       if (target.closest(".open-pos-link")) {

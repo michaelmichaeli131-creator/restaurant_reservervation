@@ -235,10 +235,12 @@ export default function FloorViewPage({
       const tableNumber = Number((ce as any)?.detail?.tableNumber);
       if (!Number.isFinite(tableNumber) || tableNumber <= 0) return;
 
-      const tables = (activeLayout as any)?.tables;
+      // Use the currently loaded active layout (fallback to the first layout in state).
+      const layout: any = currentLayout ?? (layouts.length ? layouts[0] : null);
+      const tables = layout?.tables;
       if (!Array.isArray(tables)) return;
 
-      const t = tables.find((x: any) => Number(x?.tableNumber) === tableNumber);
+      const t = tables.find((x: any) => getTableNumber(x) === tableNumber);
       if (t?.id) {
         setSelectedTableId(String(t.id));
         setSelectedTableIds([]);
@@ -247,7 +249,7 @@ export default function FloorViewPage({
 
     window.addEventListener("sb-floor-select-table-number", handler as any);
     return () => window.removeEventListener("sb-floor-select-table-number", handler as any);
-  }, [mountMode, activeLayout]);
+  }, [mountMode, currentLayout, layouts]);
 
   const updateTableStatus = React.useCallback(
     async (tableId: string, status: NormalStatus) => {
@@ -387,13 +389,13 @@ export default function FloorViewPage({
                                 <>
                                   <button
                                     className="sbv-secondary-btn"
-                                    onClick={(e) => { e.stopPropagation(); updateTableStatus(selectedTableId, "dirty"); window.dispatchEvent(new Event("sb-floor-refresh")); }}
+                                    onClick={async (e) => { e.stopPropagation(); await updateTableStatus(selectedTableId, "dirty"); window.dispatchEvent(new Event("sb-floor-refresh")); }}
                                   >
                                     סמן מלוכלך
                                   </button>
                                   <button
                                     className="sbv-secondary-btn"
-                                    onClick={(e) => { e.stopPropagation(); updateTableStatus(selectedTableId, "empty"); window.dispatchEvent(new Event("sb-floor-refresh")); }}
+                                    onClick={async (e) => { e.stopPropagation(); await updateTableStatus(selectedTableId, "empty"); window.dispatchEvent(new Event("sb-floor-refresh")); }}
                                   >
                                     סמן נקי
                                   </button>

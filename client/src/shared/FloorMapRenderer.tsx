@@ -200,7 +200,10 @@ export default function FloorMapRenderer({
     const availW = Math.max(1, canvas.clientWidth - padL - padR - inset * 2);
     const availH = Math.max(1, canvas.clientHeight - padT - padB - inset * 2);
 
-    const scale = clampZoom(Math.min(availW / baseW, availH / baseH, 1.2));
+    // Fit slightly smaller than the tight bounding box so the whole restaurant always
+    // sits comfortably inside its frame (prevents edge clipping on some layouts).
+    const fit = Math.min(availW / baseW, availH / baseH);
+    const scale = clampZoom(Math.min(fit * 0.96, 1.2));
     setZoom(scale);
 
     const cx = Math.round(padL + inset + (availW - baseW * scale) / 2);

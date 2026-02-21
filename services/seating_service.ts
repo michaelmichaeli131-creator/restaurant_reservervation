@@ -86,7 +86,8 @@ export async function seatReservation(params: {
 
   const resolvedGuestName = (() => {
     const direct = guestName?.trim();
-    if (direct) return direct;
+    // Ignore placeholder names coming from the UI
+    if (direct && direct !== "—" && direct !== "-") return direct;
 
     const cand = [
       (reservation as any).name,
@@ -96,9 +97,17 @@ export async function seatReservation(params: {
       (reservation as any).contactName,
     ]
       .map((v) => (v == null ? "" : String(v).trim()))
-      .find((v) => v.length > 0);
+      .find((v) => v.length > 0 && v !== "—" && v !== "-");
 
-    return cand || undefined;
+    if (cand) return cand;
+
+    // Many flows store the customer's name inside `reservation.note` (e.g. "Name: John Doe").
+    const note = (reservation as any).note == null ? "" : String((reservation as any).note);
+    const m = note.match(/(?:^|[;\n])\s*(?:name|customer\s*name|שם)\s*:\s*([^;\n]+)/i);
+    const parsed = m?.[1]?.trim();
+    if (parsed && parsed !== "—" && parsed !== "-") return parsed;
+
+    return undefined;
   })();
 
   const data: SeatingInfo = {
