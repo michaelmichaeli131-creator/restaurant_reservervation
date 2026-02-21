@@ -9,6 +9,9 @@ import { render } from "../lib/view.ts";
 import {
   computeAllTableStatuses,
   setTableMappingsFromFloorPlan,
+  setTableStatusOverride,
+  markTableDirty,
+  markTableClean,
   createFloorSection,
   getFloorSection,
   listFloorSections,
@@ -24,6 +27,7 @@ import {
   getActiveFloorLayout,
   duplicateFloorLayout,
   type FloorLayout,
+  type TableStatus as FloorTableStatus,
 } from "../services/floor_service.ts";
 
 export const ownerFloorRouter = new Router();
@@ -178,18 +182,11 @@ ownerFloorRouter.post(
       return;
     }
 
-    // Store table status update
-    const statusKey = toKey("table_status", restaurantId, tableId);
-    const statusData = {
-      tableId,
-      status,
-      updatedAt: Date.now(),
-      updatedBy: user.id,
-    };
-    await kv.set(statusKey, statusData);
+    // Persist table status override via the floor service
+    await setTableStatusOverride(restaurantId, tableId, status as FloorTableStatus, user.id);
 
     ctx.response.status = 200;
-    ctx.response.body = { success: true, status: statusData };
+    ctx.response.body = { success: true, tableId, status };
   }
 );
 

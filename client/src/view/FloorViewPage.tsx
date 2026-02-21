@@ -1,6 +1,7 @@
 import React from "react";
 import FloorMapRenderer from "../shared/FloorMapRenderer";
 import type { FloorLayoutLike as FloorLayout } from "../shared/FloorMapRenderer";
+import { t } from "../i18n";
 import "./floorViewPage.css";
 
 // Shape mirrors what the backend attaches as `tableStatuses` on the active layout.
@@ -28,17 +29,8 @@ function normalizeStatus(s?: string | null): NormalStatus {
   return "empty";
 }
 
-function statusLabelHe(s: NormalStatus): string {
-  switch (s) {
-    case "occupied":
-      return "תפוס";
-    case "reserved":
-      return "שמור";
-    case "dirty":
-      return "מלוכלך";
-    default:
-      return "פנוי";
-  }
+function statusLabel(s: NormalStatus): string {
+  return t(`floor.status.${s}`, s);
 }
 
 export default function FloorViewPage({
@@ -68,9 +60,6 @@ export default function FloorViewPage({
       }
 
       const data = await res.json();
-      // Backend compatibility:
-      // - Preferred: the API returns the active layout object directly (with tableStatuses attached).
-      // - Legacy/alternate: { activeLayout: <layout> }.
       const active: FloorLayout | null = (data && (data as any).id)
         ? (data as FloorLayout)
         : (data?.activeLayout ?? null);
@@ -79,25 +68,23 @@ export default function FloorViewPage({
         setLayouts([]);
         setActiveLayoutId(null);
         setSelectedLayoutId(null);
-        setError("אין מפת מסעדה פעילה");
+        setError(t("host.no_floor_plan", "No active floor plan"));
         setLoading(false);
         return;
       }
 
-      // In this project, we only keep a single active layout.
       setLayouts([active]);
       setActiveLayoutId(active.id);
       setSelectedLayoutId((prev) => prev ?? active.id);
       setError(null);
       setLoading(false);
 
-      // If the selected table no longer exists, close the drawer
       if (selectedTableId) {
         const stillExists = (active.tables || []).some((t) => String(t.id) === String(selectedTableId));
         if (!stillExists) setSelectedTableId(null);
       }
     } catch (e: any) {
-      setError(`שגיאה בטעינת המפה: ${e?.message ?? "unknown"}`);
+      setError(t("host.err_load_map", "Error loading floor map") + `: ${e?.message ?? "unknown"}`);
       setLoading(false);
     }
   }, [restaurantId, selectedTableId]);
@@ -123,7 +110,6 @@ export default function FloorViewPage({
     const statuses = (currentLayout as any).tableStatuses as TableStatusEntry[] | undefined;
     if (!Array.isArray(statuses)) return null;
 
-    // prefer by id, fall back to number
     const byId = statuses.find((s) => String((s as any).tableId) === String(selectedTable.id));
     if (byId) return byId;
     return statuses.find((s) => (s as any).tableNumber === (selectedTable as any).number) ?? null;
@@ -139,12 +125,27 @@ export default function FloorViewPage({
 
   const closeDrawer = () => setSelectedTableId(null);
 
+  const handleMarkClean = async () => {
+    const tn = (selectedTable as any)?.number ?? (selectedTable as any)?.tableNumber;
+    if (!tn) return;
+    try {
+      await fetch("/api/host/table/clean", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurantId, table: tn }),
+      });
+      await loadActive();
+    } catch (err) {
+      console.error("Failed to mark table clean:", err);
+    }
+  };
+
   const rootClass = `floor-editor sb-floor-view ${mountMode === "lobby" ? "is-embed" : ""}`;
 
   if (loading) {
     return (
       <div className={rootClass}>
-        <div className="sbv-loading">טוען מפת מסעדה…</div>
+        <div className="sbv-loading">{t("floor.loading", "Loading floor plan...")}</div>
       </div>
     );
   }
@@ -153,10 +154,10 @@ export default function FloorViewPage({
     return (
       <div className={rootClass}>
         <div className="sbv-error">
-          <div className="sbv-error-title">לא ניתן לטעון את מפת המסעדה</div>
-          <div className="sbv-error-sub">{error ?? "קרתה שגיאה בטעינת המפה"}</div>
+          <div className="sbv-error-title">{t("host.err_load_map", "Cannot load floor map")}</div>
+          <div className="sbv-error-sub">{error ?? t("host.err_load_map", "Error loading floor map")}</div>
           <button className="sbv-retry" onClick={loadActive}>
-            נסה שוב
+            {t("common.btn_refresh", "Retry")}
           </button>
         </div>
       </div>
@@ -166,32 +167,29 @@ export default function FloorViewPage({
   return (
     <div className={rootClass}>
       <div className="sbv-shell">
-        {/* LEFT: map frame (same chrome as editor) */}
         <div className="sbv-left">
-          {/* Use the same top-bar structure as the editor to avoid flex bugs (layout-tabs has flex:1 in editor CSS) */}
           <div className="layout-tabs-bar sbv-view-topbar">
             <div className="sbv-topbar-left">
-              <div className="sbv-topbar-title">עדכון סידור שולחנות</div>
-              <div className="sbv-topbar-sub">גרור כדי להזיז • Ctrl+גלגלת כדי להגדיל • ⤢ להתאמה למסך</div>
+              <div className="sbv-topbar-title">{t("host.floor_map_title", "Restaurant Map (Live)")}</div>
+              <div className="sbv-topbar-sub">{t("floor.hints.controls", "Drag to pan, Ctrl+wheel to zoom")}</div>
             </div>
 
             <div className="sbv-legend" aria-label="Legend">
               <span className="sbv-pill is-empty">
-                <span className="sbv-dot" /> פנוי
+                <span className="sbv-dot" /> {statusLabel("empty")}
               </span>
               <span className="sbv-pill is-occupied">
-                <span className="sbv-dot" /> תפוס
+                <span className="sbv-dot" /> {statusLabel("occupied")}
               </span>
               <span className="sbv-pill is-reserved">
-                <span className="sbv-dot" /> שמור
+                <span className="sbv-dot" /> {statusLabel("reserved")}
               </span>
               <span className="sbv-pill is-dirty">
-                <span className="sbv-dot" /> מלוכלך
+                <span className="sbv-dot" /> {statusLabel("dirty")}
               </span>
             </div>
           </div>
 
-          {/* IMPORTANT: renderer root is `.editor-canvas` which expects to be a direct flex-item of `.editor-content` */}
           <div className="editor-content sbv-editor-content">
             <FloorMapRenderer
               layout={currentLayout}
@@ -202,68 +200,71 @@ export default function FloorViewPage({
           </div>
         </div>
 
-        {/* RIGHT: details panel OUTSIDE the map frame (as requested) */}
-        <aside className="sbv-right" aria-label="Table details">
+        <aside className="sbv-right" aria-label={t("host.table_details", "Table details")}>
           {selectedTableId ? (
             <div className="sbv-right-panel" role="dialog" aria-modal="false">
               <div className="sbv-drawer-header">
-                <div className="sbv-drawer-title">פרטי שולחן</div>
-                <button className="sbv-close" onClick={closeDrawer} aria-label="Close">
-                  ✕
+                <div className="sbv-drawer-title">{t("host.table_details", "Table Details")}</div>
+                <button className="sbv-close" onClick={closeDrawer} aria-label={t("common.btn_close", "Close")}>
+                  &#10005;
                 </button>
               </div>
 
               <div className="sbv-drawer-body">
-                <div className="sbv-table-number">שולחן {(selectedTable as any)?.number ?? "—"}</div>
+                <div className="sbv-table-number">{t("host.table_label", "Table")} {(selectedTable as any)?.number ?? "—"}</div>
 
                 <div className={`sbv-status-row is-${selectedStatus}`}>
                   <span className="sbv-status-dot" />
-                  <span className="sbv-status-label">סטטוס שולחן</span>
-                  <span className="sbv-status-value">{statusLabelHe(selectedStatus)}</span>
+                  <span className="sbv-status-label">{t("host.table_status_label", "Table Status")}</span>
+                  <span className="sbv-status-value">{statusLabel(selectedStatus)}</span>
                 </div>
 
                 <div className="sbv-kv">
                   <div className="sbv-kv-row">
-                    <div className="sbv-kv-key">שם המזמין</div>
+                    <div className="sbv-kv-key">{t("host.guest_name", "Guest Name")}</div>
                     <div className="sbv-kv-val">{(selectedStatusEntry as any)?.guestName ?? "—"}</div>
                   </div>
                   <div className="sbv-kv-row">
-                    <div className="sbv-kv-key">מספר סועדים</div>
+                    <div className="sbv-kv-key">{t("host.num_guests", "Guests")}</div>
                     <div className="sbv-kv-val">
                       {(selectedStatusEntry as any)?.guestCount != null ? String((selectedStatusEntry as any).guestCount) : "—"}
                     </div>
                   </div>
                   <div className="sbv-kv-row">
-                    <div className="sbv-kv-key">שעת ההזמנה</div>
+                    <div className="sbv-kv-key">{t("host.reservation_time", "Reservation Time")}</div>
                     <div className="sbv-kv-val">{(selectedStatusEntry as any)?.reservationTime ?? "—"}</div>
                   </div>
                   <div className="sbv-kv-row">
-                    <div className="sbv-kv-key">מספר פריטים</div>
+                    <div className="sbv-kv-key">{t("pos.waiter.items_label", "Items")}</div>
                     <div className="sbv-kv-val">{(selectedStatusEntry as any)?.itemsCount ?? "—"}</div>
                   </div>
                   <div className="sbv-kv-row">
-                    <div className="sbv-kv-key">סכום ביניים</div>
+                    <div className="sbv-kv-key">{t("pos.waiter.subtotal", "Subtotal")}</div>
                     <div className="sbv-kv-val">{(selectedStatusEntry as any)?.subtotal ?? "—"}</div>
                   </div>
                 </div>
               </div>
 
               <div className="sbv-drawer-footer">
-                {selectedStatus === "occupied" && (selectedTable as any)?.number ? (
+                {selectedStatus === "dirty" && (selectedTable as any)?.number ? (
+                  <button className="sbv-success-btn" onClick={handleMarkClean}>
+                    {t("floor.btn_mark_clean", "Mark as Clean")}
+                  </button>
+                ) : selectedStatus === "occupied" && (selectedTable as any)?.number ? (
                   <a className="sbv-primary-btn" href={`/waiter/${restaurantId}/${(selectedTable as any).number}`}>
-                    פתח הזמנה
+                    {t("pos.waiter.btn_open_order", "Open Order")}
                   </a>
                 ) : (
                   <button className="sbv-secondary-btn" onClick={closeDrawer}>
-                    סגור
+                    {t("common.btn_close", "Close")}
                   </button>
                 )}
               </div>
             </div>
           ) : (
             <div className="sbv-right-empty">
-              <div className="sbv-right-empty-title">פרטי שולחן</div>
-              <div className="sbv-right-empty-sub">בחר שולחן במפה כדי לראות סטטוס ופרטים.</div>
+              <div className="sbv-right-empty-title">{t("host.table_details", "Table Details")}</div>
+              <div className="sbv-right-empty-sub">{t("host.floor_map_help", "Select a table on the map to view details.")}</div>
             </div>
           )}
         </aside>

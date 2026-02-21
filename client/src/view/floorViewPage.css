@@ -351,7 +351,8 @@
 }
 
 .sbv-primary-btn,
-.sbv-secondary-btn {
+.sbv-secondary-btn,
+.sbv-success-btn {
   height: 40px;
   padding: 0 14px;
   border-radius: 12px;
@@ -372,4 +373,13 @@
 .sbv-secondary-btn {
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
+}
+
+.sbv-success-btn {
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.92), rgba(52, 211, 153, 0.92));
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
 }

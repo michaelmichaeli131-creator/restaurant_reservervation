@@ -326,6 +326,8 @@
       "reserved": "Reserved",
       "dirty": "Dirty"
     },
+    "btn_mark_clean": "Mark as Clean",
+    "btn_mark_dirty": "Mark as Dirty",
     "sections": {
       "title": "Sections",
       "show_only_active": "Show only active section"
