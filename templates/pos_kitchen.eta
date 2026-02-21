@@ -27,9 +27,9 @@
     </div>
   </header>
 
-  <section class="panel card kitchen-board" aria-label="<%= tt('pos.kitchen.orders_title', 'הזמנות מטבח') %>">
+  <section class="panel card kitchen-board" aria-label="<%= tt('pos.kitchen.orders_title', 'Kitchen Orders') %>">
     <h2 class="card-title"><%= tt('pos.kitchen.orders_title', 'Kitchen Orders') %></h2>
-    <p class="muted" style="font-size:12px;margin-bottom:6px">
+    <p class="muted kitchen-instructions">
       <%= tt('pos.kitchen.instructions', 'Arrows change status: forward (Received > In Progress > Ready) or backward.') %><br>
       <%= tt('pos.kitchen.served_note', '"Served" status is updated only by the waiter.') %>
     </p>
@@ -72,7 +72,7 @@
       Object.values(cols).forEach(c => { if (c) c.innerHTML = ""; });
 
       const items = Array.from(state.values())
-        .filter(it => it.destination === "kitchen"); // רק מטבח
+        .filter(it => it.destination === "kitchen");
 
       items.sort((a,b) => a.createdAt - b.createdAt);
 
@@ -140,7 +140,7 @@
     function nextStatus(current){
       if (current === "received") return "in_progress";
       if (current === "in_progress") return "ready";
-      if (current === "ready") return "ready";   // אין מעבר ל-served
+      if (current === "ready") return "ready";   // no transition to served
       if (current === "served") return "served";
       if (current === "cancelled") return "cancelled";
       return current;
@@ -150,7 +150,7 @@
       if (current === "ready") return "in_progress";
       if (current === "in_progress") return "received";
       if (current === "received") return "received";
-      if (current === "served") return "ready"; // במקרה נדיר שנרצה להחזיר
+      if (current === "served") return "ready"; // rare: revert served back
       return current;
     }
 
@@ -236,117 +236,170 @@
 </script>
 
 <style>
+  /* --- Kitchen page header --- */
   .pos-kitchen-page .kitchen-header{
     display:flex;
     align-items:center;
     justify-content:space-between;
-    gap:12px;
-    margin-bottom:16px;
+    gap:var(--sb-space-md);
+    margin-bottom:var(--sb-space-lg);
   }
   .pos-kitchen-page h1{
     margin:0;
-    font-size:clamp(18px,2.6vw,24px);
-  }
-  .pos-kitchen-page .panel.card{
-    background: var(--panel,#020617);
-    border-radius:18px;
-    border:1px solid var(--bd,#1f2937);
-    box-shadow:0 18px 50px rgba(0,0,0,.5);
-    padding:14px 16px;
+    font-size:clamp(var(--sb-font-lg), 2.6vw, var(--sb-font-2xl));
+    font-weight:var(--sb-weight-bold);
+    color:var(--sb-color-ink);
   }
 
+  /* --- Board panel --- */
+  .pos-kitchen-page .panel.card{
+    background:var(--sb-color-panel);
+    border-radius:var(--sb-radius-xl);
+    border:1px solid var(--sb-color-bd);
+    box-shadow:var(--sb-shadow-lg);
+    padding:var(--sb-space-lg);
+  }
+
+  .kitchen-instructions{
+    font-size:var(--sb-font-sm);
+    margin-bottom:var(--sb-space-sm);
+    color:var(--sb-color-ink-muted);
+  }
+
+  /* --- Column grid --- */
   .kitchen-columns{
     display:grid;
-    grid-template-columns:repeat(4,1fr);
-    gap:10px;
-    margin-top:10px;
+    grid-template-columns:repeat(3,1fr);
+    gap:var(--sb-space-md);
+    margin-top:var(--sb-space-md);
   }
   .kitchen-col{
-    background:rgba(15,23,42,0.85);
-    border-radius:14px;
-    border:1px solid rgba(30,64,175,0.6);
+    background:var(--sb-color-panel-2);
+    border-radius:var(--sb-radius-lg);
+    border:1px solid var(--sb-color-accent-border);
     display:flex;
     flex-direction:column;
-    min-height:220px;
+    min-height:240px;
   }
+
+  /* --- Column header with status-colored accent --- */
   .kitchen-col .col-head{
-    padding:6px 8px;
-    font-size:14px;
-    font-weight:600;
-    border-bottom:1px solid rgba(15,23,42,0.9);
-    background:linear-gradient(90deg,#1d4ed8,#22c55e);
-    -webkit-background-clip:text;
-    color:transparent;
+    padding:var(--sb-space-sm) var(--sb-space-md);
+    font-size:var(--sb-font-sm);
+    font-weight:var(--sb-weight-semibold);
+    border-bottom:1px solid var(--sb-color-bd);
     text-align:center;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    color:var(--sb-color-ink);
   }
+  .kitchen-col[data-status="received"] .col-head{
+    border-bottom-color:var(--sb-color-brand);
+    color:var(--sb-color-brand);
+  }
+  .kitchen-col[data-status="in_progress"] .col-head{
+    border-bottom-color:var(--sb-color-warning);
+    color:var(--sb-color-warning);
+  }
+  .kitchen-col[data-status="ready"] .col-head{
+    border-bottom-color:var(--sb-color-success);
+    color:var(--sb-color-success);
+  }
+
   .kitchen-col .col-body{
     flex:1;
-    padding:6px 6px 10px;
+    padding:var(--sb-space-sm);
     overflow-y:auto;
   }
 
+  /* --- Ticket / order card --- */
   .ticket{
-    border-radius:10px;
-    border:1px solid rgba(30,64,175,0.7);
-    background:rgba(15,23,42,0.98);
-    padding:6px 7px;
-    margin-bottom:6px;
+    border-radius:var(--sb-radius-md);
+    border:1px solid var(--sb-color-bd);
+    background:var(--sb-color-panel);
+    padding:var(--sb-space-sm) var(--sb-space-md);
+    margin-bottom:var(--sb-space-sm);
     cursor:default;
-    font-size:13px;
+    font-size:var(--sb-font-sm);
+    transition:border-color var(--sb-ease-fast), box-shadow var(--sb-ease-fast);
   }
+  .ticket:hover{
+    border-color:var(--sb-color-accent-border);
+    box-shadow:var(--sb-shadow-sm);
+  }
+
   .ticket-title{
-    font-weight:600;
-    margin-bottom:2px;
+    font-weight:var(--sb-weight-semibold);
+    font-size:var(--sb-font-sm);
+    color:var(--sb-color-ink);
+    margin-bottom:var(--sb-space-xs);
+    line-height:var(--sb-leading-tight);
   }
   .ticket-meta{
-    font-size:12px;
-    color:var(--ink-muted,#9ca3af);
-    margin-bottom:2px;
+    font-size:var(--sb-font-xs);
+    color:var(--sb-color-ink-muted);
+    margin-bottom:var(--sb-space-xs);
   }
   .ticket-bottom{
     display:flex;
     justify-content:space-between;
     align-items:center;
-    margin-top:2px;
+    margin-top:var(--sb-space-xs);
+    padding-top:var(--sb-space-xs);
+    border-top:1px solid rgba(255,255,255,0.05);
   }
   .ticket-time{
-    font-size:11px;
-    color:var(--ink-muted,#9ca3af);
+    font-size:var(--sb-font-xs);
+    color:var(--sb-color-ink-muted);
+    font-variant-numeric:tabular-nums;
   }
   .ticket-actions{
     display:flex;
-    gap:4px;
-  }
-  .btn-ticket.small{
-    font-size:11px;
-    padding:2px 6px;
-    border-radius:999px;
-    border:1px solid rgba(30,64,175,0.8);
-    background:rgba(15,23,42,1);
-    color:#e5e7eb;
-    cursor:pointer;
-  }
-  .btn-ticket.small:hover{
-    border-color:#22c55e;
+    gap:var(--sb-space-xs);
   }
 
+  /* --- Ticket action buttons --- */
+  .btn-ticket.small{
+    font-size:var(--sb-font-xs);
+    padding:var(--sb-space-xs) var(--sb-space-sm);
+    border-radius:var(--sb-radius-pill);
+    border:1px solid var(--sb-color-accent-border);
+    background:var(--sb-color-panel-2);
+    color:var(--sb-color-ink);
+    cursor:pointer;
+    transition:border-color var(--sb-ease-fast), background var(--sb-ease-fast);
+    line-height:1;
+  }
+  .btn-ticket.small:hover{
+    border-color:var(--sb-color-success);
+    background:var(--sb-color-success-soft);
+  }
+
+  /* --- Header button --- */
   .btn{
     display:inline-flex;
     align-items:center;
     justify-content:center;
-    gap:6px;
-    padding:8px 12px;
-    border-radius:12px;
-    border:1px solid var(--bd,#1f2937);
+    gap:var(--sb-space-sm);
+    padding:var(--sb-space-sm) var(--sb-space-md);
+    border-radius:var(--sb-radius-lg);
+    border:1px solid var(--sb-color-bd);
     background:transparent;
-    color:var(--ink,#e5e7eb);
+    color:var(--sb-color-ink);
+    font-size:var(--sb-font-sm);
+    font-weight:var(--sb-weight-medium);
     cursor:pointer;
     text-decoration:none;
+    transition:background var(--sb-ease-fast), border-color var(--sb-ease-fast);
+  }
+  .btn:hover{
+    background:rgba(255,255,255,0.06);
   }
   .btn.ghost{
-    background:rgba(15,23,42,0.7);
+    background:var(--sb-color-panel-2);
   }
 
+  /* --- Responsive --- */
   @media (max-width:1000px){
     .kitchen-columns{
       grid-template-columns:repeat(2,1fr);
@@ -358,5 +411,5 @@
     }
   }
 
-  .small{ font-size:11px; }
+  .small{ font-size:var(--sb-font-xs); }
 </style>

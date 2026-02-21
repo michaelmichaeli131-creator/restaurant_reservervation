@@ -6,6 +6,7 @@
     "login": "Login",
     "register": "Register",
     "admin": "Admin",
+    "admin_area": "Admin Area",
     "language": "Choose language",
     "changePassword": "Change Password"
   },
@@ -286,6 +287,13 @@
       "form": {
         "role_user": "User"
       }
+    },
+    "verify_done": {
+      "title": "Verification Complete!",
+      "sub": "Your account is ready to use",
+      "lead": "You can proceed to the homepage or open the admin area.",
+      "btn_home": "Go to Homepage",
+      "btn_dashboard": "Go to Dashboard"
     }
   },
   "floor": {

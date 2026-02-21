@@ -330,28 +330,40 @@ function page(
 function renderRestaurantRow(ctx: any, r: Restaurant, key: string) {
   const t = (k: string, fb: string, v?: Record<string, unknown>) => tr(ctx, k, fb, v);
   const approved = r.approved
-    ? `✅ ${t("admin.status.approved","מאושרת")}`
-    : `⏳ ${t("admin.status.pending","ממתינה")}`;
-  const caps = `${t("admin.row.capacity","קיבולת")}: ${r.capacity ?? "-"} · ${t("admin.row.slot","סלוט")}: ${r.slotIntervalMinutes ?? "-"}${t("admin.row.minutes","ד'")} · ${t("admin.row.service","שירות")}: ${r.serviceDurationMinutes ?? "-"}${t("admin.row.minutes","ד'")}`;
+    ? `✅ ${t("admin.status.approved","Approved")}`
+    : `⏳ ${t("admin.status.pending","Pending")}`;
+  const featuredBadge = (r as any).featured
+    ? `<span class="badge" style="background:rgba(251,191,36,.18);border-color:rgba(251,191,36,.4);color:#fbbf24">⭐ ${t("admin.status.featured","Featured")}</span>`
+    : "";
+  const caps = `${t("admin.row.capacity","Capacity")}: ${r.capacity ?? "-"} · ${t("admin.row.slot","Slot")}: ${r.slotIntervalMinutes ?? "-"}${t("admin.row.minutes","min")} · ${t("admin.row.service","Service")}: ${r.serviceDurationMinutes ?? "-"}${t("admin.row.minutes","min")}`;
   return `
   <tr>
-    <td><strong>${r.name}</strong><br/><small class="muted">${r.city} · ${r.address}</small></td>
+    <td><strong>${r.name}</strong> ${featuredBadge}<br/><small class="muted">${r.city} · ${r.address}</small></td>
     <td>${approved}<br/><small class="muted">${caps}</small></td>
     <td>
       <div class="row">
         ${
           r.approved
             ? `<form class="inline" method="post" action="/admin/restaurants/${r.id}/unapprove?key=${encodeURIComponent(key)}">
-                 <button class="btn secondary" type="submit">${t("admin.actions.unapprove","השבתה (Unapprove)")}</button>
+                 <button class="btn secondary" type="submit">${t("admin.actions.unapprove","Unapprove")}</button>
                </form>`
             : `<form class="inline" method="post" action="/admin/restaurants/${r.id}/approve?key=${encodeURIComponent(key)}">
-                 <button class="btn" type="submit">${t("admin.actions.approve","אישור")}</button>
+                 <button class="btn" type="submit">${t("admin.actions.approve","Approve")}</button>
                </form>`
         }
-        <a class="btn secondary" href="/restaurants/${r.id}" target="_blank" rel="noopener">${t("admin.actions.open_restaurant","פתח דף מסעדה")}</a>
+        ${
+          (r as any).featured
+            ? `<form class="inline" method="post" action="/admin/restaurants/${r.id}/unfeature?key=${encodeURIComponent(key)}">
+                 <button class="btn secondary" type="submit" title="${t("admin.actions.unfeature_tip","Remove from featured")}">⭐ ${t("admin.actions.unfeature","Unfeature")}</button>
+               </form>`
+            : `<form class="inline" method="post" action="/admin/restaurants/${r.id}/feature?key=${encodeURIComponent(key)}">
+                 <button class="btn secondary" type="submit" title="${t("admin.actions.feature_tip","Promote to featured on homepage")}">☆ ${t("admin.actions.feature","Feature")}</button>
+               </form>`
+        }
+        <a class="btn secondary" href="/restaurants/${r.id}" target="_blank" rel="noopener">${t("admin.actions.open_restaurant","Open")}</a>
         <form class="inline" method="post" action="/admin/restaurants/${r.id}/delete?key=${encodeURIComponent(key)}"
-              onsubmit="return confirm('${t("admin.confirm.delete_restaurant","למחוק לצמיתות את")} &quot;${r.name}&quot; ${t("admin.confirm.and_reservations","וכל ההזמנות שלה?")}')">
-          <button class="btn warn" type="submit">${t("admin.actions.remove_from_site","הסר מהאתר")}</button>
+              onsubmit="return confirm('${t("admin.confirm.delete_restaurant","Permanently delete")} &quot;${r.name}&quot; ${t("admin.confirm.and_reservations","and all its reservations?")}')">
+          <button class="btn warn" type="submit">${t("admin.actions.remove_from_site","Remove")}</button>
         </form>
       </div>
     </td>
@@ -641,6 +653,45 @@ adminRouter.post("/admin/restaurants/:id/unapprove", async (ctx) => {
     return;
   }
   await updateRestaurant(id, { approved: false });
+  const key = getAdminKey(ctx)!;
+  ctx.response.status = Status.SeeOther;
+  ctx.response.headers.set(
+    "Location",
+    `/admin?key=${encodeURIComponent(key)}`,
+  );
+});
+
+/* --- Toggle featured status --- */
+adminRouter.post("/admin/restaurants/:id/feature", async (ctx) => {
+  if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
+  const id = ctx.params.id!;
+  const r = await getRestaurant(id);
+  if (!r) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Restaurant not found";
+    return;
+  }
+  await updateRestaurant(id, { featured: true } as any);
+  const key = getAdminKey(ctx)!;
+  ctx.response.status = Status.SeeOther;
+  ctx.response.headers.set(
+    "Location",
+    `/admin?key=${encodeURIComponent(key)}`,
+  );
+});
+
+adminRouter.post("/admin/restaurants/:id/unfeature", async (ctx) => {
+  if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
+  const id = ctx.params.id!;
+  const r = await getRestaurant(id);
+  if (!r) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Restaurant not found";
+    return;
+  }
+  await updateRestaurant(id, { featured: false } as any);
   const key = getAdminKey(ctx)!;
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set(
