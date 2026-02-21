@@ -1,9 +1,10 @@
 <% layout("_layout", it) %>
 
+<!-- ===== Hero Section ===== -->
 <section class="hero">
   <div class="hero-bg"></div>
   <div class="hero-inner">
-    <h1 class="hero-title"><%= (it.t && it.t('home.hero.title')) || 'Reserve a Table at a Restaurant!' %></h1>
+    <h1 class="hero-title"><%= (it.t && it.t('home.hero.title')) || 'Reserve a Table at a Restaurant' %></h1>
     <p class="hero-sub"><%= (it.t && it.t('home.hero.sub')) || 'Book a table easily and quickly online' %></p>
 
     <div class="ac-wrap" style="position:relative; width:100%; max-width:980px">
@@ -12,13 +13,13 @@
 
         <div class="field with-icon" style="min-width:260px; flex:1">
           <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M19 4h-3a1 1 0 0 0-1 1v3h2V6h2V4zM8 4H5v2h2v2h2V5a1 1 0 0 0-1-1zM19 18h-2v-2h-2v3a1 1 0 0 0 1 1h3v-2zM7 16H5v2h3a1 1 0 0 0 1-1v-3H7v2z"/>
+            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/>
           </svg>
           <input
             name="q" id="q" type="search"
             inputmode="search" enterkeyhint="search" autocomplete="on"
-            placeholder="<%= (it.t && it.t('home.search.placeholder')) || 'חפש מסעדה / עיר / סוג מטבח' %>"
-            aria-label="<%= (it.t && it.t('home.search.input_aria')) || 'חפש מסעדה, עיר או סוג מטבח' %>"
+            placeholder="<%= (it.t && it.t('home.search.placeholder')) || 'Search restaurant / city / cuisine' %>"
+            aria-label="<%= (it.t && it.t('home.search.input_aria')) || 'Search restaurant, city or cuisine' %>"
             value="<%= it.q || '' %>">
         </div>
 
@@ -27,19 +28,19 @@
         </button>
       </form>
 
-      <div id="ac-list" class="ac-list" role="listbox" aria-label="<%= (it.t && it.t('home.search.suggestions_aria')) || 'הצעות חיפוש' %>" hidden></div>
+      <div id="ac-list" class="ac-list" role="listbox" aria-label="<%= (it.t && it.t('home.search.suggestions_aria')) || 'Search suggestions' %>" hidden></div>
     </div>
 
     <!-- Category Filter Chips -->
     <div class="category-chips">
-      <a href="/" class="chip <%= !it.category ? 'active' : '' %>">🍽️ הכל</a>
-      <a href="/?category=italian" class="chip <%= it.category === 'italian' ? 'active' : '' %>">🍝 Italian</a>
-      <a href="/?category=asian" class="chip <%= it.category === 'asian' ? 'active' : '' %>">🍜 Asian</a>
-      <a href="/?category=japanese" class="chip <%= it.category === 'japanese' ? 'active' : '' %>">🍣 Japanese</a>
-      <a href="/?category=steakhouse" class="chip <%= it.category === 'steakhouse' ? 'active' : '' %>">🥩 Steakhouse</a>
-      <a href="/?category=mediterranean" class="chip <%= it.category === 'mediterranean' ? 'active' : '' %>">🫒 Mediterranean</a>
-      <a href="/?category=cafe" class="chip <%= it.category === 'cafe' ? 'active' : '' %>">☕ Cafe</a>
-      <a href="/?category=vegetarian" class="chip <%= it.category === 'vegetarian' ? 'active' : '' %>">🥗 Vegetarian</a>
+      <a href="/" class="chip <%= !it.category ? 'active' : '' %>"><%= (it.t && it.t('home.categories.all')) || 'All' %></a>
+      <a href="/?category=italian" class="chip <%= it.category === 'italian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.italian')) || 'Italian' %></a>
+      <a href="/?category=asian" class="chip <%= it.category === 'asian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.asian')) || 'Asian' %></a>
+      <a href="/?category=japanese" class="chip <%= it.category === 'japanese' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.japanese')) || 'Japanese' %></a>
+      <a href="/?category=steakhouse" class="chip <%= it.category === 'steakhouse' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.steakhouse')) || 'Steakhouse' %></a>
+      <a href="/?category=mediterranean" class="chip <%= it.category === 'mediterranean' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.mediterranean')) || 'Mediterranean' %></a>
+      <a href="/?category=cafe" class="chip <%= it.category === 'cafe' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.cafe')) || 'Cafe' %></a>
+      <a href="/?category=vegetarian" class="chip <%= it.category === 'vegetarian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.vegetarian')) || 'Vegetarian' %></a>
     </div>
   </div>
 </section>
@@ -49,17 +50,20 @@
   var showResults = (it.search === "1") || (_q.trim().length > 0) || (it.category && it.category.trim().length > 0);
 %>
 
-<!-- ===== תוצאות חיפוש ===== -->
+<!-- ===== Search Results ===== -->
 <% if (showResults) { %>
   <section class="section">
     <div class="sb-container">
-      <h2 class="section-title"><%= (it.t && it.t('home.results.title')) || 'תוצאות' %></h2>
+      <h2 class="section-title"><%= (it.t && it.t('home.results.title')) || 'Results' %></h2>
 
       <% if (!it.restaurants || !it.restaurants.length) { %>
-        <p class="muted"><%= (it.t && it.t('home.results.empty')) || 'לא נמצאו תוצאות.' %></p>
+        <div class="sb-empty-state">
+          <div class="sb-empty-state__icon">&#128269;</div>
+          <p class="sb-empty-state__message"><%= (it.t && it.t('home.results.empty')) || 'No results found.' %></p>
+        </div>
       <% } else { %>
         <div class="cards">
-          <% 
+          <%
             var list = it.restaurants || [];
             for (var i=0; i<list.length; i++){
               var r = list[i];
@@ -75,11 +79,11 @@
             <a
               class="card"
               href="/restaurants/<%= r.id %>"
-              aria-label="<%= (it.t && it.t('home.results.open_label', { name: r.name })) || ('פתח ' + r.name) %>">
+              aria-label="<%= (it.t && it.t('home.results.open_label', { name: r.name })) || ('Open ' + r.name) %>">
               <div class="card-img" style="background-image:url('<%= cover %>')"></div>
               <div class="card-body">
                 <h3 class="card-title"><%= r.name %></h3>
-                <p class="card-meta"><%= r.city %> · <%= r.address %></p>
+                <p class="card-meta"><%= r.city %> &middot; <%= r.address %></p>
                 <% if (r.kitchenCategories && r.kitchenCategories.length) { %>
                   <div class="category-tags">
                     <% r.kitchenCategories.slice(0, 3).forEach(function(cat){ %>
@@ -89,13 +93,13 @@
                 <% } %>
                 <% if (r.averageRating && r.reviewCount) { %>
                   <div class="rating-badge">
-                    <span class="stars">★</span>
+                    <span class="stars">&#9733;</span>
                     <span><%= r.averageRating.toFixed(1) %> (<%= r.reviewCount %>)</span>
                   </div>
                 <% } %>
                 <% if (!r.approved) { %>
-                  <span class="badge warn" title="<%= (it.t && it.t('home.results.badge_pending_title')) || 'טרם אושרה' %>" style="display:inline-block;margin-top:6px;padding:4px 8px;border-radius:999px;background:#fff5f5;color:#c53030;border:1px solid #fed7d7;font-size:.85rem;">
-                    <%= (it.t && it.t('home.results.badge_pending')) || 'ממתינה לאישור' %>
+                  <span class="badge-pending" title="<%= (it.t && it.t('home.results.badge_pending_title')) || 'Not approved yet' %>">
+                    <%= (it.t && it.t('home.results.badge_pending')) || 'Pending approval' %>
                   </span>
                 <% } %>
               </div>
@@ -107,38 +111,275 @@
   </section>
 <% } %>
 
-<!-- ===== קרוסלת מסעדות מומלצות ===== -->
+<!-- ===== Featured Restaurants (dynamic from DB) ===== -->
 <section class="section">
   <div class="sb-container">
-    <h2 class="section-title"><%= (it.t && it.t('home.featured.title')) || 'מסעדות מומלצות' %></h2>
-    <div class="hs-wrap show-3" dir="<%= it.dir || 'rtl' %>">
-      <button class="hs-btn prev" aria-label="<%= (it.t && it.t('home.featured.prev_aria')) || 'הצג קודמות' %>">‹</button>
-      <div class="hs">
-        <article class="hs-item">
-          <div class="hs-title">Sushi BAR</div>
-          <div class="hs-img" style="background-image:url('/public/img/restaurants/sushi-bar.jpg');"></div>
-        </article>
-        <article class="hs-item">
-          <div class="hs-title">Gril House</div>
-          <div class="hs-img" style="background-image:url('/public/img/restaurants/gril-house.jpg');"></div>
-        </article>
-        <article class="hs-item">
-          <div class="hs-title">Hachapuri Guli</div>
-          <div class="hs-img" style="background-image:url('/public/img/restaurants/hachapuri-guli.jpg');"></div>
-        </article>
-        <article class="hs-item">
-          <div class="hs-title">My Roma</div>
-          <div class="hs-img" style="background-image:url('/public/img/restaurants/my-roma.jpg');"></div>
-        </article>
-        <article class="hs-item">
-          <div class="hs-title">Burger station</div>
-          <div class="hs-img" style="background-image:url('/public/img/restaurants/burger-station.jpg');"></div>
-        </article>
+    <h2 class="section-title"><%= (it.t && it.t('home.featured.title')) || 'Featured Restaurants' %></h2>
+
+    <% if (it.featured && it.featured.length) { %>
+      <div class="hs-wrap show-3" dir="<%= it.dir || 'ltr' %>">
+        <button class="hs-btn prev" aria-label="<%= (it.t && it.t('home.featured.prev_aria')) || 'Show previous' %>">&#8249;</button>
+        <div class="hs">
+          <% it.featured.forEach(function(fr){ %>
+            <article class="hs-item">
+              <a href="/restaurants/<%= fr.id %>" class="hs-link">
+                <div class="hs-img" style="background-image:url('<%= fr.cover %>');"></div>
+                <div class="hs-body">
+                  <div class="hs-title"><%= fr.name %></div>
+                  <div class="hs-meta"><%= fr.city %></div>
+                  <% if (fr.rating) { %>
+                    <div class="hs-rating">
+                      <span class="stars">&#9733;</span>
+                      <span><%= fr.rating.toFixed(1) %></span>
+                    </div>
+                  <% } %>
+                </div>
+              </a>
+            </article>
+          <% }); %>
+        </div>
+        <button class="hs-btn next" aria-label="<%= (it.t && it.t('home.featured.next_aria')) || 'Show next' %>">&#8250;</button>
       </div>
-      <button class="hs-btn next" aria-label="<%= (it.t && it.t('home.featured.next_aria')) || 'הצג הבאות' %>">›</button>
+    <% } else { %>
+      <div class="sb-empty-state" style="padding:var(--sb-space-xl)">
+        <p class="sb-empty-state__message"><%= (it.t && it.t('home.featured.empty')) || 'No restaurants available yet.' %></p>
+      </div>
+    <% } %>
+  </div>
+</section>
+
+<!-- ===== How It Works ===== -->
+<section class="section how-it-works">
+  <div class="sb-container">
+    <h2 class="section-title" style="text-align:center"><%= (it.t && it.t('home.how_it_works.title')) || 'How It Works' %></h2>
+    <div class="steps-grid">
+      <div class="step-card">
+        <div class="step-number">1</div>
+        <h3 class="step-title"><%= (it.t && it.t('home.how_it_works.step1_title')) || 'Find a Restaurant' %></h3>
+        <p class="step-desc"><%= (it.t && it.t('home.how_it_works.step1_desc')) || 'Search by name, city, or cuisine type to find the perfect spot.' %></p>
+      </div>
+      <div class="step-card">
+        <div class="step-number">2</div>
+        <h3 class="step-title"><%= (it.t && it.t('home.how_it_works.step2_title')) || 'Pick a Time' %></h3>
+        <p class="step-desc"><%= (it.t && it.t('home.how_it_works.step2_desc')) || 'Choose the date, time, and number of guests for your visit.' %></p>
+      </div>
+      <div class="step-card">
+        <div class="step-number">3</div>
+        <h3 class="step-title"><%= (it.t && it.t('home.how_it_works.step3_title')) || 'Confirm & Go' %></h3>
+        <p class="step-desc"><%= (it.t && it.t('home.how_it_works.step3_desc')) || 'Receive instant confirmation and enjoy your dining experience.' %></p>
+      </div>
     </div>
   </div>
 </section>
+
+<!-- ===== Owner CTA ===== -->
+<% if (!it.user) { %>
+<section class="section owner-cta">
+  <div class="sb-container">
+    <div class="cta-card">
+      <h2 class="cta-title"><%= (it.t && it.t('home.cta.owner_title')) || 'Own a Restaurant?' %></h2>
+      <p class="cta-desc"><%= (it.t && it.t('home.cta.owner_desc')) || 'Join SpotBook and manage reservations, staff, and floor plans from a single dashboard.' %></p>
+      <a class="btn primary cta-btn" href="/auth/register"><%= (it.t && it.t('home.cta.owner_btn')) || 'Register Your Restaurant' %></a>
+    </div>
+  </div>
+</section>
+<% } %>
+
+<style>
+/* ===== Category Filter Chips ===== */
+.category-chips{
+  display: flex;
+  gap: var(--sb-space-sm, 8px);
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: var(--sb-space-lg, 16px);
+  padding: 0 var(--sb-space-lg, 16px);
+}
+.chip{
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sb-space-xs, 4px);
+  padding: var(--sb-space-sm, 8px) var(--sb-space-lg, 16px);
+  border-radius: var(--sb-radius-pill, 999px);
+  border: 1px solid var(--sb-color-bd, #23293a);
+  background: var(--sb-color-panel-2, #171b29);
+  color: var(--sb-color-ink, #e6e8ef);
+  text-decoration: none;
+  font-size: var(--sb-font-sm, 13px);
+  font-weight: var(--sb-weight-medium, 500);
+  transition: all var(--sb-ease-fast, 150ms ease);
+  cursor: pointer;
+}
+.chip:hover{
+  background: var(--sb-color-panel, #121622);
+  border-color: var(--sb-color-brand, #3b82f6);
+  transform: translateY(-1px);
+}
+.chip.active{
+  background: var(--sb-color-brand, #3b82f6);
+  border-color: var(--sb-color-brand, #3b82f6);
+  color: var(--sb-color-brand-ink, #fff);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+/* ===== Featured Carousel ===== */
+.hs-link{
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  overflow: hidden;
+  border-radius: inherit;
+}
+.hs-body{
+  padding: var(--sb-space-md, 12px) var(--sb-space-md, 12px) var(--sb-space-sm, 8px);
+}
+.hs-meta{
+  font-size: var(--sb-font-xs, 11px);
+  color: var(--sb-color-ink-muted, #9aa3b2);
+  margin-top: 2px;
+}
+.hs-rating{
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: var(--sb-space-xs, 4px);
+  font-size: var(--sb-font-xs, 11px);
+  color: var(--sb-color-ink-muted, #9aa3b2);
+}
+.hs-rating .stars{
+  color: #fbbf24;
+  font-size: var(--sb-font-sm, 13px);
+}
+.hs-item{
+  transition: transform var(--sb-ease-fast, 150ms ease), box-shadow var(--sb-ease-fast, 150ms ease);
+}
+.hs-item:hover{
+  transform: translateY(-2px);
+  box-shadow: var(--sb-shadow-md, 0 10px 30px rgba(0,0,0,.35));
+}
+
+/* ===== How It Works ===== */
+.steps-grid{
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sb-space-xl, 24px);
+  margin-top: var(--sb-space-xl, 24px);
+}
+.step-card{
+  text-align: center;
+  padding: var(--sb-space-xl, 24px) var(--sb-space-lg, 16px);
+  background: var(--sb-color-panel, #121622);
+  border: 1px solid var(--sb-color-bd, #23293a);
+  border-radius: var(--sb-radius-xl, 16px);
+  transition: transform var(--sb-ease-fast, 150ms ease), box-shadow var(--sb-ease-fast, 150ms ease);
+}
+.step-card:hover{
+  transform: translateY(-3px);
+  box-shadow: var(--sb-shadow-md, 0 10px 30px rgba(0,0,0,.35));
+}
+.step-number{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--sb-radius-pill, 999px);
+  background: var(--sb-color-accent-soft, rgba(59, 130, 246, 0.18));
+  border: 2px solid var(--sb-color-accent-border, rgba(59, 130, 246, 0.35));
+  color: var(--sb-color-brand, #3b82f6);
+  font-size: var(--sb-font-xl, 20px);
+  font-weight: var(--sb-weight-bold, 700);
+  margin-bottom: var(--sb-space-md, 12px);
+}
+.step-title{
+  margin: 0 0 var(--sb-space-sm, 8px);
+  font-size: var(--sb-font-lg, 17px);
+  font-weight: var(--sb-weight-semibold, 600);
+  color: var(--sb-color-ink, #e6e8ef);
+}
+.step-desc{
+  margin: 0;
+  font-size: var(--sb-font-sm, 13px);
+  color: var(--sb-color-ink-muted, #9aa3b2);
+  line-height: var(--sb-leading-relaxed, 1.65);
+}
+@media (max-width: 640px){
+  .steps-grid{ grid-template-columns: 1fr; gap: var(--sb-space-md, 12px); }
+}
+
+/* ===== Owner CTA ===== */
+.cta-card{
+  text-align: center;
+  padding: var(--sb-space-3xl, 48px) var(--sb-space-xl, 24px);
+  background: linear-gradient(135deg, var(--sb-color-accent-soft, rgba(59, 130, 246, 0.18)), var(--sb-color-panel, #121622));
+  border: 1px solid var(--sb-color-accent-border, rgba(59, 130, 246, 0.35));
+  border-radius: var(--sb-radius-xl, 16px);
+}
+.cta-title{
+  margin: 0 0 var(--sb-space-sm, 8px);
+  font-size: var(--sb-font-2xl, 24px);
+  font-weight: var(--sb-weight-bold, 700);
+  color: var(--sb-color-ink, #e6e8ef);
+}
+.cta-desc{
+  margin: 0 auto var(--sb-space-xl, 24px);
+  max-width: 520px;
+  font-size: var(--sb-font-base, 15px);
+  color: var(--sb-color-ink-muted, #9aa3b2);
+  line-height: var(--sb-leading-relaxed, 1.65);
+}
+.cta-btn{
+  padding: var(--sb-space-md, 12px) var(--sb-space-2xl, 32px);
+  font-size: var(--sb-font-base, 15px);
+}
+
+/* ===== Badge Pending ===== */
+.badge-pending{
+  display: inline-block;
+  margin-top: var(--sb-space-sm, 6px);
+  padding: var(--sb-space-xs, 4px) var(--sb-space-sm, 8px);
+  border-radius: var(--sb-radius-pill, 999px);
+  background: var(--sb-color-danger-soft, rgba(239, 68, 68, 0.14));
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  font-size: var(--sb-font-xs, 11px);
+  font-weight: var(--sb-weight-medium, 500);
+}
+
+/* ===== Category Tags & Rating Badge ===== */
+.category-tags{
+  display: flex;
+  gap: var(--sb-space-sm, 6px);
+  flex-wrap: wrap;
+  margin-top: var(--sb-space-sm, 8px);
+}
+.cat-tag{
+  font-size: var(--sb-font-xs, 11px);
+  padding: 3px var(--sb-space-sm, 8px);
+  border-radius: var(--sb-radius-lg, 12px);
+  background: var(--sb-color-accent-soft, rgba(59, 130, 246, 0.18));
+  color: var(--sb-color-brand, #3b82f6);
+  border: 1px solid var(--sb-color-accent-border, rgba(59, 130, 246, 0.35));
+  text-transform: capitalize;
+  font-weight: var(--sb-weight-medium, 500);
+}
+.rating-badge{
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: var(--sb-space-sm, 8px);
+  font-size: var(--sb-font-sm, 13px);
+  color: var(--sb-color-ink-muted, #9aa3b2);
+}
+.rating-badge .stars{
+  color: #fbbf24;
+  font-size: var(--sb-font-sm, 14px);
+}
+
+/* ===== Section spacing ===== */
+.how-it-works{ margin-top: var(--sb-space-3xl, 48px); }
+.owner-cta{ margin-top: var(--sb-space-2xl, 32px); margin-bottom: var(--sb-space-xl, 24px); }
+</style>
 
 <script>
 /* ===== Horizontal carousel logic (Cyclic: 3 desktop/tablet, 1 mobile) ===== */
@@ -200,129 +441,8 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
-<style>
-/* ===== Category Filter Chips ===== */
-.category-chips{
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
-  margin-top: 16px;
-  padding: 0 16px;
-}
-.chip{
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 16px;
-  border-radius: 20px;
-  border: 1px solid var(--bd, #23293a);
-  background: var(--panel-2, #171b29);
-  color: var(--ink, #e6e8ef);
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  cursor: pointer;
-}
-.chip:hover{
-  background: var(--panel, #121622);
-  border-color: var(--brand, #3b82f6);
-  transform: translateY(-1px);
-}
-.chip.active{
-  background: var(--brand, #3b82f6);
-  border-color: var(--brand, #3b82f6);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-}
-
-/* ===== Horizontal Carousel ===== */
-.hs-wrap{
-  --gap: 12px;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-}
-.hs{
-  display: flex;
-  overflow: hidden;
-  gap: var(--gap);
-  scroll-behavior: smooth;
-  touch-action: pan-x;
-  -ms-touch-action: pan-x;
-}
-.hs-item{
-  flex: 0 0 calc((100% - 2 * var(--gap)) / 3);
-  background: var(--panel);
-  border: 1px solid var(--bd);
-  border-radius: 14px;
-  overflow: hidden;
-}
-.hs-title{
-  padding: 10px 12px 6px;
-  font-weight: 600;
-  color: var(--ink);
-}
-.hs-img{
-  aspect-ratio: 4/3;
-  background: #222 center/cover no-repeat;
-  border-top: 1px solid var(--bd);
-}
-.hs-btn{
-  inline-size: 36px;
-  block-size: 36px;
-  border-radius: 50%;
-  border: 1px solid var(--bd);
-  background: color-mix(in srgb, var(--panel-2) 92%, transparent);
-  color: var(--ink);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-.hs-btn:hover{ background: color-mix(in srgb, var(--panel) 92%, transparent); }
-
-/* מובייל: כרטיס אחד */
-@media (max-width: 640px){
-  .hs-item{ flex: 0 0 100%; }
-}
-
-/* ===== Category Tags & Rating Badge ===== */
-.category-tags{
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-top: 8px;
-}
-.cat-tag{
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--brand, #3b82f6) 15%, transparent);
-  color: var(--brand, #3b82f6);
-  border: 1px solid color-mix(in srgb, var(--brand, #3b82f6) 25%, transparent);
-  text-transform: capitalize;
-  font-weight: 500;
-}
-.rating-badge{
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 8px;
-  font-size: 13px;
-  color: var(--ink-muted, #9aa3b2);
-}
-.rating-badge .stars{
-  color: #fbbf24;
-  font-size: 14px;
-}
-</style>
-
 <script>
-/* ======= אוטוקומפליט – (נשמר במלואו) ======= */
+/* ===== Autocomplete ===== */
 (function(){
   var input = document.getElementById('q');
   var box   = document.getElementById('ac-list');
@@ -336,7 +456,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function normPhotos(p){var a=Array.isArray(p)?p:[];return a.map(x=>typeof x==='string'?x:(x&&x.dataUrl)).filter(Boolean);}
   function hide(){ box.hidden=true; box.innerHTML=""; active=-1; input&&input.setAttribute('aria-expanded','false'); }
   function show(){ if(!box.innerHTML.trim()){box.hidden=true;return;} box.hidden=false; input&&input.setAttribute('aria-expanded','true'); }
-  function render(){ if(!items.length){hide();return;} var h=""; for(var i=0;i<items.length;i++){var r=items[i]; h+='<div class="ac-item'+(i===active?' is-active':'')+'" data-idx="'+i+'"><img class="ac-thumb" src="'+(r.thumb||PLACEHOLDER)+'" alt=""/><div class="ac-meta"><div class="ac-title">'+escapeHtml(r.name)+'</div><div class="ac-sub">'+escapeHtml(r.city)+' · '+escapeHtml(r.address)+'</div></div></div>'; } box.innerHTML=h; show(); }
+  function render(){ if(!items.length){hide();return;} var h=""; for(var i=0;i<items.length;i++){var r=items[i]; h+='<div class="ac-item'+(i===active?' is-active':'')+'" data-idx="'+i+'"><img class="ac-thumb" src="'+(r.thumb||PLACEHOLDER)+'" alt=""/><div class="ac-meta"><div class="ac-title">'+escapeHtml(r.name)+'</div><div class="ac-sub">'+escapeHtml(r.city)+' &middot; '+escapeHtml(r.address)+'</div></div></div>'; } box.innerHTML=h; show(); }
   function escapeHtml(s){return String(s||"").replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
   async function search(q){ if(!q||!q.trim()){items=[];render();return;} try{aborter?.abort();}catch{} aborter=new AbortController(); var url=new URL('/api/restaurants',window.location.origin); url.searchParams.set('q',q); url.searchParams.set('approved','1'); try{ var res=await fetch(url.toString(),{signal:aborter.signal,headers:{'Accept':'application/json'}}); if(!res.ok)throw new Error('http '+res.status); var data=await res.json(); var arr=Array.isArray(data)?data.slice(0,MAX):[]; items=arr.map(rr=>({id:rr.id,name:rr.name||"",city:rr.city||"",address:rr.address||"",thumb:normPhotos(rr.photos)[0]||PLACEHOLDER})); active=-1; render(); }catch(e){ if(e.name==='AbortError')return; items=[]; render(); }}
   var onInput=debounce(ev=>{var q=ev.target.value||""; if(q.trim().length<1){items=[];render();return;} search(q);},150);

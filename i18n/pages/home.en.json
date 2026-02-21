@@ -11,6 +11,16 @@
       "cta": "Search",
       "suggestions_aria": "Search suggestions"
     },
+    "categories": {
+      "all": "All",
+      "italian": "Italian",
+      "asian": "Asian",
+      "japanese": "Japanese",
+      "steakhouse": "Steakhouse",
+      "mediterranean": "Mediterranean",
+      "cafe": "Cafe",
+      "vegetarian": "Vegetarian"
+    },
     "results": {
       "title": "Results",
       "empty": "No results found.",
@@ -21,7 +31,23 @@
     "featured": {
       "title": "Featured Restaurants",
       "prev_aria": "Show previous",
-      "next_aria": "Show next"
+      "next_aria": "Show next",
+      "empty": "No restaurants available yet.",
+      "view_all": "View All"
+    },
+    "how_it_works": {
+      "title": "How It Works",
+      "step1_title": "Find a Restaurant",
+      "step1_desc": "Search by name, city, or cuisine type to find the perfect spot.",
+      "step2_title": "Pick a Time",
+      "step2_desc": "Choose the date, time, and number of guests for your visit.",
+      "step3_title": "Confirm & Go",
+      "step3_desc": "Receive instant confirmation and enjoy your dining experience."
+    },
+    "cta": {
+      "owner_title": "Own a Restaurant?",
+      "owner_desc": "Join SpotBook and manage reservations, staff, and floor plans from a single dashboard.",
+      "owner_btn": "Register Your Restaurant"
     }
   }
 }

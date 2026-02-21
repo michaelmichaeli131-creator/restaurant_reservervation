@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="<%= it.lang || 'en' %>" dir="<%= (it.lang === 'he') ? 'rtl' : 'ltr' %>">
+<html lang="<%= it.lang || 'en' %>" dir="<%= it.dir || ((it.lang === 'he') ? 'rtl' : 'ltr') %>">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
