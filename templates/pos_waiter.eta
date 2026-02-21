@@ -246,7 +246,7 @@
         tr.dataset.price = item.unitPrice;
 
         const createdAt = new Date(item.createdAt);
-        const timeStr = createdAt.toLocaleTimeString('he-IL',{
+        const timeStr = createdAt.toLocaleTimeString('<%= it.lang === "he" ? "he-IL" : "en-US" %>',{
           hour:'2-digit',minute:'2-digit'
         });
 
@@ -267,10 +267,10 @@
           </td>
           <td class="col-actions">
             <button type="button" class="btn ghost btn-cancel-item">
-              🗑 <%= tt('common.btn_cancel', 'ביטול') %>
+              🗑 <%= tt('common.btn_cancel', 'Cancel') %>
             </button>
             <button type="button" class="btn ghost btn-mark-served" style="margin-inline-start:4px;">
-              ✅ <%= tt('pos.waiter.btn_mark_served', 'סמן הוגש') %>
+              ✅ <%= tt('pos.waiter.btn_mark_served', 'Mark as Served') %>
             </button>
           </td>
         `;

@@ -19,34 +19,34 @@
 <main class="container pos-kitchen-page" dir="rtl">
   <header class="page-header kitchen-header">
     <div>
-      <h1><%= tt('pos.kitchen.title', 'מסך מטבח —') %> <%= r.name %></h1>
+      <h1><%= tt('pos.kitchen.title', 'Kitchen Screen —') %> <%= r.name %></h1>
       <p class="muted"><%= r.city %> • <%= r.address %></p>
     </div>
     <div class="header-actions">
-      <a class="btn ghost" href="/owner">⇐ חזרה לדשבורד בעלים</a>
+      <a class="btn ghost" href="/owner"><%= tt('pos.btn_back_dashboard', 'Back to Dashboard') %></a>
     </div>
   </header>
 
   <section class="panel card kitchen-board" aria-label="<%= tt('pos.kitchen.orders_title', 'הזמנות מטבח') %>">
-    <h2 class="card-title"><%= tt('pos.kitchen.orders_title', 'הזמנות מטבח') %></h2>
+    <h2 class="card-title"><%= tt('pos.kitchen.orders_title', 'Kitchen Orders') %></h2>
     <p class="muted" style="font-size:12px;margin-bottom:6px">
-      <%= tt('pos.kitchen.instructions', 'החצים משנים סטטוס: קדימה (התקבל → בהכנה → מוכן) או אחורה.') %><br>
-      סטטוס "הוגש" מתעדכן רק על ידי המלצר.
+      <%= tt('pos.kitchen.instructions', 'Arrows change status: forward (Received > In Progress > Ready) or backward.') %><br>
+      <%= tt('pos.kitchen.served_note', '"Served" status is updated only by the waiter.') %>
     </p>
 
     <div id="kitchen-columns" class="kitchen-columns" data-rid="<%= rid %>">
       <div class="kitchen-col" data-status="received">
-        <div class="col-head"><%= tt('pos.status.received', 'התקבל') %></div>
+        <div class="col-head"><%= tt('pos.status.received', 'Received') %></div>
         <div class="col-body" id="col-received"></div>
       </div>
 
       <div class="kitchen-col" data-status="in_progress">
-        <div class="col-head"><%= tt('pos.status.in_progress', 'בהכנה') %></div>
+        <div class="col-head"><%= tt('pos.status.in_progress', 'In Progress') %></div>
         <div class="col-body" id="col-in-progress"></div>
       </div>
 
       <div class="kitchen-col" data-status="ready">
-        <div class="col-head"><%= tt('pos.status.ready', 'מוכן') %></div>
+        <div class="col-head"><%= tt('pos.status.ready', 'Ready') %></div>
         <div class="col-body" id="col-ready"></div>
       </div>
     </div>
@@ -85,15 +85,15 @@
         div.dataset.orderId = it.orderId;
         div.dataset.status = it.status;
         div.dataset.table = it.table;
-        const timeStr = new Date(it.createdAt).toLocaleTimeString('he-IL',{
+        const timeStr = new Date(it.createdAt).toLocaleTimeString('<%= it.lang === "he" ? "he-IL" : "en-US" %>',{
           hour:'2-digit',minute:'2-digit'
         });
         div.innerHTML = `
           <div class="ticket-title">
-            שולחן ${it.table} • ${it.name}
+            <%= tt('host.table_label', 'Table') %> ${it.table} • ${it.name}
           </div>
           <div class="ticket-meta">
-            כמות: ${it.quantity}
+            <%= tt('pos.kitchen.quantity', 'Qty') %>: ${it.quantity}
           </div>
           <div class="ticket-bottom">
             <div class="ticket-time">${timeStr}</div>
@@ -111,7 +111,7 @@
         if (!col.children.length){
           const p = document.createElement("p");
           p.className = "muted small";
-          p.textContent = "אין פריטים.";
+          p.textContent = "<%= tt('pos.kitchen.no_items', 'No items.') %>";
           col.appendChild(p);
         }
       }

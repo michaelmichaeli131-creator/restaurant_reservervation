@@ -20,13 +20,13 @@
 <main class="waiter container">
   <header class="waiter-header">
     <div>
-      <h1>מסך מלצרים — <%= restaurant.name %></h1>
+      <h1><%= tt('pos.waiter.lobby_title', 'Waiter Screen') %> — <%= restaurant.name %></h1>
       <p class="muted"><%= restaurant.city %> • <%= restaurant.address %></p>
     </div>
     <div class="header-actions">
-      <button id="waiter-panel-toggle" class="sb-waiter-panel-toggle" type="button" aria-label="פתיחת לוח שמאל">
+      <button id="waiter-panel-toggle" class="sb-waiter-panel-toggle" type="button" aria-label="<%= tt('pos.waiter.open_panel', 'Open panel') %>">
         <span class="sb-dot" aria-hidden="true"></span>
-        <span>לוח</span>
+        <span><%= tt('pos.waiter.panel', 'Panel') %></span>
       </button>
     </div>
   </header>
@@ -36,13 +36,12 @@
 
   <section class="sb-waiter-shell" aria-label="Waiter layout">
     <!-- Left panel (sticky on desktop, offcanvas on mobile) -->
-    <aside class="sb-waiter-left" aria-label="לוח מלצרים">
+    <aside class="sb-waiter-left" aria-label="<%= tt('pos.waiter.panel_label', 'Waiter Panel') %>">
       <!-- כרטיסייה: שולחנות פתוחים -->
       <div class="panel card">
-      <h2>שולחנות פתוחים</h2>
+      <h2><%= tt('pos.waiter.open_tables', 'Open Tables') %></h2>
       <p class="muted small">
-        רשימת כל השולחנות עם צ׳קים פתוחים / בשירות פעיל. לחיצה על שורה תציג פרטי שולחן,
-        וכפתור "למסך הזמנה" יפתח את מסך ה־POS לשולחן.
+        <%= tt('pos.waiter.open_tables_help', 'List of all tables with open checks / active service. Click a row for table details, and the "Go to Order" button opens the POS screen for that table.') %>
       </p>
 
       <% if (openTables.length) { %>
@@ -77,20 +76,20 @@
               <div class="open-row">
                 <button type="button" class="open-table-btn">
                   <div class="open-main">
-                    <span class="open-table-num">שולחן <%= tn %></span>
+                    <span class="open-table-num"><%= tt('pos.waiter.table_label', 'Table') %> <%= tn %></span>
                     <% if (guestName) { %>
                       <span class="open-guest-name">• <%= guestName %></span>
                     <% } %>
                   </div>
                   <div class="open-sub">
                     <% if (people) { %>
-                      <span><%= people %> <%= tt('host.people_unit', 'סועדים') %></span>
+                      <span><%= people %> <%= tt('host.people_unit', 'Guests') %></span>
                     <% } %>
                     <% if (time) { %>
                       <span>• <%= time %></span>
                     <% } %>
                     <% if (itemsCount !== "" && itemsCount != null) { %>
-                      <span>• <%= itemsCount %> <%= tt('pos.waiter.items_count', 'פריטים') %></span>
+                      <span>• <%= itemsCount %> <%= tt('pos.waiter.items_count', 'Items') %></span>
                     <% } %>
                     <% if (subtotal !== "" && subtotal != null) { %>
                       <span>• <%= subtotal %> ₪</span>
@@ -98,7 +97,7 @@
                   </div>
                 </button>
                 <button type="button" class="open-pos-link">
-                  <%= tt('pos.waiter.btn_to_order', 'למסך הזמנה') %>
+                  <%= tt('pos.waiter.btn_to_order', 'Go to Order') %>
                 </button>
               </div>
             </li>
@@ -106,7 +105,7 @@
         </ul>
       <% } else { %>
         <div id="open-tables-empty" class="muted small">
-          אין כרגע שולחנות פתוחים.
+          <%= tt('pos.waiter.no_open_tables', 'No open tables at the moment.') %>
         </div>
       <% } %>
       </div>
@@ -116,9 +115,9 @@
     <div class="sb-waiter-right">
       <!-- כרטיסייה: מפת המסעדה (חי) -->
       <div class="panel card sb-waiter-map-card">
-      <h2>מפת המסעדה (חי)</h2>
+      <h2><%= tt('pos.waiter.floor_map_title', 'Restaurant Map (Live)') %></h2>
       <p class="muted small">
-        לחיצה על שולחן תפוס תציג פרטי הזמנה; לחיצה על שולחן פנוי תציג מידע בסיסי.
+        <%= tt('pos.waiter.floor_map_help', 'Click on an occupied table to view order details; click on an empty table for basic info.') %>
       </p>
       <div id="sb-floor-root" class="floor-wrapper" data-rid="<%= it.rid %>" data-click-mode="lobby"></div>
       </div>
@@ -132,41 +131,41 @@
   <div class="table-info-inner">
     <header class="table-info-header">
       <div>
-        <div class="tip-label">פרטי שולחן</div>
+        <div class="tip-label"><%= tt('host.table_details', 'Table Details') %></div>
         <div class="tip-title">
-          שולחן <span id="tip-table-number">—</span>
+          <%= tt('host.table_label', 'Table') %> <span id="tip-table-number">—</span>
         </div>
       </div>
-      <button type="button" class="tip-close-btn" id="tip-close-btn" aria-label="סגירת פרטי שולחן">
+      <button type="button" class="tip-close-btn" id="tip-close-btn" aria-label="<%= tt('host.close_table_details', 'Close table details') %>">
         ✕
       </button>
     </header>
 
     <div class="table-info-body">
       <div class="tip-row">
-        <span class="tip-row-label">שם המזמין</span>
+        <span class="tip-row-label"><%= tt('host.guest_name', 'Guest Name') %></span>
         <span class="tip-row-value" id="tip-guest-name">—</span>
       </div>
       <div class="tip-row">
-        <span class="tip-row-label">מספר סועדים</span>
+        <span class="tip-row-label"><%= tt('host.num_guests', 'Number of Guests') %></span>
         <span class="tip-row-value" id="tip-people">—</span>
       </div>
       <div class="tip-row">
-        <span class="tip-row-label">שעת ההזמנה</span>
+        <span class="tip-row-label"><%= tt('host.reservation_time', 'Reservation Time') %></span>
         <span class="tip-row-value" id="tip-time">—</span>
       </div>
       <div class="tip-row">
-        <span class="tip-row-label">סטטוס שולחן</span>
+        <span class="tip-row-label"><%= tt('host.table_status_label', 'Table Status') %></span>
         <span class="tip-row-value">
           <span id="tip-status" class="tip-status-badge">—</span>
         </span>
       </div>
       <div class="tip-row">
-        <span class="tip-row-label">מספר פריטים</span>
+        <span class="tip-row-label"><%= tt('pos.waiter.items_label', 'Number of Items') %></span>
         <span class="tip-row-value" id="tip-items-count">—</span>
       </div>
       <div class="tip-row">
-        <span class="tip-row-label">סכום ביניים</span>
+        <span class="tip-row-label"><%= tt('pos.waiter.subtotal', 'Subtotal') %></span>
         <span class="tip-row-value" id="tip-subtotal">—</span>
       </div>
     </div>
@@ -174,14 +173,14 @@
     <footer class="table-info-footer">
       <div class="tip-actions">
         <button type="button" class="tip-primary-btn" id="tip-go-order" disabled>
-          פתח הזמנה
+          <%= tt('pos.waiter.btn_open_order', 'Open Order') %>
         </button>
         <button type="button" class="tip-secondary-btn" id="tip-close-secondary">
-          סגור
+          <%= tt('common.btn_close', 'Close') %>
         </button>
       </div>
       <p class="muted small" style="margin-top:10px">
-        המידע נלקח מההזמנה / צ׳ק האחרון בשולחן.
+        <%= tt('pos.waiter.table_info_note', 'Information is taken from the last order / check at this table.') %>
       </p>
     </footer>
   </div>
