@@ -42,12 +42,14 @@ rootRouter.get("/", async (ctx) => {
     }));
   }
 
-  // Load featured restaurants from DB (approved, sorted by rating)
+  // Load featured restaurants: admin-marked first, then top-rated to fill up to 8
   const allApproved = await listRestaurants("", true);
-  const featured = allApproved
-    .sort((a: any, b: any) => (b.averageRating || 0) - (a.averageRating || 0))
-    .slice(0, 8)
-    .map((r: any) => ({
+  const adminFeatured = allApproved.filter((r: any) => r.featured);
+  const byRating = allApproved
+    .filter((r: any) => !r.featured)
+    .sort((a: any, b: any) => (b.averageRating || 0) - (a.averageRating || 0));
+  const featuredRaw = [...adminFeatured, ...byRating].slice(0, 8);
+  const featured = featuredRaw.map((r: any) => ({
       id: r.id,
       name: r.name,
       city: r.city,
