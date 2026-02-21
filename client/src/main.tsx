@@ -27,8 +27,8 @@ function getLang(): string {
   if (match) {
     return match[1];
   }
-  // Default to Hebrew
-  return 'he';
+  // Default to English
+  return 'en';
 }
 
 // Initialize i18n before rendering

@@ -391,9 +391,9 @@ root.get("/__mailtest", async (ctx) => {
 
 // i18n API endpoint - serves translation JSON for React client
 root.get("/api/i18n/:lang", async (ctx) => {
-  const lang = ctx.params.lang?.toLowerCase() || "he";
-  const supported = ["he", "en", "ka"];
-  const safeLang = supported.includes(lang) ? lang : "he";
+  const lang = ctx.params.lang?.toLowerCase() || "en";
+  const supported = ["en", "he", "ka"];
+  const safeLang = supported.includes(lang) ? lang : "en";
 
   try {
     const filePath = `./i18n/${safeLang}.json`;

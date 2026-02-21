@@ -1,0 +1,37 @@
+<%
+/**
+ * SpotBook Card Component
+ *
+ * Usage:
+ *   <%~ include("components/_card", { title: "Today", body: "<p>Content</p>" }) %>
+ *   <%~ include("components/_card", { title: "Stats", icon: "chart-icon", body: "...", footer: "..." }) %>
+ *
+ * Params:
+ *   title   (string)  - Card header text (optional, omit for header-less card)
+ *   icon    (string)  - Emoji or HTML for the header icon (optional)
+ *   body    (string)  - Main card body HTML (required)
+ *   footer  (string)  - Footer HTML (optional)
+ *   cls     (string)  - Extra CSS classes on the root element (optional)
+ *   id      (string)  - HTML id attribute (optional)
+ */
+%>
+<div class="sb-card<%= it.cls ? ' ' + it.cls : '' %>"<%= it.id ? ' id="' + it.id + '"' : '' %>>
+  <% if (it.title) { %>
+  <div class="sb-card__header">
+    <% if (it.icon) { %>
+      <span class="sb-card__icon"><%= it.icon %></span>
+    <% } %>
+    <h3 class="sb-card__title"><%= it.title %></h3>
+  </div>
+  <% } %>
+
+  <div class="sb-card__body">
+    <%~ it.body %>
+  </div>
+
+  <% if (it.footer) { %>
+  <div class="sb-card__footer">
+    <%~ it.footer %>
+  </div>
+  <% } %>
+</div>

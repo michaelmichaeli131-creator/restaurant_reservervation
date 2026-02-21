@@ -19,7 +19,7 @@
 <main class="host container">
   <header class="host-header">
     <div>
-      <h1>מסך מארחת — <%= restaurant.name %></h1>
+      <h1><%= tt('host.title', 'Host Screen') %> — <%= restaurant.name %></h1>
       <p class="muted"><%= restaurant.city %> • <%= restaurant.address %></p>
     </div>
   </header>
@@ -27,7 +27,7 @@
   <section class="host-grid">
     <!-- עמודת הזמנות -->
     <div class="panel card">
-      <h2>הזמנות להיום</h2>
+      <h2><%= tt('host.reservations_today', "Today's Reservations") %></h2>
 
       <% if (reservations.length) { %>
         <ul class="list" id="resv-list">
@@ -46,34 +46,34 @@
               </label>
               <div class="resv-actions">
                 <button type="button" class="link-btn resv-cancel" data-action="cancel" data-id="<%= r.id %>">
-                  ביטול
+                  <%= tt('host.btn_cancel', 'Cancel') %>
                 </button>
                 <button type="button" class="link-btn resv-noshow" data-action="no_show" data-id="<%= r.id %>">
-                  לא הגיע
+                  <%= tt('host.btn_no_show', 'No Show') %>
                 </button>
               </div>
             </li>
           <% }) %>
         </ul>
       <% } else { %>
-        <p class="muted">אין הזמנות להיום למסעדה הזו.</p>
+        <p class="muted"><%= tt('host.no_reservations', 'No reservations for today at this restaurant.') %></p>
       <% } %>
     </div>
 
     <!-- עמודת מפת מסעדה -->
     <div class="panel card">
-      <h2>מפת המסעדה (חי)</h2>
+      <h2><%= tt('host.floor_map_title', 'Restaurant Map (Live)') %></h2>
       <p class="muted small">
-        יש לבחור הזמנה, לבחור שולחן או כמה שולחנות (איחוד), ואז ללחוץ על כפתור ההושבה.
+        <%= tt('host.floor_map_help', 'Select a reservation, choose a table or multiple tables (merge), then click the seat button.') %>
       </p>
       <div id="floor" class="floor-wrapper">
         <!-- המפה תיטען דינמית ע"י JS -->
       </div>
       <div class="host-actions">
         <button id="seat-btn" type="button" class="btn primary sm">
-          הושבה לשולחן/ות שנבחרו
+          <%= tt('host.btn_seat', 'Seat at Selected Table(s)') %>
         </button>
-        <p class="muted small">ניתן לבחור מספר שולחנות עבור אותה הזמנה (איחוד שולחנות).</p>
+        <p class="muted small"><%= tt('host.merge_hint', 'You can select multiple tables for the same reservation (table merge).') %></p>
       </div>
     </div>
   </section>
@@ -85,29 +85,29 @@
   <div class="table-info-inner">
     <header class="table-info-header">
       <div>
-        <div class="tip-label">פרטי שולחן</div>
-        <div class="tip-title">שולחן <span id="tip-table-number">—</span></div>
+        <div class="tip-label"><%= tt('host.table_details', 'Table Details') %></div>
+        <div class="tip-title"><%= tt('host.table_label', 'Table') %> <span id="tip-table-number">—</span></div>
       </div>
-      <button type="button" class="tip-close-btn" id="tip-close-btn" aria-label="סגירת פרטי שולחן">
+      <button type="button" class="tip-close-btn" id="tip-close-btn" aria-label="<%= tt('host.close_table_details', 'Close table details') %>">
         ✕
       </button>
     </header>
 
     <div class="table-info-body">
       <div class="tip-row">
-        <span class="tip-row-label">שם המזמין</span>
+        <span class="tip-row-label"><%= tt('host.guest_name', 'Guest Name') %></span>
         <span class="tip-row-value" id="tip-guest-name">—</span>
       </div>
       <div class="tip-row">
-        <span class="tip-row-label">מספר סועדים</span>
+        <span class="tip-row-label"><%= tt('host.num_guests', 'Number of Guests') %></span>
         <span class="tip-row-value" id="tip-people">—</span>
       </div>
       <div class="tip-row">
-        <span class="tip-row-label">שעת ההזמנה</span>
+        <span class="tip-row-label"><%= tt('host.reservation_time', 'Reservation Time') %></span>
         <span class="tip-row-value" id="tip-time">—</span>
       </div>
       <div class="tip-row">
-        <span class="tip-row-label">סטטוס שולחן</span>
+        <span class="tip-row-label"><%= tt('host.table_status_label', 'Table Status') %></span>
         <span class="tip-row-value">
           <span id="tip-status" class="tip-status-badge">—</span>
         </span>
@@ -116,7 +116,7 @@
 
     <footer class="table-info-footer">
       <p class="muted small">
-        המידע נלקח מההזמנה האחרונה ששויכה לשולחן זה.
+        <%= tt('host.table_info_note', 'Information is taken from the last reservation assigned to this table.') %>
       </p>
     </footer>
   </div>
@@ -145,11 +145,11 @@
 
   function mapStatusToLabel(status){
     const s = (status || "").toLowerCase();
-    if (s === "occupied" || s === "open") return "תפוס";
-    if (s === "reserved") return "שמורה";
-    if (s === "dirty") return "דורש ניקוי";
-    if (s === "empty" || s === "free") return "פנוי";
-    return status || "לא ידוע";
+    if (s === "occupied" || s === "open") return "<%= tt('host.status.occupied', 'Occupied') %>";
+    if (s === "reserved") return "<%= tt('host.status.reserved', 'Reserved') %>";
+    if (s === "dirty") return "<%= tt('host.status.dirty', 'Needs Cleaning') %>";
+    if (s === "empty" || s === "free") return "<%= tt('host.status.empty', 'Empty') %>";
+    return status || "<%= tt('host.status.unknown', 'Unknown') %>";
   }
 
   function mapStatusToClass(status){
@@ -335,7 +335,7 @@
       if (!res.ok) {
         const p = document.createElement("p");
         p.className = "muted";
-        p.textContent = "לא הוגדרה מפת שולחנות למסעדה זו.";
+        p.textContent = "<%= tt('host.no_floor_plan', 'No floor plan has been defined for this restaurant.') %>";
         holder.appendChild(p);
         return;
       }
@@ -365,7 +365,7 @@
       if (!tables.length) {
         const p = document.createElement("p");
         p.className = "muted";
-        p.textContent = "אין שולחנות מוגדרים במפת המסעדה.";
+        p.textContent = "<%= tt('host.no_tables_defined', 'No tables defined in the restaurant map.') %>";
         holder.appendChild(p);
         return;
       }
@@ -387,7 +387,7 @@
         btn.className = "table " + status;
         btn.dataset.tableNumber = String(num);
 
-        const capText = seats > 0 ? (seats + " מקומות") : "";
+        const capText = seats > 0 ? (seats + " <%= tt('host.seats', 'seats') %>") : "";
 
         btn.innerHTML = `
           <div class="table-num">${num}</div>

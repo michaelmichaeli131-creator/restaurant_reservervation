@@ -1,0 +1,38 @@
+<%
+/**
+ * SpotBook Toast / Flash Message Component
+ *
+ * Usage:
+ *   <%~ include("components/_toast", { message: "Saved!", type: "success" }) %>
+ *   <%~ include("components/_toast", { message: "Something went wrong", type: "danger" }) %>
+ *
+ * Params:
+ *   message   (string) - Toast message text (required)
+ *   type      (string) - "success" | "warning" | "danger" | "info" (default: "info")
+ *   dismiss   (bool)   - Show a dismiss / close button (default: true)
+ *   id        (string) - HTML id attribute (optional)
+ *   cls       (string) - Extra CSS classes (optional)
+ */
+%>
+<% const type = it.type || 'info'; %>
+<% const dismiss = it.dismiss !== false; %>
+
+<div
+  class="sb-toast sb-toast--<%= type %><%= it.cls ? ' ' + it.cls : '' %>"
+  role="alert"
+  aria-live="polite"
+  <%= it.id ? 'id="' + it.id + '"' : '' %>
+>
+  <span class="sb-toast__icon">
+    <% if (type === 'success') { %>&#10003;<% } %>
+    <% if (type === 'warning') { %>&#9888;<% } %>
+    <% if (type === 'danger') { %>&#10007;<% } %>
+    <% if (type === 'info') { %>&#8505;<% } %>
+  </span>
+
+  <span class="sb-toast__message"><%= it.message %></span>
+
+  <% if (dismiss) { %>
+    <button class="sb-toast__close" type="button" aria-label="Dismiss" onclick="this.closest('.sb-toast').remove()">&times;</button>
+  <% } %>
+</div>

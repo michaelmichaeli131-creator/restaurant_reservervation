@@ -1,0 +1,34 @@
+<%
+/**
+ * SpotBook Empty State Component
+ *
+ * Usage:
+ *   <%~ include("components/_empty_state", { icon: "clipboard", message: "No reservations yet" }) %>
+ *   <%~ include("components/_empty_state", { icon: "calendar", message: "Nothing scheduled", cta: "Add Event", ctaHref: "/events/new" }) %>
+ *
+ * Params:
+ *   icon     (string) - Emoji or SVG HTML for the illustration (optional)
+ *   message  (string) - Main empty-state message (required)
+ *   sub      (string) - Secondary description text (optional)
+ *   cta      (string) - Call-to-action button text (optional)
+ *   ctaHref  (string) - CTA link URL (optional, defaults to "#")
+ *   cls      (string) - Extra CSS classes (optional)
+ */
+%>
+<div class="sb-empty-state<%= it.cls ? ' ' + it.cls : '' %>">
+  <% if (it.icon) { %>
+    <div class="sb-empty-state__icon"><%~ it.icon %></div>
+  <% } %>
+
+  <p class="sb-empty-state__message"><%= it.message %></p>
+
+  <% if (it.sub) { %>
+    <p class="sb-empty-state__sub"><%= it.sub %></p>
+  <% } %>
+
+  <% if (it.cta) { %>
+    <a class="sb-btn sb-btn--primary sb-empty-state__cta" href="<%= it.ctaHref || '#' %>">
+      <%= it.cta %>
+    </a>
+  <% } %>
+</div>

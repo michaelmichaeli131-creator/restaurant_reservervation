@@ -24,7 +24,7 @@ function getLang(ctx: any): string {
   if (/^en/i.test(al)) return "en";
   if (/^ka/i.test(al)) return "ka";
   if (/^he/i.test(al)) return "he";
-  return "he";
+  return "en";
 }
 function getT(ctx: any): (k: string, fb?: string) => string {
   const t = ctx.state?.t;
