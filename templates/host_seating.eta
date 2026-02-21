@@ -252,10 +252,10 @@
 
       let status = "";
       if (action === "cancel") {
-        if (!confirm("לסמן את ההזמנה כבוטלה?")) return;
+        if (!confirm("<%= tt('host.confirm_cancel', 'Mark this reservation as cancelled?') %>")) return;
         status = "cancelled";
       } else if (action === "no_show") {
-        if (!confirm("לסמן את ההזמנה כ'לא הגיע'?")) return;
+        if (!confirm("<%= tt('host.confirm_no_show', \"Mark this reservation as 'No Show'?\") %>")) return;
         status = "no_show";
       } else {
         return;
@@ -278,7 +278,7 @@
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.ok) {
-          alert("שגיאה בעדכון סטטוס ההזמנה: " + (data.error || res.status));
+          alert("<%= tt('host.err_update_status', 'Error updating reservation status') %>: " + (data.error || res.status));
           return;
         }
 
@@ -294,12 +294,12 @@
         if (!ul.querySelector("li")) {
           const p = document.createElement("p");
           p.className = "muted";
-          p.textContent = "אין הזמנות להיום למסעדה הזו.";
+          p.textContent = "<%= tt('host.no_reservations', 'No reservations for today at this restaurant.') %>";
           ul.replaceWith(p);
         }
       } catch (e) {
         console.error(e);
-        alert("שגיאת רשת בזמן עדכון סטטוס.");
+        alert("<%= tt('host.err_network_status', 'Network error while updating status.') %>");
       }
     });
   }
@@ -423,7 +423,7 @@
             const data = await res.json().catch(() => ({}));
             if (!res.ok || !data.ok) {
               const msg = data && data.error ? data.error : res.status;
-              alert("לא ניתן לטעון פרטי שולחן: " + msg);
+              alert("<%= tt('host.err_load_table', 'Cannot load table details') %>: " + msg);
               return;
             }
 
@@ -436,7 +436,7 @@
             });
           } catch (e) {
             console.error(e);
-            alert("שגיאה בטעינת פרטי השולחן.");
+            alert("<%= tt('host.err_load_table_general', 'Error loading table details.') %>");
           }
         });
 
@@ -446,18 +446,18 @@
       console.error(e);
       const p = document.createElement("p");
       p.className = "muted";
-      p.textContent = "שגיאה בטעינת מפת המסעדה.";
+      p.textContent = "<%= tt('host.err_load_map', 'Error loading the restaurant map.') %>";
       holder.appendChild(p);
     }
   }
 
   async function seatSelected(){
     if (!state.selectedResId) {
-      alert("יש לבחור הזמנה קודם.");
+      alert("<%= tt('host.err_select_reservation', 'Please select a reservation first.') %>");
       return;
     }
     if (!state.selectedTables.size) {
-      alert("יש לבחור לפחות שולחן אחד.");
+      alert("<%= tt('host.err_select_table', 'Please select at least one table.') %>");
       return;
     }
 
@@ -465,8 +465,8 @@
     const guestName = getSelectedReservationName();
 
     const msg = tables.length === 1
-      ? `להושיב את ההזמנה לשולחן ${tables[0]}?`
-      : `להושיב את ההזמנה לשולחנות ${tables.join(", ")} (איחוד שולחנות)?`;
+      ? `<%= tt('host.confirm_seat_single', 'Seat the reservation at table') %> ${tables[0]}?`
+      : `<%= tt('host.confirm_seat_multi', 'Seat the reservation at tables') %> ${tables.join(", ")} (<%= tt('host.table_merge', 'table merge') %>)?`;
     if (!confirm(msg)) return;
 
     async function doSeatOnce() {
@@ -517,7 +517,7 @@
       if (!res.ok || !data.ok) {
         if (data && data.error === "table_already_seated") {
           const confirmUnseat = confirm(
-            "השולחן מסומן כתפוס במערכת (כנראה מישיבה קודמת). לשחרר אותו ולאפשר הושבה מחדש?"
+            "<%= tt('host.confirm_unseat', 'The table is marked as occupied (probably from a previous session). Release it and allow re-seating?') %>"
           );
           if (!confirmUnseat) return;
 
@@ -530,11 +530,11 @@
           data = second.data;
 
           if (!res.ok || !data.ok) {
-            alert("שגיאה בהושבה אחרי שחרור שולחן: " + (data.error || res.status));
+            alert("<%= tt('host.err_seat_after_release', 'Error seating after table release') %>: " + (data.error || res.status));
             return;
           }
         } else {
-          alert("שגיאה בהושבה: " + (data.error || res.status));
+          alert("<%= tt('host.err_seating', 'Seating error') %>: " + (data.error || res.status));
           return;
         }
       }
@@ -573,7 +573,7 @@
           if (!ul.querySelector("li")) {
             const p = document.createElement("p");
             p.className = "muted";
-            p.textContent = "אין הזמנות להיום למסעדה הזו.";
+            p.textContent = "<%= tt('host.no_reservations', 'No reservations for today at this restaurant.') %>";
             ul.replaceWith(p);
           }
         }
@@ -584,12 +584,12 @@
 
       alert(
         tables.length === 1
-          ? `ההזמנה הושבה לשולחן ${tables[0]} ונפתח צ׳ק במסעדה.`
-          : `ההזמנה הושבה לשולחנות ${tables.join(", ")} ונפתחו צ׳קים בהתאם.`
+          ? `<%= tt('host.success_seat_single', 'Reservation seated at table') %> ${tables[0]}. <%= tt('host.check_opened', 'Check opened.') %>`
+          : `<%= tt('host.success_seat_multi', 'Reservation seated at tables') %> ${tables.join(", ")}. <%= tt('host.checks_opened', 'Checks opened accordingly.') %>`
       );
     } catch (e) {
       console.error(e);
-      alert("שגיאת רשת בזמן הושבה.");
+      alert("<%= tt('host.err_network_seat', 'Network error during seating.') %>");
     }
   }
 

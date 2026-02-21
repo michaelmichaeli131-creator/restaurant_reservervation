@@ -10,6 +10,9 @@
     <link rel="stylesheet" href="/static/styles.css?v=<%= it.BUILD_TAG || '' %>"/>
   <% } %>
 
+  <!-- Design tokens (load FIRST - canonical source of all CSS variables) -->
+  <link rel="stylesheet" href="/public/css/tokens.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
+
   <!-- External fonts intentionally not loaded to keep CSP strict (style-src 'self').
        spotbook.css uses a system font stack fallback. -->
   <link rel="stylesheet" href="/public/css/spotbook.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
