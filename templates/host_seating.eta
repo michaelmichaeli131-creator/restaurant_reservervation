@@ -19,7 +19,7 @@
 <main class="host container">
   <header class="host-header">
     <div>
-      <h1><%= tt('host.title', 'Host Screen') %> — <%= restaurant.name %></h1>
+      <h1>מסך מארחת — <%= restaurant.name %></h1>
       <p class="muted"><%= restaurant.city %> • <%= restaurant.address %></p>
     </div>
   </header>
@@ -27,7 +27,7 @@
   <section class="host-grid">
     <!-- עמודת הזמנות -->
     <div class="panel card">
-      <h2><%= tt('host.reservations_today', "Today's Reservations") %></h2>
+      <h2>הזמנות להיום</h2>
 
       <% if (reservations.length) { %>
         <ul class="list" id="resv-list">
@@ -46,34 +46,41 @@
               </label>
               <div class="resv-actions">
                 <button type="button" class="link-btn resv-cancel" data-action="cancel" data-id="<%= r.id %>">
-                  <%= tt('host.btn_cancel', 'Cancel') %>
+                  ביטול
                 </button>
                 <button type="button" class="link-btn resv-noshow" data-action="no_show" data-id="<%= r.id %>">
-                  <%= tt('host.btn_no_show', 'No Show') %>
+                  לא הגיע
                 </button>
               </div>
             </li>
           <% }) %>
         </ul>
       <% } else { %>
-        <p class="muted"><%= tt('host.no_reservations', 'No reservations for today at this restaurant.') %></p>
+        <p class="muted">אין הזמנות להיום למסעדה הזו.</p>
       <% } %>
     </div>
 
     <!-- עמודת מפת מסעדה -->
     <div class="panel card">
-      <h2><%= tt('host.floor_map_title', 'Restaurant Map (Live)') %></h2>
+      <h2>מפת המסעדה (חי)</h2>
       <p class="muted small">
-        <%= tt('host.floor_map_help', 'Select a reservation, choose a table or multiple tables (merge), then click the seat button.') %>
+        יש לבחור הזמנה, לבחור שולחן או כמה שולחנות (איחוד), ואז ללחוץ על כפתור ההושבה.
       </p>
-      <div id="floor" class="floor-wrapper">
-        <!-- המפה תיטען דינמית ע"י JS -->
-      </div>
+      <div
+        id="sb-floor-root"
+        class="floor-wrapper"
+        data-rid="<%= it.rid %>"
+        data-click-mode="host"
+      ></div>
       <div class="host-actions">
         <button id="seat-btn" type="button" class="btn primary sm">
-          <%= tt('host.btn_seat', 'Seat at Selected Table(s)') %>
+          הושבה לשולחן/ות שנבחרו
         </button>
-        <p class="muted small"><%= tt('host.merge_hint', 'You can select multiple tables for the same reservation (table merge).') %></p>
+        <div class="host-mini-actions">
+          <button id="mark-reserved-btn" type="button" class="btn ghost sm">סמן שמור</button>
+          <button id="mark-empty-btn" type="button" class="btn ghost sm">סמן פנוי</button>
+        </div>
+        <p class="muted small">ניתן לבחור מספר שולחנות עבור אותה הזמנה (איחוד שולחנות).</p>
       </div>
     </div>
   </section>
@@ -85,29 +92,29 @@
   <div class="table-info-inner">
     <header class="table-info-header">
       <div>
-        <div class="tip-label"><%= tt('host.table_details', 'Table Details') %></div>
-        <div class="tip-title"><%= tt('host.table_label', 'Table') %> <span id="tip-table-number">—</span></div>
+        <div class="tip-label">פרטי שולחן</div>
+        <div class="tip-title">שולחן <span id="tip-table-number">—</span></div>
       </div>
-      <button type="button" class="tip-close-btn" id="tip-close-btn" aria-label="<%= tt('host.close_table_details', 'Close table details') %>">
+      <button type="button" class="tip-close-btn" id="tip-close-btn" aria-label="סגירת פרטי שולחן">
         ✕
       </button>
     </header>
 
     <div class="table-info-body">
       <div class="tip-row">
-        <span class="tip-row-label"><%= tt('host.guest_name', 'Guest Name') %></span>
+        <span class="tip-row-label">שם המזמין</span>
         <span class="tip-row-value" id="tip-guest-name">—</span>
       </div>
       <div class="tip-row">
-        <span class="tip-row-label"><%= tt('host.num_guests', 'Number of Guests') %></span>
+        <span class="tip-row-label">מספר סועדים</span>
         <span class="tip-row-value" id="tip-people">—</span>
       </div>
       <div class="tip-row">
-        <span class="tip-row-label"><%= tt('host.reservation_time', 'Reservation Time') %></span>
+        <span class="tip-row-label">שעת ההזמנה</span>
         <span class="tip-row-value" id="tip-time">—</span>
       </div>
       <div class="tip-row">
-        <span class="tip-row-label"><%= tt('host.table_status_label', 'Table Status') %></span>
+        <span class="tip-row-label">סטטוס שולחן</span>
         <span class="tip-row-value">
           <span id="tip-status" class="tip-status-badge">—</span>
         </span>
@@ -116,11 +123,18 @@
 
     <footer class="table-info-footer">
       <p class="muted small">
-        <%= tt('host.table_info_note', 'Information is taken from the last reservation assigned to this table.') %>
+        המידע נלקח מההזמנה האחרונה ששויכה לשולחן זה.
       </p>
     </footer>
   </div>
 </aside>
+
+<!-- Same floor-view assets as the waiter lobby -->
+<link rel="stylesheet" href="/public/css/sb-floor-theme.css">
+<link rel="stylesheet" href="/public/css/sb-floor-map.css">
+<link rel="stylesheet" href="/static/dist/floor-index.css?v=<%= it.BUILD_TAG || Date.now() %>">
+<link rel="stylesheet" href="/static/dist/floor-floor-view-app.css?v=<%= it.BUILD_TAG || Date.now() %>">
+<script type="module" src="/static/dist/floor-view-app.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>
 
 <script>
 (function(){
@@ -128,10 +142,26 @@
   const state = {
     selectedResId: null,
     selectedTables: new Set(),   // מספרי שולחנות שנבחרו
+    selectedTableIds: new Set(), // IDs של שולחנות שנבחרו (לסטטוסים)
   };
 
   const resvList = document.getElementById("resv-list");
   const seatBtn = document.getElementById("seat-btn");
+  const markReservedBtn = document.getElementById("mark-reserved-btn");
+  const markEmptyBtn = document.getElementById("mark-empty-btn");
+
+  // Selection updates from the embedded floor-view app
+  window.addEventListener("sb-floor-selection", function(ev){
+    try {
+      const d = (ev && ev.detail) ? ev.detail : {};
+      const nums = Array.isArray(d.tableNumbers) ? d.tableNumbers : [];
+      const ids = Array.isArray(d.tableIds) ? d.tableIds : [];
+      state.selectedTables = new Set(nums.map(Number).filter(n => Number.isFinite(n) && n > 0));
+      state.selectedTableIds = new Set(ids.map(String).filter(Boolean));
+    } catch (e) {
+      console.warn("[HOST] selection event error", e);
+    }
+  });
 
   // צד פרטי שולחן
   const tableInfoPanel = document.getElementById("table-info-panel");
@@ -145,11 +175,11 @@
 
   function mapStatusToLabel(status){
     const s = (status || "").toLowerCase();
-    if (s === "occupied" || s === "open") return "<%= tt('host.status.occupied', 'Occupied') %>";
-    if (s === "reserved") return "<%= tt('host.status.reserved', 'Reserved') %>";
-    if (s === "dirty") return "<%= tt('host.status.dirty', 'Needs Cleaning') %>";
-    if (s === "empty" || s === "free") return "<%= tt('host.status.empty', 'Empty') %>";
-    return status || "<%= tt('host.status.unknown', 'Unknown') %>";
+    if (s === "occupied" || s === "open") return "תפוס";
+    if (s === "reserved") return "שמורה";
+    if (s === "dirty") return "דורש ניקוי";
+    if (s === "empty" || s === "free") return "פנוי";
+    return status || "לא ידוע";
   }
 
   function mapStatusToClass(status){
@@ -252,10 +282,10 @@
 
       let status = "";
       if (action === "cancel") {
-        if (!confirm("<%= tt('host.confirm_cancel', 'Mark this reservation as cancelled?') %>")) return;
+        if (!confirm("לסמן את ההזמנה כבוטלה?")) return;
         status = "cancelled";
       } else if (action === "no_show") {
-        if (!confirm("<%= tt('host.confirm_no_show', `Mark this reservation as 'No Show'?`) %>")) return;
+        if (!confirm("לסמן את ההזמנה כ'לא הגיע'?")) return;
         status = "no_show";
       } else {
         return;
@@ -278,7 +308,7 @@
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.ok) {
-          alert("<%= tt('host.err_update_status', 'Error updating reservation status') %>: " + (data.error || res.status));
+          alert("שגיאה בעדכון סטטוס ההזמנה: " + (data.error || res.status));
           return;
         }
 
@@ -294,12 +324,12 @@
         if (!ul.querySelector("li")) {
           const p = document.createElement("p");
           p.className = "muted";
-          p.textContent = "<%= tt('host.no_reservations', 'No reservations for today at this restaurant.') %>";
+          p.textContent = "אין הזמנות להיום למסעדה הזו.";
           ul.replaceWith(p);
         }
       } catch (e) {
         console.error(e);
-        alert("<%= tt('host.err_network_status', 'Network error while updating status.') %>");
+        alert("שגיאת רשת בזמן עדכון סטטוס.");
       }
     });
   }
@@ -335,7 +365,7 @@
       if (!res.ok) {
         const p = document.createElement("p");
         p.className = "muted";
-        p.textContent = "<%= tt('host.no_floor_plan', 'No floor plan has been defined for this restaurant.') %>";
+        p.textContent = "לא הוגדרה מפת שולחנות למסעדה זו.";
         holder.appendChild(p);
         return;
       }
@@ -365,7 +395,7 @@
       if (!tables.length) {
         const p = document.createElement("p");
         p.className = "muted";
-        p.textContent = "<%= tt('host.no_tables_defined', 'No tables defined in the restaurant map.') %>";
+        p.textContent = "אין שולחנות מוגדרים במפת המסעדה.";
         holder.appendChild(p);
         return;
       }
@@ -387,7 +417,7 @@
         btn.className = "table " + status;
         btn.dataset.tableNumber = String(num);
 
-        const capText = seats > 0 ? (seats + " <%= tt('host.seats', 'seats') %>") : "";
+        const capText = seats > 0 ? (seats + " מקומות") : "";
 
         btn.innerHTML = `
           <div class="table-num">${num}</div>
@@ -423,7 +453,7 @@
             const data = await res.json().catch(() => ({}));
             if (!res.ok || !data.ok) {
               const msg = data && data.error ? data.error : res.status;
-              alert("<%= tt('host.err_load_table', 'Cannot load table details') %>: " + msg);
+              alert("לא ניתן לטעון פרטי שולחן: " + msg);
               return;
             }
 
@@ -436,7 +466,7 @@
             });
           } catch (e) {
             console.error(e);
-            alert("<%= tt('host.err_load_table_general', 'Error loading table details.') %>");
+            alert("שגיאה בטעינת פרטי השולחן.");
           }
         });
 
@@ -446,18 +476,18 @@
       console.error(e);
       const p = document.createElement("p");
       p.className = "muted";
-      p.textContent = "<%= tt('host.err_load_map', 'Error loading the restaurant map.') %>";
+      p.textContent = "שגיאה בטעינת מפת המסעדה.";
       holder.appendChild(p);
     }
   }
 
   async function seatSelected(){
     if (!state.selectedResId) {
-      alert("<%= tt('host.err_select_reservation', 'Please select a reservation first.') %>");
+      alert("יש לבחור הזמנה קודם.");
       return;
     }
     if (!state.selectedTables.size) {
-      alert("<%= tt('host.err_select_table', 'Please select at least one table.') %>");
+      alert("יש לבחור לפחות שולחן אחד.");
       return;
     }
 
@@ -465,8 +495,8 @@
     const guestName = getSelectedReservationName();
 
     const msg = tables.length === 1
-      ? `<%= tt('host.confirm_seat_single', 'Seat the reservation at table') %> ${tables[0]}?`
-      : `<%= tt('host.confirm_seat_multi', 'Seat the reservation at tables') %> ${tables.join(", ")} (<%= tt('host.table_merge', 'table merge') %>)?`;
+      ? `להושיב את ההזמנה לשולחן ${tables[0]}?`
+      : `להושיב את ההזמנה לשולחנות ${tables.join(", ")} (איחוד שולחנות)?`;
     if (!confirm(msg)) return;
 
     async function doSeatOnce() {
@@ -517,7 +547,7 @@
       if (!res.ok || !data.ok) {
         if (data && data.error === "table_already_seated") {
           const confirmUnseat = confirm(
-            "<%= tt('host.confirm_unseat', 'The table is marked as occupied (probably from a previous session). Release it and allow re-seating?') %>"
+            "השולחן מסומן כתפוס במערכת (כנראה מישיבה קודמת). לשחרר אותו ולאפשר הושבה מחדש?"
           );
           if (!confirmUnseat) return;
 
@@ -530,11 +560,11 @@
           data = second.data;
 
           if (!res.ok || !data.ok) {
-            alert("<%= tt('host.err_seat_after_release', 'Error seating after table release') %>: " + (data.error || res.status));
+            alert("שגיאה בהושבה אחרי שחרור שולחן: " + (data.error || res.status));
             return;
           }
         } else {
-          alert("<%= tt('host.err_seating', 'Seating error') %>: " + (data.error || res.status));
+          alert("שגיאה בהושבה: " + (data.error || res.status));
           return;
         }
       }
@@ -573,23 +603,25 @@
           if (!ul.querySelector("li")) {
             const p = document.createElement("p");
             p.className = "muted";
-            p.textContent = "<%= tt('host.no_reservations', 'No reservations for today at this restaurant.') %>";
+            p.textContent = "אין הזמנות להיום למסעדה הזו.";
             ul.replaceWith(p);
           }
         }
       }
 
       state.selectedTables.clear();
+      state.selectedTableIds.clear();
+      try { window.dispatchEvent(new CustomEvent("sb-floor-clear-selection")); } catch(_e) {}
       closeTableInfoPanel();
 
       alert(
         tables.length === 1
-          ? `<%= tt('host.success_seat_single', 'Reservation seated at table') %> ${tables[0]}. <%= tt('host.check_opened', 'Check opened.') %>`
-          : `<%= tt('host.success_seat_multi', 'Reservation seated at tables') %> ${tables.join(", ")}. <%= tt('host.checks_opened', 'Checks opened accordingly.') %>`
+          ? `ההזמנה הושבה לשולחן ${tables[0]} ונפתח צ׳ק במסעדה.`
+          : `ההזמנה הושבה לשולחנות ${tables.join(", ")} ונפתחו צ׳קים בהתאם.`
       );
     } catch (e) {
       console.error(e);
-      alert("<%= tt('host.err_network_seat', 'Network error during seating.') %>");
+      alert("שגיאת רשת בזמן הושבה.");
     }
   }
 
@@ -599,13 +631,50 @@
     });
   }
 
-  loadFloor();
+  async function markStatusForSelected(status){
+    const ids = Array.from(state.selectedTableIds.values());
+    if (!ids.length) {
+      alert("בחר שולחן אחד לפחות במפה.");
+      return;
+    }
+
+    try{
+      await Promise.all(ids.map(async (tid) => {
+        const res = await fetch(`/api/tables/${encodeURIComponent(rid)}/${encodeURIComponent(tid)}/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || ("HTTP " + res.status));
+        }
+      }));
+      try { window.dispatchEvent(new Event("sb-floor-refresh")); } catch(_e) {}
+    } catch (e) {
+      console.error(e);
+      alert("שגיאה בעדכון סטטוס שולחן: " + (e && e.message ? e.message : "unknown"));
+    }
+  }
+
+  if (markReservedBtn) {
+    markReservedBtn.addEventListener("click", function(){
+      markStatusForSelected("reserved");
+    });
+  }
+  if (markEmptyBtn) {
+    markEmptyBtn.addEventListener("click", function(){
+      markStatusForSelected("empty");
+    });
+  }
+
+  // Floor map is mounted by /dist/floor-view-app.js
 })();
 </script>
 
 <style>
   .host.container{
-    max-width: 1100px;
+    max-width: 1400px;
     margin: 20px auto;
     padding: 0 16px;
   }
@@ -630,7 +699,7 @@
 
   .host-grid{
     display:grid;
-    grid-template-columns: minmax(260px, 0.9fr) minmax(340px, 1.1fr);
+    grid-template-columns: minmax(320px, 0.75fr) minmax(760px, 1.25fr);
     gap:16px;
   }
 
@@ -694,13 +763,17 @@
     font-size:12px;
   }
 
-  .floor-wrapper{
-    margin-top:8px;
-    min-height: 260px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    overflow:auto;
+    .floor-wrapper{
+    margin-top: 8px;
+    width: 100%;
+    height: min(72vh, 780px);
+    min-height: 520px;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,.06);
   }
 
   .host-actions{
@@ -948,4 +1021,10 @@
     border-top:1px solid rgba(148,163,184,0.25);
   }
 
+
+  .host-grid .floor-wrapper{
+    height: min(72vh, 860px);
+    border-radius: 18px;
+    overflow: hidden;
+  }
 </style>

@@ -163,7 +163,7 @@ export default function FloorMapRenderer({
     };
   }, []);
 
-  const clampZoom = (z: number) => Math.max(0.4, Math.min(2.5, z));
+  const clampZoom = (z: number) => Math.max(mode === 'view' ? 0.08 : 0.4, Math.min(2.5, z));
 
   const fitToScreen = () => {
     if (!canvasRef.current || !gridRef.current) return;

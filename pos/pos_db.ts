@@ -492,6 +492,16 @@ export async function closeOrderForTable(
 
   try {
     await kv.delete(kSeat(restaurantId, table));
+    // Also clear any manual status override so the table becomes "empty" right after close.
+    try {
+      const tableId = await getTableIdByNumber(restaurantId, table);
+      if (tableId) {
+        await kv.delete(["table_status", restaurantId, tableId]);
+      }
+    } catch {
+      // ignore
+    }
+
   } catch {
     // ignore
   }
