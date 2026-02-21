@@ -10,9 +10,13 @@
 import {
   kv,
   getReservationById,
+  getRestaurant,
+  getUserById,
   setReservationStatus,
 } from "../database.ts";
 import { getOrCreateOpenOrder } from "../pos/pos_db.ts";
+import { makeReviewToken, buildReviewUrl } from "../lib/token.ts";
+import { sendReviewEmail } from "../lib/mail.ts";
 
 /** מפתח KV: ישיבה לפי שולחן */
 function kSeat(restaurantId: string, table: number): Deno.KvKey {
@@ -114,12 +118,38 @@ export async function seatReservation(params: {
   // 4. פתיחת צ'ק פתוח לשולחן (אם כבר קיים open – נקבל אותו)
   await getOrCreateOpenOrder(restaurantId, table);
 
-  // 5. עדכון סטטוס ההזמנה ל-arrived (לא מפילים על זה את הקריאה אם נכשל)
+  // 5. Update reservation status to arrived (non-blocking)
   try {
     await setReservationStatus(reservationId, "arrived");
   } catch {
     // ignore
   }
+
+  // 6. Send post-visit review email (fire-and-forget, never blocks seating)
+  (async () => {
+    try {
+      const user = reservation.userId ? await getUserById(reservation.userId) : null;
+      const restaurant = await getRestaurant(restaurantId);
+      if (!user?.email || !restaurant) return;
+
+      const token = await makeReviewToken(reservationId, restaurantId, reservation.userId, 7);
+      const origin = (Deno.env.get("BASE_URL") || "").replace(/\/+$/, "");
+      if (!origin) return;
+      const reviewUrl = buildReviewUrl(origin, token);
+
+      await sendReviewEmail({
+        to: user.email,
+        reviewUrl,
+        restaurantName: restaurant.name,
+        date: reservation.date,
+        customerName: reservation.firstName || user.firstName || undefined,
+        lang: (user as any).lang || "he",
+      });
+      console.log("[SEATING] review email queued", { reservationId, to: user.email });
+    } catch (e) {
+      console.warn("[SEATING] review email failed (non-critical)", (e as Error).message);
+    }
+  })();
 
   return data;
 }

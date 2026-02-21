@@ -112,6 +112,19 @@ const I18N = {
     en: "Reservation reminder — please confirm",
     ka: "შეხსენება — გთხოვთ, დაადასტუროთ",
   },
+
+  reviewTitle: { he: "נשמח לשמוע ממך!", en: "We'd love your feedback!", ka: "გვინდა თქვენი აზრი!" },
+  reviewLead: {
+    he: "ביקרת לאחרונה ב-{restaurant}. ספר/י לנו על החוויה שלך.",
+    en: "You recently visited {restaurant}. Tell us about your experience.",
+    ka: "თქვენ ახლახანს ეწვიეთ {restaurant}-ს. გვითხარით გამოცდილებაზე."
+  },
+  reviewCta: { he: "השאר ביקורת", en: "Leave a Review", ka: "დატოვეთ მიმოხილვა" },
+  reviewSubject: {
+    he: (r: string) => `איך היה? ספר/י על ${r}`,
+    en: (r: string) => `How was it? Share your experience at ${r}`,
+    ka: (r: string) => `როგორ იყო? გაგვიზიარეთ გამოცდილება — ${r}`,
+  },
 };
 
 function t<K extends keyof typeof I18N>(k: K, l: Lang): (typeof I18N)[K][Lang] {
@@ -619,5 +632,57 @@ export async function sendReminderEmail(opts: {
     subject: t("reminderSubject", L),
     html,
     text,
+  });
+}
+
+/* =================== Post-Visit Review Email =================== */
+export async function sendReviewEmail(opts: {
+  to: string;
+  reviewUrl: string;
+  restaurantName: string;
+  date: string;        // YYYY-MM-DD of the visit
+  customerName?: string;
+  lang?: string | null;
+}) {
+  const L = normLang(opts.lang);
+  const { to, restaurantName, customerName, date } = opts;
+  const link = opts.reviewUrl;
+
+  const lead = (t("reviewLead", L) as string).replace("{restaurant}", `<strong>${restaurantName}</strong>`);
+
+  const html = baseWrap(`
+    <h2 style="margin:0 0 8px 0;font-size:20px;font-weight:800;">${t("reviewTitle", L)}</h2>
+    <p style="margin:0 0 12px 0;color:${palette.sub};">${restaurantName} · ${date}</p>
+    ${customerName ? `<p style="margin:0 0 10px 0;">${t("hello", L)} ${customerName},</p>` : ""}
+    <p style="margin:0 0 16px 0;color:${palette.sub};">${lead}</p>
+    <div style="text-align:center;margin:16px 0 18px;">
+      <a href="${link}" style="
+        display:inline-block;background:${palette.btn};color:${palette.btnText};
+        padding:14px 22px;border-radius:999px;text-decoration:none;font-weight:800;font-size:16px;">
+        ⭐ ${t("reviewCta", L)}
+      </a>
+    </div>
+    <p style="margin:0;color:${palette.sub};font-size:14px;word-break:break-all">
+      ${t("directLink", L)}: <a href="${link}" style="color:${palette.link}">${link}</a>
+    </p>
+  `, L);
+
+  const leadText = (t("reviewLead", L) as string).replace("{restaurant}", restaurantName);
+  const text = [
+    (t("reviewSubject", L) as (r: string) => string)(restaurantName),
+    customerName ? `${t("hello", L)} ${customerName},` : "",
+    leadText,
+    `${t("reviewCta", L)}: ${link}`,
+  ].filter(Boolean).join("\n");
+
+  return await sendMailAny({
+    to,
+    subject: (t("reviewSubject", L) as (r: string) => string)(restaurantName),
+    html,
+    text,
+    headers: {
+      "Reply-To": "no-reply",
+      "List-Unsubscribe": "<mailto:no-reply>",
+    },
   });
 }
