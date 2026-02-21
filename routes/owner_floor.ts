@@ -138,17 +138,34 @@ ownerFloorRouter.post(
     }
 
     if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
-
-    const body = await (ctx.request as any).originalRequest?.json?.().catch?.(() => null)
-      ?? await (async () => {
-        try {
-          const b = (ctx.request as any).body?.({ type: "json" });
-          return b ? await b.value : null;
-        } catch {
-          return null;
+    // Read body robustly (some clients miss Content-Type, and Oak's json body parser can be strict).
+    let body: any = {};
+    try {
+      const req = (ctx.request as any).originalRequest?.request;
+      if (req && typeof req.json === "function") {
+        body = await req.json();
+      } else {
+        throw new Error("no request.json");
+      }
+    } catch {
+      try {
+        const b = (ctx.request as any).body?.({ type: "json" });
+        if (b && b.value != null) {
+          body = await b.value;
+        } else {
+          throw new Error("no ctx.request.body json");
         }
-      })()
-      ?? {};
+      } catch {
+        try {
+          const bt = (ctx.request as any).body?.({ type: "text" });
+          const txt = bt && bt.value != null ? await bt.value : "";
+          body = txt ? JSON.parse(txt) : {};
+        } catch {
+          body = {};
+        }
+      }
+    }
+    if (!body || typeof body !== "object") body = {};
 
     const { status } = body as any;
 

@@ -251,6 +251,19 @@ app.use(async (ctx, next) => {
   await next();
 });
 
+
+/* --- Static files (/css/* -> <CWD>/public/css/*) --- */
+// Backwards compatibility: some pages reference stylesheets via /css/...
+app.use(async (ctx, next) => {
+  const p = ctx.request.url.pathname;
+  if (p.startsWith("/css/")) {
+    const rel = "css/" + p.slice("/css/".length);
+    await send(ctx, rel, { root: `${Deno.cwd()}/public` });
+    return;
+  }
+  await next();
+});
+
 // --- Static files (/static/* -> public/*) ---
 app.use(async (ctx, next) => {
   const p = ctx.request.url.pathname;

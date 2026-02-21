@@ -32,10 +32,34 @@ function normalizeStatus(s?: string | null): NormalStatus {
 
 
 function getTableNumber(t: any): number | null {
-  const n =
-    t?.tableNumber ?? t?.number ?? t?.table_number ?? t?.tableNum ?? t?.table;
-  const v = Number(n);
-  return Number.isFinite(v) && v > 0 ? v : null;
+  const candidates = [
+    t?.tableNumber,
+    t?.number,
+    t?.table_number,
+    t?.tableNum,
+    t?.table,
+    t?.name,
+    t?.label,
+  ];
+
+  for (const c of candidates) {
+    if (c == null) continue;
+    const s = String(c).trim();
+    if (!s) continue;
+
+    // 1) direct numeric
+    const v = Number(s);
+    if (Number.isFinite(v) && v > 0) return v;
+
+    // 2) extract first number from strings like "Table 12" / "שולחן 12" / "T12"
+    const m = s.match(/(\d{1,4})/);
+    if (m) {
+      const vv = Number(m[1]);
+      if (Number.isFinite(vv) && vv > 0) return vv;
+    }
+  }
+
+  return null;
 }
 
 function statusLabelHe(s: NormalStatus): string {
@@ -119,6 +143,12 @@ export default function FloorViewPage({
     return () => clearInterval(id);
   }, [loadActive]);
 
+  React.useEffect(() => {
+    const handler = () => loadActive();
+    window.addEventListener("sb-floor-refresh", handler as any);
+    return () => window.removeEventListener("sb-floor-refresh", handler as any);
+  }, [loadActive]);
+
   const currentLayout = React.useMemo(() => {
     if (!selectedLayoutId) return null;
     return layouts.find((l) => l.id === selectedLayoutId) ?? null;
@@ -137,7 +167,7 @@ export default function FloorViewPage({
     // prefer by id, fall back to number
     const byId = statuses.find((s) => String((s as any).tableId) === String(selectedTable.id));
     if (byId) return byId;
-    return statuses.find((s) => (s as any).tableNumber === (selectedTable as any).number) ?? null;
+    return statuses.find((s) => (s as any).tableNumber === getTableNumber(selectedTable)) ?? null;
   }, [currentLayout, selectedTable]);
 
   const selectedStatus: NormalStatus = React.useMemo(() => {
@@ -175,7 +205,7 @@ export default function FloorViewPage({
     const tableNumbers = selectedTableIds
       .map((id) => byId.get(String(id)))
       .filter(Boolean)
-      .map((t: any) => Number(t.tableNumber ?? t.number ?? 0))
+      .map((t: any) => getTableNumber(t) ?? 0)
       .filter((n: number) => Number.isFinite(n) && n > 0);
 
     window.dispatchEvent(
@@ -303,7 +333,7 @@ export default function FloorViewPage({
                               <div className="sbv-kv-row">
                                 <div className="sbv-kv-key">מספר סועדים</div>
                                 <div className="sbv-kv-val">
-                                  {(selectedStatusEntry as any)?.guestCount ?? (selectedStatusEntry as any)?.people != null ? String((selectedStatusEntry as any).guestCount) : "—"}
+                                  {(() => { const gc = (selectedStatusEntry as any)?.guestCount ?? (selectedStatusEntry as any)?.people; return (gc != null && gc !== "") ? String(gc) : "—"; })()}
                                 </div>
                               </div>
                               <div className="sbv-kv-row">
@@ -328,34 +358,41 @@ export default function FloorViewPage({
                                 <>
                                   <button
                                     className="sbv-secondary-btn"
-                                    onClick={(e) => { e.stopPropagation(); updateTableStatus(selectedTableId, "dirty"); }}
+                                    onClick={(e) => { e.stopPropagation(); updateTableStatus(selectedTableId, "dirty"); window.dispatchEvent(new Event("sb-floor-refresh")); }}
                                   >
                                     סמן מלוכלך
                                   </button>
                                   <button
                                     className="sbv-secondary-btn"
-                                    onClick={(e) => { e.stopPropagation(); updateTableStatus(selectedTableId, "clean"); }}
+                                    onClick={(e) => { e.stopPropagation(); updateTableStatus(selectedTableId, "empty"); window.dispatchEvent(new Event("sb-floor-refresh")); }}
                                   >
                                     סמן נקי
                                   </button>
                                 </>
                               ) : null}
-              
-                              {/* Quick jump to the order screen */}
-                              <a
-                                className="sbv-primary-btn"
-                                href={(() => {
-                                  const num = getTableNumber(selectedTable);
-                                  return num ? `/pos/${encodeURIComponent(restaurantId)}/table/${encodeURIComponent(String(num))}` : "#";
-                                })()}
-                                onClick={(e) => {
-                                  const num = getTableNumber(selectedTable);
-                                  if (!num) e.preventDefault();
-                                  e.stopPropagation();
-                                }}
-                              >
-                                למסך ההזמנה
-                              </a>
+
+                              {/* Quick jump to the order screen (only if an open order exists) */}
+                              {(() => {
+                                const num = getTableNumber(selectedTable);
+                                const hasOpenOrder = Boolean((selectedStatusEntry as any)?.orderId);
+                                const canGo = Boolean(num) && (!isWaiterLobby || hasOpenOrder);
+                                const href = num ? `/pos/${encodeURIComponent(restaurantId)}/table/${encodeURIComponent(String(num))}` : "";
+                                return (
+                                  <button
+                                    type="button"
+                                    className="sbv-primary-btn"
+                                    disabled={!canGo}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (!canGo) return;
+                                      window.location.href = href;
+                                    }}
+                                    title={isWaiterLobby && !hasOpenOrder ? "אין הזמנה פתוחה לשולחן הזה" : undefined}
+                                  >
+                                    למסך ההזמנה
+                                  </button>
+                                );
+                              })()}
                             </div>
                           </div>
                         </aside>

@@ -130,8 +130,8 @@
 </aside>
 
 <!-- Same floor-view assets as the waiter lobby -->
-<link rel="stylesheet" href="/css/sb-floor-theme.css">
-<link rel="stylesheet" href="/css/sb-floor-map.css">
+<link rel="stylesheet" href="/public/css/sb-floor-theme.css">
+<link rel="stylesheet" href="/public/css/sb-floor-map.css">
 <link rel="stylesheet" href="/static/dist/floor-index.css?v=<%= it.BUILD_TAG || Date.now() %>">
 <link rel="stylesheet" href="/static/dist/floor-floor-view-app.css?v=<%= it.BUILD_TAG || Date.now() %>">
 <script type="module" src="/static/dist/floor-view-app.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>
@@ -650,6 +650,7 @@
           throw new Error(data.error || ("HTTP " + res.status));
         }
       }));
+      try { window.dispatchEvent(new Event(\"sb-floor-refresh\")); } catch(_e) {}
     } catch (e) {
       console.error(e);
       alert("שגיאה בעדכון סטטוס שולחן: " + (e && e.message ? e.message : "unknown"));
@@ -673,7 +674,7 @@
 
 <style>
   .host.container{
-    max-width: 1100px;
+    max-width: 1400px;
     margin: 20px auto;
     padding: 0 16px;
   }
@@ -698,7 +699,7 @@
 
   .host-grid{
     display:grid;
-    grid-template-columns: minmax(260px, 0.9fr) minmax(340px, 1.1fr);
+    grid-template-columns: minmax(320px, 0.75fr) minmax(760px, 1.25fr);
     gap:16px;
   }
 
@@ -762,12 +763,17 @@
     font-size:12px;
   }
 
-  .floor-wrapper{
-    margin-top:8px;
-    min-height: 260px;
-    display:flex;
-    align-items:flex-start;
-    justify-content:center;
+    .floor-wrapper{
+    margin-top: 8px;
+    width: 100%;
+    height: min(72vh, 780px);
+    min-height: 520px;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,.06);
   }
 
   .host-actions{
