@@ -7,7 +7,8 @@
     "register": "הרשם",
     "admin": "Admin",
     "language": "בחר שפה",
-    "changePassword": "שנה סיסמה"
+    "changePassword": "שנה סיסמה",
+    "greeting": "שלום,"
   },
   "footer": {
     "rights": "כל הזכויות שמורות"
@@ -25,7 +26,9 @@
     "btn_refresh": "רענון",
     "btn_check": "בדוק",
     "people_unit": "סועדים",
-    "items_unit": "פריטים"
+    "items_unit": "פריטים",
+    "restaurant": "מסעדה",
+    "all": "הכל"
   },
   "lang": {
     "hebrew": "עברית",
@@ -84,6 +87,12 @@
       "btn_add_item": "הוסף מנה",
       "dest_kitchen": "מטבח",
       "dest_bar": "בר",
+      "page_title": "עריכת תפריט —",
+      "label_name_en": "שם (EN)",
+      "label_name_he": "שם (HE)",
+      "label_price": "מחיר (₪)",
+      "no_name": "(ללא שם)",
+      "no_category": "(ללא)",
       "tbl": {
         "name": "שם",
         "price": "מחיר",
@@ -115,6 +124,46 @@
         "supplier": "ספק מועדף",
         "notes": "הערות"
       }
+    },
+    "costs": {
+      "title": "עלויות חומרי גלם",
+      "description": "ההוצאות מחושבות <strong>אוטומטית</strong> לפי תנועות מלאי מסוג <code>delivery</code> שיש בהן <code>costTotal</code>.",
+      "override_active": "Override פעיל",
+      "override_active_hint": "יש Override ידני לחודש הזה",
+      "btn_stock": "מלאי חומרי גלם",
+      "btn_recipes": "מתכונים",
+      "month": "חודש",
+      "btn_show": "הצג",
+      "total_monthly": "סה״כ הוצאה בחודש",
+      "override_manual_hint": "הסכום הוזן ידנית ודורס את החישוב",
+      "auto_computed": "מחושב אוטומטי",
+      "deliveries_with_cost": "משלוחים עם עלות",
+      "missing_cost": "חסר costTotal ב-",
+      "deliveries": "משלוחים",
+      "avg_per_delivery": "ממוצע עלות למשלוח",
+      "daily_spend": "הוצאה יומית (Sparkline)",
+      "daily_spend_chart": "גרף הוצאה יומית",
+      "override_monthly": "Override חודשי (מפורש — דורס אוטומטי)",
+      "override_on": "פעיל",
+      "override_off": "כבוי",
+      "override_amount_label": "סכום ידני (₪) — להשאיר ריק כדי לחזור לאוטומטי",
+      "override_placeholder": "השאר ריק = אוטומטי",
+      "override_note_label": "הערה (אופציונלי)",
+      "override_note_placeholder": "למשל: תיקון/חשבונית חריגה",
+      "btn_save_override": "שמור Override",
+      "btn_reset_override": "אפס Override",
+      "override_warning": "⚠️ Override נשמר רק אם הזנת מספר. אם תשאיר ריק ותשמור — חוזרים לחישוב האוטומטי.",
+      "top_ingredients": "Top חומרי גלם לפי הוצאה בחודש",
+      "no_cost_data": "אין עדיין נתוני עלויות לחודש הזה (אין deliveries עם costTotal).",
+      "unit_price_title": "מחיר ליחידה לחומרי גלם",
+      "unit_price_desc": "השדה <strong>מחיר ליחידה</strong> משמש לחישוב Food Cost למנה. אפשר להשאיר ריק (ואז אין Override ידני למחיר ליחידה).",
+      "no_ingredients": "אין עדיין חומרי גלם. עבור לעמוד מלאי והוסף חומרי גלם.",
+      "tbl_ingredient": "חומר גלם",
+      "tbl_unit": "יחידה",
+      "tbl_unit_price": "מחיר ליחידה (Override ידני)",
+      "in_stock": "במלאי",
+      "min_threshold": "רף מינ׳",
+      "unit_price_placeholder": "לדוגמה: 12.50 (ריק = ללא Override)"
     }
   },
   "pos": {

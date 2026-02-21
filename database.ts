@@ -45,6 +45,7 @@ export interface Restaurant {
   weeklySchedule?: WeeklySchedule;  // הגבלת פתיחה (אופציונלי)
   photos?: string[];
   approved?: boolean;               // דורש אישור אדמין
+  featured?: boolean;               // Admin-promoted featured restaurant
   kitchenCategories?: KitchenCategory[]; // סוגי מטבח
   averageRating?: number;           // ממוצע דירוגים (מחושב)
   reviewCount?: number;             // מספר ביקורות

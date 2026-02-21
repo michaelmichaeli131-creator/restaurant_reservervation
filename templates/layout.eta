@@ -13,19 +13,19 @@
 
         <div class="nav-links">
           <% if (it.user && it.user.role === "owner") { %>
-            <a class="link" href="/owner">אזור מנהלים</a>
+            <a class="link" href="/owner"><%= (it.t && it.t('nav.admin_area')) || 'Admin Area' %></a>
           <% } %>
 
           <% if (it.user) { %>
             <span class="user-chip">
-              שלום, <strong><%= it.user.firstName || it.user.username || it.user.email %></strong>
+              <%= (it.t && it.t('nav.greeting')) || 'Hello,' %> <strong><%= it.user.firstName || it.user.username || it.user.email %></strong>
             </span>
             <form class="inline" method="post" action="/logout">
-              <button class="btn secondary" type="submit">התנתקות</button>
+              <button class="btn secondary" type="submit"><%= (it.t && it.t('nav.logout')) || 'Logout' %></button>
             </form>
           <% } else { %>
-            <a class="link" href="/login">התחברות</a>
-            <a class="link" href="/auth/register">הרשמה</a>
+            <a class="link" href="/login"><%= (it.t && it.t('nav.login')) || 'Login' %></a>
+            <a class="link" href="/auth/register"><%= (it.t && it.t('nav.register')) || 'Register' %></a>
           <% } %>
         </div>
       </nav>

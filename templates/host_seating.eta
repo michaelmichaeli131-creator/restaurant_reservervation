@@ -255,7 +255,7 @@
         if (!confirm("<%= tt('host.confirm_cancel', 'Mark this reservation as cancelled?') %>")) return;
         status = "cancelled";
       } else if (action === "no_show") {
-        if (!confirm("<%= tt('host.confirm_no_show', \"Mark this reservation as 'No Show'?\") %>")) return;
+        if (!confirm("<%= tt('host.confirm_no_show', `Mark this reservation as 'No Show'?`) %>")) return;
         status = "no_show";
       } else {
         return;
@@ -698,8 +698,9 @@
     margin-top:8px;
     min-height: 260px;
     display:flex;
-    align-items:flex-start;
+    align-items:center;
     justify-content:center;
+    overflow:auto;
   }
 
   .host-actions{

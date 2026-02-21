@@ -4,15 +4,15 @@
   <section class="card verify-card">
     <header class="head center">
       <span class="icon-bubble ok" aria-hidden="true">✅</span>
-      <h1 id="verify-success-title">האימות הושלם!</h1>
-      <p class="muted sub">החשבון שלך מוכן לשימוש</p>
+      <h1 id="verify-success-title"><%= (it.t && it.t('auth.verify_done.title')) || 'Verification Complete!' %></h1>
+      <p class="muted sub"><%= (it.t && it.t('auth.verify_done.sub')) || 'Your account is ready to use' %></p>
     </header>
 
     <div class="verify-body center">
-      <p class="lead">אפשר להמשיך אל הדף הראשי או לפתוח את אזור הניהול.</p>
+      <p class="lead"><%= (it.t && it.t('auth.verify_done.lead')) || 'You can proceed to the homepage or open the admin area.' %></p>
       <div class="actions">
-        <a class="btn primary" href="/">מעבר לדף הראשי</a>
-        <a class="btn ghost" href="/dashboard">אל לוח הבקרה</a>
+        <a class="btn primary" href="/"><%= (it.t && it.t('auth.verify_done.btn_home')) || 'Go to Homepage' %></a>
+        <a class="btn ghost" href="/dashboard"><%= (it.t && it.t('auth.verify_done.btn_dashboard')) || 'Go to Dashboard' %></a>
       </div>
     </div>
   </section>

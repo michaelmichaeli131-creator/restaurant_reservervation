@@ -1,16 +1,12 @@
 // services/floor_service.ts
 // Floor management service - table status, sections, mappings
 
-import { kv, getReservationById } from "../database.ts";
+import { kv } from "../database.ts";
 import type { Order, OrderItem } from "../pos/pos_db.ts";
 
 export type TableStatus = "empty" | "occupied" | "reserved" | "dirty";
 
 export interface TableStatusData {
-  guestName?: string;
-  reservationTime?: string;
-  itemsCount?: number;
-  subtotal?: number;
   tableId: string;
   tableNumber: number;
   status: TableStatus;
@@ -21,77 +17,6 @@ export interface TableStatusData {
   itemsReady?: number;
   itemsPending?: number;
   assignedWaiterId?: string;
-}
-
-
-// ========== MANUAL TABLE STATUS OVERRIDES ==========
-
-export interface TableStatusOverride {
-  tableId: string;
-  status: TableStatus; // "empty" clears override
-  updatedAt: number;
-  updatedBy: string;
-}
-
-function kTableStatusOverride(restaurantId: string, tableId: string): Deno.KvKey {
-  // Stored as: ["table_status", restaurantId, tableId]
-  return ["table_status", restaurantId, tableId] as Deno.KvKey;
-}
-
-/**
- * Persist a manual status override for a table.
- * - status="empty" will CLEAR the override (delete key)
- */
-export async function setTableStatusOverride(
-  restaurantId: string,
-  tableId: string,
-  status: TableStatus,
-  userId: string,
-): Promise<void> {
-  if (status === "empty") {
-    await kv.delete(kTableStatusOverride(restaurantId, tableId));
-    return;
-  }
-  const data: TableStatusOverride = {
-    tableId,
-    status,
-    updatedAt: Date.now(),
-    updatedBy: userId,
-  };
-  await kv.set(kTableStatusOverride(restaurantId, tableId), data);
-}
-
-/**
- * Get the manual status override for a table, if any.
- */
-export async function getTableStatusOverride(
-  restaurantId: string,
-  tableId: string,
-): Promise<TableStatusOverride | null> {
-  const res = await kv.get(kTableStatusOverride(restaurantId, tableId));
-  return (res.value as TableStatusOverride) ?? null;
-}
-
-/**
- * Convenience: mark table as dirty (manual override).
- */
-export async function markTableDirty(
-  restaurantId: string,
-  tableId: string,
-  userId: string,
-): Promise<void> {
-  await setTableStatusOverride(restaurantId, tableId, "dirty", userId);
-}
-
-/**
- * Convenience: mark table as clean (clears dirty/reserved override).
- */
-export async function markTableClean(
-  restaurantId: string,
-  tableId: string,
-  userId: string,
-): Promise<void> {
-  await setTableStatusOverride(restaurantId, tableId, "empty", userId);
 }
 
 // ========== TABLE NUMBER → TABLE ID MAPPING ==========
@@ -138,11 +63,81 @@ export async function setTableMappingsFromFloorPlan(
   }
 }
 
+// ========== TABLE STATUS OVERRIDE (dirty/clean) ==========
+
+export interface TableStatusOverride {
+  tableId: string;
+  status: TableStatus;
+  updatedAt: number;
+  updatedBy: string;
+}
+
+function kTableStatusOverride(restaurantId: string, tableId: string): Deno.KvKey {
+  return ["table_status", restaurantId, tableId];
+}
+
+/**
+ * Set a manual status override for a table (e.g. "dirty" after order close).
+ * Set to "empty" to clear the override.
+ */
+export async function setTableStatusOverride(
+  restaurantId: string,
+  tableId: string,
+  status: TableStatus,
+  userId: string,
+): Promise<void> {
+  if (status === "empty") {
+    // Clear override — let computed status take over
+    await kv.delete(kTableStatusOverride(restaurantId, tableId));
+    return;
+  }
+  const data: TableStatusOverride = {
+    tableId,
+    status,
+    updatedAt: Date.now(),
+    updatedBy: userId,
+  };
+  await kv.set(kTableStatusOverride(restaurantId, tableId), data);
+}
+
+/**
+ * Get the manual status override for a table, if any.
+ */
+export async function getTableStatusOverride(
+  restaurantId: string,
+  tableId: string,
+): Promise<TableStatusOverride | null> {
+  const res = await kv.get(kTableStatusOverride(restaurantId, tableId));
+  return res.value as TableStatusOverride | null;
+}
+
+/**
+ * Mark a table as dirty (typically called when an order is closed).
+ */
+export async function markTableDirty(
+  restaurantId: string,
+  tableId: string,
+  userId: string,
+): Promise<void> {
+  await setTableStatusOverride(restaurantId, tableId, "dirty", userId);
+}
+
+/**
+ * Mark a table as clean (clears the "dirty" override).
+ */
+export async function markTableClean(
+  restaurantId: string,
+  tableId: string,
+  userId: string,
+): Promise<void> {
+  await setTableStatusOverride(restaurantId, tableId, "empty", userId);
+}
+
 // ========== COMPUTE LIVE TABLE STATUS ==========
 
 /**
- * Compute table status from floor plan and current orders
- * Returns empty if no order, occupied/reserved/dirty based on order state
+ * Compute table status from floor plan, current orders, and manual overrides.
+ * Priority: occupied (open order) > dirty (manual override) > empty
  */
 export async function computeTableStatus(
   restaurantId: string,
@@ -160,117 +155,52 @@ export async function computeTableStatus(
     status: "empty",
   };
 
-  // Seating info (set by hostess). Even if no order exists yet, we want to show guest details.
-  // Key: ["seat","by_table", restaurantId, tableNumber]
-  let seatGuestName: string | undefined;
-  let seatPeople: number | undefined;
-  let seatTime: string | undefined;
-  let seatReservationId: string | undefined;
-  try {
-    const seatKey = ["seat", "by_table", restaurantId, tableNumber] as Deno.KvKey;
-    const seatRow = await kv.get(seatKey);
-    const seat = seatRow.value as any;
-    if (seat) {
-      if (seat.reservationId) seatReservationId = String(seat.reservationId);
+  // If there is an open order, table is occupied (highest priority)
+  if (order && order.status === "open") {
+    // Get all order items to compute status
+    const itemPrefix = ["pos", "order_item", order.id] as Deno.KvKey;
+    const items: OrderItem[] = [];
+    let itemsReady = 0;
+    let itemsPending = 0;
+    let subtotal = 0;
 
-      // Try multiple common field names.
-      const nameCandidate = [
-        seat.guestName,
-        seat.name,
-        seat.fullName,
-        seat.customerName,
-        seat.contactName,
-      ]
-        .map((v: any) => (v == null ? "" : String(v).trim()))
-        .find((v: string) => v.length > 0 && v !== "—" && v !== "-");
+    const iter = kv.list({ prefix: itemPrefix });
+    for await (const entry of iter) {
+      const item = entry.value as OrderItem;
+      if (item.status === "cancelled") continue;
 
-      if (nameCandidate) seatGuestName = nameCandidate;
-      if (seat.people != null && Number.isFinite(Number(seat.people))) seatPeople = Number(seat.people);
-      if (seat.time) seatTime = String(seat.time);
-    }
-  } catch {
-    // ignore
-  }
+      items.push(item);
+      subtotal += item.unitPrice * item.quantity;
 
-  // Fallback: sometimes seating records were stored without guestName.
-  // If we still don't have a name but we have a reservationId, resolve it from the reservation.
-  if (!seatGuestName && seatReservationId) {
-    try {
-      const res = await getReservationById(seatReservationId);
-      if (res) {
-        const fn = (res as any).firstName == null ? "" : String((res as any).firstName).trim();
-        const ln = (res as any).lastName == null ? "" : String((res as any).lastName).trim();
-        const firstLast = `${fn} ${ln}`.trim();
-        const cand = [
-          firstLast,
-          (res as any).name,
-          (res as any).guestName,
-          (res as any).fullName,
-          (res as any).customerName,
-          (res as any).contactName,
-        ]
-          .map((v: any) => (v == null ? "" : String(v).trim()))
-          .find((v: string) => v.length > 0 && v !== "—" && v !== "-");
-        if (cand) seatGuestName = cand;
+      if (item.status === "ready" || item.status === "served") {
+        itemsReady++;
+      } else {
+        itemsPending++;
       }
-    } catch {
-      // ignore
     }
+
+    return {
+      tableId: floorTableId,
+      tableNumber,
+      status: "occupied",
+      orderId: order.id,
+      orderTotal: subtotal,
+      occupiedSince: order.createdAt,
+      itemsReady,
+      itemsPending,
+    };
   }
 
-  // If no open order, still show seating info (if exists) and treat as occupied
-  if (!order || order.status !== "open") {
-    if (seatGuestName || seatPeople != null || seatTime) {
-      return {
-        ...base,
-        status: "occupied",
-        guestName: seatGuestName,
-        guestCount: seatPeople,
-        reservationTime: seatTime,
-        itemsCount: 0,
-        subtotal: 0,
-      };
-    }
-    return base;
+  // No open order — check for manual status override (e.g. "dirty")
+  const override = await getTableStatusOverride(restaurantId, floorTableId);
+  if (override && override.status !== "empty") {
+    return {
+      ...base,
+      status: override.status,
+    };
   }
 
-  // Get all order items to compute status
-  const itemPrefix = ["pos", "order_item", order.id] as Deno.KvKey;
-  const items: OrderItem[] = [];
-  let itemsReady = 0;
-  let itemsPending = 0;
-  let subtotal = 0;
-
-  const iter = kv.list({ prefix: itemPrefix });
-  for await (const entry of iter) {
-    const item = entry.value as OrderItem;
-    if (item.status === "cancelled") continue;
-
-    items.push(item);
-    subtotal += item.unitPrice * item.quantity;
-
-    if (item.status === "ready" || item.status === "served") {
-      itemsReady++;
-    } else {
-      itemsPending++;
-    }
-  }
-
-  return {
-    tableId: floorTableId,
-    tableNumber,
-    status: "occupied",
-    guestName: seatGuestName,
-    guestCount: seatPeople,
-    reservationTime: seatTime,
-    orderId: order.id,
-    orderTotal: subtotal,
-    subtotal,
-    itemsCount: itemsReady + itemsPending,
-    occupiedSince: order.createdAt,
-    itemsReady,
-    itemsPending,
-  };
+  return base;
 }
 
 /**
@@ -283,39 +213,12 @@ export async function computeAllTableStatuses(
   const statuses: TableStatusData[] = [];
 
   for (const table of tables) {
-    const base = await computeTableStatus(
+    const status = await computeTableStatus(
       restaurantId,
       table.id,
-      table.tableNumber,
+      table.tableNumber
     );
-
-    // Optional manual override (reserved/dirty/empty) stored by staff.
-    // Key: ["table_status", restaurantId, tableId]
-    // Rules:
-    // - If the table is currently occupied by an open order, we keep it as "occupied".
-    // - Otherwise, we allow a manual override to mark it as "reserved" or "dirty".
-    // - Setting "empty" effectively clears the override (we simply keep base "empty").
-    try {
-      const overrideKey = ["table_status", restaurantId, table.id] as Deno.KvKey;
-      const ov = await kv.get(overrideKey);
-      const manual = (ov.value as any)?.status as TableStatus | undefined;
-
-      // Manual overrides:
-      // - "dirty" should be visible even if the table is currently occupied (waiters need to flag it).
-      // - "reserved" only applies when the table is not occupied.
-      // - "empty" means "no manual override" (base status wins).
-      if (manual && ["empty", "reserved", "dirty"].includes(String(manual))) {
-        if (manual === "dirty") {
-          base.status = "dirty";
-        } else if (manual === "reserved" && base.status !== "occupied") {
-          base.status = "reserved";
-        }
-      }
-    } catch {
-      // ignore override lookup failures
-    }
-
-    statuses.push(base);
+    statuses.push(status);
   }
 
   return statuses;

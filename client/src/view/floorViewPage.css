@@ -190,6 +190,48 @@
   min-height: 0;
 }
 
+/* In embed mode, hide the right details panel and let the map take full width */
+.sb-floor-view.is-embed .sbv-right {
+  display: none;
+}
+.sb-floor-view.is-embed .sbv-left {
+  flex: 1 1 100%;
+}
+
+/* Section tabs */
+.sbv-section-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px 10px;
+  flex-wrap: wrap;
+}
+
+.sbv-section-tab {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+  white-space: nowrap;
+}
+
+.sbv-section-tab:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.sbv-section-tab.is-active {
+  background: rgba(59, 130, 246, 0.22);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #93c5fd;
+  font-weight: 800;
+}
+
 /* View-only canvas: avoid double-centering and allow grab-pan */
 .sb-floor-view .editor-canvas {
   justify-content: flex-start;

@@ -10,9 +10,13 @@
 import {
   kv,
   getReservationById,
+  getRestaurant,
+  getUserById,
   setReservationStatus,
 } from "../database.ts";
 import { getOrCreateOpenOrder } from "../pos/pos_db.ts";
+import { makeReviewToken, buildReviewUrl } from "../lib/token.ts";
+import { sendReviewEmail } from "../lib/mail.ts";
 
 /** מפתח KV: ישיבה לפי שולחן */
 function kSeat(restaurantId: string, table: number): Deno.KvKey {
@@ -84,47 +88,12 @@ export async function seatReservation(params: {
     : undefined;
   const time = reservation.time ? String(reservation.time) : undefined;
 
-  const resolvedGuestName = (() => {
-    const direct = guestName?.trim();
-    // Ignore placeholder names coming from the UI
-    if (direct && direct !== "—" && direct !== "-") return direct;
-
-    // Common reservation schema: firstName/lastName
-    const firstLast = (() => {
-      const fn = (reservation as any).firstName == null ? "" : String((reservation as any).firstName).trim();
-      const ln = (reservation as any).lastName == null ? "" : String((reservation as any).lastName).trim();
-      const full = `${fn} ${ln}`.trim();
-      return full.length ? full : "";
-    })();
-    if (firstLast && firstLast !== "—" && firstLast !== "-") return firstLast;
-
-    const cand = [
-      (reservation as any).name,
-      (reservation as any).guestName,
-      (reservation as any).fullName,
-      (reservation as any).customerName,
-      (reservation as any).contactName,
-    ]
-      .map((v) => (v == null ? "" : String(v).trim()))
-      .find((v) => v.length > 0 && v !== "—" && v !== "-");
-
-    if (cand) return cand;
-
-    // Many flows store the customer's name inside `reservation.note` (e.g. "Name: John Doe").
-    const note = (reservation as any).note == null ? "" : String((reservation as any).note);
-    const m = note.match(/(?:^|[;\n])\s*(?:name|customer\s*name|שם)\s*:\s*([^;\n]+)/i);
-    const parsed = m?.[1]?.trim();
-    if (parsed && parsed !== "—" && parsed !== "-") return parsed;
-
-    return undefined;
-  })();
-
   const data: SeatingInfo = {
     restaurantId,
     table,
     reservationId,
     seatedAt: now,
-    guestName: resolvedGuestName,
+    guestName: guestName?.trim() || undefined,
     people,
     time,
   };
@@ -149,12 +118,38 @@ export async function seatReservation(params: {
   // 4. פתיחת צ'ק פתוח לשולחן (אם כבר קיים open – נקבל אותו)
   await getOrCreateOpenOrder(restaurantId, table);
 
-  // 5. עדכון סטטוס ההזמנה ל-arrived (לא מפילים על זה את הקריאה אם נכשל)
+  // 5. Update reservation status to arrived (non-blocking)
   try {
     await setReservationStatus(reservationId, "arrived");
   } catch {
     // ignore
   }
+
+  // 6. Send post-visit review email (fire-and-forget, never blocks seating)
+  (async () => {
+    try {
+      const user = reservation.userId ? await getUserById(reservation.userId) : null;
+      const restaurant = await getRestaurant(restaurantId);
+      if (!user?.email || !restaurant) return;
+
+      const token = await makeReviewToken(reservationId, restaurantId, reservation.userId, 7);
+      const origin = (Deno.env.get("BASE_URL") || "").replace(/\/+$/, "");
+      if (!origin) return;
+      const reviewUrl = buildReviewUrl(origin, token);
+
+      await sendReviewEmail({
+        to: user.email,
+        reviewUrl,
+        restaurantName: restaurant.name,
+        date: reservation.date,
+        customerName: reservation.firstName || user.firstName || undefined,
+        lang: (user as any).lang || "he",
+      });
+      console.log("[SEATING] review email queued", { reservationId, to: user.email });
+    } catch (e) {
+      console.warn("[SEATING] review email failed (non-critical)", (e as Error).message);
+    }
+  })();
 
   return data;
 }
