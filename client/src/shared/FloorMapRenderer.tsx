@@ -146,7 +146,7 @@ export default function FloorMapRenderer({
 
 
 
-const contentBounds = useMemo(() => {
+  const contentBounds = useMemo(() => {
   const rows = Math.max(0, Number((layout as any).gridRows ?? 0));
   const cols = Math.max(0, Number((layout as any).gridCols ?? 0));
   const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
@@ -200,8 +200,23 @@ const contentBounds = useMemo(() => {
     maxY = clamp(maxY + padCells, 0, rows - 1);
   }
 
-  return { minX, minY, maxX, maxY, rows, cols };
-}, [layout?.id]);
+    return { minX, minY, maxX, maxY, rows, cols };
+  }, [
+    layout?.id,
+    (layout as any)?.gridRows,
+    (layout as any)?.gridCols,
+    // In waiter/host views the same layout.id can stay constant while tables/objects
+    // are replaced asynchronously (or filtered by section). If we only depend on id,
+    // bounds may be computed before content arrives and the map will stay offset.
+    (layout as any)?.tables,
+    (layout as any)?.objects,
+  ]);
+
+  // Keep the latest zoom in a ref so native (non-passive) wheel handler can use it.
+  const zoomRef = useRef(zoom);
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
 
   // Space-to-pan (same behavior as editor/live view)
   useEffect(() => {
@@ -257,10 +272,10 @@ const contentBounds = useMemo(() => {
 };
 
   useEffect(() => {
-    // Fit once after first render
+    // Fit once after first render and whenever the content bounds change.
     requestAnimationFrame(fitToScreen);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layout?.id]);
+  }, [layout?.id, contentBounds.minX, contentBounds.minY, contentBounds.maxX, contentBounds.maxY]);
 
   useEffect(() => {
     // Refit when the canvas resizes (responsive layout, drawer opening, etc.)
@@ -278,24 +293,37 @@ const contentBounds = useMemo(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout?.id]);
 
-  const zoomAtPoint = (nextZoom: number, clientX: number, clientY: number) => {
+  const zoomAtPoint = (nextZoom: number, clientX: number, clientY: number, currentZoom = zoomRef.current) => {
     if (!canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const ox = clientX - rect.left;
     const oy = clientY - rect.top;
     setPan((p) => {
-      const dz = nextZoom / zoom;
+      const dz = nextZoom / (currentZoom || 1);
       return { x: Math.round(ox - (ox - p.x) * dz), y: Math.round(oy - (oy - p.y) * dz) };
     });
     setZoom(nextZoom);
   };
 
-  const onCanvasWheel = (e: React.WheelEvent) => {
-    if (!(e.ctrlKey || (e as any).metaKey)) return;
-    e.preventDefault();
-    const next = clampZoom(zoom * (e.deltaY > 0 ? 0.9 : 1.1));
-    zoomAtPoint(next, e.clientX, e.clientY);
-  };
+  // React registers wheel/touch listeners as passive for performance. If we call preventDefault
+  // inside them, Chrome logs:
+  // "Unable to preventDefault inside passive event listener invocation."
+  // To keep Ctrl+wheel zoom working (and prevent browser zoom), attach a native non-passive
+  // wheel listener directly on the canvas.
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const handler = (ev: WheelEvent) => {
+      if (!(ev.ctrlKey || ev.metaKey)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const next = clampZoom(zoomRef.current * (ev.deltaY > 0 ? 0.9 : 1.1));
+      zoomAtPoint(next, ev.clientX, ev.clientY, zoomRef.current);
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler as any);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   const onCanvasMouseDown = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement | null;
@@ -368,7 +396,6 @@ const contentBounds = useMemo(() => {
     const t = e.touches[0];
     const target = e.target as HTMLElement | null;
     if (target?.closest('.table, .floor-object, .fe-canvas-controls, button, a, input, textarea, select')) return;
-    e.preventDefault();
     setIsPanning(true);
     touchPanRef.current = { startX: t.clientX, startY: t.clientY, panX: pan.x, panY: pan.y, active: true };
   };
@@ -379,7 +406,6 @@ const contentBounds = useMemo(() => {
     if (!s || !s.active) return;
     if (e.touches.length !== 1) return;
     const t = e.touches[0];
-    e.preventDefault();
     setPan({ x: s.panX + (t.clientX - s.startX), y: s.panY + (t.clientY - s.startY) });
   };
 
@@ -446,12 +472,11 @@ const contentBounds = useMemo(() => {
     <div
       className={`editor-canvas ${isPanning ? 'is-panning' : ''}`}
       ref={canvasRef}
-      onWheel={onCanvasWheel}
       onMouseDown={onCanvasMouseDown}
       onTouchStart={onCanvasTouchStart}
       onTouchMove={onCanvasTouchMove}
       onTouchEnd={onCanvasTouchEnd}
-      style={{ position: 'relative' }}
+      style={{ position: 'relative', touchAction: 'none', overscrollBehavior: 'contain' }}
     >
       <div className="fe-canvas-controls">
         <button
