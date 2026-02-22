@@ -54,6 +54,16 @@ export default function FloorViewPage({
   const [sections, setSections] = React.useState<SectionInfo[]>([]);
   const [activeSectionId, setActiveSectionId] = React.useState<string | null>(null);
 
+  // clickMode is used to decide which actions to show in Table Details (host vs. waiter lobby).
+  // It must be defined here (not as an undeclared global) to avoid runtime crashes when opening Table Details.
+  const __sbRootEl = typeof document !== "undefined" ? document.getElementById("sb-floor-root") : null;
+  const clickMode = String(
+    __sbRootEl?.getAttribute("data-click-mode") ||
+      __sbRootEl?.getAttribute("data-mode") ||
+      (mountMode === "lobby" ? "lobby" : "page")
+  ).toLowerCase();
+
+
   // Load sections once
   React.useEffect(() => {
     (async () => {
