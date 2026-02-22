@@ -245,6 +245,7 @@ export default function FloorMapRenderer({
   if (!canvasRef.current || !gridRef.current) return;
 
   const canvas = canvasRef.current;
+  const grid = gridRef.current;
 
   const csCanvas = getComputedStyle(canvas);
   const padL = parseFloat(csCanvas.paddingLeft || '0') || 0;
@@ -252,7 +253,15 @@ export default function FloorMapRenderer({
   const padT = parseFloat(csCanvas.paddingTop || '0') || 0;
   const padB = parseFloat(csCanvas.paddingBottom || '0') || 0;
 
-  const inset = 24;
+  // The grid element may still have CSS margins (older builds used margin: 24px).
+  // Because we pan/zoom via transforms, we must subtract those layout margins
+  // from our computed pan; otherwise the map starts offset to the right.
+  const csGrid = getComputedStyle(grid);
+  const gridML = parseFloat(csGrid.marginLeft || '0') || 0;
+  const gridMT = parseFloat(csGrid.marginTop || '0') || 0;
+
+  // Small breathing room from the frame edge.
+  const inset = 12;
   const availW = Math.max(1, canvas.clientWidth - padL - padR - inset * 2);
   const availH = Math.max(1, canvas.clientHeight - padT - padB - inset * 2);
 
@@ -266,9 +275,14 @@ export default function FloorMapRenderer({
   setZoom(scale);
 
   // Center the *active* content bounds, not the entire grid.
-  const cx = Math.round(padL + inset + (availW - contentW * scale) / 2 - minX * cellSize * scale);
-  const cy = Math.round(padT + inset + (availH - contentH * scale) / 2 - minY * cellSize * scale);
+  const cx = Math.round(padL + inset + (availW - contentW * scale) / 2 - minX * cellSize * scale - gridML);
+  const cy = Math.round(padT + inset + (availH - contentH * scale) / 2 - minY * cellSize * scale - gridMT);
   setPan({ x: cx, y: cy });
+
+  // In RTL pages, overflow containers may start scrolled to the right.
+  // This view uses transforms for pan/zoom, so keep scroll at the origin.
+  canvas.scrollLeft = 0;
+  canvas.scrollTop = 0;
 };
 
   useEffect(() => {

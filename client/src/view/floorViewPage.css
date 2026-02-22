@@ -87,6 +87,23 @@
   gap: 0;
 }
 
+/* =======================
+   Centering fix for waiter/host view
+   - In RTL pages (Hebrew) scroll containers can start scrolled to the right.
+   - The view uses transforms for pan/zoom, so we don't want native scrolling.
+   - Also remove the legacy grid margin (it was double-counted by fitToScreen).
+   ======================= */
+
+.sb-floor-view .editor-canvas{
+  direction: ltr;
+  overflow: hidden;
+  padding: 0;
+}
+
+.sb-floor-view .fe-grid{
+  margin: 0;
+}
+
 .sbv-view-topbar {
   /* layout-tabs-bar already styles the bar; just tighten for view */
   padding: 12px 16px;
