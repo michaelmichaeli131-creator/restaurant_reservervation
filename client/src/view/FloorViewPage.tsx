@@ -255,7 +255,7 @@ export default function FloorViewPage({
           </div>
         </div>
 
-        <aside className="sbv-right" aria-label={t("host.table_details", "Table details")}>
+        <aside className={`sbv-right ${mountMode === "lobby" && selectedTableId ? "open" : ""}`} aria-label={t("host.table_details", "Table details")}>
           {selectedTableId ? (
             <div className="sbv-right-panel" role="dialog" aria-modal="false">
               <div className="sbv-drawer-header">

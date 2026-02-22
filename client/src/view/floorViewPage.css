@@ -184,18 +184,36 @@
 .sbv-status-pill.is-reserved .sbv-dot{ background: #f59e0b; }
 .sbv-status-pill.is-dirty .sbv-dot{ background: #a855f7; }
 
-/* Embedded (inside POS lobby) */
-.sb-floor-view.is-embed {
+/* Embedded (inside POS lobby / host seating) */
+.sb-floor-view.is-embed{
   height: 100%;
   min-height: 0;
 }
 
-/* In embed mode, hide the right details panel and let the map take full width */
-.sb-floor-view.is-embed .sbv-right {
-  display: none;
+/* In embed mode, the details panel is a right-side overlay (outside the map frame) */
+.sb-floor-view.is-embed .sbv-shell{
+  display: block;
 }
-.sb-floor-view.is-embed .sbv-left {
-  flex: 1 1 100%;
+.sb-floor-view.is-embed .sbv-left{
+  width: 100%;
+}
+.sb-floor-view.is-embed .sbv-right{
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: min(360px, 92vw);
+  transform: translateX(105%);
+  transition: transform .22s ease-out;
+  z-index: 90;
+  pointer-events: none;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+.sb-floor-view.is-embed .sbv-right.open{
+  transform: translateX(0);
+  pointer-events: auto;
 }
 
 /* Section tabs */

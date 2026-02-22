@@ -163,7 +163,9 @@ export default function FloorMapRenderer({
     };
   }, []);
 
-  const clampZoom = (z: number) => Math.max(mode === 'view' ? 0.08 : 0.4, Math.min(2.5, z));
+    // Allow very small zoom in view mode so the whole layout can always fit in the frame.
+  const clampZoom = (z: number) => Math.max(mode === 'view' ? 0.01 : 0.4, Math.min(2.5, z));
+
 
   const fitToScreen = () => {
     if (!canvasRef.current || !gridRef.current) return;
@@ -191,7 +193,9 @@ export default function FloorMapRenderer({
     const availW = Math.max(1, canvas.clientWidth - padL - padR - inset * 2);
     const availH = Math.max(1, canvas.clientHeight - padT - padB - inset * 2);
 
-    const scale = clampZoom(Math.min(availW / baseW, availH / baseH, 1.2));
+        // In view mode we never auto-zoom-in; we only zoom-out to ensure the whole map fits.
+    const maxAuto = mode === 'view' ? 1 : 1.2;
+    const scale = clampZoom(Math.min(availW / baseW, availH / baseH, maxAuto));
     setZoom(scale);
 
     const cx = Math.round(padL + inset + (availW - baseW * scale) / 2);
