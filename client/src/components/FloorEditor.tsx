@@ -176,7 +176,11 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   };
 
   const [floorTheme, setFloorTheme] = useState<FloorThemeKey>('parquet_blue');
-  // NOTE: centering is handled via fitToScreen (pan/zoom), not via scrollLeft/scrollTop.
+
+  // NOTE:
+  // We intentionally do NOT center via native scrollLeft/scrollTop.
+  // In RTL pages different browsers implement scrollLeft differently, which caused
+  // the map to "escape" to one side. We always center via pan/zoom transforms.
 
   const [shapeMode, setShapeMode] = useState(false);
   // Sync floor theme from the loaded layout
@@ -191,6 +195,12 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [spacePressed, setSpacePressed] = useState(false); 
+
+  // Keep latest zoom for native (non-passive) wheel handler.
+  const zoomRef = useRef(zoom);
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
 
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -596,146 +606,52 @@ const assetForTable = (shape: string, seats: number) => {
   
   const clampZoom = (z: number) => Math.max(0.35, Math.min(2.5, z));
 
-  const computeLayoutBounds = (layout: FloorLayout) => {
-    const cols = Number(layout.gridCols || 0);
-    const rows = Number(layout.gridRows || 0);
-
-    // Fallback: full grid
-    let minX = 0, minY = 0, maxX = Math.max(0, cols - 1), maxY = Math.max(0, rows - 1);
-
-    // If we have a non-trivial gridMask (not all 1s), use its active bounds as the base
-    const maskRaw = (layout as any).gridMask;
-    if (Array.isArray(maskRaw) && cols > 0 && rows > 0) {
-      const size = cols * rows;
-      const mask = maskRaw.slice(0, size);
-      while (mask.length < size) mask.push(1);
-
-      let allActive = true;
-      for (let i = 0; i < size; i++) {
-        if ((mask[i] ?? 1) !== 1) { allActive = false; break; }
-      }
-
-      if (!allActive) {
-        let found = false;
-        let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
-        for (let i = 0; i < size; i++) {
-          if ((mask[i] ?? 1) !== 1) continue;
-          const x = i % cols;
-          const y = Math.floor(i / cols);
-          found = true;
-          if (x < bx0) bx0 = x;
-          if (y < by0) by0 = y;
-          if (x > bx1) bx1 = x;
-          if (y > by1) by1 = y;
-        }
-        if (found) {
-          minX = bx0; minY = by0; maxX = bx1; maxY = by1;
-        }
-      }
-    }
-
-    // Always include placed items (tables/objects), so nothing gets clipped
-    const consider = (x: number, y: number, spanX: number, spanY: number) => {
-      const sx = Math.max(1, Number(spanX) || 1);
-      const sy = Math.max(1, Number(spanY) || 1);
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x + sx - 1);
-      maxY = Math.max(maxY, y + sy - 1);
-    };
-
-    for (const t of (layout.tables || [])) {
-      consider(Number(t.gridX) || 0, Number(t.gridY) || 0, (t as any).spanX ?? 1, (t as any).spanY ?? 1);
-    }
-    for (const o of ((layout as any).objects || [])) {
-      consider(Number(o.gridX) || 0, Number(o.gridY) || 0, (o as any).spanX ?? 1, (o as any).spanY ?? 1);
-    }
-
-    // Clamp
-    minX = Math.max(0, Math.min(cols - 1, minX));
-    minY = Math.max(0, Math.min(rows - 1, minY));
-    maxX = Math.max(0, Math.min(cols - 1, maxX));
-    maxY = Math.max(0, Math.min(rows - 1, maxY));
-
-    return { minX, minY, maxX, maxY };
-  };
-
   const fitToScreen = () => {
+    if (!canvasRef.current || !gridRef.current || !currentLayout) return;
+
     const canvas = canvasRef.current;
-    if (!canvas || !currentLayout) return;
-
-    // Reset scroll so scroll position can't "fake" an offset
-    canvas.scrollLeft = 0;
-    canvas.scrollTop = 0;
-
-    const cellPx = cellSize;
-    const bounds = computeLayoutBounds(currentLayout);
-
-    const contentW = (bounds.maxX - bounds.minX + 1) * cellPx;
-    const contentH = (bounds.maxY - bounds.minY + 1) * cellPx;
-
-    const cs = window.getComputedStyle(canvas);
-    const padL = parseFloat(cs.paddingLeft || '0') || 0;
-    const padR = parseFloat(cs.paddingRight || '0') || 0;
-    const padT = parseFloat(cs.paddingTop || '0') || 0;
-    const padB = parseFloat(cs.paddingBottom || '0') || 0;
-
     const grid = gridRef.current;
-    const gs = grid ? window.getComputedStyle(grid) : null;
-    const mL = gs ? (parseFloat(gs.marginLeft || '0') || 0) : 0;
-    const mT = gs ? (parseFloat(gs.marginTop || '0') || 0) : 0;
+
+    // Account for asymmetric paddings/borders.
+    const csCanvas = getComputedStyle(canvas);
+    const padL = parseFloat(csCanvas.paddingLeft || '0') || 0;
+    const padR = parseFloat(csCanvas.paddingRight || '0') || 0;
+    const padT = parseFloat(csCanvas.paddingTop || '0') || 0;
+    const padB = parseFloat(csCanvas.paddingBottom || '0') || 0;
+
+    // Grid has a legacy CSS margin which shifts the layout; subtract it.
+    const csGrid = getComputedStyle(grid);
+    const gridML = parseFloat(csGrid.marginLeft || '0') || 0;
+    const gridMT = parseFloat(csGrid.marginTop || '0') || 0;
 
     const inset = 12;
     const availW = Math.max(1, canvas.clientWidth - padL - padR - inset * 2);
     const availH = Math.max(1, canvas.clientHeight - padT - padB - inset * 2);
 
-    const scale = clampZoom(Math.min(availW / contentW, availH / contentH, 1.2));
+    const cellPx = cellSize;
+    const gridW = currentLayout.gridCols * cellPx;
+    const gridH = currentLayout.gridRows * cellPx;
+
+    const scale = clampZoom(Math.min(availW / gridW, availH / gridH, 1.2));
     setZoom(scale);
 
-    const panX = Math.round(
-      padL + inset
-      + (availW - contentW * scale) / 2
-      - bounds.minX * cellPx * scale
-      - mL
-    );
-    const panY = Math.round(
-      padT + inset
-      + (availH - contentH * scale) / 2
-      - bounds.minY * cellPx * scale
-      - mT
-    );
-
+    const panX = Math.round(padL + inset + (availW - gridW * scale) / 2 - gridML);
+    const panY = Math.round(padT + inset + (availH - gridH * scale) / 2 - gridMT);
     setPan({ x: panX, y: panY });
+
+    // Keep native scroll at origin (important for RTL pages).
+    canvas.scrollLeft = 0;
+    canvas.scrollTop = 0;
   };
 
-  // Auto-center/fit whenever the layout changes or the canvas is resized.
-  useEffect(() => {
-    if (!currentLayout) return;
-    const id = requestAnimationFrame(() => fitToScreen());
-    return () => cancelAnimationFrame(id);
-  }, [currentLayout?.id, currentLayout?.gridCols, currentLayout?.gridRows, cellSize]);
-
-  useEffect(() => {
-    const el = canvasRef.current;
-    if (!el || !currentLayout) return;
-    const ro = new ResizeObserver(() => {
-      requestAnimationFrame(() => fitToScreen());
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [currentLayout?.id, cellSize]);
-
-
-
-
-  const zoomAtPoint = (nextZoom: number, clientX: number, clientY: number) => {
+  const zoomAtPoint = (nextZoom: number, clientX: number, clientY: number, currentZoom = zoomRef.current) => {
     if (!canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const ox = clientX - rect.left;
     const oy = clientY - rect.top;
 
     setPan((p) => {
-      const z = zoom;
+      const z = currentZoom || 1;
       const dz = nextZoom / z;
 
       // keep the point under cursor stable: newPan = cursor - (cursor - pan) * dz
@@ -746,14 +662,48 @@ const assetForTable = (shape: string, seats: number) => {
     setZoom(nextZoom);
   };
 
-  const onCanvasWheel = (e: React.WheelEvent) => {
-    // Ctrl/Meta + wheel -> zoom. Otherwise let the browser scroll naturally.
-    if (!(e.ctrlKey || (e as any).metaKey)) return;
-    e.preventDefault();
-    const delta = e.deltaY;
-    const next = clampZoom(zoom * (delta > 0 ? 0.9 : 1.1));
-    zoomAtPoint(next, e.clientX, e.clientY);
-  };
+  // React registers wheel listeners as passive; preventDefault() inside them triggers
+  // "Unable to preventDefault inside passive event listener" warnings.
+  // Attach a native non-passive handler to keep Ctrl/Meta+wheel zoom working.
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+
+    const handler = (ev: WheelEvent) => {
+      if (!(ev.ctrlKey || ev.metaKey)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const current = zoomRef.current || 1;
+      const next = clampZoom(current * (ev.deltaY > 0 ? 0.9 : 1.1));
+      zoomAtPoint(next, ev.clientX, ev.clientY, current);
+    };
+
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fit by default (and on resize/layout change) so the map is always centered.
+  useEffect(() => {
+    if (!currentLayout) return;
+    requestAnimationFrame(fitToScreen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentLayout?.id, currentLayout?.gridCols, currentLayout?.gridRows, cellSize]);
+
+  useEffect(() => {
+    if (!canvasRef.current || !currentLayout) return;
+    let raf = 0;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(fitToScreen);
+    });
+    ro.observe(canvasRef.current);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentLayout?.id]);
 
   const onCanvasMouseDown = (e: React.MouseEvent) => {
     // Middle mouse OR Space+Left mouse -> pan
@@ -1810,7 +1760,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
           </button>
         </div>
 
-        <div className={`editor-canvas ${isPanning ? "is-panning" : ""}`} ref={canvasRef} onWheel={onCanvasWheel} onMouseDown={onCanvasMouseDown}>
+        <div className={`editor-canvas ${isPanning ? "is-panning" : ""}`} ref={canvasRef} onMouseDown={onCanvasMouseDown}>
           
           <div className="fe-canvas-controls">
             <button className="btn-icon-small" onClick={() => zoomAtPoint(clampZoom(zoom * 1.1), (canvasRef.current?.getBoundingClientRect().left || 0) + 40, (canvasRef.current?.getBoundingClientRect().top || 0) + 40)} title={t('floor.toolbar.zoom_in', 'Zoom in')}>＋</button>

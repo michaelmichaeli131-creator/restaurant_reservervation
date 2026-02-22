@@ -146,99 +146,71 @@ export default function FloorMapRenderer({
 
 
 
-  
   const contentBounds = useMemo(() => {
-    const rows = Math.max(0, Number((layout as any).gridRows ?? 0));
-    const cols = Math.max(0, Number((layout as any).gridCols ?? 0));
-    const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+  const rows = Math.max(0, Number((layout as any).gridRows ?? 0));
+  const cols = Math.max(0, Number((layout as any).gridCols ?? 0));
+  const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
-    if (rows <= 0 || cols <= 0) {
-      return { minX: 0, minY: 0, maxX: 0, maxY: 0, rows, cols };
-    }
+  if (rows <= 0 || cols <= 0) {
+    return { minX: 0, minY: 0, maxX: 0, maxY: 0, rows, cols };
+  }
 
-    // Default: full grid bounds.
-    let minX = 0;
-    let minY = 0;
-    let maxX = cols - 1;
-    let maxY = rows - 1;
+  // Fit to the bounds of *placed content* (tables/objects).
+  // (gridMask can still be used for cell styling, but it often spans the full width
+  // and would keep the map biased to one side.)
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let hasContent = false;
 
-    // If a non-trivial gridMask exists (not all 1s), use its active bounds as the base.
-    // This is the key fix for "map starts on the right" even when there are few tables:
-    // the restaurant shape can be offset inside the grid.
-    const maskRaw = (layout as any).gridMask;
-    if (Array.isArray(maskRaw)) {
-      const size = cols * rows;
-      const mask = maskRaw.slice(0, size);
-      while (mask.length < size) mask.push(1);
+  const considerRect = (x0: any, y0: any, sx: any, sy: any) => {
+    const x = clamp(Number(x0 ?? 0), 0, cols - 1);
+    const y = clamp(Number(y0 ?? 0), 0, rows - 1);
+    const spanX = clamp(Number(sx ?? 1), 1, cols);
+    const spanY = clamp(Number(sy ?? 1), 1, rows);
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + spanX - 1);
+    maxY = Math.max(maxY, y + spanY - 1);
+    hasContent = true;
+  };
 
-      let allActive = true;
-      for (let i = 0; i < size; i++) {
-        if ((mask[i] ?? 1) !== 1) { allActive = false; break; }
-      }
+  const tables = Array.isArray((layout as any).tables) ? (layout as any).tables : [];
+  const objects = Array.isArray((layout as any).objects) ? (layout as any).objects : [];
+  for (const t of tables) {
+    considerRect((t as any).gridX ?? (t as any).x, (t as any).gridY ?? (t as any).y, (t as any).spanX, (t as any).spanY);
+  }
+  for (const o of objects) {
+    considerRect((o as any).gridX ?? (o as any).x, (o as any).gridY ?? (o as any).y, (o as any).spanX, (o as any).spanY);
+  }
 
-      if (!allActive) {
-        let found = false;
-        let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
-        for (let i = 0; i < size; i++) {
-          if ((mask[i] ?? 1) !== 1) continue;
-          const x = i % cols;
-          const y = Math.floor(i / cols);
-          found = true;
-          if (x < bx0) bx0 = x;
-          if (y < by0) by0 = y;
-          if (x > bx1) bx1 = x;
-          if (y > by1) by1 = y;
-        }
-        if (found) {
-          minX = bx0;
-          minY = by0;
-          maxX = bx1;
-          maxY = by1;
-        }
-      }
-    }
-
-    // Always include placed content so nothing gets clipped.
-    const considerRect = (x0: any, y0: any, sx: any, sy: any) => {
-      const x = clamp(Number(x0 ?? 0), 0, cols - 1);
-      const y = clamp(Number(y0 ?? 0), 0, rows - 1);
-      const spanX = clamp(Number(sx ?? 1), 1, cols);
-      const spanY = clamp(Number(sy ?? 1), 1, rows);
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x + spanX - 1);
-      maxY = Math.max(maxY, y + spanY - 1);
-    };
-
-    const tables = Array.isArray((layout as any).tables) ? (layout as any).tables : [];
-    const objects = Array.isArray((layout as any).objects) ? (layout as any).objects : [];
-    for (const t of tables) {
-      considerRect((t as any).gridX ?? (t as any).x, (t as any).gridY ?? (t as any).y, (t as any).spanX, (t as any).spanY);
-    }
-    for (const o of objects) {
-      considerRect((o as any).gridX ?? (o as any).x, (o as any).gridY ?? (o as any).y, (o as any).spanX, (o as any).spanY);
-    }
-
-    // Small padding so content isn't glued to the frame.
+  if (!hasContent) {
+    // No content at all -> fall back to full grid.
+    minX = 0;
+    minY = 0;
+    maxX = cols - 1;
+    maxY = rows - 1;
+  } else {
+    // Small margin so content isn't glued to the frame.
     const padCells = 1;
     minX = clamp(minX - padCells, 0, cols - 1);
     minY = clamp(minY - padCells, 0, rows - 1);
     maxX = clamp(maxX + padCells, 0, cols - 1);
     maxY = clamp(maxY + padCells, 0, rows - 1);
+  }
 
     return { minX, minY, maxX, maxY, rows, cols };
   }, [
     layout?.id,
     (layout as any)?.gridRows,
     (layout as any)?.gridCols,
-    (layout as any)?.gridMask,
     // In waiter/host views the same layout.id can stay constant while tables/objects
     // are replaced asynchronously (or filtered by section). If we only depend on id,
     // bounds may be computed before content arrives and the map will stay offset.
     (layout as any)?.tables,
     (layout as any)?.objects,
   ]);
-
 
   // Keep the latest zoom in a ref so native (non-passive) wheel handler can use it.
   const zoomRef = useRef(zoom);
