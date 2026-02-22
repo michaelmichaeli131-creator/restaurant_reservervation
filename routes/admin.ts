@@ -267,6 +267,32 @@ function page(
       font-size: clamp(11px, 1.8vw, 13px);
     }
 
+    /* Cover image picker */
+    .cover-picker{
+      display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;
+    }
+    .cover-thumb{
+      position:relative; width:52px; height:52px; border-radius:8px;
+      border:2px solid transparent; cursor:pointer; padding:0;
+      background:none; overflow:hidden;
+      transition: border-color .15s ease, transform .15s ease;
+    }
+    .cover-thumb img{
+      width:100%; height:100%; object-fit:cover; border-radius:6px;
+      display:block;
+    }
+    .cover-thumb:hover{ border-color:rgba(125,211,252,.5); transform:scale(1.08); }
+    .cover-thumb.is-active{
+      border-color:#7dd3fc;
+      box-shadow:0 0 8px rgba(125,211,252,.35);
+    }
+    .cover-check{
+      position:absolute; inset:0; display:flex;
+      align-items:center; justify-content:center;
+      background:rgba(0,0,0,.45); color:#7dd3fc;
+      font-size:18px; font-weight:800; border-radius:6px;
+    }
+
     /* התאמות נקודתיות לשפות – אופציונלי (גאורגית לעיתים רחבה יותר) */
     html[data-lang="ka"] .tab,
     html[data-lang="ka"] .btn,
@@ -326,6 +352,31 @@ function page(
 </html>`;
 }
 
+/* Helper: extract photo URLs from restaurant */
+function photoUrls(r: Restaurant): string[] {
+  const arr = Array.isArray(r.photos) ? r.photos : [];
+  return arr.map((p: any) => (typeof p === "string" ? p : p?.dataUrl)).filter(Boolean);
+}
+
+/* Cover image picker row for admin */
+function renderCoverPicker(ctx: any, r: Restaurant, key: string): string {
+  const t = (k: string, fb: string, v?: Record<string, unknown>) => tr(ctx, k, fb, v);
+  const photos = photoUrls(r);
+  if (!photos.length) return `<small class="muted">${t("admin.cover.no_photos","No photos uploaded")}</small>`;
+  const currentCover = (r as any).coverUrl || photos[0] || "";
+  return `<div class="cover-picker">
+    ${photos.map((url, i) => `
+      <form class="inline" method="post" action="/admin/restaurants/${r.id}/set-cover?key=${encodeURIComponent(key)}">
+        <input type="hidden" name="coverUrl" value="${url}"/>
+        <button type="submit" class="cover-thumb${url === currentCover ? ' is-active' : ''}" title="${t("admin.cover.set_tip","Set as cover image")}">
+          <img src="${url}" alt="Photo ${i + 1}" loading="lazy"/>
+          ${url === currentCover ? '<span class="cover-check">✓</span>' : ''}
+        </button>
+      </form>
+    `).join("")}
+  </div>`;
+}
+
 /* שורת מסעדה בסיסית */
 function renderRestaurantRow(ctx: any, r: Restaurant, key: string) {
   const t = (k: string, fb: string, v?: Record<string, unknown>) => tr(ctx, k, fb, v);
@@ -338,7 +389,11 @@ function renderRestaurantRow(ctx: any, r: Restaurant, key: string) {
   const caps = `${t("admin.row.capacity","Capacity")}: ${r.capacity ?? "-"} · ${t("admin.row.slot","Slot")}: ${r.slotIntervalMinutes ?? "-"}${t("admin.row.minutes","min")} · ${t("admin.row.service","Service")}: ${r.serviceDurationMinutes ?? "-"}${t("admin.row.minutes","min")}`;
   return `
   <tr>
-    <td><strong>${r.name}</strong> ${featuredBadge}<br/><small class="muted">${r.city} · ${r.address}</small></td>
+    <td>
+      <strong>${r.name}</strong> ${featuredBadge}<br/>
+      <small class="muted">${r.city} · ${r.address}</small>
+      ${(r as any).featured ? `<div style="margin-top:6px"><small class="muted">${t("admin.cover.label","Cover image")}:</small>${renderCoverPicker(ctx, r, key)}</div>` : ""}
+    </td>
     <td>${approved}<br/><small class="muted">${caps}</small></td>
     <td>
       <div class="row">
@@ -392,7 +447,10 @@ function renderRestaurantRowWithOwner(
 
   return `
   <tr>
-    <td><strong>${r.name}</strong><br/><small class="muted">${r.city} · ${r.address}</small></td>
+    <td>
+      <strong>${r.name}</strong><br/><small class="muted">${r.city} · ${r.address}</small>
+      ${(r as any).featured ? `<div style="margin-top:6px"><small class="muted">${t("admin.cover.label","תמונת כיסוי")}:</small>${renderCoverPicker(ctx, r, key)}</div>` : ""}
+    </td>
     <td title="${ownerEmail}">${ownerName}</td>
     <td>${ownerStatus}</td>
     <td>${approved}<br/><small class="muted">${caps}</small></td>
@@ -692,6 +750,31 @@ adminRouter.post("/admin/restaurants/:id/unfeature", async (ctx) => {
     return;
   }
   await updateRestaurant(id, { featured: false } as any);
+  const key = getAdminKey(ctx)!;
+  ctx.response.status = Status.SeeOther;
+  ctx.response.headers.set(
+    "Location",
+    `/admin?key=${encodeURIComponent(key)}`,
+  );
+});
+
+/* --- Set cover image for a restaurant --- */
+adminRouter.post("/admin/restaurants/:id/set-cover", async (ctx) => {
+  if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
+  const id = ctx.params.id!;
+  const r = await getRestaurant(id);
+  if (!r) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Restaurant not found";
+    return;
+  }
+  const body = ctx.request.body;
+  const form = await body.formData();
+  const coverUrl = form.get("coverUrl");
+  if (typeof coverUrl === "string" && coverUrl.trim()) {
+    await updateRestaurant(id, { coverUrl: coverUrl.trim() } as any);
+  }
   const key = getAdminKey(ctx)!;
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set(

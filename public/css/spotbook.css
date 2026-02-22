@@ -287,30 +287,7 @@ body.sb-body {
   .brand-logo{ height:44px; }
 }
 
-/* ===== Horizontal Restaurant Carousel ===== */
-.hs-wrap{
-  --gap: 12px;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-}
-.hs{
-  display: flex;
-  overflow: hidden;
-  gap: var(--gap);
-  scroll-behavior: smooth;
-  touch-action: pan-x;      /* חשוב למובייל */
-  -ms-touch-action: pan-x;
-}
-.hs-item{
-  flex: 0 0 calc((100% - 2 * var(--gap)) / 3);
-  background: var(--panel);
-  border: 1px solid var(--bd);
-  border-radius: 14px;
-  overflow: hidden;
-}
+/* ===== Restaurant Carousel (shared base for slide content) ===== */
 .hs-title{
   padding: 10px 12px 6px;
   font-weight: 600;
@@ -320,23 +297,4 @@ body.sb-body {
   aspect-ratio: 4/3;
   background: #222 center/cover no-repeat;
   border-top: 1px solid var(--bd);
-}
-.hs-btn{
-  inline-size: 36px;
-  block-size: 36px;
-  border-radius: 50%;
-  border: 1px solid var(--bd);
-  background: color-mix(in srgb, var(--panel-2) 92%, transparent);
-  color: var(--ink);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-.hs-btn:hover{ background: color-mix(in srgb, var(--panel) 92%, transparent); }
-
-@media (max-width: 640px){
-  .hs-item{
-    flex: 0 0 100%;   /* כרטיס אחד לכל רוחב */
-  }
 }
