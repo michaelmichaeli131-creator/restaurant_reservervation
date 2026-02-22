@@ -143,23 +143,62 @@ ownerFloorRouter.post(
 
     if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
 
-    const body =
-      (await (ctx.request as any).originalRequest?.json?.().catch?.(() => null)) ??
-      (await (async () => {
-        try {
-          const b = (ctx.request as any).body?.({ type: "json" });
-          return b ? await b.value : null;
-        } catch {
-          return null;
+    // NOTE: In some Oak/Deno Deploy setups, ctx.request.body({type:"json"}) can be unreliable
+    // for small POSTs, and different Oak versions expose the underlying Request differently.
+    // To avoid "received: null" surprises, we read the raw request body as text and JSON-parse
+    // it ourselves (while still supporting older code paths as fallback).
+    const readBodyAny = async (): Promise<any> => {
+      const reqAny = (ctx.request as any)?.originalRequest?.request ??
+        (ctx.request as any)?.originalRequest ??
+        null;
+
+      // 1) Best effort: clone()+text() from the underlying Request
+      try {
+        if (reqAny && typeof reqAny.clone === "function") {
+          const txt = await reqAny.clone().text().catch(() => "");
+          if (txt) {
+            try {
+              return JSON.parse(txt);
+            } catch {
+              return txt;
+            }
+          }
         }
-      })()) ??
-      {};
+      } catch {
+        // ignore
+      }
+
+      // 2) Fallback: Oak body parser
+      try {
+        const b = (ctx.request as any).body?.({ type: "json" });
+        const v = b ? await b.value : null;
+        if (v != null) return v;
+      } catch {
+        // ignore
+      }
+
+      // 3) Fallback: Request.json() if exposed
+      try {
+        const j = (ctx.request as any)?.originalRequest?.request?.json?.() ??
+          (ctx.request as any)?.originalRequest?.json?.();
+        if (j) return await j;
+      } catch {
+        // ignore
+      }
+
+      return {};
+    };
+
+    const body = await readBodyAny();
 
     // Be permissive: different clients / i18n may send different casing or aliases.
     const rawStatus =
+      // If the client sent a plain JSON string (e.g. "dirty"), accept it.
+      (typeof body === "string" ? body : undefined) ??
       (body as any)?.status ??
       (body as any)?.newStatus ??
       (body as any)?.state ??
+      (body as any)?.payload?.status ??
       (ctx.request.url.searchParams.get("status") ?? undefined);
 
     const normalizeStatus = (v: unknown): FloorTableStatus | null => {

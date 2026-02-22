@@ -172,7 +172,8 @@ const postTableOverrideStatus = async (status: "empty" | "dirty" | "reserved") =
   if (!tableId) return;
 
   try {
-    const res = await fetch(`/api/tables/${restaurantId}/${tableId}/status`, {
+    // Send status both in JSON body and query-string as a safety net (some proxies/envs drop POST bodies).
+    const res = await fetch(`/api/tables/${restaurantId}/${tableId}/status?status=${encodeURIComponent(status)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
