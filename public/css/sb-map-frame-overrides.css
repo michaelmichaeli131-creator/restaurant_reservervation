@@ -30,6 +30,11 @@
   overflow: visible;
 }
 
+/* Waiter template had an extra clipping layer on the map wrapper */
+.sb-waiter-map-card .floor-wrapper{
+  overflow: visible !important; /* sb-waiter-shell.css sets overflow:hidden */
+}
+
 /* Anchor the right panel to the map shell and place it outside */
 #sb-floor-root[data-right-panel="outside"] .sbv-shell{
   position: relative;
