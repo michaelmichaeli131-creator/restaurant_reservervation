@@ -1,7 +1,7 @@
 // services/floor_service.ts
 // Floor management service - table status, sections, mappings
 
-import { kv } from "../database.ts";
+import { kv, getReservationById } from "../database.ts";
 import type { Order, OrderItem } from "../pos/pos_db.ts";
 
 export type TableStatus = "empty" | "occupied" | "reserved" | "dirty";
@@ -10,13 +10,28 @@ export interface TableStatusData {
   tableId: string;
   tableNumber: number;
   status: TableStatus;
+  guestName?: string | null;
   guestCount?: number;
+  reservationTime?: string | null;
+  itemsCount?: number;
+  subtotal?: number;
   orderId?: string;
   orderTotal?: number;
   occupiedSince?: number;
   itemsReady?: number;
   itemsPending?: number;
   assignedWaiterId?: string;
+}
+
+// Seating info stored by the hostess flow
+interface SeatingInfo {
+  restaurantId: string;
+  table: number;
+  reservationId: string;
+  seatedAt: number;
+  guestName?: string;
+  people?: number;
+  time?: string;
 }
 
 // ========== TABLE NUMBER → TABLE ID MAPPING ==========
@@ -149,11 +164,36 @@ export async function computeTableStatus(
   const orderRes = await kv.get(orderKey);
   const order = orderRes.value as Order | null;
 
-  const base: TableStatusData = {
+  const base: TableStatusData = \{
     tableId: floorTableId,
     tableNumber,
-    status: "empty",
-  };
+    status: \"empty\",
+  \};
+
+  // Fetch seating info (hostess) so table details can show guest name / guests / time
+  const seatKey = ["seat", "by_table", restaurantId, tableNumber] as Deno.KvKey;
+  const seatRes = await kv.get<SeatingInfo>(seatKey);
+  const seating = seatRes.value as SeatingInfo | null;
+
+  let guestName: string | null = seating?.guestName?.trim() || null;
+  const guestCount = (seating?.people != null ? Number(seating.people) : undefined);
+  let reservationTime: string | null = (seating?.time != null ? String(seating.time) : null);
+
+  if (!guestName && seating?.reservationId) {
+    try {
+      const r: any = await getReservationById(seating.reservationId);
+      if (r) {
+        const built = [r.firstName, r.lastName].filter(Boolean).join(' ').trim();
+        guestName = (built || r.name || r.fullName || r.customerName || r.guestName || null);
+        if (!reservationTime && r.time) {
+          reservationTime = String(r.time);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
 
   // If there is an open order, table is occupied (highest priority)
   if (order && order.status === "open") {
@@ -183,6 +223,11 @@ export async function computeTableStatus(
       tableId: floorTableId,
       tableNumber,
       status: "occupied",
+      guestName,
+      guestCount,
+      reservationTime,
+      itemsCount: items.reduce((acc, it) => acc + (it.quantity || 0), 0),
+      subtotal,
       orderId: order.id,
       orderTotal: subtotal,
       occupiedSince: order.createdAt,
@@ -197,10 +242,13 @@ export async function computeTableStatus(
     return {
       ...base,
       status: override.status,
+      guestName,
+      guestCount,
+      reservationTime,
     };
   }
 
-  return base;
+  return { ...base, guestName, guestCount, reservationTime };
 }
 
 /**

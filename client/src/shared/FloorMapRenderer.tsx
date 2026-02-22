@@ -184,12 +184,17 @@ export default function FloorMapRenderer({
 
     // Account for canvas padding so the map is truly centered.
     const csCanvas = getComputedStyle(canvas);
-    const padL = parseFloat(csCanvas.paddingLeft || '0') || 0;
-    const padR = parseFloat(csCanvas.paddingRight || '0') || 0;
-    const padT = parseFloat(csCanvas.paddingTop || '0') || 0;
-    const padB = parseFloat(csCanvas.paddingBottom || '0') || 0;
+    let padL = parseFloat(csCanvas.paddingLeft || '0') || 0;
+    let padR = parseFloat(csCanvas.paddingRight || '0') || 0;
+    let padT = parseFloat(csCanvas.paddingTop || '0') || 0;
+    let padB = parseFloat(csCanvas.paddingBottom || '0') || 0;
 
-    const inset = 24;
+    if (mode === 'view') {
+      // View pages should fit perfectly in the visible frame.
+      padL = 0; padR = 0; padT = 0; padB = 0;
+    }
+
+    const inset = mode === 'view' ? 0 : 24;
     const availW = Math.max(1, canvas.clientWidth - padL - padR - inset * 2);
     const availH = Math.max(1, canvas.clientHeight - padT - padB - inset * 2);
 
@@ -398,7 +403,7 @@ export default function FloorMapRenderer({
       onTouchStart={onCanvasTouchStart}
       onTouchMove={onCanvasTouchMove}
       onTouchEnd={onCanvasTouchEnd}
-      style={{ position: 'relative' }}
+      style={{ position: 'relative', direction: 'ltr' as any }}
     >
       <div className="fe-canvas-controls">
         <button
