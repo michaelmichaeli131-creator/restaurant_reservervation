@@ -143,22 +143,75 @@ ownerFloorRouter.post(
 
     if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
 
-    const body = await (ctx.request as any).originalRequest?.json?.().catch?.(() => null)
-      ?? await (async () => {
+    const body =
+      (await (ctx.request as any).originalRequest?.json?.().catch?.(() => null)) ??
+      (await (async () => {
         try {
           const b = (ctx.request as any).body?.({ type: "json" });
           return b ? await b.value : null;
         } catch {
           return null;
         }
-      })()
-      ?? {};
+      })()) ??
+      {};
 
-    const { status } = body as any;
+    // Be permissive: different clients / i18n may send different casing or aliases.
+    const rawStatus =
+      (body as any)?.status ??
+      (body as any)?.newStatus ??
+      (body as any)?.state ??
+      (ctx.request.url.searchParams.get("status") ?? undefined);
 
-    if (!status || !["empty", "occupied", "reserved", "dirty"].includes(status)) {
+    const normalizeStatus = (v: unknown): FloorTableStatus | null => {
+      const s = String(v ?? "").trim();
+      if (!s) return null;
+      const k = s.toLowerCase();
+      const map: Record<string, FloorTableStatus> = {
+        empty: "empty",
+        available: "empty",
+        free: "empty",
+        clean: "empty",
+        cleared: "empty",
+        clear: "empty",
+        open: "empty",
+        vacant: "empty",
+        "needs_cleaning": "dirty",
+        "need_cleaning": "dirty",
+        "needs cleaning": "dirty",
+        dirty: "dirty",
+        reserved: "reserved",
+        reserve: "reserved",
+        booked: "reserved",
+        booking: "reserved",
+        occupied: "occupied",
+        busy: "occupied",
+        taken: "occupied",
+        seated: "occupied",
+        // Hebrew UI labels (in case a client sends localized values)
+        "פנוי": "empty",
+        "נקי": "empty",
+        "תפוס": "occupied",
+        "שמור": "reserved",
+        "מלוכלך": "dirty",
+      };
+      if (map[k]) return map[k];
+      // Sometimes values come like 'status:empty'
+      if (k.startsWith("status:")) {
+        const tail = k.slice("status:".length).trim();
+        return map[tail] ?? null;
+      }
+      return null;
+    };
+
+    const status = normalizeStatus(rawStatus);
+
+    if (!status) {
       ctx.response.status = 400;
-      ctx.response.body = { error: "Invalid status" };
+      ctx.response.body = {
+        error: "Invalid status",
+        received: typeof rawStatus === "string" ? rawStatus : rawStatus ?? null,
+        allowed: ["empty", "occupied", "reserved", "dirty"],
+      };
       return;
     }
 
