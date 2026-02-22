@@ -45,7 +45,8 @@
   position: absolute;
   left: calc(100% + 18px);
   top: 0;
-  height: 100%;
+  bottom: 0; /* match the full height of the big map frame */
+  height: auto; /* let top+bottom define height reliably */
   width: min(380px, 38vw);
 }
 
