@@ -722,17 +722,18 @@
     font-size:12px;
   }
 
-    .floor-wrapper{
+  /*
+    NOTE:
+    #sb-floor-root renders BOTH the map + the right-side Table Details.
+    The MAP frame/border is now handled inside the React view (sbv-left).
+    So the outer wrapper must NOT clip or frame the Table Details panel.
+  */
+  .floor-wrapper{
     margin-top: 8px;
     width: 100%;
     height: min(72vh, 780px);
     min-height: 520px;
-    display: flex;
-    align-items: stretch;
-    justify-content: center;
-    overflow: hidden;
-    border-radius: 16px;
-    border: 1px solid rgba(255,255,255,.06);
+    display: block;
   }
 
   .host-actions{
@@ -983,7 +984,7 @@
 
   .host-grid .floor-wrapper{
     height: min(72vh, 860px);
-    border-radius: 18px;
-    overflow: hidden;
+    /* Do not clip the right-side Table Details panel */
+    overflow: visible;
   }
 </style>
