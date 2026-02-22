@@ -167,7 +167,7 @@ export async function computeTableStatus(
   const base: TableStatusData = {
     tableId: floorTableId,
     tableNumber,
-    status: \"empty\",
+    status: "empty",
   };
 
   // Fetch seating info (hostess) so table details can show guest name / guests / time
