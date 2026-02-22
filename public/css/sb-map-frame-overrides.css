@@ -1,0 +1,18 @@
+/* Map frame width x2 (only width) for waiter + hostess pages */
+.waiter.container,
+.host.container{
+  /* floor-index.css sets .container max-width:1400px; override it */
+  max-width: 2800px !important;
+}
+
+/* The "frame" you circled is the left panel of the floor-view app (.sbv-left) */
+.waiter .sbv-left,
+.host .sbv-left{
+  flex: 0 0 min(1960px, 100%) !important; /* was min(980px,100%) */
+}
+
+/* Keep layout stable */
+.waiter .sbv-shell,
+.host .sbv-shell{
+  width: 100%;
+}

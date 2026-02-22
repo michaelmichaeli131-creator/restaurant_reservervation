@@ -1,7 +1,5 @@
 <% layout("_layout", it) %>
 
-<link rel="stylesheet" href="/public/css/sb-map-width-x2.css?v=<%= it.BUILD_TAG || Date.now() %>">
-
 <%
   function tt(k, fb){
     try{
@@ -18,7 +16,7 @@
   const reservations = it.reservations || [];
 %>
 
-<main class="host container sb-map-x2w">
+<main class="host container">
   <header class="host-header">
     <div>
       <h1>מסך מארחת — <%= restaurant.name %></h1>
@@ -95,6 +93,8 @@
 <link rel="stylesheet" href="/public/css/sb-floor-map.css">
 <link rel="stylesheet" href="/static/dist/floor-index.css?v=<%= it.BUILD_TAG || Date.now() %>">
 <link rel="stylesheet" href="/static/dist/floor-floor-view-app.css?v=<%= it.BUILD_TAG || Date.now() %>">
+
+<link rel="stylesheet" href="/public/css/sb-map-frame-overrides.css?v=<%= it.BUILD_TAG || Date.now() %>">
 <script type="module" src="/static/dist/floor-view-app.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>
 
 <script>

@@ -1,7 +1,5 @@
 <% layout("_layout", it) %>
 
-<link rel="stylesheet" href="/public/css/sb-map-width-x2.css?v=<%= it.BUILD_TAG || Date.now() %>">
-
 <%
   function tt(k, fb){
     try{
@@ -19,7 +17,7 @@
   const rid = it.rid;
 %>
 
-<main class="waiter container sb-map-x2w">
+<main class="waiter container">
   <header class="waiter-header">
     <div>
       <h1><%= tt('pos.waiter.lobby_title', 'Waiter Screen') %> — <%= restaurant.name %></h1>
@@ -131,7 +129,9 @@
 
 <link rel="stylesheet" href="/static/dist/floor-index.css?v=<%= it.BUILD_TAG || Date.now() %>">
   <link rel="stylesheet" href="/static/dist/floor-floor-view-app.css?v=<%= it.BUILD_TAG || Date.now() %>">
-  <script type="module" src="/static/dist/floor-view-app.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>
+  
+<link rel="stylesheet" href="/public/css/sb-map-frame-overrides.css?v=<%= it.BUILD_TAG || Date.now() %>">
+<script type="module" src="/static/dist/floor-view-app.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>
 <script>
   // Stage 3.2a: responsive shell toggle (mobile)
   (function(){
