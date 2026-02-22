@@ -144,54 +144,38 @@ export default function FloorMapRenderer({
   const themeKey = useMemo(() => normalizeTheme((layout as any).floorColor), [layout?.id]);
   const theme = useMemo(() => getTheme(themeKey), [themeKey]);
 
+
+
 const contentBounds = useMemo(() => {
   const rows = Math.max(0, Number((layout as any).gridRows ?? 0));
   const cols = Math.max(0, Number((layout as any).gridCols ?? 0));
   const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
-  let minX = 0;
-  let minY = 0;
-  let maxX = Math.max(0, cols - 1);
-  let maxY = Math.max(0, rows - 1);
-
-  // Prefer fitting to the *active* restaurant area (gridMask), not the full grid —
-  // this prevents the map from looking shifted when the restaurant shape isn't centered.
-  const mask = (layout as any).gridMask;
-  if (Array.isArray(mask) && rows > 0 && cols > 0 && mask.length === rows * cols) {
-    let found = false;
-    let mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        const v = mask[y * cols + x];
-        if (!v) continue;
-        found = true;
-        mnX = Math.min(mnX, x);
-        mnY = Math.min(mnY, y);
-        mxX = Math.max(mxX, x);
-        mxY = Math.max(mxY, y);
-      }
-    }
-    if (found) {
-      minX = mnX;
-      minY = mnY;
-      maxX = mxX;
-      maxY = mxY;
-    }
+  if (rows <= 0 || cols <= 0) {
+    return { minX: 0, minY: 0, maxX: 0, maxY: 0, rows, cols };
   }
 
+  // Fit to the bounds of *placed content* (tables/objects).
+  // (gridMask can still be used for cell styling, but it often spans the full width
+  // and would keep the map biased to one side.)
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let hasContent = false;
+
   const considerRect = (x0: any, y0: any, sx: any, sy: any) => {
-    if (rows <= 0 || cols <= 0) return;
-    const x = clamp(Number(x0 ?? 0), 0, Math.max(0, cols - 1));
-    const y = clamp(Number(y0 ?? 0), 0, Math.max(0, rows - 1));
+    const x = clamp(Number(x0 ?? 0), 0, cols - 1);
+    const y = clamp(Number(y0 ?? 0), 0, rows - 1);
     const spanX = clamp(Number(sx ?? 1), 1, cols);
     const spanY = clamp(Number(sy ?? 1), 1, rows);
     minX = Math.min(minX, x);
     minY = Math.min(minY, y);
     maxX = Math.max(maxX, x + spanX - 1);
     maxY = Math.max(maxY, y + spanY - 1);
+    hasContent = true;
   };
 
-  // Ensure tables/objects are included even if the mask is missing or sparse.
   const tables = Array.isArray((layout as any).tables) ? (layout as any).tables : [];
   const objects = Array.isArray((layout as any).objects) ? (layout as any).objects : [];
   for (const t of tables) {
@@ -199,6 +183,21 @@ const contentBounds = useMemo(() => {
   }
   for (const o of objects) {
     considerRect((o as any).gridX ?? (o as any).x, (o as any).gridY ?? (o as any).y, (o as any).spanX, (o as any).spanY);
+  }
+
+  if (!hasContent) {
+    // No content at all -> fall back to full grid.
+    minX = 0;
+    minY = 0;
+    maxX = cols - 1;
+    maxY = rows - 1;
+  } else {
+    // Small margin so content isn't glued to the frame.
+    const padCells = 1;
+    minX = clamp(minX - padCells, 0, cols - 1);
+    minY = clamp(minY - padCells, 0, rows - 1);
+    maxX = clamp(maxX + padCells, 0, cols - 1);
+    maxY = clamp(maxY + padCells, 0, rows - 1);
   }
 
   return { minX, minY, maxX, maxY, rows, cols };
