@@ -195,10 +195,10 @@ const contentBounds = useMemo(() => {
   const tables = Array.isArray((layout as any).tables) ? (layout as any).tables : [];
   const objects = Array.isArray((layout as any).objects) ? (layout as any).objects : [];
   for (const t of tables) {
-    considerRect(t.x, t.y, t.spanX, t.spanY);
+    considerRect((t as any).gridX ?? (t as any).x, (t as any).gridY ?? (t as any).y, (t as any).spanX, (t as any).spanY);
   }
   for (const o of objects) {
-    considerRect(o.x, o.y, o.spanX, o.spanY);
+    considerRect((o as any).gridX ?? (o as any).x, (o as any).gridY ?? (o as any).y, (o as any).spanX, (o as any).spanY);
   }
 
   return { minX, minY, maxX, maxY, rows, cols };
