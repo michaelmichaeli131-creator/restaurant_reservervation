@@ -164,11 +164,11 @@ export async function computeTableStatus(
   const orderRes = await kv.get(orderKey);
   const order = orderRes.value as Order | null;
 
-  const base: TableStatusData = \{
+  const base: TableStatusData = {
     tableId: floorTableId,
     tableNumber,
     status: \"empty\",
-  \};
+  };
 
   // Fetch seating info (hostess) so table details can show guest name / guests / time
   const seatKey = ["seat", "by_table", restaurantId, tableNumber] as Deno.KvKey;
