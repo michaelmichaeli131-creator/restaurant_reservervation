@@ -113,19 +113,15 @@
 
     <!-- Right content: Live map -->
     <div class="sb-waiter-right">
-      <!-- כרטיסייה: מפת המסעדה (חי) -->
-      <div class="panel card sb-waiter-map-card">
-      <h2><%= tt('pos.waiter.floor_map_title', 'Restaurant Map (Live)') %></h2>
-      <p class="muted small">
-        <%= tt('pos.waiter.floor_map_help', 'Click on an occupied table to view order details; click on an empty table for basic info.') %>
-      </p>
-      <div id="sb-floor-root" class="floor-wrapper" data-rid="<%= it.rid %>" data-click-mode="lobby"></div>
-      </div>
+      <!-- Floor view app mounts here. The app itself draws the map frame (left) and the Table Details panel (right),
+           so we DO NOT wrap it with an extra card (otherwise the details look "inside" the map frame). -->
+      <div id="sb-floor-root" class="floor-wrapper sb-waiter-floor-embed" data-rid="<%= it.rid %>" data-click-mode="lobby"></div>
     </div>
   </section>
 </main>
 
 <!-- כרטיסיית צד לפרטי שולחן -->
+
 
 <link rel="stylesheet" href="/static/dist/floor-index.css?v=<%= it.BUILD_TAG || Date.now() %>">
   <link rel="stylesheet" href="/static/dist/floor-floor-view-app.css?v=<%= it.BUILD_TAG || Date.now() %>">
