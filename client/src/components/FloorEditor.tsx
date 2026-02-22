@@ -176,24 +176,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   };
 
   const [floorTheme, setFloorTheme] = useState<FloorThemeKey>('parquet_blue');
-
-  // Center the map inside the scrollable canvas whenever grid size / cell size changes
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !currentLayout) return;
-
-    // Wait for DOM layout
-    requestAnimationFrame(() => {
-      const gridW = currentLayout.gridCols * cellSize + 48; // + 2*24px margin (see CSS)
-      const gridH = currentLayout.gridRows * cellSize + 48;
-
-      const targetLeft = Math.max(0, (gridW - canvas.clientWidth) / 2);
-      const targetTop  = Math.max(0, (gridH - canvas.clientHeight) / 2);
-
-      canvas.scrollLeft = targetLeft;
-      canvas.scrollTop  = targetTop;
-    });
-  }, [currentLayout?.id, currentLayout?.gridCols, currentLayout?.gridRows, cellSize]);
+  // NOTE: centering is handled via fitToScreen (pan/zoom), not via scrollLeft/scrollTop.
 
   const [shapeMode, setShapeMode] = useState(false);
   // Sync floor theme from the loaded layout
@@ -613,21 +596,137 @@ const assetForTable = (shape: string, seats: number) => {
   
   const clampZoom = (z: number) => Math.max(0.35, Math.min(2.5, z));
 
-  const fitToScreen = () => {
-    if (!canvasRef.current || !currentLayout) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const cellPx = cellSize;
-    const gridW = (currentLayout.gridCols * cellPx) + 20; // grid padding
-    const gridH = (currentLayout.gridRows * cellPx) + 20;
+  const computeLayoutBounds = (layout: FloorLayout) => {
+    const cols = Number(layout.gridCols || 0);
+    const rows = Number(layout.gridRows || 0);
 
-    const scale = clampZoom(Math.min((rect.width - 40) / gridW, (rect.height - 40) / gridH, 1.2));
+    // Fallback: full grid
+    let minX = 0, minY = 0, maxX = Math.max(0, cols - 1), maxY = Math.max(0, rows - 1);
+
+    // If we have a non-trivial gridMask (not all 1s), use its active bounds as the base
+    const maskRaw = (layout as any).gridMask;
+    if (Array.isArray(maskRaw) && cols > 0 && rows > 0) {
+      const size = cols * rows;
+      const mask = maskRaw.slice(0, size);
+      while (mask.length < size) mask.push(1);
+
+      let allActive = true;
+      for (let i = 0; i < size; i++) {
+        if ((mask[i] ?? 1) !== 1) { allActive = false; break; }
+      }
+
+      if (!allActive) {
+        let found = false;
+        let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+        for (let i = 0; i < size; i++) {
+          if ((mask[i] ?? 1) !== 1) continue;
+          const x = i % cols;
+          const y = Math.floor(i / cols);
+          found = true;
+          if (x < bx0) bx0 = x;
+          if (y < by0) by0 = y;
+          if (x > bx1) bx1 = x;
+          if (y > by1) by1 = y;
+        }
+        if (found) {
+          minX = bx0; minY = by0; maxX = bx1; maxY = by1;
+        }
+      }
+    }
+
+    // Always include placed items (tables/objects), so nothing gets clipped
+    const consider = (x: number, y: number, spanX: number, spanY: number) => {
+      const sx = Math.max(1, Number(spanX) || 1);
+      const sy = Math.max(1, Number(spanY) || 1);
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + sx - 1);
+      maxY = Math.max(maxY, y + sy - 1);
+    };
+
+    for (const t of (layout.tables || [])) {
+      consider(Number(t.gridX) || 0, Number(t.gridY) || 0, (t as any).spanX ?? 1, (t as any).spanY ?? 1);
+    }
+    for (const o of ((layout as any).objects || [])) {
+      consider(Number(o.gridX) || 0, Number(o.gridY) || 0, (o as any).spanX ?? 1, (o as any).spanY ?? 1);
+    }
+
+    // Clamp
+    minX = Math.max(0, Math.min(cols - 1, minX));
+    minY = Math.max(0, Math.min(rows - 1, minY));
+    maxX = Math.max(0, Math.min(cols - 1, maxX));
+    maxY = Math.max(0, Math.min(rows - 1, maxY));
+
+    return { minX, minY, maxX, maxY };
+  };
+
+  const fitToScreen = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !currentLayout) return;
+
+    // Reset scroll so scroll position can't "fake" an offset
+    canvas.scrollLeft = 0;
+    canvas.scrollTop = 0;
+
+    const cellPx = cellSize;
+    const bounds = computeLayoutBounds(currentLayout);
+
+    const contentW = (bounds.maxX - bounds.minX + 1) * cellPx;
+    const contentH = (bounds.maxY - bounds.minY + 1) * cellPx;
+
+    const cs = window.getComputedStyle(canvas);
+    const padL = parseFloat(cs.paddingLeft || '0') || 0;
+    const padR = parseFloat(cs.paddingRight || '0') || 0;
+    const padT = parseFloat(cs.paddingTop || '0') || 0;
+    const padB = parseFloat(cs.paddingBottom || '0') || 0;
+
+    const grid = gridRef.current;
+    const gs = grid ? window.getComputedStyle(grid) : null;
+    const mL = gs ? (parseFloat(gs.marginLeft || '0') || 0) : 0;
+    const mT = gs ? (parseFloat(gs.marginTop || '0') || 0) : 0;
+
+    const inset = 12;
+    const availW = Math.max(1, canvas.clientWidth - padL - padR - inset * 2);
+    const availH = Math.max(1, canvas.clientHeight - padT - padB - inset * 2);
+
+    const scale = clampZoom(Math.min(availW / contentW, availH / contentH, 1.2));
     setZoom(scale);
 
-    // center
-    const panX = Math.round((rect.width - gridW * scale) / 2);
-    const panY = Math.round(20);
+    const panX = Math.round(
+      padL + inset
+      + (availW - contentW * scale) / 2
+      - bounds.minX * cellPx * scale
+      - mL
+    );
+    const panY = Math.round(
+      padT + inset
+      + (availH - contentH * scale) / 2
+      - bounds.minY * cellPx * scale
+      - mT
+    );
+
     setPan({ x: panX, y: panY });
   };
+
+  // Auto-center/fit whenever the layout changes or the canvas is resized.
+  useEffect(() => {
+    if (!currentLayout) return;
+    const id = requestAnimationFrame(() => fitToScreen());
+    return () => cancelAnimationFrame(id);
+  }, [currentLayout?.id, currentLayout?.gridCols, currentLayout?.gridRows, cellSize]);
+
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el || !currentLayout) return;
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(() => fitToScreen());
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [currentLayout?.id, cellSize]);
+
+
+
 
   const zoomAtPoint = (nextZoom: number, clientX: number, clientY: number) => {
     if (!canvasRef.current) return;

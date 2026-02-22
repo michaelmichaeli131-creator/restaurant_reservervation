@@ -199,22 +199,109 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
 
   const clampZoom = (z: number) => Math.max(0.4, Math.min(2.5, z));
 
+  const computeLayoutBounds = (layout: FloorLayout) => {
+    const cols = Number(layout.gridCols || 0);
+    const rows = Number(layout.gridRows || 0);
+
+    // Default: full grid
+    let minX = 0, minY = 0, maxX = Math.max(0, cols - 1), maxY = Math.max(0, rows - 1);
+
+    // Use non-trivial gridMask bounds when available (centers the actual restaurant shape)
+    const maskRaw = (layout as any).gridMask;
+    if (Array.isArray(maskRaw) && cols > 0 && rows > 0) {
+      const size = cols * rows;
+      const mask = maskRaw.slice(0, size);
+      while (mask.length < size) mask.push(1);
+
+      let allActive = true;
+      for (let i = 0; i < size; i++) {
+        if ((mask[i] ?? 1) !== 1) { allActive = false; break; }
+      }
+
+      if (!allActive) {
+        let found = false;
+        let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+        for (let i = 0; i < size; i++) {
+          if ((mask[i] ?? 1) !== 1) continue;
+          const x = i % cols;
+          const y = Math.floor(i / cols);
+          found = true;
+          if (x < bx0) bx0 = x;
+          if (y < by0) by0 = y;
+          if (x > bx1) bx1 = x;
+          if (y > by1) by1 = y;
+        }
+        if (found) {
+          minX = bx0; minY = by0; maxX = bx1; maxY = by1;
+        }
+      }
+    }
+
+    // Include placed items so nothing is clipped
+    const consider = (x: number, y: number, spanX: number, spanY: number) => {
+      const sx = Math.max(1, Number(spanX) || 1);
+      const sy = Math.max(1, Number(spanY) || 1);
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + sx - 1);
+      maxY = Math.max(maxY, y + sy - 1);
+    };
+
+    for (const t of ((layout as any).tables || [])) {
+      consider(Number(t.gridX) || 0, Number(t.gridY) || 0, (t as any).spanX ?? 1, (t as any).spanY ?? 1);
+    }
+    for (const o of ((layout as any).objects || [])) {
+      consider(Number(o.gridX) || 0, Number(o.gridY) || 0, (o as any).spanX ?? 1, (o as any).spanY ?? 1);
+    }
+
+    // Clamp
+    minX = Math.max(0, Math.min(cols - 1, minX));
+    minY = Math.max(0, Math.min(rows - 1, minY));
+    maxX = Math.max(0, Math.min(cols - 1, maxX));
+    maxY = Math.max(0, Math.min(rows - 1, maxY));
+
+    return { minX, minY, maxX, maxY };
+  };
+
   const fitToScreen = (layoutArg?: FloorLayout) => {
     const layout = layoutArg ?? currentLayout;
-    if (!canvasRef.current || !layout) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const gridW = (layout.gridCols * cellPx);
-    const gridH = (layout.gridRows * cellPx);
-    const inset = 24;
+    const canvas = canvasRef.current;
+    if (!canvas || !layout) return;
 
-    const scale = clampZoom(Math.min((rect.width - inset * 2) / gridW, (rect.height - inset * 2) / gridH, 1.2));
+    // Reset scroll so scroll position can't create a fake "offset"
+    canvas.scrollLeft = 0;
+    canvas.scrollTop = 0;
+
+    const bounds = computeLayoutBounds(layout);
+    const contentW = (bounds.maxX - bounds.minX + 1) * cellPx;
+    const contentH = (bounds.maxY - bounds.minY + 1) * cellPx;
+
+    const cs = window.getComputedStyle(canvas);
+    const padL = parseFloat(cs.paddingLeft || '0') || 0;
+    const padR = parseFloat(cs.paddingRight || '0') || 0;
+    const padT = parseFloat(cs.paddingTop || '0') || 0;
+    const padB = parseFloat(cs.paddingBottom || '0') || 0;
+
+    const inset = 12;
+    const availW = Math.max(1, canvas.clientWidth - padL - padR - inset * 2);
+    const availH = Math.max(1, canvas.clientHeight - padT - padB - inset * 2);
+
+    const scale = clampZoom(Math.min(availW / contentW, availH / contentH, 1.2));
     setZoom(scale);
 
-    // Center even if bigger than viewport (x/y can be negative and that's OK)
-    const cx = Math.round((rect.width - gridW * scale) / 2);
-    const cy = Math.round((rect.height - gridH * scale) / 2);
+    const cx = Math.round(
+      padL + inset
+      + (availW - contentW * scale) / 2
+      - bounds.minX * cellPx * scale
+    );
+    const cy = Math.round(
+      padT + inset
+      + (availH - contentH * scale) / 2
+      - bounds.minY * cellPx * scale
+    );
     setPan({ x: cx, y: cy });
   };
+
 
   const zoomAtPoint = (nextZoom: number, clientX: number, clientY: number) => {
     if (!canvasRef.current) return;

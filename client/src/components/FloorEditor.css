@@ -365,7 +365,7 @@
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 12px;
   box-shadow: 0 16px 40px rgba(0,0,0,.35);
-  margin: 24px;
+  margin: 0;
   /* Critical for Hebrew/RTL pages: keep the grid coordinate system LTR so
      pointer-drag math matches what users see (prevents mirrored X placement). */
   direction: ltr;
@@ -637,7 +637,7 @@
 
 .btn-icon {
   padding: 10px;
-  margin: 24px;
+  margin: 0;
   background: transparent;
   border: 1px solid rgba(255,255,255,.06);
   border-radius: 8px;
