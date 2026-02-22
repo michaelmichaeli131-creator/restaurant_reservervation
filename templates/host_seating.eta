@@ -1,5 +1,7 @@
 <% layout("_layout", it) %>
 
+<link rel="stylesheet" href="/public/css/sb-map-width-x2.css?v=<%= it.BUILD_TAG || Date.now() %>">
+
 <%
   function tt(k, fb){
     try{
@@ -16,7 +18,7 @@
   const reservations = it.reservations || [];
 %>
 
-<main class="host container">
+<main class="host container sb-map-x2w">
   <header class="host-header">
     <div>
       <h1>מסך מארחת — <%= restaurant.name %></h1>
