@@ -71,6 +71,8 @@
         class="floor-wrapper"
         data-rid="<%= it.rid %>"
         data-click-mode="host"
+      
+        data-right-panel="outside"
       ></div>
       <div class="host-actions">
         <button id="seat-btn" type="button" class="btn primary sm">

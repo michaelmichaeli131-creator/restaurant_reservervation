@@ -119,7 +119,7 @@
       <p class="muted small">
         <%= tt('pos.waiter.floor_map_help', 'Click on an occupied table to view order details; click on an empty table for basic info.') %>
       </p>
-      <div id="sb-floor-root" class="floor-wrapper" data-rid="<%= it.rid %>" data-click-mode="lobby"></div>
+      <div id="sb-floor-root" class="floor-wrapper" data-rid="<%= it.rid %>" data-click-mode="lobby" data-right-panel="outside"></div>
       </div>
     </div>
   </section>

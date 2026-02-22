@@ -3,6 +3,7 @@
 .host.container{
   /* floor-index.css sets .container max-width:1400px; override it */
   max-width: 2800px !important;
+  overflow-x: visible;
 }
 
 /* The "frame" you circled is the left panel of the floor-view app (.sbv-left) */
@@ -15,4 +16,40 @@
 .waiter .sbv-shell,
 .host .sbv-shell{
   width: 100%;
+}
+
+/* =============================
+   Place Table Details OUTSIDE the big map frame
+   (so it doesn't get pushed off-screen when the map is wider)
+   Enabled per-page via: data-right-panel="outside" on #sb-floor-root
+   ============================= */
+
+/* Make sure the card/root doesn't clip the external panel */
+.sb-waiter-map-card,
+.host .panel.card{
+  overflow: visible;
+}
+
+/* Anchor the right panel to the map shell and place it outside */
+#sb-floor-root[data-right-panel="outside"] .sbv-shell{
+  position: relative;
+  overflow: visible;
+}
+
+#sb-floor-root[data-right-panel="outside"] .sbv-right{
+  position: absolute;
+  left: calc(100% + 18px);
+  top: 0;
+  height: 100%;
+  width: min(380px, 38vw);
+}
+
+/* On smaller screens, fall back to the normal inline layout */
+@media (max-width: 1200px){
+  #sb-floor-root[data-right-panel="outside"] .sbv-right{
+    position: static;
+    width: 100%;
+    height: auto;
+    margin-top: 12px;
+  }
 }
