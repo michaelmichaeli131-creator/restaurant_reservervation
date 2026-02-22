@@ -49,6 +49,7 @@
 
 /* Make the map card fill nicely */
 .sb-waiter-floor-embed{
+  /* Keep the original height behavior; only the page width is enlarged. */
   height: min(78vh, 900px);
   /* Don't clip: the app draws its own inner frames (map frame on the left, details panel on the right). */
   overflow: visible;

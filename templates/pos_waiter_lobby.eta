@@ -144,7 +144,9 @@
 
 <style>
   .waiter.container{
-    max-width: 1100px;
+    /* Scale up the overall waiter page so the live map frame isn't constrained.
+       User request: enlarge the screen/frame ~2.5x compared to the previous 1100px cap. */
+    max-width: min(95vw, 2800px);
     margin: 20px auto;
     padding: 0 16px;
   }
