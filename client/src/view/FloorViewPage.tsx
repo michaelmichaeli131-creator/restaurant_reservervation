@@ -156,20 +156,44 @@ export default function FloorViewPage({
 
   const closeDrawer = () => setSelectedTableId(null);
 
-  const handleMarkClean = async () => {
-    const tn = (selectedTable as any)?.number ?? (selectedTable as any)?.tableNumber;
-    if (!tn) return;
-    try {
-      await fetch("/api/host/table/clean", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ restaurantId, table: tn }),
-      });
-      await loadActive();
-    } catch (err) {
-      console.error("Failed to mark table clean:", err);
+  
+const postTableOverrideStatus = async (status: "empty" | "dirty" | "reserved") => {
+  const tableId = (selectedTable as any)?.id;
+  if (!tableId) return;
+
+  try {
+    const res = await fetch(`/api/tables/${restaurantId}/${tableId}/status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(txt || `HTTP ${res.status}`);
     }
-  };
+    await loadActive();
+  } catch (err) {
+    console.error("Failed to update table status:", err);
+  }
+};
+
+const handleMarkDirty = async () => {
+  await postTableOverrideStatus("dirty");
+};
+
+const handleMarkClean = async () => {
+  // "Clean" means: remove dirty/override (not forcing the table to be free).
+  await postTableOverrideStatus("empty");
+};
+
+const handleMarkReserved = async () => {
+  await postTableOverrideStatus("reserved");
+};
+
+const handleMarkEmpty = async () => {
+  await postTableOverrideStatus("empty");
+};
+
 
   const rootClass = `floor-editor sb-floor-view ${mountMode === "lobby" ? "is-embed" : ""}`;
 
@@ -301,20 +325,61 @@ export default function FloorViewPage({
               </div>
 
               <div className="sbv-drawer-footer">
-                {selectedStatus === "dirty" && (selectedTable as any)?.number ? (
-                  <button className="sbv-success-btn" onClick={handleMarkClean}>
-                    {t("floor.btn_mark_clean", "Mark as Clean")}
-                  </button>
-                ) : selectedStatus === "occupied" && (selectedTable as any)?.number ? (
-                  <a className="sbv-primary-btn" href={`/waiter/${restaurantId}/${(selectedTable as any).number}`}>
-                    {t("pos.waiter.btn_open_order", "Open Order")}
-                  </a>
-                ) : (
-                  <button className="sbv-secondary-btn" onClick={closeDrawer}>
-                    {t("common.btn_close", "Close")}
-                  </button>
-                )}
-              </div>
+  {(clickMode === "lobby" || clickMode === "waiter") ? (
+    <>
+      <button
+        className="sbv-secondary-btn"
+        onClick={handleMarkDirty}
+        disabled={selectedStatus === "dirty"}
+      >
+        {t("floor.mark_dirty", "Mark Dirty")}
+      </button>
+
+      <button
+        className="sbv-success-btn"
+        onClick={handleMarkClean}
+        disabled={selectedStatus !== "dirty"}
+      >
+        {t("floor.mark_clean", "Mark Clean")}
+      </button>
+    </>
+  ) : null}
+
+  {clickMode === "host" ? (
+    <>
+      <button
+        className="sbv-primary-btn"
+        onClick={handleMarkReserved}
+        disabled={selectedStatus === "reserved"}
+      >
+        {t("floor.mark_reserved", "Mark Reserved")}
+      </button>
+
+      <button
+        className="sbv-secondary-btn"
+        onClick={handleMarkEmpty}
+        disabled={selectedStatus === "empty"}
+      >
+        {t("floor.mark_empty", "Mark Empty")}
+      </button>
+    </>
+  ) : null}
+
+  {selectedStatus === "occupied" &&
+  (selectedStatusEntry as any)?.orderId &&
+  (selectedTable as any)?.number ? (
+    <a
+      className="sbv-primary-btn"
+      href={`/waiter/${restaurantId}/${(selectedTable as any).number}`}
+    >
+      {t("pos.waiter.btn_open_order", "Open Order")}
+    </a>
+  ) : null}
+
+  <button className="sbv-secondary-btn" onClick={closeDrawer}>
+    {t("common.btn_close", "Close")}
+  </button>
+</div>
             </div>
           ) : (
             <div className="sbv-right-empty">

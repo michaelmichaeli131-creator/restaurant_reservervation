@@ -83,19 +83,6 @@ export async function seatReservation(params: {
 
   const now = Date.now();
 
-  const resolvedGuestName = (
-    guestName?.trim() ||
-    [
-      (reservation as any).firstName,
-      (reservation as any).lastName,
-    ].filter(Boolean).join(' ').trim() ||
-    (reservation as any).name ||
-    (reservation as any).fullName ||
-    (reservation as any).customerName ||
-    (reservation as any).guestName ||
-    undefined
-  );
-
   const people = reservation.people != null
     ? Number(reservation.people)
     : undefined;
@@ -106,7 +93,7 @@ export async function seatReservation(params: {
     table,
     reservationId,
     seatedAt: now,
-    guestName: (resolvedGuestName && String(resolvedGuestName).trim()) ? String(resolvedGuestName).trim() : undefined,
+    guestName: guestName?.trim() || undefined,
     people,
     time,
   };

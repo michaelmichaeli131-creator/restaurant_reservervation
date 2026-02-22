@@ -144,6 +144,66 @@ export default function FloorMapRenderer({
   const themeKey = useMemo(() => normalizeTheme((layout as any).floorColor), [layout?.id]);
   const theme = useMemo(() => getTheme(themeKey), [themeKey]);
 
+const contentBounds = useMemo(() => {
+  const rows = Math.max(0, Number((layout as any).gridRows ?? 0));
+  const cols = Math.max(0, Number((layout as any).gridCols ?? 0));
+  const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+
+  let minX = 0;
+  let minY = 0;
+  let maxX = Math.max(0, cols - 1);
+  let maxY = Math.max(0, rows - 1);
+
+  // Prefer fitting to the *active* restaurant area (gridMask), not the full grid —
+  // this prevents the map from looking shifted when the restaurant shape isn't centered.
+  const mask = (layout as any).gridMask;
+  if (Array.isArray(mask) && rows > 0 && cols > 0 && mask.length === rows * cols) {
+    let found = false;
+    let mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const v = mask[y * cols + x];
+        if (!v) continue;
+        found = true;
+        mnX = Math.min(mnX, x);
+        mnY = Math.min(mnY, y);
+        mxX = Math.max(mxX, x);
+        mxY = Math.max(mxY, y);
+      }
+    }
+    if (found) {
+      minX = mnX;
+      minY = mnY;
+      maxX = mxX;
+      maxY = mxY;
+    }
+  }
+
+  const considerRect = (x0: any, y0: any, sx: any, sy: any) => {
+    if (rows <= 0 || cols <= 0) return;
+    const x = clamp(Number(x0 ?? 0), 0, Math.max(0, cols - 1));
+    const y = clamp(Number(y0 ?? 0), 0, Math.max(0, rows - 1));
+    const spanX = clamp(Number(sx ?? 1), 1, cols);
+    const spanY = clamp(Number(sy ?? 1), 1, rows);
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + spanX - 1);
+    maxY = Math.max(maxY, y + spanY - 1);
+  };
+
+  // Ensure tables/objects are included even if the mask is missing or sparse.
+  const tables = Array.isArray((layout as any).tables) ? (layout as any).tables : [];
+  const objects = Array.isArray((layout as any).objects) ? (layout as any).objects : [];
+  for (const t of tables) {
+    considerRect(t.x, t.y, t.spanX, t.spanY);
+  }
+  for (const o of objects) {
+    considerRect(o.x, o.y, o.spanX, o.spanY);
+  }
+
+  return { minX, minY, maxX, maxY, rows, cols };
+}, [layout?.id]);
+
   // Space-to-pan (same behavior as editor/live view)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -168,45 +228,34 @@ export default function FloorMapRenderer({
 
 
   const fitToScreen = () => {
-    if (!canvasRef.current || !gridRef.current) return;
+  if (!canvasRef.current || !gridRef.current) return;
 
-    const canvas = canvasRef.current;
-    const grid = gridRef.current;
+  const canvas = canvasRef.current;
 
-    // Measure the real rendered grid size (offsetWidth/offsetHeight are not affected by CSS transforms).
-    const cs = getComputedStyle(grid);
-    const marginX = (parseFloat(cs.marginLeft) || 0) + (parseFloat(cs.marginRight) || 0);
-    const marginY = (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+  const csCanvas = getComputedStyle(canvas);
+  const padL = parseFloat(csCanvas.paddingLeft || '0') || 0;
+  const padR = parseFloat(csCanvas.paddingRight || '0') || 0;
+  const padT = parseFloat(csCanvas.paddingTop || '0') || 0;
+  const padB = parseFloat(csCanvas.paddingBottom || '0') || 0;
 
-    const baseW = grid.offsetWidth + marginX;
-    const baseH = grid.offsetHeight + marginY;
-    if (!baseW || !baseH) return;
+  const inset = 24;
+  const availW = Math.max(1, canvas.clientWidth - padL - padR - inset * 2);
+  const availH = Math.max(1, canvas.clientHeight - padT - padB - inset * 2);
 
-    // Account for canvas padding so the map is truly centered.
-    const csCanvas = getComputedStyle(canvas);
-    let padL = parseFloat(csCanvas.paddingLeft || '0') || 0;
-    let padR = parseFloat(csCanvas.paddingRight || '0') || 0;
-    let padT = parseFloat(csCanvas.paddingTop || '0') || 0;
-    let padB = parseFloat(csCanvas.paddingBottom || '0') || 0;
+  const { minX, minY, maxX, maxY } = contentBounds;
+  const contentW = Math.max(1, (maxX - minX + 1) * cellSize);
+  const contentH = Math.max(1, (maxY - minY + 1) * cellSize);
 
-    if (mode === 'view') {
-      // View pages should fit perfectly in the visible frame.
-      padL = 0; padR = 0; padT = 0; padB = 0;
-    }
+  // In view mode we never auto-zoom-in; we only zoom-out to ensure the whole map fits.
+  const maxAuto = mode === 'view' ? 1 : 1.2;
+  const scale = clampZoom(Math.min(availW / contentW, availH / contentH, maxAuto));
+  setZoom(scale);
 
-    const inset = mode === 'view' ? 0 : 24;
-    const availW = Math.max(1, canvas.clientWidth - padL - padR - inset * 2);
-    const availH = Math.max(1, canvas.clientHeight - padT - padB - inset * 2);
-
-        // In view mode we never auto-zoom-in; we only zoom-out to ensure the whole map fits.
-    const maxAuto = mode === 'view' ? 1 : 1.2;
-    const scale = clampZoom(Math.min(availW / baseW, availH / baseH, maxAuto));
-    setZoom(scale);
-
-    const cx = Math.round(padL + inset + (availW - baseW * scale) / 2);
-    const cy = Math.round(padT + inset + (availH - baseH * scale) / 2);
-    setPan({ x: cx, y: cy });
-  };
+  // Center the *active* content bounds, not the entire grid.
+  const cx = Math.round(padL + inset + (availW - contentW * scale) / 2 - minX * cellSize * scale);
+  const cy = Math.round(padT + inset + (availH - contentH * scale) / 2 - minY * cellSize * scale);
+  setPan({ x: cx, y: cy });
+};
 
   useEffect(() => {
     // Fit once after first render
@@ -403,7 +452,7 @@ export default function FloorMapRenderer({
       onTouchStart={onCanvasTouchStart}
       onTouchMove={onCanvasTouchMove}
       onTouchEnd={onCanvasTouchEnd}
-      style={{ position: 'relative', direction: 'ltr' as any }}
+      style={{ position: 'relative' }}
     >
       <div className="fe-canvas-controls">
         <button

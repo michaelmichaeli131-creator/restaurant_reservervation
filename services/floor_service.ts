@@ -10,9 +10,9 @@ export interface TableStatusData {
   tableId: string;
   tableNumber: number;
   status: TableStatus;
-  guestName?: string | null;
   guestCount?: number;
-  reservationTime?: string | null;
+  guestName?: string;
+  reservationTime?: string;
   itemsCount?: number;
   subtotal?: number;
   orderId?: string;
@@ -21,17 +21,6 @@ export interface TableStatusData {
   itemsReady?: number;
   itemsPending?: number;
   assignedWaiterId?: string;
-}
-
-// Seating info stored by the hostess flow
-interface SeatingInfo {
-  restaurantId: string;
-  table: number;
-  reservationId: string;
-  seatedAt: number;
-  guestName?: string;
-  people?: number;
-  time?: string;
 }
 
 // ========== TABLE NUMBER → TABLE ID MAPPING ==========
@@ -148,6 +137,61 @@ export async function markTableClean(
   await setTableStatusOverride(restaurantId, tableId, "empty", userId);
 }
 
+// ========== SEATING + RESERVATION ENRICHMENT (for Table Details) ==========
+
+interface SeatingInfoLite {
+  restaurantId: string;
+  table: number;
+  reservationId?: string;
+  seatedAt?: number;
+  guestName?: string;
+  people?: number;
+  time?: string;
+}
+
+function kSeatByTable(restaurantId: string, tableNumber: number): Deno.KvKey {
+  return ["seat", "by_table", restaurantId, Number(tableNumber)];
+}
+
+function normalizeStr(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
+}
+
+function pickGuestName(seat: SeatingInfoLite | null, reservation: any | null): string | undefined {
+  const fromSeat = normalizeStr(seat?.guestName);
+  if (fromSeat) return fromSeat;
+
+  const firstName = normalizeStr(reservation?.firstName);
+  const lastName = normalizeStr(reservation?.lastName);
+  const full = `${firstName} ${lastName}`.trim();
+  if (full) return full;
+
+  const name = normalizeStr(reservation?.name);
+  if (name) return name;
+
+  return undefined;
+}
+
+function pickGuestCount(seat: SeatingInfoLite | null, reservation: any | null): number | undefined {
+  const fromSeat = Number(seat?.people);
+  if (Number.isFinite(fromSeat) && fromSeat > 0) return fromSeat;
+
+  const fromRes = Number(reservation?.people);
+  if (Number.isFinite(fromRes) && fromRes > 0) return fromRes;
+
+  return undefined;
+}
+
+function pickReservationTime(seat: SeatingInfoLite | null, reservation: any | null): string | undefined {
+  const fromSeat = normalizeStr(seat?.time);
+  if (fromSeat) return fromSeat;
+
+  const fromRes = normalizeStr(reservation?.time);
+  if (fromRes) return fromRes;
+
+  return undefined;
+}
+
 // ========== COMPUTE LIVE TABLE STATUS ==========
 
 /**
@@ -159,49 +203,42 @@ export async function computeTableStatus(
   floorTableId: string,
   tableNumber: number
 ): Promise<TableStatusData> {
-  // Look up current order for this table
-  const orderKey = ["pos", "order_by_table", restaurantId, tableNumber] as Deno.KvKey;
-  const orderRes = await kv.get(orderKey);
-  const order = orderRes.value as Order | null;
-
   const base: TableStatusData = {
     tableId: floorTableId,
     tableNumber,
     status: "empty",
   };
 
-  // Fetch seating info (hostess) so table details can show guest name / guests / time
-  const seatKey = ["seat", "by_table", restaurantId, tableNumber] as Deno.KvKey;
-  const seatRes = await kv.get<SeatingInfo>(seatKey);
-  const seating = seatRes.value as SeatingInfo | null;
-
-  let guestName: string | null = seating?.guestName?.trim() || null;
-  const guestCount = (seating?.people != null ? Number(seating.people) : undefined);
-  let reservationTime: string | null = (seating?.time != null ? String(seating.time) : null);
-
-  if (!guestName && seating?.reservationId) {
-    try {
-      const r: any = await getReservationById(seating.reservationId);
-      if (r) {
-        const built = [r.firstName, r.lastName].filter(Boolean).join(' ').trim();
-        guestName = (built || r.name || r.fullName || r.customerName || r.guestName || null);
-        if (!reservationTime && r.time) {
-          reservationTime = String(r.time);
-        }
-      }
-    } catch {
-      // ignore
+  // Seating info (host seating) — used to enrich Table Details.
+  let seat: SeatingInfoLite | null = null;
+  let reservation: any | null = null;
+  try {
+    const seatRow = await kv.get(kSeatByTable(restaurantId, tableNumber));
+    seat = (seatRow.value as SeatingInfoLite | null) ?? null;
+    if (seat?.reservationId) {
+      reservation = await getReservationById(String(seat.reservationId));
     }
+  } catch (_e) {
+    // Best-effort; table details can still work without seating data.
   }
 
+  const guestName = pickGuestName(seat, reservation);
+  const guestCount = pickGuestCount(seat, reservation);
+  const reservationTime = pickReservationTime(seat, reservation);
 
-  // If there is an open order, table is occupied (highest priority)
+  // Look up current order for this table
+  const orderKey = ["pos", "order_by_table", restaurantId, tableNumber] as Deno.KvKey;
+  const orderRes = await kv.get(orderKey);
+  const order = orderRes.value as Order | null;
+
+  // 1) Open order -> occupied (highest priority)
   if (order && order.status === "open") {
-    // Get all order items to compute status
+    // Compute order items to show useful details in the UI
     const itemPrefix = ["pos", "order_item", order.id] as Deno.KvKey;
-    const items: OrderItem[] = [];
+
     let itemsReady = 0;
     let itemsPending = 0;
+    let itemsCount = 0;
     let subtotal = 0;
 
     const iter = kv.list({ prefix: itemPrefix });
@@ -209,50 +246,58 @@ export async function computeTableStatus(
       const item = entry.value as OrderItem;
       if (item.status === "cancelled") continue;
 
-      items.push(item);
-      subtotal += item.unitPrice * item.quantity;
+      const qty = Number(item.quantity ?? 1) || 1;
+      itemsCount += qty;
+      subtotal += Number(item.unitPrice ?? 0) * qty;
 
       if (item.status === "ready" || item.status === "served") {
-        itemsReady++;
+        itemsReady += qty;
       } else {
-        itemsPending++;
+        itemsPending += qty;
       }
     }
 
     return {
-      tableId: floorTableId,
-      tableNumber,
+      ...base,
       status: "occupied",
       guestName,
       guestCount,
       reservationTime,
-      itemsCount: items.reduce((acc, it) => acc + (it.quantity || 0), 0),
-      subtotal,
       orderId: order.id,
       orderTotal: subtotal,
+      subtotal,
+      itemsCount,
       occupiedSince: order.createdAt,
       itemsReady,
       itemsPending,
     };
   }
 
-  // No open order — check for manual status override (e.g. "dirty")
-  const override = await getTableStatusOverride(restaurantId, floorTableId);
-  if (override && override.status !== "empty") {
+  // 2) No open order but seating exists -> treat as occupied (host seated)
+  if (seat) {
     return {
       ...base,
-      status: override.status,
+      status: "occupied",
       guestName,
       guestCount,
       reservationTime,
     };
   }
 
-  return { ...base, guestName, guestCount, reservationTime };
+  // 3) Manual override (reserved/dirty)
+  const override = await getTableStatusOverride(restaurantId, floorTableId);
+  if (override && override.status !== "empty") {
+    return {
+      ...base,
+      status: override.status,
+    };
+  }
+
+  return base;
 }
 
 /**
- * Compute status for all tables in a floor plan at once
+ * Compute status for all tables in a floor plan at once in a floor plan at once
  */
 export async function computeAllTableStatuses(
   restaurantId: string,

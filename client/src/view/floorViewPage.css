@@ -84,6 +84,9 @@
 .sbv-view-topbar {
   /* layout-tabs-bar already styles the bar; just tighten for view */
   padding: 12px 16px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
 }
 
 .sbv-topbar-left {
@@ -109,9 +112,9 @@
 .sbv-legend{
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .sbv-pill{

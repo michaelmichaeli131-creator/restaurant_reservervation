@@ -170,19 +170,8 @@ ownerFloorRouter.post(
       return;
     }
 
-    // Verify user has access (owner can access any, staff/manager can access their own)
-    if (user.role === "owner") {
-      // Owner can update any restaurant's tables
-    } else if (user.role === "manager" || user.role === "staff") {
-      // Manager/staff can only update tables at their assigned restaurant
-      // For now, allow if they're logged in (could enhance with restaurant assignment later)
-    } else {
-      ctx.response.status = 403;
-      ctx.response.body = { error: "Forbidden" };
-      return;
-    }
-
-    // Persist table status override via the floor service
+    // Permissions are enforced by requireStaff() and requireRestaurantAccess().
+// Persist table status override via the floor service
     await setTableStatusOverride(restaurantId, tableId, status as FloorTableStatus, user.id);
 
     ctx.response.status = 200;
