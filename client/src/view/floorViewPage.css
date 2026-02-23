@@ -494,3 +494,35 @@
   justify-content: center;
   width: 100%;
 }
+
+/* ---------------------------------------------
+   View mode polish (Host / Waiter map)
+   1) No always-on colored frames around tables
+   2) Status-colored frame ONLY on click (is-selected)
+   3) No blur/glow: keep floor background crisp
+---------------------------------------------- */
+
+/* Tables in view mode reuse base `.table` styles from floor-index.css.
+   Neutralize them here so there is no frame by default. */
+.sb-floor-view .table.floor-table {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* No hover lift in view mode */
+.sb-floor-view .table.floor-table:hover {
+  transform: none !important;
+}
+
+/* Remove asset drop-shadows (they look like blur/glow) */
+.sb-floor-view .fe-asset {
+  filter: none !important;
+}
+
+/* If any pills/labels use backdrop blur, disable it */
+.sb-floor-view .table-section,
+.sb-floor-view .fe-canvas-controls {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
