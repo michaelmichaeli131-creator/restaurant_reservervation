@@ -1,6 +1,17 @@
 <% layout("_layout", it) %>
 
 <%
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t==='function'){
+        const s = it.t(k);
+        if(!s || s===k || s===`(${k})`) return fb;
+        return s;
+      }
+    }catch(e){}
+    return fb;
+  }
+
   const restaurant = it.restaurant;
   const rid = it.restaurantId || restaurant?.id;
   const user = it.user;
@@ -10,17 +21,17 @@
   <div class="card sb-card">
     <header class="sb-hdr">
       <div>
-        <h1 class="sb-title">ניהול משמרות</h1>
+        <h1 class="sb-title"><%= tt('shifts.title', 'Shift Management') %></h1>
         <div class="muted">
-          מסעדה: <strong><%= restaurant?.name || rid %></strong>
-          · בעלים: <strong><%= user?.email || user?.name || '' %></strong>
+          <%= tt('shifts.restaurant_label', 'Restaurant:') %> <strong><%= restaurant?.name || rid %></strong>
+          · <%= tt('shifts.owner_label', 'Owner:') %> <strong><%= user?.email || user?.name || '' %></strong>
         </div>
       </div>
 
       <div class="sb-weeknav">
-        <button class="btn ghost sm" id="prevWeek">◀ שבוע</button>
+        <button class="btn ghost sm" id="prevWeek">◀ <%= tt('shifts.week', 'Week') %></button>
         <div class="sb-weeklabel" id="weekLabel">—</div>
-        <button class="btn ghost sm" id="nextWeek">שבוע ▶</button>
+        <button class="btn ghost sm" id="nextWeek"><%= tt('shifts.week', 'Week') %> ▶</button>
       </div>
     </header>
 
@@ -32,37 +43,37 @@
         <!-- Create shift -->
         <div class="panel">
           <div class="panel-h">
-            <div class="panel-title">+ יצירת משמרת</div>
-            <div class="muted tiny">עם בדיקות חכמות (זמינות/חפיפות)</div>
+            <div class="panel-title">+ <%= tt('shifts.create_title', 'Create Shift') %></div>
+            <div class="muted tiny"><%= tt('shifts.create_subtitle', 'With smart checks (availability/overlaps)') %></div>
           </div>
 
           <div class="form">
-            <label class="lbl">תאריך</label>
+            <label class="lbl"><%= tt('shifts.date', 'Date') %></label>
             <input class="in" type="date" id="fDate" />
 
             <div class="row2">
               <div>
-                <label class="lbl">התחלה</label>
+                <label class="lbl"><%= tt('shifts.start', 'Start') %></label>
                 <input class="in" type="time" id="fStart" value="18:00" />
               </div>
               <div>
-                <label class="lbl">סיום</label>
+                <label class="lbl"><%= tt('shifts.end', 'End') %></label>
                 <input class="in" type="time" id="fEnd" value="23:00" />
               </div>
             </div>
 
-            <label class="lbl">תבנית (אופציונלי)</label>
+            <label class="lbl"><%= tt('shifts.template', 'Template (optional)') %></label>
             <select class="in" id="fTemplate">
-              <option value="">— ללא —</option>
+              <option value="">— <%= tt('shifts.none', 'None') %> —</option>
             </select>
 
-            <label class="lbl">עובד</label>
+            <label class="lbl"><%= tt('shifts.employee', 'Employee') %></label>
             <select class="in" id="fStaff">
-              <option value="">טוען עובדים…</option>
+              <option value=""><%= tt('shifts.loading_staff', 'Loading employees...') %></option>
             </select>
 
             <div class="row2">
-              <button class="btn ghost sm" id="btnSuggest" type="button">המלץ עובדים</button>
+              <button class="btn ghost sm" id="btnSuggest" type="button"><%= tt('shifts.btn_suggest', 'Suggest Employees') %></button>
               <label class="chk">
                 <input type="checkbox" id="fForce" />
                 <span>Force</span>
@@ -71,10 +82,10 @@
 
             <div id="suggestBox" class="suggest" style="display:none"></div>
 
-            <button class="btn primary" id="btnCreate" type="button">צור משמרת</button>
+            <button class="btn primary" id="btnCreate" type="button"><%= tt('shifts.btn_create', 'Create Shift') %></button>
 
             <div class="muted tiny" style="margin-top:8px">
-              * אם העובד “לא זמין” או קיימת חפיפה — תקבל 409. אפשר לעקוף עם Force.
+              * <%= tt('shifts.force_hint', 'If employee is "unavailable" or overlap exists — you will get 409. Override with Force.') %>
             </div>
           </div>
         </div>
@@ -82,34 +93,34 @@
         <!-- Availability matrix -->
         <div class="panel">
           <div class="panel-h">
-            <div class="panel-title">זמינות עובדים (שבועית)</div>
-            <div class="muted tiny">טוגל זמין/לא זמין לפי יום בשבוע</div>
+            <div class="panel-title"><%= tt('shifts.availability_title', 'Employee Availability (Weekly)') %></div>
+            <div class="muted tiny"><%= tt('shifts.availability_subtitle', 'Toggle available/unavailable by day of week') %></div>
           </div>
 
           <div class="muted tiny" style="margin-top:6px">
-            כאן אתה (כבעלים) יכול לעדכן זמינות לכל עובד.
+            <%= tt('shifts.availability_hint', 'Here you (as owner) can update availability for each employee.') %>
           </div>
 
           <div class="availability">
             <div class="av-head">
-              <div class="av-name">עובד</div>
+              <div class="av-name"><%= tt('shifts.employee', 'Employee') %></div>
               <div class="av-days">
-                <div class="d">א</div>
-                <div class="d">ב</div>
-                <div class="d">ג</div>
-                <div class="d">ד</div>
-                <div class="d">ה</div>
-                <div class="d">ו</div>
-                <div class="d">ש</div>
+                <div class="d"><%= tt('shifts.day_sun', 'Su') %></div>
+                <div class="d"><%= tt('shifts.day_mon', 'Mo') %></div>
+                <div class="d"><%= tt('shifts.day_tue', 'Tu') %></div>
+                <div class="d"><%= tt('shifts.day_wed', 'We') %></div>
+                <div class="d"><%= tt('shifts.day_thu', 'Th') %></div>
+                <div class="d"><%= tt('shifts.day_fri', 'Fr') %></div>
+                <div class="d"><%= tt('shifts.day_sat', 'Sa') %></div>
               </div>
             </div>
 
             <div id="avBody" class="av-body">
-              <div class="muted tiny" style="padding:10px">טוען…</div>
+              <div class="muted tiny" style="padding:10px"><%= tt('shifts.loading', 'Loading...') %></div>
             </div>
 
             <div class="muted tiny" style="margin-top:8px">
-              הערה: “אין נתון” = נחשב זמין (נייטרלי). רק “לא זמין” חוסם שיבוץ.
+              <%= tt('shifts.availability_note', 'Note: "No data" = considered available (neutral). Only "unavailable" blocks assignment.') %>
             </div>
           </div>
         </div>
@@ -117,11 +128,11 @@
         <!-- Templates (view-only here) -->
         <div class="panel">
           <div class="panel-h">
-            <div class="panel-title">תבניות משמרת</div>
-            <div class="muted tiny">ניהול מלא אפשר להוסיף בהמשך</div>
+            <div class="panel-title"><%= tt('shifts.templates_title', 'Shift Templates') %></div>
+            <div class="muted tiny"><%= tt('shifts.templates_subtitle', 'Full management can be added later') %></div>
           </div>
           <div id="tmplList" class="tmpl-list">
-            <div class="muted tiny" style="padding:10px">טוען…</div>
+            <div class="muted tiny" style="padding:10px"><%= tt('shifts.loading', 'Loading...') %></div>
           </div>
         </div>
       </aside>
@@ -130,12 +141,12 @@
       <main class="sb-right">
         <div class="panel" style="height:100%">
           <div class="panel-h">
-            <div class="panel-title">לוח משמרות (שבוע)</div>
-            <div class="muted tiny">צפייה/ביטול משמרות</div>
+            <div class="panel-title"><%= tt('shifts.board_title', 'Shift Board (Week)') %></div>
+            <div class="muted tiny"><%= tt('shifts.board_subtitle', 'View/cancel shifts') %></div>
           </div>
 
           <div id="weekBoard" class="board">
-            <div class="muted" style="padding:10px">טוען לוח…</div>
+            <div class="muted" style="padding:10px"><%= tt('shifts.loading_board', 'Loading board...') %></div>
           </div>
         </div>
       </main>
@@ -223,14 +234,14 @@
   // --- Loaders ---
   async function loadStaff(){
     staff = await jfetch(`/api/restaurants/${encodeURIComponent(RID)}/staff`);
-    fStaff.innerHTML = `<option value="">בחר עובד…</option>` + staff.map(s => (
+    fStaff.innerHTML = `<option value=""><%= tt('shifts.select_employee', 'Select employee...') %></option>` + staff.map(s => (
       `<option value="${esc(s.id)}">${esc(staffName(s))} · ${esc(s.role||'')}</option>`
     )).join("");
   }
 
   async function loadTemplates(){
     templates = await jfetch(`/api/restaurants/${encodeURIComponent(RID)}/shift-templates`);
-    fTemplate.innerHTML = `<option value="">— ללא —</option>` + templates.map(t => (
+    fTemplate.innerHTML = `<option value="">— <%= tt('shifts.none', 'None') %> —</option>` + templates.map(t => (
       `<option value="${esc(t.id)}">${esc(t.name)} (${esc(t.startTime)}–${esc(t.endTime)})</option>`
     )).join("");
 
@@ -241,7 +252,7 @@
             <div class="muted tiny">${esc(t.startTime)}–${esc(t.endTime)} · ימים: ${esc((t.daysOfWeek||[]).join(","))}</div>
           </div>`
         )).join("")
-      : `<div class="muted tiny" style="padding:10px">אין תבניות עדיין</div>`;
+      : `<div class="muted tiny" style="padding:10px"><%= tt('shifts.no_templates', 'No templates yet') %></div>`;
   }
 
   async function loadAvailabilityMatrix(){
@@ -253,20 +264,20 @@
     // availObj can be null => neutral (treated as available)
     const isUnavailable = (availObj && availObj.available === false);
     const cls = isUnavailable ? "cell off" : "cell on";
-    const title = isUnavailable ? "לא זמין" : "זמין/נייטרלי";
+    const title = isUnavailable ? "<%= tt('shifts.unavailable', 'Unavailable') %>" : "<%= tt('shifts.available', 'Available/Neutral') %>";
     return `<button class="${cls}" data-staff="${esc(staffId)}" data-dow="${dow}" title="${esc(title)}"></button>`;
   }
 
   function renderAvailabilityMatrix(){
     if(!availabilityMatrix || !availabilityMatrix.matrix){
-      avBody.innerHTML = `<div class="muted tiny" style="padding:10px">אין מידע</div>`;
+      avBody.innerHTML = `<div class="muted tiny" style="padding:10px"><%= tt('shifts.no_data', 'No data') %></div>`;
       return;
     }
 
     const rows = availabilityMatrix.matrix;
 
     if(!rows.length){
-      avBody.innerHTML = `<div class="muted tiny" style="padding:10px">אין עובדים</div>`;
+      avBody.innerHTML = `<div class="muted tiny" style="padding:10px"><%= tt('shifts.no_employees', 'No employees') %></div>`;
       return;
     }
 
@@ -333,11 +344,11 @@
   function statusBadge(status){
     const s = String(status || "scheduled");
     const map = {
-      scheduled: ["מתוזמן", "badge"],
-      checked_in: ["נכנס/ה", "badge ok"],
-      checked_out: ["יצא/ה", "badge done"],
-      cancelled: ["בוטל", "badge bad"],
-      called_out: ["היעדרות", "badge warn"],
+      scheduled: ["<%= tt('shifts.status.scheduled', 'Scheduled') %>", "badge"],
+      checked_in: ["<%= tt('shifts.status.checked_in', 'Checked In') %>", "badge ok"],
+      checked_out: ["<%= tt('shifts.status.checked_out', 'Checked Out') %>", "badge done"],
+      cancelled: ["<%= tt('shifts.status.cancelled', 'Cancelled') %>", "badge bad"],
+      called_out: ["<%= tt('shifts.status.called_out', 'Called Out') %>", "badge warn"],
     };
     const t = map[s] ? map[s][0] : s;
     const c = map[s] ? map[s][1] : "badge";
@@ -356,7 +367,7 @@
         </div>`);
 
       if(!day.shifts.length){
-        html.push(`<div class="empty">אין משמרות</div>`);
+        html.push(`<div class="empty"><%= tt('shifts.no_shifts', 'No shifts') %></div>`);
       } else {
         html.push(`<div class="list">`);
         for(const sh of day.shifts){
@@ -367,7 +378,7 @@
             </div>
             <div class="row2 muted tiny">${esc(sh.staffName || "")} · ${esc(sh.staffRole || "")}</div>
             <div class="row3">
-              <button class="btn ghost xs" data-cancel="1" data-id="${esc(sh.id)}" data-date="${esc(day.date)}">בטל</button>
+              <button class="btn ghost xs" data-cancel="1" data-id="${esc(sh.id)}" data-date="${esc(day.date)}"><%= tt('shifts.btn_cancel', 'Cancel') %></button>
             </div>
           </div>`);
         }
@@ -394,13 +405,13 @@
     const force = !!fForce.checked;
 
     if(!date || !startTime || !endTime || !staffId){
-      msg.textContent = "חסרים שדות חובה (תאריך/זמן/עובד)";
+      msg.textContent = "<%= tt('shifts.missing_fields', 'Missing required fields (date/time/employee)') %>";
       return;
     }
 
     try{
       btnCreate.disabled = true;
-      btnCreate.textContent = "יוצר…";
+      btnCreate.textContent = "<%= tt('shifts.creating', 'Creating...') %>";
 
       await jfetch(`/api/restaurants/${encodeURIComponent(RID)}/shifts`, {
         method: "POST",
@@ -415,17 +426,17 @@
         }),
       });
 
-      msg.textContent = "✅ משמרת נוצרה";
+      msg.textContent = "✅ <%= tt('shifts.created', 'Shift created') %>";
       await loadWeekBoard();
     }catch(e){
       if(e && e.status === 409){
-        msg.textContent = "⚠️ " + (e.payload && e.payload.error ? e.payload.error : "התנגשות בשיבוץ");
+        msg.textContent = "⚠️ " + (e.payload && e.payload.error ? e.payload.error : "<%= tt('shifts.conflict', 'Assignment conflict') %>");
       } else {
-        msg.textContent = "שגיאה: " + (e && e.message ? e.message : "unknown");
+        msg.textContent = "<%= tt('shifts.error', 'Error') %>: " + (e && e.message ? e.message : "unknown");
       }
     }finally{
       btnCreate.disabled = false;
-      btnCreate.textContent = "צור משמרת";
+      btnCreate.textContent = "<%= tt('shifts.btn_create', 'Create Shift') %>";
     }
   }
 
@@ -438,13 +449,13 @@
     const endTime = fEnd.value;
 
     if(!date || !startTime || !endTime){
-      msg.textContent = "כדי לקבל המלצות, בחר תאריך ושעות";
+      msg.textContent = "<%= tt('shifts.suggest_missing', 'To get recommendations, select date and times') %>";
       return;
     }
 
     try{
       btnSuggest.disabled = true;
-      btnSuggest.textContent = "מחפש…";
+      btnSuggest.textContent = "<%= tt('shifts.searching', 'Searching...') %>";
 
       const j = await jfetch(`/api/restaurants/${encodeURIComponent(RID)}/shifts/recommendations`, {
         method: "POST",
@@ -458,13 +469,13 @@
       const arr = (j && j.suggestions) ? j.suggestions : [];
       if(!arr.length){
         suggestBox.style.display = "block";
-        suggestBox.innerHTML = `<div class="muted tiny">לא נמצאו המלצות (ייתכן שיש חפיפות או כולם לא זמינים).</div>`;
+        suggestBox.innerHTML = `<div class="muted tiny"><%= tt('shifts.no_suggestions', 'No recommendations found (possible overlaps or all unavailable).') %></div>`;
         return;
       }
 
       suggestBox.style.display = "block";
       suggestBox.innerHTML =
-        `<div class="muted tiny" style="margin-bottom:6px">לחץ כדי לבחור עובד:</div>` +
+        `<div class="muted tiny" style="margin-bottom:6px"><%= tt('shifts.click_to_select', 'Click to select employee:') %></div>` +
         arr.map(s => (
           `<button class="sug" data-pick="${esc(s.staffId)}">
             <div class="sug-n">${esc((s.firstName||"") + " " + (s.lastName||""))}</div>
@@ -472,25 +483,25 @@
           </button>`
         )).join("");
     }catch(e){
-      msg.textContent = "שגיאה בהמלצות: " + (e && e.message ? e.message : "unknown");
+      msg.textContent = "<%= tt('shifts.error_suggestions', 'Error with recommendations') %>: " + (e && e.message ? e.message : "unknown");
     }finally{
       btnSuggest.disabled = false;
-      btnSuggest.textContent = "המלץ עובדים";
+      btnSuggest.textContent = "<%= tt('shifts.btn_suggest', 'Suggest Employees') %>";
     }
   }
 
   async function cancelShift(shiftId, date){
-    if(!confirm("לבטל את המשמרת?")) return;
+    if(!confirm("<%= tt('shifts.confirm_cancel', 'Cancel this shift?') %>")) return;
     msg.textContent = "";
     try{
       await jfetch(`/api/restaurants/${encodeURIComponent(RID)}/shifts/${encodeURIComponent(shiftId)}`, {
         method: "DELETE",
         headers: { "accept": "application/json" },
       });
-      msg.textContent = "✅ בוטל";
+      msg.textContent = "✅ <%= tt('shifts.cancelled', 'Cancelled') %>";
       await loadWeekBoard();
     }catch(e){
-      msg.textContent = "שגיאה בביטול: " + (e && e.message ? e.message : "unknown");
+      msg.textContent = "<%= tt('shifts.error_cancel', 'Error cancelling') %>: " + (e && e.message ? e.message : "unknown");
     }
   }
 
@@ -508,7 +519,7 @@
     if(id){
       fStaff.value = id;
       clearSuggest();
-      msg.textContent = "נבחר עובד מהמלצות";
+      msg.textContent = "<%= tt('shifts.employee_selected', 'Employee selected from recommendations') %>";
     }
   });
 
@@ -522,7 +533,7 @@
     try{
       await toggleAvailability(staffId, dow);
     }catch(e){
-      msg.textContent = "שגיאה בעדכון זמינות: " + (e && e.message ? e.message : "unknown");
+      msg.textContent = "<%= tt('shifts.error_availability', 'Error updating availability') %>: " + (e && e.message ? e.message : "unknown");
     }
   });
 
@@ -537,7 +548,7 @@
   // --- Init ---
   async function init(){
     try{
-      msg.textContent = "טוען…";
+      msg.textContent = "<%= tt('shifts.loading', 'Loading...') %>";
       setWeekLabel();
       setDefaultDate();
 
@@ -548,7 +559,7 @@
 
       msg.textContent = "";
     }catch(e){
-      msg.textContent = "שגיאה בטעינה: " + (e && e.message ? e.message : "unknown");
+      msg.textContent = "<%= tt('shifts.error_loading', 'Error loading') %>: " + (e && e.message ? e.message : "unknown");
     }
   }
 
