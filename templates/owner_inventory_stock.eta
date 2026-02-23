@@ -21,24 +21,23 @@
   const activeSuppliers = suppliers.filter(s => s && s.isActive !== false);
 %>
 
-<section class="sb-owner container" aria-label="מלאי חומרי גלם">
+<section class="sb-owner container" aria-label="<%= tt('owner.inventory.title', 'Raw Materials Inventory') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
-        <h1>מלאי חומרי גלם · <%= restaurant.name || 'מסעדה' %></h1>
+        <h1><%= tt('owner.inventory.title', 'Raw Materials Inventory') %> · <%= restaurant.name || tt('common.restaurant', 'Restaurant') %></h1>
         <p class="muted">
-          ניהול חומרי גלם בסיסי: כמות, מינימום, עלות ליחידה וספק מועדף.
-          ההזמנות מהספקים יעדכנו את המלאי אוטומטית כשמסמנים "סופק".
+          <%= tt('stock.description', 'Basic raw material management: quantity, minimum, unit cost, and preferred supplier. Purchase orders update inventory automatically when marked as delivered.') %>
         </p>
       </div>
       <div class="actions">
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/suppliers">📦 ספקים</a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/purchase_orders">🧾 הזמנות רכש</a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📈 עלויות</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/suppliers">📦 <%= tt('stock.btn_suppliers', 'Suppliers') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/purchase_orders">🧾 <%= tt('stock.btn_po', 'Purchase Orders') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📈 <%= tt('stock.btn_costs', 'Costs') %></a>
       </div>
     </header>
 
-    <!-- טופס יצירת חומר גלם חדש -->
+    <!-- New ingredient form -->
     <div class="panel card" style="margin-top:14px">
       <h2 class="card-title"><%= tt('owner.inventory.add_new', 'הוספת חומר גלם חדש') %></h2>
 
@@ -52,7 +51,7 @@
 
         <label class="lbl">
           <%= tt('owner.inventory.form.unit', 'יחידת מידה') %>
-          <input name="unit" placeholder="ק״ג / ליטר / יח׳" value="ק״ג">
+          <input name="unit" placeholder="<%= tt('stock.unit_placeholder', 'kg / liter / unit') %>" value="<%= tt('stock.unit_default', 'kg') %>">
         </label>
 
         <label class="lbl">
@@ -89,7 +88,7 @@
       </form>
     </div>
 
-    <!-- טבלת כל חומרי הגלם -->
+    <!-- All ingredients table -->
     <div class="panel card" style="margin-top:16px">
       <h2 class="card-title"><%= tt('owner.inventory.all_items', 'כל חומרי הגלם') %></h2>
 
@@ -111,26 +110,26 @@
             <form class="tr" method="post" action="/owner/<%= restaurant.id %>/inventory/stock/ingredient">
               <input type="hidden" name="id" value="<%= esc(ing.id) %>">
 
-              <!-- שם + הערות -->
+              <!-- Name + notes -->
               <div class="td">
                 <input class="in" name="name" required value="<%= esc(ing.name || '') %>">
                 <div class="muted small" style="margin-top:4px">
-                  יחידה:
+                  <%= tt('stock.unit_label', 'Unit') %>:
                   <input
                     class="in in-inline"
                     name="unit"
                     value="<%= esc(ing.unit || '') %>"
-                    placeholder="ק״ג / ליטר / יח׳"
+                    placeholder="<%= tt('stock.unit_placeholder', 'kg / liter / unit') %>"
                   >
                 </div>
                 <% if (ing.notes) { %>
                   <div class="muted small" style="margin-top:4px">
-                    הערות: <%= esc(ing.notes) %>
+                    <%= tt('stock.notes_label', 'Notes') %>: <%= esc(ing.notes) %>
                   </div>
                 <% } %>
               </div>
 
-              <!-- כמות נוכחית -->
+              <!-- Current quantity -->
               <div class="td">
                 <input
                   class="in"
@@ -142,7 +141,7 @@
                 >
               </div>
 
-              <!-- מינימום -->
+              <!-- Minimum -->
               <div class="td">
                 <input
                   class="in"
@@ -154,7 +153,7 @@
                 >
               </div>
 
-              <!-- עלות ליחידה -->
+              <!-- Unit cost -->
               <div class="td">
                 <input
                   class="in"
@@ -166,10 +165,10 @@
                 >
               </div>
 
-              <!-- ספק מועדף -->
+              <!-- Preferred supplier -->
               <div class="td">
                 <select class="in" name="supplierId">
-                  <option value="">— ללא —</option>
+                  <option value="">— <%= tt('common.none', 'None') %> —</option>
                   <% activeSuppliers.forEach(function(s){ %>
                     <option
                       value="<%= esc(s.id) %>"
@@ -181,24 +180,24 @@
                 </select>
                 <% if (ing.supplierName && !ing.preferredSupplierId) { %>
                   <div class="muted small" style="margin-top:4px">
-                    ספק (legacy): <%= esc(ing.supplierName) %>
+                    <%= tt('stock.supplier_legacy', 'Supplier (legacy)') %>: <%= esc(ing.supplierName) %>
                   </div>
                 <% } %>
               </div>
 
-              <!-- כפתורים -->
+              <!-- Actions -->
               <div class="td right">
-                <button class="btn primary sm" type="submit">שמור</button>
+                <button class="btn primary sm" type="submit"><%= tt('common.btn_save', 'Save') %></button>
 
                 <button
                   class="btn ghost sm danger"
                   type="submit"
                   formaction="/owner/<%= restaurant.id %>/inventory/stock/ingredient/<%= esc(ing.id) %>/delete"
                   formmethod="post"
-                  onclick="return confirm('למחוק את חומר הגלם הזה?')"
+                  onclick="return confirm('<%= tt('stock.confirm_delete', 'Delete this ingredient?') %>')"
                   style="margin-right:8px"
                 >
-                  מחיקה
+                  <%= tt('common.btn_delete', 'Delete') %>
                 </button>
               </div>
             </form>

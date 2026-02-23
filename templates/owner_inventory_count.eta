@@ -1,6 +1,18 @@
 <% layout("_layout", it) %>
 
 <%
+  // i18n helper with fallback
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t === "function"){
+        const s = it.t(k);
+        if (!s || s === k || s === `(${k})`) return fb;
+        return s;
+      }
+    } catch(e){}
+    return fb;
+  }
+
   const restaurant = it.restaurant || {};
   const session = it.session || {};
   const lines = Array.isArray(it.lines) ? it.lines : [];
@@ -15,62 +27,62 @@
   }
 %>
 
-<section class="sb-owner container" aria-label="ספירת מלאי">
+<section class="sb-owner container" aria-label="<%= tt('count.aria', 'Inventory Count') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
-        <h1>ספירת מלאי · <%= restaurant.name || 'מסעדה' %></h1>
+        <h1><%= tt('count.title', 'Inventory Count') %> · <%= restaurant.name || 'מסעדה' %></h1>
         <p class="muted">
           ספירה <strong>#<%= String(session.id||'').slice(0,8) %></strong>
-          • סטטוס: <strong><%= session.status || 'draft' %></strong>
-          <% if (session.note) { %> • הערה: <strong><%= session.note %></strong><% } %>
+          • <%= tt('count.status', 'Status') %>: <strong><%= session.status || 'draft' %></strong>
+          <% if (session.note) { %> • <%= tt('count.note_label', 'Note') %>: <strong><%= session.note %></strong><% } %>
         </p>
       </div>
       <div class="actions">
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/counts">⬅ חזרה לרשימה</a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">📦 מלאי</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/counts">⬅ <%= tt('count.btn_back', 'Back to list') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">📦 <%= tt('count.btn_stock', 'Inventory') %></a>
       </div>
     </header>
 
     <% if (saved) { %>
-      <div class="notice ok">💾 נשמרה טיוטה.</div>
+      <div class="notice ok">💾 <%= tt('count.saved_draft', 'Draft saved.') %></div>
     <% } %>
     <% if (final) { %>
-      <div class="notice ok">✅ הספירה נסגרה והחלו התאמות מלאי בהתאם.</div>
+      <div class="notice ok">✅ <%= tt('count.finalized', 'Count closed and inventory adjustments applied.') %></div>
     <% } %>
 
     <div class="stats">
       <div class="stat">
-        <div class="k">סה״כ פריטים</div>
+        <div class="k"><%= tt('count.total_items', 'Total items') %></div>
         <div class="v"><%= Number(summary.items || 0) %></div>
       </div>
       <div class="stat">
-        <div class="k">שורות עם Actual שהוזן</div>
+        <div class="k"><%= tt('count.filled_rows', 'Rows with Actual entered') %></div>
         <div class="v"><%= Number(summary.filled || 0) %></div>
       </div>
       <div class="stat">
-        <div class="k">שווי Expected</div>
+        <div class="k"><%= tt('count.expected_value', 'Expected Value') %></div>
         <div class="v">₪ <%= num(summary.expectedValue, 2) %></div>
       </div>
       <div class="stat">
-        <div class="k">שווי Actual (תצוגה)</div>
+        <div class="k"><%= tt('count.actual_value', 'Actual Value (display)') %></div>
         <div class="v">₪ <%= num(summary.actualValue, 2) %></div>
       </div>
       <div class="stat wide">
-        <div class="k">Δ שווי (Actual-Expected)</div>
+        <div class="k"><%= tt('count.delta_value', 'Δ Value (Actual-Expected)') %></div>
         <div class="v" id="delta-val">₪ <%= num(summary.deltaValue, 2) %></div>
-        <div class="muted small" id="delta-hint">הדלתא מתעדכנת בזמן אמת בזמן הקלדה.</div>
+        <div class="muted small" id="delta-hint"><%= tt('count.delta_hint', 'Delta updates in real-time as you type.') %></div>
       </div>
     </div>
 
     <% if (!lines.length) { %>
-      <p class="muted">אין שורות ספירה (בעיה בסנאפשוט). חזור לרשימה ונסה ליצור ספירה מחדש.</p>
+      <p class="muted"><%= tt('count.no_lines', 'No count lines (snapshot issue). Go back and try creating a new count.') %></p>
     <% } else { %>
       <form id="count-form" method="post" action="/owner/<%= restaurant.id %>/inventory/counts/<%= session.id %>/save" class="panel card" style="margin-top:16px">
         <div class="form-hd">
-          <h2 class="card-title">טבלת ספירה</h2>
+          <h2 class="card-title"><%= tt('count.table_title', 'Count Table') %></h2>
           <div class="form-actions">
-            <input class="search" id="search" placeholder="חפש חומר גלם..." />
+            <input class="search" id="search" placeholder="<%= tt('count.search_placeholder', 'Search ingredient...') %>" />
           </div>
         </div>
 
@@ -78,13 +90,13 @@
 
         <div class="table" id="table">
           <div class="tr th">
-            <div>חומר גלם</div>
+            <div><%= tt('count.tbl_ingredient', 'Ingredient') %></div>
             <div>Expected</div>
             <div>Actual</div>
             <div>Δ Qty</div>
-            <div>סוג פער</div>
+            <div><%= tt('count.tbl_gap_type', 'Gap Type') %></div>
             <div>₪ Δ</div>
-            <div>הערה</div>
+            <div><%= tt('count.tbl_note', 'Note') %></div>
           </div>
 
           <% lines.forEach(function(ln){ 
@@ -98,9 +110,9 @@
             <div class="tr row" data-id="<%= ln.ingredientId %>" data-cost="<%= cost %>" data-exp="<%= exp %>">
               <div class="td">
                 <div class="name"><strong><%= ln.ingredientName %></strong></div>
-                <div class="muted small">יחידה: <span class="pill"><%= ln.unit || 'unit' %></span></div>
+                <div class="muted small"><%= tt('count.unit_label', 'Unit') %>: <span class="pill"><%= ln.unit || 'unit' %></span></div>
                 <% if (!cost) { %>
-                  <div class="muted small">⚠️ אין עלות ליחידה (חישוב ₪Δ יהיה 0)</div>
+                  <div class="muted small">⚠️ <%= tt('count.no_cost_warning', 'No unit cost (₪Δ calculation will be 0)') %></div>
                 <% } %>
               </div>
 
@@ -118,7 +130,7 @@
                   placeholder="<%= exp %>"
                   value="<%= (act === null ? '' : String(act)) %>"
                 />
-                <div class="muted small">הפלאייסהולדר = Expected</div>
+                <div class="muted small"><%= tt('count.placeholder_hint', 'Placeholder = Expected') %></div>
               </div>
 
               <div class="td">
@@ -130,9 +142,9 @@
               <div class="td">
                 <select class="in kind">
                   <option value="adjustment" <%= kind==='adjustment' ? 'selected' : '' %>>Adjustment</option>
-                  <option value="waste" <%= kind==='waste' ? 'selected' : '' %>>Waste (בלאי/גניבה)</option>
+                  <option value="waste" <%= kind==='waste' ? 'selected' : '' %>>Waste (<%= tt('count.waste_desc', 'spoilage/theft') %>)</option>
                 </select>
-                <div class="muted small">Waste יעבוד רק אם Δ שלילי</div>
+                <div class="muted small"><%= tt('count.waste_hint', 'Waste only works if Δ is negative') %></div>
               </div>
 
               <div class="td">
@@ -140,7 +152,7 @@
               </div>
 
               <div class="td">
-                <input class="in note" value="<%= ln.note || '' %>" placeholder="לדוגמה: נשפך / טעות ספירה" />
+                <input class="in note" value="<%= ln.note || '' %>" placeholder="<%= tt('count.note_placeholder', 'e.g.: spilled / counting error') %>" />
               </div>
             </div>
           <% }) %>
@@ -148,15 +160,15 @@
 
         <div class="footer">
           <% if ((session.status || 'draft') === 'draft') { %>
-            <button class="btn primary sm" type="submit" id="btn-save">💾 שמור טיוטה</button>
+            <button class="btn primary sm" type="submit" id="btn-save">💾 <%= tt('count.btn_save_draft', 'Save Draft') %></button>
             <button
               class="btn danger sm"
               type="submit"
               id="btn-finalize"
               formaction="/owner/<%= restaurant.id %>/inventory/counts/<%= session.id %>/finalize"
-            >✅ סגור ספירה והחל התאמות</button>
+            >✅ <%= tt('count.btn_finalize', 'Close Count & Apply Adjustments') %></button>
           <% } else { %>
-            <span class="muted small">הספירה כבר נסגרה, אי אפשר לערוך.</span>
+            <span class="muted small"><%= tt('count.already_closed', 'Count is already closed, cannot edit.') %></span>
           <% } %>
         </div>
       </form>
