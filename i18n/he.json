@@ -55,7 +55,9 @@
       "btn_po": "הזמנות רכש (PO)",
       "btn_recipes": "מתכוני מנות",
       "btn_photos": "תמונות",
-      "btn_shifts": "ניהול משמרות"
+      "btn_shifts": "ניהול משמרות",
+      "btn_attendance": "נוכחות עובדים",
+      "btn_manage": "ניהול"
     },
     "staff": {
       "manage_title": "ניהול עובדים",
@@ -497,7 +499,13 @@
     "has_recipe": "מתכון מוגדר",
     "no_recipe": "אין מתכון",
     "no_ingredients_yet": "עדיין לא הוגדרו חומרי גלם למנה זו.",
-    "notes": "הערות:"
+    "notes": "הערות:",
+    "btn_save": "שמירת מתכון",
+    "notes_placeholder": "הערות שף / גרסה מיוחדת של המנה",
+    "ingredient_fallback": "חומר גלם",
+    "menu_price": "מחיר בתפריט:",
+    "no_dishes_in_menu": "אין עדיין מנות בתפריט, לכן אין מה להגדיר כמתכונים.",
+    "qty_placeholder": "כמות ליחידה אחת"
   },
   "suppliers": {
     "aria": "ספקים",
@@ -575,6 +583,46 @@
     "tbl_expected": "צפי אספקה",
     "tbl_delivered": "סופק בתאריך",
     "btn_open": "פתיחת הזמנה"
+  },
+  "staff": {
+    "dashboard": {
+      "aria_section": "דשבורד מסעדה",
+      "title": "דשבורד מסעדה",
+      "staff_fallback": "עובד",
+      "btn_clock": "כניסה / יציאה",
+      "btn_my_shifts": "המשמרות שלי"
+    }
+  },
+  "bill": {
+    "aria": "חשבונית למסעדה",
+    "restaurant_fallback": "שם מסעדה",
+    "phone": "טלפון:",
+    "btn_print": "הדפס",
+    "btn_back_bills": "חזרה לחשבונות",
+    "date": "תאריך:",
+    "time": "שעה:",
+    "table": "שולחן:",
+    "order_id": "מס׳ הזמנה:",
+    "payment_code": "קוד תשלום:",
+    "items_title": "פריטים בחשבון",
+    "tbl_qty": "כמות",
+    "tbl_item": "פריט",
+    "tbl_unit_price": "מחיר יחידה",
+    "tbl_total": "סה״כ",
+    "unnamed_item": "פריט ללא שם",
+    "no_items": "אין פריטים בחשבון זה.",
+    "summary_title": "סיכום חשבון",
+    "subtotal": "סיכום ביניים (ללא טיפ):",
+    "tip_pct": "טיפ (%):",
+    "tip_pct_hint": "הזן אחוז, הטיפ יחושב אוטומטית",
+    "tip_fixed": "טיפ קבוע:",
+    "tip_fixed_hint": "אפשר גם להזין סכום ידני",
+    "total_tip": "סה״כ טיפ:",
+    "grand_total": "סה״כ לתשלום:",
+    "tip_disclaimer": "הטיפ אינו מחושב במערכת החשבונאית – זהו חישוב לצורכי הצגה בלבד.",
+    "thank_you": "תודה שבחרתם",
+    "us": "בנו",
+    "legal_note": "לשימוש פנימי וללקוח, אין באמור תחליף לחשבונית מס כדין."
   },
   "admin": {
     "cover": {

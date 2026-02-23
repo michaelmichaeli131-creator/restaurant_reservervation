@@ -56,7 +56,9 @@
       "btn_po": "Purchase Orders (PO)",
       "btn_recipes": "Dish Recipes",
       "btn_photos": "Photos",
-      "btn_shifts": "Shift Management"
+      "btn_shifts": "Shift Management",
+      "btn_attendance": "Staff Attendance",
+      "btn_manage": "Manage"
     },
     "staff": {
       "manage_title": "Staff Management",
@@ -590,7 +592,13 @@
     "has_recipe": "Recipe defined",
     "no_recipe": "No recipe",
     "no_ingredients_yet": "No ingredients defined for this dish yet.",
-    "notes": "Notes:"
+    "notes": "Notes:",
+    "btn_save": "Save Recipe",
+    "notes_placeholder": "Chef notes / special version of dish",
+    "ingredient_fallback": "Ingredient",
+    "menu_price": "Menu price:",
+    "no_dishes_in_menu": "No menu items yet, so there is nothing to define as recipes.",
+    "qty_placeholder": "Qty per serving"
   },
   "suppliers": {
     "aria": "Suppliers",
@@ -668,6 +676,46 @@
     "tbl_expected": "Expected Delivery",
     "tbl_delivered": "Delivered At",
     "btn_open": "Open Order"
+  },
+  "staff": {
+    "dashboard": {
+      "aria_section": "Restaurant Dashboard",
+      "title": "Restaurant Dashboard",
+      "staff_fallback": "Employee",
+      "btn_clock": "Clock In / Out",
+      "btn_my_shifts": "My Shifts"
+    }
+  },
+  "bill": {
+    "aria": "Bill for restaurant",
+    "restaurant_fallback": "Restaurant",
+    "phone": "Phone:",
+    "btn_print": "Print",
+    "btn_back_bills": "Back to Bills",
+    "date": "Date:",
+    "time": "Time:",
+    "table": "Table:",
+    "order_id": "Order #:",
+    "payment_code": "Payment Code:",
+    "items_title": "Bill Items",
+    "tbl_qty": "Qty",
+    "tbl_item": "Item",
+    "tbl_unit_price": "Unit Price",
+    "tbl_total": "Total",
+    "unnamed_item": "Unnamed item",
+    "no_items": "No items in this bill.",
+    "summary_title": "Bill Summary",
+    "subtotal": "Subtotal (before tip):",
+    "tip_pct": "Tip (%):",
+    "tip_pct_hint": "Enter percentage, tip will be calculated automatically",
+    "tip_fixed": "Fixed Tip:",
+    "tip_fixed_hint": "You can also enter a manual amount",
+    "total_tip": "Total Tip:",
+    "grand_total": "Grand Total:",
+    "tip_disclaimer": "The tip is not calculated in the accounting system — this is for display purposes only.",
+    "thank_you": "Thank you for choosing",
+    "us": "us",
+    "legal_note": "For internal & customer use. This is not a substitute for a legal tax invoice."
   },
   "admin": {
     "cover": {
