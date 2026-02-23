@@ -14,23 +14,6 @@
 
   const restaurant = it.restaurant || {};
   const reservations = it.reservations || [];
-  const sections = it.sections || [];
-
-  // Small safe mapping: tableId -> tableNumber (no guest data)
-  const __tableIdToNumber = {};
-  (sections || []).forEach(function(sec){
-    (sec && sec.tables ? sec.tables : []).forEach(function(t){
-      if (!t || !t.id) return;
-      const num = Number(
-        t.tableNumber != null ? t.tableNumber :
-        (t.number != null ? t.number :
-         (t.table_number != null ? t.table_number :
-          (t.tableNo != null ? t.tableNo :
-           (t.tableNum != null ? t.tableNum : 0))))
-      );
-      if (Number.isFinite(num) && num > 0) __tableIdToNumber[String(t.id)] = num;
-    });
-  });
 %>
 
 <main class="host container">
@@ -131,30 +114,19 @@
   const markEmptyBtn = document.getElementById("mark-empty-btn");
 
   // Selection updates from the embedded floor-view app
-  const __SB_TABLE_ID_TO_NUMBER = <%= JSON.stringify(__tableIdToNumber) %>;
-
   window.addEventListener("sb-floor-selection", function(ev){
     try {
       const d = (ev && ev.detail) ? ev.detail : {};
-      let nums = Array.isArray(d.tableNumbers) ? d.tableNumbers : [];
+      const nums = Array.isArray(d.tableNumbers) ? d.tableNumbers : [];
       const ids = Array.isArray(d.tableIds) ? d.tableIds : [];
-
-      // If the embedded view couldn't provide numbers, derive from tableIds
-      if ((!nums || nums.length === 0) && ids.length) {
-        nums = ids
-          .map(function(id){ return __SB_TABLE_ID_TO_NUMBER[String(id)] })
-          .map(Number)
-          .filter(function(n){ return Number.isFinite(n) && n > 0; });
-      }
-
-      state.selectedTables = new Set((nums || []).map(Number).filter(n => Number.isFinite(n) && n > 0));
-      state.selectedTableIds = new Set((ids || []).map(String).filter(Boolean));
+      state.selectedTables = new Set(nums.map(Number).filter(n => Number.isFinite(n) && n > 0));
+      state.selectedTableIds = new Set(ids.map(String).filter(Boolean));
     } catch (e) {
       console.warn("[HOST] selection event error", e);
     }
   });
 
-// צד פרטי שולחן
+  // צד פרטי שולחן
   const tableInfoPanel = document.getElementById("table-info-panel");
   const tableInfoBackdrop = document.getElementById("table-info-backdrop");
   const tipCloseBtn = document.getElementById("tip-close-btn");
@@ -478,26 +450,13 @@
       return;
     }
     if (!state.selectedTables.size) {
-      // If we have selected table IDs but no numbers, derive the numbers from mapping
-      try {
-        if (state.selectedTableIds && state.selectedTableIds.size) {
-          const derived = Array.from(state.selectedTableIds.values())
-            .map(id => __SB_TABLE_ID_TO_NUMBER[String(id)])
-            .map(Number)
-            .filter(n => Number.isFinite(n) && n > 0);
-          if (derived.length) state.selectedTables = new Set(derived);
-        }
-      } catch (e) {}
-
-      // Fallback: read selection from floor-view app dataset
-      try {
-        const root = document.getElementById("sb-floor-root");
-        const ds = root && root.dataset ? root.dataset : {};
-        const tn = (ds.selectedTableNumber || "").trim();
-        if (tn) state.selectedTables = new Set([Number(tn)]);
-        const tid = (ds.selectedTableId || "").trim();
-        if (tid) state.selectedTableIds = new Set([tid]);
-      } catch (e) {}
+      // fallback: floor-view-app stores last selection on #sb-floor-root dataset
+      const root = document.getElementById("sb-floor-root");
+      const dsNum = root && root.dataset ? root.dataset.selectedTableNumber : null;
+      const n = dsNum != null ? Number(dsNum) : NaN;
+      if (Number.isFinite(n) && n > 0) {
+        state.selectedTables = new Set([n]);
+      }
     }
     if (!state.selectedTables.size) {
       alert("יש לבחור לפחות שולחן אחד.");
@@ -645,17 +604,7 @@
   }
 
   async function markStatusForSelected(status){
-    let ids = Array.from(state.selectedTableIds.values());
-    if (!ids.length) {
-      // Fallback: read selection from floor-view app dataset
-      try {
-        const root = document.getElementById("sb-floor-root");
-        const ds = root && root.dataset ? root.dataset : {};
-        const tid = (ds.selectedTableId || "").trim();
-        if (tid) state.selectedTableIds = new Set([tid]);
-      } catch (e) {}
-      ids = Array.from(state.selectedTableIds.values());
-    }
+    const ids = Array.from(state.selectedTableIds.values());
     if (!ids.length) {
       alert("בחר שולחן אחד לפחות במפה.");
       return;
