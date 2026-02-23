@@ -43,16 +43,12 @@ export default function TableContextMenu({
     setLoading(true);
     try {
       // Call the status update endpoint
-      // Send status both in JSON body and query-string as a safety net (some proxies/envs drop POST bodies).
-      const response = await fetch(
-        `/api/tables/${restaurantId}/${table.tableId}/status?status=${encodeURIComponent(newStatus)}`,
-        {
+      const response = await fetch(`/api/tables/${restaurantId}/${table.tableId}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ status: newStatus }),
-        },
-      );
+      });
 
       if (response.ok) {
         onStatusChange(table.tableId, newStatus);

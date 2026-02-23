@@ -291,14 +291,12 @@
 
 /* View-only canvas: avoid double-centering and allow grab-pan */
 .sb-floor-view .editor-canvas {
+  justify-content: flex-start;
+  align-items: flex-start;
   overflow: hidden;
   cursor: grab;
   touch-action: none;
   padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
 }
 .sb-floor-view .editor-canvas.is-panning {
   cursor: grabbing;

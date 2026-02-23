@@ -177,10 +177,23 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
 
   const [floorTheme, setFloorTheme] = useState<FloorThemeKey>('parquet_blue');
 
-  // NOTE:
-  // We intentionally do NOT center via native scrollLeft/scrollTop.
-  // In RTL pages different browsers implement scrollLeft differently, which caused
-  // the map to "escape" to one side. We always center via pan/zoom transforms.
+  // Center the map inside the scrollable canvas whenever grid size / cell size changes
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !currentLayout) return;
+
+    // Wait for DOM layout
+    requestAnimationFrame(() => {
+      const gridW = currentLayout.gridCols * cellSize + 48; // + 2*24px margin (see CSS)
+      const gridH = currentLayout.gridRows * cellSize + 48;
+
+      const targetLeft = Math.max(0, (gridW - canvas.clientWidth) / 2);
+      const targetTop  = Math.max(0, (gridH - canvas.clientHeight) / 2);
+
+      canvas.scrollLeft = targetLeft;
+      canvas.scrollTop  = targetTop;
+    });
+  }, [currentLayout?.id, currentLayout?.gridCols, currentLayout?.gridRows, cellSize]);
 
   const [shapeMode, setShapeMode] = useState(false);
   // Sync floor theme from the loaded layout
@@ -195,12 +208,6 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [spacePressed, setSpacePressed] = useState(false); 
-
-  // Keep latest zoom for native (non-passive) wheel handler.
-  const zoomRef = useRef(zoom);
-  useEffect(() => {
-    zoomRef.current = zoom;
-  }, [zoom]);
 
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -607,51 +614,29 @@ const assetForTable = (shape: string, seats: number) => {
   const clampZoom = (z: number) => Math.max(0.35, Math.min(2.5, z));
 
   const fitToScreen = () => {
-    if (!canvasRef.current || !gridRef.current || !currentLayout) return;
-
-    const canvas = canvasRef.current;
-    const grid = gridRef.current;
-
-    // Account for asymmetric paddings/borders.
-    const csCanvas = getComputedStyle(canvas);
-    const padL = parseFloat(csCanvas.paddingLeft || '0') || 0;
-    const padR = parseFloat(csCanvas.paddingRight || '0') || 0;
-    const padT = parseFloat(csCanvas.paddingTop || '0') || 0;
-    const padB = parseFloat(csCanvas.paddingBottom || '0') || 0;
-
-    // Grid has a legacy CSS margin which shifts the layout; subtract it.
-    const csGrid = getComputedStyle(grid);
-    const gridML = parseFloat(csGrid.marginLeft || '0') || 0;
-    const gridMT = parseFloat(csGrid.marginTop || '0') || 0;
-
-    const inset = 12;
-    const availW = Math.max(1, canvas.clientWidth - padL - padR - inset * 2);
-    const availH = Math.max(1, canvas.clientHeight - padT - padB - inset * 2);
-
+    if (!canvasRef.current || !currentLayout) return;
+    const rect = canvasRef.current.getBoundingClientRect();
     const cellPx = cellSize;
-    const gridW = currentLayout.gridCols * cellPx;
-    const gridH = currentLayout.gridRows * cellPx;
+    const gridW = (currentLayout.gridCols * cellPx) + 20; // grid padding
+    const gridH = (currentLayout.gridRows * cellPx) + 20;
 
-    const scale = clampZoom(Math.min(availW / gridW, availH / gridH, 1.2));
+    const scale = clampZoom(Math.min((rect.width - 40) / gridW, (rect.height - 40) / gridH, 1.2));
     setZoom(scale);
 
-    const panX = Math.round(padL + inset + (availW - gridW * scale) / 2 - gridML);
-    const panY = Math.round(padT + inset + (availH - gridH * scale) / 2 - gridMT);
+    // center
+    const panX = Math.round((rect.width - gridW * scale) / 2);
+    const panY = Math.round(20);
     setPan({ x: panX, y: panY });
-
-    // Keep native scroll at origin (important for RTL pages).
-    canvas.scrollLeft = 0;
-    canvas.scrollTop = 0;
   };
 
-  const zoomAtPoint = (nextZoom: number, clientX: number, clientY: number, currentZoom = zoomRef.current) => {
+  const zoomAtPoint = (nextZoom: number, clientX: number, clientY: number) => {
     if (!canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const ox = clientX - rect.left;
     const oy = clientY - rect.top;
 
     setPan((p) => {
-      const z = currentZoom || 1;
+      const z = zoom;
       const dz = nextZoom / z;
 
       // keep the point under cursor stable: newPan = cursor - (cursor - pan) * dz
@@ -662,48 +647,14 @@ const assetForTable = (shape: string, seats: number) => {
     setZoom(nextZoom);
   };
 
-  // React registers wheel listeners as passive; preventDefault() inside them triggers
-  // "Unable to preventDefault inside passive event listener" warnings.
-  // Attach a native non-passive handler to keep Ctrl/Meta+wheel zoom working.
-  useEffect(() => {
-    const el = canvasRef.current;
-    if (!el) return;
-
-    const handler = (ev: WheelEvent) => {
-      if (!(ev.ctrlKey || ev.metaKey)) return;
-      ev.preventDefault();
-      ev.stopPropagation();
-      const current = zoomRef.current || 1;
-      const next = clampZoom(current * (ev.deltaY > 0 ? 0.9 : 1.1));
-      zoomAtPoint(next, ev.clientX, ev.clientY, current);
-    };
-
-    el.addEventListener('wheel', handler, { passive: false });
-    return () => el.removeEventListener('wheel', handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Fit by default (and on resize/layout change) so the map is always centered.
-  useEffect(() => {
-    if (!currentLayout) return;
-    requestAnimationFrame(fitToScreen);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentLayout?.id, currentLayout?.gridCols, currentLayout?.gridRows, cellSize]);
-
-  useEffect(() => {
-    if (!canvasRef.current || !currentLayout) return;
-    let raf = 0;
-    const ro = new ResizeObserver(() => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(fitToScreen);
-    });
-    ro.observe(canvasRef.current);
-    return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentLayout?.id]);
+  const onCanvasWheel = (e: React.WheelEvent) => {
+    // Ctrl/Meta + wheel -> zoom. Otherwise let the browser scroll naturally.
+    if (!(e.ctrlKey || (e as any).metaKey)) return;
+    e.preventDefault();
+    const delta = e.deltaY;
+    const next = clampZoom(zoom * (delta > 0 ? 0.9 : 1.1));
+    zoomAtPoint(next, e.clientX, e.clientY);
+  };
 
   const onCanvasMouseDown = (e: React.MouseEvent) => {
     // Middle mouse OR Space+Left mouse -> pan
@@ -1760,7 +1711,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
           </button>
         </div>
 
-        <div className={`editor-canvas ${isPanning ? "is-panning" : ""}`} ref={canvasRef} onMouseDown={onCanvasMouseDown}>
+        <div className={`editor-canvas ${isPanning ? "is-panning" : ""}`} ref={canvasRef} onWheel={onCanvasWheel} onMouseDown={onCanvasMouseDown}>
           
           <div className="fe-canvas-controls">
             <button className="btn-icon-small" onClick={() => zoomAtPoint(clampZoom(zoom * 1.1), (canvasRef.current?.getBoundingClientRect().left || 0) + 40, (canvasRef.current?.getBoundingClientRect().top || 0) + 40)} title={t('floor.toolbar.zoom_in', 'Zoom in')}>＋</button>

@@ -48,6 +48,9 @@ export default function FloorViewPage({
   const [error, setError] = React.useState<string | null>(null);
 
   const [selectedTableId, setSelectedTableId] = React.useState<string | null>(null);
+  const [selectedTableIds, setSelectedTableIds] = React.useState<string[]>([]);
+  const anchorTableIdRef = React.useRef<string | null>(null);
+
 
   // Section filtering
   type SectionInfo = { id: string; name: string; displayOrder?: number };
@@ -107,16 +110,30 @@ export default function FloorViewPage({
       setSelectedLayoutId((prev) => prev ?? active.id);
       setError(null);
       setLoading(false);
+      // Keep selection stable across refreshes (supports host multi-select)
+      setSelectedTableIds((prev) => {
+        const allowed = new Set((active.tables || []).map((t: any) => String(t.id)));
+        const next = (prev || []).map(String).filter((id) => allowed.has(id));
 
-      if (selectedTableId) {
-        const stillExists = (active.tables || []).some((t) => String(t.id) === String(selectedTableId));
-        if (!stillExists) setSelectedTableId(null);
-      }
+        // Keep focused table valid
+        setSelectedTableId((focusPrev) => {
+          const fp = focusPrev ? String(focusPrev) : null;
+          if (fp && allowed.has(fp)) return fp;
+          return next.length ? String(next[0]) : null;
+        });
+
+        // Keep anchor valid
+        if (anchorTableIdRef.current && !allowed.has(String(anchorTableIdRef.current))) {
+          anchorTableIdRef.current = next.length ? String(next[0]) : null;
+        }
+
+        return next;
+      });
     } catch (e: any) {
       setError(t("host.err_load_map", "Error loading floor map") + `: ${e?.message ?? "unknown"}`);
       setLoading(false);
     }
-  }, [restaurantId, selectedTableId]);
+  }, [restaurantId]);
 
   React.useEffect(() => {
     loadActive();
@@ -160,11 +177,120 @@ export default function FloorViewPage({
     return normalizeStatus((selectedStatusEntry as any)?.status);
   }, [selectedStatusEntry]);
 
-  const onTableClick = (tableId: string) => {
-    setSelectedTableId(tableId);
+  const effectiveSelectedIds = React.useMemo(() => {
+    if (clickMode === 'host') return selectedTableIds;
+    return selectedTableId ? [selectedTableId] : [];
+  }, [clickMode, selectedTableIds, selectedTableId]);
+
+  // Notify non-React pages (host seating) about current selection
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const layout = currentLayout;
+    const idToNum = new Map<string, number>();
+    (layout?.tables || []).forEach((t: any) => {
+      const id = String(t.id);
+      const n = Number((t as any).tableNumber ?? (t as any).number ?? (t as any).tableNum ?? 0);
+      if (Number.isFinite(n) && n > 0) idToNum.set(id, n);
+    });
+
+    const ids = (effectiveSelectedIds || []).map(String).filter(Boolean);
+    const nums = ids
+      .map((id) => idToNum.get(String(id)))
+      .filter((n): n is number => Number.isFinite(Number(n)) && Number(n) > 0)
+      .map((n) => Number(n));
+
+    window.dispatchEvent(
+      new CustomEvent('sb-floor-selection', {
+        detail: {
+          tableIds: ids,
+          tableNumbers: nums,
+        },
+      })
+    );
+  }, [currentLayout?.id, currentLayout?.tables?.length, effectiveSelectedIds.join('|')]);
+
+  const onTableClick = (
+    tableId: string,
+    mods?: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }
+  ) => {
+    const id = String(tableId);
+
+    // In waiter/lobby/page mode we keep the old single-select behavior
+    if (clickMode !== 'host') {
+      setSelectedTableId(id);
+      setSelectedTableIds([id]);
+      anchorTableIdRef.current = id;
+      return;
+    }
+
+    const ctrl = !!mods?.ctrlKey || !!mods?.metaKey;
+    const shift = !!mods?.shiftKey;
+
+    setSelectedTableIds((prev) => {
+      const prevSet = new Set((prev || []).map(String));
+      const tables = (currentLayout?.tables || []) as any[];
+      const numById = new Map<string, number>();
+      tables.forEach((t) => {
+        const n = Number((t as any).tableNumber ?? (t as any).number ?? 0);
+        if (Number.isFinite(n) && n > 0) numById.set(String(t.id), n);
+      });
+
+      let nextSet: Set<string>;
+
+      // Shift = range selection between anchor and clicked (by table number).
+      if (shift && anchorTableIdRef.current && numById.size > 0) {
+        const aId = String(anchorTableIdRef.current);
+        const aNum = numById.get(aId);
+        const bNum = numById.get(id);
+
+        if (aNum != null && bNum != null) {
+          const lo = Math.min(aNum, bNum);
+          const hi = Math.max(aNum, bNum);
+          const rangeIds = tables
+            .filter((t) => {
+              const n = numById.get(String(t.id));
+              return n != null && n >= lo && n <= hi;
+            })
+            .map((t) => String(t.id));
+
+          nextSet = ctrl ? new Set(prevSet) : new Set<string>();
+          rangeIds.forEach((rid) => nextSet.add(rid));
+        } else {
+          // Fallback: behave like additive select
+          nextSet = ctrl ? new Set(prevSet) : new Set<string>();
+          nextSet.add(id);
+        }
+      } else if (ctrl) {
+        // Ctrl/Cmd = toggle
+        nextSet = new Set(prevSet);
+        if (nextSet.has(id)) nextSet.delete(id);
+        else nextSet.add(id);
+      } else {
+        // Plain click = single selection
+        nextSet = new Set([id]);
+      }
+
+      const next = Array.from(nextSet);
+      // Sort by table number when possible (nice UX for merged tables)
+      next.sort((a, b) => (numById.get(a) ?? 0) - (numById.get(b) ?? 0));
+
+      // Focus / drawer table
+      const nextFocus = nextSet.has(id) ? id : (next[0] ?? null);
+      setSelectedTableId(nextFocus);
+
+      // Update anchor ONLY on non-shift clicks (classic behavior)
+      if (!shift) anchorTableIdRef.current = id;
+      if (!anchorTableIdRef.current && next[0]) anchorTableIdRef.current = String(next[0]);
+
+      return next;
+    });
   };
 
-  const closeDrawer = () => setSelectedTableId(null);
+  const closeDrawer = () => {
+    setSelectedTableId(null);
+    if (clickMode === 'host') setSelectedTableIds([]);
+  };
 
   
 const postTableOverrideStatus = async (status: "empty" | "dirty" | "reserved") => {
@@ -172,8 +298,7 @@ const postTableOverrideStatus = async (status: "empty" | "dirty" | "reserved") =
   if (!tableId) return;
 
   try {
-    // Send status both in JSON body and query-string as a safety net (some proxies/envs drop POST bodies).
-    const res = await fetch(`/api/tables/${restaurantId}/${tableId}/status?status=${encodeURIComponent(status)}`, {
+    const res = await fetch(`/api/tables/${restaurantId}/${tableId}/status`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
@@ -284,6 +409,7 @@ const handleMarkEmpty = async () => {
             <FloorMapRenderer
               layout={filteredLayout!}
               selectedTableId={selectedTableId}
+              selectedTableIds={effectiveSelectedIds}
               onTableClick={onTableClick}
               mode="view"
             />

@@ -450,15 +450,6 @@
       return;
     }
     if (!state.selectedTables.size) {
-      // fallback: floor-view-app stores last selection on #sb-floor-root dataset
-      const root = document.getElementById("sb-floor-root");
-      const dsNum = root && root.dataset ? root.dataset.selectedTableNumber : null;
-      const n = dsNum != null ? Number(dsNum) : NaN;
-      if (Number.isFinite(n) && n > 0) {
-        state.selectedTables = new Set([n]);
-      }
-    }
-    if (!state.selectedTables.size) {
       alert("יש לבחור לפחות שולחן אחד.");
       return;
     }

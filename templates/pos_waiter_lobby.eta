@@ -96,14 +96,9 @@
                     <% } %>
                   </div>
                 </button>
-                <!--
-                  "Go to Order" should navigate to the POS table screen.
-                  We render it as a link (styled like a button) so it works even
-                  if the JS bundle doesn't attach a click handler.
-                -->
-                <a class="open-pos-link" href="<%= posUrl %>">
+                <button type="button" class="open-pos-link">
                   <%= tt('pos.waiter.btn_to_order', 'Go to Order') %>
-                </a>
+                </button>
               </div>
             </li>
           <% }) %>
@@ -269,9 +264,6 @@
     font-size:11px;
     cursor:pointer;
     white-space:nowrap;
-    text-decoration:none;
-    display:inline-flex;
-    align-items:center;
   }
 
   /* מפת מסעדה */
