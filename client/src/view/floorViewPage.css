@@ -182,11 +182,21 @@
   padding-inline-start: 6px;
 }
 
-/* Status rendering for tables (applied on the table wrapper) */
-.floor-table.status-occupied{ outline: 2px solid rgba(239,68,68,.7); box-shadow: 0 0 0 6px rgba(239,68,68,.10); }
-.floor-table.status-reserved{ outline: 2px solid rgba(245,158,11,.7); box-shadow: 0 0 0 6px rgba(245,158,11,.10); }
-.floor-table.status-dirty{ outline: 2px solid rgba(168,85,247,.7); box-shadow: 0 0 0 6px rgba(168,85,247,.10); }
-.floor-table.is-selected{ outline: 2px solid rgba(59,130,246,.95); box-shadow: 0 0 0 7px rgba(59,130,246,.14); }
+/*
+  Table outline policy:
+  - NO colored frame by default (clean look)
+  - When a table is selected, show a solid outline in the table *status* color
+  - No glow/blur halo (box-shadow removed)
+*/
+.floor-table{ outline: none; box-shadow: none; }
+
+/* Default selected outline ("empty" = green) */
+.floor-table.is-selected{ outline: 2px solid rgba(34,197,94,.90); box-shadow: none; }
+
+/* Selected outline by status */
+.floor-table.is-selected.status-occupied{ outline: 2px solid rgba(239,68,68,.90); box-shadow: none; }
+.floor-table.is-selected.status-reserved{ outline: 2px solid rgba(245,158,11,.90); box-shadow: none; }
+.floor-table.is-selected.status-dirty{ outline: 2px solid rgba(168,85,247,.90); box-shadow: none; }
 
 /* Small pill similar to legacy waiter map */
 .sbv-status-pill{
