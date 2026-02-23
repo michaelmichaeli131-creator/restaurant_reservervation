@@ -209,8 +209,13 @@
   gap: 6px;
   padding: 4px 8px;
   border-radius: 999px;
-  background: rgba(0,0,0,.62);
-  border: 1px solid rgba(255,255,255,.10);
+  /* Fully transparent so it won't obscure nearby table statuses */
+  background: transparent;
+  border: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  /* Keep readability without any blur/glow */
+  text-shadow: 0 2px 10px rgba(0,0,0,.55);
   font-size: 12px;
   line-height: 1;
   white-space: nowrap;
@@ -221,6 +226,15 @@
 .sbv-status-pill.is-occupied .sbv-dot{ background: #ef4444; }
 .sbv-status-pill.is-reserved .sbv-dot{ background: #f59e0b; }
 .sbv-status-pill.is-dirty .sbv-dot{ background: #a855f7; }
+
+/* If section labels overlap, they should not block visibility of nearby statuses */
+.sb-floor-view .table-section{
+  background: transparent !important;
+  border: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  text-shadow: 0 2px 10px rgba(0,0,0,.55);
+}
 
 /* Embedded (inside POS lobby / host seating)
    IMPORTANT: Table Details must appear ONLY on the RIGHT, OUTSIDE the map frame.
