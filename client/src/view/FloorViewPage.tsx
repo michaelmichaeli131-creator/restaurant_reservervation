@@ -153,16 +153,42 @@ export default function FloorViewPage({
 
     const byId = statuses.find((s) => String((s as any).tableId) === String(selectedTable.id));
     if (byId) return byId;
-    return statuses.find((s) => (s as any).tableNumber === (selectedTable as any).number) ?? null;
+    // Some layouts store the visible number under tableNumber (not number)
+    const tableNum = (selectedTable as any)?.tableNumber ?? (selectedTable as any)?.number;
+    return statuses.find((s) => (s as any).tableNumber === tableNum) ?? null;
   }, [currentLayout, selectedTable]);
 
   const selectedStatus: NormalStatus = React.useMemo(() => {
     return normalizeStatus((selectedStatusEntry as any)?.status);
   }, [selectedStatusEntry]);
 
-  const onTableClick = (tableId: string) => {
+  const onTableClick = React.useCallback((tableId: string) => {
     setSelectedTableId(tableId);
-  };
+
+    // Host screen relies on an external selection signal (for seating action + title)
+    // Keep this minimal: emit a small event + set dataset fields on the mount root.
+    try {
+      const root = typeof document !== "undefined" ? document.getElementById("sb-floor-root") : null;
+      const tbl = (currentLayout?.tables || []).find((t) => String((t as any).id) === String(tableId));
+      const tableNumber = (tbl as any)?.tableNumber ?? (tbl as any)?.number ?? null;
+
+      if (root && (root as any).dataset) {
+        (root as any).dataset.selectedTableId = String(tableId);
+        (root as any).dataset.selectedTableNumber = tableNumber != null ? String(tableNumber) : "";
+      }
+
+      window.dispatchEvent(
+        new CustomEvent("sb-floor-selection", {
+          detail: {
+            tableIds: [String(tableId)],
+            tableNumbers: tableNumber != null ? [Number(tableNumber)] : [],
+          },
+        }),
+      );
+    } catch (_e) {
+      // no-op
+    }
+  }, [currentLayout]);
 
   const closeDrawer = () => setSelectedTableId(null);
 
@@ -301,7 +327,9 @@ const handleMarkEmpty = async () => {
               </div>
 
               <div className="sbv-drawer-body">
-                <div className="sbv-table-number">{t("host.table_label", "Table")} {(selectedTable as any)?.number ?? "—"}</div>
+                <div className="sbv-table-number">
+                  {t("host.table_label", "Table")} {(selectedTable as any)?.tableNumber ?? (selectedTable as any)?.number ?? "—"}
+                </div>
 
                 <div className={`sbv-status-row is-${selectedStatus}`}>
                   <span className="sbv-status-dot" />
