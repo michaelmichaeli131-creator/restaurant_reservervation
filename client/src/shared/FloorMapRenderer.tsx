@@ -144,6 +144,80 @@ export default function FloorMapRenderer({
   const themeKey = useMemo(() => normalizeTheme((layout as any).floorColor), [layout?.id]);
   const theme = useMemo(() => getTheme(themeKey), [themeKey]);
 
+
+
+  const contentBounds = useMemo(() => {
+  const rows = Math.max(0, Number((layout as any).gridRows ?? 0));
+  const cols = Math.max(0, Number((layout as any).gridCols ?? 0));
+  const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+
+  if (rows <= 0 || cols <= 0) {
+    return { minX: 0, minY: 0, maxX: 0, maxY: 0, rows, cols };
+  }
+
+  // Fit to the bounds of *placed content* (tables/objects).
+  // (gridMask can still be used for cell styling, but it often spans the full width
+  // and would keep the map biased to one side.)
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let hasContent = false;
+
+  const considerRect = (x0: any, y0: any, sx: any, sy: any) => {
+    const x = clamp(Number(x0 ?? 0), 0, cols - 1);
+    const y = clamp(Number(y0 ?? 0), 0, rows - 1);
+    const spanX = clamp(Number(sx ?? 1), 1, cols);
+    const spanY = clamp(Number(sy ?? 1), 1, rows);
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + spanX - 1);
+    maxY = Math.max(maxY, y + spanY - 1);
+    hasContent = true;
+  };
+
+  const tables = Array.isArray((layout as any).tables) ? (layout as any).tables : [];
+  const objects = Array.isArray((layout as any).objects) ? (layout as any).objects : [];
+  for (const t of tables) {
+    considerRect((t as any).gridX ?? (t as any).x, (t as any).gridY ?? (t as any).y, (t as any).spanX, (t as any).spanY);
+  }
+  for (const o of objects) {
+    considerRect((o as any).gridX ?? (o as any).x, (o as any).gridY ?? (o as any).y, (o as any).spanX, (o as any).spanY);
+  }
+
+  if (!hasContent) {
+    // No content at all -> fall back to full grid.
+    minX = 0;
+    minY = 0;
+    maxX = cols - 1;
+    maxY = rows - 1;
+  } else {
+    // Small margin so content isn't glued to the frame.
+    const padCells = 1;
+    minX = clamp(minX - padCells, 0, cols - 1);
+    minY = clamp(minY - padCells, 0, rows - 1);
+    maxX = clamp(maxX + padCells, 0, cols - 1);
+    maxY = clamp(maxY + padCells, 0, rows - 1);
+  }
+
+    return { minX, minY, maxX, maxY, rows, cols };
+  }, [
+    layout?.id,
+    (layout as any)?.gridRows,
+    (layout as any)?.gridCols,
+    // In waiter/host views the same layout.id can stay constant while tables/objects
+    // are replaced asynchronously (or filtered by section). If we only depend on id,
+    // bounds may be computed before content arrives and the map will stay offset.
+    (layout as any)?.tables,
+    (layout as any)?.objects,
+  ]);
+
+  // Keep the latest zoom in a ref so native (non-passive) wheel handler can use it.
+  const zoomRef = useRef(zoom);
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
   // Space-to-pan (same behavior as editor/live view)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -163,47 +237,59 @@ export default function FloorMapRenderer({
     };
   }, []);
 
-  const clampZoom = (z: number) => Math.max(0.4, Math.min(2.5, z));
+    // Allow very small zoom in view mode so the whole layout can always fit in the frame.
+  const clampZoom = (z: number) => Math.max(mode === 'view' ? 0.01 : 0.4, Math.min(2.5, z));
+
 
   const fitToScreen = () => {
-    if (!canvasRef.current || !gridRef.current) return;
+  if (!canvasRef.current || !gridRef.current) return;
 
-    const canvas = canvasRef.current;
-    const grid = gridRef.current;
+  const canvas = canvasRef.current;
+  const grid = gridRef.current;
 
-    // Measure the real rendered grid size (offsetWidth/offsetHeight are not affected by CSS transforms).
-    const cs = getComputedStyle(grid);
-    const marginX = (parseFloat(cs.marginLeft) || 0) + (parseFloat(cs.marginRight) || 0);
-    const marginY = (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+  const csCanvas = getComputedStyle(canvas);
+  const padL = parseFloat(csCanvas.paddingLeft || '0') || 0;
+  const padR = parseFloat(csCanvas.paddingRight || '0') || 0;
+  const padT = parseFloat(csCanvas.paddingTop || '0') || 0;
+  const padB = parseFloat(csCanvas.paddingBottom || '0') || 0;
 
-    const baseW = grid.offsetWidth + marginX;
-    const baseH = grid.offsetHeight + marginY;
-    if (!baseW || !baseH) return;
+  // The grid element may still have CSS margins (older builds used margin: 24px).
+  // Because we pan/zoom via transforms, we must subtract those layout margins
+  // from our computed pan; otherwise the map starts offset to the right.
+  const csGrid = getComputedStyle(grid);
+  const gridML = parseFloat(csGrid.marginLeft || '0') || 0;
+  const gridMT = parseFloat(csGrid.marginTop || '0') || 0;
 
-    // Account for canvas padding so the map is truly centered.
-    const csCanvas = getComputedStyle(canvas);
-    const padL = parseFloat(csCanvas.paddingLeft || '0') || 0;
-    const padR = parseFloat(csCanvas.paddingRight || '0') || 0;
-    const padT = parseFloat(csCanvas.paddingTop || '0') || 0;
-    const padB = parseFloat(csCanvas.paddingBottom || '0') || 0;
+  // Small breathing room from the frame edge.
+  const inset = 12;
+  const availW = Math.max(1, canvas.clientWidth - padL - padR - inset * 2);
+  const availH = Math.max(1, canvas.clientHeight - padT - padB - inset * 2);
 
-    const inset = 24;
-    const availW = Math.max(1, canvas.clientWidth - padL - padR - inset * 2);
-    const availH = Math.max(1, canvas.clientHeight - padT - padB - inset * 2);
+  const { minX, minY, maxX, maxY } = contentBounds;
+  const contentW = Math.max(1, (maxX - minX + 1) * cellSize);
+  const contentH = Math.max(1, (maxY - minY + 1) * cellSize);
 
-    const scale = clampZoom(Math.min(availW / baseW, availH / baseH, 1.2));
-    setZoom(scale);
+  // In view mode we never auto-zoom-in; we only zoom-out to ensure the whole map fits.
+  const maxAuto = mode === 'view' ? 1 : 1.2;
+  const scale = clampZoom(Math.min(availW / contentW, availH / contentH, maxAuto));
+  setZoom(scale);
 
-    const cx = Math.round(padL + inset + (availW - baseW * scale) / 2);
-    const cy = Math.round(padT + inset + (availH - baseH * scale) / 2);
-    setPan({ x: cx, y: cy });
-  };
+  // Center the *active* content bounds, not the entire grid.
+  const cx = Math.round(padL + inset + (availW - contentW * scale) / 2 - minX * cellSize * scale - gridML);
+  const cy = Math.round(padT + inset + (availH - contentH * scale) / 2 - minY * cellSize * scale - gridMT);
+  setPan({ x: cx, y: cy });
+
+  // In RTL pages, overflow containers may start scrolled to the right.
+  // This view uses transforms for pan/zoom, so keep scroll at the origin.
+  canvas.scrollLeft = 0;
+  canvas.scrollTop = 0;
+};
 
   useEffect(() => {
-    // Fit once after first render
+    // Fit once after first render and whenever the content bounds change.
     requestAnimationFrame(fitToScreen);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layout?.id]);
+  }, [layout?.id, contentBounds.minX, contentBounds.minY, contentBounds.maxX, contentBounds.maxY]);
 
   useEffect(() => {
     // Refit when the canvas resizes (responsive layout, drawer opening, etc.)
@@ -221,24 +307,37 @@ export default function FloorMapRenderer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout?.id]);
 
-  const zoomAtPoint = (nextZoom: number, clientX: number, clientY: number) => {
+  const zoomAtPoint = (nextZoom: number, clientX: number, clientY: number, currentZoom = zoomRef.current) => {
     if (!canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const ox = clientX - rect.left;
     const oy = clientY - rect.top;
     setPan((p) => {
-      const dz = nextZoom / zoom;
+      const dz = nextZoom / (currentZoom || 1);
       return { x: Math.round(ox - (ox - p.x) * dz), y: Math.round(oy - (oy - p.y) * dz) };
     });
     setZoom(nextZoom);
   };
 
-  const onCanvasWheel = (e: React.WheelEvent) => {
-    if (!(e.ctrlKey || (e as any).metaKey)) return;
-    e.preventDefault();
-    const next = clampZoom(zoom * (e.deltaY > 0 ? 0.9 : 1.1));
-    zoomAtPoint(next, e.clientX, e.clientY);
-  };
+  // React registers wheel/touch listeners as passive for performance. If we call preventDefault
+  // inside them, Chrome logs:
+  // "Unable to preventDefault inside passive event listener invocation."
+  // To keep Ctrl+wheel zoom working (and prevent browser zoom), attach a native non-passive
+  // wheel listener directly on the canvas.
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const handler = (ev: WheelEvent) => {
+      if (!(ev.ctrlKey || ev.metaKey)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const next = clampZoom(zoomRef.current * (ev.deltaY > 0 ? 0.9 : 1.1));
+      zoomAtPoint(next, ev.clientX, ev.clientY, zoomRef.current);
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler as any);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   const onCanvasMouseDown = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement | null;
@@ -311,7 +410,6 @@ export default function FloorMapRenderer({
     const t = e.touches[0];
     const target = e.target as HTMLElement | null;
     if (target?.closest('.table, .floor-object, .fe-canvas-controls, button, a, input, textarea, select')) return;
-    e.preventDefault();
     setIsPanning(true);
     touchPanRef.current = { startX: t.clientX, startY: t.clientY, panX: pan.x, panY: pan.y, active: true };
   };
@@ -322,7 +420,6 @@ export default function FloorMapRenderer({
     if (!s || !s.active) return;
     if (e.touches.length !== 1) return;
     const t = e.touches[0];
-    e.preventDefault();
     setPan({ x: s.panX + (t.clientX - s.startX), y: s.panY + (t.clientY - s.startY) });
   };
 
@@ -389,12 +486,11 @@ export default function FloorMapRenderer({
     <div
       className={`editor-canvas ${isPanning ? 'is-panning' : ''}`}
       ref={canvasRef}
-      onWheel={onCanvasWheel}
       onMouseDown={onCanvasMouseDown}
       onTouchStart={onCanvasTouchStart}
       onTouchMove={onCanvasTouchMove}
       onTouchEnd={onCanvasTouchEnd}
-      style={{ position: 'relative' }}
+      style={{ position: 'relative', touchAction: 'none', overscrollBehavior: 'contain' }}
     >
       <div className="fe-canvas-controls">
         <button

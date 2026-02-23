@@ -96,9 +96,14 @@
                     <% } %>
                   </div>
                 </button>
-                <button type="button" class="open-pos-link">
+                <!--
+                  "Go to Order" should navigate to the POS table screen.
+                  We render it as a link (styled like a button) so it works even
+                  if the JS bundle doesn't attach a click handler.
+                -->
+                <a class="open-pos-link" href="<%= posUrl %>">
                   <%= tt('pos.waiter.btn_to_order', 'Go to Order') %>
-                </button>
+                </a>
               </div>
             </li>
           <% }) %>
@@ -119,7 +124,7 @@
       <p class="muted small">
         <%= tt('pos.waiter.floor_map_help', 'Click on an occupied table to view order details; click on an empty table for basic info.') %>
       </p>
-      <div id="sb-floor-root" class="floor-wrapper" data-rid="<%= it.rid %>" data-click-mode="lobby"></div>
+      <div id="sb-floor-root" class="floor-wrapper" data-rid="<%= it.rid %>" data-click-mode="lobby" data-right-panel="outside"></div>
       </div>
     </div>
   </section>
@@ -188,7 +193,9 @@
 
 <link rel="stylesheet" href="/static/dist/floor-index.css?v=<%= it.BUILD_TAG || Date.now() %>">
   <link rel="stylesheet" href="/static/dist/floor-floor-view-app.css?v=<%= it.BUILD_TAG || Date.now() %>">
-  <script type="module" src="/static/dist/floor-view-app.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>
+  
+<link rel="stylesheet" href="/public/css/sb-map-frame-overrides.css?v=<%= it.BUILD_TAG || Date.now() %>">
+<script type="module" src="/static/dist/floor-view-app.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>
 <script>
   // Stage 3.2a: responsive shell toggle (mobile)
   (function(){
@@ -321,6 +328,9 @@
     font-size:11px;
     cursor:pointer;
     white-space:nowrap;
+    text-decoration:none;
+    display:inline-flex;
+    align-items:center;
   }
 
   /* מפת מסעדה */

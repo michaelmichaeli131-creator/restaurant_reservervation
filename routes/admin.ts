@@ -783,6 +783,7 @@ adminRouter.post("/admin/restaurants/:id/set-cover", async (ctx) => {
   );
 });
 
+
 /* --- הסרה מהאתר (Cascade) --- */
 adminRouter.post("/admin/restaurants/:id/delete", async (ctx) => {
   if (!assertAdmin(ctx)) return;
