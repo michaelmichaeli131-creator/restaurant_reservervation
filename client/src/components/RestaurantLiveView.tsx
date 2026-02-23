@@ -110,6 +110,12 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
   const [spacePressed, setSpacePressed] = useState(false);
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
+  // Keep latest zoom for native (non-passive) wheel handler.
+  const zoomRef = useRef(zoom);
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
   const cellPx = 72;
 
   // Space = pan
@@ -216,14 +222,15 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
     setPan({ x: cx, y: cy });
   };
 
-  const zoomAtPoint = (nextZoom: number, clientX: number, clientY: number) => {
+  const zoomAtPoint = (nextZoom: number, clientX: number, clientY: number, currentZoom = zoomRef.current) => {
     if (!canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const ox = clientX - rect.left;
     const oy = clientY - rect.top;
 
     setPan((p) => {
-      const dz = nextZoom / zoom;
+      const z = currentZoom || 1;
+      const dz = nextZoom / z;
       return {
         x: Math.round(ox - (ox - p.x) * dz),
         y: Math.round(oy - (oy - p.y) * dz),
@@ -232,12 +239,22 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
     setZoom(nextZoom);
   };
 
-  const onCanvasWheel = (e: React.WheelEvent) => {
-    if (!(e.ctrlKey || (e as any).metaKey)) return;
-    e.preventDefault();
-    const next = clampZoom(zoom * (e.deltaY > 0 ? 0.9 : 1.1));
-    zoomAtPoint(next, e.clientX, e.clientY);
-  };
+  // Native non-passive wheel handler (prevents browser zoom and avoids passive warnings)
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const handler = (ev: WheelEvent) => {
+      if (!(ev.ctrlKey || ev.metaKey)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const current = zoomRef.current || 1;
+      const next = clampZoom(current * (ev.deltaY > 0 ? 0.9 : 1.1));
+      zoomAtPoint(next, ev.clientX, ev.clientY, current);
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onCanvasMouseDown = (e: React.MouseEvent) => {
     const isMiddle = e.button === 1;
@@ -347,7 +364,7 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
         </div>
       </div>
 
-      <div className={`live-view-container ${isPanning ? 'is-panning' : ''}`} ref={canvasRef} onWheel={onCanvasWheel} onMouseDown={onCanvasMouseDown}>
+      <div className={`live-view-container ${isPanning ? 'is-panning' : ''}`} ref={canvasRef} onMouseDown={onCanvasMouseDown}>
         <div className="fe-canvas-controls live">
           <button className="btn-icon-small" onClick={() => zoomAtPoint(clampZoom(zoom * 1.1), (canvasRef.current?.getBoundingClientRect().left || 0) + 40, (canvasRef.current?.getBoundingClientRect().top || 0) + 40)} title="Zoom in">＋</button>
           <button className="btn-icon-small" onClick={() => zoomAtPoint(clampZoom(zoom * 0.9), (canvasRef.current?.getBoundingClientRect().left || 0) + 40, (canvasRef.current?.getBoundingClientRect().top || 0) + 40)} title="Zoom out">－</button>

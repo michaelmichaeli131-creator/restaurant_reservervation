@@ -14,6 +14,23 @@
 
   const restaurant = it.restaurant || {};
   const reservations = it.reservations || [];
+  const sections = it.sections || [];
+
+  // Small safe mapping: tableId -> tableNumber (no guest data)
+  const __tableIdToNumber = {};
+  (sections || []).forEach(function(sec){
+    (sec && sec.tables ? sec.tables : []).forEach(function(t){
+      if (!t || !t.id) return;
+      const num = Number(
+        t.tableNumber != null ? t.tableNumber :
+        (t.number != null ? t.number :
+         (t.table_number != null ? t.table_number :
+          (t.tableNo != null ? t.tableNo :
+           (t.tableNum != null ? t.tableNum : 0))))
+      );
+      if (Number.isFinite(num) && num > 0) __tableIdToNumber[String(t.id)] = num;
+    });
+  });
 %>
 
 <main class="host container">
@@ -114,19 +131,176 @@
   const markEmptyBtn = document.getElementById("mark-empty-btn");
 
   // Selection updates from the embedded floor-view app
+  const __SB_TABLE_ID_TO_NUMBER = <%= JSON.stringify(__tableIdToNumber) %>;
+
   window.addEventListener("sb-floor-selection", function(ev){
     try {
       const d = (ev && ev.detail) ? ev.detail : {};
-      const nums = Array.isArray(d.tableNumbers) ? d.tableNumbers : [];
+      let nums = Array.isArray(d.tableNumbers) ? d.tableNumbers : [];
       const ids = Array.isArray(d.tableIds) ? d.tableIds : [];
-      state.selectedTables = new Set(nums.map(Number).filter(n => Number.isFinite(n) && n > 0));
-      state.selectedTableIds = new Set(ids.map(String).filter(Boolean));
+
+      // If the embedded view couldn't provide numbers, derive from tableIds
+      if ((!nums || nums.length === 0) && ids.length) {
+        nums = ids
+          .map(function(id){ return __SB_TABLE_ID_TO_NUMBER[String(id)] })
+          .map(Number)
+          .filter(function(n){ return Number.isFinite(n) && n > 0; });
+      }
+
+      state.selectedTables = new Set((nums || []).map(Number).filter(n => Number.isFinite(n) && n > 0));
+      state.selectedTableIds = new Set((ids || []).map(String).filter(Boolean));
     } catch (e) {
       console.warn("[HOST] selection event error", e);
     }
-  });
+  
 
-  // צד פרטי שולחן
+  // --------------------------------------------------------------------
+  // HOST seating selection bridge (works even if the embedded floor-view
+  // does NOT emit selection events). Also adds real multi-select:
+  // - Click: single select
+  // - Ctrl/Cmd: toggle add/remove
+  // - Shift: range select by table number
+  //   (Ctrl/Cmd + Shift = add range)
+  // --------------------------------------------------------------------
+  const floorRoot = document.getElementById("sb-floor-root");
+  let __anchorTableNumber = null;
+
+  function __getDomTableMap(){
+    const map = new Map(); // tableNumber -> { id, el }
+    if (!floorRoot) return map;
+    const els = floorRoot.querySelectorAll('.floor-table');
+    els.forEach((el) => {
+      if (!(el instanceof HTMLElement)) return;
+      const id = String(el.getAttribute("data-table-id") || el.dataset.tableId || "").trim();
+      let tn = Number(String(el.getAttribute("data-table-number") || el.dataset.tableNumber || "").trim());
+      if ((!Number.isFinite(tn) || tn <= 0) && id) tn = Number(__SB_TABLE_ID_TO_NUMBER[String(id)] || 0);
+      if (Number.isFinite(tn) && tn > 0 && !map.has(tn)) {
+        map.set(tn, { id: id || "", el });
+      }
+    });
+    return map;
+  }
+
+  function __applySelectionHighlights(){
+    if (!floorRoot) return;
+    const els = floorRoot.querySelectorAll('.floor-table');
+    els.forEach((el) => {
+      if (!(el instanceof HTMLElement)) return;
+      const id = String(el.getAttribute("data-table-id") || el.dataset.tableId || "").trim();
+      let tn = Number(String(el.getAttribute("data-table-number") || el.dataset.tableNumber || "").trim());
+      if ((!Number.isFinite(tn) || tn <= 0) && id) tn = Number(__SB_TABLE_ID_TO_NUMBER[String(id)] || 0);
+      const selected = Number.isFinite(tn) && state.selectedTables.has(tn);
+      el.classList.toggle("is-multi-selected", !!selected);
+    });
+
+    // Dataset fallback (first selected)
+    try {
+      const firstNum = Array.from(state.selectedTables.values()).sort((a,b)=>a-b)[0];
+      const firstId = Array.from(state.selectedTableIds.values())[0];
+      if (firstNum) floorRoot.dataset.selectedTableNumber = String(firstNum);
+      if (firstId) floorRoot.dataset.selectedTableId = String(firstId);
+    } catch (_e) {}
+  }
+
+  function __emitSelectionEvent(){
+    try {
+      window.dispatchEvent(new CustomEvent("sb-floor-selection", {
+        detail: {
+          tableNumbers: Array.from(state.selectedTables.values()),
+          tableIds: Array.from(state.selectedTableIds.values()),
+        }
+      }));
+    } catch (_e) {}
+  }
+
+  function __setSelection(nums, ids, anchorUpdate){
+    state.selectedTables = new Set((nums || []).map(Number).filter(n => Number.isFinite(n) && n > 0));
+    state.selectedTableIds = new Set((ids || []).map(String).filter(Boolean));
+    if (anchorUpdate != null && Number.isFinite(Number(anchorUpdate))) {
+      __anchorTableNumber = Number(anchorUpdate);
+    }
+    __applySelectionHighlights();
+    __emitSelectionEvent();
+  }
+
+  function __handleFloorClick(ev){
+    if (!floorRoot) return;
+    if (!(ev.target instanceof Element)) return;
+
+    const el = ev.target.closest(".floor-table");
+    if (!el || !floorRoot.contains(el)) return;
+
+    const id = String(el.getAttribute("data-table-id") || el.dataset.tableId || "").trim();
+    let tn = Number(String(el.getAttribute("data-table-number") || el.dataset.tableNumber || "").trim());
+    if ((!Number.isFinite(tn) || tn <= 0) && id) tn = Number(__SB_TABLE_ID_TO_NUMBER[String(id)] || 0);
+    if (!Number.isFinite(tn) || tn <= 0) return;
+
+    const isToggle = !!(ev.ctrlKey || ev.metaKey);
+    const isRange  = !!ev.shiftKey;
+
+    const domMap = __getDomTableMap();
+    const ensureIdForNumber = (n) => {
+      const entry = domMap.get(n);
+      return entry && entry.id ? String(entry.id) : "";
+    };
+
+    const currentNums = new Set(state.selectedTables);
+    const currentIds  = new Set(state.selectedTableIds);
+
+    // Range select (Shift) by table number
+    if (isRange && __anchorTableNumber != null && Number.isFinite(__anchorTableNumber)) {
+      const min = Math.min(__anchorTableNumber, tn);
+      const max = Math.max(__anchorTableNumber, tn);
+      const allNums = Array.from(domMap.keys()).sort((a,b)=>a-b);
+      const rangeNums = allNums.filter(n => n >= min && n <= max);
+      const rangeIds  = rangeNums.map(n => ensureIdForNumber(n)).filter(Boolean);
+
+      // If Shift alone: replace selection. If Ctrl/Cmd+Shift: add range.
+      if (!isToggle) { currentNums.clear(); currentIds.clear(); }
+      rangeNums.forEach(n => currentNums.add(n));
+      rangeIds.forEach(tid => currentIds.add(tid));
+
+      __setSelection(Array.from(currentNums), Array.from(currentIds), __anchorTableNumber);
+      return;
+    }
+
+    // Update anchor on non-range click
+    __anchorTableNumber = tn;
+
+    // Toggle select (Ctrl/Cmd)
+    if (isToggle) {
+      if (currentNums.has(tn)) {
+        currentNums.delete(tn);
+        const tid = id || ensureIdForNumber(tn);
+        if (tid) currentIds.delete(String(tid));
+      } else {
+        currentNums.add(tn);
+        const tid = id || ensureIdForNumber(tn);
+        if (tid) currentIds.add(String(tid));
+      }
+      __setSelection(Array.from(currentNums), Array.from(currentIds), __anchorTableNumber);
+      return;
+    }
+
+    // Plain click: single select
+    const tid = id || ensureIdForNumber(tn);
+    __setSelection([tn], tid ? [tid] : [], __anchorTableNumber);
+  }
+
+  if (floorRoot) {
+    // Bubble phase: if the embedded view cancels click after pan, we won't get it.
+    floorRoot.addEventListener("click", __handleFloorClick);
+
+    // The embedded map polls and re-renders; keep highlights stable.
+    const __obs = new MutationObserver(() => { __applySelectionHighlights(); });
+    __obs.observe(floorRoot, { childList: true, subtree: true });
+
+    setTimeout(__applySelectionHighlights, 300);
+  }
+
+});
+
+// צד פרטי שולחן
   const tableInfoPanel = document.getElementById("table-info-panel");
   const tableInfoBackdrop = document.getElementById("table-info-backdrop");
   const tipCloseBtn = document.getElementById("tip-close-btn");
@@ -450,6 +624,28 @@
       return;
     }
     if (!state.selectedTables.size) {
+      // If we have selected table IDs but no numbers, derive the numbers from mapping
+      try {
+        if (state.selectedTableIds && state.selectedTableIds.size) {
+          const derived = Array.from(state.selectedTableIds.values())
+            .map(id => __SB_TABLE_ID_TO_NUMBER[String(id)])
+            .map(Number)
+            .filter(n => Number.isFinite(n) && n > 0);
+          if (derived.length) state.selectedTables = new Set(derived);
+        }
+      } catch (e) {}
+
+      // Fallback: read selection from floor-view app dataset
+      try {
+        const root = document.getElementById("sb-floor-root");
+        const ds = root && root.dataset ? root.dataset : {};
+        const tn = (ds.selectedTableNumber || "").trim();
+        if (tn) state.selectedTables = new Set([Number(tn)]);
+        const tid = (ds.selectedTableId || "").trim();
+        if (tid) state.selectedTableIds = new Set([tid]);
+      } catch (e) {}
+    }
+    if (!state.selectedTables.size) {
       alert("יש לבחור לפחות שולחן אחד.");
       return;
     }
@@ -595,7 +791,17 @@
   }
 
   async function markStatusForSelected(status){
-    const ids = Array.from(state.selectedTableIds.values());
+    let ids = Array.from(state.selectedTableIds.values());
+    if (!ids.length) {
+      // Fallback: read selection from floor-view app dataset
+      try {
+        const root = document.getElementById("sb-floor-root");
+        const ds = root && root.dataset ? root.dataset : {};
+        const tid = (ds.selectedTableId || "").trim();
+        if (tid) state.selectedTableIds = new Set([tid]);
+      } catch (e) {}
+      ids = Array.from(state.selectedTableIds.values());
+    }
     if (!ids.length) {
       alert("בחר שולחן אחד לפחות במפה.");
       return;
@@ -991,4 +1197,13 @@
     /* Do not clip the right-side Table Details panel */
     overflow: visible;
   }
+
+
+  /* Host multi-select highlight (doesn't change the floor-view logic) */
+  #sb-floor-root .floor-table.is-multi-selected{
+    outline: 3px solid rgba(90,160,255,.85);
+    outline-offset: -2px;
+    box-shadow: 0 0 0 2px rgba(0,0,0,.35) inset, 0 0 16px rgba(90,160,255,.25);
+  }
+
 </style>

@@ -120,18 +120,11 @@ export default function FloorMapRenderer({
   mode,
   onTableClick,
   selectedTableId,
-  selectedTableIds,
 }: {
   layout: FloorLayoutLike;
   mode: 'view' | 'edit';
-  onTableClick?: (
-    tableId: string,
-    mods?: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }
-  ) => void;
-  // Backward compatible single-select
+  onTableClick?: (tableId: string) => void;
   selectedTableId?: string | null;
-  // Multi-select (used by host screen)
-  selectedTableIds?: string[] | null;
 }) {
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -150,11 +143,6 @@ export default function FloorMapRenderer({
 
   const themeKey = useMemo(() => normalizeTheme((layout as any).floorColor), [layout?.id]);
   const theme = useMemo(() => getTheme(themeKey), [themeKey]);
-
-  const selectedIdSet = useMemo(() => {
-    const arr = Array.isArray(selectedTableIds) ? selectedTableIds : [];
-    return new Set(arr.map((x) => String(x)));
-  }, [Array.isArray(selectedTableIds) ? selectedTableIds.join('|') : '']);
 
 
 
@@ -606,9 +594,7 @@ export default function FloorMapRenderer({
               {isTopLeft && tableHere && (() => {
                 const st = getStatusFor(tableHere);
                 const status = String(st.status || 'empty');
-                const selected = selectedIdSet.size > 0
-                  ? selectedIdSet.has(String(tableHere.id))
-                  : (selectedTableId && String(selectedTableId) === String(tableHere.id));
+                const selected = selectedTableId && String(selectedTableId) === String(tableHere.id);
                 const showPill = mode === 'view';
                 const pillText = (() => {
                   if (status === 'occupied') return 'תפוס';
@@ -620,7 +606,7 @@ export default function FloorMapRenderer({
                 return (
                   <div
                     className={`table floor-table status-${status} ${String(tableHere.shape || 'square')} ${selected ? 'is-selected' : ''}`}
-                    onClick={(e) => onTableClick?.(tableHere.id, { ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey })}
+                    onClick={() => onTableClick?.(tableHere.id)}
                     style={{
                       position: 'absolute',
                       top: 0,

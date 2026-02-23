@@ -143,22 +143,114 @@ ownerFloorRouter.post(
 
     if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
 
-    const body = await (ctx.request as any).originalRequest?.json?.().catch?.(() => null)
-      ?? await (async () => {
-        try {
-          const b = (ctx.request as any).body?.({ type: "json" });
-          return b ? await b.value : null;
-        } catch {
-          return null;
+    // NOTE: In some Oak/Deno Deploy setups, ctx.request.body({type:"json"}) can be unreliable
+    // for small POSTs, and different Oak versions expose the underlying Request differently.
+    // To avoid "received: null" surprises, we read the raw request body as text and JSON-parse
+    // it ourselves (while still supporting older code paths as fallback).
+    const readBodyAny = async (): Promise<any> => {
+      const reqAny = (ctx.request as any)?.originalRequest?.request ??
+        (ctx.request as any)?.originalRequest ??
+        null;
+
+      // 1) Best effort: clone()+text() from the underlying Request
+      try {
+        if (reqAny && typeof reqAny.clone === "function") {
+          const txt = await reqAny.clone().text().catch(() => "");
+          if (txt) {
+            try {
+              return JSON.parse(txt);
+            } catch {
+              return txt;
+            }
+          }
         }
-      })()
-      ?? {};
+      } catch {
+        // ignore
+      }
 
-    const { status } = body as any;
+      // 2) Fallback: Oak body parser
+      try {
+        const b = (ctx.request as any).body?.({ type: "json" });
+        const v = b ? await b.value : null;
+        if (v != null) return v;
+      } catch {
+        // ignore
+      }
 
-    if (!status || !["empty", "occupied", "reserved", "dirty"].includes(status)) {
+      // 3) Fallback: Request.json() if exposed
+      try {
+        const j = (ctx.request as any)?.originalRequest?.request?.json?.() ??
+          (ctx.request as any)?.originalRequest?.json?.();
+        if (j) return await j;
+      } catch {
+        // ignore
+      }
+
+      return {};
+    };
+
+    const body = await readBodyAny();
+
+    // Be permissive: different clients / i18n may send different casing or aliases.
+    const rawStatus =
+      // If the client sent a plain JSON string (e.g. "dirty"), accept it.
+      (typeof body === "string" ? body : undefined) ??
+      (body as any)?.status ??
+      (body as any)?.newStatus ??
+      (body as any)?.state ??
+      (body as any)?.payload?.status ??
+      (ctx.request.url.searchParams.get("status") ?? undefined);
+
+    const normalizeStatus = (v: unknown): FloorTableStatus | null => {
+      const s = String(v ?? "").trim();
+      if (!s) return null;
+      const k = s.toLowerCase();
+      const map: Record<string, FloorTableStatus> = {
+        empty: "empty",
+        available: "empty",
+        free: "empty",
+        clean: "empty",
+        cleared: "empty",
+        clear: "empty",
+        open: "empty",
+        vacant: "empty",
+        "needs_cleaning": "dirty",
+        "need_cleaning": "dirty",
+        "needs cleaning": "dirty",
+        dirty: "dirty",
+        reserved: "reserved",
+        reserve: "reserved",
+        booked: "reserved",
+        booking: "reserved",
+        occupied: "occupied",
+        busy: "occupied",
+        taken: "occupied",
+        seated: "occupied",
+        // Hebrew UI labels (in case a client sends localized values)
+        "פנוי": "empty",
+        "נקי": "empty",
+        "תפוס": "occupied",
+        "שמור": "reserved",
+        "מלוכלך": "dirty",
+      };
+      if (map[k]) return map[k];
+      // Sometimes values come like 'status:empty'
+      if (k.startsWith("status:")) {
+        const tail = k.slice("status:".length).trim();
+        return map[tail] ?? null;
+      }
+      return null;
+    };
+
+    const status = normalizeStatus(rawStatus);
+
+    if (!status) {
       ctx.response.status = 400;
-      ctx.response.body = { error: "Invalid status" };
+      ctx.response.body = {
+        error: "Invalid status",
+        received: typeof rawStatus === "string" ? rawStatus : rawStatus ?? null,
+        allowed: ["empty", "occupied", "reserved", "dirty"],
+      };
       return;
     }
 
