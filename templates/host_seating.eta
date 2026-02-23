@@ -450,6 +450,17 @@
       return;
     }
     if (!state.selectedTables.size) {
+      // Fallback: read selection from floor-view app dataset (in case the event was missed)
+      try {
+        const root = document.getElementById("sb-floor-root");
+        const ds = root && root.dataset ? root.dataset : {};
+        const tn = Number(ds.selectedTableNumber || "");
+        const tid = (ds.selectedTableId || "").trim();
+        if (Number.isFinite(tn) && tn > 0) state.selectedTables = new Set([tn]);
+        if (tid) state.selectedTableIds = new Set([tid]);
+      } catch (e) {}
+    }
+    if (!state.selectedTables.size) {
       alert("יש לבחור לפחות שולחן אחד.");
       return;
     }
@@ -595,7 +606,17 @@
   }
 
   async function markStatusForSelected(status){
-    const ids = Array.from(state.selectedTableIds.values());
+    let ids = Array.from(state.selectedTableIds.values());
+    if (!ids.length) {
+      // Fallback: read selection from floor-view app dataset
+      try {
+        const root = document.getElementById("sb-floor-root");
+        const ds = root && root.dataset ? root.dataset : {};
+        const tid = (ds.selectedTableId || "").trim();
+        if (tid) state.selectedTableIds = new Set([tid]);
+      } catch (e) {}
+      ids = Array.from(state.selectedTableIds.values());
+    }
     if (!ids.length) {
       alert("בחר שולחן אחד לפחות במפה.");
       return;
