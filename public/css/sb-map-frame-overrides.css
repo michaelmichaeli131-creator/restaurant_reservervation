@@ -62,34 +62,46 @@
 
 
 /* =========================================================
-   Hostess parity with Waiter map:
-   Make ALL table overlays fully transparent so they never
-   cover neighboring table status indicators.
-   (Host page wrapper: .host.container)
+   Waiter + Host parity:
+   Make ALL table wrappers fully transparent so they never
+   create a dark "envelope" that hides nearby status pills.
+   (This also avoids overlap artifacts when tables are close.)
+   Applies to BOTH waiter/host pages to guarantee identical view.
    ========================================================= */
-.host .sb-floor-view .table,
-.host .sb-floor-view .table.selected{
+.waiter .sb-floor-view .table,
+.host   .sb-floor-view .table,
+.waiter .sb-floor-view .table.selected,
+.host   .sb-floor-view .table.selected{
   background: transparent !important;
+  border: none !important;
   box-shadow: none !important;
 }
 
-.host .sb-floor-view .table.selected{
-  /* keep outline only (color handled elsewhere / defaults) */
-  border-color: transparent !important;
+/* Never lift/hover tables in view mode (keeps layering stable) */
+.waiter .sb-floor-view .table:hover,
+.host   .sb-floor-view .table:hover{
+  transform: none !important;
 }
 
-.host .sb-floor-view .table::before,
-.host .sb-floor-view .table::after{
+/* If any pseudo-elements are used as halos, kill them */
+.waiter .sb-floor-view .table::before,
+.waiter .sb-floor-view .table::after,
+.host   .sb-floor-view .table::before,
+.host   .sb-floor-view .table::after{
   background: transparent !important;
   box-shadow: none !important;
   filter: none !important;
 }
 
 /* Pills/labels under tables (section/status) must be transparent */
-.host .sb-floor-view .table-section,
-.host .sb-floor-view .sbv-status-pill,
-.host .sb-floor-view .sbv-pill,
-.host .sb-floor-view .sbv-status-row{
+.waiter .sb-floor-view .table-section,
+.waiter .sb-floor-view .sbv-status-pill,
+.waiter .sb-floor-view .sbv-pill,
+.waiter .sb-floor-view .sbv-status-row,
+.host   .sb-floor-view .table-section,
+.host   .sb-floor-view .sbv-status-pill,
+.host   .sb-floor-view .sbv-pill,
+.host   .sb-floor-view .sbv-status-row{
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -98,15 +110,29 @@
 }
 
 /* Make text readable without a background (no blur) */
-.host .sb-floor-view .table-section,
-.host .sb-floor-view .sbv-status-pill,
-.host .sb-floor-view .sbv-pill{
+.waiter .sb-floor-view .table-section,
+.waiter .sb-floor-view .sbv-status-pill,
+.waiter .sb-floor-view .sbv-pill,
+.host   .sb-floor-view .table-section,
+.host   .sb-floor-view .sbv-status-pill,
+.host   .sb-floor-view .sbv-pill{
   text-shadow: 0 1px 2px rgba(0,0,0,.55);
 }
 
 /* Remove any glow/blur on assets inside the map (host only) */
-.host .sb-floor-view .fe-asset,
-.host .sb-floor-view svg,
-.host .sb-floor-view img{
+.waiter .sb-floor-view .fe-asset,
+.waiter .sb-floor-view svg,
+.waiter .sb-floor-view img,
+.host   .sb-floor-view .fe-asset,
+.host   .sb-floor-view svg,
+.host   .sb-floor-view img{
   filter: none !important;
+}
+
+/* Strong layering rule: pills should sit above any neighboring table wrapper.
+   NOTE: parent stacking contexts can still win, but this helps most overlaps. */
+.waiter .sb-floor-view .sbv-status-pill,
+.host   .sb-floor-view .sbv-status-pill{
+  z-index: 9999;
+  pointer-events: none;
 }
