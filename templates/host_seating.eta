@@ -112,6 +112,39 @@
 <link rel="stylesheet" href="/static/dist/floor-floor-view-app.css?v=<%= it.BUILD_TAG || Date.now() %>">
 
 <link rel="stylesheet" href="/public/css/sb-map-frame-overrides.css?v=<%= it.BUILD_TAG || Date.now() %>">
+
+<!-- Host-only: ensure every table wrapper is fully transparent (no blur/overlay), just like the waiter map -->
+<style>
+  /* Remove any opaque "envelope" behind/around items so other status pills remain visible */
+  #sb-floor-root[data-click-mode="host"] .table.floor-table{
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  #sb-floor-root[data-click-mode="host"] .table.floor-table:hover{
+    transform: none !important;
+  }
+
+  /* Kill blur/shadow effects that can make the floor look "blurred" under items */
+  #sb-floor-root[data-click-mode="host"] .fe-asset{
+    filter: none !important;
+  }
+  #sb-floor-root[data-click-mode="host"] .table-section,
+  #sb-floor-root[data-click-mode="host"] .fe-canvas-controls{
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  /* Make the per-table status pill truly transparent (dot + text only) */
+  #sb-floor-root[data-click-mode="host"] .sbv-status-pill{
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    text-shadow: 0 2px 10px rgba(0,0,0,.55) !important;
+  }
+</style>
 <script type="module" src="/static/dist/floor-view-app.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>
 
 <script>
