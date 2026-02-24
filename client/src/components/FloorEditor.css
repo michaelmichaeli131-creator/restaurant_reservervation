@@ -242,7 +242,8 @@
   box-sizing: border-box;
   pointer-events: none;
   user-select: none;
-  filter: drop-shadow(0 8px 16px rgba(0,0,0,.22));
+  /* remove blur/glow around assets */
+  filter: none;
 }
 
 .fe-table-visual{
@@ -449,7 +450,8 @@
   border-radius: 999px;
   border: 1px solid rgba(255,255,255,.12);
   background: rgba(15,18,28,.45);
-  backdrop-filter: blur(10px) saturate(120%);
+  /* keep label crisp (no backdrop blur) */
+  backdrop-filter: none;
   max-width: 92%;
   white-space: nowrap;
   overflow: hidden;
@@ -483,7 +485,8 @@
   object-fit: contain;
   padding: 6px;
   box-sizing: border-box;
-  filter: drop-shadow(0 10px 16px rgba(0,0,0,.22));
+  /* remove blur/glow around assets */
+  filter: none;
 }
 
 .fe-table-overlay{
@@ -517,7 +520,8 @@
   border-radius: 999px;
   border: 1px solid rgba(255,255,255,.12);
   background: rgba(0,0,0,.20);
-  backdrop-filter: blur(10px) saturate(120%);
+  /* keep label crisp (no backdrop blur) */
+  backdrop-filter: none;
   opacity: .95;
 }
 

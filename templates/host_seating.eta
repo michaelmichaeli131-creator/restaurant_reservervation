@@ -149,8 +149,6 @@
 </aside>
 
 <!-- Same floor-view assets as the waiter lobby -->
-<link rel="stylesheet" href="/public/css/sb-floor-theme.css">
-<link rel="stylesheet" href="/public/css/sb-floor-map.css">
 <link rel="stylesheet" href="/static/dist/floor-index.css?v=<%= it.BUILD_TAG || Date.now() %>">
 <link rel="stylesheet" href="/static/dist/floor-floor-view-app.css?v=<%= it.BUILD_TAG || Date.now() %>">
 
@@ -534,12 +532,8 @@
       try {
         const root = document.getElementById("sb-floor-root");
         const ds = root && root.dataset ? root.dataset : {};
-        const tns = (ds.selectedTableNumbers || "").split(",").map(s=>Number((s||"").trim())).filter(n=>Number.isFinite(n)&&n>0);
-        if (tns.length) state.selectedTables = new Set(tns);
         const tn = (ds.selectedTableNumber || "").trim();
         if (tn) state.selectedTables = new Set([Number(tn)]);
-        const tids = (ds.selectedTableIds || "").split(",").map(s=>String((s||"").trim())).filter(Boolean);
-        if (tids.length) state.selectedTableIds = new Set(tids);
         const tid = (ds.selectedTableId || "").trim();
         if (tid) state.selectedTableIds = new Set([tid]);
       } catch (e) {}
@@ -696,8 +690,6 @@
       try {
         const root = document.getElementById("sb-floor-root");
         const ds = root && root.dataset ? root.dataset : {};
-        const tids = (ds.selectedTableIds || "").split(",").map(s=>String((s||"").trim())).filter(Boolean);
-        if (tids.length) state.selectedTableIds = new Set(tids);
         const tid = (ds.selectedTableId || "").trim();
         if (tid) state.selectedTableIds = new Set([tid]);
       } catch (e) {}
