@@ -220,6 +220,100 @@
       "in_stock": "In stock",
       "min_threshold": "Min",
       "unit_price_placeholder": "e.g.: 12.50 (empty = no override)"
+    },
+    "payroll": {
+      "title": "Payroll",
+      "subtitle": "Monthly payroll summary per employee",
+      "restaurant": "Restaurant",
+      "month": "Month",
+      "load": "Load",
+      "tbl": {
+        "employee": "Employee",
+        "email": "Email",
+        "hourly_rate": "Hourly Rate",
+        "hours": "Hours",
+        "minutes": "Minutes",
+        "gross": "Gross",
+        "actions": "Actions"
+      },
+      "loading": "Loading...",
+      "no_hours": "No hours recorded",
+      "err_loading": "Error loading payroll",
+      "err_generic": "An error occurred",
+      "err_invalid_rate": "Invalid hourly rate",
+      "saved": "Saved",
+      "err_saving": "Error saving"
+    },
+    "staff_member": {
+      "title": "Employee Details",
+      "subtitle": "Manage employee profile and permissions",
+      "btn_back": "Back to Staff List",
+      "err_not_found": "Employee not found",
+      "err_no_permission": "You don't have permission to view this employee",
+      "err_loading": "Error loading employee details",
+      "staff_id": "Staff ID",
+      "coming_soon": "Coming Soon",
+      "expansion_hint": "Additional management features will be available here",
+      "perms_subtitle": "Manage what this employee can access",
+      "perms_disabled": "Permissions editing is disabled for this role",
+      "perms_hint": "Select the permissions for this employee",
+      "btn_reset_defaults": "Reset to Default Permissions"
+    },
+    "time": {
+      "title": "Staff Attendance",
+      "subtitle": "Daily attendance records",
+      "restaurant": "Restaurant",
+      "day": "Day",
+      "load": "Load",
+      "tbl": {
+        "employee": "Employee",
+        "email": "Email",
+        "clock_in": "Clock In",
+        "clock_out": "Clock Out",
+        "minutes": "Minutes",
+        "note": "Note",
+        "actions": "Actions"
+      },
+      "loading": "Loading...",
+      "edit_title": "Edit Time Entry",
+      "edit": {
+        "clock_in": "Clock In",
+        "clock_out": "Clock Out",
+        "keep_open": "Keep Open (no clock out)"
+      },
+      "no_entries": "No time entries for this day",
+      "open": "Open",
+      "err_loading": "Error loading attendance",
+      "err_generic": "An error occurred",
+      "err_row_not_found": "Entry not found",
+      "updated": "Updated",
+      "err_update": "Error updating entry"
+    },
+    "timeclock": {
+      "title": "Timeclock Overview",
+      "monthly_records": "Monthly Records",
+      "tip": "Click on a row to edit clock in/out times",
+      "tbl": {
+        "date": "Date",
+        "employee": "Employee",
+        "clock_in": "Clock In",
+        "clock_out": "Clock Out",
+        "minutes": "Minutes",
+        "note": "Note",
+        "rate": "Rate",
+        "hours": "Hours",
+        "gross": "Gross"
+      },
+      "monthly_salary": "Monthly Salary Summary",
+      "no_data": "No data for this month",
+      "edit_title": "Edit Time Entry",
+      "edit": {
+        "clock_in": "Clock In",
+        "clock_out": "Clock Out",
+        "note": "Note",
+        "hourly_rate": "Hourly Rate"
+      },
+      "error_prefix": "Error"
     }
   },
   "pos": {
@@ -817,6 +911,13 @@
       "staff_fallback": "Employee",
       "btn_clock": "Clock In / Out",
       "btn_my_shifts": "My Shifts"
+    },
+    "timeclock": {
+      "title": "My Timeclock",
+      "btn_in": "Clock In",
+      "btn_out": "Clock Out",
+      "error_prefix": "Error",
+      "saved": "Saved"
     }
   },
   "bill": {
