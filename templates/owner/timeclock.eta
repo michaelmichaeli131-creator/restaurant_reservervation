@@ -10,6 +10,17 @@
   const staffById = {};
   staffList.forEach(s => staffById[s.id] = s);
 
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t==='function'){
+        const s = it.t(k);
+        if(!s || s===k || s===`(${k})`) return fb;
+        return s;
+      }
+    }catch(e){}
+    return fb;
+  }
+
   function fmtHM(ms){
     if(!ms) return '';
     try{
@@ -25,29 +36,29 @@
 
 <section class="container" style="max-width:1100px;margin:20px auto;padding:0 16px">
   <div class="card">
-    <h1 style="margin:0 0 8px 0">📅 נוכחות ושכר</h1>
+    <h1 style="margin:0 0 8px 0">📅 <%= tt('owner.timeclock.title', 'נוכחות ושכר') %></h1>
     <div class="muted">
-      מסעדה: <strong><%= restaurant?.name %></strong> • חודש: <strong><%= month %></strong>
+      <%= tt('common.restaurant', 'מסעדה') %>: <strong><%= restaurant?.name %></strong> • <%= tt('owner.payroll.month', 'חודש') %>: <strong><%= month %></strong>
     </div>
   </div>
 
   <div class="grid">
     <div class="card">
-      <h2 style="margin:0 0 10px 0;font-size:16px">רשומות חודשיות</h2>
+      <h2 style="margin:0 0 10px 0;font-size:16px"><%= tt('owner.timeclock.monthly_records', 'רשומות חודשיות') %></h2>
 
       <div class="muted" style="margin-bottom:10px">
-        טיפ: לחץ על שורה כדי לערוך ידנית כניסה/יציאה (ולשנות hourlyRate אם צריך).
+        <%= tt('owner.timeclock.tip', 'טיפ: לחץ על שורה כדי לערוך ידנית כניסה/יציאה (ולשנות hourlyRate אם צריך).') %>
       </div>
 
       <table class="tbl">
         <thead>
           <tr>
-            <th>תאריך</th>
-            <th>עובד</th>
-            <th>כניסה</th>
-            <th>יציאה</th>
-            <th>דקות</th>
-            <th>הערה</th>
+            <th><%= tt('owner.timeclock.tbl.date', 'תאריך') %></th>
+            <th><%= tt('owner.timeclock.tbl.employee', 'עובד') %></th>
+            <th><%= tt('owner.timeclock.tbl.clock_in', 'כניסה') %></th>
+            <th><%= tt('owner.timeclock.tbl.clock_out', 'יציאה') %></th>
+            <th><%= tt('owner.timeclock.tbl.minutes', 'דקות') %></th>
+            <th><%= tt('owner.timeclock.tbl.note', 'הערה') %></th>
           </tr>
         </thead>
         <tbody>
@@ -72,18 +83,18 @@
     </div>
 
     <div class="card">
-      <h2 style="margin:0 0 10px 0;font-size:16px">שכר חודשי (ברוטו)</h2>
+      <h2 style="margin:0 0 10px 0;font-size:16px"><%= tt('owner.timeclock.monthly_salary', 'שכר חודשי (ברוטו)') %></h2>
 
       <% if(!payroll.length){ %>
-        <div class="muted">אין נתונים לחודש זה עדיין.</div>
+        <div class="muted"><%= tt('owner.timeclock.no_data', 'אין נתונים לחודש זה עדיין.') %></div>
       <% } else { %>
         <table class="tbl">
           <thead>
             <tr>
-              <th>עובד</th>
-              <th>ש"ח/שעה</th>
-              <th>שעות</th>
-              <th>ברוטו</th>
+              <th><%= tt('owner.timeclock.tbl.employee', 'עובד') %></th>
+              <th><%= tt('owner.timeclock.tbl.rate', 'ש"ח/שעה') %></th>
+              <th><%= tt('owner.timeclock.tbl.hours', 'שעות') %></th>
+              <th><%= tt('owner.timeclock.tbl.gross', 'ברוטו') %></th>
             </tr>
           </thead>
           <tbody>
@@ -106,30 +117,30 @@
 <div id="modal" class="modal hidden" aria-hidden="true">
   <div class="dialog">
     <div class="hd">
-      <div><strong>✏️ עריכת רשומה</strong></div>
-      <button id="close" class="btn ghost sm">סגור</button>
+      <div><strong>✏️ <%= tt('owner.timeclock.edit_title', 'עריכת רשומה') %></strong></div>
+      <button id="close" class="btn ghost sm"><%= tt('common.btn_close', 'סגור') %></button>
     </div>
     <div class="bd">
       <div class="muted" id="meta"></div>
 
       <div class="form">
-        <label>כניסה (HH:MM)</label>
+        <label><%= tt('owner.timeclock.edit.clock_in', 'כניסה (HH:MM)') %></label>
         <input id="inTime" placeholder="09:00" />
 
-        <label>יציאה (HH:MM)</label>
+        <label><%= tt('owner.timeclock.edit.clock_out', 'יציאה (HH:MM)') %></label>
         <input id="outTime" placeholder="17:00" />
 
-        <label>הערה</label>
+        <label><%= tt('owner.timeclock.edit.note', 'הערה') %></label>
         <input id="note" placeholder="תיקון ידני..." />
 
-        <label>שכר לשעה (אופציונלי)</label>
+        <label><%= tt('owner.timeclock.edit.hourly_rate', 'שכר לשעה (אופציונלי)') %></label>
         <input id="hourlyRate" type="number" min="0" step="0.5" placeholder="למשל 45" />
       </div>
 
       <div id="err" class="err hidden"></div>
     </div>
     <div class="ft">
-      <button id="save" class="btn primary">שמירה</button>
+      <button id="save" class="btn primary"><%= tt('common.btn_save', 'שמירה') %></button>
     </div>
   </div>
 </div>
@@ -241,7 +252,7 @@
 
     const j = await r.json().catch(()=>({ok:false,error:'bad_json'}));
     if(!r.ok || !j.ok){
-      errBox.textContent = 'שגיאה: ' + (j.error || r.status);
+      errBox.textContent = '<%= tt('owner.timeclock.error_prefix', 'שגיאה') %>: ' + (j.error || r.status);
       errBox.classList.remove('hidden');
       return;
     }

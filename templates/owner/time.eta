@@ -54,17 +54,17 @@ const day = it.day || '';
       <table class="tbl" style="width:100%;border-collapse:collapse;min-width:850px">
         <thead>
           <tr>
-            <th>עובד</th>
-            <th>אימייל</th>
-            <th>כניסה</th>
-            <th>יציאה</th>
-            <th>דקות</th>
-            <th>הערה</th>
-            <th>פעולות</th>
+            <th><%= tt('owner.time.tbl.employee', 'עובד') %></th>
+            <th><%= tt('owner.time.tbl.email', 'אימייל') %></th>
+            <th><%= tt('owner.time.tbl.clock_in', 'כניסה') %></th>
+            <th><%= tt('owner.time.tbl.clock_out', 'יציאה') %></th>
+            <th><%= tt('owner.time.tbl.minutes', 'דקות') %></th>
+            <th><%= tt('owner.time.tbl.note', 'הערה') %></th>
+            <th><%= tt('owner.time.tbl.actions', 'פעולות') %></th>
           </tr>
         </thead>
         <tbody id="rows">
-          <tr><td colspan="7" class="muted">טוען...</td></tr>
+          <tr><td colspan="7" class="muted"><%= tt('owner.time.loading', 'טוען...') %></td></tr>
         </tbody>
       </table>
     </div>
@@ -75,37 +75,37 @@ const day = it.day || '';
 <div id="edit-backdrop" class="time-modal-backdrop" style="display:none">
   <div class="time-modal">
     <div class="time-modal-header">
-      <h2>עריכת נוכחות</h2>
+      <h2><%= tt('owner.time.edit_title', 'עריכת נוכחות') %></h2>
       <button type="button" class="btn sm ghost" id="edit-close-x">✕</button>
     </div>
     <div class="time-modal-body">
       <div class="time-modal-row">
-        <label class="lbl">עובד</label>
+        <label class="lbl"><%= tt('owner.time.tbl.employee', 'עובד') %></label>
         <div id="edit-staff-label" class="muted small"></div>
       </div>
 
       <div class="time-modal-row">
-        <label class="lbl">שעת כניסה</label>
+        <label class="lbl"><%= tt('owner.time.edit.clock_in', 'שעת כניסה') %></label>
         <input id="edit-clock-in" type="datetime-local" class="inp full">
       </div>
 
       <div class="time-modal-row">
-        <label class="lbl">שעת יציאה</label>
+        <label class="lbl"><%= tt('owner.time.edit.clock_out', 'שעת יציאה') %></label>
         <input id="edit-clock-out" type="datetime-local" class="inp full">
         <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
           <input id="edit-clear-out" type="checkbox">
-          <label for="edit-clear-out" class="muted small">השאר את המשמרת פתוחה (מחק שעת יציאה)</label>
+          <label for="edit-clear-out" class="muted small"><%= tt('owner.time.edit.keep_open', 'השאר את המשמרת פתוחה (מחק שעת יציאה)') %></label>
         </div>
       </div>
 
       <div class="time-modal-row">
-        <label class="lbl">הערה</label>
+        <label class="lbl"><%= tt('owner.time.tbl.note', 'הערה') %></label>
         <textarea id="edit-note" rows="3" class="inp full" style="resize:vertical"></textarea>
       </div>
     </div>
     <div class="time-modal-actions">
-      <button type="button" class="btn sm" id="edit-cancel">ביטול</button>
-      <button type="button" class="btn primary sm" id="edit-save">שמור</button>
+      <button type="button" class="btn sm" id="edit-cancel"><%= tt('common.btn_cancel', 'ביטול') %></button>
+      <button type="button" class="btn primary sm" id="edit-save"><%= tt('common.btn_save', 'שמור') %></button>
     </div>
   </div>
 </div>
@@ -257,7 +257,7 @@ const day = it.day || '';
     const rid = $('restaurant').value;
     const day = $('day').value;
     const tbody = $('rows');
-    tbody.innerHTML = `<tr><td colspan="7" class="muted">טוען...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="muted"><%= tt('owner.time.loading', 'טוען...') %></td></tr>`;
     window.__timeRows = {};
 
     try{
@@ -271,14 +271,14 @@ const day = it.day || '';
 
       const rows = data.rows || [];
       if(!rows.length){
-        tbody.innerHTML = `<tr><td colspan="7" class="muted">אין כניסות/יציאות ליום הזה.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="muted"><%= tt('owner.time.no_entries', 'אין כניסות/יציאות ליום הזה.') %></td></tr>`;
         return;
       }
 
       const html = rows.map(r => {
         window.__timeRows[r.id] = r;
         const note = r.note ? String(r.note) : '';
-        const outLabel = r.clockOutLabel || 'פתוח';
+        const outLabel = r.clockOutLabel || '<%= tt('owner.time.open', 'פתוח') %>';
         const userName = r.userName || '';
         const userEmail = r.userEmail || '';
 
@@ -296,7 +296,7 @@ const day = it.day || '';
             <td>${r.minutes ?? ''}</td>
             <td>${escapeHtml(note)}</td>
             <td>
-              <button class="btn sm" onclick="editEntry('${encodeURIComponent(r.id)}')">ערוך</button>
+              <button class="btn sm" onclick="editEntry('${encodeURIComponent(r.id)}')"><%= tt('common.btn_edit', 'ערוך') %></button>
             </td>
           </tr>
         `;
@@ -304,8 +304,8 @@ const day = it.day || '';
 
       tbody.innerHTML = html;
     }catch(e){
-      showErr('שגיאה בטעינת נוכחות: ' + (e?.message || e));
-      tbody.innerHTML = `<tr><td colspan="7" class="muted">שגיאה.</td></tr>`;
+      showErr('<%= tt('owner.time.err_loading', 'שגיאה בטעינת נוכחות') %>: ' + (e?.message || e));
+      tbody.innerHTML = `<tr><td colspan="7" class="muted"><%= tt('owner.time.err_generic', 'שגיאה.') %></td></tr>`;
     }
   }
 
@@ -313,7 +313,7 @@ const day = it.day || '';
     const entryId = decodeURIComponent(entryIdRaw);
     const row = window.__timeRows[entryId];
     if(!row){
-      alert('השורה לא נמצאה לעריכה');
+      alert('<%= tt('owner.time.err_row_not_found', 'השורה לא נמצאה לעריכה') %>');
       return;
     }
     __editingId = entryId;
@@ -346,7 +346,7 @@ const day = it.day || '';
     const entryId = __editingId;
     const row = window.__timeRows[entryId];
     if(!row){
-      alert('השורה לא נמצאה');
+      alert('<%= tt('owner.time.err_row_not_found', 'השורה לא נמצאה') %>');
       closeEditModal();
       return;
     }
@@ -375,9 +375,9 @@ const day = it.day || '';
 
       closeEditModal();
       await loadDay();
-      alert('עודכן בהצלחה');
+      alert('<%= tt('owner.time.updated', 'עודכן בהצלחה') %>');
     }catch(e){
-      alert('שגיאה בעדכון: ' + (e?.message || e));
+      alert('<%= tt('owner.time.err_update', 'שגיאה בעדכון') %>: ' + (e?.message || e));
     }
   }
 

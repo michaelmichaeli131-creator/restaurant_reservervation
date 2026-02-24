@@ -71,7 +71,12 @@
       "permissions": "Permissions",
       "btn_save_permissions": "Save Permissions",
       "reset_pw": {
-        "label": "Link"
+        "label": "Link",
+        "title": "Password Reset Link",
+        "subtitle": "Create a link and share with employee.",
+        "hint": "Recommended to send the link via private message. The link is one-time use.",
+        "create": "Create Password Reset Link",
+        "creating_for": "Creating link for"
       },
       "tbl": {
         "name": "Name",
@@ -80,6 +85,54 @@
         "phone": "Phone",
         "created": "Registered",
         "actions": "Actions"
+      },
+      "list_hint": "Minimal staff list. For detailed permissions and more — go to the employee page.",
+      "btn_audit": "Audit Log",
+      "owner_label": "Owner",
+      "email_label": "Email",
+      "no_restaurants": "No restaurants linked to your account yet",
+      "no_restaurants_hint": "To manage staff, first create a restaurant in the system.",
+      "btn_new_restaurant": "Create New Restaurant",
+      "approved_count": "Approved",
+      "pending_title": "Pending Approval",
+      "no_pending": "No pending requests",
+      "btn_approve": "Approve",
+      "btn_reject": "Reject",
+      "approved_title": "Employees (Approved)",
+      "no_staff_yet": "No employees yet",
+      "empty_restaurant": "No employees for this restaurant",
+      "status_label": "Status",
+      "status_inactive": "Inactive",
+      "status_active": "Active",
+      "btn_manage": "Manage Employee",
+      "btn_create": "Create Employee",
+      "modal_subtitle": "Creates a staff user for the selected restaurant. No public registration for staff.",
+      "creating": "Creating…",
+      "error_prefix": "Error",
+      "loading": "Loading...",
+      "copied": "Copied!",
+      "copy_failed": "Could not copy. Please select and copy manually.",
+      "err_unknown": "Unknown error",
+      "form": {
+        "restaurant": "Restaurant (required)",
+        "select_restaurant": "Select restaurant…",
+        "email": "Email (required)",
+        "role": "Role (required)",
+        "select_role": "Select role…",
+        "temp_password": "Temporary Password (required)",
+        "password_hint": "Recommended that the employee changes password after first login (or via 'Forgot Password').",
+        "first_name": "First Name (optional)",
+        "last_name": "Last Name (optional)",
+        "phone": "Phone (optional)",
+        "use_defaults": "Use default permissions for role",
+        "select_perms": "Select specific permissions (optional)",
+        "perms_hint": "If no permissions are selected, default role permissions will be saved."
+      },
+      "audit": {
+        "subtitle": "Shows recent actions performed in staff management.",
+        "limit": "Limit",
+        "recent": "Recent Events",
+        "empty": "No events to display."
       }
     },
     "menu": {

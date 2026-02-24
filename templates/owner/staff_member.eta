@@ -1,5 +1,18 @@
 <% layout("../_layout", it) %>
 
+<%
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t==='function'){
+        const s = it.t(k);
+        if(!s || s===k || s===`(${k})`) return fb;
+        return s;
+      }
+    }catch(e){}
+    return fb;
+  }
+%>
+
 <style>
   .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
 
@@ -198,15 +211,15 @@
   <div class="card">
     <div class="owner-hd">
       <div>
-        <h1>👤 ניהול עובד</h1>
+        <h1>👤 <%= tt('owner.staff_member.title', 'ניהול עובד') %></h1>
         <div class="muted" style="margin-top:6px;font-size:13px">
-          כאן נמצאות ההרשאות והגדרות העובד. (אפשר להרחיב בהמשך: משמרות, פעילות וכו׳)
+          <%= tt('owner.staff_member.subtitle', 'כאן נמצאות ההרשאות והגדרות העובד. (אפשר להרחיב בהמשך: משמרות, פעילות וכו׳)') %>
         </div>
       </div>
       <div class="pill-row">
-        <a href="/owner/staff" class="btn sm ghost">← חזרה לניהול עובדים</a>
-        <span class="pill">בעלים: <b><%= owner?.firstName %> <%= owner?.lastName %></b></span>
-        <span class="pill">אימייל: <b><%= owner?.email %></b></span>
+        <a href="/owner/staff" class="btn sm ghost">← <%= tt('owner.staff_member.btn_back', 'חזרה לניהול עובדים') %></a>
+        <span class="pill"><%= tt('owner.staff.owner_label', 'בעלים') %>: <b><%= owner?.firstName %> <%= owner?.lastName %></b></span>
+        <span class="pill"><%= tt('owner.staff.email_label', 'אימייל') %>: <b><%= owner?.email %></b></span>
       </div>
     </div>
   </div>
@@ -215,15 +228,15 @@
     <div class="card">
       <div class="alert err">
         <% if (error === "staff_not_found") { %>
-          עובד לא נמצא.
+          <%= tt('owner.staff_member.err_not_found', 'עובד לא נמצא.') %>
         <% } else if (error === "not_your_restaurant") { %>
-          אין לך הרשאה לעובד הזה.
+          <%= tt('owner.staff_member.err_no_permission', 'אין לך הרשאה לעובד הזה.') %>
         <% } else { %>
-          שגיאה בטעינת עובד.
+          <%= tt('owner.staff_member.err_loading', 'שגיאה בטעינת עובד.') %>
         <% } %>
       </div>
       <div style="margin-top:12px">
-        <a href="/owner/staff" class="btn">חזרה</a>
+        <a href="/owner/staff" class="btn"><%= tt('common.btn_back', 'חזרה') %></a>
       </div>
     </div>
   <% } else { %>
@@ -253,46 +266,46 @@
                 <%= staff.email %><% if (staff.phone) { %> · <%= staff.phone %><% } %>
               </div>
               <div class="muted" style="margin-top:6px;font-size:12px">
-                מסעדה: <b><%= restaurant.name %></b>
+                <%= tt('common.restaurant', 'מסעדה') %>: <b><%= restaurant.name %></b>
               </div>
             </div>
 
             <div class="actions-row">
-              <span class="tag">תפקיד: <b><%= staff.role %></b></span>
+              <span class="tag"><%= tt('owner.staff.tbl.role', 'תפקיד') %>: <b><%= staff.role %></b></span>
 
               <% if (isInactive) { %>
-                <span class="tag" style="border-color:rgba(239,68,68,.35); background:rgba(239,68,68,.10)">סטטוס: מושבת</span>
+                <span class="tag" style="border-color:rgba(239,68,68,.35); background:rgba(239,68,68,.10)"><%= tt('owner.staff.status_label', 'סטטוס') %>: <%= tt('owner.staff.status_inactive', 'מושבת') %></span>
               <% } else { %>
-                <span class="tag" style="border-color:rgba(34,197,94,.28); background:rgba(34,197,94,.10)">סטטוס: פעיל</span>
+                <span class="tag" style="border-color:rgba(34,197,94,.28); background:rgba(34,197,94,.10)"><%= tt('owner.staff.status_label', 'סטטוס') %>: <%= tt('owner.staff.status_active', 'פעיל') %></span>
               <% } %>
 
               <form method="post" action="/owner/staff/<%= staff.id %>/status">
                 <input type="hidden" name="redirectTo" value="/owner/staff/<%= staff.id %>" />
                 <input type="hidden" name="status" value="<%= nextStatus %>" />
                 <% if (isInactive) { %>
-                  <button class="btn sm" type="submit">הפעל</button>
+                  <button class="btn sm" type="submit"><%= tt('owner.staff.btn_activate', 'הפעל') %></button>
                 <% } else { %>
                   <button class="btn ghost sm" type="submit"
-                    onclick="return confirm('להשבית את העובד? הוא לא יוכל להיכנס/לעבוד במערכת.');">השבת</button>
+                    onclick="return confirm('<%= tt('owner.staff.confirm_deactivate', 'להשבית את העובד? הוא לא יוכל להיכנס/לעבוד במערכת.') %>');"><%= tt('owner.staff.btn_deactivate', 'השבת') %></button>
                 <% } %>
               </form>
 
               <button type="button" class="btn ghost sm" id="btnOpenResetLink"
                 data-staff-id="<%= staff.id %>" data-staff-email="<%= staff.email %>">
-                צור קישור לאיפוס סיסמה
+                <%= tt('owner.staff.reset_pw.create', 'צור קישור לאיפוס סיסמה') %>
               </button>
             </div>
           </div>
 
           <div class="muted" style="font-size:12px;margin-top:8px">
-            מזהה עובד: <b><%= staff.id %></b> · userId: <b><%= staff.userId %></b>
+            <%= tt('owner.staff_member.staff_id', 'מזהה עובד') %>: <b><%= staff.id %></b> · userId: <b><%= staff.userId %></b>
           </div>
         </div>
 
         <div class="staff-card" style="margin-top:12px">
-          <div style="font-weight:900; margin-bottom:8px">בקרוב</div>
+          <div style="font-weight:900; margin-bottom:8px"><%= tt('owner.staff_member.coming_soon', 'בקרוב') %></div>
           <div class="muted" style="font-size:12px">
-            אזור להרחבות: משמרות, פעילות אחרונה, הערות מנהל, מגבלות עבודה וכו׳.
+            <%= tt('owner.staff_member.expansion_hint', 'אזור להרחבות: משמרות, פעילות אחרונה, הערות מנהל, מגבלות עבודה וכו׳.') %>
           </div>
         </div>
       </div>
@@ -300,9 +313,9 @@
       <div class="card">
         <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
           <div>
-            <div style="font-weight:900">הרשאות</div>
+            <div style="font-weight:900"><%= tt('owner.staff.permissions', 'הרשאות') %></div>
             <div class="muted" style="font-size:12px;margin-top:4px">
-              עדכן הרשאות לעובד. (איפוס לברירת־מחדל לפי תפקיד דרך הכפתור)
+              <%= tt('owner.staff_member.perms_subtitle', 'עדכן הרשאות לעובד. (איפוס לברירת־מחדל לפי תפקיד דרך הכפתור)') %>
             </div>
           </div>
           <div class="pill">Approval: <b><%= staff.approvalStatus || "-" %></b></div>
@@ -330,14 +343,14 @@
           <div class="perm-actions">
             <div class="muted" style="font-size:12px">
               <% if (staff.status === 'inactive') { %>
-                העובד מושבת — לא ניתן לערוך הרשאות עד להפעלה.
+                <%= tt('owner.staff_member.perms_disabled', 'העובד מושבת — לא ניתן לערוך הרשאות עד להפעלה.') %>
               <% } else { %>
-                שמור שינויים או אפס לברירת מחדל.
+                <%= tt('owner.staff_member.perms_hint', 'שמור שינויים או אפס לברירת מחדל.') %>
               <% } %>
             </div>
 
             <div style="display:flex; gap:8px; flex-wrap:wrap">
-              <button type="submit" class="btn sm" <%= saveDisabledAttr %>>שמור הרשאות</button>
+              <button type="submit" class="btn sm" <%= saveDisabledAttr %>><%= tt('owner.staff.btn_save_permissions', 'שמור הרשאות') %></button>
             </div>
           </div>
         </form>
@@ -346,7 +359,7 @@
           <input type="hidden" name="redirectTo" value="/owner/staff/<%= staff.id %>" />
           <input type="hidden" name="resetToDefaults" value="on" />
           <button type="submit" class="btn ghost sm" <%= saveDisabledAttr %>>
-            אפס לברירת מחדל
+            <%= tt('owner.staff_member.btn_reset_defaults', 'אפס לברירת מחדל') %>
           </button>
         </form>
       </div>
@@ -360,26 +373,26 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="resetTitle">
     <div class="dialog-hd">
       <div>
-        <div style="font-size:16px;font-weight:900" id="resetTitle">קישור לאיפוס סיסמה</div>
-        <div class="muted" style="margin-top:4px" id="resetPwSub">צור קישור והעתק לעובד.</div>
+        <div style="font-size:16px;font-weight:900" id="resetTitle"><%= tt('owner.staff.reset_pw.title', 'קישור לאיפוס סיסמה') %></div>
+        <div class="muted" style="margin-top:4px" id="resetPwSub"><%= tt('owner.staff.reset_pw.subtitle', 'צור קישור והעתק לעובד.') %></div>
       </div>
       <button class="btn ghost sm" type="button" id="btnCloseResetPw">✕</button>
     </div>
 
     <div class="dialog-bd">
       <div class="field">
-        <label>קישור</label>
+        <label><%= tt('owner.staff.reset_pw.label', 'קישור') %></label>
         <input id="resetPwLink" type="text" readonly value="" />
         <div style="display:flex; gap:8px; margin-top:10px">
-          <button type="button" class="btn" id="btnCopyResetPw">העתק</button>
-          <button type="button" class="btn ghost" id="btnOpenResetPw">פתח</button>
+          <button type="button" class="btn" id="btnCopyResetPw"><%= tt('common.btn_copy', 'העתק') %></button>
+          <button type="button" class="btn ghost" id="btnOpenResetPw"><%= tt('common.btn_open', 'פתח') %></button>
         </div>
       </div>
       <div class="alert err hidden" id="resetPwErr"></div>
     </div>
 
     <div class="dialog-ft">
-      <button type="button" class="btn ghost" id="btnCloseResetPw2">סגור</button>
+      <button type="button" class="btn ghost" id="btnCloseResetPw2"><%= tt('common.btn_close', 'סגור') %></button>
     </div>
   </div>
 </div>
@@ -412,8 +425,8 @@
   async function createLink(staffId, email){
     try{
       showErr("");
-      sub.textContent = "יוצר קישור עבור: " + (email || "");
-      linkInp.value = "טוען...";
+      sub.textContent = "<%= tt('owner.staff.reset_pw.creating_for', 'יוצר קישור עבור') %>: " + (email || "");
+      linkInp.value = "<%= tt('owner.staff.loading', 'טוען...') %>";
       openModal();
 
       const res = await fetch(`/owner/staff/${staffId}/password-reset-link`, {
@@ -432,7 +445,7 @@
           "unknown": "שגיאה לא ידועה."
         };
         linkInp.value = "";
-        showErr(map[errCode] || ("שגיאה: " + errCode));
+        showErr(map[errCode] || ("<%= tt('owner.staff.error_prefix', 'שגיאה') %>: " + errCode));
         return;
       }
 
@@ -460,10 +473,10 @@
     btnCopy.addEventListener("click", async ()=>{
       try{
         await navigator.clipboard.writeText(linkInp.value || "");
-        btnCopy.textContent = "הועתק!";
-        setTimeout(()=>btnCopy.textContent="העתק", 900);
+        btnCopy.textContent = "<%= tt('owner.staff.copied', 'הועתק!') %>";
+        setTimeout(()=>btnCopy.textContent="<%= tt('common.btn_copy', 'העתק') %>", 900);
       }catch{
-        showErr("לא הצלחתי להעתיק. אפשר לסמן ולהעתיק ידנית.");
+        showErr("<%= tt('owner.staff.copy_failed', 'לא הצלחתי להעתיק. אפשר לסמן ולהעתיק ידנית.') %>");
       }
     });
   }
