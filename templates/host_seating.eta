@@ -108,8 +108,6 @@
 <!-- כרטיסיית צד לפרטי שולחן תפוס -->
 
 <!-- Same floor-view assets as the waiter lobby -->
-<link rel="stylesheet" href="/public/css/sb-floor-theme.css">
-<link rel="stylesheet" href="/public/css/sb-floor-map.css">
 <link rel="stylesheet" href="/static/dist/floor-index.css?v=<%= it.BUILD_TAG || Date.now() %>">
 <link rel="stylesheet" href="/static/dist/floor-floor-view-app.css?v=<%= it.BUILD_TAG || Date.now() %>">
 
