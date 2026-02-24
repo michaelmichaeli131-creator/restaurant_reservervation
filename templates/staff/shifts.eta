@@ -1,6 +1,17 @@
 <% layout("../_layout", it) %>
 
 <%
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t === "function"){
+        const s = it.t(k);
+        if (!s || s === k || s === `(${k})`) return fb;
+        return s;
+      }
+    } catch(e){}
+    return fb;
+  }
+
   const staff = it.staff;
   const restaurant = it.restaurant;
 %>
@@ -33,12 +44,12 @@
     <div class="card availCard" id="availCard" style="margin-top:14px">
       <div class="avail-hdr">
         <div>
-          <div class="avail-title">🗓️ העדפות זמינות</div>
+          <div class="avail-title">🗓️ <%= tt('shifts.avail_title', 'העדפות זמינות') %></div>
           <div class="muted" style="margin-top:6px">
-            סמן ימים שבהם נוח לך לעבוד ובחר העדפה (בוקר/צהריים/ערב/לילה). המנהל יראה זאת בהמלצות.
+            <%= tt('shifts.avail_subtitle', 'סמן ימים שבהם נוח לך לעבוד ובחר העדפה (בוקר/צהריים/ערב/לילה). המנהל יראה זאת בהמלצות.') %>
           </div>
         </div>
-        <button class="btn primary sm" id="saveAvail" type="button">שמירה</button>
+        <button class="btn primary sm" id="saveAvail" type="button"><%= tt('common.btn_save', 'שמירה') %></button>
       </div>
 
       <div id="availabilityMsg" class="muted" style="margin-top:8px"></div>
@@ -131,7 +142,7 @@
       html.push('  <div class="day-h">' + esc(fmtDayLabel(d)) + '<span class="day-iso">' + esc(iso) + '</span></div>');
 
       if(!list.length){
-        html.push('  <div class="empty">אין משמרות</div>');
+        html.push('  <div class="empty"><%= tt("shifts.no_shifts", "אין משמרות") %></div>');
       } else {
         html.push('  <div class="shlist">');
         for(const s of list){

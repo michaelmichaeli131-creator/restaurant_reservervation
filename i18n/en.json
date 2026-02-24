@@ -164,7 +164,11 @@
         "amount": "Amount",
         "actions": "Actions"
       },
-      "empty": "No bills yet"
+      "empty": "No bills yet",
+      "aria": "Restaurant Bills",
+      "title": "Bills",
+      "btn_print": "Print",
+      "confirm_delete": "Delete this bill?"
     },
     "inventory": {
       "title": "Raw Materials Inventory",
@@ -314,7 +318,9 @@
         "note": "Note",
         "hourly_rate": "Hourly Rate"
       },
-      "error_prefix": "Error"
+      "error_prefix": "Error",
+      "ph_note": "Manual correction...",
+      "ph_rate": "e.g. 45"
     }
   },
   "pos": {
@@ -438,7 +444,8 @@
     "success_seat_multi": "Reservation seated at tables",
     "check_opened": "Check opened.",
     "checks_opened": "Checks opened accordingly.",
-    "err_network_seat": "Network error during seating."
+    "err_network_seat": "Network error during seating.",
+    "err_update_status_prefix": "Error updating table status"
   },
   "restaurant": {
     "menu": {
@@ -739,7 +746,9 @@
     "note_placeholder": "e.g.: spilled / counting error",
     "btn_save_draft": "Save Draft",
     "btn_finalize": "Close Count & Apply Adjustments",
-    "already_closed": "Count is already closed, cannot edit."
+    "already_closed": "Count is already closed, cannot edit.",
+    "count_label": "Count",
+    "confirm_finalize": "Close count and apply inventory adjustments? This action cannot be undone."
   },
   "counts": {
     "aria": "Inventory Counts",
@@ -854,7 +863,10 @@
     "tbl_created": "Created At",
     "tbl_expected": "Expected Delivery",
     "tbl_delivered": "Delivered At",
-    "btn_open": "Open Order"
+    "btn_open": "Open Order",
+    "lbl_notes": "Order Notes",
+    "ph_notes": "e.g.: Delivery Thursday morning, put in middle fridge",
+    "lead_time_hint": "If no expected delivery date is set, the system can use the supplier's typical lead time (leadTimeDays)."
   },
   "shifts": {
     "title": "Shift Management",
@@ -920,7 +932,9 @@
       "checked_out": "Checked Out",
       "cancelled": "Cancelled",
       "called_out": "Called Out"
-    }
+    },
+    "avail_title": "Availability Preferences",
+    "avail_subtitle": "Mark days when you're available to work and select preference (morning/afternoon/evening/night). The manager will see this in recommendations."
   },
   "staff": {
     "dashboard": {
@@ -967,6 +981,7 @@
     "tip_disclaimer": "The tip is not calculated in the accounting system — this is for display purposes only.",
     "thank_you": "Thank you for choosing",
     "us": "us",
+    "table_prefix": "Table",
     "legal_note": "For internal & customer use. This is not a substitute for a legal tax invoice.",
     "vat": "VAT",
     "tip_label": "Tip:",
@@ -981,5 +996,27 @@
       "no_photos": "No photos uploaded",
       "set_tip": "Set as cover image"
     }
+  },
+  "restaurant_new": {
+    "title": "Open a New Restaurant",
+    "subtitle": "Fill in basic details, you can complete them later.",
+    "btn_back": "Back to Dashboard",
+    "form": {
+      "name": "Restaurant Name",
+      "city": "City",
+      "address": "Address",
+      "phone": "Phone",
+      "capacity": "Capacity (seats)",
+      "intervals": "Slot Intervals (minutes)",
+      "duration": "Service Duration (minutes)",
+      "description": "Description",
+      "photos": "Photos (optional) — URLs, separated by comma/newline"
+    },
+    "ph": {
+      "city": "Tel Aviv",
+      "address": "Dizengoff 100",
+      "description": "Short description..."
+    },
+    "btn_create": "Create Restaurant"
   }
 }

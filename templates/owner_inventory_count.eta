@@ -31,9 +31,9 @@
   <div class="card">
     <header class="owner-hd">
       <div>
-        <h1><%= tt('count.title', 'Inventory Count') %> · <%= restaurant.name || 'מסעדה' %></h1>
+        <h1><%= tt('count.title', 'Inventory Count') %> · <%= restaurant.name || tt('common.restaurant', 'מסעדה') %></h1>
         <p class="muted">
-          ספירה <strong>#<%= String(session.id||'').slice(0,8) %></strong>
+          <%= tt('count.count_label', 'ספירה') %> <strong>#<%= String(session.id||'').slice(0,8) %></strong>
           • <%= tt('count.status', 'Status') %>: <strong><%= session.status || 'draft' %></strong>
           <% if (session.note) { %> • <%= tt('count.note_label', 'Note') %>: <strong><%= session.note %></strong><% } %>
         </p>
@@ -274,7 +274,7 @@
     var btnFinalize = document.getElementById('btn-finalize');
     if(btnFinalize){
       btnFinalize.addEventListener('click', function(ev){
-        var ok = confirm('לסגור ספירה ולהחיל התאמות במלאי? פעולה זו לא ניתנת לביטול.');
+        var ok = confirm('<%= tt("count.confirm_finalize", "לסגור ספירה ולהחיל התאמות במלאי? פעולה זו לא ניתנת לביטול.") %>');
         if(!ok) ev.preventDefault();
       });
     }

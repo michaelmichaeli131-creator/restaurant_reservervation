@@ -696,7 +696,7 @@
       ids = Array.from(state.selectedTableIds.values());
     }
     if (!ids.length) {
-      alert("בחר שולחן אחד לפחות במפה.");
+      alert('<%= tt("host.err_select_table", "בחר שולחן אחד לפחות במפה.") %>');
       return;
     }
 
@@ -715,7 +715,7 @@
       try { window.dispatchEvent(new Event("sb-floor-refresh")); } catch(_e) {}
     } catch (e) {
       console.error(e);
-      alert("שגיאה בעדכון סטטוס שולחן: " + (e && e.message ? e.message : "unknown"));
+      alert('<%= tt("host.err_update_status_prefix", "שגיאה בעדכון סטטוס שולחן") %>: ' + (e && e.message ? e.message : "unknown"));
     }
   }
 

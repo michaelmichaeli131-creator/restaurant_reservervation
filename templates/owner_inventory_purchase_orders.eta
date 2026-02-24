@@ -77,33 +77,33 @@
         </label>
 
         <label class="lbl" style="min-width:260px;flex:1">
-          הערות להזמנה
-          <input name="note" placeholder="לדוגמה: משלוח ליום חמישי בבוקר, לשים במקרר האמצעי">
+          <%= tt('po_list.lbl_notes', 'הערות להזמנה') %>
+          <input name="note" placeholder="<%= tt('po_list.ph_notes', 'לדוגמה: משלוח ליום חמישי בבוקר, לשים במקרר האמצעי') %>">
         </label>
 
-        <button class="btn primary sm" type="submit">➕ צור הזמנה</button>
+        <button class="btn primary sm" type="submit">➕ <%= tt('po_list.btn_create', 'צור הזמנה') %></button>
       </form>
       <p class="muted small" style="margin-top:8px">
-        אם לא הוזן תאריך צפי, המערכת יכולה להשתמש בזמן האספקה הטיפוסי של הספק (leadTimeDays).
+        <%= tt('po_list.lead_time_hint', 'אם לא הוזן תאריך צפי, המערכת יכולה להשתמש בזמן האספקה הטיפוסי של הספק (leadTimeDays).') %>
       </p>
     </div>
 
     <!-- רשימת הזמנות -->
     <div class="panel card" style="margin-top:16px">
-      <h2 class="card-title">כל הזמנות הרכש</h2>
+      <h2 class="card-title"><%= tt('po_list.all_orders', 'כל הזמנות הרכש') %></h2>
 
       <% if (!pos.length) { %>
-        <p class="muted">עדיין אין הזמנות רכש. צור הזמנה חדשה למעלה.</p>
+        <p class="muted"><%= tt('po_list.empty', 'עדיין אין הזמנות רכש. צור הזמנה חדשה למעלה.') %></p>
       <% } else { %>
 
         <div class="table">
           <div class="tr th">
-            <div>מס׳ הזמנה</div>
-            <div>ספק</div>
-            <div>סטטוס</div>
-            <div>נוצר בתאריך</div>
-            <div>צפי אספקה</div>
-            <div>סופק בתאריך</div>
+            <div><%= tt('po_list.tbl_order_num', 'מס׳ הזמנה') %></div>
+            <div><%= tt('po_list.tbl_supplier', 'ספק') %></div>
+            <div><%= tt('po_list.tbl_status', 'סטטוס') %></div>
+            <div><%= tt('po_list.tbl_created', 'נוצר בתאריך') %></div>
+            <div><%= tt('po_list.tbl_expected', 'צפי אספקה') %></div>
+            <div><%= tt('po_list.tbl_delivered', 'סופק בתאריך') %></div>
             <div></div>
           </div>
 
@@ -140,7 +140,7 @@
                   class="btn primary sm"
                   href="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= esc(po.id) %>"
                 >
-                  פתיחת הזמנה
+                  <%= tt('po_list.btn_open', 'פתיחת הזמנה') %>
                 </a>
               </div>
             </div>

@@ -30,7 +30,7 @@
   <div class="card">
     <header class="owner-hd">
       <div>
-        <h1><%= tt('counts.title', 'Inventory Counts') %> · <%= restaurant.name || 'מסעדה' %></h1>
+        <h1><%= tt('counts.title', 'Inventory Counts') %> · <%= restaurant.name || tt('common.restaurant', 'מסעדה') %></h1>
         <p class="muted">
           <%= tt('counts.subtitle', 'Here you can create an Inventory Count session and manage periodic counts. On the next page you will enter the actual count table (Actual vs Expected).') %>
         </p>

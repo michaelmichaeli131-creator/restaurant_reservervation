@@ -32,6 +32,7 @@
       data-rid="<%= rid %>"
       data-table="<%= tbl %>"
       data-currency="<%= tt('common.currency', '₪') %>"
+      data-items-unit="<%= tt('common.items_unit', 'פריטים') %>"
     >
       <span id="bill-items"><%= totals.itemsCount %> <%= tt('pos.waiter.items_count', 'פריטים') %></span>
       <span>•</span>

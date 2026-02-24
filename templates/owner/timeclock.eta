@@ -131,10 +131,10 @@
         <input id="outTime" placeholder="17:00" />
 
         <label><%= tt('owner.timeclock.edit.note', 'הערה') %></label>
-        <input id="note" placeholder="תיקון ידני..." />
+        <input id="note" placeholder="<%= tt('owner.timeclock.ph_note', 'תיקון ידני...') %>" />
 
         <label><%= tt('owner.timeclock.edit.hourly_rate', 'שכר לשעה (אופציונלי)') %></label>
-        <input id="hourlyRate" type="number" min="0" step="0.5" placeholder="למשל 45" />
+        <input id="hourlyRate" type="number" min="0" step="0.5" placeholder="<%= tt('owner.timeclock.ph_rate', 'למשל 45') %>" />
       </div>
 
       <div id="err" class="err hidden"></div>
