@@ -62,15 +62,15 @@
       </div>
       <div class="stat">
         <div class="k"><%= tt('count.expected_value', 'Expected Value') %></div>
-        <div class="v">₪ <%= num(summary.expectedValue, 2) %></div>
+        <div class="v"><%= tt('common.currency', '₪') %> <%= num(summary.expectedValue, 2) %></div>
       </div>
       <div class="stat">
         <div class="k"><%= tt('count.actual_value', 'Actual Value (display)') %></div>
-        <div class="v">₪ <%= num(summary.actualValue, 2) %></div>
+        <div class="v"><%= tt('common.currency', '₪') %> <%= num(summary.actualValue, 2) %></div>
       </div>
       <div class="stat wide">
         <div class="k"><%= tt('count.delta_value', 'Δ Value (Actual-Expected)') %></div>
-        <div class="v" id="delta-val">₪ <%= num(summary.deltaValue, 2) %></div>
+        <div class="v" id="delta-val"><%= tt('common.currency', '₪') %> <%= num(summary.deltaValue, 2) %></div>
         <div class="muted small" id="delta-hint"><%= tt('count.delta_hint', 'Delta updates in real-time as you type.') %></div>
       </div>
     </div>
@@ -95,7 +95,7 @@
             <div>Actual</div>
             <div>Δ Qty</div>
             <div><%= tt('count.tbl_gap_type', 'Gap Type') %></div>
-            <div>₪ Δ</div>
+            <div><%= tt('common.currency', '₪') %> Δ</div>
             <div><%= tt('count.tbl_note', 'Note') %></div>
           </div>
 
@@ -148,7 +148,7 @@
               </div>
 
               <div class="td">
-                <span class="mono diffval"><%= (diffVal===null ? '—' : ('₪ ' + num(diffVal, 2))) %></span>
+                <span class="mono diffval"><%= (diffVal===null ? '—' : (tt('common.currency', '₪') + ' ' + num(diffVal, 2))) %></span>
               </div>
 
               <div class="td">
@@ -178,6 +178,7 @@
 
 <script>
   (function(){
+    var currency = '<%= tt("common.currency", "₪") %>';
     var form = document.getElementById('count-form');
     if(!form) return;
 
@@ -221,7 +222,7 @@
       }
       if(diffVal){
         var dv = (diff === null) ? null : (diff * cost);
-        diffVal.textContent = (dv === null) ? '—' : ('₪ ' + dv.toFixed(2));
+        diffVal.textContent = (dv === null) ? '—' : (currency + ' ' + dv.toFixed(2));
       }
 
       // waste only makes sense for negative diffs
@@ -248,7 +249,7 @@
       });
 
       var delta = actualValue - expectedValue;
-      if(deltaEl) deltaEl.textContent = '₪ ' + delta.toFixed(2);
+      if(deltaEl) deltaEl.textContent = currency + ' ' + delta.toFixed(2);
     }
 
     rows.forEach(function(r){

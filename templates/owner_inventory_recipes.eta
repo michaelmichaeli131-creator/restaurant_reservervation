@@ -136,7 +136,7 @@
                     </div>
                     <% if (mi.price) { %>
                       <div class="recipe-sub muted">
-                        <%= tt('recipes.menu_price', 'Menu price:') %> <%= Number(mi.price).toFixed(2) %> ₪
+                        <%= tt('recipes.menu_price', 'Menu price:') %> <%= Number(mi.price).toFixed(2) %> <%= tt('common.currency', '₪') %>
                       </div>
                     <% } %>
                   </div>

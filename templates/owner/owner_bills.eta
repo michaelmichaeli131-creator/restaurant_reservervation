@@ -52,7 +52,7 @@ function formatDateTime(ts){
                 <td>
                   <%= (b.totals && typeof b.totals.total==='number'
                       ? b.totals.total.toFixed(2)
-                      : (b.totals?.subtotal ?? 0).toFixed(2)) %> ₪
+                      : (b.totals?.subtotal ?? 0).toFixed(2)) %> <%= tt('common.currency', '₪') %>
                 </td>
                 <td class="bills-actions">
                   <a class="btn ghost sm" href="/owner/<%= it.restaurant.id %>/bills/<%= b.id %>">

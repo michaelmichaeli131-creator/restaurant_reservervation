@@ -303,7 +303,7 @@ export default function RestaurantLiveView({ restaurantId }: RestaurantLiveViewP
 
   const formatPrice = (amount?: number): string => {
     if (amount == null) return '';
-    return `₪${amount.toFixed(0)}`;
+    return `${t('common.currency', '₪')}${amount.toFixed(0)}`;
   };
 
   const isCellActive = (x: number, y: number) => {

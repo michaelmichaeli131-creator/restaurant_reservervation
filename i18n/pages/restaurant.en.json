@@ -21,7 +21,7 @@
       "hint": "Click a time to copy it to the field."
     },
     "about": { "title": "About the Restaurant" },
-    "menu": { "title": "Menu", "currency": "₪" },
+    "menu": { "title": "Menu", "currency": "$" },
     "photos": { "title": "Photos", "alt": "Restaurant photo" }
   }
 }

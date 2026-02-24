@@ -29,7 +29,8 @@
     "people_unit": "Guests",
     "items_unit": "Items",
     "restaurant": "Restaurant",
-    "all": "All"
+    "all": "All",
+    "currency": "$"
   },
   "lang": {
     "hebrew": "\u05e2\u05d1\u05e8\u05d9\u05ea",
@@ -146,7 +147,7 @@
       "page_title": "Edit Menu \u2014",
       "label_name_en": "Name (EN)",
       "label_name_he": "Name (HE)",
-      "label_price": "Price (\u20aa)",
+      "label_price": "Price ($)",
       "no_name": "(No name)",
       "no_category": "(None)",
       "tbl": {
@@ -202,7 +203,7 @@
       "override_monthly": "Monthly Override (explicit \u2014 overrides auto)",
       "override_on": "Active",
       "override_off": "Off",
-      "override_amount_label": "Manual amount (\u20aa) \u2014 leave empty to revert to auto",
+      "override_amount_label": "Manual amount ($) \u2014 leave empty to revert to auto",
       "override_placeholder": "Leave empty = auto",
       "override_note_label": "Note (optional)",
       "override_note_placeholder": "e.g.: correction / irregular invoice",
@@ -731,7 +732,7 @@
     "tbl_gap_type": "Gap Type",
     "tbl_note": "Note",
     "unit_label": "Unit",
-    "no_cost_warning": "No unit cost (₪Δ calculation will be 0)",
+    "no_cost_warning": "No unit cost ($Δ calculation will be 0)",
     "placeholder_hint": "Placeholder = Expected",
     "waste_desc": "spoilage/theft",
     "waste_hint": "Waste only works if Δ is negative",

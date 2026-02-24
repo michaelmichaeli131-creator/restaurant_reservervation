@@ -47,7 +47,7 @@
         <% it.items.forEach(m => { %>
           <tr>
             <td><%= m.name_he || m.name_en %></td>
-            <td><%= (m.price || 0).toFixed(2) %> ₪</td>
+            <td><%= (m.price || 0).toFixed(2) %> <%= tt('common.currency', '₪') %></td>
             <td><%= m.destination %></td>
             <td><%= (it.cats.find(c=>c.id===m.categoryId)?.name_he || it.cats.find(c=>c.id===m.categoryId)?.name_en || '-') %></td>
             <td>

@@ -102,10 +102,10 @@
                 <td class="col-qty"><%= q %></td>
                 <td class="col-name"><%= itm.name || tt('bill.unnamed_item','Unnamed item') %></td>
                 <td class="col-unit">
-                  ₪ <%= up.toFixed(2) %>
+                  <%= tt('common.currency', '₪') %> <%= up.toFixed(2) %>
                 </td>
                 <td class="col-total">
-                  ₪ <%= lineTotal.toFixed(2) %>
+                  <%= tt('common.currency', '₪') %> <%= lineTotal.toFixed(2) %>
                 </td>
               </tr>
             <% }) %>
@@ -124,7 +124,7 @@
           <div class="summary-row">
             <span class="label"><%= tt('bill.subtotal','Subtotal (before tip):') %></span>
             <span class="value mono" id="sb-subtotal">
-              ₪ <%= subtotal.toFixed(2) %>
+              <%= tt('common.currency', '₪') %> <%= subtotal.toFixed(2) %>
             </span>
           </div>
 
@@ -153,7 +153,7 @@
               <span class="tip-hint"><%= tt('bill.tip_fixed_hint','You can also enter a manual amount') %></span>
             </div>
             <div class="tip-input-wrap">
-              <span class="prefix">₪</span>
+              <span class="prefix"><%= tt('common.currency', '₪') %></span>
               <input
                 id="tipFixed"
                 type="number"
@@ -170,14 +170,14 @@
           <div class="summary-row">
             <span class="label"><%= tt('bill.total_tip','Total Tip:') %></span>
             <span class="value mono" id="sb-tip-display">
-              ₪ <%= (subtotal * 0.10).toFixed(2) %>
+              <%= tt('common.currency', '₪') %> <%= (subtotal * 0.10).toFixed(2) %>
             </span>
           </div>
 
           <div class="summary-row total-row">
             <span class="label strong"><%= tt('bill.grand_total','Grand Total:') %></span>
             <span class="value mono strong" id="sb-grand-total">
-              ₪ <%= (subtotal * 1.10).toFixed(2) %>
+              <%= tt('common.currency', '₪') %> <%= (subtotal * 1.10).toFixed(2) %>
             </span>
           </div>
 
@@ -204,9 +204,10 @@
     var tipDisplay    = document.getElementById('sb-tip-display');
     var grandTotalEl  = document.getElementById('sb-grand-total');
 
+    var currency = '<%= tt("common.currency", "₪") %>';
     function formatMoney(v){
       if (!isFinite(v)) v = 0;
-      return '₪ ' + v.toFixed(2);
+      return currency + ' ' + v.toFixed(2);
     }
 
     function recalcFromPercent(){

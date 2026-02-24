@@ -92,7 +92,7 @@
     <section class="kpi-grid" aria-label="<%= tt('stats.kpi_aria', 'Key metrics') %>">
       <div class="kpi-card">
         <div class="kpi-label"><%= tt('stats.total_revenue', 'Total Revenue') %></div>
-        <div class="kpi-value main">₪ <%= totalRevenue.toFixed(2) %></div>
+        <div class="kpi-value main"><%= tt('common.currency', '₪') %> <%= totalRevenue.toFixed(2) %></div>
         <div class="kpi-sub muted">
           <%= billsCount %> <%= tt('stats.bills_closed', 'bills closed') %>
         </div>
@@ -100,7 +100,7 @@
 
       <div class="kpi-card">
         <div class="kpi-label"><%= tt('stats.avg_check', 'Average Check per Guest') %></div>
-        <div class="kpi-value main">₪ <%= avgBill.toFixed(2) %></div>
+        <div class="kpi-value main"><%= tt('common.currency', '₪') %> <%= avgBill.toFixed(2) %></div>
         <div class="kpi-sub muted">
           <%= tt('stats.avg_check_note', 'Calculated from all bills in range') %>
         </div>
@@ -115,7 +115,7 @@
           </div>
           <div class="kpi-bar-legend">
             <span class="muted">0</span>
-            <span class="muted"><%= tt('stats.target_estimate', 'Target estimate') %>: ₪ <%= target.toFixed(0) %></span>
+            <span class="muted"><%= tt('stats.target_estimate', 'Target estimate') %>: <%= tt('common.currency', '₪') %> <%= target.toFixed(0) %></span>
           </div>
         </div>
       </div>
@@ -129,7 +129,7 @@
                 <span class="dot"></span>
                 <span><%= d.dayName %></span>
                 <span class="mono mini-amount">
-                  ₪ <%= Number(d.revenue ?? 0).toFixed(0) %>
+                  <%= tt('common.currency', '₪') %> <%= Number(d.revenue ?? 0).toFixed(0) %>
                 </span>
               </li>
             <% }) %>
@@ -155,7 +155,7 @@
                 <div class="bar-track">
                   <div class="bar-fill" style="width:<%= pct %>%"></div>
                 </div>
-                <span class="bar-value mono">₪ <%= rev.toFixed(0) %></span>
+                <span class="bar-value mono"><%= tt('common.currency', '₪') %> <%= rev.toFixed(0) %></span>
               </div>
             <% }) %>
           </div>
@@ -185,7 +185,7 @@
                 <div class="bar-track">
                   <div class="bar-fill alt" style="width:<%= pct %>%"></div>
                 </div>
-                <span class="bar-value mono">₪ <%= localAvg.toFixed(0) %></span>
+                <span class="bar-value mono"><%= tt('common.currency', '₪') %> <%= localAvg.toFixed(0) %></span>
               </div>
             <% }) %>
           </div>
@@ -234,7 +234,7 @@
             %>
               <div class="heat-cell" style="--i:<%= pct %>">
                 <div class="heat-hour"><%= hour %>:00</div>
-                <div class="heat-rev mono">₪ <%= rev.toFixed(0) %></div>
+                <div class="heat-rev mono"><%= tt('common.currency', '₪') %> <%= rev.toFixed(0) %></div>
                 <div class="heat-count muted small"><%= count %> <%= tt('stats.bills_unit', 'bills') %></div>
               </div>
             <% }) %>
@@ -262,7 +262,7 @@
                   <div class="bar-fill weekday" style="width:<%= pct %>%"></div>
                 </div>
                 <span class="bar-value mono">
-                  ₪ <%= rev.toFixed(0) %> · <%= cnt %> <%= tt('stats.bills_unit', 'bills') %>
+                  <%= tt('common.currency', '₪') %> <%= rev.toFixed(0) %> · <%= cnt %> <%= tt('stats.bills_unit', 'bills') %>
                 </span>
               </div>
             <% }) %>

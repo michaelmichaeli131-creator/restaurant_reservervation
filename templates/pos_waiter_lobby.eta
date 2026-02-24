@@ -92,7 +92,7 @@
                       <span>• <%= itemsCount %> <%= tt('pos.waiter.items_count', 'Items') %></span>
                     <% } %>
                     <% if (subtotal !== "" && subtotal != null) { %>
-                      <span>• <%= subtotal %> ₪</span>
+                      <span>• <%= subtotal %> <%= tt('common.currency', '₪') %></span>
                     <% } %>
                   </div>
                 </button>

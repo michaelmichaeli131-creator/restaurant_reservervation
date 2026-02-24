@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import './TableContextMenu.css';
+import { t } from '../i18n';
 
 interface TableStatus {
   tableId: string;
@@ -113,7 +114,7 @@ export default function TableContextMenu({
               </div>
               <div className="info-row">
                 <span className="label">Total:</span>
-                <span className="value">₪{(table.orderTotal || 0).toFixed(0)}</span>
+                <span className="value">{t('common.currency', '₪')}{(table.orderTotal || 0).toFixed(0)}</span>
               </div>
             </div>
           )}

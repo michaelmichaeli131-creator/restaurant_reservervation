@@ -116,7 +116,7 @@
         "unit": "Unità di Misura",
         "current_qty": "Quantità Attuale",
         "min_qty": "Minimo Desiderato",
-        "cost_per_unit": "Costo per Unità (₪)",
+        "cost_per_unit": "Costo per Unità (€)",
         "supplier": "Fornitore Preferito",
         "notes": "Note"
       },

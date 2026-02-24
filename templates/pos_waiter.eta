@@ -31,10 +31,11 @@
       class="bill-summary"
       data-rid="<%= rid %>"
       data-table="<%= tbl %>"
+      data-currency="<%= tt('common.currency', '₪') %>"
     >
       <span id="bill-items"><%= totals.itemsCount %> <%= tt('pos.waiter.items_count', 'פריטים') %></span>
       <span>•</span>
-      <span id="bill-total"><%= totals.subtotal.toFixed(2) %> ₪</span>
+      <span id="bill-total"><%= totals.subtotal.toFixed(2) %> <%= tt('common.currency', '₪') %></span>
     </div>
 
     <div class="header-actions">
@@ -98,7 +99,7 @@
                   <% } else { %><%= row.status %><% } %>
                 </td>
                 <td class="col-total">
-                  <%= (row.unitPrice * row.quantity).toFixed(2) %> ₪
+                  <%= (row.unitPrice * row.quantity).toFixed(2) %> <%= tt('common.currency', '₪') %>
                 </td>
                 <td class="col-actions">
                   <% if (row.status === 'cancelled') { %>
@@ -148,6 +149,7 @@
     if (!root) return;
     const rid = root.dataset.rid;
     const table = <%= Number(tbl) %>;
+    const currency = '<%= tt("common.currency", "₪") %>';
     if (!rid || !table) return;
 
     async function loadMenu(){
@@ -197,7 +199,7 @@
             <div class="menu-item-name">${m.name_en || m.name_he || '<%= tt("pos.menu.dish", "Dish") %>'}</div>
             <div class="menu-item-desc muted">${m.desc_en || m.desc_he || ''}</div>
             <div class="menu-item-footer">
-              <span class="price">${Number(m.price || 0).toFixed(2)} ₪</span>
+              <span class="price">${Number(m.price || 0).toFixed(2)} ${currency}</span>
               <span class="dest">${m.destination === 'bar' ? '<%= tt('owner.menu.dest_bar', 'Bar') %>' : '<%= tt('owner.menu.dest_kitchen', 'Kitchen') %>'}</span>
             </div>
           `;
@@ -263,7 +265,7 @@
           </td>
           <td class="col-status"><%= tt('pos.status.received', 'Received') %></td>
           <td class="col-total">
-            ${(item.unitPrice * item.quantity).toFixed(2)} ₪
+            ${(item.unitPrice * item.quantity).toFixed(2)} ${currency}
           </td>
           <td class="col-actions">
             <button type="button" class="btn ghost btn-cancel-item">

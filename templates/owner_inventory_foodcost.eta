@@ -64,7 +64,7 @@
           </div>
           <div class="stat">
             <div class="k"><%= tt('foodcost.avg_food_cost', 'Avg Food Cost') %></div>
-            <div class="v">₪ <%= num(summary.avgFoodCost, 2) %></div>
+            <div class="v"><%= tt('common.currency', '₪') %> <%= num(summary.avgFoodCost, 2) %></div>
           </div>
           <div class="stat">
             <div class="k"><%= tt('foodcost.avg_margin', 'Avg Margin %') %></div>
@@ -90,7 +90,7 @@
               <div class="top-row">
                 <div class="top-meta">
                   <div class="top-name"><strong><%= x.name %></strong></div>
-                  <div class="top-sub muted small">₪ <%= num(x.foodCost, 2) %> • <%= tt('foodcost.price_label', 'Price') %>: ₪ <%= num(x.price, 2) %></div>
+                  <div class="top-sub muted small"><%= tt('common.currency', '₪') %> <%= num(x.foodCost, 2) %> • <%= tt('foodcost.price_label', 'Price') %>: <%= tt('common.currency', '₪') %> <%= num(x.price, 2) %></div>
                 </div>
                 <div class="bar"><div class="bar-fill" style="width:<%= pct %>%"></div></div>
               </div>
@@ -113,7 +113,7 @@
                 <div class="top-meta">
                   <div class="top-name"><strong><%= x.name %></strong></div>
                   <div class="top-sub muted small">
-                    <%= tt('foodcost.margin_label', 'Margin') %>: <%= num(x.marginPct, 1) %>% • ₪ <%= tt('foodcost.profit_label', 'Profit') %>: <%= num(x.gross, 2) %>
+                    <%= tt('foodcost.margin_label', 'Margin') %>: <%= num(x.marginPct, 1) %>% • <%= tt('common.currency', '₪') %> <%= tt('foodcost.profit_label', 'Profit') %>: <%= num(x.gross, 2) %>
                   </div>
                 </div>
                 <div class="bar"><div class="bar-fill green" style="width:<%= pct %>%"></div></div>
@@ -156,9 +156,9 @@
                   <div class="muted small"><%= tt('foodcost.badge_no_recipe', 'No recipe') %></div>
                 <% } %>
               </div>
-              <div class="td mono">₪ <%= num(r.price, 2) %></div>
-              <div class="td mono">₪ <%= num(r.foodCost, 2) %></div>
-              <div class="td mono">₪ <%= num(r.gross, 2) %></div>
+              <div class="td mono"><%= tt('common.currency', '₪') %> <%= num(r.price, 2) %></div>
+              <div class="td mono"><%= tt('common.currency', '₪') %> <%= num(r.foodCost, 2) %></div>
+              <div class="td mono"><%= tt('common.currency', '₪') %> <%= num(r.gross, 2) %></div>
               <div class="td mono"><%= (typeof r.marginPct === 'number' ? num(r.marginPct, 1) : '—') %>%</div>
               <div class="td">
                 <% if (st === 'ok') { %>

@@ -85,8 +85,8 @@ var qrUrl = qrData
               <tr>
                 <td class="col-name"><%= item.name %></td>
                 <td class="col-qty"><%= item.quantity %></td>
-                <td class="col-unit"><%= money(item.unitPrice) %> ₪</td>
-                <td class="col-total"><%= lineTotal(item) %> ₪</td>
+                <td class="col-unit"><%= money(item.unitPrice) %> <%= tt('common.currency', '₪') %></td>
+                <td class="col-total"><%= lineTotal(item) %> <%= tt('common.currency', '₪') %></td>
               </tr>
             <% }) %>
           <% } else { %>
@@ -104,24 +104,24 @@ var qrUrl = qrData
     <section class="receipt-summary">
       <div class="row">
         <span><%= tt('bill.subtotal', 'סיכום ביניים:') %></span>
-        <span><%= money(subtotal) %> ₪</span>
+        <span><%= money(subtotal) %> <%= tt('common.currency', '₪') %></span>
       </div>
       <% if (typeof taxRate === 'number' && typeof taxAmount === 'number') { %>
         <div class="row">
           <span><%= tt('bill.vat', 'מע״מ') %> (<%= (taxRate * 100).toFixed(0) %>%)</span>
-          <span><%= money(taxAmount) %> ₪</span>
+          <span><%= money(taxAmount) %> <%= tt('common.currency', '₪') %></span>
         </div>
       <% } %>
       <div class="row">
         <span><%= tt('bill.tip_label', 'טיפ:') %></span>
-        <span id="tip-amount-display">0.00 ₪</span>
+        <span id="tip-amount-display">0.00 <%= tt('common.currency', '₪') %></span>
       </div>
       <div class="row total">
         <span><%= tt('bill.grand_total', 'לתשלום:') %></span>
         <span
           id="receipt-total-value"
           data-base-total="<%= money(baseTotal) %>"
-        ><%= money(baseTotal) %> ₪</span>
+        ><%= money(baseTotal) %> <%= tt('common.currency', '₪') %></span>
       </div>
     </section>
 
@@ -204,6 +204,7 @@ var qrUrl = qrData
       document.querySelectorAll('.tip-btn')
     );
 
+    var currency = '<%= tt("common.currency", "₪") %>';
     var baseStr = totalEl ? (totalEl.getAttribute('data-base-total') || "0") : "0";
     // מורידים תווים לא מספריים (למקרה)
     baseStr = baseStr.replace(/[^\d.,-]/g,'').replace(',', '.');
@@ -228,8 +229,8 @@ var qrUrl = qrData
 
       var finalTotal = baseTotal + tipAmount;
 
-      tipAmountEl.textContent = tipAmount.toFixed(2) + " ₪";
-      totalEl.textContent = finalTotal.toFixed(2) + " ₪";
+      tipAmountEl.textContent = tipAmount.toFixed(2) + " " + currency;
+      totalEl.textContent = finalTotal.toFixed(2) + " " + currency;
     }
 
     if (tipPercentInput) {
