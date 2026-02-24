@@ -474,6 +474,12 @@
     }
   },
   "review": {
+    "success": {
+      "title": "Thank You for Your Review!",
+      "message": "Your review was submitted successfully and will appear on the restaurant page.",
+      "btn_back": "Back to Restaurant Page",
+      "btn_home": "Go to Homepage"
+    },
     "form": {
       "rating": "Rating",
       "title_heading": "How was your visit?",
@@ -493,7 +499,18 @@
   "auth": {
     "signup": {
       "title": "Sign Up",
-      "btn_submit": "Sign Up"
+      "btn_submit": "Sign Up",
+      "first_name": "First Name",
+      "last_name": "Last Name",
+      "username": "Username",
+      "age": "Age",
+      "business_type": "Business Type (for restaurant owners)",
+      "business_placeholder": "Restaurant / Bar / Cafe...",
+      "email": "Email",
+      "password": "Password",
+      "confirm_password": "Confirm Password",
+      "role": "Role",
+      "role_owner": "Restaurant Owner"
     },
     "register": {
       "form": {
@@ -949,7 +966,13 @@
     "tip_disclaimer": "The tip is not calculated in the accounting system — this is for display purposes only.",
     "thank_you": "Thank you for choosing",
     "us": "us",
-    "legal_note": "For internal & customer use. This is not a substitute for a legal tax invoice."
+    "legal_note": "For internal & customer use. This is not a substitute for a legal tax invoice.",
+    "vat": "VAT",
+    "tip_label": "Tip:",
+    "tip_note": "If you enter a fixed amount, it will override the percentage calculation. If left at 0 or empty, the percentage is used.",
+    "tip_fixed_placeholder": "e.g.: 20",
+    "payment_scan": "Payment by Scanning",
+    "qr_alt": "Payment QR code for scanning"
   },
   "admin": {
     "cover": {

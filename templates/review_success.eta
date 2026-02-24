@@ -1,18 +1,21 @@
 <% layout("_layout", it) %>
+<%
+function tt(k, fb) { var v = it.t ? it.t(k) : k; return (v && v !== k) ? v : fb; }
+%>
 
 <main class="success-page container">
   <div class="success-card">
     <div class="success-icon">✓</div>
-    <h1 class="title">תודה על הביקורת!</h1>
-    <p class="message">הביקורת שלך נשלחה בהצלחה ותופיע בדף המסעדה.</p>
+    <h1 class="title"><%= tt('review.success.title', 'תודה על הביקורת!') %></h1>
+    <p class="message"><%= tt('review.success.message', 'הביקורת שלך נשלחה בהצלחה ותופיע בדף המסעדה.') %></p>
 
     <% if (it.restaurant) { %>
       <div class="actions">
         <a href="/restaurants/<%= it.restaurant.id %>" class="btn primary">
-          חזרה לדף המסעדה
+          <%= tt('review.success.btn_back', 'חזרה לדף המסעדה') %>
         </a>
         <a href="/" class="btn ghost">
-          לדף הבית
+          <%= tt('review.success.btn_home', 'לדף הבית') %>
         </a>
       </div>
     <% } %>

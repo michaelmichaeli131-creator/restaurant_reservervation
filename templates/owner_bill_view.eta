@@ -1,6 +1,7 @@
 <% layout("_layout", it) %>
 
 <%
+function tt(k, fb) { var v = it.t ? it.t(k) : k; return (v && v !== k) ? v : fb; }
 function formatDate(ts){
   try{
     var d = new Date(ts);
@@ -42,7 +43,7 @@ var qrUrl = qrData
   : "";
 %>
 
-<section class="receipt-wrap" aria-label="חשבון מסעדה">
+<section class="receipt-wrap" aria-label="<%= tt('bill.aria', 'חשבון מסעדה') %>">
   <div class="receipt-card">
     <!-- כותרת מסעדה -->
     <header class="receipt-header">
@@ -51,7 +52,7 @@ var qrUrl = qrData
         <div class="restaurant-meta"><%= fullAddress %></div>
       <% } %>
       <% if (phone) { %>
-        <div class="restaurant-meta">טלפון: <%= phone %></div>
+        <div class="restaurant-meta"><%= tt('bill.phone', 'טלפון:') %> <%= phone %></div>
       <% } %>
     </header>
 
@@ -59,9 +60,9 @@ var qrUrl = qrData
 
     <!-- פרטי הזמנה -->
     <section class="receipt-meta">
-      <div><strong>תאריך:</strong> <%= formatDate(it.bill.createdAt) %></div>
-      <div><strong>שעה:</strong> <%= formatTime(it.bill.createdAt) %></div>
-      <div><strong>שולחן:</strong> <%= it.bill.table %></div>
+      <div><strong><%= tt('bill.date', 'תאריך:') %></strong> <%= formatDate(it.bill.createdAt) %></div>
+      <div><strong><%= tt('bill.time', 'שעה:') %></strong> <%= formatTime(it.bill.createdAt) %></div>
+      <div><strong><%= tt('bill.table', 'שולחן:') %></strong> <%= it.bill.table %></div>
     </section>
 
     <div class="receipt-sep dotted"></div>
@@ -71,10 +72,10 @@ var qrUrl = qrData
       <table>
         <thead>
           <tr>
-            <th class="col-name">פריט</th>
-            <th class="col-qty">כמות</th>
-            <th class="col-unit">מחיר</th>
-            <th class="col-total">סה״כ</th>
+            <th class="col-name"><%= tt('bill.tbl_item', 'פריט') %></th>
+            <th class="col-qty"><%= tt('bill.tbl_qty', 'כמות') %></th>
+            <th class="col-unit"><%= tt('bill.tbl_unit_price', 'מחיר') %></th>
+            <th class="col-total"><%= tt('bill.tbl_total', 'סה״כ') %></th>
           </tr>
         </thead>
         <tbody>
@@ -90,7 +91,7 @@ var qrUrl = qrData
             <% }) %>
           <% } else { %>
             <tr>
-              <td colspan="4" class="empty-row">אין פריטים בחשבון זה.</td>
+              <td colspan="4" class="empty-row"><%= tt('bill.no_items', 'אין פריטים בחשבון זה.') %></td>
             </tr>
           <% } %>
         </tbody>
@@ -102,21 +103,21 @@ var qrUrl = qrData
     <!-- סיכומים -->
     <section class="receipt-summary">
       <div class="row">
-        <span>סיכום ביניים:</span>
+        <span><%= tt('bill.subtotal', 'סיכום ביניים:') %></span>
         <span><%= money(subtotal) %> ₪</span>
       </div>
       <% if (typeof taxRate === 'number' && typeof taxAmount === 'number') { %>
         <div class="row">
-          <span>מע״מ (<%= (taxRate * 100).toFixed(0) %>%)</span>
+          <span><%= tt('bill.vat', 'מע״מ') %> (<%= (taxRate * 100).toFixed(0) %>%)</span>
           <span><%= money(taxAmount) %> ₪</span>
         </div>
       <% } %>
       <div class="row">
-        <span>טיפ:</span>
+        <span><%= tt('bill.tip_label', 'טיפ:') %></span>
         <span id="tip-amount-display">0.00 ₪</span>
       </div>
       <div class="row total">
-        <span>לתשלום:</span>
+        <span><%= tt('bill.grand_total', 'לתשלום:') %></span>
         <span
           id="receipt-total-value"
           data-base-total="<%= money(baseTotal) %>"
@@ -129,7 +130,7 @@ var qrUrl = qrData
       <div class="tip-row">
         <div class="tip-col">
           <label class="tip-label">
-            טיפ באחוזים (%):
+            <%= tt('bill.tip_pct', 'טיפ באחוזים (%):') %>
             <input
               id="tip-percent"
               type="number"
@@ -147,20 +148,20 @@ var qrUrl = qrData
         </div>
         <div class="tip-col">
           <label class="tip-label">
-            טיפ בסכום (₪):
+            <%= tt('bill.tip_fixed', 'טיפ בסכום (₪):') %>
             <input
               id="tip-fixed"
               type="number"
               min="0"
               step="1"
               value=""
-              placeholder="לדוגמה: 20"
+              placeholder="<%= tt('bill.tip_fixed_placeholder', 'לדוגמה: 20') %>"
             >
           </label>
         </div>
       </div>
       <small class="muted-tip">
-        אם תזין סכום קבוע (₪) – הוא יחליף את החישוב באחוזים. אם ישאר 0 או ריק – נחשב לפי אחוז.
+        <%= tt('bill.tip_note', 'אם תזין סכום קבוע (₪) – הוא יחליף את החישוב באחוזים. אם ישאר 0 או ריק – נחשב לפי אחוז.') %>
       </small>
     </section>
 
@@ -168,14 +169,14 @@ var qrUrl = qrData
 
     <!-- ברקוד / QR לתשלום -->
     <section class="receipt-payment">
-      <div class="payment-title">תשלום באמצעות סריקה</div>
+      <div class="payment-title"><%= tt('bill.payment_scan', 'תשלום באמצעות סריקה') %></div>
       <% if (qrUrl) { %>
         <div class="qr-wrap">
-          <img src="<%= qrUrl %>" alt="קוד תשלום לסריקה" />
+          <img src="<%= qrUrl %>" alt="<%= tt('bill.qr_alt', 'קוד תשלום לסריקה') %>" />
         </div>
       <% } else { %>
         <div class="payment-code">
-          <small>קוד תשלום:</small>
+          <small><%= tt('bill.payment_code', 'קוד תשלום:') %></small>
           <div class="code-box"><%= qrData %></div>
         </div>
       <% } %>
@@ -184,8 +185,8 @@ var qrUrl = qrData
     <!-- כפתורי ניווט / הדפסה (רק במצב רגיל, לא ב-printMode) -->
     <% if (!it.printMode) { %>
       <div class="receipt-actions no-print">
-        <a class="btn ghost" href="/owner/<%= it.restaurant.id %>/bills">← חזרה לרשימת חשבונות</a>
-        <button class="btn primary" type="button" onclick="window.print()">הדפס</button>
+        <a class="btn ghost" href="/owner/<%= it.restaurant.id %>/bills">← <%= tt('bill.btn_back_bills', 'חזרה לרשימת חשבונות') %></a>
+        <button class="btn primary" type="button" onclick="window.print()"><%= tt('bill.btn_print', 'הדפס') %></button>
       </div>
     <% } %>
   </div>
