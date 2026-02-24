@@ -59,3 +59,54 @@
     margin-top: 12px;
   }
 }
+
+
+/* =========================================================
+   Hostess parity with Waiter map:
+   Make ALL table overlays fully transparent so they never
+   cover neighboring table status indicators.
+   (Host page wrapper: .host.container)
+   ========================================================= */
+.host .sb-floor-view .table,
+.host .sb-floor-view .table.selected{
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.host .sb-floor-view .table.selected{
+  /* keep outline only (color handled elsewhere / defaults) */
+  border-color: transparent !important;
+}
+
+.host .sb-floor-view .table::before,
+.host .sb-floor-view .table::after{
+  background: transparent !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+/* Pills/labels under tables (section/status) must be transparent */
+.host .sb-floor-view .table-section,
+.host .sb-floor-view .sbv-status-pill,
+.host .sb-floor-view .sbv-pill,
+.host .sb-floor-view .sbv-status-row{
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Make text readable without a background (no blur) */
+.host .sb-floor-view .table-section,
+.host .sb-floor-view .sbv-status-pill,
+.host .sb-floor-view .sbv-pill{
+  text-shadow: 0 1px 2px rgba(0,0,0,.55);
+}
+
+/* Remove any glow/blur on assets inside the map (host only) */
+.host .sb-floor-view .fe-asset,
+.host .sb-floor-view svg,
+.host .sb-floor-view img{
+  filter: none !important;
+}
