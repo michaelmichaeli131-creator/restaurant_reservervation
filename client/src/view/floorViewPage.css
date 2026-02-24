@@ -190,6 +190,17 @@
 */
 .floor-table{ outline: none; box-shadow: none; }
 
+/*
+  IMPORTANT (Hostess parity / visibility fix):
+  In view mode, table "tiles" must not have a semi-transparent background,
+  otherwise they visually cover neighboring tables' status pills when they overlap.
+  Scope this ONLY to .sb-floor-view so the editor page keeps its default styling.
+*/
+.sb-floor-view .table{
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 /* Default selected outline ("empty" = green) */
 .floor-table.is-selected{ outline: 2px solid rgba(34,197,94,.90); box-shadow: none; }
 
