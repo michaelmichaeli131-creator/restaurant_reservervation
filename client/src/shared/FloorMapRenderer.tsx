@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import '../components/FloorEditor.css';
 
 export interface FloorTableLike {
@@ -482,50 +482,6 @@ export default function FloorMapRenderer({
     return { status: 'empty' };
   };
 
-  // Fix #2 (robust parity between Host/Waiter):
-  // Render *all* per-table status pills in a dedicated overlay layer above the tables.
-  // This prevents any table "envelope"/background from covering neighboring pills when
-  // tables are close or visually overlap.
-  const statusOverlay: ReactNode[] = [];
-  if (mode === 'view') {
-    for (const t of (layout.tables || [])) {
-      const st = getStatusFor(t);
-      const status = String(st.status || 'empty');
-      const pillText = (() => {
-        if (status === 'occupied') return 'תפוס';
-        if (status === 'reserved') return 'שמור';
-        if (status === 'dirty') return 'מלוכלך';
-        return 'פנוי';
-      })();
-      const count = st.guestCount != null && st.guestCount !== '' ? ` · ${st.guestCount}` : '';
-
-      const x = Math.max(0, Number(t.gridX) || 0) * cellSize;
-      const y = Math.max(0, Number(t.gridY) || 0) * cellSize;
-      const w = spanToPx(Number(t.spanX) || 1);
-      const h = spanToPx(Number(t.spanY) || 1);
-
-      statusOverlay.push(
-        <div
-          key={`sbv-status-${String((t as any).id ?? `${t.gridX}-${t.gridY}`)}`}
-          className="sbv-status-anchor"
-          style={{
-            position: 'absolute',
-            left: x,
-            top: y,
-            width: w,
-            height: h,
-            pointerEvents: 'none',
-          }}
-        >
-          <div className={`sbv-status-pill is-${status}`}>
-            <span className="sbv-dot" />
-            <span className="sbv-status-text">{pillText}{count}</span>
-          </div>
-        </div>
-      );
-    }
-  }
-
   return (
     <div
       className={`editor-canvas ${isPanning ? 'is-panning' : ''}`}
@@ -639,6 +595,14 @@ export default function FloorMapRenderer({
                 const st = getStatusFor(tableHere);
                 const status = String(st.status || 'empty');
                 const selected = selectedTableId && String(selectedTableId) === String(tableHere.id);
+                const showPill = mode === 'view';
+                const pillText = (() => {
+                  if (status === 'occupied') return 'תפוס';
+                  if (status === 'reserved') return 'שמור';
+                  if (status === 'dirty') return 'מלוכלך';
+                  return 'פנוי';
+                })();
+                const count = st.guestCount != null && st.guestCount !== '' ? ` · ${st.guestCount}` : '';
                 return (
                   <div
                     className={`table floor-table status-${status} ${String(tableHere.shape || 'square')} ${selected ? 'is-selected' : ''}`}
@@ -666,26 +630,18 @@ export default function FloorMapRenderer({
                       <div className="table-label">{tableHere.name || (tableHere.tableNumber != null ? `Table ${tableHere.tableNumber}` : 'Table')}</div>
                       {tableHere.seats != null && <div className="table-seats">{tableHere.seats} seats</div>}
                     </div>
+                    {showPill && (
+                      <div className={`sbv-status-pill is-${status}`}>
+                        <span className="sbv-dot" />
+                        <span className="sbv-status-text">{pillText}{count}</span>
+                      </div>
+                    )}
                   </div>
                 );
               })()}
             </div>
           );
         })}
-
-        {mode === 'view' && statusOverlay.length > 0 && (
-          <div
-            className="sbv-status-layer"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              zIndex: 999,
-              pointerEvents: 'none',
-            }}
-          >
-            {statusOverlay}
-          </div>
-        )}
       </div>
     </div>
   );

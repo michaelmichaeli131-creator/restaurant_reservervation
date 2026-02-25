@@ -443,12 +443,15 @@ function renderRestaurantRowWithOwner(
   const approved = r.approved
     ? `✅ ${t("admin.status.approved","מאושרת")}`
     : `⏳ ${t("admin.status.pending","ממתינה")}`;
+  const featuredBadge = (r as any).featured
+    ? `<span class="badge" style="background:rgba(251,191,36,.18);border-color:rgba(251,191,36,.4);color:#fbbf24">⭐ ${t("admin.status.featured","מומלצת")}</span>`
+    : "";
   const caps = `${t("admin.row.capacity","קיבולת")}: ${r.capacity ?? "-"} · ${t("admin.row.slot","סלוט")}: ${r.slotIntervalMinutes ?? "-"}${t("admin.row.minutes","ד'")} · ${t("admin.row.service","שירות")}: ${r.serviceDurationMinutes ?? "-"}${t("admin.row.minutes","ד'")}`;
 
   return `
   <tr>
     <td>
-      <strong>${r.name}</strong><br/><small class="muted">${r.city} · ${r.address}</small>
+      <strong>${r.name}</strong> ${featuredBadge}<br/><small class="muted">${r.city} · ${r.address}</small>
       ${(r as any).featured ? `<div style="margin-top:6px"><small class="muted">${t("admin.cover.label","תמונת כיסוי")}:</small>${renderCoverPicker(ctx, r, key)}</div>` : ""}
     </td>
     <td title="${ownerEmail}">${ownerName}</td>
@@ -465,7 +468,16 @@ function renderRestaurantRowWithOwner(
                  <button class="btn" type="submit">${t("admin.actions.approve","אישור")}</button>
                </form>`
         }
-        <a class="btn secondary" href="/restaurants/${r.id}" target="_blank" rel="noopener">${t("admin.actions.restaurant_page","דף מסעדה")}</a>
+                ${
+          (r as any).featured
+            ? `<form class="inline" method="post" action="/admin/restaurants/${r.id}/unfeature?key=${encodeURIComponent(key)}">
+                 <button class="btn secondary" type="submit" title="${t("admin.actions.unfeature_tip","הסר מהקרוסלה")}">⭐ ${t("admin.actions.unfeature","הסר")}</button>
+               </form>`
+            : `<form class="inline" method="post" action="/admin/restaurants/${r.id}/feature?key=${encodeURIComponent(key)}">
+                 <button class="btn secondary" type="submit" title="${t("admin.actions.feature_tip","הוסף לקרוסלת הבית")}">☆ ${t("admin.actions.feature","הוסף")}</button>
+               </form>`
+        }
+<a class="btn secondary" href="/restaurants/${r.id}" target="_blank" rel="noopener">${t("admin.actions.restaurant_page","דף מסעדה")}</a>
         <form class="inline" method="post" action="/admin/restaurants/${r.id}/delete?key=${encodeURIComponent(key)}"
               onsubmit="return confirm('${t("admin.confirm.delete_restaurant","למחוק לצמיתות את")} &quot;${r.name}&quot; ${t("admin.confirm.and_reservations","וכל ההזמנות שלה?")}')">
           <button class="btn warn" type="submit">${t("admin.actions.remove","הסר")}</button>
