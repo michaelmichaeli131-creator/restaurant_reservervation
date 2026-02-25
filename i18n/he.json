@@ -30,7 +30,10 @@
     "items_unit": "פריטים",
     "restaurant": "מסעדה",
     "all": "הכל",
-    "currency": "₪"
+    "currency": "₪",
+    "none": "ללא",
+    "optional": "אופציונלי",
+    "cancel": "ביטול"
   },
   "lang": {
     "hebrew": "עברית",
@@ -164,7 +167,11 @@
         "amount": "סכום",
         "actions": "פעולות"
       },
-      "empty": "עדיין אין חשבונות"
+      "empty": "עדיין אין חשבונות",
+      "aria": "חשבונות מסעדה",
+      "title": "חשבונות",
+      "btn_print": "הדפס",
+      "confirm_delete": "למחוק את החשבון הזה?"
     },
     "inventory": {
       "title": "מלאי חומרי גלם",
@@ -180,6 +187,10 @@
         "cost_per_unit": "עלות ליחידה (₪)",
         "supplier": "ספק מועדף",
         "notes": "הערות"
+      },
+      "placeholder": {
+        "name": "לדוגמה: קמח לבן 00",
+        "notes": "מידע נוסף: סוג, אחסון, אלרגנים וכו׳"
       }
     },
     "costs": {
@@ -314,7 +325,9 @@
         "note": "הערה",
         "hourly_rate": "שכר שעתי"
       },
-      "error_prefix": "שגיאה"
+      "error_prefix": "שגיאה",
+      "ph_note": "תיקון ידני...",
+      "ph_rate": "למשל 45"
     }
   },
   "pos": {
@@ -438,7 +451,10 @@
     "success_seat_multi": "ההזמנה הושבה בשולחנות",
     "check_opened": "חשבון נפתח.",
     "checks_opened": "חשבונות נפתחו בהתאם.",
-    "err_network_seat": "שגיאת רשת בהושבה."
+    "err_network_seat": "שגיאת רשת בהושבה.",
+    "btn_mark_reserved": "סמן שמור",
+    "btn_mark_empty": "סמן פנוי",
+    "err_update_status_prefix": "שגיאה בעדכון סטטוס השולחן"
   },
   "restaurant": {
     "menu": {
@@ -556,7 +572,9 @@
       "duplicate_name": "הזן שם עבור תכנית משוכפלת:"
     },
     "success": {
-      "save": "התכנית נשמרה בהצלחה!"
+      "save": "התכנית נשמרה בהצלחה!",
+      "save_and_activate": "התוכנית נשמרה והופעלה ✅",
+      "save_but_activate_failed": "התוכנית נשמרה ✅ אבל ההפעלה נכשלה: {error}"
     },
     "status": {
       "empty": "פנוי",
@@ -619,6 +637,14 @@
       "slate_dark": "צפחה כהה",
       "navy_carpet": "שטיח כחול כהה",
       "teal_terrazzo": "טראצו ירוק-כחול"
+    },
+    "mark_clean": "סמן נקי",
+    "mark_dirty": "סמן מלוכלך",
+    "mark_empty": "סמן פנוי",
+    "mark_reserved": "סמן שמור",
+    "status_text": {
+      "available": "זמין",
+      "dirty": "דורש ניקיון"
     }
   },
   "stats": {
@@ -739,7 +765,9 @@
     "note_placeholder": "לדוגמה: נשפך / טעות ספירה",
     "btn_save_draft": "שמור טיוטה",
     "btn_finalize": "סגור ספירה והחל התאמות",
-    "already_closed": "הספירה כבר נסגרה, אי אפשר לערוך."
+    "already_closed": "הספירה כבר נסגרה, אי אפשר לערוך.",
+    "count_label": "ספירה",
+    "confirm_finalize": "לסגור ספירה ולהחיל התאמות במלאי? פעולה זו לא ניתנת לביטול."
   },
   "counts": {
     "aria": "ספירות מלאי",
@@ -754,7 +782,20 @@
     "empty": "עדיין לא נוצרו ספירות מלאי למסעדה הזו.",
     "count_num": "ספירה #",
     "closed_at": "נסגרה:",
-    "note_label": "הערה:"
+    "note_label": "הערה:",
+    "subtitle": "כאן ניתן ליצור סשן ספירת מלאי ולנהל ספירות תקופתיות. בעמוד הבא תמלא טבלת ספירה בפועל (בפועל מול צפוי).",
+    "created_notice": "נוצרה ספירה חדשה:",
+    "new_count_title": "צור ספירה חדשה",
+    "no_counts": "עדיין לא נוצרו ספירות מלאי למסעדה זו.",
+    "count_label": "ספירה",
+    "created_at": "נוצר",
+    "finalized_at": "נסגר",
+    "note": "הערה",
+    "note_placeholder": "לדוגמה: ספירה חודשית / סוף משמרת",
+    "recent_title": "ספירות אחרונות",
+    "status_draft": "טיוטה",
+    "status_finalized": "סגור",
+    "tip": "טיפ: מומלץ לבצע ספירות באופן קבוע (שבועי/חודשי) כדי לזהות חוסרים, גניבות או טעויות מלאי."
   },
   "recipes": {
     "aria": "מתכוני מנות וחומרי גלם",
@@ -777,7 +818,15 @@
     "ingredient_fallback": "חומר גלם",
     "menu_price": "מחיר בתפריט:",
     "no_dishes_in_menu": "אין עדיין מנות בתפריט, לכן אין מה להגדיר כמתכונים.",
-    "qty_placeholder": "כמות ליחידה אחת"
+    "qty_placeholder": "כמות ליחידה אחת",
+    "subtitle": "כאן אתה מגדיר אילו חומרי גלם וכמויות שייכים לכל מנה בתפריט. בכל פעם שמנה מוזמנת דרך ה‑POS, המערכת תנכה אוטומטית את הכמות מהמלאי.",
+    "edit_title": "עריכת מתכון למנה",
+    "no_menu_items": "עדיין אין פריטי תפריט, ולכן אין מה להגדיר כמתכונים.",
+    "no_menu_items_hint": "עבור לעמוד \"עריכת תפריט\" והוסף מנות חדשות.",
+    "no_ingredients": "עדיין אין חומרי גלם במלאי, ולכן לא ניתן ליצור מתכונים.",
+    "instructions": "1. בחר מנה למעלה. 2. בכל שורה למטה: בחר חומר גלם והזן כמות למנה. 3. ניתן להוסיף כמה רכיבים שצריך באמצעות \"➕ הוסף רכיב\".",
+    "menu_item_label": "מנה בתפריט",
+    "no_name": "ללא שם"
   },
   "suppliers": {
     "aria": "ספקים",
@@ -805,7 +854,28 @@
     "delivery_hint": "משמש כברירת מחדל לצפי הגעה בהזמנה חדשה.",
     "btn_save": "שמור",
     "btn_delete": "מחיקה",
-    "confirm_delete": "למחוק את הספק הזה?"
+    "confirm_delete": "למחוק את הספק הזה?",
+    "restaurant_fallback": "מסעדה",
+    "subtitle": "ניהול ספקים בסיסי: פרטי קשר, תנאי תשלום וזמן אספקה טיפוסי (בימים). זמן האספקה משמש להערכת הגעה בהזמנות רכש חדשות.",
+    "lbl_name": "שם ספק",
+    "ph_name": "לדוגמה: Ocean Fish Ltd.",
+    "lbl_phone": "טלפון",
+    "lbl_email": "אימייל",
+    "lbl_payment_terms": "תנאי תשלום",
+    "ph_payment_terms": "שוטף +30",
+    "lbl_lead_time": "זמן אספקה (ימים)",
+    "ph_lead_time": "לדוגמה: 2",
+    "lbl_notes": "הערות",
+    "ph_notes": "ימי אספקה, מינימום הזמנה, שעות מענה וכו׳",
+    "lbl_active": "פעיל",
+    "no_suppliers": "עדיין אין ספקים. הוסף את הספק הראשון למעלה.",
+    "th_name": "שם",
+    "th_phone": "טלפון",
+    "th_email": "אימייל",
+    "th_payment_terms": "תנאי תשלום",
+    "th_lead_time": "זמן אספקה (ימים)",
+    "th_active": "פעיל",
+    "lead_time_hint": "משמש כברירת מחדל לצפי אספקה בהזמנות חדשות."
   },
   "po": {
     "aria": "הזמנת רכש",
@@ -835,7 +905,24 @@
     "status_draft": "טיוטה",
     "status_sent": "נשלח",
     "status_delivered": "סופק",
-    "status_cancelled": "בוטל"
+    "status_cancelled": "בוטל",
+    "restaurant_fallback": "מסעדה",
+    "order_number": "מס׳ הזמנה",
+    "for_supplier": "ספק:",
+    "unknown_supplier": "לא ידוע",
+    "lbl_status": "סטטוס",
+    "lbl_created": "נוצר בתאריך",
+    "lbl_expected": "צפי אספקה",
+    "lbl_delivered_at": "סופק בתאריך",
+    "btn_cancel": "ביטול הזמנה",
+    "not_editable": "לא ניתן לעריכה לאחר שליחה/סיפוק/ביטול",
+    "lbl_notes": "הערות להזמנה",
+    "ph_notes": "מידע נוסף לספק או לצוות",
+    "th_ingredient": "חומר גלם",
+    "th_qty": "כמות",
+    "th_unit": "יחידת מידה",
+    "btn_add_line": "הוסף חומר גלם להזמנה",
+    "btn_save": "שמור הזמנה"
   },
   "po_list": {
     "aria": "הזמנות רכש",
@@ -854,7 +941,10 @@
     "tbl_created": "נוצר בתאריך",
     "tbl_expected": "צפי אספקה",
     "tbl_delivered": "סופק בתאריך",
-    "btn_open": "פתיחת הזמנה"
+    "btn_open": "פתיחת הזמנה",
+    "lbl_notes": "הערות להזמנה",
+    "ph_notes": "לדוגמה: משלוח ליום חמישי בבוקר, לשים במקרר האמצעי",
+    "lead_time_hint": "אם לא הוזן תאריך צפי, המערכת יכולה להשתמש בזמן האספקה הטיפוסי של הספק (leadTimeDays)."
   },
   "shifts": {
     "title": "ניהול משמרות",
@@ -973,7 +1063,8 @@
     "tip_note": "אם תזין סכום קבוע (₪) – הוא יחליף את החישוב באחוזים. אם ישאר 0 או ריק – נחשב לפי אחוז.",
     "tip_fixed_placeholder": "לדוגמה: 20",
     "payment_scan": "תשלום באמצעות סריקה",
-    "qr_alt": "קוד תשלום לסריקה"
+    "qr_alt": "קוד תשלום לסריקה",
+    "table_prefix": "שולחן"
   },
   "admin": {
     "cover": {
@@ -981,5 +1072,54 @@
       "no_photos": "אין תמונות",
       "set_tip": "בחר כתמונת כיסוי"
     }
+  },
+  "live": {
+    "stats": {
+      "total_tables": "סה״כ שולחנות",
+      "occupied": "תפוסים",
+      "empty": "פנויים",
+      "occupancy": "תפוסה"
+    },
+    "auto_refresh": "רענון אוטומטי",
+    "status_legend": "מקרא סטטוסים"
+  },
+  "restaurant_new": {
+    "title": "פתיחת מסעדה חדשה",
+    "subtitle": "מלאו פרטים בסיסיים, אפשר להשלים אותם אחר כך.",
+    "btn_back": "חזרה לדשבורד",
+    "form": {
+      "name": "שם מסעדה",
+      "city": "עיר",
+      "address": "כתובת",
+      "phone": "טלפון",
+      "capacity": "קיבולת (מושבים)",
+      "intervals": "אינטרוולים (דקות)",
+      "duration": "משך שירות (דקות)",
+      "description": "תיאור",
+      "photos": "תמונות (אופציונלי) — קישורים (URL), מופרדים בפסיק/שורה"
+    },
+    "ph": {
+      "city": "תל אביב",
+      "address": "דיזנגוף 100",
+      "description": "תיאור קצר..."
+    },
+    "btn_create": "צור מסעדה"
+  },
+  "pos_list": {
+    "aria": "הזמנות רכש",
+    "title": "הזמנות רכש",
+    "subtitle": "צור ונהל הזמנות רכש לספקים. כאשר הזמנה מסומנת כסופקה, המלאי מתעדכן אוטומטית לפי שורות ההזמנה.",
+    "btn_stock": "מלאי",
+    "btn_suppliers": "ספקים",
+    "btn_costs": "עלויות",
+    "new_order": "הזמנה חדשה",
+    "lbl_supplier": "ספק",
+    "ph_select_supplier": "בחר ספק…",
+    "lbl_expected": "צפי אספקה",
+    "restaurant_fallback": "מסעדה",
+    "status_draft": "טיוטה",
+    "status_sent": "נשלח",
+    "status_delivered": "סופק",
+    "status_cancelled": "בוטל"
   }
 }

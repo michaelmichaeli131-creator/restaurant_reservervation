@@ -24,6 +24,9 @@
     },
     "footer": {
       "emailSent": "A confirmation email was sent to you. See you soon!"
+    },
+    "about": {
+      "title": "About the Restaurant"
     }
   }
 }

@@ -3,15 +3,18 @@
     "none": "None"
   },
   "admin": {
-    "app": { "title": "SpotBook · Admin Console" },
-    "header": { "brand": "SpotBook · Admin", "badge": "ADMIN" },
-
+    "app": {
+      "title": "SpotBook · Admin Console"
+    },
+    "header": {
+      "brand": "SpotBook · Admin",
+      "badge": "ADMIN"
+    },
     "tabs": {
       "restaurants": "Restaurants",
       "users": "Users",
       "tools": "Tools"
     },
-
     "login": {
       "title": "Admin Login",
       "desc": "Enter the ADMIN_SECRET defined in your environment variables.",
@@ -19,9 +22,7 @@
       "key_placeholder": "Paste the key here",
       "submit": "Sign in"
     },
-
     "key_masked": "Key masked",
-
     "reset": {
       "title": "Admin Actions (Reset)",
       "tabs": {
@@ -35,9 +36,14 @@
         "users": "Reset users",
         "all": "Reset all"
       },
-      "more_tools": "More tools…"
+      "more_tools": "More tools…",
+      "confirm": {
+        "all": "Reset everything: users + restaurants + reservations. Continue?",
+        "reservations": "Reset all reservations?",
+        "restaurants": "Reset all restaurants? This action cannot be undone!",
+        "users": "Reset all users? Note: this will also delete restaurant owners."
+      }
     },
-
     "tables": {
       "pending_title": "Pending ({count})",
       "approved_title": "Approved ({count})",
@@ -47,22 +53,25 @@
         "owner_status": "Owner status",
         "status": "Status",
         "actions": "Actions"
-      }
+      },
+      "approved_empty": "No restaurants have been approved yet.",
+      "pending_empty": "No pending restaurants at the moment."
     },
-
     "status": {
       "approved": "Approved",
-      "pending": "Pending"
+      "pending": "Pending",
+      "featured": "Featured"
     },
-    "owner": { "active": "Active", "inactive": "Inactive" },
-
+    "owner": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
     "row": {
       "capacity": "Capacity",
       "slot": "Slot",
       "minutes": "min",
       "service": "Service"
     },
-
     "actions": {
       "approve": "Approve",
       "disable": "Disable",
@@ -70,17 +79,27 @@
       "restaurant_page": "Restaurant page",
       "remove": "Remove",
       "back_dashboard": "Back to dashboard",
-      "back_tools": "Back to tools"
+      "back_tools": "Back to tools",
+      "feature": "Feature",
+      "feature_tip": "Promote to featured on homepage",
+      "open_restaurant": "Open",
+      "remove_from_site": "Remove",
+      "unapprove": "Unapprove",
+      "unfeature": "Unfeature",
+      "unfeature_tip": "Remove from featured"
     },
-
     "confirm": {
-      "delete_restaurant": "Delete \"{name}\" and all its reservations permanently?",
+      "delete_restaurant": "Permanently delete",
       "reset_all": "Reset everything: users + restaurants + reservations?",
       "reset_restaurants": "Reset all restaurants? This action cannot be undone!",
       "reset_reservations": "Reset all reservations?",
-      "reset_users": "Reset all users?"
+      "reset_users": "Reset all users?",
+      "and_reservations": "and all its reservations?",
+      "confirm_delete": "Confirm",
+      "head": "Confirm action · Admin",
+      "reset_prefix": "Reset",
+      "title": "Confirm action"
     },
-
     "tools": {
       "title": "Admin Tools",
       "desc": "Use the links below to run reset operations (confirmation required).",
@@ -89,18 +108,18 @@
       "reset_users": "Reset users",
       "reset_all": "Reset everything"
     },
-
     "done": {
       "title": "Done",
       "reset_done": "Reset complete: {what}",
       "back_tools": "Back to tools",
-      "back_dashboard": "Back to dashboard"
+      "back_dashboard": "Back to dashboard",
+      "did_reset": "Reset performed",
+      "head": "Done · Reset"
     },
-
     "users": {
       "title": "User Management",
-      "active": "Active users ({n})",
-      "inactive": "Disabled users ({n})",
+      "active": "Active users ({count})",
+      "inactive": "Disabled users ({count})",
       "th": {
         "user": "User",
         "role": "Role",
@@ -112,7 +131,24 @@
       "deactivate": "Deactivate",
       "delete": "Delete",
       "none": "None",
-      "not_implemented": "This requires listUsersWithRestaurants in database.ts."
+      "not_implemented": "This requires listUsersWithRestaurants in database.ts.",
+      "add_and_reload": "Add the export and reload the page.",
+      "confirm_deactivate": "Deactivate user",
+      "confirm_delete": "Deleting a user will also delete all their restaurants and reservations. Continue?",
+      "disabled": "This feature requires",
+      "in": "in",
+      "no_active": "No active users.",
+      "no_inactive": "No disabled users."
+    },
+    "delete": {
+      "back_dashboard": "Back to dashboard",
+      "head": "Removed from site · Admin",
+      "msg": "Restaurant",
+      "msg_tail": "was removed from the system, including its reservations.",
+      "title": "Removed from site"
+    },
+    "head": {
+      "dashboard": "Dashboard · Admin"
     }
   }
 }

@@ -444,7 +444,7 @@ function renderRestaurantRowWithOwner(
     ? `✅ ${t("admin.status.approved","מאושרת")}`
     : `⏳ ${t("admin.status.pending","ממתינה")}`;
   const featuredBadge = (r as any).featured
-    ? `<span class="badge" style="background:rgba(251,191,36,.18);border-color:rgba(251,191,36,.4);color:#fbbf24">⭐ ${t("admin.status.featured","מומלצת")}</span>`
+    ? `<span class="badge" style="background:rgba(251,191,36,.18);border-color:rgba(251,191,36,.4);color:#fbbf24">⭐ ${t("admin.status.featured","Featured")}</span>`
     : "";
   const caps = `${t("admin.row.capacity","קיבולת")}: ${r.capacity ?? "-"} · ${t("admin.row.slot","סלוט")}: ${r.slotIntervalMinutes ?? "-"}${t("admin.row.minutes","ד'")} · ${t("admin.row.service","שירות")}: ${r.serviceDurationMinutes ?? "-"}${t("admin.row.minutes","ד'")}`;
 
@@ -462,25 +462,25 @@ function renderRestaurantRowWithOwner(
         ${
           r.approved
             ? `<form class="inline" method="post" action="/admin/restaurants/${r.id}/unapprove?key=${encodeURIComponent(key)}">
-                 <button class="btn secondary" type="submit">${t("admin.actions.disable","השבתה")}</button>
+                 <button class="btn secondary" type="submit">${t("admin.actions.unapprove","בטל אישור")}</button>
                </form>`
             : `<form class="inline" method="post" action="/admin/restaurants/${r.id}/approve?key=${encodeURIComponent(key)}">
                  <button class="btn" type="submit">${t("admin.actions.approve","אישור")}</button>
                </form>`
         }
-                ${
+        ${
           (r as any).featured
             ? `<form class="inline" method="post" action="/admin/restaurants/${r.id}/unfeature?key=${encodeURIComponent(key)}">
-                 <button class="btn secondary" type="submit" title="${t("admin.actions.unfeature_tip","הסר מהקרוסלה")}">⭐ ${t("admin.actions.unfeature","הסר")}</button>
+                 <button class="btn secondary" type="submit" title="${t("admin.actions.unfeature_tip","להסיר מ־Featured")}">⭐ ${t("admin.actions.unfeature","הסר מהדף הראשי")}</button>
                </form>`
             : `<form class="inline" method="post" action="/admin/restaurants/${r.id}/feature?key=${encodeURIComponent(key)}">
-                 <button class="btn secondary" type="submit" title="${t("admin.actions.feature_tip","הוסף לקרוסלת הבית")}">☆ ${t("admin.actions.feature","הוסף")}</button>
+                 <button class="btn secondary" type="submit" title="${t("admin.actions.feature_tip","להציג את המסעדה בדף הבית (Featured)")}">☆ ${t("admin.actions.feature","הצג בדף הבית")}</button>
                </form>`
         }
-<a class="btn secondary" href="/restaurants/${r.id}" target="_blank" rel="noopener">${t("admin.actions.restaurant_page","דף מסעדה")}</a>
+        <a class="btn secondary" href="/restaurants/${r.id}" target="_blank" rel="noopener">${t("admin.actions.open_restaurant","פתח")}</a>
         <form class="inline" method="post" action="/admin/restaurants/${r.id}/delete?key=${encodeURIComponent(key)}"
               onsubmit="return confirm('${t("admin.confirm.delete_restaurant","למחוק לצמיתות את")} &quot;${r.name}&quot; ${t("admin.confirm.and_reservations","וכל ההזמנות שלה?")}')">
-          <button class="btn warn" type="submit">${t("admin.actions.remove","הסר")}</button>
+          <button class="btn warn" type="submit">${t("admin.actions.remove_from_site","הסר מהאתר")}</button>
         </form>
       </div>
     </td>

@@ -1,7 +1,6 @@
 {
   "auth": {
     "forgot": {
-		
       "title": "Reset Password",
       "subtitle": "We’ll email you a link to reset your password",
       "alerts": {
@@ -16,7 +15,7 @@
         "back": "Back to login"
       }
     },
-	    "login": {
+    "login": {
       "title": "Log in",
       "form": {
         "email": "Email",
@@ -33,7 +32,7 @@
       "actions": {
         "submit": "Log in"
       }
-    } ,
+    },
     "register": {
       "title": "Sign up",
       "subtitle": "Create a new GeoTable account",
@@ -57,14 +56,22 @@
         "optHotel": "Hotel / Hospitality",
         "optOther": "Other",
         "phone": "Phone (optional)",
-        "phonePh": "050-1234567"
+        "phonePh": "050-1234567",
+        "emailPh": "you@example.com",
+        "accountTypeLabel": "Account type",
+        "accountType": {
+          "customer": "Customer (book tables only)",
+          "owner": "Owner / Manager"
+        },
+        "accountTypeHint": "Customers can book tables only. Owners get access to management.",
+        "mismatch": "Passwords do not match"
       },
       "actions": {
         "submit": "Sign up",
         "back": "Already have an account? Log in"
       }
     },
-	  "reset": {
+    "reset": {
       "title": "Reset password",
       "form": {
         "password": "New password",
@@ -75,6 +82,22 @@
       "actions": {
         "save": "Save",
         "cancel": "Cancel"
+      }
+    },
+    "changePassword": {
+      "title": "Change Password",
+      "form": {
+        "current": "Current password",
+        "new": "New password",
+        "confirm": "Confirm new password",
+        "minHint": "At least 8 characters",
+        "pwToggleAria": "Show/Hide password"
+      },
+      "actions": {
+        "submit": "Update password"
+      },
+      "links": {
+        "forgot": "Forgot password? Reset by email"
       }
     }
   }

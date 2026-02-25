@@ -3,15 +3,18 @@
     "none": "אין"
   },
   "admin": {
-    "app": { "title": "SpotBook · לוח אדמין" },
-    "header": { "brand": "SpotBook · Admin", "badge": "ADMIN" },
-
+    "app": {
+      "title": "SpotBook · לוח אדמין"
+    },
+    "header": {
+      "brand": "SpotBook · Admin",
+      "badge": "ADMIN"
+    },
     "tabs": {
       "restaurants": "מסעדות",
       "users": "משתמשים",
       "tools": "כלים"
     },
-
     "login": {
       "title": "כניסת אדמין",
       "desc": "הזן/ני את מפתח האדמין (ADMIN_SECRET) שהוגדר במשתני הסביבה.",
@@ -19,9 +22,7 @@
       "key_placeholder": "הדבק כאן את המפתח",
       "submit": "כניסה"
     },
-
     "key_masked": "מפתח מוסתר",
-
     "reset": {
       "title": "פעולות אדמין (Reset)",
       "tabs": {
@@ -35,9 +36,14 @@
         "users": "אפס משתמשים",
         "all": "אפס הכל"
       },
-      "more_tools": "עוד כלים…"
+      "more_tools": "עוד כלים…",
+      "confirm": {
+        "all": "איפוס כללי: משתמשים + מסעדות + הזמנות. להמשיך?",
+        "reservations": "לאפס את כל ההזמנות?",
+        "restaurants": "לאפס את כל המסעדות? הפעולה בלתי הפיכה!",
+        "users": "לאפס את כל המשתמשים? שים לב: זה ימחק גם בעלי מסעדות!"
+      }
     },
-
     "tables": {
       "pending_title": "ממתינות לאישור ({count})",
       "approved_title": "מאושרות ({count})",
@@ -47,22 +53,25 @@
         "owner_status": "סטטוס בעלים",
         "status": "סטטוס",
         "actions": "פעולות"
-      }
+      },
+      "approved_empty": "עוד לא אושרו מסעדות.",
+      "pending_empty": "אין מסעדות ממתינות כרגע."
     },
-
     "status": {
       "approved": "מאושרת",
-      "pending": "ממתינה"
+      "pending": "ממתינה",
+      "featured": "מומלץ"
     },
-    "owner": { "active": "פעיל", "inactive": "מבוטל" },
-
+    "owner": {
+      "active": "פעיל",
+      "inactive": "מבוטל"
+    },
     "row": {
       "capacity": "קיבולת",
       "slot": "סלוט",
       "minutes": "ד׳",
       "service": "שירות"
     },
-
     "actions": {
       "approve": "אשר",
       "disable": "השבת",
@@ -70,17 +79,27 @@
       "restaurant_page": "דף מסעדה",
       "remove": "מחק",
       "back_dashboard": "חזרה ללוח הראשי",
-      "back_tools": "חזרה לכלים"
+      "back_tools": "חזרה לכלים",
+      "feature": "הצג בדף הבית",
+      "feature_tip": "להציג את המסעדה בדף הבית (Featured)",
+      "open_restaurant": "פתח",
+      "remove_from_site": "הסר מהאתר",
+      "unapprove": "בטל אישור",
+      "unfeature": "הסר מהדף הראשי",
+      "unfeature_tip": "להסיר מ־Featured"
     },
-
     "confirm": {
-      "delete_restaurant": "למחוק לצמיתות את \"{name}\" וכל ההזמנות שלה?",
+      "delete_restaurant": "למחוק לצמיתות את",
       "reset_all": "לאפס הכול? משתמשים + מסעדות + הזמנות. להמשיך?",
       "reset_restaurants": "לאפס את כל המסעדות? הפעולה בלתי הפיכה!",
       "reset_reservations": "לאפס את כל ההזמנות?",
-      "reset_users": "לאפס את כל המשתמשים?"
+      "reset_users": "לאפס את כל המשתמשים?",
+      "and_reservations": "וכל ההזמנות שלה?",
+      "confirm_delete": "אישור",
+      "head": "אישור פעולה · Admin",
+      "reset_prefix": "האם לאפס את",
+      "title": "אישור פעולה"
     },
-
     "tools": {
       "title": "כלי אדמין",
       "desc": "ניתן לבצע איפוסים דרך הקישורים הבאים:",
@@ -89,18 +108,18 @@
       "reset_users": "אפס משתמשים",
       "reset_all": "אפס הכל"
     },
-
     "done": {
       "title": "בוצע",
       "reset_done": "בוצע איפוס: {what}",
       "back_tools": "חזרה לכלים",
-      "back_dashboard": "חזרה ללוח"
+      "back_dashboard": "חזרה ללוח",
+      "did_reset": "בוצע איפוס",
+      "head": "הושלם · Reset"
     },
-
     "users": {
       "title": "ניהול משתמשים",
-      "active": "משתמשים פעילים ({n})",
-      "inactive": "משתמשים לא פעילים ({n})",
+      "active": "משתמשים פעילים ({count})",
+      "inactive": "משתמשים מבוטלים ({count})",
       "th": {
         "user": "משתמש",
         "role": "תפקיד",
@@ -112,7 +131,24 @@
       "deactivate": "השבת",
       "delete": "מחק",
       "none": "אין",
-      "not_implemented": "הפונקציה דורשת listUsersWithRestaurants ב־database.ts."
+      "not_implemented": "הפונקציה דורשת listUsersWithRestaurants ב־database.ts.",
+      "add_and_reload": "הוסף/י את הייצוא ואז טען/י שוב את העמוד.",
+      "confirm_deactivate": "לבטל את המשתמש",
+      "confirm_delete": "מחיקת משתמש תמחק גם את כל המסעדות וההזמנות שבבעלותו. להמשיך?",
+      "disabled": "הפיצ’ר הזה מחייב פונקציה",
+      "in": "ב־",
+      "no_active": "אין משתמשים פעילים.",
+      "no_inactive": "אין משתמשים מבוטלים."
+    },
+    "delete": {
+      "back_dashboard": "חזרה לדשבורד",
+      "head": "הוסרה מהאתר · Admin",
+      "msg": "המסעדה",
+      "msg_tail": "נמחקה מהמערכת, כולל ההזמנות שלה.",
+      "title": "הוסרה מהאתר"
+    },
+    "head": {
+      "dashboard": "לוח בקרה · Admin"
     }
   }
 }

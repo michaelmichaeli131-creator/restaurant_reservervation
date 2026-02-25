@@ -48,22 +48,22 @@ const I18N = {
     ka: "ეს წერილი ავტომატურად გაიგზავნა. გთხოვთ, არ უპასუხოთ."
   },
   // subjects & leads
-  verifyTitle: { he: "ברוכים הבאים ל-GeoTable", en: "Welcome to GeoTable", ka: "მოგესალმებათ GeoTable" },
+  verifyTitle: { he: "ברוכים הבאים ל-SpotBook", en: "Welcome to SpotBook", ka: "მოგესალმებათ SpotBook" },
   verifyLead: { he: "נשאר רק לאמת את כתובת הדוא״ל שלך.", en: "Please verify your email address to continue.", ka: "გთხოვთ, დაადასტუროთ ელფოსტა." },
   verifyCta: { he: "אימות חשבון", en: "Verify account", ka: "ანგარიშის დადასტურება" },
   verifySubject: {
-    he: `אימות כתובת דוא"ל – GeoTable`,
-    en: `Email verification — GeoTable`,
-    ka: `ელფოსტის დადასტურება — GeoTable`,
+    he: `אימות כתובת דוא"ל – SpotBook`,
+    en: `Email verification — SpotBook`,
+    ka: `ელფოსტის დადასტურება — SpotBook`,
   },
 
   resetTitle: { he: "איפוס סיסמה", en: "Reset password", ka: "პაროლის აღდგენა" },
   resetLead: { he: "לחצי/לחץ על הכפתור כדי להגדיר סיסמה חדשה.", en: "Click the button to set a new password.", ka: "დააჭირეთ ღილაკს ახალი პაროლის დასაყენებლად." },
   resetCta: { he: "איפוס סיסמה", en: "Reset password", ka: "პაროლის აღდგენა" },
   resetSubject: {
-    he: "שחזור סיסמה – GeoTable",
-    en: "Password reset — GeoTable",
-    ka: "პაროლის აღდგენა — GeoTable",
+    he: "שחזור סיסמה – SpotBook",
+    en: "Password reset — SpotBook",
+    ka: "პაროლის აღდგენა — SpotBook",
   },
 
   reservationLead: {

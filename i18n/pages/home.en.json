@@ -33,7 +33,8 @@
       "prev_aria": "Show previous",
       "next_aria": "Show next",
       "empty": "No restaurants available yet.",
-      "view_all": "View All"
+      "view_all": "View All",
+      "dots_aria": "Slide navigation"
     },
     "how_it_works": {
       "title": "How It Works",

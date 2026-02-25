@@ -120,7 +120,7 @@ function tt(k, fb){
 
       <!-- סוג חשבון (לקוח / בעל מסעדה) -->
       <div class="form-row">
-        <label for="accountType"><%= tt('auth.register.form.accountType','סוג חשבון') %></label>
+        <label for="accountType"><%= tt('auth.register.form.accountTypeLabel','סוג חשבון') %></label>
         <select id="accountType" name="accountType" required>
           <%
             const acc = it.prefill?.accountType || 'owner';

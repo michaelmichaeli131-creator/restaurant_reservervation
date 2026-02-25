@@ -15,7 +15,7 @@
         "back": "חזרה להתחברות"
       }
     },
-	"login": {
+    "login": {
       "title": "התחברות",
       "form": {
         "email": "אימייל",
@@ -56,14 +56,22 @@
         "optHotel": "מלון / אירוח",
         "optOther": "אחר",
         "phone": "נייד (לא חובה)",
-        "phonePh": "050-1234567"
+        "phonePh": "050-1234567",
+        "emailPh": "you@example.com",
+        "accountTypeLabel": "סוג חשבון",
+        "accountType": {
+          "customer": "לקוח מזמין בלבד",
+          "owner": "בעל / מנהל מסעדה"
+        },
+        "accountTypeHint": "לקוח יכול להזמין שולחנות בלבד. בעל מסעדה מקבל גישה לניהול.",
+        "mismatch": "הסיסמאות אינן תואמות"
       },
       "actions": {
         "submit": "הירשם/י",
         "back": "יש כבר חשבון? התחברות"
       }
-    },    
-	"reset": {
+    },
+    "reset": {
       "title": "איפוס סיסמה",
       "form": {
         "password": "סיסמה חדשה",
@@ -74,6 +82,22 @@
       "actions": {
         "save": "שמור",
         "cancel": "ביטול"
+      }
+    },
+    "changePassword": {
+      "title": "שינוי סיסמה",
+      "form": {
+        "current": "סיסמה נוכחית",
+        "new": "סיסמה חדשה",
+        "confirm": "אימות סיסמה חדשה",
+        "minHint": "לפחות 8 תווים",
+        "pwToggleAria": "הצג/הסתר סיסמה"
+      },
+      "actions": {
+        "submit": "עדכן סיסמה"
+      },
+      "links": {
+        "forgot": "שכחת סיסמה? איפוס דרך אימייל"
       }
     }
   }
