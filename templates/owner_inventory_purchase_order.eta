@@ -9,6 +9,18 @@
 
   function esc(s){ return String(s ?? ""); }
 
+  // i18n helper with fallback
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t === "function"){
+        const s = it.t(k);
+        if (!s || s === k || s === `(${k})`) return fb;
+        return s;
+      }
+    } catch(e){}
+    return fb;
+  }
+
   const editable = (po.status === "draft");
   const supplierName = po.supplierNameSnapshot || po.supplierName || "";
 
@@ -34,64 +46,64 @@
   }
 
   function statusLabel(st){
-    if (!st) return "טיוטה";
+    if (!st) return tt('po.status_draft', 'Draft');
     switch(String(st)){
-      case "draft": return "טיוטה";
-      case "sent": return "נשלח";
-      case "delivered": return "סופק";
-      case "cancelled": return "בוטל";
+      case "draft": return tt('po.status_draft', 'Draft');
+      case "sent": return tt('po.status_sent', 'Sent');
+      case "delivered": return tt('po.status_delivered', 'Delivered');
+      case "cancelled": return tt('po.status_cancelled', 'Cancelled');
       default: return st;
     }
   }
 %>
 
-<section class="sb-owner container" aria-label="הזמנת רכש">
+<section class="sb-owner container" aria-label="<%= tt('po.aria', 'Purchase Order') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
         <h1>
-          הזמנת רכש · <%= restaurant.name || 'מסעדה' %>
+          <%= tt('po.title', 'Purchase Order') %> · <%= restaurant.name || tt('po.restaurant_fallback', 'Restaurant') %>
         </h1>
         <p class="muted">
-          הזמנה מס׳
+          <%= tt('po.order_number', 'Order No.') %>
           <span class="muted small">PO-</span><strong><%= esc(po.id) %></strong>
-          לספק:
-          <strong><%= esc(supplierName || 'לא ידוע') %></strong>
+          <%= tt('po.for_supplier', 'Supplier:') %>
+          <strong><%= esc(supplierName || tt('po.unknown_supplier', 'Unknown')) %></strong>
         </p>
       </div>
       <div class="actions">
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/purchase_orders">⬅ כל ההזמנות</a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">🥬 מלאי</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/purchase_orders">⬅ <%= tt('po.btn_all_orders', 'All Orders') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">🥬 <%= tt('po.btn_stock', 'Inventory') %></a>
       </div>
     </header>
 
     <div class="panel card" style="margin-top:14px">
       <div class="po-header-row">
         <div>
-          <div class="muted small">סטטוס</div>
+          <div class="muted small"><%= tt('po.lbl_status', 'Status') %></div>
           <div class="po-status po-status-<%= esc(po.status || 'draft') %>">
             <%= statusLabel(po.status) %>
           </div>
         </div>
         <div>
-          <div class="muted small">נוצר בתאריך</div>
+          <div class="muted small"><%= tt('po.lbl_created', 'Created') %></div>
           <div><%= fmtDate(po.createdAt) || '—' %></div>
         </div>
         <div>
-          <div class="muted small">צפי אספקה</div>
+          <div class="muted small"><%= tt('po.lbl_expected', 'Expected Delivery') %></div>
           <div><%= fmtDate(po.expectedAt) || '—' %></div>
         </div>
         <div>
-          <div class="muted small">סופק בתאריך</div>
+          <div class="muted small"><%= tt('po.lbl_delivered_at', 'Delivered On') %></div>
           <div><%= fmtDate(po.deliveredAt) || '—' %></div>
         </div>
       </div>
 
-      <!-- פעולות סטטוס -->
+      <!-- Status actions -->
       <div class="po-actions" style="margin-top:10px">
         <% if (po.status === "draft") { %>
           <form method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= esc(po.id) %>/send">
-            <button class="btn primary sm" type="submit">📤 סמן כנשלח</button>
+            <button class="btn primary sm" type="submit">📤 <%= tt('po.btn_mark_sent', 'Mark as Sent') %></button>
           </form>
         <% } %>
 
@@ -100,9 +112,9 @@
             <button
               class="btn ghost sm danger"
               type="submit"
-              onclick="return confirm('לבטל את ההזמנה הזו? לא יעדכן מלאי.')"
+              onclick="return confirm('<%= tt('po.confirm_cancel', 'Cancel this order? Inventory will not be updated.') %>')"
             >
-              ❌ ביטול הזמנה
+              ❌ <%= tt('po.btn_cancel', 'Cancel Order') %>
             </button>
           </form>
         <% } %>
@@ -112,21 +124,21 @@
             <button
               class="btn ghost sm"
               type="submit"
-              onclick="return confirm('לסמן את ההזמנה כסופקה? המלאי יעודכן אוטומטית לפי השורות.')"
+              onclick="return confirm('<%= tt('po.confirm_delivered', 'Mark order as delivered? Inventory will be updated automatically based on lines.') %>')"
             >
-              ✅ סמן כסופקה
+              ✅ <%= tt('po.btn_mark_delivered', 'Mark as Delivered') %>
             </button>
           </form>
         <% } %>
       </div>
     </div>
 
-    <!-- עריכת הזמנה (שורות + צפי אספקה + הערה) -->
+    <!-- Edit order (lines + expected delivery + note) -->
     <div class="panel card" style="margin-top:16px">
       <h2 class="card-title">
-        פרטי ההזמנה
+        <%= tt('po.order_details', 'Order Details') %>
         <% if (!editable) { %>
-          <span class="muted small">(לא ניתן לעריכה לאחר שליחה/סיפוק/ביטול)</span>
+          <span class="muted small">(<%= tt('po.not_editable', 'Not editable after sending/delivery/cancellation') %>)</span>
         <% } %>
       </h2>
 
@@ -139,7 +151,7 @@
 
         <div class="row" style="margin-bottom:12px">
           <label class="lbl">
-            צפי אספקה
+            <%= tt('po.lbl_expected', 'Expected Delivery') %>
             <input
               name="expectedAt"
               type="date"
@@ -149,11 +161,11 @@
           </label>
 
           <label class="lbl" style="min-width:260px;flex:1">
-            הערות להזמנה
+            <%= tt('po.lbl_notes', 'Order Notes') %>
             <input
               name="note"
               value="<%= esc(po.note || '') %>"
-              placeholder="מידע נוסף לספק או לצוות"
+              placeholder="<%= tt('po.ph_notes', 'Additional info for supplier or team') %>"
               <%= editable ? '' : 'disabled' %>
             >
           </label>
@@ -161,13 +173,13 @@
 
         <div class="table">
           <div class="tr th">
-            <div>חומר גלם</div>
-            <div>כמות</div>
-            <div>יחידת מידה</div>
+            <div><%= tt('po.th_ingredient', 'Ingredient') %></div>
+            <div><%= tt('po.th_qty', 'Quantity') %></div>
+            <div><%= tt('po.th_unit', 'Unit') %></div>
             <div></div>
           </div>
 
-          <!-- שורות קיימות -->
+          <!-- Existing lines -->
           <% lines.forEach(function(line, idx){ %>
             <div
               class="tr po-line"
@@ -215,7 +227,7 @@
                     class="btn ghost sm danger po-line-remove"
                     type="button"
                   >
-                    מחיקת שורה
+                    <%= tt('po.btn_remove_line', 'Remove Line') %>
                   </button>
                 <% } %>
               </div>
@@ -230,16 +242,16 @@
               type="button"
               id="po-add-line-btn"
             >
-              ➕ הוסף חומר גלם להזמנה
+              ➕ <%= tt('po.btn_add_line', 'Add Ingredient to Order') %>
             </button>
 
             <button class="btn primary sm" type="submit">
-              💾 שמור הזמנה
+              💾 <%= tt('po.btn_save', 'Save Order') %>
             </button>
           </div>
 
           <p class="muted small" style="margin-top:6px">
-            בעת שמירת ההזמנה נשמרות רק שורות עם חומר גלם וכמות &gt; 0.
+            <%= tt('po.save_hint', 'When saving, only lines with an ingredient and quantity > 0 are kept.') %>
           </p>
         <% } %>
       </form>
@@ -290,7 +302,7 @@
       const container = document.createElement('div');
       container.className = 'tr po-line';
 
-      // נשתמש באופציה הראשונה כברירת מחדל
+      // Use first option as default
       const ingSelectOptions = `
         <% ingOptionsBase.forEach(function(ing){ %>
           <option value="<%= esc(ing.id) %>"><%= esc(ing.name) %></option>
@@ -311,7 +323,7 @@
         </div>
         <div class="td right">
           <button class="btn ghost sm danger po-line-remove" type="button">
-            מחיקת שורה
+            <%= tt('po.btn_remove_line', 'Remove Line') %>
           </button>
         </div>
       `;

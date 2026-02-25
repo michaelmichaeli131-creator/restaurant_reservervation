@@ -1,6 +1,18 @@
 <% layout("_layout", it) %>
 
 <%
+  // i18n helper with fallback
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t === "function"){
+        const s = it.t(k);
+        if (!s || s === k || s === `(${k})`) return fb;
+        return s;
+      }
+    } catch(e){}
+    return fb;
+  }
+
   const restaurant = it.restaurant || {};
   const rows = Array.isArray(it.rows) ? it.rows : [];
   const summary = it.summary || {};
@@ -14,72 +26,71 @@
   }
 %>
 
-<section class="sb-owner container" aria-label="עלות מנה ורווחיות">
+<section class="sb-owner container" aria-label="<%= tt('foodcost.aria', 'Food Cost & Profitability') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
-        <h1>עלות מנה ורווחיות · <%= restaurant.name || 'מסעדה' %></h1>
+        <h1><%= tt('foodcost.title', 'Food Cost & Profitability') %> · <%= restaurant.name || tt('common.restaurant', 'Restaurant') %></h1>
         <p class="muted">
-          העלות מחושבת לפי <strong>מתכון</strong> × <strong>עלות ליחידה (Effective)</strong>
-          (Manual override מנצח Auto).
+          <%= tt('foodcost.description', 'Cost is calculated from Recipe × Unit Cost (Effective). Manual override wins over Auto.') %>
         </p>
       </div>
       <div class="actions">
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/recipes">📖 מתכונים</a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">💸 עלויות</a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/menu">🧾 תפריט</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/recipes">📖 <%= tt('foodcost.btn_recipes', 'Recipes') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">💸 <%= tt('foodcost.btn_costs', 'Costs') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/menu">🧾 <%= tt('foodcost.btn_menu', 'Menu') %></a>
       </div>
     </header>
 
     <div class="top-grid">
       <div class="panel card">
-        <h2 class="card-title">סיכום</h2>
+        <h2 class="card-title"><%= tt('foodcost.summary', 'Summary') %></h2>
         <div class="stats">
           <div class="stat">
-            <div class="k">סה״כ מנות</div>
+            <div class="k"><%= tt('foodcost.total_items', 'Total Dishes') %></div>
             <div class="v"><%= Number(summary.totalItems || 0) %></div>
           </div>
           <div class="stat">
-            <div class="k">עם מתכון</div>
+            <div class="k"><%= tt('foodcost.with_recipe', 'With Recipe') %></div>
             <div class="v"><%= Number(summary.withRecipe || 0) %></div>
           </div>
           <div class="stat">
-            <div class="k">חסר מתכון</div>
+            <div class="k"><%= tt('foodcost.missing_recipe', 'Missing Recipe') %></div>
             <div class="v"><%= Number(summary.missingRecipe || 0) %></div>
           </div>
           <div class="stat">
-            <div class="k">מנות עם חסר עלויות</div>
+            <div class="k"><%= tt('foodcost.missing_costs', 'Dishes with Missing Costs') %></div>
             <div class="v"><%= Number(summary.withMissingCosts || 0) %></div>
           </div>
           <div class="stat">
-            <div class="k">Avg Food Cost</div>
-            <div class="v">₪ <%= num(summary.avgFoodCost, 2) %></div>
+            <div class="k"><%= tt('foodcost.avg_food_cost', 'Avg Food Cost') %></div>
+            <div class="v"><%= tt('common.currency', '₪') %> <%= num(summary.avgFoodCost, 2) %></div>
           </div>
           <div class="stat">
-            <div class="k">Avg Margin %</div>
+            <div class="k"><%= tt('foodcost.avg_margin', 'Avg Margin %') %></div>
             <div class="v"><%= (typeof summary.avgMarginPct === 'number' ? num(summary.avgMarginPct, 1) : '—') %>%</div>
           </div>
         </div>
 
         <div class="search-wrap">
-          <input id="search" class="search" placeholder="חפש מנה..." />
+          <input id="search" class="search" placeholder="<%= tt('foodcost.search_placeholder', 'Search dish...') %>" />
         </div>
       </div>
 
       <div class="panel card">
-        <h2 class="card-title">Top מנות יקרות (Food Cost)</h2>
+        <h2 class="card-title"><%= tt('foodcost.top_costly', 'Top Costly Dishes (Food Cost)') %></h2>
         <% if (!topCostly.length) { %>
-          <p class="muted">אין מספיק נתונים (כנראה אין מתכונים).</p>
+          <p class="muted"><%= tt('foodcost.no_cost_data', 'Not enough data (probably no recipes).') %></p>
         <% } else { %>
           <div class="top-list">
             <% const max = Math.max.apply(null, topCostly.map(x => Number(x.foodCost||0)).concat([1])); %>
-            <% topCostly.forEach(function(x){ 
+            <% topCostly.forEach(function(x){
                  const pct = Math.max(2, Math.min(100, (Number(x.foodCost||0) / max) * 100));
             %>
               <div class="top-row">
                 <div class="top-meta">
                   <div class="top-name"><strong><%= x.name %></strong></div>
-                  <div class="top-sub muted small">₪ <%= num(x.foodCost, 2) %> • מחיר: ₪ <%= num(x.price, 2) %></div>
+                  <div class="top-sub muted small"><%= tt('common.currency', '₪') %> <%= num(x.foodCost, 2) %> • <%= tt('foodcost.price_label', 'Price') %>: <%= tt('common.currency', '₪') %> <%= num(x.price, 2) %></div>
                 </div>
                 <div class="bar"><div class="bar-fill" style="width:<%= pct %>%"></div></div>
               </div>
@@ -89,20 +100,20 @@
       </div>
 
       <div class="panel card">
-        <h2 class="card-title">Top רווחיות (Margin %)</h2>
+        <h2 class="card-title"><%= tt('foodcost.top_profitable', 'Top Profitability (Margin %)') %></h2>
         <% if (!topProfitable.length) { %>
-          <p class="muted">אין מספיק נתונים (צריך מחיר למנה + מתכון + עלויות).</p>
+          <p class="muted"><%= tt('foodcost.no_margin_data', 'Not enough data (need price + recipe + costs).') %></p>
         <% } else { %>
           <div class="top-list">
             <% const maxM = Math.max.apply(null, topProfitable.map(x => Number(x.marginPct||0)).concat([1])); %>
-            <% topProfitable.forEach(function(x){ 
+            <% topProfitable.forEach(function(x){
                  const pct = Math.max(2, Math.min(100, (Number(x.marginPct||0) / maxM) * 100));
             %>
               <div class="top-row">
                 <div class="top-meta">
                   <div class="top-name"><strong><%= x.name %></strong></div>
                   <div class="top-sub muted small">
-                    מרג׳ין: <%= num(x.marginPct, 1) %>% • ₪ רווח: <%= num(x.gross, 2) %>
+                    <%= tt('foodcost.margin_label', 'Margin') %>: <%= num(x.marginPct, 1) %>% • <%= tt('common.currency', '₪') %> <%= tt('foodcost.profit_label', 'Profit') %>: <%= num(x.gross, 2) %>
                   </div>
                 </div>
                 <div class="bar"><div class="bar-fill green" style="width:<%= pct %>%"></div></div>
@@ -114,22 +125,22 @@
     </div>
 
     <div class="panel card" style="margin-top:16px">
-      <h2 class="card-title">כל המנות</h2>
+      <h2 class="card-title"><%= tt('foodcost.all_dishes', 'All Dishes') %></h2>
 
       <% if (!rows.length) { %>
-        <p class="muted">אין מנות בתפריט.</p>
+        <p class="muted"><%= tt('foodcost.no_dishes', 'No dishes in menu.') %></p>
       <% } else { %>
         <div class="table" id="table">
           <div class="tr th">
-            <div>מנה</div>
-            <div>מחיר</div>
-            <div>Food Cost</div>
-            <div>רווח</div>
-            <div>Margin %</div>
-            <div>סטטוס</div>
+            <div><%= tt('foodcost.tbl_dish', 'Dish') %></div>
+            <div><%= tt('foodcost.tbl_price', 'Price') %></div>
+            <div><%= tt('foodcost.tbl_food_cost', 'Food Cost') %></div>
+            <div><%= tt('foodcost.tbl_profit', 'Profit') %></div>
+            <div><%= tt('foodcost.tbl_margin', 'Margin %') %></div>
+            <div><%= tt('foodcost.tbl_status', 'Status') %></div>
           </div>
 
-          <% rows.forEach(function(r){ 
+          <% rows.forEach(function(r){
                const st =
                  (!r.hasRecipe) ? 'no_recipe' :
                  (r.missingCosts > 0) ? 'missing_costs' :
@@ -140,24 +151,24 @@
               <div class="td">
                 <div class="name"><strong><%= r.name %></strong></div>
                 <% if (r.hasRecipe) { %>
-                  <div class="muted small">רכיבים: <%= (r.breakdown || []).length %></div>
+                  <div class="muted small"><%= tt('foodcost.ingredients', 'Ingredients') %>: <%= (r.breakdown || []).length %></div>
                 <% } else { %>
-                  <div class="muted small">אין מתכון</div>
+                  <div class="muted small"><%= tt('foodcost.badge_no_recipe', 'No recipe') %></div>
                 <% } %>
               </div>
-              <div class="td mono">₪ <%= num(r.price, 2) %></div>
-              <div class="td mono">₪ <%= num(r.foodCost, 2) %></div>
-              <div class="td mono">₪ <%= num(r.gross, 2) %></div>
+              <div class="td mono"><%= tt('common.currency', '₪') %> <%= num(r.price, 2) %></div>
+              <div class="td mono"><%= tt('common.currency', '₪') %> <%= num(r.foodCost, 2) %></div>
+              <div class="td mono"><%= tt('common.currency', '₪') %> <%= num(r.gross, 2) %></div>
               <div class="td mono"><%= (typeof r.marginPct === 'number' ? num(r.marginPct, 1) : '—') %>%</div>
               <div class="td">
                 <% if (st === 'ok') { %>
-                  <span class="badge ok">✅ תקין</span>
+                  <span class="badge ok">✅ <%= tt('foodcost.badge_ok', 'OK') %></span>
                 <% } else if (st === 'no_recipe') { %>
-                  <span class="badge bad">❌ אין מתכון</span>
+                  <span class="badge bad">❌ <%= tt('foodcost.badge_no_recipe', 'No recipe') %></span>
                 <% } else if (st === 'missing_costs') { %>
-                  <span class="badge warn">⚠️ חסר עלויות</span>
+                  <span class="badge warn">⚠️ <%= tt('foodcost.badge_missing_costs', 'Missing costs') %></span>
                 <% } else { %>
-                  <span class="badge warn">⚠️ חסרים רכיבים</span>
+                  <span class="badge warn">⚠️ <%= tt('foodcost.badge_missing_ingredients', 'Missing ingredients') %></span>
                 <% } %>
               </div>
             </div>

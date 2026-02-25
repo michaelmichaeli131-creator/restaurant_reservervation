@@ -62,14 +62,14 @@
           <div class="stat">
             <div class="k"><%= tt('owner.costs.total_monthly', 'Total Monthly Spend') %></div>
             <div class="v">
-              ₪ <%= num(summary.totalSpend, 2) %>
+              <%= tt('common.currency', '₪') %> <%= num(summary.totalSpend, 2) %>
               <% if (hasOverride) { %>
                 <span class="badge warn" title="<%= tt('owner.costs.override_manual_hint', 'Amount entered manually, overrides calculation') %>">Override</span>
               <% } %>
             </div>
             <% if (hasOverride) { %>
               <div class="muted small" style="margin-top:4px">
-                <%= tt('owner.costs.auto_computed', 'Auto-computed') %>: ₪ <%= num(summary.computedTotal, 2) %>
+                <%= tt('owner.costs.auto_computed', 'Auto-computed') %>: <%= tt('common.currency', '₪') %> <%= num(summary.computedTotal, 2) %>
               </div>
             <% } %>
           </div>
@@ -86,14 +86,14 @@
 
           <div class="stat">
             <div class="k"><%= tt('owner.costs.avg_per_delivery', 'Average Cost per Delivery') %></div>
-            <div class="v">₪ <%= num(summary.avgPerDelivery, 2) %></div>
+            <div class="v"><%= tt('common.currency', '₪') %> <%= num(summary.avgPerDelivery, 2) %></div>
           </div>
         </div>
 
         <div class="spark">
           <div class="spark-hd">
             <span class="muted small"><%= tt('owner.costs.daily_spend', 'Daily Spend (Sparkline)') %></span>
-            <span class="muted small">Max day: ₪ <%= num(summary.maxDaily, 2) %></span>
+            <span class="muted small">Max day: <%= tt('common.currency', '₪') %> <%= num(summary.maxDaily, 2) %></span>
           </div>
           <svg id="spark-svg" viewBox="0 0 300 60" preserveAspectRatio="none" aria-label="<%= tt('owner.costs.daily_spend_chart', 'Daily spend chart') %>"></svg>
         </div>
@@ -151,7 +151,7 @@
               <div class="top-row">
                 <div class="top-meta">
                   <div class="top-name"><strong><%= x.name %></strong></div>
-                  <div class="top-sub muted small">₪ <%= num(x.spend, 2) %></div>
+                  <div class="top-sub muted small"><%= tt('common.currency', '₪') %> <%= num(x.spend, 2) %></div>
                 </div>
                 <div class="bar" aria-label="bar">
                   <div class="bar-fill" style="width:<%= pct %>%"></div>
@@ -187,7 +187,7 @@
                 <div class="muted small">
                   <%= tt('owner.costs.in_stock', 'In stock') %>: <%= Number(ing.currentQty || 0) %> • <%= tt('owner.costs.min_threshold', 'Min') %>: <%= Number(ing.minQty || 0) %>
                   <% if (typeof ing.costPerUnitAuto === 'number' && Number.isFinite(ing.costPerUnitAuto)) { %>
-                    • AUTO: ₪ <%= num(ing.costPerUnitAuto, 2) %> / <%= ing.unit || 'unit' %>
+                    • AUTO: <%= tt('common.currency', '₪') %> <%= num(ing.costPerUnitAuto, 2) %> / <%= ing.unit || 'unit' %>
                   <% } %>
                 </div>
               </div>
@@ -206,7 +206,7 @@
                   placeholder="<%= tt('owner.costs.unit_price_placeholder', 'e.g.: 12.50 (empty = no override)') %>"
                   value="<%= (typeof ing.costPerUnit === 'number' ? String(ing.costPerUnit) : '') %>"
                 />
-                <div class="muted small">₪ / <%= ing.unit || 'unit' %></div>
+                <div class="muted small"><%= tt('common.currency', '₪') %> / <%= ing.unit || 'unit' %></div>
               </div>
 
               <div class="td right">

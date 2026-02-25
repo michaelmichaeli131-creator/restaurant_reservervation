@@ -1,12 +1,24 @@
 <% layout("_layout", it) %>
 
 <%
+  // i18n helper with fallback
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t === "function"){
+        const s = it.t(k);
+        if (!s || s === k || s === `(${k})`) return fb;
+        return s;
+      }
+    } catch(e){}
+    return fb;
+  }
+
   const restaurant  = it.restaurant || {};
   const menuItems   = Array.isArray(it.menuItems) ? it.menuItems : [];
   const recipes     = Array.isArray(it.recipes) ? it.recipes : [];
   const ingredients = Array.isArray(it.ingredients) ? it.ingredients : [];
 
-  // מפה מהירה recipe לפי itemId – לשימוש בצד השמאלי בלבד (תצוגה)
+  // quick map: recipe by itemId - used for display on the right panel only
   const recipeMapSrv = {};
   recipes.forEach(function(r){
     if (!r.menuItemId) return;
@@ -14,34 +26,33 @@
   });
 %>
 
-<section class="sb-owner container" aria-label="מתכוני מנות וחומרי גלם">
+<section class="sb-owner container" aria-label="<%= tt('recipes.aria', 'Dish Recipes & Ingredients') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
-        <h1>מתכוני מנות · <%= restaurant.name || 'מסעדה' %></h1>
+        <h1><%= tt('recipes.title', 'Dish Recipes') %> · <%= restaurant.name || tt('common.restaurant', 'Restaurant') %></h1>
         <p class="muted">
-          כאן מגדירים אילו חומרי גלם וכמויות שייכים לכל מנה בתפריט.
-          בכל פעם שהמנה מוזמנת ב-POS, המערכת תוריד אוטומטית את הכמות מהמלאי.
+          <%= tt('recipes.subtitle', 'Here you define which ingredients and quantities belong to each menu dish. Every time a dish is ordered via POS, the system will automatically deduct the quantity from inventory.') %>
         </p>
       </div>
     </header>
 
     <div class="inv-grid">
-      <!-- צד ימין: טופס עריכת מתכון למנה נבחרת -->
+      <!-- Left panel: recipe editing form for selected dish -->
       <div class="panel card">
-        <h2 class="card-title">עריכת מתכון למנה</h2>
+        <h2 class="card-title"><%= tt('recipes.edit_title', 'Edit Dish Recipe') %></h2>
 
         <% if (!menuItems.length) { %>
           <p class="muted">
-            אין עדיין מנות בתפריט, לכן אין מה להגדיר כמתכונים.
+            <%= tt('recipes.no_menu_items', 'There are no menu items yet, so there is nothing to define as recipes.') %>
             <br>
-            <small>עבור לדף "עריכת תפריט" והוסף מנות חדשות.</small>
+            <small><%= tt('recipes.no_menu_items_hint', 'Go to the "Edit Menu" page and add new dishes.') %></small>
           </p>
         <% } else if (!ingredients.length) { %>
           <p class="muted">
-            אין עדיין חומרי גלם במלאי, לכן אי אפשר לבנות מתכונים.
+            <%= tt('recipes.no_ingredients', 'There are no ingredients in inventory yet, so recipes cannot be created.') %>
             <br>
-            <small>עבור לדף "מלאי חומרי גלם" והוסף חומרי גלם.</small>
+            <small><%= tt('recipes.no_ingredients_hint', 'Go to the "Ingredient Inventory" page and add ingredients.') %></small>
           </p>
         <% } else { %>
           <form
@@ -51,21 +62,19 @@
             id="recipe-form"
           >
             <label>
-              מנה בתפריט
+              <%= tt('recipes.menu_item_label', 'Menu Item') %>
               <select name="menuItemId" id="menuItemId" required>
-                <option value="">בחר מנה...</option>
+                <option value=""><%= tt('recipes.select_dish', 'Select a dish...') %></option>
                 <% menuItems.forEach(function(mi){ %>
                   <option value="<%= mi.id %>">
-                    <%= mi.name_he || mi.name_en || 'ללא שם' %>
+                    <%= mi.name_he || mi.name_en || tt('recipes.no_name', 'No name') %>
                   </option>
                 <% }) %>
               </select>
             </label>
 
             <p class="muted" style="margin-top:6px">
-              1. בחר מנה מלמעלה.  
-              2. לכל שורה למטה: בחר <strong>חומר גלם</strong> והכנס <strong>כמות ליחידת מנה</strong>.  
-              3. ניתן להוסיף כמה רכיבים שתרצה באמצעות "➕ הוסף רכיב".
+              <%= tt('recipes.instructions', '1. Select a dish above. 2. For each row below: select an ingredient and enter the quantity per serving. 3. You can add as many components as you like with "➕ Add component".') %>
             </p>
 
             <!-- כאן מופיעות שורות חומרי הגלם למנה -->
@@ -79,32 +88,30 @@
               id="btn-add-component"
               style="margin-top:8px"
             >
-              ➕ הוסף רכיב (חומר גלם נוסף למנה)
+              ➕ <%= tt('recipes.btn_add_ingredient', 'Add Ingredient (add ingredient to dish)') %>
             </button>
 
             <label style="margin-top:12px">
-              הערות (אופציונלי)
+              <%= tt('recipes.notes_label', 'Notes (optional)') %>
               <input
                 name="note"
                 id="recipe-note"
-                placeholder="הערות שף / גרסה מיוחדת של המנה"
+                placeholder="<%= tt('recipes.notes_placeholder', 'Chef notes / special version of dish') %>"
               >
             </label>
 
-            <!-- JSON של הרכיבים -->
             <input type="hidden" name="components" id="components-json">
 
             <button class="btn primary sm" type="submit" style="margin-top:10px">
-              💾 שמירת מתכון
+              💾 <%= tt('recipes.btn_save', 'Save Recipe') %>
             </button>
           </form>
 
-          <!-- template חבוי של options לחומרי גלם, לשימוש ב-JS -->
           <select id="ingredient-options-template" style="display:none">
-            <option value="">חומר גלם...</option>
+            <option value=""><%= tt('recipes.select_ingredient', 'Ingredient...') %></option>
             <% ingredients.forEach(function(ing){ %>
               <option value="<%= ing.id %>">
-                <%= ing.name || ing.ingredientName || 'חומר גלם' %> (<%= ing.unit || 'unit' %>)
+                <%= ing.name || ing.ingredientName || tt('recipes.ingredient_fallback', 'Ingredient') %> (<%= ing.unit || 'unit' %>)
               </option>
             <% }) %>
           </select>
@@ -113,7 +120,7 @@
 
       <!-- צד שמאל: סקירה של כל המנות עם הפירוק שלהן -->
       <div class="panel card">
-        <h2 class="card-title">כל המנות וחומרי הגלם שלהן</h2>
+        <h2 class="card-title"><%= tt('recipes.all_dishes_title', 'All Dishes and Their Ingredients') %></h2>
 
         <% if (menuItems.length) { %>
           <div class="recipes-list">
@@ -125,18 +132,18 @@
                 <header class="recipe-header">
                   <div>
                     <div class="recipe-title">
-                      <strong><%= mi.name_he || mi.name_en || 'ללא שם' %></strong>
+                      <strong><%= mi.name_he || mi.name_en || tt('owner.menu.no_name', '(No name)') %></strong>
                     </div>
                     <% if (mi.price) { %>
                       <div class="recipe-sub muted">
-                        מחיר בתפריט: <%= Number(mi.price).toFixed(2) %> ₪
+                        <%= tt('recipes.menu_price', 'Menu price:') %> <%= Number(mi.price).toFixed(2) %> <%= tt('common.currency', '₪') %>
                       </div>
                     <% } %>
                   </div>
                   <% if (rows.length) { %>
-                    <span class="badge ok">מתכון מוגדר</span>
+                    <span class="badge ok"><%= tt('recipes.has_recipe', 'Recipe defined') %></span>
                   <% } else { %>
-                    <span class="badge bad">אין מתכון</span>
+                    <span class="badge bad"><%= tt('recipes.no_recipe', 'No recipe') %></span>
                   <% } %>
                 </header>
 
@@ -152,7 +159,7 @@
                         data-qty="<%= qty %>"
                       >
                         <span class="ing-name">
-                          <%= ing.name || ing.ingredientName || 'חומר גלם' %>
+                          <%= ing.name || ing.ingredientName || tt('recipes.ingredient_fallback', 'Ingredient') %>
                         </span>
                         <span class="ing-qty">
                           <%= qty %> <%= ing.unit || '' %>
@@ -162,7 +169,7 @@
                   </ul>
                 <% } else { %>
                   <p class="muted small">
-                    עדיין לא הוגדרו חומרי גלם למנה זו.
+                    <%= tt('recipes.no_ingredients_yet', 'No ingredients defined for this dish yet.') %>
                   </p>
                 <% } %>
 
@@ -171,7 +178,7 @@
                     class="muted small"
                     data-recipe-note="<%= r.note %>"
                   >
-                    הערות: <%= r.note %>
+                    <%= tt('recipes.notes', 'Notes:') %> <%= r.note %>
                   </p>
                 <% } %>
               </article>
@@ -179,7 +186,7 @@
           </div>
         <% } else { %>
           <p class="muted">
-            אין עדיין מנות בתפריט, לכן אין מה להגדיר כמתכונים.
+            <%= tt('recipes.no_dishes_in_menu', 'No menu items yet, so there is nothing to define as recipes.') %>
           </p>
         <% } %>
       </div>
@@ -231,7 +238,7 @@
       inputQty.min = '0';
       inputQty.step = '0.001';
       inputQty.required = true;
-      inputQty.placeholder = 'כמות ליחידה אחת';
+      inputQty.placeholder = '<%= tt("recipes.qty_placeholder", "Qty per serving") %>';
       inputQty.className = 'recipe-qty';
       if (value && typeof value.qty === 'number') {
         inputQty.value = value.qty;

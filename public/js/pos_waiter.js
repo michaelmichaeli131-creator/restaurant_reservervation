@@ -7,6 +7,8 @@
 
   const rid = root.dataset.rid;
   const table = Number(root.dataset.table || "0");
+  const currency = root.dataset.currency || "₪";
+  const itemsUnit = root.dataset.itemsUnit || "פריטים";
 
   const rowsContainer = document.getElementById("order-items");
   const itemsSpan = document.getElementById("bill-items");
@@ -29,9 +31,9 @@
       subtotal += qty * price;
     });
 
-    if (itemsSpan) itemsSpan.textContent = `${itemsCount} פריטים`;
+    if (itemsSpan) itemsSpan.textContent = `${itemsCount} ${itemsUnit}`;
     if (totalSpan)
-      totalSpan.textContent = `${subtotal.toFixed(2)} ₪`;
+      totalSpan.textContent = `${subtotal.toFixed(2)} ${currency}`;
   }
 
   // שיהיה זמין לסקריפט המשלים

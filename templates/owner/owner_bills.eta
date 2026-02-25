@@ -22,10 +22,10 @@ function formatDateTime(ts){
 }
 %>
 
-<section class="sb-owner container" aria-label="חשבונות מסעדה">
+<section class="sb-owner container" aria-label="<%= tt('owner.bills.aria', 'חשבונות מסעדה') %>">
   <div class="card">
     <header class="owner-hd">
-      <h1>חשבונות · <%= it.restaurant?.name %></h1>
+      <h1><%= tt('owner.bills.title', 'חשבונות') %> · <%= it.restaurant?.name %></h1>
       <span class="muted">
         <%= it.restaurant?.city || '' %> • <%= it.restaurant?.address || '' %>
       </span>
@@ -48,11 +48,11 @@ function formatDateTime(ts){
               <tr>
                 <td><%= idx + 1 %></td>
                 <td><%= formatDateTime(b.createdAt) %></td>
-                <td>שולחן <%= b.table %></td>
+                <td><%= tt('bill.table_prefix', 'שולחן') %> <%= b.table %></td>
                 <td>
                   <%= (b.totals && typeof b.totals.total==='number'
                       ? b.totals.total.toFixed(2)
-                      : (b.totals?.subtotal ?? 0).toFixed(2)) %> ₪
+                      : (b.totals?.subtotal ?? 0).toFixed(2)) %> <%= tt('common.currency', '₪') %>
                 </td>
                 <td class="bills-actions">
                   <a class="btn ghost sm" href="/owner/<%= it.restaurant.id %>/bills/<%= b.id %>">

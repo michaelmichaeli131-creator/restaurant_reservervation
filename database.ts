@@ -46,6 +46,7 @@ export interface Restaurant {
   photos?: string[];
   approved?: boolean;               // דורש אישור אדמין
   featured?: boolean;               // Admin-promoted featured restaurant
+  coverUrl?: string;                // Admin-selected cover image URL
   kitchenCategories?: KitchenCategory[]; // סוגי מטבח
   averageRating?: number;           // ממוצע דירוגים (מחושב)
   reviewCount?: number;             // מספר ביקורות

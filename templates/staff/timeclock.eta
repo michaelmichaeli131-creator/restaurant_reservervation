@@ -4,15 +4,27 @@
   const staff = it.staff;
   const restaurant = it.restaurant;
 %>
+<%
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t==='function'){
+        const s = it.t(k);
+        if(!s || s===k || s===`(${k})`) return fb;
+        return s;
+      }
+    }catch(e){}
+    return fb;
+  }
+%>
 
 <section class="container" style="max-width:900px;margin:20px auto;padding:0 16px">
   <div class="card">
-    <h1 style="margin:0 0 8px 0">🕒 כניסה / יציאה</h1>
-    <div class="muted">מסעדה: <strong><%= restaurant?.name %></strong></div>
+    <h1 style="margin:0 0 8px 0">🕒 <%= tt('staff.timeclock.title', 'כניסה / יציאה') %></h1>
+    <div class="muted"><%= tt('common.restaurant', 'מסעדה') %>: <strong><%= restaurant?.name %></strong></div>
 
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
-      <button id="btnIn" class="btn primary">✅ כניסה</button>
-      <button id="btnOut" class="btn ghost">⏹️ יציאה</button>
+      <button id="btnIn" class="btn primary">✅ <%= tt('staff.timeclock.btn_in', 'כניסה') %></button>
+      <button id="btnOut" class="btn ghost">⏹️ <%= tt('staff.timeclock.btn_out', 'יציאה') %></button>
       <span id="msg" class="muted"></span>
     </div>
   </div>
@@ -31,11 +43,11 @@
     });
     const j = await r.json().catch(()=>({ok:false,error:'bad_json'}));
     if(!r.ok || !j.ok){
-      msg.textContent = 'שגיאה: ' + (j.error || r.status);
+      msg.textContent = '<%= tt('staff.timeclock.error_prefix', 'שגיאה') %>: ' + (j.error || r.status);
       return;
     }
     const t = new Date(j.row.checkInAt || j.row.checkOutAt || Date.now()).toLocaleTimeString();
-    msg.textContent = 'נשמר ✓ (' + t + ')';
+    msg.textContent = '<%= tt('staff.timeclock.saved', 'נשמר') %> ✓ (' + t + ')';
   }
 
   btnIn.addEventListener('click', ()=>post('/staff/timeclock/checkin'));

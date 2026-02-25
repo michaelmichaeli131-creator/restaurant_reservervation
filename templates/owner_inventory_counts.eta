@@ -1,6 +1,18 @@
 <% layout("_layout", it) %>
 
 <%
+  // i18n helper with fallback
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t === "function"){
+        const s = it.t(k);
+        if (!s || s === k || s === `(${k})`) return fb;
+        return s;
+      }
+    } catch(e){}
+    return fb;
+  }
+
   const restaurant = it.restaurant || {};
   const sessions = Array.isArray(it.sessions) ? it.sessions : [];
   const created = (it.created || '').trim();
@@ -14,51 +26,50 @@
   }
 %>
 
-<section class="sb-owner container" aria-label="ספירות מלאי">
+<section class="sb-owner container" aria-label="<%= tt('counts.aria', 'Inventory Counts') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
-        <h1>ספירות מלאי · <%= restaurant.name || 'מסעדה' %></h1>
+        <h1><%= tt('counts.title', 'Inventory Counts') %> · <%= restaurant.name || tt('common.restaurant', 'מסעדה') %></h1>
         <p class="muted">
-          כאן תוכל ליצור “ספירת מלאי” (Session) ולנהל ספירות תקופתיות.
-          בעמוד הבא נכניס את טבלת הספירה עצמה (Actual מול Expected).
+          <%= tt('counts.subtitle', 'Here you can create an Inventory Count session and manage periodic counts. On the next page you will enter the actual count table (Actual vs Expected).') %>
         </p>
       </div>
       <div class="actions">
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">⬅ מלאי</a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📊 עלויות</a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/recipes">🧾 מתכונים</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">⬅ <%= tt('counts.btn_stock', 'Inventory') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📊 <%= tt('counts.btn_costs', 'Costs') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/recipes">🧾 <%= tt('counts.btn_recipes', 'Recipes') %></a>
       </div>
     </header>
 
     <% if (created) { %>
       <div class="notice ok">
-        ✅ נוצרה ספירה חדשה:
-        <a href="/owner/<%= restaurant.id %>/inventory/counts/<%= created %>">פתח ספירה</a>
+        ✅ <%= tt('counts.created_notice', 'New count created:') %>
+        <a href="/owner/<%= restaurant.id %>/inventory/counts/<%= created %>"><%= tt('counts.open_count', 'Open count') %></a>
       </div>
     <% } %>
 
     <div class="grid">
       <div class="panel card">
-        <h2 class="card-title">יצירת ספירה חדשה</h2>
+        <h2 class="card-title"><%= tt('counts.new_count_title', 'Create New Count') %></h2>
         <form class="form" method="post" action="/owner/<%= restaurant.id %>/inventory/counts/new">
           <label>
-            הערה (אופציונלי)
-            <input name="note" placeholder="לדוגמה: ספירה חודשית / סוף משמרת">
+            <%= tt('counts.note_label', 'Note (optional)') %>
+            <input name="note" placeholder="<%= tt('counts.note_placeholder', 'e.g.: monthly count / end of shift') %>">
           </label>
-          <button class="btn primary sm" type="submit" style="margin-top:10px">➕ צור ספירה</button>
+          <button class="btn primary sm" type="submit" style="margin-top:10px">➕ <%= tt('counts.btn_create', 'Create Count') %></button>
         </form>
 
         <p class="muted small" style="margin-top:10px">
-          טיפ: מומלץ לבצע ספירה בתדירות קבועה (שבועי/חודשי) כדי לזהות פחת, גניבות או טעויות מלאי.
+          <%= tt('counts.tip', 'Tip: It is recommended to perform counts regularly (weekly/monthly) to detect shrinkage, theft, or inventory errors.') %>
         </p>
       </div>
 
       <div class="panel card">
-        <h2 class="card-title">ספירות אחרונות</h2>
+        <h2 class="card-title"><%= tt('counts.recent_title', 'Recent Counts') %></h2>
 
         <% if (!sessions.length) { %>
-          <p class="muted">עדיין לא נוצרו ספירות מלאי למסעדה הזו.</p>
+          <p class="muted"><%= tt('counts.no_counts', 'No inventory counts have been created for this restaurant yet.') %></p>
         <% } else { %>
           <div class="list">
             <% sessions.forEach(function(s){ 
@@ -67,19 +78,19 @@
             %>
               <a class="row" href="/owner/<%= restaurant.id %>/inventory/counts/<%= s.id %>">
                 <div class="meta">
-                  <div class="title"><strong>ספירה #<%= String(s.id).slice(0,8) %></strong></div>
+                  <div class="title"><strong><%= tt('counts.count_label', 'Count') %> #<%= String(s.id).slice(0,8) %></strong></div>
                   <div class="sub muted small">
-                    נוצרה: <%= fmt(s.createdAt) %>
-                    <% if (s.finalizedAt) { %> • נסגרה: <%= fmt(s.finalizedAt) %><% } %>
+                    <%= tt('counts.created_at', 'Created') %>: <%= fmt(s.createdAt) %>
+                    <% if (s.finalizedAt) { %> • <%= tt('counts.finalized_at', 'Closed') %>: <%= fmt(s.finalizedAt) %><% } %>
                   </div>
                   <% if (s.note) { %>
-                    <div class="sub muted small">הערה: <%= s.note %></div>
+                    <div class="sub muted small"><%= tt('counts.note', 'Note') %>: <%= s.note %></div>
                   <% } %>
                 </div>
 
                 <div class="right">
                   <span class="pill <%= isFinal ? 'ok' : 'warn' %>">
-                    <%= isFinal ? 'נסגרה' : 'טיוטה' %>
+                    <%= isFinal ? tt('counts.status_finalized', 'Closed') : tt('counts.status_draft', 'Draft') %>
                   </span>
                   <span class="chev">›</span>
                 </div>

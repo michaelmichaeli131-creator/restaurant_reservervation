@@ -263,7 +263,7 @@ ownerFloorRouter.post(
     }
 
     // Permissions are enforced by requireStaff() and requireRestaurantAccess().
-// Persist table status override via the floor service
+    // Persist table status override via the floor service
     await setTableStatusOverride(restaurantId, tableId, status as FloorTableStatus, user.id);
 
     ctx.response.status = 200;

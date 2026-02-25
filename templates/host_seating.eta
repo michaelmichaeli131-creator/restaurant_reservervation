@@ -36,7 +36,7 @@
 <main class="host container">
   <header class="host-header">
     <div>
-      <h1>מסך מארחת — <%= restaurant.name %></h1>
+      <h1><%= tt('host.title', 'Host Screen') %> — <%= restaurant.name %></h1>
       <p class="muted"><%= restaurant.city %> • <%= restaurant.address %></p>
     </div>
   </header>
@@ -44,7 +44,7 @@
   <section class="host-grid">
     <!-- עמודת הזמנות -->
     <div class="panel card">
-      <h2>הזמנות להיום</h2>
+      <h2><%= tt('host.reservations_today', "Today's Reservations") %></h2>
 
       <% if (reservations.length) { %>
         <ul class="list" id="resv-list">
@@ -63,25 +63,25 @@
               </label>
               <div class="resv-actions">
                 <button type="button" class="link-btn resv-cancel" data-action="cancel" data-id="<%= r.id %>">
-                  ביטול
+                  <%= tt('host.btn_cancel', 'Cancel') %>
                 </button>
                 <button type="button" class="link-btn resv-noshow" data-action="no_show" data-id="<%= r.id %>">
-                  לא הגיע
+                  <%= tt('host.btn_no_show', 'No Show') %>
                 </button>
               </div>
             </li>
           <% }) %>
         </ul>
       <% } else { %>
-        <p class="muted">אין הזמנות להיום למסעדה הזו.</p>
+        <p class="muted"><%= tt('host.no_reservations', 'No reservations for today at this restaurant.') %></p>
       <% } %>
     </div>
 
     <!-- עמודת מפת מסעדה -->
     <div class="panel card">
-      <h2>מפת המסעדה (חי)</h2>
+      <h2><%= tt('host.floor_map_title', 'Restaurant Map (Live)') %></h2>
       <p class="muted small">
-        יש לבחור הזמנה, לבחור שולחן או כמה שולחנות (איחוד), ואז ללחוץ על כפתור ההושבה.
+        <%= tt('host.floor_map_help', 'Select a reservation, choose a table or multiple tables (merge), then click the seat button.') %>
       </p>
       <div
         id="sb-floor-root"
@@ -93,58 +93,66 @@
       ></div>
       <div class="host-actions">
         <button id="seat-btn" type="button" class="btn primary sm">
-          הושבה לשולחן/ות שנבחרו
+          <%= tt('host.btn_seat', 'Seat at Selected Table(s)') %>
         </button>
         <div class="host-mini-actions">
-          <button id="mark-reserved-btn" type="button" class="btn ghost sm">סמן שמור</button>
-          <button id="mark-empty-btn" type="button" class="btn ghost sm">סמן פנוי</button>
+          <button id="mark-reserved-btn" type="button" class="btn ghost sm"><%= tt('host.btn_mark_reserved', 'Mark Reserved') %></button>
+          <button id="mark-empty-btn" type="button" class="btn ghost sm"><%= tt('host.btn_mark_empty', 'Mark Empty') %></button>
         </div>
-        <p class="muted small">ניתן לבחור מספר שולחנות עבור אותה הזמנה (איחוד שולחנות).</p>
+        <p class="muted small"><%= tt('host.merge_hint', 'You can select multiple tables for the same reservation (table merge).') %></p>
       </div>
     </div>
   </section>
 </main>
 
 <!-- כרטיסיית צד לפרטי שולחן תפוס -->
+<div id="table-info-backdrop" class="table-info-backdrop"></div>
+<aside id="table-info-panel" class="table-info-panel" aria-hidden="true">
+  <div class="table-info-inner">
+    <header class="table-info-header">
+      <div>
+        <div class="tip-label"><%= tt('host.table_details', 'Table Details') %></div>
+        <div class="tip-title"><%= tt('host.table_label', 'Table') %> <span id="tip-table-number">—</span></div>
+      </div>
+      <button type="button" class="tip-close-btn" id="tip-close-btn" aria-label="<%= tt('host.close_table_details', 'Close table details') %>">
+        ✕
+      </button>
+    </header>
+
+    <div class="table-info-body">
+      <div class="tip-row">
+        <span class="tip-row-label"><%= tt('host.guest_name', 'Guest Name') %></span>
+        <span class="tip-row-value" id="tip-guest-name">—</span>
+      </div>
+      <div class="tip-row">
+        <span class="tip-row-label"><%= tt('host.num_guests', 'Number of Guests') %></span>
+        <span class="tip-row-value" id="tip-people">—</span>
+      </div>
+      <div class="tip-row">
+        <span class="tip-row-label"><%= tt('host.reservation_time', 'Reservation Time') %></span>
+        <span class="tip-row-value" id="tip-time">—</span>
+      </div>
+      <div class="tip-row">
+        <span class="tip-row-label"><%= tt('host.table_status_label', 'Table Status') %></span>
+        <span class="tip-row-value">
+          <span id="tip-status" class="tip-status-badge">—</span>
+        </span>
+      </div>
+    </div>
+
+    <footer class="table-info-footer">
+      <p class="muted small">
+        <%= tt('host.table_info_note', 'Information is taken from the last reservation assigned to this table.') %>
+      </p>
+    </footer>
+  </div>
+</aside>
 
 <!-- Same floor-view assets as the waiter lobby -->
 <link rel="stylesheet" href="/static/dist/floor-index.css?v=<%= it.BUILD_TAG || Date.now() %>">
 <link rel="stylesheet" href="/static/dist/floor-floor-view-app.css?v=<%= it.BUILD_TAG || Date.now() %>">
 
 <link rel="stylesheet" href="/public/css/sb-map-frame-overrides.css?v=<%= it.BUILD_TAG || Date.now() %>">
-
-<!-- Host-only: ensure every table wrapper is fully transparent (no blur/overlay), just like the waiter map -->
-<style>
-  /* Remove any opaque "envelope" behind/around items so other status pills remain visible */
-  #sb-floor-root[data-click-mode="host"] .table.floor-table{
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-  }
-  #sb-floor-root[data-click-mode="host"] .table.floor-table:hover{
-    transform: none !important;
-  }
-
-  /* Kill blur/shadow effects that can make the floor look "blurred" under items */
-  #sb-floor-root[data-click-mode="host"] .fe-asset{
-    filter: none !important;
-  }
-  #sb-floor-root[data-click-mode="host"] .table-section,
-  #sb-floor-root[data-click-mode="host"] .fe-canvas-controls{
-    -webkit-backdrop-filter: none !important;
-    backdrop-filter: none !important;
-  }
-
-  /* Make the per-table status pill truly transparent (dot + text only) */
-  #sb-floor-root[data-click-mode="host"] .sbv-status-pill{
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    -webkit-backdrop-filter: none !important;
-    backdrop-filter: none !important;
-    text-shadow: 0 2px 10px rgba(0,0,0,.55) !important;
-  }
-</style>
 <script type="module" src="/static/dist/floor-view-app.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>
 
 <script>
@@ -197,11 +205,11 @@
 
   function mapStatusToLabel(status){
     const s = (status || "").toLowerCase();
-    if (s === "occupied" || s === "open") return "תפוס";
-    if (s === "reserved") return "שמורה";
-    if (s === "dirty") return "דורש ניקוי";
-    if (s === "empty" || s === "free") return "פנוי";
-    return status || "לא ידוע";
+    if (s === "occupied" || s === "open") return "<%= tt('host.status.occupied', 'Occupied') %>";
+    if (s === "reserved") return "<%= tt('host.status.reserved', 'Reserved') %>";
+    if (s === "dirty") return "<%= tt('host.status.dirty', 'Needs Cleaning') %>";
+    if (s === "empty" || s === "free") return "<%= tt('host.status.empty', 'Empty') %>";
+    return status || "<%= tt('host.status.unknown', 'Unknown') %>";
   }
 
   function mapStatusToClass(status){
@@ -304,10 +312,10 @@
 
       let status = "";
       if (action === "cancel") {
-        if (!confirm("לסמן את ההזמנה כבוטלה?")) return;
+        if (!confirm("<%= tt('host.confirm_cancel', 'Mark this reservation as cancelled?') %>")) return;
         status = "cancelled";
       } else if (action === "no_show") {
-        if (!confirm("לסמן את ההזמנה כ'לא הגיע'?")) return;
+        if (!confirm("<%= tt('host.confirm_no_show', `Mark this reservation as 'No Show'?`) %>")) return;
         status = "no_show";
       } else {
         return;
@@ -330,7 +338,7 @@
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.ok) {
-          alert("שגיאה בעדכון סטטוס ההזמנה: " + (data.error || res.status));
+          alert("<%= tt('host.err_update_status', 'Error updating reservation status') %>: " + (data.error || res.status));
           return;
         }
 
@@ -346,12 +354,12 @@
         if (!ul.querySelector("li")) {
           const p = document.createElement("p");
           p.className = "muted";
-          p.textContent = "אין הזמנות להיום למסעדה הזו.";
+          p.textContent = "<%= tt('host.no_reservations', 'No reservations for today at this restaurant.') %>";
           ul.replaceWith(p);
         }
       } catch (e) {
         console.error(e);
-        alert("שגיאת רשת בזמן עדכון סטטוס.");
+        alert("<%= tt('host.err_network_status', 'Network error while updating status.') %>");
       }
     });
   }
@@ -387,7 +395,7 @@
       if (!res.ok) {
         const p = document.createElement("p");
         p.className = "muted";
-        p.textContent = "לא הוגדרה מפת שולחנות למסעדה זו.";
+        p.textContent = "<%= tt('host.no_floor_plan', 'No floor plan has been defined for this restaurant.') %>";
         holder.appendChild(p);
         return;
       }
@@ -417,7 +425,7 @@
       if (!tables.length) {
         const p = document.createElement("p");
         p.className = "muted";
-        p.textContent = "אין שולחנות מוגדרים במפת המסעדה.";
+        p.textContent = "<%= tt('host.no_tables_defined', 'No tables defined in the restaurant map.') %>";
         holder.appendChild(p);
         return;
       }
@@ -439,7 +447,7 @@
         btn.className = "table " + status;
         btn.dataset.tableNumber = String(num);
 
-        const capText = seats > 0 ? (seats + " מקומות") : "";
+        const capText = seats > 0 ? (seats + " <%= tt('host.seats', 'seats') %>") : "";
 
         btn.innerHTML = `
           <div class="table-num">${num}</div>
@@ -475,7 +483,7 @@
             const data = await res.json().catch(() => ({}));
             if (!res.ok || !data.ok) {
               const msg = data && data.error ? data.error : res.status;
-              alert("לא ניתן לטעון פרטי שולחן: " + msg);
+              alert("<%= tt('host.err_load_table', 'Cannot load table details') %>: " + msg);
               return;
             }
 
@@ -488,7 +496,7 @@
             });
           } catch (e) {
             console.error(e);
-            alert("שגיאה בטעינת פרטי השולחן.");
+            alert("<%= tt('host.err_load_table_general', 'Error loading table details.') %>");
           }
         });
 
@@ -498,14 +506,14 @@
       console.error(e);
       const p = document.createElement("p");
       p.className = "muted";
-      p.textContent = "שגיאה בטעינת מפת המסעדה.";
+      p.textContent = "<%= tt('host.err_load_map', 'Error loading the restaurant map.') %>";
       holder.appendChild(p);
     }
   }
 
   async function seatSelected(){
     if (!state.selectedResId) {
-      alert("יש לבחור הזמנה קודם.");
+      alert("<%= tt('host.err_select_reservation', 'Please select a reservation first.') %>");
       return;
     }
     if (!state.selectedTables.size) {
@@ -531,7 +539,7 @@
       } catch (e) {}
     }
     if (!state.selectedTables.size) {
-      alert("יש לבחור לפחות שולחן אחד.");
+      alert("<%= tt('host.err_select_table', 'Please select at least one table.') %>");
       return;
     }
 
@@ -539,8 +547,8 @@
     const guestName = getSelectedReservationName();
 
     const msg = tables.length === 1
-      ? `להושיב את ההזמנה לשולחן ${tables[0]}?`
-      : `להושיב את ההזמנה לשולחנות ${tables.join(", ")} (איחוד שולחנות)?`;
+      ? `<%= tt('host.confirm_seat_single', 'Seat the reservation at table') %> ${tables[0]}?`
+      : `<%= tt('host.confirm_seat_multi', 'Seat the reservation at tables') %> ${tables.join(", ")} (<%= tt('host.table_merge', 'table merge') %>)?`;
     if (!confirm(msg)) return;
 
     async function doSeatOnce() {
@@ -591,7 +599,7 @@
       if (!res.ok || !data.ok) {
         if (data && data.error === "table_already_seated") {
           const confirmUnseat = confirm(
-            "השולחן מסומן כתפוס במערכת (כנראה מישיבה קודמת). לשחרר אותו ולאפשר הושבה מחדש?"
+            "<%= tt('host.confirm_unseat', 'The table is marked as occupied (probably from a previous session). Release it and allow re-seating?') %>"
           );
           if (!confirmUnseat) return;
 
@@ -604,11 +612,11 @@
           data = second.data;
 
           if (!res.ok || !data.ok) {
-            alert("שגיאה בהושבה אחרי שחרור שולחן: " + (data.error || res.status));
+            alert("<%= tt('host.err_seat_after_release', 'Error seating after table release') %>: " + (data.error || res.status));
             return;
           }
         } else {
-          alert("שגיאה בהושבה: " + (data.error || res.status));
+          alert("<%= tt('host.err_seating', 'Seating error') %>: " + (data.error || res.status));
           return;
         }
       }
@@ -647,7 +655,7 @@
           if (!ul.querySelector("li")) {
             const p = document.createElement("p");
             p.className = "muted";
-            p.textContent = "אין הזמנות להיום למסעדה הזו.";
+            p.textContent = "<%= tt('host.no_reservations', 'No reservations for today at this restaurant.') %>";
             ul.replaceWith(p);
           }
         }
@@ -660,12 +668,12 @@
 
       alert(
         tables.length === 1
-          ? `ההזמנה הושבה לשולחן ${tables[0]} ונפתח צ׳ק במסעדה.`
-          : `ההזמנה הושבה לשולחנות ${tables.join(", ")} ונפתחו צ׳קים בהתאם.`
+          ? `<%= tt('host.success_seat_single', 'Reservation seated at table') %> ${tables[0]}. <%= tt('host.check_opened', 'Check opened.') %>`
+          : `<%= tt('host.success_seat_multi', 'Reservation seated at tables') %> ${tables.join(", ")}. <%= tt('host.checks_opened', 'Checks opened accordingly.') %>`
       );
     } catch (e) {
       console.error(e);
-      alert("שגיאת רשת בזמן הושבה.");
+      alert("<%= tt('host.err_network_seat', 'Network error during seating.') %>");
     }
   }
 
@@ -688,7 +696,7 @@
       ids = Array.from(state.selectedTableIds.values());
     }
     if (!ids.length) {
-      alert("בחר שולחן אחד לפחות במפה.");
+      alert('<%= tt("host.err_select_table", "בחר שולחן אחד לפחות במפה.") %>');
       return;
     }
 
@@ -707,7 +715,7 @@
       try { window.dispatchEvent(new Event("sb-floor-refresh")); } catch(_e) {}
     } catch (e) {
       console.error(e);
-      alert("שגיאה בעדכון סטטוס שולחן: " + (e && e.message ? e.message : "unknown"));
+      alert('<%= tt("host.err_update_status_prefix", "שגיאה בעדכון סטטוס שולחן") %>: ' + (e && e.message ? e.message : "unknown"));
     }
   }
 

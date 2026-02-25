@@ -5,79 +5,90 @@
   const suppliers  = Array.isArray(it.suppliers) ? it.suppliers : [];
 
   function esc(s){ return String(s ?? ""); }
+
+  // i18n helper with fallback
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t === "function"){
+        const s = it.t(k);
+        if (!s || s === k || s === `(${k})`) return fb;
+        return s;
+      }
+    } catch(e){}
+    return fb;
+  }
 %>
 
-<section class="sb-owner container" aria-label="ספקים">
+<section class="sb-owner container" aria-label="<%= tt('suppliers.aria', 'Suppliers') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
-        <h1>ספקים · <%= restaurant.name || 'מסעדה' %></h1>
+        <h1><%= tt('suppliers.title', 'Suppliers') %> · <%= restaurant.name || tt('suppliers.restaurant_fallback', 'Restaurant') %></h1>
         <p class="muted">
-          ניהול ספקים בסיסי: פרטי קשר, תנאי תשלום וזמן אספקה טיפוסי (ימים).
-          זמן האספקה משמש לחישוב צפי הגעה בהזמנות רכש חדשות.
+          <%= tt('suppliers.subtitle', 'Basic supplier management: contact info, payment terms, and typical lead time (days). Lead time is used to estimate arrival on new purchase orders.') %>
         </p>
       </div>
       <div class="actions">
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">🥬 מלאי</a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/purchase_orders">🧾 הזמנות רכש</a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📈 עלויות</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">🥬 <%= tt('suppliers.btn_stock', 'Inventory') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/purchase_orders">🧾 <%= tt('suppliers.btn_po', 'Purchase Orders') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📈 <%= tt('suppliers.btn_costs', 'Costs') %></a>
       </div>
     </header>
 
     <div class="panel card" style="margin-top:14px">
-      <h2 class="card-title">הוספת ספק חדש</h2>
+      <h2 class="card-title"><%= tt('suppliers.add_new', 'Add New Supplier') %></h2>
 
       <form class="form row" method="post" action="/owner/<%= restaurant.id %>/inventory/suppliers/save">
         <input type="hidden" name="id" value="">
         <label class="lbl">
-          שם ספק *
-          <input name="name" required placeholder="לדוגמה: דגי הים בע״מ">
+          <%= tt('suppliers.lbl_name', 'Supplier Name') %> *
+          <input name="name" required placeholder="<%= tt('suppliers.ph_name', 'e.g. Ocean Fish Ltd.') %>">
         </label>
         <label class="lbl">
-          טלפון
+          <%= tt('suppliers.lbl_phone', 'Phone') %>
           <input name="phone" placeholder="050-1234567">
         </label>
         <label class="lbl">
-          מייל
+          <%= tt('suppliers.lbl_email', 'Email') %>
           <input name="email" type="email" placeholder="sales@supplier.com">
         </label>
         <label class="lbl">
-          תנאי תשלום
-          <input name="paymentTerms" placeholder="שוטף +30">
+          <%= tt('suppliers.lbl_payment_terms', 'Payment Terms') %>
+          <input name="paymentTerms" placeholder="<%= tt('suppliers.ph_payment_terms', 'Net +30') %>">
         </label>
         <label class="lbl">
-          זמן אספקה (ימים)
-          <input name="leadTimeDays" type="number" min="0" step="1" placeholder="לדוגמה: 2">
+          <%= tt('suppliers.lbl_lead_time', 'Lead Time (days)') %>
+          <input name="leadTimeDays" type="number" min="0" step="1" placeholder="<%= tt('suppliers.ph_lead_time', 'e.g. 2') %>">
         </label>
         <label class="lbl" style="min-width:220px;flex:1">
-          הערות
-          <input name="notes" placeholder="ימי אספקה, מינימום הזמנה, שעות מענה וכו׳">
+          <%= tt('suppliers.lbl_notes', 'Notes') %>
+          <input name="notes" placeholder="<%= tt('suppliers.ph_notes', 'Delivery days, minimum order, response hours, etc.') %>">
         </label>
 
         <label class="chk">
           <input type="checkbox" name="isActive" checked>
-          פעיל
+          <%= tt('suppliers.lbl_active', 'Active') %>
         </label>
 
-        <button class="btn primary sm" type="submit">➕ הוסף ספק</button>
+        <button class="btn primary sm" type="submit">➕ <%= tt('suppliers.btn_add', 'Add Supplier') %></button>
       </form>
     </div>
 
     <div class="panel card" style="margin-top:16px">
-      <h2 class="card-title">כל הספקים</h2>
+      <h2 class="card-title"><%= tt('suppliers.all_suppliers', 'All Suppliers') %></h2>
 
       <% if (!suppliers.length) { %>
-        <p class="muted">עדיין אין ספקים. הוסף ספק ראשון למעלה.</p>
+        <p class="muted"><%= tt('suppliers.no_suppliers', 'No suppliers yet. Add your first supplier above.') %></p>
       <% } else { %>
 
         <div class="table">
           <div class="tr th">
-            <div>שם</div>
-            <div>טלפון</div>
-            <div>מייל</div>
-            <div>תנאי תשלום</div>
-            <div>זמן אספקה (ימים)</div>
-            <div>פעיל</div>
+            <div><%= tt('suppliers.th_name', 'Name') %></div>
+            <div><%= tt('suppliers.th_phone', 'Phone') %></div>
+            <div><%= tt('suppliers.th_email', 'Email') %></div>
+            <div><%= tt('suppliers.th_payment_terms', 'Payment Terms') %></div>
+            <div><%= tt('suppliers.th_lead_time', 'Lead Time (days)') %></div>
+            <div><%= tt('suppliers.th_active', 'Active') %></div>
             <div></div>
           </div>
 
@@ -89,7 +100,7 @@
                 <input class="in" name="name" required value="<%= esc(s.name) %>">
                 <% if (s.notes) { %>
                   <div class="muted small" style="margin-top:6px">
-                    הערות: <%= esc(s.notes) %>
+                    <%= tt('suppliers.lbl_notes', 'Notes') %>: <%= esc(s.notes) %>
                   </div>
                 <% } %>
               </div>
@@ -116,29 +127,29 @@
                   placeholder="—"
                 >
                 <div class="muted small" style="margin-top:4px">
-                  משמש כברירת מחדל לצפי הגעה בהזמנה חדשה.
+                  <%= tt('suppliers.lead_time_hint', 'Used as default expected arrival for new orders.') %>
                 </div>
               </div>
 
               <div class="td">
-                <label class="chk tiny" title="פעיל">
+                <label class="chk tiny" title="<%= tt('suppliers.lbl_active', 'Active') %>">
                   <input type="checkbox" name="isActive" <%= (s.isActive === false ? '' : 'checked') %> >
-                  <span class="muted small">פעיל</span>
+                  <span class="muted small"><%= tt('suppliers.lbl_active', 'Active') %></span>
                 </label>
               </div>
 
               <div class="td right">
-                <button class="btn primary sm" type="submit">שמור</button>
+                <button class="btn primary sm" type="submit"><%= tt('suppliers.btn_save', 'Save') %></button>
 
                 <button
                   class="btn ghost sm danger"
                   type="submit"
                   formaction="/owner/<%= restaurant.id %>/inventory/suppliers/<%= esc(s.id) %>/delete"
                   formmethod="post"
-                  onclick="return confirm('למחוק את הספק הזה?')"
+                  onclick="return confirm('<%= tt('suppliers.confirm_delete', 'Delete this supplier?') %>')"
                   style="margin-right:8px"
                 >
-                  מחיקה
+                  <%= tt('suppliers.btn_delete', 'Delete') %>
                 </button>
               </div>
             </form>

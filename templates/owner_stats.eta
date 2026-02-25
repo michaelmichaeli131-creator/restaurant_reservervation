@@ -1,7 +1,7 @@
 <% layout("_layout", it) %>
 
 <%
-  // תרגום בסיסי עם fallback
+  // i18n helper with fallback
   function tt(k, fb){
     try{
       if (it && typeof it.t === "function"){
@@ -32,32 +32,33 @@
   const fromTs = totals.from && Number.isFinite(totals.from) ? new Date(totals.from) : null;
   const toTs   = totals.to   && Number.isFinite(totals.to)   ? new Date(totals.to)   : null;
 
+  const _locale = (it.lang === "ka") ? "ka-GE" : (it.lang === "en") ? "en-US" : "he-IL";
   const rangeStr = (fromTs && toTs)
-    ? `${fromTs.toLocaleDateString("he-IL")} – ${toTs.toLocaleDateString("he-IL")}`
+    ? `${fromTs.toLocaleDateString(_locale)} – ${toTs.toLocaleDateString(_locale)}`
     : "";
 
-  // חישוב מקסימום להכנסות ליום – לגרפים
+  // Max daily revenue for chart scaling
   let maxDayRevenue = 0;
   revenuePerDay.forEach(r => {
     const v = Number(r.revenue ?? 0) || 0;
     if (v > maxDayRevenue) maxDayRevenue = v;
   });
 
-  // מקסימום לשעה
+  // Max hourly revenue
   let maxHourRevenue = 0;
   revenuePerHour.forEach(r => {
     const v = Number(r.revenue ?? 0) || 0;
     if (v > maxHourRevenue) maxHourRevenue = v;
   });
 
-  // מקסימום ליום בשבוע
+  // Max weekday revenue
   let maxWeekdayRevenue = 0;
   weekday.forEach(r => {
     const v = Number(r.revenue ?? 0) || 0;
     if (v > maxWeekdayRevenue) maxWeekdayRevenue = v;
   });
 
-  // פופולריות מנות – ניקח רק TOP 7 לגרף
+  // Top menu items - take top 7 for chart
   const topMenu = menuTopItems
     .slice()
     .sort((a,b) => (b.qty ?? 0) - (a.qty ?? 0))
@@ -68,45 +69,45 @@
     : topMenu.reduce((s,it)=>s + (Number(it.qty ?? 0) || 0), 0);
 %>
 
-<section class="sb-owner-stats container" aria-label="סטטיסטיקות למסעדה">
+<section class="sb-owner-stats container" aria-label="<%= tt('stats.aria_section', 'Statistics for restaurant') %>">
   <div class="card page-card">
     <header class="page-header">
       <div>
         <h1 class="page-title">
-          📊 סטטיסטיקות · <%= restaurant.name || "מסעדה" %>
+          📊 <%= tt('stats.title', 'Statistics') %> · <%= restaurant.name || tt('common.restaurant', 'Restaurant') %>
         </h1>
         <p class="muted">
-          טווח נתונים:
-          <%= rangeStr || "ללא טווח מוגדר (חשבון ראשון → אחרון)" %>
+          <%= tt('stats.data_range', 'Data range') %>:
+          <%= rangeStr || tt('stats.no_range', 'No defined range (first bill → last)') %>
         </p>
       </div>
       <div class="page-actions">
         <a class="btn ghost" href="/owner">
-          ← חזרה לדשבורד בעלים
+          ← <%= tt('stats.back_dashboard', 'Back to Owner Dashboard') %>
         </a>
       </div>
     </header>
 
-    <!-- 🔹 KPI ראשי: סיכום על -->
-    <section class="kpi-grid" aria-label="מדדי על">
+    <!-- KPI Summary -->
+    <section class="kpi-grid" aria-label="<%= tt('stats.kpi_aria', 'Key metrics') %>">
       <div class="kpi-card">
-        <div class="kpi-label">סה״כ הכנסות</div>
-        <div class="kpi-value main">₪ <%= totalRevenue.toFixed(2) %></div>
+        <div class="kpi-label"><%= tt('stats.total_revenue', 'Total Revenue') %></div>
+        <div class="kpi-value main"><%= tt('common.currency', '₪') %> <%= totalRevenue.toFixed(2) %></div>
         <div class="kpi-sub muted">
-          <%= billsCount %> חשבונות נסגרו
+          <%= billsCount %> <%= tt('stats.bills_closed', 'bills closed') %>
         </div>
       </div>
 
       <div class="kpi-card">
-        <div class="kpi-label">ממוצע חשבון ללקוח</div>
-        <div class="kpi-value main">₪ <%= avgBill.toFixed(2) %></div>
+        <div class="kpi-label"><%= tt('stats.avg_check', 'Average Check per Guest') %></div>
+        <div class="kpi-value main"><%= tt('common.currency', '₪') %> <%= avgBill.toFixed(2) %></div>
         <div class="kpi-sub muted">
-          מחושב לפי כל החשבונות בטווח
+          <%= tt('stats.avg_check_note', 'Calculated from all bills in range') %>
         </div>
         <div class="kpi-bar-wrap">
           <div class="kpi-bar-track">
             <%
-              // ננרמל את avgBill לערך "רצוי" לצורך גרפיקה בלבד
+              // Normalize avgBill to a "target" for display only
               const target = 200;
               const pct = Math.max(5, Math.min(100, (avgBill / target) * 100 || 0));
             %>
@@ -114,13 +115,13 @@
           </div>
           <div class="kpi-bar-legend">
             <span class="muted">0</span>
-            <span class="muted">יעד חזוי: ₪ <%= target.toFixed(0) %></span>
+            <span class="muted"><%= tt('stats.target_estimate', 'Target estimate') %>: <%= tt('common.currency', '₪') %> <%= target.toFixed(0) %></span>
           </div>
         </div>
       </div>
 
       <div class="kpi-card">
-        <div class="kpi-label">ימים חזקים</div>
+        <div class="kpi-label"><%= tt('stats.strong_days', 'Strong Days') %></div>
         <% if (strongDays && strongDays.length) { %>
           <ul class="mini-list">
             <% strongDays.slice(0,3).forEach(function(d){ %>
@@ -128,25 +129,24 @@
                 <span class="dot"></span>
                 <span><%= d.dayName %></span>
                 <span class="mono mini-amount">
-                  ₪ <%= Number(d.revenue ?? 0).toFixed(0) %>
+                  <%= tt('common.currency', '₪') %> <%= Number(d.revenue ?? 0).toFixed(0) %>
                 </span>
               </li>
             <% }) %>
           </ul>
         <% } else { %>
-          <p class="muted">עדיין אין מספיק נתונים לניתוח ימים חזקים.</p>
+          <p class="muted"><%= tt('stats.no_strong_days', 'Not enough data for strong days analysis yet.') %></p>
         <% } %>
       </div>
     </section>
 
-    <!-- ROW 1: 1) הכנסות יומיות, 2) ממוצע חשבון בזמן -->
+    <!-- ROW 1: Daily Revenue, Average Check -->
     <section class="row row-charts">
-      <!-- 1. הכנסות יומיות -->
       <div class="chart-card">
-        <h2 class="chart-title">1. הכנסות יומיות (Total Revenue)</h2>
+        <h2 class="chart-title">1. <%= tt('stats.chart_daily_revenue', 'Daily Revenue') %></h2>
         <% if (revenuePerDay.length && maxDayRevenue > 0) { %>
-          <div class="chart-bars" aria-label="הכנסות לפי יום">
-            <% revenuePerDay.forEach(function(d){ 
+          <div class="chart-bars" aria-label="<%= tt('stats.chart_daily_revenue', 'Daily Revenue') %>">
+            <% revenuePerDay.forEach(function(d){
                  const rev = Number(d.revenue ?? 0) || 0;
                  const pct = maxDayRevenue ? (rev / maxDayRevenue) * 100 : 0;
             %>
@@ -155,28 +155,27 @@
                 <div class="bar-track">
                   <div class="bar-fill" style="width:<%= pct %>%"></div>
                 </div>
-                <span class="bar-value mono">₪ <%= rev.toFixed(0) %></span>
+                <span class="bar-value mono"><%= tt('common.currency', '₪') %> <%= rev.toFixed(0) %></span>
               </div>
             <% }) %>
           </div>
         <% } else { %>
-          <p class="muted">עדיין אין חשבוניות מספיקות להצגת הכנסות יומיות.</p>
+          <p class="muted"><%= tt('stats.no_daily_revenue', 'Not enough bills to display daily revenue.') %></p>
         <% } %>
       </div>
 
-      <!-- 2. ממוצע חשבון – חלוקה לפי יום -->
       <div class="chart-card">
-        <h2 class="chart-title">2. ממוצע חשבון ללקוח (Average Check)</h2>
+        <h2 class="chart-title">2. <%= tt('stats.chart_avg_check', 'Average Check per Guest') %></h2>
         <% if (revenuePerDay.length && billsCount > 0) { %>
           <p class="muted small">
-            הערה: ממוצע החשבון הכללי כבר מוצג למעלה; כאן מוצג פר יום (בקירוב – לפי מספר חשבונות הכולל).
+            <%= tt('stats.avg_check_daily_note', 'Note: overall average is shown above; here it is broken down per day (approximate).') %>
           </p>
-          <div class="chart-bars mini" aria-label="ממוצע חשבון ליום">
+          <div class="chart-bars mini" aria-label="<%= tt('stats.chart_avg_check', 'Average Check per Guest') %>">
             <%
-              // נניח שהחשבוניות מפוזרות די שווה – זה קירוב.
+              // Approximate: evenly distributed bills across days
               const avgBillsPerDay = billsCount / (revenuePerDay.length || 1);
             %>
-            <% revenuePerDay.forEach(function(d){ 
+            <% revenuePerDay.forEach(function(d){
                  const rev = Number(d.revenue ?? 0) || 0;
                  const localAvg = avgBillsPerDay ? (rev / avgBillsPerDay) : 0;
                  const pct = target ? Math.min(100, (localAvg / target) * 100) : 0;
@@ -186,29 +185,28 @@
                 <div class="bar-track">
                   <div class="bar-fill alt" style="width:<%= pct %>%"></div>
                 </div>
-                <span class="bar-value mono">₪ <%= localAvg.toFixed(0) %></span>
+                <span class="bar-value mono"><%= tt('common.currency', '₪') %> <%= localAvg.toFixed(0) %></span>
               </div>
             <% }) %>
           </div>
         <% } else { %>
-          <p class="muted">לא ניתן לחשב ממוצע חשבון לפי יום בלי חשבוניות.</p>
+          <p class="muted"><%= tt('stats.no_avg_check', 'Cannot calculate daily average without bills.') %></p>
         <% } %>
       </div>
     </section>
 
-    <!-- ROW 2: 3) מנות פופולריות, 4) הכנסות לפי שעה -->
+    <!-- ROW 2: Top Dishes, Revenue by Hour -->
     <section class="row row-charts">
-      <!-- 3. מנות פופולריות -->
       <div class="chart-card">
-        <h2 class="chart-title">3. מנות פופולריות (Top Dishes)</h2>
+        <h2 class="chart-title">3. <%= tt('stats.chart_top_dishes', 'Top Dishes') %></h2>
         <% if (topMenu.length && totalQty > 0) { %>
-          <div class="chart-bars" aria-label="מנות פופולריות">
+          <div class="chart-bars" aria-label="<%= tt('stats.chart_top_dishes', 'Top Dishes') %>">
             <% topMenu.forEach(function(item){
                  const qty = Number(item.qty ?? 0) || 0;
                  const pctQty = totalQty ? (qty / totalQty) * 100 : 0;
             %>
               <div class="bar-row">
-                <span class="bar-label-name"><%= item.name || "פריט ללא שם" %></span>
+                <span class="bar-label-name"><%= item.name || tt('stats.unnamed_item', 'Unnamed item') %></span>
                 <div class="bar-track">
                   <div class="bar-fill dish" style="width:<%= pctQty %>%"></div>
                 </div>
@@ -219,43 +217,41 @@
             <% }) %>
           </div>
         <% } else { %>
-          <p class="muted">עדיין אין נתונים מספקים לפופולריות מנות.</p>
+          <p class="muted"><%= tt('stats.no_dish_data', 'Not enough data for dish popularity yet.') %></p>
         <% } %>
       </div>
 
-      <!-- 4. הכנסות לפי שעה -->
       <div class="chart-card">
-        <h2 class="chart-title">4. הכנסות לפי שעה (Revenue by Hour)</h2>
+        <h2 class="chart-title">4. <%= tt('stats.chart_revenue_hour', 'Revenue by Hour') %></h2>
         <% if (revenuePerHour.length && maxHourRevenue > 0) { %>
-          <div class="chart-heat" aria-label="הכנסות לפי שעה">
-            <% revenuePerHour.forEach(function(h){ 
+          <div class="chart-heat" aria-label="<%= tt('stats.chart_revenue_hour', 'Revenue by Hour') %>">
+            <% revenuePerHour.forEach(function(h){
                  const hour = h.hour;
                  const rev = Number(h.revenue ?? 0) || 0;
                  const count = Number(h.count ?? 0) || 0;
                  const intensity = maxHourRevenue ? (rev / maxHourRevenue) : 0;
-                 const pct = Math.max(0.12, intensity); // לא פחות מדי כדי שיראו
+                 const pct = Math.max(0.12, intensity);
             %>
               <div class="heat-cell" style="--i:<%= pct %>">
                 <div class="heat-hour"><%= hour %>:00</div>
-                <div class="heat-rev mono">₪ <%= rev.toFixed(0) %></div>
-                <div class="heat-count muted small"><%= count %> חשבונות</div>
+                <div class="heat-rev mono"><%= tt('common.currency', '₪') %> <%= rev.toFixed(0) %></div>
+                <div class="heat-count muted small"><%= count %> <%= tt('stats.bills_unit', 'bills') %></div>
               </div>
             <% }) %>
           </div>
         <% } else { %>
-          <p class="muted">טרם נרשמו מספיק חשבונות כדי לנתח שעות חזקות.</p>
+          <p class="muted"><%= tt('stats.no_hourly_data', 'Not enough bills to analyze peak hours.') %></p>
         <% } %>
       </div>
     </section>
 
-    <!-- ROW 3: 5) הכנסות לפי יום בשבוע, 6) טבלת ימים חזקים -->
+    <!-- ROW 3: Revenue by Weekday, Table Turnover -->
     <section class="row row-charts">
-      <!-- 5. הכנסות לפי יום בשבוע -->
       <div class="chart-card">
-        <h2 class="chart-title">5. הכנסות לפי יום בשבוע</h2>
+        <h2 class="chart-title">5. <%= tt('stats.chart_weekday', 'Revenue by Day of Week') %></h2>
         <% if (weekday.length && maxWeekdayRevenue > 0) { %>
-          <div class="chart-bars weekday" aria-label="הכנסות בחתך ימי השבוע">
-            <% weekday.forEach(function(d){ 
+          <div class="chart-bars weekday" aria-label="<%= tt('stats.chart_weekday', 'Revenue by Day of Week') %>">
+            <% weekday.forEach(function(d){
                  const rev = Number(d.revenue ?? 0) || 0;
                  const cnt = Number(d.count ?? 0) || 0;
                  const pct = maxWeekdayRevenue ? (rev / maxWeekdayRevenue) * 100 : 0;
@@ -266,21 +262,20 @@
                   <div class="bar-fill weekday" style="width:<%= pct %>%"></div>
                 </div>
                 <span class="bar-value mono">
-                  ₪ <%= rev.toFixed(0) %> · <%= cnt %> חשבונות
+                  <%= tt('common.currency', '₪') %> <%= rev.toFixed(0) %> · <%= cnt %> <%= tt('stats.bills_unit', 'bills') %>
                 </span>
               </div>
             <% }) %>
           </div>
         <% } else { %>
-          <p class="muted">אין מספיק נתונים לפי ימי השבוע.</p>
+          <p class="muted"><%= tt('stats.no_weekday_data', 'Not enough data by day of week.') %></p>
         <% } %>
       </div>
 
-      <!-- 6. תחלופת שולחנות (קירוב) -->
       <div class="chart-card">
-        <h2 class="chart-title">6. תחלופת שולחנות (Table Turnover – קירוב)</h2>
+        <h2 class="chart-title">6. <%= tt('stats.chart_turnover', 'Table Turnover (Approximate)') %></h2>
         <p class="muted small">
-          לפי כמות חשבונות נסגרו / כמות ימי פעילות. בהמשך אפשר לדייק עם נתוני הושבה מלאים.
+          <%= tt('stats.turnover_note', 'Based on closed bills / active days. Can be refined with full seating data.') %>
         </p>
         <% if (billsCount > 0 && revenuePerDay.length) { %>
           <%
@@ -290,7 +285,7 @@
           <div class="turnover-card">
             <div class="turnover-main">
               <div class="turnover-value mono"><%= approxCoversPerDay.toFixed(1) %></div>
-              <div class="turnover-label">חשבונות ביום בממוצע</div>
+              <div class="turnover-label"><%= tt('stats.bills_per_day', 'Bills per day (average)') %></div>
             </div>
             <div class="turnover-bar-wrap">
               <div class="turnover-bar-track">
@@ -301,23 +296,22 @@
                 <div class="turnover-bar-fill" style="width:<%= tPct %>%"></div>
               </div>
               <div class="turnover-legend">
-                <span class="muted">יעד דמיוני: ~<%= tTarget %> חשבונות/יום</span>
+                <span class="muted"><%= tt('stats.target_imaginary', 'Imaginary target') %>: ~<%= tTarget %> <%= tt('stats.bills_per_day_unit', 'bills/day') %></span>
               </div>
             </div>
           </div>
         <% } else { %>
-          <p class="muted">אין מספיק נתונים לחישוב תחלופה.</p>
+          <p class="muted"><%= tt('stats.no_turnover_data', 'Not enough data to calculate turnover.') %></p>
         <% } %>
       </div>
     </section>
 
-    <!-- ROW 4: 7+8 – placeholders חכמים למדדים שדורשים עוד data -->
+    <!-- ROW 4: Profit per Dish, Labor Cost -->
     <section class="row row-charts">
-      <!-- 7. רווחיות פר מנה -->
       <div class="chart-card">
-        <h2 class="chart-title">7. רווחיות לפי מנה (Profit per Dish)</h2>
+        <h2 class="chart-title">7. <%= tt('stats.chart_profit_dish', 'Profit per Dish') %></h2>
         <p class="muted small">
-          כדי לחשב רווחיות אמיתית לפי מנה צריך להזין עלות מרכיבים (Food Cost) לכל פריט בתפריט.
+          <%= tt('stats.profit_dish_note', 'To calculate real profit per dish, enter ingredient costs (Food Cost) for each menu item.') %>
         </p>
         <div class="placeholder-chart">
           <div class="placeholder-bar"></div>
@@ -325,16 +319,14 @@
           <div class="placeholder-bar mid"></div>
         </div>
         <p class="muted small">
-          כרגע אנו מציגים רק פופולריות מנות (סטטיסטיקה מס׳ 3). כאשר תוסיף עלות לתפריט, נוכל
-          להציג איזו מנה לא רק נמכרת הרבה – אלא גם מכניסה הכי הרבה.
+          <%= tt('stats.profit_dish_hint', 'Currently showing dish popularity only (chart #3). Once you add costs to the menu, we can show which dishes are most profitable.') %>
         </p>
       </div>
 
-      <!-- 8. עלות עבודה מתוך ההכנסות -->
       <div class="chart-card">
-        <h2 class="chart-title">8. עלות עבודה מתוך ההכנסות (Labor Cost %)</h2>
+        <h2 class="chart-title">8. <%= tt('stats.chart_labor_cost', 'Labor Cost %') %></h2>
         <p class="muted small">
-          מדד זה דורש נתונים מהשכר / מערכת נוכחות עובדים (עלות שעתית, משמרות, שעות עבודה בפועל).
+          <%= tt('stats.labor_cost_note', 'This metric requires payroll / attendance data (hourly costs, shifts, actual work hours).') %>
         </p>
         <div class="placeholder-gauge">
           <div class="gauge-arc">
@@ -342,12 +334,11 @@
           </div>
           <div class="gauge-center">
             <div class="gauge-value">—%</div>
-            <div class="gauge-label muted small">טרם הוגדר</div>
+            <div class="gauge-label muted small"><%= tt('stats.not_defined', 'Not defined yet') %></div>
           </div>
         </div>
         <p class="muted small">
-          כאשר תחבר נתוני כוח אדם (למשל בקובץ חיצוני או מודול נוסף ב־SpotBook), נוכל לחשב:
-          עלות עבודה / הכנסות, וכך לראות אם צריך לייעל משמרות.
+          <%= tt('stats.labor_cost_hint', 'Once you connect staff data (external file or additional SpotBook module), we can calculate: labor cost / revenue, to see if shifts need optimization.') %>
         </p>
       </div>
     </section>

@@ -125,9 +125,9 @@
   <% } %>
 
   <section class="card">
-    <h3 class="card-title">תפריט</h3>
-    <div id="pos-menu" data-rid="<%= it.restaurant.id %>">
-      <p class="muted">טוען תפריט...</p>
+    <h3 class="card-title"><%= tt('restaurant.menu.title','Menu') %></h3>
+    <div id="pos-menu" data-rid="<%= it.restaurant.id %>" data-currency="<%= tt('common.currency', '₪') %>" data-empty-msg="<%= tt('pos.menu.empty', 'אין מנות להצגה כרגע.') %>" data-error-msg="<%= tt('pos.error.load_menu', 'שגיאה בטעינת התפריט') %>" data-default-category="<%= tt('pos.menu.no_category', 'קטגוריה') %>">
+      <p class="muted"><%= tt('pos.menu.loading','Loading menu...') %></p>
     </div>
   </section>
   <script type="module" src="/public/js/menu_embed.js"></script>

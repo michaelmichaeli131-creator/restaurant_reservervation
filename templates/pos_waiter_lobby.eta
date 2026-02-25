@@ -92,7 +92,7 @@
                       <span>• <%= itemsCount %> <%= tt('pos.waiter.items_count', 'Items') %></span>
                     <% } %>
                     <% if (subtotal !== "" && subtotal != null) { %>
-                      <span>• <%= subtotal %> ₪</span>
+                      <span>• <%= subtotal %> <%= tt('common.currency', '₪') %></span>
                     <% } %>
                   </div>
                 </button>
@@ -131,6 +131,65 @@
 </main>
 
 <!-- כרטיסיית צד לפרטי שולחן -->
+<div id="table-info-backdrop" class="table-info-backdrop"></div>
+<aside id="table-info-panel" class="table-info-panel" aria-hidden="true">
+  <div class="table-info-inner">
+    <header class="table-info-header">
+      <div>
+        <div class="tip-label"><%= tt('host.table_details', 'Table Details') %></div>
+        <div class="tip-title">
+          <%= tt('host.table_label', 'Table') %> <span id="tip-table-number">—</span>
+        </div>
+      </div>
+      <button type="button" class="tip-close-btn" id="tip-close-btn" aria-label="<%= tt('host.close_table_details', 'Close table details') %>">
+        ✕
+      </button>
+    </header>
+
+    <div class="table-info-body">
+      <div class="tip-row">
+        <span class="tip-row-label"><%= tt('host.guest_name', 'Guest Name') %></span>
+        <span class="tip-row-value" id="tip-guest-name">—</span>
+      </div>
+      <div class="tip-row">
+        <span class="tip-row-label"><%= tt('host.num_guests', 'Number of Guests') %></span>
+        <span class="tip-row-value" id="tip-people">—</span>
+      </div>
+      <div class="tip-row">
+        <span class="tip-row-label"><%= tt('host.reservation_time', 'Reservation Time') %></span>
+        <span class="tip-row-value" id="tip-time">—</span>
+      </div>
+      <div class="tip-row">
+        <span class="tip-row-label"><%= tt('host.table_status_label', 'Table Status') %></span>
+        <span class="tip-row-value">
+          <span id="tip-status" class="tip-status-badge">—</span>
+        </span>
+      </div>
+      <div class="tip-row">
+        <span class="tip-row-label"><%= tt('pos.waiter.items_label', 'Number of Items') %></span>
+        <span class="tip-row-value" id="tip-items-count">—</span>
+      </div>
+      <div class="tip-row">
+        <span class="tip-row-label"><%= tt('pos.waiter.subtotal', 'Subtotal') %></span>
+        <span class="tip-row-value" id="tip-subtotal">—</span>
+      </div>
+    </div>
+
+    <footer class="table-info-footer">
+      <div class="tip-actions">
+        <button type="button" class="tip-primary-btn" id="tip-go-order" disabled>
+          <%= tt('pos.waiter.btn_open_order', 'Open Order') %>
+        </button>
+        <button type="button" class="tip-secondary-btn" id="tip-close-secondary">
+          <%= tt('common.btn_close', 'Close') %>
+        </button>
+      </div>
+      <p class="muted small" style="margin-top:10px">
+        <%= tt('pos.waiter.table_info_note', 'Information is taken from the last order / check at this table.') %>
+      </p>
+    </footer>
+  </div>
+</aside>
 
 <link rel="stylesheet" href="/static/dist/floor-index.css?v=<%= it.BUILD_TAG || Date.now() %>">
   <link rel="stylesheet" href="/static/dist/floor-floor-view-app.css?v=<%= it.BUILD_TAG || Date.now() %>">

@@ -1,41 +1,44 @@
 <!-- src/templates/signup.eta -->
-<h1>הרשמה</h1>
+<%
+function tt(k, fb) { var v = it.t ? it.t(k) : k; return (v && v !== k) ? v : fb; }
+%>
+<h1><%= tt('auth.signup.title', 'הרשמה') %></h1>
 
 <form method="post" action="/signup" class="form grid">
-  <label>שם פרטי
+  <label><%= tt('auth.signup.first_name', 'שם פרטי') %>
     <input name="firstName" value="<%= it.form?.firstName || '' %>" required />
   </label>
-  <label>שם משפחה
+  <label><%= tt('auth.signup.last_name', 'שם משפחה') %>
     <input name="lastName" value="<%= it.form?.lastName || '' %>" required />
   </label>
-  <label>שם משתמש
+  <label><%= tt('auth.signup.username', 'שם משתמש') %>
     <input name="username" value="<%= it.form?.username || '' %>" required />
   </label>
-  <label>גיל
+  <label><%= tt('auth.signup.age', 'גיל') %>
     <input type="number" name="age" min="0" value="<%= it.form?.age || '' %>" />
   </label>
-  <label>סוג עסק (לבעלי מסעדה)
-    <input name="businessType" value="<%= it.form?.businessType || '' %>" placeholder="מסעדה / בר / קפה..." />
+  <label><%= tt('auth.signup.business_type', 'סוג עסק (לבעלי מסעדה)') %>
+    <input name="businessType" value="<%= it.form?.businessType || '' %>" placeholder="<%= tt('auth.signup.business_placeholder', 'מסעדה / בר / קפה...') %>" />
   </label>
-  <label>דואר אלקטרוני
+  <label><%= tt('auth.signup.email', 'דואר אלקטרוני') %>
     <input type="email" name="email" value="<%= it.form?.email || '' %>" required />
   </label>
-  <label>סיסמה
+  <label><%= tt('auth.signup.password', 'סיסמה') %>
     <input type="password" name="password" required />
   </label>
-  <label>אימות סיסמה
+  <label><%= tt('auth.signup.confirm_password', 'אימות סיסמה') %>
     <input type="password" name="confirm" required />
   </label>
 
-  <label>תפקיד
+  <label><%= tt('auth.signup.role', 'תפקיד') %>
     <select name="role">
-      <option value="user" <%= (it.form?.role||'user')==='user'?'selected':'' %>>משתמש</option>
-      <option value="owner" <%= (it.form?.role||'user')==='owner'?'selected':'' %>>בעל מסעדה</option>
+      <option value="user" <%= (it.form?.role||'user')==='user'?'selected':'' %>><%= tt('auth.register.form.role_user', 'משתמש') %></option>
+      <option value="owner" <%= (it.form?.role||'user')==='owner'?'selected':'' %>><%= tt('auth.signup.role_owner', 'בעל מסעדה') %></option>
     </select>
   </label>
 
   <div style="grid-column: 1 / -1">
-    <button class="btn" type="submit">הרשמה</button>
+    <button class="btn" type="submit"><%= tt('auth.signup.btn_submit', 'הרשמה') %></button>
   </div>
 </form>
 

@@ -95,18 +95,18 @@
   <section class="card">
     <div class="reviews-header">
       <div>
-        <h2 class="card-title">ביקורות</h2>
+        <h2 class="card-title"><%= tt('restaurant.reviews.title', 'Reviews') %></h2>
         <% if (it.r.reviewCount && it.r.averageRating) { %>
           <div class="rating-summary">
             <span class="stars"><%= '★'.repeat(Math.round(it.r.averageRating)) %><%= '☆'.repeat(5 - Math.round(it.r.averageRating)) %></span>
-            <span class="rating-text"><%= it.r.averageRating.toFixed(1) %> (<%= it.r.reviewCount %> ביקורות)</span>
+            <span class="rating-text"><%= it.r.averageRating.toFixed(1) %> (<%= it.r.reviewCount %> <%= tt('restaurant.reviews.count_label', 'reviews') %>)</span>
           </div>
         <% } %>
       </div>
     </div>
 
     <div id="reviews-container" class="reviews-list">
-      <p class="muted">טוען ביקורות...</p>
+      <p class="muted"><%= tt('restaurant.reviews.loading', 'Loading reviews...') %></p>
     </div>
   </section>
 </main>
@@ -124,10 +124,10 @@
       const people = Number(p.value || 1);
       const date = new URLSearchParams(location.search).get('date') || '<%= it.date %>';
       if (!date || !time) {
-        res.textContent = 'נא לבחור תאריך ושעה';
+        res.textContent = '<%= tt("restaurant.check.missing_fields", "Please select date and time") %>';
         return;
       }
-      res.textContent = 'בודק זמינות...';
+      res.textContent = '<%= tt("restaurant.check.checking", "Checking availability...") %>';
       try {
         const r = await fetch(`/api/restaurants/<%= it.r.id %>/check`, {
           method: 'POST',
@@ -136,15 +136,15 @@
         });
         const data = await r.json().catch(()=>null);
         if (r.ok && data && data.ok) {
-          res.textContent = 'יש זמינות! אפשר לבצע הזמנה.';
+          res.textContent = '<%= tt("restaurant.check.available", "Available! You can make a reservation.") %>';
         } else {
           const sug = (data && data.suggestions && data.suggestions.length)
-            ? ' הצעות: ' + data.suggestions.join(', ')
+            ? ' <%= tt("restaurant.check.suggestions", "Suggestions:") %> ' + data.suggestions.join(', ')
             : '';
-          res.textContent = 'אין זמינות בזמן המבוקש.' + sug;
+          res.textContent = '<%= tt("restaurant.check.unavailable", "No availability at requested time.") %>' + sug;
         }
       } catch (e) {
-        res.textContent = 'שגיאה בבדיקה. נסה שוב.';
+        res.textContent = '<%= tt("restaurant.check.error", "Error checking. Try again.") %>';
       }
     });
   }
@@ -162,13 +162,13 @@
     const reviews = await res.json();
 
     if (!reviews.length) {
-      container.innerHTML = '<p class="muted">אין ביקורות עדיין. היה הראשון לכתוב ביקורת!</p>';
+      container.innerHTML = '<p class="muted"><%= tt("restaurant.reviews.empty", "No reviews yet. Be the first to write a review!") %></p>';
       return;
     }
 
     let html = '';
     reviews.forEach(review => {
-      const userName = review.user ? `${review.user.firstName} ${review.user.lastName}` : 'אנונימי';
+      const userName = review.user ? `${review.user.firstName} ${review.user.lastName}` : '<%= tt("restaurant.reviews.anonymous", "Anonymous") %>';
       const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating);
       const date = new Date(review.createdAt).toLocaleDateString('he-IL');
 
@@ -184,7 +184,7 @@
           ${review.comment ? `<p class="review-comment">${review.comment}</p>` : ''}
           ${review.ownerReply ? `
             <div class="owner-reply">
-              <strong>תגובת הבעלים:</strong>
+              <strong><%= tt("restaurant.reviews.owner_reply", "Owner\\'s Reply:") %></strong>
               <p>${review.ownerReply}</p>
             </div>
           ` : ''}
@@ -195,7 +195,7 @@
     container.innerHTML = html;
   } catch (e) {
     console.error('Failed to load reviews:', e);
-    container.innerHTML = '<p class="muted">שגיאה בטעינת ביקורות</p>';
+    container.innerHTML = '<p class="muted"><%= tt("restaurant.reviews.error", "Error loading reviews") %></p>';
   }
 })();
 </script>

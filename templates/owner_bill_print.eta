@@ -25,19 +25,18 @@
   const timeStr = createdAt.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
 %>
 
-<section class="sb-bill container" aria-label="חשבונית למסעדה">
+<section class="sb-bill container" aria-label="<%= tt('bill.aria','Bill for restaurant') %>">
   <div class="bill-card">
-    <!-- כפתור הדפסה בראש הדף -->
     <header class="bill-header">
       <div class="bill-header-main">
-        <h1 class="bill-title"><%= restaurant.name || "שם מסעדה" %></h1>
+        <h1 class="bill-title"><%= restaurant.name || tt('bill.restaurant_fallback','Restaurant') %></h1>
         <p class="bill-subtitle">
           <%= restaurant.address || "" %>
           <% if (restaurant.city) { %> · <%= restaurant.city %><% } %>
         </p>
         <% if (restaurant.phone) { %>
           <p class="bill-meta-line">
-            <span class="label">טלפון:</span>
+            <span class="label"><%= tt('bill.phone','Phone:') %></span>
             <span><%= restaurant.phone %></span>
           </p>
         <% } %>
@@ -45,57 +44,55 @@
 
       <div class="bill-header-actions no-print">
         <button type="button" class="btn primary" onclick="window.print()">
-          🖨️ הדפס
+          🖨️ <%= tt('bill.btn_print','Print') %>
         </button>
         <a
           class="btn ghost"
           href="/owner/<%= restaurant.id %>/bills"
         >
-          ← חזרה לחשבונות
+          ← <%= tt('bill.btn_back_bills','Back to Bills') %>
         </a>
       </div>
     </header>
 
-    <!-- פרטי הזמנה -->
     <div class="bill-meta card">
       <div class="bill-meta-row">
-        <span class="label">תאריך:</span>
+        <span class="label"><%= tt('bill.date','Date:') %></span>
         <span><%= dateStr %></span>
       </div>
       <div class="bill-meta-row">
-        <span class="label">שעה:</span>
+        <span class="label"><%= tt('bill.time','Time:') %></span>
         <span><%= timeStr %></span>
       </div>
       <div class="bill-meta-row">
-        <span class="label">שולחן:</span>
+        <span class="label"><%= tt('bill.table','Table:') %></span>
         <span><%= bill.table ?? "-" %></span>
       </div>
       <div class="bill-meta-row">
-        <span class="label">מס׳ הזמנה:</span>
+        <span class="label"><%= tt('bill.order_id','Order #:') %></span>
         <span class="mono"><%= bill.orderId || bill.id || "-" %></span>
       </div>
       <div class="bill-meta-row">
-        <span class="label">קוד תשלום:</span>
+        <span class="label"><%= tt('bill.payment_code','Payment Code:') %></span>
         <span class="mono small"><%= bill.paymentCode || "-" %></span>
       </div>
     </div>
 
-    <!-- רשימת פריטים -->
     <div class="bill-items card">
-      <h2 class="section-title">פריטים בחשבון</h2>
+      <h2 class="section-title"><%= tt('bill.items_title','Bill Items') %></h2>
 
       <% if (Array.isArray(bill.items) && bill.items.length) { %>
         <table class="bill-table">
           <thead>
             <tr>
-              <th class="col-qty">כמות</th>
-              <th class="col-name">פריט</th>
-              <th class="col-unit">מחיר יחידה</th>
-              <th class="col-total">סה״כ</th>
+              <th class="col-qty"><%= tt('bill.tbl_qty','Qty') %></th>
+              <th class="col-name"><%= tt('bill.tbl_item','Item') %></th>
+              <th class="col-unit"><%= tt('bill.tbl_unit_price','Unit Price') %></th>
+              <th class="col-total"><%= tt('bill.tbl_total','Total') %></th>
             </tr>
           </thead>
           <tbody>
-            <% bill.items.forEach(function(itm){ 
+            <% bill.items.forEach(function(itm){
                  if (itm.status === "cancelled") return;
                  const q = Number(itm.quantity ?? 0) || 0;
                  const up = Number(itm.unitPrice ?? 0) || 0;
@@ -103,40 +100,38 @@
             %>
               <tr>
                 <td class="col-qty"><%= q %></td>
-                <td class="col-name"><%= itm.name || "פריט ללא שם" %></td>
+                <td class="col-name"><%= itm.name || tt('bill.unnamed_item','Unnamed item') %></td>
                 <td class="col-unit">
-                  ₪ <%= up.toFixed(2) %>
+                  <%= tt('common.currency', '₪') %> <%= up.toFixed(2) %>
                 </td>
                 <td class="col-total">
-                  ₪ <%= lineTotal.toFixed(2) %>
+                  <%= tt('common.currency', '₪') %> <%= lineTotal.toFixed(2) %>
                 </td>
               </tr>
             <% }) %>
           </tbody>
         </table>
       <% } else { %>
-        <p class="muted">אין פריטים בחשבון זה.</p>
+        <p class="muted"><%= tt('bill.no_items','No items in this bill.') %></p>
       <% } %>
     </div>
 
-    <!-- סיכומים + טיפ באחוזים ובקבוע -->
     <div class="bill-summary card">
-      <h2 class="section-title">סיכום חשבון</h2>
+      <h2 class="section-title"><%= tt('bill.summary_title','Bill Summary') %></h2>
 
       <div class="summary-grid">
         <div class="summary-left">
           <div class="summary-row">
-            <span class="label">סיכום ביניים (ללא טיפ):</span>
+            <span class="label"><%= tt('bill.subtotal','Subtotal (before tip):') %></span>
             <span class="value mono" id="sb-subtotal">
-              ₪ <%= subtotal.toFixed(2) %>
+              <%= tt('common.currency', '₪') %> <%= subtotal.toFixed(2) %>
             </span>
           </div>
 
-          <!-- טיפ באחוזים -->
           <div class="summary-row tip-row">
             <div class="tip-label-wrap">
-              <span class="label">טיפ (%):</span>
-              <span class="tip-hint">הזן אחוז, הטיפ יחושב אוטומטית</span>
+              <span class="label"><%= tt('bill.tip_pct','Tip (%):') %></span>
+              <span class="tip-hint"><%= tt('bill.tip_pct_hint','Enter percentage, tip will be calculated automatically') %></span>
             </div>
             <div class="tip-input-wrap">
               <input
@@ -152,14 +147,13 @@
             </div>
           </div>
 
-          <!-- טיפ בקבוע -->
           <div class="summary-row tip-row">
             <div class="tip-label-wrap">
-              <span class="label">טיפ קבוע:</span>
-              <span class="tip-hint">אפשר גם להזין סכום ידני</span>
+              <span class="label"><%= tt('bill.tip_fixed','Fixed Tip:') %></span>
+              <span class="tip-hint"><%= tt('bill.tip_fixed_hint','You can also enter a manual amount') %></span>
             </div>
             <div class="tip-input-wrap">
-              <span class="prefix">₪</span>
+              <span class="prefix"><%= tt('common.currency', '₪') %></span>
               <input
                 id="tipFixed"
                 type="number"
@@ -170,35 +164,33 @@
               />
             </div>
           </div>
-
-          <!-- אפשרות לשדה נוסף (למשל שירות / הנחה בעתיד) -->
         </div>
 
         <div class="summary-right">
           <div class="summary-row">
-            <span class="label">סה״כ טיפ:</span>
+            <span class="label"><%= tt('bill.total_tip','Total Tip:') %></span>
             <span class="value mono" id="sb-tip-display">
-              ₪ <%= (subtotal * 0.10).toFixed(2) %>
+              <%= tt('common.currency', '₪') %> <%= (subtotal * 0.10).toFixed(2) %>
             </span>
           </div>
 
           <div class="summary-row total-row">
-            <span class="label strong">סה״כ לתשלום:</span>
+            <span class="label strong"><%= tt('bill.grand_total','Grand Total:') %></span>
             <span class="value mono strong" id="sb-grand-total">
-              ₪ <%= (subtotal * 1.10).toFixed(2) %>
+              <%= tt('common.currency', '₪') %> <%= (subtotal * 1.10).toFixed(2) %>
             </span>
           </div>
 
           <p class="muted small">
-            הטיפ אינו מחושב במערכת החשבונאית – זהו חישוב לצורכי הצגה בלבד.
+            <%= tt('bill.tip_disclaimer','The tip is not calculated in the accounting system — this is for display purposes only.') %>
           </p>
         </div>
       </div>
     </div>
 
     <footer class="bill-footer">
-      <p>תודה שבחרתם <strong><%= restaurant.name || "בנו" %></strong> 💛</p>
-      <p class="muted small">לשימוש פנימי וללקוח, אין באמור תחליף לחשבונית מס כדין.</p>
+      <p><%= tt('bill.thank_you','Thank you for choosing') %> <strong><%= restaurant.name || tt('bill.us','us') %></strong> 💛</p>
+      <p class="muted small"><%= tt('bill.legal_note','For internal & customer use. This is not a substitute for a legal tax invoice.') %></p>
     </footer>
   </div>
 </section>
@@ -212,9 +204,10 @@
     var tipDisplay    = document.getElementById('sb-tip-display');
     var grandTotalEl  = document.getElementById('sb-grand-total');
 
+    var currency = '<%= tt("common.currency", "₪") %>';
     function formatMoney(v){
       if (!isFinite(v)) v = 0;
-      return '₪ ' + v.toFixed(2);
+      return currency + ' ' + v.toFixed(2);
     }
 
     function recalcFromPercent(){

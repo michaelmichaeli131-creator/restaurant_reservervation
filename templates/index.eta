@@ -117,28 +117,31 @@
     <h2 class="section-title"><%= (it.t && it.t('home.featured.title')) || 'Featured Restaurants' %></h2>
 
     <% if (it.featured && it.featured.length) { %>
-      <div class="hs-wrap show-3" dir="<%= it.dir || 'ltr' %>">
-        <button class="hs-btn prev" aria-label="<%= (it.t && it.t('home.featured.prev_aria')) || 'Show previous' %>">&#8249;</button>
-        <div class="hs">
-          <% it.featured.forEach(function(fr){ %>
-            <article class="hs-item">
-              <a href="/restaurants/<%= fr.id %>" class="hs-link">
-                <div class="hs-img" style="background-image:url('<%= fr.cover %>');"></div>
-                <div class="hs-body">
-                  <div class="hs-title"><%= fr.name %></div>
-                  <div class="hs-meta"><%= fr.city %></div>
-                  <% if (fr.rating) { %>
-                    <div class="hs-rating">
-                      <span class="stars">&#9733;</span>
-                      <span><%= fr.rating.toFixed(1) %></span>
-                    </div>
-                  <% } %>
-                </div>
-              </a>
-            </article>
-          <% }); %>
+      <div class="carousel" dir="<%= it.dir || 'ltr' %>" aria-roledescription="carousel" aria-label="<%= (it.t && it.t('home.featured.title')) || 'Featured Restaurants' %>">
+        <button class="carousel-btn prev" aria-label="<%= (it.t && it.t('home.featured.prev_aria')) || 'Show previous' %>">&#8249;</button>
+        <div class="carousel-viewport">
+          <div class="carousel-track">
+            <% it.featured.forEach(function(fr, idx){ %>
+              <article class="carousel-slide" role="group" aria-roledescription="slide" aria-label="<%= (idx+1) + ' / ' + it.featured.length %>">
+                <a href="/restaurants/<%= fr.id %>" class="hs-link">
+                  <div class="hs-img" style="background-image:url('<%= fr.cover %>');"></div>
+                  <div class="hs-body">
+                    <div class="hs-title"><%= fr.name %></div>
+                    <div class="hs-meta"><%= fr.city %></div>
+                    <% if (fr.rating) { %>
+                      <div class="hs-rating">
+                        <span class="stars">&#9733;</span>
+                        <span><%= fr.rating.toFixed(1) %></span>
+                      </div>
+                    <% } %>
+                  </div>
+                </a>
+              </article>
+            <% }); %>
+          </div>
         </div>
-        <button class="hs-btn next" aria-label="<%= (it.t && it.t('home.featured.next_aria')) || 'Show next' %>">&#8250;</button>
+        <button class="carousel-btn next" aria-label="<%= (it.t && it.t('home.featured.next_aria')) || 'Show next' %>">&#8250;</button>
+        <div class="carousel-dots" role="tablist" aria-label="<%= (it.t && it.t('home.featured.dots_aria')) || 'Slide navigation' %>"></div>
       </div>
     <% } else { %>
       <div class="sb-empty-state" style="padding:var(--sb-space-xl)">
@@ -223,6 +226,85 @@
 }
 
 /* ===== Featured Carousel ===== */
+.carousel{
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.carousel-viewport{
+  grid-column: 2;
+  overflow: hidden;
+  border-radius: var(--sb-radius-xl, 16px);
+}
+.carousel-track{
+  display: flex;
+  gap: var(--carousel-gap, 12px);
+  transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: transform;
+}
+.carousel-slide{
+  flex: 0 0 calc((100% - 2 * var(--carousel-gap, 12px)) / var(--carousel-visible, 3));
+  background: var(--sb-color-panel, #121622);
+  border: 1px solid var(--sb-color-bd, #23293a);
+  border-radius: var(--sb-radius-xl, 14px);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.carousel-slide:hover{
+  transform: translateY(-3px);
+  box-shadow: var(--sb-shadow-md, 0 10px 30px rgba(0,0,0,.35));
+}
+.carousel-btn{
+  grid-row: 1;
+  inline-size: 40px;
+  block-size: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--sb-color-bd, #23293a);
+  background: var(--sb-color-panel-2, #171b29);
+  color: var(--sb-color-ink, #e6e8ef);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 20px;
+  transition: background 0.15s ease, transform 0.15s ease;
+  z-index: 2;
+}
+.carousel-btn:hover{
+  background: var(--sb-color-panel, #121622);
+  transform: scale(1.1);
+}
+.carousel-btn.prev{ grid-column: 1; }
+.carousel-btn.next{ grid-column: 3; }
+
+/* Dots */
+.carousel-dots{
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: var(--sb-space-md, 12px) 0 0;
+}
+.carousel-dot{
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  border: none;
+  background: var(--sb-color-bd, #23293a);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.25s ease, transform 0.25s ease;
+}
+.carousel-dot:hover{ background: rgba(125,211,252,.4); }
+.carousel-dot.is-active{
+  background: var(--sb-color-brand, #3b82f6);
+  transform: scale(1.3);
+}
+
+/* Slide content */
 .hs-link{
   display: block;
   text-decoration: none;
@@ -250,12 +332,17 @@
   color: #fbbf24;
   font-size: var(--sb-font-sm, 13px);
 }
-.hs-item{
-  transition: transform var(--sb-ease-fast, 150ms ease), box-shadow var(--sb-ease-fast, 150ms ease);
+
+@media (max-width: 900px){
+  .carousel-slide{ flex: 0 0 calc((100% - var(--carousel-gap, 12px)) / 2); }
+  .carousel{ --carousel-visible: 2; }
 }
-.hs-item:hover{
-  transform: translateY(-2px);
-  box-shadow: var(--sb-shadow-md, 0 10px 30px rgba(0,0,0,.35));
+@media (max-width: 640px){
+  .carousel-slide{ flex: 0 0 100%; }
+  .carousel{ --carousel-visible: 1; }
+  .carousel-btn{ display: none; }
+  .carousel{ grid-template-columns: 1fr; }
+  .carousel-viewport{ grid-column: 1; }
 }
 
 /* ===== How It Works ===== */
@@ -382,62 +469,132 @@
 </style>
 
 <script>
-/* ===== Horizontal carousel logic (Cyclic: 3 desktop/tablet, 1 mobile) ===== */
+/* ===== Carousel: auto-play RTL, smooth CSS transitions, dots, infinite ===== */
 document.addEventListener('DOMContentLoaded', function () {
-  const wrap = document.querySelector('.hs-wrap');
-  const scroller = wrap?.querySelector('.hs');
-  const prev = wrap?.querySelector('.prev');
-  const next = wrap?.querySelector('.next');
-  if (!wrap || !scroller) return;
+  const carousel = document.querySelector('.carousel');
+  const track = carousel?.querySelector('.carousel-track');
+  const dotsWrap = carousel?.querySelector('.carousel-dots');
+  const prevBtn = carousel?.querySelector('.carousel-btn.prev');
+  const nextBtn = carousel?.querySelector('.carousel-btn.next');
+  if (!carousel || !track) return;
 
-  const originalItems = Array.from(scroller.children);
-  if (!originalItems.length) return;
+  const slides = Array.from(track.children);
+  const total = slides.length;
+  if (!total) return;
 
-  const mql = window.matchMedia('(max-width: 640px)');
-  let visible = mql.matches ? 1 : 3;
+  const isRtl = carousel.getAttribute('dir') === 'rtl' || document.documentElement.dir === 'rtl';
+  const gap = 12;
+  let currentIndex = 0;
+  let autoTimer = null;
+  const AUTO_INTERVAL = 4000;
 
-  const onMqlChange = (e) => {
-    visible = e.matches ? 1 : 3;
-    render();
-  };
-  if (mql.addEventListener) mql.addEventListener('change', onMqlChange);
-  else if (mql.addListener) mql.addListener(onMqlChange);
+  /* --- Responsive visible count --- */
+  const mqlMobile = window.matchMedia('(max-width: 640px)');
+  const mqlTablet = window.matchMedia('(max-width: 900px)');
+  function getVisible() {
+    if (mqlMobile.matches) return 1;
+    if (mqlTablet.matches) return 2;
+    return 3;
+  }
+  let visible = getVisible();
 
-  let startIndex = 0;
-  const total = originalItems.length;
+  function onResize() {
+    const newVis = getVisible();
+    if (newVis !== visible) { visible = newVis; goTo(Math.min(currentIndex, maxIndex()), false); }
+  }
+  window.addEventListener('resize', onResize);
 
-  function render() {
-    scroller.innerHTML = '';
-    for (let i = 0; i < visible; i++) {
-      const idx = (startIndex + i) % total;
-      scroller.appendChild(originalItems[idx].cloneNode(true));
+  function maxIndex() { return Math.max(0, total - visible); }
+
+  /* --- Dots --- */
+  function buildDots() {
+    if (!dotsWrap) return;
+    dotsWrap.innerHTML = '';
+    const pages = maxIndex() + 1;
+    for (let i = 0; i < pages; i++) {
+      const dot = document.createElement('button');
+      dot.className = 'carousel-dot' + (i === currentIndex ? ' is-active' : '');
+      dot.setAttribute('role', 'tab');
+      dot.setAttribute('aria-label', 'Slide ' + (i + 1));
+      dot.addEventListener('click', () => goTo(i));
+      dotsWrap.appendChild(dot);
     }
   }
 
-  function goPrev() { startIndex = (startIndex - 1 + total) % total; render(); }
-  function goNext() { startIndex = (startIndex + 1) % total; render(); }
+  function updateDots() {
+    if (!dotsWrap) return;
+    const dots = dotsWrap.querySelectorAll('.carousel-dot');
+    dots.forEach((d, i) => d.classList.toggle('is-active', i === currentIndex));
+  }
 
-  render();
-  prev?.addEventListener('click', goPrev);
-  next?.addEventListener('click', goNext);
+  /* --- Movement --- */
+  function goTo(index, animate) {
+    if (animate === undefined) animate = true;
+    currentIndex = Math.max(0, Math.min(index, maxIndex()));
+    const slideW = track.parentElement.offsetWidth;
+    const singleSlide = (slideW - (visible - 1) * gap) / visible;
+    const offset = currentIndex * (singleSlide + gap);
+    track.style.transition = animate ? 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none';
+    const dir = isRtl ? 1 : -1;
+    track.style.transform = 'translateX(' + (dir * offset) + 'px)';
+    updateDots();
+  }
 
-  // Touch swipe
+  function goNext() { goTo(currentIndex >= maxIndex() ? 0 : currentIndex + 1); }
+  function goPrev() { goTo(currentIndex <= 0 ? maxIndex() : currentIndex - 1); }
+
+  /* In RTL, the carousel moves right-to-left, meaning "next" is the natural auto-play direction */
+  function autoNext() { goNext(); }
+
+  /* --- Auto-play --- */
+  function startAuto() { stopAuto(); autoTimer = setInterval(autoNext, AUTO_INTERVAL); }
+  function stopAuto() { if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } }
+
+  carousel.addEventListener('mouseenter', stopAuto);
+  carousel.addEventListener('mouseleave', startAuto);
+  carousel.addEventListener('focusin', stopAuto);
+  carousel.addEventListener('focusout', startAuto);
+
+  /* --- Button clicks --- */
+  prevBtn?.addEventListener('click', () => { goPrev(); stopAuto(); startAuto(); });
+  nextBtn?.addEventListener('click', () => { goNext(); stopAuto(); startAuto(); });
+
+  /* --- Touch swipe --- */
   let touchStartX = 0;
-  scroller.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
-  scroller.addEventListener('touchend', (e) => {
-    const dx = e.changedTouches[0].clientX - touchStartX;
-    if (dx > 50) goPrev();
-    else if (dx < -50) goNext();
+  let touchStartTime = 0;
+  track.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartTime = Date.now();
+    stopAuto();
   }, { passive: true });
-
-  // Wheel / trackpad swipe (desktop)
-  scroller.addEventListener('wheel', (e) => {
-    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-      e.preventDefault();
-      if (e.deltaX > 0 || e.deltaY > 0) goNext();
+  track.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dt = Date.now() - touchStartTime;
+    if (dt < 300 && Math.abs(dx) > 30 || Math.abs(dx) > 50) {
+      if (isRtl ? dx > 0 : dx < 0) goNext();
       else goPrev();
     }
+    startAuto();
+  }, { passive: true });
+
+  /* --- Trackpad / wheel --- */
+  let wheelLock = false;
+  track.parentElement.addEventListener('wheel', (e) => {
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 5) {
+      e.preventDefault();
+      if (wheelLock) return;
+      wheelLock = true;
+      setTimeout(() => { wheelLock = false; }, 400);
+      if (e.deltaX > 0) { isRtl ? goPrev() : goNext(); }
+      else { isRtl ? goNext() : goPrev(); }
+      stopAuto(); startAuto();
+    }
   }, { passive: false });
+
+  /* --- Init --- */
+  buildDots();
+  goTo(0, false);
+  startAuto();
 });
 </script>
 

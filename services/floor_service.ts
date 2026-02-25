@@ -192,6 +192,7 @@ function pickReservationTime(seat: SeatingInfoLite | null, reservation: any | nu
   return undefined;
 }
 
+
 // ========== COMPUTE LIVE TABLE STATUS ==========
 
 /**

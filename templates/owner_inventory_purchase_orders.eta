@@ -7,6 +7,18 @@
 
   function esc(s){ return String(s ?? ""); }
 
+  // i18n helper with fallback
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t === "function"){
+        const s = it.t(k);
+        if (!s || s === k || s === `(${k})`) return fb;
+        return s;
+      }
+    } catch(e){}
+    return fb;
+  }
+
   function fmtDate(ms){
     if (!ms && ms !== 0) return "";
     const d = new Date(ms);
@@ -15,43 +27,42 @@
   }
 
   function statusLabel(st){
-    if (!st) return "טיוטה";
+    if (!st) return tt('pos_list.status_draft', 'Draft');
     switch(String(st)){
-      case "draft": return "טיוטה";
-      case "sent": return "נשלח";
-      case "delivered": return "סופק";
-      case "cancelled": return "בוטל";
+      case "draft": return tt('pos_list.status_draft', 'Draft');
+      case "sent": return tt('pos_list.status_sent', 'Sent');
+      case "delivered": return tt('pos_list.status_delivered', 'Delivered');
+      case "cancelled": return tt('pos_list.status_cancelled', 'Cancelled');
       default: return st;
     }
   }
 %>
 
-<section class="sb-owner container" aria-label="הזמנות רכש">
+<section class="sb-owner container" aria-label="<%= tt('pos_list.aria', 'Purchase Orders') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
-        <h1>הזמנות רכש · <%= restaurant.name || 'מסעדה' %></h1>
+        <h1><%= tt('pos_list.title', 'Purchase Orders') %> · <%= restaurant.name || tt('pos_list.restaurant_fallback', 'Restaurant') %></h1>
         <p class="muted">
-          יצירה וניהול של הזמנות רכש לספקים. כאשר מסמנים הזמנה כ<span dir="ltr">“סופקה”</span>,
-          המלאי של חומרי הגלם מתעדכן אוטומטית לפי השורות בהזמנה.
+          <%= tt('pos_list.subtitle', 'Create and manage purchase orders for suppliers. When an order is marked as "Delivered", ingredient inventory is automatically updated based on the order lines.') %>
         </p>
       </div>
       <div class="actions">
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">🥬 מלאי</a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/suppliers">📦 ספקים</a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📈 עלויות</a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">🥬 <%= tt('pos_list.btn_stock', 'Inventory') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/suppliers">📦 <%= tt('pos_list.btn_suppliers', 'Suppliers') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📈 <%= tt('pos_list.btn_costs', 'Costs') %></a>
       </div>
     </header>
 
-    <!-- יצירת הזמנה חדשה -->
+    <!-- Create new order -->
     <div class="panel card" style="margin-top:14px">
-      <h2 class="card-title">הזמנה חדשה</h2>
+      <h2 class="card-title"><%= tt('pos_list.new_order', 'New Order') %></h2>
 
       <form class="form row" method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/new">
         <label class="lbl">
-          ספק *
+          <%= tt('pos_list.lbl_supplier', 'Supplier') %> *
           <select name="supplierId" required>
-            <option value="">בחר ספק…</option>
+            <option value=""><%= tt('pos_list.ph_select_supplier', 'Select supplier...') %></option>
             <% suppliers.forEach(function(s){ %>
               <% if (s && s.isActive !== false) { %>
                 <option value="<%= esc(s.id) %>"><%= esc(s.name) %></option>
@@ -61,38 +72,38 @@
         </label>
 
         <label class="lbl">
-          צפי אספקה
+          <%= tt('pos_list.lbl_expected', 'Expected Delivery') %>
           <input name="expectedAt" type="date">
         </label>
 
         <label class="lbl" style="min-width:260px;flex:1">
-          הערות להזמנה
-          <input name="note" placeholder="לדוגמה: משלוח ליום חמישי בבוקר, לשים במקרר האמצעי">
+          <%= tt('po_list.lbl_notes', 'הערות להזמנה') %>
+          <input name="note" placeholder="<%= tt('po_list.ph_notes', 'לדוגמה: משלוח ליום חמישי בבוקר, לשים במקרר האמצעי') %>">
         </label>
 
-        <button class="btn primary sm" type="submit">➕ צור הזמנה</button>
+        <button class="btn primary sm" type="submit">➕ <%= tt('po_list.btn_create', 'צור הזמנה') %></button>
       </form>
       <p class="muted small" style="margin-top:8px">
-        אם לא הוזן תאריך צפי, המערכת יכולה להשתמש בזמן האספקה הטיפוסי של הספק (leadTimeDays).
+        <%= tt('po_list.lead_time_hint', 'אם לא הוזן תאריך צפי, המערכת יכולה להשתמש בזמן האספקה הטיפוסי של הספק (leadTimeDays).') %>
       </p>
     </div>
 
     <!-- רשימת הזמנות -->
     <div class="panel card" style="margin-top:16px">
-      <h2 class="card-title">כל הזמנות הרכש</h2>
+      <h2 class="card-title"><%= tt('po_list.all_orders', 'כל הזמנות הרכש') %></h2>
 
       <% if (!pos.length) { %>
-        <p class="muted">עדיין אין הזמנות רכש. צור הזמנה חדשה למעלה.</p>
+        <p class="muted"><%= tt('po_list.empty', 'עדיין אין הזמנות רכש. צור הזמנה חדשה למעלה.') %></p>
       <% } else { %>
 
         <div class="table">
           <div class="tr th">
-            <div>מס׳ הזמנה</div>
-            <div>ספק</div>
-            <div>סטטוס</div>
-            <div>נוצר בתאריך</div>
-            <div>צפי אספקה</div>
-            <div>סופק בתאריך</div>
+            <div><%= tt('po_list.tbl_order_num', 'מס׳ הזמנה') %></div>
+            <div><%= tt('po_list.tbl_supplier', 'ספק') %></div>
+            <div><%= tt('po_list.tbl_status', 'סטטוס') %></div>
+            <div><%= tt('po_list.tbl_created', 'נוצר בתאריך') %></div>
+            <div><%= tt('po_list.tbl_expected', 'צפי אספקה') %></div>
+            <div><%= tt('po_list.tbl_delivered', 'סופק בתאריך') %></div>
             <div></div>
           </div>
 
@@ -129,7 +140,7 @@
                   class="btn primary sm"
                   href="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= esc(po.id) %>"
                 >
-                  פתיחת הזמנה
+                  <%= tt('po_list.btn_open', 'פתיחת הזמנה') %>
                 </a>
               </div>
             </div>

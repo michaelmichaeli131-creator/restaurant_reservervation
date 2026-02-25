@@ -54,17 +54,17 @@ const month = it.month || '';
       <table class="tbl" style="width:100%;border-collapse:collapse;min-width:850px">
         <thead>
           <tr>
-            <th>עובד</th>
-            <th>מייל</th>
-            <th>שכר לשעה (₪)</th>
-            <th>שעות</th>
-            <th>דקות</th>
-            <th>ברוטו לחודש (₪)</th>
-            <th>פעולות</th>
+            <th><%= tt('owner.payroll.tbl.employee', 'עובד') %></th>
+            <th><%= tt('owner.payroll.tbl.email', 'מייל') %></th>
+            <th><%= tt('owner.payroll.tbl.hourly_rate', 'שכר לשעה (₪)') %></th>
+            <th><%= tt('owner.payroll.tbl.hours', 'שעות') %></th>
+            <th><%= tt('owner.payroll.tbl.minutes', 'דקות') %></th>
+            <th><%= tt('owner.payroll.tbl.gross', 'ברוטו לחודש (₪)') %></th>
+            <th><%= tt('owner.payroll.tbl.actions', 'פעולות') %></th>
           </tr>
         </thead>
         <tbody id="rows">
-          <tr><td colspan="7" class="muted">טוען...</td></tr>
+          <tr><td colspan="7" class="muted"><%= tt('owner.payroll.loading', 'טוען...') %></td></tr>
         </tbody>
       </table>
     </div>
@@ -124,7 +124,7 @@ const month = it.month || '';
     const rid = $('restaurant').value;
     const month = $('month').value;
     const tbody = $('rows');
-    tbody.innerHTML = `<tr><td colspan="7" class="muted">טוען...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="muted"><%= tt('owner.payroll.loading', 'טוען...') %></td></tr>`;
 
     try{
       const res = await fetch(`/owner/payroll/data?restaurantId=${encodeURIComponent(rid)}&month=${encodeURIComponent(month)}`, {
@@ -137,7 +137,7 @@ const month = it.month || '';
 
       const rows = data.payroll || [];
       if(!rows.length){
-        tbody.innerHTML = `<tr><td colspan="7" class="muted">אין שעות עבודה לחודש הזה.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="muted"><%= tt('owner.payroll.no_hours', 'אין שעות עבודה לחודש הזה.') %></td></tr>`;
         return;
       }
 
@@ -160,15 +160,15 @@ const month = it.month || '';
             <td>${mins}</td>
             <td>${formatMoney(r.gross ?? 0)}</td>
             <td>
-              <button class="btn sm" onclick="saveRate('${r.staffId}')">שמור</button>
+              <button class="btn sm" onclick="saveRate('${r.staffId}')"><%= tt('common.btn_save', 'שמור') %></button>
             </td>
           </tr>
         `;
       }).join('');
     }catch(e){
       console.error(e);
-      showErr('שגיאה בטעינת נתוני השכר: ' + (e?.message || e));
-      tbody.innerHTML = `<tr><td colspan="7" class="muted">שגיאה.</td></tr>`;
+      showErr('<%= tt('owner.payroll.err_loading', 'שגיאה בטעינת נתוני השכר') %>: ' + (e?.message || e));
+      tbody.innerHTML = `<tr><td colspan="7" class="muted"><%= tt('owner.payroll.err_generic', 'שגיאה.') %></td></tr>`;
     }
   }
 
@@ -181,7 +181,7 @@ const month = it.month || '';
       const v = inp.value.trim();
       const n = Number(v);
       if(!isFinite(n) || n < 0){
-        alert('שכר לשעה לא חוקי');
+        alert('<%= tt('owner.payroll.err_invalid_rate', 'שכר לשעה לא חוקי') %>');
         return;
       }
 
@@ -197,9 +197,9 @@ const month = it.month || '';
 
       // נטען מחדש כדי לעדכן את הברוטו לפי השכר
       await loadPayroll();
-      alert('השכר השעתי נשמר וחושב מחדש בהצלחה');
+      alert('<%= tt('owner.payroll.saved', 'השכר השעתי נשמר וחושב מחדש בהצלחה') %>');
     }catch(e){
-      alert('שגיאה בשמירת השכר: ' + (e?.message || e));
+      alert('<%= tt('owner.payroll.err_saving', 'שגיאה בשמירת השכר') %>: ' + (e?.message || e));
     }
   }
 

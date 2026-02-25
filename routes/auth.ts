@@ -42,6 +42,15 @@ function requireLoggedIn(ctx: any): boolean {
 
 const lower = (s: string) => s.trim().toLowerCase();
 
+function pageTitle(ctx: any, key: string, fb: string): string {
+  const t = (ctx.state as any)?.t;
+  if (typeof t === 'function') {
+    const s = t(key);
+    if (s && s !== key && s !== `(${key})`) return s;
+  }
+  return fb;
+}
+
 /**
  * קריאת form בצורה שתעבוד גם עם Oak 17 (ctx.request.body.form())
  * וגם עם סביבות אחרות (fallback ל-formData אם קיים).
@@ -94,7 +103,7 @@ async function readForm(ctx: any): Promise<Record<string, string>> {
 
 authRouter.get("/auth/register", async (ctx) => {
   await render(ctx, "auth/register", {
-    title: "הרשמה",
+    title: pageTitle(ctx, "page_titles.register", "הרשמה"),
     page: "register",
   });
 });
@@ -115,7 +124,7 @@ authRouter.post("/auth/register", async (ctx) => {
   if (rawAccountType === "staff") {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/register", {
-      title: "הרשמה",
+      title: pageTitle(ctx, "page_titles.register", "הרשמה"),
       page: "register",
       error: "אין הרשמה לעובדים. פנה לבעל המסעדה כדי שיצור עבורך משתמש.",
       prefill: {
@@ -138,7 +147,7 @@ authRouter.post("/auth/register", async (ctx) => {
   if (!firstName || !lastName || !email || !password) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/register", {
-      title: "הרשמה",
+      title: pageTitle(ctx, "page_titles.register", "הרשמה"),
       page: "register",
       error: "נא למלא את כל השדות החיוניים",
       prefill,
@@ -150,7 +159,7 @@ authRouter.post("/auth/register", async (ctx) => {
   if (confirm && password !== confirm) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/register", {
-      title: "הרשמה",
+      title: pageTitle(ctx, "page_titles.register", "הרשמה"),
       page: "register",
       error: "הסיסמאות אינן תואמות",
       prefill,
@@ -161,7 +170,7 @@ authRouter.post("/auth/register", async (ctx) => {
   if (password.length < 8) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/register", {
-      title: "הרשמה",
+      title: pageTitle(ctx, "page_titles.register", "הרשמה"),
       page: "register",
       error: "הסיסמה צריכה להכיל לפחות 8 תווים",
       prefill,
@@ -173,7 +182,7 @@ authRouter.post("/auth/register", async (ctx) => {
   if (existing) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/register", {
-      title: "הרשמה",
+      title: pageTitle(ctx, "page_titles.register", "הרשמה"),
       page: "register",
       error: "כתובת הדוא״ל כבר קיימת במערכת",
       prefill,
@@ -211,7 +220,7 @@ authRouter.post("/auth/register", async (ctx) => {
 
   // כאן אין info – הטקסט מגיע מ-i18n (auth.verify.info.before)
   await render(ctx, "verify_notice", {
-    title: "בדיקת דוא״ל",
+    title: pageTitle(ctx, "page_titles.verify_email", "בדיקת דוא״ל"),
     page: "verify",
     email: created.email,
     resendUrl:
@@ -223,7 +232,7 @@ authRouter.post("/auth/register", async (ctx) => {
 
 authRouter.get("/auth/login", async (ctx) => {
   await render(ctx, "auth/login", {
-    title: "התחברות",
+    title: pageTitle(ctx, "page_titles.login", "התחברות"),
     page: "login",
   });
 });
@@ -236,7 +245,7 @@ authRouter.post("/auth/login", async (ctx) => {
   if (!email || !password) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/login", {
-      title: "התחברות",
+      title: pageTitle(ctx, "page_titles.login", "התחברות"),
       page: "login",
       error: "נא להזין דוא״ל וסיסמה",
     });
@@ -247,7 +256,7 @@ authRouter.post("/auth/login", async (ctx) => {
   if (!user || !user.passwordHash) {
     ctx.response.status = Status.Unauthorized;
     await render(ctx, "auth/login", {
-      title: "התחברות",
+      title: pageTitle(ctx, "page_titles.login", "התחברות"),
       page: "login",
       error: "דוא״ל או סיסמה שגויים",
     });
@@ -265,7 +274,7 @@ authRouter.post("/auth/login", async (ctx) => {
     }
     ctx.response.status = Status.Forbidden;
     await render(ctx, "auth/login", {
-      title: "התחברות",
+      title: pageTitle(ctx, "page_titles.login", "התחברות"),
       page: "login",
       error:
         "נדרש אימות דוא״ל לפני התחברות. שלחנו לך קישור אימות נוסף.",
@@ -277,7 +286,7 @@ authRouter.post("/auth/login", async (ctx) => {
   if (user.isActive === false) {
     ctx.response.status = Status.Forbidden;
     await render(ctx, "auth/login", {
-      title: "התחברות",
+      title: pageTitle(ctx, "page_titles.login", "התחברות"),
       page: "login",
       error: "החשבון מבוטל. פנה/י לתמיכה.",
     });
@@ -288,7 +297,7 @@ authRouter.post("/auth/login", async (ctx) => {
   if (!ok) {
     ctx.response.status = Status.Unauthorized;
     await render(ctx, "auth/login", {
-      title: "התחברות",
+      title: pageTitle(ctx, "page_titles.login", "התחברות"),
       page: "login",
       error: "דוא״ל או סיסמה שגויים",
     });
@@ -327,7 +336,7 @@ authRouter.get("/auth/change-password", async (ctx) => {
   if (!requireLoggedIn(ctx)) return;
 
   await render(ctx, "auth/change_password", {
-    title: "שינוי סיסמה",
+    title: pageTitle(ctx, "page_titles.change_password", "שינוי סיסמה"),
     page: "change_password",
   });
 });
@@ -346,7 +355,7 @@ authRouter.post("/auth/change-password", async (ctx) => {
   if (user?.provider !== "local" || !user?.passwordHash) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/change_password", {
-      title: "שינוי סיסמה",
+      title: pageTitle(ctx, "page_titles.change_password", "שינוי סיסמה"),
       page: "change_password",
       error:
         "החשבון שלך אינו משתמש בסיסמה מקומית (למשל התחברות עם Google). אין אפשרות לשנות סיסמה כאן.",
@@ -357,7 +366,7 @@ authRouter.post("/auth/change-password", async (ctx) => {
   if (!currentPassword || !newPassword || !confirm) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/change_password", {
-      title: "שינוי סיסמה",
+      title: pageTitle(ctx, "page_titles.change_password", "שינוי סיסמה"),
       page: "change_password",
       error: "נא למלא את כל השדות",
     });
@@ -367,7 +376,7 @@ authRouter.post("/auth/change-password", async (ctx) => {
   if (newPassword.length < 8) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/change_password", {
-      title: "שינוי סיסמה",
+      title: pageTitle(ctx, "page_titles.change_password", "שינוי סיסמה"),
       page: "change_password",
       error: "הסיסמה החדשה צריכה להכיל לפחות 8 תווים",
     });
@@ -377,7 +386,7 @@ authRouter.post("/auth/change-password", async (ctx) => {
   if (newPassword !== confirm) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/change_password", {
-      title: "שינוי סיסמה",
+      title: pageTitle(ctx, "page_titles.change_password", "שינוי סיסמה"),
       page: "change_password",
       error: "הסיסמאות אינן תואמות",
     });
@@ -389,7 +398,7 @@ authRouter.post("/auth/change-password", async (ctx) => {
   if (!ok) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "auth/change_password", {
-      title: "שינוי סיסמה",
+      title: pageTitle(ctx, "page_titles.change_password", "שינוי סיסמה"),
       page: "change_password",
       error: "הסיסמה הנוכחית שגויה",
     });
@@ -407,7 +416,7 @@ authRouter.post("/auth/change-password", async (ctx) => {
   }
 
   await render(ctx, "auth/change_password", {
-    title: "שינוי סיסמה",
+    title: pageTitle(ctx, "page_titles.change_password", "שינוי סיסמה"),
     page: "change_password",
     info: "הסיסמה עודכנה בהצלחה",
   });
@@ -423,7 +432,7 @@ authRouter.get("/auth/verify", async (ctx) => {
   if (!token) {
     ctx.response.status = Status.BadRequest;
     await render(ctx, "verify_notice", {
-      title: "אימות דוא״ל",
+      title: pageTitle(ctx, "page_titles.verify", "אימות דוא״ל"),
       page: "verify",
       infoKey: "auth.verify.info.linkInvalid",             // ⭐
       info: "קישור לא תקין",
@@ -435,7 +444,7 @@ authRouter.get("/auth/verify", async (ctx) => {
   if (!record) {
     ctx.response.status = Status.NotFound;
     await render(ctx, "verify_notice", {
-      title: "אימות דוא״ל",
+      title: pageTitle(ctx, "page_titles.verify", "אימות דוא״ל"),
       page: "verify",
       infoKey: "auth.verify.info.linkInvalidOrExpired",    // ⭐
       info: "קישור לא תקין או שפג תוקף",
@@ -447,7 +456,7 @@ authRouter.get("/auth/verify", async (ctx) => {
 
   // כאן שוב אין info – הטקסט מגיע מ-i18n (auth.verify.info.after)
   await render(ctx, "verify_notice", {
-    title: "אימות דוא״ל",
+    title: pageTitle(ctx, "page_titles.verify", "אימות דוא״ל"),
     page: "verify",
     postVerify: true,
   });
@@ -461,7 +470,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
 
   if (!email) {
     await render(ctx, "verify_notice", {
-      title: "שליחת אימות",
+      title: pageTitle(ctx, "page_titles.resend_verify", "שליחת אימות"),
       page: "verify",
       infoKey: "auth.verify.info.needEmail",               // ⭐
       info: "נא לספק כתובת דוא״ל",
@@ -473,7 +482,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
   if (!user) {
     // לא חושפים אם המשתמש קיים
     await render(ctx, "verify_notice", {
-      title: "שליחת אימות",
+      title: pageTitle(ctx, "page_titles.resend_verify", "שליחת אימות"),
       page: "verify",
       infoKey: "auth.verify.info.maybeExists",             // ⭐
       info: "אם הדוא״ל קיים במערכת – נשלח קישור אימות.",
@@ -483,7 +492,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
 
   if (user.emailVerified) {
     await render(ctx, "verify_notice", {
-      title: "שליחת אימות",
+      title: pageTitle(ctx, "page_titles.resend_verify", "שליחת אימות"),
       page: "verify",
       infoKey: "auth.verify.info.alreadyVerified",         // ⭐
       info: "החשבון כבר מאומת. אפשר להתחבר.",
@@ -500,7 +509,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
   }
 
   await render(ctx, "verify_notice", {
-    title: "שליחת אימות",
+    title: pageTitle(ctx, "page_titles.resend_verify", "שליחת אימות"),
     page: "verify",
     infoKey: "auth.verify.info.resent",                   // ⭐
     info: "קישור אימות נשלח מחדש לתיבת הדוא״ל.",

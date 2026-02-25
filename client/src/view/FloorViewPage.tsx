@@ -192,45 +192,43 @@ export default function FloorViewPage({
 
   const closeDrawer = () => setSelectedTableId(null);
 
-  
-const postTableOverrideStatus = async (status: "empty" | "dirty" | "reserved") => {
-  const tableId = (selectedTable as any)?.id;
-  if (!tableId) return;
+  const postTableOverrideStatus = async (status: "empty" | "dirty" | "reserved") => {
+    const tableId = (selectedTable as any)?.id;
+    if (!tableId) return;
 
-  try {
-    // Send status both in JSON body and query-string as a safety net (some proxies/envs drop POST bodies).
-    const res = await fetch(`/api/tables/${restaurantId}/${tableId}/status?status=${encodeURIComponent(status)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "");
-      throw new Error(txt || `HTTP ${res.status}`);
+    try {
+      // Send status both in JSON body and query-string as a safety net (some proxies/envs drop POST bodies).
+      const res = await fetch(`/api/tables/${restaurantId}/${tableId}/status?status=${encodeURIComponent(status)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(txt || `HTTP ${res.status}`);
+      }
+      await loadActive();
+    } catch (err) {
+      console.error("Failed to update table status:", err);
     }
-    await loadActive();
-  } catch (err) {
-    console.error("Failed to update table status:", err);
-  }
-};
+  };
 
-const handleMarkDirty = async () => {
-  await postTableOverrideStatus("dirty");
-};
+  const handleMarkDirty = async () => {
+    await postTableOverrideStatus("dirty");
+  };
 
-const handleMarkClean = async () => {
-  // "Clean" means: remove dirty/override (not forcing the table to be free).
-  await postTableOverrideStatus("empty");
-};
+  const handleMarkClean = async () => {
+    // "Clean" means: remove dirty/override (not forcing the table to be free).
+    await postTableOverrideStatus("empty");
+  };
 
-const handleMarkReserved = async () => {
-  await postTableOverrideStatus("reserved");
-};
+  const handleMarkReserved = async () => {
+    await postTableOverrideStatus("reserved");
+  };
 
-const handleMarkEmpty = async () => {
-  await postTableOverrideStatus("empty");
-};
-
+  const handleMarkEmpty = async () => {
+    await postTableOverrideStatus("empty");
+  };
 
   const rootClass = `floor-editor sb-floor-view ${mountMode === "lobby" ? "is-embed" : ""}`;
 
