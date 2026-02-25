@@ -74,7 +74,7 @@
                 ss.push(typeof p === 'string' ? p : (p && p.dataUrl));
               }
               ss = ss.filter(Boolean);
-              var cover = (r && r.coverUrl) || ss[0] || "/public/img/placeholder-restaurant.jpg";
+              var cover = (r && r.coverUrl) || ss[0] || "/static/placeholder.png";
           %>
             <a
               class="card"

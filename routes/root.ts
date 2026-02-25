@@ -12,7 +12,8 @@ function photoStrings(photos: unknown): string[] {
 
 function coverUrl(r: any): string {
   const photos = photoStrings(r.photos);
-  return r.coverUrl || photos[0] || "/public/img/placeholder-restaurant.jpg";
+  // Use existing placeholder (served via /static/*)
+  return r.coverUrl || photos[0] || "/static/placeholder.png";
 }
 
 rootRouter.get("/", async (ctx) => {

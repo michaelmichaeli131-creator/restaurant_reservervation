@@ -29,7 +29,6 @@ import { authRouter } from "./routes/auth.ts";
 import { restaurantsRouter } from "./routes/restaurants/index.ts";
 import { ownerRouter } from "./routes/owner.ts";
 import { adminRouter } from "./routes/admin.ts";
-import rootRouter from "./routes/root.ts";
 import ownerCapacityRouter from "./routes/owner_capacity.ts";
 import { ownerStaffRouter } from "./routes/owner_staff.ts";
 
@@ -316,8 +315,30 @@ app.use(langRouter.allowedMethods());
 // -------------------- ROOT ROUTER (inline) --------------------
 const root = new Router();
 
+// Helpers for homepage featured carousel
+function photoStrings(photos: unknown): string[] {
+  const arr = Array.isArray(photos) ? photos : [];
+  return arr
+    .map((p: any) => (typeof p === "string" ? p : p?.dataUrl))
+    .filter(Boolean);
+}
+function coverUrl(r: any): string {
+  const photos = photoStrings(r?.photos);
+  // NOTE: template previously referenced /public/img/placeholder-restaurant.jpg which doesn't exist.
+  // Use the existing placeholder in public/ (served via /static/*).
+  return r?.coverUrl || photos[0] || "/static/placeholder.png";
+}
+
 // דף הבית – מציג תוצאות גם כשיש q, לא רק כשsearch=1
 root.get("/", async (ctx) => {
+  // Owner should land on the owner dashboard
+  const user = (ctx.state as any)?.user ?? null;
+  if (user && user.role === "owner") {
+    ctx.response.status = Status.SeeOther;
+    ctx.response.headers.set("Location", "/owner");
+    return;
+  }
+
   const url = ctx.request.url;
   const q = url.searchParams.get("q")?.toString() ?? "";
   const search = url.searchParams.get("search")?.toString() ?? "";
@@ -337,11 +358,32 @@ root.get("/", async (ctx) => {
     restaurants = shouldSearch ? await listRestaurants(q, true) : [];
   }
 
+  // ✅ IMPORTANT: featured carousel data for templates/index.eta
+  // If we don't pass `featured`, the template shows: "No restaurants available yet."
+  const allApproved = await listRestaurants("", true);
+  const adminFeatured = allApproved.filter((r: any) => r.featured);
+  const byRating = allApproved
+    .filter((r: any) => !r.featured)
+    .sort(
+      (a: any, b: any) => (b.averageRating || 0) - (a.averageRating || 0),
+    );
+  const featuredRaw = [...adminFeatured, ...byRating].slice(0, 8);
+  const featured = featuredRaw.map((r: any) => ({
+    id: r.id,
+    name: r.name,
+    city: r.city,
+    cover: coverUrl(r),
+    rating: r.averageRating,
+    reviewCount: r.reviewCount,
+    kitchenCategories: r.kitchenCategories || [],
+  }));
+
   await render(ctx, "index", {
     restaurants,
     q,
     search: (search === "1" || q.trim().length > 0) ? "1" : "",
     category,
+    featured,
     page: "home",
     title: "GeoTable — חיפוש מסעדה",
   });
