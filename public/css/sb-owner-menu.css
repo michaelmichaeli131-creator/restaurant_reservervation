@@ -1,0 +1,66 @@
+/* public/css/sb-owner-menu.css */
+
+.sb-om-page{padding-top: 14px; padding-bottom: 22px}
+
+.sb-om-hd{
+  padding: 14px;
+  margin-bottom: 14px;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+.sb-om-title{min-width: 240px}
+.sb-om-kicker{font-weight: 950; color: color-mix(in srgb, var(--ink) 80%, var(--brand));}
+.sb-om-h1{margin: 6px 0 4px; font-size: clamp(20px, 3.4vw, 30px); line-height:1.05}
+
+.sb-om-tools{display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end; min-width: 260px}
+
+.sb-om-grid{
+  display:grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.35fr);
+  gap: 14px;
+  align-items:start;
+}
+
+.sb-om-card{border-radius: 18px}
+
+.sb-om-list .item{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.sb-om-table td{
+  vertical-align: top;
+}
+
+.sb-om-item-title{font-weight: 950}
+
+.sb-om-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border:1px solid rgba(148,163,184,.25);
+  background: rgba(255,255,255,.04);
+  font-weight: 900;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+@media (max-width: 980px){
+  .sb-om-grid{grid-template-columns: 1fr}
+}
+
+@media (max-width: 560px){
+  .sb-om-hd{flex-direction:column; align-items:stretch}
+  .sb-om-tools{justify-content:flex-start}
+  .sb-om-table{display:block; overflow:auto}
+}

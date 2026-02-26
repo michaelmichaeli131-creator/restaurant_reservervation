@@ -14,12 +14,12 @@
   const itemsSpan = document.getElementById("bill-items");
   const totalSpan = document.getElementById("bill-total");
   const btnClose = document.getElementById("btn-close-order");
+  const btnCloseMobile = document.getElementById("btn-close-order-mobile");
+  const totalMobileSpan = document.getElementById("bill-total-mobile");
 
   function recalcTotals() {
     if (!rowsContainer) return;
-    const rows = Array.from(
-      rowsContainer.querySelectorAll("tr.order-row"),
-    );
+    const rows = Array.from(rowsContainer.querySelectorAll(".order-row"));
     let itemsCount = 0;
     let subtotal = 0;
 
@@ -32,8 +32,8 @@
     });
 
     if (itemsSpan) itemsSpan.textContent = `${itemsCount} ${itemsUnit}`;
-    if (totalSpan)
-      totalSpan.textContent = `${subtotal.toFixed(2)} ${currency}`;
+    if (totalSpan) totalSpan.textContent = `${subtotal.toFixed(2)} ${currency}`;
+    if (totalMobileSpan) totalMobileSpan.textContent = `${subtotal.toFixed(2)}`;
   }
 
   // שיהיה זמין לסקריפט המשלים
@@ -63,7 +63,8 @@
         if (btnCancel) btnCancel.remove();
         const btnServe = row.querySelector(".btn-mark-served");
         if (btnServe) btnServe.remove();
-        const statusCell = row.querySelector("td.col-status");
+        const statusCell = row.querySelector(".js-status") ||
+          row.querySelector("td.col-status");
         if (statusCell) {
           statusCell.textContent = "בוטל";
           statusCell.classList.add("muted");
@@ -100,7 +101,8 @@
           "status-ready",
         );
         row.classList.add("status-served");
-        const statusCell = row.querySelector("td.col-status");
+        const statusCell = row.querySelector(".js-status") ||
+          row.querySelector("td.col-status");
         if (statusCell) {
           statusCell.textContent = "הוגש";
         }
@@ -136,7 +138,7 @@
     rowsContainer.addEventListener("click", (ev) => {
       const cancelBtn = ev.target.closest(".btn-cancel-item");
       const serveBtn = ev.target.closest(".btn-mark-served");
-      const row = ev.target.closest("tr.order-row");
+      const row = ev.target.closest(".order-row");
       if (!row) return;
 
       if (cancelBtn) {
@@ -147,12 +149,12 @@
     });
   }
 
-  if (btnClose) {
-    btnClose.addEventListener("click", (ev) => {
-      ev.preventDefault();
-      closeOrder();
-    });
+  function onCloseClick(ev) {
+    ev.preventDefault();
+    closeOrder();
   }
+  if (btnClose) btnClose.addEventListener("click", onCloseClick);
+  if (btnCloseMobile) btnCloseMobile.addEventListener("click", onCloseClick);
 
   recalcTotals();
 })();

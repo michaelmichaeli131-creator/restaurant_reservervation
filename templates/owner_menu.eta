@@ -1,4 +1,7 @@
 
+<%
+  it.head = (it.head || '') + `\n<link rel="stylesheet" href="/public/css/sb-owner-menu.css?v=${it.BUILD_TAG || Date.now()}"/>`;
+%>
 <% layout("_layout", it) %>
 
 <%
@@ -14,15 +17,26 @@
   }
 %>
 
-<main class="container">
-  <header class="page-header">
-    <h1><%= tt('owner.menu.page_title', 'Edit Menu —') %> <%= it.restaurant.name %></h1>
-    <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+<main class="sb-page sb-om-page" dir="rtl" data-page="owner-menu">
+  <header class="sb-om-hd sb-surface">
+    <div class="sb-om-title">
+      <div class="sb-om-kicker"><%= it.restaurant.name %></div>
+      <h1 class="sb-om-h1"><%= tt('owner.menu.page_title', 'Edit Menu') %></h1>
+      <p class="muted"><%= it.restaurant.city %> <span class="sb-dot">•</span> <%= it.restaurant.address %></p>
+    </div>
+    <div class="sb-om-tools">
+      <div class="sb-search" role="search">
+        <span class="icon">🔎</span>
+        <input id="menu-owner-search" class="sb-input" type="search" placeholder="<%= tt('owner.menu.search', 'חיפוש מנות...') %>" autocomplete="off" />
+      </div>
+      <a class="btn ghost" href="/owner/<%= it.restaurant.id %>">← <%= tt('common.back', 'חזרה') %></a>
+    </div>
   </header>
 
-  <section class="card">
+  <div class="sb-om-grid">
+  <section class="card sb-om-card">
     <h2 class="card-title"><%= tt('owner.menu.categories', 'קטגוריות') %></h2>
-    <ul class="list">
+    <ul class="list sb-om-list">
       <% it.cats.forEach(c => { %>
         <li class="item">
           <strong><%= c.name_he || c.name_en || tt('owner.menu.no_name', '(No name)') %></strong>
@@ -39,20 +53,22 @@
     </form>
   </section>
 
-  <section class="card">
+  <section class="card sb-om-card">
     <h2 class="card-title"><%= tt('owner.menu.items', 'מנות') %></h2>
-    <table class="table">
+    <table class="table sb-om-table" id="owner-menu-items">
       <thead><tr><th><%= tt('owner.menu.tbl.name', 'שם') %></th><th><%= tt('owner.menu.tbl.price', 'מחיר') %></th><th><%= tt('owner.menu.tbl.destination', 'יעד') %></th><th><%= tt('owner.menu.tbl.category', 'קטגוריה') %></th><th></th></tr></thead>
       <tbody>
         <% it.items.forEach(m => { %>
-          <tr>
-            <td><%= m.name_he || m.name_en %></td>
+          <tr data-name="<%= ((m.name_he || m.name_en) || '').toString().toLowerCase() %>" data-cat="<%= ((it.cats.find(c=>c.id===m.categoryId)?.name_he || it.cats.find(c=>c.id===m.categoryId)?.name_en) || '').toString().toLowerCase() %>">
+            <td>
+              <div class="sb-om-item-title"><%= m.name_he || m.name_en %></div>
+            </td>
             <td><%= (m.price || 0).toFixed(2) %> <%= tt('common.currency', '₪') %></td>
-            <td><%= m.destination %></td>
-            <td><%= (it.cats.find(c=>c.id===m.categoryId)?.name_he || it.cats.find(c=>c.id===m.categoryId)?.name_en || '-') %></td>
+            <td><span class="sb-om-pill"><%= m.destination === 'bar' ? tt('owner.menu.dest_bar', 'בר') : tt('owner.menu.dest_kitchen', 'מטבח') %></span></td>
+            <td><span class="sb-om-pill"><%= (it.cats.find(c=>c.id===m.categoryId)?.name_he || it.cats.find(c=>c.id===m.categoryId)?.name_en || '-') %></span></td>
             <td>
               <form method="post" action="/owner/<%= it.restaurant.id %>/menu/item/<%= m.id %>/delete">
-                <button class="btn ghost"><%= tt('common.btn_delete', 'מחק') %></button>
+                <button class="btn ghost">🗑 <%= tt('common.btn_delete', 'מחק') %></button>
               </form>
             </td>
           </tr>
@@ -83,4 +99,27 @@
       <button class="btn"><%= tt('owner.menu.btn_add_item', 'הוסף מנה') %></button>
     </form>
   </section>
+  </div>
 </main>
+
+<script>
+  (function(){
+    const input = document.getElementById('menu-owner-search');
+    const table = document.getElementById('owner-menu-items');
+    if (!input || !table) return;
+
+    input.addEventListener('input', () => {
+      const q = String(input.value || '').trim().toLowerCase();
+      const rows = table.querySelectorAll('tbody tr');
+      rows.forEach((tr) => {
+        if (!q){
+          tr.style.display = '';
+          return;
+        }
+        const name = tr.dataset.name || '';
+        const cat = tr.dataset.cat || '';
+        tr.style.display = (name.includes(q) || cat.includes(q)) ? '' : 'none';
+      });
+    });
+  })();
+</script>
