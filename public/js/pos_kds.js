@@ -41,6 +41,8 @@
     live: document.getElementById('kds-live'),
     compactBtn: document.getElementById('kds-compact'),
     groupBtn: document.getElementById('kds-group'),
+    bottomCompactBtn: document.getElementById('kds-bottom-compact'),
+    bottomGroupBtn: document.getElementById('kds-bottom-group'),
     search: document.getElementById('kds-search'),
     tabReceived: document.getElementById('kds-tab-received'),
     tabProgress: document.getElementById('kds-tab-in-progress'),
@@ -68,19 +70,29 @@
   function setCompact(on){
     compact = !!on;
     shell.classList.toggle('kds-compact', compact);
-    if (el.compactBtn){
-      el.compactBtn.setAttribute('aria-pressed', compact ? 'true' : 'false');
-      el.compactBtn.textContent = compact ? STR.btn_comfy : STR.btn_compact;
-    }
+
+    const applyBtn = (btn) => {
+      if (!btn) return;
+      btn.setAttribute('aria-pressed', compact ? 'true' : 'false');
+      btn.textContent = compact ? STR.btn_comfy : STR.btn_compact;
+    };
+    applyBtn(el.compactBtn);
+    applyBtn(el.bottomCompactBtn);
+
     localStorage.setItem(LS_PREFIX + 'compact', compact ? '1' : '0');
   }
 
   function setGrouped(on){
     grouped = !!on;
-    if (el.groupBtn){
-      el.groupBtn.setAttribute('aria-pressed', grouped ? 'true' : 'false');
-      el.groupBtn.textContent = grouped ? STR.btn_ungroup : STR.btn_group;
-    }
+
+    const applyBtn = (btn) => {
+      if (!btn) return;
+      btn.setAttribute('aria-pressed', grouped ? 'true' : 'false');
+      btn.textContent = grouped ? STR.btn_ungroup : STR.btn_group;
+    };
+    applyBtn(el.groupBtn);
+    applyBtn(el.bottomGroupBtn);
+
     localStorage.setItem(LS_PREFIX + 'grouped', grouped ? '1' : '0');
     render();
   }
@@ -107,7 +119,7 @@
       btn.setAttribute('aria-selected', k === activeStatus ? 'true' : 'false');
     });
     // columns (ONLY on small screens)
-    const isMobile = window.matchMedia && window.matchMedia('(max-width: 740px)').matches;
+    const isMobile = window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
     const showAll = !isMobile;
     const setHidden = (node, hidden) => {
       if (!node) return;
@@ -381,6 +393,8 @@
   // controls
   if (el.compactBtn) el.compactBtn.addEventListener('click', () => setCompact(!compact));
   if (el.groupBtn) el.groupBtn.addEventListener('click', () => setGrouped(!grouped));
+  if (el.bottomCompactBtn) el.bottomCompactBtn.addEventListener('click', () => setCompact(!compact));
+  if (el.bottomGroupBtn) el.bottomGroupBtn.addEventListener('click', () => setGrouped(!grouped));
   if (el.search) el.search.addEventListener('input', () => { q = normalize(el.search.value); render(); });
 
   const bindTab = (btn, status) => {

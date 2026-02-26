@@ -96,6 +96,13 @@
       </div>
     </div>
   </section>
+
+  <!-- Mobile quick actions (fixed bottom bar) -->
+  <footer class="kds-bottombar" data-kds-bottombar aria-label="<%= tt('pos.kds.quick_actions', 'Quick actions') %>">
+    <a class="kds-btn ghost kds-bbar-back" href="/owner"><%= tt('pos.btn_back_dashboard', 'Back to Dashboard') %></a>
+    <button id="kds-bottom-compact" class="kds-btn" type="button" aria-pressed="false"><%= tt('pos.kds.compact', 'Compact') %></button>
+    <button id="kds-bottom-group" class="kds-btn" type="button" aria-pressed="true"><%= tt('pos.kds.ungroup', 'Ungroup') %></button>
+  </footer>
 </main>
 
 <script src="/public/js/pos_kds.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>
