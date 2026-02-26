@@ -97,12 +97,24 @@
     </div>
   </section>
 
-  <!-- Mobile quick actions (fixed bottom bar) -->
-  <footer class="kds-bottombar" data-kds-bottombar aria-label="<%= tt('pos.kds.quick_actions', 'Quick actions') %>">
-    <a class="kds-btn ghost kds-bbar-back" href="/owner"><%= tt('pos.btn_back_dashboard', 'Back to Dashboard') %></a>
-    <button id="kds-bottom-compact" class="kds-btn" type="button" aria-pressed="false"><%= tt('pos.kds.compact', 'Compact') %></button>
-    <button id="kds-bottom-group" class="kds-btn" type="button" aria-pressed="true"><%= tt('pos.kds.ungroup', 'Ungroup') %></button>
+  <!-- Mobile Bottom Action Bar (visible on phones) -->
+  <footer class="kds-bottombar" aria-label="Quick actions">
+    <a id="kds-bb-back" class="kds-bb-btn kds-bb-back" href="/owner" aria-label="<%= tt('pos.btn_back_dashboard', 'Back to Dashboard') %>">
+      <span class="kds-bb-ic" aria-hidden="true">⟵</span>
+      <span class="kds-bb-txt"><%= tt('common.btn_back', 'Back') %></span>
+    </a>
+
+    <button id="kds-bb-compact" class="kds-bb-btn" type="button" aria-pressed="false">
+      <span class="kds-bb-ic" aria-hidden="true">▦</span>
+      <span class="kds-bb-txt"><%= tt('pos.kds.compact', 'Compact') %></span>
+    </button>
+
+    <button id="kds-bb-group" class="kds-bb-btn" type="button" aria-pressed="true">
+      <span class="kds-bb-ic" aria-hidden="true">≡</span>
+      <span class="kds-bb-txt"><%= tt('pos.kds.ungroup', 'Ungroup') %></span>
+    </button>
   </footer>
+
 </main>
 
 <script src="/public/js/pos_kds.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>

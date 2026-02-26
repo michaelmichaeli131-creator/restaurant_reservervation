@@ -41,8 +41,9 @@
     live: document.getElementById('kds-live'),
     compactBtn: document.getElementById('kds-compact'),
     groupBtn: document.getElementById('kds-group'),
-    bottomCompactBtn: document.getElementById('kds-bottom-compact'),
-    bottomGroupBtn: document.getElementById('kds-bottom-group'),
+    bbCompactBtn: document.getElementById('kds-bb-compact'),
+    bbGroupBtn: document.getElementById('kds-bb-group'),
+    bbBack: document.getElementById('kds-bb-back'),
     search: document.getElementById('kds-search'),
     tabReceived: document.getElementById('kds-tab-received'),
     tabProgress: document.getElementById('kds-tab-in-progress'),
@@ -70,29 +71,32 @@
   function setCompact(on){
     compact = !!on;
     shell.classList.toggle('kds-compact', compact);
-
-    const applyBtn = (btn) => {
-      if (!btn) return;
-      btn.setAttribute('aria-pressed', compact ? 'true' : 'false');
-      btn.textContent = compact ? STR.btn_comfy : STR.btn_compact;
-    };
-    applyBtn(el.compactBtn);
-    applyBtn(el.bottomCompactBtn);
-
+    if (el.compactBtn){
+      el.compactBtn.setAttribute('aria-pressed', compact ? 'true' : 'false');
+      el.compactBtn.textContent = compact ? STR.btn_comfy : STR.btn_compact;
+    }
+    if (el.bbCompactBtn){
+      el.bbCompactBtn.setAttribute('aria-pressed', compact ? 'true' : 'false');
+      // update label text (second child span if exists)
+      const t = el.bbCompactBtn.querySelector('.kds-bb-txt');
+      if (t) t.textContent = compact ? STR.btn_comfy : STR.btn_compact;
+      else el.bbCompactBtn.textContent = compact ? STR.btn_comfy : STR.btn_compact;
+    }
     localStorage.setItem(LS_PREFIX + 'compact', compact ? '1' : '0');
   }
 
   function setGrouped(on){
     grouped = !!on;
-
-    const applyBtn = (btn) => {
-      if (!btn) return;
-      btn.setAttribute('aria-pressed', grouped ? 'true' : 'false');
-      btn.textContent = grouped ? STR.btn_ungroup : STR.btn_group;
-    };
-    applyBtn(el.groupBtn);
-    applyBtn(el.bottomGroupBtn);
-
+    if (el.groupBtn){
+      el.groupBtn.setAttribute('aria-pressed', grouped ? 'true' : 'false');
+      el.groupBtn.textContent = grouped ? STR.btn_ungroup : STR.btn_group;
+    }
+    if (el.bbGroupBtn){
+      el.bbGroupBtn.setAttribute('aria-pressed', grouped ? 'true' : 'false');
+      const t = el.bbGroupBtn.querySelector('.kds-bb-txt');
+      if (t) t.textContent = grouped ? STR.btn_ungroup : STR.btn_group;
+      else el.bbGroupBtn.textContent = grouped ? STR.btn_ungroup : STR.btn_group;
+    }
     localStorage.setItem(LS_PREFIX + 'grouped', grouped ? '1' : '0');
     render();
   }
@@ -393,8 +397,8 @@
   // controls
   if (el.compactBtn) el.compactBtn.addEventListener('click', () => setCompact(!compact));
   if (el.groupBtn) el.groupBtn.addEventListener('click', () => setGrouped(!grouped));
-  if (el.bottomCompactBtn) el.bottomCompactBtn.addEventListener('click', () => setCompact(!compact));
-  if (el.bottomGroupBtn) el.bottomGroupBtn.addEventListener('click', () => setGrouped(!grouped));
+  if (el.bbCompactBtn) el.bbCompactBtn.addEventListener('click', () => setCompact(!compact));
+  if (el.bbGroupBtn) el.bbGroupBtn.addEventListener('click', () => setGrouped(!grouped));
   if (el.search) el.search.addEventListener('input', () => { q = normalize(el.search.value); render(); });
 
   const bindTab = (btn, status) => {

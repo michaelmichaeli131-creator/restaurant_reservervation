@@ -169,12 +169,53 @@
   background: rgba(59,130,246,.14);
 }
 
-/* Mobile bottom action bar (quick actions) */
+
+
+/* Mobile Bottom Action Bar (phones) */
 .kds-bottombar{
   display:none;
-  align-items:center;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
   gap: 10px;
+  padding:
+    10px
+    calc(env(safe-area-inset-right, 0px) + 12px)
+    calc(env(safe-area-inset-bottom, 0px) + 10px)
+    calc(env(safe-area-inset-left, 0px) + 12px);
+  background: rgba(18, 22, 34, 0.88);
+  border-top: 1px solid rgba(255,255,255,.10);
+  backdrop-filter: blur(14px);
 }
+
+.kds-bb-btn{
+  flex: 1;
+  min-height: 56px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--sb-color-ink);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap: 4px;
+  font-weight: var(--sb-weight-black);
+  letter-spacing: .01em;
+  cursor: pointer;
+  text-decoration: none;
+  user-select:none;
+}
+.kds-bb-btn:active{ transform: scale(.98); }
+.kds-bb-btn[aria-pressed="true"]{
+  border-color: rgba(59,130,246,.55);
+  background: rgba(59,130,246,.14);
+}
+.kds-bb-ic{ font-size: 16px; line-height: 1; opacity: .95; }
+.kds-bb-txt{ font-size: 12px; line-height: 1.1; }
+.kds-bb-back{ background: rgba(255,255,255,.04); }
 
 /* Board */
 .kds-board{
@@ -437,48 +478,15 @@
   .kds-controls{ gap: 10px; }
   .kds-btn{ padding: 11px 12px; }
 
-  /* Show fixed bottom bar on mobile */
-  .kds-bottombar{
-    display:flex;
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 40;
-    padding:
-      10px
-      calc(env(safe-area-inset-right, 0px) + 12px)
-      calc(env(safe-area-inset-bottom, 0px) + 10px)
-      calc(env(safe-area-inset-left, 0px) + 12px);
-    border-top: 1px solid rgba(255,255,255,.10);
-    background: rgba(18, 22, 34, 0.86);
-    backdrop-filter: blur(14px);
-    box-shadow: 0 -12px 26px rgba(0,0,0,.28);
-  }
-  .kds-shell[dir="rtl"] .kds-bottombar{ flex-direction: row-reverse; }
+  /* Show bottom action bar on phones */
+  .kds-bottombar{ display:flex; }
 
-  .kds-bottombar .kds-btn{
-    flex: 1;
-    min-height: 48px;
-    font-size: 15px;
-    border-radius: 16px;
-  }
-  .kds-bottombar .kds-btn.ghost{
-    flex: 0 0 auto;
-    min-width: 96px;
-  }
+  /* Avoid content hidden behind the fixed bottom bar */
+  .kds-shell{ padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--kds-pad) + 86px); }
 
-  /* Make room for the fixed bottom bar */
-  .kds-shell{
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--kds-pad) + 92px);
-  }
+  /* Hide duplicated controls in topbar (we keep Live + Search) */
+  #kds-compact, #kds-group, .kds-controls a.kds-btn.ghost{ display:none; }
 
-  /* De-clutter top controls; keep live + search (bottom bar holds toggles + back) */
-  #kds-compact,
-  #kds-group,
-  .kds-controls > a.kds-btn.ghost{
-    display:none;
-  }
 }
 
 @media (prefers-reduced-motion: reduce){
