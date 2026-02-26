@@ -225,25 +225,6 @@
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
-/* Mobile: keep chips readable without clipping (single-row horizontal scroll) */
-@media (max-width: 640px){
-  .category-chips{
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scroll-snap-type: x mandatory;
-    padding: 0 12px 6px;
-    margin-top: 12px;
-    width: 100%;
-  }
-  .category-chips::-webkit-scrollbar{ display:none; }
-  .category-chips{ scrollbar-width: none; }
-  .category-chips .chip{ flex: 0 0 auto; scroll-snap-align: start; }
-  .chip{ font-size: 13px; padding: 8px 14px; }
-}
-
 /* ===== Featured Carousel ===== */
 .carousel{
   position: relative;

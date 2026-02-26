@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="<%= it.lang || 'en' %>" dir="<%= it.dir || ((it.lang === 'he') ? 'rtl' : 'ltr') %>">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="color-scheme" content="dark light">
+  <title><%= it.title ? it.title + ' · SpotBook' : 'SpotBook' %></title>
+
+  <!-- Design tokens FIRST -->
+  <link rel="stylesheet" href="/public/css/tokens.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
+
+  <!-- Base UI (dark luxury system stack) -->
+  <link rel="stylesheet" href="/public/css/spotbook.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
+  <link rel="stylesheet" href="/public/css/sb-ui.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
+
+  <!-- KDS / Ops screens -->
+  <link rel="stylesheet" href="/public/css/sb-kds.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
+
+  <%~ it.head || '' %>
+</head>
+
+<body class="sb-body sb-kds" data-theme="dark">
+  <%~ it.body %>
+
+  <% if (it.scripts) { it.scripts.forEach(function(src){ %>
+    <script src="<%= src %>" type="module"></script>
+  <% }) } %>
+</body>
+</html>

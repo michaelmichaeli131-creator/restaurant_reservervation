@@ -56,26 +56,15 @@ body.sb-body{
 
 /* Hero */
 .hero{position:relative;border-radius:28px;overflow:hidden;margin-top:16px}
-/* Background is absolute so the hero can grow with content (mobile chips/search won't get clipped) */
 .hero-bg{
-  position:absolute;
-  inset:0;
-  z-index:0;
-  background:
-    linear-gradient(180deg, rgba(0,0,0,.0), rgba(0,0,0,.35)),
-    url('/public/img/hero-restaurant-dark.jpg') center/cover no-repeat,
-    var(--panel);
+  height:360px; background:
+  linear-gradient(180deg, rgba(0,0,0,.0), rgba(0,0,0,.35)),
+  url('/public/img/hero-restaurant-dark.jpg') center/cover no-repeat,
+  var(--panel);
 }
 .hero-inner{
-  position:relative;
-  z-index:1;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  min-height:360px;
-  padding:44px 24px;
-  text-align:center;
+  position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:24px; text-align:center;
 }
 .hero-title{font-size: clamp(28px, 4vw, 56px); margin:0 0 8px; letter-spacing:.2px}
 .hero-sub{margin:0 0 22px; color:var(--ink-muted); font-size:clamp(14px, 2.1vw, 18px)}
@@ -121,7 +110,7 @@ body.sb-body{
   .cards{grid-template-columns:repeat(2, 1fr)}
 }
 @media (max-width: 640px){
-  .hero-inner{min-height:320px}
+  .hero-bg{height:320px}
   .search-bar{border-radius:16px}
   .field input{min-width:120px}
   .cards{grid-template-columns:1fr}
@@ -161,7 +150,8 @@ body.sb-body {
   .btn { padding: 8px 12px; }
 }
 @media (max-width: 640px){
-  .hero-inner { min-height: 260px; padding: 18px 14px; justify-content:flex-start; }
+  .hero-bg { height: 260px; }
+  .hero-inner { padding: 16px; }
   .hero-title { font-size: clamp(22px, 6.2vw, 30px); }
   .hero-sub { font-size: 14px; margin-bottom: 16px; }
 }
@@ -172,7 +162,7 @@ body.sb-body {
     gap: 8px;
     max-width: none;
   }
-  .search-bar .field { flex: 1 1 100%; min-width: 0 !important; }
+  .search-bar .field { flex: 1 1 100%; }
   .search-bar input[type="search"] { font-size: 16px; height: 44px; }
   .search-btn { width: 100%; height: 46px; }
 }

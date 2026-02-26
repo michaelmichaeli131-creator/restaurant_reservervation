@@ -1,4 +1,4 @@
-<% layout("_layout", it) %>
+<% layout("_layout_ops", it) %>
 
 <%
   function tt(k, fb){
@@ -16,400 +16,86 @@
   const rid = it.rid;
 %>
 
-<main class="container pos-kitchen-page" dir="rtl">
-  <header class="page-header kitchen-header">
-    <div>
-      <h1><%= tt('pos.kitchen.title', 'Kitchen Screen —') %> <%= r.name %></h1>
-      <p class="muted"><%= r.city %> • <%= r.address %></p>
+<main class="kds-shell" data-kds-shell data-mode="kitchen" dir="<%= it.dir || 'rtl' %>">
+  <header class="kds-topbar">
+    <div class="kds-brand">
+      <h1 class="kds-title">🍳 <%= tt('pos.kitchen.title', 'Kitchen') %> — <%= r.name %></h1>
+      <p class="kds-sub"><%= r.city %> • <%= r.address %></p>
     </div>
-    <div class="header-actions">
-      <a class="btn ghost" href="/owner"><%= tt('pos.btn_back_dashboard', 'Back to Dashboard') %></a>
+
+    <div class="kds-controls" aria-label="Kitchen controls">
+      <div id="kds-live" class="kds-pill" data-live="0"><span class="dot" aria-hidden="true"></span><%= tt('pos.kds.offline', 'Offline') %></div>
+
+      <button id="kds-compact" class="kds-btn" type="button" aria-pressed="false"><%= tt('pos.kds.compact', 'Compact') %></button>
+      <button id="kds-group" class="kds-btn" type="button" aria-pressed="true"><%= tt('pos.kds.ungroup', 'Ungroup') %></button>
+
+      <div class="kds-search">
+        <input id="kds-search" type="search" inputmode="search" autocomplete="off" />
+      </div>
+
+      <a class="kds-btn ghost" href="/owner"><%= tt('pos.btn_back_dashboard', 'Back to Dashboard') %></a>
     </div>
   </header>
 
-  <section class="panel card kitchen-board" aria-label="<%= tt('pos.kitchen.orders_title', 'Kitchen Orders') %>">
-    <h2 class="card-title"><%= tt('pos.kitchen.orders_title', 'Kitchen Orders') %></h2>
-    <p class="muted kitchen-instructions">
-      <%= tt('pos.kitchen.instructions', 'Arrows change status: forward (Received > In Progress > Ready) or backward.') %><br>
-      <%= tt('pos.kitchen.served_note', '"Served" status is updated only by the waiter.') %>
-    </p>
+  <nav class="kds-tabs" aria-label="<%= tt('pos.kds.tabs', 'Status tabs') %>">
+    <button id="kds-tab-received" class="kds-tab" type="button" aria-selected="true"><%= tt('pos.status.received', 'Received') %></button>
+    <button id="kds-tab-in-progress" class="kds-tab" type="button" aria-selected="false"><%= tt('pos.status.in_progress', 'In Progress') %></button>
+    <button id="kds-tab-ready" class="kds-tab" type="button" aria-selected="false"><%= tt('pos.status.ready', 'Ready') %></button>
+  </nav>
 
-    <div id="kitchen-columns" class="kitchen-columns" data-rid="<%= rid %>">
-      <div class="kitchen-col" data-status="received">
-        <div class="col-head"><%= tt('pos.status.received', 'Received') %></div>
-        <div class="col-body" id="col-received"></div>
+  <section
+    class="kds-board"
+    data-kds-root
+    data-rid="<%= rid %>"
+    data-destination="kitchen"
+    data-locale="<%= it.lang === 'he' ? 'he-IL' : 'en-US' %>"
+
+    data-str-live="<%= tt('pos.kds.live', 'Live') %>"
+    data-str-offline="<%= tt('pos.kds.offline', 'Offline') %>"
+    data-str-search="<%= tt('pos.kds.search', 'Search table / item') %>"
+    data-str-received="<%= tt('pos.status.received', 'Received') %>"
+    data-str-in-progress="<%= tt('pos.status.in_progress', 'In Progress') %>"
+    data-str-ready="<%= tt('pos.status.ready', 'Ready') %>"
+    data-str-table="<%= tt('host.table_label', 'Table') %>"
+    data-str-qty="<%= tt('pos.kitchen.quantity', 'Qty') %>"
+    data-str-created="<%= tt('pos.waiter.created_at', 'Created at') %>"
+    data-str-none="<%= tt('pos.kitchen.no_items', 'No items.') %>"
+    data-str-back="<%= tt('common.btn_back', 'Back') %>"
+    data-str-compact="<%= tt('pos.kds.compact', 'Compact') %>"
+    data-str-comfy="<%= tt('pos.kds.comfort', 'Comfort') %>"
+    data-str-group="<%= tt('pos.kds.group', 'Group') %>"
+    data-str-ungroup="<%= tt('pos.kds.ungroup', 'Ungroup') %>"
+    data-str-act-prev="<%= tt('pos.kds.act_prev', 'Back') %>"
+    data-str-act-next="<%= tt('pos.kds.act_next', 'Next') %>"
+    data-str-act-start="<%= tt('pos.kds.act_start', 'Start') %>"
+    data-str-act-ready="<%= tt('pos.kds.act_ready', 'Ready') %>"
+  >
+    <div class="kds-columns" id="kds-columns">
+      <div class="kds-col" data-status="received" id="kds-col-received">
+        <div class="kds-colhead">
+          <div class="kds-status"><span class="bar" aria-hidden="true"></span><span><%= tt('pos.status.received', 'Received') %></span></div>
+          <div class="kds-count" id="kds-count-received">0</div>
+        </div>
+        <div class="kds-colbody" id="kds-items-received"></div>
       </div>
 
-      <div class="kitchen-col" data-status="in_progress">
-        <div class="col-head"><%= tt('pos.status.in_progress', 'In Progress') %></div>
-        <div class="col-body" id="col-in-progress"></div>
+      <div class="kds-col" data-status="in_progress" id="kds-col-in-progress">
+        <div class="kds-colhead">
+          <div class="kds-status"><span class="bar" aria-hidden="true"></span><span><%= tt('pos.status.in_progress', 'In Progress') %></span></div>
+          <div class="kds-count" id="kds-count-in-progress">0</div>
+        </div>
+        <div class="kds-colbody" id="kds-items-in-progress"></div>
       </div>
 
-      <div class="kitchen-col" data-status="ready">
-        <div class="col-head"><%= tt('pos.status.ready', 'Ready') %></div>
-        <div class="col-body" id="col-ready"></div>
+      <div class="kds-col" data-status="ready" id="kds-col-ready">
+        <div class="kds-colhead">
+          <div class="kds-status"><span class="bar" aria-hidden="true"></span><span><%= tt('pos.status.ready', 'Ready') %></span></div>
+          <div class="kds-count" id="kds-count-ready">0</div>
+        </div>
+        <div class="kds-colbody" id="kds-items-ready"></div>
       </div>
     </div>
   </section>
 </main>
 
-<script>
-  (function(){
-    const root = document.getElementById("kitchen-columns");
-    if (!root) return;
-    const rid = root.dataset.rid;
-    const proto = (location.protocol === "https:") ? "wss:" : "ws:";
-    const wsUrl = proto + "//" + location.host + "/ws/pos";
-
-    const state = new Map(); // orderItemId -> item
-
-    function render(){
-      const cols = {
-        received: document.getElementById("col-received"),
-        in_progress: document.getElementById("col-in-progress"),
-        ready: document.getElementById("col-ready"),
-      };
-      Object.values(cols).forEach(c => { if (c) c.innerHTML = ""; });
-
-      const items = Array.from(state.values())
-        .filter(it => it.destination === "kitchen");
-
-      items.sort((a,b) => a.createdAt - b.createdAt);
-
-      for (const it of items){
-        const col = cols[it.status];
-        if (!col) continue;
-        const div = document.createElement("div");
-        div.className = "ticket";
-        div.dataset.itemId = it.id;
-        div.dataset.orderId = it.orderId;
-        div.dataset.status = it.status;
-        div.dataset.table = it.table;
-        const timeStr = new Date(it.createdAt).toLocaleTimeString('<%= it.lang === "he" ? "he-IL" : "en-US" %>',{
-          hour:'2-digit',minute:'2-digit'
-        });
-        div.innerHTML = `
-          <div class="ticket-title">
-            <%= tt('host.table_label', 'Table') %> ${it.table} • ${it.name}
-          </div>
-          <div class="ticket-meta">
-            <%= tt('pos.kitchen.quantity', 'Qty') %>: ${it.quantity}
-          </div>
-          <div class="ticket-bottom">
-            <div class="ticket-time">${timeStr}</div>
-            <div class="ticket-actions">
-              <button type="button" class="btn-ticket small btn-status-prev">⬅</button>
-              <button type="button" class="btn-ticket small btn-status-next">➡</button>
-            </div>
-          </div>
-        `;
-        col.appendChild(div);
-      }
-
-      for (const col of Object.values(cols)){
-        if (!col) continue;
-        if (!col.children.length){
-          const p = document.createElement("p");
-          p.className = "muted small";
-          p.textContent = "<%= tt('pos.kitchen.no_items', 'No items.') %>";
-          col.appendChild(p);
-        }
-      }
-    }
-
-    function applySnapshot(list){
-      state.clear();
-      if (Array.isArray(list)){
-        for (const it of list){
-          state.set(it.id, it);
-        }
-      }
-      render();
-    }
-
-    function upsertItem(it){
-      state.set(it.id, it);
-      render();
-    }
-
-    function removeItem(id){
-      state.delete(id);
-      render();
-    }
-
-    function nextStatus(current){
-      if (current === "received") return "in_progress";
-      if (current === "in_progress") return "ready";
-      if (current === "ready") return "ready";   // no transition to served
-      if (current === "served") return "served";
-      if (current === "cancelled") return "cancelled";
-      return current;
-    }
-
-    function prevStatus(current){
-      if (current === "ready") return "in_progress";
-      if (current === "in_progress") return "received";
-      if (current === "received") return "received";
-      if (current === "served") return "ready"; // rare: revert served back
-      return current;
-    }
-
-    function sendStatusChange(itemId, orderId, status){
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({
-        type: "set_status",
-        restaurantId: rid,
-        orderItemId: itemId,
-        orderId,
-        status
-      }));
-    }
-
-    root.addEventListener("click", function(ev){
-      const btnNext = ev.target.closest(".btn-status-next");
-      const btnPrev = ev.target.closest(".btn-status-prev");
-      const card = ev.target.closest(".ticket");
-      if (!card) return;
-      const id = card.dataset.itemId;
-      const orderId = card.dataset.orderId;
-      const current = card.dataset.status;
-      if (!id || !orderId || !current) return;
-
-      let target = current;
-      if (btnNext) target = nextStatus(current);
-      if (btnPrev) target = prevStatus(current);
-      if (target === current) return;
-
-      const local = state.get(id);
-      if (local){
-        local.status = target;
-        local.updatedAt = Date.now();
-        state.set(id, local);
-        render();
-      }
-      sendStatusChange(id, orderId, target);
-    });
-
-    let ws;
-    try{
-      ws = new WebSocket(wsUrl);
-    }catch(e){
-      console.error("WS connect failed", e);
-      return;
-    }
-
-    ws.addEventListener("open", () => {
-      ws.send(JSON.stringify({
-        type: "join",
-        role: "kitchen",
-        restaurantId: rid
-      }));
-    });
-
-    ws.addEventListener("message", (ev) => {
-      try{
-        const msg = JSON.parse(ev.data);
-
-        if (msg.type === "snapshot" && msg.restaurantId === rid){
-          applySnapshot(msg.items || []);
-        }
-        if (msg.type === "order_item" && msg.restaurantId === rid){
-          upsertItem(msg.item);
-        }
-        if (msg.type === "order_item_updated" && msg.restaurantId === rid){
-          upsertItem(msg.item);
-        }
-        if (msg.type === "order_closed" && msg.restaurantId === rid){
-          const table = msg.table;
-          if (table != null){
-            for (const it of Array.from(state.values())){
-              if (it.table === table) state.delete(it.id);
-            }
-            render();
-          }
-        }
-      }catch(e){
-        console.warn("bad WS message", e);
-      }
-    });
-  })();
-</script>
-
-<style>
-  /* --- Kitchen page header --- */
-  .pos-kitchen-page .kitchen-header{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:var(--sb-space-md);
-    margin-bottom:var(--sb-space-lg);
-  }
-  .pos-kitchen-page h1{
-    margin:0;
-    font-size:clamp(var(--sb-font-lg), 2.6vw, var(--sb-font-2xl));
-    font-weight:var(--sb-weight-bold);
-    color:var(--sb-color-ink);
-  }
-
-  /* --- Board panel --- */
-  .pos-kitchen-page .panel.card{
-    background:var(--sb-color-panel);
-    border-radius:var(--sb-radius-xl);
-    border:1px solid var(--sb-color-bd);
-    box-shadow:var(--sb-shadow-lg);
-    padding:var(--sb-space-lg);
-  }
-
-  .kitchen-instructions{
-    font-size:var(--sb-font-sm);
-    margin-bottom:var(--sb-space-sm);
-    color:var(--sb-color-ink-muted);
-  }
-
-  /* --- Column grid --- */
-  .kitchen-columns{
-    display:grid;
-    grid-template-columns:repeat(3,1fr);
-    gap:var(--sb-space-md);
-    margin-top:var(--sb-space-md);
-  }
-  .kitchen-col{
-    background:var(--sb-color-panel-2);
-    border-radius:var(--sb-radius-lg);
-    border:1px solid var(--sb-color-accent-border);
-    display:flex;
-    flex-direction:column;
-    min-height:240px;
-  }
-
-  /* --- Column header with status-colored accent --- */
-  .kitchen-col .col-head{
-    padding:var(--sb-space-sm) var(--sb-space-md);
-    font-size:var(--sb-font-sm);
-    font-weight:var(--sb-weight-semibold);
-    border-bottom:1px solid var(--sb-color-bd);
-    text-align:center;
-    text-transform:uppercase;
-    letter-spacing:0.04em;
-    color:var(--sb-color-ink);
-  }
-  .kitchen-col[data-status="received"] .col-head{
-    border-bottom-color:var(--sb-color-brand);
-    color:var(--sb-color-brand);
-  }
-  .kitchen-col[data-status="in_progress"] .col-head{
-    border-bottom-color:var(--sb-color-warning);
-    color:var(--sb-color-warning);
-  }
-  .kitchen-col[data-status="ready"] .col-head{
-    border-bottom-color:var(--sb-color-success);
-    color:var(--sb-color-success);
-  }
-
-  .kitchen-col .col-body{
-    flex:1;
-    padding:var(--sb-space-sm);
-    overflow-y:auto;
-  }
-
-  /* --- Ticket / order card --- */
-  .ticket{
-    border-radius:var(--sb-radius-md);
-    border:1px solid var(--sb-color-bd);
-    background:var(--sb-color-panel);
-    padding:var(--sb-space-sm) var(--sb-space-md);
-    margin-bottom:var(--sb-space-sm);
-    cursor:default;
-    font-size:var(--sb-font-sm);
-    transition:border-color var(--sb-ease-fast), box-shadow var(--sb-ease-fast);
-  }
-  .ticket:hover{
-    border-color:var(--sb-color-accent-border);
-    box-shadow:var(--sb-shadow-sm);
-  }
-
-  .ticket-title{
-    font-weight:var(--sb-weight-semibold);
-    font-size:var(--sb-font-sm);
-    color:var(--sb-color-ink);
-    margin-bottom:var(--sb-space-xs);
-    line-height:var(--sb-leading-tight);
-  }
-  .ticket-meta{
-    font-size:var(--sb-font-xs);
-    color:var(--sb-color-ink-muted);
-    margin-bottom:var(--sb-space-xs);
-  }
-  .ticket-bottom{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin-top:var(--sb-space-xs);
-    padding-top:var(--sb-space-xs);
-    border-top:1px solid rgba(255,255,255,0.05);
-  }
-  .ticket-time{
-    font-size:var(--sb-font-xs);
-    color:var(--sb-color-ink-muted);
-    font-variant-numeric:tabular-nums;
-  }
-  .ticket-actions{
-    display:flex;
-    gap:var(--sb-space-xs);
-  }
-
-  /* --- Ticket action buttons --- */
-  .btn-ticket.small{
-    font-size:var(--sb-font-xs);
-    padding:var(--sb-space-xs) var(--sb-space-sm);
-    border-radius:var(--sb-radius-pill);
-    border:1px solid var(--sb-color-accent-border);
-    background:var(--sb-color-panel-2);
-    color:var(--sb-color-ink);
-    cursor:pointer;
-    transition:border-color var(--sb-ease-fast), background var(--sb-ease-fast);
-    line-height:1;
-  }
-  .btn-ticket.small:hover{
-    border-color:var(--sb-color-success);
-    background:var(--sb-color-success-soft);
-  }
-
-  /* --- Header button --- */
-  .btn{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    gap:var(--sb-space-sm);
-    padding:var(--sb-space-sm) var(--sb-space-md);
-    border-radius:var(--sb-radius-lg);
-    border:1px solid var(--sb-color-bd);
-    background:transparent;
-    color:var(--sb-color-ink);
-    font-size:var(--sb-font-sm);
-    font-weight:var(--sb-weight-medium);
-    cursor:pointer;
-    text-decoration:none;
-    transition:background var(--sb-ease-fast), border-color var(--sb-ease-fast);
-  }
-  .btn:hover{
-    background:rgba(255,255,255,0.06);
-  }
-  .btn.ghost{
-    background:var(--sb-color-panel-2);
-  }
-
-  /* --- Responsive --- */
-  @media (max-width:1000px){
-    .kitchen-columns{
-      grid-template-columns:repeat(2,1fr);
-    }
-  }
-  @media (max-width:640px){
-    .kitchen-columns{
-      grid-template-columns:1fr;
-    }
-  }
-
-  .small{ font-size:var(--sb-font-xs); }
-</style>
+<script src="/public/js/pos_kds.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>
