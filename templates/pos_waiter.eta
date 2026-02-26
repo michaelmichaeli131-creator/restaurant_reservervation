@@ -71,19 +71,10 @@
       </div>
 
       <div class="sb-wt-menu-tools">
-        <div class="sb-wt-menu-row">
-          <div class="sb-search" role="search">
-            <span class="icon">🔎</span>
-            <input id="menu-search" class="sb-input" type="search" placeholder="<%= tt('pos.menu.search', 'Search dishes...') %>" autocomplete="off" />
-          </div>
-
-          <div class="sb-seg" role="tablist" aria-label="<%= tt('pos.menu.filter_destination', 'Destination filter') %>">
-            <button type="button" class="sb-seg-btn is-active" data-dest="__all__" role="tab"><%= tt('common.all', 'All') %></button>
-            <button type="button" class="sb-seg-btn" data-dest="kitchen" role="tab"><%= tt('owner.menu.dest_kitchen', 'Kitchen') %></button>
-            <button type="button" class="sb-seg-btn" data-dest="bar" role="tab"><%= tt('owner.menu.dest_bar', 'Bar') %></button>
-          </div>
+        <div class="sb-search" role="search">
+          <span class="icon">🔎</span>
+          <input id="menu-search" class="sb-input" type="search" placeholder="<%= tt('pos.menu.search', 'Search dishes...') %>" autocomplete="off" />
         </div>
-
         <div id="menu-cats" class="sb-wt-chips" aria-label="Categories"></div>
       </div>
 
@@ -182,8 +173,6 @@
       <span class="meta"><span id="bill-total-mobile"><%= totals.subtotal.toFixed(2) %></span> <%= tt('common.currency', '₪') %></span>
     </button>
   </nav>
-
-  <div id="sb-toast" class="sb-toast" aria-live="polite" aria-atomic="true"></div>
 </main>
 
 <script src="/public/js/pos_waiter.js?v=<%= it.BUILD_TAG || '' %>"></script>
@@ -213,18 +202,7 @@
 
     let __menuAll = [];
     let __menuCat = '__all__';
-    let __menuDest = '__all__';
     let __menuQ = '';
-
-    const toastEl = document.getElementById('sb-toast');
-    let toastT = 0;
-    function showToast(txt){
-      if (!toastEl) return;
-      toastEl.textContent = txt;
-      toastEl.classList.add('show');
-      if (toastT) clearTimeout(toastT);
-      toastT = setTimeout(()=> toastEl.classList.remove('show'), 1800);
-    }
 
     function renderMenu(items){
       if(!Array.isArray(items) || !items.length){
@@ -263,7 +241,6 @@
       // Apply filters
       const filtered = __menuAll.filter((m) => {
         if (m.outOfStock || m.isActive === false) return false;
-        if (__menuDest !== '__all__' && m.destination !== __menuDest) return false;
         const cid = m.categoryId || '__no_cat__';
         if (__menuCat !== '__all__' && cid !== __menuCat) return false;
         if (__menuQ){
@@ -301,10 +278,7 @@
           card.dataset.price = m.price;
           card.dataset.dest = m.destination;
           card.innerHTML = `
-            <div class="menu-item-head">
-              <div class="menu-item-name">${m.name_en || m.name_he || '<%= tt("pos.menu.dish", "Dish") %>'}</div>
-              <span class="menu-item-add" aria-hidden="true">＋</span>
-            </div>
+            <div class="menu-item-name">${m.name_en || m.name_he || '<%= tt("pos.menu.dish", "Dish") %>'}</div>
             <div class="menu-item-desc muted">${m.desc_en || m.desc_he || ''}</div>
             <div class="menu-item-footer">
               <span class="price">${Number(m.price || 0).toFixed(2)} ${currency}</span>
@@ -344,25 +318,9 @@
       });
     }
 
-    // Destination filter
-    const seg = document.querySelector('.sb-seg');
-    if (seg){
-      seg.addEventListener('click', (ev) => {
-        const b = ev.target.closest('.sb-seg-btn');
-        if (!b) return;
-        __menuDest = b.dataset.dest || '__all__';
-        seg.querySelectorAll('.sb-seg-btn').forEach(x => x.classList.remove('is-active'));
-        b.classList.add('is-active');
-        renderMenu(__menuAll);
-      });
-    }
-
     async function addItem(card){
       const menuItemId = card.dataset.menuItemId;
       if (!menuItemId) return;
-
-      if (card.classList.contains('is-loading')) return;
-      card.classList.add('is-loading');
 
       try{
         const res = await fetch("/api/pos/order-item/add", {
@@ -434,16 +392,8 @@
         if (window.sbRecalcBill) {
           window.sbRecalcBill();
         }
-
-        // Micro feedback
-        card.classList.add('is-added');
-        setTimeout(()=> card.classList.remove('is-added'), 520);
-        if (navigator.vibrate) try { navigator.vibrate(8); } catch(e) {}
-        showToast(`<%= tt('pos.menu.added_to_order', 'Added to order') %>: ${item.name}`);
       }catch(e){
         console.error("addItem failed", e);
-      }finally{
-        card.classList.remove('is-loading');
       }
     }
 

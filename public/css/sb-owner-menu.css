@@ -36,36 +36,9 @@
   border-bottom: 1px solid rgba(255,255,255,.06);
 }
 
-.sb-om-cat{display:flex; align-items:center; gap:10px; min-width:0}
-.sb-om-count{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  min-width: 30px;
-  height: 24px;
-  padding: 0 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(148,163,184,.22);
-  background: rgba(255,255,255,.04);
-  color: var(--ink);
-  font-weight: 950;
-  font-size: 12px;
-}
-
 .sb-om-table td{
   vertical-align: top;
 }
-
-/* Make the table feel like modern cards */
-.sb-om-table{border-collapse: separate; border-spacing: 0 10px}
-.sb-om-table thead th{color: var(--ink-muted); font-size:12px; letter-spacing:.18px; text-transform: uppercase}
-.sb-om-table tbody tr{
-  background: linear-gradient(180deg, rgba(15,23,42,.66), rgba(15,23,42,.5));
-}
-.sb-om-table tbody td{padding: 12px}
-.sb-om-table tbody tr td:first-child{border-top-left-radius: 16px; border-bottom-left-radius: 16px}
-.sb-om-table tbody tr td:last-child{border-top-right-radius: 16px; border-bottom-right-radius: 16px}
-.sb-om-table tbody tr:hover{filter: brightness(1.06)}
 
 .sb-om-item-title{font-weight: 950}
 
@@ -84,37 +57,6 @@
 
 @media (max-width: 980px){
   .sb-om-grid{grid-template-columns: 1fr}
-}
-
-@media (max-width: 760px){
-  .sb-om-table{border-spacing: 0 12px}
-  .sb-om-table thead{display:none}
-  .sb-om-table, .sb-om-table tbody, .sb-om-table tr, .sb-om-table td{display:block; width:100%}
-  .sb-om-table tbody tr{
-    border-radius: 18px;
-    border: 1px solid rgba(148,163,184,.22);
-    padding: 12px;
-  }
-  .sb-om-table tbody td{
-    padding: 8px 0;
-    border: 0;
-    border-bottom: 1px solid rgba(148,163,184,.12);
-    display:flex;
-    align-items:flex-start;
-    justify-content:space-between;
-    gap:12px;
-  }
-  .sb-om-table tbody td::before{
-    content: attr(data-label);
-    color: var(--ink-muted);
-    font-weight: 900;
-    font-size: 12px;
-    padding-top: 1px;
-    white-space: nowrap;
-  }
-  .sb-om-table tbody td:last-child{border-bottom:0; padding-bottom: 0}
-  .sb-om-table tbody tr td:first-child,
-  .sb-om-table tbody tr td:last-child{border-radius: 0}
 }
 
 @media (max-width: 560px){
