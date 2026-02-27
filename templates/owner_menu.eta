@@ -15,6 +15,14 @@
     }catch(e){}
     return fb;
   }
+
+  const catCounts = {};
+  try{
+    (it.items || []).forEach((m) => {
+      const cid = m.categoryId || '__no_cat__';
+      catCounts[cid] = (catCounts[cid] || 0) + 1;
+    });
+  }catch(e){}
 %>
 
 <main class="sb-page sb-om-page" dir="rtl" data-page="owner-menu">
@@ -39,7 +47,10 @@
     <ul class="list sb-om-list">
       <% it.cats.forEach(c => { %>
         <li class="item">
-          <strong><%= c.name_he || c.name_en || tt('owner.menu.no_name', '(No name)') %></strong>
+          <div class="sb-om-cat">
+            <strong><%= c.name_he || c.name_en || tt('owner.menu.no_name', '(No name)') %></strong>
+            <span class="sb-om-count"><%= (catCounts[c.id] || 0) %></span>
+          </div>
           <form method="post" action="/owner/<%= it.restaurant.id %>/menu/category/<%= c.id %>/delete" style="display:inline">
             <button class="btn ghost" onclick="return confirm('<%= tt('owner.menu.confirm_delete_category', 'למחוק קטגוריה?') %>')"><%= tt('common.btn_delete', 'מחק') %></button>
           </form>
@@ -60,13 +71,13 @@
       <tbody>
         <% it.items.forEach(m => { %>
           <tr data-name="<%= ((m.name_he || m.name_en) || '').toString().toLowerCase() %>" data-cat="<%= ((it.cats.find(c=>c.id===m.categoryId)?.name_he || it.cats.find(c=>c.id===m.categoryId)?.name_en) || '').toString().toLowerCase() %>">
-            <td>
+            <td data-label="<%= tt('owner.menu.tbl.name', 'שם') %>">
               <div class="sb-om-item-title"><%= m.name_he || m.name_en %></div>
             </td>
-            <td><%= (m.price || 0).toFixed(2) %> <%= tt('common.currency', '₪') %></td>
-            <td><span class="sb-om-pill"><%= m.destination === 'bar' ? tt('owner.menu.dest_bar', 'בר') : tt('owner.menu.dest_kitchen', 'מטבח') %></span></td>
-            <td><span class="sb-om-pill"><%= (it.cats.find(c=>c.id===m.categoryId)?.name_he || it.cats.find(c=>c.id===m.categoryId)?.name_en || '-') %></span></td>
-            <td>
+            <td data-label="<%= tt('owner.menu.tbl.price', 'מחיר') %>"><%= (m.price || 0).toFixed(2) %> <%= tt('common.currency', '₪') %></td>
+            <td data-label="<%= tt('owner.menu.tbl.destination', 'יעד') %>"><span class="sb-om-pill"><%= m.destination === 'bar' ? tt('owner.menu.dest_bar', 'בר') : tt('owner.menu.dest_kitchen', 'מטבח') %></span></td>
+            <td data-label="<%= tt('owner.menu.tbl.category', 'קטגוריה') %>"><span class="sb-om-pill"><%= (it.cats.find(c=>c.id===m.categoryId)?.name_he || it.cats.find(c=>c.id===m.categoryId)?.name_en || '-') %></span></td>
+            <td data-label="<%= tt('common.actions', 'Actions') %>">
               <form method="post" action="/owner/<%= it.restaurant.id %>/menu/item/<%= m.id %>/delete">
                 <button class="btn ghost">🗑 <%= tt('common.btn_delete', 'מחק') %></button>
               </form>

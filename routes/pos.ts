@@ -590,11 +590,25 @@ posRouter.get("/bar/:rid", async (ctx) => {
 posRouter.get("/api/pos/menu/:rid", async (ctx) => {
   const rid = ctx.params.rid!;
   const items = await listItems(rid);
+  const cats = await listCategories(rid);
+  const byId = new Map(cats.map((c) => [c.id, c]));
+  const enriched = items.map((it: any) => {
+    const c = it.categoryId ? byId.get(it.categoryId) : undefined;
+    return {
+      ...it,
+      categoryName_en: c?.name_en ?? "",
+      categoryName_he: c?.name_he ?? "",
+      categoryName_ka: c?.name_ka ?? "",
+      categorySort: c?.sort ?? 0,
+      categoryActive: c?.active ?? true,
+    };
+  });
+
   ctx.response.headers.set(
     "Content-Type",
     "application/json; charset=utf-8",
   );
-  ctx.response.body = JSON.stringify(items);
+  ctx.response.body = JSON.stringify(enriched);
 });
 
 // Staff convenience: menu API without :rid (restaurant inferred from locked staff membership)
@@ -605,11 +619,25 @@ posRouter.get("/api/pos/menu", async (ctx) => {
   if (!(await requireRestaurantAccess(ctx, rid))) return;
 
   const items = await listItems(rid);
+  const cats = await listCategories(rid);
+  const byId = new Map(cats.map((c) => [c.id, c]));
+  const enriched = items.map((it: any) => {
+    const c = it.categoryId ? byId.get(it.categoryId) : undefined;
+    return {
+      ...it,
+      categoryName_en: c?.name_en ?? "",
+      categoryName_he: c?.name_he ?? "",
+      categoryName_ka: c?.name_ka ?? "",
+      categorySort: c?.sort ?? 0,
+      categoryActive: c?.active ?? true,
+    };
+  });
+
   ctx.response.headers.set(
     "Content-Type",
     "application/json; charset=utf-8",
   );
-  ctx.response.body = JSON.stringify(items);
+  ctx.response.body = JSON.stringify(enriched);
 });
 
 
