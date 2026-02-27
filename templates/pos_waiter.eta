@@ -84,8 +84,7 @@
           </div>
         </div>
 
-        <div id="menu-cats" class="sb-wt-chips" aria-label="Menu sections"></div>
-        <div id="menu-cat-jumps" class="menu-jumps" aria-label="Menu categories"></div>
+        <div id="menu-cats" class="sb-wt-chips" aria-label="Categories"></div>
       </div>
 
       <div id="menu-root" class="sb-wt-menu-list" data-rid="<%= rid %>">
@@ -210,10 +209,6 @@
 
     if (!rid || !table) return;
 
-    // Menu navigation containers
-    const sectionChipsEl = document.getElementById('menu-cats');
-    const catJumpsEl = document.getElementById('menu-cat-jumps');
-
     async function loadMenu(){
       try{
         const res = await fetch(`/api/pos/menu/${encodeURIComponent(rid)}`);
@@ -315,13 +310,11 @@
     function renderMenu(items){
       if(!Array.isArray(items) || !items.length){
         root.innerHTML = '<p class="muted"><%= tt('pos.menu.empty', 'No dishes in menu currently.') %></p>';
-        if (sectionChipsEl) sectionChipsEl.innerHTML = '';
-        if (catJumpsEl) catJumpsEl.innerHTML = '';
         return;
       }
       __menuAll = items.slice();
 
-      // Apply filters: destination + search
+      // Apply filters: destination + search (category filter intentionally removed -> looks like a real menu)
       const filtered = __menuAll.filter((m) => {
         if (m.outOfStock || m.isActive === false) return false;
         if (__menuDest !== '__all__' && m.destination !== __menuDest) return false;
@@ -334,32 +327,32 @@
 
       if(!filtered.length){
         root.innerHTML = '<div class="sb-empty"><%= tt('pos.menu.no_results', 'No results for your filters.') %></div>';
-        if (sectionChipsEl) sectionChipsEl.innerHTML = '';
-        if (catJumpsEl) catJumpsEl.innerHTML = '';
         return;
       }
 
-      const isRTL = (document.documentElement.getAttribute('dir') || '').toLowerCase() === 'rtl';
-      const kitchenItems = filtered.filter(x => x.destination !== 'bar');
-      const barItems = filtered.filter(x => x.destination === 'bar');
-
-      // Build section chips (Top / Kitchen / Bar)
-      if (sectionChipsEl){
-        sectionChipsEl.innerHTML = '';
-        const mk = (id, label, active) => {
+      // Quick-jump chips (All / Kitchen / Bar)
+      const catsEl = document.getElementById('menu-cats');
+      if (catsEl && !catsEl.dataset.built){
+        catsEl.dataset.built = '1';
+        const mk = (id, label) => {
           const b = document.createElement('button');
-          b.type = 'button';
-          b.className = 'sb-chip' + (active ? ' is-active' : '');
+          b.type='button';
+          b.className = 'sb-chip' + (id === '__top__' ? ' is-active' : '');
           b.dataset.jump = id;
           b.textContent = label;
           return b;
         };
-        sectionChipsEl.appendChild(mk('__top__','<%= tt('common.all','All') %>', true));
-        if (kitchenItems.length) sectionChipsEl.appendChild(mk('kitchen','<%= tt('owner.menu.dest_kitchen','Kitchen') %>', false));
-        if (barItems.length) sectionChipsEl.appendChild(mk('bar','<%= tt('owner.menu.dest_bar','Bar') %>', false));
+        catsEl.appendChild(mk('__top__','<%= tt('common.all','All') %>'));
+        catsEl.appendChild(mk('kitchen','<%= tt('owner.menu.dest_kitchen','Kitchen') %>'));
+        catsEl.appendChild(mk('bar','<%= tt('owner.menu.dest_bar','Bar') %>'));
       }
 
       const qtyMap = getOrderQtyMap();
+
+            const isRTL = (document.documentElement.getAttribute('dir') || '').toLowerCase() === 'rtl';
+
+      const kitchenItems = filtered.filter(x => x.destination !== 'bar');
+      const barItems = filtered.filter(x => x.destination === 'bar');
 
       // Stable sort helpers
       function nameOf(x){ return (x.name_en || x.name_he || '').toString().trim(); }
@@ -376,8 +369,6 @@
       const book = document.createElement('div');
       book.className = 'menu-book';
 
-      const jumpCats = [];
-
       const makeSection = (id, title, list) => {
         if(!list.length) return;
         const sec = document.createElement('section');
@@ -387,19 +378,12 @@
         const hd = document.createElement('div');
         hd.className = 'menu-section-hd';
         hd.innerHTML = `
-          <div class="menu-section-left">
-            <h3 class="menu-section-title">${esc(title)}</h3>
-            <div class="menu-section-note muted"><%= tt('pos.menu.tap_to_add', 'Tap a dish to add it') %></div>
-          </div>
+          <h3 class="menu-section-title">${esc(title)}</h3>
           <span class="menu-section-sub muted">${list.length}</span>
         `;
         sec.appendChild(hd);
 
-        const body = document.createElement('div');
-        body.className = 'menu-section-body';
-        sec.appendChild(body);
-
-        // Group into real menu categories
+        // Group into real menu categories (Starters / Main / Drinks etc.)
         const byCat = new Map();
         for (const m of list){
           const cid = m.categoryId || '__no_cat__';
@@ -412,15 +396,10 @@
         const cats = Array.from(byCat.values());
         cats.sort((a,b)=> (a.sort - b.sort) || a.label.localeCompare(b.label));
 
-        let catIdx = 0;
         for (const c of cats){
+          // category header
           const catWrap = document.createElement('div');
           catWrap.className = 'menu-cat';
-          const domId = `menu-cat-${id}-${catIdx++}`;
-          catWrap.id = domId;
-          catWrap.dataset.catLabel = c.label;
-          catWrap.dataset.section = id;
-          jumpCats.push({ id: domId, label: c.label, section: id });
 
           const catHd = document.createElement('div');
           catHd.className = 'menu-cat-hd';
@@ -479,7 +458,7 @@
           }
 
           catWrap.appendChild(lines);
-          body.appendChild(catWrap);
+          sec.appendChild(catWrap);
         }
 
         book.appendChild(sec);
@@ -491,31 +470,6 @@
 
       root.innerHTML = '';
       root.appendChild(book);
-
-      // Build category quick-jump chips (per rendered content)
-      if (catJumpsEl){
-        catJumpsEl.innerHTML = '';
-        if (jumpCats.length){
-          const frag = document.createDocumentFragment();
-          let lastSec = '';
-          for (const j of jumpCats){
-            if (j.section !== lastSec){
-              lastSec = j.section;
-              const lab = document.createElement('span');
-              lab.className = 'menu-jumps-label';
-              lab.textContent = (j.section === 'bar') ? '<%= tt('owner.menu.dest_bar','Bar') %>' : '<%= tt('owner.menu.dest_kitchen','Kitchen') %>';
-              frag.appendChild(lab);
-            }
-            const b = document.createElement('button');
-            b.type = 'button';
-            b.className = 'menu-jump';
-            b.dataset.jumpCat = j.id;
-            b.textContent = j.label;
-            frag.appendChild(b);
-          }
-          catJumpsEl.appendChild(frag);
-        }
-      }
     }
 
     // Search
@@ -526,7 +480,7 @@
         renderMenu(__menuAll);
       });
     }
-    // Quick-jump (sections)
+    // Quick-jump chips
     const catsEl = document.getElementById('menu-cats');
     if (catsEl){
       catsEl.addEventListener('click', (ev) => {
@@ -545,31 +499,9 @@
 
         const sec = root.querySelector(`#menu-sec-${selEscape(jump)}`);
         if (sec){
-          const top = (sec.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop) - 10;
+          const top = (sec.offsetTop || 0) - 8;
           try{ root.scrollTo({ top, behavior: 'smooth' }); }catch(e){ root.scrollTop = top; }
         }
-      });
-    }
-
-    // Quick-jump (categories)
-    const jumpsEl = document.getElementById('menu-cat-jumps');
-    if (jumpsEl){
-      jumpsEl.addEventListener('click', (ev) => {
-        const b = ev.target.closest('[data-jump-cat]');
-        if (!b) return;
-        const id = b.dataset.jumpCat;
-        if (!id) return;
-
-        const el = root.querySelector(`#${selEscape(id)}`);
-        if (!el) return;
-
-        // scroll within the menu container
-        const top = (el.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop) - 10;
-        try{ root.scrollTo({ top, behavior: 'smooth' }); }catch(e){ root.scrollTop = top; }
-
-        // small visual focus
-        el.classList.add('is-jump-flash');
-        window.setTimeout(() => el.classList.remove('is-jump-flash'), 650);
       });
     }
 
@@ -777,8 +709,6 @@
 
       // Quick-add by tapping the item content (not the actions area)
       if (ev.target.closest(".menu-line-actions")) return;
-      const q = Number(line.dataset.qty || '0') || 0;
-      if (q > 0) return; // prevent accidental duplicates
       addItem(line);
     });
 
