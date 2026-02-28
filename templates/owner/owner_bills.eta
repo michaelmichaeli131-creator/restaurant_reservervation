@@ -22,14 +22,23 @@ function formatDateTime(ts){
 }
 %>
 
-<section class="sb-owner container" aria-label="<%= tt('owner.bills.aria', 'חשבונות מסעדה') %>">
+<main class="sb-owner container sb-owner-page" aria-label="<%= tt('owner.bills.aria', 'חשבונות מסעדה') %>">
   <div class="card">
     <header class="owner-hd">
-      <h1><%= tt('owner.bills.title', 'חשבונות') %> · <%= it.restaurant?.name %></h1>
-      <span class="muted">
-        <%= it.restaurant?.city || '' %> • <%= it.restaurant?.address || '' %>
-      </span>
+      <div>
+        <div class="sb-owner-kicker"><%= tt('owner.bills.kicker','Restaurant billing') %></div>
+        <h1><%= tt('owner.bills.title', 'חשבונות') %> · <%= it.restaurant?.name %></h1>
+        <p class="muted">
+          <%= it.restaurant?.city || '' %> • <%= it.restaurant?.address || '' %>
+        </p>
+      </div>
+      <div class="actions">
+        <a class="btn ghost sm" href="/owner"><%= tt('owner.bills.back_to_dashboard','חזרה לדשבורד') %></a>
+      </div>
     </header>
+
+    <%~ include("components/_owner_tabs", { restaurant: it.restaurant, active: "bills", t: it.t }) %>
+
 
     <div class="owner-bills">
       <% if (it.bills && it.bills.length) { %>
@@ -46,15 +55,15 @@ function formatDateTime(ts){
           <tbody>
             <% it.bills.forEach(function(b, idx){ %>
               <tr>
-                <td><%= idx + 1 %></td>
-                <td><%= formatDateTime(b.createdAt) %></td>
-                <td><%= tt('bill.table_prefix', 'שולחן') %> <%= b.table %></td>
-                <td>
+                <td data-label="#"> <%= idx + 1 %></td>
+                <td data-label="<%= tt('owner.bills.tbl.date', 'תאריך') %>"><%= formatDateTime(b.createdAt) %></td>
+                <td data-label="<%= tt('owner.bills.tbl.table', 'שולחן') %>"><%= tt('bill.table_prefix', 'שולחן') %> <%= b.table %></td>
+                <td data-label="<%= tt('owner.bills.tbl.amount', 'סכום') %>">
                   <%= (b.totals && typeof b.totals.total==='number'
                       ? b.totals.total.toFixed(2)
                       : (b.totals?.subtotal ?? 0).toFixed(2)) %> <%= tt('common.currency', '₪') %>
                 </td>
-                <td class="bills-actions">
+                <td class="bills-actions" data-label="<%= tt('owner.bills.tbl.actions', 'פעולות') %>">
                   <a class="btn ghost sm" href="/owner/<%= it.restaurant.id %>/bills/<%= b.id %>">
                     <%= tt('common.btn_open', 'הצג') %>
                   </a>
@@ -88,72 +97,5 @@ function formatDateTime(ts){
       <% } %>
     </div>
   </div>
-</section>
+</main>
 
-<style>
-  .sb-owner.container{max-width:900px;margin:20px auto;padding:0 16px}
-  .card{
-    background: var(--panel,#121622);
-    border:1px solid var(--bd,#222834);
-    border-radius:18px;padding:18px;margin-bottom:18px;
-    color: var(--ink,#e6e8ef);
-    box-shadow:0 10px 30px rgba(0,0,0,.35);
-  }
-  .owner-hd{
-    display:flex;align-items:flex-end;justify-content:space-between;gap:10px;
-    margin-bottom:10px;
-  }
-  .muted{color:var(--ink-muted,#9aa3b2);}
-
-  .bills-table{
-    width:100%;
-    border-collapse:collapse;
-    margin-top:10px;
-    font-size:14px;
-  }
-  .bills-table thead tr{
-    background:rgba(15,23,42,.9);
-  }
-  .bills-table th,
-  .bills-table td{
-    padding:8px 10px;
-    text-align:right;
-    border-bottom:1px solid rgba(148,163,184,.25);
-  }
-  .bills-table tbody tr:hover{
-    background:rgba(15,23,42,.8);
-  }
-
-  .bills-actions{
-    display:flex;
-    gap:6px;
-    align-items:center;
-    justify-content:flex-start;
-    flex-wrap:wrap;
-  }
-  .inline-form{display:inline}
-
-  .btn{
-    display:inline-flex;align-items:center;justify-content:center;
-    gap:6px;padding:7px 10px;border-radius:10px;
-    border:1px solid var(--bd,#23293a);
-    background:transparent;color:var(--ink,#e6e8ef);
-    font-size:12px;font-weight:600;text-decoration:none;cursor:pointer;
-    transition:transform .08s ease,background .12s ease;
-  }
-  .btn.ghost{
-    background:color-mix(in srgb,var(--panel,#121622) 88%,transparent);
-  }
-  .btn.ghost:hover{
-    background:color-mix(in srgb,var(--panel,#121622) 94%,transparent);
-    transform:translateY(-1px);
-  }
-  .btn.sm{padding:5px 9px;border-radius:9px;}
-  .btn.danger{border-color:#b91c1c;color:#fecaca;}
-
-  @media (max-width:700px){
-    .owner-hd{flex-direction:column;align-items:flex-start}
-    .bills-table th:nth-child(1),
-    .bills-table td:nth-child(1){display:none;}
-  }
-</style>

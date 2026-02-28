@@ -26,7 +26,7 @@
   });
 %>
 
-<section class="sb-owner container" aria-label="<%= tt('recipes.aria', 'Dish Recipes & Ingredients') %>">
+<main class="sb-owner container sb-owner-page" aria-label="<%= tt('recipes.aria', 'Dish Recipes & Ingredients') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
@@ -36,6 +36,9 @@
         </p>
       </div>
     </header>
+
+    <%~ include("components/_owner_tabs", { restaurant, active: "inventory", t: it.t }) %>
+
 
     <div class="inv-grid">
       <!-- Left panel: recipe editing form for selected dish -->
@@ -192,7 +195,7 @@
       </div>
     </div>
   </div>
-</section>
+</main>
 
 <script>
   (function(){
@@ -329,125 +332,3 @@
   })();
 </script>
 
-<style>
-  .inv-grid{
-    display:grid;
-    grid-template-columns:1.1fr 1.4fr;
-    gap:16px;
-    margin-top:14px;
-  }
-
-  .recipe-grid{
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-    margin-top:8px;
-  }
-  .recipe-row{
-    display:grid;
-    grid-template-columns:1.5fr 1fr auto;
-    gap:8px;
-    align-items:center;
-  }
-
-  .recipes-list{
-    display:flex;
-    flex-direction:column;
-    gap:10px;
-    margin-top:8px;
-    max-height:520px;
-    overflow:auto;
-    padding-right:4px;
-  }
-
-  .recipe-card{
-    background:rgba(15,23,42,.85);
-    border-radius:14px;
-    border:1px solid rgba(148,163,184,.2);
-    padding:10px 12px;
-  }
-
-  .recipe-header{
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-start;
-    gap:8px;
-  }
-
-  .recipe-title{
-    font-size:14px;
-  }
-  .recipe-sub{
-    font-size:12px;
-    margin-top:2px;
-  }
-
-  .recipe-rows{
-    list-style:none;
-    margin:8px 0 0;
-    padding:0;
-    font-size:13px;
-  }
-  .recipe-rows li{
-    display:flex;
-    justify-content:space-between;
-    padding:3px 0;
-    border-bottom:1px dashed rgba(148,163,184,.25);
-  }
-  .recipe-rows li:last-child{
-    border-bottom:none;
-  }
-  .ing-name{
-    font-weight:500;
-  }
-  .ing-qty{
-    color:#9ca3af;
-  }
-
-  .small{
-    font-size:12px;
-  }
-
-  .badge{
-    display:inline-flex;
-    align-items:center;
-    padding:3px 8px;
-    border-radius:999px;
-    font-size:11px;
-    border:1px solid transparent;
-  }
-  .badge.ok{
-    border-color:rgba(52,211,153,.5);
-    color:#6ee7b7;
-    background:rgba(16,185,129,.08);
-  }
-  .badge.bad{
-    border-color:rgba(248,113,113,.6);
-    color:#fecaca;
-    background:rgba(248,113,113,.08);
-  }
-
-  .form select,
-  .form input{
-    width:100%;
-    padding:10px 12px;
-    margin-top:6px;
-    background:#171b29;
-    color:#e6e8ef;
-    border:1px solid #23293a;
-    border-radius:12px;
-    font-size:14px;
-    outline:none;
-  }
-  .form select:focus,
-  .form input:focus{
-    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
-  }
-
-  @media (max-width:900px){
-    .inv-grid{
-      grid-template-columns:1fr;
-    }
-  }
-</style>

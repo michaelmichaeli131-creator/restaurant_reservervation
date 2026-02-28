@@ -41,17 +41,26 @@
     </div>
   </header>
 
+  <%~ include("components/_owner_tabs", { restaurant: it.restaurant, active: "menu", t: it.t }) %>
+
+
   <div class="sb-om-grid">
   <section class="card sb-om-card">
     <h2 class="card-title"><%= tt('owner.menu.categories', 'קטגוריות') %></h2>
     <ul class="list sb-om-list">
+      <li class="item is-active" data-filter="__all__">
+        <div class="sb-om-cat" role="button" tabindex="0" data-filter="__all__">
+          <strong><%= tt('owner.menu.all', 'הכל') %></strong>
+          <span class="sb-om-count"><%= (it.items || []).length %></span>
+        </div>
+      </li>
       <% it.cats.forEach(c => { %>
-        <li class="item">
-          <div class="sb-om-cat">
+        <li class="item" data-filter="<%= c.id %>">
+          <div class="sb-om-cat" role="button" tabindex="0" data-filter="<%= c.id %>">
             <strong><%= c.name_he || c.name_en || tt('owner.menu.no_name', '(No name)') %></strong>
             <span class="sb-om-count"><%= (catCounts[c.id] || 0) %></span>
           </div>
-          <form method="post" action="/owner/<%= it.restaurant.id %>/menu/category/<%= c.id %>/delete" style="display:inline">
+          <form method="post" action="/owner/<%= it.restaurant.id %>/menu/category/<%= c.id %>/delete" class="inline-form">
             <button class="btn ghost" onclick="return confirm('<%= tt('owner.menu.confirm_delete_category', 'למחוק קטגוריה?') %>')"><%= tt('common.btn_delete', 'מחק') %></button>
           </form>
         </li>
@@ -70,17 +79,19 @@
       <thead><tr><th><%= tt('owner.menu.tbl.name', 'שם') %></th><th><%= tt('owner.menu.tbl.price', 'מחיר') %></th><th><%= tt('owner.menu.tbl.destination', 'יעד') %></th><th><%= tt('owner.menu.tbl.category', 'קטגוריה') %></th><th></th></tr></thead>
       <tbody>
         <% it.items.forEach(m => { %>
-          <tr data-name="<%= ((m.name_he || m.name_en) || '').toString().toLowerCase() %>" data-cat="<%= ((it.cats.find(c=>c.id===m.categoryId)?.name_he || it.cats.find(c=>c.id===m.categoryId)?.name_en) || '').toString().toLowerCase() %>">
+          <tr data-name="<%= ((m.name_he || m.name_en) || '').toString().toLowerCase() %>" data-cat="<%= ((it.cats.find(c=>c.id===m.categoryId)?.name_he || it.cats.find(c=>c.id===m.categoryId)?.name_en) || '').toString().toLowerCase() %>" data-cid="<%= m.categoryId || '' %>">
             <td data-label="<%= tt('owner.menu.tbl.name', 'שם') %>">
               <div class="sb-om-item-title"><%= m.name_he || m.name_en %></div>
             </td>
             <td data-label="<%= tt('owner.menu.tbl.price', 'מחיר') %>"><%= (m.price || 0).toFixed(2) %> <%= tt('common.currency', '₪') %></td>
-            <td data-label="<%= tt('owner.menu.tbl.destination', 'יעד') %>"><span class="sb-om-pill"><%= m.destination === 'bar' ? tt('owner.menu.dest_bar', 'בר') : tt('owner.menu.dest_kitchen', 'מטבח') %></span></td>
+            <td data-label="<%= tt('owner.menu.tbl.destination', 'יעד') %>"><span class="sb-om-pill <%= m.destination === 'bar' ? 'is-bar' : 'is-kitchen' %>"><%= m.destination === 'bar' ? tt('owner.menu.dest_bar', 'בר') : tt('owner.menu.dest_kitchen', 'מטבח') %></span></td>
             <td data-label="<%= tt('owner.menu.tbl.category', 'קטגוריה') %>"><span class="sb-om-pill"><%= (it.cats.find(c=>c.id===m.categoryId)?.name_he || it.cats.find(c=>c.id===m.categoryId)?.name_en || '-') %></span></td>
             <td data-label="<%= tt('common.actions', 'Actions') %>">
+              <div class="sb-om-row-actions">
               <form method="post" action="/owner/<%= it.restaurant.id %>/menu/item/<%= m.id %>/delete">
                 <button class="btn ghost">🗑 <%= tt('common.btn_delete', 'מחק') %></button>
               </form>
+              </div>
             </td>
           </tr>
         <% }) %>
@@ -117,20 +128,58 @@
   (function(){
     const input = document.getElementById('menu-owner-search');
     const table = document.getElementById('owner-menu-items');
-    if (!input || !table) return;
+    const list  = document.querySelector('.sb-om-list');
 
-    input.addEventListener('input', () => {
-      const q = String(input.value || '').trim().toLowerCase();
+    if (!table) return;
+
+    let activeCid = '__all__';
+
+    function applyFilters(){
+      const q = String((input && input.value) || '').trim().toLowerCase();
       const rows = table.querySelectorAll('tbody tr');
+
       rows.forEach((tr) => {
-        if (!q){
-          tr.style.display = '';
-          return;
-        }
         const name = tr.dataset.name || '';
-        const cat = tr.dataset.cat || '';
-        tr.style.display = (name.includes(q) || cat.includes(q)) ? '' : 'none';
+        const cat  = tr.dataset.cat || '';
+        const cid  = tr.dataset.cid || '';
+        const okSearch = (!q) || name.includes(q) || cat.includes(q);
+        const okCat = (activeCid === '__all__') || (cid === activeCid);
+        tr.style.display = (okSearch && okCat) ? '' : 'none';
       });
-    });
+    }
+
+    if (input){
+      input.addEventListener('input', applyFilters);
+    }
+
+    if (list){
+      list.addEventListener('click', (e) => {
+        const el = e.target.closest('[data-filter]');
+        if (!el) return;
+
+        // prevent category delete button clicks from selecting filter
+        if (e.target.closest('form')) return;
+
+        const cid = el.getAttribute('data-filter') || '__all__';
+        activeCid = cid;
+
+        list.querySelectorAll('.item').forEach(li => li.classList.remove('is-active'));
+        const li = el.classList.contains('item') ? el : el.closest('.item');
+        if (li) li.classList.add('is-active');
+
+        applyFilters();
+      });
+
+      list.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const el = e.target.closest('[data-filter]');
+        if (!el) return;
+        el.click();
+        e.preventDefault();
+      }, true);
+    }
+
+    applyFilters();
   })();
 </script>
+

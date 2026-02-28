@@ -1,0 +1,54 @@
+<%
+/**
+ * Owner restaurant navigation tabs (scoped to a single restaurant).
+ *
+ * Usage:
+ *   <%~ include("components/_owner_tabs", { restaurant: it.restaurant, active: "menu", t: it.t, lang: it.lang, dir: it.dir }) %>
+ *
+ * Params:
+ *   restaurant (object) - must contain id
+ *   active (string) - one of: details | menu | inventory | bills | photos
+ *   t (function) - optional translator
+ */
+function tt(k, fb){
+  try{
+    if (it && typeof it.t === "function"){
+      const s = it.t(k);
+      if(!s || s===k || s===`(${k})`) return fb;
+      return s;
+    }
+  }catch(e){}
+  return fb;
+}
+
+const r = it.restaurant || {};
+const rid = r.id || it.rid || it.id || "";
+const active = it.active || "";
+%>
+
+<nav class="sb-owner-tabs" aria-label="<%= tt('owner.tabs.aria','Restaurant sections') %>">
+  <a class="sb-owner-tab <%= active==='details' ? 'is-active' : '' %>" href="/owner/restaurants/<%= rid %>/edit">
+    <span class="sb-owner-tab-ic">⚙️</span>
+    <span class="sb-owner-tab-tx"><%= tt('owner.tabs.details','פרטי מסעדה') %></span>
+  </a>
+
+  <a class="sb-owner-tab <%= active==='menu' ? 'is-active' : '' %>" href="/owner/<%= rid %>/menu">
+    <span class="sb-owner-tab-ic">📋</span>
+    <span class="sb-owner-tab-tx"><%= tt('owner.tabs.menu','תפריט') %></span>
+  </a>
+
+  <a class="sb-owner-tab <%= active==='inventory' ? 'is-active' : '' %>" href="/owner/<%= rid %>/inventory/stock">
+    <span class="sb-owner-tab-ic">🧺</span>
+    <span class="sb-owner-tab-tx"><%= tt('owner.tabs.inventory','מלאי חומרי גלם') %></span>
+  </a>
+
+  <a class="sb-owner-tab <%= active==='bills' ? 'is-active' : '' %>" href="/owner/<%= rid %>/bills">
+    <span class="sb-owner-tab-ic">🧾</span>
+    <span class="sb-owner-tab-tx"><%= tt('owner.tabs.bills','חשבונות') %></span>
+  </a>
+
+  <a class="sb-owner-tab <%= active==='photos' ? 'is-active' : '' %>" href="/owner/restaurants/<%= rid %>/photos">
+    <span class="sb-owner-tab-ic">🖼️</span>
+    <span class="sb-owner-tab-tx"><%= tt('owner.tabs.photos','תמונות') %></span>
+  </a>
+</nav>

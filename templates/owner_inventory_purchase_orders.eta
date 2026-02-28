@@ -38,7 +38,7 @@
   }
 %>
 
-<section class="sb-owner container" aria-label="<%= tt('pos_list.aria', 'Purchase Orders') %>">
+<main class="sb-owner container sb-owner-page" aria-label="<%= tt('pos_list.aria', 'Purchase Orders') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
@@ -53,6 +53,9 @@
         <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📈 <%= tt('pos_list.btn_costs', 'Costs') %></a>
       </div>
     </header>
+
+    <%~ include("components/_owner_tabs", { restaurant, active: "inventory", t: it.t }) %>
+
 
     <!-- Create new order -->
     <div class="panel card" style="margin-top:14px">
@@ -150,70 +153,5 @@
       <% } %>
     </div>
   </div>
-</section>
+</main>
 
-<style>
-  .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
-
-  .card{
-    background: var(--panel, #121622);
-    border:1px solid var(--bd, #222834);
-    border-radius:18px; padding:18px; margin-bottom:18px;
-    color: var(--ink, #e6e8ef);
-    box-shadow: 0 10px 30px rgba(0,0,0,.35);
-  }
-  .panel.card{height:100%}
-
-  .owner-hd{display:flex;align-items:flex-start;gap:12px;justify-content:space-between}
-  .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
-  .muted{ color: var(--ink-muted, #9aa3b2); }
-  .small{ font-size:12px; }
-
-  .actions{display:flex;gap:8px;flex-wrap:wrap}
-  .btn{
-    display:inline-flex; align-items:center; justify-content:center; gap:8px;
-    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
-    border:1px solid var(--bd, #23293a); background:transparent;
-    color: var(--ink, #e6e8ef); font-weight:700;
-    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
-  }
-  .btn:hover{ transform: translateY(-1px); }
-  .btn.primary{
-    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
-    box-shadow: 0 8px 24px rgba(59,130,246,.35);
-  }
-  .btn.ghost{background:rgba(15,23,42,.6);}
-  .btn.sm{ padding:8px 12px; border-radius:10px; font-size:13px }
-
-  .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
-  .lbl{display:block;font-weight:700;font-size:13px}
-  .lbl input, .lbl select{
-    width:200px; padding:10px 12px; margin-top:6px;
-    background:#171b29; color:#e6e8ef; border:1px solid #23293a; border-radius:12px;
-    font-size:14px; outline:none;
-  }
-
-  .table{margin-top:10px;border:1px solid rgba(148,163,184,.18);border-radius:14px;overflow:hidden}
-  .tr{display:grid;grid-template-columns:.9fr 1.4fr .9fr 1.1fr 1.1fr 1.1fr 1.1fr;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid rgba(255,255,255,.06)}
-  .tr:first-child{border-top:none}
-  .th{background:rgba(148,163,184,.08);font-weight:900;color:#dbe3f0}
-
-  .td{min-width:0}
-  .td.right{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
-
-  .po-status{
-    display:inline-flex;align-items:center;justify-content:center;
-    padding:4px 8px;border-radius:999px;font-size:11px;
-    background:rgba(148,163,184,.18);
-  }
-  .po-status-draft{background:rgba(148,163,184,.18);}
-  .po-status-sent{background:rgba(59,130,246,.25);}
-  .po-status-delivered{background:rgba(34,197,94,.25);}
-  .po-status-cancelled{background:rgba(248,113,113,.25);}
-
-  @media (max-width:950px){
-    .tr{grid-template-columns:1fr}
-    .td.right{justify-content:flex-start}
-    .lbl input, .lbl select{width:100%}
-  }
-</style>

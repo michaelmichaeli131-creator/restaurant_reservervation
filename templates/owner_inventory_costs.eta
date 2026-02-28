@@ -30,7 +30,7 @@
   const hasOverride = override && typeof override.overrideTotal === 'number' && Number.isFinite(override.overrideTotal);
 %>
 
-<section class="sb-owner container" aria-label="<%= tt('owner.costs.title', 'Raw Material Costs') %>">
+<main class="sb-owner container sb-owner-page" aria-label="<%= tt('owner.costs.title', 'Raw Material Costs') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
@@ -47,6 +47,9 @@
         <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/recipes">🧾 <%= tt('owner.costs.btn_recipes', 'Recipes') %></a>
       </div>
     </header>
+
+    <%~ include("components/_owner_tabs", { restaurant, active: "inventory", t: it.t }) %>
+
 
     <div class="costs-top">
       <div class="panel card">
@@ -219,7 +222,7 @@
       <% } %>
     </div>
   </div>
-</section>
+</main>
 
 <script>
   (function(){
@@ -256,145 +259,3 @@
   })();
 </script>
 
-<style>
-  .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
-
-  .card{
-    background: var(--panel, #121622);
-    border:1px solid var(--bd, #222834);
-    border-radius:18px; padding:18px; margin-bottom:18px;
-    color: var(--ink, #e6e8ef);
-    box-shadow: 0 10px 30px rgba(0,0,0,.35);
-  }
-  .panel.card{height:100%}
-
-  .owner-hd{display:flex;align-items:flex-start;gap:12px;justify-content:space-between}
-  .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
-  .muted{ color: var(--ink-muted, #9aa3b2); }
-  .small{ font-size:12px; }
-  code{background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.22);padding:1px 6px;border-radius:8px}
-
-  .actions{display:flex;gap:8px;flex-wrap:wrap}
-
-  .btn{
-    display:inline-flex; align-items:center; justify-content:center; gap:8px;
-    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
-    border:1px solid var(--bd, #23293a); background:transparent;
-    color: var(--ink, #e6e8ef); font-weight:700;
-    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
-  }
-  .btn:hover{ transform: translateY(-1px); }
-  .btn.primary{
-    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
-    box-shadow: 0 8px 24px rgba(59,130,246,.35);
-  }
-  .btn.ghost{background:rgba(15,23,42,.6);}
-  .btn.sm{ padding:8px 12px; border-radius:10px; font-size:13px }
-
-  .costs-top{
-    display:grid;
-    grid-template-columns:1.3fr 1fr;
-    gap:16px;
-    margin-top:14px;
-  }
-
-  .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
-  .lbl{display:block;font-weight:700;font-size:13px}
-  .lbl input{
-    width:160px;padding:10px 12px;margin-top:6px;
-    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
-    font-size:14px; outline:none;
-  }
-
-  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
-  .stat{
-    background:rgba(148,163,184,.10);
-    border:1px solid rgba(148,163,184,.20);
-    border-radius:14px;
-    padding:10px 12px;
-  }
-  .stat .k{font-size:12px;color:#b6bfce}
-  .stat .v{font-size:18px;font-weight:900;margin-top:2px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-
-  .spark{margin-top:12px}
-  .spark-hd{display:flex;justify-content:space-between;gap:10px;margin-bottom:6px}
-  #spark-svg{
-    width:100%;height:70px;
-    background:#0e1422;
-    border:1px solid #1f2636;
-    border-radius:14px;
-  }
-
-  .top-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
-  .top-row{display:grid;grid-template-columns:1fr 1.2fr;gap:10px;align-items:center}
-  .top-name{font-size:14px}
-  .bar{width:100%;height:10px;background:#0e1422;border-radius:999px;overflow:hidden;border:1px solid #1f2636}
-  .bar-fill{height:100%;background:linear-gradient(90deg,#10b981,#34d399)}
-
-  .table{margin-top:10px;border:1px solid rgba(148,163,184,.18);border-radius:14px;overflow:hidden}
-  .tr{display:grid;grid-template-columns:2.2fr .7fr 1.1fr .6fr;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid rgba(255,255,255,.06)}
-  .tr:first-child{border-top:none}
-  .th{background:rgba(148,163,184,.08);font-weight:900;color:#dbe3f0}
-  .td{min-width:0}
-  .td.right{display:flex;justify-content:flex-end}
-  .name{line-height:1.2}
-  .pill{
-    display:inline-flex;align-items:center;
-    padding:4px 8px;border-radius:999px;
-    border:1px solid rgba(148,163,184,.25);
-    background:rgba(148,163,184,.10);
-    font-size:12px;color:#d7deea
-  }
-  .pill.warn{
-    border-color: rgba(251,191,36,.45);
-    background: rgba(251,191,36,.10);
-    color: #fde68a;
-  }
-  .badge{
-    display:inline-flex;align-items:center;
-    padding:3px 8px;border-radius:999px;font-size:11px;font-weight:900;
-    border:1px solid transparent;
-    background:rgba(251,191,36,.10);
-    border-color: rgba(251,191,36,.45);
-    color:#fde68a;
-  }
-  .in{
-    width:100%;
-    padding:10px 12px;
-    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
-    font-size:14px; outline:none;
-  }
-  .in:focus{
-    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
-  }
-
-  /* Override block */
-  details.override{
-    margin-top:12px;
-    border:1px solid rgba(148,163,184,.18);
-    border-radius:14px;
-    padding:10px 12px;
-    background: rgba(15,23,42,.35);
-  }
-  details.override summary{
-    cursor:pointer;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-    font-weight:900;
-    color:#dbe3f0;
-  }
-  .lbl2{display:block;font-weight:800;font-size:13px;margin-top:8px}
-
-  @media (max-width:950px){
-    .costs-top{grid-template-columns:1fr}
-    .stats{grid-template-columns:1fr}
-    .tr{grid-template-columns:1.8fr .7fr 1.1fr .8fr}
-  }
-  @media (max-width:700px){
-    .tr{grid-template-columns:1fr}
-    .td.right{justify-content:flex-start}
-  }
-</style>
