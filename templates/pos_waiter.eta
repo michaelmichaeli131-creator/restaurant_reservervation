@@ -111,7 +111,6 @@
               class="order-row sb-wt-item status-<%= row.status %>"
               data-order-id="<%= row.orderId %>"
               data-item-id="<%= row.id %>"
-              data-menu-item-id="<%= row.menuItemId %>"
               data-qty="<%= row.quantity %>"
               data-price="<%= row.unitPrice %>"
             >
@@ -198,15 +197,6 @@
     const rid = root.dataset.rid;
     const table = <%= Number(tbl) %>;
     const currency = '<%= tt("common.currency", "₪") %>';
-
-    // Order DOM (was previously scoped inside pos_waiter.js)
-    const billRoot = document.getElementById("bill-summary");
-    const rowsContainer = document.getElementById("order-items");
-    const itemsSpan = document.getElementById("bill-items");
-    const totalSpan = document.getElementById("bill-total");
-    const totalMobileSpan = document.getElementById("bill-total-mobile");
-    const itemsUnit = (billRoot && billRoot.dataset && billRoot.dataset.itemsUnit) ? billRoot.dataset.itemsUnit : "<%= tt('pos.waiter.items_count', 'פריטים') %>";
-
     if (!rid || !table) return;
 
     async function loadMenu(){
@@ -236,88 +226,46 @@
       toastT = setTimeout(()=> toastEl.classList.remove('show'), 1800);
     }
 
-        function esc(s){
-      return String(s ?? '').replace(/[&<>"']/g, (ch) => ({
-        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-      }[ch]));
-    }
-
-    function selEscape(v){
-      const s = String(v ?? '');
-      try{
-        // modern browsers
-        if (window.CSS && typeof CSS.escape === 'function') return CSS.escape(s);
-      }catch(e){}
-      return s.replace(/["\\]/g, '\\$&');
-    }
-
-    function getOrderQtyMap(){
-      const map = Object.create(null);
-      const rows = document.querySelectorAll('#order-items .order-row');
-      rows.forEach((row) => {
-        if (row.classList.contains('status-cancelled')) return;
-        const mid = row.dataset.menuItemId;
-        if (!mid) return;
-        const q = Number(row.dataset.qty || '0') || 0;
-        map[mid] = (map[mid] || 0) + q;
-      });
-      return map;
-    }
-
-    function countForMenuId(menuId){
-      let c = 0;
-      const rows = document.querySelectorAll(`#order-items .order-row[data-menu-item-id="${selEscape(menuId)}"]`);
-      rows.forEach((row) => {
-        if (row.classList.contains('status-cancelled')) return;
-        c += Number(row.dataset.qty || '0') || 0;
-      });
-      return c;
-    }
-
-    function applyQtyToLine(line, qty){
-      line.dataset.qty = String(qty);
-      line.classList.toggle('is-selected', qty > 0);
-
-      const addBtn = line.querySelector('.menu-add');
-      const stepper = line.querySelector('.menu-stepper');
-      const qtySpan = line.querySelector('.step-qty');
-
-      if (qtySpan) qtySpan.textContent = String(qty);
-      if (addBtn) addBtn.hidden = qty > 0;
-      if (stepper) stepper.hidden = !(qty > 0);
-
-      const tags = line.querySelector('.menu-line-tags');
-      const badge = line.querySelector('.menu-line-tag.qty');
-      if (qty > 0) {
-        if (badge) badge.textContent = `${qty}×`;
-        else if (tags) {
-          const b = document.createElement('span');
-          b.className = 'menu-line-tag qty';
-          b.textContent = `${qty}×`;
-          tags.appendChild(b);
-        }
-      } else {
-        if (badge) badge.remove();
-      }
-    }
-
-    function updateLineQty(menuId){
-      const line = root.querySelector(`.menu-line[data-menu-item-id="${selEscape(menuId)}"]`);
-      if (!line) return;
-      applyQtyToLine(line, countForMenuId(menuId));
-    }
-
     function renderMenu(items){
       if(!Array.isArray(items) || !items.length){
         root.innerHTML = '<p class="muted"><%= tt('pos.menu.empty', 'No dishes in menu currently.') %></p>';
         return;
       }
       __menuAll = items.slice();
+      const byCat = new Map();
+      for (const it of items){
+        const cid = it.categoryId || "__no_cat__";
+        if (!byCat.has(cid)) byCat.set(cid, []);
+        byCat.get(cid).push(it);
+      }
 
-      // Apply filters: destination + search (category filter intentionally removed -> looks like a real menu)
+      // Build category chips (once)
+      const catsEl = document.getElementById('menu-cats');
+      if (catsEl && !catsEl.dataset.built){
+        catsEl.dataset.built = '1';
+        const mk = (id, label) => {
+          const b = document.createElement('button');
+          b.type='button';
+          b.className = 'sb-chip' + (id === '__all__' ? ' is-active' : '');
+          b.dataset.cat = id;
+          b.textContent = label;
+          return b;
+        };
+        catsEl.appendChild(mk('__all__','<%= tt('common.all','All') %>'));
+        byCat.forEach((list, cid) => {
+          const label = cid === "__no_cat__"
+            ? "<%= tt('pos.menu.no_category', 'Uncategorized') %>"
+            : (list[0].categoryName || "<%= tt('pos.menu.category', 'Category') %>");
+          catsEl.appendChild(mk(cid, label));
+        });
+      }
+
+      // Apply filters
       const filtered = __menuAll.filter((m) => {
         if (m.outOfStock || m.isActive === false) return false;
         if (__menuDest !== '__all__' && m.destination !== __menuDest) return false;
+        const cid = m.categoryId || '__no_cat__';
+        if (__menuCat !== '__all__' && cid !== __menuCat) return false;
         if (__menuQ){
           const hay = `${m.name_en||''} ${m.name_he||''} ${m.desc_en||''} ${m.desc_he||''}`.toLowerCase();
           if (!hay.includes(__menuQ)) return false;
@@ -325,151 +273,53 @@
         return true;
       });
 
-      if(!filtered.length){
-        root.innerHTML = '<div class="sb-empty"><%= tt('pos.menu.no_results', 'No results for your filters.') %></div>';
-        return;
+      // Group filtered by category
+      const byCat2 = new Map();
+      for (const it of filtered){
+        const cid = it.categoryId || "__no_cat__";
+        if (!byCat2.has(cid)) byCat2.set(cid, []);
+        byCat2.get(cid).push(it);
       }
 
-      // Quick-jump chips (All / Kitchen / Bar)
-      const catsEl = document.getElementById('menu-cats');
-      if (catsEl && !catsEl.dataset.built){
-        catsEl.dataset.built = '1';
-        const mk = (id, label) => {
-          const b = document.createElement('button');
-          b.type='button';
-          b.className = 'sb-chip' + (id === '__top__' ? ' is-active' : '');
-          b.dataset.jump = id;
-          b.textContent = label;
-          return b;
-        };
-        catsEl.appendChild(mk('__top__','<%= tt('common.all','All') %>'));
-        catsEl.appendChild(mk('kitchen','<%= tt('owner.menu.dest_kitchen','Kitchen') %>'));
-        catsEl.appendChild(mk('bar','<%= tt('owner.menu.dest_bar','Bar') %>'));
-      }
+      const frag = document.createElement("div");
+      byCat2.forEach((list, cid) => {
+        const section = document.createElement("section");
+        section.className = "menu-section";
+        const title = document.createElement("h3");
+        title.className = "menu-section-title";
+        title.textContent = cid === "__no_cat__" ? "<%= tt('pos.menu.no_category', 'Uncategorized') %>" : (list[0].categoryName || "<%= tt('pos.menu.category', 'Category') %>");
+        section.appendChild(title);
 
-      const qtyMap = getOrderQtyMap();
-
-            const isRTL = (document.documentElement.getAttribute('dir') || '').toLowerCase() === 'rtl';
-
-      const kitchenItems = filtered.filter(x => x.destination !== 'bar');
-      const barItems = filtered.filter(x => x.destination === 'bar');
-
-      // Stable sort helpers
-      function nameOf(x){ return (x.name_en || x.name_he || '').toString().trim(); }
-      function catLabelOf(x){
-        const he = (x.categoryName_he || '').toString().trim();
-        const en = (x.categoryName_en || '').toString().trim();
-        return (isRTL ? (he || en) : (en || he)) || '<%= tt('owner.menu.no_category','Uncategorized') %>';
-      }
-      function catSortOf(x){ return Number(x.categorySort ?? 0) || 0; }
-
-      kitchenItems.sort((a,b)=> nameOf(a).localeCompare(nameOf(b)));
-      barItems.sort((a,b)=> nameOf(a).localeCompare(nameOf(b)));
-
-      const book = document.createElement('div');
-      book.className = 'menu-book';
-
-      const makeSection = (id, title, list) => {
-        if(!list.length) return;
-        const sec = document.createElement('section');
-        sec.className = 'menu-section';
-        sec.id = `menu-sec-${id}`;
-
-        const hd = document.createElement('div');
-        hd.className = 'menu-section-hd';
-        hd.innerHTML = `
-          <h3 class="menu-section-title">${esc(title)}</h3>
-          <span class="menu-section-sub muted">${list.length}</span>
-        `;
-        sec.appendChild(hd);
-
-        // Group into real menu categories (Starters / Main / Drinks etc.)
-        const byCat = new Map();
-        for (const m of list){
-          const cid = m.categoryId || '__no_cat__';
-          if (!byCat.has(cid)){
-            byCat.set(cid, { id: cid, label: catLabelOf(m), sort: catSortOf(m), items: [] });
-          }
-          byCat.get(cid).items.push(m);
-        }
-
-        const cats = Array.from(byCat.values());
-        cats.sort((a,b)=> (a.sort - b.sort) || a.label.localeCompare(b.label));
-
-        for (const c of cats){
-          // category header
-          const catWrap = document.createElement('div');
-          catWrap.className = 'menu-cat';
-
-          const catHd = document.createElement('div');
-          catHd.className = 'menu-cat-hd';
-          catHd.innerHTML = `
-            <div class="menu-cat-title">${esc(c.label)}</div>
-            <div class="menu-cat-sub muted">${c.items.length}</div>
+        const grid = document.createElement("div");
+        grid.className = "menu-grid";
+        list.forEach((m) => {
+          if (m.outOfStock || m.isActive === false) return;
+          const card = document.createElement("button");
+          card.type = "button";
+          card.className = "menu-item-card";
+          card.dataset.menuItemId = m.id;
+          card.dataset.price = m.price;
+          card.dataset.dest = m.destination;
+          card.innerHTML = `
+            <div class="menu-item-head">
+              <div class="menu-item-name">${m.name_en || m.name_he || '<%= tt("pos.menu.dish", "Dish") %>'}</div>
+              <span class="menu-item-add" aria-hidden="true">＋</span>
+            </div>
+            <div class="menu-item-desc muted">${m.desc_en || m.desc_he || ''}</div>
+            <div class="menu-item-footer">
+              <span class="price">${Number(m.price || 0).toFixed(2)} ${currency}</span>
+              <span class="dest">${m.destination === 'bar' ? '<%= tt('owner.menu.dest_bar', 'Bar') %>' : '<%= tt('owner.menu.dest_kitchen', 'Kitchen') %>'}</span>
+            </div>
           `;
-          catWrap.appendChild(catHd);
+          grid.appendChild(card);
+        });
 
-          const lines = document.createElement('div');
-          lines.className = 'menu-lines';
+        section.appendChild(grid);
+        frag.appendChild(section);
+      });
 
-          c.items.sort((a,b)=> nameOf(a).localeCompare(nameOf(b)));
-
-          for (const m of c.items){
-            const mid = String(m.id || '');
-            const qty = qtyMap[mid] || 0;
-            const nm = nameOf(m) || '<%= tt("pos.menu.dish", "Dish") %>';
-            const desc = (m.desc_en || m.desc_he || '').toString().trim();
-            const price = Number(m.price || 0).toFixed(2);
-
-            const line = document.createElement('article');
-            line.className = 'menu-line' + (qty > 0 ? ' is-selected' : '');
-            line.dataset.menuItemId = mid;
-            line.dataset.dest = m.destination || 'kitchen';
-            line.dataset.price = String(m.price || 0);
-            line.dataset.qty = String(qty);
-
-            line.innerHTML = `
-              <div class="menu-line-main">
-                <div class="menu-line-top">
-                  <span class="menu-line-name">${esc(nm)}</span>
-                  <span class="menu-line-leader" aria-hidden="true"></span>
-                  <span class="menu-line-price">${price} ${currency}</span>
-                </div>
-                ${desc ? `<div class="menu-line-desc muted">${esc(desc)}</div>` : ``}
-                <div class="menu-line-tags">
-                  <span class="menu-line-tag dest ${m.destination === 'bar' ? 'is-bar' : 'is-kitchen'}">
-                    ${m.destination === 'bar' ? '<%= tt('owner.menu.dest_bar', 'Bar') %>' : '<%= tt('owner.menu.dest_kitchen', 'Kitchen') %>'}
-                  </span>
-                  ${qty > 0 ? `<span class="menu-line-tag qty">${qty}×</span>` : ``}
-                </div>
-              </div>
-
-              <div class="menu-line-actions">
-                <button type="button" class="menu-btn menu-add" data-action="add" aria-label="<%= tt('pos.menu.add', 'Add') %>" ${qty > 0 ? 'hidden' : ''}>＋</button>
-
-                <div class="menu-stepper" ${qty > 0 ? '' : 'hidden'}>
-                  <button type="button" class="menu-btn step minus" data-action="minus" aria-label="<%= tt('pos.menu.decrease', 'Decrease') %>">−</button>
-                  <span class="step-qty">${qty}</span>
-                  <button type="button" class="menu-btn step plus" data-action="plus" aria-label="<%= tt('pos.menu.increase', 'Increase') %>">＋</button>
-                </div>
-              </div>
-            `;
-            lines.appendChild(line);
-          }
-
-          catWrap.appendChild(lines);
-          sec.appendChild(catWrap);
-        }
-
-        book.appendChild(sec);
-      };
-
-      // Sections order: Kitchen then Bar (classic restaurant menu)
-      makeSection('kitchen','<%= tt('owner.menu.dest_kitchen','Kitchen') %>', kitchenItems);
-      makeSection('bar','<%= tt('owner.menu.dest_bar','Bar') %>', barItems);
-
-      root.innerHTML = '';
-      root.appendChild(book);
+      root.innerHTML = "";
+      root.appendChild(frag);
     }
 
     // Search
@@ -480,28 +330,17 @@
         renderMenu(__menuAll);
       });
     }
-    // Quick-jump chips
+
+    // Category chip click
     const catsEl = document.getElementById('menu-cats');
     if (catsEl){
       catsEl.addEventListener('click', (ev) => {
         const b = ev.target.closest('.sb-chip');
         if (!b) return;
-        const jump = b.dataset.jump;
-        if (!jump) return;
-
+        __menuCat = b.dataset.cat || '__all__';
         catsEl.querySelectorAll('.sb-chip').forEach(x => x.classList.remove('is-active'));
         b.classList.add('is-active');
-
-        if (jump === '__top__'){
-          try{ root.scrollTo({ top: 0, behavior: 'smooth' }); }catch(e){ root.scrollTop = 0; }
-          return;
-        }
-
-        const sec = root.querySelector(`#menu-sec-${selEscape(jump)}`);
-        if (sec){
-          const top = (sec.offsetTop || 0) - 8;
-          try{ root.scrollTo({ top, behavior: 'smooth' }); }catch(e){ root.scrollTop = top; }
-        }
+        renderMenu(__menuAll);
       });
     }
 
@@ -518,17 +357,12 @@
       });
     }
 
-        // Track local mutations to avoid instant WS-driven reloads on the same device
-    window.__sbLocalMutTs = window.__sbLocalMutTs || 0;
-
-    async function addItem(line){
-      if (!line) return;
-      const menuItemId = line.dataset.menuItemId;
+    async function addItem(card){
+      const menuItemId = card.dataset.menuItemId;
       if (!menuItemId) return;
 
-      if (line.classList.contains('is-loading')) return;
-      line.classList.add('is-loading');
-      window.__sbLocalMutTs = Date.now();
+      if (card.classList.contains('is-loading')) return;
+      card.classList.add('is-loading');
 
       try{
         const res = await fetch("/api/pos/order-item/add", {
@@ -541,175 +375,82 @@
             quantity: 1,
           }),
         });
-        if (!res.ok) {
-          let errTxt = "";
-          try { errTxt = await res.text(); } catch (_) {}
-          if (res.status === 403 && errTxt.includes("table_not_seated")) {
-            showToast("<%= tt('pos.waiter.err_table_not_seated', 'Table must be seated by host first.') %>");
-          } else if (res.status === 401) {
-            showToast("<%= tt('pos.error.unauthorized', 'Please sign in again.') %>");
-          } else {
-            showToast("<%= tt('pos.menu.err_add', 'Could not add item.') %>");
-          }
-          console.warn("addItem failed", res.status, errTxt);
-          return;
-        }
+        if (!res.ok) return;
         const data = await res.json();
-        if (!data.ok) {
-          showToast("<%= tt('pos.menu.err_add', 'Could not add item.') %>");
-          return;
-        }
+        if (!data.ok) return;
 
         const item = data.item;
-        const totals = data.totals || {};
-        const itemsCount = totals.itemsCount || 0;
-        const subtotal = totals.subtotal || 0;
+        const listEl = document.getElementById("order-items");
+        if (!listEl) return;
 
-        // Add row to order list
-        if (rowsContainer){
-          const rowEl = document.createElement("div");
-          rowEl.className = `sb-wt-item order-row status-${item.status || "received"}`;
-          rowEl.dataset.orderId = item.orderId;
-          rowEl.dataset.itemId = item.id;
-          rowEl.dataset.menuItemId = item.menuItemId || menuItemId;
-          rowEl.dataset.qty = String(item.quantity || 1);
-          rowEl.dataset.price = String(item.unitPrice || 0);
+        const emptyRow = listEl.querySelector(".no-items-row");
+        if (emptyRow) emptyRow.remove();
 
-          const destLabel = item.destination === "bar"
-            ? "<%= tt('owner.menu.dest_bar', 'Bar') %>"
-            : "<%= tt('owner.menu.dest_kitchen', 'Kitchen') %>";
+        const rowEl = document.createElement("div");
+        rowEl.className = `order-row sb-wt-item status-${item.status}`;
+        rowEl.dataset.orderId = item.orderId;
+        rowEl.dataset.itemId = item.id;
+        rowEl.dataset.qty = item.quantity;
+        rowEl.dataset.price = item.unitPrice;
 
-          const statusLabel = "<%= tt('pos.order.status_received', 'Received') %>";
+        const createdAt = new Date(item.createdAt);
+        const timeStr = createdAt.toLocaleTimeString('<%= it.lang === "he" ? "he-IL" : "en-US" %>',{
+          hour:'2-digit',minute:'2-digit'
+        });
 
-          rowEl.innerHTML = `
-            <div class="sb-wt-item-main">
-              <div class="sb-wt-item-title">${item.name || ""}</div>
-              <div class="sb-wt-item-meta">
-                <span class="sb-wt-pill dest">${destLabel}</span>
-                <span class="sb-wt-pill status js-status">${statusLabel}</span>
-                <span class="sb-wt-pill">${item.quantity || 1}×</span>
-              </div>
+        const showServe = item.status === 'ready' || item.status === 'in_progress';
+
+        rowEl.innerHTML = `
+          <div class="sb-wt-item-main">
+            <div class="sb-wt-item-title">${item.name}</div>
+            <div class="sb-wt-item-meta muted">
+              <span class="sb-wt-pill dest">${item.destination === 'bar' ? '<%= tt('owner.menu.dest_bar', 'Bar') %>' : '<%= tt('owner.menu.dest_kitchen', 'Kitchen') %>'}</span>
+              <span class="sb-dot">•</span>
+              <span>x${item.quantity}</span>
+              <span class="sb-dot">•</span>
+              <span><%= tt('pos.waiter.created_at', 'Created') %> ${timeStr}</span>
             </div>
-            <div class="sb-wt-item-side">
-              <div class="sb-wt-item-top">
-                <div class="sb-wt-item-total">${((item.quantity||1) * (item.unitPrice||0)).toFixed(2)} ${currency}</div>
-              </div>
-              <div class="sb-wt-item-actions">
-                <button class="btn danger btn-cancel-item"><%= tt('common.btn_cancel', 'Cancel') %></button>
-                <button class="btn ghost btn-mark-served"><%= tt('pos.order.btn_served', 'Served') %></button>
-              </div>
-            </div>
-          `;
+          </div>
 
-          const empty = rowsContainer.querySelector(".sb-empty");
-          if (empty) empty.remove();
-          rowsContainer.appendChild(rowEl);
+          <div class="sb-wt-item-side">
+            <div class="sb-wt-item-top">
+              <span class="sb-wt-pill status js-status"><%= tt('pos.status.received', 'Received') %></span>
+              <div class="sb-wt-item-total">${(item.unitPrice * item.quantity).toFixed(2)} ${currency}</div>
+            </div>
+            <div class="sb-wt-item-actions">
+              <button type="button" class="btn ghost md btn-cancel-item" title="<%= tt('common.btn_cancel', 'Cancel') %>">
+                <span class="icon">🗑</span> <%= tt('common.btn_cancel', 'Cancel') %>
+              </button>
+              ${showServe ? `
+                <button type="button" class="btn ghost md btn-mark-served" title="<%= tt('pos.waiter.btn_mark_served', 'Mark as Served') %>">
+                  <span class="icon">✅</span> <%= tt('pos.waiter.btn_mark_served', 'Mark as Served') %>
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+        listEl.appendChild(rowEl);
+
+        if (window.sbRecalcBill) {
+          window.sbRecalcBill();
         }
 
-        // Update bill UI
-        if (itemsSpan) itemsSpan.textContent = `${itemsCount} ${itemsUnit}`;
-        if (totalSpan) totalSpan.textContent = `${Number(subtotal).toFixed(2)} ${currency}`;
-        if (totalMobileSpan) totalMobileSpan.textContent = `${Number(subtotal).toFixed(2)}`;
-        if (typeof window.sbRecalcBill === "function") window.sbRecalcBill();
-
-        // Update menu line qty (stepper/badge)
-        updateLineQty(menuItemId);
-
-        showToast(`<%= tt('pos.menu.added', 'Added') %>: ${item.name || ''}`);
+        // Micro feedback
+        card.classList.add('is-added');
+        setTimeout(()=> card.classList.remove('is-added'), 520);
+        if (navigator.vibrate) try { navigator.vibrate(8); } catch(e) {}
+        showToast(`<%= tt('pos.menu.added_to_order', 'Added to order') %>: ${item.name}`);
       }catch(e){
         console.error("addItem failed", e);
       }finally{
-        line.classList.remove('is-loading');
+        card.classList.remove('is-loading');
       }
     }
 
-    async function cancelOne(menuItemId){
-      if (!menuItemId || !rowsContainer) return;
-
-      // Find the latest cancellable row for this menu item
-      const rows = Array.from(rowsContainer.querySelectorAll(`.order-row[data-menu-item-id="${selEscape(menuItemId)}"]`));
-      let row = null;
-      for (let i = rows.length - 1; i >= 0; i--){
-        const r = rows[i];
-        if (r.classList.contains("status-cancelled")) continue;
-        if (r.classList.contains("status-served")) continue;
-        row = r;
-        break;
-      }
-      if (!row) return;
-
-      const orderId = row.dataset.orderId;
-      const itemId = row.dataset.itemId;
-      if (!rid || !table || !orderId || !itemId) return;
-
-      window.__sbLocalMutTs = Date.now();
-
-      try{
-        const res = await fetch("/api/pos/order-item/cancel", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            restaurantId: rid,
-            table,
-            orderId,
-            orderItemId: itemId,
-          }),
-        });
-        if (!res.ok) {
-          let errTxt = "";
-          try { errTxt = await res.text(); } catch (_) {}
-          showToast("<%= tt('pos.menu.err_remove', 'Could not remove item.') %>");
-          console.warn("cancelOne failed", res.status, errTxt);
-          return;
-        }
-        const data = await res.json();
-        if (!data.ok) {
-          showToast("<%= tt('pos.menu.err_remove', 'Could not remove item.') %>");
-          return;
-        }
-
-        row.classList.add("status-cancelled");
-        const btnCancel = row.querySelector(".btn-cancel-item");
-        if (btnCancel) btnCancel.remove();
-        const btnServe = row.querySelector(".btn-mark-served");
-        if (btnServe) btnServe.remove();
-        const statusCell = row.querySelector(".js-status") || row.querySelector("td.col-status");
-        if (statusCell){
-          statusCell.textContent = "בוטל";
-          statusCell.classList.add("muted");
-        }
-        if (typeof window.sbRecalcBill === "function") window.sbRecalcBill();
-
-        updateLineQty(menuItemId);
-
-        const nm = row.querySelector(".sb-wt-item-title")?.textContent || "";
-        if (nm) showToast(`<%= tt('pos.menu.removed', 'Removed') %>: ${nm}`);
-      }catch(e){
-        console.error("cancelOne failed", e);
-      }
-    }
-
-    
-
-    
     root.addEventListener("click", function(ev){
-      const line = ev.target.closest(".menu-line");
-      if (!line) return;
-
-      const btn = ev.target.closest("[data-action]");
-      if (btn){
-        const act = btn.dataset.action;
-        if (act === "add" || act === "plus"){
-          addItem(line);
-        } else if (act === "minus"){
-          cancelOne(line.dataset.menuItemId);
-        }
-        return;
-      }
-
-      // Quick-add by tapping the item content (not the actions area)
-      if (ev.target.closest(".menu-line-actions")) return;
-      addItem(line);
+      const card = ev.target.closest(".menu-item-card");
+      if (!card) return;
+      addItem(card);
     });
 
     loadMenu();
@@ -747,8 +488,6 @@
         if (msg.type === "order_updated" &&
             msg.restaurantId === rid &&
             msg.table === table) {
-          const last = window.__sbLocalMutTs || 0;
-          if (Date.now() - last < 1200) return;
           window.location.reload();
         }
         if (msg.type === "order_closed" &&
