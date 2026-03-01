@@ -35,6 +35,18 @@
       "title": "האימות הושלם!"
     }
   },
+  "auth_gate": {
+    "verify_required": "נדרש אימות דוא\"ל לפני גישה לאזור זה.",
+    "account_disabled": "החשבון מבוטל. פנה/י לתמיכה."
+  },
+  "js": {
+    "validation": {
+      "choose_date": "אנא בחר/י תאריך.",
+      "invalid_date": "תאריך לא תקין. פורמט נדרש: YYYY-MM-DD.",
+      "choose_time": "אנא בחר/י שעה.",
+      "invalid_time": "שעה לא תקינה. פורמט נדרש: HH:MM."
+    }
+  },
   "bill": {
     "aria": "חשבונית למסעדה",
     "btn_back_bills": "חזרה לחשבונות",
@@ -195,7 +207,9 @@
     "map": {
       "cell_size": "גודל תא: {size}px",
       "floor_label": "רצפה:",
-      "title": "מפה"
+      "title": "מפה",
+      "main_floor": "קומה ראשית",
+      "floor_n": "קומה {n}"
     },
     "mark_clean": "סמן נקי",
     "mark_dirty": "סמן מלוכלך",

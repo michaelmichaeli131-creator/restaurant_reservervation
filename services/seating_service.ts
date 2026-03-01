@@ -143,7 +143,7 @@ export async function seatReservation(params: {
         restaurantName: restaurant.name,
         date: reservation.date,
         customerName: reservation.firstName || user.firstName || undefined,
-        lang: (user as any).lang || "he",
+        lang: (user as any).lang || "en",
       });
       console.log("[SEATING] review email queued", { reservationId, to: user.email });
     } catch (e) {

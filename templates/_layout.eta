@@ -24,6 +24,25 @@
 
   <%~ it.head || '' %>
 
+  <!-- Minimal runtime i18n for vanilla JS files (default is English) -->
+  <script>
+    window.SB_UI_I18N = window.SB_UI_I18N || {};
+    window.SB_UI_I18N.validation = {
+      choose_date: "<%= (it.t ? it.t('js.validation.choose_date') : 'Please choose a date.') %>",
+      invalid_date: "<%= (it.t ? it.t('js.validation.invalid_date') : 'Invalid date. Required format: YYYY-MM-DD.') %>",
+      choose_time: "<%= (it.t ? it.t('js.validation.choose_time') : 'Please choose a time.') %>",
+      invalid_time: "<%= (it.t ? it.t('js.validation.invalid_time') : 'Invalid time. Required format: HH:MM.') %>"
+    };
+    window.SB_UI_I18N.floorMap = {
+      status_empty: "<%= (it.t ? it.t('floor.status.empty') : 'Empty') %>",
+      status_occupied: "<%= (it.t ? it.t('floor.status.occupied') : 'Occupied') %>",
+      status_reserved: "<%= (it.t ? it.t('floor.status.reserved') : 'Reserved') %>",
+      status_dirty: "<%= (it.t ? it.t('floor.status.dirty') : 'Dirty') %>",
+      main_floor: "<%= (it.t ? it.t('floor.map.main_floor') : 'Main floor') %>",
+      floor_n: "<%= (it.t ? it.t('floor.map.floor_n', { n: '{n}' }) : 'Floor {n}') %>"
+    };
+  </script>
+
   <style>
     /* ===== Language switch (minimal clean) ===== */
     .lang-switch { position: relative; display:inline-block; margin-inline-start:12px; }

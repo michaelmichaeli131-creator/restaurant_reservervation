@@ -3,6 +3,7 @@
 
 type Translations = Record<string, any>;
 
+// Default language is English
 let currentLang = 'en';
 let translations: Translations = {};
 
@@ -18,7 +19,7 @@ export async function initI18n(lang: string = 'en') {
     }
   } catch (error) {
     console.warn('Failed to load translations:', error);
-    // Fallback to default translations
+    // Fallback to default (EN) translations
     translations = getDefaultTranslations();
   }
 }
@@ -44,28 +45,28 @@ export function getCurrentLang(): string {
   return currentLang;
 }
 
-// Default Hebrew translations (fallback)
+// Default English translations (fallback)
 function getDefaultTranslations(): Translations {
   return {
     common: {
-      btn_save: 'שמור',
-      btn_cancel: 'ביטול',
-      btn_delete: 'מחק',
+      btn_save: 'Save',
+      btn_cancel: 'Cancel',
+      btn_delete: 'Delete',
     },
     floor: {
-      loading: 'טוען תכניות רצפה...',
-      empty_state: 'לא נמצאו תכניות רצפה',
-      btn_save_layout: 'שמור תכנית',
+      loading: 'Loading floor plans…',
+      empty_state: 'No floor plans found',
+      btn_save_layout: 'Save layout',
       error: {
-        enter_name: 'אנא הזן שם תכנית',
-        create: 'שגיאה ביצירת תכנית',
-        delete: 'מחיקה נכשלה',
+        enter_name: 'Please enter a layout name',
+        create: 'Failed to create layout',
+        delete: 'Delete failed',
       },
       status: {
-        empty: 'פנוי',
-        occupied: 'תפוס',
-        reserved: 'שמור',
-        dirty: 'מלוכלך',
+        empty: 'Empty',
+        occupied: 'Occupied',
+        reserved: 'Reserved',
+        dirty: 'Dirty',
       },
     },
   };

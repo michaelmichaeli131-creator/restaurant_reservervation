@@ -99,7 +99,7 @@ function escapeHtml(s: unknown) {
 function fallbackHtml(
   title: string,
   info: Record<string, unknown>,
-  lang = "he",
+  lang = "en",
   dir: "rtl" | "ltr" = lang === "he" ? "rtl" : "ltr",
 ) {
   const safeTitle = title || "GeoTable";
@@ -121,7 +121,7 @@ function fallbackHtml(
 <body>
   <h1 style="margin-top:0">${escapeHtml(safeTitle)}</h1>
   <div class="card">
-    <p class="muted">תבנית לא נמצאה או נכשלה ברינדור. מוצג fallback.</p>
+    <p class="muted">Template was not found or failed to render. Showing fallback.</p>
     <p class="muted">chosen views: <code>${escapeHtml(PICKED_VIEWS_DIR)}</code></p>
     <p class="muted">candidates: <code>${escapeHtml(CANDIDATES.join(", "))}</code></p>
     <pre>${escapeHtml(JSON.stringify(info, null, 2))}</pre>
@@ -215,7 +215,7 @@ export async function render(
   // deno-lint-ignore no-explicit-any
   const stateAny = ctx.state as any;
 
-  const lang = stateAny?.lang ?? "he";
+  const lang = stateAny?.lang ?? "en";
   const dir: "rtl" | "ltr" = stateAny?.dir ?? (lang === "he" ? "rtl" : "ltr");
   const baseT: (key: string, vars?: Record<string, unknown>) => string =
     stateAny?.t ?? ((k: string) => `(${k})`);
@@ -291,7 +291,7 @@ export async function render(
       err,
     );
     const info = {
-      message: "תבנית לא נמצאה או נכשלה ברינדור. מוצג fallback.",
+      message: "Template was not found or failed to render. Showing fallback.",
       error: String((err as Error)?.message ?? err),
       template,
       views: PICKED_VIEWS_DIR,

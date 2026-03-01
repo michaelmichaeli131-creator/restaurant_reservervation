@@ -1,4 +1,6 @@
 (function(){
+  const FM = (window.SB_UI_I18N && window.SB_UI_I18N.floorMap) || {};
+  const ft = (k, fb) => (FM && FM[k]) ? FM[k] : fb;
   function qs(el, sel){ return el ? el.querySelector(sel) : null; }
 
   function uniq(arr){
@@ -9,11 +11,11 @@
 
   function statusLabel(status){
     switch(status){
-      case 'occupied': return 'תפוס';
-      case 'reserved': return 'שמור';
-      case 'dirty': return 'מלוכלך';
+      case 'occupied': return ft('status_occupied', 'Occupied');
+      case 'reserved': return ft('status_reserved', 'Reserved');
+      case 'dirty': return ft('status_dirty', 'Dirty');
       case 'empty':
-      default: return 'פנוי';
+      default: return ft('status_empty', 'Empty');
     }
   }
 
@@ -21,10 +23,10 @@
     const wrap = document.createElement('div');
     wrap.className = 'sb-floor-legend';
     const items = [
-      ['empty','פנוי'],
-      ['occupied','תפוס'],
-      ['reserved','שמור'],
-      ['dirty','מלוכלך'],
+      ['empty', ft('status_empty','Empty')],
+      ['occupied', ft('status_occupied','Occupied')],
+      ['reserved', ft('status_reserved','Reserved')],
+      ['dirty', ft('status_dirty','Dirty')],
     ];
     items.forEach(([k,label]) => {
       const it = document.createElement('span');
@@ -41,11 +43,20 @@
   }
 
   function humanizeSection(id, idx){
-    if(!id) return idx === 0 ? 'קומה ראשית' : `קומה ${idx+1}`;
+    if(!id) {
+      if (idx === 0) return ft('main_floor','Main floor');
+      const tpl = ft('floor_n','Floor {n}');
+      return tpl.replace('{n}', String(idx+1));
+    }
     // common patterns
     const t = String(id);
     if (/floor/i.test(t)) return t.replace(/_/g,' ');
-    return idx === 0 ? 'קומה 1' : `קומה ${idx+1}`;
+    if (idx === 0) {
+      const tpl = ft('floor_n','Floor {n}');
+      return tpl.replace('{n}', '1');
+    }
+    const tpl = ft('floor_n','Floor {n}');
+    return tpl.replace('{n}', String(idx+1));
   }
 
   function createShell(root){

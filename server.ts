@@ -385,7 +385,7 @@ root.get("/", async (ctx) => {
     category,
     featured,
     page: "home",
-    title: "GeoTable — חיפוש מסעדה",
+    title: "SpotBook — Restaurant search",
   });
 });
 
@@ -521,7 +521,8 @@ app.use(async (ctx, next) => {
       path,
     });
     ctx.response.status = Status.Forbidden;
-    ctx.response.body = "נדרש אימות דוא״ל לפני גישה לאזור זה.";
+    const t = (ctx.state as any)?.t as ((k: string) => string) | undefined;
+    ctx.response.body = t ? t('auth_gate.verify_required') : "Email verification is required before accessing this area.";
     return;
   }
 
@@ -532,7 +533,8 @@ app.use(async (ctx, next) => {
       path,
     });
     ctx.response.status = Status.Forbidden;
-    ctx.response.body = "החשבון מבוטל. פנה/י לתמיכה.";
+    const t = (ctx.state as any)?.t as ((k: string) => string) | undefined;
+    ctx.response.body = t ? t('auth_gate.account_disabled') : "This account is disabled. Please contact support.";
     return;
   }
 

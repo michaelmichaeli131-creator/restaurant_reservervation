@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { t } from '../i18n';
 import '../components/FloorEditor.css';
 
 export interface FloorTableLike {
@@ -492,10 +493,10 @@ export default function FloorMapRenderer({
       const st = getStatusFor(t);
       const status = String(st.status || 'empty');
       const pillText = (() => {
-        if (status === 'occupied') return 'תפוס';
-        if (status === 'reserved') return 'שמור';
-        if (status === 'dirty') return 'מלוכלך';
-        return 'פנוי';
+        if (status === 'occupied') return t('floor.status.occupied', 'Occupied');
+        if (status === 'reserved') return t('floor.status.reserved', 'Reserved');
+        if (status === 'dirty') return t('floor.status.dirty', 'Dirty');
+        return t('floor.status.empty', 'Empty');
       })();
       const count = st.guestCount != null && st.guestCount !== '' ? ` · ${st.guestCount}` : '';
 

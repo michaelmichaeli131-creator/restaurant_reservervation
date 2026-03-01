@@ -35,6 +35,18 @@
       "title": "Verification Complete!"
     }
   },
+  "auth_gate": {
+    "verify_required": "Email verification is required before accessing this area.",
+    "account_disabled": "This account is disabled. Please contact support."
+  },
+  "js": {
+    "validation": {
+      "choose_date": "Please choose a date.",
+      "invalid_date": "Invalid date. Required format: YYYY-MM-DD.",
+      "choose_time": "Please choose a time.",
+      "invalid_time": "Invalid time. Required format: HH:MM."
+    }
+  },
   "bill": {
     "aria": "Bill for restaurant",
     "btn_back_bills": "Back to Bills",
@@ -195,7 +207,9 @@
     "map": {
       "cell_size": "Cell size: {size}px",
       "floor_label": "Floor:",
-      "title": "Map"
+      "title": "Map",
+      "main_floor": "Main floor",
+      "floor_n": "Floor {n}"
     },
     "mark_clean": "Mark Clean",
     "mark_dirty": "Mark Dirty",
