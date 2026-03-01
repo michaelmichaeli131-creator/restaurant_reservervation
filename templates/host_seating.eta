@@ -149,11 +149,11 @@
 </aside>
 
 <!-- Same floor-view assets as the waiter lobby -->
-<link rel="stylesheet" href="/static/dist/floor-index.css?v=<%= it.BUILD_TAG || Date.now() %>">
-<link rel="stylesheet" href="/static/dist/floor-floor-view-app.css?v=<%= it.BUILD_TAG || Date.now() %>">
+<link rel="stylesheet" href="/static/dist/floor-index.css">
+<link rel="stylesheet" href="/static/dist/floor-floor-view-app.css">
 
 <link rel="stylesheet" href="/public/css/sb-map-frame-overrides.css?v=<%= it.BUILD_TAG || Date.now() %>">
-<script type="module" src="/static/dist/floor-view-app.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>
+<script type="module" src="/static/dist/floor-view-app.js"></script>
 
 <script>
 (function(){
