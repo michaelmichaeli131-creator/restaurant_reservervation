@@ -489,21 +489,21 @@ export default function FloorMapRenderer({
   // tables are close or visually overlap.
   const statusOverlay: ReactNode[] = [];
   if (mode === 'view') {
-    for (const t of (layout.tables || [])) {
-      const st = getStatusFor(t);
+    for (const tbl of (layout.tables || [])) {
+      const st = getStatusFor(tbl);
       const status = String(st.status || 'empty');
       // i18n: table status label (EN/HE/KA)
       const pillText = t(`floor.status.${status}`, status);
       const count = st.guestCount != null && st.guestCount !== '' ? ` · ${st.guestCount}` : '';
 
-      const x = Math.max(0, Number(t.gridX) || 0) * cellSize;
-      const y = Math.max(0, Number(t.gridY) || 0) * cellSize;
-      const w = spanToPx(Number(t.spanX) || 1);
-      const h = spanToPx(Number(t.spanY) || 1);
+      const x = Math.max(0, Number(tbl.gridX) || 0) * cellSize;
+      const y = Math.max(0, Number(tbl.gridY) || 0) * cellSize;
+      const w = spanToPx(Number(tbl.spanX) || 1);
+      const h = spanToPx(Number(tbl.spanY) || 1);
 
       statusOverlay.push(
         <div
-          key={`sbv-status-${String((t as any).id ?? `${t.gridX}-${t.gridY}`)}`}
+          key={`sbv-status-${String((tbl as any).id ?? `${tbl.gridX}-${tbl.gridY}`)}`}
           className="sbv-status-anchor"
           style={{
             position: 'absolute',
