@@ -86,9 +86,9 @@ export async function initI18n(preferred?: string): Promise<void> {
   }
 }
 
-export function t(key: string, params?: Record<string, any>): string {
+export function t(key: string, fallbackOrParams?: string | Record<string, any>): string {
   const raw = deepGet(translations, key);
-  let str = typeof raw === 'string' ? raw : undefined;
+  let str: string = typeof raw === 'string' ? raw : '';
 
   // Fallback to embedded default translations.
   if (!str) {
@@ -99,15 +99,18 @@ export function t(key: string, params?: Record<string, any>): string {
       },
       key,
     );
-    str = typeof fallback === 'string' ? fallback : undefined;
+    str = typeof fallback === 'string' ? fallback : '';
   }
 
-  // Last-resort: return key.
-  if (!str) str = key;
+  // Use provided fallback string, or last-resort: return key.
+  if (!str) {
+    str = typeof fallbackOrParams === 'string' ? fallbackOrParams : key;
+  }
 
-  if (params) {
-    for (const [k, v] of Object.entries(params)) {
-      str = str.replaceAll(`{${k}}`, String(v));
+  // Interpolate params if an object was provided.
+  if (fallbackOrParams && typeof fallbackOrParams === 'object') {
+    for (const [k, v] of Object.entries(fallbackOrParams)) {
+      str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
     }
   }
 
