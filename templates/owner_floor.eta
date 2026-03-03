@@ -1,9 +1,7 @@
 <% layout("_layout", it) %>
 
-<link rel="stylesheet" href="/static/dist/floor-index.css">
 
-
-<link rel="stylesheet" href="/public/css/sb-map-frame-overrides.css?v=<%= it.BUILD_TAG || Date.now() %>">
+<link rel="stylesheet" href="/public/css/sb-map-frame-overrides.css">
 <main class="floor-page">
   <div class="floor-container">
     <div id="root"></div>
@@ -15,11 +13,11 @@
   window.__APP_CONFIG__ = {
     page: 'floor',
     restaurantId: '<%= it.restaurantId %>',
-    lang: '<%= it.lang || "he" %>'
+    lang: '<%= it.lang || "en" %>'
   };
 </script>
 
-<script type="module" src="/static/dist/floor-app.js"></script>
+<script type="module" src="/dist/floor-app.js"></script>
 
 <style>
 .floor-page {

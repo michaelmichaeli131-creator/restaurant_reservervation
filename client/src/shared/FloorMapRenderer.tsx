@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { t } from '../i18n';
 import '../components/FloorEditor.css';
+import { t } from '../i18n';
 
 export interface FloorTableLike {
   id: string;
@@ -492,12 +492,8 @@ export default function FloorMapRenderer({
     for (const t of (layout.tables || [])) {
       const st = getStatusFor(t);
       const status = String(st.status || 'empty');
-      const pillText = (() => {
-        if (status === 'occupied') return t('floor.status.occupied', 'Occupied');
-        if (status === 'reserved') return t('floor.status.reserved', 'Reserved');
-        if (status === 'dirty') return t('floor.status.dirty', 'Dirty');
-        return t('floor.status.empty', 'Empty');
-      })();
+      // i18n: table status label (EN/HE/KA)
+      const pillText = t(`floor.status.${status}`, status);
       const count = st.guestCount != null && st.guestCount !== '' ? ` · ${st.guestCount}` : '';
 
       const x = Math.max(0, Number(t.gridX) || 0) * cellSize;

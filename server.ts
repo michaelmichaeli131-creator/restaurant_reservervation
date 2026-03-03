@@ -242,6 +242,11 @@ app.use(async (ctx, next) => {
 app.use(async (ctx, next) => {
   const p = ctx.request.url.pathname;
   if (p.startsWith("/dist/")) {
+    // IMPORTANT: avoid stale / mismatched ES module caching between floor-view-app.js and floor-index.js
+    // which can cause runtime errors like: TypeError: e is not a function
+    ctx.response.headers.set("Cache-Control", "no-store, max-age=0");
+    ctx.response.headers.set("Pragma", "no-cache");
+    ctx.response.headers.set("Expires", "0");
     const rel = p.slice("/".length); // dist/...
     await send(ctx, rel, {
       root: `${Deno.cwd()}/public`,
@@ -256,6 +261,11 @@ app.use(async (ctx, next) => {
   const p = ctx.request.url.pathname;
   if (!p.startsWith("/static/")) return await next();
   const filePath = p.slice("/static".length) || "/";
+  if (filePath.startsWith("/dist/")) {
+    ctx.response.headers.set("Cache-Control", "no-store, max-age=0");
+    ctx.response.headers.set("Pragma", "no-cache");
+    ctx.response.headers.set("Expires", "0");
+  }
   try {
     // @ts-ignore oak ctx.send
     await (ctx as any).send({
@@ -385,7 +395,7 @@ root.get("/", async (ctx) => {
     category,
     featured,
     page: "home",
-    title: "SpotBook — Restaurant search",
+    title: "GeoTable — חיפוש מסעדה",
   });
 });
 
@@ -521,8 +531,7 @@ app.use(async (ctx, next) => {
       path,
     });
     ctx.response.status = Status.Forbidden;
-    const t = (ctx.state as any)?.t as ((k: string) => string) | undefined;
-    ctx.response.body = t ? t('auth_gate.verify_required') : "Email verification is required before accessing this area.";
+    ctx.response.body = "נדרש אימות דוא״ל לפני גישה לאזור זה.";
     return;
   }
 
@@ -533,8 +542,7 @@ app.use(async (ctx, next) => {
       path,
     });
     ctx.response.status = Status.Forbidden;
-    const t = (ctx.state as any)?.t as ((k: string) => string) | undefined;
-    ctx.response.body = t ? t('auth_gate.account_disabled') : "This account is disabled. Please contact support.";
+    ctx.response.body = "החשבון מבוטל. פנה/י לתמיכה.";
     return;
   }
 

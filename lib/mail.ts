@@ -25,8 +25,7 @@ type Lang = "he" | "en" | "ka";
 const SUPPORTED: Lang[] = ["he", "en", "ka"];
 function normLang(l?: string | null): Lang {
   const v = String(l || "").toLowerCase();
-  // Default language is English
-  return (SUPPORTED as string[]).includes(v) ? (v as Lang) : "en";
+  return (SUPPORTED as string[]).includes(v) ? (v as Lang) : "he";
 }
 function dirByLang(l: Lang): "rtl" | "ltr" {
   return l === "he" ? "rtl" : "ltr";

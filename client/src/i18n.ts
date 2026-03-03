@@ -1,73 +1,119 @@
-// Client-side translation utility
-// Reads translations from embedded data or fetches from server
+// client/src/i18n.ts
+// Lightweight i18n used by the React apps (Host/Waiter/Editor).
+// Default language must be English (en). Supported: en/he/ka.
 
 type Translations = Record<string, any>;
 
-// Default language is English
-let currentLang = 'en';
-let translations: Translations = {};
+let currentLang: 'en' | 'he' | 'ka' = 'en';
+let translations: Translations = {
+  common: {
+    btn_refresh: 'Retry',
+    btn_save: 'Save',
+    btn_cancel: 'Cancel',
+    btn_delete: 'Delete',
+  },
+  floor: {
+    loading: 'Loading floor plan...',
+    hints: {
+      controls: 'Drag to pan, Ctrl+wheel to zoom',
+    },
+    status: {
+      empty: 'Empty',
+      occupied: 'Occupied',
+      reserved: 'Reserved',
+      dirty: 'Dirty',
+    },
+  },
+};
 
-// Initialize with embedded translations or fetch from server
-export async function initI18n(lang: string = 'en') {
-  currentLang = lang;
-
-  try {
-    // Fetch translations from server
-    const response = await fetch(`/api/i18n/${lang}`);
-    if (response.ok) {
-      translations = await response.json();
-    }
-  } catch (error) {
-    console.warn('Failed to load translations:', error);
-    // Fallback to default (EN) translations
-    translations = getDefaultTranslations();
-  }
+function deepGet(obj: any, path: string): any {
+  return path.split('.').reduce((o, k) => (o && typeof o === 'object' ? o[k] : undefined), obj);
 }
 
-// Get translation by key (supports dot notation like 'floor.btn_save')
-export function t(key: string, fallback?: string): string {
-  const keys = key.split('.');
-  let value: any = translations;
-
-  for (const k of keys) {
-    if (value && typeof value === 'object') {
-      value = value[k];
-    } else {
-      return fallback || `(${key})`;
-    }
+function deepSet(obj: any, path: string, value: any): void {
+  const parts = path.split('.');
+  let cur = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const k = parts[i];
+    if (!cur[k] || typeof cur[k] !== 'object') cur[k] = {};
+    cur = cur[k];
   }
-
-  return typeof value === 'string' ? value : (fallback || `(${key})`);
+  cur[parts[parts.length - 1]] = value;
 }
 
-// Get current language
-export function getCurrentLang(): string {
+function normalizeLang(raw?: string | null): 'en' | 'he' | 'ka' {
+  const v = (raw || '').toLowerCase();
+  if (v.startsWith('he') || v === 'iw' || v === 'heb') return 'he';
+  if (v.startsWith('ka') || v.startsWith('ge')) return 'ka';
+  return 'en';
+}
+
+export function getLang(): 'en' | 'he' | 'ka' {
   return currentLang;
 }
 
-// Default English translations (fallback)
-function getDefaultTranslations(): Translations {
-  return {
-    common: {
-      btn_save: 'Save',
-      btn_cancel: 'Cancel',
-      btn_delete: 'Delete',
-    },
-    floor: {
-      loading: 'Loading floor plans…',
-      empty_state: 'No floor plans found',
-      btn_save_layout: 'Save layout',
-      error: {
-        enter_name: 'Please enter a layout name',
-        create: 'Failed to create layout',
-        delete: 'Delete failed',
+// Backward-compat alias: some components expect this older name.
+export function getCurrentLang(): 'en' | 'he' | 'ka' {
+  return currentLang;
+}
+
+export function setLang(lang: 'en' | 'he' | 'ka'): void {
+  currentLang = lang;
+  try {
+    localStorage.setItem('sb_lang', lang);
+  } catch {
+    // ignore
+  }
+}
+
+export async function initI18n(preferred?: string): Promise<void> {
+  const lang = normalizeLang(
+    preferred ||
+      (typeof window !== 'undefined' ? (window as any).SB_LANG : null) ||
+      (typeof localStorage !== 'undefined' ? localStorage.getItem('sb_lang') : null) ||
+      (typeof navigator !== 'undefined' ? navigator.language : null),
+  );
+
+  currentLang = lang;
+
+  try {
+    const res = await fetch(`/api/i18n/${lang}`, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error(`i18n HTTP ${res.status}`);
+    const data = (await res.json()) as Translations;
+    translations = data || translations;
+  } catch {
+    // Keep the default EN fallbacks.
+  }
+}
+
+export function t(key: string, params?: Record<string, any>): string {
+  const raw = deepGet(translations, key);
+  let str = typeof raw === 'string' ? raw : undefined;
+
+  // Fallback to embedded default translations.
+  if (!str) {
+    const fallback = deepGet(
+      {
+        common: translations.common,
+        floor: translations.floor,
       },
-      status: {
-        empty: 'Empty',
-        occupied: 'Occupied',
-        reserved: 'Reserved',
-        dirty: 'Dirty',
-      },
-    },
-  };
+      key,
+    );
+    str = typeof fallback === 'string' ? fallback : undefined;
+  }
+
+  // Last-resort: return key.
+  if (!str) str = key;
+
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      str = str.replaceAll(`{${k}}`, String(v));
+    }
+  }
+
+  return str;
+}
+
+export function inject(key: string, value: any): void {
+  deepSet(translations, key, value);
 }

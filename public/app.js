@@ -8,8 +8,6 @@
 // -------------------------------------------------------------
 
 (function () {
-  const V = (window.SB_UI_I18N && window.SB_UI_I18N.validation) || {};
-  const vt = (k, fb) => (V && V[k]) ? V[k] : fb;
   const Q = (sel, root = document) => root.querySelector(sel);
   const QA = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
@@ -222,15 +220,15 @@
       // ולידציה בסיסית בצד לקוח
       const errors = [];
       if (!dateInput || !dateInput.value) {
-        errors.push(vt('choose_date', 'Please choose a date.'));
+        errors.push("אנא בחר/י תאריך.");
       } else if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInput.value)) {
-        errors.push(vt('invalid_date', 'Invalid date. Required format: YYYY-MM-DD.'));
+        errors.push("תאריך לא תקין. פורמט נדרש: YYYY-MM-DD.");
       }
 
       if (!hiddenTime || !hiddenTime.value) {
-        errors.push(vt('choose_time', 'Please choose a time.'));
+        errors.push("אנא בחר/י שעה.");
       } else if (!/^\d{2}:\d{2}$/.test(hiddenTime.value)) {
-        errors.push(vt('invalid_time', 'Invalid time. Required format: HH:MM.'));
+        errors.push("שעה לא תקינה. פורמט נדרש: HH:MM.");
       }
 
       if (errors.length) {
