@@ -357,6 +357,23 @@
   font-size: 12px;
 }
 
+.kds-item-notes{
+  margin-top: 6px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: rgba(245,158,11,.12);
+  border: 1px solid rgba(245,158,11,.30);
+  color: rgba(245,158,11,.95);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.kds-line-notes{
+  margin: 2px 0 2px 32px;
+  font-size: 12px;
+}
+
 .kds-actions{
   margin-top: 12px;
   display:flex;

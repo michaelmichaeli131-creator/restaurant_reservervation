@@ -64,6 +64,7 @@ export interface OrderItem {
   quantity: number;
   destination: Destination;
   status: OrderItemStatus;
+  notes?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -301,11 +302,13 @@ export async function addOrderItem(params: {
   table: number;
   menuItem: MenuItem;
   quantity?: number;
+  notes?: string;
 }): Promise<{ order: Order; orderItem: OrderItem }> {
   const order = await getOrCreateOpenOrder(
     params.restaurantId,
     params.table,
   );
+  const trimmedNotes = (params.notes ?? "").trim();
   const orderItem: OrderItem = {
     id: crypto.randomUUID(),
     orderId: order.id,
@@ -317,6 +320,7 @@ export async function addOrderItem(params: {
     quantity: Number(params.quantity ?? 1),
     destination: params.menuItem.destination,
     status: "received",
+    ...(trimmedNotes ? { notes: trimmedNotes } : {}),
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };

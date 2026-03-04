@@ -221,6 +221,7 @@
       card.dataset.orderId = it.orderId;
       card.dataset.status = it.status;
 
+      const notesHtml = it.notes ? `<div class="kds-item-notes">${escapeHtml(it.notes)}</div>` : '';
       card.innerHTML = `
         <div class="kds-ticket-top">
           <div class="kds-badges">
@@ -230,6 +231,7 @@
           </div>
         </div>
         <div class="kds-item-name">${escapeHtml(it.name)}</div>
+        ${notesHtml}
         <div class="kds-item-meta">
           <span>${STR.created}: ${timeStr}</span>
           <span>#${escapeHtml(it.orderId).slice(0,6)}</span>
@@ -289,11 +291,13 @@
         line.dataset.itemId = it.id;
         line.dataset.orderId = it.orderId;
         line.dataset.status = it.status;
+        const lineNotesHtml = it.notes ? `<div class="kds-item-notes kds-line-notes">${escapeHtml(it.notes)}</div>` : '';
         line.innerHTML = `
           <div class="kds-line-left">
             <span class="kds-badge qty">x${it.quantity}</span>
             <span class="kds-line-name" title="${escapeAttr(it.name)}">${escapeHtml(it.name)}</span>
           </div>
+          ${lineNotesHtml}
           <div class="kds-line-actions">
             <button type="button" class="kds-mini secondary kds-prev" ${it.status === 'received' ? 'disabled' : ''}>${STR.act_prev}</button>
             <button type="button" class="kds-mini primary kds-next" ${it.status === 'ready' ? 'disabled' : ''}>${labelNext(it.status)}</button>

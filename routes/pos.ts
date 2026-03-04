@@ -655,6 +655,7 @@ posRouter.post("/api/pos/order-item/add", async (ctx) => {
   const table = Number(body.table ?? 0);
   const menuItemId = String(body.menuItemId ?? "");
   const quantity = Number(body.quantity ?? 1);
+  const notes = String(body.notes ?? "").trim();
 
   if (!restaurantId || !table || !menuItemId) {
     ctx.throw(Status.BadRequest, "missing fields");
@@ -673,6 +674,7 @@ posRouter.post("/api/pos/order-item/add", async (ctx) => {
     table,
     menuItem,
     quantity,
+    notes: notes || undefined,
   });
   const totals = await computeTotalsForTable(restaurantId, table);
 
