@@ -50,16 +50,6 @@ export interface Restaurant {
   kitchenCategories?: KitchenCategory[]; // סוגי מטבח
   averageRating?: number;           // ממוצע דירוגים (מחושב)
   reviewCount?: number;             // מספר ביקורות
-  // === Deposit Payment Settings (Direct-to-Restaurant) ===
-  depositEnabled?: boolean;
-  depositAmount?: number;           // Amount in cents (2500 = €25.00)
-  depositCurrency?: "EUR" | "GBP" | "USD";
-  paymentMethods?: {
-    stripePaymentLink?: string;     // Full URL to Stripe Payment Link
-    sumupPaymentLink?: string;      // Full URL to SumUp payment page
-    paypalMe?: string;              // PayPal.me username or full URL
-    revolutLink?: string;           // Revolut.me username or full link
-  };
   createdAt: number;
 }
 
@@ -179,12 +169,6 @@ export interface Reservation {
   status?:
     | "new" | "confirmed" | "canceled" | "completed" | "blocked" | "rescheduled"
     | "approved" | "arrived" | "cancelled"; // תמיכה בשתי האיותים והסטטוסים החדשים
-  // === Payment Tracking (Direct-to-Restaurant) ===
-  depositStatus?: "not_required" | "pending" | "received" | "refunded";
-  depositAmount?: number;           // Amount in cents at time of booking
-  depositCurrency?: string;         // Currency at time of booking
-  paymentMethod?: "stripe" | "sumup" | "paypal" | "revolut";
-  depositConfirmedAt?: number;      // Timestamp when owner confirmed receipt
   createdAt: number;
 }
 

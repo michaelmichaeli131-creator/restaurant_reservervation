@@ -213,7 +213,7 @@ async function handleSlotAction(ctx: any) {
 
   debugLog("owner_calendar", "Parsed action info", { action, normalized, date, time, reservation });
 
-  if (!["create", "update", "cancel", "arrived", "confirm_deposit", "refund_deposit"].includes(normalized)) {
+  if (!["create", "update", "cancel", "arrived"].includes(normalized)) {
     ctx.throw(Status.BadRequest, `Unknown action: ${action}`);
   }
   if (!isISODate(date) || !isHHMM(time)) {
@@ -336,28 +336,6 @@ async function handleSlotAction(ctx: any) {
     result = await (db as any).markArrived(id);
 
     broadcast(rid, date, "reservation_arrived", { time, date, rid, id });
-
-  } else if (normalized === "confirm_deposit") {
-    const id = String(reservation?.id ?? "");
-    debugLog("owner_calendar", "confirm_deposit id", { id });
-    if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
-    const user = (ctx.state as any)?.user;
-    result = await (db as any).updateReservationFields(id, {
-      depositStatus: "received",
-      depositConfirmedAt: Date.now(),
-    });
-
-    broadcast(rid, date, "deposit_confirmed", { time, date, rid, id });
-
-  } else if (normalized === "refund_deposit") {
-    const id = String(reservation?.id ?? "");
-    debugLog("owner_calendar", "refund_deposit id", { id });
-    if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
-    result = await (db as any).updateReservationFields(id, {
-      depositStatus: "refunded",
-    });
-
-    broadcast(rid, date, "deposit_refunded", { time, date, rid, id });
   }
 
   debugLog("owner_calendar", "Slot action result", { result });

@@ -22,17 +22,6 @@
       <div><strong><%= tt('details.summary.restaurant','מסעדה:') %></strong> <%= it.restaurant.name %></div>
     </div>
 
-    <% if (it.hasDeposit) { %>
-    <div class="deposit-notice">
-      <span class="deposit-icon">💳</span>
-      <div class="deposit-text">
-        <strong><%= tt('details.deposit.title','Deposit Required') %></strong>
-        <span class="deposit-amount"><%= it.depositSymbol %><%= it.depositAmount.toFixed(2) %></span>
-      </div>
-      <p class="deposit-hint muted"><%= tt('details.deposit.hint','A deposit is required to confirm your reservation. You will be redirected to complete payment after submitting your details.') %></p>
-    </div>
-    <% } %>
-
     <form id="details-form"
           class="form-grid"
           action="/restaurants/<%= it.restaurant.id %>/confirm"
@@ -191,36 +180,6 @@
     background: color-mix(in srgb, var(--panel-2, #171b29) 92%, transparent);
     border:1px solid var(--bd, #23293a);
     border-radius:10px; padding:8px 10px; font-size:14px;
-  }
-
-  /* Deposit notice */
-  .deposit-notice{
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 14px 16px;
-    margin: 12px 0;
-    background: color-mix(in srgb, var(--brand, #3b82f6) 12%, var(--panel, #121622));
-    border: 1px solid color-mix(in srgb, var(--brand, #3b82f6) 35%, #222834);
-    border-radius: 12px;
-  }
-  .deposit-icon{ font-size: 24px; }
-  .deposit-text{
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex: 1;
-  }
-  .deposit-amount{
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--brand, #3b82f6);
-  }
-  .deposit-hint{
-    width: 100%;
-    margin: 4px 0 0;
-    font-size: 13px;
   }
 
   .form-grid{ display:grid; grid-template-columns: repeat(2,1fr); gap:14px }

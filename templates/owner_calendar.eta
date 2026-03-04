@@ -228,44 +228,6 @@
 
     /* Override minimal tokens from original light theme to dark without changing structure */
     .muted{ color:var(--ink-muted) }
-
-    /* ===== Deposit Badges ===== */
-    .deposit-badge{
-      display:inline-flex; align-items:center; gap:6px;
-      padding:4px 10px; border-radius:8px; font-size:12px; font-weight:600;
-      margin-inline-start:8px;
-    }
-    .deposit-pending{
-      background: color-mix(in srgb, var(--warn) 18%, transparent);
-      color: #fbbf24;
-      border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
-    }
-    .deposit-paid{
-      background: color-mix(in srgb, var(--ok) 18%, transparent);
-      color: #4ade80;
-      border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent);
-    }
-    .deposit-refunded{
-      background: color-mix(in srgb, #6b7280 18%, transparent);
-      color: #9ca3af;
-      border: 1px solid color-mix(in srgb, #6b7280 35%, transparent);
-    }
-
-    /* Deposit action buttons in drawer */
-    .deposit-actions{
-      display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;
-    }
-    .deposit-actions .btn{
-      padding:6px 12px; border-radius:10px; font-size:12px; font-weight:700;
-      cursor:pointer; border:1px solid var(--bd); transition: transform .08s ease;
-    }
-    .deposit-actions .btn:hover{ transform:translateY(-1px); }
-    .deposit-actions .btn.ok{
-      background: var(--ok); color:#fff; border-color:transparent;
-    }
-    .deposit-actions .btn.warn{
-      background: var(--warn); color:#000; border-color:transparent;
-    }
   </style>
 </head>
 <body>
