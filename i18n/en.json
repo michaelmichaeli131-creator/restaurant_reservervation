@@ -761,12 +761,14 @@
       "title": "Kitchen Screen —"
     },
     "menu": {
+      "added_to_order": "Added to order",
       "category": "Category",
       "dish": "Dish",
       "empty": "No dishes in menu currently",
       "help_text": "Select dishes from the menu to add to the table order.",
       "loading": "Loading menu...",
       "no_category": "Uncategorized",
+      "search": "Search dishes...",
       "title": "Menu"
     },
     "order": {
@@ -801,6 +803,10 @@
       "lobby_title": "Waiter Screen",
       "no_items": "No items in the order yet. Select dishes from the menu.",
       "no_open_tables": "No open tables at the moment.",
+      "notes_placeholder": "e.g.: no onions, gluten allergy, medium rare...",
+      "notes_send": "Add to order",
+      "notes_skip": "No notes",
+      "notes_title": "Notes for kitchen",
       "open_panel": "Open panel",
       "open_tables": "Open Tables",
       "open_tables_help": "List of all tables with open checks / active service. Click a row for table details, and the \"Go to Order\" button opens the POS screen for that table.",
