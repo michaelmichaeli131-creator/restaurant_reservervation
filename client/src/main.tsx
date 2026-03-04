@@ -6,6 +6,19 @@ import { initI18n } from './i18n';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/Toast';
 
+// Vite extracts CSS into separate files during production builds.
+// Ensure the required stylesheets are loaded even if the HTML template
+// does not include them explicitly.
+function ensureCSS(href: string) {
+  if (document.querySelector(`link[href="${href}"]`)) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = href;
+  document.head.appendChild(link);
+}
+ensureCSS('/dist/floor-index.css');
+ensureCSS('/dist/floor-floor-app.css');
+
 // Get language from server-provided config or cookie
 declare global {
   interface Window {
