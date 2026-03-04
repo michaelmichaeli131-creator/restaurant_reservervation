@@ -116,6 +116,9 @@
             >
               <div class="sb-wt-item-main">
                 <div class="sb-wt-item-title"><%= row.name %></div>
+                <% if (row.notes) { %>
+                  <div class="sb-wt-item-notes"><%= row.notes %></div>
+                <% } %>
                 <div class="sb-wt-item-meta muted">
                   <span class="sb-wt-pill dest"><%= row.destination === 'bar' ? tt('owner.menu.dest_bar', 'Bar') : tt('owner.menu.dest_kitchen', 'Kitchen') %></span>
                   <span class="sb-dot">•</span>
@@ -182,6 +185,19 @@
       <span class="meta"><span id="bill-total-mobile"><%= totals.subtotal.toFixed(2) %></span> <%= tt('common.currency', '₪') %></span>
     </button>
   </nav>
+
+  <!-- Notes modal -->
+  <div id="notes-overlay" class="sb-notes-overlay" hidden>
+    <div class="sb-notes-modal" role="dialog" aria-label="<%= tt('pos.waiter.notes_title', 'הערות למטבח') %>">
+      <h3><%= tt('pos.waiter.notes_title', 'הערות למטבח') %></h3>
+      <div id="notes-dish-name" class="sb-notes-dish"></div>
+      <textarea id="notes-input" dir="auto" placeholder="<%= tt('pos.waiter.notes_placeholder', 'לדוגמה: בלי בצל, אלרגיה לגלוטן, מדיום רייר...') %>"></textarea>
+      <div class="sb-notes-btns">
+        <button type="button" id="notes-skip" class="sb-notes-skip"><%= tt('pos.waiter.notes_skip', 'ללא הערות') %></button>
+        <button type="button" id="notes-send" class="sb-notes-send"><%= tt('pos.waiter.notes_send', 'הוסף להזמנה') %></button>
+      </div>
+    </div>
+  </div>
 
   <div id="sb-toast" class="sb-toast" aria-live="polite" aria-atomic="true"></div>
 </main>
@@ -357,12 +373,50 @@
       });
     }
 
-    async function addItem(card){
+    // --- Notes modal ---
+    const notesOverlay = document.getElementById('notes-overlay');
+    const notesInput = document.getElementById('notes-input');
+    const notesDishName = document.getElementById('notes-dish-name');
+    const notesSkipBtn = document.getElementById('notes-skip');
+    const notesSendBtn = document.getElementById('notes-send');
+    let pendingCard = null;
+
+    function openNotesModal(card){
+      pendingCard = card;
+      const name = card.querySelector('.menu-item-name');
+      if (notesDishName) notesDishName.textContent = name ? name.textContent : '';
+      if (notesInput) notesInput.value = '';
+      if (notesOverlay) notesOverlay.hidden = false;
+      setTimeout(() => { if (notesInput) notesInput.focus(); }, 80);
+    }
+
+    function closeNotesModal(){
+      if (notesOverlay) notesOverlay.hidden = true;
+      pendingCard = null;
+    }
+
+    function submitFromModal(notes){
+      if (pendingCard) addItem(pendingCard, notes || '');
+      closeNotesModal();
+    }
+
+    if (notesSkipBtn) notesSkipBtn.addEventListener('click', () => submitFromModal(''));
+    if (notesSendBtn) notesSendBtn.addEventListener('click', () => submitFromModal(notesInput ? notesInput.value : ''));
+    if (notesInput) notesInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); submitFromModal(notesInput.value); }
+    });
+    if (notesOverlay) notesOverlay.addEventListener('click', (e) => {
+      if (e.target === notesOverlay) closeNotesModal();
+    });
+
+    async function addItem(card, notes){
       const menuItemId = card.dataset.menuItemId;
       if (!menuItemId) return;
 
       if (card.classList.contains('is-loading')) return;
       card.classList.add('is-loading');
+
+      const trimmedNotes = (notes || '').trim();
 
       try{
         const res = await fetch("/api/pos/order-item/add", {
@@ -373,6 +427,7 @@
             table,
             menuItemId,
             quantity: 1,
+            ...(trimmedNotes ? { notes: trimmedNotes } : {}),
           }),
         });
         if (!res.ok) return;
@@ -399,10 +454,12 @@
         });
 
         const showServe = item.status === 'ready' || item.status === 'in_progress';
+        const notesHtml = item.notes ? `<div class="sb-wt-item-notes">${escapeHtml(item.notes)}</div>` : '';
 
         rowEl.innerHTML = `
           <div class="sb-wt-item-main">
-            <div class="sb-wt-item-title">${item.name}</div>
+            <div class="sb-wt-item-title">${escapeHtml(item.name)}</div>
+            ${notesHtml}
             <div class="sb-wt-item-meta muted">
               <span class="sb-wt-pill dest">${item.destination === 'bar' ? '<%= tt('owner.menu.dest_bar', 'Bar') %>' : '<%= tt('owner.menu.dest_kitchen', 'Kitchen') %>'}</span>
               <span class="sb-dot">•</span>
@@ -447,10 +504,14 @@
       }
     }
 
+    function escapeHtml(s){
+      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
     root.addEventListener("click", function(ev){
       const card = ev.target.closest(".menu-item-card");
       if (!card) return;
-      addItem(card);
+      openNotesModal(card);
     });
 
     loadMenu();
