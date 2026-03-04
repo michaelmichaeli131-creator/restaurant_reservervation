@@ -185,15 +185,17 @@
     const frag = document.createDocumentFragment();
     for (const it of items) {
       const tr = document.createElement("tr");
+      const depositButtons = renderDepositButtons(it);
       tr.innerHTML = `
         <td>${escapeHTML(it.firstName || "")}</td>
         <td>${escapeHTML(it.lastName || "")}</td>
         <td>${Number(it.people || 0)}</td>
-        <td>${badge(it.status || "")}</td>
+        <td>${badge(it.status || "")}${depositBadge(it.depositStatus, it.depositAmount, it.depositCurrency)}</td>
         <td><a href="tel:${(it.phone || "").replace(/\s+/g, "")}">${escapeHTML(it.phone || "")}</a></td>
         <td>
           <button class="btn" data-act="arrived" data-id="${it.id}">Arrived</button>
           <button class="btn warn" data-act="cancel" data-id="${it.id}">Cancel</button>
+          ${depositButtons}
         </td>
       `;
       frag.appendChild(tr);
@@ -206,6 +208,41 @@
     $$('button[data-act="cancel"]', drawerTableBody).forEach((b) => {
       b.addEventListener("click", () => slotAction("cancel", { id: b.dataset.id }));
     });
+    $$('button[data-act="confirm_deposit"]', drawerTableBody).forEach((b) => {
+      b.addEventListener("click", () => slotAction("confirm_deposit", { id: b.dataset.id }));
+    });
+    $$('button[data-act="refund_deposit"]', drawerTableBody).forEach((b) => {
+      b.addEventListener("click", () => slotAction("refund_deposit", { id: b.dataset.id }));
+    });
+  }
+
+  function depositBadge(depositStatus, depositAmount, depositCurrency) {
+    if (!depositStatus || depositStatus === "not_required") return "";
+    const symbols = { EUR: "€", GBP: "£", USD: "$" };
+    const sym = symbols[depositCurrency] || "€";
+    const amt = depositAmount ? (depositAmount / 100).toFixed(2) : "0.00";
+    const labels = {
+      pending: "Deposit Pending",
+      received: "Deposit Paid",
+      refunded: "Refunded"
+    };
+    const classes = {
+      pending: "deposit-pending",
+      received: "deposit-paid",
+      refunded: "deposit-refunded"
+    };
+    return ` <span class="badge ${classes[depositStatus] || ""}">${sym}${amt} ${labels[depositStatus] || depositStatus}</span>`;
+  }
+
+  function renderDepositButtons(it) {
+    if (!it.depositStatus || it.depositStatus === "not_required") return "";
+    if (it.depositStatus === "pending") {
+      return `<button class="btn ok" data-act="confirm_deposit" data-id="${it.id}">Confirm $</button>`;
+    }
+    if (it.depositStatus === "received") {
+      return `<button class="btn muted" data-act="refund_deposit" data-id="${it.id}">Refund</button>`;
+    }
+    return "";
   }
 
   function badge(status) {

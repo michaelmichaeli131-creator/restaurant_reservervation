@@ -41,6 +41,7 @@ import {
 import { sendVerifyEmail } from "./lib/mail_wrappers.ts";
 import ownerManageRouter from "./routes/owner_manage.ts";
 import { ownerHoursRouter } from "./routes/owner_hours.ts";
+import { ownerDepositRouter } from "./routes/owner_deposit_settings.ts";
 import ownerPhotosRouter from "./routes/owner_photos.ts";
 import { requestLogger } from "./lib/log_mw.ts";
 import { diagRouter } from "./routes/diag.ts";
@@ -577,6 +578,9 @@ app.use(ownerCalendarRouter.allowedMethods());
 
 app.use(ownerHoursRouter.routes());
 app.use(ownerHoursRouter.allowedMethods());
+
+app.use(ownerDepositRouter.routes());
+app.use(ownerDepositRouter.allowedMethods());
 
 app.use(ownerCapacityRouter.routes());
 app.use(ownerCapacityRouter.allowedMethods());

@@ -397,6 +397,7 @@
             <a class="sb-link" href="<%= r?._urls?.hours %>"><%= it.t('owner_manage.link_opening_hours') %></a>
             <a class="sb-link" href="<%= r?._urls?.photos %>"><%= it.t('owner_manage.link_photos') %></a>
             <a class="sb-link" href="<%= r?._urls?.edit %>"><%= it.t('owner_manage.link_restaurant_details') %></a>
+            <a class="sb-link" href="<%= r?._urls?.deposit %>"><%= it.t('owner_manage.link_deposit_settings') || 'Deposit Settings' %></a>
             <a class="sb-link" href="/auth/change-password"><%= it.t('owner_manage.link_change_password') %></a>
           </div>
         </section>
@@ -533,6 +534,7 @@
           <a class="sb-link" href="<%= r?._urls?.hours %>"><%= it.t('owner_manage.link_opening_hours') %></a>
           <a class="sb-link" href="<%= r?._urls?.photos %>"><%= it.t('owner_manage.link_photos') %></a>
           <a class="sb-link" href="<%= r?._urls?.edit %>"><%= it.t('owner_manage.link_restaurant_details') %></a>
+          <a class="sb-link" href="<%= r?._urls?.deposit %>"><%= it.t('owner_manage.link_deposit_settings') || 'Deposit Settings' %></a>
         </div>
       </section>
     </aside>

@@ -1,0 +1,319 @@
+<% layout("_layout", it) %>
+
+<% /* tt: translation with fallback */ %>
+<% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
+
+<%
+  // Format deposit amount with currency symbol
+  const symbols = { EUR: '€', GBP: '£', USD: '$' };
+  const symbol = symbols[it.depositCurrency] || '€';
+  const formattedAmount = symbol + it.depositAmount.toFixed(2);
+%>
+
+<main class="container sb-payment">
+  <header class="page-header">
+    <h1><%= tt('payment.header.title','Complete Your Deposit') %></h1>
+    <p class="muted"><%= it.restaurant.name %> · <%= it.restaurant.city %></p>
+  </header>
+
+  <!-- Reservation Summary -->
+  <section class="card summary-card">
+    <h2 class="card-title"><%= tt('payment.summary.title','Reservation Summary') %></h2>
+    <div class="summary-grid">
+      <div class="summary-item">
+        <span class="label"><%= tt('payment.summary.date','Date') %></span>
+        <span class="value"><%= it.date %></span>
+      </div>
+      <div class="summary-item">
+        <span class="label"><%= tt('payment.summary.time','Time') %></span>
+        <span class="value"><%= it.time %></span>
+      </div>
+      <div class="summary-item">
+        <span class="label"><%= tt('payment.summary.people','Guests') %></span>
+        <span class="value"><%= it.people %></span>
+      </div>
+      <div class="summary-item">
+        <span class="label"><%= tt('payment.summary.name','Name') %></span>
+        <span class="value"><%= it.name %></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Deposit Amount -->
+  <section class="card deposit-card">
+    <div class="deposit-header">
+      <h2 class="card-title"><%= tt('payment.deposit.title','Deposit Required') %></h2>
+      <div class="deposit-amount"><%= formattedAmount %></div>
+    </div>
+    <p class="muted"><%= tt('payment.deposit.hint','This deposit secures your reservation and will be applied to your bill or refunded if you cancel in advance.') %></p>
+  </section>
+
+  <!-- Payment Methods -->
+  <section class="card methods-card">
+    <h2 class="card-title"><%= tt('payment.methods.title','Choose Payment Method') %></h2>
+    <p class="muted"><%= tt('payment.methods.hint','Click to open payment page in a new tab. After paying, return here and click "I\'ve Paid".') %></p>
+
+    <div class="payment-methods">
+      <% for (const pm of it.paymentMethods) { %>
+        <a href="<%= pm.url %>"
+           target="_blank"
+           rel="noopener noreferrer"
+           class="payment-btn"
+           data-method="<%= pm.key %>"
+           onclick="markMethodClicked('<%= pm.key %>')">
+          <span class="payment-icon <%= pm.key %>"></span>
+          <span class="payment-label"><%= pm.label %></span>
+          <span class="payment-arrow">→</span>
+        </a>
+      <% } %>
+    </div>
+  </section>
+
+  <!-- Confirm Payment Form -->
+  <section class="card confirm-card">
+    <form id="confirm-payment-form"
+          action="/restaurants/<%= it.restaurant.id %>/confirm-payment"
+          method="get">
+      <!-- Pass all reservation data -->
+      <input type="hidden" name="token" value="<%= it.token %>"/>
+      <input type="hidden" name="paymentMethod" id="selectedMethod" value=""/>
+
+      <div class="confirm-content">
+        <p class="confirm-text"><%= tt('payment.confirm.text','After completing your payment, click the button below:') %></p>
+
+        <button type="submit" class="btn primary lg" id="confirmBtn" disabled>
+          <span class="btn-icon">✓</span>
+          <%= tt('payment.confirm.btn',"I've Completed Payment") %>
+        </button>
+
+        <p class="confirm-hint muted">
+          <%= tt('payment.confirm.hint','Your reservation will be confirmed once the restaurant verifies payment.') %>
+        </p>
+      </div>
+    </form>
+  </section>
+
+  <!-- Cancel Link -->
+  <div class="cancel-row">
+    <a href="/restaurants/<%= it.restaurant.id %>" class="cancel-link">
+      <%= tt('payment.cancel','Cancel and go back') %>
+    </a>
+  </div>
+</main>
+
+<script>
+(function(){
+  var selectedMethod = null;
+  var confirmBtn = document.getElementById('confirmBtn');
+  var methodInput = document.getElementById('selectedMethod');
+  var paymentBtns = document.querySelectorAll('.payment-btn');
+
+  // Mark a payment method as clicked
+  window.markMethodClicked = function(method) {
+    selectedMethod = method;
+    methodInput.value = method;
+    confirmBtn.disabled = false;
+
+    // Visual feedback
+    paymentBtns.forEach(function(btn) {
+      btn.classList.remove('clicked');
+      if (btn.dataset.method === method) {
+        btn.classList.add('clicked');
+      }
+    });
+  };
+
+  // Form validation
+  document.getElementById('confirm-payment-form').addEventListener('submit', function(e) {
+    if (!selectedMethod) {
+      e.preventDefault();
+      alert('<%= tt("payment.error.selectMethod","Please click a payment method first to complete your payment.") %>');
+    }
+  });
+})();
+</script>
+
+<style>
+  .sb-payment.container{ max-width: 600px; margin:24px auto; padding:0 16px; }
+  .page-header{ text-align: center; margin-bottom: 20px; }
+  .page-header h1{ margin:0 0 6px; }
+  .muted{ color: var(--ink-muted, #9aa3b2); }
+
+  .card{
+    background: var(--panel, #121622);
+    border:1px solid var(--bd, #222834);
+    border-radius:18px; padding:18px; margin-bottom:16px;
+    color: var(--ink, #e6e8ef);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  .card-title{ margin:0 0 10px; font-size: 18px; }
+
+  /* Summary Grid */
+  .summary-grid{
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .summary-item{
+    background: #171b29;
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .summary-item .label{
+    display: block;
+    font-size: 12px;
+    color: var(--ink-muted, #9aa3b2);
+    margin-bottom: 4px;
+  }
+  .summary-item .value{
+    font-weight: 600;
+    font-size: 15px;
+  }
+
+  /* Deposit Card */
+  .deposit-card{
+    background: color-mix(in srgb, var(--brand, #3b82f6) 10%, var(--panel, #121622));
+    border-color: color-mix(in srgb, var(--brand, #3b82f6) 30%, #222834);
+  }
+  .deposit-header{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .deposit-header .card-title{ margin: 0; }
+  .deposit-amount{
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--brand, #3b82f6);
+  }
+
+  /* Payment Methods */
+  .payment-methods{
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .payment-btn{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: #171b29;
+    border: 1px solid #23293a;
+    border-radius: 12px;
+    color: var(--ink, #e6e8ef);
+    text-decoration: none;
+    transition: all 0.15s ease;
+  }
+  .payment-btn:hover{
+    background: #1e2436;
+    border-color: var(--brand, #3b82f6);
+    transform: translateY(-1px);
+  }
+  .payment-btn.clicked{
+    background: color-mix(in srgb, #16a34a 15%, #171b29);
+    border-color: #16a34a;
+  }
+  .payment-btn.clicked::after{
+    content: '✓';
+    margin-left: auto;
+    color: #16a34a;
+    font-weight: bold;
+  }
+  .payment-icon{
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: #0f1320;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+  .payment-icon.stripe::before{ content: '💳'; }
+  .payment-icon.sumup::before{ content: '📱'; }
+  .payment-icon.paypal::before{ content: '🅿️'; }
+  .payment-icon.revolut::before{ content: '🔄'; }
+  .payment-label{
+    font-weight: 600;
+    flex: 1;
+  }
+  .payment-arrow{
+    color: var(--ink-muted, #9aa3b2);
+    font-size: 18px;
+  }
+
+  /* Confirm Card */
+  .confirm-card{
+    text-align: center;
+  }
+  .confirm-content{
+    padding: 10px 0;
+  }
+  .confirm-text{
+    margin-bottom: 16px;
+  }
+  .confirm-hint{
+    margin-top: 12px;
+    font-size: 13px;
+  }
+
+  /* Buttons */
+  .btn{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: 12px;
+    cursor: pointer;
+    text-decoration: none;
+    border: none;
+    font-weight: 700;
+    font-size: 16px;
+    transition: all 0.15s ease;
+  }
+  .btn.primary{
+    background: var(--brand, #3b82f6);
+    color: #fff;
+    box-shadow: 0 8px 24px rgba(59,130,246,.35);
+  }
+  .btn.primary:hover:not(:disabled){
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(59,130,246,.45);
+  }
+  .btn.primary:disabled{
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .btn.lg{
+    padding: 14px 32px;
+    font-size: 17px;
+  }
+  .btn-icon{
+    font-size: 18px;
+  }
+
+  /* Cancel */
+  .cancel-row{
+    text-align: center;
+    margin-top: 8px;
+  }
+  .cancel-link{
+    color: var(--ink-muted, #9aa3b2);
+    text-decoration: none;
+    font-size: 14px;
+  }
+  .cancel-link:hover{
+    color: var(--ink, #e6e8ef);
+    text-decoration: underline;
+  }
+
+  @media (max-width: 500px){
+    .summary-grid{ grid-template-columns: 1fr; }
+    .deposit-header{ flex-direction: column; align-items: flex-start; gap: 8px; }
+  }
+</style>

@@ -1,0 +1,258 @@
+<% layout("_layout", it) %>
+<% /* tt: translation with fallback */ %>
+<% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
+
+<main class="sb-deposit container">
+  <header class="page-header">
+    <h1><%= tt('owner.deposit.head','Deposit Settings') %> — <%= it.restaurant.name %></h1>
+    <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+  </header>
+
+  <% if (it.saved) { %>
+    <div class="alert success" role="status">
+      <%= tt('owner.deposit.alert.saved','Settings saved successfully') %>
+    </div>
+  <% } %>
+
+  <% if (it.error === 'amount') { %>
+    <div class="alert error" role="alert">
+      <%= tt('owner.deposit.alert.error_amount','Please enter a valid deposit amount') %>
+    </div>
+  <% } %>
+
+  <% if (it.error === 'method') { %>
+    <div class="alert error" role="alert">
+      <%= tt('owner.deposit.alert.error_method','Please configure at least one payment method') %>
+    </div>
+  <% } %>
+
+  <section class="card">
+    <form class="form-grid" action="/owner/restaurants/<%= it.restaurant.id %>/deposit/save" method="get" novalidate>
+
+      <!-- Enable Deposits Toggle -->
+      <div class="form-row full">
+        <label class="toggle-label">
+          <input type="checkbox" name="depositEnabled" id="depositEnabled"
+                 <%= it.restaurant.depositEnabled ? 'checked' : '' %> />
+          <span><%= tt('owner.deposit.form.enabled','Require deposit for reservations') %></span>
+        </label>
+        <p class="hint"><%= tt('owner.deposit.form.enabled_hint','When enabled, customers must pay a deposit to confirm their reservation') %></p>
+      </div>
+
+      <hr class="sep full" />
+
+      <!-- Deposit Amount -->
+      <div class="form-row">
+        <label for="depositAmount"><%= tt('owner.deposit.form.amount','Deposit Amount') %></label>
+        <div class="input-with-symbol">
+          <span class="symbol" id="currencySymbol"><%= it.currencies.find(c => c.code === (it.restaurant.depositCurrency || 'EUR'))?.symbol || '€' %></span>
+          <input id="depositAmount" name="depositAmount" type="number" min="0.01" step="0.01"
+                 placeholder="25.00"
+                 value="<%= it.depositAmountDisplay %>" />
+        </div>
+      </div>
+
+      <!-- Currency -->
+      <div class="form-row">
+        <label for="depositCurrency"><%= tt('owner.deposit.form.currency','Currency') %></label>
+        <select id="depositCurrency" name="depositCurrency">
+          <% for (const c of it.currencies) { %>
+            <option value="<%= c.code %>" <%= (it.restaurant.depositCurrency || 'EUR') === c.code ? 'selected' : '' %>><%= c.label %></option>
+          <% } %>
+        </select>
+      </div>
+
+      <hr class="sep full" />
+
+      <h3 class="card-title full"><%= tt('owner.deposit.form.methods_title','Payment Methods') %></h3>
+      <p class="muted full"><%= tt('owner.deposit.form.methods_hint','Configure at least one payment method. Customers will pay directly to your account.') %></p>
+
+      <% for (const pm of it.paymentMethods) { %>
+        <div class="form-row full">
+          <label for="<%= pm.key %>"><%= pm.label %></label>
+          <input id="<%= pm.key %>" name="<%= pm.key %>" type="text"
+                 placeholder="<%= pm.placeholder %>"
+                 value="<%= it.restaurant.paymentMethods?.[pm.key] || '' %>" />
+          <p class="hint"><%= pm.hint %></p>
+        </div>
+      <% } %>
+
+      <div class="form-actions full">
+        <button type="submit" class="btn primary sm"><%= tt('owner.deposit.btn.save','Save Settings') %></button>
+        <a class="btn ghost sm" href="/owner"><%= tt('owner.deposit.btn.back','Back to Dashboard') %></a>
+      </div>
+    </form>
+  </section>
+
+  <!-- Info Card -->
+  <section class="card info-card">
+    <h3 class="card-title"><%= tt('owner.deposit.info.title','How Direct Payments Work') %></h3>
+    <ul class="info-list">
+      <li><%= tt('owner.deposit.info.item1','Customers choose their preferred payment method when booking') %></li>
+      <li><%= tt('owner.deposit.info.item2','They pay directly to your Stripe, SumUp, PayPal, or Revolut account') %></li>
+      <li><%= tt('owner.deposit.info.item3','You confirm receipt in your calendar dashboard') %></li>
+      <li><%= tt('owner.deposit.info.item4','SpotBook never handles or holds your money') %></li>
+    </ul>
+  </section>
+</main>
+
+<script>
+(function(){
+  // Update currency symbol when currency changes
+  var currencySelect = document.getElementById('depositCurrency');
+  var symbolSpan = document.getElementById('currencySymbol');
+  var symbols = { EUR: '€', GBP: '£', USD: '$' };
+
+  currencySelect.addEventListener('change', function(){
+    symbolSpan.textContent = symbols[currencySelect.value] || '€';
+  });
+
+  // Toggle form fields based on enabled state
+  var enabledCheckbox = document.getElementById('depositEnabled');
+  var formInputs = document.querySelectorAll('.form-grid input:not(#depositEnabled), .form-grid select');
+
+  function toggleFields() {
+    var disabled = !enabledCheckbox.checked;
+    formInputs.forEach(function(el) {
+      el.style.opacity = disabled ? '0.5' : '1';
+    });
+  }
+
+  enabledCheckbox.addEventListener('change', toggleFields);
+  toggleFields(); // Initial state
+})();
+</script>
+
+<style>
+  .sb-deposit.container{ max-width: 800px; margin: 0 auto; padding: 0 16px }
+  .page-header h1{ margin:0 0 6px }
+  .muted{ color: var(--ink-muted, #9aa3b2) }
+
+  .alert{
+    border-radius:12px; padding:10px 12px; margin: 10px 0 14px;
+  }
+  .alert.success{
+    background: color-mix(in srgb, #16a34a 12%, transparent);
+    border:1px solid color-mix(in srgb, #16a34a 45%, transparent);
+    color:#c5f2d3;
+  }
+  .alert.error{
+    background: color-mix(in srgb, #dc2626 12%, transparent);
+    border:1px solid color-mix(in srgb, #dc2626 45%, transparent);
+    color:#fca5a5;
+  }
+
+  .card{
+    background: var(--panel, #121622);
+    border:1px solid var(--bd, #222834);
+    border-radius:18px; padding:18px; margin:12px 0 18px;
+    color: var(--ink, #e6e8ef);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  .card-title{ margin:0 0 .5rem; font-size: clamp(16px, 2.2vw, 20px) }
+
+  .sep{ height:1px; background:#23293a; border-radius:999px; margin:12px 0 }
+  .sep.full, .form-row.full, .card-title.full, .muted.full, .form-actions.full{ grid-column:1/-1 }
+
+  /* Form */
+  .form-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:14px }
+  .form-row{ display:flex; flex-direction:column; gap:6px }
+  .form-row label{ font-weight:600; font-size:14px }
+  .form-row input, .form-row select{
+    background:#171b29; color:#e6e8ef; border:1px solid #23293a;
+    border-radius:12px; padding:10px 12px; font-size:14px; outline:none;
+    transition: box-shadow .15s ease, border-color .15s ease;
+  }
+  .form-row input:focus, .form-row select:focus{
+    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
+  }
+  .form-row .hint{
+    font-size: 12px;
+    color: var(--ink-muted, #9aa3b2);
+    margin: 2px 0 0;
+  }
+
+  /* Toggle label */
+  .toggle-label{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .toggle-label input[type="checkbox"]{
+    width: 20px;
+    height: 20px;
+    accent-color: var(--brand, #3b82f6);
+  }
+
+  /* Input with symbol */
+  .input-with-symbol{
+    display: flex;
+    align-items: center;
+    background:#171b29;
+    border:1px solid #23293a;
+    border-radius:12px;
+    overflow: hidden;
+  }
+  .input-with-symbol .symbol{
+    padding: 10px 12px;
+    background: #0f1320;
+    color: var(--ink-muted, #9aa3b2);
+    font-weight: 600;
+    border-right: 1px solid #23293a;
+  }
+  .input-with-symbol input{
+    border: none;
+    border-radius: 0;
+    flex: 1;
+  }
+  .input-with-symbol input:focus{
+    box-shadow: none;
+  }
+  .input-with-symbol:focus-within{
+    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
+  }
+
+  .form-actions{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px }
+
+  /* Info card */
+  .info-card{
+    background: color-mix(in srgb, var(--brand, #3b82f6) 8%, var(--panel, #121622));
+    border-color: color-mix(in srgb, var(--brand, #3b82f6) 25%, #222834);
+  }
+  .info-list{
+    margin: 0;
+    padding: 0 0 0 20px;
+    list-style: disc;
+  }
+  .info-list li{
+    margin: 8px 0;
+    line-height: 1.5;
+  }
+
+  /* Buttons */
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
+    border:1px solid var(--bd, #23293a); background:transparent;
+    color: var(--ink, #e6e8ef); font-weight:700;
+    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover{ transform: translateY(-1px); }
+  .btn.primary{
+    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
+    box-shadow: 0 8px 24px rgba(59,130,246,.35);
+  }
+  .btn.ghost{
+    background: color-mix(in srgb, var(--panel, #121622) 88%, transparent);
+  }
+  .btn.ghost:hover{ background: color-mix(in srgb, var(--panel, #121622) 94%, transparent); }
+  .btn.sm{ padding:8px 12px; border-radius:10px }
+
+  @media (max-width:760px){
+    .form-grid{ grid-template-columns:1fr }
+  }
+</style>
