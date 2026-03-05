@@ -22,6 +22,10 @@ restaurantsRouter.get("/restaurants/:id/details", Reservation.detailsGet);
 restaurantsRouter.get("/restaurants/:id/confirm", Reservation.confirmGet);
 restaurantsRouter.post("/restaurants/:id/confirm", Reservation.confirmPost);
 
+// Payment flow (direct-to-restaurant deposits)
+restaurantsRouter.get("/restaurants/:id/payment", Reservation.paymentGet);
+restaurantsRouter.get("/restaurants/:id/confirm-payment", Reservation.confirmPaymentGet);
+
 // בעלים – שעות פתיחה
 restaurantsRouter.post("/restaurants/:id/hours", Owner.saveHours);
 
