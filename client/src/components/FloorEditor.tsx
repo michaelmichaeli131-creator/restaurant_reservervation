@@ -1289,11 +1289,11 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
           console.error('[FloorEditor] activate threw', e);
         }
 
-        // Update local layouts list (and mark this one as active locally)
-        setLayouts(layouts.map(l => ({
-          ...l,
-          isActive: l.id === currentLayout.id,
-        })));
+        // Update local layouts list (sync saved data and mark this one as active)
+        setLayouts(layouts.map(l => l.id === currentLayout.id
+          ? { ...currentLayout, isActive: true }
+          : { ...l, isActive: false }
+        ));
 
         const msg = activateOk
           ? t('floor.success.save_and_activate', 'Layout saved and activated ✅')
@@ -1549,6 +1549,15 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
           
           <div className="properties-panel">
             <h3>{t('floor.map.title', 'Map')}</h3>
+            <label>
+              {t('floor.modal.placeholder_floor_label', 'Room/floor label (e.g., Terrace, 2nd Floor)')}
+              <input
+                type="text"
+                value={(currentLayout as any).floorLabel || ''}
+                onChange={(e) => setCurrentLayout({ ...currentLayout, floorLabel: e.target.value } as any)}
+                placeholder={t('floor.modal.placeholder_floor_label', 'Room/floor label')}
+              />
+            </label>
             <label>
               {t('floor.map.cell_size', 'Cell size: {size}px').replace('{size}', String(cellSize))}
               <input
