@@ -203,7 +203,15 @@
     "mark_reserved": "Mark Reserved",
     "modal": {
       "create_title": "Create New Layout",
+      "placeholder_floor_label": "Room/floor label (e.g., Terrace, 2nd Floor)",
       "placeholder_name": "Layout name (e.g., Main Floor, Patio)"
+    },
+    "capacity": {
+      "label": "Max guests capacity",
+      "placeholder": "Max guests capacity (e.g., 40)"
+    },
+    "rooms": {
+      "title": "Rooms"
     },
     "prompt": {
       "duplicate_name": "Enter name for duplicated layout:"
@@ -876,7 +884,10 @@
   "reservation": {
     "form": {
       "title": "Reservation"
-    }
+    },
+    "preferred_room": "Preferred Room",
+    "preferred_room_any": "No preference",
+    "room_full_msg": "The room \"{room}\" is full at the selected time. Try another room or a different time."
   },
   "restaurant": {
     "check": {

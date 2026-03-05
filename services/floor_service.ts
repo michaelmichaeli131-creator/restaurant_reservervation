@@ -471,6 +471,12 @@ export interface FloorLayout {
   id: string;
   restaurantId: string;
   name: string;
+  /** User-facing label for this room/floor (e.g. "Main Hall", "Terrace", "Bar"). Falls back to `name`. */
+  floorLabel?: string;
+  /** Display order for room tabs (lower = first). Defaults to 0. */
+  displayOrder?: number;
+  /** Maximum number of guests allowed in this room/floor at any time slot. Used to block overbooking. */
+  capacity?: number;
   gridRows: number;
   gridCols: number;
   /**
@@ -530,6 +536,9 @@ function kActiveFloorLayout(restaurantId: string): Deno.KvKey {
 export async function createFloorLayout(data: {
   restaurantId: string;
   name: string;
+  floorLabel?: string;
+  displayOrder?: number;
+  capacity?: number;
   gridRows: number;
   gridCols: number;
   tables?: FloorLayout["tables"];
@@ -543,6 +552,9 @@ export async function createFloorLayout(data: {
     id,
     restaurantId: data.restaurantId,
     name: data.name,
+    ...(data.floorLabel ? { floorLabel: data.floorLabel } : {}),
+    ...(data.displayOrder != null ? { displayOrder: data.displayOrder } : {}),
+    ...(data.capacity != null && data.capacity > 0 ? { capacity: data.capacity } : {}),
     gridRows: data.gridRows,
     gridCols: data.gridCols,
     tables: data.tables ?? [],
@@ -594,8 +606,8 @@ export async function listFloorLayouts(
     if (layout) layouts.push(layout);
   }
 
-  // Sort by updatedAt (newest first)
-  layouts.sort((a, b) => b.updatedAt - a.updatedAt);
+  // Sort by displayOrder (lower first), then updatedAt (newest first)
+  layouts.sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0) || b.updatedAt - a.updatedAt);
   return layouts;
 }
 
@@ -725,6 +737,9 @@ export async function duplicateFloorLayout(
   return await createFloorLayout({
     restaurantId,
     name: newName ?? `${source.name} (Copy)`,
+    floorLabel: source.floorLabel,
+    displayOrder: source.displayOrder,
+    capacity: source.capacity,
     gridRows: source.gridRows,
     gridCols: source.gridCols,
     tables: JSON.parse(JSON.stringify(source.tables)), // Deep clone

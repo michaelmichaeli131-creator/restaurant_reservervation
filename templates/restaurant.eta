@@ -37,7 +37,11 @@
   <section class="card">
     <h2 class="card-title"><%= tt('restaurant.form.title','הזמנת מקום — שלב 1') %></h2>
 
-    <% if (it.conflict) { %>
+    <% if (it.roomFull) { %>
+      <div class="alert warn" role="alert">
+        <%= tt('reservation.room_full_msg','החלל "{room}" מלא במועד שבחרת. נסה/י חלל אחר או שעה אחרת.').replace('{room}', it.roomFull) %>
+      </div>
+    <% } else if (it.conflict) { %>
       <div class="alert warn" role="alert">
         <%= tt('restaurant.form.conflict','אין זמינות בשעה שבחרת. בחר/י שעה אחרת מהרשימה להלן.') %>
       </div>
@@ -73,6 +77,18 @@
           <%= tt('restaurant.form.step_hint_suffix',"דקות (רק בתוך שעות הפתיחה של המסעדה)") %>
         </small>
       </div>
+
+      <% if (Array.isArray(it.rooms) && it.rooms.length > 1) { %>
+      <div class="form-row">
+        <label for="preferredLayoutId"><%= tt('reservation.preferred_room','חלל מועדף') %></label>
+        <select id="preferredLayoutId" name="preferredLayoutId">
+          <option value=""><%= tt('reservation.preferred_room_any','ללא העדפה') %></option>
+          <% it.rooms.forEach(function(room){ %>
+            <option value="<%= room.id %>"><%= room.label %><% if (room.capacity) { %> (עד <%= room.capacity %> אורחים)<% } %></option>
+          <% }) %>
+        </select>
+      </div>
+      <% } %>
 
       <div class="form-actions">
         <button type="submit" class="btn primary"><%= tt('restaurant.form.next','המשך לשלב הבא') %></button>
@@ -471,6 +487,22 @@
     transition: box-shadow .15s ease, border-color .15s ease, transform .08s ease;
   }
   .form-row input:focus{
+    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, var(--bd, #23293a));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
+  }
+
+  .form-row select{
+    background: var(--panel-2, #171b29);
+    color: var(--ink, #e6e8ef);
+    border:1px solid var(--bd, #23293a);
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 15px;
+    outline: none;
+    transition: box-shadow .15s ease, border-color .15s ease;
+    cursor: pointer;
+  }
+  .form-row select:focus{
     border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, var(--bd, #23293a));
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
   }

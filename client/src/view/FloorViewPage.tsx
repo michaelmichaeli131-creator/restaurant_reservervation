@@ -49,11 +49,6 @@ export default function FloorViewPage({
 
   const [selectedTableId, setSelectedTableId] = React.useState<string | null>(null);
 
-  // Section filtering
-  type SectionInfo = { id: string; name: string; displayOrder?: number };
-  const [sections, setSections] = React.useState<SectionInfo[]>([]);
-  const [activeSectionId, setActiveSectionId] = React.useState<string | null>(null);
-
   // clickMode is used to decide which actions to show in Table Details (host vs. waiter lobby).
   // It must be defined here (not as an undeclared global) to avoid runtime crashes when opening Table Details.
   const __sbRootEl = typeof document !== "undefined" ? document.getElementById("sb-floor-root") : null;
@@ -64,29 +59,52 @@ export default function FloorViewPage({
   ).toLowerCase();
 
 
-  // Load sections once
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`/api/floor-sections/${restaurantId}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const list = Array.isArray(data) ? data : (data?.sections ?? []);
-        list.sort((a: SectionInfo, b: SectionInfo) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
-        setSections(list);
-      } catch { /* sections are optional */ }
-    })();
-  }, [restaurantId]);
-
-  const loadActive = React.useCallback(async () => {
+  // Load all layouts (rooms/floors) with live statuses
+  const loadAllLayouts = React.useCallback(async () => {
     try {
-      const res = await fetch(`/api/floor-layouts/${restaurantId}/active`, {
+      // Try /all endpoint first (returns all layouts with statuses)
+      let res = await fetch(`/api/floor-layouts/${restaurantId}/all`, {
         headers: { "Content-Type": "application/json" },
       });
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+      if (res.ok) {
+        const data = await res.json();
+        const list: FloorLayout[] = Array.isArray(data) ? data : [];
+
+        if (list.length === 0) {
+          setLayouts([]);
+          setActiveLayoutId(null);
+          setSelectedLayoutId(null);
+          setError(t("host.no_floor_plan", "No active floor plan"));
+          setLoading(false);
+          return;
+        }
+
+        setLayouts(list);
+        const active = list.find((l) => (l as any).isActive) ?? list[0];
+        setActiveLayoutId(active.id);
+        setSelectedLayoutId((prev) => {
+          // Keep current selection if it still exists
+          if (prev && list.some((l) => l.id === prev)) return prev;
+          return active.id;
+        });
+        setError(null);
+        setLoading(false);
+
+        if (selectedTableId) {
+          const currentLay = list.find((l) => l.id === selectedLayoutId) ?? active;
+          const stillExists = (currentLay.tables || []).some((t) => String(t.id) === String(selectedTableId));
+          if (!stillExists) setSelectedTableId(null);
+        }
+        return;
       }
+
+      // Fallback: load only active layout (older backend)
+      res = await fetch(`/api/floor-layouts/${restaurantId}/active`, {
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
       const active: FloorLayout | null = (data && (data as any).id)
@@ -107,39 +125,22 @@ export default function FloorViewPage({
       setSelectedLayoutId((prev) => prev ?? active.id);
       setError(null);
       setLoading(false);
-
-      if (selectedTableId) {
-        const stillExists = (active.tables || []).some((t) => String(t.id) === String(selectedTableId));
-        if (!stillExists) setSelectedTableId(null);
-      }
     } catch (e: any) {
       setError(t("host.err_load_map", "Error loading floor map") + `: ${e?.message ?? "unknown"}`);
       setLoading(false);
     }
-  }, [restaurantId, selectedTableId]);
+  }, [restaurantId, selectedTableId, selectedLayoutId]);
 
   React.useEffect(() => {
-    loadActive();
-    const id = setInterval(loadActive, 5000);
+    loadAllLayouts();
+    const id = setInterval(loadAllLayouts, 5000);
     return () => clearInterval(id);
-  }, [loadActive]);
+  }, [loadAllLayouts]);
 
   const currentLayout = React.useMemo(() => {
     if (!selectedLayoutId) return null;
     return layouts.find((l) => l.id === selectedLayoutId) ?? null;
   }, [layouts, selectedLayoutId]);
-
-  // Filter layout by active section
-  const filteredLayout = React.useMemo(() => {
-    if (!currentLayout) return null;
-    if (!activeSectionId) return currentLayout; // "All" - show everything
-    return {
-      ...currentLayout,
-      tables: (currentLayout.tables || []).filter(
-        (tbl: any) => tbl.sectionId === activeSectionId
-      ),
-    };
-  }, [currentLayout, activeSectionId]);
 
   const selectedTable = React.useMemo(() => {
     if (!currentLayout || !selectedTableId) return null;
@@ -207,7 +208,7 @@ export default function FloorViewPage({
         const txt = await res.text().catch(() => "");
         throw new Error(txt || `HTTP ${res.status}`);
       }
-      await loadActive();
+      await loadAllLayouts();
     } catch (err) {
       console.error("Failed to update table status:", err);
     }
@@ -246,7 +247,7 @@ export default function FloorViewPage({
         <div className="sbv-error">
           <div className="sbv-error-title">{t("host.err_load_map", "Cannot load floor map")}</div>
           <div className="sbv-error-sub">{error ?? t("host.err_load_map", "Error loading floor map")}</div>
-          <button className="sbv-retry" onClick={loadActive}>
+          <button className="sbv-retry" onClick={loadAllLayouts}>
             {t("common.btn_refresh", "Retry")}
           </button>
         </div>
@@ -279,34 +280,35 @@ export default function FloorViewPage({
               </span>
             </div>
 
-            {sections.length > 1 && (
-              <div className="sbv-section-tabs" role="tablist" aria-label={t("floor.sections.title", "Sections")}>
-                <button
-                  className={`sbv-section-tab ${activeSectionId === null ? "is-active" : ""}`}
-                  onClick={() => setActiveSectionId(null)}
-                  role="tab"
-                  aria-selected={activeSectionId === null}
-                >
-                  {t("common.all", "All")}
-                </button>
-                {sections.map((sec) => (
-                  <button
-                    key={sec.id}
-                    className={`sbv-section-tab ${activeSectionId === sec.id ? "is-active" : ""}`}
-                    onClick={() => setActiveSectionId(sec.id)}
-                    role="tab"
-                    aria-selected={activeSectionId === sec.id}
-                  >
-                    {sec.name}
-                  </button>
-                ))}
+            {layouts.length > 1 && (
+              <div className="sbv-room-tabs" role="tablist" aria-label={t("floor.rooms.title", "Rooms")}>
+                {layouts.map((layout) => {
+                  const label = (layout as any).floorLabel || layout.name;
+                  const isSelected = selectedLayoutId === layout.id;
+                  const occupiedCount = ((layout as any).tableStatuses || []).filter(
+                    (s: any) => normalizeStatus(s?.status) === "occupied"
+                  ).length;
+                  const totalTables = (layout.tables || []).length;
+                  return (
+                    <button
+                      key={layout.id}
+                      className={`sbv-room-tab ${isSelected ? "is-active" : ""}`}
+                      onClick={() => { setSelectedLayoutId(layout.id); setSelectedTableId(null); }}
+                      role="tab"
+                      aria-selected={isSelected}
+                    >
+                      <span className="sbv-room-tab-label">{label}</span>
+                      <span className="sbv-room-tab-count">{occupiedCount}/{totalTables}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
 
           <div className="editor-content sbv-editor-content">
             <FloorMapRenderer
-              layout={filteredLayout!}
+              layout={currentLayout!}
               selectedTableId={selectedTableId}
               onTableClick={onTableClick}
               mode="view"

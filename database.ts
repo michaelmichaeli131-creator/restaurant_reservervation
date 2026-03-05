@@ -166,6 +166,7 @@ export interface Reservation {
   lastName?: string;
   phone?: string;
   durationMinutes?: number; // ברירת מחדל לוגית 120 כשהשדה חסר
+  preferredLayoutId?: string; // חלל/קומה מועדף (preference, לא binding)
   status?:
     | "new" | "confirmed" | "canceled" | "completed" | "blocked" | "rescheduled"
     | "approved" | "arrived" | "cancelled"; // תמיכה בשתי האיותים והסטטוסים החדשים
@@ -859,6 +860,59 @@ export async function checkAvailability(restaurantId: string, date: string, time
     if (used + seats > r.capacity) return false as any || { ok: false, reason: "full" as const };
   }
   return { ok: true as const };
+}
+
+/**
+ * Check if a specific room (FloorLayout) has capacity for additional guests
+ * at the given date/time. Returns { ok: true } if room has space, or
+ * { ok: false, reason: "room_full", roomLabel } if the room is at capacity.
+ */
+export async function checkRoomCapacity(
+  restaurantId: string,
+  layoutId: string,
+  date: string,
+  time: string,
+  people: number,
+): Promise<{ ok: true } | { ok: false; reason: "room_full"; roomLabel: string }> {
+  // Dynamic import to avoid circular dependency
+  const { getFloorLayout } = await import("./services/floor_service.ts");
+  const layout = await getFloorLayout(restaurantId, layoutId);
+  if (!layout || !layout.capacity) return { ok: true }; // no capacity limit set
+
+  const r0 = await getRestaurant(restaurantId);
+  if (!r0) return { ok: true };
+  const r = coerceRestaurantDefaults(r0);
+
+  const step = r.slotIntervalMinutes;
+  const span = r.serviceDurationMinutes;
+
+  const startRaw = toMinutes(time);
+  if (!Number.isFinite(startRaw)) return { ok: true };
+  const start = snapToGrid(startRaw, step);
+  const end = start + span;
+
+  // Compute occupancy for this specific room
+  const resv = await listReservationsFor(restaurantId, date);
+  const roomResv = resv.filter(rv => rv.preferredLayoutId === layoutId);
+
+  const map = new Map<string, number>();
+  for (const rr of roomResv) {
+    const rStart = snapToGrid(toMinutes(rr.time), step);
+    const rEnd = rStart + span;
+    for (let t = rStart; t < rEnd; t += step) {
+      const key = fromMinutes(t);
+      map.set(key, (map.get(key) ?? 0) + rr.people);
+    }
+  }
+
+  const seats = Math.max(1, people);
+  for (let t = start; t < end; t += step) {
+    const used = map.get(fromMinutes(t)) ?? 0;
+    if (used + seats > layout.capacity) {
+      return { ok: false, reason: "room_full", roomLabel: layout.floorLabel || layout.name };
+    }
+  }
+  return { ok: true };
 }
 
 /** סלוטים זמינים סביב שעה נתונה (±windowMinutes), מיושרים לגריד, בטווח היום בלבד. */

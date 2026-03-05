@@ -279,38 +279,59 @@
   .sb-floor-view.is-embed .sbv-right{ width: 340px; min-width: 280px; }
 }
 
-/* Section tabs */
-.sbv-section-tabs {
+/* Room / Floor tabs */
+.sbv-room-tabs {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 0 16px 10px;
   flex-wrap: wrap;
+  width: 100%;
 }
 
-.sbv-section-tab {
-  padding: 6px 14px;
+.sbv-room-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.10);
   background: rgba(255, 255, 255, 0.04);
   color: rgba(255, 255, 255, 0.75);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
   white-space: nowrap;
 }
 
-.sbv-section-tab:hover {
+.sbv-room-tab:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.18);
 }
 
-.sbv-section-tab.is-active {
+.sbv-room-tab.is-active {
   background: rgba(59, 130, 246, 0.22);
   border-color: rgba(59, 130, 246, 0.5);
   color: #93c5fd;
-  font-weight: 800;
+  font-weight: 900;
+}
+
+.sbv-room-tab-label {
+  font-weight: inherit;
+}
+
+.sbv-room-tab-count {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  opacity: 0.8;
+}
+
+.sbv-room-tab.is-active .sbv-room-tab-count {
+  background: rgba(59, 130, 246, 0.3);
+  opacity: 1;
 }
 
 /* View-only canvas: avoid double-centering and allow grab-pan */

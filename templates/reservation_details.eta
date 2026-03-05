@@ -30,6 +30,9 @@
       <input type="hidden" name="date" value="<%= it.date %>"/>
       <input type="hidden" name="time" value="<%= it.time %>"/>
       <input type="hidden" id="hidden-people" name="people" value="<%= it.people %>"/>
+      <% if (it.preferredLayoutId) { %>
+        <input type="hidden" name="preferredLayoutId" value="<%= it.preferredLayoutId %>"/>
+      <% } %>
 
       <div class="form-row">
         <label for="name"><%= tt('details.form.name','שם מלא') %></label>

@@ -727,6 +727,41 @@ ownerFloorRouter.get(
   }
 );
 
+// GET /api/floor-layouts/:restaurantId/all - List all layouts (staff-accessible, for room tabs)
+ownerFloorRouter.get(
+  "/api/floor-layouts/:restaurantId/all",
+  async (ctx) => {
+    if (!requireStaff(ctx)) return;
+
+    const restaurantId = ctx.params.restaurantId;
+    if (!restaurantId) {
+      ctx.response.status = 400;
+      ctx.response.body = { error: "Missing restaurant ID" };
+      return;
+    }
+
+    if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
+
+    const restaurant = await getRestaurant(restaurantId);
+    if (!restaurant) {
+      ctx.response.status = 404;
+      ctx.response.body = { error: "Restaurant not found" };
+      return;
+    }
+
+    const layouts = await listFloorLayouts(restaurantId);
+
+    // Return layouts with table statuses for each
+    const enriched = [];
+    for (const layout of layouts) {
+      const tableStatuses = await computeAllTableStatuses(restaurantId, layout.tables);
+      enriched.push({ ...layout, tableStatuses });
+    }
+
+    ctx.response.body = enriched;
+  }
+);
+
 // GET /api/floor-layouts/:restaurantId/active - Get active layout
 ownerFloorRouter.get(
   "/api/floor-layouts/:restaurantId/active",
@@ -952,9 +987,9 @@ ownerFloorRouter.post(
 
     console.log("[DEBUG] POST /api/floor-layouts - Received body:", JSON.stringify(body));
 
-    const { name, gridRows, gridCols, tables, objects, isActive } = body;
+    const { name, floorLabel, displayOrder, gridRows, gridCols, tables, objects, isActive } = body;
 
-    console.log("[DEBUG] Extracted fields:", { name, gridRows, gridCols, tables, objects, isActive });
+    console.log("[DEBUG] Extracted fields:", { name, floorLabel, displayOrder, gridRows, gridCols, tables, objects, isActive });
 
     if (!name || !gridRows || !gridCols) {
       ctx.response.status = 400;
@@ -965,6 +1000,8 @@ ownerFloorRouter.post(
     const layout = await createFloorLayout({
       restaurantId,
       name,
+      floorLabel: floorLabel || undefined,
+      displayOrder: displayOrder != null ? Number(displayOrder) : undefined,
       gridRows: Number(gridRows),
       gridCols: Number(gridCols),
       tables: tables ?? [],
