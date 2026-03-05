@@ -206,6 +206,10 @@
       "placeholder_floor_label": "Room/floor label (e.g., Terrace, 2nd Floor)",
       "placeholder_name": "Layout name (e.g., Main Floor, Patio)"
     },
+    "capacity": {
+      "label": "Max guests capacity",
+      "placeholder": "Max guests capacity (e.g., 40)"
+    },
     "rooms": {
       "title": "Rooms"
     },

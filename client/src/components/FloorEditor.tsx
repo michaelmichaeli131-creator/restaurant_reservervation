@@ -102,6 +102,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newLayoutName, setNewLayoutName] = useState('');
   const [newLayoutFloorLabel, setNewLayoutFloorLabel] = useState('');
+  const [newLayoutCapacity, setNewLayoutCapacity] = useState<number | ''>('');
   const [newLayoutDisplayOrder, setNewLayoutDisplayOrder] = useState(0);
   const [showOnlyActiveSection, setShowOnlyActiveSection] = useState(false);
   const [hoverCell, setHoverCell] = useState<{ x: number; y: number } | null>(null);
@@ -415,6 +416,7 @@ const assetForTable = (shape: string, seats: number) => {
         body: JSON.stringify({
           name: newLayoutName,
           floorLabel: newLayoutFloorLabel.trim() || undefined,
+          capacity: newLayoutCapacity || undefined,
           displayOrder: newLayoutDisplayOrder || 0,
           gridRows: 8,
           gridCols: 12,
@@ -431,6 +433,7 @@ const assetForTable = (shape: string, seats: number) => {
         setCurrentLayout(newLayout);
         setNewLayoutName('');
         setNewLayoutFloorLabel('');
+        setNewLayoutCapacity('');
         setNewLayoutDisplayOrder(0);
         setIsCreateModalOpen(false);
 
@@ -1337,6 +1340,14 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                 onChange={(e) => setNewLayoutFloorLabel(e.target.value)}
                 style={{ marginTop: 8 }}
               />
+              <input
+                type="number"
+                min="1"
+                placeholder={t('floor.capacity.placeholder', 'Max guests capacity (e.g., 40)')}
+                value={newLayoutCapacity}
+                onChange={(e) => setNewLayoutCapacity(e.target.value ? Number(e.target.value) : '')}
+                style={{ marginTop: 8 }}
+              />
               <div className="modal-actions">
                 <button onClick={createNewLayout} className="btn-primary">{t('common.btn_add', 'Create')}</button>
                 <button onClick={() => setIsCreateModalOpen(false)} className="btn-secondary">{t('common.btn_cancel', 'Cancel')}</button>
@@ -1556,6 +1567,16 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                 value={(currentLayout as any).floorLabel || ''}
                 onChange={(e) => setCurrentLayout({ ...currentLayout, floorLabel: e.target.value } as any)}
                 placeholder={t('floor.modal.placeholder_floor_label', 'Room/floor label')}
+              />
+            </label>
+            <label>
+              {t('floor.capacity.label', 'Max guests capacity')}
+              <input
+                type="number"
+                min="1"
+                value={(currentLayout as any).capacity || ''}
+                onChange={(e) => setCurrentLayout({ ...currentLayout, capacity: e.target.value ? Number(e.target.value) : undefined } as any)}
+                placeholder={t('floor.capacity.placeholder', 'Max guests capacity (e.g., 40)')}
               />
             </label>
             <label>

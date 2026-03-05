@@ -1,7 +1,7 @@
 // src/routes/restaurants/reservation.controller.ts
 import { Status } from "jsr:@oak/oak";
 import {
-  checkAvailability, createReservation, createReservationSafe, getRestaurant, getUserById,
+  checkAvailability, checkRoomCapacity, createReservation, createReservationSafe, getRestaurant, getUserById,
   type Reservation,
 } from "../../database.ts";
 import { render } from "../../lib/view.ts";
@@ -253,6 +253,17 @@ export async function confirmGet(ctx: any) {
     return;
   }
 
+  // Per-room capacity check
+  if (preferredLayoutId) {
+    const roomCheck = await checkRoomCapacity(rid, preferredLayoutId, date, time, people);
+    if (!roomCheck.ok) {
+      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+      ctx.response.status = Status.Conflict;
+      ctx.response.body = JSON.stringify({ ok:false, error:`החלל "${roomCheck.roomLabel}" מלא במועד שבחרת` }, null, 2);
+      return;
+    }
+  }
+
   // --- יצירת הזמנה ושמירתה ---
   const user = (ctx.state as any)?.user ?? null;
   const userId: string = user?.id ?? `guest:${crypto.randomUUID().slice(0, 8)}`;
@@ -408,6 +419,17 @@ export async function confirmPost(ctx: any) {
     ctx.response.status = Status.Conflict;
     ctx.response.body = JSON.stringify({ ok:false, error:"אין זמינות במועד שבחרת", suggestions }, null, 2);
     return;
+  }
+
+  // Per-room capacity check
+  if (preferredLayoutIdPost) {
+    const roomCheck = await checkRoomCapacity(rid, preferredLayoutIdPost, date, time, people);
+    if (!roomCheck.ok) {
+      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+      ctx.response.status = Status.Conflict;
+      ctx.response.body = JSON.stringify({ ok:false, error:`החלל "${roomCheck.roomLabel}" מלא במועד שבחרת` }, null, 2);
+      return;
+    }
   }
 
   // --- יצירת הזמנה ושמירתה ---

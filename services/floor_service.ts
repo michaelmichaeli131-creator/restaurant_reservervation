@@ -475,6 +475,8 @@ export interface FloorLayout {
   floorLabel?: string;
   /** Display order for room tabs (lower = first). Defaults to 0. */
   displayOrder?: number;
+  /** Maximum number of guests allowed in this room/floor at any time slot. Used to block overbooking. */
+  capacity?: number;
   gridRows: number;
   gridCols: number;
   /**
@@ -536,6 +538,7 @@ export async function createFloorLayout(data: {
   name: string;
   floorLabel?: string;
   displayOrder?: number;
+  capacity?: number;
   gridRows: number;
   gridCols: number;
   tables?: FloorLayout["tables"];
@@ -551,6 +554,7 @@ export async function createFloorLayout(data: {
     name: data.name,
     ...(data.floorLabel ? { floorLabel: data.floorLabel } : {}),
     ...(data.displayOrder != null ? { displayOrder: data.displayOrder } : {}),
+    ...(data.capacity != null && data.capacity > 0 ? { capacity: data.capacity } : {}),
     gridRows: data.gridRows,
     gridCols: data.gridCols,
     tables: data.tables ?? [],
@@ -735,6 +739,7 @@ export async function duplicateFloorLayout(
     name: newName ?? `${source.name} (Copy)`,
     floorLabel: source.floorLabel,
     displayOrder: source.displayOrder,
+    capacity: source.capacity,
     gridRows: source.gridRows,
     gridCols: source.gridCols,
     tables: JSON.parse(JSON.stringify(source.tables)), // Deep clone

@@ -46,7 +46,7 @@ export async function view(ctx: any) {
   const allLayouts = await listFloorLayouts(id).catch(() => []);
   const rooms = allLayouts
     .filter((l: any) => l.isActive !== false)
-    .map((l: any) => ({ id: l.id, label: l.floorLabel || l.name }));
+    .map((l: any) => ({ id: l.id, label: l.floorLabel || l.name, capacity: l.capacity || null }));
 
   const photos = photoStrings(restaurant.photos);
   const restaurantForView = {
