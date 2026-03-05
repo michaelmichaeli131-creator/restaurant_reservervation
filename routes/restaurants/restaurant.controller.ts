@@ -68,6 +68,7 @@ export async function view(ctx: any) {
     slotIntervalMinutes,
     serviceDurationMinutes,
     conflict: ctx.request.url.searchParams.get("conflict") === "1",
+    roomFull: ctx.request.url.searchParams.get("room_full") ?? "",
     suggestions: (ctx.request.url.searchParams.get("suggest") ?? "").split(",").filter(Boolean),
     date,
     time,

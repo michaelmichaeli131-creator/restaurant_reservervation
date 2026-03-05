@@ -886,7 +886,8 @@
       "title": "Reservation"
     },
     "preferred_room": "Preferred Room",
-    "preferred_room_any": "No preference"
+    "preferred_room_any": "No preference",
+    "room_full_msg": "The room \"{room}\" is full at the selected time. Try another room or a different time."
   },
   "restaurant": {
     "check": {

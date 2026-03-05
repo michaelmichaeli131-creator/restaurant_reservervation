@@ -496,7 +496,8 @@
       "title": "ჯავშანი"
     },
     "preferred_room": "სასურველი ოთახი",
-    "preferred_room_any": "პრეფერენციის გარეშე"
+    "preferred_room_any": "პრეფერენციის გარეშე",
+    "room_full_msg": "ოთახი \"{room}\" სავსეა არჩეულ დროს. სცადეთ სხვა ოთახი ან სხვა დრო."
   },
   "review": {
     "success": {

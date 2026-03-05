@@ -73,6 +73,17 @@ export async function checkApi(ctx: any) {
   const result = await checkAvailability(rid, date, time, people);
   const around = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
 
+  // Per-room capacity check (if preferredLayoutId sent)
+  const preferredLayoutId = String((payload as any).preferredLayoutId ?? "").trim();
+  if (asOk(result) && preferredLayoutId) {
+    const roomCheck = await checkRoomCapacity(rid, preferredLayoutId, date, time, people);
+    if (!roomCheck.ok) {
+      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+      ctx.response.body = JSON.stringify({ ok: false, reason: "room_full", roomLabel: roomCheck.roomLabel, suggestions: around.slice(0,4) }, null, 2);
+      return;
+    }
+  }
+
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   if (asOk(result)) {
     ctx.response.body = JSON.stringify({ ok: true, availableSlots: around.slice(0,4) }, null, 2);
@@ -142,6 +153,23 @@ export async function reservePost(ctx: any) {
   }
 
   const preferredLayoutId = String((payload as any).preferredLayoutId ?? "").trim();
+
+  // Per-room capacity check — redirect back with room_full message
+  if (preferredLayoutId) {
+    const roomCheck = await checkRoomCapacity(rid, preferredLayoutId, date, time, people);
+    if (!roomCheck.ok) {
+      const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
+      url.searchParams.set("conflict", "1");
+      url.searchParams.set("room_full", roomCheck.roomLabel);
+      url.searchParams.set("date", date);
+      url.searchParams.set("time", time);
+      url.searchParams.set("people", String(people));
+      appendLang(url, lang);
+      ctx.response.status = Status.SeeOther;
+      ctx.response.headers.set("Location", url.pathname + url.search);
+      return;
+    }
+  }
 
   const u = new URL(`/restaurants/${encodeURIComponent(rid)}/details`, "http://local");
   u.searchParams.set("date", date);

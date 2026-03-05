@@ -37,7 +37,11 @@
   <section class="card">
     <h2 class="card-title"><%= tt('restaurant.form.title','הזמנת מקום — שלב 1') %></h2>
 
-    <% if (it.conflict) { %>
+    <% if (it.roomFull) { %>
+      <div class="alert warn" role="alert">
+        <%= tt('reservation.room_full_msg','החלל "{room}" מלא במועד שבחרת. נסה/י חלל אחר או שעה אחרת.').replace('{room}', it.roomFull) %>
+      </div>
+    <% } else if (it.conflict) { %>
       <div class="alert warn" role="alert">
         <%= tt('restaurant.form.conflict','אין זמינות בשעה שבחרת. בחר/י שעה אחרת מהרשימה להלן.') %>
       </div>
