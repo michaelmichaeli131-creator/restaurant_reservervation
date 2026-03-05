@@ -837,7 +837,16 @@ export async function checkAvailability(restaurantId: string, date: string, time
   const r = coerceRestaurantDefaults(r0);
 
   const seats = Math.max(1, Number.isFinite(people) ? people : 2);
-  if (seats > r.capacity) return { ok: false as const, reason: "full" as const };
+
+  // Compute total capacity from room capacities if defined, otherwise use restaurant capacity
+  const { listFloorLayouts } = await import("./services/floor_service.ts");
+  const layouts = await listFloorLayouts(restaurantId).catch(() => []);
+  const roomCapacities = layouts.map((l: any) => l.capacity ?? 0).filter((c: number) => c > 0);
+  const totalCapacity = roomCapacities.length > 0
+    ? roomCapacities.reduce((sum: number, c: number) => sum + c, 0)
+    : r.capacity;
+
+  if (seats > totalCapacity) return { ok: false as const, reason: "full" as const };
 
   const startRaw = toMinutes(time);
   if (!Number.isFinite(startRaw)) return { ok: false as const, reason: "bad_time" as const };
@@ -857,7 +866,7 @@ export async function checkAvailability(restaurantId: string, date: string, time
   const occ = await computeOccupancy(r, date);
   for (let t = start; t < end; t += step) {
     const used = occ.get(fromMinutes(t)) ?? 0;
-    if (used + seats > r.capacity) return false as any || { ok: false, reason: "full" as const };
+    if (used + seats > totalCapacity) return false as any || { ok: false, reason: "full" as const };
   }
   return { ok: true as const };
 }
@@ -930,7 +939,14 @@ export async function listAvailableSlotsAround(
 
   const step = r.slotIntervalMinutes;
   const span = r.serviceDurationMinutes;
-  const capacity = r.capacity;
+
+  // Compute total capacity from room capacities if defined, otherwise use restaurant capacity
+  const { listFloorLayouts: listLayouts } = await import("./services/floor_service.ts");
+  const layouts = await listLayouts(restaurantId).catch(() => []);
+  const roomCaps = layouts.map((l: any) => l.capacity ?? 0).filter((c: number) => c > 0);
+  const capacity = roomCaps.length > 0
+    ? roomCaps.reduce((sum: number, c: number) => sum + c, 0)
+    : r.capacity;
 
   let base = toMinutes(centerTime);
   if (!Number.isFinite(base)) return [];
