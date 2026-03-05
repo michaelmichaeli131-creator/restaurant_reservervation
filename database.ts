@@ -166,6 +166,7 @@ export interface Reservation {
   lastName?: string;
   phone?: string;
   durationMinutes?: number; // ברירת מחדל לוגית 120 כשהשדה חסר
+  preferredLayoutId?: string; // חלל/קומה מועדף (preference, לא binding)
   status?:
     | "new" | "confirmed" | "canceled" | "completed" | "blocked" | "rescheduled"
     | "approved" | "arrived" | "cancelled"; // תמיכה בשתי האיותים והסטטוסים החדשים

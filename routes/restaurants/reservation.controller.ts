@@ -141,10 +141,13 @@ export async function reservePost(ctx: any) {
     return;
   }
 
+  const preferredLayoutId = String((payload as any).preferredLayoutId ?? "").trim();
+
   const u = new URL(`/restaurants/${encodeURIComponent(rid)}/details`, "http://local");
   u.searchParams.set("date", date);
   u.searchParams.set("time", time);
   u.searchParams.set("people", String(people));
+  if (preferredLayoutId) u.searchParams.set("preferredLayoutId", preferredLayoutId);
   appendLang(u, lang);
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set("Location", u.pathname + u.search);
@@ -159,9 +162,10 @@ export async function detailsGet(ctx: any) {
   const date = normalizeDate(ctx.request.url.searchParams.get("date") ?? "") || todayISO();
   const time = normalizeTime(ctx.request.url.searchParams.get("time") ?? "");
   const people = Number(ctx.request.url.searchParams.get("people") ?? "2") || 2;
+  const preferredLayoutId = ctx.request.url.searchParams.get("preferredLayoutId") ?? "";
 
   debugLog("[restaurants][GET details]", {
-    id, date, time, people,
+    id, date, time, people, preferredLayoutId,
     weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : []
   });
 
@@ -178,6 +182,7 @@ export async function detailsGet(ctx: any) {
     title: `${t("details.header.title","פרטי הזמנה")} — ${restaurant.name}`,
     restaurant: { ...restaurant, photos, openingHours: restaurant.weeklySchedule },
     date, time, people,
+    preferredLayoutId,
   });
 }
 
@@ -200,6 +205,7 @@ export async function confirmGet(ctx: any) {
     sp.get("email") ?? sp.get("customerEmail") ?? sp.get("customer_email");
   const customerNoteRaw =
     sp.get("note") ?? sp.get("comments") ?? sp.get("special_requests") ?? sp.get("specialRequests") ?? "";
+  const preferredLayoutId = (sp.get("preferredLayoutId") ?? "").trim();
 
   const customerName  = normalizePlain(customerNameRaw ?? "");
   const customerPhone = normalizePlain(customerPhoneRaw ?? "");
@@ -208,7 +214,7 @@ export async function confirmGet(ctx: any) {
   const customerNote = sanitizeNote(customerNoteRaw);
 
   debugLog("[restaurants][GET confirm] input", {
-    rid, date, time, people, within,
+    rid, date, time, people, within, preferredLayoutId,
     hasNote: !!customerNote, noteLen: customerNote.length,
     weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : []
   });
@@ -266,6 +272,7 @@ export async function confirmGet(ctx: any) {
     people,
     status: "new",
     note: reservationNote,
+    ...(preferredLayoutId ? { preferredLayoutId } : {}),
     createdAt: Date.now(),
   };
   await createReservationSafe(reservation);
@@ -354,9 +361,10 @@ export async function confirmPost(ctx: any) {
     (payload as any).email ?? (payload as any).customerEmail ?? (payload as any)["customer_email"];
   const customerNoteRaw =
     (payload as any).note ?? (payload as any).comments ?? (payload as any)["special_requests"] ?? (payload as any).specialRequests ?? "";
+  const preferredLayoutIdPost = String((payload as any).preferredLayoutId ?? ctx.request.url.searchParams.get("preferredLayoutId") ?? "").trim();
 
   debugLog("[restaurants][POST confirm] input", {
-    rid, date, time, people,
+    rid, date, time, people, preferredLayoutId: preferredLayoutIdPost,
     within, hasNote: !!customerNoteRaw, body_ct: dbg.ct, body_keys: Object.keys(payload),
     weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : []
   });
@@ -421,6 +429,7 @@ export async function confirmPost(ctx: any) {
     people,
     status: "new",
     note: reservationNote,
+    ...(preferredLayoutIdPost ? { preferredLayoutId: preferredLayoutIdPost } : {}),
     createdAt: Date.now(),
   };
   await createReservationSafe(reservation);

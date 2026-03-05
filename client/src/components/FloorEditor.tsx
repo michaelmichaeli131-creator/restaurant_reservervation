@@ -101,6 +101,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [nextTableNumber, setNextTableNumber] = useState(1);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newLayoutName, setNewLayoutName] = useState('');
+  const [newLayoutFloorLabel, setNewLayoutFloorLabel] = useState('');
+  const [newLayoutDisplayOrder, setNewLayoutDisplayOrder] = useState(0);
   const [showOnlyActiveSection, setShowOnlyActiveSection] = useState(false);
   const [hoverCell, setHoverCell] = useState<{ x: number; y: number } | null>(null);
 
@@ -412,6 +414,8 @@ const assetForTable = (shape: string, seats: number) => {
         credentials: 'include',
         body: JSON.stringify({
           name: newLayoutName,
+          floorLabel: newLayoutFloorLabel.trim() || undefined,
+          displayOrder: newLayoutDisplayOrder || 0,
           gridRows: 8,
           gridCols: 12,
           gridMask: Array.from({ length: 8 * 12 }, () => 1),
@@ -426,6 +430,8 @@ const assetForTable = (shape: string, seats: number) => {
         setLayouts([...layouts, newLayout]);
         setCurrentLayout(newLayout);
         setNewLayoutName('');
+        setNewLayoutFloorLabel('');
+        setNewLayoutDisplayOrder(0);
         setIsCreateModalOpen(false);
 
         // Solution A: auto-activate immediately after creation
@@ -1324,6 +1330,13 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                 onKeyDown={(e) => e.key === 'Enter' && createNewLayout()}
                 autoFocus
               />
+              <input
+                type="text"
+                placeholder={t('floor.modal.placeholder_floor_label', 'Room/floor label (e.g., Terrace, 2nd Floor)')}
+                value={newLayoutFloorLabel}
+                onChange={(e) => setNewLayoutFloorLabel(e.target.value)}
+                style={{ marginTop: 8 }}
+              />
               <div className="modal-actions">
                 <button onClick={createNewLayout} className="btn-primary">{t('common.btn_add', 'Create')}</button>
                 <button onClick={() => setIsCreateModalOpen(false)} className="btn-secondary">{t('common.btn_cancel', 'Cancel')}</button>
@@ -1347,7 +1360,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               onClick={() => setCurrentLayout(ensureMask(layout))}
               title={layout.isActive ? t('floor.toolbar.active_hint', 'Active layout (shown in live view)') : ''}
             >
-              {layout.name}
+              {(layout as any).floorLabel || layout.name}
               {layout.isActive && <span className="active-badge">★</span>}
             </button>
           ))}

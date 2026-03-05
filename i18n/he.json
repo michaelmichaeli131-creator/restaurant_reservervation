@@ -203,7 +203,11 @@
     "mark_reserved": "סמן שמור",
     "modal": {
       "create_title": "צור תכנית חדשה",
+      "placeholder_floor_label": "תווית חלל/קומה (למשל: מרפסת, קומה 2)",
       "placeholder_name": "שם התכנית (לדוגמה: קומה ראשית, מרפסת)"
+    },
+    "rooms": {
+      "title": "חללים"
     },
     "prompt": {
       "duplicate_name": "הזן שם עבור תכנית משוכפלת:"
@@ -877,7 +881,9 @@
   "reservation": {
     "form": {
       "title": "הזמנה"
-    }
+    },
+    "preferred_room": "חלל מועדף",
+    "preferred_room_any": "ללא העדפה"
   },
   "restaurant": {
     "check": {

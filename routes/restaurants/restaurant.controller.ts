@@ -1,6 +1,7 @@
 // src/routes/restaurants/restaurant.controller.ts
 import { Status } from "jsr:@oak/oak";
 import { listRestaurants, getRestaurant, type WeeklySchedule } from "../../database.ts";
+import { listFloorLayouts } from "../../services/floor_service.ts";
 import { render } from "../../lib/view.ts";
 import { debugLog } from "../../lib/debug.ts";
 import { todayISO, normalizeDate, normalizeTime } from "./_utils/datetime.ts";
@@ -41,6 +42,12 @@ export async function view(ctx: any) {
     openingWindows
   });
 
+  // Load floor layouts for room preference dropdown
+  const allLayouts = await listFloorLayouts(id).catch(() => []);
+  const rooms = allLayouts
+    .filter((l: any) => l.isActive !== false)
+    .map((l: any) => ({ id: l.id, label: l.floorLabel || l.name }));
+
   const photos = photoStrings(restaurant.photos);
   const restaurantForView = {
     ...restaurant,
@@ -65,5 +72,6 @@ export async function view(ctx: any) {
     date,
     time,
     people,
+    rooms,
   });
 }
