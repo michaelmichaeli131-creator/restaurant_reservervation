@@ -887,7 +887,9 @@
     },
     "preferred_room": "Preferred Room",
     "preferred_room_any": "No preference",
-    "room_full_msg": "The room \"{room}\" is full at the selected time. Try another room or a different time."
+    "room_full_msg": "The room \"{room}\" is full at the selected time. Try another room or a different time.",
+    "select_room": "Select a room",
+    "select_room_placeholder": "— Select a room —"
   },
   "restaurant": {
     "check": {

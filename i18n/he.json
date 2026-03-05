@@ -888,7 +888,9 @@
     },
     "preferred_room": "חלל מועדף",
     "preferred_room_any": "ללא העדפה",
-    "room_full_msg": "החלל \"{room}\" מלא במועד שבחרת. נסה/י חלל אחר או שעה אחרת."
+    "room_full_msg": "החלל \"{room}\" מלא במועד שבחרת. נסה/י חלל אחר או שעה אחרת.",
+    "select_room": "בחר/י חדר",
+    "select_room_placeholder": "— בחר/י חדר —"
   },
   "restaurant": {
     "check": {
