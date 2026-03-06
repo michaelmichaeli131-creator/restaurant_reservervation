@@ -902,7 +902,13 @@ export async function checkRoomCapacity(
   // Dynamic import to avoid circular dependency
   const { getFloorLayout } = await import("./services/floor_service.ts");
   const layout = await getFloorLayout(restaurantId, layoutId);
-  if (!layout || !layout.capacity) return { ok: true }; // no capacity limit set
+  if (!layout) return { ok: true };
+  if (!layout.capacity || layout.capacity <= 0) return { ok: true }; // no capacity limit set
+
+  // Immediate check: party size alone exceeds room capacity
+  if (people > layout.capacity) {
+    return { ok: false, reason: "room_full", roomLabel: layout.floorLabel || layout.name };
+  }
 
   const r0 = await getRestaurant(restaurantId);
   if (!r0) return { ok: true };
