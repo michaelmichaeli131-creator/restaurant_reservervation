@@ -890,7 +890,8 @@
     "preferred_room_any": "ללא העדפה",
     "room_full_msg": "החלל \"{room}\" מלא במועד שבחרת. נסה/י חלל אחר או שעה אחרת.",
     "select_room": "בחר/י חדר",
-    "select_room_placeholder": "— בחר/י חדר —"
+    "select_room_placeholder": "— בחר/י חדר —",
+    "select_room_required": "נא לבחור חדר"
   },
   "restaurant": {
     "check": {
@@ -903,7 +904,10 @@
     },
     "form": {
       "date": "תאריך",
-      "time": "שעה"
+      "time": "שעה",
+      "loading_times": "טוען שעות...",
+      "up_to": "עד",
+      "guests": "אורחים"
     },
     "menu": {
       "title": "תפריט"

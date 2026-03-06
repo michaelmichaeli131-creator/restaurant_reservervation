@@ -889,7 +889,8 @@
     "preferred_room_any": "No preference",
     "room_full_msg": "The room \"{room}\" is full at the selected time. Try another room or a different time.",
     "select_room": "Select a room",
-    "select_room_placeholder": "— Select a room —"
+    "select_room_placeholder": "— Select a room —",
+    "select_room_required": "Please select a room"
   },
   "restaurant": {
     "check": {
@@ -902,7 +903,10 @@
     },
     "form": {
       "date": "Date",
-      "time": "Time"
+      "time": "Time",
+      "loading_times": "Loading times...",
+      "up_to": "Up to",
+      "guests": "guests"
     },
     "menu": {
       "title": "Menu"

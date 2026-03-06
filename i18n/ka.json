@@ -463,6 +463,11 @@
     "btn_mark_empty": "მონიშნე თავისუფალი"
   },
   "restaurant": {
+    "form": {
+      "loading_times": "დრო იტვირთება...",
+      "up_to": "მდე",
+      "guests": "სტუმარი"
+    },
     "menu": {
       "title": "მენიუ"
     },
@@ -499,7 +504,8 @@
     "preferred_room_any": "პრეფერენციის გარეშე",
     "room_full_msg": "ოთახი \"{room}\" სავსეა არჩეულ დროს. სცადეთ სხვა ოთახი ან სხვა დრო.",
     "select_room": "აირჩიეთ ოთახი",
-    "select_room_placeholder": "— აირჩიეთ ოთახი —"
+    "select_room_placeholder": "— აირჩიეთ ოთახი —",
+    "select_room_required": "გთხოვთ აირჩიოთ ოთახი"
   },
   "review": {
     "success": {
