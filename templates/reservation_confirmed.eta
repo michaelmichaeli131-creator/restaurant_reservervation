@@ -1,194 +1,384 @@
 <% layout("_layout", it) %>
 
-<% /* tt: תרגום עם fallback אמיתי גם כש-it.t מחזיר "(key)" */ %>
 <% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
 
-<main class="container sb-rest">
-  <header class="page-header">
-    <h1><%= tt('confirm.header.title','הזמנה אושרה ✔') %></h1>
-    <p class="muted"><%= tt('confirm.header.subtitle','תודה שהזמנת ב־') %><strong><%= it.restaurant.name %></strong>.</p>
-  </header>
+<div class="rsv-page">
+  <!-- Success animation -->
+  <div class="rsv-success-icon">
+    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+      <polyline points="22 4 12 14.01 9 11.01"/>
+    </svg>
+  </div>
 
-  <section class="card">
-    <h2 class="card-title"><%= tt('confirm.details.title','פרטי הזמנה') %></h2>
-    <dl class="details">
-      <div class="row">
-        <dt><%= tt('confirm.details.restaurant','מסעדה') %></dt>
-        <dd><%= it.restaurant.name %></dd>
-      </div>
-      <div class="row">
-        <dt><%= tt('confirm.details.address','כתובת') %></dt>
-        <dd><%= it.restaurant.city %> · <%= it.restaurant.address %></dd>
-      </div>
-      <div class="row">
-        <dt><%= tt('confirm.details.date','תאריך') %></dt>
-        <dd><%= it.date %></dd>
-      </div>
-      <div class="row">
-        <dt><%= tt('confirm.details.time','שעה') %></dt>
-        <dd><%= it.time %></dd>
-      </div>
-      <div class="row">
-        <dt><%= tt('confirm.details.people','סועדים') %></dt>
-        <dd><%= it.people %></dd>
-      </div>
-      <div class="row">
-        <dt><%= tt('confirm.details.customerName','שם לקוח') %></dt>
-        <dd><%= it.customerName %></dd>
-      </div>
-      <div class="row">
-        <dt><%= tt('confirm.details.customerPhone','נייד') %></dt>
-        <dd><%= it.customerPhone %></dd>
-      </div>
-      <div class="row">
-        <dt><%= tt('confirm.details.customerEmail','אימייל') %></dt>
-        <dd dir="ltr"><%= it.customerEmail %></dd>
-      </div>
-      <% if (it.note) { %>
-      <div class="row">
-        <dt><%= tt('confirm.details.note','הערות') %></dt>
-        <dd><%= it.note %></dd>
-      </div>
-      <% } %>
-      <% if (it.depositStatus && it.depositStatus !== 'not_required') { %>
-      <div class="row deposit-row">
-        <dt><%= tt('confirm.details.deposit','Deposit') %></dt>
-        <dd>
-          <%
-            const symbols = { EUR: '€', GBP: '£', USD: '$' };
-            const sym = symbols[it.depositCurrency] || '€';
-            const statusLabels = {
-              'pending': tt('confirm.deposit.pending', 'Awaiting confirmation'),
-              'received': tt('confirm.deposit.received', 'Received'),
-              'refunded': tt('confirm.deposit.refunded', 'Refunded')
-            };
-            const statusClasses = { 'pending': 'warn', 'received': 'ok', 'refunded': 'muted' };
-          %>
-          <span class="deposit-amount"><%= sym %><%= it.depositAmount ? it.depositAmount.toFixed(2) : '0.00' %></span>
-          <span class="deposit-status <%= statusClasses[it.depositStatus] || '' %>"><%= statusLabels[it.depositStatus] || it.depositStatus %></span>
-        </dd>
-      </div>
-      <% } %>
-      <div class="row">
-        <dt><%= tt('confirm.details.id','מס׳ הזמנה') %></dt>
-        <dd><code class="code"><%= it.reservationId %></code></dd>
-      </div>
-    </dl>
+  <div class="rsv-confirmed-header">
+    <h1 class="rsv-confirmed-header__title"><%= tt('confirm.header.title','הזמנה אושרה') %></h1>
+    <p class="rsv-confirmed-header__sub"><%= tt('confirm.header.subtitle','תודה שהזמנת ב־') %><strong><%= it.restaurant.name %></strong></p>
+  </div>
 
-    <div class="cta">
-      <a class="btn primary" href="/restaurants/<%= it.restaurant.id %>">
-        <%= tt('confirm.actions.backToRestaurant','חזרה לעמוד המסעדה') %>
-      </a>
-
-      <a class="btn ghost"
-         href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
-        <%= tt('confirm.actions.edit','עריכת תאריך/שעה/סועדים') %>
-      </a>
-
-      <a class="btn ghost" href="/">
-        <%= tt('confirm.actions.home','חזרה לעמוד הראשי') %>
-      </a>
+  <!-- Booking summary chips -->
+  <div class="rsv-summary-bar">
+    <div class="rsv-chip">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span><%= it.date %></span>
     </div>
+    <div class="rsv-chip">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span><%= it.time %></span>
+    </div>
+    <div class="rsv-chip">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      <span><%= it.people %></span> <%= tt('restaurant.form.guests','אורחים') %>
+    </div>
+  </div>
 
-    <p class="muted tip">
-      <%= tt('confirm.footer.emailSent','נשלח אליך אימייל עם פרטי ההזמנה. נתראה!') %>
-    </p>
-  </section>
+  <% if (it.depositStatus && it.depositStatus !== 'not_required') { %>
+  <div class="rsv-deposit-status-card">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+    <div class="rsv-deposit-info">
+      <%
+        const symbols = { EUR: '€', GBP: '£', USD: '$' };
+        const sym = symbols[it.depositCurrency] || '€';
+        const statusLabels = {
+          'pending': tt('confirm.deposit.pending', 'Awaiting confirmation'),
+          'received': tt('confirm.deposit.received', 'Received'),
+          'refunded': tt('confirm.deposit.refunded', 'Refunded')
+        };
+        const statusClasses = { 'pending': 'warn', 'received': 'ok', 'refunded': 'muted' };
+      %>
+      <strong><%= tt('confirm.details.deposit','Deposit') %></strong>
+      <span class="rsv-deposit-amount"><%= sym %><%= it.depositAmount ? it.depositAmount.toFixed(2) : '0.00' %></span>
+      <span class="rsv-deposit-badge rsv-deposit-badge--<%= statusClasses[it.depositStatus] || '' %>"><%= statusLabels[it.depositStatus] || it.depositStatus %></span>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- Details card -->
+  <div class="rsv-confirm-card">
+    <h2 class="rsv-confirm-card__title"><%= tt('confirm.details.title','פרטי הזמנה') %></h2>
+
+    <div class="rsv-detail-rows">
+      <div class="rsv-detail-row">
+        <span class="rsv-detail-row__label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
+          <%= tt('confirm.details.restaurant','מסעדה') %>
+        </span>
+        <span class="rsv-detail-row__value"><%= it.restaurant.name %></span>
+      </div>
+
+      <div class="rsv-detail-row">
+        <span class="rsv-detail-row__label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <%= tt('confirm.details.address','כתובת') %>
+        </span>
+        <span class="rsv-detail-row__value"><%= it.restaurant.city %> · <%= it.restaurant.address %></span>
+      </div>
+
+      <div class="rsv-detail-row">
+        <span class="rsv-detail-row__label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <%= tt('confirm.details.customerName','שם לקוח') %>
+        </span>
+        <span class="rsv-detail-row__value"><%= it.customerName %></span>
+      </div>
+
+      <div class="rsv-detail-row">
+        <span class="rsv-detail-row__label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          <%= tt('confirm.details.customerPhone','נייד') %>
+        </span>
+        <span class="rsv-detail-row__value"><%= it.customerPhone %></span>
+      </div>
+
+      <div class="rsv-detail-row">
+        <span class="rsv-detail-row__label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          <%= tt('confirm.details.customerEmail','אימייל') %>
+        </span>
+        <span class="rsv-detail-row__value" dir="ltr"><%= it.customerEmail %></span>
+      </div>
+
+      <% if (it.note) { %>
+      <div class="rsv-detail-row">
+        <span class="rsv-detail-row__label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <%= tt('confirm.details.note','הערות') %>
+        </span>
+        <span class="rsv-detail-row__value"><%= it.note %></span>
+      </div>
+      <% } %>
+
+      <div class="rsv-detail-row rsv-detail-row--id">
+        <span class="rsv-detail-row__label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <%= tt('confirm.details.id','מס׳ הזמנה') %>
+        </span>
+        <span class="rsv-detail-row__value"><code class="rsv-code"><%= it.reservationId %></code></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Email hint -->
+  <p class="rsv-email-hint">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+    <%= tt('confirm.footer.emailSent','נשלח אליך אימייל עם פרטי ההזמנה. נתראה!') %>
+  </p>
+
+  <!-- Actions -->
+  <div class="rsv-actions-stack">
+    <a class="rsv-btn rsv-btn--primary" href="/restaurants/<%= it.restaurant.id %>">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
+      <%= tt('confirm.actions.backToRestaurant','חזרה לעמוד המסעדה') %>
+    </a>
+    <a class="rsv-btn rsv-btn--ghost" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      <%= tt('confirm.actions.edit','עריכת תאריך/שעה/סועדים') %>
+    </a>
+    <a class="rsv-btn rsv-btn--ghost" href="/">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <%= tt('confirm.actions.home','חזרה לעמוד הראשי') %>
+    </a>
+  </div>
 
   <% if (it.restaurant.description) { %>
-    <section class="card">
-      <h2 class="card-title"><%= tt('confirm.about.title','על המסעדה') %></h2>
-      <p><%= it.restaurant.description %></p>
-    </section>
+  <div class="rsv-about-card">
+    <h2 class="rsv-about-card__title"><%= tt('confirm.about.title','על המסעדה') %></h2>
+    <p class="rsv-about-card__text"><%= it.restaurant.description %></p>
+  </div>
   <% } %>
-</main>
+</div>
 
 <style>
-  :root{
-    --bg:#0e1116; --panel:#121622; --panel-2:#171b29; --ink:#e6e8ef; --ink-muted:#9aa3b2;
-    --bd:#23293a; --brand:#3b82f6; --brand-ink:#fff; --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35);
-    --max:1100px;
-  }
-  .sb-rest.container{ max-width: var(--max); margin:24px auto; padding:0 16px }
-  .page-header h1{ margin:0 0 6px; letter-spacing:.2px }
-  .muted{ color: var(--ink-muted) }
+  /* Override parent sb-container padding */
+  .sb-container:has(> .rsv-page) { padding: 0; max-width: none; }
 
-  .card{
-    background: var(--panel);
-    border:1px solid var(--bd);
-    border-radius:18px;
-    padding:18px;
-    margin-bottom:18px;
-    color: var(--ink);
-    box-shadow: var(--shadow);
-  }
-  .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
-
-  .details{ margin:0 }
-  .row{
-    display:grid; grid-template-columns: 140px 1fr; gap:10px;
-    padding:10px 0; border-bottom:1px dashed rgba(255,255,255,.08);
-  }
-  .row:last-child{ border-bottom:none }
-  dt{ font-weight:700; color: var(--ink); opacity:.9 }
-  dd{ margin:0; color: var(--ink) }
-  .code{
-    background: color-mix(in srgb, var(--panel-2) 88%, transparent);
-    border:1px solid var(--bd);
-    border-radius:10px; padding:2px 6px; font-family: ui-monospace,Consolas,monospace;
+  .rsv-page {
+    max-width: 580px; margin: 0 auto;
+    padding: 16px 16px 40px;
+    padding-top: max(16px, env(safe-area-inset-top));
   }
 
-  /* Deposit display */
-  .deposit-row dd{
-    display: flex;
-    align-items: center;
-    gap: 10px;
+  /* Success icon */
+  .rsv-success-icon {
+    display: flex; justify-content: center; margin: 24px 0 8px;
+    animation: rsv-pop .5s cubic-bezier(.175,.885,.32,1.275);
   }
-  .deposit-amount{
-    font-weight: 700;
-    color: var(--brand);
-  }
-  .deposit-status{
-    padding: 4px 10px;
-    border-radius: 8px;
-    font-size: 12px;
-    font-weight: 600;
-  }
-  .deposit-status.warn{
-    background: color-mix(in srgb, #f59e0b 15%, transparent);
-    color: #fbbf24;
-  }
-  .deposit-status.ok{
-    background: color-mix(in srgb, #16a34a 15%, transparent);
-    color: #4ade80;
-  }
-  .deposit-status.muted{
-    background: color-mix(in srgb, #6b7280 15%, transparent);
-    color: #9ca3af;
+  .rsv-success-icon svg { color: #22c55e; }
+  @keyframes rsv-pop {
+    0% { transform: scale(0); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
   }
 
-  .btn{
-    display:inline-flex; align-items:center; justify-content:center; gap:8px;
-    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
-    border:1px solid var(--bd); background:transparent; color: var(--ink); font-weight:700;
-    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
+  /* Header */
+  .rsv-confirmed-header { text-align: center; margin-bottom: 16px; }
+  .rsv-confirmed-header__title {
+    margin: 0 0 6px; font-size: 26px; font-weight: 800;
+    color: var(--ink, #e6e8ef);
   }
-  .btn:hover{ transform: translateY(-1px) }
-  .btn.primary{
-    background: var(--brand); color: var(--brand-ink); border-color: transparent;
-    box-shadow: 0 8px 24px rgba(59,130,246,.35);
+  .rsv-confirmed-header__sub {
+    margin: 0; color: var(--ink-muted, #9aa3b2); font-size: 15px;
   }
-  .btn.ghost{
-    background: color-mix(in srgb, var(--panel-2) 92%, transparent);
-  }
-  .btn.ghost:hover{
-    background: color-mix(in srgb, var(--panel) 92%, transparent);
-  }
-  .cta{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px }
-  .tip{ margin-top:12px }
 
-  @media (max-width:640px){
-    .row{ grid-template-columns: 1fr; gap:6px }
-    dt{ opacity:.7 }
+  /* Summary chips */
+  .rsv-summary-bar {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+    margin-bottom: 20px;
+  }
+  .rsv-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px;
+    background: var(--panel-2, #171b29);
+    border: 1px solid var(--bd, #23293a);
+    border-radius: 12px;
+    font-size: 14px; font-weight: 600;
+    color: var(--ink, #e6e8ef);
+  }
+  .rsv-chip svg { opacity: .5; }
+
+  /* Deposit status */
+  .rsv-deposit-status-card {
+    display: flex; align-items: center; gap: 12px;
+    padding: 16px;
+    background: rgba(59,130,246,.08);
+    border: 1px solid rgba(59,130,246,.25);
+    border-radius: 16px;
+    margin-bottom: 20px;
+  }
+  .rsv-deposit-status-card svg { color: var(--brand, #3b82f6); flex-shrink: 0; }
+  .rsv-deposit-info { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .rsv-deposit-amount {
+    font-size: 20px; font-weight: 700;
+    color: var(--brand, #3b82f6);
+  }
+  .rsv-deposit-badge {
+    padding: 4px 12px; border-radius: 20px;
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+  }
+  .rsv-deposit-badge--warn {
+    background: rgba(245,158,11,.15); color: #fbbf24;
+  }
+  .rsv-deposit-badge--ok {
+    background: rgba(34,197,94,.15); color: #4ade80;
+  }
+  .rsv-deposit-badge--muted {
+    background: rgba(107,114,128,.15); color: #9ca3af;
+  }
+
+  /* Details card */
+  .rsv-confirm-card {
+    background: var(--panel, #121622);
+    border: 1px solid var(--bd, #23293a);
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.3);
+    margin-bottom: 16px;
+  }
+  .rsv-confirm-card__title {
+    margin: 0 0 16px; font-size: 18px; font-weight: 800;
+    color: var(--ink, #e6e8ef);
+  }
+
+  .rsv-detail-rows { display: flex; flex-direction: column; }
+  .rsv-detail-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255,255,255,.05);
+  }
+  .rsv-detail-row:last-child { border-bottom: none; }
+  .rsv-detail-row__label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .5px; color: var(--ink-muted, #9aa3b2);
+  }
+  .rsv-detail-row__label svg { opacity: .5; }
+  .rsv-detail-row__value {
+    font-size: 15px; font-weight: 600;
+    color: var(--ink, #e6e8ef);
+    text-align: end;
+  }
+  .rsv-code {
+    background: var(--panel-2, #171b29);
+    border: 1px solid var(--bd, #23293a);
+    border-radius: 8px; padding: 3px 8px;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 13px; letter-spacing: .5px;
+  }
+
+  /* Email hint */
+  .rsv-email-hint {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-size: 13px; color: var(--ink-muted, #9aa3b2);
+    margin: 0 0 20px; text-align: center;
+  }
+  .rsv-email-hint svg { opacity: .5; flex-shrink: 0; }
+
+  /* Action buttons */
+  .rsv-actions-stack {
+    display: flex; flex-direction: column; gap: 10px;
+    margin-bottom: 24px;
+  }
+  .rsv-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 14px 24px; width: 100%;
+    border-radius: 14px; font-size: 16px; font-weight: 700;
+    cursor: pointer; border: none; text-decoration: none;
+    transition: all .15s ease;
+  }
+  .rsv-btn--primary {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #fff;
+    box-shadow: 0 6px 20px rgba(59,130,246,.35);
+  }
+  .rsv-btn--primary:hover {
+    box-shadow: 0 8px 28px rgba(59,130,246,.45);
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+  }
+  .rsv-btn--ghost {
+    background: var(--panel-2, #171b29);
+    color: var(--ink, #e6e8ef);
+    border: 1px solid var(--bd, #23293a);
+  }
+  .rsv-btn--ghost:hover {
+    background: var(--panel, #121622);
+    transform: translateY(-1px);
+  }
+
+  /* About card */
+  .rsv-about-card {
+    background: var(--panel, #121622);
+    border: 1px solid var(--bd, #23293a);
+    border-radius: 20px;
+    padding: 24px;
+  }
+  .rsv-about-card__title {
+    margin: 0 0 8px; font-size: 16px; font-weight: 800;
+    color: var(--ink, #e6e8ef);
+  }
+  .rsv-about-card__text {
+    margin: 0; font-size: 14px; line-height: 1.6;
+    color: var(--ink-muted, #9aa3b2);
+  }
+
+  /* ===== Safe area (iPhone notch) ===== */
+  .rsv-page {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+    padding-bottom: max(40px, env(safe-area-inset-bottom));
+  }
+
+  /* ===== iOS fixes ===== */
+  .rsv-btn {
+    -webkit-appearance: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Touch active states */
+  @media (hover: none) {
+    .rsv-btn:active { transform: scale(.97); }
+    .rsv-btn:hover { transform: none; }
+  }
+
+  /* ===== Tablet (501–1024px) ===== */
+  @media (min-width: 501px) and (max-width: 1024px) {
+    .rsv-page { max-width: 620px; }
+    .rsv-confirm-card { padding: 28px; }
+    .rsv-btn { min-height: 52px; font-size: 17px; }
+    .rsv-summary-bar { gap: 10px; }
+    .rsv-chip { padding: 10px 16px; font-size: 15px; }
+    .rsv-success-icon svg { width: 72px; height: 72px; }
+    .rsv-confirmed-header__title { font-size: 30px; }
+    .rsv-detail-row { padding: 14px 0; }
+    .rsv-detail-row__value { font-size: 16px; }
+  }
+
+  /* ===== Phone (≤500px) ===== */
+  @media (max-width: 500px) {
+    .rsv-page { padding-bottom: max(32px, env(safe-area-inset-bottom)); }
+    .rsv-confirm-card { padding: 18px; border-radius: 16px; }
+    .rsv-detail-row { flex-direction: column; align-items: flex-start; gap: 4px; }
+    .rsv-detail-row__value { text-align: start; }
+    .rsv-confirmed-header__title { font-size: 22px; }
+    .rsv-chip { padding: 7px 12px; font-size: 13px; }
+    .rsv-btn { min-height: 48px; font-size: 15px; }
+    .rsv-success-icon { margin: 16px 0 4px; }
+    .rsv-success-icon svg { width: 52px; height: 52px; }
+    .rsv-deposit-status-card { padding: 14px; border-radius: 14px; flex-wrap: wrap; }
+    .rsv-deposit-amount { font-size: 18px; }
+    .rsv-about-card { padding: 18px; border-radius: 16px; }
+    .rsv-actions-stack { gap: 8px; }
+    .rsv-email-hint { font-size: 12px; }
+  }
+
+  /* ===== Small phone (≤375px) ===== */
+  @media (max-width: 375px) {
+    .rsv-page { padding: 0 10px 28px; }
+    .rsv-confirmed-header__title { font-size: 20px; }
+    .rsv-confirm-card { padding: 14px; }
+    .rsv-detail-row__label { font-size: 12px; }
+    .rsv-detail-row__value { font-size: 14px; }
+    .rsv-btn { padding: 12px 18px; }
+    .rsv-summary-bar { gap: 6px; }
+    .rsv-chip { padding: 6px 10px; font-size: 12px; }
   }
 </style>
