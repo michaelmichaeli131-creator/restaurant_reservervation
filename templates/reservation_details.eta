@@ -251,8 +251,54 @@
     transform: translateY(-1px);
   }
 
+  /* ===== Safe area (iPhone notch) ===== */
+  .rsv-page {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+    padding-bottom: max(40px, env(safe-area-inset-bottom));
+  }
+
+  /* ===== iOS input fixes ===== */
+  .rsv-input, .rsv-textarea, .rsv-btn {
+    -webkit-appearance: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  @supports (-webkit-touch-callout: none) {
+    .rsv-input, .rsv-textarea { font-size: 16px !important; }
+  }
+
+  /* ===== Tablet (501–1024px) ===== */
+  @media (min-width: 501px) and (max-width: 1024px) {
+    .rsv-page { max-width: 620px; }
+    .rsv-details-form { padding: 28px; }
+    .rsv-field-group { gap: 18px; }
+    .rsv-btn { min-height: 52px; font-size: 17px; }
+    .rsv-summary-bar { gap: 10px; }
+    .rsv-chip { padding: 10px 16px; font-size: 15px; }
+  }
+
+  /* ===== Phone (≤500px) ===== */
   @media (max-width: 500px) {
+    .rsv-page { padding-bottom: max(32px, env(safe-area-inset-bottom)); }
     .rsv-field-group { grid-template-columns: 1fr; }
-    .rsv-details-form { padding: 18px; }
+    .rsv-details-form { padding: 18px; border-radius: 16px; }
+    .rsv-details-header__title { font-size: 21px; }
+    .rsv-chip { padding: 7px 12px; font-size: 13px; }
+    .rsv-btn { min-height: 48px; font-size: 16px; }
+    .rsv-input { padding: 14px; }
+    .rsv-back-link { font-size: 13px; }
+    .rsv-deposit-notice { padding: 14px; border-radius: 14px; }
+    .rsv-deposit-amount { font-size: 18px; }
+  }
+
+  /* ===== Small phone (≤375px) ===== */
+  @media (max-width: 375px) {
+    .rsv-page { padding: 0 10px 28px; }
+    .rsv-details-header__title { font-size: 19px; }
+    .rsv-details-form { padding: 14px; gap: 14px; }
+    .rsv-field__label { font-size: 12px; }
+    .rsv-btn { padding: 12px 18px; font-size: 15px; }
+    .rsv-summary-bar { gap: 6px; }
+    .rsv-chip { padding: 6px 10px; font-size: 12px; }
   }
 </style>

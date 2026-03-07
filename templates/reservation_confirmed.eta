@@ -313,9 +313,59 @@
     color: var(--ink-muted, #9aa3b2);
   }
 
+  /* ===== Safe area (iPhone notch) ===== */
+  .rsv-page {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+    padding-bottom: max(40px, env(safe-area-inset-bottom));
+  }
+
+  /* ===== iOS fixes ===== */
+  .rsv-btn {
+    -webkit-appearance: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ===== Tablet (501–1024px) ===== */
+  @media (min-width: 501px) and (max-width: 1024px) {
+    .rsv-page { max-width: 620px; }
+    .rsv-confirm-card { padding: 28px; }
+    .rsv-btn { min-height: 52px; font-size: 17px; }
+    .rsv-summary-bar { gap: 10px; }
+    .rsv-chip { padding: 10px 16px; font-size: 15px; }
+    .rsv-success-icon svg { width: 72px; height: 72px; }
+    .rsv-confirmed-header__title { font-size: 30px; }
+    .rsv-detail-row { padding: 14px 0; }
+    .rsv-detail-row__value { font-size: 16px; }
+  }
+
+  /* ===== Phone (≤500px) ===== */
   @media (max-width: 500px) {
-    .rsv-confirm-card { padding: 18px; }
+    .rsv-page { padding-bottom: max(32px, env(safe-area-inset-bottom)); }
+    .rsv-confirm-card { padding: 18px; border-radius: 16px; }
     .rsv-detail-row { flex-direction: column; align-items: flex-start; gap: 4px; }
     .rsv-detail-row__value { text-align: start; }
+    .rsv-confirmed-header__title { font-size: 22px; }
+    .rsv-chip { padding: 7px 12px; font-size: 13px; }
+    .rsv-btn { min-height: 48px; font-size: 15px; }
+    .rsv-success-icon { margin: 16px 0 4px; }
+    .rsv-success-icon svg { width: 52px; height: 52px; }
+    .rsv-deposit-status-card { padding: 14px; border-radius: 14px; flex-wrap: wrap; }
+    .rsv-deposit-amount { font-size: 18px; }
+    .rsv-about-card { padding: 18px; border-radius: 16px; }
+    .rsv-actions-stack { gap: 8px; }
+    .rsv-email-hint { font-size: 12px; }
+  }
+
+  /* ===== Small phone (≤375px) ===== */
+  @media (max-width: 375px) {
+    .rsv-page { padding: 0 10px 28px; }
+    .rsv-confirmed-header__title { font-size: 20px; }
+    .rsv-confirm-card { padding: 14px; }
+    .rsv-detail-row__label { font-size: 12px; }
+    .rsv-detail-row__value { font-size: 14px; }
+    .rsv-btn { padding: 12px 18px; }
+    .rsv-summary-bar { gap: 6px; }
+    .rsv-chip { padding: 6px 10px; font-size: 12px; }
   }
 </style>
