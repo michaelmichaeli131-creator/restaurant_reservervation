@@ -316,7 +316,12 @@ export default function FloorViewPage({
           </div>
         </div>
 
-        <aside className={`sbv-right ${mountMode === "lobby" && selectedTableId ? "open" : ""}`} aria-label={t("host.table_details", "Table details")}>
+        {/* Mobile backdrop overlay */}
+        {selectedTableId && (
+          <div className="sbv-mobile-backdrop" onClick={closeDrawer} />
+        )}
+
+        <aside className={`sbv-right ${mountMode === "lobby" && selectedTableId ? "open" : ""} ${selectedTableId ? "has-selection" : ""}`} aria-label={t("host.table_details", "Table details")}>
           {selectedTableId ? (
             <div className="sbv-right-panel" role="dialog" aria-modal="false">
               <div className="sbv-drawer-header">
