@@ -987,9 +987,9 @@ ownerFloorRouter.post(
 
     console.log("[DEBUG] POST /api/floor-layouts - Received body:", JSON.stringify(body));
 
-    const { name, floorLabel, displayOrder, gridRows, gridCols, tables, objects, isActive } = body;
+    const { name, floorLabel, displayOrder, capacity, gridRows, gridCols, tables, objects, isActive } = body;
 
-    console.log("[DEBUG] Extracted fields:", { name, floorLabel, displayOrder, gridRows, gridCols, tables, objects, isActive });
+    console.log("[DEBUG] Extracted fields:", { name, floorLabel, displayOrder, capacity, gridRows, gridCols, tables, objects, isActive });
 
     if (!name || !gridRows || !gridCols) {
       ctx.response.status = 400;
@@ -1002,6 +1002,7 @@ ownerFloorRouter.post(
       name,
       floorLabel: floorLabel || undefined,
       displayOrder: displayOrder != null ? Number(displayOrder) : undefined,
+      capacity: capacity != null ? Number(capacity) : undefined,
       gridRows: Number(gridRows),
       gridCols: Number(gridCols),
       tables: tables ?? [],
