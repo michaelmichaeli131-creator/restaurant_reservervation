@@ -112,7 +112,30 @@ function bytesToBase64(u8: Uint8Array): string {
 /** קבועים ללוגיקת גודל/סוג */
 const MAX_DATAURL_LENGTH = 60 * 1024; // ~60KB כולל prefix (KV value budget)
 const MAX_BYTES = 10 * 1024 * 1024;   // 10MB max upload (R2 supports much more, but reasonable web limit)
-const MIME_RE = /^image\/(png|jpeg|webp)$/i;
+const MIME_RE = /^image\/(png|jpeg|webp)/i;  // No $ anchor - allows params like ;charset=...
+
+/** Detect image MIME type from magic bytes (fallback when header is missing) */
+function detectMimeFromBytes(bytes: Uint8Array): string | null {
+  if (bytes.length < 12) return null;
+
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+    return "image/png";
+  }
+
+  // JPEG: FF D8 FF
+  if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
+    return "image/jpeg";
+  }
+
+  // WebP: RIFF....WEBP
+  if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+      bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
+    return "image/webp";
+  }
+
+  return null;
+}
 
 // ---------------- GET: דף התמונות ----------------
 ownerPhotosRouter.get("/owner/restaurants/:id/photos", async (ctx) => {
@@ -157,7 +180,39 @@ ownerPhotosRouter.get("/owner/restaurants/:id/photos.json", async (ctx) => {
   ctx.response.body = JSON.stringify({ ok: true, photos: normalized });
 });
 
-// ---------------- POST: העלאת תמונה (binary body) ----------------
+/** Helper: decode base64 to Uint8Array */
+function base64ToBytes(base64: string): Uint8Array {
+  const binaryStr = atob(base64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/** Helper: process a single image (binary or base64) and upload to R2 or store as dataUrl */
+async function processAndStoreImage(
+  restaurantId: string,
+  imageBytes: Uint8Array,
+  contentType: string,
+): Promise<PhotoItem> {
+  const pid = crypto.randomUUID();
+  let photoUrl: string;
+
+  if (R2_ENABLED) {
+    const path = generatePhotoPath(restaurantId, pid, contentType);
+    photoUrl = await uploadImageToR2(imageBytes, contentType, path);
+    debugLog(`[photos] ✅ Uploaded to R2: ${photoUrl}`);
+  } else {
+    const base64 = bytesToBase64(imageBytes);
+    photoUrl = `data:${contentType};base64,${base64}`;
+    debugLog(`[photos] ✅ Using base64 fallback (${photoUrl.length} bytes)`);
+  }
+
+  return { id: pid, dataUrl: photoUrl };
+}
+
+// ---------------- POST: העלאת תמונה (binary OR JSON with base64) ----------------
 ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
   if (!requireOwner(ctx)) return;
 
@@ -169,17 +224,94 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
     return;
   }
 
-  const contentType =
+  // Check content-type to determine format
+  const headerContentType =
     ctx.request.headers.get("content-type") ||
     ((ctx.request as any)?.request?.headers?.get?.("content-type") ?? "") ||
     ((ctx.request as any)?.originalRequest?.headers?.get?.("content-type") ?? "");
 
-  if (!MIME_RE.test(contentType || "")) {
-    debugLog("[photos][upload] unsupported content-type:", contentType);
-    ctx.response.status = Status.UnsupportedMediaType;
-    ctx.response.body = "Unsupported image format. Use PNG/JPEG/WebP.";
-    return;
+  debugLog("[photos][upload] header content-type:", headerContentType);
+
+  // === JSON FORMAT (from edit page - base64 images in JSON) ===
+  if (headerContentType.includes("application/json")) {
+    debugLog("[photos][upload] processing as JSON with base64 images");
+
+    try {
+      const bytes = await readBodyBytes(ctx);
+      if (!bytes || !bytes.length) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = "Empty request body.";
+        return;
+      }
+
+      const bodyText = new TextDecoder().decode(bytes);
+      const payload = JSON.parse(bodyText);
+      const images = Array.isArray(payload.images) ? payload.images : [];
+
+      if (!images.length) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = "No images provided.";
+        return;
+      }
+
+      const prev = normalizePhotos(r.photos);
+      const newPhotos: PhotoItem[] = [];
+
+      for (const img of images) {
+        const dataUrl = typeof img === "string" ? img : img?.dataUrl;
+        if (!dataUrl || !dataUrl.startsWith("data:image/")) continue;
+
+        // Parse data URL: data:image/png;base64,XXXX
+        const match = dataUrl.match(/^data:(image\/[^;]+);base64,(.+)$/);
+        if (!match) continue;
+
+        const mimeType = match[1];
+        const base64Data = match[2];
+
+        if (!MIME_RE.test(mimeType)) {
+          debugLog("[photos][upload] skipping unsupported mime:", mimeType);
+          continue;
+        }
+
+        const imageBytes = base64ToBytes(base64Data);
+        if (imageBytes.length > MAX_BYTES) {
+          debugLog("[photos][upload] skipping oversized image:", imageBytes.length);
+          continue;
+        }
+
+        const photo = await processAndStoreImage(id, imageBytes, mimeType);
+        newPhotos.push(photo);
+      }
+
+      if (!newPhotos.length) {
+        ctx.response.status = Status.BadRequest;
+        ctx.response.body = "No valid images to upload.";
+        return;
+      }
+
+      const next = [...prev, ...newPhotos];
+      await updateRestaurant(id, { photos: next } as any);
+
+      ctx.response.status = Status.OK;
+      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+      ctx.response.body = JSON.stringify({
+        ok: true,
+        added: newPhotos.length,
+        total: next.length,
+        r2: R2_ENABLED
+      });
+      return;
+
+    } catch (e) {
+      debugLog("[photos][upload] JSON processing failed:", String(e));
+      ctx.response.status = Status.BadRequest;
+      ctx.response.body = "Invalid JSON payload.";
+      return;
+    }
   }
+
+  // === BINARY FORMAT (from photos page - raw image bytes) ===
+  debugLog("[photos][upload] processing as binary image");
 
   const bytes = await readBodyBytes(ctx);
   if (!bytes || !bytes.length) {
@@ -196,33 +328,25 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
     return;
   }
 
-  try {
-    const pid = crypto.randomUUID();
-    let photoUrl: string;
-
-    // Use R2 if configured, otherwise fallback to base64
-    if (R2_ENABLED) {
-      // Upload to Cloudflare R2 (unlimited size!)
-      const path = generatePhotoPath(id, pid, contentType);
-      photoUrl = await uploadImageToR2(bytes, contentType, path);
-      debugLog(`[photos] ✅ Uploaded to R2: ${photoUrl}`);
-    } else {
-      // Fallback: base64 in KV (limited to 60 KB)
-      const base64 = bytesToBase64(bytes);
-      const dataUrl = `data:${contentType};base64,${base64}`;
-
-      if (dataUrl.length > MAX_DATAURL_LENGTH) {
-        ctx.response.status = Status.BadRequest;
-        ctx.response.body =
-          "התמונה עדיין גדולה מדי לשמירה. נסו תמונה קטנה יותר/מכווצת, או הגדירו Cloudflare R2 ב-.env";
-        return;
-      }
-
-      photoUrl = dataUrl;
-      debugLog(`[photos] ✅ Using base64 fallback (${dataUrl.length} bytes)`);
+  // Try to get content-type, fallback to magic byte detection
+  let contentType = headerContentType;
+  if (!MIME_RE.test(contentType || "")) {
+    const detected = detectMimeFromBytes(bytes);
+    debugLog("[photos][upload] detected from bytes:", detected);
+    if (detected) {
+      contentType = detected;
     }
+  }
 
-    const newPhoto: PhotoItem = { id: pid, dataUrl: photoUrl };
+  if (!MIME_RE.test(contentType || "")) {
+    debugLog("[photos][upload] unsupported content-type after fallback:", contentType);
+    ctx.response.status = Status.UnsupportedMediaType;
+    ctx.response.body = "Unsupported image format. Use PNG/JPEG/WebP.";
+    return;
+  }
+
+  try {
+    const newPhoto = await processAndStoreImage(id, bytes, contentType);
     const prev = normalizePhotos(r.photos);
     const next = [...prev, newPhoto];
 
@@ -234,7 +358,7 @@ ownerPhotosRouter.post("/owner/restaurants/:id/photos/upload", async (ctx) => {
       ok: true,
       added: 1,
       total: next.length,
-      id: pid,
+      id: newPhoto.id,
       r2: R2_ENABLED
     });
   } catch (e) {
