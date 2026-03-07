@@ -2,7 +2,7 @@
 
 <% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
 
-<main class="rsv-page">
+<div class="rsv-page">
   <!-- Success animation -->
   <div class="rsv-success-icon">
     <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -146,10 +146,17 @@
     <p class="rsv-about-card__text"><%= it.restaurant.description %></p>
   </div>
   <% } %>
-</main>
+</div>
 
 <style>
-  .rsv-page { max-width: 580px; margin: 0 auto; padding: 0 16px 40px; }
+  /* Override parent sb-container padding */
+  .sb-container:has(> .rsv-page) { padding: 0; max-width: none; }
+
+  .rsv-page {
+    max-width: 580px; margin: 0 auto;
+    padding: 16px 16px 40px;
+    padding-top: max(16px, env(safe-area-inset-top));
+  }
 
   /* Success icon */
   .rsv-success-icon {

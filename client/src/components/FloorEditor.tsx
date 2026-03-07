@@ -39,6 +39,9 @@ interface FloorLayout {
   id: string;
   restaurantId: string;
   name: string;
+  floorLabel?: string;
+  displayOrder?: number;
+  capacity?: number;
   gridRows: number;
   gridCols: number;
   gridMask?: number[]; // 1=active cell, 0=inactive
@@ -1564,8 +1567,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               {t('floor.modal.placeholder_floor_label', 'Room/floor label (e.g., Terrace, 2nd Floor)')}
               <input
                 type="text"
-                value={(currentLayout as any).floorLabel || ''}
-                onChange={(e) => setCurrentLayout({ ...currentLayout, floorLabel: e.target.value } as any)}
+                value={currentLayout.floorLabel || ''}
+                onChange={(e) => setCurrentLayout({ ...currentLayout, floorLabel: e.target.value })}
                 placeholder={t('floor.modal.placeholder_floor_label', 'Room/floor label')}
               />
             </label>
@@ -1574,8 +1577,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               <input
                 type="number"
                 min="1"
-                value={(currentLayout as any).capacity || ''}
-                onChange={(e) => setCurrentLayout({ ...currentLayout, capacity: e.target.value ? Number(e.target.value) : undefined } as any)}
+                value={currentLayout.capacity || ''}
+                onChange={(e) => setCurrentLayout({ ...currentLayout, capacity: e.target.value ? Number(e.target.value) : undefined })}
                 placeholder={t('floor.capacity.placeholder', 'Max guests capacity (e.g., 40)')}
               />
             </label>

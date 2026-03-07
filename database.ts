@@ -857,7 +857,7 @@ export async function checkAvailability(restaurantId: string, date: string, time
   // Compute total capacity from room capacities if defined, otherwise use restaurant capacity
   const { listFloorLayouts } = await import("./services/floor_service.ts");
   const layouts = await listFloorLayouts(restaurantId).catch(() => []);
-  const roomCapacities = layouts.map((l: any) => l.capacity ?? 0).filter((c: number) => c > 0);
+  const roomCapacities = layouts.map((l: any) => Number(l.capacity) || 0).filter((c: number) => c > 0);
   const totalCapacity = roomCapacities.length > 0
     ? roomCapacities.reduce((sum: number, c: number) => sum + c, 0)
     : r.capacity;
@@ -903,10 +903,12 @@ export async function checkRoomCapacity(
   const { getFloorLayout } = await import("./services/floor_service.ts");
   const layout = await getFloorLayout(restaurantId, layoutId);
   if (!layout) return { ok: true };
-  if (!layout.capacity || layout.capacity <= 0) return { ok: true }; // no capacity limit set
+  const cap = Number(layout.capacity);
+  if (!cap || cap <= 0 || !Number.isFinite(cap)) return { ok: true }; // no capacity limit set
+  const ppl = Math.max(1, Number(people) || 1);
 
   // Immediate check: party size alone exceeds room capacity
-  if (people > layout.capacity) {
+  if (ppl > cap) {
     return { ok: false, reason: "room_full", roomLabel: layout.floorLabel || layout.name };
   }
 
@@ -936,10 +938,9 @@ export async function checkRoomCapacity(
     }
   }
 
-  const seats = Math.max(1, people);
   for (let t = start; t < end; t += step) {
     const used = map.get(fromMinutes(t)) ?? 0;
-    if (used + seats > layout.capacity) {
+    if (used + ppl > cap) {
       return { ok: false, reason: "room_full", roomLabel: layout.floorLabel || layout.name };
     }
   }

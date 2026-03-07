@@ -15,7 +15,7 @@
   const PEOPLE_INIT = Math.max(1, Number(it.people || 2) || 2);
 %>
 
-<main class="rsv-page">
+<div class="rsv-page">
   <!-- ===== Hero with overlay ===== -->
   <section class="rsv-hero">
     <img
@@ -199,7 +199,7 @@
     </div>
   </section>
   <script type="module" src="/public/js/menu_embed.js"></script>
-</main>
+</div>
 
 <!-- *** Server data injection *** -->
 <meta id="srv-data"
@@ -459,8 +459,18 @@
 </script>
 
 <style>
+  /* ===== Override parent sb-container padding on mobile ===== */
+  .sb-container:has(> .rsv-page) {
+    padding: 0;
+    max-width: none;
+  }
+
   /* ===== Reset & Page ===== */
-  .rsv-page { max-width: 680px; margin: 0 auto; padding: 0 16px 40px; }
+  .rsv-page {
+    max-width: 680px; margin: 0 auto;
+    padding: 16px 16px 40px;
+    padding-top: max(16px, env(safe-area-inset-top));
+  }
 
   /* ===== Hero ===== */
   .rsv-hero {
