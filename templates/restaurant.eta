@@ -345,13 +345,14 @@
   // Init
   rebuildTimeFor(dateInput.value || new Date().toISOString().slice(0,10));
 
-  /* ===== Time carousel arrows ===== */
+  /* ===== Time carousel arrows (RTL-aware) ===== */
+  const isRTL = document.documentElement.dir === "rtl";
   const scrollAmount = 200;
   document.getElementById("time-prev")?.addEventListener("click", () => {
-    timeGrid.scrollBy({ left: -scrollAmount, behavior: "smooth" });
+    timeGrid.scrollBy({ left: isRTL ? scrollAmount : -scrollAmount, behavior: "smooth" });
   });
   document.getElementById("time-next")?.addEventListener("click", () => {
-    timeGrid.scrollBy({ left: scrollAmount, behavior: "smooth" });
+    timeGrid.scrollBy({ left: isRTL ? -scrollAmount : scrollAmount, behavior: "smooth" });
   });
 
   /* ===== Form submit ===== */
@@ -589,6 +590,7 @@
     scrollbar-width: none;
     padding: 6px 2px;
     flex: 1;
+    scroll-snap-type: x proximity;
   }
   .rsv-time-carousel::-webkit-scrollbar { display: none; }
   .rsv-time-carousel__loading, .rsv-time-carousel__empty {
@@ -607,6 +609,7 @@
     transition: all .15s ease;
     flex-shrink: 0;
     white-space: nowrap;
+    scroll-snap-align: start;
   }
   .rsv-time-chip:hover {
     border-color: var(--brand, #3b82f6);
@@ -781,14 +784,15 @@
 
   /* ===== Toast ===== */
   .rsv-toast {
-    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+    position: fixed; bottom: max(24px, env(safe-area-inset-bottom)); left: 50%;
+    transform: translateX(-50%) translateY(20px);
     padding: 14px 24px;
     border-radius: 14px;
     font-size: 14px; font-weight: 600;
     z-index: 9999;
     opacity: 0;
     transition: all .3s ease;
-    max-width: 90vw; text-align: center;
+    max-width: calc(100vw - 32px); text-align: center;
     box-shadow: 0 8px 30px rgba(0,0,0,.4);
   }
   .rsv-toast.is-visible { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -822,6 +826,24 @@
   /* Prevent iOS zoom on input focus */
   @supports (-webkit-touch-callout: none) {
     .rsv-input { font-size: 16px !important; }
+  }
+  /* iOS date input fix */
+  input[type="date"].rsv-input {
+    min-height: 48px;
+    line-height: 1.4;
+    color-scheme: dark;
+  }
+
+  /* Touch active states */
+  @media (hover: none) {
+    .rsv-time-chip:active { transform: scale(.95); }
+    .rsv-room-card:active { transform: scale(.97); }
+    .rsv-btn:active { transform: scale(.97); }
+    .rsv-people__btn:active { background: rgba(59,130,246,.25); }
+    .rsv-suggestion-chip:active { transform: scale(.95); }
+    .rsv-time-chip:hover { transform: none; }
+    .rsv-room-card:hover { transform: none; }
+    .rsv-btn:hover { transform: none; }
   }
 
   /* ===== Tablet (601–1024px) ===== */

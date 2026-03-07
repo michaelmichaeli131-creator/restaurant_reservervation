@@ -267,6 +267,13 @@
     .rsv-input, .rsv-textarea { font-size: 16px !important; }
   }
 
+  /* Touch active states */
+  @media (hover: none) {
+    .rsv-btn:active { transform: scale(.97); }
+    .rsv-btn:hover { transform: none; }
+    .rsv-back-link:active { opacity: .6; }
+  }
+
   /* ===== Tablet (501–1024px) ===== */
   @media (min-width: 501px) and (max-width: 1024px) {
     .rsv-page { max-width: 620px; }

@@ -326,6 +326,12 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  /* Touch active states */
+  @media (hover: none) {
+    .rsv-btn:active { transform: scale(.97); }
+    .rsv-btn:hover { transform: none; }
+  }
+
   /* ===== Tablet (501–1024px) ===== */
   @media (min-width: 501px) and (max-width: 1024px) {
     .rsv-page { max-width: 620px; }
