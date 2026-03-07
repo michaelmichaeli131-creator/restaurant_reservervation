@@ -278,6 +278,27 @@
 @media (max-width: 900px){
   .sb-floor-view.is-embed .sbv-right{ width: 340px; min-width: 280px; }
 }
+/* Embed mode on mobile: same bottom-sheet treatment */
+@media (max-width: 768px){
+  .sb-floor-view.is-embed .sbv-shell{ flex-direction: column; }
+  .sb-floor-view.is-embed .sbv-right{
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    min-width: 0;
+    max-height: 55vh;
+    transform: translateY(100%);
+    transition: transform 250ms ease;
+    pointer-events: none;
+  }
+  .sb-floor-view.is-embed .sbv-right.open,
+  .sb-floor-view.is-embed .sbv-right.has-selection{
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+}
 
 /* Room / Floor tabs */
 .sbv-room-tabs {
@@ -350,6 +371,198 @@
 }
 .sb-floor-view .fe-grid {
   margin: 0;
+}
+
+/* =====================
+   Mobile-responsive floor view
+   ===================== */
+
+/* --- Small tablets / large phones (<=768px) --- */
+@media (max-width: 768px){
+  .sb-floor-view{
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+  }
+
+  .sbv-shell{
+    flex-direction: column;
+    gap: 0;
+    overflow: hidden;
+  }
+
+  .sbv-left{
+    flex: 1 1 0;
+    min-height: 0;
+    border-radius: 0;
+    border: none;
+  }
+
+  /* Topbar: compact on mobile */
+  .sbv-view-topbar{
+    padding: 8px 12px;
+    gap: 6px;
+  }
+
+  .sbv-topbar-title{
+    font-size: 13px;
+  }
+  .sbv-topbar-sub{
+    display: none;
+  }
+
+  /* Legend: smaller pills, horizontal scroll */
+  .sbv-legend{
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 6px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .sbv-legend::-webkit-scrollbar{ display: none; }
+
+  .sbv-pill{
+    padding: 4px 8px;
+    font-size: 11px;
+    gap: 5px;
+  }
+
+  /* Room tabs: horizontal scroll */
+  .sbv-room-tabs{
+    padding: 0 12px 6px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .sbv-room-tabs::-webkit-scrollbar{ display: none; }
+
+  .sbv-room-tab{
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  /* Hide zoom hint on mobile */
+  .fe-hint{
+    display: none;
+  }
+
+  /* Zoom controls: smaller */
+  .editor-canvas .fe-canvas-controls{
+    top: 6px;
+    left: 6px;
+    padding: 6px 8px;
+    gap: 4px;
+  }
+
+  /* Right panel: bottom sheet overlay on mobile */
+  .sbv-right{
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    min-width: 0;
+    max-height: 55vh;
+    transform: translateY(100%);
+    transition: transform 250ms ease;
+    pointer-events: none;
+  }
+
+  /* Show the bottom sheet when a table is selected */
+  .sbv-right:has(.sbv-right-panel),
+  .sbv-right.has-selection{
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  /* Hide the empty-state placeholder on mobile (no need for it) */
+  .sbv-right-empty{
+    display: none;
+  }
+
+  .sbv-right-panel{
+    border-radius: 16px 16px 0 0;
+    max-height: 55vh;
+    overflow-y: auto;
+  }
+
+  .sbv-drawer-body{
+    padding: 12px;
+  }
+
+  .sbv-drawer-footer{
+    padding: 10px 12px;
+    flex-wrap: wrap;
+  }
+
+  .sbv-primary-btn,
+  .sbv-secondary-btn,
+  .sbv-success-btn{
+    height: 36px;
+    font-size: 13px;
+    padding: 0 12px;
+  }
+}
+
+/* --- Phones (<=480px) --- */
+@media (max-width: 480px){
+  .sbv-topbar-title{
+    font-size: 12px;
+  }
+
+  .sbv-pill{
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+
+  .sbv-dot{
+    width: 6px;
+    height: 6px;
+  }
+
+  .sbv-room-tab{
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  .sbv-right{
+    max-height: 60vh;
+  }
+
+  .sbv-right-panel{
+    max-height: 60vh;
+  }
+
+  .sbv-drawer-footer{
+    gap: 6px;
+  }
+
+  .sbv-primary-btn,
+  .sbv-secondary-btn,
+  .sbv-success-btn{
+    height: 34px;
+    font-size: 12px;
+    padding: 0 10px;
+    flex: 1 1 auto;
+  }
+}
+
+/* Mobile backdrop (hidden on desktop) */
+.sbv-mobile-backdrop{
+  display: none;
+}
+@media (max-width: 768px){
+  .sbv-mobile-backdrop{
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: rgba(0,0,0,.45);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+  }
 }
 
 /* Status dot: also color "empty" */
