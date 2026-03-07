@@ -2,7 +2,7 @@
 
 <% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
 
-<main class="rsv-page">
+<div class="rsv-page">
   <!-- Header -->
   <div class="rsv-details-header">
     <a class="rsv-back-link" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
@@ -103,7 +103,7 @@
       </button>
     </div>
   </form>
-</main>
+</div>
 
 <script>
 (function(){
@@ -145,7 +145,14 @@
 </script>
 
 <style>
-  .rsv-page { max-width: 580px; margin: 0 auto; padding: 0 16px 40px; }
+  /* Override parent sb-container padding */
+  .sb-container:has(> .rsv-page) { padding: 0; max-width: none; }
+
+  .rsv-page {
+    max-width: 580px; margin: 0 auto;
+    padding: 16px 16px 40px;
+    padding-top: max(16px, env(safe-area-inset-top));
+  }
 
   .rsv-details-header { margin-bottom: 16px; }
   .rsv-back-link {
