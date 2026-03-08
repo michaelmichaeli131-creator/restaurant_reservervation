@@ -981,7 +981,10 @@ export async function checkRoomCapacity(
   // Dynamic import to avoid circular dependency
   const { getFloorLayout } = await import("./services/floor_service.ts");
   const layout = await getFloorLayout(restaurantId, layoutId);
-  if (!layout) return { ok: true, roomLabel: "", capacity: 0, alreadyBooked: 0, remaining: 0 };
+  if (!layout) {
+    // Layout not found – treat as invalid room selection and block the booking
+    return { ok: false, reason: "room_full", roomLabel: "", capacity: 0, alreadyBooked: 0, remaining: 0 };
+  }
   const roomLabel = layout.floorLabel || layout.name;
   const cap = deriveLayoutCapacity(layout);
   if (!cap || cap <= 0 || !Number.isFinite(cap)) {
@@ -989,6 +992,18 @@ export async function checkRoomCapacity(
   }
 
   const ppl = Math.max(1, Number(people) || 1);
+
+  // Early check: requested guests alone exceed room capacity
+  if (ppl > cap) {
+    return {
+      ok: false,
+      reason: "room_full",
+      roomLabel,
+      capacity: cap,
+      alreadyBooked: 0,
+      remaining: cap,
+    };
+  }
   const r0 = await getRestaurant(restaurantId);
   if (!r0) return { ok: true, roomLabel, capacity: cap, alreadyBooked: 0, remaining: cap };
   const r = coerceRestaurantDefaults(r0);

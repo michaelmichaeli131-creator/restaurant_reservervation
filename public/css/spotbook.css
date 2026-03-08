@@ -286,14 +286,20 @@ body.sb-body {
     display:flex;
     align-items:center;
     justify-content:space-between;
-    gap:10px;
+    gap:8px;
+    flex-wrap:wrap;
   }
   .user-mobile{ display:none; }
-  .brand-logo{ height:48px; }
-  .sb-actions{ gap:6px; flex-wrap:nowrap; }
-  .sb-actions .btn{ padding:8px 10px; font-size:12px; }
-  .lang-btn{ padding:8px 10px; }
+  .brand-logo{ height:44px; }
+  .sb-actions{ gap:5px; flex-wrap:wrap; justify-content:flex-end; max-width:calc(100% - 60px); }
+  .sb-actions .btn{ padding:7px 10px; font-size:12px; white-space:nowrap; }
+  .sb-actions .btn-manage{ max-width:130px; overflow:hidden; text-overflow:ellipsis; }
+  .lang-btn{ padding:7px 9px; }
   .lang-btn .lang-label{ font-size:12px; }
+}
+
+@media (max-width: 400px){
+  .sb-actions .btn-manage{ display:none; }
 }
 
 /* ↓ מצמצם רווח מיותר סביב הלוגו */
