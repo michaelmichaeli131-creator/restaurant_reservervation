@@ -58,6 +58,7 @@
               const subtotal = (t.totals && t.totals.subtotal != null)
                 ? t.totals.subtotal
                 : (t.subtotal != null ? t.subtotal : "");
+              const roomLabel = t.roomLabel || "";
 
               // URL למסך ההזמנה – קודם מהשרת, ואם אין אז fallback למסלול הישן: /pos/:rid/table/:tn
               const posUrl = t.posUrl || t.url || t.href || `/pos/${rid}/table/${tn}`;
@@ -79,6 +80,9 @@
                     <span class="open-table-num"><%= tt('pos.waiter.table_label', 'Table') %> <%= tn %></span>
                     <% if (guestName) { %>
                       <span class="open-guest-name">• <%= guestName %></span>
+                    <% } %>
+                    <% if (roomLabel) { %>
+                      <span class="waiter-room-badge"><%= roomLabel %></span>
                     <% } %>
                   </div>
                   <div class="open-sub">
@@ -191,6 +195,20 @@
   </div>
 </aside>
   
+<style>
+  .waiter-room-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(59,130,246,.15);
+    color: #93c5fd;
+    border: 1px solid rgba(59,130,246,.25);
+    margin-inline-start: 6px;
+    vertical-align: middle;
+  }
+</style>
 <link rel="stylesheet" href="/dist/floor-index.css">
 <link rel="stylesheet" href="/dist/floor-floor-view-app.css">
 <link rel="stylesheet" href="/public/css/sb-map-frame-overrides.css">

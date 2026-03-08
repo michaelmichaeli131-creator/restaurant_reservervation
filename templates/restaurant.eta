@@ -249,9 +249,8 @@
     peopleInput.value = v;
   });
   document.getElementById("people-plus")?.addEventListener("click", () => {
-    const cap = getSelectedRoomCap();
     const v = parseInt(peopleInput.value||"1",10)+1;
-    peopleInput.value = (cap > 0) ? Math.min(v, cap) : v;
+    peopleInput.value = v;
   });
 
   /* ===== Room cards ===== */
@@ -266,13 +265,16 @@
     const card = e.target.closest(".rsv-room-card");
     if (!card) return;
     if (roomInput) roomInput.value = card.dataset.roomId;
-    // Clamp people count to room capacity
-    const cap = parseInt(card.dataset.roomCapacity || "0", 10);
-    if (cap > 0) {
-      const current = parseInt(peopleInput.value || "1", 10);
-      if (current > cap) peopleInput.value = cap;
-    }
     syncSelectedRoomCard();
+    // Warn immediately if this room can't fit the requested people count
+    const cap = parseInt(card.dataset.roomCapacity || "0", 10);
+    const people = parseInt(peopleInput.value || "1", 10);
+    if (cap > 0 && people > cap) {
+      const alts = getRoomsWithCapacity(people, card.dataset.roomId);
+      showRoomCapacityWarning(card, cap, people, alts);
+    } else {
+      clearRoomCapacityWarning();
+    }
   });
 
   syncSelectedRoomCard();
@@ -384,6 +386,34 @@
     timeGrid.scrollBy({ left: isRTL ? -scrollAmount : scrollAmount, behavior: "smooth" });
   });
 
+  /* ===== Room-capacity helpers ===== */
+  function getRoomsWithCapacity(people, excludeId) {
+    return Array.from(document.querySelectorAll(".rsv-room-card")).filter(c => {
+      const cap = parseInt(c.dataset.roomCapacity || "0", 10);
+      return cap >= people && c.dataset.roomId !== excludeId;
+    }).map(c => c.querySelector(".rsv-room-card__name")?.textContent?.trim() || "");
+  }
+
+  function showRoomCapacityWarning(card, cap, people, alts) {
+    clearRoomCapacityWarning();
+    const roomLabel = card.querySelector(".rsv-room-card__name")?.textContent?.trim() || "";
+    const warn = document.createElement("div");
+    warn.id = "room-cap-warn";
+    warn.className = "rsv-alert rsv-alert--warn";
+    warn.style.marginTop = "8px";
+    let msg = `<%= tt('reservation.room_over_cap','החדר "{room}" מכיל עד {cap} אורחים. לא ניתן להזמין {people} אורחים בחדר זה.') %>`
+      .replace("{room}", roomLabel).replace("{cap}", cap).replace("{people}", people);
+    if (alts.length > 0) {
+      msg += " " + `<%= tt('reservation.try_rooms','חדרים שיכולים להכיל: {rooms}') %>`.replace("{rooms}", alts.join(", "));
+    }
+    warn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span>${msg}</span>`;
+    card.closest(".rsv-field")?.appendChild(warn);
+  }
+
+  function clearRoomCapacityWarning() {
+    document.getElementById("room-cap-warn")?.remove();
+  }
+
   /* ===== Form submit ===== */
   form.addEventListener("submit", (ev) => {
     const dateVal = (dateInput.value || "").trim();
@@ -399,6 +429,18 @@
       ev.preventDefault();
       alert("<%= tt('reservation.select_room_required','נא לבחור חדר') %>");
       return;
+    }
+    // Validate selected room can fit the requested number of guests
+    if (roomInput && roomInput.value) {
+      const selectedCard = document.querySelector(`.rsv-room-card[data-room-id="${CSS.escape(roomInput.value)}"]`);
+      const cap = parseInt(selectedCard?.dataset.roomCapacity || "0", 10);
+      if (cap > 0 && pplVal > cap) {
+        ev.preventDefault();
+        const alts = getRoomsWithCapacity(pplVal, roomInput.value);
+        showRoomCapacityWarning(selectedCard, cap, pplVal, alts);
+        selectedCard?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
     }
     const u = new URL(form.action, window.location.origin);
     u.searchParams.set("date", dateVal);
