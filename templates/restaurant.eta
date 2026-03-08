@@ -114,7 +114,7 @@
       </label>
       <div class="rsv-rooms" id="room-cards">
         <% it.rooms.forEach(function(room){ %>
-          <button type="button" class="rsv-room-card" data-room-id="<%= room.id %>">
+          <button type="button" class="rsv-room-card" data-room-id="<%= room.id %>" data-room-capacity="<%= room.capacity || '' %>">
             <span class="rsv-room-card__icon">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </span>
@@ -125,6 +125,7 @@
           </button>
         <% }) %>
       </div>
+      <div class="rsv-room-feedback" id="room-feedback" aria-live="polite"></div>
       <input type="hidden" id="preferredLayoutId" name="preferredLayoutId" value=""/>
     </div>
     <% } %>
@@ -230,22 +231,49 @@
   const form = document.getElementById("reserve-form");
 
   /* ===== People counter ===== */
+  const roomFeedback = document.getElementById("room-feedback");
+  const roomCards = Array.from(document.querySelectorAll(".rsv-room-card"));
+
+  function syncRoomCapacityState() {
+    const people = Math.max(1, parseInt(peopleInput.value || "1", 10) || 1);
+    let selectedBlocked = false;
+    roomCards.forEach((card) => {
+      const cap = parseInt(card.dataset.roomCapacity || "0", 10) || 0;
+      const tooSmall = cap > 0 && people > cap;
+      card.classList.toggle("is-disabled", tooSmall);
+      card.setAttribute("aria-disabled", tooSmall ? "true" : "false");
+      if (tooSmall && roomInput && roomInput.value === (card.dataset.roomId || "")) {
+        roomInput.value = "";
+        card.classList.remove("is-selected");
+        selectedBlocked = true;
+      }
+    });
+    if (roomFeedback) {
+      roomFeedback.textContent = selectedBlocked
+        ? '<%= tt("reservation.room_capacity_inline","אין מקום בחדר הזה למספר הסועדים שבחרת. נא לבחור חדר אחר או שעה אחרת.") %>'
+        : "";
+    }
+  }
+
   document.getElementById("people-minus")?.addEventListener("click", () => {
     const v = Math.max(1, parseInt(peopleInput.value||"1",10)-1);
     peopleInput.value = v;
+    syncRoomCapacityState();
   });
   document.getElementById("people-plus")?.addEventListener("click", () => {
     const v = parseInt(peopleInput.value||"1",10)+1;
     peopleInput.value = v;
+    syncRoomCapacityState();
   });
 
   /* ===== Room cards ===== */
   document.getElementById("room-cards")?.addEventListener("click", (e) => {
     const card = e.target.closest(".rsv-room-card");
-    if (!card) return;
+    if (!card || card.classList.contains("is-disabled")) return;
     document.querySelectorAll(".rsv-room-card").forEach(c => c.classList.remove("is-selected"));
     card.classList.add("is-selected");
     if (roomInput) roomInput.value = card.dataset.roomId;
+    if (roomFeedback) roomFeedback.textContent = "";
   });
 
   /* ===== Time grid ===== */
@@ -344,6 +372,8 @@
 
   // Init
   rebuildTimeFor(dateInput.value || new Date().toISOString().slice(0,10));
+  syncRoomCapacityState();
+  syncRoomCapacityState();
 
   /* ===== Time carousel arrows (RTL-aware) ===== */
   const isRTL = document.documentElement.dir === "rtl";
@@ -661,10 +691,23 @@
     background: rgba(59,130,246,.12);
     box-shadow: 0 4px 20px rgba(59,130,246,.25);
   }
+  .rsv-room-card.is-disabled {
+    opacity: .46;
+    cursor: not-allowed;
+    border-style: dashed;
+    box-shadow: none;
+    transform: none;
+  }
   .rsv-room-card__icon { opacity: .5; }
   .rsv-room-card.is-selected .rsv-room-card__icon { opacity: 1; color: var(--brand, #3b82f6); }
   .rsv-room-card__name { font-weight: 700; font-size: 15px; }
   .rsv-room-card__cap { font-size: 12px; color: var(--ink-muted, #9aa3b2); }
+  .rsv-room-feedback {
+    min-height: 20px;
+    margin-top: 10px;
+    font-size: 13px;
+    color: #fbbf24;
+  }
 
   /* ===== Buttons ===== */
   .rsv-actions {
@@ -912,6 +955,63 @@
     .rsv-hero__img { height: 150px; }
     .rsv-hero__overlay { padding: 12px 16px; }
     .rsv-form { grid-template-columns: 1fr 1fr; }
+  }
+
+
+  @media (max-width: 720px) {
+    .rsv-page {
+      padding: 0 0 28px;
+    }
+    .rsv-hero {
+      border-radius: 0 0 24px 24px;
+      margin-inline: 0;
+    }
+    .rsv-hero__img {
+      height: 240px;
+    }
+    .rsv-hero__overlay {
+      padding: 18px;
+    }
+    .rsv-form, .rsv-card {
+      border-radius: 18px;
+      margin-inline: 12px;
+      padding: 18px;
+    }
+    .rsv-form {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    .rsv-rooms {
+      grid-template-columns: 1fr;
+    }
+    .rsv-actions {
+      position: sticky;
+      bottom: 10px;
+      z-index: 5;
+      background: linear-gradient(180deg, rgba(18,22,34,0), rgba(18,22,34,.96) 24%);
+      padding-top: 12px;
+      margin-top: -4px;
+    }
+    .rsv-btn {
+      min-height: 52px;
+    }
+    .rsv-time-chip {
+      min-width: 84px;
+      min-height: 48px;
+    }
+  }
+
+  @media (max-width: 420px) {
+    .rsv-hero__name {
+      font-size: 24px;
+    }
+    .rsv-people {
+      gap: 10px;
+    }
+    .rsv-people__btn {
+      width: 44px;
+      height: 44px;
+    }
   }
 
 </style>

@@ -483,6 +483,7 @@ export async function confirmPost(ctx: any) {
       phone: customerPhone,
       email: customerEmail,
       note: customerNote,
+      preferredLayoutId: preferredLayoutIdPost || undefined,
       ts: Date.now(),
     });
     const lang = ctx.state?.lang ?? getLang(ctx);
@@ -586,6 +587,7 @@ interface PaymentTokenData {
   phone: string;
   email: string;
   note: string;
+  preferredLayoutId?: string;
   ts: number; // timestamp for expiry
 }
 
@@ -681,6 +683,7 @@ export async function paymentGet(ctx: any) {
     confirmUrl.searchParams.set("phone", tokenData.phone);
     confirmUrl.searchParams.set("email", tokenData.email);
     confirmUrl.searchParams.set("note", tokenData.note);
+    if (tokenData.preferredLayoutId) confirmUrl.searchParams.set("preferredLayoutId", tokenData.preferredLayoutId);
     ctx.response.redirect(confirmUrl.toString());
     return;
   }
@@ -748,6 +751,15 @@ export async function confirmPaymentGet(ctx: any) {
     return;
   }
 
+  if (tokenData.preferredLayoutId) {
+    const roomCheck = await checkRoomCapacity(rid, tokenData.preferredLayoutId, tokenData.date, tokenData.time, tokenData.people);
+    if (!roomCheck.ok) {
+      ctx.response.status = Status.Conflict;
+      ctx.response.body = `Selected room "${roomCheck.roomLabel}" is full for this time`;
+      return;
+    }
+  }
+
   // --- Create reservation with deposit status ---
   const user = (ctx.state as any)?.user ?? null;
   const userId: string = user?.id ?? `guest:${crypto.randomUUID().slice(0, 8)}`;
@@ -768,6 +780,7 @@ export async function confirmPaymentGet(ctx: any) {
     people: tokenData.people,
     status: "new",
     note: reservationNote,
+    ...(tokenData.preferredLayoutId ? { preferredLayoutId: tokenData.preferredLayoutId } : {}),
     // Payment tracking fields
     depositStatus: hasDeposit ? "pending" : "not_required",
     depositAmount: hasDeposit ? restaurant.depositAmount : undefined,
