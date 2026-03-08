@@ -114,7 +114,7 @@
       </label>
       <div class="rsv-rooms" id="room-cards">
         <% it.rooms.forEach(function(room){ %>
-          <button type="button" class="rsv-room-card" data-room-id="<%= room.id %>" data-room-capacity="<%= room.capacity || '' %>">
+          <button type="button" class="rsv-room-card" data-room-id="<%= room.id %>">
             <span class="rsv-room-card__icon">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </span>
@@ -125,7 +125,6 @@
           </button>
         <% }) %>
       </div>
-      <div class="rsv-room-feedback" id="room-feedback" aria-live="polite"></div>
       <input type="hidden" id="preferredLayoutId" name="preferredLayoutId" value=""/>
     </div>
     <% } %>
@@ -231,49 +230,22 @@
   const form = document.getElementById("reserve-form");
 
   /* ===== People counter ===== */
-  const roomFeedback = document.getElementById("room-feedback");
-  const roomCards = Array.from(document.querySelectorAll(".rsv-room-card"));
-
-  function syncRoomCapacityState() {
-    const people = Math.max(1, parseInt(peopleInput.value || "1", 10) || 1);
-    let selectedBlocked = false;
-    roomCards.forEach((card) => {
-      const cap = parseInt(card.dataset.roomCapacity || "0", 10) || 0;
-      const tooSmall = cap > 0 && people > cap;
-      card.classList.toggle("is-disabled", tooSmall);
-      card.setAttribute("aria-disabled", tooSmall ? "true" : "false");
-      if (tooSmall && roomInput && roomInput.value === (card.dataset.roomId || "")) {
-        roomInput.value = "";
-        card.classList.remove("is-selected");
-        selectedBlocked = true;
-      }
-    });
-    if (roomFeedback) {
-      roomFeedback.textContent = selectedBlocked
-        ? '<%= tt("reservation.room_capacity_inline","אין מקום בחדר הזה למספר הסועדים שבחרת. נא לבחור חדר אחר או שעה אחרת.") %>'
-        : "";
-    }
-  }
-
   document.getElementById("people-minus")?.addEventListener("click", () => {
     const v = Math.max(1, parseInt(peopleInput.value||"1",10)-1);
     peopleInput.value = v;
-    syncRoomCapacityState();
   });
   document.getElementById("people-plus")?.addEventListener("click", () => {
     const v = parseInt(peopleInput.value||"1",10)+1;
     peopleInput.value = v;
-    syncRoomCapacityState();
   });
 
   /* ===== Room cards ===== */
   document.getElementById("room-cards")?.addEventListener("click", (e) => {
     const card = e.target.closest(".rsv-room-card");
-    if (!card || card.classList.contains("is-disabled")) return;
+    if (!card) return;
     document.querySelectorAll(".rsv-room-card").forEach(c => c.classList.remove("is-selected"));
     card.classList.add("is-selected");
     if (roomInput) roomInput.value = card.dataset.roomId;
-    if (roomFeedback) roomFeedback.textContent = "";
   });
 
   /* ===== Time grid ===== */
@@ -372,8 +344,6 @@
 
   // Init
   rebuildTimeFor(dateInput.value || new Date().toISOString().slice(0,10));
-  syncRoomCapacityState();
-  syncRoomCapacityState();
 
   /* ===== Time carousel arrows (RTL-aware) ===== */
   const isRTL = document.documentElement.dir === "rtl";
@@ -497,9 +467,17 @@
 
   /* ===== Reset & Page ===== */
   .rsv-page {
-    max-width: 680px; margin: 0 auto;
+    width: min(100%, 680px);
+    max-width: 680px;
+    margin: 0 auto;
     padding: 16px 16px 40px;
     padding-top: max(16px, env(safe-area-inset-top));
+    overflow-x: clip;
+  }
+
+  .rsv-page,
+  .rsv-page * {
+    box-sizing: border-box;
   }
 
   /* ===== Hero ===== */
@@ -529,10 +507,14 @@
   .rsv-hero__meta {
     margin: 0; font-size: 14px; color: rgba(255,255,255,.78);
     display: flex; align-items: center; gap: 6px;
+    flex-wrap: wrap;
+    overflow-wrap: anywhere;
   }
 
   /* ===== Form card ===== */
   .rsv-form {
+    width: 100%;
+    max-width: 100%;
     background: var(--panel, #121622);
     border: 1px solid var(--bd, #23293a);
     border-radius: 20px;
@@ -540,8 +522,9 @@
     margin-bottom: 16px;
     box-shadow: 0 8px 32px rgba(0,0,0,.3);
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 20px;
+    overflow: hidden;
   }
   .rsv-form__title {
     grid-column: 1 / -1;
@@ -553,6 +536,7 @@
 
   /* ===== Fields ===== */
   .rsv-field { display: flex; flex-direction: column; gap: 8px; }
+  .rsv-field, .rsv-field--full, .rsv-time-carousel-wrap, .rsv-time-carousel, .rsv-people, .rsv-actions { min-width: 0; }
   .rsv-field--full { grid-column: 1 / -1; }
   .rsv-field__label {
     font-size: 13px; font-weight: 700; text-transform: uppercase;
@@ -562,6 +546,9 @@
   .rsv-field__label svg { opacity: .5; }
 
   .rsv-input {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     background: var(--panel-2, #171b29);
     color: var(--ink, #e6e8ef);
     border: 1px solid var(--bd, #23293a);
@@ -578,6 +565,8 @@
 
   /* ===== People counter ===== */
   .rsv-people {
+    width: 100%;
+    max-width: 100%;
     display: flex; align-items: center; gap: 0;
     background: var(--panel-2, #171b29);
     border: 1px solid var(--bd, #23293a);
@@ -594,6 +583,8 @@
   .rsv-people__btn:hover { background: rgba(59,130,246,.12); }
   .rsv-people__btn:active { background: rgba(59,130,246,.2); }
   .rsv-people__val {
+    width: 100%;
+    min-width: 0;
     flex: 1; text-align: center;
     background: transparent; border: none;
     color: var(--ink, #e6e8ef); font-size: 20px; font-weight: 700;
@@ -605,7 +596,10 @@
 
   /* ===== Time carousel ===== */
   .rsv-time-carousel-wrap {
+    width: 100%;
+    max-width: 100%;
     display: flex; align-items: center; gap: 6px;
+    min-width: 0;
   }
   .rsv-time-arrow {
     flex-shrink: 0;
@@ -624,6 +618,8 @@
   }
   .rsv-time-carousel {
     display: flex; gap: 8px;
+    min-width: 0;
+    max-width: 100%;
     overflow-x: auto;
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
@@ -665,6 +661,7 @@
 
   /* ===== Room cards ===== */
   .rsv-rooms {
+    width: 100%;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 10px;
@@ -691,23 +688,10 @@
     background: rgba(59,130,246,.12);
     box-shadow: 0 4px 20px rgba(59,130,246,.25);
   }
-  .rsv-room-card.is-disabled {
-    opacity: .46;
-    cursor: not-allowed;
-    border-style: dashed;
-    box-shadow: none;
-    transform: none;
-  }
   .rsv-room-card__icon { opacity: .5; }
   .rsv-room-card.is-selected .rsv-room-card__icon { opacity: 1; color: var(--brand, #3b82f6); }
   .rsv-room-card__name { font-weight: 700; font-size: 15px; }
   .rsv-room-card__cap { font-size: 12px; color: var(--ink-muted, #9aa3b2); }
-  .rsv-room-feedback {
-    min-height: 20px;
-    margin-top: 10px;
-    font-size: 13px;
-    color: #fbbf24;
-  }
 
   /* ===== Buttons ===== */
   .rsv-actions {
@@ -717,6 +701,7 @@
   }
   .rsv-btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    max-width: 100%;
     padding: 14px 24px;
     border-radius: 14px;
     font-size: 16px; font-weight: 700;
@@ -770,6 +755,8 @@
 
   /* ===== Card (generic) ===== */
   .rsv-card {
+    width: 100%;
+    max-width: 100%;
     background: var(--panel, #121622);
     border: 1px solid var(--bd, #23293a);
     border-radius: 20px;
@@ -913,12 +900,22 @@
 
   /* ===== Large phone (376–600px) ===== */
   @media (max-width: 600px) {
-    .rsv-page { padding: 0 12px 32px; padding-bottom: max(32px, env(safe-area-inset-bottom)); }
+    .rsv-page {
+      width: 100%;
+      max-width: 100%;
+      padding: 0 12px 32px;
+      padding-left: max(12px, env(safe-area-inset-left));
+      padding-right: max(12px, env(safe-area-inset-right));
+      padding-bottom: max(32px, env(safe-area-inset-bottom));
+    }
     .rsv-hero { border-radius: 16px; margin-bottom: 16px; }
     .rsv-hero__img { height: 200px; }
     .rsv-hero__overlay { padding: 16px; }
     .rsv-hero__name { font-size: 22px; }
-    .rsv-form { grid-template-columns: 1fr; padding: 18px; gap: 16px; border-radius: 16px; }
+    .rsv-form { grid-template-columns: minmax(0, 1fr); padding: 18px; gap: 16px; border-radius: 16px; }
+    .rsv-field__label { flex-wrap: wrap; }
+    .rsv-time-carousel-wrap { gap: 4px; }
+    .rsv-time-carousel { padding-inline: 0; }
     .rsv-rooms { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .rsv-room-card { padding: 14px 8px; min-height: 44px; }
     .rsv-gallery img { height: 80px; }
@@ -933,7 +930,13 @@
 
   /* ===== Small phone (≤375px — iPhone SE, etc) ===== */
   @media (max-width: 375px) {
-    .rsv-page { padding: 0 10px 28px; }
+    .rsv-page {
+      width: 100%;
+      max-width: 100%;
+      padding: 0 10px 28px;
+      padding-left: max(10px, env(safe-area-inset-left));
+      padding-right: max(10px, env(safe-area-inset-right));
+    }
     .rsv-hero__img { height: 160px; }
     .rsv-hero__name { font-size: 20px; }
     .rsv-hero__meta { font-size: 12px; }
@@ -945,6 +948,7 @@
     .rsv-room-card__name { font-size: 13px; }
     .rsv-room-card__cap { font-size: 11px; }
     .rsv-time-chip { padding: 8px 12px; font-size: 13px; }
+    .rsv-form, .rsv-card, .rsv-hero { width: 100%; max-width: 100%; }
     .rsv-suggestion-chip { padding: 8px 12px; font-size: 13px; }
     .rsv-btn { padding: 12px 18px; font-size: 15px; }
     .rsv-gallery { grid-template-columns: repeat(2, 1fr); }
@@ -955,63 +959,6 @@
     .rsv-hero__img { height: 150px; }
     .rsv-hero__overlay { padding: 12px 16px; }
     .rsv-form { grid-template-columns: 1fr 1fr; }
-  }
-
-
-  @media (max-width: 720px) {
-    .rsv-page {
-      padding: 0 0 28px;
-    }
-    .rsv-hero {
-      border-radius: 0 0 24px 24px;
-      margin-inline: 0;
-    }
-    .rsv-hero__img {
-      height: 240px;
-    }
-    .rsv-hero__overlay {
-      padding: 18px;
-    }
-    .rsv-form, .rsv-card {
-      border-radius: 18px;
-      margin-inline: 12px;
-      padding: 18px;
-    }
-    .rsv-form {
-      grid-template-columns: 1fr;
-      gap: 16px;
-    }
-    .rsv-rooms {
-      grid-template-columns: 1fr;
-    }
-    .rsv-actions {
-      position: sticky;
-      bottom: 10px;
-      z-index: 5;
-      background: linear-gradient(180deg, rgba(18,22,34,0), rgba(18,22,34,.96) 24%);
-      padding-top: 12px;
-      margin-top: -4px;
-    }
-    .rsv-btn {
-      min-height: 52px;
-    }
-    .rsv-time-chip {
-      min-width: 84px;
-      min-height: 48px;
-    }
-  }
-
-  @media (max-width: 420px) {
-    .rsv-hero__name {
-      font-size: 24px;
-    }
-    .rsv-people {
-      gap: 10px;
-    }
-    .rsv-people__btn {
-      width: 44px;
-      height: 44px;
-    }
   }
 
 </style>

@@ -11,11 +11,10 @@
 %>
 
 <main class="container sb-payment">
-  <section class="payment-hero">
-    <div class="payment-hero__eyebrow"><%= tt('payment.hero.eyebrow','Secure reservation') %></div>
+  <header class="page-header">
     <h1><%= tt('payment.header.title','Complete Your Deposit') %></h1>
     <p class="muted"><%= it.restaurant.name %> · <%= it.restaurant.city %></p>
-  </section>
+  </header>
 
   <!-- Reservation Summary -->
   <section class="card summary-card">
@@ -317,51 +316,4 @@
     .summary-grid{ grid-template-columns: 1fr; }
     .deposit-header{ flex-direction: column; align-items: flex-start; gap: 8px; }
   }
-
-  body:has(.sb-payment) {
-    background:
-      radial-gradient(circle at top, rgba(59,130,246,.18), transparent 32%),
-      linear-gradient(180deg, #0b1020 0%, #111827 100%);
-  }
-  .sb-payment.container{
-    max-width: 680px;
-    padding: 0 12px 28px;
-  }
-  .payment-hero{
-    text-align:center;
-    padding: 24px 8px 18px;
-  }
-  .payment-hero__eyebrow{
-    display:inline-flex;
-    padding: 6px 12px;
-    border-radius: 999px;
-    border: 1px solid rgba(59,130,246,.25);
-    background: rgba(59,130,246,.1);
-    color: #bfdbfe;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    margin-bottom: 10px;
-  }
-  .page-header h1, .payment-hero h1{ margin:0 0 6px; font-size: clamp(28px, 5vw, 38px); }
-  .card{
-    background: linear-gradient(180deg, rgba(18,22,34,.96), rgba(18,22,34,.88));
-    backdrop-filter: blur(16px);
-  }
-  .payment-btn{
-    min-height: 62px;
-  }
-  .confirm-card{
-    position: sticky;
-    bottom: 10px;
-    z-index: 5;
-  }
-  @media (max-width: 640px) {
-    .summary-grid{ grid-template-columns: 1fr; }
-    .deposit-header{ align-items:flex-start; flex-direction:column; gap:8px; }
-    .confirm-card{ bottom: 6px; }
-    .btn.primary.lg{ min-height: 52px; width:100%; }
-  }
-
 </style>
