@@ -558,21 +558,28 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
     return f.includes(q) || l.includes(q) || phone.includes(q) || note.includes(q);
   });
 
+  const roomLabelMap = await buildRoomLabelMap(rid);
+
   json(ctx, {
     ok: true,
     date,
     q: qraw,
     count: matches.length,
-    items: matches.map((it: any) => ({
-      id: it.id,
-      time: it.time,
-      firstName: it.firstName ?? "",
-      lastName: it.lastName ?? "",
-      people: Number(it.people ?? 0),
-      status: it.status ?? "",
-      phone: it.phone ?? "",
-      note: it.note ?? it.notes ?? "",
-    })),
+    items: matches.map((it: any) => {
+      const layoutId = extractLayoutIdFromReservation(it);
+      const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? "") : "";
+      return {
+        id: it.id,
+        time: it.time,
+        firstName: it.firstName ?? "",
+        lastName: it.lastName ?? "",
+        people: Number(it.people ?? 0),
+        status: it.status ?? "",
+        phone: it.phone ?? "",
+        note: it.note ?? it.notes ?? "",
+        roomLabel,
+      };
+    }),
   });
 });
 

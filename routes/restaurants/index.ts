@@ -15,6 +15,7 @@ restaurantsRouter.get("/restaurants/:id", Restaurant.view);
 
 // זמינות
 restaurantsRouter.post("/api/restaurants/:id/check", Reservation.checkApi);
+restaurantsRouter.get("/api/restaurants/:id/room-occupancy", Reservation.roomOccupancyApi);
 restaurantsRouter.post("/restaurants/:id/reserve", Reservation.reservePost);
 
 // שלב 2 + אישור

@@ -117,6 +117,33 @@ export async function checkApi(ctx: any) {
   }
 }
 
+/* ====================== GET /api/restaurants/:id/room-occupancy ====================== */
+export async function roomOccupancyApi(ctx: any) {
+  const rid = String(ctx.params.id ?? "");
+  const sp = ctx.request.url.searchParams;
+  const layoutId = (sp.get("layoutId") ?? "").trim();
+  const date = (sp.get("date") ?? "").trim();
+  const time = (sp.get("time") ?? "").trim();
+  const people = Math.max(1, Number(sp.get("people") ?? "1") || 1);
+
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  if (!layoutId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = JSON.stringify({ ok: false, error: "layoutId, date (YYYY-MM-DD), time (HH:mm) required" });
+    return;
+  }
+
+  const result = await checkRoomCapacity(rid, layoutId, date, time, people);
+  ctx.response.body = JSON.stringify({
+    ok: true,
+    capacity: result.capacity,
+    alreadyBooked: result.alreadyBooked,
+    remaining: result.remaining,
+    roomLabel: result.roomLabel,
+    roomFull: !result.ok,
+  });
+}
+
 /* ====================== POST /restaurants/:id/reserve ====================== */
 export async function reservePost(ctx: any) {
   const rid = String(ctx.params.id ?? "");
