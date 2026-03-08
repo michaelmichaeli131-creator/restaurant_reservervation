@@ -15,7 +15,8 @@
       "customerPhone": "נייד",
       "customerEmail": "אימייל",
       "note": "הערות",
-      "id": "מס׳ הזמנה"
+      "id": "מס׳ הזמנה",
+      "deposit": "פיקדון"
     },
     "actions": {
       "backToRestaurant": "חזרה לעמוד המסעדה",
@@ -27,6 +28,16 @@
     },
     "about": {
       "title": "על המסעדה"
+    },
+    "deposit": {
+      "pending": "ממתין לאישור",
+      "received": "התקבל",
+      "refunded": "הוחזר"
+    }
+  },
+  "restaurant": {
+    "form": {
+      "guests": "אורחים"
     }
   }
 }

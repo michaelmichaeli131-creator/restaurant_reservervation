@@ -2,10 +2,12 @@
 
 <% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
 
+<% const langSuffix = it.lang ? `&lang=${encodeURIComponent(it.lang)}` : ""; %>
+
 <div class="rsv-page">
   <!-- Header -->
   <div class="rsv-details-header">
-    <a class="rsv-back-link" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %>">
+    <a class="rsv-back-link" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %><%= langSuffix %>">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
       <%= tt('details.actions.back','חזרה') %>
     </a>
@@ -48,6 +50,7 @@
     <input type="hidden" name="date" value="<%= it.date %>"/>
     <input type="hidden" name="time" value="<%= it.time %>"/>
     <input type="hidden" id="hidden-people" name="people" value="<%= it.people %>"/>
+    <% if (it.lang) { %><input type="hidden" name="lang" value="<%= it.lang %>"/><% } %>
     <% if (it.preferredLayoutId) { %>
       <input type="hidden" name="preferredLayoutId" value="<%= it.preferredLayoutId %>"/>
     <% } %>

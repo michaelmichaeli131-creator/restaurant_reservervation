@@ -9,7 +9,7 @@
 // - אנטי-קליפינג בג'ימייל (תוכן מזהה גלוי)
 // - טקסט/HTML תואמי שפה, כולל כיווניות dir=rtl/ltr
 // - הצגת הערות הלקוח (note) גם במייל הלקוח וגם במייל הבעלים
-// - verify/reset/reminder/reservation/owner notifications רב־לשוניים (ברירת מחדל he)
+// - verify/reset/reminder/reservation/owner notifications רב־לשוניים (ברירת מחדל en)
 // - עטיפה אחידה בסגנון כהה יוקרתי התואם לאתר
 
 /* ======================= ENV ======================= */
@@ -25,7 +25,7 @@ type Lang = "he" | "en" | "ka";
 const SUPPORTED: Lang[] = ["he", "en", "ka"];
 function normLang(l?: string | null): Lang {
   const v = String(l || "").toLowerCase();
-  return (SUPPORTED as string[]).includes(v) ? (v as Lang) : "he";
+  return (SUPPORTED as string[]).includes(v) ? (v as Lang) : "en";
 }
 function dirByLang(l: Lang): "rtl" | "ltr" {
   return l === "he" ? "rtl" : "ltr";
@@ -42,6 +42,9 @@ const I18N = {
   noteTitle: { he: "הערות/בקשות הלקוח:", en: "Customer notes/requests:", ka: "კლიენტის შენიშვნები/მოთხოვნები:" },
   manageCta: { he: "ניהול ההזמנה (אישור/ביטול/שינוי)", en: "Manage reservation (confirm/cancel/reschedule)", ka: "ჯავშნის მართვა (დადასტ./გაუქმ./დროის შეცვლა)" },
   directLink: { he: "קישור ישיר", en: "Direct link", ka: "პირდაპირი ბმული" },
+  customerLabel: { he: "לקוח", en: "Customer", ka: "კლიენტი" },
+  phoneLabel: { he: "טלפון", en: "Phone", ka: "ტელეფონი" },
+  emailLabel: { he: "אימייל", en: "Email", ka: "ელ-ფოსტა" },
   footerAuto: {
     he: "האימייל נשלח אוטומטית. אין להשיב להודעה זו.",
     en: "This email was sent automatically. Please do not reply.",
@@ -344,7 +347,7 @@ function sanitizeNoteRaw(raw?: string | null): string {
 function clampNoteLen(s: string, max = 500): string {
   return s.length <= max ? s : s.slice(0, max - 1) + "…";
 }
-function noteAsHtml(note?: string | null, lang: Lang = "he"): string {
+function noteAsHtml(note?: string | null, lang: Lang = "en"): string {
   const title = t("noteTitle", lang);
   const clean = clampNoteLen(sanitizeNoteRaw(note));
   if (!clean) return "";
@@ -356,7 +359,7 @@ function noteAsHtml(note?: string | null, lang: Lang = "he"): string {
       <div style="white-space:pre-wrap;line-height:1.5;color:${palette.sub}">${withBr}</div>
     </div>`;
 }
-function noteAsText(note?: string | null, lang: Lang = "he"): string {
+function noteAsText(note?: string | null, lang: Lang = "en"): string {
   const title = t("noteTitle", lang);
   const clean = clampNoteLen(sanitizeNoteRaw(note));
   return clean ? `\n${title}\n${clean}\n` : "";
@@ -562,9 +565,9 @@ export async function notifyOwnerEmail(opts: {
       </p>
     </div>
     <div style="margin-top:12px;">
-      <p style="margin:0;"><strong>${t("hello", L)}:</strong> ${customerName}</p>
-      <p style="margin:0;"><strong>Phone:</strong> ${customerPhone || "-"}</p>
-      <p style="margin:0;"><strong>Email:</strong> ${customerEmail || "-"}</p>
+      <p style="margin:0;"><strong>${t("customerLabel", L)}:</strong> ${customerName}</p>
+      <p style="margin:0;"><strong>${t("phoneLabel", L)}:</strong> ${customerPhone || "-"}</p>
+      <p style="margin:0;"><strong>${t("emailLabel", L)}:</strong> ${customerEmail || "-"}</p>
     </div>
     ${notesHtml}
   `, L);
@@ -572,7 +575,7 @@ export async function notifyOwnerEmail(opts: {
   const text =
     `${t("ownerNewTitle", L)} — ${restaurantName}\n` +
     `${t("date", L)}: ${date} | ${t("time", L)}: ${time} | ${t("guests", L)}: ${people}\n` +
-    `Customer: ${customerName} | Phone: ${customerPhone || "-"} | Email: ${customerEmail || "-"}\n` +
+    `${t("customerLabel", L)}: ${customerName} | ${t("phoneLabel", L)}: ${customerPhone || "-"} | ${t("emailLabel", L)}: ${customerEmail || "-"}\n` +
     (noteAsText(note, L) || "");
 
   return await sendMailAny({

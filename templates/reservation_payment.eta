@@ -3,6 +3,9 @@
 <% /* tt: translation with fallback */ %>
 <% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
 
+<% const langSuffix = it.lang ? `?lang=${encodeURIComponent(it.lang)}` : ""; %>
+<% const langAmp = it.lang ? `&lang=${encodeURIComponent(it.lang)}` : ""; %>
+
 <%
   // Format deposit amount with currency symbol
   const symbols = { EUR: '€', GBP: '£', USD: '$' };
@@ -77,6 +80,7 @@
       <!-- Pass all reservation data -->
       <input type="hidden" name="token" value="<%= it.token %>"/>
       <input type="hidden" name="paymentMethod" id="selectedMethod" value=""/>
+      <% if (it.lang) { %><input type="hidden" name="lang" value="<%= it.lang %>"/><% } %>
 
       <div class="confirm-content">
         <p class="confirm-text"><%= tt('payment.confirm.text','After completing your payment, click the button below:') %></p>
@@ -95,7 +99,7 @@
 
   <!-- Cancel Link -->
   <div class="cancel-row">
-    <a href="/restaurants/<%= it.restaurant.id %>" class="cancel-link">
+    <a href="/restaurants/<%= it.restaurant.id %><%= langSuffix %>" class="cancel-link">
       <%= tt('payment.cancel','Cancel and go back') %>
     </a>
   </div>

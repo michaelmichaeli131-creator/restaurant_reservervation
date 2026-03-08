@@ -1,0 +1,31 @@
+{
+  "payment": {
+    "header": {
+      "title": "Complete Your Deposit"
+    },
+    "summary": {
+      "title": "Reservation Summary",
+      "date": "Date",
+      "time": "Time",
+      "people": "Guests",
+      "name": "Name"
+    },
+    "deposit": {
+      "title": "Deposit Required",
+      "hint": "This deposit secures your reservation and will be applied to your bill or refunded if you cancel in advance."
+    },
+    "methods": {
+      "title": "Choose Payment Method",
+      "hint": "Open the payment page in a new tab. After paying, return here and click “I've Completed Payment”."
+    },
+    "confirm": {
+      "text": "After completing your payment, click the button below:",
+      "btn": "I've Completed Payment",
+      "hint": "Your reservation will be confirmed once the restaurant verifies the payment."
+    },
+    "cancel": "Cancel and go back",
+    "error": {
+      "selectMethod": "Please click a payment method first to complete your payment."
+    }
+  }
+}

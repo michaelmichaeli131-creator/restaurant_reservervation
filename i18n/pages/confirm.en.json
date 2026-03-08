@@ -15,7 +15,8 @@
       "customerPhone": "Phone",
       "customerEmail": "Email",
       "note": "Notes",
-      "id": "Reservation ID"
+      "id": "Reservation ID",
+      "deposit": "Deposit"
     },
     "actions": {
       "backToRestaurant": "Back to Restaurant",
@@ -27,6 +28,16 @@
     },
     "about": {
       "title": "About the Restaurant"
+    },
+    "deposit": {
+      "pending": "Awaiting confirmation",
+      "received": "Received",
+      "refunded": "Refunded"
+    }
+  },
+  "restaurant": {
+    "form": {
+      "guests": "Guests"
     }
   }
 }

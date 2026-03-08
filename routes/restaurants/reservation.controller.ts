@@ -213,7 +213,7 @@ export async function detailsGet(ctx: any) {
   await render(ctx, "reservation_details", {
     page: "details",
     lang, dir, t,
-    title: `${t("details.header.title","פרטי הזמנה")} — ${restaurant.name}`,
+    title: `${t("details.header.title","Reservation Details")} — ${restaurant.name}`,
     restaurant: { ...restaurant, photos, openingHours: restaurant.weeklySchedule },
     date, time, people,
     // Deposit info
@@ -384,8 +384,7 @@ export async function confirmGet(ctx: any) {
       date,
       time,
       people,
-      // אפשר להעביר גם lang אם תרצה שמייל בעלים יהיה באותה שפה:
-      // lang,
+      lang,
     }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
   } else {
     console.log("[mail] owner email not found; skipping owner notification");
@@ -399,7 +398,7 @@ export async function confirmGet(ctx: any) {
   await render(ctx, "reservation_confirmed", {
     page: "confirm",
     lang, dir, t,
-    title: `${t("confirm.header.title","הזמנה אושרה ✔")} — ${restaurant.name}`,
+    title: `${t("confirm.header.title","Reservation Confirmed ✔")} — ${restaurant.name}`,
     restaurant: { ...restaurant, photos },
     date, time, people,
     customerName, customerPhone, customerEmail,
@@ -589,8 +588,7 @@ export async function confirmPost(ctx: any) {
       restaurantName: restaurant.name,
       customerName, customerPhone, customerEmail,
       date, time, people,
-      // אפשר להעביר גם lang אם תרצה שהמייל לבעלים יישלח באותה שפה:
-      // lang,
+      lang,
     }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
   } else {
     console.log("[mail] owner email not found; skipping owner notification");
@@ -604,7 +602,7 @@ export async function confirmPost(ctx: any) {
   await render(ctx, "reservation_confirmed", {
     page: "confirm",
     lang, dir, t,
-    title: `${t("confirm.header.title","הזמנה אושרה ✔")} — ${restaurant.name}`,
+    title: `${t("confirm.header.title","Reservation Confirmed ✔")} — ${restaurant.name}`,
     restaurant: { ...restaurant, photos },
     date, time, people,
     customerName, customerPhone, customerEmail,
@@ -734,7 +732,7 @@ export async function paymentGet(ctx: any) {
   await render(ctx, "reservation_payment", {
     page: "payment",
     lang, dir, t,
-    title: `Payment — ${restaurant.name}`,
+    title: `${t("payment.header.title", "Complete Your Deposit")} — ${restaurant.name}`,
     restaurant: { ...restaurant, photos },
     date: tokenData.date,
     time: tokenData.time,
@@ -876,6 +874,7 @@ export async function confirmPaymentGet(ctx: any) {
       date: tokenData.date,
       time: tokenData.time,
       people: tokenData.people,
+      lang,
     }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
   }
 

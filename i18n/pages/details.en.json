@@ -1,6 +1,9 @@
 {
   "details": {
-    "header": { "title": "Reservation Details", "phoneLabel": "Phone:" },
+    "header": {
+      "title": "Reservation Details",
+      "phoneLabel": "Phone:"
+    },
     "form": {
       "stepTitle": "Step 2 — Guest Details",
       "name": "Full name",
@@ -20,12 +23,26 @@
       "people": "Guests:",
       "restaurant": "Restaurant:"
     },
-    "actions": { "confirm": "Confirm reservation", "back": "Back to change date/time" },
+    "actions": {
+      "confirm": "Confirm reservation",
+      "back": "Back to change date/time"
+    },
     "conflict": {
       "title": "No availability at your selected time",
       "suggestHint": "Pick one of the available times close to your request (±2h):",
       "copyHint": "Clicking a time will update the form and let you resubmit."
     },
-    "about": { "title": "About the Restaurant" }
+    "about": {
+      "title": "About the Restaurant"
+    },
+    "deposit": {
+      "title": "Deposit Required",
+      "hint": "A deposit is required to confirm your reservation. You will be redirected to complete payment after submitting your details."
+    }
+  },
+  "restaurant": {
+    "form": {
+      "guests": "Guests"
+    }
   }
 }

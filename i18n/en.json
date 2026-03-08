@@ -906,7 +906,12 @@
       "time": "Time",
       "loading_times": "Loading times...",
       "up_to": "Up to",
-      "guests": "guests"
+      "guests": "Guests",
+      "missing": "Please select a date and time",
+      "minus": "Decrease guests",
+      "plus": "Increase guests",
+      "prev_times": "Previous times",
+      "next_times": "Next times"
     },
     "menu": {
       "title": "Menu"

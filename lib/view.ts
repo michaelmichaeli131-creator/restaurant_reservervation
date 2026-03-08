@@ -99,7 +99,7 @@ function escapeHtml(s: unknown) {
 function fallbackHtml(
   title: string,
   info: Record<string, unknown>,
-  lang = "he",
+  lang = "en",
   dir: "rtl" | "ltr" = lang === "he" ? "rtl" : "ltr",
 ) {
   const safeTitle = title || "GeoTable";
@@ -215,7 +215,7 @@ export async function render(
   // deno-lint-ignore no-explicit-any
   const stateAny = ctx.state as any;
 
-  const lang = stateAny?.lang ?? "he";
+  const lang = stateAny?.lang ?? "en";
   const dir: "rtl" | "ltr" = stateAny?.dir ?? (lang === "he" ? "rtl" : "ltr");
   const baseT: (key: string, vars?: Record<string, unknown>) => string =
     stateAny?.t ?? ((k: string) => `(${k})`);

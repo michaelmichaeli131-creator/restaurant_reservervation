@@ -2,7 +2,7 @@
 // שכבת wrapper דקה מעל mail.ts:
 // - אם מועבר ctx: נחלץ ממנו שפה (he/en/ka)
 // - אם מועברת מחרוזת שפה: נשתמש בה ישירות
-// - אם לא הועבר כלום: ברירת מחדל "he"
+// - אם לא הועבר כלום: ברירת מחדל "en"
 // בנוסף: מייצא בדיוק את אותם שמות שהקוד שלך מצפה להם (sendVerifyEmail, sendResetEmail),
 // וגם re-export לפונקציות האחרות כדי שתוכל לייבא אותן מהקובץ הזה אם תרצה.
 
@@ -19,7 +19,7 @@ type Lang = "he" | "en" | "ka";
 
 function normLang(l?: string | null): Lang {
   const v = String(l || "").toLowerCase();
-  return v === "en" || v === "ka" ? (v as Lang) : "he";
+  return v === "he" || v === "en" || v === "ka" ? (v as Lang) : "en";
 }
 
 function langFromCtx(ctx?: MaybeCtx): Lang {
@@ -48,7 +48,7 @@ function langFromCtx(ctx?: MaybeCtx): Lang {
     if (/^he/i.test(al)) return "he";
   } catch {}
 
-  return "he";
+  return "en";
 }
 
 /** שלח מייל אימות משתמש. מקבל:

@@ -3,7 +3,7 @@
 <%
   /* tt: תרגום עם fallback אמיתי */
   function tt(k, fb){ try{ if(it && typeof it.t==='function'){ const s=it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; }
-  const lang = it.lang || 'he';
+  const lang = it.lang || 'en';
   const dir  = it.dir  || (lang === 'he' || lang === 'ar' ? 'rtl' : 'ltr');
   const token = it.token || '';
   const path  = `/r/${token}`;

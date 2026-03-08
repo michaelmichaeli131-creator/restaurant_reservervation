@@ -15,7 +15,8 @@
       "customerPhone": "ტელეფონი",
       "customerEmail": "ელ-ფოსტა",
       "note": "შენიშვნები",
-      "id": "ჯავშნის ID"
+      "id": "ჯავშნის ID",
+      "deposit": "დეპოზიტი"
     },
     "actions": {
       "backToRestaurant": "დაბრუნება რესტორნის გვერდზე",
@@ -27,6 +28,16 @@
     },
     "about": {
       "title": "რესტორნის შესახებ"
+    },
+    "deposit": {
+      "pending": "დადასტურების მოლოდინში",
+      "received": "მიღებულია",
+      "refunded": "დაბრუნებულია"
+    }
+  },
+  "restaurant": {
+    "form": {
+      "guests": "სტუმრები"
     }
   }
 }
