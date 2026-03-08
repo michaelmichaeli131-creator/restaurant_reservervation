@@ -453,7 +453,10 @@
               <% preview.forEach(function(x){ %>
                 <a class="sb-tr sb-rowlink" role="row" href="<%= r?._urls?.calendar %>" aria-label="<%= it.t('owner_manage.open_in_calendar') %>">
                   <div class="sb-td" role="cell"><strong><%= x.time %></strong></div>
-                  <div class="sb-td" role="cell"><%= x.name %></div>
+                  <div class="sb-td" role="cell">
+                    <%= x.name %>
+                    <% if (x.roomLabel) { %><span style="display:inline-block;margin-inline-start:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(59,130,246,.15);color:#93c5fd;border:1px solid rgba(59,130,246,.25)"><%= x.roomLabel %></span><% } %>
+                  </div>
                   <div class="sb-td" role="cell"><%= x.people %></div>
                   <div class="sb-td" role="cell"><span class="sb-badge <%= (String(x.status).toLowerCase()==='new')?'warn':'' %>"><%= x.status %></span></div>
                 </a>
