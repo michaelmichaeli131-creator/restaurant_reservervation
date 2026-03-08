@@ -1,6 +1,8 @@
 {
   "common": {
-    "lang": { "switch": "Language" }
+    "lang": {
+      "switch": "Language"
+    }
   },
   "manage": {
     "title": "Manage Reservation · SpotBook",
@@ -35,6 +37,14 @@
     "help": {
       "text": "Need help? Contact us with the reservation number above.",
       "orCall": "or call"
+    },
+    "flash": {
+      "cannotConfirmCanceled": "The reservation is canceled and cannot be confirmed.",
+      "alreadyConfirmed": "The reservation is already confirmed.",
+      "confirmed": "Your attendance was confirmed. See you soon!",
+      "alreadyCanceled": "The reservation is already canceled.",
+      "canceled": "The reservation was canceled.",
+      "unknownAction": "Unknown action"
     }
   }
 }

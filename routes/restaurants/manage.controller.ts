@@ -8,13 +8,25 @@ import { pickNonEmpty } from "./_utils/datetime.ts";
 import { photoStrings } from "./_utils/misc.ts";
 import { debugLog } from "../../lib/debug.ts";
 
+function getLang(ctx: any): string {
+  return ctx.state?.lang || ctx.request.url.searchParams.get("lang") || ctx.cookies?.get?.("lang") || "en";
+}
+function tt(ctx: any, key: string, fallback: string): string {
+  const t = ctx.state?.t;
+  if (typeof t === "function") {
+    const value = t(key);
+    if (value && value !== key && value !== `(${key})`) return value;
+  }
+  return fallback;
+}
+
 export async function manageGet(ctx: any) {
   const token = String(ctx.params.token ?? "").trim();
   const payload = await verifyReservationToken(token);
-  if (!payload) { ctx.response.status = Status.NotFound; ctx.response.body = "Invalid or expired link"; return; }
+  if (!payload) { const lang = getLang(ctx); ctx.response.status = Status.NotFound; ctx.response.body = lang === "he" ? "הקישור לא תקין או שפג תוקפו" : lang === "ka" ? "ბმული არასწორია ან ვადა გაუვიდა" : "Invalid or expired link"; return; }
 
   const reservation = await getReservationById(payload.rid);
-  if (!reservation) { ctx.response.status = Status.NotFound; ctx.response.body = "Reservation not found"; return; }
+  if (!reservation) { const lang = getLang(ctx); ctx.response.status = Status.NotFound; ctx.response.body = lang === "he" ? "ההזמנה לא נמצאה" : lang === "ka" ? "ჯავშანი ვერ მოიძებნა" : "Reservation not found"; return; }
 
   const restaurant = await getRestaurant(reservation.restaurantId);
   const photos = photoStrings(restaurant?.photos);
@@ -24,7 +36,7 @@ export async function manageGet(ctx: any) {
 
   await render(ctx, "reservation_manage", {
     page: "reservation_manage",
-    title: "ניהול הזמנה",
+    title: tt(ctx, "manage.title", "Manage Reservation · SpotBook"),
     token,
     reservation,
     restaurant: restaurant ? { ...restaurant, photos } : null,
@@ -38,7 +50,7 @@ export async function manageGet(ctx: any) {
 export async function managePost(ctx: any) {
   const token = String(ctx.params.token ?? "").trim();
   const payload = await verifyReservationToken(token);
-  if (!payload) { ctx.response.status = Status.BadRequest; ctx.response.body = "Invalid or expired link"; return; }
+  if (!payload) { const lang = getLang(ctx); ctx.response.status = Status.BadRequest; ctx.response.body = lang === "he" ? "הקישור לא תקין או שפג תוקפו" : lang === "ka" ? "ბმული არასწორია ან ვადა გაუვიდა" : "Invalid or expired link"; return; }
 
   const { payload: body, dbg } = await readBody(ctx);
 
@@ -77,10 +89,10 @@ export async function managePost(ctx: any) {
   });
 
   const reservation = await getReservationById(payload.rid);
-  if (!reservation) { ctx.response.status = Status.NotFound; ctx.response.body = "Reservation not found"; return; }
+  if (!reservation) { const lang = getLang(ctx); ctx.response.status = Status.NotFound; ctx.response.body = lang === "he" ? "ההזמנה לא נמצאה" : lang === "ka" ? "ჯავშანი ვერ მოიძებნა" : "Reservation not found"; return; }
 
   const restaurant = await getRestaurant(reservation.restaurantId);
-  if (!restaurant) { ctx.response.status = Status.NotFound; ctx.response.body = "Restaurant not found"; return; }
+  if (!restaurant) { const lang = getLang(ctx); ctx.response.status = Status.NotFound; ctx.response.body = lang === "he" ? "המסעדה לא נמצאה" : lang === "ka" ? "რესტორანი ვერ მოიძებნა" : "Restaurant not found"; return; }
 
   const photos = photoStrings(restaurant.photos);
   const renderBack = async (flash: any) => {
@@ -89,7 +101,7 @@ export async function managePost(ctx: any) {
     const allowCancel  = fresh?.status !== "canceled";
     await render(ctx, "reservation_manage", {
       page: "reservation_manage",
-      title: "ניהול הזמנה",
+      title: tt(ctx, "manage.title", "Manage Reservation · SpotBook"),
       token,
       reservation: fresh,
       restaurant: { ...restaurant, photos },
@@ -101,19 +113,19 @@ export async function managePost(ctx: any) {
   };
 
   if (action === "confirm") {
-    if (reservation.status === "canceled") { await renderBack({ error: "ההזמנה מבוטלת ולא ניתן לאשר אותה." }); return; }
-    if (reservation.status === "confirmed") { await renderBack({ ok: "ההזמנה כבר מאושרת." }); return; }
+    if (reservation.status === "canceled") { await renderBack({ error: tt(ctx, "manage.flash.cannotConfirmCanceled", "The reservation is canceled and cannot be confirmed.") }); return; }
+    if (reservation.status === "confirmed") { await renderBack({ ok: tt(ctx, "manage.flash.alreadyConfirmed", "The reservation is already confirmed.") }); return; }
     await updateReservation(reservation.id, { status: "confirmed" }).catch(() => {});
-    await renderBack({ ok: "ההגעה אושרה. נתראה!" });
+    await renderBack({ ok: tt(ctx, "manage.flash.confirmed", "Your attendance was confirmed. See you soon!") });
     return;
   }
 
   if (action === "cancel") {
-    if (reservation.status === "canceled") { await renderBack({ ok: "ההזמנה כבר בוטלה." }); return; }
+    if (reservation.status === "canceled") { await renderBack({ ok: tt(ctx, "manage.flash.alreadyCanceled", "The reservation is already canceled.") }); return; }
     await updateReservation(reservation.id, { status: "canceled" }).catch(() => {});
-    await renderBack({ ok: "ההזמנה בוטלה." });
+    await renderBack({ ok: tt(ctx, "manage.flash.canceled", "The reservation was canceled.") });
     return;
   }
 
-  await renderBack({ error: "פעולה לא מוכרת" });
+  await renderBack({ error: tt(ctx, "manage.flash.unknownAction", "Unknown action") });
 }

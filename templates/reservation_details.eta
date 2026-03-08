@@ -9,9 +9,9 @@
   <div class="rsv-details-header">
     <a class="rsv-back-link" href="/restaurants/<%= it.restaurant.id %>?date=<%= encodeURIComponent(it.date) %>&time=<%= encodeURIComponent(it.time) %>&people=<%= encodeURIComponent(String(it.people)) %><%= langSuffix %>">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-      <%= tt('details.actions.back','חזרה') %>
+      <%= tt('details.actions.back','Back') %>
     </a>
-    <h1 class="rsv-details-header__title"><%= tt('details.header.title','פרטי הזמנה') %></h1>
+    <h1 class="rsv-details-header__title"><%= tt('details.header.title','Reservation Details') %></h1>
     <p class="rsv-details-header__sub"><%= it.restaurant.name %></p>
   </div>
 
@@ -27,7 +27,7 @@
     </div>
     <div class="rsv-chip">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-      <span id="sum-people"><%= it.people %></span> <%= tt('restaurant.form.guests','אורחים') %>
+      <span id="sum-people"><%= it.people %></span> <%= tt('restaurant.form.guests','Guests') %>
     </div>
   </div>
 
@@ -59,17 +59,17 @@
       <div class="rsv-field">
         <label class="rsv-field__label" for="name">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          <%= tt('details.form.name','שם מלא') %>
+          <%= tt('details.form.name','Full name') %>
         </label>
         <input id="name" name="name" type="text" required autocomplete="name"
                class="rsv-input"
-               placeholder="<%= tt('details.form.namePh','שם פרטי ושם משפחה') %>"/>
+               placeholder="<%= tt('details.form.namePh','First and last name') %>"/>
       </div>
 
       <div class="rsv-field">
         <label class="rsv-field__label" for="phone">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-          <%= tt('details.form.phone','נייד') %>
+          <%= tt('details.form.phone','Mobile') %>
         </label>
         <input id="phone" name="phone" type="tel" required inputmode="tel"
                class="rsv-input"
@@ -80,29 +80,29 @@
     <div class="rsv-field">
       <label class="rsv-field__label" for="email">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-        <%= tt('details.form.email','אימייל') %>
+        <%= tt('details.form.email','Email') %>
       </label>
       <input id="email" name="email" type="email" dir="ltr" inputmode="email"
              autocomplete="email" autocapitalize="off" spellcheck="false"
              class="rsv-input"
              placeholder="you@example.com" required />
-      <small class="rsv-hint"><%= tt('details.form.emailHint','נשלח אליך אישור הזמנה') %></small>
+      <small class="rsv-hint"><%= tt('details.form.emailHint','We'll email you a confirmation') %></small>
     </div>
 
     <div class="rsv-field">
       <label class="rsv-field__label" for="note">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        <%= tt('details.form.note','הערות ובקשות מיוחדות (אופציונלי)') %>
+        <%= tt('details.form.note','Notes / special requests (optional)') %>
       </label>
       <textarea id="note" name="note" rows="3" maxlength="500"
                 class="rsv-input rsv-textarea"
-                placeholder="<%= tt('details.form.notePh','אלרגיות, עדיפות למיקום, חגיגה, כסא תינוק...') %>"></textarea>
+                placeholder="<%= tt('details.form.notePh','Allergies, seating preference, celebration, high chair...') %>"></textarea>
     </div>
 
     <div class="rsv-actions">
       <button type="submit" class="rsv-btn rsv-btn--primary">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        <%= tt('details.actions.confirm','אשר הזמנה') %>
+        <%= tt('details.actions.confirm','Confirm reservation') %>
       </button>
     </div>
   </form>

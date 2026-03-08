@@ -11,7 +11,7 @@
   const qEn   = `?lang=en`;
   const qKa   = `?lang=ka`;
   const logo  = it.logoUrl || '/public/img/spotbook-logo.svg';
-  const title = it.title || tt('manage.title','ניהול הזמנה · SpotBook');
+  const title = it.title || tt('manage.title','Manage Reservation · SpotBook');
   const status = (it.reservation?.status || 'new');
   const statusLabel = status==='confirmed'
     ? tt('manage.status.confirmed','מאושר')
@@ -138,9 +138,9 @@
         <div class="head-left">
           <img class="logo" src="<%= logo %>" alt="SpotBook" onerror="this.style.display='none'"/>
           <div>
-            <h1><%= tt('manage.header.title','ניהול הזמנה') %></h1>
+            <h1><%= tt('manage.header.title','Manage Reservation') %></h1>
             <div class="muted">
-              <%= tt('manage.header.resId','מס׳ הזמנה:') %>
+              <%= tt('manage.header.resId','Reservation ID:') %>
               <code><%= it.reservation.id %></code>
             </div>
           </div>

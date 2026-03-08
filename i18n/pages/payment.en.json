@@ -16,7 +16,13 @@
     },
     "methods": {
       "title": "Choose Payment Method",
-      "hint": "Open the payment page in a new tab. After paying, return here and click “I've Completed Payment”."
+      "hint": "Open the payment page in a new tab. After paying, return here and click “I've Completed Payment”.",
+      "options": {
+        "stripe": "Card Payment (Stripe)",
+        "sumup": "SumUp",
+        "paypal": "PayPal",
+        "revolut": "Revolut"
+      }
     },
     "confirm": {
       "text": "After completing your payment, click the button below:",
