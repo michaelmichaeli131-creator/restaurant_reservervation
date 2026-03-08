@@ -86,7 +86,7 @@
              autocomplete="email" autocapitalize="off" spellcheck="false"
              class="rsv-input"
              placeholder="you@example.com" required />
-      <small class="rsv-hint"><%= tt('details.form.emailHint','We'll email you a confirmation') %></small>
+      <small class="rsv-hint"><%= tt('details.form.emailHint',"We'll email you a confirmation") %></small>
     </div>
 
     <div class="rsv-field">
