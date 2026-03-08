@@ -310,6 +310,7 @@ export async function confirmGet(ctx: any) {
     `Name: ${customerName}`,
     `Phone: ${customerPhone}`,
     `Email: ${customerEmail}`,
+    ...(preferredLayoutId ? [`PreferredRoomId: ${preferredLayoutId}`] : []),
     ...(customerNote ? [`Note: ${customerNote}`] : []),
   ].join("; ");
 
@@ -325,7 +326,24 @@ export async function confirmGet(ctx: any) {
     ...(preferredLayoutId ? { preferredLayoutId } : {}),
     createdAt: Date.now(),
   };
-  await createReservationSafe(reservation);
+  try {
+    await createReservationSafe(reservation);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message === "room_full") {
+      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+      ctx.response.status = Status.Conflict;
+      ctx.response.body = JSON.stringify({ ok:false, error:"אין מספיק מקום בחדר שבחרת במועד הזה" }, null, 2);
+      return;
+    }
+    if (message === "no_availability") {
+      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+      ctx.response.status = Status.Conflict;
+      ctx.response.body = JSON.stringify({ ok:false, error:"אין זמינות במועד שבחרת" }, null, 2);
+      return;
+    }
+    throw error;
+  }
 
   // --- שפה/קישורי ניהול (רב-לשוני) ---
   const lang = ctx.state?.lang ?? getLang(ctx);
@@ -483,6 +501,7 @@ export async function confirmPost(ctx: any) {
       phone: customerPhone,
       email: customerEmail,
       note: customerNote,
+      preferredLayoutId: preferredLayoutIdPost || undefined,
       ts: Date.now(),
     });
     const lang = ctx.state?.lang ?? getLang(ctx);
@@ -500,6 +519,7 @@ export async function confirmPost(ctx: any) {
     `Name: ${customerName}`,
     `Phone: ${customerPhone}`,
     `Email: ${customerEmail}`,
+    ...(preferredLayoutIdPost ? [`PreferredRoomId: ${preferredLayoutIdPost}`] : []),
     ...(customerNote ? [`Note: ${customerNote}`] : []),
   ].join("; ");
 
@@ -515,7 +535,24 @@ export async function confirmPost(ctx: any) {
     ...(preferredLayoutIdPost ? { preferredLayoutId: preferredLayoutIdPost } : {}),
     createdAt: Date.now(),
   };
-  await createReservationSafe(reservation);
+  try {
+    await createReservationSafe(reservation);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message === "room_full") {
+      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+      ctx.response.status = Status.Conflict;
+      ctx.response.body = JSON.stringify({ ok:false, error:"אין מספיק מקום בחדר שבחרת במועד הזה" }, null, 2);
+      return;
+    }
+    if (message === "no_availability") {
+      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+      ctx.response.status = Status.Conflict;
+      ctx.response.body = JSON.stringify({ ok:false, error:"אין זמינות במועד שבחרת" }, null, 2);
+      return;
+    }
+    throw error;
+  }
 
   // --- שפה/קישורי ניהול (רב-לשוני) ---
   const lang = ctx.state?.lang ?? getLang(ctx);
@@ -586,6 +623,7 @@ interface PaymentTokenData {
   phone: string;
   email: string;
   note: string;
+  preferredLayoutId?: string;
   ts: number; // timestamp for expiry
 }
 
@@ -681,6 +719,7 @@ export async function paymentGet(ctx: any) {
     confirmUrl.searchParams.set("phone", tokenData.phone);
     confirmUrl.searchParams.set("email", tokenData.email);
     confirmUrl.searchParams.set("note", tokenData.note);
+    if (tokenData.preferredLayoutId) confirmUrl.searchParams.set("preferredLayoutId", tokenData.preferredLayoutId);
     ctx.response.redirect(confirmUrl.toString());
     return;
   }
@@ -748,6 +787,15 @@ export async function confirmPaymentGet(ctx: any) {
     return;
   }
 
+  if (tokenData.preferredLayoutId) {
+    const roomCheck = await checkRoomCapacity(rid, tokenData.preferredLayoutId, tokenData.date, tokenData.time, tokenData.people);
+    if (!roomCheck.ok) {
+      ctx.response.status = Status.Conflict;
+      ctx.response.body = `Selected room "${roomCheck.roomLabel}" is full for this time`;
+      return;
+    }
+  }
+
   // --- Create reservation with deposit status ---
   const user = (ctx.state as any)?.user ?? null;
   const userId: string = user?.id ?? `guest:${crypto.randomUUID().slice(0, 8)}`;
@@ -755,6 +803,7 @@ export async function confirmPaymentGet(ctx: any) {
     `Name: ${tokenData.name}`,
     `Phone: ${tokenData.phone}`,
     `Email: ${tokenData.email}`,
+    ...(tokenData.preferredLayoutId ? [`PreferredRoomId: ${tokenData.preferredLayoutId}`] : []),
     ...(tokenData.note ? [`Note: ${tokenData.note}`] : []),
   ].join("; ");
 
@@ -768,6 +817,7 @@ export async function confirmPaymentGet(ctx: any) {
     people: tokenData.people,
     status: "new",
     note: reservationNote,
+    ...(tokenData.preferredLayoutId ? { preferredLayoutId: tokenData.preferredLayoutId } : {}),
     // Payment tracking fields
     depositStatus: hasDeposit ? "pending" : "not_required",
     depositAmount: hasDeposit ? restaurant.depositAmount : undefined,
@@ -775,7 +825,22 @@ export async function confirmPaymentGet(ctx: any) {
     paymentMethod: hasDeposit ? (paymentMethod as any) : undefined,
     createdAt: Date.now(),
   };
-  await createReservationSafe(reservation);
+  try {
+    await createReservationSafe(reservation);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message === "room_full") {
+      ctx.response.status = Status.Conflict;
+      ctx.response.body = "Selected room is full for this time";
+      return;
+    }
+    if (message === "no_availability") {
+      ctx.response.status = Status.Conflict;
+      ctx.response.body = "Time slot no longer available";
+      return;
+    }
+    throw error;
+  }
 
   // --- Send emails ---
   const lang = ctx.state?.lang ?? getLang(ctx);

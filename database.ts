@@ -732,10 +732,20 @@ export async function createReservationSafe(r: Reservation): Promise<Reservation
     const dayLockKey = toKey("reservation_day_lock", r.restaurantId, r.date);
     const lock = await kv.get(dayLockKey);
 
-    // Re-check availability right before atomic write
+    // Re-check restaurant-level availability right before atomic write
     const avail = await checkAvailability(r.restaurantId, r.date, r.time, r.people);
     if (!(avail as any).ok) {
       throw new Error("no_availability");
+    }
+
+    // Re-check room-level availability as the final guard as well.
+    // This closes the gap where a reservation might pass the pre-check flow
+    // but the room becomes full before the atomic write succeeds.
+    if (r.preferredLayoutId) {
+      const roomCheck = await checkRoomCapacity(r.restaurantId, r.preferredLayoutId, r.date, r.time, r.people);
+      if (!roomCheck.ok) {
+        throw new Error("room_full");
+      }
     }
 
     // Atomic: create reservation + update lock (with version check)
@@ -779,6 +789,7 @@ export async function updateReservation(id: string, patch: Partial<Reservation>)
     lastName: patch.lastName ?? prev.lastName,
     phone: patch.phone ?? prev.phone,
     durationMinutes: patch.durationMinutes ?? prev.durationMinutes,
+    preferredLayoutId: patch.preferredLayoutId ?? prev.preferredLayoutId,
     userId: patch.userId ?? prev.userId,
     createdAt: prev.createdAt,
   };
@@ -827,6 +838,43 @@ export async function listReservationsByOwner(ownerId: string) {
   return results.slice(0, 200);
 }
 
+function isSeatBlockingReservationStatus(status?: Reservation["status"]): boolean {
+  const normalized = String(status ?? "new").trim().toLowerCase();
+  return !["canceled", "cancelled", "completed"].includes(normalized);
+}
+
+async function getRoomOccupancySnapshot(
+  restaurantId: string,
+  layoutId: string,
+  date: string,
+  step: number,
+  span: number,
+): Promise<{ map: Map<string, number>; alreadyBookedMax: number }> {
+  const reservations = await listReservationsFor(restaurantId, date);
+  const roomReservations = reservations.filter((reservation) => {
+    if (!isSeatBlockingReservationStatus(reservation.status)) return false;
+    return String(reservation.preferredLayoutId ?? "").trim() === layoutId;
+  });
+
+  const map = new Map<string, number>();
+  let alreadyBookedMax = 0;
+  for (const reservation of roomReservations) {
+    const reservationStartRaw = toMinutes(reservation.time);
+    if (!Number.isFinite(reservationStartRaw)) continue;
+    const reservationStart = snapToGrid(reservationStartRaw, step);
+    const reservationEnd = reservationStart + span;
+    const reservationPeople = Math.max(1, Number(reservation.people) || 1);
+    for (let t = reservationStart; t < reservationEnd; t += step) {
+      const key = fromMinutes(t);
+      const nextUsed = (map.get(key) ?? 0) + reservationPeople;
+      map.set(key, nextUsed);
+      if (nextUsed > alreadyBookedMax) alreadyBookedMax = nextUsed;
+    }
+  }
+
+  return { map, alreadyBookedMax };
+}
+
 export async function computeOccupancy(restaurant: Restaurant, date: string) {
   const r = coerceRestaurantDefaults(restaurant);
   const resv = await listReservationsFor(r.id, date);
@@ -836,11 +884,15 @@ export async function computeOccupancy(restaurant: Restaurant, date: string) {
   const span = r.serviceDurationMinutes;
 
   for (const rr of resv) {
-    const start = snapToGrid(toMinutes(rr.time), step);
+    if (!isSeatBlockingReservationStatus(rr.status)) continue;
+    const startRaw = toMinutes(rr.time);
+    if (!Number.isFinite(startRaw)) continue;
+    const start = snapToGrid(startRaw, step);
     const end = start + span;
+    const seats = Math.max(1, Number(rr.people) || 1);
     for (let t = start; t < end; t += step) {
       const key = fromMinutes(t);
-      map.set(key, (map.get(key) ?? 0) + rr.people);
+      map.set(key, (map.get(key) ?? 0) + seats);
     }
   }
   return map;
@@ -898,53 +950,58 @@ export async function checkRoomCapacity(
   date: string,
   time: string,
   people: number,
-): Promise<{ ok: true } | { ok: false; reason: "room_full"; roomLabel: string }> {
+): Promise<
+  | { ok: true; roomLabel: string; capacity: number; alreadyBooked: number; remaining: number }
+  | { ok: false; reason: "room_full"; roomLabel: string; capacity: number; alreadyBooked: number; remaining: number }
+> {
   // Dynamic import to avoid circular dependency
   const { getFloorLayout } = await import("./services/floor_service.ts");
   const layout = await getFloorLayout(restaurantId, layoutId);
-  if (!layout) return { ok: true };
+  if (!layout) return { ok: true, roomLabel: "", capacity: 0, alreadyBooked: 0, remaining: 0 };
+  const roomLabel = layout.floorLabel || layout.name;
   const cap = Number(layout.capacity);
-  if (!cap || cap <= 0 || !Number.isFinite(cap)) return { ok: true }; // no capacity limit set
-  const ppl = Math.max(1, Number(people) || 1);
-
-  // Immediate check: party size alone exceeds room capacity
-  if (ppl > cap) {
-    return { ok: false, reason: "room_full", roomLabel: layout.floorLabel || layout.name };
+  if (!cap || cap <= 0 || !Number.isFinite(cap)) {
+    return { ok: true, roomLabel, capacity: 0, alreadyBooked: 0, remaining: Number.POSITIVE_INFINITY };
   }
 
+  const ppl = Math.max(1, Number(people) || 1);
   const r0 = await getRestaurant(restaurantId);
-  if (!r0) return { ok: true };
+  if (!r0) return { ok: true, roomLabel, capacity: cap, alreadyBooked: 0, remaining: cap };
   const r = coerceRestaurantDefaults(r0);
 
   const step = r.slotIntervalMinutes;
   const span = r.serviceDurationMinutes;
 
   const startRaw = toMinutes(time);
-  if (!Number.isFinite(startRaw)) return { ok: true };
+  if (!Number.isFinite(startRaw)) return { ok: true, roomLabel, capacity: cap, alreadyBooked: 0, remaining: cap };
   const start = snapToGrid(startRaw, step);
   const end = start + span;
 
-  // Compute occupancy for this specific room
-  const resv = await listReservationsFor(restaurantId, date);
-  const roomResv = resv.filter(rv => rv.preferredLayoutId === layoutId);
+  const { map } = await getRoomOccupancySnapshot(restaurantId, layoutId, date, step, span);
 
-  const map = new Map<string, number>();
-  for (const rr of roomResv) {
-    const rStart = snapToGrid(toMinutes(rr.time), step);
-    const rEnd = rStart + span;
-    for (let t = rStart; t < rEnd; t += step) {
-      const key = fromMinutes(t);
-      map.set(key, (map.get(key) ?? 0) + rr.people);
-    }
-  }
-
+  let usedAtRequestedTime = 0;
   for (let t = start; t < end; t += step) {
     const used = map.get(fromMinutes(t)) ?? 0;
+    if (used > usedAtRequestedTime) usedAtRequestedTime = used;
     if (used + ppl > cap) {
-      return { ok: false, reason: "room_full", roomLabel: layout.floorLabel || layout.name };
+      return {
+        ok: false,
+        reason: "room_full",
+        roomLabel,
+        capacity: cap,
+        alreadyBooked: usedAtRequestedTime,
+        remaining: Math.max(0, cap - usedAtRequestedTime),
+      };
     }
   }
-  return { ok: true };
+
+  return {
+    ok: true,
+    roomLabel,
+    capacity: cap,
+    alreadyBooked: usedAtRequestedTime,
+    remaining: Math.max(0, cap - usedAtRequestedTime),
+  };
 }
 
 /** סלוטים זמינים סביב שעה נתונה (±windowMinutes), מיושרים לגריד, בטווח היום בלבד. */
