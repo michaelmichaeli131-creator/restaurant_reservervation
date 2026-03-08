@@ -44,8 +44,19 @@ export async function view(ctx: any) {
 
   // Load floor layouts for room selection dropdown (all rooms, not just active)
   const allLayouts = await listFloorLayouts(id).catch(() => []);
+  const deriveRoomCapacity = (layout: any) => {
+    const explicitCapacity = Number(layout?.capacity);
+    if (Number.isFinite(explicitCapacity) && explicitCapacity > 0) return explicitCapacity;
+    const tables = Array.isArray(layout?.tables) ? layout.tables : [];
+    const seats = tables.reduce((sum: number, table: any) => {
+      const value = Number(table?.seats);
+      return sum + (Number.isFinite(value) && value > 0 ? value : 0);
+    }, 0);
+    return seats > 0 ? seats : null;
+  };
+
   const rooms = allLayouts
-    .map((l: any) => ({ id: l.id, label: l.floorLabel || l.name, capacity: l.capacity || null }));
+    .map((l: any) => ({ id: l.id, label: l.floorLabel || l.name, capacity: deriveRoomCapacity(l) }));
 
   const photos = photoStrings(restaurant.photos);
   const restaurantForView = {
@@ -73,5 +84,6 @@ export async function view(ctx: any) {
     time,
     people,
     rooms,
+    preferredLayoutId: ctx.request.url.searchParams.get("preferredLayoutId") ?? "",
   });
 }

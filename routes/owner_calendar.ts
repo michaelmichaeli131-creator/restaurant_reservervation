@@ -140,6 +140,7 @@ async function tryCreateWithVariants(fn: Function, rid: string, r: Restaurant, d
     date,
     time,
     status   : String((payload as any).status ?? "booked"),
+    preferredLayoutId: String((payload as any).preferredLayoutId ?? (reservation as any)?.preferredLayoutId ?? "").trim() || undefined,
   };
 
   const variants: Array<() => Promise<any>> = [];

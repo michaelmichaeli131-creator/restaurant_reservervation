@@ -125,7 +125,7 @@
           </button>
         <% }) %>
       </div>
-      <input type="hidden" id="preferredLayoutId" name="preferredLayoutId" value=""/>
+      <input type="hidden" id="preferredLayoutId" name="preferredLayoutId" value="<%= it.preferredLayoutId || '' %>"/>
     </div>
     <% } %>
 
@@ -240,13 +240,21 @@
   });
 
   /* ===== Room cards ===== */
+  function syncSelectedRoomCard() {
+    const selectedId = roomInput ? String(roomInput.value || "") : "";
+    document.querySelectorAll(".rsv-room-card").forEach((c) => {
+      c.classList.toggle("is-selected", String(c.dataset.roomId || "") === selectedId);
+    });
+  }
+
   document.getElementById("room-cards")?.addEventListener("click", (e) => {
     const card = e.target.closest(".rsv-room-card");
     if (!card) return;
-    document.querySelectorAll(".rsv-room-card").forEach(c => c.classList.remove("is-selected"));
-    card.classList.add("is-selected");
     if (roomInput) roomInput.value = card.dataset.roomId;
+    syncSelectedRoomCard();
   });
+
+  syncSelectedRoomCard();
 
   /* ===== Time grid ===== */
   async function fetchOpeningForDate(rid, dateStr) {

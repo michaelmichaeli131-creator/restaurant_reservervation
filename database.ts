@@ -843,6 +843,28 @@ function isSeatBlockingReservationStatus(status?: Reservation["status"]): boolea
   return !["canceled", "cancelled", "completed"].includes(normalized);
 }
 
+function extractPreferredLayoutIdFromReservation(reservation: Reservation): string {
+  const direct = String(reservation.preferredLayoutId ?? "").trim();
+  if (direct) return direct;
+
+  const note = String(reservation.note ?? "");
+  const match = note.match(/(?:PreferredRoomId|PreferredLayoutId|RoomId|LayoutId)\s*:\s*([^;\n\r]+)/i);
+  return match ? String(match[1] ?? "").trim() : "";
+}
+
+function deriveLayoutCapacity(layout: { capacity?: number; tables?: Array<{ seats?: number }> } | null | undefined): number {
+  const explicitCapacity = Number(layout?.capacity);
+  if (Number.isFinite(explicitCapacity) && explicitCapacity > 0) return explicitCapacity;
+
+  const tables = Array.isArray(layout?.tables) ? layout!.tables : [];
+  const seatsFromTables = tables.reduce((sum, table) => {
+    const seats = Number(table?.seats);
+    return sum + (Number.isFinite(seats) && seats > 0 ? seats : 0);
+  }, 0);
+
+  return seatsFromTables > 0 ? seatsFromTables : 0;
+}
+
 async function getRoomOccupancySnapshot(
   restaurantId: string,
   layoutId: string,
@@ -853,7 +875,7 @@ async function getRoomOccupancySnapshot(
   const reservations = await listReservationsFor(restaurantId, date);
   const roomReservations = reservations.filter((reservation) => {
     if (!isSeatBlockingReservationStatus(reservation.status)) return false;
-    return String(reservation.preferredLayoutId ?? "").trim() === layoutId;
+    return extractPreferredLayoutIdFromReservation(reservation) === layoutId;
   });
 
   const map = new Map<string, number>();
@@ -862,7 +884,8 @@ async function getRoomOccupancySnapshot(
     const reservationStartRaw = toMinutes(reservation.time);
     if (!Number.isFinite(reservationStartRaw)) continue;
     const reservationStart = snapToGrid(reservationStartRaw, step);
-    const reservationEnd = reservationStart + span;
+    const reservationSpan = Math.max(step, Number(reservation.durationMinutes) || span);
+    const reservationEnd = reservationStart + reservationSpan;
     const reservationPeople = Math.max(1, Number(reservation.people) || 1);
     for (let t = reservationStart; t < reservationEnd; t += step) {
       const key = fromMinutes(t);
@@ -888,7 +911,8 @@ export async function computeOccupancy(restaurant: Restaurant, date: string) {
     const startRaw = toMinutes(rr.time);
     if (!Number.isFinite(startRaw)) continue;
     const start = snapToGrid(startRaw, step);
-    const end = start + span;
+    const duration = Math.max(step, Number(rr.durationMinutes) || span);
+    const end = start + duration;
     const seats = Math.max(1, Number(rr.people) || 1);
     for (let t = start; t < end; t += step) {
       const key = fromMinutes(t);
@@ -909,7 +933,7 @@ export async function checkAvailability(restaurantId: string, date: string, time
   // Compute total capacity from room capacities if defined, otherwise use restaurant capacity
   const { listFloorLayouts } = await import("./services/floor_service.ts");
   const layouts = await listFloorLayouts(restaurantId).catch(() => []);
-  const roomCapacities = layouts.map((l: any) => Number(l.capacity) || 0).filter((c: number) => c > 0);
+  const roomCapacities = layouts.map((l: any) => deriveLayoutCapacity(l)).filter((c: number) => c > 0);
   const totalCapacity = roomCapacities.length > 0
     ? roomCapacities.reduce((sum: number, c: number) => sum + c, 0)
     : r.capacity;
@@ -959,7 +983,7 @@ export async function checkRoomCapacity(
   const layout = await getFloorLayout(restaurantId, layoutId);
   if (!layout) return { ok: true, roomLabel: "", capacity: 0, alreadyBooked: 0, remaining: 0 };
   const roomLabel = layout.floorLabel || layout.name;
-  const cap = Number(layout.capacity);
+  const cap = deriveLayoutCapacity(layout);
   if (!cap || cap <= 0 || !Number.isFinite(cap)) {
     return { ok: true, roomLabel, capacity: 0, alreadyBooked: 0, remaining: Number.POSITIVE_INFINITY };
   }
@@ -1023,7 +1047,7 @@ export async function listAvailableSlotsAround(
   // Compute total capacity from room capacities if defined, otherwise use restaurant capacity
   const { listFloorLayouts: listLayouts } = await import("./services/floor_service.ts");
   const layouts = await listLayouts(restaurantId).catch(() => []);
-  const roomCaps = layouts.map((l: any) => l.capacity ?? 0).filter((c: number) => c > 0);
+  const roomCaps = layouts.map((l: any) => deriveLayoutCapacity(l)).filter((c: number) => c > 0);
   const capacity = roomCaps.length > 0
     ? roomCaps.reduce((sum: number, c: number) => sum + c, 0)
     : r.capacity;
@@ -1393,7 +1417,7 @@ export async function listReservationsCoveringSlot(
 /** יצירת הזמנה ידנית ע"י בעל המסעדה (status: confirmed) */
 export async function createManualReservation(rid: string, data: {
   firstName: string; lastName: string; phone: string; people: number;
-  notes?: string; date: string; time: string; status?: string;
+  notes?: string; date: string; time: string; status?: string; preferredLayoutId?: string;
 }): Promise<Reservation> {
   const id = crypto.randomUUID();
   const reservation: Reservation = {
@@ -1409,6 +1433,7 @@ export async function createManualReservation(rid: string, data: {
     lastName: data.lastName,
     phone: data.phone,
     durationMinutes: 120,
+    ...(data.preferredLayoutId ? { preferredLayoutId: String(data.preferredLayoutId).trim() } : {}),
     createdAt: now(),
   };
   const tx = kv.atomic()
