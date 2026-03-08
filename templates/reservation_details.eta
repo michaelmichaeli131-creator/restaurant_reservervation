@@ -150,12 +150,19 @@
 <style>
   /* Override parent sb-container padding */
   .sb-container:has(> .rsv-page) { padding: 0; max-width: none; }
+  /* Fallback for browsers without :has() support */
+  .sb-container { padding: 0; }
 
   .rsv-page {
+    width: 100%;
     max-width: 580px; margin: 0 auto;
     padding: 16px 16px 40px;
     padding-top: max(16px, env(safe-area-inset-top));
+    box-sizing: border-box;
+    overflow-x: hidden;
   }
+
+  .rsv-page, .rsv-page * { box-sizing: border-box; }
 
   .rsv-details-header { margin-bottom: 16px; }
   .rsv-back-link {
@@ -226,6 +233,8 @@
   .rsv-field__label svg { opacity: .5; }
 
   .rsv-input {
+    width: 100%;
+    min-width: 0;
     background: var(--panel-2, #171b29);
     color: var(--ink, #e6e8ef);
     border: 1px solid var(--bd, #23293a);
@@ -266,6 +275,12 @@
     padding-left: max(16px, env(safe-area-inset-left));
     padding-right: max(16px, env(safe-area-inset-right));
     padding-bottom: max(40px, env(safe-area-inset-bottom));
+  }
+
+  /* ===== Prevent horizontal overflow ===== */
+  .rsv-details-form, .rsv-field-group, .rsv-field, .rsv-summary-bar, .rsv-deposit-notice {
+    max-width: 100%;
+    min-width: 0;
   }
 
   /* ===== iOS input fixes ===== */

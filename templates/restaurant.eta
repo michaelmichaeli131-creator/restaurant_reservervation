@@ -121,7 +121,7 @@
       </label>
       <div class="rsv-rooms" id="room-cards">
         <% it.rooms.forEach(function(room){ %>
-          <button type="button" class="rsv-room-card" data-room-id="<%= room.id %>">
+          <button type="button" class="rsv-room-card" data-room-id="<%= room.id %>" data-room-capacity="<%= room.capacity || '' %>">
             <span class="rsv-room-card__icon">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </span>
@@ -237,13 +237,21 @@
   const form = document.getElementById("reserve-form");
 
   /* ===== People counter ===== */
+  function getSelectedRoomCap() {
+    const selectedId = roomInput ? String(roomInput.value || "") : "";
+    if (!selectedId) return 0;
+    const card = document.querySelector(`.rsv-room-card[data-room-id="${CSS.escape(selectedId)}"]`);
+    return parseInt(card?.dataset.roomCapacity || "0", 10) || 0;
+  }
+
   document.getElementById("people-minus")?.addEventListener("click", () => {
     const v = Math.max(1, parseInt(peopleInput.value||"1",10)-1);
     peopleInput.value = v;
   });
   document.getElementById("people-plus")?.addEventListener("click", () => {
+    const cap = getSelectedRoomCap();
     const v = parseInt(peopleInput.value||"1",10)+1;
-    peopleInput.value = v;
+    peopleInput.value = (cap > 0) ? Math.min(v, cap) : v;
   });
 
   /* ===== Room cards ===== */
@@ -258,6 +266,12 @@
     const card = e.target.closest(".rsv-room-card");
     if (!card) return;
     if (roomInput) roomInput.value = card.dataset.roomId;
+    // Clamp people count to room capacity
+    const cap = parseInt(card.dataset.roomCapacity || "0", 10);
+    if (cap > 0) {
+      const current = parseInt(peopleInput.value || "1", 10);
+      if (current > cap) peopleInput.value = cap;
+    }
     syncSelectedRoomCard();
   });
 

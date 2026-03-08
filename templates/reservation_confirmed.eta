@@ -154,12 +154,19 @@
 <style>
   /* Override parent sb-container padding */
   .sb-container:has(> .rsv-page) { padding: 0; max-width: none; }
+  /* Fallback for browsers without :has() support */
+  .sb-container { padding: 0; }
 
   .rsv-page {
+    width: 100%;
     max-width: 580px; margin: 0 auto;
     padding: 16px 16px 40px;
     padding-top: max(16px, env(safe-area-inset-top));
+    box-sizing: border-box;
+    overflow-x: hidden;
   }
+
+  .rsv-page, .rsv-page * { box-sizing: border-box; }
 
   /* Success icon */
   .rsv-success-icon {
@@ -258,6 +265,9 @@
     font-size: 15px; font-weight: 600;
     color: var(--ink, #e6e8ef);
     text-align: end;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    min-width: 0;
   }
   .rsv-code {
     background: var(--panel-2, #171b29);
@@ -328,6 +338,12 @@
     padding-left: max(16px, env(safe-area-inset-left));
     padding-right: max(16px, env(safe-area-inset-right));
     padding-bottom: max(40px, env(safe-area-inset-bottom));
+  }
+
+  /* ===== Prevent horizontal overflow ===== */
+  .rsv-confirm-card, .rsv-detail-rows, .rsv-summary-bar, .rsv-actions-stack {
+    max-width: 100%;
+    min-width: 0;
   }
 
   /* ===== iOS fixes ===== */
