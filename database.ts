@@ -993,17 +993,6 @@ export async function checkRoomCapacity(
 
   const ppl = Math.max(1, Number(people) || 1);
 
-  // Early check: requested guests alone exceed room capacity
-  if (ppl > cap) {
-    return {
-      ok: false,
-      reason: "room_full",
-      roomLabel,
-      capacity: cap,
-      alreadyBooked: 0,
-      remaining: cap,
-    };
-  }
   const r0 = await getRestaurant(restaurantId);
   if (!r0) return { ok: true, roomLabel, capacity: cap, alreadyBooked: 0, remaining: cap };
   const r = coerceRestaurantDefaults(r0);
