@@ -56,6 +56,7 @@ export async function view(ctx: any) {
   };
 
   const rooms = allLayouts
+    .filter((l: any) => l.isActive !== false)
     .map((l: any) => ({ id: l.id, label: l.floorLabel || l.name, capacity: deriveRoomCapacity(l) }));
 
   const photos = photoStrings(restaurant.photos);

@@ -351,6 +351,15 @@
 
   syncSelectedRoomCard();
 
+  // Auto-select room if only one exists, or if none is selected yet pick the first one
+  if (roomInput && !roomInput.value) {
+    const allCards = document.querySelectorAll(".rsv-room-card");
+    if (allCards.length === 1) {
+      roomInput.value = allCards[0].dataset.roomId || "";
+      syncSelectedRoomCard();
+    }
+  }
+
   /* ===== Time grid ===== */
   async function fetchOpeningForDate(rid, dateStr) {
     const url = `/restaurants/${encodeURIComponent(rid)}/opening?date=${encodeURIComponent(dateStr)}<%= it.lang ? `&lang=${encodeURIComponent(it.lang)}` : "" %>`;
@@ -517,6 +526,19 @@
       alert("<%= tt('restaurant.form.missing','נא לבחור תאריך ושעה') %>");
       return;
     }
+    // Defensive fallback: if roomInput exists but empty, try to read from selected card or auto-select
+    if (roomInput && !roomInput.value) {
+      const selectedCard = document.querySelector(".rsv-room-card.is-selected");
+      if (selectedCard) {
+        roomInput.value = selectedCard.dataset.roomId || "";
+      } else {
+        const allCards = document.querySelectorAll(".rsv-room-card");
+        if (allCards.length === 1) {
+          roomInput.value = allCards[0].dataset.roomId || "";
+          syncSelectedRoomCard();
+        }
+      }
+    }
     if (roomInput && !roomInput.value) {
       ev.preventDefault();
       alert("<%= tt('reservation.select_room_required','נא לבחור חדר') %>");
@@ -555,7 +577,26 @@
       return;
     }
     const rid = checkBtn.dataset.rid;
-    const preferredLayoutId = roomInput ? roomInput.value : "";
+    let preferredLayoutId = roomInput ? roomInput.value : "";
+
+    // Defensive fallback: if roomInput exists but value is empty, try to read from selected card
+    if (roomInput && !preferredLayoutId) {
+      const selectedCard = document.querySelector(".rsv-room-card.is-selected");
+      if (selectedCard) {
+        preferredLayoutId = selectedCard.dataset.roomId || "";
+        roomInput.value = preferredLayoutId;
+      }
+    }
+
+    // Auto-select if there's only one room
+    if (roomInput && !preferredLayoutId) {
+      const allCards = document.querySelectorAll(".rsv-room-card");
+      if (allCards.length === 1) {
+        preferredLayoutId = allCards[0].dataset.roomId || "";
+        roomInput.value = preferredLayoutId;
+        syncSelectedRoomCard();
+      }
+    }
 
     if (roomInput && !preferredLayoutId) {
       showToast("<%= tt('reservation.select_room_required','נא לבחור חדר') %>", "warn");
@@ -576,15 +617,21 @@
       if (resp.ok && data && data.ok) {
         renderAround([]);
         showToast("<%= tt('restaurant.check.available','יש זמינות! אפשר לבצע הזמנה.') %>", "success");
-      } else if (data && (data.reason === "room_full" || data.reason === "room_required")) {
+      } else if (data && data.reason === "room_full") {
         const roomLabel = data.roomLabel || "";
-        if (data.reason === "room_full") {
-          showToast("<%= tt('reservation.room_full_msg','החלל \"{room}\" מלא במועד שבחרת. נסה/י חלל אחר או שעה אחרת.') %>".replace("{room}", roomLabel), "warn");
-        } else {
-          showToast("<%= tt('reservation.select_room_required','נא לבחור חדר') %>", "warn");
-        }
+        showToast("<%= tt('reservation.room_full_msg','החלל \"{room}\" מלא במועד שבחרת. נסה/י חלל אחר או שעה אחרת.') %>".replace("{room}", roomLabel), "warn");
+        renderAround(data?.suggestions || []);
+      } else if (data && data.reason === "room_required") {
+        showToast("<%= tt('reservation.select_room_required','נא לבחור חדר') %>", "warn");
+        renderAround(data?.suggestions || []);
+      } else if (data && (data.reason === "closed" || data.reason === "unspecified")) {
+        showToast("<%= tt('restaurant.check.closed','המסעדה סגורה בשעה זו. נסה/י שעה אחרת.') %>", "warn");
+        renderAround(data?.suggestions || []);
+      } else if (data && data.reason === "full") {
+        showToast("<%= tt('restaurant.check.full','אין מקום פנוי בשעה זו. נסה/י שעה אחרת.') %>", "warn");
         renderAround(data?.suggestions || []);
       } else {
+        showToast("<%= tt('restaurant.check.unavailable','אין זמינות בשעה זו. נסה/י שעה אחרת.') %>", "warn");
         renderAround(data?.suggestions || []);
       }
     } finally {
