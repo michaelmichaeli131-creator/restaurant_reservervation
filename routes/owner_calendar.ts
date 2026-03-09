@@ -13,6 +13,8 @@ import {
   type Reservation,
 } from "../database.ts";
 
+import { listFloorLayouts } from "../services/floor_service.ts";
+
 import { readBody } from "./restaurants/_utils/body.ts";
 import { buildDayTimeline, slotRange } from "../services/timeline.ts";
 import { computeOccupancyForDay, summarizeDay } from "../services/occupancy.ts";
@@ -85,6 +87,23 @@ function deriveCapacities(r: Restaurant) {
 }
 function mapOpenWindowsForTimeline(wins: Array<{ open: string; close: string }>) {
   return wins.map(w => ({ start: w.open as `${number}${number}:${number}${number}`, end: w.close as `${number}${number}:${number}${number}` }));
+}
+
+/* ---- Room-label lookup ---- */
+async function buildRoomLabelMap(rid: string): Promise<Map<string, string>> {
+  const layouts = await listFloorLayouts(rid).catch(() => []);
+  const map = new Map<string, string>();
+  for (const l of layouts) {
+    map.set(l.id, (l as any).floorLabel || l.name || l.id);
+  }
+  return map;
+}
+
+function extractLayoutIdFromReservation(r: any): string {
+  if (r?.preferredLayoutId) return String(r.preferredLayoutId);
+  const note = String(r?.note ?? r?.notes ?? "");
+  const m = note.match(/(?:PreferredRoomId|PreferredLayoutId|RoomId|LayoutId)\s*:\s*([^;\n\r]+)/i);
+  return m ? m[1].trim() : "";
 }
 
 /* ---- Enrichment from note / names ---- */
@@ -414,6 +433,22 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
     deriveTables: (people: number, avg = 3) => Math.max(1, Math.ceil(people / Math.max(1, avg))),
   });
 
+  // Per-room occupancy breakdown
+  const roomLabelMap = await buildRoomLabelMap(rid);
+  const roomOccupancy: Array<{ id: string; label: string; capacity: number; usedPeople: number }> = [];
+  for (const [layoutId, label] of roomLabelMap) {
+    const layoutReservations = effective.filter((rv: any) => extractLayoutIdFromReservation(rv) === layoutId);
+    // Sum people for the "peak" time across this room's reservations
+    const usedPeople = layoutReservations.reduce((sum: number, rv: any) => {
+      const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow"]);
+      return inactive.has(String((rv as any)?.status ?? "").toLowerCase()) ? sum : sum + Number((rv as any).people ?? 0);
+    }, 0);
+    // Find capacity from floor layouts
+    const layout = (await listFloorLayouts(rid).catch(() => [])).find((l: any) => l.id === layoutId);
+    const cap = Number((layout as any)?.capacity ?? 0) || (layout as any)?.tables?.reduce((s: number, t: any) => s + (Number(t?.seats) || 0), 0) || 0;
+    roomOccupancy.push({ id: layoutId, label, capacity: cap, usedPeople });
+  }
+
   json(ctx, {
     ok: true,
     date: selected,
@@ -422,6 +457,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
     capacityPeople,
     capacityTables,
     slots: occupancy,
+    roomOccupancy,
   });
 });
 
@@ -443,6 +479,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
       durationMinutes,
     })) ?? [];
 
+  const roomLabelMap = await buildRoomLabelMap(rid);
+
   const enriched = items.map((it: any) => {
     let first = String(it.firstName ?? "");
     let last  = String(it.lastName ?? "");
@@ -462,6 +500,9 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
     const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow"]);
     const people = inactive.has(String(it.status ?? "").toLowerCase()) ? 0 : Number(it.people ?? 0);
 
+    const layoutId = extractLayoutIdFromReservation(it);
+    const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? "") : "";
+
     return {
       id: it.id,
       firstName: first,
@@ -471,6 +512,10 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
       status: it.status ?? "approved",
       notes,
       at: it.time ?? time,
+      roomLabel,
+      depositStatus: it.depositStatus,
+      depositAmount: it.depositAmount,
+      depositCurrency: it.depositCurrency,
     };
   });
 
@@ -513,21 +558,28 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
     return f.includes(q) || l.includes(q) || phone.includes(q) || note.includes(q);
   });
 
+  const roomLabelMap = await buildRoomLabelMap(rid);
+
   json(ctx, {
     ok: true,
     date,
     q: qraw,
     count: matches.length,
-    items: matches.map((it: any) => ({
-      id: it.id,
-      time: it.time,
-      firstName: it.firstName ?? "",
-      lastName: it.lastName ?? "",
-      people: Number(it.people ?? 0),
-      status: it.status ?? "",
-      phone: it.phone ?? "",
-      note: it.note ?? it.notes ?? "",
-    })),
+    items: matches.map((it: any) => {
+      const layoutId = extractLayoutIdFromReservation(it);
+      const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? "") : "";
+      return {
+        id: it.id,
+        time: it.time,
+        firstName: it.firstName ?? "",
+        lastName: it.lastName ?? "",
+        people: Number(it.people ?? 0),
+        status: it.status ?? "",
+        phone: it.phone ?? "",
+        note: it.note ?? it.notes ?? "",
+        roomLabel,
+      };
+    }),
   });
 });
 

@@ -174,8 +174,35 @@
       <div><b>Avg Occupancy:</b> People ${fmt(s.avgOccupancyPeople)}% · Tables ${fmt(s.avgOccupancyTables)}%</div>
       <div><b>Peak:</b> ${s.peakSlot || "-"} (${fmt(s.peakOccupancy)}%) · <b>Cancelled:</b> ${fmt(s.cancelled)} · <b>No-Show:</b> ${fmt(s.noShow)}</div>
     `;
-    // עדכון הסיכום הקומפקטי בסיידבר
     updateSidebarSummary(s);
+  }
+
+  function renderRoomOccupancy() {
+    const rooms = state.day?.roomOccupancy;
+    let existing = $("#room-occ-box");
+    if (!rooms || rooms.length === 0) { existing?.remove(); return; }
+
+    if (!existing) {
+      existing = document.createElement("div");
+      existing.id = "room-occ-box";
+      existing.style.cssText = "margin:10px 16px 0;padding:10px 14px;background:var(--panel,#111827);border:1px solid var(--bd,#1f2937);border-radius:12px;font-size:13px;";
+      const panel = $(".oc-panel header");
+      if (panel) panel.appendChild(existing);
+    }
+
+    existing.innerHTML = "<div style='font-weight:700;margin-bottom:6px;color:var(--ink-muted,#9aa3b2)'>חדרים</div>" +
+      rooms.map(r => {
+        const pct = r.capacity > 0 ? Math.min(100, Math.round(r.usedPeople / r.capacity * 100)) : 0;
+        const col = pct >= 80 ? getCSS("--danger") : pct >= 50 ? getCSS("--warn") : getCSS("--ok");
+        const capStr = r.capacity > 0 ? `${r.usedPeople}/${r.capacity}` : `${r.usedPeople}`;
+        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <span style="min-width:90px;font-weight:600">${escapeHTML(r.label)}</span>
+          <div style="flex:1;height:6px;background:var(--bd,#1f2937);border-radius:3px;overflow:hidden">
+            <div style="width:${pct}%;height:100%;background:${col};border-radius:3px"></div>
+          </div>
+          <span style="min-width:52px;text-align:end;color:var(--ink-muted,#9aa3b2)">${capStr} סועדים</span>
+        </div>`;
+      }).join("");
   }
 
   /* ========== Drawer ========== */
@@ -186,10 +213,14 @@
     for (const it of items) {
       const tr = document.createElement("tr");
       const depositButtons = renderDepositButtons(it);
+      const roomCell = it.roomLabel
+        ? `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(59,130,246,.15);color:#93c5fd;border:1px solid rgba(59,130,246,.25)">${escapeHTML(it.roomLabel)}</span>`
+        : `<span style="color:var(--ink-muted,#9aa3b2)">—</span>`;
       tr.innerHTML = `
         <td>${escapeHTML(it.firstName || "")}</td>
         <td>${escapeHTML(it.lastName || "")}</td>
         <td>${Number(it.people || 0)}</td>
+        <td>${roomCell}</td>
         <td>${badge(it.status || "")}${depositBadge(it.depositStatus, it.depositAmount, it.depositCurrency)}</td>
         <td><a href="tel:${(it.phone || "").replace(/\s+/g, "")}">${escapeHTML(it.phone || "")}</a></td>
         <td>
@@ -289,6 +320,7 @@
     renderHeaderLine();
     rowHeader();
     renderSlots();
+    renderRoomOccupancy();
     // רענון תאריך בתווית/פיקר
     if (datePicker) datePicker.value = state.date;
     if (dateLabel) {

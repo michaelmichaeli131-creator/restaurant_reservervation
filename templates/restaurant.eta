@@ -247,12 +247,75 @@
   document.getElementById("people-minus")?.addEventListener("click", () => {
     const v = Math.max(1, parseInt(peopleInput.value||"1",10)-1);
     peopleInput.value = v;
+    if (roomInput?.value) updateAllRoomOccupancies();
   });
   document.getElementById("people-plus")?.addEventListener("click", () => {
-    const cap = getSelectedRoomCap();
     const v = parseInt(peopleInput.value||"1",10)+1;
-    peopleInput.value = (cap > 0) ? Math.min(v, cap) : v;
+    peopleInput.value = v;
+    if (roomInput?.value) updateAllRoomOccupancies();
   });
+
+  /* ===== Room occupancy cache (per-layout, keyed by layoutId) ===== */
+  const roomOccupancyCache = {};
+
+  async function fetchRoomOccupancy(layoutId, date, time, people) {
+    if (!layoutId || !date || !time) return null;
+    try {
+      const url = `/api/restaurants/${encodeURIComponent(RID)}/room-occupancy?layoutId=${encodeURIComponent(layoutId)}&date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&people=${people}`;
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch { return null; }
+  }
+
+  async function updateRoomOccupancy(card) {
+    if (!card) return;
+    const layoutId = card.dataset.roomId;
+    const date = (dateInput.value || "").trim();
+    const time = (hiddenTime.value || "").trim();
+    const people = parseInt(peopleInput.value || "1", 10);
+    if (!date || !time) return;
+
+    // Show loading badge
+    const badge = card.querySelector(".rsv-room-card__cap");
+    if (badge) { badge.dataset.origText = badge.dataset.origText || badge.textContent; badge.textContent = "..."; }
+
+    const occ = await fetchRoomOccupancy(layoutId, date, time, people);
+    if (!occ) {
+      if (badge && badge.dataset.origText) badge.textContent = badge.dataset.origText;
+      return;
+    }
+    roomOccupancyCache[layoutId] = occ;
+
+    // Update badge with live remaining count
+    if (badge && occ.capacity > 0) {
+      const remaining = occ.remaining;
+      badge.textContent = `<%= tt('reservation.remaining_seats','{remaining} מ-{capacity} מקומות פנויים') %>`
+        .replace("{remaining}", remaining).replace("{capacity}", occ.capacity);
+      badge.style.color = remaining < people ? "#f87171" : "#a3e635";
+    } else if (badge && badge.dataset.origText) {
+      badge.textContent = badge.dataset.origText;
+    }
+
+    // Re-evaluate warning for this card (only if it is the currently selected room)
+    const selectedId = roomInput ? String(roomInput.value || "") : "";
+    if (String(layoutId) === selectedId) {
+      if (occ.roomFull || occ.remaining < people) {
+        const alts = getRoomsWithCapacity(people, layoutId);
+        showRoomCapacityWarning(card, occ.capacity, people, alts, occ.alreadyBooked, occ.remaining);
+      } else {
+        clearRoomCapacityWarning();
+      }
+    }
+  }
+
+  async function updateAllRoomOccupancies() {
+    const date = (dateInput.value || "").trim();
+    const time = (hiddenTime.value || "").trim();
+    if (!date || !time) return;
+    const cards = Array.from(document.querySelectorAll(".rsv-room-card"));
+    await Promise.all(cards.map(c => updateRoomOccupancy(c)));
+  }
 
   /* ===== Room cards ===== */
   function syncSelectedRoomCard() {
@@ -266,13 +329,24 @@
     const card = e.target.closest(".rsv-room-card");
     if (!card) return;
     if (roomInput) roomInput.value = card.dataset.roomId;
-    // Clamp people count to room capacity
-    const cap = parseInt(card.dataset.roomCapacity || "0", 10);
-    if (cap > 0) {
-      const current = parseInt(peopleInput.value || "1", 10);
-      if (current > cap) peopleInput.value = cap;
-    }
     syncSelectedRoomCard();
+
+    const date = (dateInput.value || "").trim();
+    const time = (hiddenTime.value || "").trim();
+    if (date && time) {
+      // Fetch live occupancy and show warning based on remaining seats
+      updateRoomOccupancy(card);
+    } else {
+      // No time selected yet — fall back to raw capacity check
+      const cap = parseInt(card.dataset.roomCapacity || "0", 10);
+      const people = parseInt(peopleInput.value || "1", 10);
+      if (cap > 0 && people > cap) {
+        const alts = getRoomsWithCapacity(people, card.dataset.roomId);
+        showRoomCapacityWarning(card, cap, people, alts);
+      } else {
+        clearRoomCapacityWarning();
+      }
+    }
   });
 
   syncSelectedRoomCard();
@@ -348,6 +422,8 @@
         timeGrid.querySelectorAll(".rsv-time-chip").forEach(c => c.classList.remove("is-selected"));
         chip.classList.add("is-selected");
         hiddenTime.value = t;
+        // Refresh room occupancy for new time slot
+        updateAllRoomOccupancies();
       });
       timeGrid.appendChild(chip);
     });
@@ -368,6 +444,13 @@
 
   dateInput.addEventListener("change", () => {
     hiddenTime.value = "";
+    // Clear occupancy cache since date changed
+    Object.keys(roomOccupancyCache).forEach(k => delete roomOccupancyCache[k]);
+    // Reset room badges to original text
+    document.querySelectorAll(".rsv-room-card__cap").forEach(b => {
+      if (b.dataset.origText) { b.textContent = b.dataset.origText; b.style.color = ""; }
+    });
+    clearRoomCapacityWarning();
     rebuildTimeFor(dateInput.value || new Date().toISOString().slice(0,10));
   });
 
@@ -384,8 +467,47 @@
     timeGrid.scrollBy({ left: isRTL ? -scrollAmount : scrollAmount, behavior: "smooth" });
   });
 
+  /* ===== Room-capacity helpers ===== */
+  function getRoomsWithCapacity(people, excludeId) {
+    return Array.from(document.querySelectorAll(".rsv-room-card")).filter(c => {
+      const lid = c.dataset.roomId;
+      const occ = roomOccupancyCache[lid];
+      // Use live remaining if available, otherwise raw capacity
+      const available = occ ? occ.remaining : parseInt(c.dataset.roomCapacity || "0", 10);
+      return available >= people && lid !== excludeId;
+    }).map(c => c.querySelector(".rsv-room-card__name")?.textContent?.trim() || "");
+  }
+
+  function showRoomCapacityWarning(card, cap, people, alts, alreadyBooked, remaining) {
+    clearRoomCapacityWarning();
+    const roomLabel = card.querySelector(".rsv-room-card__name")?.textContent?.trim() || "";
+    const warn = document.createElement("div");
+    warn.id = "room-cap-warn";
+    warn.className = "rsv-alert rsv-alert--warn";
+    warn.style.marginTop = "8px";
+    let msg;
+    if (remaining !== undefined && alreadyBooked !== undefined && alreadyBooked > 0) {
+      // Time-slot based: show how many are already booked vs remaining
+      msg = `<%= tt('reservation.room_slot_full','החדר "{room}" מכיל עד {cap} אורחים. הוזמנו כבר {booked}, נותרו {remaining} מקומות פנויים בלבד.') %>`
+        .replace("{room}", roomLabel).replace("{cap}", cap)
+        .replace("{booked}", alreadyBooked).replace("{remaining}", remaining);
+    } else {
+      msg = `<%= tt('reservation.room_over_cap','החדר "{room}" מכיל עד {cap} אורחים. לא ניתן להזמין {people} אורחים בחדר זה.') %>`
+        .replace("{room}", roomLabel).replace("{cap}", cap).replace("{people}", people);
+    }
+    if (alts.length > 0) {
+      msg += " " + `<%= tt('reservation.try_rooms','חדרים שיכולים להכיל: {rooms}') %>`.replace("{rooms}", alts.join(", "));
+    }
+    warn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span>${msg}</span>`;
+    card.closest(".rsv-field")?.appendChild(warn);
+  }
+
+  function clearRoomCapacityWarning() {
+    document.getElementById("room-cap-warn")?.remove();
+  }
+
   /* ===== Form submit ===== */
-  form.addEventListener("submit", (ev) => {
+  form.addEventListener("submit", async (ev) => {
     const dateVal = (dateInput.value || "").trim();
     const timeVal = (hiddenTime.value || "").trim();
     const pplVal  = Math.max(1, parseInt((peopleInput.value || "1"), 10) || 1);
@@ -400,6 +522,21 @@
       alert("<%= tt('reservation.select_room_required','נא לבחור חדר') %>");
       return;
     }
+    // Validate selected room can fit the requested number of guests
+    if (roomInput && roomInput.value) {
+      const selectedCard = document.querySelector(`.rsv-room-card[data-room-id="${CSS.escape(roomInput.value)}"]`);
+      const occ = roomOccupancyCache[roomInput.value];
+      const cap = occ ? occ.capacity : parseInt(selectedCard?.dataset.roomCapacity || "0", 10);
+      const remaining = occ ? occ.remaining : cap;
+      if (cap > 0 && pplVal > remaining) {
+        ev.preventDefault();
+        const alts = getRoomsWithCapacity(pplVal, roomInput.value);
+        showRoomCapacityWarning(selectedCard, cap, pplVal, alts, occ?.alreadyBooked, remaining);
+        selectedCard?.scrollIntoView({ behavior: "smooth", block: "center" });
+        await requestAvailabilityCheck({ showSuccessToast: false, showErrorToast: false, scrollSuggestions: true });
+        return;
+      }
+    }
     const u = new URL(form.action, window.location.origin);
     u.searchParams.set("date", dateVal);
     u.searchParams.set("time", timeVal);
@@ -408,68 +545,109 @@
     form.action = u.pathname + u.search;
   });
 
-  /* ===== Check availability ===== */
-  const checkBtn = document.getElementById("check-btn");
-  checkBtn?.addEventListener("click", async () => {
-    const date = (dateInput.value || "").trim();
-    const time = (hiddenTime.value || "").trim();
-    const people = Math.max(1, parseInt((peopleInput.value || "1"), 10) || 1);
-    if (!date || !time) {
-      alert("<%= tt('restaurant.form.missing','נא לבחור תאריך ושעה') %>");
-      return;
-    }
-    const rid = checkBtn.dataset.rid;
-    const preferredLayoutId = roomInput ? roomInput.value : "";
-
-    checkBtn.classList.add("is-loading");
-    try {
-      const checkUrl = `/api/restaurants/${encodeURIComponent(rid)}/check<%= langQuery %>`;
-      const resp = await fetch(checkUrl, {
-        method: "POST",
-        headers: { "Accept": "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify({ date, time, people, preferredLayoutId }),
-      });
-      const data = await resp.json().catch(()=>null);
-      if (resp.ok && data && data.ok) {
-        renderAround([]);
-        showToast("<%= tt('restaurant.check.available','יש זמינות! אפשר לבצע הזמנה.') %>", "success");
-      } else if (data && data.reason === "room_full") {
-        const roomLabel = data.roomLabel || "";
-        showToast("<%= tt('reservation.room_full_msg','החלל \"{room}\" מלא במועד שבחרת. נסה/י חלל אחר או שעה אחרת.') %>".replace("{room}", roomLabel), "warn");
-      } else {
-        renderAround(data?.suggestions || []);
-      }
-    } finally {
-      checkBtn.classList.remove("is-loading");
-    }
-  });
-
   /* ===== Suggestions ===== */
-  function renderAround(slots) {
+  function normalizeSuggestion(item) {
+    if (typeof item === "string") {
+      return { time: item, roomId: "", roomLabel: "", kind: "time_only" };
+    }
+    if (!item || typeof item !== "object") return null;
+    const time = String(item.time || "").trim();
+    if (!time) return null;
+    return {
+      time,
+      roomId: String(item.roomId || "").trim(),
+      roomLabel: String(item.roomLabel || "").trim(),
+      kind: String(item.kind || "time_only").trim(),
+    };
+  }
+
+  function suggestionText(item) {
+    return item.roomLabel ? `${item.time} · ${item.roomLabel}` : item.time;
+  }
+
+  function applySuggestion(item) {
+    hiddenTime.value = item.time;
+    timeGrid.querySelectorAll(".rsv-time-chip").forEach(c => {
+      c.classList.toggle("is-selected", c.dataset.value === item.time);
+    });
+    if (roomInput && item.roomId) {
+      roomInput.value = item.roomId;
+      syncSelectedRoomCard();
+    }
+    clearRoomCapacityWarning();
+    updateAllRoomOccupancies();
+    document.getElementById("around-card").hidden = true;
+  }
+
+  function renderAround(slots, opts = {}) {
+    const { scroll = true } = opts;
     const card = document.getElementById("around-card");
     const box = document.getElementById("around-slots");
     box.innerHTML = "";
-    if (Array.isArray(slots) && slots.length) {
+    const normalized = Array.isArray(slots) ? slots.map(normalizeSuggestion).filter(Boolean) : [];
+    if (normalized.length) {
       card.hidden = false;
-      card.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      slots.slice(0, 8).forEach(t => {
+      if (scroll) card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      normalized.slice(0, 8).forEach(item => {
         const b = document.createElement("button");
         b.type = "button";
         b.className = "rsv-suggestion-chip";
-        b.textContent = t;
-        b.onclick = () => {
-          hiddenTime.value = t;
-          // Update time grid selection
-          timeGrid.querySelectorAll(".rsv-time-chip").forEach(c => {
-            c.classList.toggle("is-selected", c.dataset.value === t);
-          });
-          card.hidden = true;
-        };
+        b.textContent = suggestionText(item);
+        b.title = suggestionText(item);
+        b.onclick = () => applySuggestion(item);
         box.appendChild(b);
       });
     } else {
       card.hidden = true;
     }
+  }
+
+  async function requestAvailabilityCheck(options = {}) {
+    const { showSuccessToast = true, showErrorToast = true, scrollSuggestions = true } = options;
+    const date = (dateInput.value || "").trim();
+    const time = (hiddenTime.value || "").trim();
+    const people = Math.max(1, parseInt((peopleInput.value || "1"), 10) || 1);
+    if (!date || !time) {
+      alert("<%= tt('restaurant.form.missing','נא לבחור תאריך ושעה') %>");
+      return null;
+    }
+    const preferredLayoutId = roomInput ? roomInput.value : "";
+    const checkUrl = `/api/restaurants/${encodeURIComponent(RID)}/check<%= langQuery %>`;
+    const resp = await fetch(checkUrl, {
+      method: "POST",
+      headers: { "Accept": "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ date, time, people, preferredLayoutId }),
+    });
+    const data = await resp.json().catch(() => null);
+    if (resp.ok && data && data.ok) {
+      renderAround([], { scroll: false });
+      if (showSuccessToast) showToast("<%= tt('restaurant.check.available','יש זמינות! אפשר לבצע הזמנה.') %>", "success");
+      return data;
+    }
+    renderAround(data?.suggestions || [], { scroll: scrollSuggestions });
+    if (showErrorToast && data && data.reason === "room_full") {
+      const roomLabel = data.roomLabel || "";
+      showToast(`<%= tt('reservation.room_full_msg','החלל "{room}" מלא במועד שבחרת. נסה/י חלל אחר או שעה אחרת.') %>`.replace("{room}", roomLabel), "warn");
+    }
+    return data;
+  }
+
+  /* ===== Check availability ===== */
+  const checkBtn = document.getElementById("check-btn");
+  checkBtn?.addEventListener("click", async () => {
+    checkBtn.classList.add("is-loading");
+    try {
+      await requestAvailabilityCheck({ showSuccessToast: true, showErrorToast: true, scrollSuggestions: true });
+    } finally {
+      checkBtn.classList.remove("is-loading");
+    }
+  });
+
+  const shouldLoadSmartSuggestions = <%= (it.conflict || it.roomFull || (Array.isArray(it.suggestions) && it.suggestions.length > 0)) ? 'true' : 'false' %>;
+  if (shouldLoadSmartSuggestions && dateInput.value && hiddenTime.value) {
+    setTimeout(() => {
+      requestAvailabilityCheck({ showSuccessToast: false, showErrorToast: false, scrollSuggestions: false }).catch(() => {});
+    }, 250);
   }
 
   /* ===== Toast ===== */

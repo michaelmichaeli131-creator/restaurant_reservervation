@@ -7,7 +7,7 @@ import { requireOwner, requireStaff } from "../lib/auth.ts";
 import { requireRestaurantAccess } from "../services/authz.ts";
 import { getRestaurant } from "../database.ts";
 import { isTableSeated } from "../services/seating_service.ts";
-import { getTableIdByNumber, markTableDirty } from "../services/floor_service.ts";
+import { getTableIdByNumber, markTableDirty, listFloorLayouts } from "../services/floor_service.ts";
 import {
   listItems,
   listCategories,
@@ -474,6 +474,17 @@ posRouter.get("/waiter/:rid", async (ctx) => {
 
   const open = await listOpenOrdersByRestaurant(rid);
 
+  // Build tableNumber -> roomLabel map from floor layouts
+  const layouts = await listFloorLayouts(rid).catch(() => []);
+  const tableRoomMap = new Map<number, string>();
+  for (const layout of layouts) {
+    const roomLabel = (layout as any).floorLabel || layout.name || "";
+    for (const t of (layout.tables ?? [])) {
+      const tn = Number(t.tableNumber);
+      if (tn > 0 && !tableRoomMap.has(tn)) tableRoomMap.set(tn, roomLabel);
+    }
+  }
+
   const enriched: any[] = [];
   for (const row of open) {
     const totals = await computeTotalsForTable(rid, row.table);
@@ -482,6 +493,7 @@ posRouter.get("/waiter/:rid", async (ctx) => {
       order: row.order,
       itemsCount: totals.itemsCount,
       subtotal: totals.subtotal,
+      roomLabel: tableRoomMap.get(Number(row.table)) ?? "",
       // קישור ישיר למסך ההזמנה לשולחן הזה
       posUrl: `/pos/${rid}/table/${row.table}`,
     });

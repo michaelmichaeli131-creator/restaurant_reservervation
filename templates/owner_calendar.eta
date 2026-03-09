@@ -383,6 +383,7 @@
             <th><%= tt('owner.calendar.tbl.first_name','שם פרטי') %></th>
             <th><%= tt('owner.calendar.tbl.last_name','שם משפחה') %></th>
             <th><%= tt('owner.calendar.tbl.party_size','גודל קבוצה') %></th>
+            <th><%= tt('owner.calendar.tbl.room','חדר') %></th>
             <th><%= tt('owner.calendar.tbl.status','סטטוס') %></th>
             <th><%= tt('owner.calendar.tbl.phone','טלפון') %></th>
             <th></th>
