@@ -732,18 +732,19 @@ export async function createReservationSafe(r: Reservation): Promise<Reservation
     const dayLockKey = toKey("reservation_day_lock", r.restaurantId, r.date);
     const lock = await kv.get(dayLockKey);
 
-    // Re-check availability right before atomic write.
-    // When a room is selected, check only room-level capacity (the authoritative constraint).
-    // When no room is selected, fall back to global restaurant-level availability.
+    // Re-check restaurant-level availability right before atomic write
+    const avail = await checkAvailability(r.restaurantId, r.date, r.time, r.people);
+    if (!(avail as any).ok) {
+      throw new Error("no_availability");
+    }
+
+    // Re-check room-level availability as the final guard as well.
+    // This closes the gap where a reservation might pass the pre-check flow
+    // but the room becomes full before the atomic write succeeds.
     if (r.preferredLayoutId) {
       const roomCheck = await checkRoomCapacity(r.restaurantId, r.preferredLayoutId, r.date, r.time, r.people);
       if (!roomCheck.ok) {
         throw new Error("room_full");
-      }
-    } else {
-      const avail = await checkAvailability(r.restaurantId, r.date, r.time, r.people);
-      if (!(avail as any).ok) {
-        throw new Error("no_availability");
       }
     }
 
@@ -851,15 +852,46 @@ function extractPreferredLayoutIdFromReservation(reservation: Reservation): stri
   return match ? String(match[1] ?? "").trim() : "";
 }
 
-function deriveLayoutCapacity(layout: { capacity?: number; tables?: Array<{ seats?: number }> } | null | undefined): number {
-  const explicitCapacity = Number(layout?.capacity);
-  if (Number.isFinite(explicitCapacity) && explicitCapacity > 0) return explicitCapacity;
+function firstPositiveNumber(...values: unknown[]): number | null {
+  for (const value of values) {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
 
-  const tables = Array.isArray(layout?.tables) ? layout!.tables : [];
-  const seatsFromTables = tables.reduce((sum, table) => {
-    const seats = Number(table?.seats);
-    return sum + (Number.isFinite(seats) && seats > 0 ? seats : 0);
-  }, 0);
+function deriveTableSeats(table: any): number {
+  return firstPositiveNumber(
+    table?.seats,
+    table?.capacity,
+    table?.maxGuests,
+    table?.max_guests,
+    table?.guestCapacity,
+    table?.covers,
+    table?.pax,
+    table?.people,
+    table?.chairCount,
+    table?.chairs,
+    table?.metadata?.seats,
+    table?.metadata?.capacity,
+  ) ?? 0;
+}
+
+function deriveLayoutCapacity(layout: any): number {
+  const explicitCapacity = firstPositiveNumber(
+    layout?.capacity,
+    layout?.maxGuests,
+    layout?.max_guests,
+    layout?.guestCapacity,
+    layout?.covers,
+    layout?.pax,
+    layout?.people,
+    layout?.metadata?.capacity,
+  );
+  if (explicitCapacity) return explicitCapacity;
+
+  const tables = Array.isArray(layout?.tables) ? layout.tables : [];
+  const seatsFromTables = tables.reduce((sum: number, table: any) => sum + deriveTableSeats(table), 0);
 
   return seatsFromTables > 0 ? seatsFromTables : 0;
 }
@@ -985,25 +1017,16 @@ export async function checkRoomCapacity(
     return { ok: false, reason: "room_full", roomLabel: "", capacity: 0, alreadyBooked: 0, remaining: 0 };
   }
   const roomLabel = layout.floorLabel || layout.name;
-  let cap = deriveLayoutCapacity(layout);
+  const cap = deriveLayoutCapacity(layout);
+  if (!cap || cap <= 0 || !Number.isFinite(cap)) {
+    return { ok: false, reason: "room_full", roomLabel, capacity: 0, alreadyBooked: 0, remaining: 0 };
+  }
 
   const ppl = Math.max(1, Number(people) || 1);
 
   const r0 = await getRestaurant(restaurantId);
-  if (!r0) return { ok: true, roomLabel, capacity: cap || 30, alreadyBooked: 0, remaining: cap || 30 };
+  if (!r0) return { ok: true, roomLabel, capacity: cap, alreadyBooked: 0, remaining: cap };
   const r = coerceRestaurantDefaults(r0);
-
-  // If room has no explicit capacity, fall back to restaurant capacity divided by active rooms
-  if (!cap || cap <= 0 || !Number.isFinite(cap)) {
-    const { listFloorLayouts: listLayouts } = await import("./services/floor_service.ts");
-    const allLayouts = await listLayouts(restaurantId).catch(() => []);
-    const activeCount = allLayouts.filter((l: any) => l.isActive !== false).length || 1;
-    cap = Math.max(1, Math.floor(r.capacity / activeCount));
-  }
-
-  if (!cap || cap <= 0 || !Number.isFinite(cap)) {
-    return { ok: false, reason: "room_full", roomLabel, capacity: 0, alreadyBooked: 0, remaining: 0 };
-  }
 
   const step = r.slotIntervalMinutes;
   const span = r.serviceDurationMinutes;
@@ -1040,164 +1063,126 @@ export async function checkRoomCapacity(
   };
 }
 
-
+/** סלוטים זמינים סביב שעה נתונה (±windowMinutes), מיושרים לגריד, בטווח היום בלבד. */
 export type RoomAvailabilitySuggestion = {
   time: string;
-  roomId?: string;
-  roomLabel?: string;
-  kind: "other_room_same_time" | "same_room_other_time" | "other_room_other_time" | "other_time";
+  layoutId: string;
+  roomLabel: string;
+  kind: "same_time_other_room" | "same_room_other_time" | "other_room_other_time";
 };
 
-async function listAvailableSlotsAroundForRoom(
+export async function listRoomAvailabilitySuggestions(
   restaurantId: string,
-  layoutId: string,
   date: string,
   centerTime: string,
   people: number,
+  preferredLayoutId?: string,
   windowMinutes = 120,
-  maxSlots = 8,
-): Promise<string[]> {
+  maxSuggestions = 8,
+): Promise<RoomAvailabilitySuggestion[]> {
   const r0 = await getRestaurant(restaurantId);
   if (!r0) return [];
   const r = coerceRestaurantDefaults(r0);
 
+  const { listFloorLayouts } = await import("./services/floor_service.ts");
+  const rawLayouts = await listFloorLayouts(restaurantId).catch(() => []);
+  const layouts = rawLayouts
+    .map((layout: any, idx: number) => ({
+      id: String(layout?.id ?? "").trim(),
+      label: String(layout?.floorLabel || layout?.name || "").trim(),
+      capacity: deriveLayoutCapacity(layout),
+      displayOrder: Number(layout?.displayOrder ?? idx) || idx,
+    }))
+    .filter((layout: any) => layout.id);
+
+  if (!layouts.length) return [];
+
+  const preferred = String(preferredLayoutId ?? "").trim();
+  const base = toMinutes(centerTime);
+  if (!Number.isFinite(base)) return [];
   const step = r.slotIntervalMinutes;
   const span = r.serviceDurationMinutes;
+  const snappedBase = snapToGrid(Math.max(0, Math.min(1439, base)), step);
 
-  let base = toMinutes(centerTime);
-  if (!Number.isFinite(base)) return [];
-  base = snapToGrid(Math.max(0, Math.min(1439, base)), step);
-
-  const startWin = Math.max(0, base - windowMinutes);
-  const endWin = Math.min(1439, base + windowMinutes);
-  const found = new Set<string>();
-
-  const tryTime = async (t: number) => {
-    if (t < 0 || t + span > 24 * 60) return false;
-    if (!isWithinOpening(r, date, t, span)) return false;
-    const roomCheck = await checkRoomCapacity(restaurantId, layoutId, date, fromMinutes(t), people);
-    return roomCheck.ok;
-  };
-
-  for (let delta = 0; ; delta += step) {
-    let pushed = false;
-    const before = snapToGrid(base - delta, step);
-    const after  = snapToGrid(base + delta, step);
-
-    if (before >= startWin) {
-      if (await tryTime(before)) {
-        found.add(fromMinutes(before));
-        pushed = true;
-      }
-    }
-    if (after <= endWin) {
-      if (await tryTime(after)) {
-        found.add(fromMinutes(after));
-        pushed = true;
-      }
-    }
-
-    if (found.size >= maxSlots) break;
-    if (!pushed && (before < startWin && after > endWin)) break;
-    if (delta > windowMinutes) break;
+  const timeCandidates: number[] = [];
+  for (let delta = step; delta <= windowMinutes; delta += step) {
+    const before = snapToGrid(snappedBase - delta, step);
+    const after = snapToGrid(snappedBase + delta, step);
+    if (before >= 0) timeCandidates.push(before);
+    if (after <= 1439) timeCandidates.push(after);
   }
 
-  const out = Array.from(found.values());
-  out.sort((a, b) => {
-    const da = Math.abs(toMinutes(a) - base);
-    const db = Math.abs(toMinutes(b) - base);
-    if (da !== db) return da - db;
-    return a.localeCompare(b);
+  const orderedLayouts = [...layouts].sort((a, b) => {
+    if (a.displayOrder !== b.displayOrder) return a.displayOrder - b.displayOrder;
+    return a.label.localeCompare(b.label);
   });
-  return out.slice(0, Math.min(maxSlots, 8));
-}
 
-export async function listSmartAvailabilitySuggestions(
-  restaurantId: string,
-  date: string,
-  centerTime: string,
-  people: number,
-  preferredLayoutId = "",
-  maxItems = 8,
-): Promise<RoomAvailabilitySuggestion[]> {
-  const { listFloorLayouts } = await import("./services/floor_service.ts");
-  const layouts = await listFloorLayouts(restaurantId).catch(() => []);
-  const activeLayouts = layouts.filter((l: any) => l && l.isActive !== false);
-  const orderedLayouts = (activeLayouts.length ? activeLayouts : layouts)
-    .filter((l: any) => deriveLayoutCapacity(l) > 0);
-
-  const suggestions: RoomAvailabilitySuggestion[] = [];
-  const seen = new Set<string>();
-  const push = (item: RoomAvailabilitySuggestion | null | undefined) => {
-    if (!item) return;
-    const key = `${item.kind}|${item.roomId || ""}|${item.time}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    suggestions.push(item);
+  const unique = new Map<string, RoomAvailabilitySuggestion>();
+  const pushIfAvailable = async (
+    kind: RoomAvailabilitySuggestion["kind"],
+    layoutId: string,
+    timeMin: number,
+  ) => {
+    if (timeMin < 0 || timeMin + span > 24 * 60) return;
+    if (!isWithinOpening(r, date, timeMin, span)) return;
+    const layout = orderedLayouts.find((item) => item.id === layoutId);
+    if (!layout || layout.capacity <= 0) return;
+    const time = fromMinutes(timeMin);
+    const key = `${layout.id}@@${time}`;
+    if (unique.has(key)) return;
+    const roomCheck = await checkRoomCapacity(restaurantId, layout.id, date, time, people);
+    if (!roomCheck.ok) return;
+    unique.set(key, {
+      time,
+      layoutId: layout.id,
+      roomLabel: roomCheck.roomLabel || layout.label,
+      kind,
+    });
   };
 
-  const selected = orderedLayouts.find((l: any) => String(l.id) === String(preferredLayoutId)) || null;
+  for (const layout of orderedLayouts) {
+    if (!preferred || layout.id === preferred) continue;
+    await pushIfAvailable("same_time_other_room", layout.id, snappedBase);
+  }
 
-  if (selected) {
-    for (const layout of orderedLayouts) {
-      if (String(layout.id) === String(selected.id)) continue;
-      const roomCheck = await checkRoomCapacity(restaurantId, String(layout.id), date, centerTime, people);
-      if (roomCheck.ok) {
-        push({
-          time: centerTime,
-          roomId: String(layout.id),
-          roomLabel: roomCheck.roomLabel || layout.floorLabel || layout.name,
-          kind: "other_room_same_time",
-        });
-      }
-      if (suggestions.length >= maxItems) return suggestions.slice(0, maxItems);
-    }
-
-    const sameRoomTimes = await listAvailableSlotsAroundForRoom(restaurantId, String(selected.id), date, centerTime, people, 120, maxItems + 2);
-    for (const t of sameRoomTimes) {
-      if (t === centerTime) continue;
-      push({
-        time: t,
-        roomId: String(selected.id),
-        roomLabel: selected.floorLabel || selected.name,
-        kind: "same_room_other_time",
-      });
-      if (suggestions.length >= maxItems) return suggestions.slice(0, maxItems);
-    }
-
-    for (const layout of orderedLayouts) {
-      if (String(layout.id) === String(selected.id)) continue;
-      const times = await listAvailableSlotsAroundForRoom(restaurantId, String(layout.id), date, centerTime, people, 120, 4);
-      for (const t of times) {
-        if (t === centerTime) continue;
-        push({
-          time: t,
-          roomId: String(layout.id),
-          roomLabel: layout.floorLabel || layout.name,
-          kind: "other_room_other_time",
-        });
-        if (suggestions.length >= maxItems) return suggestions.slice(0, maxItems);
-      }
-    }
-  } else {
-    for (const layout of orderedLayouts) {
-      const roomCheck = await checkRoomCapacity(restaurantId, String(layout.id), date, centerTime, people);
-      if (roomCheck.ok) {
-        push({
-          time: centerTime,
-          roomId: String(layout.id),
-          roomLabel: roomCheck.roomLabel || layout.floorLabel || layout.name,
-          kind: "other_room_same_time",
-        });
-      }
-      if (suggestions.length >= maxItems) return suggestions.slice(0, maxItems);
+  if (preferred) {
+    for (const timeMin of timeCandidates) {
+      await pushIfAvailable("same_room_other_time", preferred, timeMin);
+      if (unique.size >= maxSuggestions) break;
     }
   }
 
-  return suggestions.slice(0, maxItems);
+  for (const timeMin of timeCandidates) {
+    for (const layout of orderedLayouts) {
+      if (preferred && layout.id === preferred) continue;
+      await pushIfAvailable("other_room_other_time", layout.id, timeMin);
+      if (unique.size >= maxSuggestions) break;
+    }
+    if (unique.size >= maxSuggestions) break;
+  }
+
+  const priority: Record<RoomAvailabilitySuggestion["kind"], number> = {
+    same_time_other_room: 0,
+    same_room_other_time: 1,
+    other_room_other_time: 2,
+  };
+
+  return [...unique.values()]
+    .sort((a, b) => {
+      const pa = priority[a.kind] ?? 99;
+      const pb = priority[b.kind] ?? 99;
+      if (pa !== pb) return pa - pb;
+      const da = Math.abs(toMinutes(a.time) - snappedBase);
+      const db = Math.abs(toMinutes(b.time) - snappedBase);
+      if (da !== db) return da - db;
+      const la = orderedLayouts.findIndex((layout) => layout.id === a.layoutId);
+      const lb = orderedLayouts.findIndex((layout) => layout.id === b.layoutId);
+      if (la !== lb) return la - lb;
+      return a.roomLabel.localeCompare(b.roomLabel);
+    })
+    .slice(0, Math.max(1, maxSuggestions));
 }
 
-/** סלוטים זמינים סביב שעה נתונה (±windowMinutes), מיושרים לגריד, בטווח היום בלבד. */
 export async function listAvailableSlotsAround(
   restaurantId: string,
   date: string,

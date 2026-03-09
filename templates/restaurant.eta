@@ -235,6 +235,7 @@
   const peopleInput = document.getElementById("people");
   const roomInput = document.getElementById("preferredLayoutId");
   const form = document.getElementById("reserve-form");
+  const hasRoomCards = !!document.getElementById("room-cards")?.querySelector(".rsv-room-card");
 
   /* ===== People counter ===== */
   function getSelectedRoomCap() {
@@ -350,15 +351,6 @@
   });
 
   syncSelectedRoomCard();
-
-  // Auto-select room if only one exists, or if none is selected yet pick the first one
-  if (roomInput && !roomInput.value) {
-    const allCards = document.querySelectorAll(".rsv-room-card");
-    if (allCards.length === 1) {
-      roomInput.value = allCards[0].dataset.roomId || "";
-      syncSelectedRoomCard();
-    }
-  }
 
   /* ===== Time grid ===== */
   async function fetchOpeningForDate(rid, dateStr) {
@@ -526,19 +518,6 @@
       alert("<%= tt('restaurant.form.missing','נא לבחור תאריך ושעה') %>");
       return;
     }
-    // Defensive fallback: if roomInput exists but empty, try to read from selected card or auto-select
-    if (roomInput && !roomInput.value) {
-      const selectedCard = document.querySelector(".rsv-room-card.is-selected");
-      if (selectedCard) {
-        roomInput.value = selectedCard.dataset.roomId || "";
-      } else {
-        const allCards = document.querySelectorAll(".rsv-room-card");
-        if (allCards.length === 1) {
-          roomInput.value = allCards[0].dataset.roomId || "";
-          syncSelectedRoomCard();
-        }
-      }
-    }
     if (roomInput && !roomInput.value) {
       ev.preventDefault();
       alert("<%= tt('reservation.select_room_required','נא לבחור חדר') %>");
@@ -577,28 +556,8 @@
       return;
     }
     const rid = checkBtn.dataset.rid;
-    let preferredLayoutId = roomInput ? roomInput.value : "";
-
-    // Defensive fallback: if roomInput exists but value is empty, try to read from selected card
-    if (roomInput && !preferredLayoutId) {
-      const selectedCard = document.querySelector(".rsv-room-card.is-selected");
-      if (selectedCard) {
-        preferredLayoutId = selectedCard.dataset.roomId || "";
-        roomInput.value = preferredLayoutId;
-      }
-    }
-
-    // Auto-select if there's only one room
-    if (roomInput && !preferredLayoutId) {
-      const allCards = document.querySelectorAll(".rsv-room-card");
-      if (allCards.length === 1) {
-        preferredLayoutId = allCards[0].dataset.roomId || "";
-        roomInput.value = preferredLayoutId;
-        syncSelectedRoomCard();
-      }
-    }
-
-    if (roomInput && !preferredLayoutId) {
+    const preferredLayoutId = roomInput ? String(roomInput.value || "") : "";
+    if (hasRoomCards && !preferredLayoutId) {
       showToast("<%= tt('reservation.select_room_required','נא לבחור חדר') %>", "warn");
       document.getElementById("room-cards")?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
@@ -609,30 +568,24 @@
       const checkUrl = `/api/restaurants/${encodeURIComponent(rid)}/check<%= langQuery %>`;
       const resp = await fetch(checkUrl, {
         method: "POST",
-        cache: "no-store",
         headers: { "Accept": "application/json", "Content-Type": "application/json" },
         body: JSON.stringify({ date, time, people, preferredLayoutId }),
       });
-      const data = await resp.json().catch(()=>null);
-      if (resp.ok && data && data.ok) {
+      const data = await resp.json().catch(() => null);
+      if (data && data.ok) {
         renderAround([]);
+        clearRoomCapacityWarning();
         showToast("<%= tt('restaurant.check.available','יש זמינות! אפשר לבצע הזמנה.') %>", "success");
+      } else if (data && data.reason === "room_required") {
+        renderAround([]);
+        showToast("<%= tt('reservation.select_room_required','נא לבחור חדר') %>", "warn");
       } else if (data && data.reason === "room_full") {
         const roomLabel = data.roomLabel || "";
+        renderAround(data?.suggestions || []);
         showToast("<%= tt('reservation.room_full_msg','החלל \"{room}\" מלא במועד שבחרת. נסה/י חלל אחר או שעה אחרת.') %>".replace("{room}", roomLabel), "warn");
-        renderAround(data?.suggestions || []);
-      } else if (data && data.reason === "room_required") {
-        showToast("<%= tt('reservation.select_room_required','נא לבחור חדר') %>", "warn");
-        renderAround(data?.suggestions || []);
-      } else if (data && (data.reason === "closed" || data.reason === "unspecified")) {
-        showToast("<%= tt('restaurant.check.closed','המסעדה סגורה בשעה זו. נסה/י שעה אחרת.') %>", "warn");
-        renderAround(data?.suggestions || []);
-      } else if (data && data.reason === "full") {
-        showToast("<%= tt('restaurant.check.full','אין מקום פנוי בשעה זו. נסה/י שעה אחרת.') %>", "warn");
-        renderAround(data?.suggestions || []);
       } else {
-        showToast("<%= tt('restaurant.check.unavailable','אין זמינות בשעה זו. נסה/י שעה אחרת.') %>", "warn");
         renderAround(data?.suggestions || []);
+        showToast("<%= tt('restaurant.form.conflict','אין זמינות בשעה שבחרת. בחר/י שעה אחרת מהרשימה להלן.') %>", "warn");
       }
     } finally {
       checkBtn.classList.remove("is-loading");
@@ -647,33 +600,30 @@
     if (Array.isArray(slots) && slots.length) {
       card.hidden = false;
       card.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      slots.slice(0, 8).forEach(item => {
-        const isObj = item && typeof item === "object";
-        const t = isObj ? String(item.time || "") : String(item || "");
-        const roomId = isObj ? String(item.roomId || "") : "";
-        const roomLabel = isObj ? String(item.roomLabel || "") : "";
-        if (!t) return;
-
+      slots.slice(0, 8).forEach((slot) => {
+        const item = typeof slot === "string"
+          ? { time: slot, label: slot, layoutId: "" }
+          : {
+              time: String(slot?.time || ""),
+              label: String(slot?.label || `${slot?.time || ""}${slot?.roomLabel ? ` · ${slot.roomLabel}` : ""}`),
+              layoutId: String(slot?.layoutId || ""),
+            };
+        if (!item.time) return;
         const b = document.createElement("button");
         b.type = "button";
         b.className = "rsv-suggestion-chip";
-        b.textContent = roomLabel ? `${t} · ${roomLabel}` : t;
-        b.onclick = () => {
-          hiddenTime.value = t;
-          if (roomInput && roomId) {
-            roomInput.value = roomId;
+        b.textContent = item.label || item.time;
+        b.onclick = async () => {
+          hiddenTime.value = item.time;
+          if (roomInput && item.layoutId) {
+            roomInput.value = item.layoutId;
             syncSelectedRoomCard();
           }
           timeGrid.querySelectorAll(".rsv-time-chip").forEach(c => {
-            c.classList.toggle("is-selected", c.dataset.value === t);
+            c.classList.toggle("is-selected", c.dataset.value === item.time);
           });
-          if (roomId) {
-            const selectedCard = document.querySelector(`.rsv-room-card[data-room-id="${CSS.escape(roomId)}"]`);
-            selectedCard?.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
-          updateAllRoomOccupancies();
-          clearRoomCapacityWarning();
           card.hidden = true;
+          await updateAllRoomOccupancies();
         };
         box.appendChild(b);
       });
