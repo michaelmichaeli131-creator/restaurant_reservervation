@@ -878,19 +878,19 @@ export async function confirmPaymentGet(ctx: any) {
     return;
   }
 
-  // Re-check availability
-  const avail = await checkAvailability(rid, tokenData.date, tokenData.time, tokenData.people);
-  if (!asOk(avail)) {
-    ctx.response.status = Status.Conflict;
-    ctx.response.body = tr(ctx.state?.lang ?? getLang(ctx), { en: "The selected time slot is no longer available", he: "השעה שנבחרה כבר אינה זמינה", ka: "არჩეული დრო უკვე აღარ არის ხელმისაწვდომი" });
-    return;
-  }
-
+  // Re-check availability — room-level when a room is selected, global otherwise
   if (tokenData.preferredLayoutId) {
     const roomCheck = await checkRoomCapacity(rid, tokenData.preferredLayoutId, tokenData.date, tokenData.time, tokenData.people);
     if (!roomCheck.ok) {
       ctx.response.status = Status.Conflict;
       ctx.response.body = trf(ctx.state?.lang ?? getLang(ctx), { en: "The selected room \"{room}\" is full at this time", he: "החלל \"{room}\" מלא במועד זה", ka: "არჩეული სივრცე \"{room}\" ამ დროს სავსეა" }, { room: roomCheck.roomLabel });
+      return;
+    }
+  } else {
+    const avail = await checkAvailability(rid, tokenData.date, tokenData.time, tokenData.people);
+    if (!asOk(avail)) {
+      ctx.response.status = Status.Conflict;
+      ctx.response.body = tr(ctx.state?.lang ?? getLang(ctx), { en: "The selected time slot is no longer available", he: "השעה שנבחרה כבר אינה זמינה", ka: "არჩეული დრო უკვე აღარ არის ხელმისაწვდომი" });
       return;
     }
   }
