@@ -44,43 +44,13 @@ export async function view(ctx: any) {
 
   // Load floor layouts for room selection dropdown (all rooms, not just active)
   const allLayouts = await listFloorLayouts(id).catch(() => []);
-  const firstPositiveNumber = (...values: unknown[]) => {
-    for (const value of values) {
-      const n = Number(value);
-      if (Number.isFinite(n) && n > 0) return n;
-    }
-    return null;
-  };
-
   const deriveRoomCapacity = (layout: any) => {
-    const explicitCapacity = firstPositiveNumber(
-      layout?.capacity,
-      layout?.maxGuests,
-      layout?.max_guests,
-      layout?.guestCapacity,
-      layout?.covers,
-      layout?.pax,
-      layout?.people,
-      layout?.metadata?.capacity,
-    );
-    if (explicitCapacity) return explicitCapacity;
+    const explicitCapacity = Number(layout?.capacity);
+    if (Number.isFinite(explicitCapacity) && explicitCapacity > 0) return explicitCapacity;
     const tables = Array.isArray(layout?.tables) ? layout.tables : [];
     const seats = tables.reduce((sum: number, table: any) => {
-      const value = firstPositiveNumber(
-        table?.seats,
-        table?.capacity,
-        table?.maxGuests,
-        table?.max_guests,
-        table?.guestCapacity,
-        table?.covers,
-        table?.pax,
-        table?.people,
-        table?.chairCount,
-        table?.chairs,
-        table?.metadata?.seats,
-        table?.metadata?.capacity,
-      );
-      return sum + (value || 0);
+      const value = Number(table?.seats);
+      return sum + (Number.isFinite(value) && value > 0 ? value : 0);
     }, 0);
     return seats > 0 ? seats : null;
   };

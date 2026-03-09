@@ -235,7 +235,7 @@
   const peopleInput = document.getElementById("people");
   const roomInput = document.getElementById("preferredLayoutId");
   const form = document.getElementById("reserve-form");
-  const hasRoomCards = !!document.getElementById("room-cards")?.querySelector(".rsv-room-card");
+  const rlog = (...args) => console.log("[reservation-debug]", ...args);
 
   /* ===== People counter ===== */
   function getSelectedRoomCap() {
@@ -263,10 +263,16 @@
     if (!layoutId || !date || !time) return null;
     try {
       const url = `/api/restaurants/${encodeURIComponent(RID)}/room-occupancy?layoutId=${encodeURIComponent(layoutId)}&date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&people=${people}`;
+      rlog("room-occupancy request", { layoutId, date, time, people, url });
       const res = await fetch(url, { cache: "no-store" });
+      const data = res.ok ? await res.json() : null;
+      rlog("room-occupancy response", { layoutId, date, time, people, status: res.status, ok: res.ok, data });
       if (!res.ok) return null;
-      return await res.json();
-    } catch { return null; }
+      return data;
+    } catch (err) {
+      rlog("room-occupancy error", { layoutId, date, time, people, err: String(err) });
+      return null;
+    }
   }
 
   async function updateRoomOccupancy(card) {
@@ -282,6 +288,14 @@
     if (badge) { badge.dataset.origText = badge.dataset.origText || badge.textContent; badge.textContent = "..."; }
 
     const occ = await fetchRoomOccupancy(layoutId, date, time, people);
+    rlog("updateRoomOccupancy", {
+      layoutId,
+      date,
+      time,
+      people,
+      rawCardCapacity: card.dataset.roomCapacity || null,
+      occ,
+    });
     if (!occ) {
       if (badge && badge.dataset.origText) badge.textContent = badge.dataset.origText;
       return;
@@ -330,6 +344,14 @@
     const card = e.target.closest(".rsv-room-card");
     if (!card) return;
     if (roomInput) roomInput.value = card.dataset.roomId;
+    rlog("room-selected", {
+      roomId: card.dataset.roomId,
+      roomLabel: card.querySelector(".rsv-room-card__name")?.textContent?.trim() || "",
+      rawCapacity: card.dataset.roomCapacity || null,
+      people: peopleInput.value,
+      date: dateInput.value,
+      time: hiddenTime.value,
+    });
     syncSelectedRoomCard();
 
     const date = (dateInput.value || "").trim();
@@ -423,6 +445,7 @@
         timeGrid.querySelectorAll(".rsv-time-chip").forEach(c => c.classList.remove("is-selected"));
         chip.classList.add("is-selected");
         hiddenTime.value = t;
+        rlog("time-selected", { time: t, date: dateInput.value, people: peopleInput.value, preferredLayoutId: roomInput?.value || "" });
         // Refresh room occupancy for new time slot
         updateAllRoomOccupancies();
       });
@@ -556,36 +579,28 @@
       return;
     }
     const rid = checkBtn.dataset.rid;
-    const preferredLayoutId = roomInput ? String(roomInput.value || "") : "";
-    if (hasRoomCards && !preferredLayoutId) {
-      showToast("<%= tt('reservation.select_room_required','נא לבחור חדר') %>", "warn");
-      document.getElementById("room-cards")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
+    const preferredLayoutId = roomInput ? roomInput.value : "";
+    const payload = { date, time, people, preferredLayoutId };
 
     checkBtn.classList.add("is-loading");
     try {
       const checkUrl = `/api/restaurants/${encodeURIComponent(rid)}/check<%= langQuery %>`;
+      rlog("check-availability request", { checkUrl, payload, roomOccupancyCache });
       const resp = await fetch(checkUrl, {
         method: "POST",
         headers: { "Accept": "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify({ date, time, people, preferredLayoutId }),
+        body: JSON.stringify(payload),
       });
-      const data = await resp.json().catch(() => null);
-      if (data && data.ok) {
+      const data = await resp.json().catch(()=>null);
+      rlog("check-availability response", { status: resp.status, ok: resp.ok, data });
+      if (resp.ok && data && data.ok) {
         renderAround([]);
-        clearRoomCapacityWarning();
         showToast("<%= tt('restaurant.check.available','יש זמינות! אפשר לבצע הזמנה.') %>", "success");
-      } else if (data && data.reason === "room_required") {
-        renderAround([]);
-        showToast("<%= tt('reservation.select_room_required','נא לבחור חדר') %>", "warn");
       } else if (data && data.reason === "room_full") {
         const roomLabel = data.roomLabel || "";
-        renderAround(data?.suggestions || []);
-        showToast("<%= tt('reservation.room_full_msg','החלל \"{room}\" מלא במועד שבחרת. נסה/י חלל אחר או שעה אחרת.') %>".replace("{room}", roomLabel), "warn");
+        showToast("<%= tt('reservation.room_full_msg','החלל "{room}" מלא במועד שבחרת. נסה/י חלל אחר או שעה אחרת.') %>".replace("{room}", roomLabel), "warn");
       } else {
         renderAround(data?.suggestions || []);
-        showToast("<%= tt('restaurant.form.conflict','אין זמינות בשעה שבחרת. בחר/י שעה אחרת מהרשימה להלן.') %>", "warn");
       }
     } finally {
       checkBtn.classList.remove("is-loading");
@@ -600,30 +615,19 @@
     if (Array.isArray(slots) && slots.length) {
       card.hidden = false;
       card.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      slots.slice(0, 8).forEach((slot) => {
-        const item = typeof slot === "string"
-          ? { time: slot, label: slot, layoutId: "" }
-          : {
-              time: String(slot?.time || ""),
-              label: String(slot?.label || `${slot?.time || ""}${slot?.roomLabel ? ` · ${slot.roomLabel}` : ""}`),
-              layoutId: String(slot?.layoutId || ""),
-            };
-        if (!item.time) return;
+      slots.slice(0, 8).forEach(t => {
         const b = document.createElement("button");
         b.type = "button";
         b.className = "rsv-suggestion-chip";
-        b.textContent = item.label || item.time;
-        b.onclick = async () => {
-          hiddenTime.value = item.time;
-          if (roomInput && item.layoutId) {
-            roomInput.value = item.layoutId;
-            syncSelectedRoomCard();
-          }
+        b.textContent = t;
+        b.onclick = () => {
+          rlog("suggestion-selected", { suggestion: t });
+          hiddenTime.value = t;
+          // Update time grid selection
           timeGrid.querySelectorAll(".rsv-time-chip").forEach(c => {
-            c.classList.toggle("is-selected", c.dataset.value === item.time);
+            c.classList.toggle("is-selected", c.dataset.value === t);
           });
           card.hidden = true;
-          await updateAllRoomOccupancies();
         };
         box.appendChild(b);
       });

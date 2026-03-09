@@ -1,15 +1,8 @@
 // src/routes/restaurants/reservation.controller.ts
 import { Status } from "jsr:@oak/oak";
 import {
-  checkAvailability,
-  checkRoomCapacity,
-  createReservation,
-  createReservationSafe,
-  getRestaurant,
-  getUserById,
-  listRoomAvailabilitySuggestions,
+  checkAvailability, checkRoomCapacity, createReservation, createReservationSafe, getRestaurant, getUserById,
   type Reservation,
-  type RoomAvailabilitySuggestion,
 } from "../../database.ts";
 import { render } from "../../lib/view.ts";
 import { sendReservationEmail, notifyOwnerEmail } from "../../lib/mail.ts";
@@ -20,7 +13,6 @@ import { readBody, extractDateAndTime } from "./_utils/body.ts";
 import { isWithinSchedule, hasScheduleForDate, getWindowsForDate, suggestionsWithinSchedule } from "./_utils/hours.ts";
 import { normalizePlain, sanitizeEmailMinimal, sanitizeNote, isValidEmailStrict } from "./_utils/rtl.ts";
 import { asOk, photoStrings } from "./_utils/misc.ts";
-import { listFloorLayouts } from "../../services/floor_service.ts";
 
 /* ====================== i18n helpers ====================== */
 function getLang(ctx: any): string {
@@ -66,57 +58,6 @@ function paymentMethodLabel(lang: string, key: string): string {
   }
 }
 
-function mapRoomSuggestions(suggestions: RoomAvailabilitySuggestion[]) {
-  return suggestions.map((item) => ({
-    time: item.time,
-    layoutId: item.layoutId,
-    roomLabel: item.roomLabel,
-    kind: item.kind,
-    label: `${item.time} · ${item.roomLabel}`,
-  }));
-}
-
-async function getRoomAwareSuggestions(
-  restaurantId: string,
-  date: string,
-  time: string,
-  people: number,
-  preferredLayoutId: string,
-  weeklySchedule: any,
-) {
-  const raw = await listRoomAvailabilitySuggestions(
-    restaurantId,
-    date,
-    time,
-    people,
-    preferredLayoutId || undefined,
-    120,
-    8,
-  );
-  if (!raw.length) return [];
-  if (!hasScheduleForDate(weeklySchedule, date)) return mapRoomSuggestions(raw);
-  const windows = getWindowsForDate(weeklySchedule, date);
-  return mapRoomSuggestions(raw.filter((item) => withinAnyWindowForSuggestions(item.time, windows)));
-}
-
-function withinAnyWindowForSuggestions(time: string, windows: Array<{ open: string; close: string }>) {
-  const t = (() => {
-    const m = String(time).match(/^(\d{1,2}):(\d{2})$/);
-    return m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
-  })();
-  if (!Number.isFinite(t)) return false;
-  for (const w of windows) {
-    const open = String(w?.open ?? '').match(/^(\d{1,2}):(\d{2})$/);
-    const close = String(w?.close ?? '').match(/^(\d{1,2}):(\d{2})$/);
-    if (!open || !close) continue;
-    const a = Number(open[1]) * 60 + Number(open[2]);
-    let b = Number(close[1]) * 60 + Number(close[2]);
-    if (b <= a) b = 24 * 60 - 1;
-    if (t >= a && t <= b) return true;
-  }
-  return false;
-}
-
 /* ====================== API: availability check ====================== */
 export async function checkApi(ctx: any) {
   const rid = String(ctx.params.id ?? "");
@@ -130,14 +71,9 @@ export async function checkApi(ctx: any) {
   const hasDay = hasScheduleForDate(restaurant.weeklySchedule, date);
   const windows = getWindowsForDate(restaurant.weeklySchedule, date);
   const within = isWithinSchedule(restaurant.weeklySchedule, date, time);
-  const preferredLayoutId = String((payload as any).preferredLayoutId ?? "").trim();
-  const layouts = await listFloorLayouts(rid).catch(() => []);
-  const hasRooms = Array.isArray(layouts) && layouts.length > 0;
 
   debugLog("[restaurants][POST /api/.../check] input", {
     rid, date, time, people,
-    preferredLayoutId,
-    hasRooms,
     body_ct: dbg.ct, body_keys: Object.keys(payload),
     weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : [],
     hasDay, windows, within
@@ -151,42 +87,50 @@ export async function checkApi(ctx: any) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("bad date (YYYY-MM-DD expected)");
   if (!/^\d{2}:\d{2}$/.test(time)) return bad("bad time (HH:mm expected)");
 
-  if (hasRooms && !preferredLayoutId) {
-    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.body = JSON.stringify({ ok:false, reason: "room_required" }, null, 2);
-    return;
-  }
-
   if (!within) {
-    const suggestions = hasRooms
-      ? await getRoomAwareSuggestions(rid, date, time, people, preferredLayoutId, restaurant.weeklySchedule)
-      : await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.body = JSON.stringify({ ok:false, reason: hasDay ? "closed" : "unspecified", suggestions }, null, 2);
     return;
   }
 
-  let roomCheck: Awaited<ReturnType<typeof checkRoomCapacity>> | null = null;
-  if (preferredLayoutId) {
-    roomCheck = await checkRoomCapacity(rid, preferredLayoutId, date, time, people);
+  const result = await checkAvailability(rid, date, time, people);
+  const around = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+
+  // Per-room capacity check (if preferredLayoutId sent)
+  const preferredLayoutId = String((payload as any).preferredLayoutId ?? "").trim();
+  debugLog("[restaurants][POST /api/.../check] computed", {
+    rid,
+    date,
+    time,
+    people,
+    preferredLayoutId,
+    availabilityResult: result,
+    suggestions: around.slice(0, 8),
+  });
+  if (asOk(result) && preferredLayoutId) {
+    const roomCheck = await checkRoomCapacity(rid, preferredLayoutId, date, time, people);
+    debugLog("[restaurants][POST /api/.../check] room-check", {
+      rid,
+      date,
+      time,
+      people,
+      preferredLayoutId,
+      roomCheck,
+    });
     if (!roomCheck.ok) {
-      const suggestions = await getRoomAwareSuggestions(rid, date, time, people, preferredLayoutId, restaurant.weeklySchedule);
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-      ctx.response.body = JSON.stringify({ ok: false, reason: "room_full", roomLabel: roomCheck.roomLabel, suggestions }, null, 2);
+      ctx.response.body = JSON.stringify({ ok: false, reason: "room_full", roomLabel: roomCheck.roomLabel, suggestions: around.slice(0,4), debug: { preferredLayoutId, availabilityResult: result, roomCheck } }, null, 2);
       return;
     }
   }
 
-  const result = await checkAvailability(rid, date, time, people);
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   if (asOk(result)) {
-    ctx.response.body = JSON.stringify({ ok: true, roomLabel: roomCheck?.roomLabel ?? "" }, null, 2);
+    ctx.response.body = JSON.stringify({ ok: true, availableSlots: around.slice(0,4), debug: { preferredLayoutId, availabilityResult: result } }, null, 2);
   } else {
     const reason = (result as any)?.reason ?? "unavailable";
-    const suggestions = hasRooms
-      ? await getRoomAwareSuggestions(rid, date, time, people, preferredLayoutId, restaurant.weeklySchedule)
-      : await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
-    ctx.response.body = JSON.stringify({ ok: false, reason, suggestions }, null, 2);
+    ctx.response.body = JSON.stringify({ ok: false, reason, suggestions: around.slice(0,4), debug: { preferredLayoutId, availabilityResult: result } }, null, 2);
   }
 }
 
@@ -207,6 +151,14 @@ export async function roomOccupancyApi(ctx: any) {
   }
 
   const result = await checkRoomCapacity(rid, layoutId, date, time, people);
+  debugLog("[restaurants][GET /api/.../room-occupancy] result", {
+    rid,
+    layoutId,
+    date,
+    time,
+    people,
+    result,
+  });
   ctx.response.body = JSON.stringify({
     ok: true,
     capacity: result.capacity,
@@ -214,6 +166,14 @@ export async function roomOccupancyApi(ctx: any) {
     remaining: result.remaining,
     roomLabel: result.roomLabel,
     roomFull: !result.ok,
+    debug: {
+      rid,
+      layoutId,
+      date,
+      time,
+      people,
+      result,
+    },
   });
 }
 
