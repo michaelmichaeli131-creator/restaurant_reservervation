@@ -234,6 +234,22 @@ export async function reservePost(ctx: any) {
 
   const preferredLayoutId = String((payload as any).preferredLayoutId ?? "").trim();
 
+  // Enforce room selection when restaurant uses rooms
+  const layouts = await listFloorLayouts(rid).catch(() => []);
+  const hasRooms = layouts.filter((l: any) => l.isActive !== false).length > 0;
+  if (hasRooms && !preferredLayoutId) {
+    const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
+    url.searchParams.set("conflict", "1");
+    url.searchParams.set("reason", "room_required");
+    url.searchParams.set("date", date);
+    url.searchParams.set("time", time);
+    url.searchParams.set("people", String(people));
+    appendLang(url, lang);
+    ctx.response.status = Status.SeeOther;
+    ctx.response.headers.set("Location", url.pathname + url.search);
+    return;
+  }
+
   if (preferredLayoutId) {
     // Room selected — check room capacity only, skip global check
     const roomCheck = await checkRoomCapacity(rid, preferredLayoutId, date, time, people);
@@ -391,7 +407,16 @@ export async function confirmGet(ctx: any) {
       return;
     }
   } else {
-    // No room selected — use global availability check
+    // No room selected — reject if restaurant uses rooms, else fall back to global check
+    const layouts = await listFloorLayouts(rid).catch(() => []);
+    const hasRooms = layouts.filter((l: any) => l.isActive !== false).length > 0;
+    if (hasRooms) {
+      const suggestions = await listSmartAvailabilitySuggestions(rid, date, time, people, "", 8);
+      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+      ctx.response.status = Status.Conflict;
+      ctx.response.body = JSON.stringify({ ok: false, error: tr(lang, { en: "Please select a room", he: "נא לבחור חלל", ka: "გთხოვთ აირჩიოთ სივრცე" }), suggestions }, null, 2);
+      return;
+    }
     const avail = await checkAvailability(rid, date, time, people);
     if (!asOk(avail)) {
       const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
@@ -578,7 +603,16 @@ export async function confirmPost(ctx: any) {
       return;
     }
   } else {
-    // No room selected — use global availability check
+    // No room selected — reject if restaurant uses rooms, else fall back to global check
+    const layouts = await listFloorLayouts(rid).catch(() => []);
+    const hasRooms = layouts.filter((l: any) => l.isActive !== false).length > 0;
+    if (hasRooms) {
+      const suggestions = await listSmartAvailabilitySuggestions(rid, date, time, people, "", 8);
+      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+      ctx.response.status = Status.Conflict;
+      ctx.response.body = JSON.stringify({ ok: false, error: tr(lang, { en: "Please select a room", he: "נא לבחור חלל", ka: "გთხოვთ აირჩიოთ სივრცე" }), suggestions }, null, 2);
+      return;
+    }
     const avail = await checkAvailability(rid, date, time, people);
     if (!asOk(avail)) {
       const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
