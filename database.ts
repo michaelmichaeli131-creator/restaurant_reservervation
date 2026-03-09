@@ -985,16 +985,25 @@ export async function checkRoomCapacity(
     return { ok: false, reason: "room_full", roomLabel: "", capacity: 0, alreadyBooked: 0, remaining: 0 };
   }
   const roomLabel = layout.floorLabel || layout.name;
-  const cap = deriveLayoutCapacity(layout);
-  if (!cap || cap <= 0 || !Number.isFinite(cap)) {
-    return { ok: false, reason: "room_full", roomLabel, capacity: 0, alreadyBooked: 0, remaining: 0 };
-  }
+  let cap = deriveLayoutCapacity(layout);
 
   const ppl = Math.max(1, Number(people) || 1);
 
   const r0 = await getRestaurant(restaurantId);
-  if (!r0) return { ok: true, roomLabel, capacity: cap, alreadyBooked: 0, remaining: cap };
+  if (!r0) return { ok: true, roomLabel, capacity: cap || 30, alreadyBooked: 0, remaining: cap || 30 };
   const r = coerceRestaurantDefaults(r0);
+
+  // If room has no explicit capacity, fall back to restaurant capacity divided by active rooms
+  if (!cap || cap <= 0 || !Number.isFinite(cap)) {
+    const { listFloorLayouts: listLayouts } = await import("./services/floor_service.ts");
+    const allLayouts = await listLayouts(restaurantId).catch(() => []);
+    const activeCount = allLayouts.filter((l: any) => l.isActive !== false).length || 1;
+    cap = Math.max(1, Math.floor(r.capacity / activeCount));
+  }
+
+  if (!cap || cap <= 0 || !Number.isFinite(cap)) {
+    return { ok: false, reason: "room_full", roomLabel, capacity: 0, alreadyBooked: 0, remaining: 0 };
+  }
 
   const step = r.slotIntervalMinutes;
   const span = r.serviceDurationMinutes;

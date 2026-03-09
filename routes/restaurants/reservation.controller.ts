@@ -100,7 +100,7 @@ export async function checkApi(ctx: any) {
   }
 
   const layouts = await listFloorLayouts(rid).catch(() => []);
-  const hasRooms = layouts.length > 0;
+  const hasRooms = layouts.filter((l: any) => l.isActive !== false).length > 0;
   const roomSuggestions = await listSmartAvailabilitySuggestions(rid, date, time, people, preferredLayoutId, 8);
 
   if (hasRooms && !preferredLayoutId) {
