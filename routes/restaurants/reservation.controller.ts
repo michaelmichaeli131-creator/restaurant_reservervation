@@ -128,23 +128,35 @@ export async function checkApi(ctx: any) {
     }
   }
 
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.headers.set("Cache-Control", "no-store");
+
+  if (preferredLayoutId) {
+    // Room check already passed above — return ok directly, no global check needed
+    ctx.response.body = JSON.stringify({
+      ok: true,
+      scope: "room",
+      availableSlots: roomSuggestions,
+    }, null, 2);
+    return;
+  }
+
+  // No room selected (and no rooms defined) — fall back to global availability check
   const result = await checkAvailability(rid, date, time, people);
   const around = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
 
-  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-  ctx.response.headers.set("Cache-Control", "no-store");
   if (asOk(result)) {
     ctx.response.body = JSON.stringify({
       ok: true,
-      scope: preferredLayoutId ? "room" : "restaurant",
-      availableSlots: preferredLayoutId ? roomSuggestions : around.slice(0,4),
+      scope: "restaurant",
+      availableSlots: around.slice(0, 4),
     }, null, 2);
   } else {
     const reason = (result as any)?.reason ?? "unavailable";
     ctx.response.body = JSON.stringify({
       ok: false,
       reason,
-      suggestions: preferredLayoutId ? roomSuggestions : around.slice(0,4),
+      suggestions: around.slice(0, 4),
     }, null, 2);
   }
 }
@@ -220,30 +232,31 @@ export async function reservePost(ctx: any) {
     return;
   }
 
-  const avail = await checkAvailability(rid, date, time, people);
-  if (!asOk(avail)) {
-    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
-    const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
-    url.searchParams.set("conflict", "1");
-    if (suggestions.length) url.searchParams.set("suggest", suggestions.join(","));
-    url.searchParams.set("date", date);
-    url.searchParams.set("time", time);
-    url.searchParams.set("people", String(people));
-    appendLang(url, lang);
-    ctx.response.status = Status.SeeOther;
-    ctx.response.headers.set("Location", url.pathname + url.search);
-    return;
-  }
-
   const preferredLayoutId = String((payload as any).preferredLayoutId ?? "").trim();
 
-  // Per-room capacity check — redirect back with room_full message
   if (preferredLayoutId) {
+    // Room selected — check room capacity only, skip global check
     const roomCheck = await checkRoomCapacity(rid, preferredLayoutId, date, time, people);
     if (!roomCheck.ok) {
       const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
       url.searchParams.set("conflict", "1");
       url.searchParams.set("room_full", roomCheck.roomLabel);
+      url.searchParams.set("date", date);
+      url.searchParams.set("time", time);
+      url.searchParams.set("people", String(people));
+      appendLang(url, lang);
+      ctx.response.status = Status.SeeOther;
+      ctx.response.headers.set("Location", url.pathname + url.search);
+      return;
+    }
+  } else {
+    // No room selected — use global availability check
+    const avail = await checkAvailability(rid, date, time, people);
+    if (!asOk(avail)) {
+      const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+      const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
+      url.searchParams.set("conflict", "1");
+      if (suggestions.length) url.searchParams.set("suggest", suggestions.join(","));
       url.searchParams.set("date", date);
       url.searchParams.set("time", time);
       url.searchParams.set("people", String(people));
@@ -367,22 +380,24 @@ export async function confirmGet(ctx: any) {
     return;
   }
 
-  const avail = await checkAvailability(rid, date, time, people);
-  if (!asOk(avail)) {
-    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
-    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.status = Status.Conflict;
-    ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "No availability at your selected time", he: "אין זמינות במועד שבחרת", ka: "არჩეულ დროს თავისუფალი ადგილი არ არის" }), suggestions }, null, 2);
-    return;
-  }
-
-  // Per-room capacity check
   if (preferredLayoutId) {
+    // Room selected — check room capacity only, skip global check
     const roomCheck = await checkRoomCapacity(rid, preferredLayoutId, date, time, people);
     if (!roomCheck.ok) {
+      const suggestions = await listSmartAvailabilitySuggestions(rid, date, time, people, preferredLayoutId, 8);
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
       ctx.response.status = Status.Conflict;
-      ctx.response.body = JSON.stringify({ ok:false, error: trf(lang, { en: "The selected room \"{room}\" is full at this time", he: "החלל \"{room}\" מלא במועד שבחרת", ka: "არჩეული სივრცე \"{room}\" ამ დროს სავსეა" }, { room: roomCheck.roomLabel }) }, null, 2);
+      ctx.response.body = JSON.stringify({ ok:false, error: trf(lang, { en: "The selected room \"{room}\" is full at this time", he: "החלל \"{room}\" מלא במועד שבחרת", ka: "არჩეული სივრცე \"{room}\" ამ დროს სავსეა" }, { room: roomCheck.roomLabel }), suggestions }, null, 2);
+      return;
+    }
+  } else {
+    // No room selected — use global availability check
+    const avail = await checkAvailability(rid, date, time, people);
+    if (!asOk(avail)) {
+      const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+      ctx.response.status = Status.Conflict;
+      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "No availability at your selected time", he: "אין זמינות במועד שבחרת", ka: "არჩეულ დროს თავისუფალი ადგილი არ არის" }), suggestions }, null, 2);
       return;
     }
   }
@@ -552,22 +567,24 @@ export async function confirmPost(ctx: any) {
     return;
   }
 
-  const avail = await checkAvailability(rid, date, time, people);
-  if (!asOk(avail)) {
-    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
-    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-    ctx.response.status = Status.Conflict;
-    ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "No availability at your selected time", he: "אין זמינות במועד שבחרת", ka: "არჩეულ დროს თავისუფალი ადგილი არ არის" }), suggestions }, null, 2);
-    return;
-  }
-
-  // Per-room capacity check
   if (preferredLayoutIdPost) {
+    // Room selected — check room capacity only, skip global check
     const roomCheck = await checkRoomCapacity(rid, preferredLayoutIdPost, date, time, people);
     if (!roomCheck.ok) {
+      const suggestions = await listSmartAvailabilitySuggestions(rid, date, time, people, preferredLayoutIdPost, 8);
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
       ctx.response.status = Status.Conflict;
-      ctx.response.body = JSON.stringify({ ok:false, error: trf(lang, { en: "The selected room \"{room}\" is full at this time", he: "החלל \"{room}\" מלא במועד שבחרת", ka: "არჩეული სივრცე \"{room}\" ამ დროს სავსეა" }, { room: roomCheck.roomLabel }) }, null, 2);
+      ctx.response.body = JSON.stringify({ ok:false, error: trf(lang, { en: "The selected room \"{room}\" is full at this time", he: "החלל \"{room}\" מלא במועד שבחרת", ka: "არჩეული სივრცე \"{room}\" ამ დროს სავსეა" }, { room: roomCheck.roomLabel }), suggestions }, null, 2);
+      return;
+    }
+  } else {
+    // No room selected — use global availability check
+    const avail = await checkAvailability(rid, date, time, people);
+    if (!asOk(avail)) {
+      const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+      ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+      ctx.response.status = Status.Conflict;
+      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "No availability at your selected time", he: "אין זמינות במועד שבחרת", ka: "არჩეულ დროს თავისუფალი ადგილი არ არის" }), suggestions }, null, 2);
       return;
     }
   }
