@@ -732,19 +732,18 @@ export async function createReservationSafe(r: Reservation): Promise<Reservation
     const dayLockKey = toKey("reservation_day_lock", r.restaurantId, r.date);
     const lock = await kv.get(dayLockKey);
 
-    // Re-check restaurant-level availability right before atomic write
-    const avail = await checkAvailability(r.restaurantId, r.date, r.time, r.people);
-    if (!(avail as any).ok) {
-      throw new Error("no_availability");
-    }
-
-    // Re-check room-level availability as the final guard as well.
-    // This closes the gap where a reservation might pass the pre-check flow
-    // but the room becomes full before the atomic write succeeds.
+    // Re-check availability right before atomic write.
+    // When a room is selected, check only room-level capacity (the authoritative constraint).
+    // When no room is selected, fall back to global restaurant-level availability.
     if (r.preferredLayoutId) {
       const roomCheck = await checkRoomCapacity(r.restaurantId, r.preferredLayoutId, r.date, r.time, r.people);
       if (!roomCheck.ok) {
         throw new Error("room_full");
+      }
+    } else {
+      const avail = await checkAvailability(r.restaurantId, r.date, r.time, r.people);
+      if (!(avail as any).ok) {
+        throw new Error("no_availability");
       }
     }
 
