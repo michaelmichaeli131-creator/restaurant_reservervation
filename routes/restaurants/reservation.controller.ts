@@ -2,6 +2,7 @@
 import { Status } from "jsr:@oak/oak";
 import {
   checkAvailability, checkRoomCapacity, createReservation, createReservationSafe, getRestaurant, getUserById,
+  listSmartAvailabilitySuggestions,
   type Reservation,
 } from "../../database.ts";
 import { render } from "../../lib/view.ts";
@@ -10,9 +11,10 @@ import { debugLog } from "../../lib/debug.ts";
 import { makeReservationToken } from "../../lib/token.ts";
 import { todayISO, normalizeDate, normalizeTime, toIntLoose, pickNonEmpty } from "./_utils/datetime.ts";
 import { readBody, extractDateAndTime } from "./_utils/body.ts";
-import { isWithinSchedule, hasScheduleForDate, getWindowsForDate, suggestionsWithinSchedule, smartSuggestionsWithinSchedule } from "./_utils/hours.ts";
+import { isWithinSchedule, hasScheduleForDate, getWindowsForDate, suggestionsWithinSchedule } from "./_utils/hours.ts";
 import { normalizePlain, sanitizeEmailMinimal, sanitizeNote, isValidEmailStrict } from "./_utils/rtl.ts";
 import { asOk, photoStrings } from "./_utils/misc.ts";
+import { listFloorLayouts } from "../../services/floor_service.ts";
 
 /* ====================== i18n helpers ====================== */
 function getLang(ctx: any): string {
@@ -58,24 +60,6 @@ function paymentMethodLabel(lang: string, key: string): string {
   }
 }
 
-async function getAvailabilitySuggestions(
-  restaurantId: string,
-  date: string,
-  time: string,
-  people: number,
-  weeklySchedule: any,
-  preferredLayoutId?: string,
-) {
-  return await smartSuggestionsWithinSchedule(
-    restaurantId,
-    date,
-    time,
-    people,
-    weeklySchedule,
-    String(preferredLayoutId ?? "").trim() || undefined,
-  );
-}
-
 /* ====================== API: availability check ====================== */
 export async function checkApi(ctx: any) {
   const rid = String(ctx.params.id ?? "");
@@ -85,13 +69,14 @@ export async function checkApi(ctx: any) {
   const { payload, dbg } = await readBody(ctx);
   const { date, time } = extractDateAndTime(ctx, payload);
   const people = toIntLoose((payload as any).people) ?? 2;
+  const preferredLayoutId = String((payload as any).preferredLayoutId ?? "").trim();
 
   const hasDay = hasScheduleForDate(restaurant.weeklySchedule, date);
   const windows = getWindowsForDate(restaurant.weeklySchedule, date);
   const within = isWithinSchedule(restaurant.weeklySchedule, date, time);
 
   debugLog("[restaurants][POST /api/.../check] input", {
-    rid, date, time, people,
+    rid, date, time, people, preferredLayoutId,
     body_ct: dbg.ct, body_keys: Object.keys(payload),
     weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : [],
     hasDay, windows, within
@@ -100,45 +85,67 @@ export async function checkApi(ctx: any) {
   const bad = (m: string) => {
     ctx.response.status = Status.BadRequest;
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+    ctx.response.headers.set("Cache-Control", "no-store");
     ctx.response.body = JSON.stringify({ ok:false, error:m, dbg }, null, 2);
   };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad("bad date (YYYY-MM-DD expected)");
   if (!/^\d{2}:\d{2}$/.test(time)) return bad("bad time (HH:mm expected)");
 
-  const preferredLayoutId = String((payload as any).preferredLayoutId ?? "").trim();
-  const suggestions = await getAvailabilitySuggestions(
-    rid,
-    date,
-    time,
-    people,
-    restaurant.weeklySchedule,
-    preferredLayoutId,
-  );
-
   if (!within) {
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+    ctx.response.headers.set("Cache-Control", "no-store");
     ctx.response.body = JSON.stringify({ ok:false, reason: hasDay ? "closed" : "unspecified", suggestions }, null, 2);
     return;
   }
 
-  const result = await checkAvailability(rid, date, time, people);
+  const layouts = await listFloorLayouts(rid).catch(() => []);
+  const hasRooms = layouts.length > 0;
+  const roomSuggestions = await listSmartAvailabilitySuggestions(rid, date, time, people, preferredLayoutId, 8);
 
-  // Per-room capacity check (if preferredLayoutId sent)
-  if (asOk(result) && preferredLayoutId) {
+  if (hasRooms && !preferredLayoutId) {
+    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+    ctx.response.headers.set("Cache-Control", "no-store");
+    ctx.response.body = JSON.stringify({ ok: false, reason: "room_required", suggestions: roomSuggestions }, null, 2);
+    return;
+  }
+
+  if (preferredLayoutId) {
     const roomCheck = await checkRoomCapacity(rid, preferredLayoutId, date, time, people);
     if (!roomCheck.ok) {
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-      ctx.response.body = JSON.stringify({ ok: false, reason: "room_full", roomLabel: roomCheck.roomLabel, suggestions }, null, 2);
+      ctx.response.headers.set("Cache-Control", "no-store");
+      ctx.response.body = JSON.stringify({
+        ok: false,
+        reason: "room_full",
+        roomLabel: roomCheck.roomLabel,
+        capacity: roomCheck.capacity,
+        alreadyBooked: roomCheck.alreadyBooked,
+        remaining: roomCheck.remaining,
+        suggestions: roomSuggestions,
+      }, null, 2);
       return;
     }
   }
 
+  const result = await checkAvailability(rid, date, time, people);
+  const around = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
+
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.headers.set("Cache-Control", "no-store");
   if (asOk(result)) {
-    ctx.response.body = JSON.stringify({ ok: true, availableSlots: suggestions.slice(0,4) }, null, 2);
+    ctx.response.body = JSON.stringify({
+      ok: true,
+      scope: preferredLayoutId ? "room" : "restaurant",
+      availableSlots: preferredLayoutId ? roomSuggestions : around.slice(0,4),
+    }, null, 2);
   } else {
     const reason = (result as any)?.reason ?? "unavailable";
-    ctx.response.body = JSON.stringify({ ok: false, reason, suggestions }, null, 2);
+    ctx.response.body = JSON.stringify({
+      ok: false,
+      reason,
+      suggestions: preferredLayoutId ? roomSuggestions : around.slice(0,4),
+    }, null, 2);
   }
 }
 
@@ -178,7 +185,6 @@ export async function reservePost(ctx: any) {
   const { payload, dbg } = await readBody(ctx);
   const { date, time } = extractDateAndTime(ctx, payload);
   const people = toIntLoose((payload as any).people) ?? 2;
-  const preferredLayoutId = String((payload as any).preferredLayoutId ?? "").trim();
 
   // i18n context & optional cookie
   const lang = ctx.state?.lang ?? getLang(ctx);
@@ -201,12 +207,13 @@ export async function reservePost(ctx: any) {
   }
 
   if (!within) {
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
     const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
     url.searchParams.set("conflict", "1");
+    if (suggestions.length) url.searchParams.set("suggest", suggestions.join(","));
     url.searchParams.set("date", date);
     url.searchParams.set("time", time);
     url.searchParams.set("people", String(people));
-    if (preferredLayoutId) url.searchParams.set("preferredLayoutId", preferredLayoutId);
     appendLang(url, lang);
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", url.pathname + url.search);
@@ -215,17 +222,20 @@ export async function reservePost(ctx: any) {
 
   const avail = await checkAvailability(rid, date, time, people);
   if (!asOk(avail)) {
+    const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
     const url = new URL(`/restaurants/${encodeURIComponent(rid)}`, "http://local");
     url.searchParams.set("conflict", "1");
+    if (suggestions.length) url.searchParams.set("suggest", suggestions.join(","));
     url.searchParams.set("date", date);
     url.searchParams.set("time", time);
     url.searchParams.set("people", String(people));
-    if (preferredLayoutId) url.searchParams.set("preferredLayoutId", preferredLayoutId);
     appendLang(url, lang);
     ctx.response.status = Status.SeeOther;
     ctx.response.headers.set("Location", url.pathname + url.search);
     return;
   }
+
+  const preferredLayoutId = String((payload as any).preferredLayoutId ?? "").trim();
 
   // Per-room capacity check — redirect back with room_full message
   if (preferredLayoutId) {
@@ -237,7 +247,6 @@ export async function reservePost(ctx: any) {
       url.searchParams.set("date", date);
       url.searchParams.set("time", time);
       url.searchParams.set("people", String(people));
-      url.searchParams.set("preferredLayoutId", preferredLayoutId);
       appendLang(url, lang);
       ctx.response.status = Status.SeeOther;
       ctx.response.headers.set("Location", url.pathname + url.search);
@@ -408,13 +417,13 @@ export async function confirmGet(ctx: any) {
     if (message === "room_full") {
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
       ctx.response.status = Status.Conflict;
-      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "There is not enough space in the selected room at this time", he: "אין מספיק מקום בחדר שבחרת במועד הזה", ka: "არჩეულ სივრცეში ამ დროს საკმარისი ადგილი არ არის" }), suggestions }, null, 2);
+      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "There is not enough space in the selected room at this time", he: "אין מספיק מקום בחדר שבחרת במועד הזה", ka: "არჩეულ სივრცეში ამ დროს საკმარისი ადგილი არ არის" }) }, null, 2);
       return;
     }
     if (message === "no_availability") {
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
       ctx.response.status = Status.Conflict;
-      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "No availability at your selected time", he: "אין זמינות במועד שבחרת", ka: "არჩეულ დროს თავისუფალი ადგილი არ არის" }), suggestions }, null, 2);
+      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "No availability at your selected time", he: "אין זמינות במועד שבחרת", ka: "არჩეულ დროს თავისუფალი ადგილი არ არის" }) }, null, 2);
       return;
     }
     throw error;
@@ -616,13 +625,13 @@ export async function confirmPost(ctx: any) {
     if (message === "room_full") {
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
       ctx.response.status = Status.Conflict;
-      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "There is not enough space in the selected room at this time", he: "אין מספיק מקום בחדר שבחרת במועד הזה", ka: "არჩეულ სივრცეში ამ დროს საკმარისი ადგილი არ არის" }), suggestions }, null, 2);
+      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "There is not enough space in the selected room at this time", he: "אין מספיק מקום בחדר שבחרת במועד הזה", ka: "არჩეულ სივრცეში ამ დროს საკმარისი ადგილი არ არის" }) }, null, 2);
       return;
     }
     if (message === "no_availability") {
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
       ctx.response.status = Status.Conflict;
-      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "No availability at your selected time", he: "אין זמינות במועד שבחרת", ka: "არჩეულ დროს თავისუფალი ადგილი არ არის" }), suggestions }, null, 2);
+      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "No availability at your selected time", he: "אין זמינות במועד שבחרת", ka: "არჩეულ დროს თავისუფალი ადგილი არ არის" }) }, null, 2);
       return;
     }
     throw error;

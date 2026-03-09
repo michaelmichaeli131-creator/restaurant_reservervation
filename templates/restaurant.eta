@@ -507,7 +507,7 @@
   }
 
   /* ===== Form submit ===== */
-  form.addEventListener("submit", async (ev) => {
+  form.addEventListener("submit", (ev) => {
     const dateVal = (dateInput.value || "").trim();
     const timeVal = (hiddenTime.value || "").trim();
     const pplVal  = Math.max(1, parseInt((peopleInput.value || "1"), 10) || 1);
@@ -533,7 +533,6 @@
         const alts = getRoomsWithCapacity(pplVal, roomInput.value);
         showRoomCapacityWarning(selectedCard, cap, pplVal, alts, occ?.alreadyBooked, remaining);
         selectedCard?.scrollIntoView({ behavior: "smooth", block: "center" });
-        await requestAvailabilityCheck({ showSuccessToast: false, showErrorToast: false, scrollSuggestions: true });
         return;
       }
     }
@@ -545,109 +544,95 @@
     form.action = u.pathname + u.search;
   });
 
-  /* ===== Suggestions ===== */
-  function normalizeSuggestion(item) {
-    if (typeof item === "string") {
-      return { time: item, roomId: "", roomLabel: "", kind: "time_only" };
-    }
-    if (!item || typeof item !== "object") return null;
-    const time = String(item.time || "").trim();
-    if (!time) return null;
-    return {
-      time,
-      roomId: String(item.roomId || "").trim(),
-      roomLabel: String(item.roomLabel || "").trim(),
-      kind: String(item.kind || "time_only").trim(),
-    };
-  }
-
-  function suggestionText(item) {
-    return item.roomLabel ? `${item.time} · ${item.roomLabel}` : item.time;
-  }
-
-  function applySuggestion(item) {
-    hiddenTime.value = item.time;
-    timeGrid.querySelectorAll(".rsv-time-chip").forEach(c => {
-      c.classList.toggle("is-selected", c.dataset.value === item.time);
-    });
-    if (roomInput && item.roomId) {
-      roomInput.value = item.roomId;
-      syncSelectedRoomCard();
-    }
-    clearRoomCapacityWarning();
-    updateAllRoomOccupancies();
-    document.getElementById("around-card").hidden = true;
-  }
-
-  function renderAround(slots, opts = {}) {
-    const { scroll = true } = opts;
-    const card = document.getElementById("around-card");
-    const box = document.getElementById("around-slots");
-    box.innerHTML = "";
-    const normalized = Array.isArray(slots) ? slots.map(normalizeSuggestion).filter(Boolean) : [];
-    if (normalized.length) {
-      card.hidden = false;
-      if (scroll) card.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      normalized.slice(0, 8).forEach(item => {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "rsv-suggestion-chip";
-        b.textContent = suggestionText(item);
-        b.title = suggestionText(item);
-        b.onclick = () => applySuggestion(item);
-        box.appendChild(b);
-      });
-    } else {
-      card.hidden = true;
-    }
-  }
-
-  async function requestAvailabilityCheck(options = {}) {
-    const { showSuccessToast = true, showErrorToast = true, scrollSuggestions = true } = options;
+  /* ===== Check availability ===== */
+  const checkBtn = document.getElementById("check-btn");
+  checkBtn?.addEventListener("click", async () => {
     const date = (dateInput.value || "").trim();
     const time = (hiddenTime.value || "").trim();
     const people = Math.max(1, parseInt((peopleInput.value || "1"), 10) || 1);
     if (!date || !time) {
       alert("<%= tt('restaurant.form.missing','נא לבחור תאריך ושעה') %>");
-      return null;
+      return;
     }
+    const rid = checkBtn.dataset.rid;
     const preferredLayoutId = roomInput ? roomInput.value : "";
-    const checkUrl = `/api/restaurants/${encodeURIComponent(RID)}/check<%= langQuery %>`;
-    const resp = await fetch(checkUrl, {
-      method: "POST",
-      headers: { "Accept": "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify({ date, time, people, preferredLayoutId }),
-    });
-    const data = await resp.json().catch(() => null);
-    if (resp.ok && data && data.ok) {
-      renderAround([], { scroll: false });
-      if (showSuccessToast) showToast("<%= tt('restaurant.check.available','יש זמינות! אפשר לבצע הזמנה.') %>", "success");
-      return data;
-    }
-    renderAround(data?.suggestions || [], { scroll: scrollSuggestions });
-    if (showErrorToast && data && data.reason === "room_full") {
-      const roomLabel = data.roomLabel || "";
-      showToast(`<%= tt('reservation.room_full_msg','החלל "{room}" מלא במועד שבחרת. נסה/י חלל אחר או שעה אחרת.') %>`.replace("{room}", roomLabel), "warn");
-    }
-    return data;
-  }
 
-  /* ===== Check availability ===== */
-  const checkBtn = document.getElementById("check-btn");
-  checkBtn?.addEventListener("click", async () => {
+    if (roomInput && !preferredLayoutId) {
+      showToast("<%= tt('reservation.select_room_required','נא לבחור חדר') %>", "warn");
+      document.getElementById("room-cards")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
     checkBtn.classList.add("is-loading");
     try {
-      await requestAvailabilityCheck({ showSuccessToast: true, showErrorToast: true, scrollSuggestions: true });
+      const checkUrl = `/api/restaurants/${encodeURIComponent(rid)}/check<%= langQuery %>`;
+      const resp = await fetch(checkUrl, {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Accept": "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ date, time, people, preferredLayoutId }),
+      });
+      const data = await resp.json().catch(()=>null);
+      if (resp.ok && data && data.ok) {
+        renderAround([]);
+        showToast("<%= tt('restaurant.check.available','יש זמינות! אפשר לבצע הזמנה.') %>", "success");
+      } else if (data && (data.reason === "room_full" || data.reason === "room_required")) {
+        const roomLabel = data.roomLabel || "";
+        if (data.reason === "room_full") {
+          showToast("<%= tt('reservation.room_full_msg','החלל \"{room}\" מלא במועד שבחרת. נסה/י חלל אחר או שעה אחרת.') %>".replace("{room}", roomLabel), "warn");
+        } else {
+          showToast("<%= tt('reservation.select_room_required','נא לבחור חדר') %>", "warn");
+        }
+        renderAround(data?.suggestions || []);
+      } else {
+        renderAround(data?.suggestions || []);
+      }
     } finally {
       checkBtn.classList.remove("is-loading");
     }
   });
 
-  const shouldLoadSmartSuggestions = <%= (it.conflict || it.roomFull || (Array.isArray(it.suggestions) && it.suggestions.length > 0)) ? 'true' : 'false' %>;
-  if (shouldLoadSmartSuggestions && dateInput.value && hiddenTime.value) {
-    setTimeout(() => {
-      requestAvailabilityCheck({ showSuccessToast: false, showErrorToast: false, scrollSuggestions: false }).catch(() => {});
-    }, 250);
+  /* ===== Suggestions ===== */
+  function renderAround(slots) {
+    const card = document.getElementById("around-card");
+    const box = document.getElementById("around-slots");
+    box.innerHTML = "";
+    if (Array.isArray(slots) && slots.length) {
+      card.hidden = false;
+      card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      slots.slice(0, 8).forEach(item => {
+        const isObj = item && typeof item === "object";
+        const t = isObj ? String(item.time || "") : String(item || "");
+        const roomId = isObj ? String(item.roomId || "") : "";
+        const roomLabel = isObj ? String(item.roomLabel || "") : "";
+        if (!t) return;
+
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "rsv-suggestion-chip";
+        b.textContent = roomLabel ? `${t} · ${roomLabel}` : t;
+        b.onclick = () => {
+          hiddenTime.value = t;
+          if (roomInput && roomId) {
+            roomInput.value = roomId;
+            syncSelectedRoomCard();
+          }
+          timeGrid.querySelectorAll(".rsv-time-chip").forEach(c => {
+            c.classList.toggle("is-selected", c.dataset.value === t);
+          });
+          if (roomId) {
+            const selectedCard = document.querySelector(`.rsv-room-card[data-room-id="${CSS.escape(roomId)}"]`);
+            selectedCard?.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+          updateAllRoomOccupancies();
+          clearRoomCapacityWarning();
+          card.hidden = true;
+        };
+        box.appendChild(b);
+      });
+    } else {
+      card.hidden = true;
+    }
   }
 
   /* ===== Toast ===== */

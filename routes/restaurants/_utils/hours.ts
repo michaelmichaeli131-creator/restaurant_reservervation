@@ -1,5 +1,5 @@
 // src/routes/restaurants/_utils/hours.ts
-import { listAvailableSlotsAround, listSmartAvailabilitySuggestions, type AvailabilitySuggestion, type WeeklySchedule, type DayOfWeek } from "../../../database.ts";
+import { listAvailableSlotsAround, type WeeklySchedule, type DayOfWeek } from "../../../database.ts";
 import { debugLog } from "../../../lib/debug.ts";
 import { normalizeTime } from "./datetime.ts";
 
@@ -100,21 +100,6 @@ export async function suggestionsWithinSchedule(
   const windows = getWindowsForDate(weekly, date);
   const ok = around.filter((t) => withinAnyWindow(toMinutes(t), windows));
   return ok.slice(0, 8);
-}
-
-export async function smartSuggestionsWithinSchedule(
-  restaurantId: string,
-  date: string,
-  time: string,
-  people: number,
-  weekly: WeeklySchedule | undefined | null,
-  preferredLayoutId?: string,
-): Promise<AvailabilitySuggestion[]> {
-  const suggestions = await listSmartAvailabilitySuggestions(restaurantId, date, time, people, preferredLayoutId, 120, 8);
-  if (!suggestions.length) return [];
-  if (!hasScheduleForDate(weekly, date)) return suggestions.slice(0, 8);
-  const windows = getWindowsForDate(weekly, date);
-  return suggestions.filter((item) => withinAnyWindow(toMinutes(item.time), windows)).slice(0, 8);
 }
 
 /* ---------------- Owner hours parsing ---------------- */

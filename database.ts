@@ -189,13 +189,6 @@ export interface Reservation {
   createdAt: number;
 }
 
-export interface AvailabilitySuggestion {
-  time: string;
-  roomId?: string;
-  roomLabel?: string;
-  kind?: "same_time_other_room" | "same_room_other_time" | "other_room_other_time" | "time_only";
-}
-
 export interface Review {
   id: string;
   restaurantId: string;
@@ -872,15 +865,6 @@ function deriveLayoutCapacity(layout: { capacity?: number; tables?: Array<{ seat
   return seatsFromTables > 0 ? seatsFromTables : 0;
 }
 
-function getLayoutLabel(layout: { floorLabel?: string; name?: string } | null | undefined): string {
-  return String(layout?.floorLabel ?? layout?.name ?? "").trim();
-}
-
-async function listRoomLayoutsForAvailability(restaurantId: string) {
-  const { listFloorLayouts } = await import("./services/floor_service.ts");
-  return await listFloorLayouts(restaurantId).catch(() => []);
-}
-
 async function getRoomOccupancySnapshot(
   restaurantId: string,
   layoutId: string,
@@ -1004,7 +988,7 @@ export async function checkRoomCapacity(
   const roomLabel = layout.floorLabel || layout.name;
   const cap = deriveLayoutCapacity(layout);
   if (!cap || cap <= 0 || !Number.isFinite(cap)) {
-    return { ok: true, roomLabel, capacity: 0, alreadyBooked: 0, remaining: Number.POSITIVE_INFINITY };
+    return { ok: false, reason: "room_full", roomLabel, capacity: 0, alreadyBooked: 0, remaining: 0 };
   }
 
   const ppl = Math.max(1, Number(people) || 1);
@@ -1048,86 +1032,62 @@ export async function checkRoomCapacity(
   };
 }
 
-/** סלוטים זמינים סביב שעה נתונה (±windowMinutes), מיושרים לגריד, בטווח היום בלבד. */
-export async function listAvailableRoomAlternativesAtTime(
-  restaurantId: string,
-  date: string,
-  time: string,
-  people: number,
-  excludeLayoutId?: string,
-  maxRooms = 8,
-): Promise<AvailabilitySuggestion[]> {
-  const layouts = await listRoomLayoutsForAvailability(restaurantId);
-  if (!layouts.length) return [];
 
-  const out: AvailabilitySuggestion[] = [];
-  for (const layout of layouts) {
-    if (excludeLayoutId && String(layout.id) === String(excludeLayoutId)) continue;
-    const roomCheck = await checkRoomCapacity(restaurantId, layout.id, date, time, people);
-    if (!roomCheck.ok) continue;
-    out.push({
-      time,
-      roomId: layout.id,
-      roomLabel: roomCheck.roomLabel || getLayoutLabel(layout),
-      kind: "same_time_other_room",
-    });
-    if (out.length >= maxRooms) break;
-  }
-  return out;
-}
+export type RoomAvailabilitySuggestion = {
+  time: string;
+  roomId?: string;
+  roomLabel?: string;
+  kind: "other_room_same_time" | "same_room_other_time" | "other_room_other_time" | "other_time";
+};
 
-export async function listAvailableSlotsAroundForRoom(
+async function listAvailableSlotsAroundForRoom(
   restaurantId: string,
   layoutId: string,
   date: string,
   centerTime: string,
   people: number,
   windowMinutes = 120,
-  maxSlots = 16,
+  maxSlots = 8,
 ): Promise<string[]> {
-  const { getFloorLayout } = await import("./services/floor_service.ts");
-  const layout = await getFloorLayout(restaurantId, layoutId);
-  if (!layout) return [];
-
-  const cap = deriveLayoutCapacity(layout);
-  if (!cap || cap <= 0 || !Number.isFinite(cap)) {
-    return await listAvailableSlotsAround(restaurantId, date, centerTime, people, windowMinutes, maxSlots);
-  }
-
   const r0 = await getRestaurant(restaurantId);
   if (!r0) return [];
   const r = coerceRestaurantDefaults(r0);
 
   const step = r.slotIntervalMinutes;
   const span = r.serviceDurationMinutes;
-  const seats = Math.max(1, Number(people) || 1);
 
   let base = toMinutes(centerTime);
   if (!Number.isFinite(base)) return [];
   base = snapToGrid(Math.max(0, Math.min(1439, base)), step);
 
-  const { map } = await getRoomOccupancySnapshot(restaurantId, layoutId, date, step, span);
   const startWin = Math.max(0, base - windowMinutes);
   const endWin = Math.min(1439, base + windowMinutes);
+  const found = new Set<string>();
 
-  const tryTime = (t: number) => {
+  const tryTime = async (t: number) => {
     if (t < 0 || t + span > 24 * 60) return false;
     if (!isWithinOpening(r, date, t, span)) return false;
-    for (let x = t; x < t + span; x += step) {
-      const used = map.get(fromMinutes(x)) ?? 0;
-      if (used + seats > cap) return false;
-    }
-    return true;
+    const roomCheck = await checkRoomCapacity(restaurantId, layoutId, date, fromMinutes(t), people);
+    return roomCheck.ok;
   };
 
-  const found = new Set<string>();
   for (let delta = 0; ; delta += step) {
     let pushed = false;
     const before = snapToGrid(base - delta, step);
-    const after = snapToGrid(base + delta, step);
+    const after  = snapToGrid(base + delta, step);
 
-    if (before >= startWin && tryTime(before)) { found.add(fromMinutes(before)); pushed = true; }
-    if (after <= endWin && tryTime(after)) { found.add(fromMinutes(after)); pushed = true; }
+    if (before >= startWin) {
+      if (await tryTime(before)) {
+        found.add(fromMinutes(before));
+        pushed = true;
+      }
+    }
+    if (after <= endWin) {
+      if (await tryTime(after)) {
+        found.add(fromMinutes(after));
+        pushed = true;
+      }
+    }
 
     if (found.size >= maxSlots) break;
     if (!pushed && (before < startWin && after > endWin)) break;
@@ -1141,107 +1101,95 @@ export async function listAvailableSlotsAroundForRoom(
     if (da !== db) return da - db;
     return a.localeCompare(b);
   });
-  return out.slice(0, maxSlots);
+  return out.slice(0, Math.min(maxSlots, 8));
 }
 
 export async function listSmartAvailabilitySuggestions(
   restaurantId: string,
   date: string,
-  time: string,
+  centerTime: string,
   people: number,
-  preferredLayoutId?: string,
-  windowMinutes = 120,
-  maxSuggestions = 8,
-): Promise<AvailabilitySuggestion[]> {
-  const selectedLayoutId = String(preferredLayoutId ?? "").trim();
-  if (!selectedLayoutId) {
-    const global = await listAvailableSlotsAround(restaurantId, date, time, people, windowMinutes, maxSuggestions);
-    return global.map((slot) => ({ time: slot, kind: "time_only" })).slice(0, maxSuggestions);
-  }
+  preferredLayoutId = "",
+  maxItems = 8,
+): Promise<RoomAvailabilitySuggestion[]> {
+  const { listFloorLayouts } = await import("./services/floor_service.ts");
+  const layouts = await listFloorLayouts(restaurantId).catch(() => []);
+  const activeLayouts = layouts.filter((l: any) => l && l.isActive !== false);
+  const orderedLayouts = (activeLayouts.length ? activeLayouts : layouts)
+    .filter((l: any) => deriveLayoutCapacity(l) > 0);
 
-  const layouts = await listRoomLayoutsForAvailability(restaurantId);
-  if (!layouts.length) {
-    const global = await listAvailableSlotsAround(restaurantId, date, time, people, windowMinutes, maxSuggestions);
-    return global.map((slot) => ({ time: slot, kind: "time_only" })).slice(0, maxSuggestions);
-  }
-
-  const selectedLayout = layouts.find((layout) => String(layout.id) === selectedLayoutId) ?? null;
-  const selectedRoomLabel = getLayoutLabel(selectedLayout);
-  const out: AvailabilitySuggestion[] = [];
+  const suggestions: RoomAvailabilitySuggestion[] = [];
   const seen = new Set<string>();
-  const push = (item: AvailabilitySuggestion) => {
-    const slot = String(item.time ?? "").trim();
-    if (!slot) return;
-    const key = `${slot}__${String(item.roomId ?? "")}`;
+  const push = (item: RoomAvailabilitySuggestion | null | undefined) => {
+    if (!item) return;
+    const key = `${item.kind}|${item.roomId || ""}|${item.time}`;
     if (seen.has(key)) return;
     seen.add(key);
-    out.push(item);
+    suggestions.push(item);
   };
 
-  const sameTimeRooms = await listAvailableRoomAlternativesAtTime(
-    restaurantId,
-    date,
-    time,
-    people,
-    selectedLayoutId,
-    maxSuggestions,
-  );
-  for (const suggestion of sameTimeRooms) {
-    push(suggestion);
-    if (out.length >= maxSuggestions) return out.slice(0, maxSuggestions);
-  }
+  const selected = orderedLayouts.find((l: any) => String(l.id) === String(preferredLayoutId)) || null;
 
-  const selectedRoomTimes = await listAvailableSlotsAroundForRoom(
-    restaurantId,
-    selectedLayoutId,
-    date,
-    time,
-    people,
-    windowMinutes,
-    maxSuggestions,
-  );
-  for (const slot of selectedRoomTimes) {
-    if (slot === time) continue;
-    push({
-      time: slot,
-      roomId: selectedLayoutId,
-      roomLabel: selectedRoomLabel,
-      kind: "same_room_other_time",
-    });
-    if (out.length >= maxSuggestions) return out.slice(0, maxSuggestions);
-  }
+  if (selected) {
+    for (const layout of orderedLayouts) {
+      if (String(layout.id) === String(selected.id)) continue;
+      const roomCheck = await checkRoomCapacity(restaurantId, String(layout.id), date, centerTime, people);
+      if (roomCheck.ok) {
+        push({
+          time: centerTime,
+          roomId: String(layout.id),
+          roomLabel: roomCheck.roomLabel || layout.floorLabel || layout.name,
+          kind: "other_room_same_time",
+        });
+      }
+      if (suggestions.length >= maxItems) return suggestions.slice(0, maxItems);
+    }
 
-  for (const layout of layouts) {
-    if (String(layout.id) == selectedLayoutId) continue;
-    const slots = await listAvailableSlotsAroundForRoom(
-      restaurantId,
-      layout.id,
-      date,
-      time,
-      people,
-      windowMinutes,
-      3,
-    );
-    for (const slot of slots) {
-      if (slot === time) continue;
+    const sameRoomTimes = await listAvailableSlotsAroundForRoom(restaurantId, String(selected.id), date, centerTime, people, 120, maxItems + 2);
+    for (const t of sameRoomTimes) {
+      if (t === centerTime) continue;
       push({
-        time: slot,
-        roomId: layout.id,
-        roomLabel: getLayoutLabel(layout),
-        kind: "other_room_other_time",
+        time: t,
+        roomId: String(selected.id),
+        roomLabel: selected.floorLabel || selected.name,
+        kind: "same_room_other_time",
       });
-      if (out.length >= maxSuggestions) return out.slice(0, maxSuggestions);
+      if (suggestions.length >= maxItems) return suggestions.slice(0, maxItems);
+    }
+
+    for (const layout of orderedLayouts) {
+      if (String(layout.id) === String(selected.id)) continue;
+      const times = await listAvailableSlotsAroundForRoom(restaurantId, String(layout.id), date, centerTime, people, 120, 4);
+      for (const t of times) {
+        if (t === centerTime) continue;
+        push({
+          time: t,
+          roomId: String(layout.id),
+          roomLabel: layout.floorLabel || layout.name,
+          kind: "other_room_other_time",
+        });
+        if (suggestions.length >= maxItems) return suggestions.slice(0, maxItems);
+      }
+    }
+  } else {
+    for (const layout of orderedLayouts) {
+      const roomCheck = await checkRoomCapacity(restaurantId, String(layout.id), date, centerTime, people);
+      if (roomCheck.ok) {
+        push({
+          time: centerTime,
+          roomId: String(layout.id),
+          roomLabel: roomCheck.roomLabel || layout.floorLabel || layout.name,
+          kind: "other_room_same_time",
+        });
+      }
+      if (suggestions.length >= maxItems) return suggestions.slice(0, maxItems);
     }
   }
 
-  if (!out.length) {
-    const global = await listAvailableSlotsAround(restaurantId, date, time, people, windowMinutes, maxSuggestions);
-    for (const slot of global) push({ time: slot, kind: "time_only" });
-  }
-
-  return out.slice(0, maxSuggestions);
+  return suggestions.slice(0, maxItems);
 }
 
+/** סלוטים זמינים סביב שעה נתונה (±windowMinutes), מיושרים לגריד, בטווח היום בלבד. */
 export async function listAvailableSlotsAround(
   restaurantId: string,
   date: string,
@@ -1258,7 +1206,8 @@ export async function listAvailableSlotsAround(
   const span = r.serviceDurationMinutes;
 
   // Compute total capacity from room capacities if defined, otherwise use restaurant capacity
-  const layouts = await listRoomLayoutsForAvailability(restaurantId);
+  const { listFloorLayouts: listLayouts } = await import("./services/floor_service.ts");
+  const layouts = await listLayouts(restaurantId).catch(() => []);
   const roomCaps = layouts.map((l: any) => deriveLayoutCapacity(l)).filter((c: number) => c > 0);
   const capacity = roomCaps.length > 0
     ? roomCaps.reduce((sum: number, c: number) => sum + c, 0)
