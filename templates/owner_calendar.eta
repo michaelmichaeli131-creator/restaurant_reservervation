@@ -355,19 +355,11 @@
           <div class="bar"><div id="day-summary-bar"></div></div>
         </div>
 
-        <div class="oc-timebox" id="oc-timebox">
+        <a class="oc-timebox" id="oc-timebox" href="/restaurants/<%= it.r.id %>/system-time">
           <div class="oc-timebox__label"><%= tt('owner.calendar.system_time.title','Restaurant Time') %></div>
           <div class="oc-timebox__current" id="oc-system-time-preview"><%= it.systemNowDate || it.date %> • <%= it.systemNowTime || '12:00' %></div>
-          <div class="oc-timebox__inputs">
-            <input type="date" id="oc-system-date" value="<%= it.systemNowDate || it.date %>" />
-            <input type="time" id="oc-system-time" value="<%= it.systemNowTime || '12:00' %>" step="900" />
-          </div>
-          <div class="oc-timebox__actions">
-            <button type="button" class="btn-live ghost" id="oc-system-now-btn"><%= tt('owner.calendar.system_time.now','Use Real Time') %></button>
-            <button type="button" class="btn-live primary" id="oc-system-apply-btn"><%= tt('owner.calendar.system_time.apply','Apply to All Systems') %></button>
-          </div>
-          <div class="muted" id="oc-system-time-status" style="margin-top:8px"><%= tt('owner.calendar.system_time.hint','The selected restaurant time syncs the calendar, host, and other connected views.') %></div>
-        </div>
+          <div class="muted" id="oc-system-time-status" style="margin-top:8px"><%= tt('host.system_time.page_hint','Open the dedicated page to update the restaurant clock for all systems.') %></div>
+        </a>
 
         <div class="oc-room-graph" id="oc-room-graph">
           <div class="oc-room-graph__title">

@@ -1,0 +1,85 @@
+<% it.head = (it.head || "") + `
+<link rel="stylesheet" href="/public/css/restaurant_system_time.css?v=${it.BUILD_TAG || Date.now()}"/>`; %>
+<% layout("_layout", it) %>
+
+<%
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t==='function'){
+        const s = it.t(k);
+        if(!s || s===k || s===`(${k})`) return fb;
+        return s;
+      }
+    }catch(e){}
+    return fb;
+  }
+  const restaurant = it.restaurant || {};
+  const rid = it.rid || restaurant.id || '';
+  const backHref = String(it.user?.role || '').toLowerCase() === 'owner'
+    ? `/owner/restaurants/${rid}/calendar`
+    : `/host/${rid}`;
+%>
+
+<main class="container" style="max-width:880px; padding-block:24px 48px;">
+  <div class="sb-time-page">
+    <div class="sb-time-page__hero card">
+      <div>
+        <div class="sb-system-time-card__eyebrow"><%= tt('host.system_time.title', 'Restaurant Time') %></div>
+        <h1 class="sb-time-page__title"><%= restaurant.name %></h1>
+        <p class="muted"><%= restaurant.city %> • <%= restaurant.address %></p>
+      </div>
+      <div class="sb-time-page__hero-actions">
+        <a class="btn ghost" href="<%= backHref %>" onclick="if (window.history.length > 1) { history.back(); return false; }"><%= tt('common.back', 'Back') %></a>
+      </div>
+    </div>
+
+    <section class="card sb-time-page__panel">
+      <div
+        class="sb-system-time-card sb-system-time-card--page js-restaurant-time"
+        data-rid="<%= rid %>"
+        data-reload="false"
+        data-msg-pick="<%= tt('host.system_time.pick_both', 'Please choose both date and time.') %>"
+        data-msg-error="<%= tt('host.system_time.error', 'Unable to update restaurant time.') %>"
+        data-msg-saved="<%= tt('host.system_time.saved_stay', 'Restaurant time saved successfully.') %>"
+        data-msg-reset="<%= tt('host.system_time.reset_done_stay', 'Returned to real time for all connected systems.') %>"
+        data-msg-hint="<%= tt('host.system_time.page_hint', 'Choose the restaurant clock once here, and all connected systems will follow it.') %>"
+        data-detect-timezone="true"
+      >
+        <div class="sb-time-page__grid">
+          <div class="sb-time-page__summary">
+            <div class="sb-system-time-card__eyebrow"><%= tt('host.system_time.current_mode', 'Current Mode') %></div>
+            <div class="sb-system-time-card__clock js-system-time-preview"><%= it.systemNowDate || '' %> • <%= it.systemNowTime || '' %></div>
+            <div class="sb-time-pill <%= it.systemTimeEnabled ? 'is-manual' : 'is-realtime' %>">
+              <%= it.systemTimeEnabled ? tt('host.system_time.manual_mode', 'Manual time') : tt('host.system_time.realtime_mode', 'Real-time clock') %>
+            </div>
+            <p class="muted small"><%= tt('host.system_time.page_hint', 'Choose the restaurant clock once here, and all connected systems will follow it.') %></p>
+          </div>
+
+          <div class="sb-time-page__controls">
+            <label class="sb-time-field">
+              <span><%= tt('host.system_time.detected_timezone', 'Time zone') %></span>
+              <input type="text" class="js-system-time-zone" value="<%= it.systemTimeTimezone || '' %>" placeholder="Asia/Jerusalem" />
+            </label>
+            <div class="sb-system-time-card__inputs">
+              <label class="sb-time-field">
+                <span><%= tt('common.date', 'Date') %></span>
+                <input type="date" class="js-system-time-date" value="<%= it.systemNowDate || '' %>" />
+              </label>
+              <label class="sb-time-field">
+                <span><%= tt('common.time', 'Time') %></span>
+                <input type="time" class="js-system-time-time" value="<%= it.systemNowTime || '' %>" step="900" />
+              </label>
+            </div>
+            <div class="sb-system-time-card__actions">
+              <button type="button" class="btn ghost js-system-time-now"><%= tt('host.system_time.now', 'Use Real Time') %></button>
+              <button type="button" class="btn primary js-system-time-apply"><%= tt('host.system_time.apply', 'Apply to All Systems') %></button>
+            </div>
+            <div class="sb-system-time-card__status js-system-time-status"><%= tt('host.system_time.page_hint', 'Choose the restaurant clock once here, and all connected systems will follow it.') %></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script src="/public/js/restaurant_system_time.js?v=<%= it.BUILD_TAG || '' %>"></script>

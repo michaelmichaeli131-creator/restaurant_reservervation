@@ -204,6 +204,11 @@ function hasAny(perms){
                       <%= tt('staff.dashboard.btn_my_shifts','המשמרות שלי') %>
                     </a>
                   <% } %>
+
+                  <a class="btn ghost" href="/restaurants/<%= r.id %>/system-time" target="_self" rel="nofollow">
+                    <span class="icon">🕒</span>
+                    <%= tt('owner.dashboard.btn_system_time','Restaurant Time') %>
+                  </a>
                 </div>
 
                 <!-- POS / תפעול -->

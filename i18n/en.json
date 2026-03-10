@@ -371,7 +371,14 @@
       "saved": "Restaurant time saved. Refreshing the host view…",
       "reset_done": "Returned to real time. Refreshing the host view…",
       "error": "Unable to update restaurant time.",
-      "pick_both": "Please choose both date and time."
+      "pick_both": "Please choose both date and time.",
+      "page_hint": "Open the dedicated page to update the restaurant clock for all systems.",
+      "saved_stay": "Restaurant time saved successfully.",
+      "reset_done_stay": "Returned to real time for all connected systems.",
+      "current_mode": "Current Mode",
+      "manual_mode": "Manual time",
+      "realtime_mode": "Real-time clock",
+      "detected_timezone": "Time zone"
     }
   },
   "lang": {
@@ -399,7 +406,8 @@
     "logout": "Logout",
     "manage": "Manage Restaurant",
     "register": "Register",
-    "signedin": "Signed in"
+    "signedin": "Signed in",
+    "system_time": "Restaurant Time"
   },
   "owner": {
     "bills": {
@@ -476,7 +484,8 @@
       "btn_stats": "Statistics & Reports",
       "btn_suppliers": "Suppliers",
       "btn_waiter": "Waiter Screen",
-      "title": "Owner Dashboard"
+      "title": "Owner Dashboard",
+      "btn_system_time": "Restaurant Time"
     },
     "inventory": {
       "add_new": "Add New Raw Material",

@@ -39,19 +39,11 @@
       <h1><%= tt('host.title', 'Host Screen') %> — <%= restaurant.name %></h1>
       <p class="muted"><%= restaurant.city %> • <%= restaurant.address %></p>
     </div>
-    <div class="host-time-card" id="host-time-card">
+    <a class="host-time-card" id="host-time-card" href="/restaurants/<%= restaurant.id %>/system-time">
       <div class="host-time-card__eyebrow"><%= tt('host.system_time.title', 'Restaurant Time') %></div>
       <div class="host-time-card__clock" id="host-system-time-preview"><%= it.systemNowDate || '' %> • <%= it.systemNowTime || '' %></div>
-      <div class="host-time-card__inputs">
-        <input type="date" id="host-system-date" value="<%= it.systemNowDate || '' %>" />
-        <input type="time" id="host-system-time" value="<%= it.systemNowTime || '' %>" step="900" />
-      </div>
-      <div class="host-time-card__actions">
-        <button type="button" class="btn ghost sm" id="host-system-now-btn"><%= tt('host.system_time.now', 'Use Real Time') %></button>
-        <button type="button" class="btn primary sm" id="host-system-apply-btn"><%= tt('host.system_time.apply', 'Apply to All Systems') %></button>
-      </div>
-      <div class="muted small" id="host-system-time-status"><%= tt('host.system_time.hint', 'The host screen and other connected systems follow this restaurant time.') %></div>
-    </div>
+      <div class="muted small" id="host-system-time-status"><%= tt('host.system_time.page_hint', 'Open the dedicated page to update the restaurant clock for all systems.') %></div>
+    </a>
   </header>
 
   <section class="host-grid">

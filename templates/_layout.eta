@@ -87,6 +87,15 @@
     }
   </style>
 </head>
+<%
+  const currentRestaurantId = (it && (
+    it.currentRestaurantId ||
+    it.rid ||
+    it.restaurantId ||
+    (it.restaurant && it.restaurant.id) ||
+    (it.r && it.r.id)
+  )) || null;
+%>
 
 <body class="sb-body<%= it.admin ? ' admin' : '' %>" data-theme="<%= it.admin ? 'dark' : 'auto' %>">
   <header class="sb-header">
@@ -105,6 +114,9 @@
       <nav class="sb-actions" aria-label="Main actions">
         <% if (it.user) { %>
           <a class="btn primary btn-manage" href="/owner"><%= it.t ? it.t('nav.manage') : 'Manage Restaurant' %></a>
+          <% if (currentRestaurantId) { %>
+            <a class="btn ghost btn-system-time" href="/restaurants/<%= encodeURIComponent(currentRestaurantId) %>/system-time"><%= it.t ? (it.t('nav.system_time') || 'Restaurant Time') : 'Restaurant Time' %></a>
+          <% } %>
           <a class="btn ghost btn-logout" href="/auth/logout"><%= it.t ? it.t('nav.logout') : 'Logout' %></a>
         <% } else { %>
           <a class="btn ghost" href="/auth/login"><%= it.t ? it.t('nav.login') : 'Login' %></a>

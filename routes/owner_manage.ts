@@ -241,6 +241,7 @@ ownerManageRouter.get("/owner/restaurants/:id/manage", async (ctx) => {
       bar: `/bar/${encodeURIComponent(r.id)}`,
       menu: `/owner/${encodeURIComponent(r.id)}/menu`,
       bills: `/owner/${encodeURIComponent(r.id)}/bills`,
+      systemTime: `/restaurants/${encodeURIComponent(r.id)}/system-time`,
     },
   };
 

@@ -8,7 +8,6 @@
     "all_restaurants": "כל המסעדות",
     "home": "דף הבית",
     "edit_details": "עריכת פרטים",
-
     "quick_actions": "פעולות מהירות",
     "daily_calendar": "יומן יומי",
     "floor_tables": "פלור ושולחנות",
@@ -16,13 +15,11 @@
     "staff": "צוות",
     "reports": "דוחות",
     "inventory": "מלאי",
-
     "toolbar_aria": "חיפוש והגדרות תצוגה",
     "search_placeholder": "חפש פעולה, דף או פיצ'ר…",
     "search_aria": "חיפוש פיצ'רים",
     "compact_view": "תצוגה קומפקטית",
     "no_results": "לא נמצאו תוצאות. נסה ניסוח אחר.",
-
     "kpi_aria": "סטטוס מהיר",
     "kpi_reservations_today": "הזמנות היום",
     "kpi_by_date": "לפי תאריך {date}",
@@ -32,7 +29,6 @@
     "kpi_capacity_ratio": "יחס לקיבולת",
     "kpi_capacity": "קיבולת",
     "kpi_seats_defined": "seats מוגדרים",
-
     "ops_aria": "מסכי תפעול",
     "ops_title": "מסכי תפעול",
     "ops_sub": "למארחת, למלצרים, למטבח ולבר — במראה אפליקציה.",
@@ -48,23 +44,19 @@
     "bar_sub": "הזמנות שתייה, הכנה",
     "edit_menu": "עריכת תפריט",
     "menu_sub": "קטגוריות, פריטים, מחירים",
-
     "categories_aria": "קטגוריות ניהול",
     "more_categories_aria": "עוד קטגוריות",
-
     "card_reservations_title": "הזמנות ולקוחות",
     "card_reservations_sub": "יומן, סטטוסים, פרטי לקוח.",
     "btn_open": "פתח",
     "link_daily_calendar": "יומן יומי",
     "link_search_reservations": "חיפוש הזמנות",
     "link_add_reservation": "הוספת הזמנה",
-
     "card_floor_title": "פלור ושולחנות",
     "card_floor_sub": "עריכה, תצוגת לייב, מצבי שולחן.",
     "link_edit_layout": "עריכת סידור שולחנות",
     "link_assign_table": "שיוך הזמנה לשולחן",
     "link_hours": "שעות פעילות",
-
     "card_staff_title": "צוות ומשמרות",
     "card_staff_sub": "שיבוץ, צוות, הרשאות.",
     "link_shift_board": "לוח משמרות",
@@ -73,23 +65,19 @@
     "link_payroll": "שכר עובדים",
     "link_my_shifts": "המשמרות שלי",
     "link_shift_templates": "תבניות משמרת",
-
     "card_reports_title": "דוחות ותובנות",
     "card_reports_sub": "סטטיסטיקות, מגמות, ביצועים.",
     "link_general_reports": "דוחות כלליים",
     "link_hourly_occupancy": "תפוסה לפי שעה",
     "link_profitability": "רווחיות (בהמשך)",
-
     "card_inventory_title": "מלאי",
     "card_inventory_sub": "סטוק, ספירות, מתכונים.",
     "link_current_stock": "מלאי נוכחי",
     "link_inventory_counts": "ספירות מלאי",
     "link_recipes": "מתכונים",
-
     "card_ops_title": "מסכי תפעול",
     "card_ops_sub": "מארחת, מלצרים, מטבח ובר – עבודה בזמן אמת.",
     "link_recent_bills": "חשבונות אחרונים",
-
     "card_settings_title": "הגדרות",
     "card_settings_sub": "פרטים, שעות, תמונות.",
     "link_opening_hours": "שעות פעילות",
@@ -97,12 +85,10 @@
     "link_restaurant_details": "פרטי מסעדה",
     "link_deposit_settings": "הגדרות פיקדון",
     "link_change_password": "שנה סיסמה",
-
     "card_my_work_title": "העבודה שלי",
     "card_my_work_sub": "כניסה/יציאה, משמרות, זמינות.",
     "link_clock_in_out": "כניסה / יציאה",
     "link_set_availability": "הגדרת זמינות",
-
     "upcoming_title": "הזמנות קרובות",
     "upcoming_sub": "תצוגה מהירה של היום.",
     "link_all_reservations": "לכל ההזמנות",
@@ -112,18 +98,17 @@
     "table_status": "סטטוס",
     "no_reservations": "אין הזמנות להצגה.",
     "open_in_calendar": "פתח ביומן",
-
     "tasks_title": "משימות להיום",
     "tasks_sub": "דברים שצריך לסגור.",
     "no_tasks": "אין משימות כרגע.",
-
     "alerts_title": "התראות",
     "alerts_sub": "מידע שחשוב לשים לב אליו.",
     "no_alerts": "אין התראות כרגע.",
-
     "quick_settings_title": "הגדרות מהירות",
     "quick_settings_sub": "עריכה מהירה של פרטים.",
-
-    "tip": "טיפ: השתמש בחיפוש למעלה כדי למצוא במהירות דפים/פעולות. במחשב אפשר להפעיל \"תצוגה קומפקטית\" כדי לראות יותר מידע."
+    "tip": "טיפ: השתמש בחיפוש למעלה כדי למצוא במהירות דפים/פעולות. במחשב אפשר להפעיל \"תצוגה קומפקטית\" כדי לראות יותר מידע.",
+    "system_time": "שעון המסעדה",
+    "system_time_sub": "אזור זמן, מצב נוכחי ושעון משותף לכל המערכות.",
+    "link_system_time": "שעון המסעדה"
   }
 }
