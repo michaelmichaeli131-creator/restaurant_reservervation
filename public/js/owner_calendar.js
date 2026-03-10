@@ -16,6 +16,7 @@
     drawer: { open: false, time: null, items: [] },
     sse: { es: null, retryMs: 1500, pollTimer: null },
     cal: { year: 0, month: 0 },                     // sidebar month view (0-11)
+    systemTime: { date: init.systemNowDate || init.date || todayISO(), time: init.systemNowTime || "12:00" },
   };
 
   /* ========== Elements ========== */
@@ -45,6 +46,14 @@
   const sideSumBox = $("#day-summary-box");
   const sideSumText = $("#day-summary-text");
   const sideSumBar  = $("#day-summary-bar");
+  const systemDateInput = $("#oc-system-date");
+  const systemTimeInput = $("#oc-system-time");
+  const systemApplyBtn = $("#oc-system-apply-btn");
+  const systemNowBtn = $("#oc-system-now-btn");
+  const systemPreview = $("#oc-system-time-preview");
+  const systemStatus = $("#oc-system-time-status");
+  const roomGraphTime = $("#oc-room-graph-time");
+  const roomGraphBody = $("#oc-room-graph-body");
 
   /* ========== Utils ========== */
   function getRidFromPath() {
@@ -132,11 +141,17 @@
     if (!slotsRoot) return;
     $$(".oc-row", slotsRoot).slice(1).forEach((el) => el.remove());
     if (!state.day) return;
+    const currentSlotTime = state.day?.currentTime?.time || state.systemTime.time;
     const frag = document.createDocumentFragment();
     for (const s of state.day.slots) {
       const row = document.createElement("div");
       row.className = "oc-row";
       row.dataset.time = s.time;
+      if (currentSlotTime && s.time === currentSlotTime) {
+        row.style.outline = `2px solid ${getCSS("--brand")}`;
+        row.style.borderRadius = "12px";
+        row.style.background = "color-mix(in srgb, var(--brand) 10%, transparent)";
+      }
 
       const c1 = document.createElement("div");
       c1.className = "oc-time";
@@ -178,31 +193,23 @@
   }
 
   function renderRoomOccupancy() {
-    const rooms = state.day?.roomOccupancy;
-    let existing = $("#room-occ-box");
-    if (!rooms || rooms.length === 0) { existing?.remove(); return; }
-
-    if (!existing) {
-      existing = document.createElement("div");
-      existing.id = "room-occ-box";
-      existing.style.cssText = "margin:10px 16px 0;padding:10px 14px;background:var(--panel,#111827);border:1px solid var(--bd,#1f2937);border-radius:12px;font-size:13px;";
-      const panel = $(".oc-panel header");
-      if (panel) panel.appendChild(existing);
+    const rooms = state.day?.roomOccupancy || [];
+    if (roomGraphTime) roomGraphTime.textContent = state.day?.currentTime?.time || state.systemTime.time || "—";
+    if (!roomGraphBody) return;
+    if (!rooms.length) {
+      roomGraphBody.innerHTML = `<div class="muted">${escapeHTML(init?.txt?.noRoomData || "No room data")}</div>`;
+      return;
     }
-
-    existing.innerHTML = "<div style='font-weight:700;margin-bottom:6px;color:var(--ink-muted,#9aa3b2)'>חדרים</div>" +
-      rooms.map(r => {
-        const pct = r.capacity > 0 ? Math.min(100, Math.round(r.usedPeople / r.capacity * 100)) : 0;
-        const col = pct >= 80 ? getCSS("--danger") : pct >= 50 ? getCSS("--warn") : getCSS("--ok");
-        const capStr = r.capacity > 0 ? `${r.usedPeople}/${r.capacity}` : `${r.usedPeople}`;
-        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-          <span style="min-width:90px;font-weight:600">${escapeHTML(r.label)}</span>
-          <div style="flex:1;height:6px;background:var(--bd,#1f2937);border-radius:3px;overflow:hidden">
-            <div style="width:${pct}%;height:100%;background:${col};border-radius:3px"></div>
-          </div>
-          <span style="min-width:52px;text-align:end;color:var(--ink-muted,#9aa3b2)">${capStr} סועדים</span>
-        </div>`;
-      }).join("");
+    roomGraphBody.innerHTML = rooms.map((r) => {
+      const pct = Number(r.percent || 0);
+      const col = pct >= 80 ? getCSS("--danger") : pct >= 50 ? getCSS("--warn") : getCSS("--ok");
+      const remaining = Number(r.remainingPeople || 0);
+      return `<div class="oc-room-row">
+        <div class="oc-room-row__name">${escapeHTML(r.label || "—")}</div>
+        <div class="oc-room-row__bar"><div class="oc-room-row__fill" style="width:${pct}%;background:${col}"></div></div>
+        <div class="oc-room-row__meta">${fmt(remaining)} ${escapeHTML(init?.txt?.leftSuffix || "left")}</div>
+      </div>`;
+    }).join("");
   }
 
   /* ========== Drawer ========== */
@@ -317,6 +324,13 @@
   async function loadDay() {
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day?date=${encodeURIComponent(state.date)}`;
     state.day = await fetchJSON(url);
+    if (state.day?.currentTime) {
+      state.systemTime.date = state.day.currentTime.sourceDate || state.day.currentTime.date || state.systemTime.date;
+      state.systemTime.time = state.day.currentTime.time || state.systemTime.time;
+      if (systemDateInput) systemDateInput.value = state.systemTime.date;
+      if (systemTimeInput) systemTimeInput.value = state.systemTime.time;
+      if (systemPreview) systemPreview.textContent = `${state.systemTime.date} • ${state.systemTime.time}`;
+    }
     renderHeaderLine();
     rowHeader();
     renderSlots();
@@ -543,6 +557,27 @@
     sideSumBar.style.width = `${pct}%`;
   }
 
+  async function applySystemTime(mode) {
+    const body = mode === "reset"
+      ? { mode: "reset" }
+      : { date: systemDateInput?.value, time: systemTimeInput?.value };
+    const data = await fetchJSON(`/api/restaurants/${encodeURIComponent(state.rid)}/system-time`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+    state.systemTime.date = data.date || state.systemTime.date;
+    state.systemTime.time = data.time || state.systemTime.time;
+    if (systemPreview) systemPreview.textContent = `${state.systemTime.date} • ${state.systemTime.time}`;
+    if (systemStatus) systemStatus.textContent = mode === "reset" ? (init?.txt?.usingRealTime || "Using real time now.") : (init?.txt?.syncedAll || "Restaurant time updated for all connected systems.");
+    if (!datePicker || !datePicker.value || state.date === (init.date || todayISO())) {
+      state.date = state.systemTime.date;
+      if (datePicker) datePicker.value = state.date;
+    }
+    await Promise.all([loadDay(), loadSummary()]);
+    connectSSE();
+  }
+
   /* ========== Wire controls ========== */
   function wire() {
     // Top bar: prev/next/datePicker
@@ -571,6 +606,17 @@
       if (daySearch) daySearch.value = v; // להזרים לוגיקה קיימת אם נשענת על קלט זה
       searchInDay(v);
     }, 250));
+
+    if (systemApplyBtn) systemApplyBtn.addEventListener("click", async () => {
+      if (!systemDateInput?.value || !systemTimeInput?.value) {
+        alert(init?.txt?.pickBoth || "Please choose both date and time.");
+        return;
+      }
+      await applySystemTime("set");
+    });
+    if (systemNowBtn) systemNowBtn.addEventListener("click", async () => {
+      await applySystemTime("reset");
+    });
 
     // Drawer
     if (drawerClose) drawerClose.addEventListener("click", () => { closeDrawer(); });

@@ -56,6 +56,7 @@ import { staffTimeRouter } from "./routes/staff_time.ts";
 import { ownerTimeRouter } from "./routes/owner_time.ts";
 import { timeClockRouter } from "./routes/timeclock.ts";
 import { ownerPayrollRouter } from "./routes/owner_payroll.ts";
+import { systemTimeRouter } from "./routes/system_time.ts";
 
 
 // ✅ i18n: טעינה בטוחה (תומך גם default וגם named export)
@@ -616,6 +617,9 @@ app.use(ownerFloorRouter.allowedMethods());
 // debug/diag
 app.use(diagRouter.routes());
 app.use(diagRouter.allowedMethods());
+
+app.use(systemTimeRouter.routes());
+app.use(systemTimeRouter.allowedMethods());
 
 // ראוטרים ציבוריים של מסעדות
 app.use(restaurantsRouter.routes());

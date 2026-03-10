@@ -6,6 +6,7 @@ import { render } from "../lib/view.ts";
 import { requireOwner, requireStaff } from "../lib/auth.ts";
 import { requireRestaurantAccess } from "../services/authz.ts";
 import { getRestaurant } from "../database.ts";
+import { getRestaurantSystemNow, splitIsoParts } from "../services/system_time.ts";
 import { isTableSeated } from "../services/seating_service.ts";
 import { getTableIdByNumber, markTableDirty, listFloorLayouts } from "../services/floor_service.ts";
 import {
@@ -406,6 +407,7 @@ posRouter.get("/pos/:rid/table/:tableNumber", async (ctx) => {
 
   const items = await listOrderItemsForTable(rid, tableNumber);
   const totals = await computeTotalsForTable(rid, tableNumber);
+  const systemNowParts = splitIsoParts(await getRestaurantSystemNow(rid));
 
   await render(ctx, "pos_waiter", {
     page: "pos_waiter",
@@ -416,6 +418,9 @@ posRouter.get("/pos/:rid/table/:tableNumber", async (ctx) => {
     orderItems: items,
     totals,
     user,
+    systemNowIso: systemNowParts.iso,
+    systemNowDate: systemNowParts.date,
+    systemNowTime: systemNowParts.time,
   });
 });
 
@@ -472,6 +477,7 @@ posRouter.get("/waiter/:rid", async (ctx) => {
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);
 
+  const systemNowParts = splitIsoParts(await getRestaurantSystemNow(rid));
   const open = await listOpenOrdersByRestaurant(rid);
 
   // Build tableNumber -> roomLabel map from floor layouts
@@ -506,6 +512,9 @@ posRouter.get("/waiter/:rid", async (ctx) => {
     restaurant: r,
     rid,
     openTables: enriched,
+    systemNowIso: systemNowParts.iso,
+    systemNowDate: systemNowParts.date,
+    systemNowTime: systemNowParts.time,
   });
 });
 
@@ -525,6 +534,7 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
 
   const items = await listOrderItemsForTable(rid, table);
   const totals = await computeTotalsForTable(rid, table);
+  const systemNowParts = splitIsoParts(await getRestaurantSystemNow(rid));
 
   await render(ctx, "pos_waiter", {
     page: "pos_waiter",
@@ -534,6 +544,9 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
     restaurant: r,
     orderItems: items,
     totals,
+    systemNowIso: systemNowParts.iso,
+    systemNowDate: systemNowParts.date,
+    systemNowTime: systemNowParts.time,
   });
 });
 
@@ -549,12 +562,16 @@ posRouter.get("/waiter-map/:rid", async (ctx) => {
 
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);
+  const systemNowParts = splitIsoParts(await getRestaurantSystemNow(rid));
   await render(ctx, "pos_waiter_map", {
     BUILD_TAG: await getFloorViewBuildTag(),
     page: "pos_waiter_map",
     title: `מפת מסעדה · ${r.name}`,
     rid,
     restaurant: r,
+    systemNowIso: systemNowParts.iso,
+    systemNowDate: systemNowParts.date,
+    systemNowTime: systemNowParts.time,
   });
 });
 
@@ -570,12 +587,16 @@ posRouter.get("/kitchen/:rid", async (ctx) => {
 
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);
+  const systemNowParts = splitIsoParts(await getRestaurantSystemNow(rid));
 
   await render(ctx, "pos_kitchen", {
     page: "pos_kitchen",
     title: `Kitchen · ${r.name}`,
     rid,
     restaurant: r,
+    systemNowIso: systemNowParts.iso,
+    systemNowDate: systemNowParts.date,
+    systemNowTime: systemNowParts.time,
   });
 });
 
@@ -588,12 +609,16 @@ posRouter.get("/bar/:rid", async (ctx) => {
   if (!(await requireRestaurantAccess(ctx, rid))) return;
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);
+  const systemNowParts = splitIsoParts(await getRestaurantSystemNow(rid));
 
   await render(ctx, "pos_bar", {
     page: "pos_bar",
     title: `Bar · ${r.name}`,
     rid,
     restaurant: r,
+    systemNowIso: systemNowParts.iso,
+    systemNowDate: systemNowParts.date,
+    systemNowTime: systemNowParts.time,
   });
 });
 

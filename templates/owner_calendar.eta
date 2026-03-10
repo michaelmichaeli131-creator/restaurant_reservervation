@@ -150,6 +150,22 @@
     .oc-day-summary .bar{height:8px;background:#1f2937;border-radius:999px;overflow:hidden;margin:8px 0}
     .oc-day-summary .bar>div{height:100%;background:var(--warn);width:0%;transition:width .2s}
 
+    .oc-timebox{ margin-top:14px; padding:14px; border-radius:16px; border:1px solid var(--bd); background:color-mix(in srgb, var(--panel-2) 90%, transparent); box-shadow:var(--shadow-sm); }
+    .oc-timebox__label{ font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:#93c5fd; font-weight:800; }
+    .oc-timebox__current{ margin-top:6px; font-size:20px; font-weight:800; color:var(--ink); }
+    .oc-timebox__inputs{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+    .oc-timebox__inputs input{ width:100%; min-height:40px; border-radius:12px; border:1px solid var(--bd); background:#0b1327; color:var(--ink); padding:0 10px; }
+    .oc-timebox__actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .oc-room-graph{ margin-top:14px; padding:14px; border-radius:16px; border:1px solid var(--bd); background:color-mix(in srgb, var(--panel-2) 90%, transparent); }
+    .oc-room-graph__title{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+    .oc-room-graph__title strong{ font-size:15px; }
+    .oc-room-graph__title span{ color:var(--ink-muted); font-size:12px; }
+    .oc-room-row{ display:grid; grid-template-columns:minmax(90px,140px) 1fr auto; gap:10px; align-items:center; margin-bottom:10px; }
+    .oc-room-row__name{ font-weight:700; color:var(--ink); }
+    .oc-room-row__bar{ height:12px; background:#1f2937; border-radius:999px; overflow:hidden; position:relative; }
+    .oc-room-row__fill{ height:100%; border-radius:999px; transition:width .2s ease; }
+    .oc-room-row__meta{ min-width:96px; text-align:end; color:var(--ink-muted); font-size:12px; }
+
     /* Panel (Slots) */
     .oc-panel{
       grid-column:2/3 !important;
@@ -338,6 +354,28 @@
           <div id="day-summary-text"><%= tt('owner.calendar.loading','טוען…') %></div>
           <div class="bar"><div id="day-summary-bar"></div></div>
         </div>
+
+        <div class="oc-timebox" id="oc-timebox">
+          <div class="oc-timebox__label"><%= tt('owner.calendar.system_time.title','Restaurant Time') %></div>
+          <div class="oc-timebox__current" id="oc-system-time-preview"><%= it.systemNowDate || it.date %> • <%= it.systemNowTime || '12:00' %></div>
+          <div class="oc-timebox__inputs">
+            <input type="date" id="oc-system-date" value="<%= it.systemNowDate || it.date %>" />
+            <input type="time" id="oc-system-time" value="<%= it.systemNowTime || '12:00' %>" step="900" />
+          </div>
+          <div class="oc-timebox__actions">
+            <button type="button" class="btn-live ghost" id="oc-system-now-btn"><%= tt('owner.calendar.system_time.now','Use Real Time') %></button>
+            <button type="button" class="btn-live primary" id="oc-system-apply-btn"><%= tt('owner.calendar.system_time.apply','Apply to All Systems') %></button>
+          </div>
+          <div class="muted" id="oc-system-time-status" style="margin-top:8px"><%= tt('owner.calendar.system_time.hint','The selected restaurant time syncs the calendar, host, and other connected views.') %></div>
+        </div>
+
+        <div class="oc-room-graph" id="oc-room-graph">
+          <div class="oc-room-graph__title">
+            <strong><%= tt('owner.calendar.room_graph.title','Room Occupancy Right Now') %></strong>
+            <span id="oc-room-graph-time"><%= it.systemNowTime || '12:00' %></span>
+          </div>
+          <div id="oc-room-graph-body"><div class="muted"><%= tt('owner.calendar.loading','טוען…') %></div></div>
+        </div>
       </aside>
 
       <!-- Panel (ימין בפועל) -->
@@ -397,7 +435,19 @@
   <!-- קובץ הסקריפט הקיים שלך נשאר ללא שינוי -->
   <script src="/static/js/owner_calendar.js" defer></script>
   <script>
-    window.__OC__ = { rid: "<%= it.rid %>", date: "<%= it.date %>" };
+    window.__OC__ = {
+      rid: "<%= it.rid %>",
+      date: "<%= it.date %>",
+      systemNowDate: "<%= it.systemNowDate || it.date %>",
+      systemNowTime: "<%= it.systemNowTime || '12:00' %>",
+      txt: {
+        noRoomData: "<%= tt('owner.calendar.room_graph.empty','No room data') %>",
+        pickBoth: "<%= tt('host.system_time.pick_both','Please choose both date and time.') %>",
+        usingRealTime: "<%= tt('owner.calendar.system_time.using_realtime','Using real time now.') %>",
+        syncedAll: "<%= tt('owner.calendar.system_time.synced','Restaurant time updated for all connected systems.') %>",
+        leftSuffix: "<%= tt('owner.calendar.room_graph.left_suffix','left') %>"
+      }
+    };
 
     // "בחר תאריך" עליון
     (function () {

@@ -1,3 +1,5 @@
+<% it.head = (it.head || "") + `
+<link rel="stylesheet" href="/public/css/restaurant_system_time.css?v=${it.BUILD_TAG || Date.now()}"/>`; %>
 <% layout("_layout_ops", it) %>
 
 <%
@@ -25,6 +27,28 @@
 
     <div class="kds-controls" aria-label="Bar controls">
       <div id="kds-live" class="kds-pill" data-live="0"><span class="dot" aria-hidden="true"></span><%= tt('pos.kds.offline', 'Offline') %></div>
+      <div
+        class="sb-system-time-card sb-system-time-card--compact js-restaurant-time"
+        data-rid="<%= rid %>"
+        data-reload="true"
+        data-msg-pick="<%= tt('host.system_time.pick_both', 'Please choose both date and time.') %>"
+        data-msg-error="<%= tt('host.system_time.error', 'Unable to update restaurant time.') %>"
+        data-msg-saved="<%= tt('host.system_time.saved', 'Restaurant time saved. Refreshing the view…') %>"
+        data-msg-reset="<%= tt('host.system_time.reset_done', 'Returned to real time. Refreshing the view…') %>"
+        data-msg-hint="<%= tt('owner.calendar.system_time.hint', 'The selected restaurant time syncs the calendar, host, and other connected views.') %>"
+      >
+        <div class="sb-system-time-card__eyebrow"><%= tt('host.system_time.title', 'Restaurant Time') %></div>
+        <div class="sb-system-time-card__clock js-system-time-preview"><%= it.systemNowDate || '' %> • <%= it.systemNowTime || '' %></div>
+        <div class="sb-system-time-card__inputs">
+          <input type="date" class="js-system-time-date" value="<%= it.systemNowDate || '' %>" />
+          <input type="time" class="js-system-time-time" value="<%= it.systemNowTime || '' %>" step="900" />
+        </div>
+        <div class="sb-system-time-card__actions">
+          <button type="button" class="kds-btn ghost js-system-time-now"><%= tt('host.system_time.now', 'Use Real Time') %></button>
+          <button type="button" class="kds-btn js-system-time-apply"><%= tt('host.system_time.apply', 'Apply to All Systems') %></button>
+        </div>
+        <div class="sb-system-time-card__status js-system-time-status"><%= tt('owner.calendar.system_time.hint', 'The selected restaurant time syncs the calendar, host, and other connected views.') %></div>
+      </div>
 
       <button id="kds-compact" class="kds-btn" type="button" aria-pressed="false"><%= tt('pos.kds.compact', 'Compact') %></button>
       <button id="kds-group" class="kds-btn" type="button" aria-pressed="true"><%= tt('pos.kds.ungroup', 'Ungroup') %></button>
@@ -118,3 +142,5 @@
 </main>
 
 <script src="/public/js/pos_kds.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>
+
+<script src="/public/js/restaurant_system_time.js?v=<%= it.BUILD_TAG || "" %>"></script>

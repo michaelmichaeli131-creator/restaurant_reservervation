@@ -39,6 +39,19 @@
       <h1><%= tt('host.title', 'Host Screen') %> — <%= restaurant.name %></h1>
       <p class="muted"><%= restaurant.city %> • <%= restaurant.address %></p>
     </div>
+    <div class="host-time-card" id="host-time-card">
+      <div class="host-time-card__eyebrow"><%= tt('host.system_time.title', 'Restaurant Time') %></div>
+      <div class="host-time-card__clock" id="host-system-time-preview"><%= it.systemNowDate || '' %> • <%= it.systemNowTime || '' %></div>
+      <div class="host-time-card__inputs">
+        <input type="date" id="host-system-date" value="<%= it.systemNowDate || '' %>" />
+        <input type="time" id="host-system-time" value="<%= it.systemNowTime || '' %>" step="900" />
+      </div>
+      <div class="host-time-card__actions">
+        <button type="button" class="btn ghost sm" id="host-system-now-btn"><%= tt('host.system_time.now', 'Use Real Time') %></button>
+        <button type="button" class="btn primary sm" id="host-system-apply-btn"><%= tt('host.system_time.apply', 'Apply to All Systems') %></button>
+      </div>
+      <div class="muted small" id="host-system-time-status"><%= tt('host.system_time.hint', 'The host screen and other connected systems follow this restaurant time.') %></div>
+    </div>
   </header>
 
   <section class="host-grid">
@@ -49,22 +62,34 @@
       <% if (reservations.length) { %>
         <ul class="list" id="resv-list">
           <% reservations.forEach(function(r){ %>
-            <li class="item" data-res-id="<%= r.id %>">
-              <label class="radio">
+            <li class="item reservation-card" data-res-id="<%= r.id %>">
+              <label class="radio reservation-card__label">
                 <input type="radio" name="resv" value="<%= r.id %>">
-                <div class="radio-body">
-                  <div class="line">
-                    <strong><%= r.time %></strong>
-                    <span>•</span>
-                    <span><%= r.people %> <%= tt('host.people_unit', 'סועדים') %></span>
+                <div class="radio-body reservation-card__body">
+                  <div class="reservation-card__top">
+                    <div class="reservation-card__guest"><%= r.name || '—' %></div>
+                    <div class="reservation-card__time"><%= r.time %></div>
+                  </div>
+                  <div class="reservation-card__meta">
+                    <span class="reservation-pill reservation-pill--guests">
+                      <strong><%= r.people %></strong>
+                      <span><%= tt('host.people_unit', 'Guests') %></span>
+                    </span>
                     <% if (r.roomLabel) { %>
-                      <span class="room-badge"><%= r.roomLabel %></span>
+                      <span class="reservation-pill reservation-pill--room">
+                        <span class="reservation-pill__label"><%= tt('host.room_label_short', 'Room') %></span>
+                        <strong><%= r.roomLabel %></strong>
+                      </span>
+                    <% } else { %>
+                      <span class="reservation-pill reservation-pill--room is-muted">
+                        <span class="reservation-pill__label"><%= tt('host.room_label_short', 'Room') %></span>
+                        <strong>—</strong>
+                      </span>
                     <% } %>
                   </div>
-                  <div class="muted small resv-name"><%= r.name || '—' %></div>
                 </div>
               </label>
-              <div class="resv-actions">
+              <div class="resv-actions reservation-card__actions">
                 <button type="button" class="link-btn resv-cancel" data-action="cancel" data-id="<%= r.id %>">
                   <%= tt('host.btn_cancel', 'Cancel') %>
                 </button>
@@ -152,18 +177,31 @@
 </aside>
 
 <style>
-  .room-badge {
-    display: inline-block;
-    padding: 1px 7px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 700;
-    background: rgba(59,130,246,.15);
-    color: #93c5fd;
-    border: 1px solid rgba(59,130,246,.25);
-    margin-inline-start: 4px;
-    vertical-align: middle;
-  }
+  .host-header{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px; flex-wrap:wrap; }
+  .host-time-card{ min-width:320px; max-width:420px; padding:14px 16px; border-radius:18px; border:1px solid rgba(148,163,184,.18); background:linear-gradient(180deg, rgba(15,23,42,.96), rgba(15,23,42,.82)); box-shadow:0 18px 46px rgba(2,6,23,.28); }
+  .host-time-card__eyebrow{ font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:#93c5fd; font-weight:800; }
+  .host-time-card__clock{ margin-top:6px; font-size:20px; font-weight:800; color:#f8fafc; }
+  .host-time-card__inputs{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
+  .host-time-card__inputs input{ width:100%; min-height:40px; border-radius:12px; border:1px solid rgba(148,163,184,.18); background:#0b1327; color:#e5eefb; padding:0 10px; }
+  .host-time-card__actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .host-time-card__status, #host-system-time-status{ margin-top:8px; }
+  .reservation-card{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:center; padding:14px 0; }
+  .reservation-card__label{ display:block; width:100%; }
+  .reservation-card__body{ display:flex; flex-direction:column; gap:10px; }
+  .reservation-card__top{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .reservation-card__guest{ font-size:16px; font-weight:800; color:#f8fafc; }
+  .reservation-card__time{ font-size:14px; font-weight:800; color:#93c5fd; padding:4px 10px; border-radius:999px; background:rgba(59,130,246,.14); border:1px solid rgba(59,130,246,.24); }
+  .reservation-card__meta{ display:flex; gap:8px; flex-wrap:wrap; }
+  .reservation-pill{ display:inline-flex; align-items:center; gap:7px; padding:7px 10px; border-radius:12px; border:1px solid rgba(148,163,184,.16); background:rgba(15,23,42,.72); color:#e5eefb; }
+  .reservation-pill strong{ font-size:13px; }
+  .reservation-pill__label{ font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:#94a3b8; font-weight:800; }
+  .reservation-pill--room{ background:rgba(59,130,246,.12); border-color:rgba(59,130,246,.24); }
+  .reservation-pill--guests{ background:rgba(148,163,184,.08); }
+  .reservation-pill.is-muted{ opacity:.78; }
+  .reservation-card__actions{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+  .room-badge { display:inline-block; padding:1px 7px; border-radius:6px; font-size:11px; font-weight:700; background: rgba(59,130,246,.15); color: #93c5fd; border: 1px solid rgba(59,130,246,.25); margin-inline-start: 4px; vertical-align: middle; }
+  @media (max-width: 900px){ .host-header{ flex-direction:column; } .host-time-card{ width:100%; max-width:none; } }
+  @media (max-width: 640px){ .reservation-card{ grid-template-columns:1fr; } .reservation-card__actions{ align-items:stretch; } .reservation-card__top{ align-items:flex-start; flex-direction:column; } .host-time-card__inputs{ grid-template-columns:1fr; } }
 </style>
 <!-- Same floor-view assets as the waiter lobby -->
 
@@ -185,6 +223,12 @@
   const seatBtn = document.getElementById("seat-btn");
   const markReservedBtn = document.getElementById("mark-reserved-btn");
   const markEmptyBtn = document.getElementById("mark-empty-btn");
+  const systemDateInput = document.getElementById("host-system-date");
+  const systemTimeInput = document.getElementById("host-system-time");
+  const systemApplyBtn = document.getElementById("host-system-apply-btn");
+  const systemNowBtn = document.getElementById("host-system-now-btn");
+  const systemPreview = document.getElementById("host-system-time-preview");
+  const systemStatus = document.getElementById("host-system-time-status");
 
   // Selection updates from the embedded floor-view app
   const __SB_TABLE_ID_TO_NUMBER = <%= JSON.stringify(__tableIdToNumber) %>;
@@ -209,6 +253,44 @@
       console.warn("[HOST] selection event error", e);
     }
   });
+
+  async function applyRestaurantSystemTime(mode){
+    try {
+      const body = mode === "reset"
+        ? { mode: "reset" }
+        : { date: systemDateInput && systemDateInput.value, time: systemTimeInput && systemTimeInput.value };
+      const res = await fetch(`/api/restaurants/${encodeURIComponent(rid)}/system-time`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || ("HTTP " + res.status));
+      if (systemPreview) systemPreview.textContent = `${data.date || ""} • ${data.time || ""}`;
+      if (systemStatus) systemStatus.textContent = mode === "reset"
+        ? "<%= tt('host.system_time.reset_done', 'Returned to real time. Refreshing the host view…') %>"
+        : "<%= tt('host.system_time.saved', 'Restaurant time saved. Refreshing the host view…') %>";
+      window.location.reload();
+    } catch (e) {
+      console.error(e);
+      alert("<%= tt('host.system_time.error', 'Unable to update restaurant time.') %>");
+    }
+  }
+
+  if (systemApplyBtn) {
+    systemApplyBtn.addEventListener("click", function(){
+      if (!systemDateInput || !systemDateInput.value || !systemTimeInput || !systemTimeInput.value) {
+        alert("<%= tt('host.system_time.pick_both', 'Please choose both date and time.') %>");
+        return;
+      }
+      applyRestaurantSystemTime("set");
+    });
+  }
+  if (systemNowBtn) {
+    systemNowBtn.addEventListener("click", function(){
+      applyRestaurantSystemTime("reset");
+    });
+  }
 
 // צד פרטי שולחן
   const tableInfoPanel = document.getElementById("table-info-panel");

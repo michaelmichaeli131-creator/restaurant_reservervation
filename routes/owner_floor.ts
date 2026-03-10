@@ -6,6 +6,7 @@ import { requireOwner, requireStaff } from "../lib/auth.ts";
 import { requireRestaurantAccess } from "../services/authz.ts";
 import { kv, getRestaurant, listReservationsFor } from "../database.ts";
 import { render } from "../lib/view.ts";
+import { getRestaurantSystemNow } from "../services/system_time.ts";
 import {
   computeAllTableStatuses,
   setTableMappingsFromFloorPlan,
@@ -31,6 +32,48 @@ import {
 } from "../services/floor_service.ts";
 
 export const ownerFloorRouter = new Router();
+
+async function getSystemDateForRestaurant(restaurantId: string): Promise<string> {
+  const d = await getRestaurantSystemNow(restaurantId);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+async function enrichTableStatusesWithReservationGuests(
+  restaurantId: string,
+  statuses: TableStatus[],
+): Promise<TableStatus[]> {
+  const date = await getSystemDateForRestaurant(restaurantId);
+  const allRes = await listReservationsFor(restaurantId, date);
+  const nameByTable = new Map<number, string>();
+
+  for (const res of (allRes ?? []) as any[]) {
+    const st = String(res.status ?? "").toLowerCase();
+    if (st !== "arrived" && st !== "seated") continue;
+
+    const tn = Number(
+      (res as any).tableNumber ??
+      (res as any).table ??
+      (res as any).tableNo ??
+      (res as any).table_id ??
+      0,
+    );
+    if (!tn || !Number.isFinite(tn)) continue;
+
+    const fullName = (res.firstName && res.lastName)
+      ? `${res.firstName} ${res.lastName}`
+      : (res.name ?? "");
+
+    if (fullName) nameByTable.set(tn, String(fullName));
+  }
+
+  return (statuses as TableStatus[]).map((ts) => {
+    const tn = Number(ts.tableNumber);
+    return {
+      ...ts,
+      guestName: nameByTable.get(tn) ?? ts.guestName ?? null,
+    };
+  });
+}
 
 // Helper to generate key for floor plan
 function toKey(...parts: (string | number)[]): Deno.KvKey {
@@ -329,50 +372,15 @@ ownerFloorRouter.get(
 
     const floorPlan = floorPlanRes.value as FloorPlan;
 
-    // Compute live table statuses (empty/occupied/reserved/dirty)
+    // Compute live table statuses using the restaurant-wide system clock context
     const baseStatuses = await computeAllTableStatuses(
       restaurantId,
       floorPlan.tables,
     );
-
-    // ✅ הוספת guestName לכל שולחן על בסיס reservations שהגיעו/הושבו היום
-    const d = new Date();
-    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-    const allRes = await listReservationsFor(restaurantId, date);
-    const nameByTable = new Map<number, string>();
-
-    for (const res of (allRes ?? []) as any[]) {
-      const st = String(res.status ?? "").toLowerCase();
-      // נניח ש־arrived / seated = ישבו בשולחן
-      if (st !== "arrived" && st !== "seated") continue;
-
-      const tn = Number(
-        (res as any).tableNumber ??
-        (res as any).table ??
-        (res as any).tableNo ??
-        (res as any).table_id ??
-        0,
-      );
-      if (!tn || !Number.isFinite(tn)) continue;
-
-      const fullName = (res.firstName && res.lastName)
-        ? `${res.firstName} ${res.lastName}`
-        : (res.name ?? "");
-
-      if (fullName) {
-        nameByTable.set(tn, String(fullName));
-      }
-    }
-
-    const tableStatuses: TableStatus[] = (baseStatuses as TableStatus[]).map((ts) => {
-      const tn = Number(ts.tableNumber);
-      const gName = nameByTable.get(tn) ?? null;
-      return {
-        ...ts,
-        guestName: gName,
-      };
-    });
+    const tableStatuses = await enrichTableStatusesWithReservationGuests(
+      restaurantId,
+      baseStatuses as TableStatus[],
+    );
 
     // Return floor plan with live statuses + guestName
     ctx.response.body = {
@@ -431,10 +439,14 @@ ownerFloorRouter.get(
 
     const floorPlan = floorPlanRes.value as FloorPlan;
 
-    // Compute live table statuses
-    const tableStatuses = await computeAllTableStatuses(
+    // Compute live table statuses using the restaurant-wide system clock context
+    const baseStatuses = await computeAllTableStatuses(
       restaurantId,
       floorPlan.tables,
+    );
+    const tableStatuses = await enrichTableStatusesWithReservationGuests(
+      restaurantId,
+      baseStatuses as TableStatus[],
     );
 
     ctx.response.status = 200;
@@ -522,8 +534,12 @@ ownerFloorRouter.post(
       body.tables.map((t: any) => ({ id: t.id, tableNumber: t.tableNumber })),
     );
 
-    // Compute and return live statuses
-    const tableStatuses = await computeAllTableStatuses(restaurantId, body.tables);
+    // Compute and return live statuses using the restaurant-wide system clock context
+    const baseStatuses = await computeAllTableStatuses(restaurantId, body.tables);
+    const tableStatuses = await enrichTableStatusesWithReservationGuests(
+      restaurantId,
+      baseStatuses as TableStatus[],
+    );
 
     ctx.response.status = 200;
     ctx.response.body = {
@@ -754,7 +770,11 @@ ownerFloorRouter.get(
     // Return layouts with table statuses for each
     const enriched = [];
     for (const layout of layouts) {
-      const tableStatuses = await computeAllTableStatuses(restaurantId, layout.tables);
+      const baseStatuses = await computeAllTableStatuses(restaurantId, layout.tables);
+      const tableStatuses = await enrichTableStatusesWithReservationGuests(
+        restaurantId,
+        baseStatuses as TableStatus[],
+      );
       enriched.push({ ...layout, tableStatuses });
     }
 
@@ -839,8 +859,12 @@ ownerFloorRouter.get(
       return;
     }
 
-    // Compute live table statuses
-    const tableStatuses = await computeAllTableStatuses(restaurantId, layout.tables);
+    // Compute live table statuses using the restaurant-wide system clock context
+    const baseStatuses = await computeAllTableStatuses(restaurantId, layout.tables);
+    const tableStatuses = await enrichTableStatusesWithReservationGuests(
+      restaurantId,
+      baseStatuses as TableStatus[],
+    );
 
     ctx.response.body = {
       ...layout,
@@ -942,8 +966,12 @@ ownerFloorRouter.get(
       return;
     }
 
-    // Compute live table statuses
-    const tableStatuses = await computeAllTableStatuses(restaurantId, layout.tables);
+    // Compute live table statuses using the restaurant-wide system clock context
+    const baseStatuses = await computeAllTableStatuses(restaurantId, layout.tables);
+    const tableStatuses = await enrichTableStatusesWithReservationGuests(
+      restaurantId,
+      baseStatuses as TableStatus[],
+    );
 
     ctx.response.body = {
       ...layout,

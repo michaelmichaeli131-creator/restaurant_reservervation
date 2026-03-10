@@ -361,7 +361,18 @@
       "reserved": "Reserved"
     },
     "table_status_label": "Table Status",
-    "title": "Host Screen"
+    "title": "Host Screen",
+    "room_label_short": "Room",
+    "system_time": {
+      "title": "Restaurant Time",
+      "now": "Use Real Time",
+      "apply": "Apply to All Systems",
+      "hint": "The host screen and other connected systems follow this restaurant time.",
+      "saved": "Restaurant time saved. Refreshing the host view…",
+      "reset_done": "Returned to real time. Refreshing the host view…",
+      "error": "Unable to update restaurant time.",
+      "pick_both": "Please choose both date and time."
+    }
   },
   "lang": {
     "english": "English",
@@ -678,6 +689,21 @@
       },
       "tip": "Click on a row to edit clock in/out times",
       "title": "Timeclock Overview"
+    },
+    "calendar": {
+      "system_time": {
+        "title": "Restaurant Time",
+        "now": "Use Real Time",
+        "apply": "Apply to All Systems",
+        "hint": "The selected restaurant time syncs the calendar, host, and other connected views.",
+        "using_realtime": "Using real time now.",
+        "synced": "Restaurant time updated for all connected systems."
+      },
+      "room_graph": {
+        "title": "Room Occupancy Right Now",
+        "empty": "No room data",
+        "left_suffix": "left"
+      }
     }
   },
   "po": {

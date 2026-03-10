@@ -19,6 +19,7 @@ import { readBody } from "./restaurants/_utils/body.ts";
 import { buildDayTimeline, slotRange } from "../services/timeline.ts";
 import { computeOccupancyForDay, summarizeDay } from "../services/occupancy.ts";
 import { listFloorLayouts } from "../services/floor_service.ts";
+import { getRestaurantSystemNow, splitIsoParts } from "../services/system_time.ts";
 
 const ownerCalendarRouter = new Router();
 
@@ -55,8 +56,8 @@ function broadcast(rid: string, date: string, event: string, data?: unknown) {
 
 /* ---------------- Helpers ---------------- */
 function pad2(n: number) { return n.toString().padStart(2, "0"); }
-function todayISO(): string {
-  const d = new Date();
+function todayISO(ref?: Date): string {
+  const d = ref ?? new Date();
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 function isISODate(s?: string | null): s is string { return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s); }
@@ -384,7 +385,9 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
   const date = ctx.request.url.searchParams.get("date");
-  const selected = isISODate(date) ? date! : todayISO();
+  const systemNow = await getRestaurantSystemNow(rid);
+  const systemNowParts = splitIsoParts(systemNow);
+  const selected = isISODate(date) ? date! : todayISO(systemNow);
 
   await render(ctx, "owner_calendar", {
     page: "owner_calendar",                // ✅ חשוב לטעינת src/i18n/pages/owner_calendar.<lang>.json
@@ -392,6 +395,9 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
     rid,
     date: selected,
     restaurant: { id: r.id, name: (r as any).name ?? "Restaurant" },
+    systemNowIso: systemNowParts.iso,
+    systemNowDate: systemNowParts.date,
+    systemNowTime: systemNowParts.time,
   });
 });
 
@@ -400,7 +406,9 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const { rid } = ctx.params;
   const r = await ensureOwnerAccess(ctx, rid);
   const date = ctx.request.url.searchParams.get("date");
-  const selected = isISODate(date) ? date! : todayISO();
+  const systemNow = await getRestaurantSystemNow(rid);
+  const systemNowParts = splitIsoParts(systemNow);
+  const selected = isISODate(date) ? date! : todayISO(systemNow);
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
 
@@ -426,20 +434,29 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
     deriveTables: (people: number, avg = 3) => Math.max(1, Math.ceil(people / Math.max(1, avg))),
   });
 
-  // Per-room occupancy breakdown
+  // Per-room occupancy breakdown at the restaurant-wide current clock time
   const roomLabelMap = await buildRoomLabelMap(rid);
-  const roomOccupancy: Array<{ id: string; label: string; capacity: number; usedPeople: number }> = [];
+  const layouts = await listFloorLayouts(rid).catch(() => []);
+  const currentTime = systemNowParts.time;
+  const coveringSlot = (rv: any) => {
+    const start = String((rv as any)?.time ?? "");
+    if (!/^\d{2}:\d{2}$/.test(start)) return false;
+    const toMin = (hhmm: string) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
+    const startMin = toMin(start);
+    const endMin = startMin + durationMinutes;
+    const target = toMin(currentTime);
+    return target >= startMin && target < endMin;
+  };
+
+  const roomOccupancy: Array<{ id: string; label: string; capacity: number; usedPeople: number; remainingPeople: number; percent: number }> = [];
   for (const [layoutId, label] of roomLabelMap) {
-    const layoutReservations = effective.filter((rv: any) => extractLayoutIdFromReservation(rv) === layoutId);
-    // Sum people for the "peak" time across this room's reservations
-    const usedPeople = layoutReservations.reduce((sum: number, rv: any) => {
-      const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow"]);
-      return inactive.has(String((rv as any)?.status ?? "").toLowerCase()) ? sum : sum + Number((rv as any).people ?? 0);
-    }, 0);
-    // Find capacity from floor layouts
-    const layout = (await listFloorLayouts(rid).catch(() => [])).find((l: any) => l.id === layoutId);
+    const layoutReservations = effective.filter((rv: any) => extractLayoutIdFromReservation(rv) === layoutId && coveringSlot(rv));
+    const usedPeople = layoutReservations.reduce((sum: number, rv: any) => sum + Number((rv as any).people ?? 0), 0);
+    const layout = layouts.find((l: any) => l.id === layoutId);
     const cap = Number((layout as any)?.capacity ?? 0) || (layout as any)?.tables?.reduce((s: number, t: any) => s + (Number(t?.seats) || 0), 0) || 0;
-    roomOccupancy.push({ id: layoutId, label, capacity: cap, usedPeople });
+    const remainingPeople = Math.max(0, cap - usedPeople);
+    const percent = cap > 0 ? Math.max(0, Math.min(100, Math.round((usedPeople / cap) * 100))) : 0;
+    roomOccupancy.push({ id: layoutId, label, capacity: cap, usedPeople, remainingPeople, percent });
   }
 
   json(ctx, {
@@ -451,6 +468,12 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
     capacityTables,
     slots: occupancy,
     roomOccupancy,
+    currentTime: {
+      iso: systemNowParts.iso,
+      date: selected,
+      time: currentTime,
+      sourceDate: systemNowParts.date,
+    },
   });
 });
 
@@ -582,7 +605,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
   const r = await ensureOwnerAccess(ctx, rid);
 
   const date = ctx.request.url.searchParams.get("date");
-  const selected = isISODate(date) ? date! : todayISO();
+  const systemNow = await getRestaurantSystemNow(rid);
+  const selected = isISODate(date) ? date! : todayISO(systemNow);
 
   const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
 
@@ -619,7 +643,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/events", async (ctx) =
   const { rid } = ctx.params;
   await ensureOwnerAccess(ctx, rid);
   const date = ctx.request.url.searchParams.get("date");
-  const selected = isISODate(date) ? date! : todayISO();
+  const systemNow = await getRestaurantSystemNow(rid);
+  const selected = isISODate(date) ? date! : todayISO(systemNow);
 
   ctx.response.status = Status.OK;
   ctx.response.headers.set("Content-Type", "text/event-stream; charset=utf-8");

@@ -31,6 +31,7 @@ import {
   unseatTable,
   getSeatingByTable,
 } from "../services/seating_service.ts";
+import { getRestaurantSystemNow, splitIsoParts } from "../services/system_time.ts";
 
 export const hostRouter = new Router();
 
@@ -133,7 +134,7 @@ async function computeAllTableStatuses(
 
 /** טעינת כל ההזמנות "הפעילות" של היום למסך המארחת, בפורמט נוח לתצוגה */
 async function loadHostReservations(rid: string) {
-  const d = new Date();
+  const d = await getRestaurantSystemNow(rid);
   const date = `${d.getFullYear()}-${
     String(d.getMonth() + 1).padStart(2, "0")
   }-${String(d.getDate()).padStart(2, "0")}`;
@@ -200,6 +201,8 @@ hostRouter.get("/host/:rid", async (ctx) => {
 
   const reservations = await loadHostReservations(rid);
   const sections = await listFloorSections(rid);
+  const systemNow = await getRestaurantSystemNow(rid);
+  const systemNowParts = splitIsoParts(systemNow);
 
   const tablesFlat: Array<{ id: string; tableNumber: number }> = [];
   for (const s of sections ?? []) {
@@ -225,6 +228,9 @@ hostRouter.get("/host/:rid", async (ctx) => {
     sections,
     statuses,
     reservations,
+    systemNowIso: systemNowParts.iso,
+    systemNowDate: systemNowParts.date,
+    systemNowTime: systemNowParts.time,
   });
 });
 
@@ -236,10 +242,12 @@ hostRouter.get("/api/host/reservations", async (ctx) => {
   if (!(await requireRestaurantAccess(ctx, rid))) return;
 
   const reservations = await loadHostReservations(rid);
+  const systemNow = splitIsoParts(await getRestaurantSystemNow(rid));
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = JSON.stringify({
     rid,
     reservations,
+    systemNow,
   });
 });
 
@@ -262,6 +270,7 @@ hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
   if (!r) ctx.throw(Status.NotFound, "restaurant not found");
 
   const reservations = await loadHostReservations(rid);
+  const systemNow = splitIsoParts(await getRestaurantSystemNow(rid));
 
   hlog("reservations payload", {
     rid,
@@ -269,7 +278,7 @@ hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
   });
 
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-  ctx.response.body = { reservations };
+  ctx.response.body = { reservations, systemNow };
 });
 
 /** עזר: קריאת נתונים גם מה-body וגם מה-query (seat יחיד) */

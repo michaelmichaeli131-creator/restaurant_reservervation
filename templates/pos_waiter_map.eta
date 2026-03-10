@@ -1,4 +1,19 @@
+<% it.head = (it.head || "") + `
+<link rel="stylesheet" href="/public/css/restaurant_system_time.css?v=${it.BUILD_TAG || Date.now()}"/>`; %>
 <% layout("_layout", it) %>
+
+<%
+  function tt(k, fb){
+    try{
+      if (it && typeof it.t==='function'){
+        const s = it.t(k);
+        if(!s || s===k || s===`(${k})`) return fb;
+        return s;
+      }
+    }catch(e){}
+    return fb;
+  }
+%>
 
 <!-- Reuse the EXACT same Floor Editor styles so the map looks identical to "עדכון סידור השולחנות" -->
 
@@ -8,6 +23,34 @@
 <link rel="stylesheet" href="/public/css/sb-map-frame-overrides.css">
 <!-- Match owner_floor.eta structure (full screen canvas) -->
 <main class="floor-page">
+  <div class="sb-system-time-toolbar">
+    <div class="sb-system-time-toolbar__title">
+      <h1><%= it.restaurant?.name || '' %> — <%= tt('pos.waiter.floor_map_title', 'Restaurant Map (Live)') %></h1>
+      <p><%= tt('owner.calendar.system_time.hint', 'The selected restaurant time syncs the calendar, host, and other connected views.') %></p>
+    </div>
+    <div
+      class="sb-system-time-card js-restaurant-time"
+      data-rid="<%= it.rid %>"
+      data-reload="true"
+      data-msg-pick="<%= tt('host.system_time.pick_both', 'Please choose both date and time.') %>"
+      data-msg-error="<%= tt('host.system_time.error', 'Unable to update restaurant time.') %>"
+      data-msg-saved="<%= tt('host.system_time.saved', 'Restaurant time saved. Refreshing the view…') %>"
+      data-msg-reset="<%= tt('host.system_time.reset_done', 'Returned to real time. Refreshing the view…') %>"
+      data-msg-hint="<%= tt('owner.calendar.system_time.hint', 'The selected restaurant time syncs the calendar, host, and other connected views.') %>"
+    >
+      <div class="sb-system-time-card__eyebrow"><%= tt('host.system_time.title', 'Restaurant Time') %></div>
+      <div class="sb-system-time-card__clock js-system-time-preview"><%= it.systemNowDate || '' %> • <%= it.systemNowTime || '' %></div>
+      <div class="sb-system-time-card__inputs">
+        <input type="date" class="js-system-time-date" value="<%= it.systemNowDate || '' %>" />
+        <input type="time" class="js-system-time-time" value="<%= it.systemNowTime || '' %>" step="900" />
+      </div>
+      <div class="sb-system-time-card__actions">
+        <button type="button" class="btn ghost sm js-system-time-now"><%= tt('host.system_time.now', 'Use Real Time') %></button>
+        <button type="button" class="btn primary sm js-system-time-apply"><%= tt('host.system_time.apply', 'Apply to All Systems') %></button>
+      </div>
+      <div class="sb-system-time-card__status js-system-time-status"><%= tt('owner.calendar.system_time.hint', 'The selected restaurant time syncs the calendar, host, and other connected views.') %></div>
+    </div>
+  </div>
   <div class="floor-container">
     <div id="sb-floor-root" data-rid="<%= it.rid %>" data-right-panel="outside"></div>
   </div>
@@ -26,7 +69,9 @@
 <script type="module" src="/dist/floor-view-app.js"></script>
 
 <style>
-  .floor-page { padding: 0; margin: 0; min-height: 100vh; }
-  .floor-container { width: 100%; height: 100vh; }
+  .floor-page { padding: 0; margin: 0; min-height: 100vh; display:flex; flex-direction:column; }
+  .floor-container { width: 100%; height: calc(100vh - 140px); }
   #sb-floor-root { width: 100%; height: 100%; }
 </style>
+
+<script src="/public/js/restaurant_system_time.js?v=<%= it.BUILD_TAG || "" %>"></script>
