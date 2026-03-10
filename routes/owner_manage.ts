@@ -14,10 +14,10 @@ import {
   listReservationsFor,
   computeOccupancy,
   type Restaurant,
+  enrichReservationsWithRoomMeta,
 } from "../database.ts";
 import { requireAuth, requireOwner } from "../lib/auth.ts";
 import { requireRestaurantAccess } from "../services/authz.ts";
-import { listFloorLayouts } from "../services/floor_service.ts";
 
 function trim(s?: string | null) { return (s ?? "").trim(); }
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -167,30 +167,18 @@ ownerManageRouter.get("/owner/restaurants/:id/manage", async (ctx) => {
   const normPhotos = photos.map((p: any) => (typeof p === "string" ? { dataUrl: p, alt: "" } : p));
 
   // Preview: upcoming reservations for this date (first 6 by time)
-  const layouts = await listFloorLayouts(r.id).catch(() => []);
-  const roomLabelMap = new Map<string, string>();
-  for (const l of layouts) roomLabelMap.set(l.id, (l as any).floorLabel || l.name || "");
-  function extractLayoutIdFromNote(res: any): string {
-    if (res?.preferredLayoutId) return String(res.preferredLayoutId);
-    const note = String(res?.note ?? "");
-    const m = note.match(/(?:PreferredRoomId|PreferredLayoutId|RoomId|LayoutId)\s*:\s*([^;\n\r]+)/i);
-    return m ? m[1].trim() : "";
-  }
-  const reservationsPreview = [...reservations]
+  const reservationsPreview = (await enrichReservationsWithRoomMeta(r.id, [...reservations] as any[]))
     .sort((a: any, b: any) => String(a.time || "").localeCompare(String(b.time || "")))
     .slice(0, 6)
-    .map((x: any) => {
-      const layoutId = extractLayoutIdFromNote(x);
-      return {
-        id: x.id,
-        time: x.time,
-        people: x.people,
-        status: x.status || "confirmed",
-        name: [x.firstName, x.lastName].filter(Boolean).join(" ") || x.note || "לקוח/ה",
-        phone: x.phone || "",
-        roomLabel: layoutId ? (roomLabelMap.get(layoutId) ?? "") : "",
-      };
-    });
+    .map((x: any) => ({
+      id: x.id,
+      time: x.time,
+      people: x.people,
+      status: x.status || "confirmed",
+      name: [x.firstName, x.lastName].filter(Boolean).join(" ") || x.note || "לקוח/ה",
+      phone: x.phone || "",
+      roomLabel: x.roomLabel || x.preferredLayoutLabel || "",
+    }));
 
   // Simple tasks/alerts derived from today's data (placeholder until full task engine)
   const pending = reservations.filter((x: any) => (x.status || "").toLowerCase() === "new").length;

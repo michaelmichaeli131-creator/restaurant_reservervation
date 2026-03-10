@@ -204,6 +204,12 @@
             <strong><%= tt('manage.details.status','סטטוס') %></strong>
             <span><%= statusLabel %></span>
           </div>
+          <% if (it.reservation?.preferredLayoutLabel || it.reservation?.roomLabel) { %>
+          <div class="pill">
+            <strong><%= tt('manage.details.room','חדר') %></strong>
+            <span><%= it.reservation.preferredLayoutLabel || it.reservation.roomLabel %></span>
+          </div>
+          <% } %>
         </div>
 
         <% if (it.flash?.ok) { %>

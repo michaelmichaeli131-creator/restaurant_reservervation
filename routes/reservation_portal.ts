@@ -37,6 +37,7 @@ type DBExtra = Partial<{
   getReservationById: (id: string) => Promise<Reservation | null>;
   updateReservation: (id: string, patch: Partial<Reservation>) => Promise<Reservation | null>;
   setReservationStatus: (id: string, status: string) => Promise<boolean>;
+  enrichReservationWithRoomMeta: <T extends Reservation>(restaurantId: string, reservation: T) => Promise<T & { preferredLayoutId?: string; roomLabel: string; preferredLayoutLabel: string }>;
 }>;
 
 let _db: DBExtra | null = null;
@@ -48,6 +49,7 @@ async function db(): Promise<DBExtra> {
     getReservationById: (mod as any).getReservationById ?? (mod as any).getReservation,
     updateReservation: (mod as any).updateReservation,
     setReservationStatus: (mod as any).setReservationStatus,
+    enrichReservationWithRoomMeta: (mod as any).enrichReservationWithRoomMeta,
   };
   return _db!;
 }
@@ -110,7 +112,7 @@ reservationPortal.get("/r/:token", async (ctx) => {
     return;
   }
 
-  const { getReservation, getReservationById } = await db();
+  const { getReservation, getReservationById, enrichReservationWithRoomMeta } = await db();
   const getRes = getReservationById ?? getReservation;
   if (typeof getRes !== "function") {
     ctx.response.status = Status.NotImplemented;
@@ -118,7 +120,8 @@ reservationPortal.get("/r/:token", async (ctx) => {
     return;
   }
 
-  const reservation = await getRes(payload.rid);
+  const reservationRaw = await getRes(payload.rid);
+  const reservation = reservationRaw ? await enrichReservationWithRoomMeta(reservationRaw.restaurantId, reservationRaw) : null;
   if (!reservation) {
     ctx.response.status = Status.NotFound;
     ctx.response.body = getLang(ctx) === "he" ? "ההזמנה לא נמצאה" : getLang(ctx) === "ka" ? "ჯავშანი ვერ მოიძებნა" : "Reservation not found";
@@ -158,7 +161,7 @@ reservationPortal.post("/r/:token", async (ctx) => {
   }
 
   const helpers = await db();
-  const { getReservation, getReservationById } = helpers;
+  const { getReservation, getReservationById, enrichReservationWithRoomMeta } = helpers;
   const getRes = getReservationById ?? getReservation;
   if (typeof getRes !== "function") {
     ctx.response.status = Status.NotImplemented;
@@ -166,7 +169,8 @@ reservationPortal.post("/r/:token", async (ctx) => {
     return;
   }
 
-  const reservation = await getRes(payload.rid);
+  const reservationRaw = await getRes(payload.rid);
+  const reservation = reservationRaw ? await enrichReservationWithRoomMeta(reservationRaw.restaurantId, reservationRaw) : null;
   if (!reservation) {
     ctx.response.status = Status.NotFound;
     ctx.response.body = getLang(ctx) === "he" ? "ההזמנה לא נמצאה" : getLang(ctx) === "ka" ? "ჯავშანი ვერ მოიძებნა" : "Reservation not found";
@@ -186,7 +190,8 @@ reservationPortal.post("/r/:token", async (ctx) => {
   const action = await readAction(ctx);
 
   async function renderBack(flash: any) {
-    const fresh = await getRes(payload.rid);
+    const freshRaw = await getRes(payload.rid);
+    const fresh = freshRaw ? await enrichReservationWithRoomMeta(freshRaw.restaurantId, freshRaw) : freshRaw;
     const allowConfirm = canConfirm(fresh?.status);
     const allowCancel  = canCancel(fresh?.status);
     await render(ctx, "reservation_manage", {

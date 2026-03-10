@@ -21,7 +21,8 @@
       "date": "Date:",
       "time": "Time:",
       "people": "Guests:",
-      "restaurant": "Restaurant:"
+      "restaurant": "Restaurant:",
+      "room": "Room:"
     },
     "actions": {
       "confirm": "Confirm reservation",

@@ -12,6 +12,7 @@
       "time": "Time",
       "people": "Guests",
       "customerName": "Customer Name",
+      "room": "Room",
       "customerPhone": "Phone",
       "customerEmail": "Email",
       "note": "Notes",

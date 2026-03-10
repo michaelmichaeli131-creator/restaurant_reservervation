@@ -11,13 +11,14 @@ import {
   openingWindowsForDate,
   type Restaurant,
   type Reservation,
+  getReservationPreferredLayoutId,
+  getRoomLabelMapForRestaurant,
 } from "../database.ts";
-
-import { listFloorLayouts } from "../services/floor_service.ts";
 
 import { readBody } from "./restaurants/_utils/body.ts";
 import { buildDayTimeline, slotRange } from "../services/timeline.ts";
 import { computeOccupancyForDay, summarizeDay } from "../services/occupancy.ts";
+import { listFloorLayouts } from "../services/floor_service.ts";
 
 const ownerCalendarRouter = new Router();
 
@@ -91,19 +92,11 @@ function mapOpenWindowsForTimeline(wins: Array<{ open: string; close: string }>)
 
 /* ---- Room-label lookup ---- */
 async function buildRoomLabelMap(rid: string): Promise<Map<string, string>> {
-  const layouts = await listFloorLayouts(rid).catch(() => []);
-  const map = new Map<string, string>();
-  for (const l of layouts) {
-    map.set(l.id, (l as any).floorLabel || l.name || l.id);
-  }
-  return map;
+  return await getRoomLabelMapForRestaurant(rid);
 }
 
 function extractLayoutIdFromReservation(r: any): string {
-  if (r?.preferredLayoutId) return String(r.preferredLayoutId);
-  const note = String(r?.note ?? r?.notes ?? "");
-  const m = note.match(/(?:PreferredRoomId|PreferredLayoutId|RoomId|LayoutId)\s*:\s*([^;\n\r]+)/i);
-  return m ? m[1].trim() : "";
+  return getReservationPreferredLayoutId(r as Reservation);
 }
 
 /* ---- Enrichment from note / names ---- */

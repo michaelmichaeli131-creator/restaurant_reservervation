@@ -22,7 +22,8 @@
       "date": "Date",
       "time": "Time",
       "people": "Guests",
-      "status": "Status"
+      "status": "Status",
+      "room": "Room"
     },
     "actions": {
       "copy": "Copy",

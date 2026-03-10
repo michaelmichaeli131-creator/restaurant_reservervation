@@ -852,6 +852,70 @@ function extractPreferredLayoutIdFromReservation(reservation: Reservation): stri
   return match ? String(match[1] ?? "").trim() : "";
 }
 
+
+export function getReservationPreferredLayoutId(reservation: Reservation): string {
+  return extractPreferredLayoutIdFromReservation(reservation);
+}
+
+export async function getRoomLabelMapForRestaurant(restaurantId: string): Promise<Map<string, string>> {
+  const { listFloorLayouts } = await import("./services/floor_service.ts");
+  const layouts = await listFloorLayouts(restaurantId).catch(() => []);
+  const roomLabelMap = new Map<string, string>();
+  for (const layout of layouts) {
+    const id = String((layout as any)?.id ?? "").trim();
+    if (!id) continue;
+    roomLabelMap.set(id, String((layout as any)?.floorLabel || (layout as any)?.name || id));
+  }
+  return roomLabelMap;
+}
+
+export async function getRoomLabelByLayoutId(restaurantId: string, layoutId?: string | null): Promise<string> {
+  const normalized = String(layoutId ?? "").trim();
+  if (!normalized) return "";
+  const roomLabelMap = await getRoomLabelMapForRestaurant(restaurantId);
+  return roomLabelMap.get(normalized) ?? "";
+}
+
+export function getReservationRoomLabelFromMap(
+  reservation: Reservation,
+  roomLabelMap: Map<string, string>,
+): string {
+  const layoutId = getReservationPreferredLayoutId(reservation);
+  return layoutId ? (roomLabelMap.get(layoutId) ?? "") : "";
+}
+
+export async function enrichReservationWithRoomMeta<T extends Reservation>(
+  restaurantId: string,
+  reservation: T,
+): Promise<T & { preferredLayoutId?: string; roomLabel: string; preferredLayoutLabel: string }> {
+  const roomLabelMap = await getRoomLabelMapForRestaurant(restaurantId);
+  const layoutId = getReservationPreferredLayoutId(reservation);
+  const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? "") : "";
+  return {
+    ...reservation,
+    ...(layoutId ? { preferredLayoutId: layoutId } : {}),
+    roomLabel,
+    preferredLayoutLabel: roomLabel,
+  };
+}
+
+export async function enrichReservationsWithRoomMeta<T extends Reservation>(
+  restaurantId: string,
+  reservations: T[],
+): Promise<Array<T & { preferredLayoutId?: string; roomLabel: string; preferredLayoutLabel: string }>> {
+  const roomLabelMap = await getRoomLabelMapForRestaurant(restaurantId);
+  return reservations.map((reservation) => {
+    const layoutId = getReservationPreferredLayoutId(reservation);
+    const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? "") : "";
+    return {
+      ...reservation,
+      ...(layoutId ? { preferredLayoutId: layoutId } : {}),
+      roomLabel,
+      preferredLayoutLabel: roomLabel,
+    };
+  });
+}
+
 function deriveLayoutCapacity(layout: {
   capacity?: number;
   maxGuests?: number;

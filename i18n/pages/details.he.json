@@ -21,7 +21,8 @@
       "date": "תאריך:",
       "time": "שעה:",
       "people": "מס׳ סועדים:",
-      "restaurant": "מסעדה:"
+      "restaurant": "מסעדה:",
+      "room": "חדר:"
     },
     "actions": {
       "confirm": "אשר הזמנה",

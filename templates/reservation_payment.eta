@@ -39,6 +39,12 @@
         <span class="label"><%= tt('payment.summary.name','Name') %></span>
         <span class="value"><%= it.name %></span>
       </div>
+      <% if (it.preferredLayoutLabel) { %>
+      <div class="summary-item">
+        <span class="label"><%= tt('payment.summary.room','Room') %></span>
+        <span class="value"><%= it.preferredLayoutLabel %></span>
+      </div>
+      <% } %>
     </div>
   </section>
 

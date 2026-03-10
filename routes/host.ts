@@ -11,6 +11,7 @@ import {
   listReservationsFor,
   setReservationStatus,
   getReservationById,
+  enrichReservationsWithRoomMeta,
 } from "../database.ts";
 
 import {
@@ -21,7 +22,6 @@ import {
 
 import {
   listFloorSections,
-  listFloorLayouts,
   getTableIdByNumber,
   markTableDirty,
 } from "../services/floor_service.ts";
@@ -153,32 +153,18 @@ async function loadHostReservations(rid: string) {
     return !doneStatuses.includes(st);
   });
 
-  // Build layoutId -> roomLabel map
-  const layouts = await listFloorLayouts(rid).catch(() => []);
-  const roomLabelMap = new Map<string, string>();
-  for (const l of layouts) {
-    roomLabelMap.set(l.id, (l as any).floorLabel || l.name || "");
-  }
+  const withRoomMeta = await enrichReservationsWithRoomMeta(rid, active as any[]);
 
-  function extractLayoutId(res: any): string {
-    if (res?.preferredLayoutId) return String(res.preferredLayoutId);
-    const note = String(res?.note ?? "");
-    const m = note.match(/(?:PreferredRoomId|PreferredLayoutId|RoomId|LayoutId)\s*:\s*([^;\n\r]+)/i);
-    return m ? m[1].trim() : "";
-  }
-
-  return active.map((res: any) => {
+  return withRoomMeta.map((res: any) => {
     const name = (res.firstName && res.lastName)
       ? `${res.firstName} ${res.lastName}`
       : (res.name ?? "");
-    const layoutId = extractLayoutId(res);
-    const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? "") : "";
     return {
       id: res.id,
       time: res.time,
       people: res.people,
       name: name || "—",
-      roomLabel,
+      roomLabel: res.roomLabel || res.preferredLayoutLabel || "",
     };
   });
 }

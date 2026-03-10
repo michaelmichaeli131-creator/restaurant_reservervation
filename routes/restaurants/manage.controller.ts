@@ -1,7 +1,7 @@
 // src/routes/restaurants/manage.controller.ts
 import { Status } from "jsr:@oak/oak";
 import { verifyReservationToken } from "../../lib/token.ts";
-import { getReservationById, getRestaurant, updateReservation } from "../../database.ts";
+import { getReservationById, getRestaurant, updateReservation, enrichReservationWithRoomMeta } from "../../database.ts";
 import { render } from "../../lib/view.ts";
 import { extractFromReferer, readBody } from "./_utils/body.ts";
 import { pickNonEmpty } from "./_utils/datetime.ts";
@@ -25,8 +25,9 @@ export async function manageGet(ctx: any) {
   const payload = await verifyReservationToken(token);
   if (!payload) { const lang = getLang(ctx); ctx.response.status = Status.NotFound; ctx.response.body = lang === "he" ? "הקישור לא תקין או שפג תוקפו" : lang === "ka" ? "ბმული არასწორია ან ვადა გაუვიდა" : "Invalid or expired link"; return; }
 
-  const reservation = await getReservationById(payload.rid);
-  if (!reservation) { const lang = getLang(ctx); ctx.response.status = Status.NotFound; ctx.response.body = lang === "he" ? "ההזמנה לא נמצאה" : lang === "ka" ? "ჯავშანი ვერ მოიძებნა" : "Reservation not found"; return; }
+  const reservationRaw = await getReservationById(payload.rid);
+  if (!reservationRaw) { const lang = getLang(ctx); ctx.response.status = Status.NotFound; ctx.response.body = lang === "he" ? "ההזמנה לא נמצאה" : lang === "ka" ? "ჯავშანი ვერ მოიძებნა" : "Reservation not found"; return; }
+  const reservation = await enrichReservationWithRoomMeta(reservationRaw.restaurantId, reservationRaw as any);
 
   const restaurant = await getRestaurant(reservation.restaurantId);
   const photos = photoStrings(restaurant?.photos);
@@ -88,15 +89,17 @@ export async function managePost(ctx: any) {
     ct: dbg?.ct,
   });
 
-  const reservation = await getReservationById(payload.rid);
-  if (!reservation) { const lang = getLang(ctx); ctx.response.status = Status.NotFound; ctx.response.body = lang === "he" ? "ההזמנה לא נמצאה" : lang === "ka" ? "ჯავშანი ვერ მოიძებნა" : "Reservation not found"; return; }
+  const reservationRaw = await getReservationById(payload.rid);
+  if (!reservationRaw) { const lang = getLang(ctx); ctx.response.status = Status.NotFound; ctx.response.body = lang === "he" ? "ההזמנה לא נמצאה" : lang === "ka" ? "ჯავშანი ვერ მოიძებნა" : "Reservation not found"; return; }
+  const reservation = await enrichReservationWithRoomMeta(reservationRaw.restaurantId, reservationRaw as any);
 
   const restaurant = await getRestaurant(reservation.restaurantId);
   if (!restaurant) { const lang = getLang(ctx); ctx.response.status = Status.NotFound; ctx.response.body = lang === "he" ? "המסעדה לא נמצאה" : lang === "ka" ? "რესტორანი ვერ მოიძებნა" : "Restaurant not found"; return; }
 
   const photos = photoStrings(restaurant.photos);
   const renderBack = async (flash: any) => {
-    const fresh = await getReservationById(payload.rid);
+    const freshRaw = await getReservationById(payload.rid);
+    const fresh = freshRaw ? await enrichReservationWithRoomMeta(freshRaw.restaurantId, freshRaw as any) : freshRaw;
     const allowConfirm = fresh?.status !== "confirmed" && fresh?.status !== "canceled";
     const allowCancel  = fresh?.status !== "canceled";
     await render(ctx, "reservation_manage", {

@@ -1,7 +1,13 @@
 // src/routes/restaurants/reservation.controller.ts
 import { Status } from "jsr:@oak/oak";
 import {
-  checkAvailability, checkRoomCapacity, createReservation, createReservationSafe, getRestaurant, getUserById,
+  checkAvailability,
+  checkRoomCapacity,
+  createReservation,
+  createReservationSafe,
+  getRestaurant,
+  getUserById,
+  getRoomLabelByLayoutId,
   type Reservation,
 } from "../../database.ts";
 import { render } from "../../lib/view.ts";
@@ -264,6 +270,7 @@ export async function detailsGet(ctx: any) {
   const time = normalizeTime(ctx.request.url.searchParams.get("time") ?? "");
   const people = Number(ctx.request.url.searchParams.get("people") ?? "2") || 2;
   const preferredLayoutId = ctx.request.url.searchParams.get("preferredLayoutId") ?? "";
+  const preferredLayoutLabel = preferredLayoutId ? await getRoomLabelByLayoutId(id, preferredLayoutId) : "";
 
   debugLog("[restaurants][GET details]", {
     id, date, time, people, preferredLayoutId,
@@ -295,6 +302,7 @@ export async function detailsGet(ctx: any) {
     depositCurrency,
     depositSymbol: currencySymbols[depositCurrency] || '€',
     preferredLayoutId,
+    preferredLayoutLabel,
   });
 }
 
@@ -318,6 +326,7 @@ export async function confirmGet(ctx: any) {
   const customerNoteRaw =
     sp.get("note") ?? sp.get("comments") ?? sp.get("special_requests") ?? sp.get("specialRequests") ?? "";
   const preferredLayoutId = (sp.get("preferredLayoutId") ?? "").trim();
+  const preferredLayoutLabel = preferredLayoutId ? await getRoomLabelByLayoutId(rid, preferredLayoutId) : "";
 
   const customerName  = normalizePlain(customerNameRaw ?? "");
   const customerPhone = normalizePlain(customerPhoneRaw ?? "");
@@ -477,6 +486,8 @@ export async function confirmGet(ctx: any) {
     customerName, customerPhone, customerEmail,
     reservationId: reservation.id,
     note: customerNote,
+    preferredLayoutId,
+    preferredLayoutLabel,
   });
 }
 
@@ -802,6 +813,7 @@ export async function paymentGet(ctx: any) {
 
   const photos = photoStrings(restaurant.photos);
   const paymentMethods = getEnabledPaymentMethods(restaurant, lang);
+  const preferredLayoutLabel = tokenData.preferredLayoutId ? await getRoomLabelByLayoutId(rid, tokenData.preferredLayoutId) : "";
 
   await render(ctx, "reservation_payment", {
     page: "payment",
@@ -816,6 +828,8 @@ export async function paymentGet(ctx: any) {
     email: tokenData.email,
     note: tokenData.note,
     token,
+    preferredLayoutId: tokenData.preferredLayoutId,
+    preferredLayoutLabel,
     depositAmount: (restaurant.depositAmount || 0) / 100,
     depositCurrency: restaurant.depositCurrency || 'EUR',
     paymentMethods,
@@ -953,6 +967,7 @@ export async function confirmPaymentGet(ctx: any) {
   }
 
   const photos = photoStrings(restaurant.photos);
+  const preferredLayoutLabel = tokenData.preferredLayoutId ? await getRoomLabelByLayoutId(rid, tokenData.preferredLayoutId) : "";
   const t = getT(ctx);
   const dir = ctx.state?.dir ?? getDir(lang);
 
@@ -969,6 +984,8 @@ export async function confirmPaymentGet(ctx: any) {
     customerEmail: tokenData.email,
     reservationId: reservation.id,
     note: tokenData.note,
+    preferredLayoutId: tokenData.preferredLayoutId,
+    preferredLayoutLabel,
     // Payment info for display
     depositStatus: reservation.depositStatus,
     depositAmount: hasDeposit ? (restaurant.depositAmount || 0) / 100 : null,

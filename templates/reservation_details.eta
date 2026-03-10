@@ -29,6 +29,12 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
       <span id="sum-people"><%= it.people %></span> <%= tt('restaurant.form.guests','Guests') %>
     </div>
+    <% if (it.preferredLayoutLabel) { %>
+    <div class="rsv-chip">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4"/><path d="M5 10v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8"/><path d="M10 12h4"/></svg>
+      <span><%= tt('details.summary.room','Room') %>: <%= it.preferredLayoutLabel %></span>
+    </div>
+    <% } %>
   </div>
 
   <% if (it.hasDeposit) { %>
