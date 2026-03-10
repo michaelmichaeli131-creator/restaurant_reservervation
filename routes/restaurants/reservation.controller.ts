@@ -71,9 +71,13 @@ export async function checkApi(ctx: any) {
   const hasDay = hasScheduleForDate(restaurant.weeklySchedule, date);
   const windows = getWindowsForDate(restaurant.weeklySchedule, date);
   const within = isWithinSchedule(restaurant.weeklySchedule, date, time);
+  const preferredLayoutId = String((payload as any).preferredLayoutId ?? "").trim();
+  const { listFloorLayouts } = await import("../../services/floor_service.ts");
+  const availableLayouts = await listFloorLayouts(rid).catch(() => []);
+  const hasRooms = Array.isArray(availableLayouts) && availableLayouts.length > 0;
 
   debugLog("[restaurants][POST /api/.../check] input", {
-    rid, date, time, people,
+    rid, date, time, people, preferredLayoutId, hasRooms,
     body_ct: dbg.ct, body_keys: Object.keys(payload),
     weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : [],
     hasDay, windows, within
@@ -94,43 +98,31 @@ export async function checkApi(ctx: any) {
     return;
   }
 
-  const result = await checkAvailability(rid, date, time, people);
+  if (hasRooms && !preferredLayoutId) {
+    ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+    ctx.response.body = JSON.stringify({ ok: false, reason: "room_required" }, null, 2);
+    return;
+  }
+
   const around = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
 
-  // Per-room capacity check (if preferredLayoutId sent)
-  const preferredLayoutId = String((payload as any).preferredLayoutId ?? "").trim();
-  debugLog("[restaurants][POST /api/.../check] computed", {
-    rid,
-    date,
-    time,
-    people,
-    preferredLayoutId,
-    availabilityResult: result,
-    suggestions: around.slice(0, 8),
-  });
-  if (asOk(result) && preferredLayoutId) {
+  if (preferredLayoutId) {
     const roomCheck = await checkRoomCapacity(rid, preferredLayoutId, date, time, people);
-    debugLog("[restaurants][POST /api/.../check] room-check", {
-      rid,
-      date,
-      time,
-      people,
-      preferredLayoutId,
-      roomCheck,
-    });
     if (!roomCheck.ok) {
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-      ctx.response.body = JSON.stringify({ ok: false, reason: "room_full", roomLabel: roomCheck.roomLabel, suggestions: around.slice(0,4), debug: { preferredLayoutId, availabilityResult: result, roomCheck } }, null, 2);
+      ctx.response.body = JSON.stringify({ ok: false, reason: "room_full", roomLabel: roomCheck.roomLabel, suggestions: around.slice(0,4) }, null, 2);
       return;
     }
   }
 
+  const result = await checkAvailability(rid, date, time, people);
+
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   if (asOk(result)) {
-    ctx.response.body = JSON.stringify({ ok: true, availableSlots: around.slice(0,4), debug: { preferredLayoutId, availabilityResult: result } }, null, 2);
+    ctx.response.body = JSON.stringify({ ok: true, availableSlots: around.slice(0,4) }, null, 2);
   } else {
     const reason = (result as any)?.reason ?? "unavailable";
-    ctx.response.body = JSON.stringify({ ok: false, reason, suggestions: around.slice(0,4), debug: { preferredLayoutId, availabilityResult: result } }, null, 2);
+    ctx.response.body = JSON.stringify({ ok: false, reason, suggestions: around.slice(0,4) }, null, 2);
   }
 }
 
@@ -151,14 +143,6 @@ export async function roomOccupancyApi(ctx: any) {
   }
 
   const result = await checkRoomCapacity(rid, layoutId, date, time, people);
-  debugLog("[restaurants][GET /api/.../room-occupancy] result", {
-    rid,
-    layoutId,
-    date,
-    time,
-    people,
-    result,
-  });
   ctx.response.body = JSON.stringify({
     ok: true,
     capacity: result.capacity,
@@ -166,14 +150,6 @@ export async function roomOccupancyApi(ctx: any) {
     remaining: result.remaining,
     roomLabel: result.roomLabel,
     roomFull: !result.ok,
-    debug: {
-      rid,
-      layoutId,
-      date,
-      time,
-      people,
-      result,
-    },
   });
 }
 

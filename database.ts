@@ -1,4 +1,3 @@
-import { debugLog } from "./lib/debug.ts";
 // src/database.ts
 // Deno KV – אינדקסים עם prefix ועסקאות atomic
 // שדרוגים: נירמול חלקי מפתח (Key Parts) + קשיחות createUser לגזירת username מה-email במקרה הצורך.
@@ -853,38 +852,167 @@ function extractPreferredLayoutIdFromReservation(reservation: Reservation): stri
   return match ? String(match[1] ?? "").trim() : "";
 }
 
-function deriveLayoutCapacity(layout: { capacity?: number; tables?: Array<{ seats?: number }> } | null | undefined): number {
-  const explicitCapacity = Number(layout?.capacity);
-  if (Number.isFinite(explicitCapacity) && explicitCapacity > 0) return explicitCapacity;
+function deriveLayoutCapacity(layout: {
+  capacity?: number;
+  maxGuests?: number;
+  guestCapacity?: number;
+  seats?: number;
+  seatCount?: number;
+  maxSeats?: number;
+  tables?: Array<{ seats?: number; capacity?: number; guestCapacity?: number; seatCount?: number; chairs?: unknown[] }>;
+} | null | undefined): number {
+  const directCandidates = [
+    Number(layout?.capacity),
+    Number((layout as any)?.maxGuests),
+    Number((layout as any)?.guestCapacity),
+    Number((layout as any)?.seats),
+    Number((layout as any)?.seatCount),
+    Number((layout as any)?.maxSeats),
+  ];
+  const explicitCapacity = directCandidates.find((v) => Number.isFinite(v) && v > 0) ?? 0;
+  if (explicitCapacity > 0) return explicitCapacity;
 
   const tables = Array.isArray(layout?.tables) ? layout!.tables : [];
   const seatsFromTables = tables.reduce((sum, table) => {
-    const seats = Number(table?.seats);
-    return sum + (Number.isFinite(seats) && seats > 0 ? seats : 0);
+    const seatsCandidates = [
+      Number(table?.seats),
+      Number((table as any)?.capacity),
+      Number((table as any)?.guestCapacity),
+      Number((table as any)?.seatCount),
+      Array.isArray((table as any)?.chairs) ? (table as any).chairs.length : 0,
+    ];
+    const seats = seatsCandidates.find((v) => Number.isFinite(v) && v > 0) ?? 0;
+    return sum + seats;
   }, 0);
 
   return seatsFromTables > 0 ? seatsFromTables : 0;
 }
 
-function summarizeLayoutForDebug(layout: any) {
-  if (!layout) return null;
-  const tables = Array.isArray(layout?.tables) ? layout.tables : [];
+type RoomOccupancyState = {
+  byLayoutId: Map<string, Map<string, number>>;
+  layoutCapacities: Map<string, number>;
+  roomLabels: Map<string, string>;
+  unassignedReservations: number;
+};
+
+async function buildRoomOccupancyState(
+  restaurantId: string,
+  date: string,
+  step: number,
+  span: number,
+): Promise<RoomOccupancyState> {
+  const { listFloorLayouts } = await import("./services/floor_service.ts");
+  const layouts = await listFloorLayouts(restaurantId).catch(() => []);
+
+  const byLayoutId = new Map<string, Map<string, number>>();
+  const layoutCapacities = new Map<string, number>();
+  const roomLabels = new Map<string, string>();
+
+  for (const layout of layouts) {
+    const id = String((layout as any)?.id ?? "").trim();
+    if (!id) continue;
+    byLayoutId.set(id, new Map<string, number>());
+    layoutCapacities.set(id, deriveLayoutCapacity(layout as any));
+    roomLabels.set(id, String((layout as any)?.floorLabel || (layout as any)?.name || ""));
+  }
+
+  const reservations = (await listReservationsFor(restaurantId, date))
+    .filter((reservation) => isSeatBlockingReservationStatus(reservation.status))
+    .sort((a, b) => {
+      const diff = (toMinutes(a.time) || 0) - (toMinutes(b.time) || 0);
+      return diff !== 0 ? diff : (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0);
+    });
+
+  const applyReservationToMap = (targetMap: Map<string, number>, reservation: Reservation) => {
+    const reservationStartRaw = toMinutes(reservation.time);
+    if (!Number.isFinite(reservationStartRaw)) return;
+    const reservationStart = snapToGrid(reservationStartRaw, step);
+    const reservationSpan = Math.max(step, Number(reservation.durationMinutes) || span);
+    const reservationEnd = reservationStart + reservationSpan;
+    const reservationPeople = Math.max(1, Number(reservation.people) || 1);
+    for (let t = reservationStart; t < reservationEnd; t += step) {
+      const key = fromMinutes(t);
+      targetMap.set(key, (targetMap.get(key) ?? 0) + reservationPeople);
+    }
+  };
+
+  const reservationFitsRoom = (targetMap: Map<string, number>, capacity: number, reservation: Reservation) => {
+    if (!(Number.isFinite(capacity) && capacity > 0)) return false;
+    const reservationStartRaw = toMinutes(reservation.time);
+    if (!Number.isFinite(reservationStartRaw)) return false;
+    const reservationStart = snapToGrid(reservationStartRaw, step);
+    const reservationSpan = Math.max(step, Number(reservation.durationMinutes) || span);
+    const reservationEnd = reservationStart + reservationSpan;
+    const reservationPeople = Math.max(1, Number(reservation.people) || 1);
+    for (let t = reservationStart; t < reservationEnd; t += step) {
+      const key = fromMinutes(t);
+      if ((targetMap.get(key) ?? 0) + reservationPeople > capacity) return false;
+    }
+    return true;
+  };
+
+  const reservationRoomSlack = (targetMap: Map<string, number>, capacity: number, reservation: Reservation) => {
+    const reservationStartRaw = toMinutes(reservation.time);
+    if (!Number.isFinite(reservationStartRaw) || !(Number.isFinite(capacity) && capacity > 0)) return Number.NEGATIVE_INFINITY;
+    const reservationStart = snapToGrid(reservationStartRaw, step);
+    const reservationSpan = Math.max(step, Number(reservation.durationMinutes) || span);
+    const reservationEnd = reservationStart + reservationSpan;
+    const reservationPeople = Math.max(1, Number(reservation.people) || 1);
+    let minSlack = Number.POSITIVE_INFINITY;
+    for (let t = reservationStart; t < reservationEnd; t += step) {
+      const key = fromMinutes(t);
+      const slack = capacity - ((targetMap.get(key) ?? 0) + reservationPeople);
+      if (slack < minSlack) minSlack = slack;
+    }
+    return Number.isFinite(minSlack) ? minSlack : Number.NEGATIVE_INFINITY;
+  };
+
+  const unassigned: Reservation[] = [];
+  for (const reservation of reservations) {
+    const explicitLayoutId = extractPreferredLayoutIdFromReservation(reservation);
+    if (explicitLayoutId && byLayoutId.has(explicitLayoutId)) {
+      applyReservationToMap(byLayoutId.get(explicitLayoutId)!, reservation);
+    } else {
+      unassigned.push(reservation);
+    }
+  }
+
+  const layoutIds = Array.from(byLayoutId.keys());
+  for (const reservation of unassigned) {
+    let chosenLayoutId = "";
+
+    for (const candidateLayoutId of layoutIds) {
+      const targetMap = byLayoutId.get(candidateLayoutId)!;
+      const capacity = layoutCapacities.get(candidateLayoutId) ?? 0;
+      if (reservationFitsRoom(targetMap, capacity, reservation)) {
+        chosenLayoutId = candidateLayoutId;
+        break;
+      }
+    }
+
+    if (!chosenLayoutId) {
+      let bestSlack = Number.NEGATIVE_INFINITY;
+      for (const candidateLayoutId of layoutIds) {
+        const targetMap = byLayoutId.get(candidateLayoutId)!;
+        const capacity = layoutCapacities.get(candidateLayoutId) ?? 0;
+        const slack = reservationRoomSlack(targetMap, capacity, reservation);
+        if (slack > bestSlack) {
+          bestSlack = slack;
+          chosenLayoutId = candidateLayoutId;
+        }
+      }
+    }
+
+    if (chosenLayoutId && byLayoutId.has(chosenLayoutId)) {
+      applyReservationToMap(byLayoutId.get(chosenLayoutId)!, reservation);
+    }
+  }
+
   return {
-    id: layout?.id,
-    name: layout?.name,
-    floorLabel: layout?.floorLabel,
-    explicitCapacity: layout?.capacity,
-    tableCount: tables.length,
-    tableSeats: tables.map((table: any) => ({
-      id: table?.id,
-      tableNumber: table?.tableNumber,
-      seats: table?.seats,
-      capacity: table?.capacity,
-      minCapacity: table?.minCapacity,
-      maxCapacity: table?.maxCapacity,
-      label: table?.label,
-      name: table?.name,
-    })),
+    byLayoutId,
+    layoutCapacities,
+    roomLabels,
+    unassignedReservations: unassigned.length,
   };
 }
 
@@ -894,58 +1022,15 @@ async function getRoomOccupancySnapshot(
   date: string,
   step: number,
   span: number,
-): Promise<{ map: Map<string, number>; alreadyBookedMax: number }> {
-  const reservations = await listReservationsFor(restaurantId, date);
-  const roomReservations = reservations.filter((reservation) => {
-    if (!isSeatBlockingReservationStatus(reservation.status)) return false;
-    return extractPreferredLayoutIdFromReservation(reservation) === layoutId;
-  });
-
-  debugLog("[reservations][room-occupancy-snapshot] reservation-match", {
-    restaurantId,
-    layoutId,
-    date,
-    totalReservations: reservations.length,
-    matchedReservations: roomReservations.length,
-    sampleReservations: reservations.slice(0, 12).map((reservation) => ({
-      id: reservation.id,
-      time: reservation.time,
-      people: reservation.people,
-      status: reservation.status,
-      preferredLayoutId: reservation.preferredLayoutId,
-      extractedLayoutId: extractPreferredLayoutIdFromReservation(reservation),
-      note: String(reservation.note ?? "").slice(0, 140),
-    })),
-  });
-
-  const map = new Map<string, number>();
+): Promise<{ map: Map<string, number>; alreadyBookedMax: number; unassignedReservations: number }> {
+  const state = await buildRoomOccupancyState(restaurantId, date, step, span);
+  const map = state.byLayoutId.get(layoutId) ?? new Map<string, number>();
   let alreadyBookedMax = 0;
-  for (const reservation of roomReservations) {
-    const reservationStartRaw = toMinutes(reservation.time);
-    if (!Number.isFinite(reservationStartRaw)) continue;
-    const reservationStart = snapToGrid(reservationStartRaw, step);
-    const reservationSpan = Math.max(step, Number(reservation.durationMinutes) || span);
-    const reservationEnd = reservationStart + reservationSpan;
-    const reservationPeople = Math.max(1, Number(reservation.people) || 1);
-    for (let t = reservationStart; t < reservationEnd; t += step) {
-      const key = fromMinutes(t);
-      const nextUsed = (map.get(key) ?? 0) + reservationPeople;
-      map.set(key, nextUsed);
-      if (nextUsed > alreadyBookedMax) alreadyBookedMax = nextUsed;
-    }
+  for (const used of map.values()) {
+    if (used > alreadyBookedMax) alreadyBookedMax = used;
   }
 
-  debugLog("[reservations][room-occupancy-snapshot] occupancy-map", {
-    restaurantId,
-    layoutId,
-    date,
-    step,
-    span,
-    alreadyBookedMax,
-    occupancy: Array.from(map.entries()).slice(0, 48),
-  });
-
-  return { map, alreadyBookedMax };
+  return { map, alreadyBookedMax, unassignedReservations: state.unassignedReservations };
 }
 
 export async function computeOccupancy(restaurant: Restaurant, date: string) {
@@ -988,65 +1073,28 @@ export async function checkAvailability(restaurantId: string, date: string, time
     ? roomCapacities.reduce((sum: number, c: number) => sum + c, 0)
     : r.capacity;
 
-  debugLog("[reservations][checkAvailability] start", {
-    restaurantId,
-    date,
-    time,
-    people,
-    seats,
-    restaurantCapacity: r.capacity,
-    totalCapacity,
-    slotIntervalMinutes: r.slotIntervalMinutes,
-    serviceDurationMinutes: r.serviceDurationMinutes,
-    layoutSummaries: layouts.map((layout: any) => ({
-      id: layout?.id,
-      label: layout?.floorLabel || layout?.name,
-      derivedCapacity: deriveLayoutCapacity(layout),
-      rawCapacity: layout?.capacity,
-      tableCount: Array.isArray(layout?.tables) ? layout.tables.length : 0,
-    })),
-  });
-
-  if (seats > totalCapacity) {
-    debugLog("[reservations][checkAvailability] blocked-total-capacity", { restaurantId, date, time, seats, totalCapacity });
-    return { ok: false as const, reason: "full" as const };
-  }
+  if (seats > totalCapacity) return { ok: false as const, reason: "full" as const };
 
   const startRaw = toMinutes(time);
-  if (!Number.isFinite(startRaw)) {
-    debugLog("[reservations][checkAvailability] bad-time", { restaurantId, date, time });
-    return { ok: false as const, reason: "bad_time" as const };
-  }
+  if (!Number.isFinite(startRaw)) return { ok: false as const, reason: "bad_time" as const };
 
   const step = r.slotIntervalMinutes;
   const span = r.serviceDurationMinutes;
   const start = snapToGrid(startRaw, step);
   const end = start + span;
 
-  if (end > 24 * 60) {
-    debugLog("[reservations][checkAvailability] out-of-day", { restaurantId, date, time, start, end });
-    return { ok: false as const, reason: "out_of_day" as const };
-  }
+  if (end > 24 * 60) return { ok: false as const, reason: "out_of_day" as const };
 
   // ✅ לפי התאריך שהלקוח בחר
   if (!isWithinOpening(r, date, start, span)) {
-    debugLog("[reservations][checkAvailability] closed", { restaurantId, date, time, start, span });
     return { ok: false as const, reason: "closed" as const };
   }
 
   const occ = await computeOccupancy(r, date);
-  const slotDebug: Array<{ slot: string; used: number; requestedSeats: number; totalCapacity: number; wouldExceed: boolean }> = [];
   for (let t = start; t < end; t += step) {
-    const slot = fromMinutes(t);
-    const used = occ.get(slot) ?? 0;
-    const wouldExceed = used + seats > totalCapacity;
-    slotDebug.push({ slot, used, requestedSeats: seats, totalCapacity, wouldExceed });
-    if (wouldExceed) {
-      debugLog("[reservations][checkAvailability] blocked-slot", { restaurantId, date, time, slotDebug });
-      return { ok: false, reason: "full" as const };
-    }
+    const used = occ.get(fromMinutes(t)) ?? 0;
+    if (used + seats > totalCapacity) return false as any || { ok: false, reason: "full" as const };
   }
-  debugLog("[reservations][checkAvailability] ok", { restaurantId, date, time, slotDebug });
   return { ok: true as const };
 }
 
@@ -1069,83 +1117,54 @@ export async function checkRoomCapacity(
   const { getFloorLayout } = await import("./services/floor_service.ts");
   const layout = await getFloorLayout(restaurantId, layoutId);
   if (!layout) {
-    debugLog("[reservations][checkRoomCapacity] layout-not-found", { restaurantId, layoutId, date, time, people });
     // Layout not found – treat as invalid room selection and block the booking
     return { ok: false, reason: "room_full", roomLabel: "", capacity: 0, alreadyBooked: 0, remaining: 0 };
   }
   const roomLabel = layout.floorLabel || layout.name;
   const cap = deriveLayoutCapacity(layout);
-  debugLog("[reservations][checkRoomCapacity] layout", {
-    restaurantId,
-    layoutId,
-    date,
-    time,
-    people,
-    derivedCapacity: cap,
-    layout: summarizeLayoutForDebug(layout),
-  });
   if (!cap || cap <= 0 || !Number.isFinite(cap)) {
-    debugLog("[reservations][checkRoomCapacity] missing-capacity", {
-      restaurantId,
-      layoutId,
-      date,
-      time,
-      people,
-      layout: summarizeLayoutForDebug(layout),
-    });
-    return { ok: true, roomLabel, capacity: 0, alreadyBooked: 0, remaining: Number.POSITIVE_INFINITY };
+    return { ok: false, reason: "room_full", roomLabel, capacity: 0, alreadyBooked: 0, remaining: 0 };
   }
 
   const ppl = Math.max(1, Number(people) || 1);
 
   const r0 = await getRestaurant(restaurantId);
-  if (!r0) return { ok: true, roomLabel, capacity: cap, alreadyBooked: 0, remaining: cap };
+  if (!r0) return { ok: false, reason: "room_full", roomLabel, capacity: cap, alreadyBooked: 0, remaining: 0 };
   const r = coerceRestaurantDefaults(r0);
 
   const step = r.slotIntervalMinutes;
   const span = r.serviceDurationMinutes;
 
   const startRaw = toMinutes(time);
-  if (!Number.isFinite(startRaw)) {
-    debugLog("[reservations][checkRoomCapacity] bad-time", { restaurantId, layoutId, date, time, people });
-    return { ok: true, roomLabel, capacity: cap, alreadyBooked: 0, remaining: cap };
-  }
+  if (!Number.isFinite(startRaw)) return { ok: false, reason: "room_full", roomLabel, capacity: cap, alreadyBooked: 0, remaining: 0 };
   const start = snapToGrid(startRaw, step);
   const end = start + span;
 
   const { map } = await getRoomOccupancySnapshot(restaurantId, layoutId, date, step, span);
 
   let usedAtRequestedTime = 0;
-  const slotDebug: Array<{ slot: string; used: number; requestedPeople: number; capacity: number; wouldExceed: boolean }> = [];
   for (let t = start; t < end; t += step) {
-    const slot = fromMinutes(t);
-    const used = map.get(slot) ?? 0;
+    const used = map.get(fromMinutes(t)) ?? 0;
     if (used > usedAtRequestedTime) usedAtRequestedTime = used;
-    const wouldExceed = used + ppl > cap;
-    slotDebug.push({ slot, used, requestedPeople: ppl, capacity: cap, wouldExceed });
-    if (wouldExceed) {
-      const result = {
-        ok: false as const,
-        reason: "room_full" as const,
+    if (used + ppl > cap) {
+      return {
+        ok: false,
+        reason: "room_full",
         roomLabel,
         capacity: cap,
         alreadyBooked: usedAtRequestedTime,
         remaining: Math.max(0, cap - usedAtRequestedTime),
       };
-      debugLog("[reservations][checkRoomCapacity] blocked", { restaurantId, layoutId, date, time, people, result, slotDebug });
-      return result;
     }
   }
 
-  const result = {
-    ok: true as const,
+  return {
+    ok: true,
     roomLabel,
     capacity: cap,
     alreadyBooked: usedAtRequestedTime,
     remaining: Math.max(0, cap - usedAtRequestedTime),
   };
-  debugLog("[reservations][checkRoomCapacity] ok", { restaurantId, layoutId, date, time, people, result, slotDebug });
-  return result;
 }
 
 /** סלוטים זמינים סביב שעה נתונה (±windowMinutes), מיושרים לגריד, בטווח היום בלבד. */
