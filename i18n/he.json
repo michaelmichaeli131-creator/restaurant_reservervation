@@ -891,7 +891,11 @@
     "room_full_msg": "החלל \"{room}\" מלא במועד שבחרת. נסה/י חלל אחר או שעה אחרת.",
     "select_room": "בחר/י חדר",
     "select_room_placeholder": "— בחר/י חדר —",
-    "select_room_required": "נא לבחור חדר"
+    "select_room_required": "נא לבחור חדר",
+    "remaining_seats": "נשארו {remaining} מקומות",
+    "room_slot_full": "בחדר \"{room}\" נשארו רק {remaining} מקומות בשעה שבחרת.",
+    "room_over_cap": "לא ניתן להושיב {people} אורחים בחדר \"{room}\".",
+    "try_rooms": "חדרים שעשויים להתאים: {rooms}"
   },
   "restaurant": {
     "check": {
@@ -900,7 +904,8 @@
       "error": "שגיאה בבדיקה. נסה שוב.",
       "missing_fields": "נא לבחור תאריך ושעה",
       "suggestions": "הצעות:",
-      "unavailable": "אין זמינות בזמן המבוקש."
+      "unavailable": "אין זמינות בזמן המבוקש.",
+      "remaining_available": "יש זמינות — נשארו {remaining} מקומות."
     },
     "form": {
       "date": "תאריך",

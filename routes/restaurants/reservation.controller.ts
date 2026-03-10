@@ -106,11 +106,19 @@ export async function checkApi(ctx: any) {
 
   const around = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
 
+  let selectedRoom: Awaited<ReturnType<typeof checkRoomCapacity>> | null = null;
   if (preferredLayoutId) {
     const roomCheck = await checkRoomCapacity(rid, preferredLayoutId, date, time, people);
+    selectedRoom = roomCheck;
     if (!roomCheck.ok) {
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
-      ctx.response.body = JSON.stringify({ ok: false, reason: "room_full", roomLabel: roomCheck.roomLabel, suggestions: around.slice(0,4) }, null, 2);
+      ctx.response.body = JSON.stringify({
+        ok: false,
+        reason: "room_full",
+        roomLabel: roomCheck.roomLabel,
+        remaining: Math.max(0, Number(roomCheck.remaining) || 0),
+        suggestions: around.slice(0,4),
+      }, null, 2);
       return;
     }
   }
@@ -119,7 +127,12 @@ export async function checkApi(ctx: any) {
 
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   if (asOk(result)) {
-    ctx.response.body = JSON.stringify({ ok: true, availableSlots: around.slice(0,4) }, null, 2);
+    ctx.response.body = JSON.stringify({
+      ok: true,
+      availableSlots: around.slice(0,4),
+      remaining: selectedRoom ? Math.max(0, Number(selectedRoom.remaining) || 0) : undefined,
+      roomLabel: selectedRoom?.roomLabel,
+    }, null, 2);
   } else {
     const reason = (result as any)?.reason ?? "unavailable";
     ctx.response.body = JSON.stringify({ ok: false, reason, suggestions: around.slice(0,4) }, null, 2);

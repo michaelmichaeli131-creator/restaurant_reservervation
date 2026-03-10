@@ -290,8 +290,8 @@
     // Update badge with live remaining count
     if (badge && occ.capacity > 0) {
       const remaining = occ.remaining;
-      badge.textContent = `<%= tt('reservation.remaining_seats','{remaining} מ-{capacity} מקומות פנויים') %>`
-        .replace("{remaining}", remaining).replace("{capacity}", occ.capacity);
+      badge.textContent = `<%= tt('reservation.remaining_seats','נשארו {remaining} מקומות') %>`
+        .replace("{remaining}", remaining);
       badge.style.color = remaining < people ? "#f87171" : "#a3e635";
     } else if (badge && badge.dataset.origText) {
       badge.textContent = badge.dataset.origText;
@@ -488,12 +488,11 @@
     let msg;
     if (remaining !== undefined && alreadyBooked !== undefined && alreadyBooked > 0) {
       // Time-slot based: show how many are already booked vs remaining
-      msg = `<%= tt('reservation.room_slot_full','החדר "{room}" מכיל עד {cap} אורחים. הוזמנו כבר {booked}, נותרו {remaining} מקומות פנויים בלבד.') %>`
-        .replace("{room}", roomLabel).replace("{cap}", cap)
-        .replace("{booked}", alreadyBooked).replace("{remaining}", remaining);
+      msg = `<%= tt('reservation.room_slot_full','בחדר "{room}" נשארו רק {remaining} מקומות בשעה שבחרת.') %>`
+        .replace("{room}", roomLabel).replace("{remaining}", remaining);
     } else {
-      msg = `<%= tt('reservation.room_over_cap','החדר "{room}" מכיל עד {cap} אורחים. לא ניתן להזמין {people} אורחים בחדר זה.') %>`
-        .replace("{room}", roomLabel).replace("{cap}", cap).replace("{people}", people);
+      msg = `<%= tt('reservation.room_over_cap','לא ניתן להושיב {people} אורחים בחדר "{room}".') %>`
+        .replace("{room}", roomLabel).replace("{people}", people);
     }
     if (alts.length > 0) {
       msg += " " + `<%= tt('reservation.try_rooms','חדרים שיכולים להכיל: {rooms}') %>`.replace("{rooms}", alts.join(", "));
@@ -572,7 +571,15 @@
       const data = await resp.json().catch(()=>null);
       if (resp.ok && data && data.ok) {
         renderAround([]);
-        showToast("<%= tt('restaurant.check.available','יש זמינות! אפשר לבצע הזמנה.') %>", "success");
+        const remaining = Number(data?.remaining);
+        if (Number.isFinite(remaining)) {
+          showToast(
+            "<%= tt('restaurant.check.remaining_available','יש זמינות — נשארו {remaining} מקומות.') %>".replace("{remaining}", String(Math.max(0, remaining))),
+            "success",
+          );
+        } else {
+          showToast("<%= tt('restaurant.check.available','יש זמינות! אפשר לבצע הזמנה.') %>", "success");
+        }
       } else if (data && data.reason === "room_full") {
         const roomLabel = data.roomLabel || "";
         showToast("<%= tt('reservation.room_full_msg','החלל "{room}" מלא במועד שבחרת. נסה/י חלל אחר או שעה אחרת.') %>".replace("{room}", roomLabel), "warn");

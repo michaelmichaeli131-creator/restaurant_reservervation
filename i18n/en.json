@@ -890,7 +890,11 @@
     "room_full_msg": "The room \"{room}\" is full at the selected time. Try another room or a different time.",
     "select_room": "Select a room",
     "select_room_placeholder": "— Select a room —",
-    "select_room_required": "Please select a room"
+    "select_room_required": "Please select a room",
+    "remaining_seats": "{remaining} spots left",
+    "room_slot_full": "Only {remaining} spots left in \"{room}\" at your selected time.",
+    "room_over_cap": "It is not possible to seat {people} guests in \"{room}\".",
+    "try_rooms": "Rooms that may fit: {rooms}"
   },
   "restaurant": {
     "check": {
@@ -899,7 +903,8 @@
       "error": "Error checking. Try again.",
       "missing_fields": "Please select date and time",
       "suggestions": "Suggestions:",
-      "unavailable": "No availability at requested time."
+      "unavailable": "No availability at requested time.",
+      "remaining_available": "Available — {remaining} spots left."
     },
     "form": {
       "date": "Date",
