@@ -22,18 +22,44 @@ function json(ctx: any, body: unknown, status = Status.OK) {
 }
 
 async function readBody(ctx: any) {
-  try {
-    const b = ctx.request.body({ type: "json" });
-    return await b.value;
-  } catch {
+  const ct = String(ctx.request.headers.get("content-type") || "").toLowerCase();
+
+  if (ct.includes("application/json")) {
+    try {
+      const b = ctx.request.body({ type: "json" });
+      const value = await b.value;
+      if (value && typeof value === "object") return value;
+    } catch {
+      // fall through to text/form parsing
+    }
+  }
+
+  if (ct.includes("application/x-www-form-urlencoded") || ct.includes("multipart/form-data")) {
     try {
       const b = ctx.request.body({ type: "form" });
       const form = await b.value;
       return Object.fromEntries(form.entries());
     } catch {
-      return {};
+      // fall through
     }
   }
+
+  try {
+    const b = ctx.request.body({ type: "text" });
+    const raw = String(await b.value || "").trim();
+    if (!raw) return {};
+    if (raw.startsWith("{")) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") return parsed;
+    }
+    const params = new URLSearchParams(raw);
+    const entries = Object.fromEntries(params.entries());
+    if (Object.keys(entries).length) return entries;
+  } catch {
+    // ignore
+  }
+
+  return {};
 }
 
 async function ensureAccess(ctx: any, rid: string) {

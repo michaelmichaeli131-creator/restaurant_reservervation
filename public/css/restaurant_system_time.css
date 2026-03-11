@@ -50,3 +50,8 @@
   .sb-time-page__grid{ grid-template-columns:1fr; }
   .sb-system-time-link{ width:100%; }
 }
+
+
+.sb-system-time-link{ text-decoration:none; color:inherit; cursor:default; }
+.sb-system-time-link__hint{ display:none; }
+.host-time-card{ text-decoration:none; color:inherit; cursor:default; }

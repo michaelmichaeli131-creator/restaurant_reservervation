@@ -82,4 +82,4 @@
   </div>
 </main>
 
-<script src="/public/js/restaurant_system_time.js?v=<%= it.BUILD_TAG || '' %>"></script>
+<script src="/public/js/restaurant_system_time.js?v=<%= it.BUILD_TAG || Date.now() %>"></script>

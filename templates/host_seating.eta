@@ -39,11 +39,10 @@
       <h1><%= tt('host.title', 'Host Screen') %> — <%= restaurant.name %></h1>
       <p class="muted"><%= restaurant.city %> • <%= restaurant.address %></p>
     </div>
-    <a class="host-time-card" id="host-time-card" href="/restaurants/<%= restaurant.id %>/system-time">
+    <div class="host-time-card" id="host-time-card">
       <div class="host-time-card__eyebrow"><%= tt('host.system_time.title', 'Restaurant Time') %></div>
-      <div class="host-time-card__clock" id="host-system-time-preview"><%= it.systemNowDate || '' %> • <%= it.systemNowTime || '' %></div>
-      <div class="muted small" id="host-system-time-status"><%= tt('host.system_time.page_hint', 'Open the dedicated page to update the restaurant clock for all systems.') %></div>
-    </a>
+      <div class="host-time-card__clock" id="host-system-time-preview"><%= it.systemNowTime || '' %></div>
+    </div>
   </header>
 
   <section class="host-grid">
@@ -258,7 +257,7 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data.error || ("HTTP " + res.status));
-      if (systemPreview) systemPreview.textContent = `${data.date || ""} • ${data.time || ""}`;
+      if (systemPreview) systemPreview.textContent = `${data.time || ""}`;
       if (systemStatus) systemStatus.textContent = mode === "reset"
         ? "<%= tt('host.system_time.reset_done', 'Returned to real time. Refreshing the host view…') %>"
         : "<%= tt('host.system_time.saved', 'Restaurant time saved. Refreshing the host view…') %>";

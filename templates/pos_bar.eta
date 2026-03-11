@@ -27,13 +27,12 @@
 
     <div class="kds-controls" aria-label="Bar controls">
       <div id="kds-live" class="kds-pill" data-live="0"><span class="dot" aria-hidden="true"></span><%= tt('pos.kds.offline', 'Offline') %></div>
-      <a class="sb-system-time-link" href="/restaurants/<%= rid %>/system-time">
+      <div class="sb-system-time-link">
         <div class="sb-system-time-link__meta">
           <div class="sb-system-time-link__title"><%= tt('host.system_time.title', 'Restaurant Time') %></div>
-          <div class="sb-system-time-link__clock"><%= it.systemNowDate || '' %> • <%= it.systemNowTime || '' %></div>
-          <div class="sb-system-time-link__hint"><%= tt('host.system_time.page_hint', 'Open the dedicated page to update the restaurant clock for all systems.') %></div>
+          <div class="sb-system-time-link__clock"><%= it.systemNowTime || '' %></div>
         </div>
-      </a>
+      </div>
 
       <button id="kds-compact" class="kds-btn" type="button" aria-pressed="false"><%= tt('pos.kds.compact', 'Compact') %></button>
       <button id="kds-group" class="kds-btn" type="button" aria-pressed="true"><%= tt('pos.kds.ungroup', 'Ungroup') %></button>

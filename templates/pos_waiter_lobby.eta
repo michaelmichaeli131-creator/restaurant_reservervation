@@ -26,13 +26,12 @@
       <p class="muted"><%= restaurant.city %> • <%= restaurant.address %></p>
     </div>
     <div class="header-actions">
-      <a class="sb-system-time-link" href="/restaurants/<%= rid %>/system-time">
+      <div class="sb-system-time-link">
         <div class="sb-system-time-link__meta">
           <div class="sb-system-time-link__title"><%= tt('host.system_time.title', 'Restaurant Time') %></div>
-          <div class="sb-system-time-link__clock"><%= it.systemNowDate || '' %> • <%= it.systemNowTime || '' %></div>
-          <div class="sb-system-time-link__hint"><%= tt('host.system_time.page_hint', 'Open the dedicated page to update the restaurant clock for all systems.') %></div>
+          <div class="sb-system-time-link__clock"><%= it.systemNowTime || '' %></div>
         </div>
-      </a>
+      </div>
       <button id="waiter-panel-toggle" class="sb-waiter-panel-toggle" type="button" aria-label="<%= tt('pos.waiter.open_panel', 'Open panel') %>">
         <span class="sb-dot" aria-hidden="true"></span>
         <span><%= tt('pos.waiter.panel', 'Panel') %></span>

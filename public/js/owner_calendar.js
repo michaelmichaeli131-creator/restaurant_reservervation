@@ -329,7 +329,7 @@
       state.systemTime.time = state.day.currentTime.time || state.systemTime.time;
       if (systemDateInput) systemDateInput.value = state.systemTime.date;
       if (systemTimeInput) systemTimeInput.value = state.systemTime.time;
-      if (systemPreview) systemPreview.textContent = `${state.systemTime.date} • ${state.systemTime.time}`;
+      if (systemPreview) systemPreview.textContent = `${state.systemTime.time}`;
     }
     renderHeaderLine();
     rowHeader();
@@ -568,7 +568,7 @@
     });
     state.systemTime.date = data.date || state.systemTime.date;
     state.systemTime.time = data.time || state.systemTime.time;
-    if (systemPreview) systemPreview.textContent = `${state.systemTime.date} • ${state.systemTime.time}`;
+    if (systemPreview) systemPreview.textContent = `${state.systemTime.time}`;
     if (systemStatus) systemStatus.textContent = mode === "reset" ? (init?.txt?.usingRealTime || "Using real time now.") : (init?.txt?.syncedAll || "Restaurant time updated for all connected systems.");
     if (!datePicker || !datePicker.value || state.date === (init.date || todayISO())) {
       state.date = state.systemTime.date;

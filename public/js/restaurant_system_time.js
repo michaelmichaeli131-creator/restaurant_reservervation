@@ -58,14 +58,23 @@
       updatePreview();
     }
 
+    function toFormBody(obj){
+      const params = new URLSearchParams();
+      Object.entries(obj || {}).forEach(function([key, value]){
+        if (value == null) return;
+        params.set(key, String(value));
+      });
+      return params;
+    }
+
     async function persistTimezoneSilently(){
       try {
         const timezone = (tzInput && tzInput.value) || detectBrowserTimeZone() || '';
         if (!timezone) return;
         await fetch(`/api/restaurants/${encodeURIComponent(rid)}/system-time`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-          body: JSON.stringify({ mode: 'timezone', timezone }),
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', 'Accept': 'application/json' },
+          body: toFormBody({ mode: 'timezone', timezone }),
         });
       } catch (err) {
         console.warn('[restaurant-system-time] timezone persist skipped', err);
@@ -85,8 +94,8 @@
         }
         const res = await fetch(`/api/restaurants/${encodeURIComponent(rid)}/system-time`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-          body: JSON.stringify(body),
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', 'Accept': 'application/json' },
+          body: toFormBody(body),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);

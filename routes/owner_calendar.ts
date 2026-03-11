@@ -395,6 +395,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
     rid,
     date: selected,
     restaurant: { id: r.id, name: (r as any).name ?? "Restaurant" },
+    r: { id: r.id, name: (r as any).name ?? "Restaurant" },
     systemNowIso: systemNowParts.iso,
     systemNowDate: systemNowParts.date,
     systemNowTime: systemNowParts.time,

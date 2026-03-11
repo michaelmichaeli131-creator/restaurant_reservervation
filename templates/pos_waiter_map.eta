@@ -28,13 +28,12 @@
       <h1><%= it.restaurant?.name || '' %> — <%= tt('pos.waiter.floor_map_title', 'Restaurant Map (Live)') %></h1>
       <p><%= tt('owner.calendar.system_time.hint', 'The selected restaurant time syncs the calendar, host, and other connected views.') %></p>
     </div>
-    <a class="sb-system-time-link" href="/restaurants/<%= it.rid %>/system-time">
+    <div class="sb-system-time-link">
       <div class="sb-system-time-link__meta">
         <div class="sb-system-time-link__title"><%= tt('host.system_time.title', 'Restaurant Time') %></div>
-        <div class="sb-system-time-link__clock"><%= it.systemNowDate || '' %> • <%= it.systemNowTime || '' %></div>
-        <div class="sb-system-time-link__hint"><%= tt('host.system_time.page_hint', 'Open the dedicated page to update the restaurant clock for all systems.') %></div>
+        <div class="sb-system-time-link__clock"><%= it.systemNowTime || '' %></div>
       </div>
-    </a>
+    </div>
   </div>
   <div class="floor-container">
     <div id="sb-floor-root" data-rid="<%= it.rid %>" data-right-panel="outside"></div>

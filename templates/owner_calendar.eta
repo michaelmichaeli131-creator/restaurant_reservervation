@@ -355,11 +355,10 @@
           <div class="bar"><div id="day-summary-bar"></div></div>
         </div>
 
-        <a class="oc-timebox" id="oc-timebox" href="/restaurants/<%= (it.restaurant && it.restaurant.id) ? it.restaurant.id : it.rid %>/system-time">
+        <div class="oc-timebox" id="oc-timebox">
           <div class="oc-timebox__label"><%= tt('owner.calendar.system_time.title','Restaurant Time') %></div>
-          <div class="oc-timebox__current" id="oc-system-time-preview"><%= it.systemNowDate || it.date %> • <%= it.systemNowTime || '12:00' %></div>
-          <div class="muted" id="oc-system-time-status" style="margin-top:8px"><%= tt('host.system_time.page_hint','Open the dedicated page to update the restaurant clock for all systems.') %></div>
-        </a>
+          <div class="oc-timebox__current" id="oc-system-time-preview"><%= it.systemNowTime || '12:00' %></div>
+        </div>
 
         <div class="oc-room-graph" id="oc-room-graph">
           <div class="oc-room-graph__title">
