@@ -1,5 +1,7 @@
 {
-  "nav": { "language": "בחר שפה" },
+  "nav": {
+    "language": "בחר שפה"
+  },
   "owner": {
     "calendar": {
       "head": "יומן בעלים · SpotBook",
@@ -10,7 +12,10 @@
       "pick_date": "בחר תאריך",
       "search_day_aria": "חיפוש ביום הנוכחי",
       "search_placeholder": "חפש שם",
-      "sidebar": { "calendar": "לוח שנה", "daily_summary": "סיכום יומי" },
+      "sidebar": {
+        "calendar": "לוח שנה",
+        "daily_summary": "סיכום יומי"
+      },
       "loading": "טוען…",
       "cap_line": "קיבולת: סועדים — • שולחנות — • צעד: —",
       "th": {
@@ -24,14 +29,50 @@
         "title": "לקוחות",
         "close": "סגור",
         "search_placeholder": "חפש שם בסלוט זה",
-        "add_customer": "הוסף לקוח"
+        "add_customer": "הוסף לקוח",
+        "customers_at": "לקוחות"
       },
       "tbl": {
         "first_name": "שם פרטי",
         "last_name": "שם משפחה",
         "party_size": "גודל קבוצה",
         "status": "סטטוס",
-        "phone": "טלפון"
+        "phone": "טלפון",
+        "room": "חדר"
+      },
+      "capacity_people": "סועדים",
+      "capacity_tables": "שולחנות",
+      "capacity_step": "צעד",
+      "minutes_short": "דק׳",
+      "people": "סועדים",
+      "tables": "שולחנות",
+      "summary": {
+        "total_reservations": "סה״כ הזמנות",
+        "total_guests": "סה״כ סועדים",
+        "avg_occupancy": "תפוסה ממוצעת",
+        "peak": "שיא",
+        "cancelled": "בוטלו",
+        "no_show": "לא הגיעו"
+      },
+      "actions": {
+        "arrived": "הגיע",
+        "cancel": "ביטול",
+        "confirm_deposit": "אשר פיקדון",
+        "refund_deposit": "החזר"
+      },
+      "status": {
+        "new": "חדש",
+        "pending": "ממתין",
+        "booked": "שמורה",
+        "approved": "מאושרת",
+        "confirmed": "אושרה",
+        "arrived": "הגיע",
+        "cancelled": "בוטלה"
+      },
+      "deposit": {
+        "pending": "פיקדון ממתין",
+        "received": "פיקדון שולם",
+        "refunded": "הוחזר"
       }
     }
   }
