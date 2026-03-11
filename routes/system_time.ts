@@ -24,29 +24,60 @@ function json(ctx: any, body: unknown, status = Status.OK) {
 async function readBody(ctx: any) {
   const ct = String(ctx.request.headers.get("content-type") || "").toLowerCase();
 
+  const rawReq = (ctx.request as any)?.originalRequest?.request ??
+    (ctx.request as any)?.originalRequest ??
+    null;
+
+  try {
+    if (rawReq && typeof rawReq.clone === "function") {
+      const raw = String(await rawReq.clone().text().catch(() => "") || "").trim();
+      if (raw) {
+        if (raw.startsWith("{") || ct.includes("application/json")) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === "object") return parsed;
+          } catch {
+            // continue to URLSearchParams parsing below
+          }
+        }
+        const params = new URLSearchParams(raw);
+        const entries = Object.fromEntries(params.entries());
+        if (Object.keys(entries).length) return entries;
+      }
+    }
+  } catch {
+    // ignore
+  }
+
   if (ct.includes("application/json")) {
     try {
-      const b = ctx.request.body({ type: "json" });
-      const value = await b.value;
+      const b = typeof ctx.request.body === "function" ? ctx.request.body({ type: "json" }) : undefined;
+      const value = b ? await b.value : null;
       if (value && typeof value === "object") return value;
     } catch {
-      // fall through to text/form parsing
+      // fall through to other parsing modes
+    }
+    try {
+      const value = await ((ctx.request as any)?.body?.json?.());
+      if (value && typeof value === "object") return value;
+    } catch {
+      // ignore
     }
   }
 
   if (ct.includes("application/x-www-form-urlencoded") || ct.includes("multipart/form-data")) {
     try {
-      const b = ctx.request.body({ type: "form" });
-      const form = await b.value;
-      return Object.fromEntries(form.entries());
+      const b = typeof ctx.request.body === "function" ? ctx.request.body({ type: "form" }) : undefined;
+      const form = b ? await b.value : null;
+      if (form && typeof form.entries === "function") return Object.fromEntries(form.entries());
     } catch {
       // fall through
     }
   }
 
   try {
-    const b = ctx.request.body({ type: "text" });
-    const raw = String(await b.value || "").trim();
+    const b = typeof ctx.request.body === "function" ? ctx.request.body({ type: "text" }) : undefined;
+    const raw = String(b ? await b.value : "" || "").trim();
     if (!raw) return {};
     if (raw.startsWith("{")) {
       const parsed = JSON.parse(raw);

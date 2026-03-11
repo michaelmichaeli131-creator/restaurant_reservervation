@@ -40,7 +40,6 @@
       <p class="muted"><%= restaurant.city %> • <%= restaurant.address %></p>
     </div>
     <div class="host-time-card" id="host-time-card">
-      <div class="host-time-card__eyebrow"><%= tt('host.system_time.title', 'Restaurant Time') %></div>
       <div class="host-time-card__clock" id="host-system-time-preview"><%= it.systemNowTime || '' %></div>
     </div>
   </header>

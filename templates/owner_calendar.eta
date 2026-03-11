@@ -356,7 +356,6 @@
         </div>
 
         <div class="oc-timebox" id="oc-timebox">
-          <div class="oc-timebox__label"><%= tt('owner.calendar.system_time.title','Restaurant Time') %></div>
           <div class="oc-timebox__current" id="oc-system-time-preview"><%= it.systemNowTime || '12:00' %></div>
         </div>
 
