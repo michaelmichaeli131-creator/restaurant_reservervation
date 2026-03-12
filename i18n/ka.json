@@ -495,7 +495,18 @@
       "manual_mode": "ხელით დაყენებული დრო",
       "realtime_mode": "რეალური დროის საათი",
       "detected_timezone": "დროის სარტყელი"
-    }
+    },
+    "search_placeholder": "ძებნა სტუმრის სახელით…",
+    "search_label": "ჯავშნების ძებნა სტუმრის სახელით",
+    "sort_label": "დალაგება",
+    "sort_new_first": "ჯერ ახალი",
+    "sort_time": "დრო",
+    "sort_name": "სტუმრის სახელი",
+    "sort_room": "ოთახი",
+    "sort_party": "ჯგუფის ზომა",
+    "summary_suffix": "ჯავშანი",
+    "summary_suffix_single": "ჯავშანი",
+    "badge_new": "ახალი"
   },
   "restaurant": {
     "form": {

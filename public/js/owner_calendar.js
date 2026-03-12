@@ -126,14 +126,14 @@
     const weekday = d.toLocaleDateString("en-US", { weekday: "short" });
     const long = d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
     if (dateLabel) dateLabel.textContent = `${weekday}, ${long}`;
-    if (capLine) capLine.textContent = `Capacity: People ${state.day.capacityPeople} • Tables ${state.day.capacityTables} • Step: ${state.day.slotMinutes}m`;
+    if (capLine) capLine.textContent = `${init?.txt?.capacityPeople || "People"} ${state.day.capacityPeople} • ${init?.txt?.capacityTables || "Tables"} ${state.day.capacityTables} • ${init?.txt?.capacityStep || "Step"}: ${state.day.slotMinutes}${init?.txt?.minutesShort || "m"}`;
   }
 
   function rowHeader() {
     if (!slotsRoot || $(".oc-th", slotsRoot)) return;
     const th = document.createElement("div");
     th.className = "oc-row oc-th";
-    th.innerHTML = `<div>Time</div><div>Occupancy</div><div class="oc-info">People • Tables • %</div>`;
+    th.innerHTML = `<div>${escapeHTML(init?.txt?.time || "Time")}</div><div>${escapeHTML(init?.txt?.occupancy || "Occupancy")}</div><div class="oc-info">${escapeHTML(init?.txt?.peopleTablesPct || "People • Tables • %")}</div>`;
     slotsRoot.appendChild(th);
   }
 
@@ -169,9 +169,9 @@
 
       const c3 = document.createElement("div");
       c3.className = "oc-info";
-      c3.textContent = `People ${fmt(s.people)} · Tables ${fmt(s.tables)} · ${s.percent}%`;
+      c3.textContent = `${init?.txt?.people || "People"} ${fmt(s.people)} · ${init?.txt?.tables || "Tables"} ${fmt(s.tables)} · ${s.percent}%`;
 
-      row.title = `People: ${s.people}/${state.day.capacityPeople} • Tables: ${s.tables}/${state.day.capacityTables} • ${s.percent}%`;
+      row.title = `${init?.txt?.people || "People"}: ${s.people}/${state.day.capacityPeople} • ${init?.txt?.tables || "Tables"}: ${s.tables}/${state.day.capacityTables} • ${s.percent}%`;
       row.appendChild(c1); row.appendChild(c2); row.appendChild(c3);
 
       row.addEventListener("click", () => openDrawer(s.time));
@@ -185,9 +185,9 @@
     const s = state.summary;
     if (!s) { summaryRoot.textContent = "Daily Summary — loading…"; return; }
     summaryRoot.innerHTML = `
-      <div><b>Total Reservations:</b> ${fmt(s.totalReservations)} · <b>Total Guests:</b> ${fmt(s.totalGuests)}</div>
-      <div><b>Avg Occupancy:</b> People ${fmt(s.avgOccupancyPeople)}% · Tables ${fmt(s.avgOccupancyTables)}%</div>
-      <div><b>Peak:</b> ${s.peakSlot || "-"} (${fmt(s.peakOccupancy)}%) · <b>Cancelled:</b> ${fmt(s.cancelled)} · <b>No-Show:</b> ${fmt(s.noShow)}</div>
+      <div><b>${escapeHTML(init?.txt?.totalReservations || "Total Reservations")}:</b> ${fmt(s.totalReservations)} · <b>${escapeHTML(init?.txt?.totalGuests || "Total Guests")}:</b> ${fmt(s.totalGuests)}</div>
+      <div><b>${escapeHTML(init?.txt?.avgOccupancy || "Avg Occupancy")}:</b> ${escapeHTML(init?.txt?.people || "People")} ${fmt(s.avgOccupancyPeople)}% · ${escapeHTML(init?.txt?.tables || "Tables")} ${fmt(s.avgOccupancyTables)}%</div>
+      <div><b>${escapeHTML(init?.txt?.peak || "Peak")}:</b> ${s.peakSlot || "-"} (${fmt(s.peakOccupancy)}%) · <b>${escapeHTML(init?.txt?.cancelled || "Cancelled")}:</b> ${fmt(s.cancelled)} · <b>${escapeHTML(init?.txt?.noShow || "No-Show")}:</b> ${fmt(s.noShow)}</div>
     `;
     updateSidebarSummary(s);
   }
@@ -231,8 +231,8 @@
         <td>${badge(it.status || "")}${depositBadge(it.depositStatus, it.depositAmount, it.depositCurrency)}</td>
         <td><a href="tel:${(it.phone || "").replace(/\s+/g, "")}">${escapeHTML(it.phone || "")}</a></td>
         <td>
-          <button class="btn" data-act="arrived" data-id="${it.id}">Arrived</button>
-          <button class="btn warn" data-act="cancel" data-id="${it.id}">Cancel</button>
+          <button class="btn" data-act="arrived" data-id="${it.id}">${escapeHTML(init?.txt?.btnArrived || "Arrived")}</button>
+          <button class="btn warn" data-act="cancel" data-id="${it.id}">${escapeHTML(init?.txt?.btnCancel || "Cancel")}</button>
           ${depositButtons}
         </td>
       `;
@@ -260,9 +260,9 @@
     const sym = symbols[depositCurrency] || "€";
     const amt = depositAmount ? (depositAmount / 100).toFixed(2) : "0.00";
     const labels = {
-      pending: "Deposit Pending",
-      received: "Deposit Paid",
-      refunded: "Refunded"
+      pending: init?.txt?.depositPending || "Deposit Pending",
+      received: init?.txt?.depositReceived || "Deposit Paid",
+      refunded: init?.txt?.depositRefunded || "Refunded"
     };
     const classes = {
       pending: "deposit-pending",
@@ -275,26 +275,26 @@
   function renderDepositButtons(it) {
     if (!it.depositStatus || it.depositStatus === "not_required") return "";
     if (it.depositStatus === "pending") {
-      return `<button class="btn ok" data-act="confirm_deposit" data-id="${it.id}">Confirm $</button>`;
+      return `<button class="btn ok" data-act="confirm_deposit" data-id="${it.id}">${escapeHTML(init?.txt?.btnConfirmDeposit || "Confirm deposit")}</button>`;
     }
     if (it.depositStatus === "received") {
-      return `<button class="btn muted" data-act="refund_deposit" data-id="${it.id}">Refund</button>`;
+      return `<button class="btn muted" data-act="refund_deposit" data-id="${it.id}">${escapeHTML(init?.txt?.btnRefundDeposit || "Refund")}</button>`;
     }
     return "";
   }
 
   function badge(status) {
     const s = String(status || "").toLowerCase();
-    if (s === "new")        return `<span class="badge booked">New</span>`;
+    if (s === "new")        return `<span class="badge booked">${escapeHTML(init?.txt?.statusNew || "New")}</span>`;
     if (s === "pending" || s === "request" || s === "requested" || s === "tentative")
-      return `<span class="badge booked">Pending</span>`;
+      return `<span class="badge booked">${escapeHTML(init?.txt?.statusPending || "Pending")}</span>`;
     if (s === "booked" || s === "hold" || s === "on-hold" || s === "invited")
-      return `<span class="badge booked">Booked</span>`;
-    if (s === "approved")   return `<span class="badge approved">Approved</span>`;
-    if (s === "confirmed")  return `<span class="badge approved">Confirmed</span>`;
-    if (s === "arrived")    return `<span class="badge arrived">Arrived</span>`;
+      return `<span class="badge booked">${escapeHTML(init?.txt?.statusBooked || "Booked")}</span>`;
+    if (s === "approved")   return `<span class="badge approved">${escapeHTML(init?.txt?.statusApproved || "Approved")}</span>`;
+    if (s === "confirmed")  return `<span class="badge approved">${escapeHTML(init?.txt?.statusConfirmed || "Confirmed")}</span>`;
+    if (s === "arrived")    return `<span class="badge arrived">${escapeHTML(init?.txt?.statusArrived || "Arrived")}</span>`;
     if (s === "cancelled" || s === "canceled" || s === "rejected" || s === "declined")
-      return `<span class="badge cancelled">Cancelled</span>`;
+      return `<span class="badge cancelled">${escapeHTML(init?.txt?.statusCancelled || "Cancelled")}</span>`;
     return `<span class="badge booked">${escapeHTML(status || "Booked")}</span>`;
   }
   function escapeHTML(s) {
@@ -303,7 +303,7 @@
 
   function openDrawer(hhmm) {
     state.drawer.time = hhmm;
-    if (drawerTitle) drawerTitle.textContent = `Customers ${toAMPM(hhmm)}`;
+    if (drawerTitle) drawerTitle.textContent = `${init?.txt?.customersAt || "Customers"} ${toAMPM(hhmm)}`;
     if (drawer) setOpen(drawer, true);
     state.drawer.open = true;
     loadSlot();
@@ -553,7 +553,7 @@
     const pct = Math.max(0, Math.min(100, Math.round(s.occupancyPct || 0)));
     const ppl = s.people ?? s.totalGuests ?? 0;
     const tbl = s.tables ?? 0;
-    sideSumText.textContent = `People ${fmt(ppl)} · Tables ${fmt(tbl)} · ${pct}%`;
+    sideSumText.textContent = `${init?.txt?.people || "People"} ${fmt(ppl)} · ${init?.txt?.tables || "Tables"} ${fmt(tbl)} · ${pct}%`;
     sideSumBar.style.width = `${pct}%`;
   }
 
