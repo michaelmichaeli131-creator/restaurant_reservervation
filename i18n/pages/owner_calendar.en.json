@@ -1,7 +1,5 @@
 {
-  "nav": {
-    "language": "Language"
-  },
+  "nav": { "language": "Language" },
   "owner": {
     "calendar": {
       "head": "Owner Calendar · SpotBook",
@@ -12,10 +10,7 @@
       "pick_date": "Pick a date",
       "search_day_aria": "Search in current day",
       "search_placeholder": "Search name",
-      "sidebar": {
-        "calendar": "Calendar",
-        "daily_summary": "Daily Summary"
-      },
+      "sidebar": { "calendar": "Calendar", "daily_summary": "Daily Summary" },
       "loading": "loading…",
       "cap_line": "Capacity: People — • Tables — • Step: —",
       "th": {
@@ -29,50 +24,14 @@
         "title": "Customers",
         "close": "Close",
         "search_placeholder": "Search name in this slot",
-        "add_customer": "Add customer",
-        "customers_at": "Customers"
+        "add_customer": "Add customer"
       },
       "tbl": {
         "first_name": "First Name",
         "last_name": "Last Name",
         "party_size": "Party size",
         "status": "Status",
-        "phone": "Phone",
-        "room": "Room"
-      },
-      "capacity_people": "People",
-      "capacity_tables": "Tables",
-      "capacity_step": "Step",
-      "minutes_short": "m",
-      "people": "People",
-      "tables": "Tables",
-      "summary": {
-        "total_reservations": "Total Reservations",
-        "total_guests": "Total Guests",
-        "avg_occupancy": "Avg Occupancy",
-        "peak": "Peak",
-        "cancelled": "Cancelled",
-        "no_show": "No-Show"
-      },
-      "actions": {
-        "arrived": "Arrived",
-        "cancel": "Cancel",
-        "confirm_deposit": "Confirm deposit",
-        "refund_deposit": "Refund"
-      },
-      "status": {
-        "new": "New",
-        "pending": "Pending",
-        "booked": "Booked",
-        "approved": "Approved",
-        "confirmed": "Confirmed",
-        "arrived": "Arrived",
-        "cancelled": "Cancelled"
-      },
-      "deposit": {
-        "pending": "Deposit Pending",
-        "received": "Deposit Paid",
-        "refunded": "Refunded"
+        "phone": "Phone"
       }
     }
   }

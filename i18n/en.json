@@ -379,18 +379,7 @@
       "manual_mode": "Manual time",
       "realtime_mode": "Real-time clock",
       "detected_timezone": "Time zone"
-    },
-    "search_placeholder": "Search by guest name…",
-    "search_label": "Search reservations by guest name",
-    "sort_label": "Sort by",
-    "sort_new_first": "New first",
-    "sort_time": "Time",
-    "sort_name": "Guest name",
-    "sort_room": "Room",
-    "sort_party": "Party size",
-    "summary_suffix": "reservations",
-    "summary_suffix_single": "reservation",
-    "badge_new": "New"
+    }
   },
   "lang": {
     "english": "English",
