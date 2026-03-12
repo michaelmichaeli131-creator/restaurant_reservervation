@@ -50,34 +50,14 @@
       <h2><%= tt('host.reservations_today', "Today's Reservations") %></h2>
 
       <% if (reservations.length) { %>
-        <div class="host-resv-toolbar">
-          <label class="host-search">
-            <span class="host-search__icon">🔎</span>
-            <input id="host-resv-search" type="search" placeholder="<%= tt('host.search_placeholder', 'Search by guest name…') %>" aria-label="<%= tt('host.search_label', 'Search reservations by guest name') %>">
-          </label>
-          <label class="host-sort">
-            <span class="host-sort__label"><%= tt('host.sort_label', 'Sort by') %></span>
-            <select id="host-resv-sort" aria-label="<%= tt('host.sort_label', 'Sort by') %>">
-              <option value="new_first"><%= tt('host.sort_new_first', 'New first') %></option>
-              <option value="time_asc"><%= tt('host.sort_time', 'Time') %></option>
-              <option value="name_asc"><%= tt('host.sort_name', 'Guest name') %></option>
-              <option value="room_asc"><%= tt('host.sort_room', 'Room') %></option>
-              <option value="party_desc"><%= tt('host.sort_party', 'Party size') %></option>
-            </select>
-          </label>
-        </div>
-        <div class="host-resv-summary" id="host-resv-summary"><%= reservations.length %> <%= tt('host.summary_suffix', 'reservations') %></div>
         <ul class="list" id="resv-list">
           <% reservations.forEach(function(r){ %>
-            <li class="item reservation-card" data-res-id="<%= r.id %>" data-name="<%= String(r.name || "").toLowerCase() %>" data-room="<%= String(r.roomLabel || "").toLowerCase() %>" data-time="<%= r.time || "" %>" data-people="<%= Number(r.people || 0) %>" data-status="<%= r.status || "new" %>" data-created-at="<%= Number(r.createdAt || 0) %>">
+            <li class="item reservation-card" data-res-id="<%= r.id %>">
               <label class="radio reservation-card__label">
                 <input type="radio" name="resv" value="<%= r.id %>">
                 <div class="radio-body reservation-card__body">
                   <div class="reservation-card__top">
-                    <div class="reservation-card__top-main">
-                      <div class="reservation-card__guest resv-name"><%= r.name || '—' %></div>
-                      <% if ((r.status || 'new') === 'new') { %><span class="reservation-badge-new"><%= tt('host.badge_new', 'New') %></span><% } %>
-                    </div>
+                    <div class="reservation-card__guest"><%= r.name || '—' %></div>
                     <div class="reservation-card__time"><%= r.time %></div>
                   </div>
                   <div class="reservation-card__meta">
@@ -195,19 +175,10 @@
   .host-time-card__inputs input{ width:100%; min-height:40px; border-radius:12px; border:1px solid rgba(148,163,184,.18); background:#0b1327; color:#e5eefb; padding:0 10px; }
   .host-time-card__actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
   .host-time-card__status, #host-system-time-status{ margin-top:8px; }
-  .host-resv-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin:12px 0 10px; flex-wrap:wrap; }
-  .host-search{ flex:1 1 240px; display:flex; align-items:center; gap:8px; min-height:42px; border-radius:14px; border:1px solid rgba(148,163,184,.18); background:rgba(15,23,42,.72); padding:0 12px; }
-  .host-search input{ flex:1 1 auto; min-width:0; border:0; outline:0; background:transparent; color:#e5eefb; }
-  .host-search__icon{ opacity:.72; }
-  .host-sort{ display:flex; align-items:center; gap:8px; }
-  .host-sort__label{ font-size:12px; color:#94a3b8; font-weight:700; }
-  .host-sort select{ min-height:42px; border-radius:12px; border:1px solid rgba(148,163,184,.18); background:#0b1327; color:#e5eefb; padding:0 12px; }
-  .host-resv-summary{ color:#94a3b8; font-size:12px; margin-bottom:8px; }
   .reservation-card{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:center; padding:14px 0; }
   .reservation-card__label{ display:block; width:100%; }
   .reservation-card__body{ display:flex; flex-direction:column; gap:10px; }
   .reservation-card__top{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
-  .reservation-card__top-main{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .reservation-card__guest{ font-size:16px; font-weight:800; color:#f8fafc; }
   .reservation-card__time{ font-size:14px; font-weight:800; color:#93c5fd; padding:4px 10px; border-radius:999px; background:rgba(59,130,246,.14); border:1px solid rgba(59,130,246,.24); }
   .reservation-card__meta{ display:flex; gap:8px; flex-wrap:wrap; }
@@ -219,10 +190,8 @@
   .reservation-pill.is-muted{ opacity:.78; }
   .reservation-card__actions{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
   .room-badge { display:inline-block; padding:1px 7px; border-radius:6px; font-size:11px; font-weight:700; background: rgba(59,130,246,.15); color: #93c5fd; border: 1px solid rgba(59,130,246,.25); margin-inline-start: 4px; vertical-align: middle; }
-  .reservation-badge-new{ display:inline-flex; align-items:center; padding:4px 8px; border-radius:999px; font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#fef3c7; background:rgba(245,158,11,.16); border:1px solid rgba(245,158,11,.30); }
-  .reservation-card.is-hidden{ display:none !important; }
   @media (max-width: 900px){ .host-header{ flex-direction:column; } .host-time-card{ width:100%; max-width:none; } }
-  @media (max-width: 640px){ .reservation-card{ grid-template-columns:1fr; } .reservation-card__actions{ align-items:stretch; } .reservation-card__top{ align-items:flex-start; flex-direction:column; } .host-time-card__inputs{ grid-template-columns:1fr; } .host-resv-toolbar{ flex-direction:column; align-items:stretch; } .host-sort{ width:100%; justify-content:space-between; } .host-sort select{ flex:1 1 auto; } }
+  @media (max-width: 640px){ .reservation-card{ grid-template-columns:1fr; } .reservation-card__actions{ align-items:stretch; } .reservation-card__top{ align-items:flex-start; flex-direction:column; } .host-time-card__inputs{ grid-template-columns:1fr; } }
 </style>
 <!-- Same floor-view assets as the waiter lobby -->
 
@@ -250,61 +219,6 @@
   const systemNowBtn = document.getElementById("host-system-now-btn");
   const systemPreview = document.getElementById("host-system-time-preview");
   const systemStatus = document.getElementById("host-system-time-status");
-
-  const hostResvSearch = document.getElementById("host-resv-search");
-  const hostResvSort = document.getElementById("host-resv-sort");
-  const hostResvSummary = document.getElementById("host-resv-summary");
-
-  function compareReservations(a, b, mode) {
-    const nameA = (a.dataset.name || "");
-    const nameB = (b.dataset.name || "");
-    const roomA = (a.dataset.room || "");
-    const roomB = (b.dataset.room || "");
-    const timeA = (a.dataset.time || "");
-    const timeB = (b.dataset.time || "");
-    const peopleA = Number(a.dataset.people || 0);
-    const peopleB = Number(b.dataset.people || 0);
-    const createdA = Number(a.dataset.createdAt || 0);
-    const createdB = Number(b.dataset.createdAt || 0);
-    const statusA = (a.dataset.status || "new");
-    const statusB = (b.dataset.status || "new");
-
-    if (mode === "name_asc") return nameA.localeCompare(nameB) || timeA.localeCompare(timeB);
-    if (mode === "room_asc") return roomA.localeCompare(roomB) || timeA.localeCompare(timeB) || nameA.localeCompare(nameB);
-    if (mode === "party_desc") return (peopleB - peopleA) || timeA.localeCompare(timeB) || nameA.localeCompare(nameB);
-    if (mode === "time_asc") return timeA.localeCompare(timeB) || nameA.localeCompare(nameB);
-
-    const rankA = statusA === "new" ? 0 : 1;
-    const rankB = statusB === "new" ? 0 : 1;
-    return (rankA - rankB) || (createdB - createdA) || timeA.localeCompare(timeB) || nameA.localeCompare(nameB);
-  }
-
-  function applyReservationFilters() {
-    if (!resvList) return;
-    const term = ((hostResvSearch && hostResvSearch.value) || "").trim().toLowerCase();
-    const mode = (hostResvSort && hostResvSort.value) || "new_first";
-    const items = Array.from(resvList.querySelectorAll('li[data-res-id]'));
-    const visible = [];
-
-    items.forEach(function(li){
-      const haystack = [li.dataset.name || "", li.dataset.room || "", li.dataset.time || ""].join(" ");
-      const show = !term || haystack.indexOf(term) >= 0;
-      li.classList.toggle("is-hidden", !show);
-      if (show) visible.push(li);
-    });
-
-    visible.sort(function(a, b){ return compareReservations(a, b, mode); });
-    visible.forEach(function(li){ resvList.appendChild(li); });
-
-    if (hostResvSummary) {
-      hostResvSummary.textContent = visible.length + " " + (visible.length === 1
-        ? "<%= tt('host.summary_suffix_single', 'reservation') %>"
-        : "<%= tt('host.summary_suffix', 'reservations') %>");
-    }
-  }
-
-  if (hostResvSearch) hostResvSearch.addEventListener("input", applyReservationFilters);
-  if (hostResvSort) hostResvSort.addEventListener("change", applyReservationFilters);
 
   // Selection updates from the embedded floor-view app
   const __SB_TABLE_ID_TO_NUMBER = <%= JSON.stringify(__tableIdToNumber) %>;
@@ -538,8 +452,6 @@
       }
     });
   }
-
-  applyReservationFilters();
 
   function getSelectedReservationName(){
     if (!state.selectedResId || !resvList) return "";

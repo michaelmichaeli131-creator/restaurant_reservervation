@@ -12,7 +12,6 @@ import {
   type Restaurant,
   type Reservation,
   getReservationPreferredLayoutId,
-  getReservationRoomLabelFromMap,
   getRoomLabelMapForRestaurant,
 } from "../database.ts";
 
@@ -154,7 +153,7 @@ async function tryCreateWithVariants(fn: Function, rid: string, r: Restaurant, d
     date,
     time,
     status   : String((payload as any).status ?? "booked"),
-    preferredLayoutId: String((payload as any).preferredLayoutId ?? "").trim() || undefined,
+    preferredLayoutId: String((payload as any).preferredLayoutId ?? (reservation as any)?.preferredLayoutId ?? "").trim() || undefined,
   };
 
   const variants: Array<() => Promise<any>> = [];
@@ -249,7 +248,6 @@ async function handleSlotAction(ctx: any) {
     }
 
     const noteRaw = (reservation?.notes ?? reservation?.note ?? "").toString().trim();
-    const preferredLayoutId = String(reservation?.preferredLayoutId ?? reservation?.roomId ?? reservation?.layoutId ?? "").trim();
     if ((!firstName || !lastName || !reservation?.phone) && noteRaw) {
       const ext = extractFromNote(noteRaw);
       if ((!firstName || !lastName) && ext.name) {
@@ -284,7 +282,6 @@ async function handleSlotAction(ctx: any) {
       source: "owner-manual",
       channel: "owner",
       createdBy: user?.id ?? null,
-      ...(preferredLayoutId ? { preferredLayoutId } : {}),
 
       // אליאסים לשדות שה-DAL שלך אולי מצפה להם
       reservation_date: date,
@@ -330,7 +327,6 @@ async function handleSlotAction(ctx: any) {
       people   : reservation?.people ? Number(reservation?.people) : undefined,
       note     : reservation?.notes ?? reservation?.note,
       status   : reservation?.status,
-      preferredLayoutId: reservation?.preferredLayoutId ?? reservation?.roomId ?? reservation?.layoutId,
     } as any;
     if (!(db as any).updateReservationFields) ctx.throw(Status.NotImplemented, "updateReservationFields not implemented yet");
     result = await (db as any).updateReservationFields(id, patch);
@@ -522,7 +518,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
     const people = inactive.has(String(it.status ?? "").toLowerCase()) ? 0 : Number(it.people ?? 0);
 
     const layoutId = extractLayoutIdFromReservation(it);
-    const roomLabel = getReservationRoomLabelFromMap(it as any, roomLabelMap);
+    const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? "") : "";
 
     return {
       id: it.id,
@@ -588,7 +584,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
     count: matches.length,
     items: matches.map((it: any) => {
       const layoutId = extractLayoutIdFromReservation(it);
-      const roomLabel = getReservationRoomLabelFromMap(it as any, roomLabelMap);
+      const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? "") : "";
       return {
         id: it.id,
         time: it.time,

@@ -203,7 +203,9 @@ export interface Review {
 }
 
 // KV יחיד לכל התהליכים
-export const kv = await Deno.openKv();
+import { getKv } from "./lib/kv.ts";
+
+export const kv = await getKv();
 
 const lower = (s?: string) => (s ?? "").trim().toLowerCase();
 const now = () => Date.now();
@@ -844,81 +846,14 @@ function isSeatBlockingReservationStatus(status?: Reservation["status"]): boolea
 }
 
 function extractPreferredLayoutIdFromReservation(reservation: Reservation): string {
-  const directCandidates = [
-    (reservation as any)?.preferredLayoutId,
-    (reservation as any)?.preferredRoomId,
-    (reservation as any)?.layoutId,
-    (reservation as any)?.roomId,
-    (reservation as any)?.preferredSectionId,
-    (reservation as any)?.sectionId,
-    (reservation as any)?.areaId,
-  ];
-  for (const candidate of directCandidates) {
-    const normalized = String(candidate ?? "").trim();
-    if (normalized) return normalized;
-  }
+  const direct = String(reservation.preferredLayoutId ?? "").trim();
+  if (direct) return direct;
 
-  const noteSources = [
-    (reservation as any)?.note,
-    (reservation as any)?.notes,
-    (reservation as any)?.internalNote,
-    (reservation as any)?.comment,
-  ];
-
-  for (const source of noteSources) {
-    const note = String(source ?? "");
-    if (!note) continue;
-    const match = note.match(/(?:PreferredRoomId|PreferredLayoutId|RoomId|LayoutId|PreferredSectionId|SectionId|AreaId)\s*:\s*([^;\n\r]+)/i);
-
-    if (match) {
-      const normalized = String(match[1] ?? "").trim();
-      if (normalized) return normalized;
-    }
-  }
-
-  return "";
+  const note = String(reservation.note ?? "");
+  const match = note.match(/(?:PreferredRoomId|PreferredLayoutId|RoomId|LayoutId)\s*:\s*([^;\n\r]+)/i);
+  return match ? String(match[1] ?? "").trim() : "";
 }
 
-function extractDirectRoomLabelFromReservationLike(reservation: Reservation | Record<string, unknown>): string {
-  const labelCandidates = [
-    (reservation as any)?.preferredLayoutLabel,
-    (reservation as any)?.roomLabel,
-    (reservation as any)?.preferredRoomLabel,
-    (reservation as any)?.room,
-    (reservation as any)?.roomName,
-    (reservation as any)?.layoutName,
-    (reservation as any)?.section,
-    (reservation as any)?.sectionName,
-    (reservation as any)?.area,
-    (reservation as any)?.areaName,
-    (reservation as any)?.floorLabel,
-  ];
-
-  for (const candidate of labelCandidates) {
-    const normalized = String(candidate ?? "").trim();
-    if (normalized) return normalized;
-  }
-
-  const noteSources = [
-    (reservation as any)?.note,
-    (reservation as any)?.notes,
-    (reservation as any)?.internalNote,
-    (reservation as any)?.comment,
-  ];
-
-  for (const source of noteSources) {
-    const note = String(source ?? "");
-    if (!note) continue;
-    const match = note.match(/(?:PreferredRoom|PreferredLayout|Room|Layout|Section|Area)\s*:\s*([^;\n\r]+)/i);
-
-    if (match) {
-      const normalized = String(match[1] ?? "").trim();
-      if (normalized) return normalized;
-    }
-  }
-
-  return "";
-}
 
 export function getReservationPreferredLayoutId(reservation: Reservation): string {
   return extractPreferredLayoutIdFromReservation(reservation);
@@ -948,21 +883,7 @@ export function getReservationRoomLabelFromMap(
   roomLabelMap: Map<string, string>,
 ): string {
   const layoutId = getReservationPreferredLayoutId(reservation);
-  if (layoutId) {
-    const mapped = roomLabelMap.get(layoutId) ?? "";
-    if (mapped) return mapped;
-  }
-
-  const directLabel = extractDirectRoomLabelFromReservationLike(reservation);
-  if (directLabel) {
-    const normalizedDirect = directLabel.trim().toLowerCase();
-    for (const [, label] of roomLabelMap) {
-      if (String(label ?? "").trim().toLowerCase() === normalizedDirect) return label;
-    }
-    return directLabel;
-  }
-
-  return "";
+  return layoutId ? (roomLabelMap.get(layoutId) ?? "") : "";
 }
 
 export async function enrichReservationWithRoomMeta<T extends Reservation>(
@@ -971,7 +892,7 @@ export async function enrichReservationWithRoomMeta<T extends Reservation>(
 ): Promise<T & { preferredLayoutId?: string; roomLabel: string; preferredLayoutLabel: string }> {
   const roomLabelMap = await getRoomLabelMapForRestaurant(restaurantId);
   const layoutId = getReservationPreferredLayoutId(reservation);
-  const roomLabel = getReservationRoomLabelFromMap(reservation, roomLabelMap);
+  const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? "") : "";
   return {
     ...reservation,
     ...(layoutId ? { preferredLayoutId: layoutId } : {}),
@@ -987,7 +908,7 @@ export async function enrichReservationsWithRoomMeta<T extends Reservation>(
   const roomLabelMap = await getRoomLabelMapForRestaurant(restaurantId);
   return reservations.map((reservation) => {
     const layoutId = getReservationPreferredLayoutId(reservation);
-    const roomLabel = getReservationRoomLabelFromMap(reservation, roomLabelMap);
+    const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? "") : "";
     return {
       ...reservation,
       ...(layoutId ? { preferredLayoutId: layoutId } : {}),

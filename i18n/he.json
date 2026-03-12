@@ -379,18 +379,7 @@
       "manual_mode": "זמן ידני",
       "realtime_mode": "שעון זמן אמת",
       "detected_timezone": "אזור זמן"
-    },
-    "search_placeholder": "חיפוש לפי שם מזמין…",
-    "search_label": "חיפוש הזמנות לפי שם המזמין",
-    "sort_label": "מיון לפי",
-    "sort_new_first": "חדשות קודם",
-    "sort_time": "שעה",
-    "sort_name": "שם המזמין",
-    "sort_room": "חדר",
-    "sort_party": "גודל קבוצה",
-    "summary_suffix": "הזמנות",
-    "summary_suffix_single": "הזמנה",
-    "badge_new": "חדש"
+    }
   },
   "lang": {
     "english": "English",
