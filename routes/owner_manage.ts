@@ -177,7 +177,7 @@ ownerManageRouter.get("/owner/restaurants/:id/manage", async (ctx) => {
       status: x.status || "confirmed",
       name: [x.firstName, x.lastName].filter(Boolean).join(" ") || x.note || "לקוח/ה",
       phone: x.phone || "",
-      roomLabel: x.roomLabel || x.preferredLayoutLabel || "",
+      roomLabel: x.roomLabel || x.preferredLayoutLabel || x.room || "",
     }));
 
   // Simple tasks/alerts derived from today's data (placeholder until full task engine)

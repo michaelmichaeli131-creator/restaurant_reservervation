@@ -220,8 +220,9 @@
     for (const it of items) {
       const tr = document.createElement("tr");
       const depositButtons = renderDepositButtons(it);
-      const roomCell = it.roomLabel
-        ? `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(59,130,246,.15);color:#93c5fd;border:1px solid rgba(59,130,246,.25)">${escapeHTML(it.roomLabel)}</span>`
+      const roomValue = it.roomLabel || it.preferredLayoutLabel || it.room || "";
+      const roomCell = roomValue
+        ? `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(59,130,246,.15);color:#93c5fd;border:1px solid rgba(59,130,246,.25)">${escapeHTML(roomValue)}</span>`
         : `<span style="color:var(--ink-muted,#9aa3b2)">—</span>`;
       tr.innerHTML = `
         <td>${escapeHTML(it.firstName || "")}</td>

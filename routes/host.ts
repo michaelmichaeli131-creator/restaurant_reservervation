@@ -196,7 +196,7 @@ async function loadHostReservations(rid: string) {
       time: res.time,
       people: res.people,
       name,
-      roomLabel: res.roomLabel || res.preferredLayoutLabel || "",
+      roomLabel: res.roomLabel || res.preferredLayoutLabel || res.room || "",
       status,
       sortName: name.toLocaleLowerCase(),
       sortTime: String(res.time || ""),

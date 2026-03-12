@@ -177,6 +177,9 @@ export interface Reservation {
   phone?: string;
   durationMinutes?: number; // ברירת מחדל לוגית 120 כשהשדה חסר
   preferredLayoutId?: string; // חלל/קומה מועדף (preference, לא binding)
+  preferredLayoutLabel?: string; // תצוגת שם החדר למסכים פנימיים
+  roomLabel?: string; // alias תצוגה למסכים פנימיים
+  room?: string; // alias נוסף לשמירה לאחור ב-UI / APIs
   status?:
     | "new" | "confirmed" | "canceled" | "completed" | "blocked" | "rescheduled"
     | "approved" | "arrived" | "cancelled"; // תמיכה בשתי האיותים והסטטוסים החדשים
@@ -844,10 +847,19 @@ function isSeatBlockingReservationStatus(status?: Reservation["status"]): boolea
 }
 
 function extractPreferredLayoutIdFromReservation(reservation: Reservation): string {
-  const direct = String(reservation.preferredLayoutId ?? "").trim();
-  if (direct) return direct;
+  const directCandidates = [
+    (reservation as any).preferredLayoutId,
+    (reservation as any).preferredRoomId,
+    (reservation as any).layoutId,
+    (reservation as any).roomId,
+  ];
 
-  const note = String(reservation.note ?? "");
+  for (const candidate of directCandidates) {
+    const value = String(candidate ?? "").trim();
+    if (value) return value;
+  }
+
+  const note = String(reservation.note ?? (reservation as any).notes ?? "");
   const match = note.match(/(?:PreferredRoomId|PreferredLayoutId|RoomId|LayoutId)\s*:\s*([^;\n\r]+)/i);
   return match ? String(match[1] ?? "").trim() : "";
 }
@@ -887,31 +899,45 @@ export function getReservationRoomLabelFromMap(
 export async function enrichReservationWithRoomMeta<T extends Reservation>(
   restaurantId: string,
   reservation: T,
-): Promise<T & { preferredLayoutId?: string; roomLabel: string; preferredLayoutLabel: string }> {
+): Promise<T & { preferredLayoutId?: string; roomLabel: string; preferredLayoutLabel: string; room: string }> {
   const roomLabelMap = await getRoomLabelMapForRestaurant(restaurantId);
   const layoutId = getReservationPreferredLayoutId(reservation);
-  const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? "") : "";
+  const fallbackLabel = String(
+    (reservation as any).roomLabel
+      ?? (reservation as any).preferredLayoutLabel
+      ?? (reservation as any).room
+      ?? "",
+  ).trim();
+  const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? fallbackLabel) : fallbackLabel;
   return {
     ...reservation,
     ...(layoutId ? { preferredLayoutId: layoutId } : {}),
     roomLabel,
     preferredLayoutLabel: roomLabel,
+    room: roomLabel,
   };
 }
 
 export async function enrichReservationsWithRoomMeta<T extends Reservation>(
   restaurantId: string,
   reservations: T[],
-): Promise<Array<T & { preferredLayoutId?: string; roomLabel: string; preferredLayoutLabel: string }>> {
+): Promise<Array<T & { preferredLayoutId?: string; roomLabel: string; preferredLayoutLabel: string; room: string }>> {
   const roomLabelMap = await getRoomLabelMapForRestaurant(restaurantId);
   return reservations.map((reservation) => {
     const layoutId = getReservationPreferredLayoutId(reservation);
-    const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? "") : "";
+    const fallbackLabel = String(
+      (reservation as any).roomLabel
+        ?? (reservation as any).preferredLayoutLabel
+        ?? (reservation as any).room
+        ?? "",
+    ).trim();
+    const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? fallbackLabel) : fallbackLabel;
     return {
       ...reservation,
       ...(layoutId ? { preferredLayoutId: layoutId } : {}),
       roomLabel,
       preferredLayoutLabel: roomLabel,
+      room: roomLabel,
     };
   });
 }

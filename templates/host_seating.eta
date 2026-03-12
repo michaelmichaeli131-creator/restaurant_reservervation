@@ -69,7 +69,7 @@
         <div class="host-resv-summary" id="host-resv-summary"><%= reservations.length %> <%= tt('host.summary_suffix', 'reservations') %></div>
         <ul class="list" id="resv-list">
           <% reservations.forEach(function(r){ %>
-            <li class="item reservation-card" data-res-id="<%= r.id %>" data-name="<%= String(r.name || "").toLowerCase() %>" data-room="<%= String(r.roomLabel || "").toLowerCase() %>" data-time="<%= r.time || "" %>" data-people="<%= Number(r.people || 0) %>" data-status="<%= r.status || "new" %>" data-created-at="<%= Number(r.createdAt || 0) %>">
+            <li class="item reservation-card" data-res-id="<%= r.id %>" data-name="<%= String(r.name || "").toLowerCase() %>" data-room="<%= String(r.roomLabel || r.room || "").toLowerCase() %>" data-time="<%= r.time || "" %>" data-people="<%= Number(r.people || 0) %>" data-status="<%= r.status || "new" %>" data-created-at="<%= Number(r.createdAt || 0) %>">
               <label class="radio reservation-card__label">
                 <input type="radio" name="resv" value="<%= r.id %>">
                 <div class="radio-body reservation-card__body">
@@ -85,10 +85,10 @@
                       <strong><%= r.people %></strong>
                       <span><%= tt('host.people_unit', 'Guests') %></span>
                     </span>
-                    <% if (r.roomLabel) { %>
+                    <% if (r.roomLabel || r.room) { %>
                       <span class="reservation-pill reservation-pill--room">
                         <span class="reservation-pill__label"><%= tt('host.room_label_short', 'Room') %></span>
-                        <strong><%= r.roomLabel %></strong>
+                        <strong><%= r.roomLabel || r.room %></strong>
                       </span>
                     <% } else { %>
                       <span class="reservation-pill reservation-pill--room is-muted">
