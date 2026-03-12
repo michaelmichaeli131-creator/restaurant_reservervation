@@ -167,21 +167,7 @@ ownerManageRouter.get("/owner/restaurants/:id/manage", async (ctx) => {
   const normPhotos = photos.map((p: any) => (typeof p === "string" ? { dataUrl: p, alt: "" } : p));
 
   // Preview: upcoming reservations for this date (first 6 by time)
-  const reservationsPreviewSource = await enrichReservationsWithRoomMeta(r.id, [...reservations] as any[]);
-  console.log("[ROOM_DEBUG][owner_manage.preview]", JSON.stringify({
-    rid: r.id,
-    date,
-    items: reservationsPreviewSource.map((x: any) => ({
-      id: x.id,
-      time: x.time,
-      preferredLayoutId: x.preferredLayoutId || "",
-      roomLabel: x.roomLabel || "",
-      preferredLayoutLabel: x.preferredLayoutLabel || "",
-      room: x.room || "",
-    })),
-  }));
-
-  const reservationsPreview = reservationsPreviewSource
+  const reservationsPreview = (await enrichReservationsWithRoomMeta(r.id, [...reservations] as any[]))
     .sort((a: any, b: any) => String(a.time || "").localeCompare(String(b.time || "")))
     .slice(0, 6)
     .map((x: any) => ({
@@ -191,7 +177,7 @@ ownerManageRouter.get("/owner/restaurants/:id/manage", async (ctx) => {
       status: x.status || "confirmed",
       name: [x.firstName, x.lastName].filter(Boolean).join(" ") || x.note || "לקוח/ה",
       phone: x.phone || "",
-      roomLabel: x.roomLabel || x.preferredLayoutLabel || x.room || "",
+      roomLabel: x.roomLabel || x.preferredLayoutLabel || "",
     }));
 
   // Simple tasks/alerts derived from today's data (placeholder until full task engine)

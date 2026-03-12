@@ -177,9 +177,6 @@ export interface Reservation {
   phone?: string;
   durationMinutes?: number; // ברירת מחדל לוגית 120 כשהשדה חסר
   preferredLayoutId?: string; // חלל/קומה מועדף (preference, לא binding)
-  preferredLayoutLabel?: string; // תצוגת שם החדר למסכים פנימיים
-  roomLabel?: string; // alias תצוגה למסכים פנימיים
-  room?: string; // alias נוסף לשמירה לאחור ב-UI / APIs
   status?:
     | "new" | "confirmed" | "canceled" | "completed" | "blocked" | "rescheduled"
     | "approved" | "arrived" | "cancelled"; // תמיכה בשתי האיותים והסטטוסים החדשים
@@ -847,45 +844,17 @@ function isSeatBlockingReservationStatus(status?: Reservation["status"]): boolea
 }
 
 function extractPreferredLayoutIdFromReservation(reservation: Reservation): string {
-  const directCandidates = [
-    (reservation as any).preferredLayoutId,
-    (reservation as any).preferredRoomId,
-    (reservation as any).layoutId,
-    (reservation as any).roomId,
-  ];
+  const direct = String(reservation.preferredLayoutId ?? "").trim();
+  if (direct) return direct;
 
-  for (const candidate of directCandidates) {
-    const value = String(candidate ?? "").trim();
-    if (value) return value;
-  }
-
-  const note = String(reservation.note ?? (reservation as any).notes ?? "");
+  const note = String(reservation.note ?? "");
   const match = note.match(/(?:PreferredRoomId|PreferredLayoutId|RoomId|LayoutId)\s*:\s*([^;\n\r]+)/i);
   return match ? String(match[1] ?? "").trim() : "";
 }
 
 
 export function getReservationPreferredLayoutId(reservation: Reservation): string {
-  const layoutId = extractPreferredLayoutIdFromReservation(reservation);
-  try {
-    if ((Deno.env.get("DEBUG") || "") === "1" || (Deno.env.get("ENV") || "").toLowerCase() !== "production") {
-      console.log("[ROOM_DEBUG][getReservationPreferredLayoutId]", JSON.stringify({
-        reservationId: (reservation as any)?.id ?? "",
-        restaurantId: (reservation as any)?.restaurantId ?? "",
-        date: (reservation as any)?.date ?? "",
-        time: (reservation as any)?.time ?? "",
-        preferredLayoutId: (reservation as any)?.preferredLayoutId ?? null,
-        preferredRoomId: (reservation as any)?.preferredRoomId ?? null,
-        layoutId: (reservation as any)?.layoutId ?? null,
-        roomId: (reservation as any)?.roomId ?? null,
-        note: String((reservation as any)?.note ?? (reservation as any)?.notes ?? "").slice(0, 200),
-        resolvedLayoutId: layoutId,
-      }));
-    }
-  } catch {
-    // no-op
-  }
-  return layoutId;
+  return extractPreferredLayoutIdFromReservation(reservation);
 }
 
 export async function getRoomLabelMapForRestaurant(restaurantId: string): Promise<Map<string, string>> {
@@ -918,78 +887,31 @@ export function getReservationRoomLabelFromMap(
 export async function enrichReservationWithRoomMeta<T extends Reservation>(
   restaurantId: string,
   reservation: T,
-): Promise<T & { preferredLayoutId?: string; roomLabel: string; preferredLayoutLabel: string; room: string }> {
+): Promise<T & { preferredLayoutId?: string; roomLabel: string; preferredLayoutLabel: string }> {
   const roomLabelMap = await getRoomLabelMapForRestaurant(restaurantId);
   const layoutId = getReservationPreferredLayoutId(reservation);
-  const fallbackLabel = String(
-    (reservation as any).roomLabel
-      ?? (reservation as any).preferredLayoutLabel
-      ?? (reservation as any).room
-      ?? "",
-  ).trim();
-  const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? fallbackLabel) : fallbackLabel;
+  const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? "") : "";
   return {
     ...reservation,
     ...(layoutId ? { preferredLayoutId: layoutId } : {}),
     roomLabel,
     preferredLayoutLabel: roomLabel,
-    room: roomLabel,
   };
 }
 
 export async function enrichReservationsWithRoomMeta<T extends Reservation>(
   restaurantId: string,
   reservations: T[],
-): Promise<Array<T & { preferredLayoutId?: string; roomLabel: string; preferredLayoutLabel: string; room: string }>> {
+): Promise<Array<T & { preferredLayoutId?: string; roomLabel: string; preferredLayoutLabel: string }>> {
   const roomLabelMap = await getRoomLabelMapForRestaurant(restaurantId);
-  try {
-    if ((Deno.env.get("DEBUG") || "") === "1" || (Deno.env.get("ENV") || "").toLowerCase() !== "production") {
-      console.log("[ROOM_DEBUG][roomLabelMap]", JSON.stringify({
-        restaurantId,
-        size: roomLabelMap.size,
-        items: Array.from(roomLabelMap.entries()),
-      }));
-    }
-  } catch {
-    // no-op
-  }
   return reservations.map((reservation) => {
     const layoutId = getReservationPreferredLayoutId(reservation);
-    const fallbackLabel = String(
-      (reservation as any).roomLabel
-        ?? (reservation as any).preferredLayoutLabel
-        ?? (reservation as any).room
-        ?? "",
-    ).trim();
-    const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? fallbackLabel) : fallbackLabel;
-    try {
-      if ((Deno.env.get("DEBUG") || "") === "1" || (Deno.env.get("ENV") || "").toLowerCase() !== "production") {
-        console.log("[ROOM_DEBUG][enrichReservation]", JSON.stringify({
-          restaurantId,
-          reservationId: (reservation as any)?.id ?? "",
-          date: (reservation as any)?.date ?? "",
-          time: (reservation as any)?.time ?? "",
-          rawPreferredLayoutId: (reservation as any)?.preferredLayoutId ?? null,
-          rawPreferredRoomId: (reservation as any)?.preferredRoomId ?? null,
-          rawLayoutId: (reservation as any)?.layoutId ?? null,
-          rawRoomId: (reservation as any)?.roomId ?? null,
-          rawRoomLabel: (reservation as any)?.roomLabel ?? null,
-          rawPreferredLayoutLabel: (reservation as any)?.preferredLayoutLabel ?? null,
-          rawRoom: (reservation as any)?.room ?? null,
-          fallbackLabel,
-          resolvedLayoutId: layoutId,
-          resolvedRoomLabel: roomLabel,
-        }));
-      }
-    } catch {
-      // no-op
-    }
+    const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? "") : "";
     return {
       ...reservation,
       ...(layoutId ? { preferredLayoutId: layoutId } : {}),
       roomLabel,
       preferredLayoutLabel: roomLabel,
-      room: roomLabel,
     };
   });
 }

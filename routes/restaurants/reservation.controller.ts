@@ -231,7 +231,19 @@ export async function reservePost(ctx: any) {
     return;
   }
 
-  const preferredLayoutId = String((payload as any).preferredLayoutId ?? "").trim();
+  const preferredLayoutId = String((payload as any).preferredLayoutId ?? ctx.request.url.searchParams.get("preferredLayoutId") ?? "").trim();
+
+  debugLog("[ROOM_DEBUG][POST reserve]", {
+    rid,
+    date,
+    time,
+    people,
+    preferredLayoutId,
+    body_ct: dbg.ct,
+    body_keys: Object.keys(payload ?? {}),
+    payload_snapshot: payload,
+    qs: Object.fromEntries(ctx.request.url.searchParams.entries()),
+  });
 
   // Per-room capacity check — redirect back with room_full message
   if (preferredLayoutId) {
@@ -272,9 +284,15 @@ export async function detailsGet(ctx: any) {
   const preferredLayoutId = ctx.request.url.searchParams.get("preferredLayoutId") ?? "";
   const preferredLayoutLabel = preferredLayoutId ? await getRoomLabelByLayoutId(id, preferredLayoutId) : "";
 
-  debugLog("[restaurants][GET details]", {
-    id, date, time, people, preferredLayoutId,
-    weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : []
+  debugLog("[ROOM_DEBUG][GET details]", {
+    rid: id,
+    date,
+    time,
+    people,
+    preferredLayoutId,
+    preferredLayoutLabel,
+    qs: Object.fromEntries(ctx.request.url.searchParams.entries()),
+    weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : [],
   });
 
   const photos = photoStrings(restaurant.photos);
@@ -335,10 +353,18 @@ export async function confirmGet(ctx: any) {
   const customerNote = sanitizeNote(customerNoteRaw);
   const lang = ctx.state?.lang ?? getLang(ctx);
 
-  debugLog("[restaurants][GET confirm] input", {
-    rid, date, time, people, within, preferredLayoutId,
-    hasNote: !!customerNote, noteLen: customerNote.length,
-    weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : []
+  debugLog("[ROOM_DEBUG][GET confirm]", {
+    rid,
+    date,
+    time,
+    people,
+    within,
+    preferredLayoutId,
+    preferredLayoutLabel,
+    hasNote: !!customerNote,
+    noteLen: customerNote.length,
+    qs: Object.fromEntries(sp.entries()),
+    weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : [],
   });
 
   const bad = (m: string, extra?: unknown) => {
@@ -514,10 +540,19 @@ export async function confirmPost(ctx: any) {
     (payload as any).note ?? (payload as any).comments ?? (payload as any)["special_requests"] ?? (payload as any).specialRequests ?? "";
   const preferredLayoutIdPost = String((payload as any).preferredLayoutId ?? ctx.request.url.searchParams.get("preferredLayoutId") ?? "").trim();
 
-  debugLog("[restaurants][POST confirm] input", {
-    rid, date, time, people, preferredLayoutId: preferredLayoutIdPost,
-    within, hasNote: !!customerNoteRaw, body_ct: dbg.ct, body_keys: Object.keys(payload),
-    weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : []
+  debugLog("[ROOM_DEBUG][POST confirm]", {
+    rid,
+    date,
+    time,
+    people,
+    preferredLayoutId: preferredLayoutIdPost,
+    within,
+    hasNote: !!customerNoteRaw,
+    body_ct: dbg.ct,
+    body_keys: Object.keys(payload ?? {}),
+    payload_snapshot: payload,
+    qs: Object.fromEntries(ctx.request.url.searchParams.entries()),
+    weeklyKeys: restaurant.weeklySchedule ? Object.keys(restaurant.weeklySchedule as any) : [],
   });
 
   const customerName  = normalizePlain(customerNameRaw);

@@ -535,26 +535,12 @@
         return;
       }
     }
-    const roomVal = (roomInput?.value || "").trim();
-    console.log("[ROOM_DEBUG][restaurant.submit.before]", {
-      dateVal,
-      timeVal,
-      pplVal,
-      roomVal,
-      formMethod: form.method,
-      formActionBefore: form.action,
-    });
     const u = new URL(form.action, window.location.origin);
     u.searchParams.set("date", dateVal);
     u.searchParams.set("time", timeVal);
     u.searchParams.set("people", String(pplVal));
-    if (roomVal) u.searchParams.set("preferredLayoutId", roomVal);
     <% if (it.lang) { %>u.searchParams.set("lang", "<%= it.lang %>");<% } %>
     form.action = u.pathname + u.search;
-    console.log("[ROOM_DEBUG][restaurant.submit.after]", {
-      roomVal,
-      formActionAfter: form.action,
-    });
   });
 
   /* ===== Check availability ===== */

@@ -215,24 +215,13 @@
   /* ========== Drawer ========== */
   function renderDrawer(items) {
     if (!drawerTableBody) return;
-    try {
-      console.log("[ROOM_DEBUG][owner_calendar.renderDrawer]", (items || []).map((it) => ({
-        id: it.id,
-        time: it.at || it.time || "",
-        preferredLayoutId: it.preferredLayoutId || "",
-        roomLabel: it.roomLabel || "",
-        preferredLayoutLabel: it.preferredLayoutLabel || "",
-        room: it.room || "",
-      })));
-    } catch (_e) {}
     drawerTableBody.innerHTML = "";
     const frag = document.createDocumentFragment();
     for (const it of items) {
       const tr = document.createElement("tr");
       const depositButtons = renderDepositButtons(it);
-      const roomValue = it.roomLabel || it.preferredLayoutLabel || it.room || "";
-      const roomCell = roomValue
-        ? `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(59,130,246,.15);color:#93c5fd;border:1px solid rgba(59,130,246,.25)">${escapeHTML(roomValue)}</span>`
+      const roomCell = it.roomLabel
+        ? `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(59,130,246,.15);color:#93c5fd;border:1px solid rgba(59,130,246,.25)">${escapeHTML(it.roomLabel)}</span>`
         : `<span style="color:var(--ink-muted,#9aa3b2)">—</span>`;
       tr.innerHTML = `
         <td>${escapeHTML(it.firstName || "")}</td>
