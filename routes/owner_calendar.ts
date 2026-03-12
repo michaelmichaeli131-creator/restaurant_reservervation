@@ -420,6 +420,23 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const db = await import("../database.ts");
   const reservations: Reservation[] =
     (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
+  debugLog("owner_calendar", "day/summary raw reservations", {
+    rid,
+    date: selected,
+    count: reservations.length,
+    items: reservations.map((it: any) => ({
+      id: it.id,
+      time: it.time,
+      preferredLayoutId: it.preferredLayoutId || "",
+      preferredRoomId: it.preferredRoomId || "",
+      layoutId: it.layoutId || "",
+      roomId: it.roomId || "",
+      roomLabel: it.roomLabel || "",
+      preferredLayoutLabel: it.preferredLayoutLabel || "",
+      room: it.room || "",
+      note: String(it.note ?? it.notes ?? "").slice(0, 120),
+    })),
+  });
 
   const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow"]);
   const effective = reservations.filter((rv: any) => !inactive.has(String(rv?.status ?? "").toLowerCase()));
@@ -497,6 +514,21 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
     })) ?? [];
 
   const roomLabelMap = await buildRoomLabelMap(rid);
+  debugLog("owner_calendar", "slot roomLabelMap", {
+    rid,
+    date,
+    time,
+    roomLabelMap: Array.from(roomLabelMap.entries()),
+    rawItems: items.map((it: any) => ({
+      id: it.id,
+      reservationTime: it.time,
+      preferredLayoutId: it.preferredLayoutId || "",
+      preferredRoomId: it.preferredRoomId || "",
+      layoutId: it.layoutId || "",
+      roomId: it.roomId || "",
+      note: String(it.note ?? it.notes ?? "").slice(0, 120),
+    })),
+  });
 
   const enriched = items.map((it: any) => {
     let first = String(it.firstName ?? "");
@@ -576,6 +608,22 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
   });
 
   const roomLabelMap = await buildRoomLabelMap(rid);
+
+  debugLog("owner_calendar", "day/search room-debug", {
+    rid,
+    date,
+    q: qraw,
+    roomLabelMap: Array.from(roomLabelMap.entries()),
+    matches: matches.map((it: any) => ({
+      id: it.id,
+      time: it.time,
+      preferredLayoutId: it.preferredLayoutId || "",
+      preferredRoomId: it.preferredRoomId || "",
+      layoutId: it.layoutId || "",
+      roomId: it.roomId || "",
+      note: String(it.note ?? it.notes ?? "").slice(0, 120),
+    })),
+  });
 
   json(ctx, {
     ok: true,

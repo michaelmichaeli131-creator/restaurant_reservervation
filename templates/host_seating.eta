@@ -186,6 +186,13 @@
   </div>
 </aside>
 
+<script>
+  try {
+    console.log("[ROOM_DEBUG][host.render]", <%- JSON.stringify((reservations || []).map(function(r){ return { id:r.id, time:r.time, name:r.name, roomLabel:r.roomLabel || "", room:r.room || "", preferredLayoutId:r.preferredLayoutId || "" }; })) %>);
+  } catch(e) {}
+</script>
+
+
 <style>
   .host-header{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px; flex-wrap:wrap; }
   .host-time-card{ min-width:320px; max-width:420px; padding:14px 16px; border-radius:18px; border:1px solid rgba(148,163,184,.18); background:linear-gradient(180deg, rgba(15,23,42,.96), rgba(15,23,42,.82)); box-shadow:0 18px 46px rgba(2,6,23,.28); }

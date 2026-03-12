@@ -167,7 +167,21 @@ ownerManageRouter.get("/owner/restaurants/:id/manage", async (ctx) => {
   const normPhotos = photos.map((p: any) => (typeof p === "string" ? { dataUrl: p, alt: "" } : p));
 
   // Preview: upcoming reservations for this date (first 6 by time)
-  const reservationsPreview = (await enrichReservationsWithRoomMeta(r.id, [...reservations] as any[]))
+  const reservationsPreviewSource = await enrichReservationsWithRoomMeta(r.id, [...reservations] as any[]);
+  console.log("[ROOM_DEBUG][owner_manage.preview]", JSON.stringify({
+    rid: r.id,
+    date,
+    items: reservationsPreviewSource.map((x: any) => ({
+      id: x.id,
+      time: x.time,
+      preferredLayoutId: x.preferredLayoutId || "",
+      roomLabel: x.roomLabel || "",
+      preferredLayoutLabel: x.preferredLayoutLabel || "",
+      room: x.room || "",
+    })),
+  }));
+
+  const reservationsPreview = reservationsPreviewSource
     .sort((a: any, b: any) => String(a.time || "").localeCompare(String(b.time || "")))
     .slice(0, 6)
     .map((x: any) => ({

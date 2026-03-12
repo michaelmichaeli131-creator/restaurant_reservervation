@@ -866,7 +866,26 @@ function extractPreferredLayoutIdFromReservation(reservation: Reservation): stri
 
 
 export function getReservationPreferredLayoutId(reservation: Reservation): string {
-  return extractPreferredLayoutIdFromReservation(reservation);
+  const layoutId = extractPreferredLayoutIdFromReservation(reservation);
+  try {
+    if ((Deno.env.get("DEBUG") || "") === "1" || (Deno.env.get("ENV") || "").toLowerCase() !== "production") {
+      console.log("[ROOM_DEBUG][getReservationPreferredLayoutId]", JSON.stringify({
+        reservationId: (reservation as any)?.id ?? "",
+        restaurantId: (reservation as any)?.restaurantId ?? "",
+        date: (reservation as any)?.date ?? "",
+        time: (reservation as any)?.time ?? "",
+        preferredLayoutId: (reservation as any)?.preferredLayoutId ?? null,
+        preferredRoomId: (reservation as any)?.preferredRoomId ?? null,
+        layoutId: (reservation as any)?.layoutId ?? null,
+        roomId: (reservation as any)?.roomId ?? null,
+        note: String((reservation as any)?.note ?? (reservation as any)?.notes ?? "").slice(0, 200),
+        resolvedLayoutId: layoutId,
+      }));
+    }
+  } catch {
+    // no-op
+  }
+  return layoutId;
 }
 
 export async function getRoomLabelMapForRestaurant(restaurantId: string): Promise<Map<string, string>> {
@@ -923,6 +942,17 @@ export async function enrichReservationsWithRoomMeta<T extends Reservation>(
   reservations: T[],
 ): Promise<Array<T & { preferredLayoutId?: string; roomLabel: string; preferredLayoutLabel: string; room: string }>> {
   const roomLabelMap = await getRoomLabelMapForRestaurant(restaurantId);
+  try {
+    if ((Deno.env.get("DEBUG") || "") === "1" || (Deno.env.get("ENV") || "").toLowerCase() !== "production") {
+      console.log("[ROOM_DEBUG][roomLabelMap]", JSON.stringify({
+        restaurantId,
+        size: roomLabelMap.size,
+        items: Array.from(roomLabelMap.entries()),
+      }));
+    }
+  } catch {
+    // no-op
+  }
   return reservations.map((reservation) => {
     const layoutId = getReservationPreferredLayoutId(reservation);
     const fallbackLabel = String(
@@ -932,6 +962,28 @@ export async function enrichReservationsWithRoomMeta<T extends Reservation>(
         ?? "",
     ).trim();
     const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? fallbackLabel) : fallbackLabel;
+    try {
+      if ((Deno.env.get("DEBUG") || "") === "1" || (Deno.env.get("ENV") || "").toLowerCase() !== "production") {
+        console.log("[ROOM_DEBUG][enrichReservation]", JSON.stringify({
+          restaurantId,
+          reservationId: (reservation as any)?.id ?? "",
+          date: (reservation as any)?.date ?? "",
+          time: (reservation as any)?.time ?? "",
+          rawPreferredLayoutId: (reservation as any)?.preferredLayoutId ?? null,
+          rawPreferredRoomId: (reservation as any)?.preferredRoomId ?? null,
+          rawLayoutId: (reservation as any)?.layoutId ?? null,
+          rawRoomId: (reservation as any)?.roomId ?? null,
+          rawRoomLabel: (reservation as any)?.roomLabel ?? null,
+          rawPreferredLayoutLabel: (reservation as any)?.preferredLayoutLabel ?? null,
+          rawRoom: (reservation as any)?.room ?? null,
+          fallbackLabel,
+          resolvedLayoutId: layoutId,
+          resolvedRoomLabel: roomLabel,
+        }));
+      }
+    } catch {
+      // no-op
+    }
     return {
       ...reservation,
       ...(layoutId ? { preferredLayoutId: layoutId } : {}),

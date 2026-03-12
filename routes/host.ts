@@ -188,6 +188,26 @@ async function loadHostReservations(rid: string) {
 
   const withRoomMeta = await enrichReservationsWithRoomMeta(rid, active as any[]);
 
+  hlog("loadHostReservations room-debug", {
+    rid,
+    date,
+    allCount: (all ?? []).length,
+    activeCount: active.length,
+    roomSnapshot: withRoomMeta.map((res: any) => ({
+      id: res.id,
+      time: res.time,
+      name: extractNameFromReservationLike(res) || "—",
+      preferredLayoutId: res.preferredLayoutId || "",
+      preferredRoomId: res.preferredRoomId || "",
+      layoutId: res.layoutId || "",
+      roomId: res.roomId || "",
+      roomLabel: res.roomLabel || "",
+      preferredLayoutLabel: res.preferredLayoutLabel || "",
+      room: res.room || "",
+      note: String(res.note ?? res.notes ?? "").slice(0, 120),
+    })),
+  });
+
   return withRoomMeta.map((res: any) => {
     const name = extractNameFromReservationLike(res) || "—";
     const status = String(res.status ?? "new").toLowerCase();
@@ -310,6 +330,7 @@ hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
   hlog("reservations payload", {
     rid,
     reservationsCount: reservations.length,
+    reservations,
   });
 
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");

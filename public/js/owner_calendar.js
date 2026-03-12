@@ -215,6 +215,16 @@
   /* ========== Drawer ========== */
   function renderDrawer(items) {
     if (!drawerTableBody) return;
+    try {
+      console.log("[ROOM_DEBUG][owner_calendar.renderDrawer]", (items || []).map((it) => ({
+        id: it.id,
+        time: it.at || it.time || "",
+        preferredLayoutId: it.preferredLayoutId || "",
+        roomLabel: it.roomLabel || "",
+        preferredLayoutLabel: it.preferredLayoutLabel || "",
+        room: it.room || "",
+      })));
+    } catch (_e) {}
     drawerTableBody.innerHTML = "";
     const frag = document.createDocumentFragment();
     for (const it of items) {
