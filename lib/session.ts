@@ -1,8 +1,7 @@
 // src/lib/session.ts
 import type { Context } from "jsr:@oak/oak";
 
-import { getKv } from "./kv.ts";
-
+const kv = await Deno.openKv();
 type SessionData = Record<string, unknown>;
 
 // זיהוי HTTPS מאחורי פרוקסי + אופציית אובררייד במשתנה סביבה
@@ -24,16 +23,13 @@ function isHttps(ctx: Context): boolean {
 }
 
 async function loadSession(sid: string): Promise<SessionData> {
-  const kv = await getKv();
   const v = await kv.get<SessionData>(["sess", sid]);
   return v.value ?? {};
 }
 async function saveSession(sid: string, data: SessionData) {
-  const kv = await getKv();
   await kv.set(["sess", sid], data);
 }
 async function destroySession(sid: string) {
-  const kv = await getKv();
   await kv.delete(["sess", sid]);
 }
 

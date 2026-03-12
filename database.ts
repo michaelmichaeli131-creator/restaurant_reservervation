@@ -203,9 +203,7 @@ export interface Review {
 }
 
 // KV יחיד לכל התהליכים
-import { getKv } from "./lib/kv.ts";
-
-export const kv = await getKv();
+export const kv = await Deno.openKv();
 
 const lower = (s?: string) => (s ?? "").trim().toLowerCase();
 const now = () => Date.now();

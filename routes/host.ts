@@ -35,6 +35,38 @@ import { getRestaurantSystemNow, splitIsoParts } from "../services/system_time.t
 
 export const hostRouter = new Router();
 
+
+function normalizeText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function extractMetaFromNote(noteValue: unknown): { name: string; phone: string } {
+  const note = normalizeText(noteValue);
+  if (!note) return { name: "", phone: "" };
+  const nameMatch = note.match(/(?:Name|Guest|Customer)\s*:\s*([^;\n\r]+)/i);
+  const phoneMatch = note.match(/(?:Phone|Tel|Mobile)\s*:\s*([^;\n\r]+)/i);
+  return {
+    name: nameMatch ? nameMatch[1].trim() : "",
+    phone: phoneMatch ? phoneMatch[1].trim() : "",
+  };
+}
+
+function extractNameFromReservationLike(res: any): string {
+  const firstName = normalizeText(res?.firstName);
+  const lastName = normalizeText(res?.lastName);
+  const full = `${firstName} ${lastName}`.trim();
+  if (full) return full;
+
+  const directName = normalizeText(res?.name);
+  if (directName) return directName;
+
+  const meta = extractMetaFromNote(res?.note ?? res?.notes);
+  if (meta.name) return meta.name;
+
+  return "";
+}
+
+
 /** לוג עזר למסך המארחת */
 function hlog(...args: unknown[]) {
   try {
@@ -157,15 +189,18 @@ async function loadHostReservations(rid: string) {
   const withRoomMeta = await enrichReservationsWithRoomMeta(rid, active as any[]);
 
   return withRoomMeta.map((res: any) => {
-    const name = (res.firstName && res.lastName)
-      ? `${res.firstName} ${res.lastName}`
-      : (res.name ?? "");
+    const name = extractNameFromReservationLike(res) || "—";
+    const status = String(res.status ?? "new").toLowerCase();
     return {
       id: res.id,
       time: res.time,
       people: res.people,
-      name: name || "—",
+      name,
       roomLabel: res.roomLabel || res.preferredLayoutLabel || "",
+      status,
+      sortName: name.toLocaleLowerCase(),
+      sortTime: String(res.time || ""),
+      createdAt: Number(res.createdAt || 0),
     };
   });
 }
