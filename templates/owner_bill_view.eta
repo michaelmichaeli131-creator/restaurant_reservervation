@@ -63,6 +63,7 @@ var qrUrl = qrData
       <div><strong><%= tt('bill.date', 'תאריך:') %></strong> <%= formatDate(it.bill.createdAt) %></div>
       <div><strong><%= tt('bill.time', 'שעה:') %></strong> <%= formatTime(it.bill.createdAt) %></div>
       <div><strong><%= tt('bill.table', 'שולחן:') %></strong> <%= it.bill.table %></div>
+      <div><strong><%= tt('bill.account', 'חשבון:') %></strong> <%= it.bill.accountLabel || (it.bill.accountId === 'main' || !it.bill.accountId ? tt('pos.waiter.main_check', 'Main Check') : it.bill.accountId) %></div>
     </section>
 
     <div class="receipt-sep dotted"></div>

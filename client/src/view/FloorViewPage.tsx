@@ -1,6 +1,6 @@
 import React from "react";
 import FloorMapRenderer from "../shared/FloorMapRenderer";
-import type { FloorLayoutLike as FloorLayout } from "../shared/FloorMapRenderer";
+import type { BarAccountLike, FloorLayoutLike as FloorLayout } from "../shared/FloorMapRenderer";
 import { t } from "../i18n";
 import "./floorViewPage.css";
 
@@ -18,6 +18,47 @@ type TableStatusEntry = {
 };
 
 type MountMode = "page" | "lobby";
+
+
+type BarAccountEntry = BarAccountLike & {
+  itemsCount?: number;
+  subtotal?: number;
+  createdAt?: number;
+  isMain?: boolean;
+};
+
+function isBarTable(table?: any | null): boolean {
+  if (!table) return false;
+  const asset = String(table.assetFile || "").toLowerCase();
+  const name = String(table.name || "").toLowerCase();
+  return asset.includes("bar.svg") || name.includes("bar");
+}
+
+function seatIdForBar(tableId: string, seatNumber: number): string {
+  return `${tableId}:seat:${seatNumber}`;
+}
+
+function normalizeBarAccountsForTable(table: any, accounts: BarAccountEntry[]): BarAccountEntry[] {
+  const seatCapacity = Math.max(1, Number(table?.seats || 1));
+  const used = new Set<string>();
+  return (accounts || []).map((account, idx) => {
+    let seatId = String(account.seatId || "").trim();
+    if (!seatId || used.has(seatId)) {
+      for (let seatNumber = 1; seatNumber <= seatCapacity; seatNumber++) {
+        const candidate = seatIdForBar(String(table.id), seatNumber);
+        if (!used.has(candidate)) {
+          seatId = candidate;
+          break;
+        }
+      }
+    }
+    if (!seatId) {
+      seatId = seatIdForBar(String(table.id), Math.min(idx + 1, seatCapacity));
+    }
+    used.add(seatId);
+    return { ...account, seatId };
+  });
+}
 
 type NormalStatus = "empty" | "occupied" | "reserved" | "dirty";
 
@@ -48,6 +89,8 @@ export default function FloorViewPage({
   const [error, setError] = React.useState<string | null>(null);
 
   const [selectedTableId, setSelectedTableId] = React.useState<string | null>(null);
+  const [selectedBarSeatId, setSelectedBarSeatId] = React.useState<string | null>(null);
+  const [barAccountsByTable, setBarAccountsByTable] = React.useState<Record<string, BarAccountEntry[]>>({});
 
   // clickMode is used to decide which actions to show in Table Details (host vs. waiter lobby).
   // It must be defined here (not as an undeclared global) to avoid runtime crashes when opening Table Details.
@@ -58,6 +101,31 @@ export default function FloorViewPage({
       (mountMode === "lobby" ? "lobby" : "page")
   ).toLowerCase();
 
+
+  const loadBarAccounts = React.useCallback(async (layoutsInput: FloorLayout[]) => {
+    const barTables = layoutsInput.flatMap((layout) =>
+      (layout.tables || []).filter((table) => isBarTable(table)).map((table) => ({ layoutId: layout.id, table }))
+    );
+    if (barTables.length === 0) {
+      setBarAccountsByTable({});
+      return;
+    }
+
+    const entries = await Promise.all(barTables.map(async ({ table }) => {
+      const tableNumber = Number((table as any).tableNumber ?? (table as any).number ?? 0);
+      if (!tableNumber) return [String(table.id), []] as const;
+      try {
+        const res = await fetch(`/api/pos/table-accounts?restaurantId=${encodeURIComponent(restaurantId)}&table=${encodeURIComponent(tableNumber)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        return [String(table.id), normalizeBarAccountsForTable(table, Array.isArray(data?.accounts) ? data.accounts : [])] as const;
+      } catch {
+        return [String(table.id), []] as const;
+      }
+    }));
+
+    setBarAccountsByTable(Object.fromEntries(entries));
+  }, [restaurantId]);
 
   // Load all layouts (rooms/floors) with live statuses
   const loadAllLayouts = React.useCallback(async () => {
@@ -81,6 +149,7 @@ export default function FloorViewPage({
         }
 
         setLayouts(list);
+        await loadBarAccounts(list);
         const active = list.find((l) => (l as any).isActive) ?? list[0];
         setActiveLayoutId(active.id);
         setSelectedLayoutId((prev) => {
@@ -121,6 +190,7 @@ export default function FloorViewPage({
       }
 
       setLayouts([active]);
+      await loadBarAccounts([active]);
       setActiveLayoutId(active.id);
       setSelectedLayoutId((prev) => prev ?? active.id);
       setError(null);
@@ -129,7 +199,7 @@ export default function FloorViewPage({
       setError(t("host.err_load_map", "Error loading floor map") + `: ${e?.message ?? "unknown"}`);
       setLoading(false);
     }
-  }, [restaurantId, selectedTableId, selectedLayoutId]);
+  }, [restaurantId, selectedTableId, selectedLayoutId, loadBarAccounts]);
 
   React.useEffect(() => {
     loadAllLayouts();
@@ -163,8 +233,19 @@ export default function FloorViewPage({
     return normalizeStatus((selectedStatusEntry as any)?.status);
   }, [selectedStatusEntry]);
 
+  const selectedBarAccounts = React.useMemo(() => {
+    if (!selectedTable) return [] as BarAccountEntry[];
+    return barAccountsByTable[String(selectedTable.id)] || [];
+  }, [barAccountsByTable, selectedTable]);
+
+  const selectedBarSeatAccount = React.useMemo(() => {
+    if (!selectedBarSeatId) return null;
+    return selectedBarAccounts.find((acc) => String(acc.seatId || '') === String(selectedBarSeatId)) ?? null;
+  }, [selectedBarAccounts, selectedBarSeatId]);
+
   const onTableClick = React.useCallback((tableId: string) => {
     setSelectedTableId(tableId);
+    setSelectedBarSeatId(null);
 
     // Host screen relies on an external selection signal (for seating action + title)
     // Keep this minimal: emit a small event + set dataset fields on the mount root.
@@ -191,7 +272,59 @@ export default function FloorViewPage({
     }
   }, [currentLayout]);
 
-  const closeDrawer = () => setSelectedTableId(null);
+  const closeDrawer = () => { setSelectedTableId(null); setSelectedBarSeatId(null); };
+
+  React.useEffect(() => {
+    if (!selectedTable || !isBarTable(selectedTable)) {
+      setSelectedBarSeatId(null);
+    }
+  }, [selectedTable?.id]);
+
+  const handleBarSeatClick = React.useCallback(async (tableId: string, seatId: string) => {
+    setSelectedTableId(tableId);
+    setSelectedBarSeatId(seatId);
+
+    const table = layouts.flatMap((layout) => layout.tables || []).find((t) => String(t.id) === String(tableId));
+    if (!table) return;
+
+    const existing = (barAccountsByTable[String(tableId)] || []).find((acc) => String(acc.seatId || '') === String(seatId));
+    const tableNumber = Number((table as any).tableNumber ?? (table as any).number ?? 0);
+    if (!tableNumber) return;
+
+    if (!(clickMode === 'lobby' || clickMode === 'waiter' || clickMode === 'page')) {
+      return;
+    }
+
+    if (existing?.accountId) {
+      window.location.href = `/waiter/${encodeURIComponent(restaurantId)}/${encodeURIComponent(tableNumber)}?account=${encodeURIComponent(existing.accountId)}`;
+      return;
+    }
+
+    try {
+      const seatNumber = Number(String(seatId).split(':seat:')[1] || '0') || 0;
+      const accountLabel = `${t('floor.bar.seat_label', 'Bar Seat')} ${seatNumber || 1}`;
+      const res = await fetch('/api/pos/table-account/open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          restaurantId,
+          table: tableNumber,
+          seatId,
+          locationId: tableId,
+          locationType: 'bar',
+          accountLabel,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const accountId = String(data?.account?.accountId || '').trim();
+      if (accountId) {
+        window.location.href = `/waiter/${encodeURIComponent(restaurantId)}/${encodeURIComponent(tableNumber)}?account=${encodeURIComponent(accountId)}`;
+      }
+    } catch (err) {
+      console.error('Failed to open bar seat account', err);
+    }
+  }, [barAccountsByTable, clickMode, layouts, restaurantId]);
 
   const postTableOverrideStatus = async (status: "empty" | "dirty" | "reserved") => {
     const tableId = (selectedTable as any)?.id;
@@ -293,7 +426,7 @@ export default function FloorViewPage({
                     <button
                       key={layout.id}
                       className={`sbv-room-tab ${isSelected ? "is-active" : ""}`}
-                      onClick={() => { setSelectedLayoutId(layout.id); setSelectedTableId(null); }}
+                      onClick={() => { setSelectedLayoutId(layout.id); setSelectedTableId(null); setSelectedBarSeatId(null); }}
                       role="tab"
                       aria-selected={isSelected}
                     >
@@ -310,6 +443,9 @@ export default function FloorViewPage({
             <FloorMapRenderer
               layout={currentLayout!}
               selectedTableId={selectedTableId}
+              barAccountsByTable={barAccountsByTable}
+              selectedBarSeatId={selectedBarSeatId}
+              onBarSeatClick={handleBarSeatClick}
               onTableClick={onTableClick}
               mode="view"
             />
@@ -366,6 +502,33 @@ export default function FloorViewPage({
                     <div className="sbv-kv-val">{(selectedStatusEntry as any)?.subtotal ?? "—"}</div>
                   </div>
                 </div>
+
+                {selectedTable && isBarTable(selectedTable) && (
+                  <div className="sbv-bar-drawer-section">
+                    <div className="sbv-bar-drawer-title">{t('floor.bar.title', 'Bar seats')}</div>
+                    <div className="sbv-bar-drawer-sub">{t('floor.bar.help', 'Each seat can hold a separate guest check.')}</div>
+                    <div className="sbv-bar-drawer-grid">
+                      {Array.from({ length: Math.max(1, Number((selectedTable as any)?.seats || 1)) }).map((_, seatIndex) => {
+                        const seatNumber = seatIndex + 1;
+                        const seatId = seatIdForBar(String((selectedTable as any).id), seatNumber);
+                        const seatAccount = selectedBarAccounts.find((acc) => String(acc.seatId || '') === seatId) ?? null;
+                        const occupied = Boolean(seatAccount);
+                        const selected = selectedBarSeatId === seatId;
+                        return (
+                          <button
+                            key={seatId}
+                            type="button"
+                            className={`sbv-bar-drawer-seat ${occupied ? 'is-occupied' : 'is-free'} ${selected ? 'is-selected' : ''}`}
+                            onClick={() => handleBarSeatClick(String((selectedTable as any).id), seatId)}
+                          >
+                            <span className="sbv-bar-drawer-seat-no">{t('floor.bar.seat_label', 'Bar Seat')} {seatNumber}</span>
+                            <span className="sbv-bar-drawer-seat-status">{occupied ? (seatAccount?.accountLabel || t('pos.waiter.main_check', 'Main Check')) : t('floor.bar.free', 'Free')}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="sbv-drawer-footer">
@@ -409,12 +572,19 @@ export default function FloorViewPage({
     </>
   ) : null}
 
-  {selectedStatus === "occupied" &&
+  {selectedTable && isBarTable(selectedTable) && selectedBarSeatId ? (
+    <button
+      className="sbv-primary-btn"
+      onClick={() => handleBarSeatClick(String((selectedTable as any).id), String(selectedBarSeatId))}
+    >
+      {selectedBarSeatAccount ? t("pos.waiter.btn_open_order", "Open Order") : t('floor.bar.open_new_check', 'Open new check')}
+    </button>
+  ) : selectedStatus === "occupied" &&
   (selectedStatusEntry as any)?.orderId &&
-  (selectedTable as any)?.number ? (
+  ((selectedTable as any)?.tableNumber ?? (selectedTable as any)?.number) ? (
     <a
       className="sbv-primary-btn"
-      href={`/waiter/${restaurantId}/${(selectedTable as any).number}`}
+      href={`/waiter/${restaurantId}/${(selectedTable as any).tableNumber ?? (selectedTable as any).number}`}
     >
       {t("pos.waiter.btn_open_order", "Open Order")}
     </a>

@@ -17,12 +17,15 @@ import {
   upsertCategory,
   deleteCategory,
   listOpenOrdersByRestaurant,
+  listOpenOrdersForTable,
+  listTableAccounts,
   listOrderItemsForTable,
   computeTotalsForTable,
   cancelOrderItem,
   closeOrderForTable,
   addOrderItem,
   getItem,
+  getOrCreateOpenOrder,
   updateOrderItemStatus,
   listBillsForRestaurant, // ✅ לסטטיסטיקות + חשבונות
   getBill,                // ✅ להצגת חשבונית
@@ -492,16 +495,21 @@ posRouter.get("/waiter/:rid", async (ctx) => {
   }
 
   const enriched: any[] = [];
+  const seenTables = new Set<number>();
   for (const row of open) {
+    if (seenTables.has(Number(row.table))) continue;
+    seenTables.add(Number(row.table));
     const totals = await computeTotalsForTable(rid, row.table);
+    const accounts = await listTableAccounts(rid, row.table);
     enriched.push({
       table: row.table,
       order: row.order,
       itemsCount: totals.itemsCount,
       subtotal: totals.subtotal,
+      accountCount: accounts.length,
       roomLabel: tableRoomMap.get(Number(row.table)) ?? "",
       // קישור ישיר למסך ההזמנה לשולחן הזה
-      posUrl: `/pos/${rid}/table/${row.table}`,
+      posUrl: `/waiter/${rid}/${row.table}`,
     });
   }
 
@@ -529,11 +537,18 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
   if (!(await requireRestaurantAccess(ctx, rid))) return;
 
   const table = Number(ctx.params.table!);
+  const requestedAccountId = String(ctx.request.url.searchParams.get("account") ?? "").trim();
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);
 
-  const items = await listOrderItemsForTable(rid, table);
-  const totals = await computeTotalsForTable(rid, table);
+  const accounts = await listTableAccounts(rid, table);
+  const effectiveAccountId = requestedAccountId
+    ? requestedAccountId
+    : (accounts.find((a) => a.isMain)?.accountId ?? accounts[0]?.accountId ?? "main");
+  const currentAccount = accounts.find((a) => a.accountId === effectiveAccountId) ?? null;
+
+  const items = await listOrderItemsForTable(rid, table, { accountId: effectiveAccountId });
+  const totals = await computeTotalsForTable(rid, table, { accountId: effectiveAccountId });
   const systemNowParts = splitIsoParts(await getRestaurantSystemNow(rid));
 
   await render(ctx, "pos_waiter", {
@@ -544,12 +559,15 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
     restaurant: r,
     orderItems: items,
     totals,
+    accounts,
+    currentAccount,
+    currentAccountId: effectiveAccountId,
+    isSharedCheckMode: accounts.length > 1 || effectiveAccountId !== "main",
     systemNowIso: systemNowParts.iso,
     systemNowDate: systemNowParts.date,
     systemNowTime: systemNowParts.time,
   });
 });
-
 
 /* ------------ Waiter map (click table to open) ------------ */
 
@@ -619,6 +637,62 @@ posRouter.get("/bar/:rid", async (ctx) => {
     systemNowIso: systemNowParts.iso,
     systemNowDate: systemNowParts.date,
     systemNowTime: systemNowParts.time,
+  });
+});
+
+/* ------------ API: table accounts / shared bar tabs ------------ */
+
+posRouter.get("/api/pos/table-accounts", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const restaurantId0 = String(ctx.request.url.searchParams.get("restaurantId") ?? "");
+  const restaurantId = resolveRestaurantIdForStaff(ctx, restaurantId0);
+  if (!restaurantId) return;
+  if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
+  const table = Number(ctx.request.url.searchParams.get("table") ?? 0);
+  if (!restaurantId || !table) ctx.throw(Status.BadRequest, "missing fields");
+
+  const accounts = await listTableAccounts(restaurantId, table);
+  ctx.response.headers.set(
+    "Content-Type",
+    "application/json; charset=utf-8",
+  );
+  ctx.response.body = JSON.stringify({ ok: true, accounts });
+});
+
+posRouter.post("/api/pos/table-account/open", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const body = await ctx.request.body.json();
+  const restaurantId0 = String(body.restaurantId ?? "");
+  const restaurantId = resolveRestaurantIdForStaff(ctx, restaurantId0);
+  if (!restaurantId) return;
+  if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
+  const table = Number(body.table ?? 0);
+  const accountLabel = String(body.accountLabel ?? "").trim();
+  const accountId = String(body.accountId ?? crypto.randomUUID()).trim() || crypto.randomUUID();
+  const seatId = String(body.seatId ?? "").trim() || undefined;
+  const locationId = String(body.locationId ?? "").trim() || undefined;
+  const locationType = String(body.locationType ?? "bar").trim() === "table" ? "table" : "bar";
+
+  if (!restaurantId || !table) ctx.throw(Status.BadRequest, "missing fields");
+
+  const order = await getOrCreateOpenOrder(restaurantId, table, {
+    accountId,
+    accountLabel: accountLabel || undefined,
+    seatId,
+    locationId,
+    locationType,
+    guestName: String(body.guestName ?? "").trim() || undefined,
+  });
+
+  const accounts = await listTableAccounts(restaurantId, table);
+  ctx.response.headers.set(
+    "Content-Type",
+    "application/json; charset=utf-8",
+  );
+  ctx.response.body = JSON.stringify({
+    ok: true,
+    account: accounts.find((a) => a.accountId === (order.accountId || accountId)) ?? null,
+    accounts,
   });
 });
 
@@ -693,13 +767,17 @@ posRouter.post("/api/pos/order-item/add", async (ctx) => {
   const menuItemId = String(body.menuItemId ?? "");
   const quantity = Number(body.quantity ?? 1);
   const notes = String(body.notes ?? "").trim();
+  const accountId = String(body.accountId ?? "").trim() || undefined;
 
   if (!restaurantId || !table || !menuItemId) {
     ctx.throw(Status.BadRequest, "missing fields");
   }
 
-  // Waiters can add only when table is seated by host
-  if (!(await isTableSeated(restaurantId, table))) {
+  // Waiters can normally add only when table is seated by host.
+  // Shared bar checks are also allowed when there is already an open account/check on the same location.
+  const seated = await isTableSeated(restaurantId, table);
+  const openAccounts = await listOpenOrdersForTable(restaurantId, table);
+  if (!seated && openAccounts.length === 0) {
     ctx.throw(Status.Forbidden, "table_not_seated");
   }
 
@@ -712,8 +790,10 @@ posRouter.post("/api/pos/order-item/add", async (ctx) => {
     menuItem,
     quantity,
     notes: notes || undefined,
+    accountId,
+    locationType: accountId && accountId !== "main" ? "bar" : "table",
   });
-  const totals = await computeTotalsForTable(restaurantId, table);
+  const totals = await computeTotalsForTable(restaurantId, table, { accountId });
 
   notifyOrderItemAdded(orderItem);
 
@@ -741,13 +821,14 @@ posRouter.post("/api/pos/order-item/cancel", async (ctx) => {
   const orderId = String(body.orderId ?? "");
   const orderItemId = String(body.orderItemId ?? "");
   const table = Number(body.table ?? 0);
+  const accountId = String(body.accountId ?? "").trim() || undefined;
 
   if (!restaurantId || !orderId || !orderItemId || !table) {
     ctx.throw(Status.BadRequest, "missing fields");
   }
 
   const updated = await cancelOrderItem(orderId, orderItemId);
-  const totals = await computeTotalsForTable(restaurantId, table);
+  const totals = await computeTotalsForTable(restaurantId, table, { accountId });
 
   if (updated) {
     notifyOrderItemUpdated(updated);
@@ -777,6 +858,7 @@ posRouter.post("/api/pos/order-item/serve", async (ctx) => {
   const orderId = String(body.orderId ?? "");
   const orderItemId = String(body.orderItemId ?? "");
   const table = Number(body.table ?? 0);
+  const accountId = String(body.accountId ?? "").trim() || undefined;
 
   if (!restaurantId || !orderId || !orderItemId || !table) {
     ctx.throw(Status.BadRequest, "missing fields");
@@ -787,7 +869,7 @@ posRouter.post("/api/pos/order-item/serve", async (ctx) => {
     orderId,
     "served",
   );
-  const totals = await computeTotalsForTable(restaurantId, table);
+  const totals = await computeTotalsForTable(restaurantId, table, { accountId });
 
   if (updated) {
     notifyOrderItemUpdated(updated);
@@ -814,22 +896,26 @@ posRouter.post("/api/pos/order/close", async (ctx) => {
   if (!restaurantId) return;
   if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
   const table = Number(body.table ?? 0);
+  const accountId = String(body.accountId ?? "").trim() || undefined;
 
   if (!restaurantId || !table) {
     ctx.throw(Status.BadRequest, "missing fields");
   }
 
-  const order = await closeOrderForTable(restaurantId, table);
-  const totals = await computeTotalsForTable(restaurantId, table);
+  const order = await closeOrderForTable(restaurantId, table, { accountId });
+  const totals = await computeTotalsForTable(restaurantId, table, { accountId });
 
   if (order) {
     notifyOrderClosed(restaurantId, table);
 
-    // Auto-mark table as "dirty" after order close
-    const user = ctx.state.user;
-    const floorTableId = await getTableIdByNumber(restaurantId, table);
-    if (floorTableId) {
-      await markTableDirty(restaurantId, floorTableId, user?.id ?? "system");
+    // Auto-mark table as "dirty" only after the last open account/check is closed.
+    const remaining = await listOpenOrdersForTable(restaurantId, table);
+    if (remaining.length === 0) {
+      const user = ctx.state.user;
+      const floorTableId = await getTableIdByNumber(restaurantId, table);
+      if (floorTableId) {
+        await markTableDirty(restaurantId, floorTableId, user?.id ?? "system");
+      }
     }
   }
 

@@ -465,6 +465,67 @@
 }
 
 
+
+.fe-item-action{
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  z-index: 30;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(15,23,42,.96);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0,0,0,.28);
+}
+
+.fe-item-action--delete:hover{
+  background: #dc2626;
+}
+
+.fe-resize-handle{
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  z-index: 30;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  border: 2px solid rgba(255,255,255,.95);
+  background: linear-gradient(135deg, rgba(37,99,235,.98), rgba(56,156,255,.98));
+  box-shadow: 0 8px 18px rgba(0,0,0,.28);
+  cursor: nwse-resize;
+}
+
+.fe-resize-handle::before,
+.fe-resize-handle::after{
+  content: '';
+  position: absolute;
+  background: rgba(255,255,255,.95);
+  border-radius: 999px;
+}
+
+.fe-resize-handle::before{
+  width: 8px;
+  height: 2px;
+  right: 2px;
+  bottom: 5px;
+  transform: rotate(-45deg);
+}
+
+.fe-resize-handle::after{
+  width: 5px;
+  height: 2px;
+  right: 1px;
+  bottom: 2px;
+  transform: rotate(-45deg);
+}
+
 .table.round { border-radius: 999px; }
 .table.square, .table.rect { border-radius: 12px; }
 .table.booth { border-radius: 14px; }
@@ -896,4 +957,22 @@
 
 .fe-asset--square_table10_svg{
   padding: 2px; /* slightly larger appearance */
+}
+
+
+.fe-grid-size-panel{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.fe-size-chip-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.fe-grid-size-meta{
+  font-size:12px;
+  opacity:.78;
 }

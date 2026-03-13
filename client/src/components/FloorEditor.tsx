@@ -109,6 +109,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [newLayoutDisplayOrder, setNewLayoutDisplayOrder] = useState(0);
   const [showOnlyActiveSection, setShowOnlyActiveSection] = useState(false);
   const [hoverCell, setHoverCell] = useState<{ x: number; y: number } | null>(null);
+  const [layoutSizeDraft, setLayoutSizeDraft] = useState({ cols: 12, rows: 8 });
 
   // "Real" pointer-based dragging (no HTML5 drag/drop) for precise placement.
   const [pointerDrag, setPointerDrag] = useState<null | {
@@ -128,8 +129,21 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     };
   }>(null);
   const [dragPreviewCell, setDragPreviewCell] = useState<{ x: number; y: number } | null>(null);
+  const [resizeDraft, setResizeDraft] = useState<null | {
+    kind: 'table' | 'object';
+    id: string;
+    anchorX: number;
+    anchorY: number;
+    spanX: number;
+    spanY: number;
+  }>(null);
 
   const [cellSize, setCellSize] = useState(60);
+
+  const clearSelection = () => {
+    setSelectedTableId(null);
+    setSelectedObjectId(null);
+  };
 
   type FloorThemeKey = 'parquet_blue' | 'parquet_brown' | 'slate_dark' | 'navy_carpet' | 'teal_terrazzo';
 
@@ -194,6 +208,11 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     if (!currentLayout) return;
     setFloorTheme(normalizeTheme((currentLayout as any).floorColor));
   }, [currentLayout?.id]);
+
+  useEffect(() => {
+    if (!currentLayout) return;
+    setLayoutSizeDraft({ cols: currentLayout.gridCols, rows: currentLayout.gridRows });
+  }, [currentLayout?.id, currentLayout?.gridCols, currentLayout?.gridRows]);
 
   const [isPainting, setIsPainting] = useState(false);
 
@@ -404,6 +423,37 @@ const assetForTable = (shape: string, seats: number) => {
     };
   }, []);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = String(target?.tagName || '').toLowerCase();
+      const isTyping = Boolean(target?.isContentEditable) || ['input', 'textarea', 'select'].includes(tag);
+      if (isTyping) return;
+
+      if (e.key === 'Escape') {
+        clearSelection();
+        setPointerDrag(null);
+        setDragPreviewCell(null);
+        setResizeDraft(null);
+        return;
+      }
+
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      if (selectedTableId) {
+        e.preventDefault();
+        deleteTable(selectedTableId);
+        return;
+      }
+      if (selectedObjectId) {
+        e.preventDefault();
+        deleteObject(selectedObjectId);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedTableId, selectedObjectId, currentLayout]);
+
 
   const createNewLayout = async () => {
     if (!newLayoutName.trim()) {
@@ -562,6 +612,66 @@ const assetForTable = (shape: string, seats: number) => {
 
   // ===== Smart snapping (Stage 5 polish) =====
   const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+
+  const getLayoutContentBounds = (layout: FloorLayout) => {
+    const maxTableX = Math.max(1, ...layout.tables.map((t) => Number(t.gridX || 0) + Math.max(1, Number(t.spanX || 1))));
+    const maxTableY = Math.max(1, ...layout.tables.map((t) => Number(t.gridY || 0) + Math.max(1, Number(t.spanY || 1))));
+    const objs = layout.objects ?? [];
+    const maxObjectX = Math.max(1, ...objs.map((o) => Number(o.gridX || 0) + Math.max(1, Number(o.spanX || 1))));
+    const maxObjectY = Math.max(1, ...objs.map((o) => Number(o.gridY || 0) + Math.max(1, Number(o.spanY || 1))));
+    return {
+      minCols: Math.max(1, maxTableX, maxObjectX),
+      minRows: Math.max(1, maxTableY, maxObjectY),
+    };
+  };
+
+  const resizeGridMask = (oldMask: number[] | undefined, oldRows: number, oldCols: number, newRows: number, newCols: number) => {
+    const next = Array.from({ length: Math.max(0, newRows * newCols) }, () => 1);
+    const src = Array.isArray(oldMask) ? oldMask : [];
+    const copyRows = Math.min(oldRows, newRows);
+    const copyCols = Math.min(oldCols, newCols);
+    for (let y = 0; y < copyRows; y++) {
+      for (let x = 0; x < copyCols; x++) {
+        next[y * newCols + x] = src[y * oldCols + x] ?? 1;
+      }
+    }
+    return next;
+  };
+
+  const applyCanvasSize = (nextColsRaw: number, nextRowsRaw: number) => {
+    if (!currentLayout) return;
+    const nextCols = Math.max(1, Math.round(nextColsRaw || 1));
+    const nextRows = Math.max(1, Math.round(nextRowsRaw || 1));
+    const bounds = getLayoutContentBounds(currentLayout);
+    if (nextCols < bounds.minCols || nextRows < bounds.minRows) {
+      alert(
+        t('floor.map.resize_too_small', 'Map is too small for the placed items. Minimum allowed right now: {cols} × {rows}.', {
+          cols: bounds.minCols,
+          rows: bounds.minRows,
+        })
+      );
+      return;
+    }
+
+    const nextLayout = {
+      ...currentLayout,
+      gridCols: nextCols,
+      gridRows: nextRows,
+      gridMask: resizeGridMask(currentLayout.gridMask, currentLayout.gridRows, currentLayout.gridCols, nextRows, nextCols),
+    };
+    setCurrentLayout(nextLayout);
+    setLayouts((prev) => prev.map((l) => (l.id === nextLayout.id ? nextLayout : l)));
+  };
+
+  const expandCanvasX = (delta: number) => {
+    if (!currentLayout) return;
+    applyCanvasSize(currentLayout.gridCols + delta, currentLayout.gridRows);
+  };
+
+  const expandCanvasY = (delta: number) => {
+    if (!currentLayout) return;
+    applyCanvasSize(currentLayout.gridCols, currentLayout.gridRows + delta);
+  };
 
   const clampToGrid = (x: number, y: number, spanX: number, spanY: number) => {
     if (!currentLayout) return { x, y };
@@ -897,6 +1007,60 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     if (gx < 0 || gy < 0 || gx >= currentLayout.gridCols || gy >= currentLayout.gridRows) return null;
     return { x: gx, y: gy };
   };
+
+  const beginResizeItem = (
+    e: React.MouseEvent,
+    kind: 'table' | 'object',
+    id: string,
+    anchorX: number,
+    anchorY: number,
+    spanX: number,
+    spanY: number,
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizeDraft({
+      kind,
+      id,
+      anchorX,
+      anchorY,
+      spanX: Math.max(1, spanX || 1),
+      spanY: Math.max(1, spanY || 1),
+    });
+  };
+
+  useEffect(() => {
+    if (!resizeDraft || !currentLayout) return;
+
+    const onMove = (ev: MouseEvent) => {
+      const cell = clientPointToGridCell(ev.clientX, ev.clientY);
+      if (!cell) return;
+
+      const nextSpanX = Math.max(1, Math.min(currentLayout.gridCols - resizeDraft.anchorX, cell.x - resizeDraft.anchorX + 1));
+      const nextSpanY = Math.max(1, Math.min(currentLayout.gridRows - resizeDraft.anchorY, cell.y - resizeDraft.anchorY + 1));
+
+      if (!maskAllows(resizeDraft.anchorX, resizeDraft.anchorY, nextSpanX, nextSpanY)) {
+        return;
+      }
+
+      setResizeDraft((prev) => prev ? { ...prev, spanX: nextSpanX, spanY: nextSpanY } : prev);
+    };
+
+    const onUp = () => {
+      if (resizeDraft.kind === 'table') {
+        updateTable(resizeDraft.id, { spanX: resizeDraft.spanX, spanY: resizeDraft.spanY });
+      } else {
+        updateObject(resizeDraft.id, { spanX: resizeDraft.spanX, spanY: resizeDraft.spanY });
+      }
+      setResizeDraft(null);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp, { once: true });
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+    };
+  }, [resizeDraft, currentLayout]);
 
   // ---- Pointer-based drag (precise, stable) ----
   const beginPointerDragNew = (
@@ -1656,6 +1820,56 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             )}
           </div>
 
+          <div className="properties-panel">
+            <h3>{t('floor.map.resize_title', 'Map size')}</h3>
+            <div className="fe-grid-size-panel">
+              <div className="row" style={{ display: 'flex', gap: 8 }}>
+                <label style={{ flex: 1 }}>
+                  {t('floor.map.width_cells', 'Width (X)')}
+                  <input
+                    type="number"
+                    min="1"
+                    value={layoutSizeDraft.cols}
+                    onChange={(e) => setLayoutSizeDraft((prev) => ({ ...prev, cols: Math.max(1, Number(e.target.value) || 1) }))}
+                  />
+                </label>
+                <label style={{ flex: 1 }}>
+                  {t('floor.map.height_cells', 'Height (Y)')}
+                  <input
+                    type="number"
+                    min="1"
+                    value={layoutSizeDraft.rows}
+                    onChange={(e) => setLayoutSizeDraft((prev) => ({ ...prev, rows: Math.max(1, Number(e.target.value) || 1) }))}
+                  />
+                </label>
+              </div>
+
+              <div className="fe-size-chip-row">
+                <button className="btn-icon-small" onClick={() => expandCanvasX(1)}>+1 X</button>
+                <button className="btn-icon-small" onClick={() => expandCanvasX(2)}>+2 X</button>
+                <button className="btn-icon-small" onClick={() => expandCanvasY(1)}>+1 Y</button>
+                <button className="btn-icon-small" onClick={() => expandCanvasY(2)}>+2 Y</button>
+              </div>
+
+              <div className="fe-grid-size-meta">
+                {t('floor.map.current_size', 'Current: {cols} × {rows}', { cols: currentLayout.gridCols, rows: currentLayout.gridRows })}
+              </div>
+              <div className="fe-grid-size-meta">
+                {(() => {
+                  const bounds = getLayoutContentBounds(currentLayout);
+                  return t('floor.map.minimum_size', 'Minimum for current items: {cols} × {rows}', { cols: bounds.minCols, rows: bounds.minRows });
+                })()}
+              </div>
+
+              <button
+                className="btn-secondary"
+                onClick={() => applyCanvasSize(layoutSizeDraft.cols, layoutSizeDraft.rows)}
+              >
+                ⤢ {t('floor.map.apply_size', 'Apply map size')}
+              </button>
+            </div>
+          </div>
+
 {selectedTable && (
             <div className="properties-panel">
               <h3>{t('floor.properties.selected_table', 'Selected: {name}').replace('{name}', selectedTable.name)}</h3>
@@ -1681,6 +1895,30 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   }}
                 />
 	              </label>
+
+              <div className="row" style={{ display: 'flex', gap: 8 }}>
+                <label style={{ flex: 1 }}>
+                  W:
+                  <input
+                    type="number"
+                    min="1"
+                    max={Math.max(1, currentLayout.gridCols - selectedTable.gridX)}
+                    value={(resizeDraft?.kind === 'table' && resizeDraft.id === selectedTable.id) ? resizeDraft.spanX : selectedTable.spanX}
+                    onChange={(e) => updateTable(selectedTable.id, { spanX: Math.max(1, Number(e.target.value) || 1) })}
+                  />
+                </label>
+                <label style={{ flex: 1 }}>
+                  H:
+                  <input
+                    type="number"
+                    min="1"
+                    max={Math.max(1, currentLayout.gridRows - selectedTable.gridY)}
+                    value={(resizeDraft?.kind === 'table' && resizeDraft.id === selectedTable.id) ? resizeDraft.spanY : selectedTable.spanY}
+                    onChange={(e) => updateTable(selectedTable.id, { spanY: Math.max(1, Number(e.target.value) || 1) })}
+                  />
+                </label>
+              </div>
+              <div className="fe-hint">{t('floor.properties.resize_hint', 'Tip: drag the bottom-right handle on the selected item to resize it.')}</div>
 
 	              <label>
 	                {t('floor.properties.size', 'Size:')}
@@ -1749,8 +1987,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   <input
                     type="number"
                     min="1"
-                    max="12"
-                    value={selectedObject.spanX}
+                    max={Math.max(1, currentLayout.gridCols - selectedObject.gridX)}
+                    value={(resizeDraft?.kind === 'object' && resizeDraft.id === selectedObject.id) ? resizeDraft.spanX : selectedObject.spanX}
                     onChange={(e) => updateObject(selectedObject.id, { spanX: Math.max(1, Number(e.target.value) || 1) })}
                   />
                 </label>
@@ -1759,12 +1997,13 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   <input
                     type="number"
                     min="1"
-                    max="12"
-                    value={selectedObject.spanY}
+                    max={Math.max(1, currentLayout.gridRows - selectedObject.gridY)}
+                    value={(resizeDraft?.kind === 'object' && resizeDraft.id === selectedObject.id) ? resizeDraft.spanY : selectedObject.spanY}
                     onChange={(e) => updateObject(selectedObject.id, { spanY: Math.max(1, Number(e.target.value) || 1) })}
                   />
                 </label>
               </div>
+              <div className="fe-hint">{t('floor.properties.resize_hint', 'Tip: drag the bottom-right handle on the selected item to resize it.')}</div>
               <label>
   {t('floor.properties.size', 'Size:')}
   <input
@@ -1806,7 +2045,14 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
           </button>
         </div>
 
-        <div className={`editor-canvas ${isPanning ? "is-panning" : ""}`} ref={canvasRef} onMouseDown={onCanvasMouseDown}>
+        <div
+          className={`editor-canvas ${isPanning ? "is-panning" : ""}`}
+          ref={canvasRef}
+          onMouseDown={(e) => {
+            onCanvasMouseDown(e);
+            if (e.target === e.currentTarget) clearSelection();
+          }}
+        >
           
           <div className="fe-canvas-controls">
             <button className="btn-icon-small" onClick={() => zoomAtPoint(clampZoom(zoom * 1.1), (canvasRef.current?.getBoundingClientRect().left || 0) + 40, (canvasRef.current?.getBoundingClientRect().top || 0) + 40)} title={t('floor.toolbar.zoom_in', 'Zoom in')}>＋</button>
@@ -1835,6 +2081,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                 onDragOver={shapeMode ? undefined : handleDragOver}
                 onDrop={shapeMode ? undefined : handleDrop}
                 onDragLeave={() => setHoverCell(null)}
+                onMouseDown={(e) => {
+                  if (e.target === e.currentTarget) clearSelection();
+                }}
               >
             {(() => {
               // Drop preview: shows where the dragged item will land (with snapping)
@@ -2005,15 +2254,12 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                       className={`floor-object type-${objectHere.type} ${selectedObject?.id === objectHere.id ? 'selected' : ''}`}
                       onMouseDown={(e) => beginPointerDragExisting(e, 'object', objectHere.id, objectHere.spanX || 1, objectHere.spanY || 1)}
                       onClick={() => {
-                        setSelectedTableId(null);
-      setSelectedObjectId(null);
-      setSelectedTableId(null);
-      setSelectedObjectId(objectHere.id);
-      setSelectedTableId(null);
-      }}
+                        clearSelection();
+                        setSelectedObjectId(objectHere.id);
+                      }}
                       style={{
-                        width: `${spanToPx(objectHere.spanX)}px`,
-                        height: `${spanToPx(objectHere.spanY)}px`,
+                        width: `${spanToPx((resizeDraft?.kind === 'object' && resizeDraft.id === objectHere.id) ? resizeDraft.spanX : objectHere.spanX)}px`,
+                        height: `${spanToPx((resizeDraft?.kind === 'object' && resizeDraft.id === objectHere.id) ? resizeDraft.spanY : objectHere.spanY)}px`,
                         transform: `rotate(${getItemRotation((objectHere as any).rotationDeg ?? objectHere.rotation ?? 0)}deg)`,
                       }}
                     >
@@ -2024,6 +2270,24 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                         alt=""
                       />
                       {objectHere.label && <div className="obj-label">{objectHere.label}</div>}
+                      {selectedObject?.id === objectHere.id && (
+                        <>
+                          <button
+                            type="button"
+                            className="fe-item-action fe-item-action--delete"
+                            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteObject(objectHere.id); }}
+                            title={t('common.btn_delete', 'Delete')}
+                          >
+                            ×
+                          </button>
+                          <div
+                            className="fe-resize-handle"
+                            onMouseDown={(e) => beginResizeItem(e, 'object', objectHere.id, objectHere.gridX, objectHere.gridY, objectHere.spanX || 1, objectHere.spanY || 1)}
+                            title={t('floor.properties.resize_hint', 'Drag to resize')}
+                          />
+                        </>
+                      )}
                     </div>
                   )}
                   {isTopLeft && (
@@ -2031,15 +2295,12 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                       className={`table ${tableHere.shape} ${selectedTable?.id === tableHere.id ? 'selected' : ''} ${(!showOnlyActiveSection && activeSection && String(tableHere.sectionId || '') && String(tableHere.sectionId || '') !== String(activeSection.id)) ? 'dimmed' : ''}`}
                       onMouseDown={(e) => beginPointerDragExisting(e, 'table', tableHere.id, tableHere.spanX || 1, tableHere.spanY || 1)}
                       onClick={() => {
-                        setSelectedObjectId(null);
-      setSelectedTableId(null);
-      setSelectedTableId(tableHere.id);
-      setSelectedObjectId(null);
-      setSelectedTableId(null);
-      }}
+                        clearSelection();
+                        setSelectedTableId(tableHere.id);
+                      }}
                       style={{
-                        width: `${spanToPx(tableHere.spanX)}px`,
-                        height: `${spanToPx(tableHere.spanY)}px`,
+                        width: `${spanToPx((resizeDraft?.kind === 'table' && resizeDraft.id === tableHere.id) ? resizeDraft.spanX : tableHere.spanX)}px`,
+                        height: `${spanToPx((resizeDraft?.kind === 'table' && resizeDraft.id === tableHere.id) ? resizeDraft.spanY : tableHere.spanY)}px`,
                       }}
                     >
                       <div className="fe-table-visual" data-asset={tableHere.assetFile || ""}>
@@ -2060,6 +2321,24 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                           </div>
                         )}
                       </div>
+                      {selectedTable?.id === tableHere.id && (
+                        <>
+                          <button
+                            type="button"
+                            className="fe-item-action fe-item-action--delete"
+                            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteTable(tableHere.id); }}
+                            title={t('common.btn_delete', 'Delete')}
+                          >
+                            ×
+                          </button>
+                          <div
+                            className="fe-resize-handle"
+                            onMouseDown={(e) => beginResizeItem(e, 'table', tableHere.id, tableHere.gridX, tableHere.gridY, tableHere.spanX || 1, tableHere.spanY || 1)}
+                            title={t('floor.properties.resize_hint', 'Drag to resize')}
+                          />
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

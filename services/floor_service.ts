@@ -227,34 +227,50 @@ export async function computeTableStatus(
   const guestCount = pickGuestCount(seat, reservation);
   const reservationTime = pickReservationTime(seat, reservation);
 
-  // Look up current order for this table
-  const orderKey = ["pos", "order_by_table", restaurantId, tableNumber] as Deno.KvKey;
-  const orderRes = await kv.get(orderKey);
-  const order = orderRes.value as Order | null;
+  // Look up all current orders for this table (supports shared bar tabs / multiple checks)
+  const openOrders: Order[] = [];
+  const seenOrderIds = new Set<string>();
+  for await (const row of kv.list<Order>({
+    prefix: ["pos", "order_by_table_account", restaurantId, tableNumber] as Deno.KvKey,
+  })) {
+    const order = row.value as Order | null;
+    if (!order || order.status !== "open" || seenOrderIds.has(order.id)) continue;
+    seenOrderIds.add(order.id);
+    openOrders.push(order);
+  }
+  if (openOrders.length === 0) {
+    const legacyOrderRes = await kv.get<Order>(["pos", "order_by_table", restaurantId, tableNumber] as Deno.KvKey);
+    const legacyOrder = legacyOrderRes.value as Order | null;
+    if (legacyOrder && legacyOrder.status === "open") {
+      openOrders.push(legacyOrder);
+    }
+  }
 
-  // 1) Open order -> occupied (highest priority)
-  if (order && order.status === "open") {
-    // Compute order items to show useful details in the UI
-    const itemPrefix = ["pos", "order_item", order.id] as Deno.KvKey;
-
+  // 1) Any open order -> occupied (highest priority)
+  if (openOrders.length) {
     let itemsReady = 0;
     let itemsPending = 0;
     let itemsCount = 0;
     let subtotal = 0;
+    let occupiedSince = Number.POSITIVE_INFINITY;
 
-    const iter = kv.list({ prefix: itemPrefix });
-    for await (const entry of iter) {
-      const item = entry.value as OrderItem;
-      if (item.status === "cancelled") continue;
+    for (const order of openOrders) {
+      occupiedSince = Math.min(occupiedSince, Number(order.createdAt || Date.now()));
+      const itemPrefix = ["pos", "order_item", order.id] as Deno.KvKey;
+      const iter = kv.list({ prefix: itemPrefix });
+      for await (const entry of iter) {
+        const item = entry.value as OrderItem;
+        if (item.status === "cancelled") continue;
 
-      const qty = Number(item.quantity ?? 1) || 1;
-      itemsCount += qty;
-      subtotal += Number(item.unitPrice ?? 0) * qty;
+        const qty = Number(item.quantity ?? 1) || 1;
+        itemsCount += qty;
+        subtotal += Number(item.unitPrice ?? 0) * qty;
 
-      if (item.status === "ready" || item.status === "served") {
-        itemsReady += qty;
-      } else {
-        itemsPending += qty;
+        if (item.status === "ready" || item.status === "served") {
+          itemsReady += qty;
+        } else {
+          itemsPending += qty;
+        }
       }
     }
 
@@ -264,11 +280,11 @@ export async function computeTableStatus(
       guestName,
       guestCount,
       reservationTime,
-      orderId: order.id,
+      orderId: openOrders[0]?.id,
       orderTotal: subtotal,
       subtotal,
       itemsCount,
-      occupiedSince: order.createdAt,
+      occupiedSince: Number.isFinite(occupiedSince) ? occupiedSince : undefined,
       itemsReady,
       itemsPending,
     };

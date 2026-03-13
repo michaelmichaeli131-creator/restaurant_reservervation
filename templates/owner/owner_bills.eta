@@ -48,6 +48,7 @@ function formatDateTime(ts){
               <th>#</th>
               <th><%= tt('owner.bills.tbl.date', 'תאריך') %></th>
               <th><%= tt('owner.bills.tbl.table', 'שולחן') %></th>
+              <th><%= tt('owner.bills.tbl.account', 'חשבון') %></th>
               <th><%= tt('owner.bills.tbl.amount', 'סכום') %></th>
               <th><%= tt('owner.bills.tbl.actions', 'פעולות') %></th>
             </tr>
@@ -58,6 +59,7 @@ function formatDateTime(ts){
                 <td data-label="#"> <%= idx + 1 %></td>
                 <td data-label="<%= tt('owner.bills.tbl.date', 'תאריך') %>"><%= formatDateTime(b.createdAt) %></td>
                 <td data-label="<%= tt('owner.bills.tbl.table', 'שולחן') %>"><%= tt('bill.table_prefix', 'שולחן') %> <%= b.table %></td>
+                <td data-label="<%= tt('owner.bills.tbl.account', 'חשבון') %>"><%= b.accountLabel || (b.accountId === 'main' || !b.accountId ? tt('pos.waiter.main_check', 'Main Check') : b.accountId) %></td>
                 <td data-label="<%= tt('owner.bills.tbl.amount', 'סכום') %>">
                   <%= (b.totals && typeof b.totals.total==='number'
                       ? b.totals.total.toFixed(2)

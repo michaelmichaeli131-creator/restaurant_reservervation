@@ -21,6 +21,9 @@
   const tbl = it.table;
   const items = it.orderItems || [];
   const totals = it.totals || { itemsCount: 0, subtotal: 0 };
+  const accounts = it.accounts || [];
+  const currentAccount = it.currentAccount || null;
+  const currentAccountId = it.currentAccountId || 'main';
 %>
 
 <main class="sb-page sb-wt-page" dir="rtl" data-page="waiter-table">
@@ -39,6 +42,8 @@
         data-table="<%= tbl %>"
         data-currency="<%= tt('common.currency', '₪') %>"
         data-items-unit="<%= tt('common.items_unit', 'פריטים') %>"
+        data-account-id="<%= currentAccountId %>"
+        data-account-label="<%= currentAccount?.accountLabel || '' %>"
       >
         <div class="sb-wt-bill-line">
           <span class="sb-wt-bill-label"><%= tt('pos.waiter.items_count', 'פריטים') %>:</span>
@@ -64,6 +69,35 @@
       <a class="btn ghost md" href="/waiter/<%= rid %>">← <%= tt('pos.waiter.btn_back_lobby', 'Back') %></a>
     </div>
   </header>
+
+  <% if (accounts.length || true) { %>
+  <section class="sb-wt-accounts sb-surface" aria-label="Shared checks">
+    <div class="sb-wt-accounts-main">
+      <div>
+        <div class="sb-wt-h2"><%= tt('pos.waiter.accounts', 'Open Checks') %></div>
+        <div class="sb-wt-help muted"><%= tt('pos.waiter.accounts_help', 'Useful for the bar or any shared seating area with separate bills.') %></div>
+      </div>
+      <div class="sb-wt-account-actions">
+        <button type="button" id="btn-open-account" class="btn ghost md">
+          <span class="icon">＋</span> <%= tt('pos.waiter.btn_new_account', 'Open another check') %>
+        </button>
+      </div>
+    </div>
+    <div class="sb-wt-account-tabs">
+      <a class="sb-wt-account-tab <%= currentAccountId === 'main' ? 'is-active' : '' %>" href="/waiter/<%= rid %>/<%= tbl %>?account=main">
+        <span class="sb-wt-account-name"><%= currentAccountId === 'main' && currentAccount?.accountLabel ? currentAccount.accountLabel : tt('pos.waiter.main_check', 'Main Check') %></span>
+        <% const mainAcc = accounts.find((a) => a.accountId === 'main'); %>
+        <% if (mainAcc) { %><span class="sb-wt-account-meta"><%= mainAcc.itemsCount %> · <%= mainAcc.subtotal.toFixed ? mainAcc.subtotal.toFixed(2) : mainAcc.subtotal %> <%= tt('common.currency', '₪') %></span><% } %>
+      </a>
+      <% accounts.filter((a) => a.accountId !== 'main').forEach(function(acc){ %>
+        <a class="sb-wt-account-tab <%= currentAccountId === acc.accountId ? 'is-active' : '' %>" href="/waiter/<%= rid %>/<%= tbl %>?account=<%= encodeURIComponent(acc.accountId) %>">
+          <span class="sb-wt-account-name"><%= acc.accountLabel || (tt('pos.waiter.guest_check', 'Guest Check') + ' ' + acc.accountId.slice(0,4)) %></span>
+          <span class="sb-wt-account-meta"><%= acc.itemsCount %> · <%= Number(acc.subtotal || 0).toFixed(2) %> <%= tt('common.currency', '₪') %></span>
+        </a>
+      <% }) %>
+    </div>
+  </section>
+  <% } %>
 
   <section class="sb-wt-shell">
     <!-- Menu -->
@@ -103,6 +137,7 @@
         <div>
           <h2 class="sb-wt-h2"><%= tt('pos.order.title', 'Table Order') %> <span class="sb-wt-table-inline">#<%= tbl %></span></h2>
           <div class="sb-wt-help muted"><%= tt('pos.waiter.order_help', 'Tap an item to manage status or cancel. Use Close Table when ready to issue the bill.') %></div>
+          <div class="sb-wt-help muted"><strong><%= tt('pos.waiter.current_check', 'Current check') %>:</strong> <%= currentAccount?.accountLabel || (currentAccountId === 'main' ? tt('pos.waiter.main_check', 'Main Check') : currentAccountId) %></div>
         </div>
         <button type="button" id="btn-close-order" class="btn primary lg sb-wt-close-desktop">
           <span class="icon">🧾</span> <%= tt('pos.waiter.btn_close_order', 'Close Table / Issue Bill') %>
@@ -118,6 +153,7 @@
               data-item-id="<%= row.id %>"
               data-qty="<%= row.quantity %>"
               data-price="<%= row.unitPrice %>"
+              data-account-id="<%= row.accountId || currentAccountId %>"
             >
               <div class="sb-wt-item-main">
                 <div class="sb-wt-item-title"><%= row.name %></div>
@@ -218,6 +254,7 @@
     if (!root) return;
     const rid = root.dataset.rid;
     const table = <%= Number(tbl) %>;
+    const accountId = <%- JSON.stringify(currentAccountId) %>;
     const currency = '<%= tt("common.currency", "₪") %>';
     if (!rid || !table) return;
 
@@ -431,6 +468,7 @@
           body: JSON.stringify({
             restaurantId: rid,
             table,
+            accountId,
             menuItemId,
             quantity: 1,
             ...(trimmedNotes ? { notes: trimmedNotes } : {}),
@@ -453,6 +491,7 @@
         rowEl.dataset.itemId = item.id;
         rowEl.dataset.qty = item.quantity;
         rowEl.dataset.price = item.unitPrice;
+        rowEl.dataset.accountId = item.accountId || accountId;
 
         const createdAt = new Date(item.createdAt);
         const timeStr = createdAt.toLocaleTimeString('<%= it.lang === "he" ? "he-IL" : "en-US" %>',{
@@ -520,6 +559,30 @@
       openNotesModal(card);
     });
 
+    const openAccountBtn = document.getElementById('btn-open-account');
+    if (openAccountBtn) {
+      openAccountBtn.addEventListener('click', async () => {
+        const label = (window.prompt('<%= tt('pos.waiter.new_account_prompt', 'Name for the new check / guest:') %>', '') || '').trim();
+        try {
+          const res = await fetch('/api/pos/table-account/open', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ restaurantId: rid, table, accountLabel: label || undefined }),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          const nextId = data?.account?.accountId;
+          if (nextId) {
+            window.location.href = `/waiter/${encodeURIComponent(rid)}/${encodeURIComponent(table)}?account=${encodeURIComponent(nextId)}`;
+            return;
+          }
+          window.location.reload();
+        } catch (e) {
+          console.error('openAccount failed', e);
+        }
+      });
+    }
+
     loadMenu();
   })();
 </script>
@@ -560,7 +623,7 @@
         if (msg.type === "order_closed" &&
             msg.restaurantId === rid &&
             msg.table === table) {
-          window.location.href = `/waiter/${encodeURIComponent(rid)}`;
+          window.location.href = `/waiter/${encodeURIComponent(rid)}/${encodeURIComponent(table)}`;
         }
       }catch(e){
         console.warn("bad WS message", e);

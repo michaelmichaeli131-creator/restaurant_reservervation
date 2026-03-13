@@ -34,6 +34,14 @@ export interface FloorObjectLike {
   kind?: 'object' | 'visualOnly';
 }
 
+
+export interface BarAccountLike {
+  accountId: string;
+  accountLabel?: string;
+  seatId?: string;
+  guestName?: string | null;
+}
+
 export interface FloorLayoutLike {
   id: string;
   restaurantId?: string;
@@ -116,16 +124,33 @@ function assetForObject(type?: string, label?: string): string {
   return `${ASSET_BASE}divider.svg`;
 }
 
+function isBarTable(table?: FloorTableLike | null): boolean {
+  if (!table) return false;
+  const asset = String((table as any).assetFile || '').toLowerCase();
+  const name = String((table as any).name || '').toLowerCase();
+  return asset.includes('bar.svg') || name.includes('bar');
+}
+
+function seatIdForBar(tableId: string, seatNumber: number): string {
+  return `${tableId}:seat:${seatNumber}`;
+}
+
 export default function FloorMapRenderer({
   layout,
   mode,
   onTableClick,
   selectedTableId,
+  barAccountsByTable,
+  selectedBarSeatId,
+  onBarSeatClick,
 }: {
   layout: FloorLayoutLike;
   mode: 'view' | 'edit';
   onTableClick?: (tableId: string) => void;
   selectedTableId?: string | null;
+  barAccountsByTable?: Record<string, BarAccountLike[]>;
+  selectedBarSeatId?: string | null;
+  onBarSeatClick?: (tableId: string, seatId: string) => void;
 }) {
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -659,9 +684,37 @@ export default function FloorMapRenderer({
                         alt=""
                       />
                     </div>
+                    {mode === 'view' && isBarTable(tableHere) && Number(tableHere.seats || 0) > 0 && (
+                      <div className="sbv-bar-seats" onClick={(e) => e.stopPropagation()}>
+                        {Array.from({ length: Math.max(1, Number(tableHere.seats || 0)) }).map((_, seatIndex) => {
+                          const seatNumber = seatIndex + 1;
+                          const seatId = seatIdForBar(String(tableHere.id), seatNumber);
+                          const seatAccount = (barAccountsByTable?.[String(tableHere.id)] || []).find((acc) => String(acc.seatId || '') === seatId);
+                          const occupied = Boolean(seatAccount);
+                          const selectedSeat = selectedBarSeatId && String(selectedBarSeatId) === seatId;
+                          return (
+                            <button
+                              key={seatId}
+                              type="button"
+                              className={`sbv-bar-seat ${occupied ? 'is-occupied' : 'is-free'} ${selectedSeat ? 'is-selected' : ''}`}
+                              title={occupied
+                                ? `${seatAccount?.accountLabel || t('pos.waiter.main_check', 'Main Check')}`
+                                : `${t('floor.bar.open_seat', 'Open seat')} ${seatNumber}`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onBarSeatClick?.(String(tableHere.id), seatId);
+                              }}
+                            >
+                              <span className="sbv-bar-seat-no">{seatNumber}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                     <div className="fe-table-overlay">
                       <div className="table-label">{tableHere.name || (tableHere.tableNumber != null ? `Table ${tableHere.tableNumber}` : 'Table')}</div>
-                      {tableHere.seats != null && <div className="table-seats">{tableHere.seats} seats</div>}
+                      {tableHere.seats != null && <div className="table-seats">{isBarTable(tableHere) ? `${tableHere.seats} ${t('host.people_unit', 'Guests')}` : `${tableHere.seats} seats`}</div>}
                     </div>
                   </div>
                 );

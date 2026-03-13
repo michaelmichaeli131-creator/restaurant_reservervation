@@ -48,12 +48,6 @@ export interface Order {
   table: number;
   floorTableId?: string;      // Link to floor plan table ID
   sectionId?: string;         // Link to floor section
-  accountId?: string;         // shared-check account (main / guest-2 / etc.)
-  accountLabel?: string;      // user-facing label for the account
-  locationType?: "table" | "bar";
-  locationId?: string;
-  seatId?: string;
-  guestName?: string;
   status: "open" | "closed" | "cancelled";
   createdAt: number;
   closedAt?: number;
@@ -64,7 +58,6 @@ export interface OrderItem {
   orderId: string;
   restaurantId: string;
   table: number;
-  accountId?: string;
   menuItemId: string;
   name: string;
   unitPrice: number;
@@ -92,29 +85,10 @@ export interface Bill {
   restaurantId: string;
   orderId: string;
   table: number;
-  accountId?: string;
-  accountLabel?: string;
-  locationType?: "table" | "bar";
-  locationId?: string;
-  seatId?: string;
   createdAt: number;
   items: OrderItem[];
   totals: BillTotals;
   paymentCode: string;
-}
-
-export interface TableAccountSummary {
-  accountId: string;
-  accountLabel: string;
-  orderId: string;
-  table: number;
-  locationType?: "table" | "bar";
-  locationId?: string;
-  seatId?: string;
-  createdAt: number;
-  itemsCount: number;
-  subtotal: number;
-  isMain: boolean;
 }
 
 /* ---------- KEYS ---------- */
@@ -145,16 +119,6 @@ function kOrderByTable(rid: string, table: number): Deno.KvKey {
 }
 function kOrderByTablePrefix(rid: string): Deno.KvKey {
   return ["pos", "order_by_table", rid];
-}
-function kOrderByTableAccount(
-  rid: string,
-  table: number,
-  accountId: string,
-): Deno.KvKey {
-  return ["pos", "order_by_table_account", rid, table, normalizeAccountId(accountId)];
-}
-function kOrderByTableAccountPrefix(rid: string, table: number): Deno.KvKey {
-  return ["pos", "order_by_table_account", rid, table];
 }
 
 function kOrderItem(oid: string, iid: string): Deno.KvKey {
@@ -187,111 +151,6 @@ function kBillByRestaurant(
   bid: string,
 ): Deno.KvKey {
   return ["pos", "bill_by_restaurant", rid, createdAt, bid];
-}
-
-function normalizeAccountId(accountId?: string | null): string {
-  const v = String(accountId ?? "").trim();
-  return v || "main";
-}
-
-function normalizeAccountLabel(label?: string | null, accountId?: string | null): string {
-  const v = String(label ?? "").trim();
-  if (v) return v;
-  const acc = normalizeAccountId(accountId);
-  return acc === "main" ? "Main check" : `Check ${acc.slice(0, 6)}`;
-}
-
-async function getOpenOrderForAccount(
-  restaurantId: string,
-  table: number,
-  accountId?: string | null,
-): Promise<Order | null> {
-  const normalized = normalizeAccountId(accountId);
-  const byAcc = await kv.get<Order>(kOrderByTableAccount(restaurantId, table, normalized));
-  if (byAcc.value && byAcc.value.status === "open") return byAcc.value;
-  if (normalized === "main") {
-    const legacy = await kv.get<Order>(kOrderByTable(restaurantId, table));
-    if (legacy.value && legacy.value.status === "open") {
-      return {
-        ...legacy.value,
-        accountId: normalizeAccountId((legacy.value as any).accountId),
-        accountLabel: normalizeAccountLabel((legacy.value as any).accountLabel, (legacy.value as any).accountId),
-      };
-    }
-  }
-  return null;
-}
-
-export async function listOpenOrdersForTable(
-  restaurantId: string,
-  table: number,
-): Promise<Order[]> {
-  const out: Order[] = [];
-  const seen = new Set<string>();
-  for await (const row of kv.list<Order>({ prefix: kOrderByTableAccountPrefix(restaurantId, table) })) {
-    const order = row.value;
-    if (!order || order.status !== "open") continue;
-    if (seen.has(order.id)) continue;
-    seen.add(order.id);
-    out.push({
-      ...order,
-      accountId: normalizeAccountId((order as any).accountId),
-      accountLabel: normalizeAccountLabel((order as any).accountLabel, (order as any).accountId),
-    });
-  }
-  const legacy = await kv.get<Order>(kOrderByTable(restaurantId, table));
-  if (legacy.value && legacy.value.status === "open" && !seen.has(legacy.value.id)) {
-    out.push({
-      ...legacy.value,
-      accountId: normalizeAccountId((legacy.value as any).accountId),
-      accountLabel: normalizeAccountLabel((legacy.value as any).accountLabel, (legacy.value as any).accountId),
-    });
-  }
-  out.sort((a, b) => a.createdAt - b.createdAt);
-  return out;
-}
-
-async function listItemsForOrder(orderId: string): Promise<OrderItem[]> {
-  const out: OrderItem[] = [];
-  for await (const row of kv.list<OrderItem>({ prefix: kOrderItemPrefix(orderId) })) {
-    if (row.value) out.push(row.value);
-  }
-  out.sort((a, b) => a.createdAt - b.createdAt);
-  return out;
-}
-
-export async function listTableAccounts(
-  restaurantId: string,
-  table: number,
-): Promise<TableAccountSummary[]> {
-  const orders = await listOpenOrdersForTable(restaurantId, table);
-  const out: TableAccountSummary[] = [];
-  for (const order of orders) {
-    const items = await listItemsForOrder(order.id);
-    const active = items.filter((it) => it.status !== "cancelled");
-    const itemsCount = active.reduce((sum, it) => sum + Number(it.quantity ?? 0), 0);
-    const subtotal = active.reduce((sum, it) => sum + Number(it.quantity ?? 0) * Number(it.unitPrice ?? 0), 0);
-    const accountId = normalizeAccountId(order.accountId);
-    out.push({
-      accountId,
-      accountLabel: normalizeAccountLabel(order.accountLabel, accountId),
-      orderId: order.id,
-      table: order.table,
-      locationType: order.locationType,
-      locationId: order.locationId,
-      seatId: order.seatId,
-      createdAt: order.createdAt,
-      itemsCount,
-      subtotal,
-      isMain: accountId === "main",
-    });
-  }
-  out.sort((a, b) => {
-    if (a.isMain && !b.isMain) return -1;
-    if (!a.isMain && b.isMain) return 1;
-    return a.createdAt - b.createdAt;
-  });
-  return out;
 }
 
 /* ---------- Categories ---------- */
@@ -411,18 +270,10 @@ export async function deleteItem(
 export async function getOrCreateOpenOrder(
   restaurantId: string,
   table: number,
-  options: {
-    accountId?: string;
-    accountLabel?: string;
-    locationType?: "table" | "bar";
-    locationId?: string;
-    seatId?: string;
-    guestName?: string;
-  } = {},
 ): Promise<Order> {
-  const accountId = normalizeAccountId(options.accountId);
-  const cur = await getOpenOrderForAccount(restaurantId, table, accountId);
-  if (cur) return cur;
+  const key = kOrderByTable(restaurantId, table);
+  const cur = await kv.get<Order>(key);
+  if (cur.value && cur.value.status === "open") return cur.value;
 
   const floorTableId = await getTableIdByNumber(restaurantId, table);
 
@@ -431,23 +282,16 @@ export async function getOrCreateOpenOrder(
     restaurantId,
     table,
     floorTableId: floorTableId || undefined,
-    accountId,
-    accountLabel: normalizeAccountLabel(options.accountLabel, accountId),
-    locationType: options.locationType ?? (accountId === "main" ? "table" : "bar"),
-    locationId: options.locationId || undefined,
-    seatId: options.seatId || undefined,
-    guestName: options.guestName || undefined,
     status: "open",
     createdAt: Date.now(),
   };
   const tx = kv.atomic()
     .set(kOrder(restaurantId, order.id), order)
-    .set(kOrderByTableAccount(restaurantId, table, accountId), order);
-  if (accountId === "main") tx.set(kOrderByTable(restaurantId, table), order);
+    .set(key, order);
   const res = await tx.commit();
   if (!res.ok) {
-    const again = await getOpenOrderForAccount(restaurantId, table, accountId);
-    if (again) return again;
+    const again = await kv.get<Order>(key);
+    if (again.value) return again.value;
     throw new Error("failed_create_order");
   }
   return order;
@@ -459,25 +303,10 @@ export async function addOrderItem(params: {
   menuItem: MenuItem;
   quantity?: number;
   notes?: string;
-  accountId?: string;
-  accountLabel?: string;
-  locationType?: "table" | "bar";
-  locationId?: string;
-  seatId?: string;
-  guestName?: string;
 }): Promise<{ order: Order; orderItem: OrderItem }> {
-  const accountId = normalizeAccountId(params.accountId);
   const order = await getOrCreateOpenOrder(
     params.restaurantId,
     params.table,
-    {
-      accountId,
-      accountLabel: params.accountLabel,
-      locationType: params.locationType,
-      locationId: params.locationId,
-      seatId: params.seatId,
-      guestName: params.guestName,
-    },
   );
   const trimmedNotes = (params.notes ?? "").trim();
   const orderItem: OrderItem = {
@@ -485,7 +314,6 @@ export async function addOrderItem(params: {
     orderId: order.id,
     restaurantId: params.restaurantId,
     table: params.table,
-    accountId,
     menuItemId: params.menuItem.id,
     name: params.menuItem.name_en || params.menuItem.name_he || "",
     unitPrice: Number(params.menuItem.price ?? 0),
@@ -503,6 +331,7 @@ export async function addOrderItem(params: {
   const res = await tx.commit();
   if (!res.ok) throw new Error("failed_add_order_item");
 
+  // צריכת מלאי אוטומטית
   consumeIngredientsForMenuItem({
     restaurantId: params.restaurantId,
     menuItemId: params.menuItem.id,
@@ -521,18 +350,19 @@ export async function addOrderItem(params: {
 export async function listOrderItemsForTable(
   restaurantId: string,
   table: number,
-  options: { accountId?: string } = {},
 ): Promise<OrderItem[]> {
-  const accountId = options.accountId ? normalizeAccountId(options.accountId) : "";
-  const orders = accountId
-    ? ((await getOpenOrderForAccount(restaurantId, table, accountId)) ? [await getOpenOrderForAccount(restaurantId, table, accountId) as Order] : [])
-    : await listOpenOrdersForTable(restaurantId, table);
+  const orderRow = await kv.get<Order>(
+    kOrderByTable(restaurantId, table),
+  );
+  if (!orderRow.value) return [];
+  const order = orderRow.value;
   const out: OrderItem[] = [];
-  for (const order of orders) {
-    if (!order) continue;
-    for await (const row of kv.list<OrderItem>({ prefix: kOrderItemPrefix(order.id) })) {
-      if (row.value) out.push(row.value);
-    }
+  for await (
+    const row of kv.list<OrderItem>({
+      prefix: kOrderItemPrefix(order.id),
+    })
+  ) {
+    if (row.value) out.push(row.value);
   }
   out.sort((a, b) => a.createdAt - b.createdAt);
   return out;
@@ -541,9 +371,8 @@ export async function listOrderItemsForTable(
 export async function computeTotalsForTable(
   restaurantId: string,
   table: number,
-  options: { accountId?: string } = {},
 ): Promise<OrderTotals> {
-  const items = await listOrderItemsForTable(restaurantId, table, options);
+  const items = await listOrderItemsForTable(restaurantId, table);
   const active = items.filter((it) => it.status !== "cancelled");
   const itemsCount = active.reduce((sum, it) => sum + it.quantity, 0);
   const subtotal = active.reduce(
@@ -599,10 +428,10 @@ export async function listOpenOrdersByRestaurant(
 export async function closeOrderForTable(
   restaurantId: string,
   table: number,
-  options: { accountId?: string } = {},
 ): Promise<Order | null> {
-  const accountId = normalizeAccountId(options.accountId);
-  const cur = await getOpenOrderForAccount(restaurantId, table, accountId);
+  const byTableKey = kOrderByTable(restaurantId, table);
+  const byTableRow = await kv.get<Order>(byTableKey);
+  const cur = byTableRow.value;
   if (!cur) return null;
 
   const orderKey = kOrder(restaurantId, cur.id);
@@ -610,9 +439,11 @@ export async function closeOrderForTable(
   const base = orderRow.value ?? cur;
 
   const items: OrderItem[] = [];
-  for await (const row of kv.list<OrderItem>({
-    prefix: kOrderItemPrefix(base.id),
-  })) {
+  for await (
+    const row of kv.list<OrderItem>({
+      prefix: kOrderItemPrefix(base.id),
+    })
+  ) {
     if (row.value) items.push(row.value);
   }
   items.sort((a, b) => a.createdAt - b.createdAt);
@@ -641,18 +472,13 @@ export async function closeOrderForTable(
 
   const billId = crypto.randomUUID();
   const paymentCode =
-    `SPOTBOOK|rid=${restaurantId}|order=${updated.id}|table=${table}|account=${accountId}|bill=${billId}`;
+    `SPOTBOOK|rid=${restaurantId}|order=${updated.id}|table=${table}|bill=${billId}`;
 
   const bill: Bill = {
     id: billId,
     restaurantId,
     orderId: updated.id,
     table,
-    accountId,
-    accountLabel: normalizeAccountLabel(updated.accountLabel, accountId),
-    locationType: updated.locationType,
-    locationId: updated.locationId,
-    seatId: updated.seatId,
     createdAt: now,
     items,
     totals,
@@ -661,30 +487,25 @@ export async function closeOrderForTable(
 
   const tx = kv.atomic()
     .set(orderKey, updated)
-    .delete(kOrderByTableAccount(restaurantId, table, accountId))
+    .delete(byTableKey)
     .set(kBill(restaurantId, billId), bill)
     .set(kBillByRestaurant(restaurantId, now, billId), bill);
-
-  if (accountId === "main") {
-    tx.delete(kOrderByTable(restaurantId, table));
-  }
 
   const res = await tx.commit();
   if (!res.ok) return null;
 
   try {
-    const remaining = await listOpenOrdersForTable(restaurantId, table);
-    if (remaining.length === 0) {
-      await kv.delete(kSeat(restaurantId, table));
-      try {
-        const tableId = await getTableIdByNumber(restaurantId, table);
-        if (tableId) {
-          await kv.delete(["table_status", restaurantId, tableId]);
-        }
-      } catch {
-        // ignore
+    await kv.delete(kSeat(restaurantId, table));
+    // Also clear any manual status override so the table becomes "empty" right after close.
+    try {
+      const tableId = await getTableIdByNumber(restaurantId, table);
+      if (tableId) {
+        await kv.delete(["table_status", restaurantId, tableId]);
       }
+    } catch {
+      // ignore
     }
+
   } catch {
     // ignore
   }

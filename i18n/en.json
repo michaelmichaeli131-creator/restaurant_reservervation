@@ -195,7 +195,14 @@
     "map": {
       "cell_size": "Cell size: {size}px",
       "floor_label": "Floor:",
-      "title": "Map"
+      "title": "Map",
+      "resize_title": "Map size",
+      "width_cells": "Width (X)",
+      "height_cells": "Height (Y)",
+      "current_size": "Current: {cols} × {rows}",
+      "minimum_size": "Minimum for current items: {cols} × {rows}",
+      "apply_size": "Apply map size",
+      "resize_too_small": "Map is too small for the placed items. Minimum allowed right now: {cols} × {rows}."
     },
     "mark_clean": "Mark Clean",
     "mark_dirty": "Mark Dirty",
@@ -266,6 +273,14 @@
       "fit_screen": "Fit to screen",
       "zoom_in": "Zoom in",
       "zoom_out": "Zoom out"
+    },
+    "bar": {
+      "title": "Bar seats",
+      "help": "Each seat can hold a separate guest check.",
+      "seat_label": "Bar Seat",
+      "free": "Free",
+      "open_seat": "Open seat",
+      "open_new_check": "Open new check"
     }
   },
   "foodcost": {

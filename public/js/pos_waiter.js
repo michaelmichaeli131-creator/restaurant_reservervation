@@ -9,6 +9,7 @@
   const table = Number(root.dataset.table || "0");
   const currency = root.dataset.currency || "₪";
   const itemsUnit = root.dataset.itemsUnit || "פריטים";
+  const accountId = root.dataset.accountId || "main";
 
   const rowsContainer = document.getElementById("order-items");
   const itemsSpan = document.getElementById("bill-items");
@@ -51,6 +52,7 @@
         body: JSON.stringify({
           restaurantId: rid,
           table,
+          accountId,
           orderId,
           orderItemId: itemId,
         }),
@@ -88,6 +90,7 @@
         body: JSON.stringify({
           restaurantId: rid,
           table,
+          accountId,
           orderId,
           orderItemId: itemId,
         }),
@@ -122,12 +125,12 @@
       const res = await fetch("/api/pos/order/close", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ restaurantId: rid, table }),
+        body: JSON.stringify({ restaurantId: rid, table, accountId }),
       });
       if (!res.ok) return;
       const data = await res.json();
       if (data.ok) {
-        window.location.href = `/waiter/${encodeURIComponent(rid)}`;
+        window.location.href = `/waiter/${encodeURIComponent(rid)}/${encodeURIComponent(table)}`;
       }
     } catch (e) {
       console.error("closeOrder failed", e);

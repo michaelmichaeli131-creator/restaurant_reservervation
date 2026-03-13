@@ -195,7 +195,14 @@
     "map": {
       "cell_size": "גודל תא: {size}px",
       "floor_label": "רצפה:",
-      "title": "מפה"
+      "title": "מפה",
+      "resize_title": "גודל המפה",
+      "width_cells": "רוחב (X)",
+      "height_cells": "גובה (Y)",
+      "current_size": "נוכחי: {cols} × {rows}",
+      "minimum_size": "מינימום לפי הפריטים הקיימים: {cols} × {rows}",
+      "apply_size": "החל גודל מפה",
+      "resize_too_small": "המפה קטנה מדי עבור הפריטים שמונחים עליה. המינימום כרגע הוא: {cols} × {rows}."
     },
     "mark_clean": "סמן נקי",
     "mark_dirty": "סמן מלוכלך",
@@ -266,6 +273,14 @@
       "fit_screen": "התאם למסך",
       "zoom_in": "הגדלה",
       "zoom_out": "הקטנה"
+    },
+    "bar": {
+      "title": "מושבים בבר",
+      "help": "לכל מושב אפשר לפתוח חשבון נפרד.",
+      "seat_label": "מושב בר",
+      "free": "פנוי",
+      "open_seat": "פתח מושב",
+      "open_new_check": "פתח חשבון חדש"
     }
   },
   "foodcost": {
