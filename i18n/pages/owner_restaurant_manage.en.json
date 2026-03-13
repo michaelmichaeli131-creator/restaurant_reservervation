@@ -109,6 +109,13 @@
     "tip": "Tip: Use the search above to quickly find pages/actions. On desktop, you can enable \"Compact View\" to see more information.",
     "system_time": "Restaurant Time",
     "system_time_sub": "Timezone, current mode and shared restaurant clock.",
-    "link_system_time": "Restaurant Time"
+    "link_system_time": "Restaurant Time",
+    "tasks_pending_title": "There are {count} new reservations to review",
+    "tasks_pending_desc": "Check the calendar and confirm if needed.",
+    "tasks_floor_title": "Table layout update",
+    "tasks_floor_desc": "Review whether the floor plan fits today’s demand.",
+    "tasks_peak_title": "High occupancy peak",
+    "tasks_peak_desc": "Consider adding staff or strengthening queue management.",
+    "alert_capacity_missing": "Restaurant capacity is not defined (capacity)."
   }
 }

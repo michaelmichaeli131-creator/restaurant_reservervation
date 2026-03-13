@@ -182,32 +182,33 @@ ownerManageRouter.get("/owner/restaurants/:id/manage", async (ctx) => {
 
   // Simple tasks/alerts derived from today's data (placeholder until full task engine)
   const pending = reservations.filter((x: any) => (x.status || "").toLowerCase() === "new").length;
-  const tasks: Array<{ title: string; desc?: string; href?: string; tone?: string }> = [];
+  const tasks: Array<{ title?: string; titleKey?: string; titleVars?: Record<string, unknown>; desc?: string; descKey?: string; href?: string; tone?: string }> = [];
   if (pending > 0) {
     tasks.push({
-      title: `יש ${pending} הזמנות חדשות לבדיקה`,
-      desc: "בדוק/י את היומן ואשר/י אם צריך.",
+      titleKey: "owner_manage.tasks_pending_title",
+      titleVars: { count: pending },
+      descKey: "owner_manage.tasks_pending_desc",
       href: `/owner/restaurants/${encodeURIComponent(r.id)}/calendar?date=${encodeURIComponent(date)}`,
       tone: "warn",
     });
   }
   tasks.push({
-    title: "עדכון סידור שולחנות", 
-    desc: "בדוק/י התאמה של פלור לעומס היום.",
+    titleKey: "owner_manage.tasks_floor_title",
+    descKey: "owner_manage.tasks_floor_desc",
     href: `/owner/restaurants/${encodeURIComponent(r.id)}/floor`,
     tone: "info",
   });
   if (peakPct >= 85) {
     tasks.push({
-      title: "Peak תפוסה גבוה", 
-      desc: "שקול/י להוסיף צוות / לחזק ניהול תורים.",
+      titleKey: "owner_manage.tasks_peak_title",
+      descKey: "owner_manage.tasks_peak_desc",
       href: `/owner/restaurants/${encodeURIComponent(r.id)}/shifts`,
       tone: "danger",
     });
   }
 
-  const alerts: Array<{ title: string; tone?: string }> = [];
-  if (capacity <= 1) alerts.push({ title: "הקיבולת במסעדה לא מוגדרת (capacity)", tone: "warn" });
+  const alerts: Array<{ title?: string; titleKey?: string; tone?: string }> = [];
+  if (capacity <= 1) alerts.push({ titleKey: "owner_manage.alert_capacity_missing", tone: "warn" });
 
   const viewModel = {
     ...r,

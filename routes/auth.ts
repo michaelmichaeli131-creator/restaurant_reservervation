@@ -26,6 +26,86 @@ import { sendVerifyEmail, sendResetEmail } from "../lib/mail_wrappers.ts";
 
 export const authRouter = new Router();
 
+const AUTH_I18N: Record<string, Record<string, string>> = {
+  en: {
+    staff_no_signup: "Staff sign-up is disabled. Ask the restaurant owner to create your account.",
+    fill_required: "Please fill in all required fields",
+    passwords_mismatch: "Passwords do not match",
+    password_min_8: "Password must contain at least 8 characters",
+    email_exists: "This email address already exists in the system",
+    login_fill: "Please enter email and password",
+    login_invalid: "Incorrect email or password",
+    email_verify_required: "Email verification is required before logging in. We sent you another verification link.",
+    account_disabled: "This account is disabled. Please contact support.",
+    change_fill_all: "Please fill in all fields",
+    current_password_wrong: "Current password is incorrect",
+    password_updated: "Password updated successfully",
+    bad_link: "Invalid link",
+    bad_or_expired_link: "Invalid or expired link",
+    provide_email: "Please provide an email address",
+    verify_if_exists: "If the email exists in the system, a verification link has been sent.",
+    account_already_verified: "The account is already verified. You can log in.",
+    verify_resent: "A verification link has been resent to your email inbox.",
+    enter_email: "Please enter an email address",
+    reset_if_exists: "If the email exists in the system, a password reset link has been sent.",
+    confirm_password_mismatch: "Password confirmation does not match",
+    user_not_found: "User not found"
+  },
+  he: {
+    staff_no_signup: "אין הרשמה לעובדים. פנה/י לבעל המסעדה כדי שיצור עבורך משתמש.",
+    fill_required: "נא למלא את כל השדות החיוניים",
+    passwords_mismatch: "הסיסמאות אינן תואמות",
+    password_min_8: "הסיסמה צריכה להכיל לפחות 8 תווים",
+    email_exists: "כתובת הדוא״ל כבר קיימת במערכת",
+    login_fill: "נא להזין דוא״ל וסיסמה",
+    login_invalid: "דוא״ל או סיסמה שגויים",
+    email_verify_required: "נדרש אימות דוא״ל לפני התחברות. שלחנו לך קישור אימות נוסף.",
+    account_disabled: "החשבון מבוטל. פנה/י לתמיכה.",
+    change_fill_all: "נא למלא את כל השדות",
+    current_password_wrong: "הסיסמה הנוכחית שגויה",
+    password_updated: "הסיסמה עודכנה בהצלחה",
+    bad_link: "קישור לא תקין",
+    bad_or_expired_link: "קישור לא תקין או שפג תוקף",
+    provide_email: "נא לספק כתובת דוא״ל",
+    verify_if_exists: "אם הדוא״ל קיים במערכת – נשלח קישור אימות.",
+    account_already_verified: "החשבון כבר מאומת. אפשר להתחבר.",
+    verify_resent: "קישור אימות נשלח מחדש לתיבת הדוא״ל.",
+    enter_email: "נא להזין דוא״ל",
+    reset_if_exists: "אם הדוא״ל קיים במערכת, נשלח קישור לאיפוס סיסמה.",
+    confirm_password_mismatch: "אימות סיסמה לא תואם",
+    user_not_found: "משתמש לא נמצא"
+  },
+  ka: {
+    staff_no_signup: "პერსონალისთვის რეგისტრაცია გამორთულია. სთხოვეთ რესტორნის მფლობელს, შეგიქმნათ ანგარიში.",
+    fill_required: "გთხოვთ, შეავსოთ ყველა აუცილებელი ველი",
+    passwords_mismatch: "პაროლები არ ემთხვევა",
+    password_min_8: "პაროლი უნდა შეიცავდეს მინიმუმ 8 სიმბოლოს",
+    email_exists: "ეს ელ-ფოსტის მისამართი უკვე არსებობს სისტემაში",
+    login_fill: "გთხოვთ, შეიყვანოთ ელ-ფოსტა და პაროლი",
+    login_invalid: "ელ-ფოსტა ან პაროლი არასწორია",
+    email_verify_required: "შესვლამდე საჭიროა ელ-ფოსტის დადასტურება. გამოგიგზავნეთ ახალი დასადასტურებელი ბმული.",
+    account_disabled: "ეს ანგარიში გამორთულია. გთხოვთ, დაუკავშირდეთ მხარდაჭერას.",
+    change_fill_all: "გთხოვთ, შეავსოთ ყველა ველი",
+    current_password_wrong: "მიმდინარე პაროლი არასწორია",
+    password_updated: "პაროლი წარმატებით განახლდა",
+    bad_link: "არასწორი ბმული",
+    bad_or_expired_link: "არასწორი ან ვადაგასული ბმული",
+    provide_email: "გთხოვთ, მიუთითოთ ელ-ფოსტის მისამართი",
+    verify_if_exists: "თუ ეს ელ-ფოსტა სისტემაში არსებობს, დადასტურების ბმული გაიგზავნა.",
+    account_already_verified: "ანგარიში უკვე დადასტურებულია. შეგიძლიათ შეხვიდეთ.",
+    verify_resent: "დადასტურების ბმული თავიდან გაიგზავნა თქვენს ელ-ფოსტაზე.",
+    enter_email: "გთხოვთ, შეიყვანოთ ელ-ფოსტა",
+    reset_if_exists: "თუ ეს ელ-ფოსტა სისტემაში არსებობს, პაროლის აღდგენის ბმული გაიგზავნა.",
+    confirm_password_mismatch: "პაროლის დადასტურება არ ემთხვევა",
+    user_not_found: "მომხმარებელი ვერ მოიძებნა"
+  }
+};
+
+function authMsg(ctx: any, key: string): string {
+  const lang = String(ctx.state?.lang || 'en');
+  return AUTH_I18N[lang]?.[key] || AUTH_I18N.en[key] || key;
+}
+
 function requireLoggedIn(ctx: any): boolean {
   const user = ctx.state?.user;
   if (!user) {
@@ -126,7 +206,7 @@ authRouter.post("/auth/register", async (ctx) => {
     await render(ctx, "auth/register", {
       title: pageTitle(ctx, "page_titles.register", "הרשמה"),
       page: "register",
-      error: "אין הרשמה לעובדים. פנה לבעל המסעדה כדי שיצור עבורך משתמש.",
+      error: authMsg(ctx, "staff_no_signup"),
       prefill: {
         firstName,
         lastName,
@@ -149,7 +229,7 @@ authRouter.post("/auth/register", async (ctx) => {
     await render(ctx, "auth/register", {
       title: pageTitle(ctx, "page_titles.register", "הרשמה"),
       page: "register",
-      error: "נא למלא את כל השדות החיוניים",
+      error: authMsg(ctx, "fill_required"),
       prefill,
     });
     return;
@@ -161,7 +241,7 @@ authRouter.post("/auth/register", async (ctx) => {
     await render(ctx, "auth/register", {
       title: pageTitle(ctx, "page_titles.register", "הרשמה"),
       page: "register",
-      error: "הסיסמאות אינן תואמות",
+      error: authMsg(ctx, "passwords_mismatch"),
       prefill,
     });
     return;
@@ -172,7 +252,7 @@ authRouter.post("/auth/register", async (ctx) => {
     await render(ctx, "auth/register", {
       title: pageTitle(ctx, "page_titles.register", "הרשמה"),
       page: "register",
-      error: "הסיסמה צריכה להכיל לפחות 8 תווים",
+      error: authMsg(ctx, "password_min_8"),
       prefill,
     });
     return;
@@ -184,7 +264,7 @@ authRouter.post("/auth/register", async (ctx) => {
     await render(ctx, "auth/register", {
       title: pageTitle(ctx, "page_titles.register", "הרשמה"),
       page: "register",
-      error: "כתובת הדוא״ל כבר קיימת במערכת",
+      error: authMsg(ctx, "email_exists"),
       prefill,
     });
     return;
@@ -247,7 +327,7 @@ authRouter.post("/auth/login", async (ctx) => {
     await render(ctx, "auth/login", {
       title: pageTitle(ctx, "page_titles.login", "התחברות"),
       page: "login",
-      error: "נא להזין דוא״ל וסיסמה",
+      error: authMsg(ctx, "login_fill"),
     });
     return;
   }
@@ -258,7 +338,7 @@ authRouter.post("/auth/login", async (ctx) => {
     await render(ctx, "auth/login", {
       title: pageTitle(ctx, "page_titles.login", "התחברות"),
       page: "login",
-      error: "דוא״ל או סיסמה שגויים",
+      error: authMsg(ctx, "login_invalid"),
     });
     return;
   }
@@ -277,7 +357,7 @@ authRouter.post("/auth/login", async (ctx) => {
       title: pageTitle(ctx, "page_titles.login", "התחברות"),
       page: "login",
       error:
-        "נדרש אימות דוא״ל לפני התחברות. שלחנו לך קישור אימות נוסף.",
+        authMsg(ctx, "email_verify_required"),
       verifyResend: true,
     });
     return;
@@ -288,7 +368,7 @@ authRouter.post("/auth/login", async (ctx) => {
     await render(ctx, "auth/login", {
       title: pageTitle(ctx, "page_titles.login", "התחברות"),
       page: "login",
-      error: "החשבון מבוטל. פנה/י לתמיכה.",
+      error: authMsg(ctx, "account_disabled"),
     });
     return;
   }
@@ -299,7 +379,7 @@ authRouter.post("/auth/login", async (ctx) => {
     await render(ctx, "auth/login", {
       title: pageTitle(ctx, "page_titles.login", "התחברות"),
       page: "login",
-      error: "דוא״ל או סיסמה שגויים",
+      error: authMsg(ctx, "login_invalid"),
     });
     return;
   }
@@ -368,7 +448,7 @@ authRouter.post("/auth/change-password", async (ctx) => {
     await render(ctx, "auth/change_password", {
       title: pageTitle(ctx, "page_titles.change_password", "שינוי סיסמה"),
       page: "change_password",
-      error: "נא למלא את כל השדות",
+      error: authMsg(ctx, "change_fill_all"),
     });
     return;
   }
@@ -378,7 +458,7 @@ authRouter.post("/auth/change-password", async (ctx) => {
     await render(ctx, "auth/change_password", {
       title: pageTitle(ctx, "page_titles.change_password", "שינוי סיסמה"),
       page: "change_password",
-      error: "הסיסמה החדשה צריכה להכיל לפחות 8 תווים",
+      error: authMsg(ctx, "password_min_8"),
     });
     return;
   }
@@ -388,7 +468,7 @@ authRouter.post("/auth/change-password", async (ctx) => {
     await render(ctx, "auth/change_password", {
       title: pageTitle(ctx, "page_titles.change_password", "שינוי סיסמה"),
       page: "change_password",
-      error: "הסיסמאות אינן תואמות",
+      error: authMsg(ctx, "passwords_mismatch"),
     });
     return;
   }
@@ -400,7 +480,7 @@ authRouter.post("/auth/change-password", async (ctx) => {
     await render(ctx, "auth/change_password", {
       title: pageTitle(ctx, "page_titles.change_password", "שינוי סיסמה"),
       page: "change_password",
-      error: "הסיסמה הנוכחית שגויה",
+      error: authMsg(ctx, "current_password_wrong"),
     });
     return;
   }
@@ -418,7 +498,7 @@ authRouter.post("/auth/change-password", async (ctx) => {
   await render(ctx, "auth/change_password", {
     title: pageTitle(ctx, "page_titles.change_password", "שינוי סיסמה"),
     page: "change_password",
-    info: "הסיסמה עודכנה בהצלחה",
+    info: authMsg(ctx, "password_updated"),
   });
 });
 
@@ -435,7 +515,7 @@ authRouter.get("/auth/verify", async (ctx) => {
       title: pageTitle(ctx, "page_titles.verify", "אימות דוא״ל"),
       page: "verify",
       infoKey: "auth.verify.info.linkInvalid",             // ⭐
-      info: "קישור לא תקין",
+      info: authMsg(ctx, "bad_link"),
     });
     return;
   }
@@ -447,7 +527,7 @@ authRouter.get("/auth/verify", async (ctx) => {
       title: pageTitle(ctx, "page_titles.verify", "אימות דוא״ל"),
       page: "verify",
       infoKey: "auth.verify.info.linkInvalidOrExpired",    // ⭐
-      info: "קישור לא תקין או שפג תוקף",
+      info: authMsg(ctx, "bad_or_expired_link"),
     });
     return;
   }
@@ -473,7 +553,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
       title: pageTitle(ctx, "page_titles.resend_verify", "שליחת אימות"),
       page: "verify",
       infoKey: "auth.verify.info.needEmail",               // ⭐
-      info: "נא לספק כתובת דוא״ל",
+      info: authMsg(ctx, "provide_email"),
     });
     return;
   }
@@ -485,7 +565,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
       title: pageTitle(ctx, "page_titles.resend_verify", "שליחת אימות"),
       page: "verify",
       infoKey: "auth.verify.info.maybeExists",             // ⭐
-      info: "אם הדוא״ל קיים במערכת – נשלח קישור אימות.",
+      info: authMsg(ctx, "verify_if_exists"),
     });
     return;
   }
@@ -495,7 +575,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
       title: pageTitle(ctx, "page_titles.resend_verify", "שליחת אימות"),
       page: "verify",
       infoKey: "auth.verify.info.alreadyVerified",         // ⭐
-      info: "החשבון כבר מאומת. אפשר להתחבר.",
+      info: authMsg(ctx, "account_already_verified"),
     });
     return;
   }
@@ -512,7 +592,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
     title: pageTitle(ctx, "page_titles.resend_verify", "שליחת אימות"),
     page: "verify",
     infoKey: "auth.verify.info.resent",                   // ⭐
-    info: "קישור אימות נשלח מחדש לתיבת הדוא״ל.",
+    info: authMsg(ctx, "verify_resent"),
   });
 });
 
@@ -537,7 +617,7 @@ authRouter.post("/auth/forgot", async (ctx) => {
     await render(ctx, "auth/forgot", {
       title: "שכחתי סיסמה",
       page: "forgot",
-      error: "נא להזין דוא״ל",
+      error: authMsg(ctx, "enter_email"),
       prefill: { email: rawEmail }, // כדי שהשדה יישאר מלא
     });
     return;
@@ -557,7 +637,7 @@ authRouter.post("/auth/forgot", async (ctx) => {
   await render(ctx, "auth/forgot", {
     title: "שכחתי סיסמה",
     page: "forgot",
-    info: "אם הדוא״ל קיים במערכת, נשלח קישור לאיפוס סיסמה.",
+    info: authMsg(ctx, "reset_if_exists"),
     // אפשר גם להוסיף infoKey אם תרצה, אבל נפתור את זה ב-ETA דרך i18n קבועה
   });
 });
@@ -570,7 +650,7 @@ authRouter.get("/auth/reset", async (ctx) => {
     await render(ctx, "auth/reset", {
       title: "איפוס סיסמה",
       page: "reset",
-      error: "קישור לא תקין",
+      error: authMsg(ctx, "bad_link"),
     });
     return;
   }
@@ -597,7 +677,7 @@ authRouter.post("/auth/reset", async (ctx) => {
       title: "איפוס סיסמה",
       page: "reset",
       token,
-      error: "נא למלא את כל השדות",
+      error: authMsg(ctx, "change_fill_all"),
     });
     return;
   }
@@ -608,7 +688,7 @@ authRouter.post("/auth/reset", async (ctx) => {
       title: "איפוס סיסמה",
       page: "reset",
       token,
-      error: "אימות סיסמה לא תואם",
+      error: authMsg(ctx, "confirm_password_mismatch"),
     });
     return;
   }
@@ -620,7 +700,7 @@ authRouter.post("/auth/reset", async (ctx) => {
       title: "איפוס סיסמה",
       page: "reset",
       token,
-      error: "קישור לא תקין או שפג תוקף",
+      error: authMsg(ctx, "bad_or_expired_link"),
     });
     return;
   }
@@ -632,7 +712,7 @@ authRouter.post("/auth/reset", async (ctx) => {
       title: "איפוס סיסמה",
       page: "reset",
       token,
-      error: "משתמש לא נמצא",
+      error: authMsg(ctx, "user_not_found"),
     });
     return;
   }
