@@ -280,7 +280,8 @@
       "seat_label": "Bar Seat",
       "free": "Free",
       "open_seat": "Open seat",
-      "open_new_check": "Open new check"
+      "open_new_check": "Open new check",
+      "host_help": "Pick the first free seat. The host can seat groups on adjacent bar seats."
     }
   },
   "foodcost": {
@@ -405,7 +406,10 @@
     "sort_party": "Party size",
     "summary_suffix": "reservations",
     "summary_suffix_single": "reservation",
-    "badge_new": "New"
+    "badge_new": "New",
+    "err_no_adjacent_bar_seats": "Not enough adjacent free seats at the bar for this reservation.",
+    "confirm_seat_bar": "Seat the reservation at bar seats",
+    "success_seat_bar": "Reservation seated at bar seats"
   },
   "lang": {
     "english": "English",

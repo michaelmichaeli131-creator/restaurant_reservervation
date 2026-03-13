@@ -24,6 +24,8 @@
   const accounts = it.accounts || [];
   const currentAccount = it.currentAccount || null;
   const currentAccountId = it.currentAccountId || 'main';
+  const isBarSeatMode = !!it.isBarSeatMode;
+  const currentSeatLabel = it.currentSeatLabel || '';
 %>
 
 <main class="sb-page sb-wt-page" dir="rtl" data-page="waiter-table">
@@ -31,8 +33,13 @@
     <div class="sb-wt-hd-main">
       <div class="sb-wt-title">
         <div class="sb-wt-kicker"><%= r.name %></div>
-        <h1 class="sb-wt-h1"><span class="sb-wt-table">#<%= tbl %></span> <span class="sb-wt-label"><%= tt('pos.order.title', 'Table Order') %></span></h1>
-        <div class="sb-wt-sub muted"><%= r.city %> <span class="sb-dot">•</span> <%= r.address %></div>
+        <h1 class="sb-wt-h1">
+          <span class="sb-wt-table"><%= isBarSeatMode ? currentSeatLabel : ('#' + tbl) %></span>
+          <span class="sb-wt-label"><%= tt('pos.order.title', 'Table Order') %></span>
+        </h1>
+        <div class="sb-wt-sub muted">
+          <%= isBarSeatMode ? (tt('pos.waiter.table_label', 'Table') + ' #' + tbl + ' • ' + currentSeatLabel) : (r.city + ' • ' + r.address) %>
+        </div>
       </div>
 
       <div
@@ -70,7 +77,7 @@
     </div>
   </header>
 
-  <% if (accounts.length || true) { %>
+  <% if (!isBarSeatMode && (accounts.length || true)) { %>
   <section class="sb-wt-accounts sb-surface" aria-label="Shared checks">
     <div class="sb-wt-accounts-main">
       <div>
@@ -137,7 +144,7 @@
         <div>
           <h2 class="sb-wt-h2"><%= tt('pos.order.title', 'Table Order') %> <span class="sb-wt-table-inline">#<%= tbl %></span></h2>
           <div class="sb-wt-help muted"><%= tt('pos.waiter.order_help', 'Tap an item to manage status or cancel. Use Close Table when ready to issue the bill.') %></div>
-          <div class="sb-wt-help muted"><strong><%= tt('pos.waiter.current_check', 'Current check') %>:</strong> <%= currentAccount?.accountLabel || (currentAccountId === 'main' ? tt('pos.waiter.main_check', 'Main Check') : currentAccountId) %></div>
+          <div class="sb-wt-help muted"><strong><%= tt('pos.waiter.current_check', 'Current check') %>:</strong> <%= isBarSeatMode ? (currentSeatLabel || (currentAccount?.accountLabel || currentAccountId)) : (currentAccount?.accountLabel || (currentAccountId === 'main' ? tt('pos.waiter.main_check', 'Main Check') : currentAccountId)) %></div>
         </div>
         <button type="button" id="btn-close-order" class="btn primary lg sb-wt-close-desktop">
           <span class="icon">🧾</span> <%= tt('pos.waiter.btn_close_order', 'Close Table / Issue Bill') %>

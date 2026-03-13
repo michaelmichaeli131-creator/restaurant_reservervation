@@ -38,6 +38,48 @@ function seatIdForBar(tableId: string, seatNumber: number): string {
   return `${tableId}:seat:${seatNumber}`;
 }
 
+function seatNumberFromSeatId(seatId: string): number {
+  const match = String(seatId || '').match(/:seat:(\d+)/);
+  return match ? Math.max(0, Number(match[1]) || 0) : 0;
+}
+
+function accountIdForBarSeat(seatNumber: number): string {
+  return `seat-${Math.max(1, Number(seatNumber) || 1)}`;
+}
+
+function findAdjacentBarSeats(
+  capacityRaw: number,
+  occupiedSeatNumbersRaw: number[],
+  anchorSeatNumberRaw: number,
+  neededRaw: number,
+): number[] | null {
+  const capacity = Math.max(1, Number(capacityRaw || 1));
+  const needed = Math.max(1, Math.min(capacity, Number(neededRaw || 1)));
+  const anchor = Math.max(1, Math.min(capacity, Number(anchorSeatNumberRaw || 1)));
+  const occupied = new Set((occupiedSeatNumbersRaw || []).map((n) => Number(n)).filter((n) => Number.isFinite(n) && n > 0));
+
+  const starts: number[] = [];
+  for (let delta = 0; delta < capacity; delta++) {
+    const left = anchor - delta;
+    const right = anchor + delta;
+    if (left >= 1 && left <= capacity - needed + 1) starts.push(left);
+    if (right !== left && right >= 1 && right <= capacity - needed + 1) starts.push(right);
+  }
+
+  for (const start of starts) {
+    const seq = Array.from({ length: needed }, (_, idx) => start + idx);
+    if (!seq.includes(anchor)) continue;
+    if (seq.every((seatNo) => !occupied.has(seatNo))) return seq;
+  }
+
+  for (let start = 1; start <= capacity - needed + 1; start++) {
+    const seq = Array.from({ length: needed }, (_, idx) => start + idx);
+    if (seq.every((seatNo) => !occupied.has(seatNo))) return seq;
+  }
+
+  return null;
+}
+
 function normalizeBarAccountsForTable(table: any, accounts: BarAccountEntry[]): BarAccountEntry[] {
   const seatCapacity = Math.max(1, Number(table?.seats || 1));
   const used = new Set<string>();
@@ -207,6 +249,31 @@ export default function FloorViewPage({
     return () => clearInterval(id);
   }, [loadAllLayouts]);
 
+  React.useEffect(() => {
+    const onRefresh = () => { loadAllLayouts(); };
+    const onClear = () => {
+      setSelectedTableId(null);
+      setSelectedBarSeatId(null);
+      try {
+        const root = typeof document !== "undefined" ? document.getElementById("sb-floor-root") : null;
+        if (root && (root as any).dataset) {
+          delete (root as any).dataset.selectedTableId;
+          delete (root as any).dataset.selectedTableNumber;
+          delete (root as any).dataset.selectedBarSeatId;
+          delete (root as any).dataset.selectedBarSeatNumber;
+        }
+      } catch (_e) {
+        // no-op
+      }
+    };
+    window.addEventListener("sb-floor-refresh", onRefresh as EventListener);
+    window.addEventListener("sb-floor-clear-selection", onClear as EventListener);
+    return () => {
+      window.removeEventListener("sb-floor-refresh", onRefresh as EventListener);
+      window.removeEventListener("sb-floor-clear-selection", onClear as EventListener);
+    };
+  }, [loadAllLayouts]);
+
   const currentLayout = React.useMemo(() => {
     if (!selectedLayoutId) return null;
     return layouts.find((l) => l.id === selectedLayoutId) ?? null;
@@ -287,43 +354,52 @@ export default function FloorViewPage({
     const table = layouts.flatMap((layout) => layout.tables || []).find((t) => String(t.id) === String(tableId));
     if (!table) return;
 
-    const existing = (barAccountsByTable[String(tableId)] || []).find((acc) => String(acc.seatId || '') === String(seatId));
     const tableNumber = Number((table as any).tableNumber ?? (table as any).number ?? 0);
     if (!tableNumber) return;
 
-    if (!(clickMode === 'lobby' || clickMode === 'waiter' || clickMode === 'page')) {
-      return;
-    }
+    const seatNumber = seatNumberFromSeatId(seatId) || 1;
+    const seatAccounts = normalizeBarAccountsForTable(table, barAccountsByTable[String(tableId)] || []);
+    const occupiedSeatNumbers = seatAccounts
+      .map((acc) => seatNumberFromSeatId(String(acc.seatId || '')))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    const seatCapacity = Math.max(1, Number((table as any).seats || 1));
+    const freeSeatNumbers = Array.from({ length: seatCapacity }, (_, idx) => idx + 1).filter((n) => !occupiedSeatNumbers.includes(n));
 
-    if (existing?.accountId) {
-      window.location.href = `/waiter/${encodeURIComponent(restaurantId)}/${encodeURIComponent(tableNumber)}?account=${encodeURIComponent(existing.accountId)}`;
-      return;
-    }
-
-    try {
-      const seatNumber = Number(String(seatId).split(':seat:')[1] || '0') || 0;
-      const accountLabel = `${t('floor.bar.seat_label', 'Bar Seat')} ${seatNumber || 1}`;
-      const res = await fetch('/api/pos/table-account/open', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          restaurantId,
-          table: tableNumber,
-          seatId,
-          locationId: tableId,
-          locationType: 'bar',
-          accountLabel,
-        }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      const accountId = String(data?.account?.accountId || '').trim();
-      if (accountId) {
-        window.location.href = `/waiter/${encodeURIComponent(restaurantId)}/${encodeURIComponent(tableNumber)}?account=${encodeURIComponent(accountId)}`;
+    if (clickMode === 'host') {
+      try {
+        const root = typeof document !== "undefined" ? document.getElementById("sb-floor-root") : null;
+        if (root && (root as any).dataset) {
+          (root as any).dataset.selectedTableId = String(tableId);
+          (root as any).dataset.selectedTableNumber = String(tableNumber);
+          (root as any).dataset.selectedBarSeatId = String(seatId);
+          (root as any).dataset.selectedBarSeatNumber = String(seatNumber);
+        }
+        window.dispatchEvent(
+          new CustomEvent("sb-floor-selection", {
+            detail: {
+              tableIds: [String(tableId)],
+              tableNumbers: [Number(tableNumber)],
+              isBarSeat: true,
+              barSeatId: String(seatId),
+              barSeatNumber: Number(seatNumber),
+              barSeatCapacity: seatCapacity,
+              occupiedBarSeatNumbers: occupiedSeatNumbers,
+              freeBarSeatNumbers: freeSeatNumbers,
+            },
+          }),
+        );
+      } catch (_e) {
+        // no-op
       }
-    } catch (err) {
-      console.error('Failed to open bar seat account', err);
+      return;
     }
+
+    const existing = seatAccounts.find((acc) => String(acc.seatId || '') === String(seatId)) || null;
+    const accountId = String(existing?.accountId || accountIdForBarSeat(seatNumber)).trim();
+    const url = new URL(`/waiter/${encodeURIComponent(restaurantId)}/${encodeURIComponent(tableNumber)}`, window.location.origin);
+    url.searchParams.set('seatId', seatId);
+    url.searchParams.set('account', accountId);
+    window.location.href = url.pathname + url.search;
   }, [barAccountsByTable, clickMode, layouts, restaurantId]);
 
   const postTableOverrideStatus = async (status: "empty" | "dirty" | "reserved") => {
@@ -506,7 +582,7 @@ export default function FloorViewPage({
                 {selectedTable && isBarTable(selectedTable) && (
                   <div className="sbv-bar-drawer-section">
                     <div className="sbv-bar-drawer-title">{t('floor.bar.title', 'Bar seats')}</div>
-                    <div className="sbv-bar-drawer-sub">{t('floor.bar.help', 'Each seat can hold a separate guest check.')}</div>
+                    <div className="sbv-bar-drawer-sub">{clickMode === 'host' ? t('floor.bar.host_help', 'Pick the first free seat. The host can seat groups on adjacent bar seats.') : t('floor.bar.help', 'Each bar seat opens its own order screen.')}</div>
                     <div className="sbv-bar-drawer-grid">
                       {Array.from({ length: Math.max(1, Number((selectedTable as any)?.seats || 1)) }).map((_, seatIndex) => {
                         const seatNumber = seatIndex + 1;
@@ -572,12 +648,12 @@ export default function FloorViewPage({
     </>
   ) : null}
 
-  {selectedTable && isBarTable(selectedTable) && selectedBarSeatId ? (
+  {clickMode !== 'host' && selectedTable && isBarTable(selectedTable) && selectedBarSeatId ? (
     <button
       className="sbv-primary-btn"
       onClick={() => handleBarSeatClick(String((selectedTable as any).id), String(selectedBarSeatId))}
     >
-      {selectedBarSeatAccount ? t("pos.waiter.btn_open_order", "Open Order") : t('floor.bar.open_new_check', 'Open new check')}
+      {t("pos.waiter.btn_open_order", "Open Order")}
     </button>
   ) : selectedStatus === "occupied" &&
   (selectedStatusEntry as any)?.orderId &&

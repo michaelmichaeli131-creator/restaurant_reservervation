@@ -280,7 +280,8 @@
       "seat_label": "מושב בר",
       "free": "פנוי",
       "open_seat": "פתח מושב",
-      "open_new_check": "פתח חשבון חדש"
+      "open_new_check": "פתח חשבון חדש",
+      "host_help": "בחרו את המושב הפנוי הראשון. ניתן להושיב קבוצות על מושבים סמוכים בבר."
     }
   },
   "foodcost": {
@@ -405,7 +406,10 @@
     "sort_party": "גודל קבוצה",
     "summary_suffix": "הזמנות",
     "summary_suffix_single": "הזמנה",
-    "badge_new": "חדש"
+    "badge_new": "חדש",
+    "err_no_adjacent_bar_seats": "אין מספיק מושבים סמוכים פנויים בבר עבור ההזמנה הזו.",
+    "confirm_seat_bar": "להושיב את ההזמנה במושבי הבר",
+    "success_seat_bar": "ההזמנה הושבה במושבי הבר"
   },
   "lang": {
     "english": "English",

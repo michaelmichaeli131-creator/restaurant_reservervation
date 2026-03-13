@@ -18,6 +18,7 @@ import {
   listOpenOrdersByRestaurant,
   getOrCreateOpenOrder,
   closeOrderForTable,
+  listTableAccounts,
 } from "../pos/pos_db.ts";
 
 import {
@@ -379,6 +380,15 @@ async function extractSeatMultiPayload(ctx: any) {
   };
 }
 
+function seatNumberFromBarSeatId(seatId: string): number {
+  const m = String(seatId || "").match(/:seat:(\d+)/);
+  return m ? Math.max(1, Number(m[1]) || 1) : 0;
+}
+
+function barSeatAccountId(seatNumber: number): string {
+  return `seat-${Math.max(1, Number(seatNumber) || 1)}`;
+}
+
 /** עזר: קריאת נתונים ל-unseat שולחן/ות */
 async function extractUnseatPayload(ctx: any) {
   const data = await readJsonLikeBody(ctx);
@@ -608,6 +618,96 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
 
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = { ok: true, seated: results };
+});
+
+/** POST /api/host/seat-bar – הושבת הזמנה למושבים סמוכים בבר */
+hostRouter.post("/api/host/seat-bar", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+
+  const data = await readJsonLikeBody(ctx);
+  const ridRaw = String(data.restaurantId ?? data.rid ?? "");
+  const rid = resolveRestaurantIdForRequest(ctx, ridRaw);
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
+
+  const reservationId = String(data.reservationId ?? "").trim();
+  const tableNumber = toIntLoose(data.table ?? data.tableNumber ?? 0) ?? 0;
+  const tableId = String(data.tableId ?? "").trim() || undefined;
+  const seatIds = Array.from(new Set((Array.isArray(data.seatIds) ? data.seatIds : [])
+    .map((v: any) => String(v ?? "").trim())
+    .filter(Boolean)));
+
+  hlog("seat-bar incoming", { rid, reservationId, tableNumber, tableId, seatIds });
+
+  if (!reservationId || !tableNumber || !seatIds.length) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "missing_fields" };
+    return;
+  }
+
+  const mappedTableId = await getTableIdByNumber(rid, tableNumber);
+  if (!mappedTableId) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "table_not_found" };
+    return;
+  }
+
+  const reservation = await getReservationById(reservationId);
+  if (!reservation) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "reservation_not_found" };
+    return;
+  }
+
+  const reservationStatus = String(reservation.status ?? "new").toLowerCase();
+  if (["cancelled", "canceled", "no_show", "noshow"].includes(reservationStatus)) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "reservation_cancelled" };
+    return;
+  }
+
+  const existingAccounts = await listTableAccounts(rid, tableNumber);
+  const occupiedSeatIds = new Set(existingAccounts.map((acc: any) => String(acc.seatId || "")).filter(Boolean));
+  const conflict = seatIds.find((seatId) => occupiedSeatIds.has(String(seatId)));
+  if (conflict) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "seat_already_occupied", seatId: conflict };
+    return;
+  }
+
+  const guestName = extractNameFromReservationLike(reservation) || String(data.guestName ?? "").trim() || undefined;
+  const seated: Array<{ seatId: string; seatNumber: number; accountId: string; orderId: string | null }> = [];
+
+  try {
+    for (const seatId of seatIds) {
+      const seatNumber = seatNumberFromBarSeatId(seatId);
+      const accountId = barSeatAccountId(seatNumber || seated.length + 1);
+      const accountLabel = `Bar Seat ${seatNumber || seated.length + 1}`;
+      const order = await getOrCreateOpenOrder(rid, tableNumber, {
+        accountId,
+        accountLabel,
+        locationType: "bar",
+        locationId: tableId || mappedTableId,
+        seatId,
+        guestName,
+      });
+      seated.push({ seatId, seatNumber: seatNumber || seated.length, accountId, orderId: order?.id ?? null });
+    }
+
+    try {
+      await setReservationStatus(reservationId, "arrived");
+    } catch (_e) {
+      // ignore reservation status update failure here
+    }
+  } catch (err) {
+    hlog("seat-bar ERROR", { rid, reservationId, tableNumber, message: (err as Error).message });
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "seat_failed" };
+    return;
+  }
+
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = { ok: true, seated };
 });
 
 /** POST /api/host/table/unseat – שחרור שולחן/ות מהמארחת (סגירת צ'ק + שחרור seat) */

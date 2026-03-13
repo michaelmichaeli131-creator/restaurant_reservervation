@@ -238,6 +238,7 @@
     selectedResId: null,
     selectedTables: new Set(),   // מספרי שולחנות שנבחרו
     selectedTableIds: new Set(), // IDs של שולחנות שנבחרו (לסטטוסים)
+    selectedBar: null,
   };
 
   const resvList = document.getElementById("resv-list");
@@ -325,6 +326,14 @@
 
       state.selectedTables = new Set((nums || []).map(Number).filter(n => Number.isFinite(n) && n > 0));
       state.selectedTableIds = new Set((ids || []).map(String).filter(Boolean));
+      state.selectedBar = d && d.isBarSeat ? {
+        tableId: ids[0] ? String(ids[0]) : "",
+        tableNumber: nums[0] ? Number(nums[0]) : 0,
+        seatId: String(d.barSeatId || ""),
+        seatNumber: Number(d.barSeatNumber || 0),
+        capacity: Number(d.barSeatCapacity || 0),
+        occupiedSeatNumbers: Array.isArray(d.occupiedBarSeatNumbers) ? d.occupiedBarSeatNumbers.map(Number).filter(function(n){ return Number.isFinite(n) && n > 0; }) : [],
+      } : null;
     } catch (e) {
       console.warn("[HOST] selection event error", e);
     }
@@ -549,6 +558,38 @@
     return (nameEl && nameEl.textContent || "").trim();
   }
 
+  function getSelectedReservationPeople(){
+    if (!state.selectedResId || !resvList) return 1;
+    const li = resvList.querySelector('li[data-res-id="'+state.selectedResId+'"]');
+    if (!li) return 1;
+    const n = Number(li.dataset.people || 1);
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  }
+
+  function findAdjacentBarSeats(anchorSeatNumber, peopleCount, capacity, occupiedSeatNumbers){
+    const cap = Math.max(1, Number(capacity || 1));
+    const need = Math.max(1, Math.min(cap, Number(peopleCount || 1)));
+    const anchor = Math.max(1, Math.min(cap, Number(anchorSeatNumber || 1)));
+    const occupied = new Set((occupiedSeatNumbers || []).map(Number).filter(function(n){ return Number.isFinite(n) && n > 0; }));
+    const starts = [];
+    for (let delta = 0; delta < cap; delta++) {
+      const left = anchor - delta;
+      const right = anchor + delta;
+      if (left >= 1 && left <= cap - need + 1) starts.push(left);
+      if (right !== left && right >= 1 && right <= cap - need + 1) starts.push(right);
+    }
+    for (const start of starts) {
+      const seq = Array.from({ length: need }, function(_, idx){ return start + idx; });
+      if (seq.indexOf(anchor) < 0) continue;
+      if (seq.every(function(seatNo){ return !occupied.has(seatNo); })) return seq;
+    }
+    for (let start = 1; start <= cap - need + 1; start++) {
+      const seq = Array.from({ length: need }, function(_, idx){ return start + idx; });
+      if (seq.every(function(seatNo){ return !occupied.has(seatNo); })) return seq;
+    }
+    return null;
+  }
+
   function toggleTableSelection(tableNumber, btnEl){
     const tn = Number(tableNumber);
     if (!Number.isFinite(tn) || !btnEl) return;
@@ -693,6 +734,55 @@
       alert("<%= tt('host.err_select_reservation', 'Please select a reservation first.') %>");
       return;
     }
+
+    if (state.selectedBar && state.selectedBar.seatId) {
+      const guestName = getSelectedReservationName();
+      const peopleCount = getSelectedReservationPeople();
+      const seatNumbers = findAdjacentBarSeats(
+        state.selectedBar.seatNumber,
+        peopleCount,
+        state.selectedBar.capacity,
+        state.selectedBar.occupiedSeatNumbers
+      );
+      if (!seatNumbers || !seatNumbers.length) {
+        alert("<%= tt('host.err_no_adjacent_bar_seats', 'Not enough adjacent free seats at the bar for this reservation.') %>");
+        return;
+      }
+
+      const seatIds = seatNumbers.map(function(seatNo){
+        return String(state.selectedBar.tableId || '') + ':seat:' + String(seatNo);
+      });
+
+      if (!confirm(`<%= tt('host.confirm_seat_bar', 'Seat the reservation at bar seats') %> ${seatNumbers.join(', ')}?`)) return;
+
+      try {
+        const res = await fetch('/api/host/seat-bar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            restaurantId: rid,
+            reservationId: state.selectedResId,
+            table: state.selectedBar.tableNumber,
+            tableId: state.selectedBar.tableId,
+            seatIds,
+            guestName,
+          }),
+        });
+        const data = await res.json().catch(function(){ return {}; });
+        if (!res.ok || !data.ok) {
+          alert("<%= tt('host.err_seating', 'Seating error') %>: " + (data.error || res.status));
+          return;
+        }
+        alert(`<%= tt('host.success_seat_bar', 'Reservation seated at bar seats') %> ${seatNumbers.join(', ')}.`);
+        window.location.reload();
+        return;
+      } catch (e) {
+        console.error(e);
+        alert("<%= tt('host.err_network_seat', 'Network error during seating.') %>");
+        return;
+      }
+    }
+
     if (!state.selectedTables.size) {
       // If we have selected table IDs but no numbers, derive the numbers from mapping
       try {
@@ -713,6 +803,7 @@
         if (tn) state.selectedTables = new Set([Number(tn)]);
         const tid = (ds.selectedTableId || "").trim();
         if (tid) state.selectedTableIds = new Set([tid]);
+        state.selectedBar = null;
       } catch (e) {}
     }
     if (!state.selectedTables.size) {
@@ -840,6 +931,7 @@
 
       state.selectedTables.clear();
       state.selectedTableIds.clear();
+      state.selectedBar = null;
       try { window.dispatchEvent(new CustomEvent("sb-floor-clear-selection")); } catch(_e) {}
       closeTableInfoPanel();
 

@@ -538,22 +538,53 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
 
   const table = Number(ctx.params.table!);
   const requestedAccountId = String(ctx.request.url.searchParams.get("account") ?? "").trim();
+  const requestedSeatId = String(ctx.request.url.searchParams.get("seatId") ?? "").trim();
+  const seatMatch = requestedSeatId.match(/:seat:(\d+)/);
+  const requestedSeatNumber = seatMatch ? Math.max(1, Number(seatMatch[1]) || 1) : 0;
+  const requestedSeatAccountId = requestedSeatNumber ? `seat-${requestedSeatNumber}` : "";
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);
 
-  const accounts = await listTableAccounts(rid, table);
-  const effectiveAccountId = requestedAccountId
+  let accounts = await listTableAccounts(rid, table);
+  let effectiveAccountId = requestedAccountId
     ? requestedAccountId
     : (accounts.find((a) => a.isMain)?.accountId ?? accounts[0]?.accountId ?? "main");
+
+  if (requestedSeatId) {
+    let seatAccount = accounts.find((a) => String(a.seatId || "") === requestedSeatId)
+      ?? (requestedSeatAccountId ? accounts.find((a) => String(a.accountId || "") === requestedSeatAccountId) : null)
+      ?? null;
+
+    if (!seatAccount) {
+      await getOrCreateOpenOrder(rid, table, {
+        accountId: requestedSeatAccountId || requestedAccountId || crypto.randomUUID(),
+        accountLabel: requestedSeatNumber ? `Bar Seat ${requestedSeatNumber}` : undefined,
+        locationType: "bar",
+        seatId: requestedSeatId,
+        guestName: undefined,
+      });
+      accounts = await listTableAccounts(rid, table);
+      seatAccount = accounts.find((a) => String(a.seatId || "") === requestedSeatId)
+        ?? (requestedSeatAccountId ? accounts.find((a) => String(a.accountId || "") === requestedSeatAccountId) : null)
+        ?? null;
+    }
+
+    if (seatAccount?.accountId) {
+      effectiveAccountId = String(seatAccount.accountId);
+    }
+  }
+
   const currentAccount = accounts.find((a) => a.accountId === effectiveAccountId) ?? null;
 
   const items = await listOrderItemsForTable(rid, table, { accountId: effectiveAccountId });
   const totals = await computeTotalsForTable(rid, table, { accountId: effectiveAccountId });
   const systemNowParts = splitIsoParts(await getRestaurantSystemNow(rid));
+  const isBarSeatMode = Boolean(requestedSeatId);
+  const currentSeatLabel = requestedSeatNumber ? `Bar Seat ${requestedSeatNumber}` : "";
 
   await render(ctx, "pos_waiter", {
     page: "pos_waiter",
-    title: `Waiter · Table ${table} · ${r.name}`,
+    title: isBarSeatMode ? `Waiter · ${currentSeatLabel} · ${r.name}` : `Waiter · Table ${table} · ${r.name}`,
     rid,
     table,
     restaurant: r,
@@ -562,7 +593,11 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
     accounts,
     currentAccount,
     currentAccountId: effectiveAccountId,
-    isSharedCheckMode: accounts.length > 1 || effectiveAccountId !== "main",
+    isSharedCheckMode: !isBarSeatMode && (accounts.length > 1 || effectiveAccountId !== "main"),
+    isBarSeatMode,
+    currentSeatId: requestedSeatId || "",
+    currentSeatLabel,
+    currentSeatNumber: requestedSeatNumber || null,
     systemNowIso: systemNowParts.iso,
     systemNowDate: systemNowParts.date,
     systemNowTime: systemNowParts.time,

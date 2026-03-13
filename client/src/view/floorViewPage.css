@@ -369,6 +369,12 @@
 .sb-floor-view .editor-canvas.is-panning {
   cursor: grabbing;
 }
+.sb-floor-view .fe-grid-cell.inactive{
+  background: transparent !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+  pointer-events: auto;
+}
+
 .sb-floor-view .fe-grid {
   margin: 0;
 }
