@@ -144,6 +144,7 @@ async function tryCreateWithVariants(fn: Function, rid: string, r: Restaurant, d
   // התאמת חתימות לפונקציות יצירה שונות
   const fnName = String((fn as any)?.name || "");
   const notes = (payload as any).notes ?? (payload as any).note ?? "";
+  const preferredLayoutId = String((payload as any).preferredLayoutId ?? "").trim() || undefined;
   const manualData = {
     firstName: String((payload as any).firstName ?? ""),
     lastName : String((payload as any).lastName  ?? ""),
@@ -153,32 +154,68 @@ async function tryCreateWithVariants(fn: Function, rid: string, r: Restaurant, d
     date,
     time,
     status   : String((payload as any).status ?? "booked"),
-    preferredLayoutId: String((payload as any).preferredLayoutId ?? (reservation as any)?.preferredLayoutId ?? "").trim() || undefined,
+    preferredLayoutId,
   };
+
+  debugLog("owner_calendar", "tryCreateWithVariants input", { fnName, rid, date, time, manualData, payload });
 
   const variants: Array<() => Promise<any>> = [];
 
   // 1) createManualReservation(rid, data)
-  variants.push(() => {
-    if (fnName === "createManualReservation") {
-      return (fn as any)(rid, manualData);
-    }
-    return (fn as any)(rid, manualData);
-  });
+  if (fnName === "createManualReservation") {
+    variants.push(() => (fn as any)(rid, manualData));
+  }
 
   // 2) createReservationAtTime(rid, date, time, payload)
-  variants.push(() => (fn as any)(rid, date, time, payload));
+  if (fnName === "createReservationAtTime") {
+    variants.push(() => (fn as any)(rid, date, time, payload));
+  }
 
   // 3) add/insert-like: (rid, payload) או (rid, {...payload, date, time})
+  if (fnName === "addReservation" || fnName === "insertReservation") {
+    variants.push(() => (fn as any)(rid, payload));
+    variants.push(() => (fn as any)(rid, { ...payload, date, time }));
+  }
+
+  // 4) generic object createReservation({...})
+  if (fnName === "createReservation") {
+    const fullReservation = {
+      id: crypto.randomUUID(),
+      restaurantId: rid,
+      userId: `manual:${rid}`,
+      date,
+      time,
+      people: Number((payload as any).people ?? 1),
+      note: String(notes ?? ""),
+      firstName: String((payload as any).firstName ?? ""),
+      lastName: String((payload as any).lastName ?? ""),
+      phone: String((payload as any).phone ?? ""),
+      status: String((payload as any).status ?? "confirmed"),
+      durationMinutes: Number((payload as any).durationMinutes ?? 120),
+      ...(preferredLayoutId ? { preferredLayoutId } : {}),
+      createdAt: Date.now(),
+    };
+    variants.push(() => (fn as any)(fullReservation));
+  }
+
+  // Fallbacks for unknown signatures
+  variants.push(() => (fn as any)(rid, manualData));
+  variants.push(() => (fn as any)(rid, date, time, payload));
   variants.push(() => (fn as any)(rid, payload));
   variants.push(() => (fn as any)(rid, { ...payload, date, time }));
-
-  // 4) generic object: fn({restaurantId: rid, date, time, ...payload})
   variants.push(() => (fn as any)({ restaurantId: rid, date, time, ...payload }));
 
   let lastErr: unknown = null;
-  for (const call of variants) {
-    try { return await call(); } catch (e) { lastErr = e; }
+  for (let i = 0; i < variants.length; i++) {
+    const call = variants[i];
+    try {
+      const created = await call();
+      debugLog("owner_calendar", "create variant succeeded", { fnName, variantIndex: i, created });
+      return created;
+    } catch (e) {
+      lastErr = e;
+      debugLog("owner_calendar", "create variant failed", { fnName, variantIndex: i, error: String(e) });
+    }
   }
   throw lastErr ?? new Error("createReservation failed for all variants");
 }
