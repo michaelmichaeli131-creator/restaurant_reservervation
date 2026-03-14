@@ -630,7 +630,7 @@ export default function FloorMapRenderer({
           const isObjTopLeft = !!objectHere && objectHere.gridX === gridX && objectHere.gridY === gridY;
 
           const idx = gridY * layout.gridCols + gridX;
-          const active = (layout.gridMask?.[idx] ?? 1) === 1;
+          const active = mode === 'view' ? true : (layout.gridMask?.[idx] ?? 1) === 1;
 
           return (
             <div
