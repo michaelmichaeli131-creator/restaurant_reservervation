@@ -121,9 +121,9 @@
       </div>
     </div>
     <div class="sb-wt-account-tabs">
+      <% const mainAcc = accounts.find((a) => a.accountId === 'main') || null; %>
       <a class="sb-wt-account-tab <%= currentAccountId === 'main' ? 'is-active' : '' %>" href="<%= waiterAccountHref(mainAcc || { accountId: "main" }) %>">
         <span class="sb-wt-account-name"><%= currentAccountId === 'main' && currentAccount?.accountLabel ? currentAccount.accountLabel : tt('pos.waiter.main_check', 'Main Check') %></span>
-        <% const mainAcc = accounts.find((a) => a.accountId === 'main'); %>
         <% if (mainAcc) { %><span class="sb-wt-account-meta"><%= mainAcc.itemsCount %> · <%= mainAcc.subtotal.toFixed ? mainAcc.subtotal.toFixed(2) : mainAcc.subtotal %> <%= tt('common.currency', '₪') %></span><% } %>
       </a>
       <% accounts.filter((a) => a.accountId !== 'main').forEach(function(acc){ %>
