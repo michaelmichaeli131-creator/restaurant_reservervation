@@ -630,6 +630,9 @@ export default function FloorMapRenderer({
           const isObjTopLeft = !!objectHere && objectHere.gridX === gridX && objectHere.gridY === gridY;
 
           const idx = gridY * layout.gridCols + gridX;
+          // In host/waiter view we want the whole expanded map to remain covered by the floor
+          // texture, even when the editor keeps an older gridMask shape. So only honor gridMask
+          // in edit mode; in view mode render every cell as active.
           const active = mode === 'view' ? true : (layout.gridMask?.[idx] ?? 1) === 1;
 
           return (

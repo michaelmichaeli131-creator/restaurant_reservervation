@@ -24,7 +24,6 @@ import {
 import {
   listFloorSections,
   getTableIdByNumber,
-  getTableNumberById,
   markTableDirty,
 } from "../services/floor_service.ts";
 
@@ -622,27 +621,23 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
 });
 
 /** POST /api/host/seat-bar – הושבת הזמנה למושבים סמוכים בבר */
-async function handleSeatBar(ctx: any) {
+hostRouter.post("/api/host/seat-bar", async (ctx) => {
   if (!requireStaff(ctx)) return;
 
   const data = await readJsonLikeBody(ctx);
-  const ridParam = String(ctx.params?.rid ?? "").trim();
-  const ridRaw = ridParam || String(data.restaurantId ?? data.rid ?? "");
+  const ridRaw = String(data.restaurantId ?? data.rid ?? "");
   const rid = resolveRestaurantIdForRequest(ctx, ridRaw);
   if (!rid) return;
   if (!(await requireRestaurantAccess(ctx, rid))) return;
 
   const reservationId = String(data.reservationId ?? "").trim();
+  const tableNumber = toIntLoose(data.table ?? data.tableNumber ?? 0) ?? 0;
   const tableId = String(data.tableId ?? "").trim() || undefined;
-  let tableNumber = toIntLoose(data.table ?? data.tableNumber ?? 0) ?? 0;
-  if ((!tableNumber || tableNumber <= 0) && tableId) {
-    tableNumber = (await getTableNumberById(rid, tableId)) ?? 0;
-  }
   const seatIds = Array.from(new Set((Array.isArray(data.seatIds) ? data.seatIds : [])
     .map((v: any) => String(v ?? "").trim())
     .filter(Boolean)));
 
-  hlog("seat-bar incoming", { rid, reservationId, tableNumber, tableId, seatIds, ridParam });
+  hlog("seat-bar incoming", { rid, reservationId, tableNumber, tableId, seatIds });
 
   if (!reservationId || !tableNumber || !seatIds.length) {
     ctx.response.status = Status.BadRequest;
@@ -664,7 +659,7 @@ async function handleSeatBar(ctx: any) {
     return;
   }
 
-  const reservationStatus = String((reservation as any).status ?? "new").toLowerCase();
+  const reservationStatus = String(reservation.status ?? "new").toLowerCase();
   if (["cancelled", "canceled", "no_show", "noshow"].includes(reservationStatus)) {
     ctx.response.status = Status.BadRequest;
     ctx.response.body = { ok: false, error: "reservation_cancelled" };
@@ -713,11 +708,7 @@ async function handleSeatBar(ctx: any) {
 
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = { ok: true, seated };
-}
-
-hostRouter.post("/api/host/seat-bar", handleSeatBar);
-hostRouter.post("/api/host/:rid/seat-bar", handleSeatBar);
-
+});
 
 /** POST /api/host/table/unseat – שחרור שולחן/ות מהמארחת (סגירת צ'ק + שחרור seat) */
 hostRouter.post("/api/host/table/unseat", async (ctx) => {

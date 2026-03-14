@@ -50,26 +50,6 @@ export async function getTableIdByNumber(
   return res.value as string | null;
 }
 
-export async function getTableNumberById(
-  restaurantId: string,
-  tableId: string
-): Promise<number | null> {
-  const targetId = String(tableId || '').trim();
-  if (!targetId) return null;
-
-  const layouts = await listFloorLayouts(restaurantId);
-  for (const layout of layouts) {
-    for (const table of Array.isArray(layout.tables) ? layout.tables : []) {
-      if (String((table as any).id || '') === targetId) {
-        const tableNumber = Number((table as any).tableNumber ?? 0);
-        return Number.isFinite(tableNumber) && tableNumber > 0 ? tableNumber : null;
-      }
-    }
-  }
-
-  return null;
-}
-
 /**
  * Bulk set mappings from floor plan tables
  */
