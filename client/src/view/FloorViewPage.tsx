@@ -512,6 +512,12 @@ export default function FloorViewPage({
     });
     const url = new URL(`/waiter/${encodeURIComponent(restaurantId)}/${encodeURIComponent(tableNumber)}`, window.location.origin);
     url.searchParams.set('account', String(existing.accountId));
+    if ((existing as any).reservationId) url.searchParams.set('reservationId', String((existing as any).reservationId));
+    if ((existing as any).locationId) url.searchParams.set('tableId', String((existing as any).locationId));
+    const existingSeatIds = Array.isArray((existing as any).seatIds) && (existing as any).seatIds.length
+      ? (existing as any).seatIds
+      : ((existing as any).seatId ? [(existing as any).seatId] : []);
+    if (existingSeatIds.length) url.searchParams.set('seatId', String(existingSeatIds[0]));
     window.location.href = url.pathname + url.search;
   }, [barAccountsByTable, clickMode, layouts, restaurantId]);
 

@@ -48,6 +48,35 @@ function barPosDebug(stage: string, payload?: unknown) {
   }
 }
 
+function accountSeatIds(account: any): string[] {
+  const seatIds = Array.isArray(account?.seatIds) && account?.seatIds.length
+    ? account.seatIds
+    : (account?.seatId ? [account.seatId] : []);
+  return seatIds.map((v: any) => String(v ?? "").trim()).filter(Boolean);
+}
+
+function buildWaiterAccountUrl(
+  rid: string,
+  table: number,
+  account?: {
+    accountId?: string | null;
+    reservationId?: string | null;
+    locationId?: string | null;
+    seatId?: string | null;
+    seatIds?: string[] | null;
+  } | null,
+): string {
+  const url = new URL(`/waiter/${encodeURIComponent(rid)}/${encodeURIComponent(table)}`, "https://spotbook.local");
+  if (account?.accountId) url.searchParams.set("account", String(account.accountId));
+  if (account?.reservationId) url.searchParams.set("reservationId", String(account.reservationId));
+  if (account?.locationId) url.searchParams.set("tableId", String(account.locationId));
+  const seatIds = Array.isArray(account?.seatIds) && account?.seatIds.length
+    ? account.seatIds
+    : (account?.seatId ? [String(account.seatId)] : []);
+  if (seatIds.length) url.searchParams.set("seatId", String(seatIds[0]));
+  return `${url.pathname}${url.search}`;
+}
+
 let _floorViewBuildTag: string | null = null;
 async function getFloorViewBuildTag(): Promise<string> {
   if (_floorViewBuildTag) return _floorViewBuildTag;
@@ -509,6 +538,10 @@ posRouter.get("/waiter/:rid", async (ctx) => {
     seenTables.add(Number(row.table));
     const totals = await computeTotalsForTable(rid, row.table);
     const accounts = await listTableAccounts(rid, row.table);
+    const primaryAccount = accounts.find((acc) => String((acc as any).locationType ?? "") === "bar" && String((acc as any).reservationId ?? "").trim())
+      ?? accounts.find((acc) => !acc.isMain)
+      ?? accounts[0]
+      ?? null;
     enriched.push({
       table: row.table,
       order: row.order,
@@ -516,8 +549,11 @@ posRouter.get("/waiter/:rid", async (ctx) => {
       subtotal: totals.subtotal,
       accountCount: accounts.length,
       roomLabel: tableRoomMap.get(Number(row.table)) ?? "",
-      // קישור ישיר למסך ההזמנה לשולחן הזה
-      posUrl: `/waiter/${rid}/${row.table}`,
+      primaryAccountId: primaryAccount?.accountId ?? null,
+      primaryReservationId: (primaryAccount as any)?.reservationId ?? null,
+      primarySeatIds: Array.isArray((primaryAccount as any)?.seatIds) ? (primaryAccount as any).seatIds : [],
+      // For bars, open the reservation/check page directly instead of a generic blank table page.
+      posUrl: buildWaiterAccountUrl(rid, row.table, primaryAccount as any),
     });
   }
 
@@ -546,31 +582,61 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
 
   const table = Number(ctx.params.table!);
   const requestedAccountId = String(ctx.request.url.searchParams.get("account") ?? "").trim();
+  const requestedReservationId = String(ctx.request.url.searchParams.get("reservationId") ?? "").trim();
   const requestedSeatId = String(ctx.request.url.searchParams.get("seatId") ?? "").trim();
+  const requestedTableId = String(ctx.request.url.searchParams.get("tableId") ?? "").trim();
   const seatMatch = requestedSeatId.match(/:seat:(\d+)/);
   const requestedSeatNumber = seatMatch ? Math.max(1, Number(seatMatch[1]) || 1) : 0;
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);
 
-  let accounts = await listTableAccounts(rid, table);
-  let effectiveAccountId = requestedAccountId
-    ? requestedAccountId
-    : (accounts.find((a) => a.isMain)?.accountId ?? accounts[0]?.accountId ?? "main");
+  const accounts = await listTableAccounts(rid, table);
+  const mainAccount = accounts.find((a) => a.isMain) ?? null;
+  const requestedByAccount = requestedAccountId
+    ? accounts.find((a) => String(a.accountId ?? "").trim() === requestedAccountId) ?? null
+    : null;
+  const requestedByReservation = requestedReservationId
+    ? accounts.find((a) => String((a as any).reservationId ?? "").trim() === requestedReservationId) ?? null
+    : null;
+  const requestedBySeat = requestedSeatId
+    ? accounts.find((a) => accountSeatIds(a).includes(requestedSeatId)) ?? null
+    : null;
+  const requestedByTableId = requestedTableId
+    ? accounts.find((a) => String((a as any).locationId ?? "").trim() === requestedTableId) ?? null
+    : null;
+  const preferredBarAccount = accounts.find((a) => String((a as any).locationType ?? "") === "bar" && String((a as any).reservationId ?? "").trim())
+    ?? accounts.find((a) => String((a as any).locationType ?? "") === "bar")
+    ?? accounts.find((a) => !a.isMain)
+    ?? null;
 
-  if (requestedSeatId) {
-    const seatAccount = accounts.find((a) => {
-      const seatIds = Array.isArray((a as any).seatIds) && (a as any).seatIds.length
-        ? (a as any).seatIds
-        : [a.seatId];
-      return seatIds.map((v: any) => String(v || "")).includes(requestedSeatId);
-    }) ?? null;
+  const currentAccount = requestedByAccount
+    ?? requestedByReservation
+    ?? requestedBySeat
+    ?? requestedByTableId
+    ?? preferredBarAccount
+    ?? mainAccount
+    ?? accounts[0]
+    ?? null;
+  const effectiveAccountId = String(currentAccount?.accountId ?? requestedAccountId ?? accounts[0]?.accountId ?? "main").trim() || "main";
 
-    if (seatAccount?.accountId) {
-      effectiveAccountId = String(seatAccount.accountId);
-    }
-  }
-
-  const currentAccount = accounts.find((a) => a.accountId === effectiveAccountId) ?? null;
+  barPosDebug("waiter.page.accountResolution", {
+    rid,
+    table,
+    requestedAccountId: requestedAccountId || null,
+    requestedReservationId: requestedReservationId || null,
+    requestedSeatId: requestedSeatId || null,
+    requestedTableId: requestedTableId || null,
+    accounts: accounts.map((acc: any) => ({
+      accountId: acc.accountId ?? null,
+      reservationId: acc.reservationId ?? null,
+      locationType: acc.locationType ?? null,
+      locationId: acc.locationId ?? null,
+      seatIds: accountSeatIds(acc),
+      isMain: Boolean(acc.isMain),
+    })),
+    resolvedAccountId: effectiveAccountId,
+    resolvedReservationId: (currentAccount as any)?.reservationId ?? null,
+  });
 
   const items = await listOrderItemsForTable(rid, table, { accountId: effectiveAccountId });
   const totals = await computeTotalsForTable(rid, table, { accountId: effectiveAccountId });
@@ -601,6 +667,8 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
     currentSeatLabel,
     currentSeatNumber: requestedSeatNumber || null,
     currentAccountSeatIds,
+    currentReservationId: (currentAccount as any)?.reservationId ?? requestedReservationId ?? "",
+    currentLocationId: (currentAccount as any)?.locationId ?? requestedTableId ?? "",
     systemNowIso: systemNowParts.iso,
     systemNowDate: systemNowParts.date,
     systemNowTime: systemNowParts.time,

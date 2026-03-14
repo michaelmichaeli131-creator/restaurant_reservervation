@@ -29,6 +29,30 @@
   const currentAccountSeatIds = Array.isArray(it.currentAccountSeatIds) ? it.currentAccountSeatIds : [];
   const barReservationLabel = (it.currentAccount?.accountLabel || currentAccountId || '').trim();
   const currentSeatLabel = it.currentSeatLabel || '';
+  const currentReservationId = it.currentReservationId || '';
+  const currentLocationId = it.currentLocationId || '';
+
+  function seatIdsForAccount(acc){
+    try{
+      const out = Array.isArray(acc && acc.seatIds) && acc.seatIds.length ? acc.seatIds : ((acc && acc.seatId) ? [acc.seatId] : []);
+      return out.map((v) => String(v || '').trim()).filter(Boolean);
+    }catch(e){ return []; }
+  }
+
+  function waiterAccountHref(acc){
+    const accountId = acc && acc.accountId ? String(acc.accountId) : '';
+    const reservationId = acc && acc.reservationId ? String(acc.reservationId) : currentReservationId;
+    const locationId = acc && acc.locationId ? String(acc.locationId) : currentLocationId;
+    const seatIds = seatIdsForAccount(acc);
+    let href = `/waiter/${rid}/${tbl}`;
+    const qs = [];
+    if (accountId) qs.push(`account=${encodeURIComponent(accountId)}`);
+    if (reservationId) qs.push(`reservationId=${encodeURIComponent(reservationId)}`);
+    if (locationId) qs.push(`tableId=${encodeURIComponent(locationId)}`);
+    if (seatIds.length) qs.push(`seatId=${encodeURIComponent(seatIds[0])}`);
+    if (qs.length) href += `?${qs.join('&')}`;
+    return href;
+  }
 %>
 
 <main class="sb-page sb-wt-page" dir="rtl" data-page="waiter-table">
@@ -54,6 +78,9 @@
         data-items-unit="<%= tt('common.items_unit', 'פריטים') %>"
         data-account-id="<%= currentAccountId %>"
         data-account-label="<%= currentAccount?.accountLabel || '' %>"
+        data-reservation-id="<%= currentReservationId || '' %>"
+        data-location-id="<%= currentLocationId || '' %>"
+        data-seat-ids="<%= encodeURIComponent(JSON.stringify(currentAccountSeatIds || [])) %>"
       >
         <div class="sb-wt-bill-line">
           <span class="sb-wt-bill-label"><%= tt('pos.waiter.items_count', 'פריטים') %>:</span>
@@ -94,13 +121,13 @@
       </div>
     </div>
     <div class="sb-wt-account-tabs">
-      <a class="sb-wt-account-tab <%= currentAccountId === 'main' ? 'is-active' : '' %>" href="/waiter/<%= rid %>/<%= tbl %>?account=main">
+      <a class="sb-wt-account-tab <%= currentAccountId === 'main' ? 'is-active' : '' %>" href="<%= waiterAccountHref(mainAcc || { accountId: "main" }) %>">
         <span class="sb-wt-account-name"><%= currentAccountId === 'main' && currentAccount?.accountLabel ? currentAccount.accountLabel : tt('pos.waiter.main_check', 'Main Check') %></span>
         <% const mainAcc = accounts.find((a) => a.accountId === 'main'); %>
         <% if (mainAcc) { %><span class="sb-wt-account-meta"><%= mainAcc.itemsCount %> · <%= mainAcc.subtotal.toFixed ? mainAcc.subtotal.toFixed(2) : mainAcc.subtotal %> <%= tt('common.currency', '₪') %></span><% } %>
       </a>
       <% accounts.filter((a) => a.accountId !== 'main').forEach(function(acc){ %>
-        <a class="sb-wt-account-tab <%= currentAccountId === acc.accountId ? 'is-active' : '' %>" href="/waiter/<%= rid %>/<%= tbl %>?account=<%= encodeURIComponent(acc.accountId) %>">
+        <a class="sb-wt-account-tab <%= currentAccountId === acc.accountId ? 'is-active' : '' %>" href="<%= waiterAccountHref(acc) %>">
           <span class="sb-wt-account-name"><%= acc.accountLabel || (tt('pos.waiter.guest_check', 'Guest Check') + ' ' + acc.accountId.slice(0,4)) %></span>
           <span class="sb-wt-account-meta"><%= acc.itemsCount %> · <%= Number(acc.subtotal || 0).toFixed(2) %> <%= tt('common.currency', '₪') %></span>
         </a>
