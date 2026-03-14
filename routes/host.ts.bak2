@@ -158,49 +158,6 @@ async function readJsonLikeBody(ctx: any): Promise<any> {
   }
 }
 
-function mergeSeatBarQueryFallback(bodyData: any, ctx: any): any {
-  const data = (bodyData && typeof bodyData === "object") ? { ...bodyData } : {};
-  const sp = ctx.request?.url?.searchParams;
-  if (!sp) return data;
-
-  const setIfMissing = (key: string, ...aliases: string[]) => {
-    const hasBodyValue = [key, ...aliases].some((name) => {
-      const v = (data as any)?.[name];
-      if (Array.isArray(v)) return v.length > 0;
-      return v !== undefined && v !== null && String(v).trim() !== "";
-    });
-    if (hasBodyValue) return;
-    for (const name of [key, ...aliases]) {
-      const qv = sp.get(name);
-      if (qv != null && String(qv).trim() !== "") {
-        (data as any)[key] = qv;
-        return;
-      }
-    }
-  };
-
-  setIfMissing("restaurantId", "rid");
-  setIfMissing("reservationId");
-  setIfMissing("table", "tableNumber");
-  setIfMissing("tableId");
-  setIfMissing("guestName");
-
-  const existingSeatIds = Array.isArray((data as any)?.seatIds)
-    ? (data as any).seatIds.map((v: any) => String(v ?? "").trim()).filter(Boolean)
-    : [];
-  if (!existingSeatIds.length) {
-    const repeated = sp.getAll("seatIds").map((v) => String(v ?? "").trim()).filter(Boolean);
-    const csv = String(sp.get("seatIdsCsv") ?? sp.get("seatIds") ?? "").trim();
-    const parsedCsv = csv
-      ? csv.split(",").map((v) => String(v ?? "").trim()).filter(Boolean)
-      : [];
-    const merged = Array.from(new Set([...repeated, ...parsedCsv]));
-    if (merged.length) (data as any).seatIds = merged;
-  }
-
-  return data;
-}
-
 /** חישוב סטטוס לכל שולחן (תפוס/פנוי) על סמך הזמנות פתוחות (POS Orders) */
 async function computeAllTableStatuses(
   rid: string,
@@ -372,8 +329,7 @@ hostRouter.get("/api/host/:rid/reservations", async (ctx) => {
 
 /** עזר: קריאת נתונים גם מה-body וגם מה-query (seat יחיד) */
 async function extractSeatPayload(ctx: any) {
-  const rawBodyData = await readJsonLikeBody(ctx);
-  const data = mergeSeatBarQueryFallback(rawBodyData, ctx);
+  const data = await readJsonLikeBody(ctx);
   const url = ctx.request.url;
   const sp = url.searchParams;
 
@@ -686,20 +642,12 @@ async function handleSeatBar(ctx: any) {
   if (!(await requireRestaurantAccess(ctx, rid))) return;
 
   const reservationId = String(data.reservationId ?? "").trim();
-  const requestedSeatIds = Array.from(new Set((Array.isArray(data.seatIds) ? data.seatIds : [])
-    .map((v: any) => String(v ?? "").trim())
-    .filter(Boolean)));
-  let tableId = String(data.tableId ?? "").trim() || undefined;
-  if (!tableId && requestedSeatIds.length) {
-    tableId = String(requestedSeatIds[0].split(":seat:")[0] || "").trim() || undefined;
-  }
+  const tableId = String(data.tableId ?? "").trim() || undefined;
   let tableNumber = toIntLoose(data.table ?? data.tableNumber ?? 0) ?? 0;
   barDebug("seat-bar incoming.raw", {
     rid,
     ridParam,
-    bodyKeys: Object.keys(rawBodyData || {}),
-    mergedKeys: Object.keys(data || {}),
-    query: Object.fromEntries((ctx.request?.url?.searchParams || new URLSearchParams()).entries()),
+    bodyKeys: Object.keys(data || {}),
     reservationId,
     tableId,
     rawTable: data.table ?? null,
@@ -717,7 +665,9 @@ async function handleSeatBar(ctx: any) {
     barDebug("seat-bar tableNumber.ensure", { rid, tableId, ensured });
     tableNumber = ensured;
   }
-  const seatIds = requestedSeatIds;
+  const seatIds = Array.from(new Set((Array.isArray(data.seatIds) ? data.seatIds : [])
+    .map((v: any) => String(v ?? "").trim())
+    .filter(Boolean)));
 
   hlog("seat-bar incoming", { rid, reservationId, tableNumber, tableId, seatIds, ridParam });
   barDebug("seat-bar incoming.normalized", { rid, reservationId, tableNumber, tableId, seatIds, ridParam });

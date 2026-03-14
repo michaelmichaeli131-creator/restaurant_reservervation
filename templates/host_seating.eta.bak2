@@ -578,37 +578,6 @@
     return Number.isFinite(n) && n > 0 ? n : 1;
   }
 
-  function getCheckedReservationId(){
-    try {
-      if (!resvList) return "";
-      const checked = resvList.querySelector('input[name="resv"]:checked');
-      return checked ? String(checked.value || "").trim() : "";
-    } catch (e) {
-      return "";
-    }
-  }
-
-  function getSelectedBarFromDataset(){
-    try {
-      const root = document.getElementById('sb-floor-root');
-      const ds = root && root.dataset ? root.dataset : null;
-      if (!ds) return null;
-      const tableId = String(ds.selectedTableId || ds.selectedBarTableId || '').trim();
-      const tableNumber = Number(ds.selectedTableNumber || ds.selectedBarTableNumber || 0) || 0;
-      const seatId = String(ds.selectedBarSeatId || '').trim();
-      const seatNumber = Number(ds.selectedBarSeatNumber || 0) || 0;
-      const capacity = Number(ds.selectedBarSeatCapacity || 0) || 0;
-      const occupiedSeatNumbers = String(ds.occupiedBarSeatNumbers || '')
-        .split(',')
-        .map(function(v){ return Number(String(v || '').trim()); })
-        .filter(function(n){ return Number.isFinite(n) && n > 0; });
-      if (!seatId && !tableId && !tableNumber) return null;
-      return { tableId, tableNumber, seatId, seatNumber, capacity, occupiedSeatNumbers };
-    } catch (e) {
-      return null;
-    }
-  }
-
   function findAdjacentBarSeats(anchorSeatNumber, peopleCount, capacity, occupiedSeatNumbers){
     const cap = Math.max(1, Number(capacity || 1));
     const need = Math.max(1, Math.min(cap, Number(peopleCount || 1)));
@@ -773,33 +742,25 @@
   }
 
   async function seatSelected(){
-    const effectiveReservationId = String(state.selectedResId || getCheckedReservationId() || '').trim();
-    if (!effectiveReservationId) {
+    if (!state.selectedResId) {
       alert("<%= tt('host.err_select_reservation', 'Please select a reservation first.') %>");
       return;
     }
-    state.selectedResId = effectiveReservationId;
 
-    const effectiveBar = (state.selectedBar && state.selectedBar.seatId)
-      ? state.selectedBar
-      : getSelectedBarFromDataset();
-
-    if (effectiveBar && effectiveBar.seatId) {
+    if (state.selectedBar && state.selectedBar.seatId) {
       const guestName = getSelectedReservationName();
       const peopleCount = getSelectedReservationPeople();
-      const capacity = Number(effectiveBar.capacity || 0) || Math.max(peopleCount, Number(effectiveBar.seatNumber || 1), 1);
-      const occupiedSeatNumbers = Array.isArray(effectiveBar.occupiedSeatNumbers) ? effectiveBar.occupiedSeatNumbers : [];
       const seatNumbers = findAdjacentBarSeats(
-        Number(effectiveBar.seatNumber || 0),
+        state.selectedBar.seatNumber,
         peopleCount,
-        capacity,
-        occupiedSeatNumbers
+        state.selectedBar.capacity,
+        state.selectedBar.occupiedSeatNumbers
       );
       barDebug('seatSelected.compute', {
-        reservationId: effectiveReservationId,
+        reservationId: state.selectedResId,
         guestName,
         peopleCount,
-        selectedBar: effectiveBar,
+        selectedBar: state.selectedBar,
         computedSeatNumbers: seatNumbers,
       });
       if (!seatNumbers || !seatNumbers.length) {
@@ -807,20 +768,19 @@
         return;
       }
 
-      const resolvedTableId = String(effectiveBar.tableId || String(effectiveBar.seatId || '').split(':seat:')[0] || '').trim();
-      const resolvedTableNumber = Number(effectiveBar.tableNumber || __SB_TABLE_ID_TO_NUMBER[String(resolvedTableId || '')] || 0);
       const seatIds = seatNumbers.map(function(seatNo){
-        return String(resolvedTableId || '') + ':seat:' + String(seatNo);
-      }).filter(Boolean);
+        return String(state.selectedBar.tableId || '') + ':seat:' + String(seatNo);
+      });
 
       if (!confirm(`<%= tt('host.confirm_seat_bar', 'Seat the reservation at bar seats') %> ${seatNumbers.join(', ')}?`)) return;
 
       try {
+        const tableNumber = Number(state.selectedBar.tableNumber || __SB_TABLE_ID_TO_NUMBER[String(state.selectedBar.tableId || '')] || 0);
         const payload = {
           restaurantId: rid,
-          reservationId: effectiveReservationId,
-          table: resolvedTableNumber,
-          tableId: resolvedTableId,
+          reservationId: state.selectedResId,
+          table: tableNumber,
+          tableId: state.selectedBar.tableId,
           seatIds,
           guestName,
         };
@@ -833,23 +793,15 @@
         ];
         let res = null;
         let data = {};
-        for (const rawUrl of urls) {
-          const reqUrl = new URL(rawUrl, window.location.origin);
-          reqUrl.searchParams.set('restaurantId', rid);
-          reqUrl.searchParams.set('reservationId', effectiveReservationId);
-          if (resolvedTableNumber > 0) reqUrl.searchParams.set('table', String(resolvedTableNumber));
-          if (resolvedTableId) reqUrl.searchParams.set('tableId', resolvedTableId);
-          if (guestName) reqUrl.searchParams.set('guestName', guestName);
-          seatIds.forEach(function(seatId){ reqUrl.searchParams.append('seatIds', seatId); });
-          reqUrl.searchParams.set('seatIdsCsv', seatIds.join(','));
-          barDebug('seatSelected.request', { url: reqUrl.toString(), payload });
-          res = await fetch(reqUrl.toString(), {
+        for (const url of urls) {
+          barDebug('seatSelected.request', { url, payload });
+          res = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
           });
           data = await res.json().catch(function(){ return {}; });
-          barDebug('seatSelected.response', { url: reqUrl.toString(), status: res.status, ok: res.ok, data });
+          barDebug('seatSelected.response', { url, status: res.status, ok: res.ok, data });
           if (res.ok && data.ok) break;
           if (res.status !== 404) break;
         }
@@ -872,7 +824,6 @@
         return;
       }
     }
-
 
     if (!state.selectedTables.size) {
       // If we have selected table IDs but no numbers, derive the numbers from mapping

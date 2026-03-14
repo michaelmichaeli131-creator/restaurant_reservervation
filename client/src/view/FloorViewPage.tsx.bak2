@@ -456,13 +456,8 @@ export default function FloorViewPage({
         if (root && (root as any).dataset) {
           (root as any).dataset.selectedTableId = String(tableId);
           (root as any).dataset.selectedTableNumber = String(tableNumber);
-          (root as any).dataset.selectedBarTableId = String(tableId);
-          (root as any).dataset.selectedBarTableNumber = String(tableNumber);
           (root as any).dataset.selectedBarSeatId = String(seatId);
           (root as any).dataset.selectedBarSeatNumber = String(seatNumber);
-          (root as any).dataset.selectedBarSeatCapacity = String(seatCapacity);
-          (root as any).dataset.occupiedBarSeatNumbers = occupiedSeatNumbers.join(',');
-          (root as any).dataset.freeBarSeatNumbers = freeSeatNumbers.join(',');
         }
         window.dispatchEvent(
           new CustomEvent("sb-floor-selection", {
