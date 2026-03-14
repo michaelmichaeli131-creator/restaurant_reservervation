@@ -449,6 +449,8 @@ posRouter.get("/pos/:rid/table/:tableNumber", async (ctx) => {
   const totals = await computeTotalsForTable(rid, tableNumber);
   const systemNowParts = splitIsoParts(await getRestaurantSystemNow(rid));
 
+  barPosDebug('waiter.page.render', { rid, table, effectiveAccountId, requestedReservationId: requestedReservationId || null, requestedSeatId: requestedSeatId || null, requestedTableId: requestedTableId || null, menuItems: enrichedMenuItems.length, accounts: accounts.length, orderItems: items.length, isBarReservationMode, currentAccountSeatIds });
+
   await render(ctx, "pos_waiter", {
     page: "pos_waiter",
     title: `Waiter · Table ${tableNumber} · ${restaurant.name}`,
@@ -976,6 +978,7 @@ posRouter.post("/api/pos/order-item/add", async (ctx) => {
   if (!requireStaff(ctx)) return;
 
   const body = await ctx.request.body.json();
+  barPosDebug('order-item/add.request.raw', { bodyKeys: Object.keys(body || {}), restaurantId: String(body.restaurantId ?? '') || null, table: body.table ?? null, accountId: String(body.accountId ?? '') || null, reservationId: String(body.reservationId ?? '') || null, locationId: String(body.locationId ?? body.tableId ?? '') || null, locationType: String(body.locationType ?? '') || null, seatId: String(body.seatId ?? '') || null, seatIds: Array.isArray(body.seatIds) ? body.seatIds : body.seatIds ?? null, menuItemId: String(body.menuItemId ?? '') || null, quantity: body.quantity ?? null });
   const restaurantId0 = String(body.restaurantId ?? "");
   const restaurantId = resolveRestaurantIdForStaff(ctx, restaurantId0);
   if (!restaurantId) return;

@@ -434,3 +434,9 @@
   .sb-wt-item-side{align-items:flex-start; min-width:0}
   .sb-wt-item-actions{justify-content:flex-start}
 }
+
+
+.sb-waiter-debug{position:fixed;left:12px;bottom:12px;width:min(560px,calc(100vw - 24px));max-height:40vh;overflow:hidden;border:1px solid rgba(148,163,184,.35);background:rgba(2,6,23,.94);color:#e5eefb;border-radius:14px;z-index:200;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.sb-waiter-debug__head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(148,163,184,.18)}
+.sb-waiter-debug__actions{display:flex;gap:8px;align-items:center}
+.sb-waiter-debug__log{margin:0;padding:10px 12px;max-height:calc(40vh - 52px);overflow:auto;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word}

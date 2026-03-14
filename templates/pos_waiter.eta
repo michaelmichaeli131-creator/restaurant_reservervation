@@ -321,16 +321,93 @@
   </div>
 
   <div id="sb-toast" class="sb-toast" aria-live="polite" aria-atomic="true"></div>
+
+<div id="sb-waiter-debug" class="sb-waiter-debug" hidden>
+  <div class="sb-waiter-debug__head">
+    <strong>Waiter Debug</strong>
+    <div class="sb-waiter-debug__actions">
+      <button type="button" id="sb-waiter-debug-copy" class="btn ghost sm">Copy logs</button>
+      <button type="button" id="sb-waiter-debug-close" class="btn ghost sm">Hide</button>
+    </div>
+  </div>
+  <pre id="sb-waiter-debug-log" class="sb-waiter-debug__log"></pre>
+</div>
+
 </main>
 
 <script src="/public/js/pos_waiter.js?v=<%= it.BUILD_TAG || '' %>"></script>
 <script src="/public/js/pos_waiter_ui.js?v=<%= it.BUILD_TAG || '' %>"></script>
 <script src="/public/js/restaurant_system_time.js?v=<%= it.BUILD_TAG || '' %>"></script>
 
+
+<script>
+  (function(){
+    const debugStore = [];
+    const panel = document.getElementById('sb-waiter-debug');
+    const pre = document.getElementById('sb-waiter-debug-log');
+    const copyBtn = document.getElementById('sb-waiter-debug-copy');
+    const closeBtn = document.getElementById('sb-waiter-debug-close');
+    function append(type, msg, payload){
+      const line = {
+        ts: new Date().toISOString(),
+        type,
+        msg,
+        payload: payload ?? null,
+      };
+      debugStore.push(line);
+      window.__SB_WAITER_DEBUG__ = debugStore;
+      try {
+        const fn = type === 'error' ? console.error : (type === 'warn' ? console.warn : console.log);
+        fn('[WAITER_DEBUG]', msg, payload ?? '');
+      } catch(_) {}
+      if (pre) {
+        pre.textContent = debugStore.map((entry) => {
+          const body = entry.payload == null ? '' : ' ' + JSON.stringify(entry.payload);
+          return `[${entry.ts}] ${entry.type.toUpperCase()} ${entry.msg}${body}`;
+        }).join('\n');
+        pre.scrollTop = pre.scrollHeight;
+      }
+      if (panel) panel.hidden = false;
+    }
+    window.sbWaiterDebug = {
+      log: (msg, payload) => append('log', msg, payload),
+      warn: (msg, payload) => append('warn', msg, payload),
+      error: (msg, payload) => append('error', msg, payload),
+      get: () => debugStore.slice(),
+    };
+    window.addEventListener('error', (ev) => {
+      append('error', 'window.error', {
+        message: ev.message,
+        filename: ev.filename,
+        lineno: ev.lineno,
+        colno: ev.colno,
+      });
+    });
+    window.addEventListener('unhandledrejection', (ev) => {
+      append('error', 'window.unhandledrejection', {
+        reason: String(ev.reason && (ev.reason.stack || ev.reason.message || ev.reason)),
+      });
+    });
+    if (copyBtn) copyBtn.addEventListener('click', async () => {
+      try {
+        const txt = (pre && pre.textContent) || '';
+        await navigator.clipboard.writeText(txt);
+        append('log', 'debug.copy.success', { chars: txt.length });
+      } catch (e) {
+        append('error', 'debug.copy.failed', { message: String(e && (e.message || e)) });
+      }
+    });
+    if (closeBtn) closeBtn.addEventListener('click', () => { if (panel) panel.hidden = true; });
+    append('log', 'debug.bootstrap', { href: location.href });
+  })();
+</script>
+
 <!-- תפריט אינטראקטיבי + הוספת מנות -->
 <script>
   (function(){
     const root = document.getElementById("menu-root");
+    const dbg = (window.sbWaiterDebug || { log(){}, warn(){}, error(){} });
+    dbg.log('menu.script.start', { rootFound: !!root });
     if (!root) return;
     const rid = root.dataset.rid;
     const table = <%= Number(tbl) %>;
@@ -340,6 +417,8 @@
     const currentSeatIds = <%- JSON.stringify(currentAccountSeatIds || []) %>;
     const currency = '<%= tt("common.currency", "₪") %>';
     const menuDataEl = document.getElementById('menu-data');
+    const searchEl0 = document.getElementById('menu-search');
+    dbg.log('menu.context', { rid, table, accountId, reservationId, locationId, currentSeatIds, hasMenuData: !!menuDataEl, hasSearch: !!searchEl0 });
 
     function readPreloadedMenu(){
       try {
@@ -348,6 +427,7 @@
         const parsed = JSON.parse(raw);
         return Array.isArray(parsed) ? parsed : [];
       } catch (e) {
+        dbg.error('menu.readPreloadedMenu.failed', { message: String(e && (e.stack || e.message || e)) });
         console.warn('[BAR_DEBUG][waiter] readPreloadedMenu failed', e);
         return [];
       }
@@ -356,16 +436,19 @@
     async function loadMenu(){
       const preloaded = readPreloadedMenu();
       if (preloaded.length) {
+        dbg.log('menu.usingPreloaded', { count: preloaded.length, table });
         console.info('[BAR_DEBUG][waiter] using preloaded menu', { count: preloaded.length, table });
         renderMenu(preloaded);
         return;
       }
       if (!rid) {
         root.innerHTML = '<p class="muted"><%= tt('pos.error.load_menu', 'Error loading the menu.') %></p>';
+        dbg.error('menu.load.missingRid', { rid, table });
         console.error('[BAR_DEBUG][waiter] missing rid for menu load');
         return;
       }
       try{
+        dbg.log('menu.fetch.start', { rid, table });
         console.info('[BAR_DEBUG][waiter] fetching menu', { rid, table });
         const res = await fetch(`/api/pos/menu/${encodeURIComponent(rid)}`);
         if(!res.ok) throw new Error(`menu fetch failed ${res.status}`);
@@ -373,6 +456,7 @@
         renderMenu(items);
       }catch(e){
         root.innerHTML = '<p class="muted"><%= tt('pos.error.load_menu', 'Error loading the menu.') %></p>';
+        dbg.error('menu.load.failed', { message: String(e && (e.stack || e.message || e)) });
         console.error('[BAR_DEBUG][waiter] menu load failed', e);
       }
     }
@@ -393,6 +477,7 @@
     }
 
     function renderMenu(items){
+      dbg.log('menu.render.start', { count: Array.isArray(items) ? items.length : -1, q: __menuQ, cat: __menuCat, dest: __menuDest });
       if(!Array.isArray(items) || !items.length){
         root.innerHTML = '<p class="muted"><%= tt('pos.menu.empty', 'No dishes in menu currently.') %></p>';
         return;
@@ -486,12 +571,15 @@
 
       root.innerHTML = "";
       root.appendChild(frag);
+      dbg.log('menu.render.done', { sections: byCat2.size, cards: root.querySelectorAll('.menu-item-card').length });
     }
 
     // Search
     const searchEl = document.getElementById('menu-search');
+    dbg.log('menu.controls.located', { hasSearch: !!searchEl, hasCats: !!document.getElementById('menu-cats'), hasSeg: !!document.querySelector('.sb-seg') });
     if (searchEl){
       searchEl.addEventListener('input', () => {
+        dbg.log('menu.search.input', { value: String(searchEl.value || '') });
         __menuQ = String(searchEl.value || '').trim().toLowerCase();
         renderMenu(__menuAll);
       });
@@ -501,9 +589,11 @@
     const catsEl = document.getElementById('menu-cats');
     if (catsEl){
       catsEl.addEventListener('click', (ev) => {
+        dbg.log('menu.category.click.raw', { targetClass: ev.target && ev.target.className ? String(ev.target.className) : '' });
         const b = ev.target.closest('.sb-chip');
         if (!b) return;
         __menuCat = b.dataset.cat || '__all__';
+        dbg.log('menu.category.click', { cat: __menuCat });
         catsEl.querySelectorAll('.sb-chip').forEach(x => x.classList.remove('is-active'));
         b.classList.add('is-active');
         renderMenu(__menuAll);
@@ -514,9 +604,11 @@
     const seg = document.querySelector('.sb-seg');
     if (seg){
       seg.addEventListener('click', (ev) => {
+        dbg.log('menu.dest.click.raw', { targetClass: ev.target && ev.target.className ? String(ev.target.className) : '' });
         const b = ev.target.closest('.sb-seg-btn');
         if (!b) return;
         __menuDest = b.dataset.dest || '__all__';
+        dbg.log('menu.dest.click', { dest: __menuDest });
         seg.querySelectorAll('.sb-seg-btn').forEach(x => x.classList.remove('is-active'));
         b.classList.add('is-active');
         renderMenu(__menuAll);
@@ -532,6 +624,7 @@
     let pendingCard = null;
 
     function openNotesModal(card){
+      dbg.log('menu.notes.open', { menuItemId: card && card.dataset ? card.dataset.menuItemId : '' });
       pendingCard = card;
       const name = card.querySelector('.menu-item-name');
       if (notesDishName) notesDishName.textContent = name ? name.textContent : '';
@@ -560,14 +653,16 @@
     });
 
     async function addItem(card, notes){
+      dbg.log('menu.addItem.enter', { menuItemId: card && card.dataset ? card.dataset.menuItemId : '', notesLength: String(notes || '').length });
       const menuItemId = card.dataset.menuItemId;
-      if (!menuItemId) return;
+      if (!menuItemId) { dbg.warn('menu.addItem.noMenuItemId', {}); return; }
       if (!rid || !table || !Number.isFinite(Number(table))) {
+        dbg.error('menu.addItem.missingRidOrTable', { rid, table, menuItemId, accountId });
         console.error('[BAR_DEBUG][waiter] addItem missing rid/table', { rid, table, menuItemId, accountId });
         return;
       }
 
-      if (card.classList.contains('is-loading')) return;
+      if (card.classList.contains('is-loading')) { dbg.warn('menu.addItem.alreadyLoading', { menuItemId }); return; }
       card.classList.add('is-loading');
 
       const trimmedNotes = (notes || '').trim();
@@ -587,7 +682,9 @@
           quantity: 1,
           ...(trimmedNotes ? { notes: trimmedNotes } : {}),
         };
+        dbg.log('menu.addItem.request', payload);
         console.info('[BAR_DEBUG][waiter] addItem.request', payload);
+        dbg.log('menu.addItem.fetch.start', { menuItemId, accountId, reservationId, locationId, currentSeatIds });
         const res = await fetch("/api/pos/order-item/add", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -597,11 +694,13 @@
         try { data = await res.json(); } catch(_) {}
         if (!res.ok || !data?.ok) {
           const msg = data?.error || data?.message || `HTTP ${res.status}`;
+          dbg.error('menu.addItem.badResponse', { status: res.status, data, payload });
           console.error('[BAR_DEBUG][waiter] addItem.badResponse', { status: res.status, data, payload });
           showToast(`<%= tt('pos.error.add_item', 'Could not add item') %>: ${msg}`);
           return;
         }
 
+        dbg.log('menu.addItem.success', { status: res.status, itemId: data && data.item ? data.item.id : null });
         const item = data.item;
         const listEl = document.getElementById("order-items");
         if (!listEl) return;
@@ -667,6 +766,8 @@
         if (navigator.vibrate) try { navigator.vibrate(8); } catch(e) {}
         showToast(`<%= tt('pos.menu.added_to_order', 'Added to order') %>: ${item.name}`);
       }catch(e){
+        dbg.error('menu.addItem.catch', { message: String(e && (e.stack || e.message || e)) });
+        showToast(`<%= tt('pos.error.add_item', 'Could not add item') %>`);
         console.error("addItem failed", e);
       }finally{
         card.classList.remove('is-loading');
@@ -677,10 +778,18 @@
       return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    document.addEventListener('pointerdown', function(ev){
+      const tgt = ev.target && ev.target.closest ? ev.target.closest('.menu-item-card, #menu-search, .sb-chip, .sb-seg-btn') : null;
+      if (!tgt) return;
+      dbg.log('menu.pointerdown.capture', { tag: tgt.tagName, id: tgt.id || '', cls: tgt.className || '', menuItemId: tgt.dataset ? (tgt.dataset.menuItemId || '') : '' });
+    }, true);
+
     root.addEventListener("click", function(ev){
       const card = ev.target.closest(".menu-item-card");
+      dbg.log('menu.root.click', { clickedCard: !!card, targetTag: ev.target && ev.target.tagName ? ev.target.tagName : '', targetClass: ev.target && ev.target.className ? String(ev.target.className) : '' });
       if (!card) return;
       ev.preventDefault();
+      dbg.log('menu.root.click.card', { menuItemId: card.dataset.menuItemId || '' });
       addItem(card, '');
     });
 
@@ -708,6 +817,7 @@
       });
     }
 
+    dbg.log('menu.init.beforeLoadMenu', {});
     loadMenu();
   })();
 </script>
