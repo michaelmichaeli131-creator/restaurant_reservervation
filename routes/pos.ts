@@ -609,15 +609,35 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
     ?? accounts.find((a) => !a.isMain)
     ?? null;
 
+  const provisionalBarAccount = (!requestedByAccount && !requestedByReservation && requestedReservationId)
+    ? {
+        accountId: requestedAccountId || requestedReservationId,
+        accountLabel: '',
+        reservationId: requestedReservationId,
+        locationType: 'bar',
+        locationId: requestedTableId || undefined,
+        seatId: requestedSeatId || undefined,
+        seatIds: requestedSeatId ? [requestedSeatId] : [],
+        isMain: false,
+      }
+    : null;
+
   const currentAccount = requestedByAccount
     ?? requestedByReservation
     ?? requestedBySeat
     ?? requestedByTableId
     ?? preferredBarAccount
+    ?? provisionalBarAccount
     ?? mainAccount
     ?? accounts[0]
     ?? null;
-  const effectiveAccountId = String(currentAccount?.accountId ?? requestedAccountId ?? accounts[0]?.accountId ?? "main").trim() || "main";
+  const effectiveAccountId = String(
+    currentAccount?.accountId
+      ?? requestedAccountId
+      ?? requestedReservationId
+      ?? accounts[0]?.accountId
+      ?? "main",
+  ).trim() || "main";
 
   barPosDebug("waiter.page.accountResolution", {
     rid,
@@ -658,8 +678,13 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
   const systemNowParts = splitIsoParts(await getRestaurantSystemNow(rid));
   const currentAccountSeatIds = Array.isArray((currentAccount as any)?.seatIds) && (currentAccount as any)?.seatIds.length
     ? (currentAccount as any).seatIds
-    : (currentAccount?.seatId ? [currentAccount.seatId] : []);
-  const isBarReservationMode = String(currentAccount?.locationType || '') === 'bar' && currentAccountSeatIds.length > 0;
+    : (currentAccount?.seatId ? [currentAccount.seatId] : (requestedSeatId ? [requestedSeatId] : []));
+  const isBarReservationMode = (
+    String(currentAccount?.locationType || '') === 'bar'
+    || Boolean(requestedReservationId)
+    || Boolean(requestedSeatId)
+    || Boolean(requestedTableId)
+  ) && currentAccountSeatIds.length > 0;
   const currentSeatLabel = requestedSeatNumber ? `Bar Seat ${requestedSeatNumber}` : "";
 
   await render(ctx, "pos_waiter", {
@@ -960,16 +985,36 @@ posRouter.post("/api/pos/order-item/add", async (ctx) => {
   const quantity = Number(body.quantity ?? 1);
   const notes = String(body.notes ?? "").trim();
   const accountId = String(body.accountId ?? "").trim() || undefined;
+  const reservationId = String(body.reservationId ?? "").trim() || undefined;
+  const locationId = String(body.locationId ?? body.tableId ?? "").trim() || undefined;
+  const locationType = String(body.locationType ?? "").trim() === 'bar' ? 'bar' : 'table';
+  const seatIds = Array.isArray(body.seatIds)
+    ? body.seatIds.map((v: any) => String(v ?? "").trim()).filter(Boolean)
+    : [];
+  const seatId = String(body.seatId ?? "").trim() || (seatIds[0] || undefined);
 
   if (!restaurantId || !table || !menuItemId) {
     ctx.throw(Status.BadRequest, "missing fields");
   }
 
-  // Waiters can normally add only when table is seated by host.
-  // Shared bar checks are also allowed when there is already an open account/check on the same location.
   const seated = await isTableSeated(restaurantId, table);
   const openAccounts = await listOpenOrdersForTable(restaurantId, table);
-  if (!seated && openAccounts.length === 0) {
+  const allowBarReservationOrder = Boolean(locationType === 'bar' && accountId && reservationId && (locationId || seatId || seatIds.length));
+  barPosDebug('order-item/add.request', {
+    restaurantId,
+    table,
+    accountId: accountId ?? null,
+    reservationId: reservationId ?? null,
+    locationId: locationId ?? null,
+    locationType,
+    seatId: seatId ?? null,
+    seatIds,
+    seated,
+    openAccounts: openAccounts.length,
+    allowBarReservationOrder,
+    menuItemId,
+  });
+  if (!seated && openAccounts.length === 0 && !allowBarReservationOrder) {
     ctx.throw(Status.Forbidden, "table_not_seated");
   }
 
@@ -983,7 +1028,11 @@ posRouter.post("/api/pos/order-item/add", async (ctx) => {
     quantity,
     notes: notes || undefined,
     accountId,
-    locationType: accountId && accountId !== "main" ? "bar" : "table",
+    locationType: allowBarReservationOrder ? 'bar' : (accountId && accountId !== "main" ? "bar" : "table"),
+    locationId,
+    seatId,
+    seatIds,
+    reservationId,
   });
   const totals = await computeTotalsForTable(restaurantId, table, { accountId });
 

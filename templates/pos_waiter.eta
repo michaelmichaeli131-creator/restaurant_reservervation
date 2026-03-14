@@ -335,6 +335,9 @@
     const rid = root.dataset.rid;
     const table = <%= Number(tbl) %>;
     const accountId = <%- JSON.stringify(currentAccountId) %>;
+    const reservationId = <%- JSON.stringify(currentReservationId || '') %>;
+    const locationId = <%- JSON.stringify(currentLocationId || '') %>;
+    const currentSeatIds = <%- JSON.stringify(currentAccountSeatIds || []) %>;
     const currency = '<%= tt("common.currency", "₪") %>';
     const menuDataEl = document.getElementById('menu-data');
 
@@ -570,21 +573,34 @@
       const trimmedNotes = (notes || '').trim();
 
       try{
+        const payload = {
+          restaurantId: rid,
+          table,
+          accountId,
+          reservationId: reservationId || undefined,
+          locationId: locationId || undefined,
+          tableId: locationId || undefined,
+          locationType: (reservationId || currentSeatIds.length) ? 'bar' : 'table',
+          seatIds: Array.isArray(currentSeatIds) ? currentSeatIds : [],
+          seatId: Array.isArray(currentSeatIds) && currentSeatIds.length ? currentSeatIds[0] : undefined,
+          menuItemId,
+          quantity: 1,
+          ...(trimmedNotes ? { notes: trimmedNotes } : {}),
+        };
+        console.info('[BAR_DEBUG][waiter] addItem.request', payload);
         const res = await fetch("/api/pos/order-item/add", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            restaurantId: rid,
-            table,
-            accountId,
-            menuItemId,
-            quantity: 1,
-            ...(trimmedNotes ? { notes: trimmedNotes } : {}),
-          }),
+          body: JSON.stringify(payload),
         });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data.ok) return;
+        let data = null;
+        try { data = await res.json(); } catch(_) {}
+        if (!res.ok || !data?.ok) {
+          const msg = data?.error || data?.message || `HTTP ${res.status}`;
+          console.error('[BAR_DEBUG][waiter] addItem.badResponse', { status: res.status, data, payload });
+          showToast(`<%= tt('pos.error.add_item', 'Could not add item') %>: ${msg}`);
+          return;
+        }
 
         const item = data.item;
         const listEl = document.getElementById("order-items");
@@ -664,7 +680,8 @@
     root.addEventListener("click", function(ev){
       const card = ev.target.closest(".menu-item-card");
       if (!card) return;
-      openNotesModal(card);
+      ev.preventDefault();
+      addItem(card, '');
     });
 
     const openAccountBtn = document.getElementById('btn-open-account');
