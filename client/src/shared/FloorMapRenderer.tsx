@@ -39,6 +39,8 @@ export interface BarAccountLike {
   accountId: string;
   accountLabel?: string;
   seatId?: string;
+  seatIds?: string[];
+  reservationId?: string;
   guestName?: string | null;
 }
 
@@ -600,6 +602,8 @@ export default function FloorMapRenderer({
         }}
         style={{
           direction: 'ltr',
+          width: `${Math.max(1, Number(layout.gridCols || 1)) * cellSize}px`,
+          height: `${Math.max(1, Number(layout.gridRows || 1)) * cellSize}px`,
           gridTemplateColumns: `repeat(${layout.gridCols}, ${cellSize}px)`,
           gridTemplateRows: `repeat(${layout.gridRows}, ${cellSize}px)`,
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
@@ -630,9 +634,6 @@ export default function FloorMapRenderer({
           const isObjTopLeft = !!objectHere && objectHere.gridX === gridX && objectHere.gridY === gridY;
 
           const idx = gridY * layout.gridCols + gridX;
-          // In host/waiter view we want the whole expanded map to remain covered by the floor
-          // texture, even when the editor keeps an older gridMask shape. So only honor gridMask
-          // in edit mode; in view mode render every cell as active.
           const active = mode === 'view' ? true : (layout.gridMask?.[idx] ?? 1) === 1;
 
           return (
@@ -692,7 +693,12 @@ export default function FloorMapRenderer({
                         {Array.from({ length: Math.max(1, Number(tableHere.seats || 0)) }).map((_, seatIndex) => {
                           const seatNumber = seatIndex + 1;
                           const seatId = seatIdForBar(String(tableHere.id), seatNumber);
-                          const seatAccount = (barAccountsByTable?.[String(tableHere.id)] || []).find((acc) => String(acc.seatId || '') === seatId);
+                          const seatAccount = (barAccountsByTable?.[String(tableHere.id)] || []).find((acc) => {
+                            const seatIds = Array.isArray((acc as any).seatIds) && (acc as any).seatIds.length
+                              ? (acc as any).seatIds
+                              : [acc.seatId];
+                            return seatIds.map((v) => String(v || '')).includes(seatId);
+                          });
                           const occupied = Boolean(seatAccount);
                           const selectedSeat = selectedBarSeatId && String(selectedBarSeatId) === seatId;
                           return (

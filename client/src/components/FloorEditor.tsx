@@ -2068,9 +2068,11 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                 className="fe-grid" ref={gridRef}
                 style={{
                   direction: 'ltr',
-              gridTemplateColumns: `repeat(${currentLayout.gridCols}, ${cellSize}px)`,
-              gridTemplateRows: `repeat(${currentLayout.gridRows}, ${cellSize}px)`,
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                  width: `${Math.max(1, Number(currentLayout.gridCols || 1)) * cellSize}px`,
+                  height: `${Math.max(1, Number(currentLayout.gridRows || 1)) * cellSize}px`,
+                  gridTemplateColumns: `repeat(${currentLayout.gridCols}, ${cellSize}px)`,
+                  gridTemplateRows: `repeat(${currentLayout.gridRows}, ${cellSize}px)`,
+                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: '0 0',
               ['--cell' as any]: `${cellSize}px`,
                   ['--floor-bg' as any]: ft.bg,

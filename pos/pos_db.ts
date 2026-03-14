@@ -53,6 +53,8 @@ export interface Order {
   locationType?: "table" | "bar";
   locationId?: string;
   seatId?: string;
+  seatIds?: string[];
+  reservationId?: string;
   guestName?: string;
   status: "open" | "closed" | "cancelled";
   createdAt: number;
@@ -97,6 +99,8 @@ export interface Bill {
   locationType?: "table" | "bar";
   locationId?: string;
   seatId?: string;
+  seatIds?: string[];
+  reservationId?: string;
   createdAt: number;
   items: OrderItem[];
   totals: BillTotals;
@@ -111,6 +115,8 @@ export interface TableAccountSummary {
   locationType?: "table" | "bar";
   locationId?: string;
   seatId?: string;
+  seatIds?: string[];
+  reservationId?: string;
   createdAt: number;
   itemsCount: number;
   subtotal: number;
@@ -201,6 +207,17 @@ function normalizeAccountLabel(label?: string | null, accountId?: string | null)
   return acc === "main" ? "Main check" : `Check ${acc.slice(0, 6)}`;
 }
 
+function normalizeSeatIds(values?: Array<string | null | undefined> | null, fallbackSeatId?: string | null): string[] {
+  const out = new Set<string>();
+  for (const raw of Array.isArray(values) ? values : []) {
+    const v = String(raw ?? "").trim();
+    if (v) out.add(v);
+  }
+  const seatId = String(fallbackSeatId ?? "").trim();
+  if (seatId) out.add(seatId);
+  return Array.from(out);
+}
+
 async function getOpenOrderForAccount(
   restaurantId: string,
   table: number,
@@ -280,6 +297,8 @@ export async function listTableAccounts(
       locationType: order.locationType,
       locationId: order.locationId,
       seatId: order.seatId,
+      seatIds: normalizeSeatIds((order as any).seatIds, order.seatId),
+      reservationId: (order as any).reservationId || undefined,
       createdAt: order.createdAt,
       itemsCount,
       subtotal,
@@ -417,12 +436,58 @@ export async function getOrCreateOpenOrder(
     locationType?: "table" | "bar";
     locationId?: string;
     seatId?: string;
+    seatIds?: string[];
+    reservationId?: string;
     guestName?: string;
   } = {},
 ): Promise<Order> {
   const accountId = normalizeAccountId(options.accountId);
   const cur = await getOpenOrderForAccount(restaurantId, table, accountId);
-  if (cur) return cur;
+  const nextSeatIds = normalizeSeatIds(options.seatIds, options.seatId);
+
+  if (cur) {
+    const mergedSeatIds = nextSeatIds.length
+      ? nextSeatIds
+      : normalizeSeatIds((cur as any).seatIds, cur.seatId);
+    const nextSeatId = mergedSeatIds[0] || cur.seatId || undefined;
+    const nextOrder: Order = {
+      ...cur,
+      accountId,
+      accountLabel: normalizeAccountLabel(options.accountLabel ?? cur.accountLabel, accountId),
+      locationType: options.locationType ?? cur.locationType ?? (accountId === "main" ? "table" : "bar"),
+      locationId: options.locationId || cur.locationId || undefined,
+      seatId: nextSeatId,
+      seatIds: mergedSeatIds,
+      reservationId: String(options.reservationId ?? (cur as any).reservationId ?? "").trim() || undefined,
+      guestName: options.guestName || cur.guestName || undefined,
+    };
+    const changed = JSON.stringify({
+      accountLabel: cur.accountLabel,
+      locationType: cur.locationType,
+      locationId: cur.locationId,
+      seatId: cur.seatId,
+      seatIds: normalizeSeatIds((cur as any).seatIds, cur.seatId),
+      reservationId: (cur as any).reservationId || undefined,
+      guestName: cur.guestName || undefined,
+    }) !== JSON.stringify({
+      accountLabel: nextOrder.accountLabel,
+      locationType: nextOrder.locationType,
+      locationId: nextOrder.locationId,
+      seatId: nextOrder.seatId,
+      seatIds: nextOrder.seatIds || [],
+      reservationId: (nextOrder as any).reservationId || undefined,
+      guestName: nextOrder.guestName || undefined,
+    });
+    if (changed) {
+      const tx = kv.atomic()
+        .set(kOrder(restaurantId, cur.id), nextOrder)
+        .set(kOrderByTableAccount(restaurantId, table, accountId), nextOrder);
+      if (accountId === "main") tx.set(kOrderByTable(restaurantId, table), nextOrder);
+      await tx.commit();
+      return nextOrder;
+    }
+    return cur;
+  }
 
   const floorTableId = await getTableIdByNumber(restaurantId, table);
 
@@ -435,7 +500,9 @@ export async function getOrCreateOpenOrder(
     accountLabel: normalizeAccountLabel(options.accountLabel, accountId),
     locationType: options.locationType ?? (accountId === "main" ? "table" : "bar"),
     locationId: options.locationId || undefined,
-    seatId: options.seatId || undefined,
+    seatId: nextSeatIds[0] || options.seatId || undefined,
+    seatIds: nextSeatIds,
+    reservationId: String(options.reservationId ?? "").trim() || undefined,
     guestName: options.guestName || undefined,
     status: "open",
     createdAt: Date.now(),
@@ -464,6 +531,8 @@ export async function addOrderItem(params: {
   locationType?: "table" | "bar";
   locationId?: string;
   seatId?: string;
+  seatIds?: string[];
+  reservationId?: string;
   guestName?: string;
 }): Promise<{ order: Order; orderItem: OrderItem }> {
   const accountId = normalizeAccountId(params.accountId);
@@ -476,6 +545,8 @@ export async function addOrderItem(params: {
       locationType: params.locationType,
       locationId: params.locationId,
       seatId: params.seatId,
+      seatIds: params.seatIds,
+      reservationId: params.reservationId,
       guestName: params.guestName,
     },
   );
@@ -653,6 +724,8 @@ export async function closeOrderForTable(
     locationType: updated.locationType,
     locationId: updated.locationId,
     seatId: updated.seatId,
+    seatIds: normalizeSeatIds((updated as any).seatIds, updated.seatId),
+    reservationId: (updated as any).reservationId || undefined,
     createdAt: now,
     items,
     totals,

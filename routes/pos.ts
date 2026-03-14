@@ -541,7 +541,6 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
   const requestedSeatId = String(ctx.request.url.searchParams.get("seatId") ?? "").trim();
   const seatMatch = requestedSeatId.match(/:seat:(\d+)/);
   const requestedSeatNumber = seatMatch ? Math.max(1, Number(seatMatch[1]) || 1) : 0;
-  const requestedSeatAccountId = requestedSeatNumber ? `seat-${requestedSeatNumber}` : "";
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound);
 
@@ -551,23 +550,12 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
     : (accounts.find((a) => a.isMain)?.accountId ?? accounts[0]?.accountId ?? "main");
 
   if (requestedSeatId) {
-    let seatAccount = accounts.find((a) => String(a.seatId || "") === requestedSeatId)
-      ?? (requestedSeatAccountId ? accounts.find((a) => String(a.accountId || "") === requestedSeatAccountId) : null)
-      ?? null;
-
-    if (!seatAccount) {
-      await getOrCreateOpenOrder(rid, table, {
-        accountId: requestedSeatAccountId || requestedAccountId || crypto.randomUUID(),
-        accountLabel: requestedSeatNumber ? `Bar Seat ${requestedSeatNumber}` : undefined,
-        locationType: "bar",
-        seatId: requestedSeatId,
-        guestName: undefined,
-      });
-      accounts = await listTableAccounts(rid, table);
-      seatAccount = accounts.find((a) => String(a.seatId || "") === requestedSeatId)
-        ?? (requestedSeatAccountId ? accounts.find((a) => String(a.accountId || "") === requestedSeatAccountId) : null)
-        ?? null;
-    }
+    const seatAccount = accounts.find((a) => {
+      const seatIds = Array.isArray((a as any).seatIds) && (a as any).seatIds.length
+        ? (a as any).seatIds
+        : [a.seatId];
+      return seatIds.map((v: any) => String(v || "")).includes(requestedSeatId);
+    }) ?? null;
 
     if (seatAccount?.accountId) {
       effectiveAccountId = String(seatAccount.accountId);
@@ -579,12 +567,17 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
   const items = await listOrderItemsForTable(rid, table, { accountId: effectiveAccountId });
   const totals = await computeTotalsForTable(rid, table, { accountId: effectiveAccountId });
   const systemNowParts = splitIsoParts(await getRestaurantSystemNow(rid));
-  const isBarSeatMode = Boolean(requestedSeatId);
+  const currentAccountSeatIds = Array.isArray((currentAccount as any)?.seatIds) && (currentAccount as any)?.seatIds.length
+    ? (currentAccount as any).seatIds
+    : (currentAccount?.seatId ? [currentAccount.seatId] : []);
+  const isBarReservationMode = String(currentAccount?.locationType || '') === 'bar' && currentAccountSeatIds.length > 0;
   const currentSeatLabel = requestedSeatNumber ? `Bar Seat ${requestedSeatNumber}` : "";
 
   await render(ctx, "pos_waiter", {
     page: "pos_waiter",
-    title: isBarSeatMode ? `Waiter · ${currentSeatLabel} · ${r.name}` : `Waiter · Table ${table} · ${r.name}`,
+    title: isBarReservationMode
+      ? `Waiter · ${currentAccount?.accountLabel || `Bar ${table}`} · ${r.name}`
+      : `Waiter · Table ${table} · ${r.name}`,
     rid,
     table,
     restaurant: r,
@@ -593,11 +586,13 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
     accounts,
     currentAccount,
     currentAccountId: effectiveAccountId,
-    isSharedCheckMode: !isBarSeatMode && (accounts.length > 1 || effectiveAccountId !== "main"),
-    isBarSeatMode,
+    isSharedCheckMode: !isBarReservationMode && (accounts.length > 1 || effectiveAccountId !== "main"),
+    isBarSeatMode: false,
+    isBarReservationMode,
     currentSeatId: requestedSeatId || "",
     currentSeatLabel,
     currentSeatNumber: requestedSeatNumber || null,
+    currentAccountSeatIds,
     systemNowIso: systemNowParts.iso,
     systemNowDate: systemNowParts.date,
     systemNowTime: systemNowParts.time,
@@ -705,6 +700,10 @@ posRouter.post("/api/pos/table-account/open", async (ctx) => {
   const accountLabel = String(body.accountLabel ?? "").trim();
   const accountId = String(body.accountId ?? crypto.randomUUID()).trim() || crypto.randomUUID();
   const seatId = String(body.seatId ?? "").trim() || undefined;
+  const seatIds = Array.isArray(body.seatIds)
+    ? body.seatIds.map((v: any) => String(v ?? "").trim()).filter(Boolean)
+    : undefined;
+  const reservationId = String(body.reservationId ?? "").trim() || undefined;
   const locationId = String(body.locationId ?? "").trim() || undefined;
   const locationType = String(body.locationType ?? "bar").trim() === "table" ? "table" : "bar";
 
@@ -714,6 +713,8 @@ posRouter.post("/api/pos/table-account/open", async (ctx) => {
     accountId,
     accountLabel: accountLabel || undefined,
     seatId,
+    seatIds,
+    reservationId,
     locationId,
     locationType,
     guestName: String(body.guestName ?? "").trim() || undefined,

@@ -328,7 +328,7 @@
       state.selectedTableIds = new Set((ids || []).map(String).filter(Boolean));
       state.selectedBar = d && d.isBarSeat ? {
         tableId: ids[0] ? String(ids[0]) : "",
-        tableNumber: nums[0] ? Number(nums[0]) : 0,
+        tableNumber: nums[0] ? Number(nums[0]) : Number(__SB_TABLE_ID_TO_NUMBER[String(ids[0] || "")] || 0),
         seatId: String(d.barSeatId || ""),
         seatNumber: Number(d.barSeatNumber || 0),
         capacity: Number(d.barSeatCapacity || 0),
@@ -756,21 +756,35 @@
       if (!confirm(`<%= tt('host.confirm_seat_bar', 'Seat the reservation at bar seats') %> ${seatNumbers.join(', ')}?`)) return;
 
       try {
-        const res = await fetch('/api/host/seat-bar', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            restaurantId: rid,
-            reservationId: state.selectedResId,
-            table: state.selectedBar.tableNumber,
-            tableId: state.selectedBar.tableId,
-            seatIds,
-            guestName,
-          }),
-        });
-        const data = await res.json().catch(function(){ return {}; });
-        if (!res.ok || !data.ok) {
-          alert("<%= tt('host.err_seating', 'Seating error') %>: " + (data.error || res.status));
+        const tableNumber = Number(state.selectedBar.tableNumber || __SB_TABLE_ID_TO_NUMBER[String(state.selectedBar.tableId || '')] || 0);
+        const payload = {
+          restaurantId: rid,
+          reservationId: state.selectedResId,
+          table: tableNumber,
+          tableId: state.selectedBar.tableId,
+          seatIds,
+          guestName,
+        };
+        const urls = [
+          '/api/host/seat-bar',
+          `/api/host/${encodeURIComponent(rid)}/seat-bar`,
+          '/api/host/seat-bar/',
+          `/api/host/${encodeURIComponent(rid)}/seat-bar/`,
+        ];
+        let res = null;
+        let data = {};
+        for (const url of urls) {
+          res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          data = await res.json().catch(function(){ return {}; });
+          if (res.ok && data.ok) break;
+          if (res.status !== 404) break;
+        }
+        if (!res || !res.ok || !data.ok) {
+          alert("<%= tt('host.err_seating', 'Seating error') %>: " + (data.error || (res ? res.status : 'request_failed')));
           return;
         }
         alert(`<%= tt('host.success_seat_bar', 'Reservation seated at bar seats') %> ${seatNumbers.join(', ')}.`);

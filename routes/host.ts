@@ -24,6 +24,7 @@ import {
 import {
   listFloorSections,
   getTableIdByNumber,
+  getTableNumberById,
   markTableDirty,
 } from "../services/floor_service.ts";
 
@@ -621,23 +622,27 @@ hostRouter.post("/api/host/seat-multi", async (ctx) => {
 });
 
 /** POST /api/host/seat-bar – הושבת הזמנה למושבים סמוכים בבר */
-hostRouter.post("/api/host/seat-bar", async (ctx) => {
+async function handleSeatBar(ctx: any) {
   if (!requireStaff(ctx)) return;
 
   const data = await readJsonLikeBody(ctx);
-  const ridRaw = String(data.restaurantId ?? data.rid ?? "");
+  const ridParam = String(ctx.params?.rid ?? "").trim();
+  const ridRaw = ridParam || String(data.restaurantId ?? data.rid ?? "");
   const rid = resolveRestaurantIdForRequest(ctx, ridRaw);
   if (!rid) return;
   if (!(await requireRestaurantAccess(ctx, rid))) return;
 
   const reservationId = String(data.reservationId ?? "").trim();
-  const tableNumber = toIntLoose(data.table ?? data.tableNumber ?? 0) ?? 0;
   const tableId = String(data.tableId ?? "").trim() || undefined;
+  let tableNumber = toIntLoose(data.table ?? data.tableNumber ?? 0) ?? 0;
+  if ((!tableNumber || tableNumber <= 0) && tableId) {
+    tableNumber = (await getTableNumberById(rid, tableId)) ?? 0;
+  }
   const seatIds = Array.from(new Set((Array.isArray(data.seatIds) ? data.seatIds : [])
     .map((v: any) => String(v ?? "").trim())
     .filter(Boolean)));
 
-  hlog("seat-bar incoming", { rid, reservationId, tableNumber, tableId, seatIds });
+  hlog("seat-bar incoming", { rid, reservationId, tableNumber, tableId, seatIds, ridParam });
 
   if (!reservationId || !tableNumber || !seatIds.length) {
     ctx.response.status = Status.BadRequest;
@@ -659,7 +664,7 @@ hostRouter.post("/api/host/seat-bar", async (ctx) => {
     return;
   }
 
-  const reservationStatus = String(reservation.status ?? "new").toLowerCase();
+  const reservationStatus = String((reservation as any).status ?? "new").toLowerCase();
   if (["cancelled", "canceled", "no_show", "noshow"].includes(reservationStatus)) {
     ctx.response.status = Status.BadRequest;
     ctx.response.body = { ok: false, error: "reservation_cancelled" };
@@ -667,7 +672,12 @@ hostRouter.post("/api/host/seat-bar", async (ctx) => {
   }
 
   const existingAccounts = await listTableAccounts(rid, tableNumber);
-  const occupiedSeatIds = new Set(existingAccounts.map((acc: any) => String(acc.seatId || "")).filter(Boolean));
+  const occupiedSeatIds = new Set(
+    existingAccounts
+      .flatMap((acc: any) => Array.isArray(acc.seatIds) && acc.seatIds.length ? acc.seatIds : [acc.seatId])
+      .map((seatId: any) => String(seatId || "").trim())
+      .filter(Boolean),
+  );
   const conflict = seatIds.find((seatId) => occupiedSeatIds.has(String(seatId)));
   if (conflict) {
     ctx.response.status = Status.BadRequest;
@@ -679,19 +689,22 @@ hostRouter.post("/api/host/seat-bar", async (ctx) => {
   const seated: Array<{ seatId: string; seatNumber: number; accountId: string; orderId: string | null }> = [];
 
   try {
+    const accountId = reservationId;
+    const accountLabel = guestName ? `Bar · ${guestName}` : "Bar Reservation";
+    const order = await getOrCreateOpenOrder(rid, tableNumber, {
+      accountId,
+      accountLabel,
+      locationType: "bar",
+      locationId: tableId || mappedTableId,
+      seatId: seatIds[0],
+      seatIds,
+      reservationId,
+      guestName,
+    });
+
     for (const seatId of seatIds) {
       const seatNumber = seatNumberFromBarSeatId(seatId);
-      const accountId = barSeatAccountId(seatNumber || seated.length + 1);
-      const accountLabel = `Bar Seat ${seatNumber || seated.length + 1}`;
-      const order = await getOrCreateOpenOrder(rid, tableNumber, {
-        accountId,
-        accountLabel,
-        locationType: "bar",
-        locationId: tableId || mappedTableId,
-        seatId,
-        guestName,
-      });
-      seated.push({ seatId, seatNumber: seatNumber || seated.length, accountId, orderId: order?.id ?? null });
+      seated.push({ seatId, seatNumber: seatNumber || seated.length + 1, accountId, orderId: order?.id ?? null });
     }
 
     try {
@@ -708,7 +721,13 @@ hostRouter.post("/api/host/seat-bar", async (ctx) => {
 
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = { ok: true, seated };
-});
+}
+
+hostRouter.post("/api/host/seat-bar", handleSeatBar);
+hostRouter.post("/api/host/seat-bar/", handleSeatBar);
+hostRouter.post("/api/host/:rid/seat-bar", handleSeatBar);
+hostRouter.post("/api/host/:rid/seat-bar/", handleSeatBar);
+
 
 /** POST /api/host/table/unseat – שחרור שולחן/ות מהמארחת (סגירת צ'ק + שחרור seat) */
 hostRouter.post("/api/host/table/unseat", async (ctx) => {

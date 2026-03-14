@@ -43,10 +43,6 @@ function seatNumberFromSeatId(seatId: string): number {
   return match ? Math.max(0, Number(match[1]) || 0) : 0;
 }
 
-function accountIdForBarSeat(seatNumber: number): string {
-  return `seat-${Math.max(1, Number(seatNumber) || 1)}`;
-}
-
 function findAdjacentBarSeats(
   capacityRaw: number,
   occupiedSeatNumbersRaw: number[],
@@ -84,21 +80,44 @@ function normalizeBarAccountsForTable(table: any, accounts: BarAccountEntry[]): 
   const seatCapacity = Math.max(1, Number(table?.seats || 1));
   const used = new Set<string>();
   return (accounts || []).map((account, idx) => {
-    let seatId = String(account.seatId || "").trim();
-    if (!seatId || used.has(seatId)) {
+    let seatIds = Array.isArray((account as any).seatIds)
+      ? (account as any).seatIds.map((v: any) => String(v || "").trim()).filter(Boolean)
+      : [];
+    let primarySeatId = String(account.seatId || "").trim();
+
+    if (!seatIds.length && primarySeatId) seatIds = [primarySeatId];
+
+    if (!seatIds.length) {
       for (let seatNumber = 1; seatNumber <= seatCapacity; seatNumber++) {
         const candidate = seatIdForBar(String(table.id), seatNumber);
         if (!used.has(candidate)) {
-          seatId = candidate;
+          seatIds = [candidate];
           break;
         }
       }
     }
-    if (!seatId) {
-      seatId = seatIdForBar(String(table.id), Math.min(idx + 1, seatCapacity));
+
+    if (!seatIds.length) {
+      seatIds = [seatIdForBar(String(table.id), Math.min(idx + 1, seatCapacity))];
     }
-    used.add(seatId);
-    return { ...account, seatId };
+
+    seatIds = seatIds.map((seatId: string) => {
+      if (!used.has(seatId)) {
+        used.add(seatId);
+        return seatId;
+      }
+      for (let seatNumber = 1; seatNumber <= seatCapacity; seatNumber++) {
+        const candidate = seatIdForBar(String(table.id), seatNumber);
+        if (!used.has(candidate)) {
+          used.add(candidate);
+          return candidate;
+        }
+      }
+      return seatId;
+    });
+
+    primarySeatId = seatIds[0] || primarySeatId;
+    return { ...account, seatId: primarySeatId, seatIds };
   });
 }
 
@@ -307,7 +326,12 @@ export default function FloorViewPage({
 
   const selectedBarSeatAccount = React.useMemo(() => {
     if (!selectedBarSeatId) return null;
-    return selectedBarAccounts.find((acc) => String(acc.seatId || '') === String(selectedBarSeatId)) ?? null;
+    return selectedBarAccounts.find((acc) => {
+      const seatIds = Array.isArray((acc as any).seatIds) && (acc as any).seatIds.length
+        ? (acc as any).seatIds
+        : [acc.seatId];
+      return seatIds.map((v: any) => String(v || '')).includes(String(selectedBarSeatId));
+    }) ?? null;
   }, [selectedBarAccounts, selectedBarSeatId]);
 
   const onTableClick = React.useCallback((tableId: string) => {
@@ -360,7 +384,12 @@ export default function FloorViewPage({
     const seatNumber = seatNumberFromSeatId(seatId) || 1;
     const seatAccounts = normalizeBarAccountsForTable(table, barAccountsByTable[String(tableId)] || []);
     const occupiedSeatNumbers = seatAccounts
-      .map((acc) => seatNumberFromSeatId(String(acc.seatId || '')))
+      .flatMap((acc) => {
+        const seatIds = Array.isArray((acc as any).seatIds) && (acc as any).seatIds.length
+          ? (acc as any).seatIds
+          : [acc.seatId];
+        return seatIds.map((seat: any) => seatNumberFromSeatId(String(seat || '')));
+      })
       .filter((n) => Number.isFinite(n) && n > 0);
     const seatCapacity = Math.max(1, Number((table as any).seats || 1));
     const freeSeatNumbers = Array.from({ length: seatCapacity }, (_, idx) => idx + 1).filter((n) => !occupiedSeatNumbers.includes(n));
@@ -394,11 +423,17 @@ export default function FloorViewPage({
       return;
     }
 
-    const existing = seatAccounts.find((acc) => String(acc.seatId || '') === String(seatId)) || null;
-    const accountId = String(existing?.accountId || accountIdForBarSeat(seatNumber)).trim();
+    const existing = seatAccounts.find((acc) => {
+      const seatIds = Array.isArray((acc as any).seatIds) && (acc as any).seatIds.length
+        ? (acc as any).seatIds
+        : [acc.seatId];
+      return seatIds.map((v: any) => String(v || '')).includes(String(seatId));
+    }) || null;
+    if (!existing?.accountId) {
+      return;
+    }
     const url = new URL(`/waiter/${encodeURIComponent(restaurantId)}/${encodeURIComponent(tableNumber)}`, window.location.origin);
-    url.searchParams.set('seatId', seatId);
-    url.searchParams.set('account', accountId);
+    url.searchParams.set('account', String(existing.accountId));
     window.location.href = url.pathname + url.search;
   }, [barAccountsByTable, clickMode, layouts, restaurantId]);
 
@@ -582,12 +617,17 @@ export default function FloorViewPage({
                 {selectedTable && isBarTable(selectedTable) && (
                   <div className="sbv-bar-drawer-section">
                     <div className="sbv-bar-drawer-title">{t('floor.bar.title', 'Bar seats')}</div>
-                    <div className="sbv-bar-drawer-sub">{clickMode === 'host' ? t('floor.bar.host_help', 'Pick the first free seat. The host can seat groups on adjacent bar seats.') : t('floor.bar.help', 'Each bar seat opens its own order screen.')}</div>
+                    <div className="sbv-bar-drawer-sub">{clickMode === 'host' ? t('floor.bar.host_help', 'Pick the first free seat. The host can seat groups on adjacent bar seats.') : t('floor.bar.help', 'Seats from the same reservation open the same order screen.')}</div>
                     <div className="sbv-bar-drawer-grid">
                       {Array.from({ length: Math.max(1, Number((selectedTable as any)?.seats || 1)) }).map((_, seatIndex) => {
                         const seatNumber = seatIndex + 1;
                         const seatId = seatIdForBar(String((selectedTable as any).id), seatNumber);
-                        const seatAccount = selectedBarAccounts.find((acc) => String(acc.seatId || '') === seatId) ?? null;
+                        const seatAccount = selectedBarAccounts.find((acc) => {
+                          const seatIds = Array.isArray((acc as any).seatIds) && (acc as any).seatIds.length
+                            ? (acc as any).seatIds
+                            : [acc.seatId];
+                          return seatIds.map((v: any) => String(v || '')).includes(seatId);
+                        }) ?? null;
                         const occupied = Boolean(seatAccount);
                         const selected = selectedBarSeatId === seatId;
                         return (

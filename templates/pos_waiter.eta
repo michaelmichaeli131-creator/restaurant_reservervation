@@ -25,6 +25,9 @@
   const currentAccount = it.currentAccount || null;
   const currentAccountId = it.currentAccountId || 'main';
   const isBarSeatMode = !!it.isBarSeatMode;
+  const isBarReservationMode = !!it.isBarReservationMode;
+  const currentAccountSeatIds = Array.isArray(it.currentAccountSeatIds) ? it.currentAccountSeatIds : [];
+  const barReservationLabel = (it.currentAccount?.accountLabel || currentAccountId || '').trim();
   const currentSeatLabel = it.currentSeatLabel || '';
 %>
 
@@ -34,11 +37,11 @@
       <div class="sb-wt-title">
         <div class="sb-wt-kicker"><%= r.name %></div>
         <h1 class="sb-wt-h1">
-          <span class="sb-wt-table"><%= isBarSeatMode ? currentSeatLabel : ('#' + tbl) %></span>
+          <span class="sb-wt-table"><%= isBarReservationMode ? barReservationLabel : (isBarSeatMode ? currentSeatLabel : ('#' + tbl)) %></span>
           <span class="sb-wt-label"><%= tt('pos.order.title', 'Table Order') %></span>
         </h1>
         <div class="sb-wt-sub muted">
-          <%= isBarSeatMode ? (tt('pos.waiter.table_label', 'Table') + ' #' + tbl + ' • ' + currentSeatLabel) : (r.city + ' • ' + r.address) %>
+          <%= isBarReservationMode ? (tt('pos.waiter.table_label', 'Table') + ' #' + tbl + (currentAccountSeatIds.length ? ' • ' + currentAccountSeatIds.length + ' ' + tt('host.people_unit', 'Guests') : '')) : (isBarSeatMode ? (tt('pos.waiter.table_label', 'Table') + ' #' + tbl + ' • ' + currentSeatLabel) : (r.city + ' • ' + r.address)) %>
         </div>
       </div>
 
