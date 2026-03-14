@@ -28,9 +28,7 @@
         <strong><%= tt('owner.photos.choose_file','בחר תמונה') %></strong>
         <div class="muted"><%= tt('owner.photos.drop_hint','לחץ כדי לבחור קובץ. מומלץ תמונה ברוחב/גובה עד ~1280px.') %></div>
         <div class="uploader">
-          <input id="photo-input" class="file" type="file" accept="image/png,image/jpeg,image/webp" aria-label="<%= tt('owner.photos.input_aria','בחירת קובץ תמונה') %>" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;">
-          <button id="pick-btn" class="btn ghost sm" type="button" aria-label="<%= tt('owner.photos.choose_file_aria','בחר קובץ תמונה') %>"><%= tt('owner.photos.choose_file','בחר תמונה') %></button>
-          <span id="file-name" class="muted"><%= tt('owner.photos.no_file_selected','לא נבחר קובץ') %></span>
+          <input id="photo-input" class="file" type="file" accept="image/png,image/jpeg,image/webp" aria-label="<%= tt('owner.photos.input_aria','בחירת קובץ תמונה') %>">
           <button id="upload-btn" class="btn primary sm" type="button" aria-label="<%= tt('owner.photos.upload_btn_aria','העלה תמונה') %>"><%= tt('owner.photos.upload_btn','העלה') %></button>
         </div>
         <div id="preview" class="preview" aria-live="polite"></div>
@@ -64,17 +62,12 @@
 (function(){
   const rid = "<%= it.restaurant.id %>";
   const fileInput = document.getElementById('photo-input');
-  const pickBtn = document.getElementById('pick-btn');
-  const fileName = document.getElementById('file-name');
   const uploadBtn = document.getElementById('upload-btn');
   const preview = document.getElementById('preview');
-
-  pickBtn?.addEventListener('click', () => fileInput?.click());
 
   fileInput.addEventListener('change', () => {
     preview.innerHTML = '';
     const f = fileInput.files && fileInput.files[0];
-    fileName.textContent = f?.name || "<%= tt('owner.photos.no_file_selected','לא נבחר קובץ') %>";
     if (!f) return;
     const url = URL.createObjectURL(f);
     preview.innerHTML = '<img src="'+url+'" class="preview-img" alt="<%= tt('owner.photos.preview_alt','תצוגה מקדימה') %>">';

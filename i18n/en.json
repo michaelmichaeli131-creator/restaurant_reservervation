@@ -92,8 +92,7 @@
     "none": "None",
     "optional": "Optional",
     "people_unit": "Guests",
-    "restaurant": "Restaurant",
-    "not_found": "Not found"
+    "restaurant": "Restaurant"
   },
   "count": {
     "actual_value": "Actual Value (display)",
@@ -744,14 +743,6 @@
         "empty": "No room data",
         "left_suffix": "left"
       }
-    },
-    "tabs": {
-      "aria": "Restaurant sections",
-      "details": "Restaurant details",
-      "menu": "Menu",
-      "inventory": "Raw materials inventory",
-      "bills": "Bills",
-      "photos": "Photos"
     }
   },
   "po": {
@@ -1176,16 +1167,7 @@
     "title": "Statistics",
     "total_revenue": "Total Revenue",
     "turnover_note": "Based on closed bills / active days. Can be refined with full seating data.",
-    "unnamed_item": "Unnamed item",
-    "days": {
-      "0": "Sunday",
-      "1": "Monday",
-      "2": "Tuesday",
-      "3": "Wednesday",
-      "4": "Thursday",
-      "5": "Friday",
-      "6": "Saturday"
-    }
+    "unnamed_item": "Unnamed item"
   },
   "stock": {
     "btn_costs": "Costs",

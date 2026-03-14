@@ -79,6 +79,14 @@ function hlog(...args: unknown[]) {
   }
 }
 
+function barDebug(stage: string, payload?: unknown) {
+  try {
+    console.log(`[BAR_DEBUG][host] ${stage}`, payload ?? {});
+  } catch {
+    // ignore
+  }
+}
+
 function toIntLoose(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return Math.trunc(v);
   if (typeof v === "string") {
@@ -636,17 +644,33 @@ async function handleSeatBar(ctx: any) {
   const reservationId = String(data.reservationId ?? "").trim();
   const tableId = String(data.tableId ?? "").trim() || undefined;
   let tableNumber = toIntLoose(data.table ?? data.tableNumber ?? 0) ?? 0;
+  barDebug("seat-bar incoming.raw", {
+    rid,
+    ridParam,
+    bodyKeys: Object.keys(data || {}),
+    reservationId,
+    tableId,
+    rawTable: data.table ?? null,
+    rawTableNumber: data.tableNumber ?? null,
+    rawSeatIds: Array.isArray(data.seatIds) ? data.seatIds : data.seatIds ?? null,
+    guestName: String(data.guestName ?? "").trim() || null,
+  });
   if ((!tableNumber || tableNumber <= 0) && tableId) {
-    tableNumber = (await getTableNumberById(rid, tableId)) ?? 0;
+    const lookedUp = (await getTableNumberById(rid, tableId)) ?? 0;
+    barDebug("seat-bar tableNumber.lookup", { rid, tableId, lookedUp });
+    tableNumber = lookedUp;
   }
   if ((!tableNumber || tableNumber <= 0) && tableId) {
-    tableNumber = (await ensureTableNumberById(rid, tableId)) ?? 0;
+    const ensured = (await ensureTableNumberById(rid, tableId)) ?? 0;
+    barDebug("seat-bar tableNumber.ensure", { rid, tableId, ensured });
+    tableNumber = ensured;
   }
   const seatIds = Array.from(new Set((Array.isArray(data.seatIds) ? data.seatIds : [])
     .map((v: any) => String(v ?? "").trim())
     .filter(Boolean)));
 
   hlog("seat-bar incoming", { rid, reservationId, tableNumber, tableId, seatIds, ridParam });
+  barDebug("seat-bar incoming.normalized", { rid, reservationId, tableNumber, tableId, seatIds, ridParam });
 
   if (!reservationId || !tableNumber || !seatIds.length) {
     hlog("seat-bar -> missing_fields", {
@@ -655,6 +679,14 @@ async function handleSeatBar(ctx: any) {
       tableNumber,
       tableId,
       seatIds,
+    });
+    barDebug("seat-bar -> missing_fields", {
+      rid,
+      reservationId,
+      tableNumber,
+      tableId,
+      seatIds,
+      selectedTableLookupAttempted: Boolean(tableId),
     });
     ctx.response.status = Status.BadRequest;
     ctx.response.body = {
@@ -670,7 +702,9 @@ async function handleSeatBar(ctx: any) {
   }
 
   const mappedTableId = await getTableIdByNumber(rid, tableNumber);
+  barDebug("seat-bar table.mapping", { rid, tableNumber, tableId, mappedTableId });
   if (!mappedTableId) {
+    barDebug("seat-bar -> table_not_found", { rid, tableNumber, tableId });
     ctx.response.status = Status.BadRequest;
     ctx.response.body = { ok: false, error: "table_not_found" };
     return;
@@ -683,6 +717,13 @@ async function handleSeatBar(ctx: any) {
     return;
   }
 
+  barDebug("seat-bar reservation.snapshot", {
+    reservationId,
+    status: String((reservation as any)?.status ?? ""),
+    people: (reservation as any)?.people ?? null,
+    time: (reservation as any)?.time ?? null,
+    name: extractNameFromReservationLike(reservation) || null,
+  });
   const reservationStatus = String((reservation as any).status ?? "new").toLowerCase();
   if (["cancelled", "canceled", "no_show", "noshow"].includes(reservationStatus)) {
     ctx.response.status = Status.BadRequest;
@@ -691,6 +732,18 @@ async function handleSeatBar(ctx: any) {
   }
 
   const existingAccounts = await listTableAccounts(rid, tableNumber);
+  barDebug("seat-bar existingAccounts", {
+    rid,
+    tableNumber,
+    count: existingAccounts.length,
+    accounts: existingAccounts.map((acc: any) => ({
+      accountId: acc.accountId ?? null,
+      reservationId: acc.reservationId ?? null,
+      seatId: acc.seatId ?? null,
+      seatIds: Array.isArray(acc.seatIds) ? acc.seatIds : [],
+      closed: Boolean(acc.closedAt),
+    })),
+  });
   const occupiedSeatIds = new Set(
     existingAccounts
       .flatMap((acc: any) => Array.isArray(acc.seatIds) && acc.seatIds.length ? acc.seatIds : [acc.seatId])
@@ -699,6 +752,13 @@ async function handleSeatBar(ctx: any) {
   );
   const conflict = seatIds.find((seatId) => occupiedSeatIds.has(String(seatId)));
   if (conflict) {
+    barDebug("seat-bar -> seat_already_occupied", {
+      rid,
+      tableNumber,
+      requestedSeatIds: seatIds,
+      occupiedSeatIds: Array.from(occupiedSeatIds.values()),
+      conflict,
+    });
     ctx.response.status = Status.BadRequest;
     ctx.response.body = { ok: false, error: "seat_already_occupied", seatId: conflict };
     return;
@@ -710,6 +770,18 @@ async function handleSeatBar(ctx: any) {
   try {
     const accountId = reservationId;
     const accountLabel = guestName ? `Bar · ${guestName}` : "Bar Reservation";
+    barDebug("seat-bar createOrder.request", {
+      rid,
+      tableNumber,
+      accountId,
+      accountLabel,
+      locationType: "bar",
+      locationId: tableId || mappedTableId,
+      seatId: seatIds[0],
+      seatIds,
+      reservationId,
+      guestName,
+    });
     const order = await getOrCreateOpenOrder(rid, tableNumber, {
       accountId,
       accountLabel,
@@ -719,6 +791,14 @@ async function handleSeatBar(ctx: any) {
       seatIds,
       reservationId,
       guestName,
+    });
+    barDebug("seat-bar createOrder.success", {
+      rid,
+      tableNumber,
+      orderId: (order as any)?.id ?? null,
+      accountId,
+      reservationId,
+      seatIds,
     });
 
     for (const seatId of seatIds) {
@@ -733,11 +813,19 @@ async function handleSeatBar(ctx: any) {
     }
   } catch (err) {
     hlog("seat-bar ERROR", { rid, reservationId, tableNumber, message: (err as Error).message });
+    barDebug("seat-bar ERROR", { rid, reservationId, tableNumber, message: (err as Error).message });
     ctx.response.status = Status.BadRequest;
     ctx.response.body = { ok: false, error: "seat_failed" };
     return;
   }
 
+  barDebug("seat-bar success", {
+    rid,
+    reservationId,
+    tableNumber,
+    tableId: tableId || mappedTableId,
+    seated,
+  });
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = { ok: true, seated };
 }

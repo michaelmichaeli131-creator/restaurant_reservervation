@@ -310,6 +310,12 @@
   // Selection updates from the embedded floor-view app
   const __SB_TABLE_ID_TO_NUMBER = <%= JSON.stringify(__tableIdToNumber) %>;
 
+  function barDebug(label, payload){
+    try {
+      console.log('[BAR_DEBUG][host-ui] ' + label, payload || {});
+    } catch (e) {}
+  }
+
   window.addEventListener("sb-floor-selection", function(ev){
     try {
       const d = (ev && ev.detail) ? ev.detail : {};
@@ -334,6 +340,12 @@
         capacity: Number(d.barSeatCapacity || 0),
         occupiedSeatNumbers: Array.isArray(d.occupiedBarSeatNumbers) ? d.occupiedBarSeatNumbers.map(Number).filter(function(n){ return Number.isFinite(n) && n > 0; }) : [],
       } : null;
+      barDebug('selection', {
+        detail: d,
+        selectedTables: Array.from(state.selectedTables || []),
+        selectedTableIds: Array.from(state.selectedTableIds || []),
+        selectedBar: state.selectedBar,
+      });
     } catch (e) {
       console.warn("[HOST] selection event error", e);
     }
@@ -744,6 +756,13 @@
         state.selectedBar.capacity,
         state.selectedBar.occupiedSeatNumbers
       );
+      barDebug('seatSelected.compute', {
+        reservationId: state.selectedResId,
+        guestName,
+        peopleCount,
+        selectedBar: state.selectedBar,
+        computedSeatNumbers: seatNumbers,
+      });
       if (!seatNumbers || !seatNumbers.length) {
         alert("<%= tt('host.err_no_adjacent_bar_seats', 'Not enough adjacent free seats at the bar for this reservation.') %>");
         return;
@@ -765,6 +784,7 @@
           seatIds,
           guestName,
         };
+        barDebug('seatSelected.payload', payload);
         const urls = [
           '/api/host/seat-bar',
           `/api/host/${encodeURIComponent(rid)}/seat-bar`,
@@ -774,19 +794,27 @@
         let res = null;
         let data = {};
         for (const url of urls) {
+          barDebug('seatSelected.request', { url, payload });
           res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
           });
           data = await res.json().catch(function(){ return {}; });
+          barDebug('seatSelected.response', { url, status: res.status, ok: res.ok, data });
           if (res.ok && data.ok) break;
           if (res.status !== 404) break;
         }
         if (!res || !res.ok || !data.ok) {
+          barDebug('seatSelected.failed', {
+            payload,
+            responseStatus: res ? res.status : null,
+            responseData: data,
+          });
           alert("<%= tt('host.err_seating', 'Seating error') %>: " + (data.error || (res ? res.status : 'request_failed')));
           return;
         }
+        barDebug('seatSelected.success', { seatNumbers, data });
         alert(`<%= tt('host.success_seat_bar', 'Reservation seated at bar seats') %> ${seatNumbers.join(', ')}.`);
         window.location.reload();
         return;

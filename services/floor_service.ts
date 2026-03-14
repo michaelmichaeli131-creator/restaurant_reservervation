@@ -4,6 +4,14 @@
 import { kv, getReservationById } from "../database.ts";
 import type { Order, OrderItem } from "../pos/pos_db.ts";
 
+function floorDebug(stage: string, payload?: unknown) {
+  try {
+    console.log(`[BAR_DEBUG][floor_service] ${stage}`, payload ?? {});
+  } catch {
+    // ignore
+  }
+}
+
 export type TableStatus = "empty" | "occupied" | "reserved" | "dirty";
 
 export interface TableStatusData {
@@ -62,16 +70,27 @@ export async function getTableNumberById(
 ): Promise<number | null> {
   const targetId = String(tableId || '').trim();
   if (!targetId) return null;
+  floorDebug("getTableNumberById.start", { restaurantId, tableId: targetId });
 
   const layouts = await listFloorLayouts(restaurantId);
   for (const layout of layouts) {
     for (const table of Array.isArray(layout.tables) ? layout.tables : []) {
       if (String((table as any).id || '') === targetId) {
-        return readTableNumberLoose(table);
+        const found = readTableNumberLoose(table);
+        floorDebug("getTableNumberById.found", {
+          restaurantId,
+          tableId: targetId,
+          layoutId: String((layout as any)?.id || ''),
+          tableName: String((table as any)?.name || ''),
+          tableNumber: found,
+          seats: Number((table as any)?.seats || 0),
+        });
+        return found;
       }
     }
   }
 
+  floorDebug("getTableNumberById.miss", { restaurantId, tableId: targetId });
   return null;
 }
 
@@ -81,6 +100,7 @@ export async function ensureTableNumberById(
 ): Promise<number | null> {
   const targetId = String(tableId || '').trim();
   if (!targetId) return null;
+  floorDebug("ensureTableNumberById.start", { restaurantId, tableId: targetId });
 
   const layouts = await listFloorLayouts(restaurantId);
   let maxNumber = 0;
@@ -100,7 +120,10 @@ export async function ensureTableNumberById(
     }
   }
 
-  if (!targetTable || !targetLayoutId || !targetLayout) return null;
+  if (!targetTable || !targetLayoutId || !targetLayout) {
+    floorDebug("ensureTableNumberById.targetNotFound", { restaurantId, tableId: targetId });
+    return null;
+  }
 
   const existing = readTableNumberLoose(targetTable);
   if (existing) {
@@ -109,6 +132,7 @@ export async function ensureTableNumberById(
     } catch {
       // ignore mapping refresh failure
     }
+    floorDebug("ensureTableNumberById.existing", { restaurantId, tableId: targetId, tableNumber: existing });
     return existing;
   }
 
@@ -132,6 +156,7 @@ export async function ensureTableNumberById(
     // ignore mapping refresh failure
   }
 
+  floorDebug("ensureTableNumberById.assigned", { restaurantId, tableId: targetId, tableNumber: assigned, layoutId: targetLayoutId });
   return assigned;
 }
 

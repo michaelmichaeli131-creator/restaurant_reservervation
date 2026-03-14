@@ -135,6 +135,14 @@ function statusLabel(s: NormalStatus): string {
   return t(`floor.status.${s}`, s);
 }
 
+function barUiDebug(stage: string, payload?: unknown) {
+  try {
+    console.log(`[BAR_DEBUG][floor-view] ${stage}`, payload ?? {});
+  } catch {
+    // ignore
+  }
+}
+
 export default function FloorViewPage({
   restaurantId,
   mountMode = "page",
@@ -180,11 +188,35 @@ export default function FloorViewPage({
           tableId: String((table as any).id || ''),
         });
         if (tableNumber) params.set('table', String(tableNumber));
+        barUiDebug('loadBarAccounts.request', {
+          restaurantId,
+          tableId: String((table as any).id || ''),
+          tableNumber,
+          url: `/api/pos/table-accounts?${params.toString()}`,
+        });
         const res = await fetch(`/api/pos/table-accounts?${params.toString()}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        return [String(table.id), normalizeBarAccountsForTable(table, Array.isArray(data?.accounts) ? data.accounts : [])] as const;
-      } catch {
+        const normalized = normalizeBarAccountsForTable(table, Array.isArray(data?.accounts) ? data.accounts : []);
+        barUiDebug('loadBarAccounts.response', {
+          restaurantId,
+          tableId: String((table as any).id || ''),
+          tableNumber: Number(data?.table || tableNumber || 0),
+          accounts: normalized.map((acc) => ({
+            accountId: (acc as any).accountId ?? null,
+            reservationId: (acc as any).reservationId ?? null,
+            seatId: (acc as any).seatId ?? null,
+            seatIds: Array.isArray((acc as any).seatIds) ? (acc as any).seatIds : [],
+          })),
+        });
+        return [String(table.id), normalized] as const;
+      } catch (error) {
+        barUiDebug('loadBarAccounts.error', {
+          restaurantId,
+          tableId: String((table as any).id || ''),
+          tableNumber,
+          message: error instanceof Error ? error.message : String(error),
+        });
         return [String(table.id), []] as const;
       }
     }));
@@ -378,9 +410,13 @@ export default function FloorViewPage({
   const handleBarSeatClick = React.useCallback(async (tableId: string, seatId: string) => {
     setSelectedTableId(tableId);
     setSelectedBarSeatId(seatId);
+    barUiDebug('handleBarSeatClick.start', { clickMode, tableId, seatId });
 
     const table = layouts.flatMap((layout) => layout.tables || []).find((t) => String(t.id) === String(tableId));
-    if (!table) return;
+    if (!table) {
+      barUiDebug('handleBarSeatClick.tableMissing', { tableId, seatId });
+      return;
+    }
 
     const seatNumber = seatNumberFromSeatId(seatId) || 1;
     const seatAccounts = normalizeBarAccountsForTable(table, barAccountsByTable[String(tableId)] || []);
@@ -397,6 +433,22 @@ export default function FloorViewPage({
       .filter((n) => Number.isFinite(n) && n > 0);
     const seatCapacity = Math.max(1, Number((table as any).seats || 1));
     const freeSeatNumbers = Array.from({ length: seatCapacity }, (_, idx) => idx + 1).filter((n) => !occupiedSeatNumbers.includes(n));
+    barUiDebug('handleBarSeatClick.snapshot', {
+      clickMode,
+      tableId,
+      tableNumber,
+      seatId,
+      seatNumber,
+      seatCapacity,
+      occupiedSeatNumbers,
+      freeSeatNumbers,
+      seatAccounts: seatAccounts.map((acc) => ({
+        accountId: (acc as any).accountId ?? null,
+        reservationId: (acc as any).reservationId ?? null,
+        seatId: (acc as any).seatId ?? null,
+        seatIds: Array.isArray((acc as any).seatIds) ? (acc as any).seatIds : [],
+      })),
+    });
 
     if (clickMode === 'host') {
       try {
@@ -424,6 +476,14 @@ export default function FloorViewPage({
       } catch (_e) {
         // no-op
       }
+      barUiDebug('handleBarSeatClick.hostSelection', {
+        tableId,
+        tableNumber,
+        seatId,
+        seatNumber,
+        freeSeatNumbers,
+        occupiedSeatNumbers,
+      });
       return;
     }
 
@@ -434,8 +494,17 @@ export default function FloorViewPage({
       return seatIds.map((v: any) => String(v || '')).includes(String(seatId));
     }) || null;
     if (!existing?.accountId) {
+      barUiDebug('handleBarSeatClick.noExistingAccount', { tableId, tableNumber, seatId });
       return;
     }
+    barUiDebug('handleBarSeatClick.navigate', {
+      tableId,
+      tableNumber,
+      seatId,
+      accountId: String(existing.accountId),
+      reservationId: (existing as any).reservationId ?? null,
+      seatIds: Array.isArray((existing as any).seatIds) ? (existing as any).seatIds : [],
+    });
     const url = new URL(`/waiter/${encodeURIComponent(restaurantId)}/${encodeURIComponent(tableNumber)}`, window.location.origin);
     url.searchParams.set('account', String(existing.accountId));
     window.location.href = url.pathname + url.search;

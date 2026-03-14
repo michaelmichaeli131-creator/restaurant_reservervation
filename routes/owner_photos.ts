@@ -144,12 +144,8 @@ ownerPhotosRouter.get("/owner/restaurants/:id/photos", async (ctx) => {
   const r = await getRestaurant(id);
 
   if (!r || r.ownerId !== (ctx.state as any)?.user?.id) {
-    const t = (ctx.state as any)?.t ?? ((_: string, fb?: string) => fb ?? _);
     ctx.response.status = Status.NotFound;
-    await render(ctx, "error", {
-      title: t("common.not_found", "Not found"),
-      message: t("owner.photos.not_found", "Restaurant not found or access denied."),
-    });
+    await render(ctx, "error", { title: "לא נמצא", message: "מסעדה לא נמצאה או שאין הרשאה." });
     return;
   }
 
@@ -161,9 +157,8 @@ ownerPhotosRouter.get("/owner/restaurants/:id/photos", async (ctx) => {
   }
 
   const saved = ctx.request.url.searchParams.get("saved") === "1";
-  const t = (ctx.state as any)?.t ?? ((_: string, fb?: string) => fb ?? _);
   await render(ctx, "owner_photos.eta", {
-    title: `${t("owner.photos.title", "Photos")} — ${r.name}`,
+    title: `תמונות — ${r.name}`,
     page: "owner_photos",
     restaurant: { ...r, photos: normalized },
     saved,
