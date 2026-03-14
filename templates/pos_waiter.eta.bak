@@ -174,19 +174,7 @@
         <div id="menu-cats" class="sb-wt-chips" aria-label="Categories"></div>
       </div>
 
-      <div
-        id="menu-root"
-        class="sb-wt-menu-list"
-        data-rid="<%= rid %>"
-        data-table="<%= tbl %>"
-        data-account-id="<%= currentAccountId %>"
-        data-reservation-id="<%= currentReservationId || '' %>"
-        data-location-id="<%= currentLocationId || '' %>"
-        data-seat-ids="<%= encodeURIComponent(JSON.stringify(currentAccountSeatIds || [])) %>"
-        data-load-error-text="<%= tt('pos.error.load_menu', 'Error loading the menu.') %>"
-        data-empty-text="<%= tt('pos.menu.empty', 'No dishes in menu currently.') %>"
-        data-add-item-error-text="<%= tt('pos.error.add_item', 'Could not add item') %>"
-      >
+      <div id="menu-root" class="sb-wt-menu-list" data-rid="<%= rid %>">
         <% if (menuItems.length) { 
              const initialFiltered = menuItems.filter((m) => !m.outOfStock && m.isActive !== false);
              const grouped = {};
@@ -344,22 +332,13 @@
   (function(){
     const root = document.getElementById("menu-root");
     if (!root) return;
-    const rid = String(root.dataset.rid || '').trim();
-    const table = Number(root.dataset.table || 0);
-    const accountId = String(root.dataset.accountId || 'main').trim() || 'main';
-    const reservationId = String(root.dataset.reservationId || '').trim();
-    const locationId = String(root.dataset.locationId || '').trim();
-    let currentSeatIds = [];
-    try {
-      currentSeatIds = JSON.parse(decodeURIComponent(root.dataset.seatIds || '%5B%5D'));
-      if (!Array.isArray(currentSeatIds)) currentSeatIds = [];
-    } catch (_) {
-      currentSeatIds = [];
-    }
-    const currency = <%- JSON.stringify(tt("common.currency", "₪")) %>;
-    const loadMenuErrorText = <%- JSON.stringify(tt('pos.error.load_menu', 'Error loading the menu.')) %>;
-    const emptyMenuText = <%- JSON.stringify(tt('pos.menu.empty', 'No dishes in menu currently.')) %>;
-    const addItemErrorText = <%- JSON.stringify(tt('pos.error.add_item', 'Could not add item')) %>;
+    const rid = root.dataset.rid;
+    const table = <%= Number(tbl) %>;
+    const accountId = <%- JSON.stringify(currentAccountId) %>;
+    const reservationId = <%- JSON.stringify(currentReservationId || '') %>;
+    const locationId = <%- JSON.stringify(currentLocationId || '') %>;
+    const currentSeatIds = <%- JSON.stringify(currentAccountSeatIds || []) %>;
+    const currency = '<%= tt("common.currency", "₪") %>';
     const menuDataEl = document.getElementById('menu-data');
 
     function readPreloadedMenu(){
@@ -369,6 +348,7 @@
         const parsed = JSON.parse(raw);
         return Array.isArray(parsed) ? parsed : [];
       } catch (e) {
+        console.warn('[BAR_DEBUG][waiter] readPreloadedMenu failed', e);
         return [];
       }
     }
@@ -376,20 +356,24 @@
     async function loadMenu(){
       const preloaded = readPreloadedMenu();
       if (preloaded.length) {
+        console.info('[BAR_DEBUG][waiter] using preloaded menu', { count: preloaded.length, table });
         renderMenu(preloaded);
         return;
       }
       if (!rid) {
-        root.innerHTML = `<p class="muted">${loadMenuErrorText}</p>`;
+        root.innerHTML = '<p class="muted"><%= tt('pos.error.load_menu', 'Error loading the menu.') %></p>';
+        console.error('[BAR_DEBUG][waiter] missing rid for menu load');
         return;
       }
       try{
+        console.info('[BAR_DEBUG][waiter] fetching menu', { rid, table });
         const res = await fetch(`/api/pos/menu/${encodeURIComponent(rid)}`);
         if(!res.ok) throw new Error(`menu fetch failed ${res.status}`);
         const items = await res.json();
         renderMenu(items);
       }catch(e){
-        root.innerHTML = `<p class="muted">${loadMenuErrorText}</p>`;
+        root.innerHTML = '<p class="muted"><%= tt('pos.error.load_menu', 'Error loading the menu.') %></p>';
+        console.error('[BAR_DEBUG][waiter] menu load failed', e);
       }
     }
 
@@ -410,7 +394,7 @@
 
     function renderMenu(items){
       if(!Array.isArray(items) || !items.length){
-        root.innerHTML = `<p class="muted">${emptyMenuText}</p>`;
+        root.innerHTML = '<p class="muted"><%= tt('pos.menu.empty', 'No dishes in menu currently.') %></p>';
         return;
       }
       __menuAll = items.slice();
@@ -579,6 +563,7 @@
       const menuItemId = card.dataset.menuItemId;
       if (!menuItemId) return;
       if (!rid || !table || !Number.isFinite(Number(table))) {
+        console.error('[BAR_DEBUG][waiter] addItem missing rid/table', { rid, table, menuItemId, accountId });
         return;
       }
 
@@ -602,6 +587,7 @@
           quantity: 1,
           ...(trimmedNotes ? { notes: trimmedNotes } : {}),
         };
+        console.info('[BAR_DEBUG][waiter] addItem.request', payload);
         const res = await fetch("/api/pos/order-item/add", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -611,7 +597,8 @@
         try { data = await res.json(); } catch(_) {}
         if (!res.ok || !data?.ok) {
           const msg = data?.error || data?.message || `HTTP ${res.status}`;
-          showToast(`${addItemErrorText}: ${msg}`);
+          console.error('[BAR_DEBUG][waiter] addItem.badResponse', { status: res.status, data, payload });
+          showToast(`<%= tt('pos.error.add_item', 'Could not add item') %>: ${msg}`);
           return;
         }
 
