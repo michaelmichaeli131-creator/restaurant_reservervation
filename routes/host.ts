@@ -25,6 +25,7 @@ import {
   listFloorSections,
   getTableIdByNumber,
   getTableNumberById,
+  ensureTableNumberById,
   markTableDirty,
 } from "../services/floor_service.ts";
 
@@ -638,6 +639,9 @@ async function handleSeatBar(ctx: any) {
   if ((!tableNumber || tableNumber <= 0) && tableId) {
     tableNumber = (await getTableNumberById(rid, tableId)) ?? 0;
   }
+  if ((!tableNumber || tableNumber <= 0) && tableId) {
+    tableNumber = (await ensureTableNumberById(rid, tableId)) ?? 0;
+  }
   const seatIds = Array.from(new Set((Array.isArray(data.seatIds) ? data.seatIds : [])
     .map((v: any) => String(v ?? "").trim())
     .filter(Boolean)));
@@ -645,8 +649,23 @@ async function handleSeatBar(ctx: any) {
   hlog("seat-bar incoming", { rid, reservationId, tableNumber, tableId, seatIds, ridParam });
 
   if (!reservationId || !tableNumber || !seatIds.length) {
+    hlog("seat-bar -> missing_fields", {
+      rid,
+      reservationId,
+      tableNumber,
+      tableId,
+      seatIds,
+    });
     ctx.response.status = Status.BadRequest;
-    ctx.response.body = { ok: false, error: "missing_fields" };
+    ctx.response.body = {
+      ok: false,
+      error: "missing_fields",
+      details: {
+        reservationId: Boolean(reservationId),
+        tableNumber: Boolean(tableNumber),
+        seatIds: seatIds.length,
+      },
+    };
     return;
   }
 

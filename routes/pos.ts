@@ -8,7 +8,7 @@ import { requireRestaurantAccess } from "../services/authz.ts";
 import { getRestaurant } from "../database.ts";
 import { getRestaurantSystemNow, splitIsoParts } from "../services/system_time.ts";
 import { isTableSeated } from "../services/seating_service.ts";
-import { getTableIdByNumber, markTableDirty, listFloorLayouts } from "../services/floor_service.ts";
+import { getTableIdByNumber, markTableDirty, listFloorLayouts, ensureTableNumberById } from "../services/floor_service.ts";
 import {
   listItems,
   listCategories,
@@ -319,14 +319,15 @@ posRouter.get("/owner/:rid/stats", async (ctx) => {
     .map(([date, revenue]) => ({ date, revenue }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
+  const t = (ctx.state as any)?.t ?? ((_: string, fb?: string) => fb ?? _);
   const dayNames = [
-    "ראשון",
-    "שני",
-    "שלישי",
-    "רביעי",
-    "חמישי",
-    "שישי",
-    "שבת",
+    t("stats.days.0", "Sunday"),
+    t("stats.days.1", "Monday"),
+    t("stats.days.2", "Tuesday"),
+    t("stats.days.3", "Wednesday"),
+    t("stats.days.4", "Thursday"),
+    t("stats.days.5", "Friday"),
+    t("stats.days.6", "Saturday"),
   ];
   const weekdayArr = weekday.map((v, idx) => ({
     dayIndex: idx,
@@ -371,7 +372,7 @@ posRouter.get("/owner/:rid/stats", async (ctx) => {
 
   await render(ctx, "owner_stats", {
     page: "owner_stats",
-    title: `סטטיסטיקות · ${restaurant.name}`,
+    title: `${t("stats.title", "Statistics")} · ${restaurant.name}`,
     restaurant,
     stats,
   });
@@ -678,7 +679,11 @@ posRouter.get("/api/pos/table-accounts", async (ctx) => {
   const restaurantId = resolveRestaurantIdForStaff(ctx, restaurantId0);
   if (!restaurantId) return;
   if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
-  const table = Number(ctx.request.url.searchParams.get("table") ?? 0);
+  const tableId = String(ctx.request.url.searchParams.get("tableId") ?? "").trim();
+  let table = Number(ctx.request.url.searchParams.get("table") ?? 0);
+  if ((!table || table <= 0) && tableId) {
+    table = (await ensureTableNumberById(restaurantId, tableId)) ?? 0;
+  }
   if (!restaurantId || !table) ctx.throw(Status.BadRequest, "missing fields");
 
   const accounts = await listTableAccounts(restaurantId, table);
@@ -686,7 +691,7 @@ posRouter.get("/api/pos/table-accounts", async (ctx) => {
     "Content-Type",
     "application/json; charset=utf-8",
   );
-  ctx.response.body = JSON.stringify({ ok: true, accounts });
+  ctx.response.body = JSON.stringify({ ok: true, table, accounts });
 });
 
 posRouter.post("/api/pos/table-account/open", async (ctx) => {
@@ -696,7 +701,11 @@ posRouter.post("/api/pos/table-account/open", async (ctx) => {
   const restaurantId = resolveRestaurantIdForStaff(ctx, restaurantId0);
   if (!restaurantId) return;
   if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
-  const table = Number(body.table ?? 0);
+  const tableId = String(body.tableId ?? "").trim();
+  let table = Number(body.table ?? 0);
+  if ((!table || table <= 0) && tableId) {
+    table = (await ensureTableNumberById(restaurantId, tableId)) ?? 0;
+  }
   const accountLabel = String(body.accountLabel ?? "").trim();
   const accountId = String(body.accountId ?? crypto.randomUUID()).trim() || crypto.randomUUID();
   const seatId = String(body.seatId ?? "").trim() || undefined;

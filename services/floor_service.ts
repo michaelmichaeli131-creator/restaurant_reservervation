@@ -50,6 +50,12 @@ export async function getTableIdByNumber(
   return res.value as string | null;
 }
 
+function readTableNumberLoose(table: any): number | null {
+  const raw = table?.tableNumber ?? table?.number ?? table?.table_number ?? table?.tableNo ?? table?.tableNum ?? 0;
+  const num = Number(raw);
+  return Number.isFinite(num) && num > 0 ? Math.trunc(num) : null;
+}
+
 export async function getTableNumberById(
   restaurantId: string,
   tableId: string
@@ -61,13 +67,72 @@ export async function getTableNumberById(
   for (const layout of layouts) {
     for (const table of Array.isArray(layout.tables) ? layout.tables : []) {
       if (String((table as any).id || '') === targetId) {
-        const tableNumber = Number((table as any).tableNumber ?? 0);
-        return Number.isFinite(tableNumber) && tableNumber > 0 ? tableNumber : null;
+        return readTableNumberLoose(table);
       }
     }
   }
 
   return null;
+}
+
+export async function ensureTableNumberById(
+  restaurantId: string,
+  tableId: string,
+): Promise<number | null> {
+  const targetId = String(tableId || '').trim();
+  if (!targetId) return null;
+
+  const layouts = await listFloorLayouts(restaurantId);
+  let maxNumber = 0;
+  let targetLayoutId = '';
+  let targetTable: any = null;
+  let targetLayout: any = null;
+
+  for (const layout of layouts) {
+    for (const table of Array.isArray(layout.tables) ? layout.tables : []) {
+      const num = readTableNumberLoose(table);
+      if (num && num > maxNumber) maxNumber = num;
+      if (String((table as any).id || '') === targetId) {
+        targetLayoutId = String((layout as any).id || '');
+        targetLayout = layout;
+        targetTable = table;
+      }
+    }
+  }
+
+  if (!targetTable || !targetLayoutId || !targetLayout) return null;
+
+  const existing = readTableNumberLoose(targetTable);
+  if (existing) {
+    try {
+      await setTableMapping(restaurantId, existing, targetId);
+    } catch {
+      // ignore mapping refresh failure
+    }
+    return existing;
+  }
+
+  const assigned = maxNumber + 1;
+  const nextTables = (Array.isArray(targetLayout.tables) ? targetLayout.tables : []).map((table: any) => {
+    if (String((table as any).id || '') !== targetId) return table;
+    return {
+      ...table,
+      tableNumber: assigned,
+      number: assigned,
+      name: String((table as any).name || '').trim() || `T${assigned}`,
+    };
+  });
+
+  const updated = await updateFloorLayout(restaurantId, targetLayoutId, { tables: nextTables } as any);
+  if (!updated) return null;
+
+  try {
+    await setTableMapping(restaurantId, assigned, targetId);
+  } catch {
+    // ignore mapping refresh failure
+  }
+
+  return assigned;
 }
 
 /**

@@ -174,9 +174,13 @@ export default function FloorViewPage({
 
     const entries = await Promise.all(barTables.map(async ({ table }) => {
       const tableNumber = Number((table as any).tableNumber ?? (table as any).number ?? 0);
-      if (!tableNumber) return [String(table.id), []] as const;
       try {
-        const res = await fetch(`/api/pos/table-accounts?restaurantId=${encodeURIComponent(restaurantId)}&table=${encodeURIComponent(tableNumber)}`);
+        const params = new URLSearchParams({
+          restaurantId,
+          tableId: String((table as any).id || ''),
+        });
+        if (tableNumber) params.set('table', String(tableNumber));
+        const res = await fetch(`/api/pos/table-accounts?${params.toString()}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         return [String(table.id), normalizeBarAccountsForTable(table, Array.isArray(data?.accounts) ? data.accounts : [])] as const;
@@ -378,11 +382,11 @@ export default function FloorViewPage({
     const table = layouts.flatMap((layout) => layout.tables || []).find((t) => String(t.id) === String(tableId));
     if (!table) return;
 
-    const tableNumber = Number((table as any).tableNumber ?? (table as any).number ?? 0);
-    if (!tableNumber) return;
-
     const seatNumber = seatNumberFromSeatId(seatId) || 1;
     const seatAccounts = normalizeBarAccountsForTable(table, barAccountsByTable[String(tableId)] || []);
+    const tableNumber = Number((table as any).tableNumber ?? (table as any).number ?? (seatAccounts[0] as any)?.table ?? 0);
+
+    if (clickMode !== 'host' && !tableNumber) return;
     const occupiedSeatNumbers = seatAccounts
       .flatMap((acc) => {
         const seatIds = Array.isArray((acc as any).seatIds) && (acc as any).seatIds.length

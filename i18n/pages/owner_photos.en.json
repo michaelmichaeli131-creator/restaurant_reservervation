@@ -18,7 +18,12 @@
       "upload_err": "Upload error",
       "save_err": "Save error",
       "confirm_delete": "Delete this photo?",
-      "delete_err": "Delete failed"
+      "delete_err": "Delete failed",
+      "choose_file": "Choose photo",
+      "choose_file_aria": "Choose image file",
+      "drop_hint": "Click to choose a file. Recommended image size is up to ~1280px wide/high.",
+      "no_file_selected": "No file selected",
+      "not_found": "Restaurant not found or access denied."
     }
   }
 }
