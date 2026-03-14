@@ -31,6 +31,17 @@
   const currentSeatLabel = it.currentSeatLabel || '';
   const currentReservationId = it.currentReservationId || '';
   const currentLocationId = it.currentLocationId || '';
+  const menuItems = Array.isArray(it.menuItems) ? it.menuItems : [];
+  const menuCategories = Array.isArray(it.menuCategories) ? it.menuCategories : [];
+  const menuLang = String(it.lang || 'en') === 'he' ? 'he' : (String(it.lang || 'en') === 'ka' ? 'ka' : 'en');
+
+  function menuText(item, base){
+    try{
+      if (menuLang === 'he') return item?.[`${base}_he`] || item?.[`${base}_en`] || item?.[`${base}_ka`] || '';
+      if (menuLang === 'ka') return item?.[`${base}_ka`] || item?.[`${base}_en`] || item?.[`${base}_he`] || '';
+      return item?.[`${base}_en`] || item?.[`${base}_he`] || item?.[`${base}_ka`] || '';
+    }catch(e){ return ''; }
+  }
 
   function seatIdsForAccount(acc){
     try{
@@ -164,8 +175,40 @@
       </div>
 
       <div id="menu-root" class="sb-wt-menu-list" data-rid="<%= rid %>">
-        <p class="muted"><%= tt('pos.menu.loading', 'Loading menu...') %></p>
+        <% if (menuItems.length) { 
+             const initialFiltered = menuItems.filter((m) => !m.outOfStock && m.isActive !== false);
+             const grouped = {};
+             initialFiltered.forEach((m) => {
+               const cid = m.categoryId || '__no_cat__';
+               if (!grouped[cid]) grouped[cid] = [];
+               grouped[cid].push(m);
+             });
+        %>
+          <% Object.keys(grouped).forEach(function(cid){ const list = grouped[cid] || []; if (!list.length) return; const firstCat = menuCategories.find((c) => String(c.id||'') === String(cid)); const sectionTitle = cid === '__no_cat__' ? tt('pos.menu.no_category', 'Uncategorized') : (menuText(firstCat || list[0], 'name') || list[0].categoryName || tt('pos.menu.category', 'Category')); %>
+            <section class="menu-section">
+              <h3 class="menu-section-title"><%= sectionTitle %></h3>
+              <div class="menu-grid">
+                <% list.forEach(function(m){ const dishName = menuText(m, 'name') || tt('pos.menu.dish', 'Dish'); const dishDesc = menuText(m, 'desc'); %>
+                  <button type="button" class="menu-item-card" data-menu-item-id="<%= m.id %>" data-price="<%= m.price %>" data-dest="<%= m.destination %>">
+                    <div class="menu-item-head">
+                      <div class="menu-item-name"><%= dishName %></div>
+                      <span class="menu-item-add" aria-hidden="true">＋</span>
+                    </div>
+                    <div class="menu-item-desc muted"><%= dishDesc %></div>
+                    <div class="menu-item-footer">
+                      <span class="price"><%= Number(m.price || 0).toFixed(2) %> <%= tt('common.currency', '₪') %></span>
+                      <span class="dest"><%= m.destination === 'bar' ? tt('owner.menu.dest_bar', 'Bar') : tt('owner.menu.dest_kitchen', 'Kitchen') %></span>
+                    </div>
+                  </button>
+                <% }) %>
+              </div>
+            </section>
+          <% }) %>
+        <% } else { %>
+          <p class="muted"><%= tt('pos.menu.empty', 'No dishes in menu currently.') %></p>
+        <% } %>
       </div>
+      <script id="menu-data" type="application/json"><%- JSON.stringify(menuItems) %></script>
     </aside>
 
     <!-- Order -->
@@ -293,17 +336,41 @@
     const table = <%= Number(tbl) %>;
     const accountId = <%- JSON.stringify(currentAccountId) %>;
     const currency = '<%= tt("common.currency", "₪") %>';
-    if (!rid || !table) return;
+    const menuDataEl = document.getElementById('menu-data');
+
+    function readPreloadedMenu(){
+      try {
+        if (!menuDataEl) return [];
+        const raw = menuDataEl.textContent || '[]';
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        console.warn('[BAR_DEBUG][waiter] readPreloadedMenu failed', e);
+        return [];
+      }
+    }
 
     async function loadMenu(){
+      const preloaded = readPreloadedMenu();
+      if (preloaded.length) {
+        console.info('[BAR_DEBUG][waiter] using preloaded menu', { count: preloaded.length, table });
+        renderMenu(preloaded);
+        return;
+      }
+      if (!rid) {
+        root.innerHTML = '<p class="muted"><%= tt('pos.error.load_menu', 'Error loading the menu.') %></p>';
+        console.error('[BAR_DEBUG][waiter] missing rid for menu load');
+        return;
+      }
       try{
+        console.info('[BAR_DEBUG][waiter] fetching menu', { rid, table });
         const res = await fetch(`/api/pos/menu/${encodeURIComponent(rid)}`);
-        if(!res.ok) throw new Error("menu fetch failed");
+        if(!res.ok) throw new Error(`menu fetch failed ${res.status}`);
         const items = await res.json();
         renderMenu(items);
       }catch(e){
         root.innerHTML = '<p class="muted"><%= tt('pos.error.load_menu', 'Error loading the menu.') %></p>';
-        console.error(e);
+        console.error('[BAR_DEBUG][waiter] menu load failed', e);
       }
     }
 
@@ -492,6 +559,10 @@
     async function addItem(card, notes){
       const menuItemId = card.dataset.menuItemId;
       if (!menuItemId) return;
+      if (!rid || !table || !Number.isFinite(Number(table))) {
+        console.error('[BAR_DEBUG][waiter] addItem missing rid/table', { rid, table, menuItemId, accountId });
+        return;
+      }
 
       if (card.classList.contains('is-loading')) return;
       card.classList.add('is-loading');

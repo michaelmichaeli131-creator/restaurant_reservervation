@@ -640,6 +640,21 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
 
   const items = await listOrderItemsForTable(rid, table, { accountId: effectiveAccountId });
   const totals = await computeTotalsForTable(rid, table, { accountId: effectiveAccountId });
+  const menuItems = await listItems(rid);
+  const menuCategories = await listCategories(rid);
+  const menuCategoryById = new Map(menuCategories.map((c: any) => [c.id, c]));
+  const enrichedMenuItems = menuItems.map((it: any) => {
+    const cat = it.categoryId ? menuCategoryById.get(it.categoryId) : undefined;
+    return {
+      ...it,
+      categoryName: cat?.name_en || cat?.name_he || cat?.name_ka || "",
+      categoryName_en: cat?.name_en ?? "",
+      categoryName_he: cat?.name_he ?? "",
+      categoryName_ka: cat?.name_ka ?? "",
+      categorySort: cat?.sort ?? 0,
+      categoryActive: cat?.active ?? true,
+    };
+  });
   const systemNowParts = splitIsoParts(await getRestaurantSystemNow(rid));
   const currentAccountSeatIds = Array.isArray((currentAccount as any)?.seatIds) && (currentAccount as any)?.seatIds.length
     ? (currentAccount as any).seatIds
@@ -669,6 +684,8 @@ posRouter.get("/waiter/:rid/:table", async (ctx) => {
     currentAccountSeatIds,
     currentReservationId: (currentAccount as any)?.reservationId ?? requestedReservationId ?? "",
     currentLocationId: (currentAccount as any)?.locationId ?? requestedTableId ?? "",
+    menuItems: enrichedMenuItems,
+    menuCategories,
     systemNowIso: systemNowParts.iso,
     systemNowDate: systemNowParts.date,
     systemNowTime: systemNowParts.time,
