@@ -1,0 +1,99 @@
+{
+  "for_restaurants": {
+    "hero": {
+      "badge": "For restaurant owners",
+      "title": "Turn guest demand into a sharper restaurant operation",
+      "sub": "SpotBook helps restaurants look better online, convert more reservations, seat faster, serve smoother, and stay in control from opening to the final bill.",
+      "primary": "Start your restaurant account",
+      "secondary": "Owner login",
+      "proof1": "Stronger guest-facing pages",
+      "proof2": "Interactive floor map & host seating",
+      "proof3": "Waiter, kitchen, and billing flow",
+      "trust_aria": "Highlights",
+      "trust1_value": "1 flow",
+      "trust1_label": "guest page to bill",
+      "trust2_value": "Visual",
+      "trust2_label": "floor editing & seating",
+      "trust3_value": "Live",
+      "trust3_label": "service & bill control"
+    },
+    "panel": {
+      "title": "A premium operating system for modern restaurants",
+      "badge": "Owner view",
+      "desc": "Instead of disconnected tools, your team gets one connected workflow for reservations, seating, waiters, checks, reports, and restaurant presentation.",
+      "stat1_value": "Reservations",
+      "stat1_label": "Daily management and confirmations",
+      "stat2_value": "Host",
+      "stat2_label": "Seat guests with real floor context",
+      "stat3_value": "Waiter",
+      "stat3_label": "Orders, kitchen flow, and closing checks",
+      "step1": "Guests discover your restaurant page and reserve online.",
+      "step2": "Hosts seat faster with room and floor awareness.",
+      "step3": "Waiters manage the live table and close the bill."
+    },
+    "outcomes": {
+      "kicker": "Why restaurant teams choose this direction",
+      "title": "Built around the real front-of-house pressure points",
+      "desc": "The value is not just prettier screens. It is fewer handoff gaps between guests, hosts, waiters, and owners.",
+      "card1_title": "Convert interest into bookings",
+      "card1_desc": "A stronger public page helps guests understand the place faster and actually complete the reservation.",
+      "card2_title": "Seat with floor awareness",
+      "card2_desc": "Your host sees rooms, tables, and seat availability visually instead of working blind.",
+      "card3_title": "Run service with less friction",
+      "card3_desc": "Waiters move faster from order taking to kitchen communication to check closing.",
+      "card4_title": "See the business more clearly",
+      "card4_desc": "Reports, bills, staff tools, and day-level visibility give owners tighter control."
+    },
+    "modules": {
+      "kicker": "What is inside SpotBook",
+      "title": "The modules your restaurant team actually touches every day",
+      "desc": "SpotBook is designed as one connected stack, not a collection of disconnected dashboards.",
+      "item1_title": "Guest-facing restaurant page",
+      "item1_desc": "Show photos, details, rooms, and a cleaner booking path that feels premium to guests.",
+      "item2_title": "Reservation management & confirmations",
+      "item2_desc": "Keep the day organized with today reservations, status tracking, and guest details.",
+      "item3_title": "Host seating & floor map",
+      "item3_desc": "Work visually with the map, rooms, tables, and guest seating logic.",
+      "item4_title": "Waiter, kitchen, and billing flow",
+      "item4_desc": "Open orders, add items, communicate with the kitchen, and close checks from the live service screen.",
+      "item5_title": "Reports, staff, and operations",
+      "item5_desc": "Track performance, staffing, and the daily operational picture from one place."
+    },
+    "compare": {
+      "kicker": "The practical shift",
+      "title": "From scattered restaurant work to one cleaner flow",
+      "before_label": "Without a connected flow",
+      "after_label": "With SpotBook",
+      "before1": "Guests see a weak page and drop before booking.",
+      "before2": "Hosts seat manually without room/table context.",
+      "before3": "Waiters juggle orders and checks with more friction.",
+      "before4": "Owners switch between tools to understand the day.",
+      "after1": "Guests get a stronger booking experience from the start.",
+      "after2": "Hosts seat with visual floor and room awareness.",
+      "after3": "Waiters work from a clearer live order flow.",
+      "after4": "Owners see reservations, bills, and reports together."
+    },
+    "faq": {
+      "kicker": "Questions owners usually ask",
+      "title": "A cleaner path to getting started",
+      "desc": "Start with an owner account, then continue shaping your restaurant profile, floor map, and service flow.",
+      "q1": "Do I need to finish everything in one day?",
+      "a1": "No. Start with the account, then continue building your restaurant profile and operations step by step.",
+      "q2": "Is this only for reservations?",
+      "a2": "No. Reservations are only one layer. The platform also covers floor seating, waiter flow, bills, reports, and owner visibility.",
+      "q3": "Can I start as an owner account now?",
+      "a3": "Yes. Use the registration form below and choose the restaurant owner flow."
+    },
+    "signup": {
+      "kicker": "Create your owner account",
+      "title": "Start with registration, then build your restaurant in SpotBook",
+      "desc": "This form creates your SpotBook account as a restaurant owner. After that you can keep shaping your restaurant page, reservations, floor, staff flow, and operations.",
+      "point1": "Owner account flow preselected",
+      "point2": "Restaurant-focused business type selection",
+      "point3": "Continue later and complete your setup step by step",
+      "submit": "Create owner account",
+      "footnote": "Already have an owner account?",
+      "login": "Log in here"
+    }
+  }
+}

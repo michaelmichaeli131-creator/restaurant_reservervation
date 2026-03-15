@@ -1,21 +1,22 @@
 <% layout("_layout", it) %>
+<%
+  var _q = (it.q || "");
+  var showResults = (it.search === "1") || (_q.trim().length > 0) || (it.category && it.category.trim().length > 0);
+%>
 
-<!-- ===== Hero Section ===== -->
-<section class="hero hero-home">
-  <div class="hero-bg"></div>
-  <div class="hero-orb hero-orb--a"></div>
-  <div class="hero-orb hero-orb--b"></div>
-  <div class="hero-inner hero-grid">
-    <div class="hero-copy">
-      <div class="hero-badge"><%= (it.t && it.t('home.hero.badge')) || 'Smart restaurant discovery' %></div>
-      <h1 class="hero-title"><%= (it.t && it.t('home.hero.title')) || 'Reserve a Table at a Restaurant' %></h1>
-      <p class="hero-sub"><%= (it.t && it.t('home.hero.sub')) || 'Book a table easily and quickly online' %></p>
+<section class="home-hero-v2">
+  <div class="home-hero-v2__glow home-hero-v2__glow--one"></div>
+  <div class="home-hero-v2__glow home-hero-v2__glow--two"></div>
+  <div class="sb-container home-hero-v2__grid">
+    <div class="home-hero-v2__copy">
+      <div class="section-kicker"><%= (it.t && it.t('home.hero.badge')) || 'Dining out starts here' %></div>
+      <h1 class="home-hero-v2__title"><%= (it.t && it.t('home.hero.title')) || 'Find the right table for tonight' %></h1>
+      <p class="home-hero-v2__sub"><%= (it.t && it.t('home.hero.sub')) || 'Discover standout restaurants, compare the vibe, and reserve in a few smooth clicks.' %></p>
 
-      <div class="ac-wrap hero-search-shell" style="position:relative; width:100%; max-width:980px">
-        <form id="search-form" class="search-bar hero-search-bar" method="GET" action="/" role="search" aria-label="<%= (it.t && it.t('home.search.aria')) || 'Search restaurants' %>">
+      <div class="home-search-card">
+        <form id="search-form" class="search-bar home-search-card__bar" method="GET" action="/" role="search" aria-label="<%= (it.t && it.t('home.search.aria')) || 'Search restaurants' %>">
           <input type="hidden" name="search" value="1"/>
-
-          <div class="field with-icon" style="min-width:260px; flex:1">
+          <div class="field with-icon home-search-card__field" style="min-width:260px; flex:1">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/>
             </svg>
@@ -26,22 +27,18 @@
               aria-label="<%= (it.t && it.t('home.search.input_aria')) || 'Search restaurant, city or cuisine' %>"
               value="<%= it.q || '' %>">
           </div>
-
-          <button class="btn primary search-btn hero-search-btn" type="submit">
-            <%= (it.t && it.t('home.search.cta')) || 'Search' %>
-          </button>
+          <button class="btn primary home-search-card__btn" type="submit"><%= (it.t && it.t('home.search.cta')) || 'Search' %></button>
         </form>
-
         <div id="ac-list" class="ac-list" role="listbox" aria-label="<%= (it.t && it.t('home.search.suggestions_aria')) || 'Search suggestions' %>" hidden></div>
+
+        <div class="home-search-card__meta">
+          <span class="home-mini-pill">✦ <%= (it.t && it.t('home.hero.trust1')) || 'Verified restaurant pages' %></span>
+          <span class="home-mini-pill">⚡ <%= (it.t && it.t('home.hero.trust2')) || 'Fast booking flow' %></span>
+          <span class="home-mini-pill">♡ <%= (it.t && it.t('home.hero.trust3')) || 'Made for guests' %></span>
+        </div>
       </div>
 
-      <div class="hero-trust">
-        <div class="hero-trust-pill"><span>✦</span><%= (it.t && it.t('home.hero.trust1')) || 'Luxury dark experience' %></div>
-        <div class="hero-trust-pill"><span>⚡</span><%= (it.t && it.t('home.hero.trust2')) || 'Fast booking flow' %></div>
-        <div class="hero-trust-pill"><span>✓</span><%= (it.t && it.t('home.hero.trust3')) || 'Cleaner restaurant discovery' %></div>
-      </div>
-
-      <div class="category-chips hero-chips">
+      <div class="category-chips home-hero-v2__chips">
         <a href="/" class="chip <%= !it.category ? 'active' : '' %>"><%= (it.t && it.t('home.categories.all')) || 'All' %></a>
         <a href="/?category=italian" class="chip <%= it.category === 'italian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.italian')) || 'Italian' %></a>
         <a href="/?category=asian" class="chip <%= it.category === 'asian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.asian')) || 'Asian' %></a>
@@ -53,114 +50,129 @@
       </div>
     </div>
 
-    <aside class="hero-panel" aria-label="<%= (it.t && it.t('home.hero.panel_title')) || 'Why SpotBook' %>">
-      <div class="hero-panel-card">
-        <div class="hero-panel-head">
-          <div>
-            <div class="hero-panel-kicker">SpotBook</div>
-            <h2 class="hero-panel-title"><%= (it.t && it.t('home.hero.panel_title')) || 'Book with more confidence' %></h2>
-          </div>
-          <div class="hero-panel-score">4.9</div>
+    <aside class="home-hero-v2__showcase" aria-label="<%= (it.t && it.t('home.hero.panel_title')) || 'Guest highlights' %>">
+      <div class="guest-card guest-card--main">
+        <div class="guest-card__eyebrow"><%= (it.t && it.t('home.hero.panel_title')) || 'Your next favorite table' %></div>
+        <h2><%= (it.t && it.t('home.hero.panel_heading')) || 'Everything guests need before they book' %></h2>
+        <p><%= (it.t && it.t('home.hero.panel_sub')) || 'Browse beautiful restaurant pages, compare details quickly, and move from discovery to reservation without friction.' %></p>
+        <div class="guest-card__stats">
+          <div class="guest-card__stat"><strong><%= (it.t && it.t('home.hero.stat1_value')) || 'Fast' %></strong><span><%= (it.t && it.t('home.hero.stat1_label')) || 'From search to booking' %></span></div>
+          <div class="guest-card__stat"><strong><%= (it.t && it.t('home.hero.stat2_value')) || 'Clear' %></strong><span><%= (it.t && it.t('home.hero.stat2_label')) || 'Photos, vibe, and details' %></span></div>
+          <div class="guest-card__stat"><strong><%= (it.t && it.t('home.hero.stat3_value')) || 'Smooth' %></strong><span><%= (it.t && it.t('home.hero.stat3_label')) || 'Mobile-friendly flow' %></span></div>
         </div>
-        <p class="hero-panel-sub"><%= (it.t && it.t('home.hero.panel_sub')) || 'A cleaner way to find the right restaurant, reserve faster, and manage the full dining journey.' %></p>
-        <div class="hero-feature-list">
-          <div class="hero-feature-card">
-            <div class="hero-feature-icon">⌁</div>
-            <div>
-              <div class="hero-feature-title"><%= (it.t && it.t('home.hero.feature1_title')) || 'Curated discovery' %></div>
-              <div class="hero-feature-desc"><%= (it.t && it.t('home.hero.feature1_desc')) || 'Search by city, cuisine, and vibe without noise.' %></div>
-            </div>
-          </div>
-          <div class="hero-feature-card">
-            <div class="hero-feature-icon">⌛</div>
-            <div>
-              <div class="hero-feature-title"><%= (it.t && it.t('home.hero.feature2_title')) || 'Fast reservation flow' %></div>
-              <div class="hero-feature-desc"><%= (it.t && it.t('home.hero.feature2_desc')) || 'Choose your place, time, and guests in a few clean steps.' %></div>
-            </div>
-          </div>
-          <div class="hero-feature-card">
-            <div class="hero-feature-icon">◈</div>
-            <div>
-              <div class="hero-feature-title"><%= (it.t && it.t('home.hero.feature3_title')) || 'Built for restaurants too' %></div>
-              <div class="hero-feature-desc"><%= (it.t && it.t('home.hero.feature3_desc')) || 'Floor plans, staff tools, and reservations in one system.' %></div>
-            </div>
-          </div>
-        </div>
+      </div>
+
+      <div class="guest-card-grid">
+        <article class="guest-card guest-card--mini">
+          <div class="guest-card__icon">⌕</div>
+          <h3><%= (it.t && it.t('home.hero.feature1_title')) || 'Search with confidence' %></h3>
+          <p><%= (it.t && it.t('home.hero.feature1_desc')) || 'Find places by city, cuisine, and atmosphere without the clutter.' %></p>
+        </article>
+        <article class="guest-card guest-card--mini">
+          <div class="guest-card__icon">▣</div>
+          <h3><%= (it.t && it.t('home.hero.feature2_title')) || 'Better restaurant pages' %></h3>
+          <p><%= (it.t && it.t('home.hero.feature2_desc')) || 'See the place faster with clear visuals and cleaner information.' %></p>
+        </article>
+        <article class="guest-card guest-card--mini">
+          <div class="guest-card__icon">↗</div>
+          <h3><%= (it.t && it.t('home.hero.feature3_title')) || 'Reserve without friction' %></h3>
+          <p><%= (it.t && it.t('home.hero.feature3_desc')) || 'Pick a date, time, and group size in a simple, premium flow.' %></p>
+        </article>
       </div>
     </aside>
   </div>
 </section>
 
-<%
-  var _q = (it.q || "");
-  var showResults = (it.search === "1") || (_q.trim().length > 0) || (it.category && it.category.trim().length > 0);
-%>
+<section class="section home-story-strip">
+  <div class="sb-container home-story-strip__grid">
+    <article class="story-card">
+      <div class="story-card__kicker"><%= (it.t && it.t('home.highlights.card1_kicker')) || 'For hungry planners' %></div>
+      <h3><%= (it.t && it.t('home.highlights.card1_title')) || 'See the right place faster' %></h3>
+      <p><%= (it.t && it.t('home.highlights.card1_desc')) || 'Use cuisine and city filters to narrow the field quickly and spend less time scrolling.' %></p>
+    </article>
+    <article class="story-card">
+      <div class="story-card__kicker"><%= (it.t && it.t('home.highlights.card2_kicker')) || 'For special nights out' %></div>
+      <h3><%= (it.t && it.t('home.highlights.card2_title')) || 'Get a stronger feel before you reserve' %></h3>
+      <p><%= (it.t && it.t('home.highlights.card2_desc')) || 'Photos, address, cuisine, and ratings are presented in a cleaner way so your choice feels easier.' %></p>
+    </article>
+    <article class="story-card story-card--accent">
+      <div class="story-card__kicker"><%= (it.t && it.t('home.highlights.card3_kicker')) || 'For every device' %></div>
+      <h3><%= (it.t && it.t('home.highlights.card3_title')) || 'Book smoothly on desktop or mobile' %></h3>
+      <p><%= (it.t && it.t('home.highlights.card3_desc')) || 'The experience is built to stay clean, readable, and fast wherever guests open it.' %></p>
+    </article>
+  </div>
+</section>
 
-<!-- ===== Search Results ===== -->
 <% if (showResults) { %>
-  <section class="section">
-    <div class="sb-container">
-      <h2 class="section-title"><%= (it.t && it.t('home.results.title')) || 'Results' %></h2>
-
-      <% if (!it.restaurants || !it.restaurants.length) { %>
-        <div class="sb-empty-state">
-          <div class="sb-empty-state__icon">&#128269;</div>
-          <p class="sb-empty-state__message"><%= (it.t && it.t('home.results.empty')) || 'No results found.' %></p>
-        </div>
-      <% } else { %>
-        <div class="cards">
-          <%
-            var list = it.restaurants || [];
-            for (var i=0; i<list.length; i++){
-              var r = list[i];
-              var _photos = Array.isArray(r && r.photos) ? r.photos : [];
-              var ss = [];
-              for (var j=0; j<_photos.length; j++){
-                var p = _photos[j];
-                ss.push(typeof p === 'string' ? p : (p && p.dataUrl));
-              }
-              ss = ss.filter(Boolean);
-              var cover = (r && r.coverUrl) || ss[0] || "/static/placeholder.png";
-          %>
-            <a
-              class="card"
-              href="/restaurants/<%= r.id %>"
-              aria-label="<%= (it.t && it.t('home.results.open_label', { name: r.name })) || ('Open ' + r.name) %>">
-              <div class="card-img" style="background-image:url('<%= cover %>')"></div>
-              <div class="card-body">
-                <h3 class="card-title"><%= r.name %></h3>
-                <p class="card-meta"><%= r.city %> &middot; <%= r.address %></p>
-                <% if (r.kitchenCategories && r.kitchenCategories.length) { %>
-                  <div class="category-tags">
-                    <% r.kitchenCategories.slice(0, 3).forEach(function(cat){ %>
-                      <span class="cat-tag"><%= cat %></span>
-                    <% }); %>
-                  </div>
-                <% } %>
-                <% if (r.averageRating && r.reviewCount) { %>
-                  <div class="rating-badge">
-                    <span class="stars">&#9733;</span>
-                    <span><%= r.averageRating.toFixed(1) %> (<%= r.reviewCount %>)</span>
-                  </div>
-                <% } %>
-                <% if (!r.approved) { %>
-                  <span class="badge-pending" title="<%= (it.t && it.t('home.results.badge_pending_title')) || 'Not approved yet' %>">
-                    <%= (it.t && it.t('home.results.badge_pending')) || 'Pending approval' %>
-                  </span>
-                <% } %>
-              </div>
-            </a>
-          <% } %>
-        </div>
-      <% } %>
-    </div>
-  </section>
-<% } %>
-
-<!-- ===== Featured Restaurants (dynamic from DB) ===== -->
 <section class="section">
   <div class="sb-container">
-    <h2 class="section-title"><%= (it.t && it.t('home.featured.title')) || 'Featured Restaurants' %></h2>
+    <div class="section-head-inline">
+      <div>
+        <div class="section-kicker"><%= (it.t && it.t('home.results.kicker')) || 'Search results' %></div>
+        <h2 class="section-title"><%= (it.t && it.t('home.results.title')) || 'Restaurants for your search' %></h2>
+      </div>
+    </div>
+
+    <% if (!it.restaurants || !it.restaurants.length) { %>
+      <div class="sb-empty-state home-empty-state">
+        <div class="sb-empty-state__icon">&#128269;</div>
+        <p class="sb-empty-state__message"><%= (it.t && it.t('home.results.empty')) || 'No results found.' %></p>
+      </div>
+    <% } else { %>
+      <div class="cards">
+        <%
+          var list = it.restaurants || [];
+          for (var i=0; i<list.length; i++){
+            var r = list[i];
+            var _photos = Array.isArray(r && r.photos) ? r.photos : [];
+            var ss = [];
+            for (var j=0; j<_photos.length; j++){
+              var p = _photos[j];
+              ss.push(typeof p === 'string' ? p : (p && p.dataUrl));
+            }
+            ss = ss.filter(Boolean);
+            var cover = (r && r.coverUrl) || ss[0] || "/static/placeholder.png";
+        %>
+          <a class="card home-card-v2" href="/restaurants/<%= r.id %>" aria-label="<%= (it.t && it.t('home.results.open_label', { name: r.name })) || ('Open ' + r.name) %>">
+            <div class="card-img" style="background-image:url('<%= cover %>')"></div>
+            <div class="card-body">
+              <div class="home-card-v2__top">
+                <h3 class="card-title"><%= r.name %></h3>
+                <% if (r.averageRating && r.reviewCount) { %>
+                  <div class="rating-badge"><span class="stars">&#9733;</span><span><%= r.averageRating.toFixed(1) %></span></div>
+                <% } %>
+              </div>
+              <p class="card-meta"><%= r.city %> &middot; <%= r.address %></p>
+              <% if (r.kitchenCategories && r.kitchenCategories.length) { %>
+                <div class="category-tags">
+                  <% r.kitchenCategories.slice(0, 3).forEach(function(cat){ %>
+                    <span class="cat-tag"><%= cat %></span>
+                  <% }); %>
+                </div>
+              <% } %>
+              <% if (!r.approved) { %>
+                <span class="badge-pending" title="<%= (it.t && it.t('home.results.badge_pending_title')) || 'Not approved yet' %>">
+                  <%= (it.t && it.t('home.results.badge_pending')) || 'Pending approval' %>
+                </span>
+              <% } %>
+            </div>
+          </a>
+        <% } %>
+      </div>
+    <% } %>
+  </div>
+</section>
+<% } %>
+
+<section class="section home-featured-v2">
+  <div class="sb-container">
+    <div class="section-head-inline">
+      <div>
+        <div class="section-kicker"><%= (it.t && it.t('home.featured.kicker')) || 'Popular choices' %></div>
+        <h2 class="section-title"><%= (it.t && it.t('home.featured.title')) || 'Featured Restaurants' %></h2>
+      </div>
+      <p class="section-head-inline__desc"><%= (it.t && it.t('home.featured.desc')) || 'Start with restaurants that already stand out on SpotBook.' %></p>
+    </div>
 
     <% if (it.featured && it.featured.length) { %>
       <div class="carousel" dir="<%= it.dir || 'ltr' %>" aria-roledescription="carousel" aria-label="<%= (it.t && it.t('home.featured.title')) || 'Featured Restaurants' %>">
@@ -175,10 +187,7 @@
                     <div class="hs-title"><%= fr.name %></div>
                     <div class="hs-meta"><%= fr.city %></div>
                     <% if (fr.rating) { %>
-                      <div class="hs-rating">
-                        <span class="stars">&#9733;</span>
-                        <span><%= fr.rating.toFixed(1) %></span>
-                      </div>
+                      <div class="hs-rating"><span class="stars">&#9733;</span><span><%= fr.rating.toFixed(1) %></span></div>
                     <% } %>
                   </div>
                 </a>
@@ -190,45 +199,47 @@
         <div class="carousel-dots" role="tablist" aria-label="<%= (it.t && it.t('home.featured.dots_aria')) || 'Slide navigation' %>"></div>
       </div>
     <% } else { %>
-      <div class="sb-empty-state" style="padding:var(--sb-space-xl)">
+      <div class="sb-empty-state home-empty-state">
         <p class="sb-empty-state__message"><%= (it.t && it.t('home.featured.empty')) || 'No restaurants available yet.' %></p>
       </div>
     <% } %>
   </div>
 </section>
 
-<section class="section home-benefits">
-  <div class="sb-container">
-    <div class="benefits-shell">
-      <div class="benefits-intro">
-        <div class="section-kicker"><%= (it.t && it.t('home.benefits.kicker')) || 'Why people choose SpotBook' %></div>
-        <h2 class="section-title benefits-title"><%= (it.t && it.t('home.benefits.title')) || 'A sharper first impression for your guests' %></h2>
-      </div>
-      <div class="benefits-grid">
-        <article class="benefit-card">
-          <div class="benefit-icon">⌕</div>
-          <h3><%= (it.t && it.t('home.benefits.card1_title')) || 'Smarter search' %></h3>
-          <p><%= (it.t && it.t('home.benefits.card1_desc')) || 'Find restaurants faster with cleaner filters and a more premium browsing experience.' %></p>
-        </article>
-        <article class="benefit-card">
-          <div class="benefit-icon">☰</div>
-          <h3><%= (it.t && it.t('home.benefits.card2_title')) || 'Beautiful listings' %></h3>
-          <p><%= (it.t && it.t('home.benefits.card2_desc')) || 'Restaurants look richer, more visual, and easier to scan on desktop and mobile.' %></p>
-        </article>
-        <article class="benefit-card">
-          <div class="benefit-icon">↗</div>
-          <h3><%= (it.t && it.t('home.benefits.card3_title')) || 'Higher booking intent' %></h3>
-          <p><%= (it.t && it.t('home.benefits.card3_desc')) || 'Stronger hierarchy and clearer actions guide guests toward booking with less friction.' %></p>
-        </article>
-      </div>
+<section class="section home-benefits-v2">
+  <div class="sb-container home-benefits-v2__grid">
+    <div class="home-benefits-v2__intro">
+      <div class="section-kicker"><%= (it.t && it.t('home.benefits.kicker')) || 'Why guests choose SpotBook' %></div>
+      <h2 class="section-title home-benefits-v2__title"><%= (it.t && it.t('home.benefits.title')) || 'A cleaner journey from craving to reservation' %></h2>
+      <p class="home-benefits-v2__text"><%= (it.t && it.t('home.benefits.text')) || 'Every part of the homepage is tuned for diners: discover faster, compare more easily, and get to the booking step with less noise.' %></p>
+    </div>
+    <div class="benefits-grid">
+      <article class="benefit-card">
+        <div class="benefit-icon">⌕</div>
+        <h3><%= (it.t && it.t('home.benefits.card1_title')) || 'Smarter search' %></h3>
+        <p><%= (it.t && it.t('home.benefits.card1_desc')) || 'Search by city, cuisine, or mood and find a better fit faster.' %></p>
+      </article>
+      <article class="benefit-card">
+        <div class="benefit-icon">◫</div>
+        <h3><%= (it.t && it.t('home.benefits.card2_title')) || 'More visual restaurant pages' %></h3>
+        <p><%= (it.t && it.t('home.benefits.card2_desc')) || 'Photos and information are easier to scan before you decide.' %></p>
+      </article>
+      <article class="benefit-card">
+        <div class="benefit-icon">↗</div>
+        <h3><%= (it.t && it.t('home.benefits.card3_title')) || 'Lower-friction booking' %></h3>
+        <p><%= (it.t && it.t('home.benefits.card3_desc')) || 'A smoother flow helps guests move from interest to confirmed table.' %></p>
+      </article>
     </div>
   </div>
 </section>
 
-<!-- ===== How It Works ===== -->
-<section class="section how-it-works">
+<section class="section how-it-works-v2">
   <div class="sb-container">
-    <h2 class="section-title" style="text-align:center"><%= (it.t && it.t('home.how_it_works.title')) || 'How It Works' %></h2>
+    <div class="section-head-center">
+      <div class="section-kicker"><%= (it.t && it.t('home.how_it_works.kicker')) || 'Simple for guests' %></div>
+      <h2 class="section-title"><%= (it.t && it.t('home.how_it_works.title')) || 'How It Works' %></h2>
+      <p class="section-head-center__desc"><%= (it.t && it.t('home.how_it_works.desc')) || 'A clean path from discovering the place to actually booking it.' %></p>
+    </div>
     <div class="steps-grid">
       <div class="step-card">
         <div class="step-number">1</div>
@@ -249,14 +260,19 @@
   </div>
 </section>
 
-<!-- ===== Owner CTA ===== -->
 <% if (!it.user) { %>
-<section class="section owner-cta">
+<section class="section home-owner-teaser">
   <div class="sb-container">
-    <div class="cta-card">
-      <h2 class="cta-title"><%= (it.t && it.t('home.cta.owner_title')) || 'Own a Restaurant?' %></h2>
-      <p class="cta-desc"><%= (it.t && it.t('home.cta.owner_desc')) || 'Join SpotBook and manage reservations, staff, and floor plans from a single dashboard.' %></p>
-      <a class="btn primary cta-btn" href="/auth/register"><%= (it.t && it.t('home.cta.owner_btn')) || 'Register Your Restaurant' %></a>
+    <div class="owner-teaser-card">
+      <div class="owner-teaser-card__copy">
+        <div class="section-kicker"><%= (it.t && it.t('home.owner_teaser.kicker')) || 'For restaurant owners' %></div>
+        <h2 class="cta-title"><%= (it.t && it.t('home.owner_teaser.title')) || 'Want to grow your restaurant?' %></h2>
+        <p class="cta-desc"><%= (it.t && it.t('home.owner_teaser.desc')) || 'SpotBook is building a premium experience for restaurants too. See the dedicated page for reservation management, floor maps, staff tools, and a stronger guest journey.' %></p>
+      </div>
+      <div class="owner-teaser-card__actions">
+        <a class="btn primary cta-btn" href="/for-restaurants"><%= (it.t && it.t('home.owner_teaser.primary')) || 'Explore the restaurant platform' %></a>
+        <a class="btn secondary cta-btn ghost" href="/auth/register"><%= (it.t && it.t('home.owner_teaser.secondary')) || 'Register your restaurant' %></a>
+      </div>
     </div>
   </div>
 </section>
@@ -284,614 +300,107 @@
 </section>
 
 <style>
-/* ===== Home page redesign ===== */
-.hero-home{
-  position: relative;
-  overflow: hidden;
-  margin-top: 10px;
-  padding: clamp(26px, 4vw, 42px) 0 clamp(18px, 4vw, 30px);
-  border-radius: 28px;
+.home-hero-v2{
+  position:relative;
+  overflow:hidden;
+  margin-top:12px;
+  padding:clamp(30px,4vw,48px) 0 clamp(22px,4vw,34px);
+  border-radius:32px;
   background:
-    radial-gradient(circle at top left, rgba(59,130,246,.16), transparent 34%),
-    radial-gradient(circle at bottom right, rgba(14,165,233,.12), transparent 28%),
-    linear-gradient(180deg, rgba(15,23,42,.9), rgba(7,10,18,.98));
-  border: 1px solid rgba(148,163,184,.14);
-  box-shadow: 0 30px 80px rgba(2,8,23,.42);
+    radial-gradient(circle at top left, rgba(56,189,248,.18), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(59,130,246,.18), transparent 28%),
+    linear-gradient(180deg, rgba(8,13,24,.98), rgba(8,13,24,.88));
+  border:1px solid rgba(148,163,184,.14);
+  box-shadow:0 34px 90px rgba(2,8,23,.42);
 }
-.hero-bg{
-  position:absolute; inset:0;
-  background:
-    linear-gradient(120deg, rgba(255,255,255,.03) 0%, rgba(255,255,255,0) 32%),
-    radial-gradient(circle at 20% 20%, rgba(125,211,252,.10), transparent 18%),
-    radial-gradient(circle at 75% 35%, rgba(59,130,246,.10), transparent 22%);
-  pointer-events:none;
+.home-hero-v2__glow{position:absolute;border-radius:999px;filter:blur(16px);pointer-events:none;opacity:.75}
+.home-hero-v2__glow--one{width:220px;height:220px;top:-30px;right:-40px;background:rgba(56,189,248,.18)}
+.home-hero-v2__glow--two{width:160px;height:160px;left:-20px;bottom:-10px;background:rgba(59,130,246,.16)}
+.home-hero-v2__grid{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);gap:24px;align-items:start}
+.home-hero-v2__copy{display:flex;flex-direction:column;gap:18px}
+.section-kicker{display:inline-flex;align-items:center;gap:8px;width:max-content;padding:8px 14px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#dbeafe;background:rgba(59,130,246,.14);border:1px solid rgba(96,165,250,.26)}
+.home-hero-v2__title{margin:0;max-width:11ch;font-size:clamp(42px,6vw,76px);line-height:.93;letter-spacing:-.05em;color:#f8fbff;text-wrap:balance}
+.home-hero-v2__sub{margin:0;max-width:62ch;font-size:clamp(17px,2vw,20px);line-height:1.8;color:rgba(226,232,240,.84)}
+.home-search-card{padding:14px;border-radius:26px;background:rgba(15,23,42,.62);border:1px solid rgba(148,163,184,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 24px 54px rgba(2,8,23,.24)}
+.home-search-card__bar{gap:12px}
+.home-search-card__btn{min-width:148px;box-shadow:0 14px 34px rgba(59,130,246,.28)}
+.home-search-card__meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.home-mini-pill{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:#dbe4f0;font-size:13px;font-weight:600}
+.home-hero-v2__chips{justify-content:flex-start;padding:0}
+.home-hero-v2__showcase{display:flex;flex-direction:column;gap:14px}
+.guest-card{border-radius:26px;background:linear-gradient(180deg, rgba(15,23,42,.82), rgba(15,23,42,.58));border:1px solid rgba(148,163,184,.14);box-shadow:0 24px 60px rgba(2,8,23,.28)}
+.guest-card--main{padding:24px}
+.guest-card--main h2{margin:8px 0 10px;font-size:clamp(28px,3vw,38px);line-height:1.08;color:#f8fbff}
+.guest-card--main p{margin:0;color:rgba(226,232,240,.76);line-height:1.75}
+.guest-card__eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#7dd3fc;font-weight:700}
+.guest-card__stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:18px}
+.guest-card__stat{padding:14px;border-radius:18px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)}
+.guest-card__stat strong{display:block;color:#f8fbff;font-size:18px;margin-bottom:4px}
+.guest-card__stat span{display:block;color:#aab8ca;font-size:13px;line-height:1.5}
+.guest-card-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.guest-card--mini{padding:18px;min-height:100%}
+.guest-card__icon{width:46px;height:46px;display:grid;place-items:center;border-radius:16px;color:#dbeafe;font-size:20px;background:rgba(59,130,246,.16);border:1px solid rgba(96,165,250,.24);margin-bottom:12px}
+.guest-card--mini h3{margin:0 0 8px;color:#f8fbff;font-size:18px}
+.guest-card--mini p{margin:0;color:#aebbd0;line-height:1.7;font-size:14px}
+.home-story-strip__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.story-card{padding:22px;border-radius:24px;background:linear-gradient(180deg, rgba(15,23,42,.72), rgba(15,23,42,.52));border:1px solid rgba(148,163,184,.12);box-shadow:0 18px 42px rgba(2,8,23,.18)}
+.story-card--accent{background:linear-gradient(180deg, rgba(30,41,59,.88), rgba(15,23,42,.58));border-color:rgba(96,165,250,.22)}
+.story-card__kicker{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#7dd3fc;font-weight:700;margin-bottom:10px}
+.story-card h3{margin:0 0 10px;color:#f8fbff;font-size:22px;line-height:1.2}
+.story-card p{margin:0;color:#aebbd0;line-height:1.8}
+.section-head-inline{display:flex;justify-content:space-between;align-items:end;gap:18px;flex-wrap:wrap;margin-bottom:16px}
+.section-head-inline__desc{max-width:56ch;margin:0;color:#95a7c0;line-height:1.7}
+.section-head-center{text-align:center;max-width:760px;margin:0 auto 18px}
+.section-head-center__desc{margin:12px auto 0;color:#96a8bf;line-height:1.8}
+.home-card-v2{overflow:hidden}
+.home-card-v2__top{display:flex;justify-content:space-between;gap:12px;align-items:start}
+.home-empty-state{padding:26px;border-radius:24px;background:rgba(15,23,42,.52);border:1px solid rgba(148,163,184,.12)}
+.home-featured-v2,.home-benefits-v2,.how-it-works-v2{margin-top:6px}
+.home-benefits-v2__grid{display:grid;grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr);gap:18px;align-items:start}
+.home-benefits-v2__title{margin:8px 0 10px}
+.home-benefits-v2__text{margin:0;color:#95a7c0;line-height:1.8;max-width:54ch}
+.benefits-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.benefit-card{padding:22px;border-radius:22px;background:linear-gradient(180deg, rgba(15,23,42,.72), rgba(15,23,42,.52));border:1px solid rgba(148,163,184,.12);box-shadow:0 16px 40px rgba(2,8,23,.18)}
+.benefit-card h3{margin:0 0 8px;color:#eef6ff;font-size:20px}
+.benefit-card p{margin:0;color:#9fb0c6;line-height:1.75}
+.benefit-icon{width:50px;height:50px;margin-bottom:14px;display:grid;place-items:center;border-radius:16px;color:#dbeafe;font-size:22px;background:rgba(59,130,246,.14);border:1px solid rgba(96,165,250,.22)}
+.owner-teaser-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;padding:24px 26px;border-radius:26px;background:linear-gradient(180deg, rgba(9,14,26,.95), rgba(15,23,42,.82));border:1px solid rgba(96,165,250,.20);box-shadow:0 26px 64px rgba(2,8,23,.26)}
+.owner-teaser-card__copy{max-width:760px}
+.owner-teaser-card__actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end}
+.home-social-footer{margin-top:var(--sb-space-2xl,32px);margin-bottom:var(--sb-space-xl,24px)}
+.home-social-footer__card{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;padding:22px 24px;border-radius:22px;background:linear-gradient(180deg, rgba(15,23,42,.72), rgba(15,23,42,.52));border:1px solid rgba(148,163,184,.12);box-shadow:0 16px 40px rgba(2,8,23,.18)}
+.home-social-footer__title{margin:8px 0 0;color:#f8fbff;font-size:clamp(24px, 3vw, 32px)}
+.home-social-footer__links{display:flex;flex-wrap:wrap;gap:12px}
+.social-link{display:inline-flex;align-items:center;gap:10px;padding:12px 16px;border-radius:999px;border:1px solid rgba(148,163,184,.18);background:rgba(23,27,41,.72);color:var(--sb-color-ink,#e6e8ef);text-decoration:none;transition:all .18s ease;backdrop-filter:blur(10px)}
+.social-link svg{width:18px;height:18px;flex:0 0 18px}
+.social-link:hover{transform:translateY(-1px);border-color:rgba(59,130,246,.45);background:rgba(59,130,246,.12)}
+.category-chips{display:flex;gap:var(--sb-space-sm,8px);flex-wrap:wrap;justify-content:center;margin-top:var(--sb-space-lg,16px);padding:0 var(--sb-space-lg,16px)}
+.chip{display:inline-flex;align-items:center;gap:var(--sb-space-xs,4px);padding:var(--sb-space-sm,8px) var(--sb-space-lg,16px);border-radius:var(--sb-radius-pill,999px);border:1px solid var(--sb-color-bd,#23293a);background:var(--sb-color-panel-2,#171b29);color:var(--sb-color-ink,#e6e8ef);text-decoration:none;font-size:var(--sb-font-sm,13px);font-weight:var(--sb-weight-medium,500);transition:all var(--sb-ease-fast,150ms ease);cursor:pointer}
+.chip:hover{background:var(--sb-color-panel,#121622);border-color:var(--sb-color-brand,#3b82f6);transform:translateY(-1px)}
+.chip.active{background:var(--sb-color-brand,#3b82f6);border-color:var(--sb-color-brand,#3b82f6);color:var(--sb-color-brand-ink,#fff);box-shadow:0 4px 12px rgba(59,130,246,0.3)}
+.carousel{position:relative;display:grid;grid-template-columns:auto 1fr auto;grid-template-rows:1fr auto;align-items:center;gap:8px;margin-top:8px}
+.carousel-viewport{grid-column:2;overflow:hidden;border-radius:var(--sb-radius-xl,16px)}
+.carousel-track{display:flex;gap:var(--carousel-gap,12px);transition:transform .5s cubic-bezier(.25,.46,.45,.94);will-change:transform}
+.carousel-slide{flex:0 0 calc((100% - 2 * var(--carousel-gap, 12px)) / var(--carousel-visible, 3));background:var(--sb-color-panel,#121622);border:1px solid var(--sb-color-bd,#23293a);border-radius:var(--sb-radius-xl,14px);overflow:hidden;transition:transform .2s ease, box-shadow .2s ease}
+.carousel-slide:hover{transform:translateY(-3px);box-shadow:var(--sb-shadow-md,0 10px 30px rgba(0,0,0,.35))}
+.carousel-btn{grid-row:1;inline-size:40px;block-size:40px;border-radius:50%;border:1px solid var(--sb-color-bd,#23293a);background:var(--sb-color-panel-2,#171b29);color:var(--sb-color-ink,#e6e8ef);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;transition:background .15s ease, transform .15s ease;z-index:2}
+.carousel-btn:hover{background:var(--sb-color-panel,#121622);transform:scale(1.1)}
+.carousel-btn.prev{grid-column:1}.carousel-btn.next{grid-column:3}
+.carousel-dots{grid-column:1/-1;display:flex;justify-content:center;gap:8px;padding:var(--sb-space-md,12px) 0 0}
+.carousel-dot{width:10px;height:10px;border-radius:50%;border:none;background:var(--sb-color-bd,#23293a);cursor:pointer;padding:0;transition:background .25s ease, transform .25s ease}
+.carousel-dot:hover{background:rgba(125,211,252,.4)}
+.carousel-dot.is-active{background:var(--sb-color-brand,#3b82f6);transform:scale(1.3)}
+@media (max-width: 1080px){
+  .home-hero-v2__grid,.home-benefits-v2__grid,.owner-teaser-card{grid-template-columns:1fr}
+  .guest-card__stats,.guest-card-grid,.home-story-strip__grid,.benefits-grid{grid-template-columns:1fr}
+  .owner-teaser-card__actions{justify-content:flex-start}
 }
-.hero-orb{
-  position:absolute; border-radius:50%; filter: blur(12px); opacity:.8; pointer-events:none;
+@media (max-width: 720px){
+  .home-hero-v2{border-radius:24px;padding-top:22px}
+  .home-hero-v2__title{max-width:none;font-size:clamp(34px,10vw,52px)}
+  .home-search-card__bar{flex-direction:column}
+  .home-search-card__btn{width:100%}
+  .section-head-inline{align-items:start}
+  .home-social-footer__card{padding:18px}
 }
-.hero-orb--a{ width:180px; height:180px; right:-30px; top:20px; background:rgba(59,130,246,.18); }
-.hero-orb--b{ width:130px; height:130px; left:-15px; bottom:10px; background:rgba(14,165,233,.16); }
-.hero-grid{
-  position:relative; z-index:1; display:grid; grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);
-  gap: clamp(18px, 3vw, 28px); align-items:stretch;
-}
-.hero-copy{ display:flex; flex-direction:column; gap:18px; }
-.hero-badge, .section-kicker{
-  display:inline-flex; align-items:center; gap:8px; width:max-content;
-  padding:8px 14px; border-radius:999px; font-size:12px; font-weight:700; letter-spacing:.04em;
-  text-transform:uppercase; color:#dbeafe; background:rgba(59,130,246,.14); border:1px solid rgba(96,165,250,.28);
-}
-.hero-title{
-  margin:0; max-width: 11ch; font-size: clamp(38px, 6vw, 68px); line-height:.96; letter-spacing:-.04em;
-  color:#f8fbff; text-wrap:balance;
-}
-.hero-sub{
-  margin:0; max-width: 60ch; font-size: clamp(16px, 2vw, 19px); line-height:1.75;
-  color: rgba(226,232,240,.84);
-}
-.hero-search-shell{
-  padding:12px; border-radius:24px; background:rgba(15,23,42,.54); border:1px solid rgba(148,163,184,.16);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 20px 50px rgba(2,8,23,.25);
-}
-.hero-search-bar{ gap:12px; }
-.hero-search-btn{ min-width:140px; box-shadow:0 14px 30px rgba(59,130,246,.25); }
-.hero-trust{
-  display:flex; flex-wrap:wrap; gap:10px;
-}
-.hero-trust-pill{
-  display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:999px;
-  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); color:#dbe4f0; font-size:13px; font-weight:600;
-}
-.hero-trust-pill span{ color:#7dd3fc; font-size:14px; }
-.hero-chips{ margin-top:2px; padding:0; justify-content:flex-start; }
-.hero-panel{ display:flex; }
-.hero-panel-card{
-  width:100%; display:flex; flex-direction:column; gap:16px; padding:22px;
-  border-radius:24px; background:linear-gradient(180deg, rgba(15,23,42,.76), rgba(15,23,42,.52));
-  border:1px solid rgba(148,163,184,.14); box-shadow:0 24px 60px rgba(2,8,23,.32); backdrop-filter: blur(14px);
-}
-.hero-panel-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
-.hero-panel-kicker{ font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#7dd3fc; font-weight:700; }
-.hero-panel-title{ margin:6px 0 0; font-size:28px; line-height:1.1; color:#f8fbff; }
-.hero-panel-score{
-  min-width:64px; height:64px; display:grid; place-items:center; border-radius:18px; font-size:22px; font-weight:800;
-  color:#eff6ff; background:linear-gradient(180deg, rgba(59,130,246,.32), rgba(30,41,59,.42)); border:1px solid rgba(96,165,250,.26);
-}
-.hero-panel-sub{ margin:0; color:rgba(226,232,240,.76); line-height:1.7; }
-.hero-feature-list{ display:grid; gap:12px; }
-.hero-feature-card{
-  display:grid; grid-template-columns:44px 1fr; gap:12px; align-items:flex-start;
-  padding:14px; border-radius:18px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06);
-}
-.hero-feature-icon{
-  width:44px; height:44px; display:grid; place-items:center; border-radius:14px; font-size:18px; color:#dbeafe;
-  background:rgba(59,130,246,.16); border:1px solid rgba(96,165,250,.24);
-}
-.hero-feature-title{ font-weight:700; color:#f8fbff; margin-bottom:4px; }
-.hero-feature-desc{ font-size:13px; line-height:1.6; color:rgba(226,232,240,.72); }
-.benefits-shell{
-  padding: 8px 0 0;
-}
-.benefits-intro{ display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
-.benefits-title{ margin:0; }
-.benefits-grid{
-  display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px;
-}
-.benefit-card{
-  padding:22px; border-radius:22px; background:linear-gradient(180deg, rgba(15,23,42,.72), rgba(15,23,42,.52));
-  border:1px solid rgba(148,163,184,.12); box-shadow:0 16px 40px rgba(2,8,23,.18);
-}
-.benefit-card h3{ margin:0 0 8px; color:#eef6ff; font-size:20px; }
-.benefit-card p{ margin:0; color:#9fb0c6; line-height:1.75; }
-.benefit-icon{
-  width:50px; height:50px; margin-bottom:14px; display:grid; place-items:center;
-  border-radius:16px; color:#dbeafe; font-size:22px; background:rgba(59,130,246,.14); border:1px solid rgba(96,165,250,.22);
-}
-.home-social-footer{ margin-top: var(--sb-space-2xl, 32px); margin-bottom: var(--sb-space-xl, 24px); }
-.home-social-footer__card{
-  display:flex; align-items:center; justify-content:space-between; gap:18px; flex-wrap:wrap;
-  padding:22px 24px; border-radius:22px; background:linear-gradient(180deg, rgba(15,23,42,.72), rgba(15,23,42,.52));
-  border:1px solid rgba(148,163,184,.12); box-shadow:0 16px 40px rgba(2,8,23,.18);
-}
-.home-social-footer__title{ margin:8px 0 0; color:#f8fbff; font-size:clamp(24px, 3vw, 32px); }
-.home-social-footer__links{ display:flex; flex-wrap:wrap; gap:12px; }
-.social-link{
-  display:inline-flex; align-items:center; gap:10px;
-  padding: 12px 16px; border-radius: 999px;
-  border: 1px solid rgba(148,163,184,.18);
-  background: rgba(23,27,41,.72); color: var(--sb-color-ink, #e6e8ef);
-  text-decoration:none; transition: all .18s ease; backdrop-filter: blur(10px);
-}
-.social-link svg{ width:18px; height:18px; flex:0 0 18px; }
-.social-link:hover{ transform: translateY(-1px); border-color: rgba(59,130,246,.45); background: rgba(59,130,246,.12); }
-
-/* ===== Category Filter Chips ===== */
-.category-chips{
-  display: flex;
-  gap: var(--sb-space-sm, 8px);
-  flex-wrap: wrap;
-  justify-content: center;
-  margin-top: var(--sb-space-lg, 16px);
-  padding: 0 var(--sb-space-lg, 16px);
-}
-.chip{
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sb-space-xs, 4px);
-  padding: var(--sb-space-sm, 8px) var(--sb-space-lg, 16px);
-  border-radius: var(--sb-radius-pill, 999px);
-  border: 1px solid var(--sb-color-bd, #23293a);
-  background: var(--sb-color-panel-2, #171b29);
-  color: var(--sb-color-ink, #e6e8ef);
-  text-decoration: none;
-  font-size: var(--sb-font-sm, 13px);
-  font-weight: var(--sb-weight-medium, 500);
-  transition: all var(--sb-ease-fast, 150ms ease);
-  cursor: pointer;
-}
-.chip:hover{
-  background: var(--sb-color-panel, #121622);
-  border-color: var(--sb-color-brand, #3b82f6);
-  transform: translateY(-1px);
-}
-.chip.active{
-  background: var(--sb-color-brand, #3b82f6);
-  border-color: var(--sb-color-brand, #3b82f6);
-  color: var(--sb-color-brand-ink, #fff);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-}
-
-/* ===== Featured Carousel ===== */
-.carousel{
-  position: relative;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  grid-template-rows: 1fr auto;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-}
-.carousel-viewport{
-  grid-column: 2;
-  overflow: hidden;
-  border-radius: var(--sb-radius-xl, 16px);
-}
-.carousel-track{
-  display: flex;
-  gap: var(--carousel-gap, 12px);
-  transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  will-change: transform;
-}
-.carousel-slide{
-  flex: 0 0 calc((100% - 2 * var(--carousel-gap, 12px)) / var(--carousel-visible, 3));
-  background: var(--sb-color-panel, #121622);
-  border: 1px solid var(--sb-color-bd, #23293a);
-  border-radius: var(--sb-radius-xl, 14px);
-  overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.carousel-slide:hover{
-  transform: translateY(-3px);
-  box-shadow: var(--sb-shadow-md, 0 10px 30px rgba(0,0,0,.35));
-}
-.carousel-btn{
-  grid-row: 1;
-  inline-size: 40px;
-  block-size: 40px;
-  border-radius: 50%;
-  border: 1px solid var(--sb-color-bd, #23293a);
-  background: var(--sb-color-panel-2, #171b29);
-  color: var(--sb-color-ink, #e6e8ef);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 20px;
-  transition: background 0.15s ease, transform 0.15s ease;
-  z-index: 2;
-}
-.carousel-btn:hover{
-  background: var(--sb-color-panel, #121622);
-  transform: scale(1.1);
-}
-.carousel-btn.prev{ grid-column: 1; }
-.carousel-btn.next{ grid-column: 3; }
-
-/* Dots */
-.carousel-dots{
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  padding: var(--sb-space-md, 12px) 0 0;
-}
-.carousel-dot{
-  width: 10px; height: 10px;
-  border-radius: 50%;
-  border: none;
-  background: var(--sb-color-bd, #23293a);
-  cursor: pointer;
-  padding: 0;
-  transition: background 0.25s ease, transform 0.25s ease;
-}
-.carousel-dot:hover{ background: rgba(125,211,252,.4); }
-.carousel-dot.is-active{
-  background: var(--sb-color-brand, #3b82f6);
-  transform: scale(1.3);
-}
-
-/* Slide content */
-.hs-link{
-  display: block;
-  text-decoration: none;
-  color: inherit;
-  overflow: hidden;
-  border-radius: inherit;
-}
-.hs-body{
-  padding: var(--sb-space-md, 12px) var(--sb-space-md, 12px) var(--sb-space-sm, 8px);
-}
-.hs-meta{
-  font-size: var(--sb-font-xs, 11px);
-  color: var(--sb-color-ink-muted, #9aa3b2);
-  margin-top: 2px;
-}
-.hs-rating{
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: var(--sb-space-xs, 4px);
-  font-size: var(--sb-font-xs, 11px);
-  color: var(--sb-color-ink-muted, #9aa3b2);
-}
-.hs-rating .stars{
-  color: #fbbf24;
-  font-size: var(--sb-font-sm, 13px);
-}
-
-@media (max-width: 1100px){
-  .hero-grid{ grid-template-columns:1fr; }
-  .hero-title{ max-width: 13ch; }
-}
-@media (max-width: 900px){
-  .hero-home{ padding:24px 0 20px; border-radius:22px; }
-  .benefits-grid{ grid-template-columns:1fr; }
-  .home-social-footer__card{ align-items:flex-start; }
-  .carousel-slide{ flex: 0 0 calc((100% - var(--carousel-gap, 12px)) / 2); }
-  .carousel{ --carousel-visible: 2; }
-}
-@media (max-width: 640px){
-  .hero-title{ max-width:none; font-size: clamp(32px, 11vw, 44px); }
-  .hero-sub{ font-size:15px; }
-  .hero-search-shell{ padding:10px; border-radius:18px; }
-  .hero-search-bar{ flex-direction:column; }
-  .hero-search-btn{ width:100%; min-width:0; }
-  .hero-panel-card, .benefit-card, .cta-card, .home-social-footer__card{ padding:18px; border-radius:18px; }
-  .hero-feature-card{ grid-template-columns:1fr; }
-  .hero-feature-icon{ width:40px; height:40px; }
-  .home-social-footer__title{ font-size:24px; }
-  .carousel-slide{ flex: 0 0 100%; }
-  .carousel{ --carousel-visible: 1; }
-  .carousel-btn{ display: none; }
-  .carousel{ grid-template-columns: 1fr; }
-  .carousel-viewport{ grid-column: 1; }
-}
-
-/* ===== How It Works ===== */
-.steps-grid{
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--sb-space-xl, 24px);
-  margin-top: var(--sb-space-xl, 24px);
-}
-.step-card{
-  text-align: center;
-  padding: var(--sb-space-xl, 24px) var(--sb-space-lg, 16px);
-  background: var(--sb-color-panel, #121622);
-  border: 1px solid var(--sb-color-bd, #23293a);
-  border-radius: var(--sb-radius-xl, 16px);
-  transition: transform var(--sb-ease-fast, 150ms ease), box-shadow var(--sb-ease-fast, 150ms ease);
-}
-.step-card:hover{
-  transform: translateY(-3px);
-  box-shadow: var(--sb-shadow-md, 0 10px 30px rgba(0,0,0,.35));
-}
-.step-number{
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: var(--sb-radius-pill, 999px);
-  background: var(--sb-color-accent-soft, rgba(59, 130, 246, 0.18));
-  border: 2px solid var(--sb-color-accent-border, rgba(59, 130, 246, 0.35));
-  color: var(--sb-color-brand, #3b82f6);
-  font-size: var(--sb-font-xl, 20px);
-  font-weight: var(--sb-weight-bold, 700);
-  margin-bottom: var(--sb-space-md, 12px);
-}
-.step-title{
-  margin: 0 0 var(--sb-space-sm, 8px);
-  font-size: var(--sb-font-lg, 17px);
-  font-weight: var(--sb-weight-semibold, 600);
-  color: var(--sb-color-ink, #e6e8ef);
-}
-.step-desc{
-  margin: 0;
-  font-size: var(--sb-font-sm, 13px);
-  color: var(--sb-color-ink-muted, #9aa3b2);
-  line-height: var(--sb-leading-relaxed, 1.65);
-}
-@media (max-width: 640px){
-  .steps-grid{ grid-template-columns: 1fr; gap: var(--sb-space-md, 12px); }
-}
-
-/* ===== Owner CTA ===== */
-.cta-card{
-  text-align: center;
-  padding: var(--sb-space-3xl, 48px) var(--sb-space-xl, 24px);
-  background: linear-gradient(135deg, var(--sb-color-accent-soft, rgba(59, 130, 246, 0.18)), var(--sb-color-panel, #121622));
-  border: 1px solid var(--sb-color-accent-border, rgba(59, 130, 246, 0.35));
-  border-radius: var(--sb-radius-xl, 16px);
-}
-.cta-title{
-  margin: 0 0 var(--sb-space-sm, 8px);
-  font-size: var(--sb-font-2xl, 24px);
-  font-weight: var(--sb-weight-bold, 700);
-  color: var(--sb-color-ink, #e6e8ef);
-}
-.cta-desc{
-  margin: 0 auto var(--sb-space-xl, 24px);
-  max-width: 520px;
-  font-size: var(--sb-font-base, 15px);
-  color: var(--sb-color-ink-muted, #9aa3b2);
-  line-height: var(--sb-leading-relaxed, 1.65);
-}
-.cta-btn{
-  padding: var(--sb-space-md, 12px) var(--sb-space-2xl, 32px);
-  font-size: var(--sb-font-base, 15px);
-}
-
-/* ===== Badge Pending ===== */
-.badge-pending{
-  display: inline-block;
-  margin-top: var(--sb-space-sm, 6px);
-  padding: var(--sb-space-xs, 4px) var(--sb-space-sm, 8px);
-  border-radius: var(--sb-radius-pill, 999px);
-  background: var(--sb-color-danger-soft, rgba(239, 68, 68, 0.14));
-  color: #fca5a5;
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  font-size: var(--sb-font-xs, 11px);
-  font-weight: var(--sb-weight-medium, 500);
-}
-
-/* ===== Category Tags & Rating Badge ===== */
-.category-tags{
-  display: flex;
-  gap: var(--sb-space-sm, 6px);
-  flex-wrap: wrap;
-  margin-top: var(--sb-space-sm, 8px);
-}
-.cat-tag{
-  font-size: var(--sb-font-xs, 11px);
-  padding: 3px var(--sb-space-sm, 8px);
-  border-radius: var(--sb-radius-lg, 12px);
-  background: var(--sb-color-accent-soft, rgba(59, 130, 246, 0.18));
-  color: var(--sb-color-brand, #3b82f6);
-  border: 1px solid var(--sb-color-accent-border, rgba(59, 130, 246, 0.35));
-  text-transform: capitalize;
-  font-weight: var(--sb-weight-medium, 500);
-}
-.rating-badge{
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: var(--sb-space-sm, 8px);
-  font-size: var(--sb-font-sm, 13px);
-  color: var(--sb-color-ink-muted, #9aa3b2);
-}
-.rating-badge .stars{
-  color: #fbbf24;
-  font-size: var(--sb-font-sm, 14px);
-}
-
-/* ===== Section spacing ===== */
-.how-it-works{ margin-top: var(--sb-space-3xl, 48px); }
-.owner-cta{ margin-top: var(--sb-space-2xl, 32px); margin-bottom: var(--sb-space-xl, 24px); }
 </style>
-
-<script>
-/* ===== Carousel: auto-play RTL, smooth CSS transitions, dots, infinite ===== */
-document.addEventListener('DOMContentLoaded', function () {
-  const carousel = document.querySelector('.carousel');
-  const track = carousel?.querySelector('.carousel-track');
-  const dotsWrap = carousel?.querySelector('.carousel-dots');
-  const prevBtn = carousel?.querySelector('.carousel-btn.prev');
-  const nextBtn = carousel?.querySelector('.carousel-btn.next');
-  if (!carousel || !track) return;
-
-  const slides = Array.from(track.children);
-  const total = slides.length;
-  if (!total) return;
-
-  const isRtl = carousel.getAttribute('dir') === 'rtl' || document.documentElement.dir === 'rtl';
-  const gap = 12;
-  let currentIndex = 0;
-  let autoTimer = null;
-  const AUTO_INTERVAL = 4000;
-
-  /* --- Responsive visible count --- */
-  const mqlMobile = window.matchMedia('(max-width: 640px)');
-  const mqlTablet = window.matchMedia('(max-width: 900px)');
-  function getVisible() {
-    if (mqlMobile.matches) return 1;
-    if (mqlTablet.matches) return 2;
-    return 3;
-  }
-  let visible = getVisible();
-
-  function onResize() {
-    const newVis = getVisible();
-    if (newVis !== visible) { visible = newVis; goTo(Math.min(currentIndex, maxIndex()), false); }
-  }
-  window.addEventListener('resize', onResize);
-
-  function maxIndex() { return Math.max(0, total - visible); }
-
-  /* --- Dots --- */
-  function buildDots() {
-    if (!dotsWrap) return;
-    dotsWrap.innerHTML = '';
-    const pages = maxIndex() + 1;
-    for (let i = 0; i < pages; i++) {
-      const dot = document.createElement('button');
-      dot.className = 'carousel-dot' + (i === currentIndex ? ' is-active' : '');
-      dot.setAttribute('role', 'tab');
-      dot.setAttribute('aria-label', 'Slide ' + (i + 1));
-      dot.addEventListener('click', () => goTo(i));
-      dotsWrap.appendChild(dot);
-    }
-  }
-
-  function updateDots() {
-    if (!dotsWrap) return;
-    const dots = dotsWrap.querySelectorAll('.carousel-dot');
-    dots.forEach((d, i) => d.classList.toggle('is-active', i === currentIndex));
-  }
-
-  /* --- Movement --- */
-  function goTo(index, animate) {
-    if (animate === undefined) animate = true;
-    currentIndex = Math.max(0, Math.min(index, maxIndex()));
-    const slideW = track.parentElement.offsetWidth;
-    const singleSlide = (slideW - (visible - 1) * gap) / visible;
-    const offset = currentIndex * (singleSlide + gap);
-    track.style.transition = animate ? 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none';
-    const dir = isRtl ? 1 : -1;
-    track.style.transform = 'translateX(' + (dir * offset) + 'px)';
-    updateDots();
-  }
-
-  function goNext() { goTo(currentIndex >= maxIndex() ? 0 : currentIndex + 1); }
-  function goPrev() { goTo(currentIndex <= 0 ? maxIndex() : currentIndex - 1); }
-
-  /* In RTL, the carousel moves right-to-left, meaning "next" is the natural auto-play direction */
-  function autoNext() { goNext(); }
-
-  /* --- Auto-play --- */
-  function startAuto() { stopAuto(); autoTimer = setInterval(autoNext, AUTO_INTERVAL); }
-  function stopAuto() { if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } }
-
-  carousel.addEventListener('mouseenter', stopAuto);
-  carousel.addEventListener('mouseleave', startAuto);
-  carousel.addEventListener('focusin', stopAuto);
-  carousel.addEventListener('focusout', startAuto);
-
-  /* --- Button clicks --- */
-  prevBtn?.addEventListener('click', () => { goPrev(); stopAuto(); startAuto(); });
-  nextBtn?.addEventListener('click', () => { goNext(); stopAuto(); startAuto(); });
-
-  /* --- Touch swipe --- */
-  let touchStartX = 0;
-  let touchStartTime = 0;
-  track.addEventListener('touchstart', (e) => {
-    touchStartX = e.touches[0].clientX;
-    touchStartTime = Date.now();
-    stopAuto();
-  }, { passive: true });
-  track.addEventListener('touchend', (e) => {
-    const dx = e.changedTouches[0].clientX - touchStartX;
-    const dt = Date.now() - touchStartTime;
-    if (dt < 300 && Math.abs(dx) > 30 || Math.abs(dx) > 50) {
-      if (isRtl ? dx > 0 : dx < 0) goNext();
-      else goPrev();
-    }
-    startAuto();
-  }, { passive: true });
-
-  /* --- Trackpad / wheel --- */
-  let wheelLock = false;
-  track.parentElement.addEventListener('wheel', (e) => {
-    if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 5) {
-      e.preventDefault();
-      if (wheelLock) return;
-      wheelLock = true;
-      setTimeout(() => { wheelLock = false; }, 400);
-      if (e.deltaX > 0) { isRtl ? goPrev() : goNext(); }
-      else { isRtl ? goNext() : goPrev(); }
-      stopAuto(); startAuto();
-    }
-  }, { passive: false });
-
-  /* --- Init --- */
-  buildDots();
-  goTo(0, false);
-  startAuto();
-});
-</script>
-
-<script>
-/* ===== Autocomplete ===== */
-(function(){
-  var input = document.getElementById('q');
-  var box   = document.getElementById('ac-list');
-  var MAX   = 8;
-  var PLACEHOLDER = "/static/placeholder.png";
-  var aborter = null;
-  var items = [];
-  var active = -1;
-  var blurTimer = null;
-  function debounce(fn, ms){ var t=null; return function(){ var a=arguments; clearTimeout(t); t=setTimeout(function(){fn.apply(null,a)},ms||180); }; }
-  function normPhotos(p){var a=Array.isArray(p)?p:[];return a.map(x=>typeof x==='string'?x:(x&&x.dataUrl)).filter(Boolean);}
-  function hide(){ box.hidden=true; box.innerHTML=""; active=-1; input&&input.setAttribute('aria-expanded','false'); }
-  function show(){ if(!box.innerHTML.trim()){box.hidden=true;return;} box.hidden=false; input&&input.setAttribute('aria-expanded','true'); }
-  function render(){ if(!items.length){hide();return;} var h=""; for(var i=0;i<items.length;i++){var r=items[i]; h+='<div class="ac-item'+(i===active?' is-active':'')+'" data-idx="'+i+'"><img class="ac-thumb" src="'+(r.thumb||PLACEHOLDER)+'" alt=""/><div class="ac-meta"><div class="ac-title">'+escapeHtml(r.name)+'</div><div class="ac-sub">'+escapeHtml(r.city)+' &middot; '+escapeHtml(r.address)+'</div></div></div>'; } box.innerHTML=h; show(); }
-  function escapeHtml(s){return String(s||"").replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
-  async function search(q){ if(!q||!q.trim()){items=[];render();return;} try{aborter?.abort();}catch{} aborter=new AbortController(); var url=new URL('/api/restaurants',window.location.origin); url.searchParams.set('q',q); url.searchParams.set('approved','1'); try{ var res=await fetch(url.toString(),{signal:aborter.signal,headers:{'Accept':'application/json'}}); if(!res.ok)throw new Error('http '+res.status); var data=await res.json(); var arr=Array.isArray(data)?data.slice(0,MAX):[]; items=arr.map(rr=>({id:rr.id,name:rr.name||"",city:rr.city||"",address:rr.address||"",thumb:normPhotos(rr.photos)[0]||PLACEHOLDER})); active=-1; render(); }catch(e){ if(e.name==='AbortError')return; items=[]; render(); }}
-  var onInput=debounce(ev=>{var q=ev.target.value||""; if(q.trim().length<1){items=[];render();return;} search(q);},150);
-  if(input){
-    input.setAttribute('role','combobox');
-    input.setAttribute('aria-autocomplete','list');
-    input.setAttribute('aria-expanded','false');
-    input.setAttribute('aria-controls','ac-list');
-
-    input.addEventListener('input',onInput);
-    input.addEventListener('keydown',function(ev){
-      if (box.hidden) return;
-      var K=ev.key;
-      if (K==='ArrowDown'){ev.preventDefault(); if(!items.length)return; active=(active+1)%items.length; render();}
-      else if (K==='ArrowUp'){ev.preventDefault(); if(!items.length)return; active=(active-1+items.length)%items.length; render();}
-      else if (K==='Enter'){ if(active>=0&&active<items.length){ ev.preventDefault(); go(items[active]); } }
-      else if (K==='Escape'){ hide(); }
-    });
-
-    input.addEventListener('blur',function(){ blurTimer=setTimeout(hide,120); });
-    input.addEventListener('focus',function(){
-      clearTimeout(blurTimer);
-      if (items.length) show();
-      else if ((input.value||'').trim()) search(input.value.trim());
-    });
-  }
-
-  function go(row){
-    if (!row || !row.id) return;
-    window.location.href = '/restaurants/'+encodeURIComponent(row.id)+'?date='+new Date().toISOString().slice(0,10);
-  }
-
-  box.addEventListener('mousedown',function(e){
-    e.preventDefault();
-    var el=e.target.closest('.ac-item');
-    if(!el) return;
-    var i=Number(el.getAttribute('data-idx')||-1);
-    if(i>=0&&i<items.length) go(items[i]);
-  });
-
-  document.addEventListener('click',e=>{
-    if (!box.contains(e.target) && e.target!==input) hide();
-  });
-
-  if (input && (input.value||'').trim()){
-    search(input.value.trim());
-  }
-})();
-</script>

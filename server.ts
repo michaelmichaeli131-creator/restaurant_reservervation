@@ -390,6 +390,7 @@ root.get("/", async (ctx) => {
     kitchenCategories: r.kitchenCategories || [],
   }));
 
+  const t = (ctx.state as any)?.t;
   await render(ctx, "index", {
     restaurants,
     q,
@@ -397,7 +398,22 @@ root.get("/", async (ctx) => {
     category,
     featured,
     page: "home",
-    title: "GeoTable — חיפוש מסעדה",
+    title: t ? `SpotBook — ${t("home.hero.title")}` : "SpotBook — Find Restaurants",
+  });
+});
+
+root.get("/for-restaurants", async (ctx) => {
+  const user = (ctx.state as any)?.user ?? null;
+  if (user && user.role === "owner") {
+    ctx.response.status = Status.SeeOther;
+    ctx.response.headers.set("Location", "/owner");
+    return;
+  }
+
+  const t = (ctx.state as any)?.t;
+  await render(ctx, "for_restaurants", {
+    page: "for_restaurants",
+    title: t ? `SpotBook — ${t("for_restaurants.hero.title")}` : "SpotBook — For Restaurants",
   });
 });
 

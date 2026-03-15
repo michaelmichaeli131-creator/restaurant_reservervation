@@ -1,20 +1,27 @@
 {
   "home": {
     "hero": {
-      "title": "Reserve a Table at a Restaurant",
-      "sub": "Book a table easily and quickly online",
-      "badge": "Smart restaurant discovery",
-      "trust1": "Luxury dark experience",
+      "title": "Find the right table for tonight",
+      "sub": "Discover standout restaurants, compare the vibe, and reserve in a few smooth clicks.",
+      "badge": "Dining out starts here",
+      "trust1": "Verified restaurant pages",
       "trust2": "Fast booking flow",
-      "trust3": "Cleaner restaurant discovery",
-      "panel_title": "Book with more confidence",
-      "panel_sub": "A cleaner way to find the right restaurant, reserve faster, and manage the full dining journey.",
-      "feature1_title": "Curated discovery",
-      "feature1_desc": "Search by city, cuisine, and vibe without noise.",
-      "feature2_title": "Fast reservation flow",
-      "feature2_desc": "Choose your place, time, and guests in a few clean steps.",
-      "feature3_title": "Built for restaurants too",
-      "feature3_desc": "Floor plans, staff tools, and reservations in one system."
+      "trust3": "Made for guests",
+      "panel_title": "Your next favorite table",
+      "panel_heading": "Everything guests need before they book",
+      "panel_sub": "Browse beautiful restaurant pages, compare details quickly, and move from discovery to reservation without friction.",
+      "feature1_title": "Search with confidence",
+      "feature1_desc": "Find places by city, cuisine, and atmosphere without the clutter.",
+      "feature2_title": "Better restaurant pages",
+      "feature2_desc": "See the place faster with clear visuals and cleaner information.",
+      "feature3_title": "Reserve without friction",
+      "feature3_desc": "Pick a date, time, and group size in a simple, premium flow.",
+      "stat1_value": "Fast",
+      "stat1_label": "From search to booking",
+      "stat2_value": "Clear",
+      "stat2_label": "Photos, vibe, and details",
+      "stat3_value": "Smooth",
+      "stat3_label": "Mobile-friendly flow"
     },
     "search": {
       "placeholder": "Search restaurant / city / cuisine",
@@ -33,23 +40,50 @@
       "cafe": "Cafe",
       "vegetarian": "Vegetarian"
     },
+    "highlights": {
+      "card1_kicker": "For hungry planners",
+      "card1_title": "See the right place faster",
+      "card1_desc": "Use cuisine and city filters to narrow the field quickly and spend less time scrolling.",
+      "card2_kicker": "For special nights out",
+      "card2_title": "Get a stronger feel before you reserve",
+      "card2_desc": "Photos, address, cuisine, and ratings are presented in a cleaner way so your choice feels easier.",
+      "card3_kicker": "For every device",
+      "card3_title": "Book smoothly on desktop or mobile",
+      "card3_desc": "The experience is built to stay clean, readable, and fast wherever guests open it."
+    },
     "results": {
-      "title": "Results",
+      "kicker": "Search results",
+      "title": "Restaurants for your search",
       "empty": "No results found.",
       "open_label": "Open {name}",
       "badge_pending": "Pending approval",
       "badge_pending_title": "Not approved yet"
     },
     "featured": {
+      "kicker": "Popular choices",
       "title": "Featured Restaurants",
+      "desc": "Start with restaurants that already stand out on SpotBook.",
       "prev_aria": "Show previous",
       "next_aria": "Show next",
       "empty": "No restaurants available yet.",
       "view_all": "View All",
       "dots_aria": "Slide navigation"
     },
+    "benefits": {
+      "kicker": "Why guests choose SpotBook",
+      "title": "A cleaner journey from craving to reservation",
+      "text": "Every part of the homepage is tuned for diners: discover faster, compare more easily, and get to the booking step with less noise.",
+      "card1_title": "Smarter search",
+      "card1_desc": "Search by city, cuisine, or mood and find a better fit faster.",
+      "card2_title": "More visual restaurant pages",
+      "card2_desc": "Photos and information are easier to scan before you decide.",
+      "card3_title": "Lower-friction booking",
+      "card3_desc": "A smoother flow helps guests move from interest to confirmed table."
+    },
     "how_it_works": {
+      "kicker": "Simple for guests",
       "title": "How It Works",
+      "desc": "A clean path from discovering the place to actually booking it.",
       "step1_title": "Find a Restaurant",
       "step1_desc": "Search by name, city, or cuisine type to find the perfect spot.",
       "step2_title": "Pick a Time",
@@ -57,10 +91,12 @@
       "step3_title": "Confirm & Go",
       "step3_desc": "Receive instant confirmation and enjoy your dining experience."
     },
-    "cta": {
-      "owner_title": "Own a Restaurant?",
-      "owner_desc": "Join SpotBook and manage reservations, staff, and floor plans from a single dashboard.",
-      "owner_btn": "Register Your Restaurant"
+    "owner_teaser": {
+      "kicker": "For restaurant owners",
+      "title": "Want to grow your restaurant?",
+      "desc": "SpotBook is building a premium experience for restaurants too. See the dedicated page for reservation management, floor maps, staff tools, and a stronger guest journey.",
+      "primary": "Explore the restaurant platform",
+      "secondary": "Register your restaurant"
     },
     "social": {
       "title": "Follow SpotBook",
@@ -69,16 +105,6 @@
       "facebook": "Facebook",
       "coming_soon": "Link coming soon",
       "footer_title": "Stay connected with SpotBook"
-    },
-    "benefits": {
-      "kicker": "Why people choose SpotBook",
-      "title": "A sharper first impression for your guests",
-      "card1_title": "Smarter search",
-      "card1_desc": "Find restaurants faster with cleaner filters and a more premium browsing experience.",
-      "card2_title": "Beautiful listings",
-      "card2_desc": "Restaurants look richer, more visual, and easier to scan on desktop and mobile.",
-      "card3_title": "Higher booking intent",
-      "card3_desc": "Stronger hierarchy and clearer actions guide guests toward booking with less friction."
     }
   }
 }

@@ -1,0 +1,341 @@
+
+<% layout("_layout", it) %>
+
+<section class="owners-lp-hero">
+  <div class="owners-lp-hero__bg owners-lp-hero__bg--a"></div>
+  <div class="owners-lp-hero__bg owners-lp-hero__bg--b"></div>
+  <div class="sb-container owners-lp-hero__grid">
+    <div class="owners-lp-hero__copy">
+      <div class="owners-kicker"><%= (it.t && it.t('for_restaurants.hero.badge')) || 'For restaurant owners' %></div>
+      <h1 class="owners-hero-title"><%= (it.t && it.t('for_restaurants.hero.title')) || 'Turn guest demand into a sharper restaurant operation' %></h1>
+      <p class="owners-hero-sub"><%= (it.t && it.t('for_restaurants.hero.sub')) || 'SpotBook helps restaurants look better online, convert more reservations, seat faster, serve smoother, and stay in control from opening to the final bill.' %></p>
+
+      <div class="owners-hero-bullets">
+        <span>✦ <%= (it.t && it.t('for_restaurants.hero.proof1')) || 'Stronger guest-facing pages' %></span>
+        <span>⌁ <%= (it.t && it.t('for_restaurants.hero.proof2')) || 'Interactive floor map & host seating' %></span>
+        <span>⚡ <%= (it.t && it.t('for_restaurants.hero.proof3')) || 'Waiter, kitchen, and billing flow' %></span>
+      </div>
+
+      <div class="owners-hero-actions">
+        <a class="btn primary owners-btn-primary" href="#owner-signup"><%= (it.t && it.t('for_restaurants.hero.primary')) || 'Start your restaurant account' %></a>
+        <a class="btn secondary ghost owners-btn-secondary" href="/auth/login"><%= (it.t && it.t('for_restaurants.hero.secondary')) || 'Owner login' %></a>
+      </div>
+
+      <div class="owners-trust-row" aria-label="<%= (it.t && it.t('for_restaurants.hero.trust_aria')) || 'Highlights' %>">
+        <div class="owners-trust-pill"><strong><%= (it.t && it.t('for_restaurants.hero.trust1_value')) || '1 flow' %></strong><span><%= (it.t && it.t('for_restaurants.hero.trust1_label')) || 'guest page to bill' %></span></div>
+        <div class="owners-trust-pill"><strong><%= (it.t && it.t('for_restaurants.hero.trust2_value')) || 'Visual' %></strong><span><%= (it.t && it.t('for_restaurants.hero.trust2_label')) || 'floor editing & seating' %></span></div>
+        <div class="owners-trust-pill"><strong><%= (it.t && it.t('for_restaurants.hero.trust3_value')) || 'Live' %></strong><span><%= (it.t && it.t('for_restaurants.hero.trust3_label')) || 'service & bill control' %></span></div>
+      </div>
+    </div>
+
+    <aside class="owners-hero-panel">
+      <div class="owners-command-card">
+        <div class="owners-command-card__top">
+          <div>
+            <div class="owners-command-card__eyebrow">SpotBook</div>
+            <h2><%= (it.t && it.t('for_restaurants.panel.title')) || 'A premium operating system for modern restaurants' %></h2>
+          </div>
+          <div class="owners-command-card__badge"><%= (it.t && it.t('for_restaurants.panel.badge')) || 'Owner view' %></div>
+        </div>
+        <p class="owners-command-card__desc"><%= (it.t && it.t('for_restaurants.panel.desc')) || 'Instead of disconnected tools, your team gets one connected workflow for reservations, seating, waiters, checks, reports, and restaurant presentation.' %></p>
+        <div class="owners-command-stats">
+          <div class="owners-command-stat">
+            <strong><%= (it.t && it.t('for_restaurants.panel.stat1_value')) || 'Reservations' %></strong>
+            <span><%= (it.t && it.t('for_restaurants.panel.stat1_label')) || 'Daily management and confirmations' %></span>
+          </div>
+          <div class="owners-command-stat">
+            <strong><%= (it.t && it.t('for_restaurants.panel.stat2_value')) || 'Host' %></strong>
+            <span><%= (it.t && it.t('for_restaurants.panel.stat2_label')) || 'Seat guests with real floor context' %></span>
+          </div>
+          <div class="owners-command-stat">
+            <strong><%= (it.t && it.t('for_restaurants.panel.stat3_value')) || 'Waiter' %></strong>
+            <span><%= (it.t && it.t('for_restaurants.panel.stat3_label')) || 'Orders, kitchen flow, and closing checks' %></span>
+          </div>
+        </div>
+        <div class="owners-command-steps">
+          <div class="owners-command-step"><span>01</span><p><%= (it.t && it.t('for_restaurants.panel.step1')) || 'Guests discover your restaurant page and reserve online.' %></p></div>
+          <div class="owners-command-step"><span>02</span><p><%= (it.t && it.t('for_restaurants.panel.step2')) || 'Hosts seat faster with room and floor awareness.' %></p></div>
+          <div class="owners-command-step"><span>03</span><p><%= (it.t && it.t('for_restaurants.panel.step3')) || 'Waiters manage the live table and close the bill.' %></p></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section class="section owners-outcomes">
+  <div class="sb-container">
+    <div class="section-head-center">
+      <div class="section-kicker"><%= (it.t && it.t('for_restaurants.outcomes.kicker')) || 'Why restaurant teams choose this direction' %></div>
+      <h2 class="section-title"><%= (it.t && it.t('for_restaurants.outcomes.title')) || 'Built around the real front-of-house pressure points' %></h2>
+      <p class="section-head-center__desc"><%= (it.t && it.t('for_restaurants.outcomes.desc')) || 'The value is not just prettier screens. It is fewer handoff gaps between guests, hosts, waiters, and owners.' %></p>
+    </div>
+
+    <div class="owners-outcomes-grid">
+      <article class="owners-outcome-card">
+        <div class="owners-outcome-card__icon">◎</div>
+        <h3><%= (it.t && it.t('for_restaurants.outcomes.card1_title')) || 'Convert interest into bookings' %></h3>
+        <p><%= (it.t && it.t('for_restaurants.outcomes.card1_desc')) || 'A stronger public page helps guests understand the place faster and actually complete the reservation.' %></p>
+      </article>
+      <article class="owners-outcome-card">
+        <div class="owners-outcome-card__icon">▦</div>
+        <h3><%= (it.t && it.t('for_restaurants.outcomes.card2_title')) || 'Seat with floor awareness' %></h3>
+        <p><%= (it.t && it.t('for_restaurants.outcomes.card2_desc')) || 'Your host sees rooms, tables, and seat availability visually instead of working blind.' %></p>
+      </article>
+      <article class="owners-outcome-card">
+        <div class="owners-outcome-card__icon">☰</div>
+        <h3><%= (it.t && it.t('for_restaurants.outcomes.card3_title')) || 'Run service with less friction' %></h3>
+        <p><%= (it.t && it.t('for_restaurants.outcomes.card3_desc')) || 'Waiters move faster from order taking to kitchen communication to check closing.' %></p>
+      </article>
+      <article class="owners-outcome-card">
+        <div class="owners-outcome-card__icon">↗</div>
+        <h3><%= (it.t && it.t('for_restaurants.outcomes.card4_title')) || 'See the business more clearly' %></h3>
+        <p><%= (it.t && it.t('for_restaurants.outcomes.card4_desc')) || 'Reports, bills, staff tools, and day-level visibility give owners tighter control.' %></p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section owners-modules">
+  <div class="sb-container owners-modules__grid">
+    <div class="owners-modules__copy">
+      <div class="section-kicker"><%= (it.t && it.t('for_restaurants.modules.kicker')) || 'What is inside SpotBook' %></div>
+      <h2 class="section-title"><%= (it.t && it.t('for_restaurants.modules.title')) || 'The modules your restaurant team actually touches every day' %></h2>
+      <p class="owners-modules__text"><%= (it.t && it.t('for_restaurants.modules.desc')) || 'SpotBook is designed as one connected stack, not a collection of disconnected dashboards.' %></p>
+    </div>
+
+    <div class="owners-module-list">
+      <article class="owners-module-item">
+        <div class="owners-module-item__head"><span>01</span><h3><%= (it.t && it.t('for_restaurants.modules.item1_title')) || 'Guest-facing restaurant page' %></h3></div>
+        <p><%= (it.t && it.t('for_restaurants.modules.item1_desc')) || 'Show photos, details, rooms, and a cleaner booking path that feels premium to guests.' %></p>
+      </article>
+      <article class="owners-module-item">
+        <div class="owners-module-item__head"><span>02</span><h3><%= (it.t && it.t('for_restaurants.modules.item2_title')) || 'Reservation management & confirmations' %></h3></div>
+        <p><%= (it.t && it.t('for_restaurants.modules.item2_desc')) || 'Keep the day organized with today reservations, status tracking, and guest details.' %></p>
+      </article>
+      <article class="owners-module-item">
+        <div class="owners-module-item__head"><span>03</span><h3><%= (it.t && it.t('for_restaurants.modules.item3_title')) || 'Host seating & floor map' %></h3></div>
+        <p><%= (it.t && it.t('for_restaurants.modules.item3_desc')) || 'Work visually with the map, rooms, tables, and guest seating logic.' %></p>
+      </article>
+      <article class="owners-module-item">
+        <div class="owners-module-item__head"><span>04</span><h3><%= (it.t && it.t('for_restaurants.modules.item4_title')) || 'Waiter, kitchen, and billing flow' %></h3></div>
+        <p><%= (it.t && it.t('for_restaurants.modules.item4_desc')) || 'Open orders, add items, communicate with the kitchen, and close checks from the live service screen.' %></p>
+      </article>
+      <article class="owners-module-item">
+        <div class="owners-module-item__head"><span>05</span><h3><%= (it.t && it.t('for_restaurants.modules.item5_title')) || 'Reports, staff, and operations' %></h3></div>
+        <p><%= (it.t && it.t('for_restaurants.modules.item5_desc')) || 'Track performance, staffing, and the daily operational picture from one place.' %></p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section owners-before-after">
+  <div class="sb-container">
+    <div class="section-head-center">
+      <div class="section-kicker"><%= (it.t && it.t('for_restaurants.compare.kicker')) || 'The practical shift' %></div>
+      <h2 class="section-title"><%= (it.t && it.t('for_restaurants.compare.title')) || 'From scattered restaurant work to one cleaner flow' %></h2>
+    </div>
+    <div class="owners-compare-grid">
+      <div class="owners-compare-card owners-compare-card--before">
+        <div class="owners-compare-card__label"><%= (it.t && it.t('for_restaurants.compare.before_label')) || 'Without a connected flow' %></div>
+        <ul>
+          <li><%= (it.t && it.t('for_restaurants.compare.before1')) || 'Guests see a weak page and drop before booking.' %></li>
+          <li><%= (it.t && it.t('for_restaurants.compare.before2')) || 'Hosts seat manually without room/table context.' %></li>
+          <li><%= (it.t && it.t('for_restaurants.compare.before3')) || 'Waiters juggle orders and checks with more friction.' %></li>
+          <li><%= (it.t && it.t('for_restaurants.compare.before4')) || 'Owners switch between tools to understand the day.' %></li>
+        </ul>
+      </div>
+      <div class="owners-compare-card owners-compare-card--after">
+        <div class="owners-compare-card__label"><%= (it.t && it.t('for_restaurants.compare.after_label')) || 'With SpotBook' %></div>
+        <ul>
+          <li><%= (it.t && it.t('for_restaurants.compare.after1')) || 'Guests get a stronger booking experience from the start.' %></li>
+          <li><%= (it.t && it.t('for_restaurants.compare.after2')) || 'Hosts seat with visual floor and room awareness.' %></li>
+          <li><%= (it.t && it.t('for_restaurants.compare.after3')) || 'Waiters work from a clearer live order flow.' %></li>
+          <li><%= (it.t && it.t('for_restaurants.compare.after4')) || 'Owners see reservations, bills, and reports together.' %></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section owners-faq">
+  <div class="sb-container owners-faq__grid">
+    <div>
+      <div class="section-kicker"><%= (it.t && it.t('for_restaurants.faq.kicker')) || 'Questions owners usually ask' %></div>
+      <h2 class="section-title"><%= (it.t && it.t('for_restaurants.faq.title')) || 'A cleaner path to getting started' %></h2>
+      <p class="owners-faq__text"><%= (it.t && it.t('for_restaurants.faq.desc')) || 'Start with an owner account, then continue shaping your restaurant profile, floor map, and service flow.' %></p>
+    </div>
+    <div class="owners-faq-list">
+      <details class="owners-faq-item" open>
+        <summary><%= (it.t && it.t('for_restaurants.faq.q1')) || 'Do I need to finish everything in one day?' %></summary>
+        <p><%= (it.t && it.t('for_restaurants.faq.a1')) || 'No. Start with the account, then continue building your restaurant profile and operations step by step.' %></p>
+      </details>
+      <details class="owners-faq-item">
+        <summary><%= (it.t && it.t('for_restaurants.faq.q2')) || 'Is this only for reservations?' %></summary>
+        <p><%= (it.t && it.t('for_restaurants.faq.a2')) || 'No. Reservations are only one layer. The platform also covers floor seating, waiter flow, bills, reports, and owner visibility.' %></p>
+      </details>
+      <details class="owners-faq-item">
+        <summary><%= (it.t && it.t('for_restaurants.faq.q3')) || 'Can I start as an owner account now?' %></summary>
+        <p><%= (it.t && it.t('for_restaurants.faq.a3')) || 'Yes. Use the registration form below and choose the restaurant owner flow.' %></p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section id="owner-signup" class="section owners-signup">
+  <div class="sb-container owners-signup__grid">
+    <div class="owners-signup__copy">
+      <div class="section-kicker"><%= (it.t && it.t('for_restaurants.signup.kicker')) || 'Create your owner account' %></div>
+      <h2 class="section-title"><%= (it.t && it.t('for_restaurants.signup.title')) || 'Start with registration, then build your restaurant in SpotBook' %></h2>
+      <p class="owners-signup__text"><%= (it.t && it.t('for_restaurants.signup.desc')) || 'This form creates your SpotBook account as a restaurant owner. After that you can keep shaping your restaurant page, reservations, floor, staff flow, and operations.' %></p>
+      <div class="owners-signup-points">
+        <div><span>✓</span><p><%= (it.t && it.t('for_restaurants.signup.point1')) || 'Owner account flow preselected' %></p></div>
+        <div><span>✓</span><p><%= (it.t && it.t('for_restaurants.signup.point2')) || 'Restaurant-focused business type selection' %></p></div>
+        <div><span>✓</span><p><%= (it.t && it.t('for_restaurants.signup.point3')) || 'Continue later and complete your setup step by step' %></p></div>
+      </div>
+    </div>
+
+    <div class="owners-signup-card">
+      <form method="POST" action="/auth/register" class="owners-signup-form">
+        <input type="hidden" name="accountType" value="owner" />
+
+        <div class="owners-form-grid owners-form-grid--two">
+          <label class="owners-field">
+            <span><%= (it.t && it.t('auth.register.form.firstName')) || 'First name' %></span>
+            <input type="text" name="firstName" required placeholder="<%= (it.t && it.t('auth.register.form.firstNamePh')) || 'For example: Daniel' %>" />
+          </label>
+          <label class="owners-field">
+            <span><%= (it.t && it.t('auth.register.form.lastName')) || 'Last name' %></span>
+            <input type="text" name="lastName" required placeholder="<%= (it.t && it.t('auth.register.form.lastNamePh')) || 'For example: Cohen' %>" />
+          </label>
+        </div>
+
+        <label class="owners-field">
+          <span><%= (it.t && it.t('auth.register.form.email')) || 'Email' %></span>
+          <input type="email" name="email" required placeholder="<%= (it.t && it.t('auth.register.form.emailPh')) || 'you@example.com' %>" />
+        </label>
+
+        <div class="owners-form-grid owners-form-grid--two">
+          <label class="owners-field">
+            <span><%= (it.t && it.t('auth.register.form.password')) || 'Password' %></span>
+            <input type="password" name="password" minlength="8" required placeholder="<%= (it.t && it.t('auth.register.form.passwordPh')) || 'At least 8 characters' %>" />
+          </label>
+          <label class="owners-field">
+            <span><%= (it.t && it.t('auth.register.form.confirm')) || 'Confirm password' %></span>
+            <input type="password" name="confirm" minlength="8" required placeholder="<%= (it.t && it.t('auth.register.form.confirmPh')) || 'Type the password again' %>" />
+          </label>
+        </div>
+
+        <div class="owners-form-grid owners-form-grid--two">
+          <label class="owners-field">
+            <span><%= (it.t && it.t('auth.register.form.businessType')) || 'Business type' %></span>
+            <select name="businessType" required>
+              <option value="restaurant"><%= (it.t && it.t('auth.register.form.optRestaurant')) || 'Restaurant' %></option>
+              <option value="cafe"><%= (it.t && it.t('auth.register.form.optCafe')) || 'Cafe' %></option>
+              <option value="bar"><%= (it.t && it.t('auth.register.form.optBar')) || 'Bar' %></option>
+              <option value="hotel"><%= (it.t && it.t('auth.register.form.optHotel')) || 'Hotel / Hospitality' %></option>
+              <option value="other"><%= (it.t && it.t('auth.register.form.optOther')) || 'Other' %></option>
+            </select>
+          </label>
+          <label class="owners-field">
+            <span><%= (it.t && it.t('auth.register.form.phone')) || 'Mobile (optional)' %></span>
+            <input type="tel" name="phone" placeholder="<%= (it.t && it.t('auth.register.form.phonePh')) || '050-1234567' %>" />
+          </label>
+        </div>
+
+        <button class="btn primary owners-signup-submit" type="submit"><%= (it.t && it.t('for_restaurants.signup.submit')) || 'Create owner account' %></button>
+        <p class="owners-signup-footnote"><%= (it.t && it.t('for_restaurants.signup.footnote')) || 'Already have an owner account?' %> <a href="/auth/login"><%= (it.t && it.t('for_restaurants.signup.login')) || 'Log in here' %></a></p>
+      </form>
+    </div>
+  </div>
+</section>
+
+<style>
+.owners-lp-hero,.owners-outcomes,.owners-modules,.owners-before-after,.owners-faq,.owners-signup{position:relative}
+.owners-lp-hero{overflow:hidden;margin-top:12px;padding:clamp(34px,4vw,58px) 0;border-radius:34px;background:
+  radial-gradient(circle at top left, rgba(56,189,248,.18), transparent 28%),
+  radial-gradient(circle at bottom right, rgba(59,130,246,.18), transparent 28%),
+  linear-gradient(180deg, rgba(8,13,24,.98), rgba(8,13,24,.9));
+  border:1px solid rgba(148,163,184,.16);box-shadow:0 34px 90px rgba(2,8,23,.42)}
+.owners-lp-hero__bg{position:absolute;border-radius:999px;filter:blur(16px);pointer-events:none;opacity:.78}
+.owners-lp-hero__bg--a{width:220px;height:220px;top:-28px;right:-28px;background:rgba(96,165,250,.18)}
+.owners-lp-hero__bg--b{width:180px;height:180px;left:-28px;bottom:-22px;background:rgba(56,189,248,.2)}
+.owners-lp-hero__grid,.owners-modules__grid,.owners-faq__grid,.owners-signup__grid{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,1.08fr) minmax(330px,.92fr);gap:24px;align-items:start}
+.owners-kicker,.section-kicker{letter-spacing:.16em;text-transform:uppercase;font-size:12px;font-weight:800;color:#7dd3fc}
+.owners-hero-title{margin:12px 0 14px;max-width:13ch;font-size:clamp(44px,6vw,76px);line-height:.93;letter-spacing:-.05em;color:#f8fbff}
+.owners-hero-sub{margin:0;max-width:62ch;color:rgba(226,232,240,.84);line-height:1.85;font-size:17px}
+.owners-hero-bullets{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.owners-hero-bullets span,.owners-trust-pill,.owners-compare-card__label,.owners-command-card__badge{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;border:1px solid rgba(125,211,252,.18);background:rgba(15,23,42,.54);color:#d8ecff;font-size:14px}
+.owners-hero-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:20px}
+.owners-btn-primary{box-shadow:0 16px 34px rgba(59,130,246,.22)}
+.owners-trust-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:22px}
+.owners-trust-pill{border-radius:20px;flex-direction:column;align-items:flex-start;gap:4px;padding:16px 18px;min-height:92px}
+.owners-trust-pill strong{font-size:24px;color:#f8fbff;line-height:1}
+.owners-trust-pill span{font-size:13px;color:#a8bfd8}
+.owners-command-card,.owners-signup-card,.owners-outcome-card,.owners-module-item,.owners-compare-card,.owners-faq-item{background:linear-gradient(180deg, rgba(15,23,42,.8), rgba(15,23,42,.56));border:1px solid rgba(148,163,184,.13);box-shadow:0 22px 60px rgba(2,8,23,.2)}
+.owners-command-card{padding:24px;border-radius:28px}
+.owners-command-card__top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.owners-command-card__eyebrow{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#7dd3fc;margin-bottom:8px}
+.owners-command-card h2{margin:0;color:#f8fbff;font-size:30px;line-height:1.08;max-width:14ch}
+.owners-command-card__desc{margin:14px 0 0;color:#9fb0c6;line-height:1.8}
+.owners-command-stats{display:grid;grid-template-columns:1fr;gap:12px;margin-top:18px}
+.owners-command-stat{padding:14px 16px;border-radius:20px;background:rgba(2,8,23,.28);border:1px solid rgba(148,163,184,.12)}
+.owners-command-stat strong{display:block;font-size:19px;color:#f8fbff;margin-bottom:4px}
+.owners-command-stat span{color:#9db1cb;line-height:1.6}
+.owners-command-steps{display:grid;gap:10px;margin-top:18px}
+.owners-command-step{display:grid;grid-template-columns:42px 1fr;gap:12px;align-items:start}
+.owners-command-step span{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:rgba(59,130,246,.16);color:#eff6ff;font-weight:800;border:1px solid rgba(96,165,250,.24)}
+.owners-command-step p{margin:0;color:#c2d5ea;line-height:1.7}
+.section{padding:30px 0}
+.section-head-center{text-align:center;max-width:880px;margin:0 auto 24px}
+.section-title{margin:10px 0 10px;color:#eef6ff;font-size:clamp(30px,4vw,50px);line-height:1.06;letter-spacing:-.03em}
+.section-head-center__desc,.owners-modules__text,.owners-faq__text,.owners-signup__text{color:#97aac4;line-height:1.85;font-size:16px}
+.owners-outcomes-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.owners-outcome-card{padding:22px;border-radius:24px}
+.owners-outcome-card__icon{width:52px;height:52px;display:grid;place-items:center;border-radius:18px;background:rgba(59,130,246,.14);border:1px solid rgba(96,165,250,.22);font-size:24px;color:#eff6ff;margin-bottom:16px}
+.owners-outcome-card h3,.owners-module-item h3{margin:0 0 10px;color:#eef6ff;font-size:20px}
+.owners-outcome-card p,.owners-module-item p{margin:0;color:#9fb0c6;line-height:1.8}
+.owners-module-list{display:grid;gap:14px}
+.owners-module-item{padding:20px;border-radius:24px}
+.owners-module-item__head{display:flex;gap:14px;align-items:center;margin-bottom:8px}
+.owners-module-item__head span{width:48px;height:48px;display:grid;place-items:center;border-radius:16px;background:rgba(59,130,246,.14);border:1px solid rgba(96,165,250,.22);color:#eff6ff;font-weight:800}
+.owners-compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.owners-compare-card{padding:24px;border-radius:28px}
+.owners-compare-card--before{background:linear-gradient(180deg, rgba(36,16,16,.62), rgba(15,23,42,.56));border-color:rgba(248,113,113,.18)}
+.owners-compare-card--after{background:linear-gradient(180deg, rgba(10,34,26,.72), rgba(15,23,42,.56));border-color:rgba(74,222,128,.18)}
+.owners-compare-card ul{margin:16px 0 0;padding:0;list-style:none;display:grid;gap:12px}
+.owners-compare-card li{position:relative;padding-left:24px;color:#c7d7ea;line-height:1.75}
+html[dir="rtl"] .owners-compare-card li{padding-left:0;padding-right:24px}
+.owners-compare-card li::before{content:"•";position:absolute;left:0;top:0;color:#7dd3fc}
+html[dir="rtl"] .owners-compare-card li::before{left:auto;right:0}
+.owners-faq-list{display:grid;gap:12px}
+.owners-faq-item{padding:0 18px;border-radius:22px;overflow:hidden}
+.owners-faq-item summary{cursor:pointer;padding:18px 0;color:#eef6ff;font-weight:700;list-style:none}
+.owners-faq-item summary::-webkit-details-marker{display:none}
+.owners-faq-item p{margin:0 0 18px;color:#9fb0c6;line-height:1.8}
+.owners-signup-card{padding:22px;border-radius:28px}
+.owners-signup-form{display:grid;gap:14px}
+.owners-form-grid{display:grid;gap:14px}
+.owners-form-grid--two{grid-template-columns:1fr 1fr}
+.owners-field{display:grid;gap:8px}
+.owners-field span{font-size:14px;font-weight:700;color:#dbeafe}
+.owners-field input,.owners-field select{width:100%;padding:14px 16px;border-radius:16px;border:1px solid rgba(148,163,184,.16);background:rgba(8,13,24,.72);color:#f8fbff;outline:none;box-sizing:border-box}
+.owners-field input::placeholder{color:#6f829b}
+.owners-field input:focus,.owners-field select:focus{border-color:rgba(125,211,252,.42);box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+.owners-signup-submit{width:100%;margin-top:4px;font-size:16px;min-height:52px}
+.owners-signup-footnote{margin:4px 0 0;color:#95a7c0;text-align:center}
+.owners-signup-footnote a{color:#7dd3fc;text-decoration:none}
+.owners-signup-points{display:grid;gap:12px;margin-top:18px}
+.owners-signup-points>div{display:grid;grid-template-columns:26px 1fr;gap:12px;align-items:start;padding:14px 16px;border-radius:18px;background:rgba(15,23,42,.4);border:1px solid rgba(148,163,184,.12)}
+.owners-signup-points span{width:26px;height:26px;display:grid;place-items:center;border-radius:999px;background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.22);color:#d9ffe7;font-weight:900}
+.owners-signup-points p{margin:0;color:#c9d9eb;line-height:1.7}
+@media (max-width:1100px){
+  .owners-lp-hero__grid,.owners-modules__grid,.owners-faq__grid,.owners-signup__grid,.owners-outcomes-grid,.owners-compare-grid{grid-template-columns:1fr}
+  .owners-trust-row{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  .owners-lp-hero{border-radius:24px;padding-top:24px}
+  .owners-hero-title{font-size:clamp(34px,10vw,54px);max-width:none}
+  .owners-hero-actions,.owners-form-grid--two{grid-template-columns:1fr;display:grid}
+  .owners-hero-actions .btn{width:100%}
+}
+</style>
