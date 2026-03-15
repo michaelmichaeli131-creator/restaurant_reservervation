@@ -2,7 +2,19 @@
   "home": {
     "hero": {
       "title": "Reserve a Table at a Restaurant",
-      "sub": "Book a table easily and quickly online"
+      "sub": "Book a table easily and quickly online",
+      "badge": "Smart restaurant discovery",
+      "trust1": "Luxury dark experience",
+      "trust2": "Fast booking flow",
+      "trust3": "Cleaner restaurant discovery",
+      "panel_title": "Book with more confidence",
+      "panel_sub": "A cleaner way to find the right restaurant, reserve faster, and manage the full dining journey.",
+      "feature1_title": "Curated discovery",
+      "feature1_desc": "Search by city, cuisine, and vibe without noise.",
+      "feature2_title": "Fast reservation flow",
+      "feature2_desc": "Choose your place, time, and guests in a few clean steps.",
+      "feature3_title": "Built for restaurants too",
+      "feature3_desc": "Floor plans, staff tools, and reservations in one system."
     },
     "search": {
       "placeholder": "Search restaurant / city / cuisine",
@@ -55,7 +67,18 @@
       "aria": "SpotBook social links",
       "instagram": "Instagram",
       "facebook": "Facebook",
-      "coming_soon": "Link coming soon"
+      "coming_soon": "Link coming soon",
+      "footer_title": "Stay connected with SpotBook"
+    },
+    "benefits": {
+      "kicker": "Why people choose SpotBook",
+      "title": "A sharper first impression for your guests",
+      "card1_title": "Smarter search",
+      "card1_desc": "Find restaurants faster with cleaner filters and a more premium browsing experience.",
+      "card2_title": "Beautiful listings",
+      "card2_desc": "Restaurants look richer, more visual, and easier to scan on desktop and mobile.",
+      "card3_title": "Higher booking intent",
+      "card3_desc": "Stronger hierarchy and clearer actions guide guests toward booking with less friction."
     }
   }
 }

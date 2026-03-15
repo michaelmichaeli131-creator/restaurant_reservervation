@@ -1,59 +1,93 @@
 <% layout("_layout", it) %>
 
 <!-- ===== Hero Section ===== -->
-<section class="hero">
+<section class="hero hero-home">
   <div class="hero-bg"></div>
-  <div class="hero-inner">
-    <h1 class="hero-title"><%= (it.t && it.t('home.hero.title')) || 'Reserve a Table at a Restaurant' %></h1>
-    <p class="hero-sub"><%= (it.t && it.t('home.hero.sub')) || 'Book a table easily and quickly online' %></p>
+  <div class="hero-orb hero-orb--a"></div>
+  <div class="hero-orb hero-orb--b"></div>
+  <div class="hero-inner hero-grid">
+    <div class="hero-copy">
+      <div class="hero-badge"><%= (it.t && it.t('home.hero.badge')) || 'Smart restaurant discovery' %></div>
+      <h1 class="hero-title"><%= (it.t && it.t('home.hero.title')) || 'Reserve a Table at a Restaurant' %></h1>
+      <p class="hero-sub"><%= (it.t && it.t('home.hero.sub')) || 'Book a table easily and quickly online' %></p>
 
-    <div class="ac-wrap" style="position:relative; width:100%; max-width:980px">
-      <form id="search-form" class="search-bar" method="GET" action="/" role="search" aria-label="<%= (it.t && it.t('home.search.aria')) || 'Search restaurants' %>">
-        <input type="hidden" name="search" value="1"/>
+      <div class="ac-wrap hero-search-shell" style="position:relative; width:100%; max-width:980px">
+        <form id="search-form" class="search-bar hero-search-bar" method="GET" action="/" role="search" aria-label="<%= (it.t && it.t('home.search.aria')) || 'Search restaurants' %>">
+          <input type="hidden" name="search" value="1"/>
 
-        <div class="field with-icon" style="min-width:260px; flex:1">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/>
-          </svg>
-          <input
-            name="q" id="q" type="search"
-            inputmode="search" enterkeyhint="search" autocomplete="on"
-            placeholder="<%= (it.t && it.t('home.search.placeholder')) || 'Search restaurant / city / cuisine' %>"
-            aria-label="<%= (it.t && it.t('home.search.input_aria')) || 'Search restaurant, city or cuisine' %>"
-            value="<%= it.q || '' %>">
+          <div class="field with-icon" style="min-width:260px; flex:1">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/>
+            </svg>
+            <input
+              name="q" id="q" type="search"
+              inputmode="search" enterkeyhint="search" autocomplete="on"
+              placeholder="<%= (it.t && it.t('home.search.placeholder')) || 'Search restaurant / city / cuisine' %>"
+              aria-label="<%= (it.t && it.t('home.search.input_aria')) || 'Search restaurant, city or cuisine' %>"
+              value="<%= it.q || '' %>">
+          </div>
+
+          <button class="btn primary search-btn hero-search-btn" type="submit">
+            <%= (it.t && it.t('home.search.cta')) || 'Search' %>
+          </button>
+        </form>
+
+        <div id="ac-list" class="ac-list" role="listbox" aria-label="<%= (it.t && it.t('home.search.suggestions_aria')) || 'Search suggestions' %>" hidden></div>
+      </div>
+
+      <div class="hero-trust">
+        <div class="hero-trust-pill"><span>✦</span><%= (it.t && it.t('home.hero.trust1')) || 'Luxury dark experience' %></div>
+        <div class="hero-trust-pill"><span>⚡</span><%= (it.t && it.t('home.hero.trust2')) || 'Fast booking flow' %></div>
+        <div class="hero-trust-pill"><span>✓</span><%= (it.t && it.t('home.hero.trust3')) || 'Cleaner restaurant discovery' %></div>
+      </div>
+
+      <div class="category-chips hero-chips">
+        <a href="/" class="chip <%= !it.category ? 'active' : '' %>"><%= (it.t && it.t('home.categories.all')) || 'All' %></a>
+        <a href="/?category=italian" class="chip <%= it.category === 'italian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.italian')) || 'Italian' %></a>
+        <a href="/?category=asian" class="chip <%= it.category === 'asian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.asian')) || 'Asian' %></a>
+        <a href="/?category=japanese" class="chip <%= it.category === 'japanese' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.japanese')) || 'Japanese' %></a>
+        <a href="/?category=steakhouse" class="chip <%= it.category === 'steakhouse' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.steakhouse')) || 'Steakhouse' %></a>
+        <a href="/?category=mediterranean" class="chip <%= it.category === 'mediterranean' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.mediterranean')) || 'Mediterranean' %></a>
+        <a href="/?category=cafe" class="chip <%= it.category === 'cafe' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.cafe')) || 'Cafe' %></a>
+        <a href="/?category=vegetarian" class="chip <%= it.category === 'vegetarian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.vegetarian')) || 'Vegetarian' %></a>
+      </div>
+    </div>
+
+    <aside class="hero-panel" aria-label="<%= (it.t && it.t('home.hero.panel_title')) || 'Why SpotBook' %>">
+      <div class="hero-panel-card">
+        <div class="hero-panel-head">
+          <div>
+            <div class="hero-panel-kicker">SpotBook</div>
+            <h2 class="hero-panel-title"><%= (it.t && it.t('home.hero.panel_title')) || 'Book with more confidence' %></h2>
+          </div>
+          <div class="hero-panel-score">4.9</div>
         </div>
-
-        <button class="btn primary search-btn" type="submit">
-          <%= (it.t && it.t('home.search.cta')) || 'Search' %>
-        </button>
-      </form>
-
-      <div id="ac-list" class="ac-list" role="listbox" aria-label="<%= (it.t && it.t('home.search.suggestions_aria')) || 'Search suggestions' %>" hidden></div>
-    </div>
-
-    <div class="social-links" aria-label="<%= (it.t && it.t('home.social.aria')) || 'SpotBook social links' %>">
-      <span class="social-links__label"><%= (it.t && it.t('home.social.title')) || 'Follow SpotBook' %></span>
-      <a class="social-link" href="#" aria-label="<%= (it.t && it.t('home.social.instagram')) || 'Instagram' %>" title="<%= (it.t && it.t('home.social.coming_soon')) || 'Link coming soon' %>">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" ry="5" fill="none" stroke="currentColor" stroke-width="1.8"></rect><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"></circle><circle cx="17.3" cy="6.7" r="1.2" fill="currentColor"></circle></svg>
-        <span><%= (it.t && it.t('home.social.instagram')) || 'Instagram' %></span>
-      </a>
-      <a class="social-link" href="#" aria-label="<%= (it.t && it.t('home.social.facebook')) || 'Facebook' %>" title="<%= (it.t && it.t('home.social.coming_soon')) || 'Link coming soon' %>">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 21v-7h2.5l.5-3h-3V9.4c0-.9.3-1.5 1.6-1.5H17V5.2c-.4-.1-1.3-.2-2.4-.2-2.4 0-4.1 1.5-4.1 4.2V11H8v3h2.5v7h3z" fill="currentColor"></path></svg>
-        <span><%= (it.t && it.t('home.social.facebook')) || 'Facebook' %></span>
-      </a>
-    </div>
-
-    <!-- Category Filter Chips -->
-    <div class="category-chips">
-      <a href="/" class="chip <%= !it.category ? 'active' : '' %>"><%= (it.t && it.t('home.categories.all')) || 'All' %></a>
-      <a href="/?category=italian" class="chip <%= it.category === 'italian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.italian')) || 'Italian' %></a>
-      <a href="/?category=asian" class="chip <%= it.category === 'asian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.asian')) || 'Asian' %></a>
-      <a href="/?category=japanese" class="chip <%= it.category === 'japanese' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.japanese')) || 'Japanese' %></a>
-      <a href="/?category=steakhouse" class="chip <%= it.category === 'steakhouse' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.steakhouse')) || 'Steakhouse' %></a>
-      <a href="/?category=mediterranean" class="chip <%= it.category === 'mediterranean' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.mediterranean')) || 'Mediterranean' %></a>
-      <a href="/?category=cafe" class="chip <%= it.category === 'cafe' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.cafe')) || 'Cafe' %></a>
-      <a href="/?category=vegetarian" class="chip <%= it.category === 'vegetarian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.vegetarian')) || 'Vegetarian' %></a>
-    </div>
+        <p class="hero-panel-sub"><%= (it.t && it.t('home.hero.panel_sub')) || 'A cleaner way to find the right restaurant, reserve faster, and manage the full dining journey.' %></p>
+        <div class="hero-feature-list">
+          <div class="hero-feature-card">
+            <div class="hero-feature-icon">⌁</div>
+            <div>
+              <div class="hero-feature-title"><%= (it.t && it.t('home.hero.feature1_title')) || 'Curated discovery' %></div>
+              <div class="hero-feature-desc"><%= (it.t && it.t('home.hero.feature1_desc')) || 'Search by city, cuisine, and vibe without noise.' %></div>
+            </div>
+          </div>
+          <div class="hero-feature-card">
+            <div class="hero-feature-icon">⌛</div>
+            <div>
+              <div class="hero-feature-title"><%= (it.t && it.t('home.hero.feature2_title')) || 'Fast reservation flow' %></div>
+              <div class="hero-feature-desc"><%= (it.t && it.t('home.hero.feature2_desc')) || 'Choose your place, time, and guests in a few clean steps.' %></div>
+            </div>
+          </div>
+          <div class="hero-feature-card">
+            <div class="hero-feature-icon">◈</div>
+            <div>
+              <div class="hero-feature-title"><%= (it.t && it.t('home.hero.feature3_title')) || 'Built for restaurants too' %></div>
+              <div class="hero-feature-desc"><%= (it.t && it.t('home.hero.feature3_desc')) || 'Floor plans, staff tools, and reservations in one system.' %></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
   </div>
 </section>
 
@@ -163,6 +197,34 @@
   </div>
 </section>
 
+<section class="section home-benefits">
+  <div class="sb-container">
+    <div class="benefits-shell">
+      <div class="benefits-intro">
+        <div class="section-kicker"><%= (it.t && it.t('home.benefits.kicker')) || 'Why people choose SpotBook' %></div>
+        <h2 class="section-title benefits-title"><%= (it.t && it.t('home.benefits.title')) || 'A sharper first impression for your guests' %></h2>
+      </div>
+      <div class="benefits-grid">
+        <article class="benefit-card">
+          <div class="benefit-icon">⌕</div>
+          <h3><%= (it.t && it.t('home.benefits.card1_title')) || 'Smarter search' %></h3>
+          <p><%= (it.t && it.t('home.benefits.card1_desc')) || 'Find restaurants faster with cleaner filters and a more premium browsing experience.' %></p>
+        </article>
+        <article class="benefit-card">
+          <div class="benefit-icon">☰</div>
+          <h3><%= (it.t && it.t('home.benefits.card2_title')) || 'Beautiful listings' %></h3>
+          <p><%= (it.t && it.t('home.benefits.card2_desc')) || 'Restaurants look richer, more visual, and easier to scan on desktop and mobile.' %></p>
+        </article>
+        <article class="benefit-card">
+          <div class="benefit-icon">↗</div>
+          <h3><%= (it.t && it.t('home.benefits.card3_title')) || 'Higher booking intent' %></h3>
+          <p><%= (it.t && it.t('home.benefits.card3_desc')) || 'Stronger hierarchy and clearer actions guide guests toward booking with less friction.' %></p>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ===== How It Works ===== -->
 <section class="section how-it-works">
   <div class="sb-container">
@@ -200,26 +262,148 @@
 </section>
 <% } %>
 
+<section class="section home-social-footer">
+  <div class="sb-container">
+    <div class="home-social-footer__card" aria-label="<%= (it.t && it.t('home.social.aria')) || 'SpotBook social links' %>">
+      <div>
+        <div class="section-kicker"><%= (it.t && it.t('home.social.title')) || 'Follow SpotBook' %></div>
+        <h2 class="home-social-footer__title"><%= (it.t && it.t('home.social.footer_title')) || 'Stay connected with SpotBook' %></h2>
+      </div>
+      <div class="home-social-footer__links">
+        <a class="social-link" href="#" aria-label="<%= (it.t && it.t('home.social.instagram')) || 'Instagram' %>" title="<%= (it.t && it.t('home.social.coming_soon')) || 'Link coming soon' %>">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" ry="5" fill="none" stroke="currentColor" stroke-width="1.8"></rect><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"></circle><circle cx="17.3" cy="6.7" r="1.2" fill="currentColor"></circle></svg>
+          <span><%= (it.t && it.t('home.social.instagram')) || 'Instagram' %></span>
+        </a>
+        <a class="social-link" href="#" aria-label="<%= (it.t && it.t('home.social.facebook')) || 'Facebook' %>" title="<%= (it.t && it.t('home.social.coming_soon')) || 'Link coming soon' %>">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 21v-7h2.5l.5-3h-3V9.4c0-.9.3-1.5 1.6-1.5H17V5.2c-.4-.1-1.3-.2-2.4-.2-2.4 0-4.1 1.5-4.1 4.2V11H8v3h2.5v7h3z" fill="currentColor"></path></svg>
+          <span><%= (it.t && it.t('home.social.facebook')) || 'Facebook' %></span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
 <style>
-/* ===== Social Links ===== */
-.social-links{
-  display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap;
-  margin-top: 18px;
+/* ===== Home page redesign ===== */
+.hero-home{
+  position: relative;
+  overflow: hidden;
+  margin-top: 10px;
+  padding: clamp(26px, 4vw, 42px) 0 clamp(18px, 4vw, 30px);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top left, rgba(59,130,246,.16), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(14,165,233,.12), transparent 28%),
+    linear-gradient(180deg, rgba(15,23,42,.9), rgba(7,10,18,.98));
+  border: 1px solid rgba(148,163,184,.14);
+  box-shadow: 0 30px 80px rgba(2,8,23,.42);
 }
-.social-links__label{
-  color: var(--sb-color-muted, #9aa3b2); font-size: var(--sb-font-sm, 13px); font-weight: 600;
+.hero-bg{
+  position:absolute; inset:0;
+  background:
+    linear-gradient(120deg, rgba(255,255,255,.03) 0%, rgba(255,255,255,0) 32%),
+    radial-gradient(circle at 20% 20%, rgba(125,211,252,.10), transparent 18%),
+    radial-gradient(circle at 75% 35%, rgba(59,130,246,.10), transparent 22%);
+  pointer-events:none;
 }
+.hero-orb{
+  position:absolute; border-radius:50%; filter: blur(12px); opacity:.8; pointer-events:none;
+}
+.hero-orb--a{ width:180px; height:180px; right:-30px; top:20px; background:rgba(59,130,246,.18); }
+.hero-orb--b{ width:130px; height:130px; left:-15px; bottom:10px; background:rgba(14,165,233,.16); }
+.hero-grid{
+  position:relative; z-index:1; display:grid; grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);
+  gap: clamp(18px, 3vw, 28px); align-items:stretch;
+}
+.hero-copy{ display:flex; flex-direction:column; gap:18px; }
+.hero-badge, .section-kicker{
+  display:inline-flex; align-items:center; gap:8px; width:max-content;
+  padding:8px 14px; border-radius:999px; font-size:12px; font-weight:700; letter-spacing:.04em;
+  text-transform:uppercase; color:#dbeafe; background:rgba(59,130,246,.14); border:1px solid rgba(96,165,250,.28);
+}
+.hero-title{
+  margin:0; max-width: 11ch; font-size: clamp(38px, 6vw, 68px); line-height:.96; letter-spacing:-.04em;
+  color:#f8fbff; text-wrap:balance;
+}
+.hero-sub{
+  margin:0; max-width: 60ch; font-size: clamp(16px, 2vw, 19px); line-height:1.75;
+  color: rgba(226,232,240,.84);
+}
+.hero-search-shell{
+  padding:12px; border-radius:24px; background:rgba(15,23,42,.54); border:1px solid rgba(148,163,184,.16);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 20px 50px rgba(2,8,23,.25);
+}
+.hero-search-bar{ gap:12px; }
+.hero-search-btn{ min-width:140px; box-shadow:0 14px 30px rgba(59,130,246,.25); }
+.hero-trust{
+  display:flex; flex-wrap:wrap; gap:10px;
+}
+.hero-trust-pill{
+  display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:999px;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); color:#dbe4f0; font-size:13px; font-weight:600;
+}
+.hero-trust-pill span{ color:#7dd3fc; font-size:14px; }
+.hero-chips{ margin-top:2px; padding:0; justify-content:flex-start; }
+.hero-panel{ display:flex; }
+.hero-panel-card{
+  width:100%; display:flex; flex-direction:column; gap:16px; padding:22px;
+  border-radius:24px; background:linear-gradient(180deg, rgba(15,23,42,.76), rgba(15,23,42,.52));
+  border:1px solid rgba(148,163,184,.14); box-shadow:0 24px 60px rgba(2,8,23,.32); backdrop-filter: blur(14px);
+}
+.hero-panel-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+.hero-panel-kicker{ font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#7dd3fc; font-weight:700; }
+.hero-panel-title{ margin:6px 0 0; font-size:28px; line-height:1.1; color:#f8fbff; }
+.hero-panel-score{
+  min-width:64px; height:64px; display:grid; place-items:center; border-radius:18px; font-size:22px; font-weight:800;
+  color:#eff6ff; background:linear-gradient(180deg, rgba(59,130,246,.32), rgba(30,41,59,.42)); border:1px solid rgba(96,165,250,.26);
+}
+.hero-panel-sub{ margin:0; color:rgba(226,232,240,.76); line-height:1.7; }
+.hero-feature-list{ display:grid; gap:12px; }
+.hero-feature-card{
+  display:grid; grid-template-columns:44px 1fr; gap:12px; align-items:flex-start;
+  padding:14px; border-radius:18px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06);
+}
+.hero-feature-icon{
+  width:44px; height:44px; display:grid; place-items:center; border-radius:14px; font-size:18px; color:#dbeafe;
+  background:rgba(59,130,246,.16); border:1px solid rgba(96,165,250,.24);
+}
+.hero-feature-title{ font-weight:700; color:#f8fbff; margin-bottom:4px; }
+.hero-feature-desc{ font-size:13px; line-height:1.6; color:rgba(226,232,240,.72); }
+.benefits-shell{
+  padding: 8px 0 0;
+}
+.benefits-intro{ display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
+.benefits-title{ margin:0; }
+.benefits-grid{
+  display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px;
+}
+.benefit-card{
+  padding:22px; border-radius:22px; background:linear-gradient(180deg, rgba(15,23,42,.72), rgba(15,23,42,.52));
+  border:1px solid rgba(148,163,184,.12); box-shadow:0 16px 40px rgba(2,8,23,.18);
+}
+.benefit-card h3{ margin:0 0 8px; color:#eef6ff; font-size:20px; }
+.benefit-card p{ margin:0; color:#9fb0c6; line-height:1.75; }
+.benefit-icon{
+  width:50px; height:50px; margin-bottom:14px; display:grid; place-items:center;
+  border-radius:16px; color:#dbeafe; font-size:22px; background:rgba(59,130,246,.14); border:1px solid rgba(96,165,250,.22);
+}
+.home-social-footer{ margin-top: var(--sb-space-2xl, 32px); margin-bottom: var(--sb-space-xl, 24px); }
+.home-social-footer__card{
+  display:flex; align-items:center; justify-content:space-between; gap:18px; flex-wrap:wrap;
+  padding:22px 24px; border-radius:22px; background:linear-gradient(180deg, rgba(15,23,42,.72), rgba(15,23,42,.52));
+  border:1px solid rgba(148,163,184,.12); box-shadow:0 16px 40px rgba(2,8,23,.18);
+}
+.home-social-footer__title{ margin:8px 0 0; color:#f8fbff; font-size:clamp(24px, 3vw, 32px); }
+.home-social-footer__links{ display:flex; flex-wrap:wrap; gap:12px; }
 .social-link{
   display:inline-flex; align-items:center; gap:10px;
-  padding: 10px 14px; border-radius: 999px;
-  border: 1px solid var(--sb-color-bd, #23293a);
+  padding: 12px 16px; border-radius: 999px;
+  border: 1px solid rgba(148,163,184,.18);
   background: rgba(23,27,41,.72); color: var(--sb-color-ink, #e6e8ef);
   text-decoration:none; transition: all .18s ease; backdrop-filter: blur(10px);
 }
 .social-link svg{ width:18px; height:18px; flex:0 0 18px; }
-.social-link:hover{
-  transform: translateY(-1px); border-color: rgba(59,130,246,.45); background: rgba(59,130,246,.12);
-}
+.social-link:hover{ transform: translateY(-1px); border-color: rgba(59,130,246,.45); background: rgba(59,130,246,.12); }
 
 /* ===== Category Filter Chips ===== */
 .category-chips{
@@ -365,11 +549,27 @@
   font-size: var(--sb-font-sm, 13px);
 }
 
+@media (max-width: 1100px){
+  .hero-grid{ grid-template-columns:1fr; }
+  .hero-title{ max-width: 13ch; }
+}
 @media (max-width: 900px){
+  .hero-home{ padding:24px 0 20px; border-radius:22px; }
+  .benefits-grid{ grid-template-columns:1fr; }
+  .home-social-footer__card{ align-items:flex-start; }
   .carousel-slide{ flex: 0 0 calc((100% - var(--carousel-gap, 12px)) / 2); }
   .carousel{ --carousel-visible: 2; }
 }
 @media (max-width: 640px){
+  .hero-title{ max-width:none; font-size: clamp(32px, 11vw, 44px); }
+  .hero-sub{ font-size:15px; }
+  .hero-search-shell{ padding:10px; border-radius:18px; }
+  .hero-search-bar{ flex-direction:column; }
+  .hero-search-btn{ width:100%; min-width:0; }
+  .hero-panel-card, .benefit-card, .cta-card, .home-social-footer__card{ padding:18px; border-radius:18px; }
+  .hero-feature-card{ grid-template-columns:1fr; }
+  .hero-feature-icon{ width:40px; height:40px; }
+  .home-social-footer__title{ font-size:24px; }
   .carousel-slide{ flex: 0 0 100%; }
   .carousel{ --carousel-visible: 1; }
   .carousel-btn{ display: none; }
