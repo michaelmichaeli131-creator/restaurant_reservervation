@@ -49,6 +49,13 @@
       "owner_title": "Own a Restaurant?",
       "owner_desc": "Join SpotBook and manage reservations, staff, and floor plans from a single dashboard.",
       "owner_btn": "Register Your Restaurant"
+    },
+    "social": {
+      "title": "Follow SpotBook",
+      "aria": "SpotBook social links",
+      "instagram": "Instagram",
+      "facebook": "Facebook",
+      "coming_soon": "Link coming soon"
     }
   }
 }

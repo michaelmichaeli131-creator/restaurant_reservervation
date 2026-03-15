@@ -49,6 +49,13 @@
       "owner_title": "יש לך מסעדה?",
       "owner_desc": "הצטרפו ל-SpotBook ונהלו הזמנות, צוות ומפת מקומות ממסך אחד.",
       "owner_btn": "הרשמת מסעדה"
+    },
+    "social": {
+      "title": "עקבו אחרי SpotBook",
+      "aria": "קישורי הרשתות של SpotBook",
+      "instagram": "אינסטגרם",
+      "facebook": "פייסבוק",
+      "coming_soon": "הקישור יתווסף בקרוב"
     }
   }
 }

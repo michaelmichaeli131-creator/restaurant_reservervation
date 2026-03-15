@@ -41,7 +41,12 @@
     },
     "photos": {
       "title": "Photos",
-      "alt": "Restaurant photo"
+      "alt": "Restaurant photo",
+      "open": "Open photo",
+      "open_gallery": "Open gallery",
+      "close": "Close gallery",
+      "prev": "Previous photo",
+      "next": "Next photo"
     }
   }
 }
