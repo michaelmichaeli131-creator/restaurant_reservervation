@@ -134,13 +134,29 @@
     <div class="sb-wt-account-tabs">
       <% const mainAcc = accounts.find((a) => a.accountId === 'main') || null; %>
       <a class="sb-wt-account-tab <%= currentAccountId === 'main' ? 'is-active' : '' %>" href="<%= waiterAccountHref(mainAcc || { accountId: "main" }) %>">
-        <span class="sb-wt-account-name"><%= currentAccountId === 'main' && currentAccount?.accountLabel ? currentAccount.accountLabel : tt('pos.waiter.main_check', 'Main Check') %></span>
-        <% if (mainAcc) { %><span class="sb-wt-account-meta"><%= mainAcc.itemsCount %> · <%= mainAcc.subtotal.toFixed ? mainAcc.subtotal.toFixed(2) : mainAcc.subtotal %> <%= tt('common.currency', '₪') %></span><% } %>
+        <span class="sb-wt-account-head">
+          <span class="sb-wt-account-name"><%= currentAccountId === 'main' && currentAccount?.accountLabel ? currentAccount.accountLabel : tt('pos.waiter.main_check', 'Main Check') %></span>
+          <% if (mainAcc) { %><span class="sb-wt-account-total"><%= (mainAcc.subtotal != null && mainAcc.subtotal.toFixed) ? mainAcc.subtotal.toFixed(2) : mainAcc.subtotal %> <%= tt('common.currency', '₪') %></span><% } %>
+        </span>
+        <% if (mainAcc) { %>
+          <span class="sb-wt-account-meta">
+            <span class="sb-wt-account-badge"><%= mainAcc.itemsCount %> <%= tt('pos.waiter.items_count', 'Items') %></span>
+            <span class="sb-wt-account-dot" aria-hidden="true"></span>
+            <span class="sb-wt-account-subtle"><%= tt('pos.waiter.current_check', 'Current check') %></span>
+          </span>
+        <% } %>
       </a>
       <% accounts.filter((a) => a.accountId !== 'main').forEach(function(acc){ %>
         <a class="sb-wt-account-tab <%= currentAccountId === acc.accountId ? 'is-active' : '' %>" href="<%= waiterAccountHref(acc) %>">
-          <span class="sb-wt-account-name"><%= acc.accountLabel || (tt('pos.waiter.guest_check', 'Guest Check') + ' ' + acc.accountId.slice(0,4)) %></span>
-          <span class="sb-wt-account-meta"><%= acc.itemsCount %> · <%= Number(acc.subtotal || 0).toFixed(2) %> <%= tt('common.currency', '₪') %></span>
+          <span class="sb-wt-account-head">
+            <span class="sb-wt-account-name"><%= acc.accountLabel || (tt('pos.waiter.guest_check', 'Guest Check') + ' ' + acc.accountId.slice(0,4)) %></span>
+            <span class="sb-wt-account-total"><%= Number(acc.subtotal || 0).toFixed(2) %> <%= tt('common.currency', '₪') %></span>
+          </span>
+          <span class="sb-wt-account-meta">
+            <span class="sb-wt-account-badge"><%= acc.itemsCount %> <%= tt('pos.waiter.items_count', 'Items') %></span>
+            <span class="sb-wt-account-dot" aria-hidden="true"></span>
+            <span class="sb-wt-account-subtle"><%= tt('pos.waiter.guest_check', 'Guest Check') %></span>
+          </span>
         </a>
       <% }) %>
     </div>
