@@ -153,7 +153,146 @@
     startAutoplay();
   }
 
+  function initHomepageAutocomplete() {
+    const form = document.getElementById('search-form');
+    const input = document.getElementById('q');
+    const list = document.getElementById('ac-list');
+    if (!(form instanceof HTMLFormElement) || !(input instanceof HTMLInputElement) || !list) return;
+
+    const endpoint = form.dataset.autocompleteUrl || '/api/restaurants';
+    const placeholder = '/static/placeholder.png';
+    let activeIndex = -1;
+    let items = [];
+    let abortController = null;
+    let debounceTimer = null;
+
+    const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch] || ch));
+
+    function pickPhoto(item) {
+      if (typeof item.cover === 'string' && item.cover.trim()) return item.cover.trim();
+      if (typeof item.photoUrl === 'string' && item.photoUrl.trim()) return item.photoUrl.trim();
+      if (Array.isArray(item.photos) && item.photos.length) {
+        const first = item.photos.find((p) => typeof p === 'string' && p.trim());
+        if (first) return first.trim();
+      }
+      return placeholder;
+    }
+
+    function normalize(itemsRaw) {
+      return (Array.isArray(itemsRaw) ? itemsRaw : []).slice(0, 6).map((item) => ({
+        id: String(item?.id ?? ''),
+        name: String(item?.name ?? '').trim(),
+        city: String(item?.city ?? '').trim(),
+        address: String(item?.address ?? '').trim(),
+        kitchens: Array.isArray(item?.kitchenCategories) ? item.kitchenCategories.filter(Boolean).slice(0, 2).join(' · ') : '',
+        photo: pickPhoto(item),
+      })).filter((item) => item.id && item.name);
+    }
+
+    function hideList() {
+      list.hidden = true;
+      list.innerHTML = '';
+      list.removeAttribute('data-open');
+      activeIndex = -1;
+      items = [];
+    }
+
+    function renderList() {
+      if (!items.length) {
+        hideList();
+        return;
+      }
+      list.innerHTML = items.map((item, idx) => {
+        const sub = [item.city, item.kitchens || item.address].filter(Boolean).join(' · ');
+        return `
+          <a class="ac-item${idx === activeIndex ? ' is-active' : ''}" data-index="${idx}" href="/restaurants/${encodeURIComponent(item.id)}" role="option" aria-selected="${idx === activeIndex ? 'true' : 'false'}">
+            <img class="ac-thumb" src="${esc(item.photo)}" alt="${esc(item.name)}" loading="lazy">
+            <span class="ac-meta">
+              <span class="ac-title">${esc(item.name)}</span>
+              <span class="ac-sub">${esc(sub)}</span>
+            </span>
+          </a>`;
+      }).join('');
+      list.hidden = false;
+      list.setAttribute('data-open', '1');
+    }
+
+    function setActive(index) {
+      if (!items.length) {
+        activeIndex = -1;
+        return;
+      }
+      activeIndex = Math.max(0, Math.min(items.length - 1, index));
+      renderList();
+    }
+
+    async function fetchSuggestions(query) {
+      if (abortController) abortController.abort();
+      abortController = new AbortController();
+      try {
+        const url = `${endpoint}?approved=1&q=${encodeURIComponent(query)}`;
+        const res = await fetch(url, { signal: abortController.signal, headers: { 'Accept': 'application/json' } });
+        if (!res.ok) throw new Error(`autocomplete_${res.status}`);
+        const data = await res.json();
+        items = normalize(data);
+        activeIndex = items.length ? 0 : -1;
+        renderList();
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
+        hideList();
+      }
+    }
+
+    function queueFetch() {
+      const query = input.value.trim();
+      clearTimeout(debounceTimer);
+      if (query.length < 2) {
+        hideList();
+        return;
+      }
+      debounceTimer = window.setTimeout(() => fetchSuggestions(query), 180);
+    }
+
+    input.addEventListener('input', queueFetch);
+    input.addEventListener('focus', () => {
+      if (input.value.trim().length >= 2 && !list.hidden) renderList();
+      else queueFetch();
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (list.hidden || !items.length) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActive(activeIndex < 0 ? 0 : activeIndex + 1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActive(activeIndex <= 0 ? items.length - 1 : activeIndex - 1);
+      } else if (e.key === 'Enter' && activeIndex >= 0) {
+        const item = items[activeIndex];
+        if (!item) return;
+        e.preventDefault();
+        window.location.href = `/restaurants/${encodeURIComponent(item.id)}`;
+      } else if (e.key === 'Escape') {
+        hideList();
+      }
+    });
+
+    list.addEventListener('mousemove', (e) => {
+      const row = e.target instanceof Element ? e.target.closest('.ac-item') : null;
+      if (!row) return;
+      const idx = Number(row.getAttribute('data-index'));
+      if (Number.isFinite(idx) && idx !== activeIndex) setActive(idx);
+    });
+
+    document.addEventListener('click', (e) => {
+      const target = e.target;
+      if (target instanceof Node && (form.contains(target) || list.contains(target))) return;
+      hideList();
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-featured-carousel]').forEach(initFeaturedCarousel);
+    initHomepageAutocomplete();
   });
 })();
