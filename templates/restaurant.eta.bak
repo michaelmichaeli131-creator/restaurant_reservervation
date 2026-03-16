@@ -19,9 +19,13 @@
 
   const SLOT_STEP = it.restaurant?.slotIntervalMinutes || it.slotIntervalMinutes || 15;
   const PEOPLE_INIT = Math.max(1, Number(it.people || 2) || 2);
+  const PHOTOS_JSON = JSON.stringify(_photos);
+  const cuisineLabel = it.restaurant?.cuisine || it.restaurant?.cuisineType || it.restaurant?.kitchen || it.restaurant?.type || it.restaurant?.category || "";
 %>
 
 <div class="rsv-page">
+  <section class="rsv-top-grid">
+    <div class="rsv-top-grid__visual">
   <!-- ===== Hero with overlay ===== -->
   <section class="rsv-hero">
     <img
@@ -30,6 +34,16 @@
       class="rsv-hero__img"
       onerror="this.src='<%= PLACEHOLDER %>'"
     />
+    <% if (_photos.length) { %>
+      <button
+        type="button"
+        class="rsv-photo-zoom rsv-photo-zoom--hero"
+        data-gallery-open="0"
+        aria-label="<%= tt('restaurant.photos.open','Open photo') %>">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+        <span><%= tt('restaurant.photos.open','Open photo') %></span>
+      </button>
+    <% } %>
     <div class="rsv-hero__overlay">
       <h1 class="rsv-hero__name"><%= it.restaurant.name %></h1>
       <p class="rsv-hero__meta">
@@ -45,6 +59,37 @@
     </div>
   </section>
 
+    <% if (_photos.length > 1) { %>
+      <div class="rsv-hero-strip">
+        <% _photos.slice(0, 4).forEach((src, idx) => { %>
+          <button type="button" class="rsv-hero-strip__item" data-gallery-open="<%= idx %>" aria-label="<%= tt('restaurant.photos.open','Open photo') %>">
+            <img src="<%= src %>" alt="<%= it.restaurant.name %>" loading="lazy" onerror="this.src='<%= PLACEHOLDER %>'"/>
+          </button>
+        <% }) %>
+      </div>
+    <% } %>
+
+    <div class="rsv-top-grid__facts">
+      <% if (cuisineLabel) { %>
+        <div class="rsv-fact-pill">
+          <span class="rsv-fact-pill__label"><%= tt('restaurant.menu.title','Menu') %></span>
+          <strong><%= cuisineLabel %></strong>
+        </div>
+      <% } %>
+      <div class="rsv-fact-pill">
+        <span class="rsv-fact-pill__label"><%= tt('confirm.details.address','Address') %></span>
+        <strong><%= it.restaurant.city %></strong>
+      </div>
+      <% if (it.restaurant.phone) { %>
+        <div class="rsv-fact-pill">
+          <span class="rsv-fact-pill__label"><%= tt('confirm.details.customerPhone','Mobile') %></span>
+          <strong dir="ltr"><%= it.restaurant.phone %></strong>
+        </div>
+      <% } %>
+    </div>
+    </div>
+
+    <div class="rsv-top-grid__booking">
   <!-- ===== Alerts ===== -->
   <% if (it.roomFull) { %>
     <div class="rsv-alert rsv-alert--warn" role="alert">
@@ -148,7 +193,10 @@
       </button>
     </div>
   </form>
+    </div>
+  </section>
 
+  <div class="rsv-content-grid">
   <!-- ===== Available slots (around card) ===== -->
   <section class="rsv-card" id="around-card" hidden>
     <h3 class="rsv-card__title">
@@ -187,15 +235,46 @@
   <% } %>
 
   <!-- ===== Photo gallery ===== -->
-  <% if (_photos.length > 1) { %>
-    <section class="rsv-card">
-      <h2 class="rsv-card__title"><%= tt('restaurant.photos.title','תמונות') %></h2>
+  <% if (_photos.length > 0) { %>
+    <section class="rsv-card" id="restaurant-gallery-root" data-photos='<%= PHOTOS_JSON %>'>
+      <div class="rsv-card__title-wrap">
+        <h2 class="rsv-card__title"><%= tt('restaurant.photos.title','תמונות') %></h2>
+        <button type="button" class="rsv-link-btn" data-gallery-open="0">
+          <%= tt('restaurant.photos.open_gallery','Open gallery') %>
+        </button>
+      </div>
       <div class="rsv-gallery">
-        <% _photos.forEach(src => { %>
-          <img src="<%= src %>" alt="<%= it.restaurant.name %>" loading="lazy" onerror="this.src='<%= PLACEHOLDER %>'"/>
+        <% _photos.forEach((src, idx) => { %>
+          <figure class="rsv-gallery__item">
+            <img src="<%= src %>" alt="<%= it.restaurant.name %>" loading="lazy" data-gallery-open="<%= idx %>" onerror="this.src='<%= PLACEHOLDER %>'"/>
+            <button
+              type="button"
+              class="rsv-photo-zoom"
+              data-gallery-open="<%= idx %>"
+              aria-label="<%= tt('restaurant.photos.open','Open photo') %>">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+            </button>
+          </figure>
         <% }) %>
       </div>
     </section>
+
+    <div class="rsv-lightbox" id="restaurant-lightbox" hidden aria-hidden="true">
+      <button type="button" class="rsv-lightbox__backdrop" data-gallery-close aria-label="<%= tt('restaurant.photos.close','Close gallery') %>"></button>
+      <div class="rsv-lightbox__dialog" role="dialog" aria-modal="true" aria-label="<%= tt('restaurant.photos.title','Photos') %>">
+        <button type="button" class="rsv-lightbox__btn rsv-lightbox__btn--close" data-gallery-close aria-label="<%= tt('restaurant.photos.close','Close gallery') %>">×</button>
+        <button type="button" class="rsv-lightbox__btn rsv-lightbox__btn--prev" data-gallery-prev aria-label="<%= tt('restaurant.photos.prev','Previous photo') %>">‹</button>
+        <figure class="rsv-lightbox__figure">
+          <img id="restaurant-lightbox-image" class="rsv-lightbox__img" alt="<%= it.restaurant.name %>"/>
+          <figcaption class="rsv-lightbox__caption">
+            <span><%= it.restaurant.name %></span>
+            <span id="restaurant-lightbox-counter"></span>
+          </figcaption>
+        </figure>
+        <button type="button" class="rsv-lightbox__btn rsv-lightbox__btn--next" data-gallery-next aria-label="<%= tt('restaurant.photos.next','Next photo') %>">›</button>
+      </div>
+    </div>
+    <script type="module" src="/public/js/restaurant_gallery.js"></script>
   <% } %>
 
   <!-- ===== POS Menu embed ===== -->
@@ -206,6 +285,7 @@
     </div>
   </section>
   <script type="module" src="/public/js/menu_embed.js"></script>
+  </div>
 </div>
 
 <!-- *** Server data injection *** -->
@@ -535,12 +615,26 @@
         return;
       }
     }
+    const roomVal = (roomInput?.value || "").trim();
+    console.log("[ROOM_DEBUG][restaurant.submit.before]", {
+      dateVal,
+      timeVal,
+      pplVal,
+      roomVal,
+      formMethod: form.method,
+      formActionBefore: form.action,
+    });
     const u = new URL(form.action, window.location.origin);
     u.searchParams.set("date", dateVal);
     u.searchParams.set("time", timeVal);
     u.searchParams.set("people", String(pplVal));
+    if (roomVal) u.searchParams.set("preferredLayoutId", roomVal);
     <% if (it.lang) { %>u.searchParams.set("lang", "<%= it.lang %>");<% } %>
     form.action = u.pathname + u.search;
+    console.log("[ROOM_DEBUG][restaurant.submit.after]", {
+      roomVal,
+      formActionAfter: form.action,
+    });
   });
 
   /* ===== Check availability ===== */
@@ -674,7 +768,7 @@
     display: block;
     transition: transform .4s ease;
   }
-  .rsv-hero:hover .rsv-hero__img { transform: scale(1.03); }
+  .rsv-hero:hover .rsv-hero__img { transform: scale(1.01); }
   .rsv-hero__overlay {
     position: absolute; inset: 0;
     background: linear-gradient(0deg, rgba(0,0,0,.82) 0%, rgba(0,0,0,.25) 50%, rgba(0,0,0,.08) 100%);
@@ -950,9 +1044,19 @@
     color: var(--ink, #e6e8ef);
     display: flex; align-items: center; gap: 8px;
   }
+  .rsv-card__title-wrap {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin-bottom: 12px; flex-wrap: wrap;
+  }
+  .rsv-card__title-wrap .rsv-card__title { margin-bottom: 0; }
   .rsv-card__title svg { opacity: .5; }
   .rsv-card__text { margin: 0; color: var(--ink-muted, #9aa3b2); line-height: 1.6; }
   .rsv-muted { color: var(--ink-muted, #9aa3b2); }
+  .rsv-link-btn {
+    border: 1px solid rgba(59,130,246,.25); background: rgba(59,130,246,.1); color: #dbeafe;
+    border-radius: 999px; padding: 8px 14px; font-weight: 700; cursor: pointer; transition: .18s ease;
+  }
+  .rsv-link-btn:hover { background: rgba(59,130,246,.18); transform: translateY(-1px); }
 
   /* ===== Suggestions ===== */
   .rsv-suggestions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -993,15 +1097,42 @@
   .rsv-menu__desc { margin-top: 4px; font-size: 13px; color: var(--ink-muted, #9aa3b2); }
 
   /* ===== Gallery ===== */
+  .rsv-photo-zoom {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    border: 1px solid rgba(255,255,255,.2); background: rgba(8,12,22,.72); color: #fff;
+    border-radius: 999px; padding: 10px 14px; cursor: pointer; transition: .2s ease; backdrop-filter: blur(8px);
+  }
+  .rsv-photo-zoom:hover { background: rgba(18,28,46,.86); transform: translateY(-1px); }
+  .rsv-photo-zoom--hero { position: absolute; top: 16px; right: 16px; z-index: 2; }
   .rsv-gallery {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px;
+  }
+  .rsv-gallery__item {
+    position: relative; margin: 0; overflow: hidden; border-radius: 14px;
+    border: 1px solid var(--bd, #23293a); background: var(--panel-2, #171b29);
   }
   .rsv-gallery img {
-    width: 100%; height: 100px; object-fit: cover;
-    border-radius: 12px; border: 1px solid var(--bd, #23293a);
+    width: 100%; height: 112px; object-fit: cover; display: block; cursor: pointer;
     transition: transform .2s;
   }
-  .rsv-gallery img:hover { transform: scale(1.04); }
+  .rsv-gallery__item:hover img { transform: scale(1.04); }
+  .rsv-gallery__item .rsv-photo-zoom {
+    position: absolute; right: 10px; bottom: 10px; padding: 8px; min-width: 38px; min-height: 38px;
+  }
+  .rsv-lightbox[hidden] { display: none !important; }
+  .rsv-lightbox { position: fixed; inset: 0; z-index: 99999; }
+  .rsv-lightbox__backdrop { position: absolute; inset: 0; border: 0; background: rgba(3,7,18,.82); cursor: pointer; }
+  .rsv-lightbox__dialog { position: relative; z-index: 1; height: 100%; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 12px; padding: 24px; }
+  .rsv-lightbox__figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .rsv-lightbox__img { max-width: min(1100px, 88vw); max-height: 76vh; width: auto; height: auto; border-radius: 20px; box-shadow: 0 24px 80px rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.12); }
+  .rsv-lightbox__caption { width: min(1100px, 88vw); display: flex; justify-content: space-between; gap: 10px; color: rgba(255,255,255,.88); font-size: 14px; }
+  .rsv-lightbox__btn {
+    border: 1px solid rgba(255,255,255,.16); background: rgba(15,23,42,.72); color: #fff;
+    width: 48px; height: 48px; border-radius: 999px; cursor: pointer; font-size: 30px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center; backdrop-filter: blur(8px);
+  }
+  .rsv-lightbox__btn:hover { background: rgba(30,41,59,.92); }
+  .rsv-lightbox__btn--close { position: absolute; top: 20px; right: 20px; }
 
   /* ===== Toast ===== */
   .rsv-toast {
@@ -1099,8 +1230,16 @@
     .rsv-time-carousel { padding-inline: 0; }
     .rsv-rooms { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .rsv-room-card { padding: 14px 8px; min-height: 44px; }
-    .rsv-gallery img { height: 80px; }
+    .rsv-gallery img { height: 88px; }
     .rsv-card { padding: 16px; border-radius: 16px; }
+    .rsv-photo-zoom--hero { top: 12px; right: 12px; padding: 8px 12px; }
+    .rsv-lightbox__dialog { grid-template-columns: 1fr; padding: 16px; }
+    .rsv-lightbox__figure { order: 2; }
+    .rsv-lightbox__img { max-width: 100%; max-height: 68vh; border-radius: 16px; }
+    .rsv-lightbox__caption { width: 100%; font-size: 13px; }
+    .rsv-lightbox__btn--prev, .rsv-lightbox__btn--next { position: absolute; top: 50%; transform: translateY(-50%); }
+    .rsv-lightbox__btn--prev { left: 10px; }
+    .rsv-lightbox__btn--next { right: 10px; }
     .rsv-actions { flex-direction: column; }
     .rsv-btn { width: 100%; justify-content: center; min-height: 48px; }
     .rsv-time-chip { padding: 10px 14px; font-size: 14px; min-height: 44px; }
@@ -1133,6 +1272,7 @@
     .rsv-suggestion-chip { padding: 8px 12px; font-size: 13px; }
     .rsv-btn { padding: 12px 18px; font-size: 15px; }
     .rsv-gallery { grid-template-columns: repeat(2, 1fr); }
+    .rsv-link-btn { width: 100%; justify-content: center; }
   }
 
   /* ===== Landscape phone ===== */
@@ -1140,6 +1280,370 @@
     .rsv-hero__img { height: 150px; }
     .rsv-hero__overlay { padding: 12px 16px; }
     .rsv-form { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* ===== Premium restaurant page redesign ===== */
+  .rsv-page {
+    max-width: 1700px;
+    padding-top: 24px;
+  }
+  .rsv-top-grid {
+    display: grid;
+    grid-template-columns: minmax(520px, 1.24fr) minmax(560px, .92fr);
+    gap: 32px;
+    align-items: start;
+    margin-bottom: 26px;
+  }
+  .rsv-top-grid__visual,
+  .rsv-top-grid__booking {
+    min-width: 0;
+  }
+  .rsv-top-grid__visual {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-width: 0;
+  }
+  .rsv-top-grid__booking {
+    position: sticky;
+    top: 18px;
+  }
+  .rsv-hero {
+    margin-bottom: 0;
+    min-height: 500px;
+    width: 100%;
+    border-radius: 36px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.08);
+    background:
+      radial-gradient(circle at 12% 18%, rgba(59,130,246,.16), transparent 24%),
+      radial-gradient(circle at 86% 14%, rgba(56,189,248,.14), transparent 24%),
+      linear-gradient(180deg, rgba(10,15,28,.98), rgba(6,10,18,.99));
+    box-shadow: 0 34px 110px rgba(2, 6, 23, .52);
+  }
+  .rsv-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 18% 18%, rgba(59,130,246,.30), transparent 30%),
+      radial-gradient(circle at 86% 20%, rgba(56,189,248,.20), transparent 26%),
+      linear-gradient(180deg, rgba(5,10,18,.04) 0%, rgba(5,10,18,.22) 36%, rgba(5,10,18,.84) 100%);
+    z-index: 1;
+    pointer-events: none;
+  }
+  .rsv-hero__img {
+    height: 500px;
+    object-fit: contain;
+    object-position: center center;
+    padding: 18px 18px 88px;
+    transform: none;
+    filter: saturate(1.05) contrast(1.04) drop-shadow(0 22px 52px rgba(0,0,0,.28));
+  }
+  .rsv-hero__overlay {
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 32px;
+  }
+  .rsv-hero__name {
+    max-width: 16ch;
+    font-size: clamp(38px, 4.8vw, 66px);
+    line-height: .94;
+    letter-spacing: -.045em;
+    margin: 0;
+    text-shadow: 0 18px 44px rgba(0,0,0,.42);
+  }
+  .rsv-hero__meta {
+    width: fit-content;
+    max-width: 100%;
+    margin: 0;
+    padding: 12px 16px;
+    border-radius: 18px;
+    background: rgba(8,12,22,.56);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,.12);
+    color: rgba(255,255,255,.94);
+    font-size: 15px;
+  }
+  .rsv-photo-zoom--hero {
+    top: 22px;
+    right: 22px;
+    z-index: 3;
+    padding: 12px 16px;
+    border-radius: 16px;
+    background: rgba(8,12,22,.58);
+    box-shadow: 0 16px 38px rgba(0,0,0,.24);
+  }
+  .rsv-hero-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .rsv-hero-strip__item {
+    position: relative;
+    padding: 0;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 18px;
+    overflow: hidden;
+    aspect-ratio: 1.16 / .82;
+    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    cursor: pointer;
+    transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  }
+  .rsv-hero-strip__item:hover {
+    transform: translateY(-2px);
+    border-color: rgba(59,130,246,.38);
+    box-shadow: 0 18px 34px rgba(0,0,0,.2);
+  }
+  .rsv-hero-strip__item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .rsv-top-grid__facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .rsv-fact-pill {
+    flex: 1 1 250px;
+    min-width: 0;
+    min-height: 92px;
+    padding: 18px 18px;
+    border-radius: 24px;
+    border: 1px solid rgba(255,255,255,.08);
+    background: linear-gradient(180deg, rgba(255,255,255,.065), rgba(255,255,255,.03));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 18px 36px rgba(2,6,23,.16);
+    backdrop-filter: blur(10px);
+  }
+  .rsv-fact-pill__label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--ink-muted, #9aa3b2);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+  }
+  .rsv-fact-pill strong {
+    display: block;
+    font-size: 15px;
+    line-height: 1.35;
+    color: var(--ink, #e6e8ef);
+    overflow-wrap: anywhere;
+  }
+  .rsv-alert {
+    border-radius: 18px;
+    box-shadow: 0 14px 30px rgba(127,29,29,.12);
+  }
+  .rsv-form {
+    position: relative;
+    border-radius: 32px;
+    padding: 32px;
+    border: 1px solid rgba(59,130,246,.16);
+    background:
+      radial-gradient(circle at top right, rgba(59,130,246,.17), transparent 28%),
+      linear-gradient(180deg, rgba(17,24,42,.97), rgba(9,14,24,.99));
+    box-shadow: 0 30px 90px rgba(2,6,23,.46);
+    backdrop-filter: blur(10px);
+  }
+  .rsv-form::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,0));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+  .rsv-form__title {
+    margin-bottom: 8px;
+    font-size: 28px;
+    line-height: 1.08;
+    letter-spacing: -.03em;
+    flex-wrap: wrap;
+  }
+  .rsv-field {
+    gap: 9px;
+  }
+  .rsv-field__label {
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: rgba(226,232,240,.76);
+  }
+  .rsv-input,
+  .rsv-textarea,
+  .rsv-people,
+  .rsv-time-carousel-wrap,
+  .rsv-room-card,
+  .rsv-menu__item {
+    background: rgba(8,12,22,.62);
+  }
+  .rsv-input,
+  .rsv-textarea {
+    min-height: 56px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    border-color: rgba(255,255,255,.08);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .rsv-input:focus,
+  .rsv-textarea:focus {
+    border-color: rgba(59,130,246,.48);
+    box-shadow: 0 0 0 4px rgba(59,130,246,.12);
+  }
+  .rsv-people {
+    padding: 10px;
+    border-radius: 22px;
+    border: 1px solid rgba(255,255,255,.08);
+  }
+  .rsv-people__val {
+    font-size: 22px;
+    letter-spacing: -.02em;
+  }
+  .rsv-people__btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    border-color: rgba(255,255,255,.08);
+  }
+  .rsv-time-carousel-wrap {
+    padding: 12px;
+    border-radius: 22px;
+    border: 1px solid rgba(255,255,255,.08);
+  }
+  .rsv-time-chip {
+    min-height: 46px;
+    border-radius: 14px;
+    border-color: rgba(255,255,255,.07);
+    background: rgba(255,255,255,.03);
+  }
+  .rsv-time-chip.is-selected {
+    box-shadow: 0 18px 28px rgba(59,130,246,.28);
+  }
+  .rsv-room-card {
+    padding: 18px 16px;
+    min-height: 132px;
+    border-radius: 22px;
+    border-color: rgba(255,255,255,.08);
+    background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.025));
+  }
+  .rsv-room-card.is-selected {
+    box-shadow: 0 18px 28px rgba(59,130,246,.22);
+  }
+  .rsv-room-card__name {
+    font-size: 16px;
+    line-height: 1.26;
+  }
+  .rsv-room-card__cap {
+    line-height: 1.3;
+  }
+  .rsv-actions {
+    margin-top: 4px;
+    gap: 12px;
+  }
+  .rsv-btn {
+    min-height: 56px;
+    padding: 0 22px;
+    border-radius: 18px;
+    font-size: 15px;
+  }
+  .rsv-btn--primary {
+    box-shadow: 0 18px 34px rgba(59,130,246,.24);
+  }
+  .rsv-content-grid {
+    display: grid;
+    gap: 22px;
+  }
+  .rsv-card {
+    border-radius: 30px;
+    border: 1px solid rgba(255,255,255,.08);
+    background:
+      radial-gradient(circle at top right, rgba(59,130,246,.11), transparent 26%),
+      linear-gradient(180deg, rgba(18,22,34,.99), rgba(12,16,27,.99));
+    box-shadow: 0 28px 72px rgba(2,6,23,.3);
+    backdrop-filter: blur(10px);
+  }
+  .rsv-card__title {
+    font-size: 24px;
+    letter-spacing: -.025em;
+  }
+  .rsv-menu {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .rsv-menu__item {
+    padding: 15px 16px;
+    border-radius: 18px;
+    border-color: rgba(255,255,255,.08);
+    background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.02));
+  }
+  .rsv-menu__price {
+    padding: 5px 11px;
+  }
+  .rsv-gallery {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .rsv-gallery__item {
+    border-radius: 18px;
+    border-color: rgba(255,255,255,.08);
+  }
+  .rsv-gallery img {
+    height: 170px;
+  }
+  @media (max-width: 1240px) {
+    .rsv-page { max-width: 1360px; }
+    .rsv-top-grid {
+      grid-template-columns: minmax(420px, 1.12fr) minmax(500px, .94fr);
+      gap: 24px;
+    }
+    .rsv-hero,
+    .rsv-hero__img { min-height: 450px; height: 450px; }
+    .rsv-form { padding: 28px; }
+    .rsv-form__title { font-size: 25px; }
+  }
+  @media (max-width: 1100px) {
+    .rsv-page { max-width: 1100px; }
+    .rsv-top-grid { grid-template-columns: 1fr; }
+    .rsv-top-grid__booking { position: static; }
+    .rsv-hero__name { max-width: 100%; }
+  }
+  @media (max-width: 760px) {
+    .rsv-page {
+      max-width: 100%;
+      padding-top: 14px;
+    }
+    .rsv-top-grid { gap: 16px; }
+    .rsv-hero { min-height: 320px; border-radius: 26px; }
+    .rsv-hero__img { height: 320px; padding: 14px 14px 96px; }
+    .rsv-hero__overlay { padding: 20px; }
+    .rsv-hero__name { font-size: 36px; }
+    .rsv-hero-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rsv-top-grid__facts { gap: 10px; }
+    .rsv-fact-pill { flex-basis: calc(50% - 5px); border-radius: 18px; min-height: 84px; }
+    .rsv-form { padding: 22px; border-radius: 24px; }
+    .rsv-form__title { font-size: 24px; }
+    .rsv-menu, .rsv-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 480px) {
+    .rsv-hero { min-height: 270px; }
+    .rsv-hero__img { height: 270px; padding: 12px 12px 92px; }
+    .rsv-hero__name { font-size: 31px; }
+    .rsv-hero__meta { width: 100%; border-radius: 16px; }
+    .rsv-photo-zoom--hero { top: 14px; right: 14px; padding: 9px 12px; }
+    .rsv-fact-pill { flex-basis: 100%; }
+    .rsv-menu, .rsv-gallery, .rsv-hero-strip { grid-template-columns: 1fr; }
+    .rsv-gallery img { height: 170px; }
+    .rsv-form__title { font-size: 22px; }
   }
 
 </style>
