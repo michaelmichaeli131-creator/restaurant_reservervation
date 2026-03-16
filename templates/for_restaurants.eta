@@ -328,14 +328,39 @@ html[dir="rtl"] .owners-compare-card li::before{left:auto;right:0}
 .owners-signup-points>div{display:grid;grid-template-columns:26px 1fr;gap:12px;align-items:start;padding:14px 16px;border-radius:18px;background:rgba(15,23,42,.4);border:1px solid rgba(148,163,184,.12)}
 .owners-signup-points span{width:26px;height:26px;display:grid;place-items:center;border-radius:999px;background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.22);color:#d9ffe7;font-weight:900}
 .owners-signup-points p{margin:0;color:#c9d9eb;line-height:1.7}
-@media (max-width:1100px){
-  .owners-lp-hero__grid,.owners-modules__grid,.owners-faq__grid,.owners-signup__grid,.owners-outcomes-grid,.owners-compare-grid{grid-template-columns:1fr}
-  .owners-trust-row{grid-template-columns:1fr}
+@media (max-width:1240px){
+  .owners-lp-hero__grid,.owners-modules__grid,.owners-faq__grid,.owners-signup__grid{grid-template-columns:minmax(0,1fr) minmax(300px,.94fr)}
+  .owners-outcomes-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .owners-compare-grid{grid-template-columns:1fr 1fr}
 }
-@media (max-width:760px){
+@media (max-width:1024px){
+  .owners-lp-hero__grid,.owners-modules__grid,.owners-faq__grid,.owners-signup__grid,.owners-compare-grid{grid-template-columns:1fr}
+  .owners-trust-row{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .owners-command-card,.owners-signup-card{padding:20px}
+}
+@media (max-width:860px){
   .owners-lp-hero{border-radius:24px;padding-top:24px}
   .owners-hero-title{font-size:clamp(34px,10vw,54px);max-width:none}
+  .owners-hero-sub,.section-head-center__desc,.owners-modules__text,.owners-faq__text,.owners-signup__text{font-size:15px;line-height:1.72}
   .owners-hero-actions,.owners-form-grid--two{grid-template-columns:1fr;display:grid}
   .owners-hero-actions .btn{width:100%}
+  .owners-outcomes-grid{grid-template-columns:1fr 1fr}
+  .owners-trust-row{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .owners-lp-hero,.owners-command-card,.owners-signup-card,.owners-outcome-card,.owners-module-item,.owners-compare-card,.owners-faq-item{border-radius:20px}
+  .owners-lp-hero{padding:20px 0}
+  .owners-command-card__top{flex-direction:column}
+  .owners-command-card h2{font-size:26px;max-width:none}
+  .owners-outcomes-grid,.owners-compare-grid{grid-template-columns:1fr}
+  .owners-signup-card{padding:18px}
+  .owners-field input,.owners-field select{min-height:48px}
+  .owners-signup-points>div{grid-template-columns:22px 1fr;padding:12px 14px}
+}
+@media (max-width:420px){
+  .owners-hero-bullets span,.owners-trust-pill,.owners-compare-card__label,.owners-command-card__badge{width:100%;justify-content:center;text-align:center}
+  .owners-hero-actions{gap:10px}
+  .owners-command-step{grid-template-columns:36px 1fr;gap:10px}
+  .owners-command-step span{width:36px;height:36px;border-radius:12px}
 }
 </style>

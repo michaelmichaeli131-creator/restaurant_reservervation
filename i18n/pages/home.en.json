@@ -21,14 +21,16 @@
       "stat2_value": "Clear",
       "stat2_label": "Photos, vibe, and details",
       "stat3_value": "Smooth",
-      "stat3_label": "Mobile-friendly flow"
+      "stat3_label": "Mobile-friendly flow",
+      "panel_badge": "Guest-first"
     },
     "search": {
       "placeholder": "Search restaurant / city / cuisine",
       "aria": "Search restaurants",
       "input_aria": "Search restaurant, city or cuisine",
       "cta": "Search",
-      "suggestions_aria": "Search suggestions"
+      "suggestions_aria": "Search suggestions",
+      "label": "Search by restaurant, city or cuisine"
     },
     "categories": {
       "all": "All",
@@ -67,7 +69,9 @@
       "next_aria": "Show next",
       "empty": "No restaurants available yet.",
       "view_all": "View All",
-      "dots_aria": "Slide navigation"
+      "dots_aria": "Slide navigation",
+      "note": "Swipe on mobile or use the arrows to browse.",
+      "cta": "Open restaurant page"
     },
     "benefits": {
       "kicker": "Why guests choose SpotBook",
@@ -89,7 +93,13 @@
       "step2_title": "Pick a Time",
       "step2_desc": "Choose the date, time, and number of guests for your visit.",
       "step3_title": "Confirm & Go",
-      "step3_desc": "Receive instant confirmation and enjoy your dining experience."
+      "step3_desc": "Receive instant confirmation and enjoy your dining experience.",
+      "step1_tag": "Search",
+      "step1_tip": "Search faster by restaurant name, city, or cuisine.",
+      "step2_tag": "Schedule",
+      "step2_tip": "Set the date, hour, and guest count in one smooth flow.",
+      "step3_tag": "Enjoy",
+      "step3_tip": "Get confirmation right away and arrive with confidence."
     },
     "owner_teaser": {
       "kicker": "For restaurant owners",
@@ -105,6 +115,20 @@
       "facebook": "Facebook",
       "coming_soon": "Link coming soon",
       "footer_title": "Stay connected with SpotBook"
+    },
+    "discovery": {
+      "kicker": "Made for diners",
+      "title": "Pick the vibe before you pick the table",
+      "desc": "The homepage should help guests decide faster, not just list restaurants. These shortcuts make the experience feel curated from the first second.",
+      "card1_kicker": "Date night",
+      "card1_title": "Find a place worth dressing up for",
+      "card1_desc": "Lean on the gallery, atmosphere, and polished restaurant pages to choose a better night out.",
+      "card2_kicker": "Group dinner",
+      "card2_title": "Book confidently for more people",
+      "card2_desc": "Compare restaurants, check the details quickly, and lock in the right time without the usual back and forth.",
+      "card3_kicker": "Tonight",
+      "card3_title": "Move from craving to confirmation fast",
+      "card3_desc": "When guests already know what they want, SpotBook helps them get to the booking step with less friction."
     }
   }
 }

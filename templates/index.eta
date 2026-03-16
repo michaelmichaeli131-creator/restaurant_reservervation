@@ -4,366 +4,478 @@
   var showResults = (it.search === "1") || (_q.trim().length > 0) || (it.category && it.category.trim().length > 0);
 %>
 
-<section class="home-hero-v2">
-  <div class="home-hero-v2__glow home-hero-v2__glow--one"></div>
-  <div class="home-hero-v2__glow home-hero-v2__glow--two"></div>
-  <div class="sb-container home-hero-v2__grid">
-    <div class="home-hero-v2__copy">
-      <div class="section-kicker"><%= (it.t && it.t('home.hero.badge')) || 'Dining out starts here' %></div>
-      <h1 class="home-hero-v2__title"><%= (it.t && it.t('home.hero.title')) || 'Find the right table for tonight' %></h1>
-      <p class="home-hero-v2__sub"><%= (it.t && it.t('home.hero.sub')) || 'Discover standout restaurants, compare the vibe, and reserve in a few smooth clicks.' %></p>
+<section class="home-canvas">
+  <div class="home-canvas__mesh home-canvas__mesh--one"></div>
+  <div class="home-canvas__mesh home-canvas__mesh--two"></div>
 
-      <div class="home-search-card">
-        <form id="search-form" class="search-bar home-search-card__bar" method="GET" action="/" role="search" aria-label="<%= (it.t && it.t('home.search.aria')) || 'Search restaurants' %>">
+  <section class="home-hero-v3">
+    <div class="sb-container home-hero-v3__grid">
+      <div class="home-hero-v3__copy">
+        <div class="section-kicker"><%= (it.t && it.t('home.hero.badge')) || 'Dining out starts here' %></div>
+        <h1 class="home-hero-v3__title"><%= (it.t && it.t('home.hero.title')) || 'Find the right table for tonight' %></h1>
+        <p class="home-hero-v3__sub"><%= (it.t && it.t('home.hero.sub')) || 'Discover standout restaurants, compare the vibe, and reserve in a few smooth clicks.' %></p>
+
+        <form id="search-form" class="home-search-shell" method="GET" action="/" role="search" aria-label="<%= (it.t && it.t('home.search.aria')) || 'Search restaurants' %>">
           <input type="hidden" name="search" value="1"/>
-          <div class="field with-icon home-search-card__field" style="min-width:260px; flex:1">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/>
-            </svg>
-            <input
-              name="q" id="q" type="search"
-              inputmode="search" enterkeyhint="search" autocomplete="on"
-              placeholder="<%= (it.t && it.t('home.search.placeholder')) || 'Search restaurant / city / cuisine' %>"
-              aria-label="<%= (it.t && it.t('home.search.input_aria')) || 'Search restaurant, city or cuisine' %>"
-              value="<%= it.q || '' %>">
-          </div>
-          <button class="btn primary home-search-card__btn" type="submit"><%= (it.t && it.t('home.search.cta')) || 'Search' %></button>
+          <label class="home-search-shell__field" aria-label="<%= (it.t && it.t('home.search.input_aria')) || 'Search restaurant, city or cuisine' %>">
+            <span class="home-search-shell__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/></svg>
+            </span>
+            <span class="home-search-shell__text">
+              <span class="home-search-shell__label"><%= (it.t && it.t('home.search.label')) || 'Search by restaurant, city or cuisine' %></span>
+              <input
+                name="q" id="q" type="search"
+                inputmode="search" enterkeyhint="search" autocomplete="on"
+                placeholder="<%= (it.t && it.t('home.search.placeholder')) || 'Search restaurant / city / cuisine' %>"
+                value="<%= it.q || '' %>">
+            </span>
+          </label>
+          <button class="btn primary home-search-shell__btn" type="submit"><%= (it.t && it.t('home.search.cta')) || 'Search' %></button>
         </form>
         <div id="ac-list" class="ac-list" role="listbox" aria-label="<%= (it.t && it.t('home.search.suggestions_aria')) || 'Search suggestions' %>" hidden></div>
 
-        <div class="home-search-card__meta">
-          <span class="home-mini-pill">✦ <%= (it.t && it.t('home.hero.trust1')) || 'Verified restaurant pages' %></span>
-          <span class="home-mini-pill">⚡ <%= (it.t && it.t('home.hero.trust2')) || 'Fast booking flow' %></span>
-          <span class="home-mini-pill">♡ <%= (it.t && it.t('home.hero.trust3')) || 'Made for guests' %></span>
+        <div class="home-hero-v3__proofs">
+          <span class="home-proof-pill">✦ <%= (it.t && it.t('home.hero.trust1')) || 'Verified restaurant pages' %></span>
+          <span class="home-proof-pill">⚡ <%= (it.t && it.t('home.hero.trust2')) || 'Fast booking flow' %></span>
+          <span class="home-proof-pill">♡ <%= (it.t && it.t('home.hero.trust3')) || 'Made for guests' %></span>
+        </div>
+
+        <div class="category-chips home-hero-v3__chips">
+          <a href="/" class="chip <%= !it.category ? 'active' : '' %>"><%= (it.t && it.t('home.categories.all')) || 'All' %></a>
+          <a href="/?category=italian" class="chip <%= it.category === 'italian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.italian')) || 'Italian' %></a>
+          <a href="/?category=asian" class="chip <%= it.category === 'asian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.asian')) || 'Asian' %></a>
+          <a href="/?category=japanese" class="chip <%= it.category === 'japanese' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.japanese')) || 'Japanese' %></a>
+          <a href="/?category=steakhouse" class="chip <%= it.category === 'steakhouse' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.steakhouse')) || 'Steakhouse' %></a>
+          <a href="/?category=mediterranean" class="chip <%= it.category === 'mediterranean' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.mediterranean')) || 'Mediterranean' %></a>
+          <a href="/?category=cafe" class="chip <%= it.category === 'cafe' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.cafe')) || 'Cafe' %></a>
+          <a href="/?category=vegetarian" class="chip <%= it.category === 'vegetarian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.vegetarian')) || 'Vegetarian' %></a>
         </div>
       </div>
 
-      <div class="category-chips home-hero-v2__chips">
-        <a href="/" class="chip <%= !it.category ? 'active' : '' %>"><%= (it.t && it.t('home.categories.all')) || 'All' %></a>
-        <a href="/?category=italian" class="chip <%= it.category === 'italian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.italian')) || 'Italian' %></a>
-        <a href="/?category=asian" class="chip <%= it.category === 'asian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.asian')) || 'Asian' %></a>
-        <a href="/?category=japanese" class="chip <%= it.category === 'japanese' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.japanese')) || 'Japanese' %></a>
-        <a href="/?category=steakhouse" class="chip <%= it.category === 'steakhouse' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.steakhouse')) || 'Steakhouse' %></a>
-        <a href="/?category=mediterranean" class="chip <%= it.category === 'mediterranean' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.mediterranean')) || 'Mediterranean' %></a>
-        <a href="/?category=cafe" class="chip <%= it.category === 'cafe' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.cafe')) || 'Cafe' %></a>
-        <a href="/?category=vegetarian" class="chip <%= it.category === 'vegetarian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.vegetarian')) || 'Vegetarian' %></a>
-      </div>
-    </div>
-
-    <aside class="home-hero-v2__showcase" aria-label="<%= (it.t && it.t('home.hero.panel_title')) || 'Guest highlights' %>">
-      <div class="guest-card guest-card--main">
-        <div class="guest-card__eyebrow"><%= (it.t && it.t('home.hero.panel_title')) || 'Your next favorite table' %></div>
-        <h2><%= (it.t && it.t('home.hero.panel_heading')) || 'Everything guests need before they book' %></h2>
-        <p><%= (it.t && it.t('home.hero.panel_sub')) || 'Browse beautiful restaurant pages, compare details quickly, and move from discovery to reservation without friction.' %></p>
-        <div class="guest-card__stats">
-          <div class="guest-card__stat"><strong><%= (it.t && it.t('home.hero.stat1_value')) || 'Fast' %></strong><span><%= (it.t && it.t('home.hero.stat1_label')) || 'From search to booking' %></span></div>
-          <div class="guest-card__stat"><strong><%= (it.t && it.t('home.hero.stat2_value')) || 'Clear' %></strong><span><%= (it.t && it.t('home.hero.stat2_label')) || 'Photos, vibe, and details' %></span></div>
-          <div class="guest-card__stat"><strong><%= (it.t && it.t('home.hero.stat3_value')) || 'Smooth' %></strong><span><%= (it.t && it.t('home.hero.stat3_label')) || 'Mobile-friendly flow' %></span></div>
-        </div>
-      </div>
-
-      <div class="guest-card-grid">
-        <article class="guest-card guest-card--mini">
-          <div class="guest-card__icon">⌕</div>
-          <h3><%= (it.t && it.t('home.hero.feature1_title')) || 'Search with confidence' %></h3>
-          <p><%= (it.t && it.t('home.hero.feature1_desc')) || 'Find places by city, cuisine, and atmosphere without the clutter.' %></p>
-        </article>
-        <article class="guest-card guest-card--mini">
-          <div class="guest-card__icon">▣</div>
-          <h3><%= (it.t && it.t('home.hero.feature2_title')) || 'Better restaurant pages' %></h3>
-          <p><%= (it.t && it.t('home.hero.feature2_desc')) || 'See the place faster with clear visuals and cleaner information.' %></p>
-        </article>
-        <article class="guest-card guest-card--mini">
-          <div class="guest-card__icon">↗</div>
-          <h3><%= (it.t && it.t('home.hero.feature3_title')) || 'Reserve without friction' %></h3>
-          <p><%= (it.t && it.t('home.hero.feature3_desc')) || 'Pick a date, time, and group size in a simple, premium flow.' %></p>
-        </article>
-      </div>
-    </aside>
-  </div>
-</section>
-
-<section class="section home-story-strip">
-  <div class="sb-container home-story-strip__grid">
-    <article class="story-card">
-      <div class="story-card__kicker"><%= (it.t && it.t('home.highlights.card1_kicker')) || 'For hungry planners' %></div>
-      <h3><%= (it.t && it.t('home.highlights.card1_title')) || 'See the right place faster' %></h3>
-      <p><%= (it.t && it.t('home.highlights.card1_desc')) || 'Use cuisine and city filters to narrow the field quickly and spend less time scrolling.' %></p>
-    </article>
-    <article class="story-card">
-      <div class="story-card__kicker"><%= (it.t && it.t('home.highlights.card2_kicker')) || 'For special nights out' %></div>
-      <h3><%= (it.t && it.t('home.highlights.card2_title')) || 'Get a stronger feel before you reserve' %></h3>
-      <p><%= (it.t && it.t('home.highlights.card2_desc')) || 'Photos, address, cuisine, and ratings are presented in a cleaner way so your choice feels easier.' %></p>
-    </article>
-    <article class="story-card story-card--accent">
-      <div class="story-card__kicker"><%= (it.t && it.t('home.highlights.card3_kicker')) || 'For every device' %></div>
-      <h3><%= (it.t && it.t('home.highlights.card3_title')) || 'Book smoothly on desktop or mobile' %></h3>
-      <p><%= (it.t && it.t('home.highlights.card3_desc')) || 'The experience is built to stay clean, readable, and fast wherever guests open it.' %></p>
-    </article>
-  </div>
-</section>
-
-<% if (showResults) { %>
-<section class="section">
-  <div class="sb-container">
-    <div class="section-head-inline">
-      <div>
-        <div class="section-kicker"><%= (it.t && it.t('home.results.kicker')) || 'Search results' %></div>
-        <h2 class="section-title"><%= (it.t && it.t('home.results.title')) || 'Restaurants for your search' %></h2>
-      </div>
-    </div>
-
-    <% if (!it.restaurants || !it.restaurants.length) { %>
-      <div class="sb-empty-state home-empty-state">
-        <div class="sb-empty-state__icon">&#128269;</div>
-        <p class="sb-empty-state__message"><%= (it.t && it.t('home.results.empty')) || 'No results found.' %></p>
-      </div>
-    <% } else { %>
-      <div class="cards">
-        <%
-          var list = it.restaurants || [];
-          for (var i=0; i<list.length; i++){
-            var r = list[i];
-            var _photos = Array.isArray(r && r.photos) ? r.photos : [];
-            var ss = [];
-            for (var j=0; j<_photos.length; j++){
-              var p = _photos[j];
-              ss.push(typeof p === 'string' ? p : (p && p.dataUrl));
-            }
-            ss = ss.filter(Boolean);
-            var cover = (r && r.coverUrl) || ss[0] || "/static/placeholder.png";
-        %>
-          <a class="card home-card-v2" href="/restaurants/<%= r.id %>" aria-label="<%= (it.t && it.t('home.results.open_label', { name: r.name })) || ('Open ' + r.name) %>">
-            <div class="card-img" style="background-image:url('<%= cover %>')"></div>
-            <div class="card-body">
-              <div class="home-card-v2__top">
-                <h3 class="card-title"><%= r.name %></h3>
-                <% if (r.averageRating && r.reviewCount) { %>
-                  <div class="rating-badge"><span class="stars">&#9733;</span><span><%= r.averageRating.toFixed(1) %></span></div>
-                <% } %>
-              </div>
-              <p class="card-meta"><%= r.city %> &middot; <%= r.address %></p>
-              <% if (r.kitchenCategories && r.kitchenCategories.length) { %>
-                <div class="category-tags">
-                  <% r.kitchenCategories.slice(0, 3).forEach(function(cat){ %>
-                    <span class="cat-tag"><%= cat %></span>
-                  <% }); %>
-                </div>
-              <% } %>
-              <% if (!r.approved) { %>
-                <span class="badge-pending" title="<%= (it.t && it.t('home.results.badge_pending_title')) || 'Not approved yet' %>">
-                  <%= (it.t && it.t('home.results.badge_pending')) || 'Pending approval' %>
-                </span>
-              <% } %>
+      <aside class="home-stage-panel" aria-label="<%= (it.t && it.t('home.hero.panel_title')) || 'Guest highlights' %>">
+        <div class="home-stage-panel__window">
+          <div class="home-stage-panel__header">
+            <div>
+              <div class="home-stage-panel__eyebrow"><%= (it.t && it.t('home.hero.panel_title')) || 'Your next favorite table' %></div>
+              <h2><%= (it.t && it.t('home.hero.panel_heading')) || 'Everything guests need before they book' %></h2>
             </div>
-          </a>
-        <% } %>
-      </div>
-    <% } %>
-  </div>
-</section>
-<% } %>
+            <div class="home-stage-badge"><%= (it.t && it.t('home.hero.panel_badge')) || 'Guest-first' %></div>
+          </div>
+          <p class="home-stage-panel__sub"><%= (it.t && it.t('home.hero.panel_sub')) || 'Browse beautiful restaurant pages, compare details quickly, and move from discovery to reservation without friction.' %></p>
 
-<section class="section home-featured-v2">
-  <div class="sb-container">
-    <div class="section-head-inline">
-      <div>
-        <div class="section-kicker"><%= (it.t && it.t('home.featured.kicker')) || 'Popular choices' %></div>
-        <h2 class="section-title"><%= (it.t && it.t('home.featured.title')) || 'Featured Restaurants' %></h2>
-      </div>
-      <p class="section-head-inline__desc"><%= (it.t && it.t('home.featured.desc')) || 'Start with restaurants that already stand out on SpotBook.' %></p>
-    </div>
+          <div class="home-stage-panel__stats">
+            <article class="home-stage-stat">
+              <strong><%= (it.t && it.t('home.hero.stat1_value')) || 'Fast' %></strong>
+              <span><%= (it.t && it.t('home.hero.stat1_label')) || 'From search to booking' %></span>
+            </article>
+            <article class="home-stage-stat">
+              <strong><%= (it.t && it.t('home.hero.stat2_value')) || 'Clear' %></strong>
+              <span><%= (it.t && it.t('home.hero.stat2_label')) || 'Photos, vibe, and details' %></span>
+            </article>
+            <article class="home-stage-stat">
+              <strong><%= (it.t && it.t('home.hero.stat3_value')) || 'Smooth' %></strong>
+              <span><%= (it.t && it.t('home.hero.stat3_label')) || 'Mobile-friendly flow' %></span>
+            </article>
+          </div>
 
-    <% if (it.featured && it.featured.length) { %>
-      <div class="carousel" dir="<%= it.dir || 'ltr' %>" aria-roledescription="carousel" aria-label="<%= (it.t && it.t('home.featured.title')) || 'Featured Restaurants' %>">
-        <button class="carousel-btn prev" aria-label="<%= (it.t && it.t('home.featured.prev_aria')) || 'Show previous' %>">&#8249;</button>
-        <div class="carousel-viewport">
-          <div class="carousel-track">
-            <% it.featured.forEach(function(fr, idx){ %>
-              <article class="carousel-slide" role="group" aria-roledescription="slide" aria-label="<%= (idx+1) + ' / ' + it.featured.length %>">
-                <a href="/restaurants/<%= fr.id %>" class="hs-link">
-                  <div class="hs-img" style="background-image:url('<%= fr.cover %>');"></div>
-                  <div class="hs-body">
-                    <div class="hs-title"><%= fr.name %></div>
-                    <div class="hs-meta"><%= fr.city %></div>
-                    <% if (fr.rating) { %>
-                      <div class="hs-rating"><span class="stars">&#9733;</span><span><%= fr.rating.toFixed(1) %></span></div>
-                    <% } %>
-                  </div>
-                </a>
-              </article>
-            <% }); %>
+          <div class="home-stage-highlights">
+            <article class="home-stage-highlight">
+              <div class="home-stage-highlight__icon">⌕</div>
+              <div>
+                <h3><%= (it.t && it.t('home.hero.feature1_title')) || 'Search with confidence' %></h3>
+                <p><%= (it.t && it.t('home.hero.feature1_desc')) || 'Find places by city, cuisine, and atmosphere without the clutter.' %></p>
+              </div>
+            </article>
+            <article class="home-stage-highlight">
+              <div class="home-stage-highlight__icon">◫</div>
+              <div>
+                <h3><%= (it.t && it.t('home.hero.feature2_title')) || 'Better restaurant pages' %></h3>
+                <p><%= (it.t && it.t('home.hero.feature2_desc')) || 'See the place faster with clear visuals and cleaner information.' %></p>
+              </div>
+            </article>
+            <article class="home-stage-highlight">
+              <div class="home-stage-highlight__icon">↗</div>
+              <div>
+                <h3><%= (it.t && it.t('home.hero.feature3_title')) || 'Reserve without friction' %></h3>
+                <p><%= (it.t && it.t('home.hero.feature3_desc')) || 'Pick a date, time, and group size in a simple, premium flow.' %></p>
+              </div>
+            </article>
           </div>
         </div>
-        <button class="carousel-btn next" aria-label="<%= (it.t && it.t('home.featured.next_aria')) || 'Show next' %>">&#8250;</button>
-        <div class="carousel-dots" role="tablist" aria-label="<%= (it.t && it.t('home.featured.dots_aria')) || 'Slide navigation' %>"></div>
-      </div>
-    <% } else { %>
-      <div class="sb-empty-state home-empty-state">
-        <p class="sb-empty-state__message"><%= (it.t && it.t('home.featured.empty')) || 'No restaurants available yet.' %></p>
-      </div>
-    <% } %>
-  </div>
-</section>
+      </aside>
+    </div>
+  </section>
 
-<section class="section home-benefits-v2">
-  <div class="sb-container home-benefits-v2__grid">
-    <div class="home-benefits-v2__intro">
-      <div class="section-kicker"><%= (it.t && it.t('home.benefits.kicker')) || 'Why guests choose SpotBook' %></div>
-      <h2 class="section-title home-benefits-v2__title"><%= (it.t && it.t('home.benefits.title')) || 'A cleaner journey from craving to reservation' %></h2>
-      <p class="home-benefits-v2__text"><%= (it.t && it.t('home.benefits.text')) || 'Every part of the homepage is tuned for diners: discover faster, compare more easily, and get to the booking step with less noise.' %></p>
-    </div>
-    <div class="benefits-grid">
-      <article class="benefit-card">
-        <div class="benefit-icon">⌕</div>
-        <h3><%= (it.t && it.t('home.benefits.card1_title')) || 'Smarter search' %></h3>
-        <p><%= (it.t && it.t('home.benefits.card1_desc')) || 'Search by city, cuisine, or mood and find a better fit faster.' %></p>
-      </article>
-      <article class="benefit-card">
-        <div class="benefit-icon">◫</div>
-        <h3><%= (it.t && it.t('home.benefits.card2_title')) || 'More visual restaurant pages' %></h3>
-        <p><%= (it.t && it.t('home.benefits.card2_desc')) || 'Photos and information are easier to scan before you decide.' %></p>
-      </article>
-      <article class="benefit-card">
-        <div class="benefit-icon">↗</div>
-        <h3><%= (it.t && it.t('home.benefits.card3_title')) || 'Lower-friction booking' %></h3>
-        <p><%= (it.t && it.t('home.benefits.card3_desc')) || 'A smoother flow helps guests move from interest to confirmed table.' %></p>
-      </article>
-    </div>
-  </div>
-</section>
+  <section class="section home-discovery-strip">
+    <div class="sb-container">
+      <div class="section-head-inline">
+        <div>
+          <div class="section-kicker"><%= (it.t && it.t('home.discovery.kicker')) || 'Made for diners' %></div>
+          <h2 class="section-title"><%= (it.t && it.t('home.discovery.title')) || 'Pick the vibe before you pick the table' %></h2>
+        </div>
+        <p class="section-head-inline__desc"><%= (it.t && it.t('home.discovery.desc')) || 'The homepage should help guests decide faster, not just list restaurants. These shortcuts make the experience feel curated from the first second.' %></p>
+      </div>
 
-<section class="section how-it-works-v2">
-  <div class="sb-container">
-    <div class="section-head-center">
-      <div class="section-kicker"><%= (it.t && it.t('home.how_it_works.kicker')) || 'Simple for guests' %></div>
-      <h2 class="section-title"><%= (it.t && it.t('home.how_it_works.title')) || 'How It Works' %></h2>
-      <p class="section-head-center__desc"><%= (it.t && it.t('home.how_it_works.desc')) || 'A clean path from discovering the place to actually booking it.' %></p>
-    </div>
-    <div class="steps-grid">
-      <div class="step-card">
-        <div class="step-number">1</div>
-        <h3 class="step-title"><%= (it.t && it.t('home.how_it_works.step1_title')) || 'Find a Restaurant' %></h3>
-        <p class="step-desc"><%= (it.t && it.t('home.how_it_works.step1_desc')) || 'Search by name, city, or cuisine type to find the perfect spot.' %></p>
-      </div>
-      <div class="step-card">
-        <div class="step-number">2</div>
-        <h3 class="step-title"><%= (it.t && it.t('home.how_it_works.step2_title')) || 'Pick a Time' %></h3>
-        <p class="step-desc"><%= (it.t && it.t('home.how_it_works.step2_desc')) || 'Choose the date, time, and number of guests for your visit.' %></p>
-      </div>
-      <div class="step-card">
-        <div class="step-number">3</div>
-        <h3 class="step-title"><%= (it.t && it.t('home.how_it_works.step3_title')) || 'Confirm & Go' %></h3>
-        <p class="step-desc"><%= (it.t && it.t('home.how_it_works.step3_desc')) || 'Receive instant confirmation and enjoy your dining experience.' %></p>
+      <div class="home-discovery-strip__grid">
+        <article class="discovery-card discovery-card--date">
+          <div class="discovery-card__kicker"><%= (it.t && it.t('home.discovery.card1_kicker')) || 'Date night' %></div>
+          <h3><%= (it.t && it.t('home.discovery.card1_title')) || 'Find a place worth dressing up for' %></h3>
+          <p><%= (it.t && it.t('home.discovery.card1_desc')) || 'Lean on the gallery, atmosphere, and polished restaurant pages to choose a better night out.' %></p>
+        </article>
+        <article class="discovery-card discovery-card--group">
+          <div class="discovery-card__kicker"><%= (it.t && it.t('home.discovery.card2_kicker')) || 'Group dinner' %></div>
+          <h3><%= (it.t && it.t('home.discovery.card2_title')) || 'Book confidently for more people' %></h3>
+          <p><%= (it.t && it.t('home.discovery.card2_desc')) || 'Compare restaurants, check the details quickly, and lock in the right time without the usual back and forth.' %></p>
+        </article>
+        <article class="discovery-card discovery-card--fast">
+          <div class="discovery-card__kicker"><%= (it.t && it.t('home.discovery.card3_kicker')) || 'Tonight' %></div>
+          <h3><%= (it.t && it.t('home.discovery.card3_title')) || 'Move from craving to confirmation fast' %></h3>
+          <p><%= (it.t && it.t('home.discovery.card3_desc')) || 'When guests already know what they want, SpotBook helps them get to the booking step with less friction.' %></p>
+        </article>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<% if (!it.user) { %>
-<section class="section home-owner-teaser">
-  <div class="sb-container">
-    <div class="owner-teaser-card">
-      <div class="owner-teaser-card__copy">
-        <div class="section-kicker"><%= (it.t && it.t('home.owner_teaser.kicker')) || 'For restaurant owners' %></div>
-        <h2 class="cta-title"><%= (it.t && it.t('home.owner_teaser.title')) || 'Want to grow your restaurant?' %></h2>
-        <p class="cta-desc"><%= (it.t && it.t('home.owner_teaser.desc')) || 'SpotBook is building a premium experience for restaurants too. See the dedicated page for reservation management, floor maps, staff tools, and a stronger guest journey.' %></p>
+  <% if (showResults) { %>
+  <section class="section">
+    <div class="sb-container">
+      <div class="section-head-inline">
+        <div>
+          <div class="section-kicker"><%= (it.t && it.t('home.results.kicker')) || 'Search results' %></div>
+          <h2 class="section-title"><%= (it.t && it.t('home.results.title')) || 'Restaurants for your search' %></h2>
+        </div>
       </div>
-      <div class="owner-teaser-card__actions">
-        <a class="btn primary cta-btn" href="/for-restaurants"><%= (it.t && it.t('home.owner_teaser.primary')) || 'Explore the restaurant platform' %></a>
-        <a class="btn secondary cta-btn ghost" href="/auth/register"><%= (it.t && it.t('home.owner_teaser.secondary')) || 'Register your restaurant' %></a>
-      </div>
-    </div>
-  </div>
-</section>
-<% } %>
 
-<section class="section home-social-footer">
-  <div class="sb-container">
-    <div class="home-social-footer__card" aria-label="<%= (it.t && it.t('home.social.aria')) || 'SpotBook social links' %>">
-      <div>
-        <div class="section-kicker"><%= (it.t && it.t('home.social.title')) || 'Follow SpotBook' %></div>
-        <h2 class="home-social-footer__title"><%= (it.t && it.t('home.social.footer_title')) || 'Stay connected with SpotBook' %></h2>
+      <% if (!it.restaurants || !it.restaurants.length) { %>
+        <div class="sb-empty-state home-empty-state">
+          <div class="sb-empty-state__icon">&#128269;</div>
+          <p class="sb-empty-state__message"><%= (it.t && it.t('home.results.empty')) || 'No results found.' %></p>
+        </div>
+      <% } else { %>
+        <div class="cards">
+          <%
+            var list = it.restaurants || [];
+            for (var i=0; i<list.length; i++){
+              var r = list[i];
+              var _photos = Array.isArray(r && r.photos) ? r.photos : [];
+              var ss = [];
+              for (var j=0; j<_photos.length; j++){
+                var p = _photos[j];
+                ss.push(typeof p === 'string' ? p : (p && p.dataUrl));
+              }
+              ss = ss.filter(Boolean);
+              var cover = (r && r.coverUrl) || ss[0] || "/static/placeholder.png";
+          %>
+            <a class="card home-card-v3" href="/restaurants/<%= r.id %>" aria-label="<%= (it.t && it.t('home.results.open_label', { name: r.name })) || ('Open ' + r.name) %>">
+              <div class="card-img" style="background-image:url('<%= cover %>')"></div>
+              <div class="card-body">
+                <div class="home-card-v3__top">
+                  <h3 class="card-title"><%= r.name %></h3>
+                  <% if (r.averageRating && r.reviewCount) { %>
+                    <div class="rating-badge"><span class="stars">&#9733;</span><span><%= r.averageRating.toFixed(1) %></span></div>
+                  <% } %>
+                </div>
+                <p class="card-meta"><%= r.city %> &middot; <%= r.address %></p>
+                <% if (r.kitchenCategories && r.kitchenCategories.length) { %>
+                  <div class="category-tags">
+                    <% r.kitchenCategories.slice(0, 3).forEach(function(cat){ %>
+                      <span class="cat-tag"><%= cat %></span>
+                    <% }); %>
+                  </div>
+                <% } %>
+                <% if (!r.approved) { %>
+                  <span class="badge-pending" title="<%= (it.t && it.t('home.results.badge_pending_title')) || 'Not approved yet' %>">
+                    <%= (it.t && it.t('home.results.badge_pending')) || 'Pending approval' %>
+                  </span>
+                <% } %>
+              </div>
+            </a>
+          <% } %>
+        </div>
+      <% } %>
+    </div>
+  </section>
+  <% } %>
+
+  <section class="section home-featured-v3">
+    <div class="sb-container">
+      <div class="section-head-inline home-featured-v3__head">
+        <div>
+          <div class="section-kicker"><%= (it.t && it.t('home.featured.kicker')) || 'Popular choices' %></div>
+          <h2 class="section-title"><%= (it.t && it.t('home.featured.title')) || 'Featured Restaurants' %></h2>
+        </div>
+        <div class="home-featured-v3__summary">
+          <p class="section-head-inline__desc"><%= (it.t && it.t('home.featured.desc')) || 'Start with restaurants that already stand out on SpotBook.' %></p>
+          <span class="home-featured-v3__note"><%= (it.t && it.t('home.featured.note')) || 'Swipe on mobile or use the arrows to browse.' %></span>
+        </div>
       </div>
-      <div class="home-social-footer__links">
-        <a class="social-link" href="#" aria-label="<%= (it.t && it.t('home.social.instagram')) || 'Instagram' %>" title="<%= (it.t && it.t('home.social.coming_soon')) || 'Link coming soon' %>">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" ry="5" fill="none" stroke="currentColor" stroke-width="1.8"></rect><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"></circle><circle cx="17.3" cy="6.7" r="1.2" fill="currentColor"></circle></svg>
-          <span><%= (it.t && it.t('home.social.instagram')) || 'Instagram' %></span>
-        </a>
-        <a class="social-link" href="#" aria-label="<%= (it.t && it.t('home.social.facebook')) || 'Facebook' %>" title="<%= (it.t && it.t('home.social.coming_soon')) || 'Link coming soon' %>">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 21v-7h2.5l.5-3h-3V9.4c0-.9.3-1.5 1.6-1.5H17V5.2c-.4-.1-1.3-.2-2.4-.2-2.4 0-4.1 1.5-4.1 4.2V11H8v3h2.5v7h3z" fill="currentColor"></path></svg>
-          <span><%= (it.t && it.t('home.social.facebook')) || 'Facebook' %></span>
-        </a>
+
+      <% if (it.featured && it.featured.length) { %>
+        <div class="featured-shell" data-featured-carousel dir="<%= it.dir || 'ltr' %>">
+          <button class="featured-nav featured-nav--prev" type="button" data-featured-prev aria-label="<%= (it.t && it.t('home.featured.prev_aria')) || 'Show previous' %>">
+            <span aria-hidden="true">&#8249;</span>
+          </button>
+          <div class="featured-viewport" data-featured-viewport tabindex="0">
+            <div class="featured-track" data-featured-track>
+              <% it.featured.forEach(function(fr, idx){ %>
+                <article class="featured-slide" data-featured-slide role="group" aria-roledescription="slide" aria-label="<%= (idx+1) + ' / ' + it.featured.length %>">
+                  <a class="featured-card" href="/restaurants/<%= fr.id %>">
+                    <div class="featured-card__image" style="background-image:url('<%= fr.cover %>');"></div>
+                    <div class="featured-card__overlay"></div>
+                    <div class="featured-card__content">
+                      <div class="featured-card__meta-row">
+                        <span class="featured-card__city"><%= fr.city %></span>
+                        <% if (fr.rating) { %>
+                          <span class="featured-card__rating"><span class="stars">&#9733;</span><span><%= fr.rating.toFixed(1) %></span></span>
+                        <% } %>
+                      </div>
+                      <h3 class="featured-card__title"><%= fr.name %></h3>
+                      <div class="featured-card__cta"><%= (it.t && it.t('home.featured.cta')) || 'Open restaurant page' %></div>
+                    </div>
+                  </a>
+                </article>
+              <% }); %>
+            </div>
+          </div>
+          <button class="featured-nav featured-nav--next" type="button" data-featured-next aria-label="<%= (it.t && it.t('home.featured.next_aria')) || 'Show next' %>">
+            <span aria-hidden="true">&#8250;</span>
+          </button>
+          <div class="featured-dots" data-featured-dots role="tablist" aria-label="<%= (it.t && it.t('home.featured.dots_aria')) || 'Slide navigation' %>"></div>
+        </div>
+      <% } else { %>
+        <div class="sb-empty-state home-empty-state">
+          <p class="sb-empty-state__message"><%= (it.t && it.t('home.featured.empty')) || 'No restaurants available yet.' %></p>
+        </div>
+      <% } %>
+    </div>
+  </section>
+
+  <section class="section home-benefits-v3">
+    <div class="sb-container home-benefits-v3__grid">
+      <div class="home-benefits-v3__intro">
+        <div class="section-kicker"><%= (it.t && it.t('home.benefits.kicker')) || 'Why guests choose SpotBook' %></div>
+        <h2 class="section-title"><%= (it.t && it.t('home.benefits.title')) || 'A cleaner journey from craving to reservation' %></h2>
+        <p class="home-benefits-v3__text"><%= (it.t && it.t('home.benefits.text')) || 'Every part of the homepage is tuned for diners: discover faster, compare more easily, and get to the booking step with less noise.' %></p>
+      </div>
+      <div class="benefits-grid-v3">
+        <article class="benefit-card-v3">
+          <div class="benefit-card-v3__icon">⌕</div>
+          <h3><%= (it.t && it.t('home.benefits.card1_title')) || 'Smarter search' %></h3>
+          <p><%= (it.t && it.t('home.benefits.card1_desc')) || 'Search by city, cuisine, or mood and find a better fit faster.' %></p>
+        </article>
+        <article class="benefit-card-v3">
+          <div class="benefit-card-v3__icon">◫</div>
+          <h3><%= (it.t && it.t('home.benefits.card2_title')) || 'More visual restaurant pages' %></h3>
+          <p><%= (it.t && it.t('home.benefits.card2_desc')) || 'Photos and information are easier to scan before you decide.' %></p>
+        </article>
+        <article class="benefit-card-v3">
+          <div class="benefit-card-v3__icon">↗</div>
+          <h3><%= (it.t && it.t('home.benefits.card3_title')) || 'Lower-friction booking' %></h3>
+          <p><%= (it.t && it.t('home.benefits.card3_desc')) || 'A smoother flow helps guests move from interest to confirmed table.' %></p>
+        </article>
       </div>
     </div>
-  </div>
+  </section>
+
+  <section class="section how-it-works-v3">
+    <div class="sb-container">
+      <div class="section-head-center how-it-works-v3__head">
+        <div class="section-kicker"><%= (it.t && it.t('home.how_it_works.kicker')) || 'Simple for guests' %></div>
+        <h2 class="section-title"><%= (it.t && it.t('home.how_it_works.title')) || 'How It Works' %></h2>
+        <p class="section-head-center__desc"><%= (it.t && it.t('home.how_it_works.desc')) || 'A clean path from discovering the place to actually booking it.' %></p>
+      </div>
+
+      <div class="how-it-works-v3__grid">
+        <article class="step-card-v3 step-card-v3--one">
+          <div class="step-card-v3__top">
+            <div class="step-card-v3__number">1</div>
+            <div class="step-card-v3__icon">⌕</div>
+          </div>
+          <div class="step-card-v3__body">
+            <span class="step-card-v3__eyebrow"><%= (it.t && it.t('home.how_it_works.step1_tag')) || 'Search' %></span>
+            <h3><%= (it.t && it.t('home.how_it_works.step1_title')) || 'Find a Restaurant' %></h3>
+            <p><%= (it.t && it.t('home.how_it_works.step1_desc')) || 'Search by name, city, or cuisine type to find the perfect spot.' %></p>
+            <div class="step-card-v3__hint"><%= (it.t && it.t('home.how_it_works.step1_tip')) || 'Search faster by restaurant name, city, or cuisine.' %></div>
+          </div>
+        </article>
+
+        <article class="step-card-v3 step-card-v3--two">
+          <div class="step-card-v3__top">
+            <div class="step-card-v3__number">2</div>
+            <div class="step-card-v3__icon">◷</div>
+          </div>
+          <div class="step-card-v3__body">
+            <span class="step-card-v3__eyebrow"><%= (it.t && it.t('home.how_it_works.step2_tag')) || 'Schedule' %></span>
+            <h3><%= (it.t && it.t('home.how_it_works.step2_title')) || 'Pick a Time' %></h3>
+            <p><%= (it.t && it.t('home.how_it_works.step2_desc')) || 'Choose the date, time, and number of guests for your visit.' %></p>
+            <div class="step-card-v3__hint"><%= (it.t && it.t('home.how_it_works.step2_tip')) || 'Set the date, hour, and guest count in one smooth flow.' %></div>
+          </div>
+        </article>
+
+        <article class="step-card-v3 step-card-v3--three">
+          <div class="step-card-v3__top">
+            <div class="step-card-v3__number">3</div>
+            <div class="step-card-v3__icon">✓</div>
+          </div>
+          <div class="step-card-v3__body">
+            <span class="step-card-v3__eyebrow"><%= (it.t && it.t('home.how_it_works.step3_tag')) || 'Enjoy' %></span>
+            <h3><%= (it.t && it.t('home.how_it_works.step3_title')) || 'Confirm & Go' %></h3>
+            <p><%= (it.t && it.t('home.how_it_works.step3_desc')) || 'Receive instant confirmation and enjoy your dining experience.' %></p>
+            <div class="step-card-v3__hint"><%= (it.t && it.t('home.how_it_works.step3_tip')) || 'Get confirmation right away and arrive with confidence.' %></div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <% if (!it.user) { %>
+  <section class="section home-owner-teaser">
+    <div class="sb-container">
+      <div class="owner-teaser-card">
+        <div class="owner-teaser-card__copy">
+          <div class="section-kicker"><%= (it.t && it.t('home.owner_teaser.kicker')) || 'For restaurant owners' %></div>
+          <h2 class="cta-title"><%= (it.t && it.t('home.owner_teaser.title')) || 'Want to grow your restaurant?' %></h2>
+          <p class="cta-desc"><%= (it.t && it.t('home.owner_teaser.desc')) || 'SpotBook is building a premium experience for restaurants too. See the dedicated page for reservation management, floor maps, staff tools, and a stronger guest journey.' %></p>
+        </div>
+        <div class="owner-teaser-card__actions">
+          <a class="btn primary cta-btn" href="/for-restaurants"><%= (it.t && it.t('home.owner_teaser.primary')) || 'Explore the restaurant platform' %></a>
+          <a class="btn secondary cta-btn ghost" href="/auth/register"><%= (it.t && it.t('home.owner_teaser.secondary')) || 'Register your restaurant' %></a>
+        </div>
+      </div>
+    </div>
+  </section>
+  <% } %>
+
+  <section class="section home-social-footer">
+    <div class="sb-container">
+      <div class="home-social-footer__card" aria-label="<%= (it.t && it.t('home.social.aria')) || 'SpotBook social links' %>">
+        <div>
+          <div class="section-kicker"><%= (it.t && it.t('home.social.title')) || 'Follow SpotBook' %></div>
+          <h2 class="home-social-footer__title"><%= (it.t && it.t('home.social.footer_title')) || 'Stay connected with SpotBook' %></h2>
+        </div>
+        <div class="home-social-footer__links">
+          <a class="social-link" href="#" aria-label="<%= (it.t && it.t('home.social.instagram')) || 'Instagram' %>" title="<%= (it.t && it.t('home.social.coming_soon')) || 'Link coming soon' %>">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" ry="5" fill="none" stroke="currentColor" stroke-width="1.8"></rect><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"></circle><circle cx="17.3" cy="6.7" r="1.2" fill="currentColor"></circle></svg>
+            <span><%= (it.t && it.t('home.social.instagram')) || 'Instagram' %></span>
+          </a>
+          <a class="social-link" href="#" aria-label="<%= (it.t && it.t('home.social.facebook')) || 'Facebook' %>" title="<%= (it.t && it.t('home.social.coming_soon')) || 'Link coming soon' %>">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 21v-7h2.5l.5-3h-3V9.4c0-.9.3-1.5 1.6-1.5H17V5.2c-.4-.1-1.3-.2-2.4-.2-2.4 0-4.1 1.5-4.1 4.2V11H8v3h2.5v7h3z" fill="currentColor"></path></svg>
+            <span><%= (it.t && it.t('home.social.facebook')) || 'Facebook' %></span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
 </section>
 
 <style>
-.home-hero-v2{
-  position:relative;
-  overflow:hidden;
-  margin-top:12px;
-  padding:clamp(30px,4vw,48px) 0 clamp(22px,4vw,34px);
-  border-radius:32px;
-  background:
-    radial-gradient(circle at top left, rgba(56,189,248,.18), transparent 30%),
-    radial-gradient(circle at bottom right, rgba(59,130,246,.18), transparent 28%),
-    linear-gradient(180deg, rgba(8,13,24,.98), rgba(8,13,24,.88));
-  border:1px solid rgba(148,163,184,.14);
-  box-shadow:0 34px 90px rgba(2,8,23,.42);
-}
-.home-hero-v2__glow{position:absolute;border-radius:999px;filter:blur(16px);pointer-events:none;opacity:.75}
-.home-hero-v2__glow--one{width:220px;height:220px;top:-30px;right:-40px;background:rgba(56,189,248,.18)}
-.home-hero-v2__glow--two{width:160px;height:160px;left:-20px;bottom:-10px;background:rgba(59,130,246,.16)}
-.home-hero-v2__grid{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);gap:24px;align-items:start}
-.home-hero-v2__copy{display:flex;flex-direction:column;gap:18px}
+.home-canvas{position:relative;isolation:isolate}
+.home-canvas__mesh{position:absolute;inset:auto;pointer-events:none;filter:blur(18px);opacity:.6;z-index:-1}
+.home-canvas__mesh--one{top:32px;inset-inline-start:-40px;width:260px;height:260px;border-radius:999px;background:rgba(56,189,248,.12)}
+.home-canvas__mesh--two{top:420px;inset-inline-end:-60px;width:300px;height:300px;border-radius:999px;background:rgba(59,130,246,.14)}
+.home-hero-v3{padding-top:14px}
+.home-hero-v3__grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(360px,.92fr);gap:24px;align-items:stretch}
+.home-hero-v3__copy,.home-stage-panel{min-width:0}
+.home-hero-v3__copy{position:relative;padding:clamp(26px,3.3vw,42px);border-radius:34px;background:
+  radial-gradient(circle at top left, rgba(125,211,252,.18), transparent 28%),
+  linear-gradient(180deg, rgba(8,13,24,.98), rgba(11,17,31,.9));
+  border:1px solid rgba(148,163,184,.14);box-shadow:0 34px 90px rgba(2,8,23,.42)}
 .section-kicker{display:inline-flex;align-items:center;gap:8px;width:max-content;padding:8px 14px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#dbeafe;background:rgba(59,130,246,.14);border:1px solid rgba(96,165,250,.26)}
-.home-hero-v2__title{margin:0;max-width:11ch;font-size:clamp(42px,6vw,76px);line-height:.93;letter-spacing:-.05em;color:#f8fbff;text-wrap:balance}
-.home-hero-v2__sub{margin:0;max-width:62ch;font-size:clamp(17px,2vw,20px);line-height:1.8;color:rgba(226,232,240,.84)}
-.home-search-card{padding:14px;border-radius:26px;background:rgba(15,23,42,.62);border:1px solid rgba(148,163,184,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 24px 54px rgba(2,8,23,.24)}
-.home-search-card__bar{gap:12px}
-.home-search-card__btn{min-width:148px;box-shadow:0 14px 34px rgba(59,130,246,.28)}
-.home-search-card__meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
-.home-mini-pill{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:#dbe4f0;font-size:13px;font-weight:600}
-.home-hero-v2__chips{justify-content:flex-start;padding:0}
-.home-hero-v2__showcase{display:flex;flex-direction:column;gap:14px}
-.guest-card{border-radius:26px;background:linear-gradient(180deg, rgba(15,23,42,.82), rgba(15,23,42,.58));border:1px solid rgba(148,163,184,.14);box-shadow:0 24px 60px rgba(2,8,23,.28)}
-.guest-card--main{padding:24px}
-.guest-card--main h2{margin:8px 0 10px;font-size:clamp(28px,3vw,38px);line-height:1.08;color:#f8fbff}
-.guest-card--main p{margin:0;color:rgba(226,232,240,.76);line-height:1.75}
-.guest-card__eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#7dd3fc;font-weight:700}
-.guest-card__stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:18px}
-.guest-card__stat{padding:14px;border-radius:18px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)}
-.guest-card__stat strong{display:block;color:#f8fbff;font-size:18px;margin-bottom:4px}
-.guest-card__stat span{display:block;color:#aab8ca;font-size:13px;line-height:1.5}
-.guest-card-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-.guest-card--mini{padding:18px;min-height:100%}
-.guest-card__icon{width:46px;height:46px;display:grid;place-items:center;border-radius:16px;color:#dbeafe;font-size:20px;background:rgba(59,130,246,.16);border:1px solid rgba(96,165,250,.24);margin-bottom:12px}
-.guest-card--mini h3{margin:0 0 8px;color:#f8fbff;font-size:18px}
-.guest-card--mini p{margin:0;color:#aebbd0;line-height:1.7;font-size:14px}
-.home-story-strip__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
-.story-card{padding:22px;border-radius:24px;background:linear-gradient(180deg, rgba(15,23,42,.72), rgba(15,23,42,.52));border:1px solid rgba(148,163,184,.12);box-shadow:0 18px 42px rgba(2,8,23,.18)}
-.story-card--accent{background:linear-gradient(180deg, rgba(30,41,59,.88), rgba(15,23,42,.58));border-color:rgba(96,165,250,.22)}
-.story-card__kicker{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#7dd3fc;font-weight:700;margin-bottom:10px}
-.story-card h3{margin:0 0 10px;color:#f8fbff;font-size:22px;line-height:1.2}
-.story-card p{margin:0;color:#aebbd0;line-height:1.8}
-.section-head-inline{display:flex;justify-content:space-between;align-items:end;gap:18px;flex-wrap:wrap;margin-bottom:16px}
-.section-head-inline__desc{max-width:56ch;margin:0;color:#95a7c0;line-height:1.7}
-.section-head-center{text-align:center;max-width:760px;margin:0 auto 18px}
+.home-hero-v3__title{margin:16px 0 12px;max-width:10ch;font-size:clamp(46px,6vw,84px);line-height:.9;letter-spacing:-.06em;color:#f8fbff;text-wrap:balance}
+.home-hero-v3__sub{margin:0 0 22px;max-width:62ch;font-size:clamp(17px,2vw,20px);line-height:1.85;color:rgba(226,232,240,.84)}
+.home-search-shell{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:14px;border-radius:28px;background:rgba(15,23,42,.66);border:1px solid rgba(148,163,184,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 24px 54px rgba(2,8,23,.24)}
+.home-search-shell__field{display:flex;align-items:center;gap:14px;min-width:0;padding:14px 16px;border-radius:20px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)}
+.home-search-shell__icon{display:grid;place-items:center;width:42px;height:42px;border-radius:14px;background:rgba(59,130,246,.16);color:#dbeafe;flex:0 0 42px}
+.home-search-shell__icon svg{width:20px;height:20px}
+.home-search-shell__text{display:flex;flex-direction:column;gap:4px;min-width:0}
+.home-search-shell__label{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#7dd3fc}
+.home-search-shell input{border:none;outline:none;background:transparent;color:#f8fbff;font-size:16px;min-width:0;padding:0}
+.home-search-shell input::placeholder{color:#89a1bb}
+.home-search-shell__btn{min-width:154px;height:100%;box-shadow:0 14px 34px rgba(59,130,246,.28)}
+.home-hero-v3__proofs{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.home-proof-pill{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:#dbe4f0;font-size:13px;font-weight:600}
+.home-hero-v3__chips{justify-content:flex-start;padding:18px 0 0;margin-top:2px}
+.home-stage-panel__window{height:100%;padding:24px;border-radius:30px;background:
+  radial-gradient(circle at top right, rgba(59,130,246,.14), transparent 24%),
+  linear-gradient(180deg, rgba(15,23,42,.9), rgba(15,23,42,.68));
+  border:1px solid rgba(148,163,184,.14);box-shadow:0 24px 60px rgba(2,8,23,.28)}
+.home-stage-panel__header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.home-stage-panel__eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#7dd3fc;font-weight:700}
+.home-stage-panel h2{margin:8px 0 0;font-size:clamp(28px,3vw,38px);line-height:1.08;color:#f8fbff;max-width:13ch}
+.home-stage-badge{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:999px;background:rgba(125,211,252,.1);border:1px solid rgba(125,211,252,.2);color:#dff3ff;font-size:13px;font-weight:700;white-space:nowrap}
+.home-stage-panel__sub{margin:14px 0 18px;color:rgba(226,232,240,.76);line-height:1.82}
+.home-stage-panel__stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.home-stage-stat{padding:14px;border-radius:18px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)}
+.home-stage-stat strong{display:block;color:#f8fbff;font-size:18px;margin-bottom:4px}
+.home-stage-stat span{display:block;color:#aab8ca;font-size:13px;line-height:1.5}
+.home-stage-highlights{display:grid;grid-template-columns:1fr;gap:12px}
+.home-stage-highlight{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:flex-start;padding:14px;border-radius:18px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06)}
+.home-stage-highlight__icon{display:grid;place-items:center;width:44px;height:44px;border-radius:15px;background:rgba(59,130,246,.16);border:1px solid rgba(96,165,250,.24);color:#dbeafe;font-size:20px}
+.home-stage-highlight h3{margin:0 0 6px;color:#f8fbff;font-size:17px}
+.home-stage-highlight p{margin:0;color:#aebbd0;line-height:1.7;font-size:14px}
+.home-discovery-strip__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.discovery-card{padding:26px;border-radius:28px;min-height:240px;border:1px solid rgba(148,163,184,.12);box-shadow:0 18px 42px rgba(2,8,23,.18);display:flex;flex-direction:column;justify-content:flex-end;position:relative;overflow:hidden}
+.discovery-card:before{content:"";position:absolute;inset:0;opacity:.9}
+.discovery-card>*{position:relative;z-index:1}
+.discovery-card--date{background:linear-gradient(180deg, rgba(15,23,42,.34), rgba(15,23,42,.92));}
+.discovery-card--date:before{background:radial-gradient(circle at top left, rgba(244,114,182,.20), transparent 34%), linear-gradient(180deg, transparent, rgba(15,23,42,.18))}
+.discovery-card--group{background:linear-gradient(180deg, rgba(15,23,42,.34), rgba(15,23,42,.92));}
+.discovery-card--group:before{background:radial-gradient(circle at top right, rgba(45,212,191,.18), transparent 36%), linear-gradient(180deg, transparent, rgba(15,23,42,.2))}
+.discovery-card--fast{background:linear-gradient(180deg, rgba(15,23,42,.34), rgba(15,23,42,.92));}
+.discovery-card--fast:before{background:radial-gradient(circle at center top, rgba(96,165,250,.20), transparent 35%), linear-gradient(180deg, transparent, rgba(15,23,42,.22))}
+.discovery-card__kicker{margin-bottom:12px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#dbeafe;font-weight:700}
+.discovery-card h3{margin:0 0 10px;color:#fff;font-size:28px;line-height:1.08;max-width:12ch}
+.discovery-card p{margin:0;color:#b7c6d8;line-height:1.8}
+.section-head-inline{display:flex;justify-content:space-between;align-items:end;gap:18px;flex-wrap:wrap;margin-bottom:18px}
+.section-head-inline__desc{max-width:56ch;margin:0;color:#95a7c0;line-height:1.8}
+.section-head-center{text-align:center;max-width:760px;margin:0 auto 20px}
 .section-head-center__desc{margin:12px auto 0;color:#96a8bf;line-height:1.8}
-.home-card-v2{overflow:hidden}
-.home-card-v2__top{display:flex;justify-content:space-between;gap:12px;align-items:start}
-.home-empty-state{padding:26px;border-radius:24px;background:rgba(15,23,42,.52);border:1px solid rgba(148,163,184,.12)}
-.home-featured-v2,.home-benefits-v2,.how-it-works-v2{margin-top:6px}
-.home-benefits-v2__grid{display:grid;grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr);gap:18px;align-items:start}
-.home-benefits-v2__title{margin:8px 0 10px}
-.home-benefits-v2__text{margin:0;color:#95a7c0;line-height:1.8;max-width:54ch}
-.benefits-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
-.benefit-card{padding:22px;border-radius:22px;background:linear-gradient(180deg, rgba(15,23,42,.72), rgba(15,23,42,.52));border:1px solid rgba(148,163,184,.12);box-shadow:0 16px 40px rgba(2,8,23,.18)}
-.benefit-card h3{margin:0 0 8px;color:#eef6ff;font-size:20px}
-.benefit-card p{margin:0;color:#9fb0c6;line-height:1.75}
-.benefit-icon{width:50px;height:50px;margin-bottom:14px;display:grid;place-items:center;border-radius:16px;color:#dbeafe;font-size:22px;background:rgba(59,130,246,.14);border:1px solid rgba(96,165,250,.22)}
+.home-card-v3{overflow:hidden;border-radius:22px;box-shadow:0 18px 42px rgba(2,8,23,.16)}
+.home-card-v3 .card-img{height:240px}
+.home-card-v3 .card-body{padding:18px}
+.home-card-v3__top{display:flex;justify-content:space-between;gap:12px;align-items:start}
+.home-empty-state{padding:28px;border-radius:24px;background:rgba(15,23,42,.52);border:1px solid rgba(148,163,184,.12)}
+.home-featured-v3__head{align-items:flex-end}
+.home-featured-v3__summary{display:flex;flex-direction:column;gap:8px;align-items:flex-end;max-width:420px}
+.home-featured-v3__note{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;background:rgba(125,211,252,.08);border:1px solid rgba(125,211,252,.14);color:#dff4ff;font-size:13px;font-weight:600}
+.featured-shell{display:grid;grid-template-columns:auto 1fr auto;grid-template-rows:1fr auto;gap:12px;align-items:center}
+.featured-viewport{overflow:auto hidden;scroll-snap-type:x mandatory;scroll-behavior:smooth;border-radius:28px;grid-column:2;scrollbar-width:none;-ms-overflow-style:none}
+.featured-viewport::-webkit-scrollbar{display:none}
+.featured-track{display:flex;gap:16px}
+.featured-slide{flex:0 0 clamp(260px,33vw,380px);scroll-snap-align:start}
+.featured-card{position:relative;display:block;min-height:460px;border-radius:28px;overflow:hidden;border:1px solid rgba(148,163,184,.14);box-shadow:0 26px 64px rgba(2,8,23,.26);text-decoration:none;background:#0f172a}
+.featured-card__image,.featured-card__overlay{position:absolute;inset:0}
+.featured-card__image{background-size:cover;background-position:center;transform:scale(1.02);transition:transform .5s ease}
+.featured-card__overlay{background:linear-gradient(180deg, rgba(8,13,24,.08) 10%, rgba(8,13,24,.26) 40%, rgba(8,13,24,.88) 100%)}
+.featured-card__content{position:absolute;inset:auto 0 0 0;padding:22px;display:flex;flex-direction:column;gap:12px}
+.featured-card__meta-row{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.featured-card__city,.featured-card__rating{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:rgba(8,13,24,.46);border:1px solid rgba(226,232,240,.12);color:#f8fbff;font-size:13px;font-weight:700;backdrop-filter:blur(10px)}
+.featured-card__title{margin:0;color:#fff;font-size:clamp(24px,3vw,32px);line-height:1.05;text-wrap:balance}
+.featured-card__cta{display:inline-flex;align-items:center;gap:8px;width:max-content;padding:11px 14px;border-radius:999px;background:#fff;color:#0f172a;font-weight:800;font-size:13px}
+.featured-card:hover .featured-card__image{transform:scale(1.08)}
+.featured-nav{grid-row:1;display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.82);color:#f8fbff;cursor:pointer;box-shadow:0 12px 28px rgba(2,8,23,.22);transition:transform .18s ease, background .18s ease}
+.featured-nav:hover{transform:translateY(-1px);background:rgba(30,41,59,.96)}
+.featured-dots{grid-column:1/-1;display:flex;justify-content:center;gap:8px;padding-top:6px}
+.featured-dot{width:10px;height:10px;border:none;border-radius:999px;background:rgba(148,163,184,.22);cursor:pointer;padding:0;transition:all .2s ease}
+.featured-dot.is-active{width:28px;background:#60a5fa}
+.home-benefits-v3__grid{display:grid;grid-template-columns:minmax(0,.84fr) minmax(0,1.16fr);gap:18px;align-items:start}
+.home-benefits-v3__text{margin:10px 0 0;color:#95a7c0;line-height:1.82;max-width:54ch}
+.benefits-grid-v3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.benefit-card-v3{padding:24px;border-radius:24px;background:linear-gradient(180deg, rgba(15,23,42,.76), rgba(15,23,42,.56));border:1px solid rgba(148,163,184,.12);box-shadow:0 16px 40px rgba(2,8,23,.18)}
+.benefit-card-v3 h3{margin:0 0 8px;color:#eef6ff;font-size:20px}
+.benefit-card-v3 p{margin:0;color:#9fb0c6;line-height:1.75}
+.benefit-card-v3__icon{width:50px;height:50px;margin-bottom:14px;display:grid;place-items:center;border-radius:16px;color:#dbeafe;font-size:22px;background:rgba(59,130,246,.14);border:1px solid rgba(96,165,250,.22)}
+.how-it-works-v3__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;position:relative}
+.how-it-works-v3__grid:before{content:"";position:absolute;top:54px;left:calc(16.666% + 30px);right:calc(16.666% + 30px);height:1px;background:linear-gradient(90deg, rgba(96,165,250,.0), rgba(96,165,250,.34), rgba(96,165,250,0));pointer-events:none}
+.step-card-v3{position:relative;padding:24px;border-radius:28px;background:linear-gradient(180deg, rgba(9,14,26,.96), rgba(15,23,42,.84));border:1px solid rgba(148,163,184,.12);box-shadow:0 22px 52px rgba(2,8,23,.22);overflow:hidden}
+.step-card-v3:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at top left, rgba(96,165,250,.14), transparent 32%);pointer-events:none}
+.step-card-v3__top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.step-card-v3__number{display:grid;place-items:center;width:58px;height:58px;border-radius:20px;background:#eff6ff;color:#0f172a;font-size:22px;font-weight:900;box-shadow:0 14px 30px rgba(96,165,250,.18)}
+.step-card-v3__icon{display:grid;place-items:center;width:48px;height:48px;border-radius:16px;background:rgba(59,130,246,.14);border:1px solid rgba(96,165,250,.22);color:#dbeafe;font-size:22px}
+.step-card-v3__eyebrow{display:inline-flex;align-items:center;gap:8px;margin-bottom:10px;padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);color:#dbeafe;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:700}
+.step-card-v3 h3{margin:0 0 10px;color:#fff;font-size:28px;line-height:1.05}
+.step-card-v3 p{margin:0;color:#b8c7da;line-height:1.82}
+.step-card-v3__hint{margin-top:16px;padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);color:#dfeeff;font-size:14px;font-weight:600}
 .owner-teaser-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;padding:24px 26px;border-radius:26px;background:linear-gradient(180deg, rgba(9,14,26,.95), rgba(15,23,42,.82));border:1px solid rgba(96,165,250,.20);box-shadow:0 26px 64px rgba(2,8,23,.26)}
 .owner-teaser-card__copy{max-width:760px}
 .owner-teaser-card__actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end}
@@ -374,33 +486,49 @@
 .social-link{display:inline-flex;align-items:center;gap:10px;padding:12px 16px;border-radius:999px;border:1px solid rgba(148,163,184,.18);background:rgba(23,27,41,.72);color:var(--sb-color-ink,#e6e8ef);text-decoration:none;transition:all .18s ease;backdrop-filter:blur(10px)}
 .social-link svg{width:18px;height:18px;flex:0 0 18px}
 .social-link:hover{transform:translateY(-1px);border-color:rgba(59,130,246,.45);background:rgba(59,130,246,.12)}
-.category-chips{display:flex;gap:var(--sb-space-sm,8px);flex-wrap:wrap;justify-content:center;margin-top:var(--sb-space-lg,16px);padding:0 var(--sb-space-lg,16px)}
+.category-chips{display:flex;gap:var(--sb-space-sm,8px);flex-wrap:wrap;justify-content:center;margin-top:var(--sb-space-lg,16px)}
 .chip{display:inline-flex;align-items:center;gap:var(--sb-space-xs,4px);padding:var(--sb-space-sm,8px) var(--sb-space-lg,16px);border-radius:var(--sb-radius-pill,999px);border:1px solid var(--sb-color-bd,#23293a);background:var(--sb-color-panel-2,#171b29);color:var(--sb-color-ink,#e6e8ef);text-decoration:none;font-size:var(--sb-font-sm,13px);font-weight:var(--sb-weight-medium,500);transition:all var(--sb-ease-fast,150ms ease);cursor:pointer}
 .chip:hover{background:var(--sb-color-panel,#121622);border-color:var(--sb-color-brand,#3b82f6);transform:translateY(-1px)}
 .chip.active{background:var(--sb-color-brand,#3b82f6);border-color:var(--sb-color-brand,#3b82f6);color:var(--sb-color-brand-ink,#fff);box-shadow:0 4px 12px rgba(59,130,246,0.3)}
-.carousel{position:relative;display:grid;grid-template-columns:auto 1fr auto;grid-template-rows:1fr auto;align-items:center;gap:8px;margin-top:8px}
-.carousel-viewport{grid-column:2;overflow:hidden;border-radius:var(--sb-radius-xl,16px)}
-.carousel-track{display:flex;gap:var(--carousel-gap,12px);transition:transform .5s cubic-bezier(.25,.46,.45,.94);will-change:transform}
-.carousel-slide{flex:0 0 calc((100% - 2 * var(--carousel-gap, 12px)) / var(--carousel-visible, 3));background:var(--sb-color-panel,#121622);border:1px solid var(--sb-color-bd,#23293a);border-radius:var(--sb-radius-xl,14px);overflow:hidden;transition:transform .2s ease, box-shadow .2s ease}
-.carousel-slide:hover{transform:translateY(-3px);box-shadow:var(--sb-shadow-md,0 10px 30px rgba(0,0,0,.35))}
-.carousel-btn{grid-row:1;inline-size:40px;block-size:40px;border-radius:50%;border:1px solid var(--sb-color-bd,#23293a);background:var(--sb-color-panel-2,#171b29);color:var(--sb-color-ink,#e6e8ef);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;transition:background .15s ease, transform .15s ease;z-index:2}
-.carousel-btn:hover{background:var(--sb-color-panel,#121622);transform:scale(1.1)}
-.carousel-btn.prev{grid-column:1}.carousel-btn.next{grid-column:3}
-.carousel-dots{grid-column:1/-1;display:flex;justify-content:center;gap:8px;padding:var(--sb-space-md,12px) 0 0}
-.carousel-dot{width:10px;height:10px;border-radius:50%;border:none;background:var(--sb-color-bd,#23293a);cursor:pointer;padding:0;transition:background .25s ease, transform .25s ease}
-.carousel-dot:hover{background:rgba(125,211,252,.4)}
-.carousel-dot.is-active{background:var(--sb-color-brand,#3b82f6);transform:scale(1.3)}
-@media (max-width: 1080px){
-  .home-hero-v2__grid,.home-benefits-v2__grid,.owner-teaser-card{grid-template-columns:1fr}
-  .guest-card__stats,.guest-card-grid,.home-story-strip__grid,.benefits-grid{grid-template-columns:1fr}
+@media (max-width:1200px){
+  .home-hero-v3__grid,.home-benefits-v3__grid{grid-template-columns:1fr}
+  .home-stage-panel__stats,.home-discovery-strip__grid,.how-it-works-v3__grid,.benefits-grid-v3{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .how-it-works-v3__grid:before{display:none}
+  .home-featured-v3__summary{align-items:flex-start;max-width:none}
+}
+@media (max-width:860px){
+  .home-hero-v3__copy,.home-stage-panel__window,.discovery-card,.benefit-card-v3,.step-card-v3,.owner-teaser-card,.home-social-footer__card{padding:20px}
+  .home-search-shell{grid-template-columns:1fr}
+  .home-search-shell__btn{width:100%;min-height:50px}
+  .home-hero-v3__chips{display:flex;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .home-hero-v3__chips::-webkit-scrollbar{display:none}
+  .chip{white-space:nowrap;flex:0 0 auto}
+  .featured-shell{grid-template-columns:1fr;grid-template-rows:auto auto auto}
+  .featured-viewport{grid-column:1}
+  .featured-nav{display:none}
+  .featured-slide{flex-basis:84vw;max-width:84vw}
+  .owner-teaser-card{grid-template-columns:1fr}
   .owner-teaser-card__actions{justify-content:flex-start}
 }
-@media (max-width: 720px){
-  .home-hero-v2{border-radius:24px;padding-top:22px}
-  .home-hero-v2__title{max-width:none;font-size:clamp(34px,10vw,52px)}
-  .home-search-card__bar{flex-direction:column}
-  .home-search-card__btn{width:100%}
-  .section-head-inline{align-items:start}
-  .home-social-footer__card{padding:18px}
+@media (max-width:680px){
+  .home-hero-v3__title{max-width:none;font-size:clamp(38px,12vw,56px)}
+  .home-stage-panel__header{flex-direction:column}
+  .home-stage-panel h2{max-width:none}
+  .home-stage-panel__stats,.home-discovery-strip__grid,.how-it-works-v3__grid,.benefits-grid-v3{grid-template-columns:1fr}
+  .featured-slide{flex-basis:92vw;max-width:92vw}
+  .featured-card{min-height:400px}
+  .section-head-inline{align-items:flex-start}
+  .home-hero-v3__proofs{gap:8px}
+  .home-proof-pill{width:100%;justify-content:center}
+}
+@media (max-width:520px){
+  .home-hero-v3__copy{padding:18px;border-radius:24px}
+  .home-search-shell{padding:10px;border-radius:22px}
+  .home-search-shell__field{padding:12px}
+  .home-search-shell__icon{width:38px;height:38px;flex-basis:38px}
+  .home-social-footer__links,.owner-teaser-card__actions{width:100%}
+  .home-social-footer__links .social-link,.owner-teaser-card__actions .btn{width:100%;justify-content:center}
 }
 </style>
+
+<script src="/static/js/homepage_v3.js?v=<%= it.BUILD_TAG || '' %>" defer></script>
