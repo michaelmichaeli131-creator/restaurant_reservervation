@@ -416,4 +416,38 @@
     .rsv-summary-bar { gap: 6px; }
     .rsv-chip { padding: 6px 10px; font-size: 12px; }
   }
+  /* ===== Premium reservation confirmed refresh ===== */
+  .rsv-page { max-width: 920px; padding-top: 22px; }
+  .rsv-confirmed-header {
+    padding: 24px 26px;
+    border-radius: 28px;
+    border: 1px solid rgba(255,255,255,.08);
+    background:
+      radial-gradient(circle at top right, rgba(34,197,94,.14), transparent 22%),
+      radial-gradient(circle at top left, rgba(59,130,246,.12), transparent 26%),
+      linear-gradient(180deg, rgba(18,22,34,.98), rgba(12,16,27,.98));
+    box-shadow: 0 30px 72px rgba(2,6,23,.34);
+    margin-bottom: 18px;
+  }
+  .rsv-summary-bar { gap: 10px; margin-bottom: 22px; }
+  .rsv-chip {
+    padding: 10px 16px; border-radius: 14px;
+    background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.025));
+    border-color: rgba(255,255,255,.08);
+  }
+  .rsv-confirm-card, .rsv-about-card {
+    border-radius: 28px;
+    border: 1px solid rgba(255,255,255,.08);
+    background:
+      radial-gradient(circle at top right, rgba(59,130,246,.12), transparent 24%),
+      linear-gradient(180deg, rgba(18,22,34,.98), rgba(12,16,27,.98));
+    box-shadow: 0 28px 72px rgba(2,6,23,.34);
+  }
+  .rsv-actions-stack { gap: 12px; }
+  .rsv-btn { min-height: 52px; border-radius: 16px; }
+  @media (max-width: 680px) {
+    .rsv-page { max-width: 100%; padding-top: 14px; }
+    .rsv-confirmed-header, .rsv-confirm-card, .rsv-about-card { border-radius: 22px; }
+  }
+
 </style>
