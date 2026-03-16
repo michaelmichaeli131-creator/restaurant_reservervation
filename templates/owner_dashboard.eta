@@ -34,9 +34,9 @@ function hasAny(perms){
 %>
 
 <section class="sb-owner container" aria-label="<%= isOwner ? tt('owner.dashboard.aria_section','דשבורד בעלים') : tt('staff.dashboard.aria_section','דשבורד מסעדה') %>">
-  <div class="card">
-    <header class="owner-hd">
-      <div class="owner-hd-main">
+  <div class="card owner-shell">
+    <header class="owner-hd owner-hero">
+      <div class="owner-hd-main owner-hero-main">
         <h1>
           <%= isOwner ? tt('owner.dashboard.title','דשבורד בעלים') : tt('staff.dashboard.title','דשבורד מסעדה') %>
         </h1>
@@ -48,7 +48,7 @@ function hasAny(perms){
         </span>
       </div>
 
-      <div class="owner-hd-actions">
+      <div class="owner-hd-actions owner-hero-actions">
         <% if (isOwner) { %>
           <!-- נוכחות עובדים – רק לבעלים -->
           <a href="/owner/time" class="btn sm ghost owner-staff-btn">
@@ -85,8 +85,8 @@ function hasAny(perms){
 
     <div class="owner-grid">
       <!-- רשימת מסעדות -->
-      <div class="panel card">
-        <h2 class="card-title">
+      <div class="panel card owner-list-card">
+        <h2 class="card-title owner-section-title">
           <%= isOwner ? tt('owner.dashboard.my_restaurants','המסעדות שלי') : tt('staff.dashboard.my_restaurant','המסעדה שלי') %>
         </h2>
 
@@ -117,8 +117,8 @@ function hasAny(perms){
                  const canInvView   = hasPerm('inventory.view') || hasPerm('inventory.manage');
                  const canInvManage = hasPerm('inventory.manage');
             %>
-              <li class="item">
-                <div class="meta">
+              <li class="item owner-item">
+                <div class="meta owner-item-meta">
                   <% if (first) { %>
                     <img
                       src="<%= first.dataUrl %>"
@@ -127,7 +127,7 @@ function hasAny(perms){
                       onerror="this.style.visibility='hidden'"
                     />
                   <% } %>
-                  <div class="meta-body">
+                  <div class="meta-body owner-item-body">
                     <div class="title"><strong><%= r.name %></strong></div>
                     <div class="sub muted">
                       <%= r.city %> • <%= r.address %>
@@ -152,7 +152,7 @@ function hasAny(perms){
                 </div>
 
                 <!-- פעולות כלליות -->
-                <div class="actions primary-actions">
+                <div class="actions primary-actions owner-primary-actions">
                   <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/manage?date=<%= r._today %>" target="_self" rel="nofollow">
                     <span class="icon">🏠</span>
                     <%= tt('owner.dashboard.btn_manage','Manage') %>
@@ -208,7 +208,7 @@ function hasAny(perms){
                 </div>
 
                 <!-- POS / תפעול -->
-                <div class="actions pos-actions">
+                <div class="actions pos-actions owner-pos-actions">
                   <% if (isOwner && canMenu) { %>
                     <a class="btn ghost wide" href="/owner/<%= r.id %>/menu">
                       <span class="icon">🧾</span>
@@ -300,8 +300,8 @@ function hasAny(perms){
 
       <!-- פתיחת מסעדה חדשה (Owner בלבד) -->
       <% if (isOwner) { %>
-      <div class="panel card">
-        <h2 class="card-title"><%= tt('owner.dashboard.open_new_title','פתח/י מסעדה חדשה') %></h2>
+      <div class="panel card owner-create-card">
+        <h2 class="card-title owner-section-title"><%= tt('owner.dashboard.open_new_title','פתח/י מסעדה חדשה') %></h2>
 
         <form action="/owner/restaurant/new" method="post" class="form" id="create-restaurant-form">
           <label>
@@ -398,145 +398,267 @@ function hasAny(perms){
 </script>
 
 <style>
-  .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
+  .sb-owner.container{
+    max-width:1240px;
+    margin:22px auto 34px;
+    padding:0 18px;
+  }
+
+  .owner-shell{
+    position:relative;
+    overflow:hidden;
+    padding:24px;
+    border-radius:28px;
+    background:
+      radial-gradient(circle at top left, rgba(59,130,246,.22), transparent 28%),
+      radial-gradient(circle at top right, rgba(96,165,250,.16), transparent 24%),
+      linear-gradient(180deg, rgba(15,24,47,.96), rgba(9,14,30,.98));
+    border:1px solid rgba(99,141,255,.22);
+    box-shadow:0 26px 80px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .owner-shell::before,
+  .owner-shell::after{
+    content:"";
+    position:absolute;
+    inset:auto;
+    pointer-events:none;
+    border-radius:999px;
+    filter:blur(10px);
+  }
+  .owner-shell::before{
+    width:220px;height:220px;top:-84px;left:-60px;
+    background:rgba(59,130,246,.18);
+  }
+  .owner-shell::after{
+    width:180px;height:180px;right:-48px;top:54px;
+    background:rgba(56,189,248,.14);
+  }
 
   .card{
-    background: var(--panel, #121622);
-    border:1px solid var(--bd, #222834);
-    border-radius:18px; padding:18px; margin-bottom:18px;
-    color: var(--ink, #e6e8ef);
-    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    background:linear-gradient(180deg, rgba(16,22,41,.94), rgba(10,15,29,.96));
+    border:1px solid rgba(95,119,176,.18);
+    border-radius:24px;
+    padding:20px;
+    margin-bottom:18px;
+    color:var(--ink, #e6e8ef);
+    box-shadow:0 20px 60px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
+    backdrop-filter:blur(14px);
   }
   .panel.card{height:100%}
 
-  .owner-hd{
-    display:flex;align-items:center;gap:10px;justify-content:space-between
+  .owner-hero{
+    position:relative;
+    align-items:flex-start;
+    gap:18px;
+    padding:6px 0 20px;
+    margin-bottom:6px;
+    border-bottom:1px solid rgba(255,255,255,.08);
   }
-  .owner-hd-main{
-    display:flex;
-    flex-direction:column;
-    gap:4px;
-  }
-  .owner-hd-actions{
-    display:flex;
-    align-items:center;
+  .owner-hero-main{
     gap:8px;
-    flex-wrap:wrap;
-    justify-content:flex-end;
+    max-width:720px;
   }
-  .owner-staff-btn{
-    font-size:12px;
-    padding:6px 10px;
+  .owner-hero-main h1{
+    margin:0;
+    font-size:clamp(30px, 5vw, 50px);
+    line-height:.98;
+    letter-spacing:-.04em;
+    text-shadow:0 12px 36px rgba(0,0,0,.28);
   }
-
-  .card-title{ margin:0 0 10px; font-size: clamp(16px, 2.2vw, 20px) }
-  .muted{ color: var(--ink-muted, #9aa3b2); }
-
-  .owner-grid{
-    display:grid;grid-template-columns:1.2fr 1fr;gap:16px;margin-top:14px
-  }
-
-  .list{list-style:none;padding:0;margin:0}
-  .item{
-    display:flex;align-items:flex-start;gap:14px;
-    border-top:1px solid rgba(255,255,255,.06);padding:14px 0;
-    flex-direction:column;
-  }
-  .item:first-child{border-top:none;padding-top:0}
-
-  .meta{display:flex;gap:12px;align-items:flex-start}
-  .thumb{
-    width:90px;height:70px;object-fit:cover;border-radius:10px;
-    border:1px solid var(--bd, #222834); background:#0f1320
-  }
-  .meta-body .title{font-size:16px}
-  .meta-body .sub{font-size:12px}
-
-  .kpis{margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .kpi{
-    font-size:12px;color:#cbd5e1;
-    background: rgba(148,163,184,.12);
-    border:1px solid rgba(148,163,184,.25);
-    border-radius:10px;padding:4px 6px
-  }
-
-  .bar{width:100%;height:10px;background:#0e1422;border-radius:999px;overflow:hidden;border:1px solid #1f2636;margin-top:6px}
-  .bar-fill{height:100%;background:linear-gradient(90deg,#10b981,#34d399)}
-  .bar-fill.yellow{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
-  .bar-fill.red{background:linear-gradient(90deg,#ef4444,#f87171)}
-
-  .btn{ line-height: 1.1; }
-  .btn .icon{
-    width:18px;
-    height:18px;
-    flex: 0 0 18px;
+  .owner-hero-main .muted{
     display:inline-flex;
     align-items:center;
-    justify-content:center;
-    font-size:16px;
-    line-height: 1;
-  }
-
-  .btn{
-    display:inline-flex; align-items:center; justify-content:center; gap:8px;
-    padding:10px 14px; border-radius:12px; cursor:pointer; text-decoration:none;
-    border:1px solid var(--bd, #23293a); background:transparent;
-    color: var(--ink, #e6e8ef); font-weight:700;
-    transition: transform .08s ease, filter .12s ease, box-shadow .12s ease;
-  }
-  .btn:hover{ transform: translateY(-1px); }
-  .btn.primary{
-    background: var(--brand, #3b82f6); color: var(--brand-ink, #fff); border-color:transparent;
-    box-shadow: 0 8px 24px rgba(59,130,246,.35);
-  }
-  .btn.ghost{
-    background: color-mix(in srgb, var(--panel, #121622) 88%, transparent);
-  }
-  .btn.ghost:hover{ background: color-mix(in srgb, var(--panel, #121622) 94%, transparent); }
-  .btn.sm{ padding:8px 12px; border-radius:10px }
-
-  .actions{
-    display:flex;
     gap:8px;
     flex-wrap:wrap;
-    margin-top:8px;
+    padding:10px 14px;
+    border-radius:999px;
+    color:#d5deef;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
   }
-  .primary-actions{
-    justify-content:flex-start;
+  .owner-hero-actions{
+    margin-inline-start:auto;
+    gap:10px;
+    align-items:center;
   }
-  .pos-actions{
-    justify-content:flex-start;
-  }
-  .pos-actions .btn.wide{
-    min-width:180px;
+  .owner-hd-actions .owner-staff-btn{
+    min-height:44px;
+    padding:10px 14px;
+    border-radius:14px;
+    background:rgba(255,255,255,.055);
+    border-color:rgba(120,148,215,.18);
+    box-shadow:0 10px 24px rgba(0,0,0,.22);
   }
 
-  .form label{ display:block; font-weight:600; font-size:14px; margin-top:8px }
+  .owner-grid{
+    display:grid;
+    grid-template-columns:minmax(0,1.55fr) minmax(340px, .92fr);
+    gap:20px;
+    margin-top:18px;
+    align-items:start;
+  }
+
+  .owner-list-card,
+  .owner-create-card{
+    position:relative;
+    overflow:hidden;
+  }
+  .owner-list-card::before,
+  .owner-create-card::before{
+    content:"";
+    position:absolute;
+    inset:0 0 auto 0;
+    height:1px;
+    background:linear-gradient(90deg, transparent, rgba(96,165,250,.45), transparent);
+  }
+  .owner-section-title{
+    margin:0 0 18px;
+    font-size:clamp(20px, 2.2vw, 28px);
+    line-height:1.05;
+    letter-spacing:-.03em;
+  }
+
+  .list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:14px}
+  .owner-item{
+    position:relative;
+    display:flex;
+    align-items:stretch;
+    gap:16px;
+    padding:18px;
+    border:none;
+    border-radius:22px;
+    background:
+      linear-gradient(180deg, rgba(20,30,56,.96), rgba(12,18,34,.96));
+    box-shadow:0 18px 48px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.04);
+    overflow:hidden;
+  }
+  .owner-item::before{
+    content:"";
+    position:absolute;
+    inset:0 auto 0 0;
+    width:4px;
+    border-radius:999px;
+    background:linear-gradient(180deg, #49a2ff, #0ea5e9);
+    opacity:.92;
+  }
+
+  .owner-item-meta{
+    display:grid;
+    grid-template-columns:128px minmax(0,1fr);
+    gap:16px;
+    width:100%;
+    align-items:start;
+  }
+  .thumb{
+    width:128px;height:108px;object-fit:cover;border-radius:18px;
+    border:1px solid rgba(255,255,255,.08); background:#0f1320;
+    box-shadow:0 18px 38px rgba(0,0,0,.28);
+  }
+  .owner-item-body{display:flex;flex-direction:column;gap:10px}
+  .meta-body .title{font-size:22px;line-height:1.05;letter-spacing:-.03em}
+  .meta-body .sub{font-size:13px;color:#aebad1}
+
+  .kpis{margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .kpi{
+    font-size:12px;color:#e6edf8;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.09);
+    border-radius:999px;padding:7px 10px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+  }
+
+  .bar{
+    width:100%;height:12px;background:#0b1020;border-radius:999px;overflow:hidden;
+    border:1px solid rgba(255,255,255,.08);margin-top:2px;
+    box-shadow:inset 0 4px 12px rgba(0,0,0,.4);
+  }
+  .bar-fill{height:100%;background:linear-gradient(90deg,#10b981,#34d399)}
+  .bar-fill.yellow{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+  .bar-fill.red{background:linear-gradient(90deg,#ef4444,#fb7185)}
+
+  .btn{ line-height:1.1; }
+  .btn .icon{
+    width:18px;height:18px;flex:0 0 18px;display:inline-flex;align-items:center;justify-content:center;
+    font-size:16px;line-height:1;
+  }
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:11px 14px; border-radius:14px; cursor:pointer; text-decoration:none;
+    border:1px solid rgba(123,147,205,.18);
+    background:rgba(255,255,255,.04);
+    color:var(--ink, #e6e8ef); font-weight:800;
+    transition: transform .12s ease, filter .12s ease, box-shadow .12s ease, border-color .12s ease;
+    box-shadow:0 10px 24px rgba(0,0,0,.14);
+  }
+  .btn:hover{ transform: translateY(-1px); border-color:rgba(123,147,205,.34); }
+  .btn.primary{
+    background:linear-gradient(135deg, var(--brand, #3b82f6), #60a5fa);
+    color:var(--brand-ink, #fff);
+    border-color:transparent;
+    box-shadow:0 16px 34px rgba(59,130,246,.34);
+  }
+  .btn.ghost{ background:rgba(255,255,255,.045); }
+  .btn.ghost:hover{ background:rgba(255,255,255,.07); }
+  .btn.sm{ padding:9px 13px; border-radius:12px; }
+
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .owner-primary-actions,
+  .owner-pos-actions{align-items:stretch}
+  .owner-primary-actions .btn,
+  .owner-pos-actions .btn{
+    min-height:46px;
+    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.035));
+  }
+  .owner-pos-actions .btn.wide{
+    min-width:180px;
+    flex:1 1 180px;
+  }
+
+  .form label{ display:flex; flex-direction:column; gap:7px; font-weight:700; font-size:14px; margin-top:8px }
   .form input{
-    width:100%;padding:10px 12px;margin-top:6px;
-    background:#171b29;color:#e6e8ef;border:1px solid #23293a;border-radius:12px;
+    width:100%;padding:12px 14px;margin-top:0;
+    background:rgba(9,15,29,.94);color:#e6e8ef;border:1px solid rgba(123,147,205,.16);border-radius:16px;
     font-size:14px; outline:none; transition: box-shadow .15s ease, border-color .15s ease;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
   }
   .form input:focus{
     border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
   }
 
-  .sep{height:1px;background:#23293a;margin:12px 0;border-radius:999px}
+  .sep{height:1px;background:rgba(255,255,255,.08);margin:14px 0;border-radius:999px}
 
+  .owner-create-card .btn.primary{
+    width:100%;
+    min-height:48px;
+    font-size:15px;
+  }
+  .owner-create-card .muted{color:#aebad1}
+
+  @media (max-width: 1100px){
+    .owner-grid{grid-template-columns:1fr;}
+  }
   @media (max-width:900px){
-    .owner-grid{grid-template-columns:1fr}
-    .pos-actions .btn.wide{
-      width:100%;
-      justify-content:center;
-    }
+    .owner-item-meta{grid-template-columns:1fr;}
+    .thumb{width:100%;height:220px;}
     .owner-hd{
       flex-direction:column;
       align-items:flex-start;
     }
+    .owner-hero-actions,
     .owner-hd-actions{
       width:100%;
       justify-content:flex-start;
     }
+    .owner-pos-actions .btn.wide{ width:100%; justify-content:center; }
+  }
+  @media (max-width:640px){
+    .sb-owner.container{padding:0 14px;}
+    .owner-shell{padding:16px; border-radius:22px;}
+    .owner-hero-main h1{font-size:32px;}
+    .owner-item{padding:14px; border-radius:18px;}
+    .owner-primary-actions .btn,
+    .owner-pos-actions .btn{width:100%; justify-content:center;}
   }
 </style>
