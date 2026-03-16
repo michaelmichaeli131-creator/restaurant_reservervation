@@ -12,6 +12,8 @@
 
     const isRTL = getComputedStyle(root).direction === 'rtl' || root.getAttribute('dir') === 'rtl';
     let dots = [];
+    let autoplayTimer = null;
+    const AUTOPLAY_MS = 3600;
 
     function slideSpan() {
       if (!slides[0]) return 320;
@@ -45,7 +47,10 @@
         btn.type = 'button';
         btn.className = 'featured-dot';
         btn.setAttribute('aria-label', `Go to slide ${i + 1}`);
-        btn.addEventListener('click', () => goToPage(i));
+        btn.addEventListener('click', () => {
+          goToPage(i);
+          restartAutoplay();
+        });
         dotsWrap.appendChild(btn);
         dots.push(btn);
       }
@@ -72,8 +77,40 @@
       setTimeout(syncDots, 220);
     }
 
-    prevBtn?.addEventListener('click', () => step(isRTL ? 1 : -1));
-    nextBtn?.addEventListener('click', () => step(isRTL ? -1 : 1));
+    function nextAuto() {
+      const total = pageCount();
+      if (total <= 1) return;
+      const page = currentPage();
+      const nextPage = page >= total - 1 ? 0 : page + 1;
+      goToPage(nextPage);
+    }
+
+    function stopAutoplay() {
+      if (autoplayTimer) {
+        clearInterval(autoplayTimer);
+        autoplayTimer = null;
+      }
+    }
+
+    function startAutoplay() {
+      stopAutoplay();
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      if (pageCount() <= 1) return;
+      autoplayTimer = setInterval(nextAuto, AUTOPLAY_MS);
+    }
+
+    function restartAutoplay() {
+      startAutoplay();
+    }
+
+    prevBtn?.addEventListener('click', () => {
+      step(isRTL ? 1 : -1);
+      restartAutoplay();
+    });
+    nextBtn?.addEventListener('click', () => {
+      step(isRTL ? -1 : 1);
+      restartAutoplay();
+    });
     viewport.addEventListener('scroll', () => raf(syncDots), { passive: true });
 
     let resizeTimer;
@@ -83,6 +120,7 @@
         const oldPage = currentPage();
         renderDots();
         goToPage(oldPage);
+        restartAutoplay();
       }, 120);
     });
 
@@ -90,16 +128,32 @@
     viewport.addEventListener('touchstart', (e) => {
       if (!e.touches?.[0]) return;
       startX = e.touches[0].clientX;
+      stopAutoplay();
     }, { passive: true });
     viewport.addEventListener('touchend', (e) => {
       const endX = e.changedTouches?.[0]?.clientX;
-      if (typeof endX !== 'number') return;
+      if (typeof endX !== 'number') {
+        restartAutoplay();
+        return;
+      }
       const dx = endX - startX;
-      if (Math.abs(dx) < 45) return;
-      step(dx > 0 ? (isRTL ? -1 : 1) : (isRTL ? 1 : -1));
+      if (Math.abs(dx) >= 45) {
+        step(dx > 0 ? (isRTL ? -1 : 1) : (isRTL ? 1 : -1));
+      }
+      restartAutoplay();
     }, { passive: true });
 
+    root.addEventListener('mouseenter', stopAutoplay);
+    root.addEventListener('mouseleave', startAutoplay);
+    root.addEventListener('focusin', stopAutoplay);
+    root.addEventListener('focusout', startAutoplay);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopAutoplay();
+      else startAutoplay();
+    });
+
     renderDots();
+    startAutoplay();
   }
 
   document.addEventListener('DOMContentLoaded', () => {
