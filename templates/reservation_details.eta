@@ -161,8 +161,8 @@
 
   .rsv-page {
     width: 100%;
-    max-width: 580px; margin: 0 auto;
-    padding: 16px 16px 40px;
+    max-width: 920px; margin: 0 auto;
+    padding: 20px 18px 48px;
     padding-top: max(16px, env(safe-area-inset-top));
     box-sizing: border-box;
     overflow-x: hidden;
@@ -179,20 +179,20 @@
   }
   .rsv-back-link:hover { opacity: .8; }
   .rsv-details-header__title {
-    margin: 0 0 4px; font-size: 24px; font-weight: 800;
+    margin: 0 0 6px; font-size: 34px; line-height: .98; letter-spacing: -.03em; font-weight: 800;
     color: var(--ink, #e6e8ef);
   }
   .rsv-details-header__sub {
-    margin: 0; color: var(--ink-muted, #9aa3b2); font-size: 15px;
+    margin: 0; color: var(--ink-muted, #9aa3b2); font-size: 16px;
   }
 
   .rsv-summary-bar {
-    display: flex; flex-wrap: wrap; gap: 8px;
-    margin-bottom: 20px;
+    display: flex; flex-wrap: wrap; gap: 10px;
+    margin-bottom: 24px;
   }
   .rsv-chip {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 8px 14px;
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 10px 16px;
     background: var(--panel-2, #171b29);
     border: 1px solid var(--bd, #23293a);
     border-radius: 12px;
@@ -221,18 +221,20 @@
   }
 
   .rsv-details-form {
-    background: var(--panel, #121622);
-    border: 1px solid var(--bd, #23293a);
-    border-radius: 20px;
-    padding: 24px;
-    box-shadow: 0 8px 32px rgba(0,0,0,.3);
+    background:
+      radial-gradient(circle at top right, rgba(59,130,246,.12), transparent 24%),
+      linear-gradient(180deg, rgba(18,22,34,.98), rgba(12,16,27,.99));
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 28px;
+    padding: 30px;
+    box-shadow: 0 24px 70px rgba(2,6,23,.34);
     display: flex; flex-direction: column; gap: 18px;
   }
 
-  .rsv-field-group { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .rsv-field-group { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   .rsv-field { display: flex; flex-direction: column; gap: 6px; }
   .rsv-field__label {
-    font-size: 13px; font-weight: 700; text-transform: uppercase;
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
     letter-spacing: .5px; color: var(--ink-muted, #9aa3b2);
     display: flex; align-items: center; gap: 6px;
   }
@@ -241,11 +243,12 @@
   .rsv-input {
     width: 100%;
     min-width: 0;
-    background: var(--panel-2, #171b29);
+    background: rgba(8,12,22,.62);
     color: var(--ink, #e6e8ef);
-    border: 1px solid var(--bd, #23293a);
-    border-radius: 14px;
-    padding: 12px 14px;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 18px;
+    padding: 14px 16px;
+    min-height: 56px;
     font-size: 16px;
     outline: none;
     transition: border-color .2s, box-shadow .2s;
@@ -257,7 +260,7 @@
   .rsv-textarea { resize: vertical; min-height: 80px; font-family: inherit; }
   .rsv-hint { font-size: 12px; color: var(--ink-muted, #9aa3b2); }
 
-  .rsv-actions { margin-top: 4px; }
+  .rsv-actions { margin-top: 10px; }
   .rsv-btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
     padding: 14px 24px; width: 100%;
@@ -380,6 +383,12 @@
   }
   .rsv-input:focus, .rsv-textarea:focus { box-shadow: 0 0 0 4px rgba(59,130,246,.12); border-color: rgba(59,130,246,.48); }
   .rsv-btn { min-height: 52px; border-radius: 16px; }
+  @media (max-width: 860px) {
+    .rsv-page { max-width: 100%; }
+    .rsv-details-header__title { font-size: 28px; }
+    .rsv-details-form { padding: 24px; border-radius: 22px; }
+  }
+
   @media (max-width: 680px) {
     .rsv-page { max-width: 100%; padding-top: 14px; }
     .rsv-details-header, .rsv-details-form { padding: 18px; border-radius: 22px; }

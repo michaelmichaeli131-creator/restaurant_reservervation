@@ -175,8 +175,8 @@
 
   .rsv-page {
     width: 100%;
-    max-width: 580px; margin: 0 auto;
-    padding: 16px 16px 40px;
+    max-width: 920px; margin: 0 auto;
+    padding: 20px 18px 48px;
     padding-top: max(16px, env(safe-area-inset-top));
     box-sizing: border-box;
     overflow-x: hidden;
@@ -198,7 +198,7 @@
   /* Header */
   .rsv-confirmed-header { text-align: center; margin-bottom: 16px; }
   .rsv-confirmed-header__title {
-    margin: 0 0 6px; font-size: 26px; font-weight: 800;
+    margin: 0 0 8px; font-size: 36px; line-height: .98; letter-spacing: -.03em; font-weight: 800;
     color: var(--ink, #e6e8ef);
   }
   .rsv-confirmed-header__sub {
@@ -207,12 +207,12 @@
 
   /* Summary chips */
   .rsv-summary-bar {
-    display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
-    margin-bottom: 20px;
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
+    margin-bottom: 24px;
   }
   .rsv-chip {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 8px 14px;
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 10px 16px;
     background: var(--panel-2, #171b29);
     border: 1px solid var(--bd, #23293a);
     border-radius: 12px;
@@ -252,6 +252,7 @@
 
   /* Details card */
   .rsv-confirm-card {
+    backdrop-filter: blur(10px);
     background: var(--panel, #121622);
     border: 1px solid var(--bd, #23293a);
     border-radius: 20px;
@@ -335,6 +336,7 @@
 
   /* About card */
   .rsv-about-card {
+    backdrop-filter: blur(10px);
     background: var(--panel, #121622);
     border: 1px solid var(--bd, #23293a);
     border-radius: 20px;
@@ -445,6 +447,11 @@
   }
   .rsv-actions-stack { gap: 12px; }
   .rsv-btn { min-height: 52px; border-radius: 16px; }
+  @media (max-width: 860px) {
+    .rsv-page { max-width: 100%; }
+    .rsv-confirmed-header__title { font-size: 30px; }
+  }
+
   @media (max-width: 680px) {
     .rsv-page { max-width: 100%; padding-top: 14px; }
     .rsv-confirmed-header, .rsv-confirm-card, .rsv-about-card { border-radius: 22px; }
