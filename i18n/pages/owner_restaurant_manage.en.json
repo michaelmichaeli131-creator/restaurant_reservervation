@@ -116,6 +116,7 @@
     "tasks_floor_desc": "Review whether the floor plan fits today’s demand.",
     "tasks_peak_title": "High occupancy peak",
     "tasks_peak_desc": "Consider adding staff or strengthening queue management.",
-    "alert_capacity_missing": "Restaurant capacity is not defined (capacity)."
+    "alert_capacity_missing": "Restaurant capacity is not defined (capacity).",
+    "regular_view": "Regular View"
   }
 }

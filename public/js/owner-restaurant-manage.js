@@ -55,7 +55,9 @@ function setDensity(mode) {
   const btn = document.getElementById('sbDensityToggle');
   if (btn) {
     btn.setAttribute('aria-pressed', isCompact ? 'true' : 'false');
-    btn.textContent = isCompact ? 'תצוגה רגילה' : 'תצוגה קומפקטית';
+    const compactLabel = btn.dataset.labelCompact || 'Compact View';
+    const regularLabel = btn.dataset.labelRegular || 'Regular View';
+    btn.textContent = isCompact ? regularLabel : compactLabel;
   }
 }
 

@@ -21,12 +21,10 @@
 
   <section class="card">
     <h3 class="card-title"><%= tt('owner.photos.upload_title','העלאת תמונה (מוקטנת אוטומטית)') %></h3>
-    <p class="muted"><%= tt('owner.photos.upload_hint','JPG/PNG/WebP — ננסה לכווץ כדי להתאים למגבלת המערכת (~64KB).') %></p>
 
     <div class="upload-row">
       <div class="dropzone" role="group" aria-label="<%= tt('owner.photos.upload_title','העלאת תמונה') %>">
         <strong><%= tt('owner.photos.choose_file','בחר תמונה') %></strong>
-        <div class="muted"><%= tt('owner.photos.drop_hint','לחץ כדי לבחור קובץ. מומלץ תמונה ברוחב/גובה עד ~1280px.') %></div>
         <div class="uploader">
           <input id="photo-input" class="file" type="file" accept="image/png,image/jpeg,image/webp" aria-label="<%= tt('owner.photos.input_aria','בחירת קובץ תמונה') %>">
           <button id="upload-btn" class="btn primary sm" type="button" aria-label="<%= tt('owner.photos.upload_btn_aria','העלה תמונה') %>"><%= tt('owner.photos.upload_btn','העלה') %></button>

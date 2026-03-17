@@ -743,6 +743,14 @@
         "empty": "No room data",
         "left_suffix": "left"
       }
+    },
+    "tabs": {
+      "aria": "Restaurant sections",
+      "details": "Restaurant Details",
+      "menu": "Menu",
+      "inventory": "Raw Materials Inventory",
+      "bills": "Bills",
+      "photos": "Photos"
     }
   },
   "po": {

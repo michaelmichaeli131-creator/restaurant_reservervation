@@ -116,6 +116,7 @@
     "tasks_floor_desc": "בדוק/י התאמה של פלור לעומס היום.",
     "tasks_peak_title": "שיא תפוסה גבוה",
     "tasks_peak_desc": "שקול/י להוסיף צוות או לחזק את ניהול התורים.",
-    "alert_capacity_missing": "הקיבולת במסעדה לא מוגדרת (capacity)."
+    "alert_capacity_missing": "הקיבולת במסעדה לא מוגדרת (capacity).",
+    "regular_view": "תצוגה רגילה"
   }
 }

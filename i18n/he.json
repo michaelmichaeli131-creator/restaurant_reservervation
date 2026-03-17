@@ -743,6 +743,14 @@
         "empty": "אין נתוני חדרים",
         "left_suffix": "נותרו"
       }
+    },
+    "tabs": {
+      "aria": "חלקי המסעדה",
+      "details": "פרטי מסעדה",
+      "menu": "תפריט",
+      "inventory": "מלאי חומרי גלם",
+      "bills": "חשבונות",
+      "photos": "תמונות"
     }
   },
   "owner.menu.no_category": "ללא קטגוריה",
