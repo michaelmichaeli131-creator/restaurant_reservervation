@@ -33,7 +33,24 @@
         "photos_hint": "Files will be automatically uploaded to the new restaurant after creation.",
         "submit": "Save & Create"
       },
-      "after_create_hint": "After creation, you can update opening hours, details, and photos in the “Edit Details” or “Photos” screens."
+      "after_create_hint": "After creation, you can update opening hours, details, and photos in the “Edit Details” or “Photos” screens.",
+      "kicker": "Restaurant control center",
+      "subtitle": "Manage reservations, staff, service screens, and daily activity from one polished workspace.",
+      "stats_restaurants": "Restaurants",
+      "stats_reservations": "Reservations today",
+      "stats_guests": "Guests today",
+      "stats_peak": "Average peak",
+      "quick_actions": "Quick actions",
+      "growth_action": "Grow with SpotBook",
+      "section_kicker": "Workspace",
+      "section_count_suffix": "active",
+      "stats_peak_short": "Peak",
+      "city_fallback": "City",
+      "stats_capacity": "Capacity",
+      "open_workspace": "Open Workspace",
+      "empty_subtitle": "Create your first restaurant to unlock reservations, floor plans, staff tools, and service screens.",
+      "create_kicker": "Launch faster",
+      "create_subtitle": "Create the restaurant now, then continue to hours, menu, photos, and your operating screens."
     }
   }
 }

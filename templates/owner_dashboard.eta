@@ -1,10 +1,9 @@
 <% layout("_layout", it) %>
 
 <%
-// tt: תרגום עם fallback אמיתי (אם it.t מחזיר "(key)" או מחרוזת ריקה)
 function tt(k, fb){
   try{
-    if (it && typeof it.t==='function'){
+    if (it && typeof it.t === 'function'){
       const s = it.t(k);
       if(!s || s===k || s===`(${k})`) return fb;
       return s;
@@ -16,12 +15,10 @@ function tt(k, fb){
 const role = (it.user && it.user.role) ? it.user.role : '';
 const isOwner = role === 'owner';
 const isStaff = role === 'staff';
-
-// staff context מגיע מ-middleware דרך render() (אחרי התיקון ב-view.ts)
 const staff = it.staff || null;
-const staffPerms = Array.isArray(staff?.permissions) ? staff.permissions : [];
+const staffPerms = Array.isArray(staff && staff.permissions) ? staff.permissions : [];
+const restaurants = Array.isArray(it.restaurants) ? it.restaurants : [];
 
-// helpers
 function hasPerm(p){
   if (isOwner) return true;
   return staffPerms.includes(p);
@@ -31,321 +28,283 @@ function hasAny(perms){
   for (const p of perms) if (staffPerms.includes(p)) return true;
   return false;
 }
+
+let totalReservations = 0;
+let totalGuests = 0;
+let totalPeak = 0;
+restaurants.forEach(function(r){
+  totalReservations += Number(r && r._reservationsCount || 0);
+  totalGuests += Number(r && r._peopleToday || 0);
+  totalPeak += Number(r && r._peakOccupancyPct || 0);
+});
+const avgPeak = restaurants.length ? Math.round(totalPeak / restaurants.length) : 0;
 %>
 
-<section class="sb-owner container" aria-label="<%= isOwner ? tt('owner.dashboard.aria_section','דשבורד בעלים') : tt('staff.dashboard.aria_section','דשבורד מסעדה') %>">
-  <div class="card owner-shell">
-    <header class="owner-hd owner-hero">
-      <div class="owner-hd-main owner-hero-main">
-        <h1>
-          <%= isOwner ? tt('owner.dashboard.title','דשבורד בעלים') : tt('staff.dashboard.title','דשבורד מסעדה') %>
-        </h1>
-        <span class="muted">
-          <%= tt('owner.dashboard.hello','שלום') %>,
-          <strong>
-            <%= it.user?.firstName || it.user?.username || (isOwner ? tt('owner.dashboard.owner_fallback','בעלים') : tt('staff.dashboard.staff_fallback','עובד')) %>
-          </strong>
-        </span>
+<section class="sb-owner owner-lobby-v2 container" aria-label="<%= isOwner ? tt('owner.dashboard.aria_section','Owner dashboard') : tt('staff.dashboard.aria_section','Restaurant dashboard') %>">
+  <div class="owner-lobby-shell">
+    <header class="owner-hero-premium">
+      <div class="owner-hero-copycol">
+        <span class="owner-kicker"><%= tt('owner.dashboard.kicker','Restaurant control center') %></span>
+        <h1><%= isOwner ? tt('owner.dashboard.title','Owner Dashboard') : tt('staff.dashboard.title','Restaurant Dashboard') %></h1>
+        <p class="owner-hero-copy">
+          <%= isOwner
+            ? tt('owner.dashboard.subtitle','Manage reservations, staff, service screens, and daily activity from one polished workspace.')
+            : tt('staff.dashboard.subtitle','Open your service tools faster and stay focused on the current shift.') %>
+        </p>
+
+        <div class="owner-stat-strip" aria-label="<%= tt('owner.dashboard.today_kpis','Today KPIs') %>">
+          <div class="owner-stat-chip">
+            <span class="owner-stat-label"><%= tt('owner.dashboard.stats_restaurants','Restaurants') %></span>
+            <strong><%= restaurants.length %></strong>
+          </div>
+          <div class="owner-stat-chip">
+            <span class="owner-stat-label"><%= tt('owner.dashboard.stats_reservations','Reservations today') %></span>
+            <strong><%= totalReservations %></strong>
+          </div>
+          <div class="owner-stat-chip">
+            <span class="owner-stat-label"><%= tt('owner.dashboard.stats_guests','Guests today') %></span>
+            <strong><%= totalGuests %></strong>
+          </div>
+          <div class="owner-stat-chip">
+            <span class="owner-stat-label"><%= tt('owner.dashboard.stats_peak','Average peak') %></span>
+            <strong><%= avgPeak %>%</strong>
+          </div>
+        </div>
       </div>
 
-      <div class="owner-hd-actions owner-hero-actions">
-        <% if (isOwner) { %>
-          <!-- נוכחות עובדים – רק לבעלים -->
-          <a href="/owner/time" class="btn sm ghost owner-staff-btn">
-            <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#shifts"/></svg></span>
-            <%= tt('owner.dashboard.btn_attendance','Staff Attendance') %>
-          </a>
+      <div class="owner-hero-panel">
+        <div class="owner-hero-panel-top">
+          <div>
+            <div class="owner-hero-panel-kicker"><%= tt('owner.dashboard.quick_actions','Quick actions') %></div>
+            <div class="owner-hero-panel-title"><%= tt('owner.dashboard.hello','Hello') %>, <strong><%= it.user && (it.user.firstName || it.user.username) || (isOwner ? tt('owner.dashboard.owner_fallback','Owner') : tt('staff.dashboard.staff_fallback','Staff')) %></strong></div>
+          </div>
+        </div>
 
-          <a href="/owner/payroll" class="btn sm ghost owner-staff-btn">
-            <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#chart"/></svg></span>
-            <%= tt('owner.dashboard.btn_payroll_header','שכר עובדים') %>
-          </a>
-
-          <!-- ניהול עובדים -->
-          <a href="/owner/staff" class="btn sm ghost owner-staff-btn">
-            <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#users"/></svg></span>
-            <%= tt('owner.staff.manage_title', 'ניהול עובדים') %>
-          </a>
-        <% } else if (isStaff) { %>
-          <!-- כניסה/יציאה – לכל עובד -->
-          <a href="/staff/timeclock" class="btn sm ghost owner-staff-btn">
-            <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#shifts"/></svg></span>
-            <%= tt('staff.dashboard.btn_clock','Clock In / Out') %>
-          </a>
-
-          <% if (isStaff) { %>
-            <a href="/staff/shifts" class="btn sm ghost owner-staff-btn">
+        <div class="owner-hero-actions-grid">
+          <% if (isOwner) { %>
+            <a href="/owner/time" class="owner-hero-action">
+              <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#shifts"/></svg></span>
+              <span><%= tt('owner.dashboard.btn_attendance','Staff Attendance') %></span>
+            </a>
+            <a href="/owner/payroll" class="owner-hero-action">
+              <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#chart"/></svg></span>
+              <span><%= tt('owner.dashboard.btn_payroll_header','Payroll') %></span>
+            </a>
+            <a href="/owner/staff" class="owner-hero-action">
+              <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#users"/></svg></span>
+              <span><%= tt('owner.staff.manage_title','Manage Staff') %></span>
+            </a>
+            <a href="/for-restaurants" class="owner-hero-action is-highlight">
+              <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#chart"/></svg></span>
+              <span><%= tt('owner.dashboard.growth_action','Grow with SpotBook') %></span>
+            </a>
+          <% } else if (isStaff) { %>
+            <a href="/staff/timeclock" class="owner-hero-action">
+              <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#shifts"/></svg></span>
+              <span><%= tt('staff.dashboard.btn_clock','Clock In / Out') %></span>
+            </a>
+            <a href="/staff/shifts" class="owner-hero-action">
               <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#calendar"/></svg></span>
-              <%= tt('staff.dashboard.btn_my_shifts','My Shifts') %>
+              <span><%= tt('staff.dashboard.btn_my_shifts','My Shifts') %></span>
             </a>
           <% } %>
-        <% } %>
+        </div>
       </div>
     </header>
 
-    <div class="owner-grid">
-      <!-- רשימת מסעדות -->
-      <div class="panel card owner-list-card">
-        <h2 class="card-title owner-section-title">
-          <%= isOwner ? tt('owner.dashboard.my_restaurants','המסעדות שלי') : tt('staff.dashboard.my_restaurant','המסעדה שלי') %>
-        </h2>
+    <div class="owner-main-grid <%= isOwner ? '' : 'is-staff' %>">
+      <div class="owner-main-col">
+        <section class="owner-section-shell">
+          <div class="owner-section-head">
+            <div>
+              <span class="owner-section-kicker"><%= tt('owner.dashboard.section_kicker','Workspace') %></span>
+              <h2 class="owner-section-title"><%= isOwner ? tt('owner.dashboard.my_restaurants','My Restaurants') : tt('staff.dashboard.my_restaurant','My Restaurant') %></h2>
+            </div>
+            <div class="owner-section-badge"><%= restaurants.length %> <%= tt('owner.dashboard.section_count_suffix','active') %></div>
+          </div>
 
-        <% if (it.restaurants && it.restaurants.length) { %>
-          <ul class="list">
-            <% it.restaurants.forEach(function(r){
-                 const photos = Array.isArray(r.photos) ? r.photos : [];
-                 const first = photos.length ? photos[0] : null;
-                 const peak = Number(r._peakOccupancyPct || 0);
-                 const color = peak >= 80 ? 'red' : (peak >= 50 ? 'yellow' : 'green');
-
-                 // ---- מיפוי הרשאות -> כפתורים ----
-                 const canCalendar = hasAny(['reservations.view','reservations.manage']);
-                 const canFloor    = hasAny(['floor.view','floor.edit']);
-                 const canShifts   = hasAny(['shifts.view','shifts.manage']);
-                 const canMenu     = hasPerm('menu.manage');
-
-                 const canWaiter   = hasPerm('pos.waiter');
-                 const canKitchen  = hasPerm('pos.kitchen');
-                 const canHost     = hasPerm('host.seating');
-
-                 // אין permission ייעודי ל-bar ברשימה שלך → נשתמש ב-pos.waiter כברירת מחדל
-                 const canBar      = hasPerm('pos.waiter');
-
-                 // Bills/Reports/Stats: נשתמש ב-reports.view (או owner)
-                 const canReports  = hasPerm('reports.view');
-
-                 const canInvView   = hasPerm('inventory.view') || hasPerm('inventory.manage');
-                 const canInvManage = hasPerm('inventory.manage');
-            %>
-              <li class="item owner-item">
-                <div class="meta owner-item-meta">
-                  <% if (first) { %>
-                    <img
-                      src="<%= first.dataUrl %>"
-                      alt="<%= first.alt || r.name %>"
-                      class="thumb"
-                      onerror="this.style.visibility='hidden'"
-                    />
-                  <% } %>
-                  <div class="meta-body owner-item-body">
-                    <div class="title"><strong><%= r.name %></strong></div>
-                    <div class="sub muted">
-                      <%= r.city %> • <%= r.address %>
+          <% if (restaurants.length) { %>
+            <div class="owner-restaurant-grid">
+              <% restaurants.forEach(function(r){
+                   const photos = Array.isArray(r.photos) ? r.photos : [];
+                   const first = photos.length ? photos[0] : null;
+                   const peak = Number(r._peakOccupancyPct || 0);
+                   const color = peak >= 80 ? 'is-red' : (peak >= 50 ? 'is-yellow' : 'is-green');
+                   const canCalendar = hasAny(['reservations.view','reservations.manage']);
+                   const canFloor    = hasAny(['floor.view','floor.edit']);
+                   const canMenu     = hasPerm('menu.manage');
+                   const canWaiter   = hasPerm('pos.waiter');
+                   const canKitchen  = hasPerm('pos.kitchen');
+                   const canHost     = hasPerm('host.seating');
+                   const canBar      = hasPerm('pos.waiter');
+                   const canReports  = hasPerm('reports.view');
+                   const canInvView  = hasPerm('inventory.view') || hasPerm('inventory.manage');
+                   const canInvManage = hasPerm('inventory.manage');
+              %>
+                <article class="owner-restaurant-card">
+                  <div class="owner-restaurant-media">
+                    <% if (first && first.dataUrl) { %>
+                      <img src="<%= first.dataUrl %>" alt="<%= first.alt || r.name %>" class="owner-restaurant-photo" onerror="this.style.display='none'; this.parentNode.classList.add('is-empty')" />
+                    <% } else { %>
+                      <div class="owner-restaurant-photo owner-restaurant-photo--placeholder"></div>
+                    <% } %>
+                    <div class="owner-restaurant-overlay"></div>
+                    <div class="owner-restaurant-topline">
+                      <span class="owner-city-pill"><%= r.city || tt('owner.dashboard.city_fallback','City') %></span>
+                      <span class="owner-peak-pill <%= color %>"><%= tt('owner.dashboard.stats_peak_short','Peak') %> <%= peak %>%</span>
                     </div>
-                    <div class="sub muted">
-                      <%= tt('owner.dashboard.seat_duration','משך ישיבה') %>:
-                      <%= (typeof r.serviceDurationMinutes === 'number' ? r.serviceDurationMinutes : 90) %>
-                      <%= tt('owner.dashboard.minutes_short','דק׳') %>
-                    </div>
-
-                    <div class="kpis" aria-label="<%= tt('owner.dashboard.today_kpis','מדדי היום') %>">
-                      <span class="kpi"><%= tt('owner.dashboard.today','היום') %>: <%= r._today %></span>
-                      <span class="kpi"><%= tt('owner.dashboard.kpi_reservations','הזמנות') %>: <%= r._reservationsCount ?? 0 %></span>
-                      <span class="kpi"><%= tt('owner.dashboard.kpi_people','סועדים') %>: <%= r._peopleToday ?? 0 %></span>
-                      <span class="kpi">Peak: <%= peak %>%</span>
-                    </div>
-
-                    <div class="bar" aria-label="<%= tt('owner.dashboard.peak_aria','תפוסת שיא') %>">
-                      <div class="bar-fill <%= color %>" style="width:<%= Math.max(0, Math.min(100, peak)) %>%"></div>
+                    <div class="owner-restaurant-titlewrap">
+                      <h3><%= r.name %></h3>
+                      <div class="owner-restaurant-sub"><%= [r.city, r.address].filter(Boolean).join(' • ') %></div>
                     </div>
                   </div>
-                </div>
 
-                <!-- פעולות כלליות -->
-                <div class="actions primary-actions owner-primary-actions">
-                  <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/manage?date=<%= r._today %>" target="_self" rel="nofollow">
-                    <span class="icon">🏠</span>
-                    <%= tt('owner.dashboard.btn_manage','Manage') %>
-                  </a>
+                  <div class="owner-restaurant-body">
+                    <div class="owner-kpi-grid">
+                      <div class="owner-kpi-box">
+                        <span><%= tt('owner.dashboard.kpi_reservations','Reservations') %></span>
+                        <strong><%= r._reservationsCount ?? 0 %></strong>
+                      </div>
+                      <div class="owner-kpi-box">
+                        <span><%= tt('owner.dashboard.kpi_people','Guests') %></span>
+                        <strong><%= r._peopleToday ?? 0 %></strong>
+                      </div>
+                      <div class="owner-kpi-box">
+                        <span><%= tt('owner.dashboard.seat_duration','Seat duration') %></span>
+                        <strong><%= (typeof r.serviceDurationMinutes === 'number' ? r.serviceDurationMinutes : 90) %> <%= tt('owner.dashboard.minutes_short','min') %></strong>
+                      </div>
+                      <div class="owner-kpi-box">
+                        <span><%= tt('owner.dashboard.stats_capacity','Capacity') %></span>
+                        <strong><%= Number(r.capacity || 0) %></strong>
+                      </div>
+                    </div>
 
-                  <% if (canCalendar) { %>
-                    <a class="btn ghost" href="<%= r._calendarUrl %>" target="_self" rel="nofollow">
-                      <span class="icon">📅</span>
-                      <%= tt('owner.dashboard.btn_calendar','Calendar יומי') %>
-                    </a>
-                  <% } %>
+                    <div class="owner-progress-row" aria-label="<%= tt('owner.dashboard.peak_aria','Peak occupancy') %>">
+                      <div class="owner-progress-track">
+                        <div class="owner-progress-fill <%= color %>" style="width:<%= Math.max(0, Math.min(100, peak)) %>%"></div>
+                      </div>
+                      <span class="owner-progress-label"><%= tt('owner.dashboard.stats_peak_short','Peak') %> <%= peak %>%</span>
+                    </div>
 
-                  <% if (isOwner) { %>
-                    <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/edit"   target="_self" rel="nofollow">
-                      <span class="icon">✏️</span>
-                      <%= tt('owner.dashboard.btn_edit','עריכת פרטים') %>
-                    </a>
-                    <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/hours"  target="_self" rel="nofollow">
-                      <span class="icon">⏰</span>
-                      <%= tt('owner.dashboard.btn_hours','שעות פתיחה') %>
-                    </a>
-                    <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/photos" target="_self" rel="nofollow">
-                      <span class="icon">🖼️</span>
-                      <%= tt('owner.dashboard.btn_photos','תמונות') %>
-                    </a>
+                    <div class="owner-primary-row">
+                      <a class="btn primary owner-main-cta" href="/owner/restaurants/<%= r.id %>/manage?date=<%= r._today %>" target="_self" rel="nofollow">
+                        <span class="sb-icon sb-icon-18"><svg><use href="/public/icons/sb-sprite.svg#ops"/></svg></span>
+                        <span><%= tt('owner.dashboard.open_workspace','Open Workspace') %></span>
+                      </a>
+                      <% if (canCalendar) { %>
+                        <a class="btn ghost owner-secondary-cta" href="<%= r._calendarUrl %>" target="_self" rel="nofollow">
+                          <span class="sb-icon sb-icon-18"><svg><use href="/public/icons/sb-sprite.svg#calendar"/></svg></span>
+                          <span><%= tt('owner.dashboard.btn_calendar','Daily Calendar') %></span>
+                        </a>
+                      <% } %>
+                    </div>
 
-                    <!-- ⭐ חדש – כפתור שכר חודשי למסעדה ספציפית -->
-                    <a class="btn ghost" href="/owner/payroll?restaurantId=<%= r.id %>" target="_self" rel="nofollow">
-                      <span class="icon">💸</span>
-                      <%= tt('owner.dashboard.btn_payroll','שכר חודשי') %>
-                    </a>
-                  <% } %>
+                    <div class="owner-link-cluster">
+                      <% if (isOwner) { %>
+                        <a class="owner-mini-link" href="/owner/restaurants/<%= r.id %>/edit" target="_self" rel="nofollow"><%= tt('owner.dashboard.btn_edit','Edit Details') %></a>
+                        <a class="owner-mini-link" href="/owner/restaurants/<%= r.id %>/hours" target="_self" rel="nofollow"><%= tt('owner.dashboard.btn_hours','Opening Hours') %></a>
+                        <a class="owner-mini-link" href="/owner/restaurants/<%= r.id %>/photos" target="_self" rel="nofollow"><%= tt('owner.dashboard.btn_photos','Photos') %></a>
+                        <a class="owner-mini-link" href="/owner/payroll?restaurantId=<%= r.id %>" target="_self" rel="nofollow"><%= tt('owner.dashboard.btn_payroll','Monthly Payroll') %></a>
+                      <% } %>
+                      <% if (canFloor) { %>
+                        <a class="owner-mini-link" href="/owner/restaurants/<%= r.id %>/floor" target="_self" rel="nofollow"><%= tt('owner.dashboard.btn_floor','Floor Plan') %></a>
+                      <% } %>
+                      <% if (isOwner) { %>
+                        <a class="owner-mini-link" href="/owner/restaurants/<%= r.id %>/shifts" target="_self" rel="nofollow"><%= tt('owner.dashboard.btn_shifts','Shifts') %></a>
+                      <% } else if (isStaff) { %>
+                        <a class="owner-mini-link" href="/staff/shifts" target="_self" rel="nofollow"><%= tt('staff.dashboard.btn_my_shifts','My Shifts') %></a>
+                      <% } %>
+                    </div>
 
-                  <% if (canFloor) { %>
-                    <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/floor" target="_self" rel="nofollow">
-                      <span class="icon">🍽️</span>
-                      <%= tt('owner.dashboard.btn_floor','סידור שולחנות') %>
-                    </a>
-                  <% } %>
-
-                  <% if (isOwner) { %>
-                    <a class="btn ghost" href="/owner/restaurants/<%= r.id %>/shifts" target="_self" rel="nofollow">
-                      <span class="icon">📅</span>
-                      <%= tt('owner.dashboard.btn_shifts','ניהול משמרות') %>
-                    </a>
-                  <% } else if (isStaff) { %>
-                    <a class="btn ghost" href="/staff/shifts" target="_self" rel="nofollow">
-                      <span class="icon">📅</span>
-                      <%= tt('staff.dashboard.btn_my_shifts','המשמרות שלי') %>
-                    </a>
-                  <% } %>
-
-                </div>
-
-                <!-- POS / תפעול -->
-                <div class="actions pos-actions owner-pos-actions">
-                  <% if (isOwner && canMenu) { %>
-                    <a class="btn ghost wide" href="/owner/<%= r.id %>/menu">
-                      <span class="icon">🧾</span>
-                      <%= tt('owner.dashboard.btn_menu', 'עריכת תפריט') %>
-                    </a>
-                  <% } %>
-
-                  <% if (canWaiter) { %>
-                    <a class="btn ghost wide" href="/waiter/<%= r.id %>">
-                      <span class="icon">🍽️</span>
-                      <%= tt('owner.dashboard.btn_waiter', 'מסך מלצרים') %>
-                    </a>
-                  <% } %>
-
-                  <% if (canKitchen) { %>
-                    <a class="btn ghost wide" href="/kitchen/<%= r.id %>">
-                      <span class="icon">🧑‍🍳</span>
-                      <%= tt('owner.dashboard.btn_kitchen', 'מסך מטבח') %>
-                    </a>
-                  <% } %>
-
-                  <% if (canHost) { %>
-                    <a class="btn ghost wide" href="/host/<%= r.id %>">
-                      <span class="icon">🪑</span>
-                      <%= tt('owner.dashboard.btn_host', 'מסך מארחת') %>
-                    </a>
-                  <% } %>
-
-                  <% if (canBar) { %>
-                    <a class="btn ghost wide" href="/bar/<%= r.id %>">
-                      <span class="icon">🍸</span>
-                      <%= tt('owner.dashboard.btn_bar', 'מסך בר') %>
-                    </a>
-                  <% } %>
-
-                  <% if (canReports) { %>
-                    <a class="btn ghost wide" href="/owner/<%= r.id %>/bills">
-                      <span class="icon">💳</span>
-                      <%= tt('owner.dashboard.btn_bills', 'חשבונות אחרונים') %>
-                    </a>
-
-                    <a class="btn ghost wide" href="/owner/<%= r.id %>/stats">
-                      <span class="icon">📊</span>
-                      <%= tt('owner.dashboard.btn_stats', 'סטטיסטיקות ודוחות') %>
-                    </a>
-                  <% } %>
-
-                  <% if (canInvView) { %>
-                    <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/stock">
-                      <span class="icon">📦</span>
-                      <%= tt('owner.dashboard.btn_inventory', 'מלאי חומרי גלם') %>
-                    </a>
-                  <% } %>
-
-                  <% if (canInvManage) { %>
-                    <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/costs">
-                      <span class="icon">💰</span>
-                      <%= tt('owner.dashboard.btn_costs', 'עלויות חומרי גלם') %>
-                    </a>
-                    <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/counts">
-                      <span class="icon">📋</span>
-                      <%= tt('owner.dashboard.btn_counts', 'ספירות מלאי') %>
-                    </a>
-                    <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/foodcost">
-                      <span class="icon">💰</span>
-                      <%= tt('owner.dashboard.btn_foodcost', 'עלות מנה ורווחיות') %>
-                    </a>
-                    <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/suppliers">
-                      <span class="icon">🚚</span>
-                      <%= tt('owner.dashboard.btn_suppliers', 'ספקים') %>
-                    </a>
-                    <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/purchase_orders">
-                      <span class="icon">📄</span>
-                      <%= tt('owner.dashboard.btn_po', 'הזמנות רכש (PO)') %>
-                    </a>
-                    <a class="btn ghost wide" href="/owner/<%= r.id %>/inventory/recipes">
-                      <span class="icon">📖</span>
-                      <%= tt('owner.dashboard.btn_recipes', 'מתכוני מנות') %>
-                    </a>
-                  <% } %>
-                </div>
-              </li>
-            <% }) %>
-          </ul>
-        <% } else { %>
-          <p class="muted"><%= tt('owner.dashboard.no_restaurants','עדיין אין לך מסעדות.') %></p>
-        <% } %>
+                    <div class="owner-ops-grid">
+                      <% if (isOwner && canMenu) { %>
+                        <a class="owner-op" href="/owner/<%= r.id %>/menu"><span>🧾</span><small><%= tt('owner.dashboard.btn_menu','Edit Menu') %></small></a>
+                      <% } %>
+                      <% if (canWaiter) { %>
+                        <a class="owner-op" href="/waiter/<%= r.id %>"><span>🍽️</span><small><%= tt('owner.dashboard.btn_waiter','Waiter') %></small></a>
+                      <% } %>
+                      <% if (canKitchen) { %>
+                        <a class="owner-op" href="/kitchen/<%= r.id %>"><span>🧑‍🍳</span><small><%= tt('owner.dashboard.btn_kitchen','Kitchen') %></small></a>
+                      <% } %>
+                      <% if (canHost) { %>
+                        <a class="owner-op" href="/host/<%= r.id %>"><span>🪑</span><small><%= tt('owner.dashboard.btn_host','Host') %></small></a>
+                      <% } %>
+                      <% if (canBar) { %>
+                        <a class="owner-op" href="/bar/<%= r.id %>"><span>🍸</span><small><%= tt('owner.dashboard.btn_bar','Bar') %></small></a>
+                      <% } %>
+                      <% if (canReports) { %>
+                        <a class="owner-op" href="/owner/<%= r.id %>/bills"><span>💳</span><small><%= tt('owner.dashboard.btn_bills','Bills') %></small></a>
+                        <a class="owner-op" href="/owner/<%= r.id %>/stats"><span>📊</span><small><%= tt('owner.dashboard.btn_stats','Reports') %></small></a>
+                      <% } %>
+                      <% if (canInvView) { %>
+                        <a class="owner-op" href="/owner/<%= r.id %>/inventory/stock"><span>📦</span><small><%= tt('owner.dashboard.btn_inventory','Inventory') %></small></a>
+                      <% } %>
+                      <% if (canInvManage) { %>
+                        <a class="owner-op" href="/owner/<%= r.id %>/inventory/costs"><span>💰</span><small><%= tt('owner.dashboard.btn_costs','Costs') %></small></a>
+                        <a class="owner-op" href="/owner/<%= r.id %>/inventory/counts"><span>📋</span><small><%= tt('owner.dashboard.btn_counts','Counts') %></small></a>
+                        <a class="owner-op" href="/owner/<%= r.id %>/inventory/foodcost"><span>🥘</span><small><%= tt('owner.dashboard.btn_foodcost','Dish Cost') %></small></a>
+                        <a class="owner-op" href="/owner/<%= r.id %>/inventory/suppliers"><span>🚚</span><small><%= tt('owner.dashboard.btn_suppliers','Suppliers') %></small></a>
+                        <a class="owner-op" href="/owner/<%= r.id %>/inventory/purchase_orders"><span>📄</span><small><%= tt('owner.dashboard.btn_po','PO') %></small></a>
+                        <a class="owner-op" href="/owner/<%= r.id %>/inventory/recipes"><span>📖</span><small><%= tt('owner.dashboard.btn_recipes','Recipes') %></small></a>
+                      <% } %>
+                    </div>
+                  </div>
+                </article>
+              <% }) %>
+            </div>
+          <% } else { %>
+            <div class="owner-empty-state">
+              <div class="owner-empty-icon">✦</div>
+              <h3><%= tt('owner.dashboard.no_restaurants','You don\'t have any restaurants yet.') %></h3>
+              <p class="muted"><%= tt('owner.dashboard.empty_subtitle','Create your first restaurant to unlock reservations, floor plans, staff tools, and service screens.') %></p>
+            </div>
+          <% } %>
+        </section>
       </div>
 
-      <!-- פתיחת מסעדה חדשה (Owner בלבד) -->
       <% if (isOwner) { %>
-      <div class="panel card owner-create-card">
-        <h2 class="card-title owner-section-title"><%= tt('owner.dashboard.open_new_title','פתח/י מסעדה חדשה') %></h2>
+      <aside class="owner-side-col">
+        <section class="owner-create-shell">
+          <div class="owner-create-head">
+            <span class="owner-kicker"><%= tt('owner.dashboard.create_kicker','Launch faster') %></span>
+            <h2><%= tt('owner.dashboard.open_new_title','Open a New Restaurant') %></h2>
+            <p class="muted"><%= tt('owner.dashboard.create_subtitle','Create the restaurant now, then continue to hours, menu, photos, and your operating screens.') %></p>
+          </div>
 
-        <form action="/owner/restaurant/new" method="post" class="form" id="create-restaurant-form">
-          <label>
-            <%= tt('owner.dashboard.form.name','שם מסעדה') %>
-            <input name="name" required placeholder="<%= tt('owner.dashboard.form.name_ph','לדוגמה: פסטה דל סול') %>">
-          </label>
+          <form action="/owner/restaurant/new" method="post" class="owner-create-form" id="create-restaurant-form">
+            <label>
+              <span><%= tt('owner.dashboard.form.name','Restaurant Name') %></span>
+              <input name="name" required placeholder="<%= tt('owner.dashboard.form.name_ph','e.g., Pasta Del Sol') %>">
+            </label>
+            <label>
+              <span><%= tt('owner.dashboard.form.city','City') %></span>
+              <input name="city" required placeholder="<%= tt('owner.dashboard.form.city_ph','Tel Aviv') %>">
+            </label>
+            <label>
+              <span><%= tt('owner.dashboard.form.address','Address') %></span>
+              <input name="address" required placeholder="<%= tt('owner.dashboard.form.address_ph','Ibn Gabirol 12') %>">
+            </label>
+            <label>
+              <span><%= tt('owner.dashboard.form.phone','Phone (optional)') %></span>
+              <input name="phone" placeholder="<%= tt('owner.dashboard.form.phone_ph','03-1234567') %>">
+            </label>
+            <label>
+              <span><%= tt('owner.dashboard.form.duration','Seat duration (minutes)') %></span>
+              <input name="serviceDurationMinutes" type="number" min="30" step="15" value="120" inputmode="numeric">
+            </label>
+            <label>
+              <span><%= tt('owner.dashboard.form.photos','Restaurant photos (optional at creation)') %></span>
+              <input id="create-files" type="file" accept="image/png,image/jpeg,image/webp" multiple>
+            </label>
+            <small class="muted"><%= tt('owner.dashboard.form.photos_hint','Files will be automatically uploaded to the new restaurant after creation.') %></small>
+            <button class="btn primary owner-create-submit" type="submit"><%= tt('owner.dashboard.form.submit','Save & Create') %></button>
+          </form>
 
-          <label>
-            <%= tt('owner.dashboard.form.city','עיר') %>
-            <input name="city" required placeholder="<%= tt('owner.dashboard.form.city_ph','תל אביב') %>">
-          </label>
-
-          <label>
-            <%= tt('owner.dashboard.form.address','כתובת') %>
-            <input name="address" required placeholder="<%= tt('owner.dashboard.form.address_ph','אבן גבירול 12') %>">
-          </label>
-
-          <label>
-            <%= tt('owner.dashboard.form.phone','טלפון (לא חובה)') %>
-            <input name="phone" placeholder="<%= tt('owner.dashboard.form.phone_ph','03-1234567') %>">
-          </label>
-
-          <label>
-            <%= tt('owner.dashboard.form.duration','משך ישיבה (דקות)') %>
-            <input name="serviceDurationMinutes" type="number" min="30" step="15" value="120" inputmode="numeric">
-          </label>
-
-          <div class="sep"></div>
-
-          <label>
-            <%= tt('owner.dashboard.form.photos','תמונות למסעדה (אופציונלי בשלב יצירה)') %>
-            <input id="create-files" type="file" accept="image/png,image/jpeg,image/webp" multiple>
-          </label>
-          <small class="muted"><%= tt('owner.dashboard.form.photos_hint','הקבצים יועלו אוטומטית למסעדה החדשה אחרי היצירה.') %></small>
-
-          <button class="btn primary sm" type="submit" style="margin-top:10px">
-            <%= tt('owner.dashboard.form.submit','שמירה ויצירה') %>
-          </button>
-        </form>
-
-        <p class="muted" style="margin-top:8px">
-          <%= tt('owner.dashboard.after_create_hint','לאחר יצירה ניתן לעדכן שעות פתיחה, פרטים, ותמונות במסך “עריכת פרטים” או “תמונות”.') %>
-        </p>
-      </div>
+          <div class="owner-create-note">
+            <%= tt('owner.dashboard.after_create_hint','After creation, you can update opening hours, details, and photos in the “Edit Details” or “Photos” screens.') %>
+          </div>
+        </section>
+      </aside>
       <% } %>
     </div>
   </div>
@@ -365,7 +324,7 @@ function hasAny(perms){
   (function(){
     var input = document.getElementById('create-files');
     var form = document.getElementById('create-restaurant-form');
-    if (!form) return; // אם Staff - אין את הטופס
+    if (!form) return;
 
     function readFileAsDataURL(file) {
       return new Promise(function(resolve, reject){
@@ -398,267 +357,512 @@ function hasAny(perms){
 </script>
 
 <style>
-  .sb-owner.container{
-    max-width:1240px;
-    margin:22px auto 34px;
-    padding:0 18px;
+  .owner-lobby-v2.sb-owner.container{
+    max-width: 1380px;
+    margin: 24px auto 42px;
+    padding: 0 18px;
   }
-
-  .owner-shell{
-    position:relative;
-    overflow:hidden;
-    padding:24px;
-    border-radius:28px;
+  .owner-lobby-shell{
+    position: relative;
+    overflow: hidden;
+    padding: 28px;
+    border-radius: 32px;
     background:
-      radial-gradient(circle at top left, rgba(59,130,246,.22), transparent 28%),
-      radial-gradient(circle at top right, rgba(96,165,250,.16), transparent 24%),
-      linear-gradient(180deg, rgba(15,24,47,.96), rgba(9,14,30,.98));
-    border:1px solid rgba(99,141,255,.22);
-    box-shadow:0 26px 80px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.06);
+      radial-gradient(circle at top left, rgba(59,130,246,.26), transparent 28%),
+      radial-gradient(circle at 100% 18%, rgba(56,189,248,.14), transparent 24%),
+      linear-gradient(180deg, rgba(12,19,38,.98), rgba(8,13,27,.99));
+    border: 1px solid rgba(107,145,255,.18);
+    box-shadow: 0 36px 110px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
   }
-  .owner-shell::before,
-  .owner-shell::after{
+  .owner-lobby-shell::before,
+  .owner-lobby-shell::after{
     content:"";
     position:absolute;
-    inset:auto;
-    pointer-events:none;
     border-radius:999px;
-    filter:blur(10px);
+    pointer-events:none;
+    filter: blur(18px);
+    opacity:.8;
   }
-  .owner-shell::before{
-    width:220px;height:220px;top:-84px;left:-60px;
-    background:rgba(59,130,246,.18);
+  .owner-lobby-shell::before{
+    width: 240px; height: 240px; left:-80px; top:-92px;
+    background: rgba(37,99,235,.22);
   }
-  .owner-shell::after{
-    width:180px;height:180px;right:-48px;top:54px;
-    background:rgba(56,189,248,.14);
+  .owner-lobby-shell::after{
+    width: 190px; height: 190px; right:-56px; top:52px;
+    background: rgba(14,165,233,.16);
   }
 
-  .card{
-    background:linear-gradient(180deg, rgba(16,22,41,.94), rgba(10,15,29,.96));
-    border:1px solid rgba(95,119,176,.18);
-    border-radius:24px;
-    padding:20px;
-    margin-bottom:18px;
-    color:var(--ink, #e6e8ef);
-    box-shadow:0 20px 60px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
-    backdrop-filter:blur(14px);
+  .owner-hero-premium{
+    display:grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(320px, .85fr);
+    gap: 22px;
+    align-items: stretch;
+    margin-bottom: 26px;
   }
-  .panel.card{height:100%}
+  .owner-hero-copycol,
+  .owner-hero-panel,
+  .owner-section-shell,
+  .owner-create-shell,
+  .owner-restaurant-card{
+    position: relative;
+    background: linear-gradient(180deg, rgba(15,23,44,.88), rgba(10,15,29,.96));
+    border: 1px solid rgba(116,148,228,.16);
+    border-radius: 28px;
+    box-shadow: 0 24px 70px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.05);
+  }
 
-  .owner-hero{
-    position:relative;
-    align-items:flex-start;
-    gap:18px;
-    padding:6px 0 20px;
-    margin-bottom:6px;
-    border-bottom:1px solid rgba(255,255,255,.08);
+  .owner-hero-copycol{
+    padding: 28px;
+    overflow: hidden;
   }
-  .owner-hero-main{
-    gap:8px;
-    max-width:720px;
+  .owner-hero-copycol::after{
+    content:"";
+    position:absolute;
+    inset: auto -40px -40px auto;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(59,130,246,.24), transparent 68%);
+    pointer-events:none;
   }
-  .owner-hero-main h1{
-    margin:0;
-    font-size:clamp(30px, 5vw, 50px);
-    line-height:.98;
-    letter-spacing:-.04em;
-    text-shadow:0 12px 36px rgba(0,0,0,.28);
-  }
-  .owner-hero-main .muted{
+  .owner-kicker,
+  .owner-section-kicker,
+  .owner-hero-panel-kicker{
     display:inline-flex;
     align-items:center;
     gap:8px;
-    flex-wrap:wrap;
-    padding:10px 14px;
-    border-radius:999px;
-    color:#d5deef;
-    background:rgba(255,255,255,.06);
-    border:1px solid rgba(255,255,255,.08);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(120,150,235,.22);
+    background: linear-gradient(180deg, rgba(59,130,246,.18), rgba(255,255,255,.04));
+    color: #dce8ff;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: .16em;
+    font-size: .76rem;
   }
-  .owner-hero-actions{
-    margin-inline-start:auto;
-    gap:10px;
-    align-items:center;
+  .owner-hero-copycol h1{
+    margin: 18px 0 12px;
+    font-size: clamp(34px, 5vw, 58px);
+    line-height: .95;
+    letter-spacing: -.05em;
+    text-wrap: balance;
   }
-  .owner-hd-actions .owner-staff-btn{
-    min-height:44px;
-    padding:10px 14px;
-    border-radius:14px;
-    background:rgba(255,255,255,.055);
-    border-color:rgba(120,148,215,.18);
-    box-shadow:0 10px 24px rgba(0,0,0,.22);
+  .owner-hero-copy{
+    margin: 0;
+    max-width: 720px;
+    color: rgba(226,232,240,.82);
+    font-size: 1.05rem;
+    line-height: 1.7;
+  }
+  .owner-stat-strip{
+    display:grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 12px;
+    margin-top: 24px;
+  }
+  .owner-stat-chip{
+    padding: 14px 16px;
+    border-radius: 20px;
+    background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+    border: 1px solid rgba(255,255,255,.08);
+    min-height: 88px;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+  }
+  .owner-stat-label{
+    color: rgba(191,219,254,.76);
+    font-size: .82rem;
+    font-weight: 700;
+  }
+  .owner-stat-chip strong{
+    font-size: clamp(1.35rem, 3vw, 2rem);
+    letter-spacing:-.03em;
+    color: #fff;
   }
 
-  .owner-grid{
+  .owner-hero-panel{
+    padding: 22px;
+    display:flex;
+    flex-direction:column;
+    gap: 18px;
+  }
+  .owner-hero-panel-top{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap: 12px;
+  }
+  .owner-hero-panel-title{
+    font-size: 1.06rem;
+    color: #eaf2ff;
+    line-height:1.45;
+  }
+  .owner-hero-actions-grid{
     display:grid;
-    grid-template-columns:minmax(0,1.55fr) minmax(340px, .92fr);
-    gap:20px;
-    margin-top:18px;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: auto;
+  }
+  .owner-hero-action{
+    min-height: 62px;
+    display:flex;
+    align-items:center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    text-decoration:none;
+    color: var(--ink, #edf2ff);
+    border: 1px solid rgba(255,255,255,.08);
+    background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+    transition: transform .16s ease, border-color .16s ease, background .16s ease;
+  }
+  .owner-hero-action:hover{
+    transform: translateY(-2px);
+    border-color: rgba(96,165,250,.34);
+    background: linear-gradient(180deg, rgba(59,130,246,.16), rgba(255,255,255,.05));
+  }
+  .owner-hero-action.is-highlight{
+    border-color: rgba(96,165,250,.30);
+    background: linear-gradient(180deg, rgba(37,99,235,.24), rgba(255,255,255,.05));
+  }
+  .owner-hero-action span:last-child{ font-weight: 800; line-height:1.35; }
+
+  .owner-main-grid{
+    display:grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(320px, .8fr);
+    gap: 22px;
     align-items:start;
   }
+  .owner-main-grid.is-staff{ grid-template-columns: 1fr; }
 
-  .owner-list-card,
-  .owner-create-card{
-    position:relative;
-    overflow:hidden;
-  }
-  .owner-list-card::before,
-  .owner-create-card::before{
-    content:"";
-    position:absolute;
-    inset:0 0 auto 0;
-    height:1px;
-    background:linear-gradient(90deg, transparent, rgba(96,165,250,.45), transparent);
+  .owner-section-shell,
+  .owner-create-shell{ padding: 24px; }
+  .owner-section-head{
+    display:flex;
+    align-items:end;
+    justify-content:space-between;
+    gap: 14px;
+    margin-bottom: 20px;
   }
   .owner-section-title{
-    margin:0 0 18px;
-    font-size:clamp(20px, 2.2vw, 28px);
-    line-height:1.05;
-    letter-spacing:-.03em;
+    margin: 10px 0 0;
+    font-size: clamp(26px, 3vw, 36px);
+    line-height: 1;
+    letter-spacing:-.04em;
+  }
+  .owner-section-badge{
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.08);
+    color: #dbeafe;
+    font-weight: 800;
+    white-space: nowrap;
   }
 
-  .list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:14px}
-  .owner-item{
-    position:relative;
-    display:flex;
-    align-items:stretch;
-    gap:16px;
-    padding:18px;
-    border:none;
-    border-radius:22px;
-    background:
-      linear-gradient(180deg, rgba(20,30,56,.96), rgba(12,18,34,.96));
-    box-shadow:0 18px 48px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.04);
+  .owner-restaurant-grid{
+    display:grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .owner-restaurant-card{
     overflow:hidden;
   }
-  .owner-item::before{
-    content:"";
+  .owner-restaurant-media{
+    position: relative;
+    min-height: 270px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    background: linear-gradient(180deg, rgba(18,33,63,.95), rgba(9,16,31,.98));
+  }
+  .owner-restaurant-media.is-empty{
+    background: radial-gradient(circle at 30% 20%, rgba(59,130,246,.20), transparent 35%), linear-gradient(180deg, rgba(18,33,63,.95), rgba(9,16,31,.98));
+  }
+  .owner-restaurant-photo{
     position:absolute;
-    inset:0 auto 0 0;
-    width:4px;
-    border-radius:999px;
-    background:linear-gradient(180deg, #49a2ff, #0ea5e9);
-    opacity:.92;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit: cover;
+    display:block;
+  }
+  .owner-restaurant-photo--placeholder{ position:absolute; inset:0; }
+  .owner-restaurant-overlay{
+    position:absolute;
+    inset:0;
+    background: linear-gradient(180deg, rgba(7,10,21,.10), rgba(7,10,21,.22) 40%, rgba(4,7,15,.84));
+  }
+  .owner-restaurant-topline,
+  .owner-restaurant-titlewrap{
+    position:absolute;
+    left: 20px;
+    right: 20px;
+    z-index: 2;
+  }
+  .owner-restaurant-topline{
+    top: 18px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .owner-city-pill,
+  .owner-peak-pill{
+    padding: 9px 12px;
+    border-radius: 999px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(7,10,21,.38);
+    color: #fff;
+    font-weight: 800;
+    font-size: .84rem;
+  }
+  .owner-peak-pill.is-green{ box-shadow: inset 0 0 0 1px rgba(34,197,94,.18); }
+  .owner-peak-pill.is-yellow{ box-shadow: inset 0 0 0 1px rgba(250,204,21,.18); }
+  .owner-peak-pill.is-red{ box-shadow: inset 0 0 0 1px rgba(248,113,113,.18); }
+  .owner-restaurant-titlewrap{ bottom: 18px; }
+  .owner-restaurant-titlewrap h3{
+    margin: 0 0 6px;
+    font-size: clamp(28px, 4vw, 38px);
+    line-height: .98;
+    letter-spacing:-.04em;
+    color: #fff;
+    text-shadow: 0 18px 40px rgba(0,0,0,.4);
+  }
+  .owner-restaurant-sub{
+    color: rgba(226,232,240,.88);
+    font-weight: 600;
   }
 
-  .owner-item-meta{
+  .owner-restaurant-body{ padding: 22px; }
+  .owner-kpi-grid{
     display:grid;
-    grid-template-columns:128px minmax(0,1fr);
-    gap:16px;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 12px;
+  }
+  .owner-kpi-box{
+    padding: 14px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+    border: 1px solid rgba(255,255,255,.08);
+    display:flex;
+    flex-direction:column;
+    gap: 8px;
+  }
+  .owner-kpi-box span{
+    color: rgba(191,219,254,.76);
+    font-size: .78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+  .owner-kpi-box strong{
+    font-size: 1.18rem;
+    color: #fff;
+    letter-spacing:-.02em;
+  }
+  .owner-progress-row{
+    margin-top: 16px;
+    display:flex;
+    align-items:center;
+    gap: 12px;
+  }
+  .owner-progress-track{
+    flex:1;
+    height: 12px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.07);
+    overflow:hidden;
+    border: 1px solid rgba(255,255,255,.06);
+  }
+  .owner-progress-fill{
+    height:100%;
+    border-radius:inherit;
+    background: linear-gradient(90deg, #22c55e, #4ade80);
+  }
+  .owner-progress-fill.is-yellow{ background: linear-gradient(90deg, #f59e0b, #fde047); }
+  .owner-progress-fill.is-red{ background: linear-gradient(90deg, #ef4444, #fb7185); }
+  .owner-progress-label{ color: #dbeafe; font-weight: 800; white-space: nowrap; }
+
+  .owner-primary-row{
+    display:flex;
+    gap: 12px;
+    align-items:center;
+    flex-wrap: wrap;
+    margin-top: 18px;
+  }
+  .owner-main-cta,
+  .owner-secondary-cta{
+    min-height: 48px;
+    border-radius: 16px;
+    padding-inline: 18px;
+  }
+  .owner-main-cta{ box-shadow: 0 14px 34px rgba(37,99,235,.28); }
+
+  .owner-link-cluster{
+    margin-top: 14px;
+    display:flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .owner-mini-link{
+    padding: 10px 14px;
+    border-radius: 999px;
+    text-decoration:none;
+    color: #dbeafe;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.08);
+    font-weight: 700;
+    transition: transform .15s ease, border-color .15s ease;
+  }
+  .owner-mini-link:hover{
+    transform: translateY(-1px);
+    border-color: rgba(96,165,250,.28);
+  }
+
+  .owner-ops-grid{
+    margin-top: 18px;
+    display:grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 12px;
+  }
+  .owner-op{
+    min-height: 86px;
+    padding: 14px;
+    border-radius: 20px;
+    text-decoration:none;
+    color: #fff;
+    background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+    border: 1px solid rgba(255,255,255,.08);
+    display:flex;
+    flex-direction:column;
+    gap: 12px;
+    justify-content:space-between;
+    transition: transform .16s ease, border-color .16s ease, background .16s ease;
+  }
+  .owner-op span{ font-size: 1.2rem; }
+  .owner-op small{ font-size: .88rem; font-weight: 800; color: #dbeafe; line-height:1.35; }
+  .owner-op:hover{
+    transform: translateY(-2px);
+    border-color: rgba(96,165,250,.28);
+    background: linear-gradient(180deg, rgba(59,130,246,.16), rgba(255,255,255,.05));
+  }
+
+  .owner-create-shell{
+    position: sticky;
+    top: 18px;
+  }
+  .owner-create-head h2{
+    margin: 12px 0 10px;
+    font-size: clamp(28px, 3vw, 38px);
+    line-height: .98;
+    letter-spacing:-.04em;
+  }
+  .owner-create-form{
+    display:grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 18px;
+  }
+  .owner-create-form label{
+    display:flex;
+    flex-direction:column;
+    gap: 7px;
+    font-weight: 800;
+    color: #ebf4ff;
+  }
+  .owner-create-form input{
     width:100%;
-    align-items:start;
+    min-height: 50px;
+    border-radius: 16px;
+    border: 1px solid rgba(120,150,235,.18);
+    background: rgba(9,14,28,.72);
+    color: #fff;
+    padding: 0 14px;
+    outline:none;
   }
-  .thumb{
-    width:128px;height:108px;object-fit:cover;border-radius:18px;
-    border:1px solid rgba(255,255,255,.08); background:#0f1320;
-    box-shadow:0 18px 38px rgba(0,0,0,.28);
+  .owner-create-form input:focus{
+    border-color: rgba(96,165,250,.45);
+    box-shadow: 0 0 0 3px rgba(59,130,246,.14);
   }
-  .owner-item-body{display:flex;flex-direction:column;gap:10px}
-  .meta-body .title{font-size:22px;line-height:1.05;letter-spacing:-.03em}
-  .meta-body .sub{font-size:13px;color:#aebad1}
-
-  .kpis{margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .kpi{
-    font-size:12px;color:#e6edf8;
-    background:rgba(255,255,255,.06);
-    border:1px solid rgba(255,255,255,.09);
-    border-radius:999px;padding:7px 10px;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
-  }
-
-  .bar{
-    width:100%;height:12px;background:#0b1020;border-radius:999px;overflow:hidden;
-    border:1px solid rgba(255,255,255,.08);margin-top:2px;
-    box-shadow:inset 0 4px 12px rgba(0,0,0,.4);
-  }
-  .bar-fill{height:100%;background:linear-gradient(90deg,#10b981,#34d399)}
-  .bar-fill.yellow{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
-  .bar-fill.red{background:linear-gradient(90deg,#ef4444,#fb7185)}
-
-  .btn{ line-height:1.1; }
-  .btn .icon{
-    width:18px;height:18px;flex:0 0 18px;display:inline-flex;align-items:center;justify-content:center;
-    font-size:16px;line-height:1;
-  }
-  .btn{
-    display:inline-flex; align-items:center; justify-content:center; gap:8px;
-    padding:11px 14px; border-radius:14px; cursor:pointer; text-decoration:none;
-    border:1px solid rgba(123,147,205,.18);
-    background:rgba(255,255,255,.04);
-    color:var(--ink, #e6e8ef); font-weight:800;
-    transition: transform .12s ease, filter .12s ease, box-shadow .12s ease, border-color .12s ease;
-    box-shadow:0 10px 24px rgba(0,0,0,.14);
-  }
-  .btn:hover{ transform: translateY(-1px); border-color:rgba(123,147,205,.34); }
-  .btn.primary{
-    background:linear-gradient(135deg, var(--brand, #3b82f6), #60a5fa);
-    color:var(--brand-ink, #fff);
-    border-color:transparent;
-    box-shadow:0 16px 34px rgba(59,130,246,.34);
-  }
-  .btn.ghost{ background:rgba(255,255,255,.045); }
-  .btn.ghost:hover{ background:rgba(255,255,255,.07); }
-  .btn.sm{ padding:9px 13px; border-radius:12px; }
-
-  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
-  .owner-primary-actions,
-  .owner-pos-actions{align-items:stretch}
-  .owner-primary-actions .btn,
-  .owner-pos-actions .btn{
-    min-height:46px;
-    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.035));
-  }
-  .owner-pos-actions .btn.wide{
-    min-width:180px;
-    flex:1 1 180px;
-  }
-
-  .form label{ display:flex; flex-direction:column; gap:7px; font-weight:700; font-size:14px; margin-top:8px }
-  .form input{
-    width:100%;padding:12px 14px;margin-top:0;
-    background:rgba(9,15,29,.94);color:#e6e8ef;border:1px solid rgba(123,147,205,.16);border-radius:16px;
-    font-size:14px; outline:none; transition: box-shadow .15s ease, border-color .15s ease;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
-  }
-  .form input:focus{
-    border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 20%, transparent);
-  }
-
-  .sep{height:1px;background:rgba(255,255,255,.08);margin:14px 0;border-radius:999px}
-
-  .owner-create-card .btn.primary{
+  .owner-create-submit{
     width:100%;
-    min-height:48px;
-    font-size:15px;
+    min-height: 52px;
+    margin-top: 8px;
+    border-radius: 18px;
+    font-size: 1rem;
+    font-weight: 900;
+    box-shadow: 0 16px 40px rgba(37,99,235,.28);
   }
-  .owner-create-card .muted{color:#aebad1}
+  .owner-create-note{
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.08);
+    color: rgba(226,232,240,.82);
+    line-height: 1.65;
+  }
 
-  @media (max-width: 1100px){
-    .owner-grid{grid-template-columns:1fr;}
+  .owner-empty-state{
+    padding: 34px 22px;
+    border-radius: 24px;
+    border: 1px dashed rgba(120,150,235,.22);
+    background: rgba(255,255,255,.03);
+    text-align: center;
   }
-  @media (max-width:900px){
-    .owner-item-meta{grid-template-columns:1fr;}
-    .thumb{width:100%;height:220px;}
-    .owner-hd{
-      flex-direction:column;
-      align-items:flex-start;
-    }
-    .owner-hero-actions,
-    .owner-hd-actions{
-      width:100%;
-      justify-content:flex-start;
-    }
-    .owner-pos-actions .btn.wide{ width:100%; justify-content:center; }
+  .owner-empty-icon{
+    width: 68px;
+    height: 68px;
+    margin: 0 auto 14px;
+    border-radius: 22px;
+    display:grid;
+    place-items:center;
+    background: linear-gradient(180deg, rgba(59,130,246,.22), rgba(255,255,255,.04));
+    border: 1px solid rgba(96,165,250,.26);
+    font-size: 1.8rem;
+    color: #fff;
   }
-  @media (max-width:640px){
-    .sb-owner.container{padding:0 14px;}
-    .owner-shell{padding:16px; border-radius:22px;}
-    .owner-hero-main h1{font-size:32px;}
-    .owner-item{padding:14px; border-radius:18px;}
-    .owner-primary-actions .btn,
-    .owner-pos-actions .btn{width:100%; justify-content:center;}
+
+  @media (max-width: 1180px){
+    .owner-hero-premium,
+    .owner-main-grid{ grid-template-columns: 1fr; }
+    .owner-create-shell{ position: static; }
+  }
+  @media (max-width: 980px){
+    .owner-stat-strip,
+    .owner-kpi-grid,
+    .owner-ops-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .owner-hero-actions-grid{ grid-template-columns: 1fr 1fr; }
+    .owner-lobby-shell{ padding: 20px; }
+    .owner-hero-copycol,
+    .owner-hero-panel,
+    .owner-section-shell,
+    .owner-create-shell,
+    .owner-restaurant-body{ padding: 18px; }
+  }
+  @media (max-width: 640px){
+    .owner-lobby-v2.sb-owner.container{ padding: 0 12px; }
+    .owner-lobby-shell{ padding: 14px; border-radius: 24px; }
+    .owner-hero-copycol h1{ font-size: clamp(28px, 9vw, 42px); }
+    .owner-stat-strip,
+    .owner-kpi-grid,
+    .owner-ops-grid,
+    .owner-hero-actions-grid{ grid-template-columns: 1fr; }
+    .owner-section-head,
+    .owner-primary-row,
+    .owner-progress-row{ align-items: stretch; }
+    .owner-section-head,
+    .owner-primary-row{ flex-direction: column; }
+    .owner-section-badge,
+    .owner-progress-label{ white-space: normal; }
+    .owner-restaurant-media{ min-height: 220px; }
+    .owner-restaurant-titlewrap h3{ font-size: 2rem; }
+    .owner-main-cta,
+    .owner-secondary-cta,
+    .owner-mini-link,
+    .owner-hero-action{ width:100%; justify-content:center; }
   }
 </style>
