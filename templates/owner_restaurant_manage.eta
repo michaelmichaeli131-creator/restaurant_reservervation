@@ -6,7 +6,6 @@
   const isOwner = (role === 'owner');
   const isStaff = (role === 'staff');
 
-  // staff context (מגיע מ-middleware/staff_context.ts דרך view.ts)
   const staff = it.staff || null;
   const staffPerms = Array.isArray(staff?.permissions) ? staff.permissions : [];
 
@@ -19,129 +18,223 @@
     for (const p of perms) if (staffPerms.includes(p)) return true;
     return false;
   }
+  function tt(key, fallback, vars){
+    try {
+      const s = it && typeof it.t === 'function' ? it.t(key, vars || {}) : '';
+      if (!s || s === key || s === `(${key})`) return fallback;
+      return s;
+    } catch (_) {
+      return fallback;
+    }
+  }
+  function kitchenLabel(cat){
+    return String(cat || '').replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+  }
+  function truncateText(str, max){
+    const s = String(str || '').trim();
+    if (!s) return '';
+    return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+  }
+  function fmtMoneyCents(cents, currency){
+    const value = Number(cents || 0) / 100;
+    try {
+      return new Intl.NumberFormat(it?.lang === 'he' ? 'he-IL' : 'en-US', { style: 'currency', currency: currency || 'EUR' }).format(value);
+    } catch (_) {
+      return `${value.toFixed(2)} ${currency || 'EUR'}`;
+    }
+  }
+  function fmtDate(ts){
+    if (!ts) return '—';
+    try {
+      return new Date(ts).toLocaleDateString(it?.lang === 'he' ? 'he-IL' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch (_) {
+      return '—';
+    }
+  }
 
-  // permissions → UI
   const canCalendar = hasAny(['reservations.view','reservations.manage']);
   const canFloor    = hasAny(['floor.view','floor.edit']);
-  const canShifts    = hasAny(['shifts.view','shifts.manage']);
-  const canStaff     = isOwner; // ניהול עובדים – בעלים בלבד (יש מסכים ייעודיים לעובדים)
-  const canMenu      = hasPerm('menu.manage');
-  const canReports   = hasPerm('reports.view');
-  const canInvView   = hasPerm('inventory.view') || hasPerm('inventory.manage');
-
-  const canWaiter    = hasPerm('pos.waiter');
-  const canKitchen   = hasPerm('pos.kitchen');
-  const canHost      = hasPerm('host.seating');
-  const canBar       = hasPerm('pos.waiter');
+  const canShifts   = hasAny(['shifts.view','shifts.manage']);
+  const canStaff    = isOwner;
+  const canMenu     = hasPerm('menu.manage');
+  const canReports  = hasPerm('reports.view');
+  const canInvView  = hasPerm('inventory.view') || hasPerm('inventory.manage');
+  const canWaiter   = hasPerm('pos.waiter');
+  const canKitchen  = hasPerm('pos.kitchen');
+  const canHost     = hasPerm('host.seating');
+  const canBar      = hasPerm('pos.waiter');
 
   const tasks = Array.isArray(r?._tasks) ? r._tasks : [];
   const alerts = Array.isArray(r?._alerts) ? r._alerts : [];
   const preview = Array.isArray(r?._reservationsPreview) ? r._reservationsPreview : [];
+  const photos = Array.isArray(r?.photos) ? r.photos : [];
+  const menuItems = Array.isArray(r?.menu) ? r.menu : [];
+  const categories = Array.isArray(r?.kitchenCategories) ? r.kitchenCategories : [];
+  const cover = photos.length ? (photos[0]?.dataUrl || photos[0]) : '';
 
-  const cover = (Array.isArray(r?.photos) && r.photos.length) ? (r.photos[0]?.dataUrl || r.photos[0]) : '';
+  const reservationsToday = Number(r?._reservationsCount || 0);
+  const guestsToday = Number(r?._peopleToday || 0);
+  const peakOccupancy = Number(r?._peakOccupancyPct || 0);
+  const avgPartySize = reservationsToday ? (guestsToday / reservationsToday) : 0;
+  const rating = Number(r?.averageRating || 0);
+  const reviewCount = Number(r?.reviewCount || 0);
+  const photoCount = photos.length;
+  const menuCount = menuItems.length;
+  const depositEnabled = !!r?.depositEnabled;
+  const depositText = depositEnabled ? fmtMoneyCents(r?.depositAmount || 0, r?.depositCurrency || 'EUR') : tt('owner_manage.deposit_disabled', 'Disabled');
+  const approvalLabel = r?.approved ? tt('owner_manage.approved', 'Approved') : tt('owner_manage.pending_approval', 'Pending approval');
+  const approvalTone = r?.approved ? 'good' : 'warn';
+  const depositTone = depositEnabled ? 'good' : 'muted';
+  const categoryLabels = categories.map(kitchenLabel);
+  const primaryCategory = categoryLabels[0] || tt('owner_manage.restaurant_fallback', 'Restaurant');
+
+  const setupChecks = [
+    !!r?.description,
+    !!r?.phone,
+    Number(r?.capacity || 0) > 0,
+    menuCount > 0,
+    photoCount > 0,
+    categories.length > 0,
+    !!r?.weeklySchedule || !!r?.hours,
+  ];
+  const setupDone = setupChecks.filter(Boolean).length;
+  const setupPct = Math.round((setupDone / setupChecks.length) * 100);
+  const missingSetup = setupChecks.length - setupDone;
+
+  const serviceTone = peakOccupancy >= 85 ? 'danger' : (peakOccupancy >= 60 ? 'warn' : 'good');
+  const setupTone = setupPct >= 85 ? 'good' : (setupPct >= 60 ? 'warn' : 'danger');
+  const guestTone = rating >= 4.5 ? 'good' : (reviewCount ? 'warn' : 'muted');
+  const descriptionShort = truncateText(r?.description, 180);
+  const createdAtText = fmtDate(r?.createdAt);
 %>
 
-<section class="sb-page" aria-label="<%= it.t('owner_manage.aria_section') %>">
-  <!-- Hero Header -->
-  <header class="sb-hero" <%= cover ? `style="background-image:url('${cover}')"` : '' %>>
-    <div class="sb-hero-overlay"></div>
-    <div class="sb-hero-inner">
-      <div class="sb-hero-top">
-        <div class="sb-hero-title">
-          <div class="sb-hero-kicker"><%= it.t('owner_manage.hero_kicker') %></div>
-          <h1><%= r?.name || it.t('owner_manage.restaurant_fallback') %></h1>
-          <div class="sb-hero-sub muted">
-            <span><%= r?.city || '' %><%= (r?.city && r?.address) ? ' • ' : '' %><%= r?.address || '' %></span>
-            <% if (r?._today) { %>
-              <span class="sb-dot">•</span>
-              <span><%= r._today %></span>
-            <% } %>
-          </div>
+<section class="sb-rm sb-page" aria-label="<%= it.t('owner_manage.aria_section') %>">
+  <header class="sb-rm-hero" <%= cover ? `style="background-image:url('${cover}')"` : '' %>>
+    <div class="sb-rm-hero-overlay"></div>
+    <div class="sb-rm-hero-inner">
+      <div class="sb-rm-hero-copy">
+        <div class="sb-rm-kicker"><%= tt('owner_manage.hero_kicker', 'Restaurant Management') %> · <%= tt('owner_manage.command_center', 'Command Center') %></div>
+        <h1><%= r?.name || tt('owner_manage.restaurant_fallback', 'Restaurant') %></h1>
+        <div class="sb-rm-subline muted">
+          <span><%= r?.city || '' %><%= (r?.city && r?.address) ? ' • ' : '' %><%= r?.address || '' %></span>
+          <% if (r?._today) { %>
+            <span class="sb-rm-sep">•</span>
+            <span><%= r._today %></span>
+          <% } %>
         </div>
 
-        <div class="sb-hero-tools">
-          <!-- Restaurant switcher -->
-          <div class="sb-switcher">
-            <label class="muted" for="restaurantSwitch"><%= it.t('owner_manage.switcher_label') %></label>
-            <select id="restaurantSwitch" class="sb-select" onchange="if(this.value) location.href=this.value;">
-              <% restaurants.forEach(function(x){ %>
-                <option value="/owner/restaurants/<%= x.id %>/manage" <%= (x.id===r?.id)?'selected':'' %>><%= x.name %></option>
-              <% }) %>
-              <% if (isOwner) { %>
-                <option value="/owner/restaurants/new"><%= it.t('owner_manage.new_restaurant') %></option>
-              <% } %>
-            </select>
-          </div>
+        <div class="sb-rm-chiprow">
+          <span class="sb-rm-chip tone-brand"><%= primaryCategory %></span>
+          <span class="sb-rm-chip tone-<%= approvalTone %>"><%= approvalLabel %></span>
+          <span class="sb-rm-chip tone-<%= depositTone %>"><%= depositEnabled ? tt('owner_manage.deposit_enabled', 'Deposit enabled') : tt('owner_manage.deposit_disabled', 'No deposit') %></span>
+          <% if (reviewCount || rating) { %>
+            <span class="sb-rm-chip tone-<%= guestTone %>">★ <%= rating ? rating.toFixed(1) : '—' %> · <%= reviewCount %> <%= tt('owner_manage.reviews', 'reviews') %></span>
+          <% } %>
+          <span class="sb-rm-chip tone-muted"><%= photoCount %> <%= tt('owner_manage.photos_count', 'photos') %></span>
+          <span class="sb-rm-chip tone-muted"><%= menuCount %> <%= tt('owner_manage.menu_items', 'menu items') %></span>
+        </div>
 
-          <div class="sb-row" style="justify-content:flex-end">
-            <% if (isOwner) { %>
-              <a class="btn sm ghost" href="/owner/restaurants">
-                <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#home"/></svg></span>
-                <%= it.t('owner_manage.all_restaurants') %>
-              </a>
-            <% } else { %>
-              <a class="btn sm ghost" href="/owner/manage">
-                <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#home"/></svg></span>
-                <%= it.t('owner_manage.home') %>
-              </a>
-            <% } %>
-            <% if (isOwner) { %>
-              <a class="btn sm ghost" href="<%= r?._urls?.edit %>">
-                <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#settings"/></svg></span>
-                <%= it.t('owner_manage.edit_details') %>
-              </a>
-            <% } %>
-          </div>
+        <% if (descriptionShort) { %>
+          <p class="sb-rm-desc"><%= descriptionShort %></p>
+        <% } %>
+
+        <div class="sb-rm-quick" aria-label="<%= it.t('owner_manage.quick_actions') %>">
+          <% if (canCalendar) { %>
+            <a class="btn md primary" href="<%= r?._urls?.calendar %>" data-sb-search="calendar reservations daily guest timeline">
+              <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#calendar"/></svg></span>
+              <%= it.t('owner_manage.daily_calendar') %>
+            </a>
+          <% } %>
+          <% if (canFloor) { %>
+            <a class="btn md" href="<%= r?._urls?.floor %>" data-sb-search="floor layout table map live plan">
+              <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#floor"/></svg></span>
+              <%= it.t('owner_manage.floor_tables') %>
+            </a>
+          <% } %>
+          <% if (canShifts) { %>
+            <a class="btn md" href="<%= r?._urls?.shifts %>" data-sb-search="shifts schedule staffing team">
+              <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#shifts"/></svg></span>
+              <%= it.t('owner_manage.shifts') %>
+            </a>
+          <% } %>
+          <% if (canReports) { %>
+            <a class="btn md" href="<%= r?._urls?.stats %>" data-sb-search="reports analytics trends insights sales">
+              <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#chart"/></svg></span>
+              <%= it.t('owner_manage.reports') %>
+            </a>
+          <% } %>
         </div>
       </div>
 
-      <!-- Quick actions -->
-      <div class="sb-quick sb-hero-quick" aria-label="<%= it.t('owner_manage.quick_actions') %>">
-        <% if (canCalendar) { %>
-        <a class="btn md primary" href="<%= r?._urls?.calendar %>" data-sb-search="יומן יומי הזמנות calendar daily">
-          <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#calendar"/></svg></span>
-          <%= it.t('owner_manage.daily_calendar') %>
-        </a>
-        <% } %>
-        <% if (canFloor) { %>
-        <a class="btn md" href="<%= r?._urls?.floor %>" data-sb-search="פלור שולחנות floor layout tables">
-          <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#floor"/></svg></span>
-          <%= it.t('owner_manage.floor_tables') %>
-        </a>
-        <% } %>
-        <% if (canShifts) { %>
-        <a class="btn md" href="<%= r?._urls?.shifts %>" data-sb-search="משמרות shifts schedule">
-          <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#shifts"/></svg></span>
-          <%= it.t('owner_manage.shifts') %>
-        </a>
-        <% } %>
-        <% if (canStaff) { %>
-        <a class="btn md" href="<%= r?._urls?.staff %>" data-sb-search="צוות עובדים staff users">
-          <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#users"/></svg></span>
-          <%= it.t('owner_manage.staff') %>
-        </a>
-        <% } %>
-        <% if (canReports) { %>
-        <a class="btn md" href="<%= r?._urls?.stats %>" data-sb-search="דוחות סטטיסטיקה reports stats analytics">
-          <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#chart"/></svg></span>
-          <%= it.t('owner_manage.reports') %>
-        </a>
-        <% } %>
-        <% if (canInvView) { %>
-        <a class="btn md" href="<%= r?._urls?.inventory %>" data-sb-search="מלאי inventory stock">
-          <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#box"/></svg></span>
-          <%= it.t('owner_manage.inventory') %>
-        </a>
-        <% } %>
-      </div>
+      <aside class="sb-rm-control sb-surface">
+        <div class="sb-rm-control-top">
+          <div>
+            <div class="sb-rm-control-label"><%= tt('owner_manage.business_snapshot', 'Business Snapshot') %></div>
+            <div class="sb-rm-control-title"><%= tt('owner_manage.today_focus', 'Today’s Focus') %></div>
+          </div>
+          <span class="sb-rm-badge tone-<%= serviceTone %>"><%= peakOccupancy %>% <%= tt('owner_manage.occupancy', 'occupancy') %></span>
+        </div>
+
+        <label class="sb-rm-switcher muted" for="restaurantSwitch"><%= it.t('owner_manage.switcher_label') %></label>
+        <select id="restaurantSwitch" class="sb-select sb-rm-select" onchange="if(this.value) location.href=this.value;">
+          <% restaurants.forEach(function(x){ %>
+            <option value="/owner/restaurants/<%= x.id %>/manage" <%= (x.id===r?.id)?'selected':'' %>><%= x.name %></option>
+          <% }) %>
+          <% if (isOwner) { %>
+            <option value="/owner/restaurants/new"><%= it.t('owner_manage.new_restaurant') %></option>
+          <% } %>
+        </select>
+
+        <div class="sb-rm-control-actions">
+          <% if (isOwner) { %>
+            <a class="btn sm ghost" href="/owner/restaurants">
+              <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#home"/></svg></span>
+              <%= it.t('owner_manage.all_restaurants') %>
+            </a>
+          <% } else { %>
+            <a class="btn sm ghost" href="/owner/manage">
+              <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#home"/></svg></span>
+              <%= it.t('owner_manage.home') %>
+            </a>
+          <% } %>
+          <% if (isOwner) { %>
+            <a class="btn sm ghost" href="<%= r?._urls?.edit %>">
+              <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#settings"/></svg></span>
+              <%= it.t('owner_manage.edit_details') %>
+            </a>
+          <% } %>
+        </div>
+
+        <div class="sb-rm-mini-grid" aria-label="<%= it.t('owner_manage.kpi_aria') %>">
+          <div class="sb-rm-mini tone-brand">
+            <div class="sb-rm-mini-label"><%= it.t('owner_manage.kpi_reservations_today') %></div>
+            <div class="sb-rm-mini-value"><%= reservationsToday %></div>
+            <div class="sb-rm-mini-sub"><%= tt('owner_manage.agenda_ready', 'Agenda ready for service') %></div>
+          </div>
+          <div class="sb-rm-mini tone-info">
+            <div class="sb-rm-mini-label"><%= it.t('owner_manage.kpi_guests_today') %></div>
+            <div class="sb-rm-mini-value"><%= guestsToday %></div>
+            <div class="sb-rm-mini-sub"><%= tt('owner_manage.avg_party_size', 'Avg. party size') %> <strong><%= avgPartySize ? avgPartySize.toFixed(1) : '—' %></strong></div>
+          </div>
+          <div class="sb-rm-mini tone-<%= setupTone %>">
+            <div class="sb-rm-mini-label"><%= tt('owner_manage.setup_progress', 'Setup Progress') %></div>
+            <div class="sb-rm-mini-value"><%= setupPct %>%</div>
+            <div class="sb-rm-mini-sub"><%= missingSetup ? `${missingSetup} ${tt('owner_manage.items_missing', 'items missing')}` : tt('owner_manage.ready_for_growth', 'Ready for growth') %></div>
+          </div>
+          <div class="sb-rm-mini tone-<%= guestTone %>">
+            <div class="sb-rm-mini-label"><%= tt('owner_manage.guest_experience', 'Guest Experience') %></div>
+            <div class="sb-rm-mini-value"><%= rating ? rating.toFixed(1) : '—' %></div>
+            <div class="sb-rm-mini-sub"><%= reviewCount ? `${reviewCount} ${tt('owner_manage.reviews', 'reviews')}` : tt('owner_manage.no_reviews_yet', 'No reviews yet') %></div>
+          </div>
+        </div>
+      </aside>
     </div>
   </header>
 
-  <!-- Dashboard -->
-  <div class="sb-dashboard" aria-label="Dashboard" data-sb-filter-root>
-    <main class="sb-dashboard-main">
-      <div class="sb-manage-toolbar" aria-label="<%= it.t('owner_manage.toolbar_aria') %>">
-        <div class="sb-search">
+  <div class="sb-dashboard sb-rm-dashboard" data-sb-filter-root>
+    <main class="sb-dashboard-main sb-rm-main">
+      <div class="sb-manage-toolbar sb-rm-toolbar" aria-label="<%= it.t('owner_manage.toolbar_aria') %>">
+        <div class="sb-search sb-rm-search">
           <span class="sb-icon sb-icon-20 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#search"/></svg></span>
           <input id="sbFeatureSearch" class="sb-input" type="search" placeholder="<%= it.t('owner_manage.search_placeholder') %>" aria-label="<%= it.t('owner_manage.search_aria') %>" />
         </div>
@@ -150,250 +243,224 @@
 
       <div class="sb-empty" data-sb-empty style="display:none" aria-live="polite"><%= it.t('owner_manage.no_results') %></div>
 
-      <!-- KPI row -->
-      <div class="sb-grid cols-4" aria-label="<%= it.t('owner_manage.kpi_aria') %>">
-        <div class="sb-surface sb-kpi">
-          <div class="sb-kpi-label"><%= it.t('owner_manage.kpi_reservations_today') %></div>
-          <div class="sb-kpi-value"><%= r?._reservationsCount ?? 0 %></div>
-          <div class="sb-kpi-foot muted">
-            <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#calendar"/></svg></span>
-            <%= it.t('owner_manage.kpi_by_date', { date: r?._today || '' }) %>
+      <section class="sb-rm-highlights" aria-label="<%= tt('owner_manage.business_snapshot', 'Business Snapshot') %>">
+        <article class="sb-rm-highlight tone-<%= serviceTone %>" data-sb-search="service load occupancy peak reservations guests">
+          <div class="sb-rm-highlight-top">
+            <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#chart"/></svg></span>
+            <span class="sb-rm-eyebrow"><%= tt('owner_manage.service_readiness', 'Service Readiness') %></span>
           </div>
-        </div>
-        <div class="sb-surface sb-kpi">
-          <div class="sb-kpi-label"><%= it.t('owner_manage.kpi_guests_today') %></div>
-          <div class="sb-kpi-value"><%= r?._peopleToday ?? 0 %></div>
-          <div class="sb-kpi-foot muted">
-            <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#users"/></svg></span>
-            <%= it.t('owner_manage.kpi_total_people') %>
+          <div class="sb-rm-highlight-value"><%= peakOccupancy %>%</div>
+          <div class="sb-rm-highlight-title"><%= tt('owner_manage.peak_load_today', 'Peak load today') %></div>
+          <p><%= peakOccupancy >= 85 ? tt('owner_manage.high_demand_copy', 'Demand is strong today. Review staffing and queue flow.') : tt('owner_manage.healthy_flow_copy', 'Service load looks balanced. Great time to focus on execution.') %></p>
+          <div class="sb-rm-metrics">
+            <span><strong><%= reservationsToday %></strong> <%= tt('owner_manage.bookings', 'bookings') %></span>
+            <span><strong><%= guestsToday %></strong> <%= tt('owner_manage.guests', 'guests') %></span>
+            <span><strong><%= avgPartySize ? avgPartySize.toFixed(1) : '—' %></strong> <%= tt('owner_manage.per_booking', 'per booking') %></span>
           </div>
-        </div>
-        <div class="sb-surface sb-kpi">
-          <div class="sb-kpi-label"><%= it.t('owner_manage.kpi_peak_occupancy') %></div>
-          <div class="sb-kpi-value"><%= r?._peakOccupancyPct ?? 0 %>%</div>
-          <div class="sb-kpi-foot muted">
-            <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#chart"/></svg></span>
-            <%= it.t('owner_manage.kpi_capacity_ratio') %>
-          </div>
-        </div>
-        <div class="sb-surface sb-kpi">
-          <div class="sb-kpi-label"><%= it.t('owner_manage.kpi_capacity') %></div>
-          <div class="sb-kpi-value"><%= r?.capacity ?? '' %></div>
-          <div class="sb-kpi-foot muted">
-            <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#floor"/></svg></span>
-            <%= it.t('owner_manage.kpi_seats_defined') %>
-          </div>
-        </div>
-      </div>
+        </article>
 
-      <!-- Operational screens (Host / Waiter / Kitchen / Bar / Menu) -->
+        <article class="sb-rm-highlight tone-<%= setupTone %>" data-sb-search="setup completeness photos menu details hours deposit">
+          <div class="sb-rm-highlight-top">
+            <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#check"/></svg></span>
+            <span class="sb-rm-eyebrow"><%= tt('owner_manage.setup_progress', 'Setup Progress') %></span>
+          </div>
+          <div class="sb-rm-progress-circle" style="--pct:<%= setupPct %>">
+            <span><%= setupPct %>%</span>
+          </div>
+          <div class="sb-rm-highlight-title"><%= tt('owner_manage.business_setup', 'Business setup') %></div>
+          <p><%= missingSetup ? `${missingSetup} ${tt('owner_manage.setup_action_needed', 'core items still need attention.')}` : tt('owner_manage.setup_complete_copy', 'Core setup looks complete and ready to support growth.') %></p>
+          <div class="sb-rm-metrics">
+            <span><strong><%= menuCount %></strong> <%= tt('owner_manage.menu_items', 'menu items') %></span>
+            <span><strong><%= photoCount %></strong> <%= tt('owner_manage.photos_count', 'photos') %></span>
+            <span><strong><%= categories.length %></strong> <%= tt('owner_manage.categories', 'categories') %></span>
+          </div>
+        </article>
+
+        <article class="sb-rm-highlight tone-<%= guestTone %>" data-sb-search="guest experience reviews rating deposit policy settings">
+          <div class="sb-rm-highlight-top">
+            <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#bell"/></svg></span>
+            <span class="sb-rm-eyebrow"><%= tt('owner_manage.guest_experience', 'Guest Experience') %></span>
+          </div>
+          <div class="sb-rm-highlight-value"><%= rating ? rating.toFixed(1) : '—' %></div>
+          <div class="sb-rm-highlight-title"><%= tt('owner_manage.reputation_and_policy', 'Reputation & policy') %></div>
+          <p><%= depositEnabled ? `${tt('owner_manage.deposit_policy', 'Deposit policy')}: ${depositText}` : tt('owner_manage.no_deposit_copy', 'Guests can book without a deposit. Consider enabling it for peak periods.') %></p>
+          <div class="sb-rm-metrics">
+            <span><strong><%= reviewCount %></strong> <%= tt('owner_manage.reviews', 'reviews') %></span>
+            <span><strong><%= r?.slotIntervalMinutes || '—' %></strong> <%= tt('owner_manage.slot_minutes', 'slot min') %></span>
+            <span><strong><%= r?.serviceDurationMinutes || '—' %></strong> <%= tt('owner_manage.stay_minutes', 'stay min') %></span>
+          </div>
+        </article>
+      </section>
+
       <% if (canHost || canWaiter || canKitchen || canBar || canMenu) { %>
-        <section class="sb-surface sb-ops" aria-label="<%= it.t('owner_manage.ops_aria') %>" data-sb-search="תפעול pos מארחת מלצרים מטבח בר menu waiter kitchen host">
-          <header class="sb-ops-hd">
-            <div class="sb-card-ttl">
-              <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#ops"/></svg></span>
-              <div>
-                <div class="sb-card-title"><%= it.t('owner_manage.ops_title') %></div>
-                <div class="sb-card-sub muted"><%= it.t('owner_manage.ops_sub') %></div>
-              </div>
-            </div>
-          </header>
-
-          <div class="sb-ops-grid">
-            <% if (canHost) { %>
-              <a class="sb-ops-btn" href="<%= r?._urls?.host %>" data-sb-search="מארחת host seating" aria-label="<%= it.t('owner_manage.host_screen') %>">
-                <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#chair"/></svg></span>
-                <span class="sb-ops-label"><%= it.t('owner_manage.host_screen') %></span>
-                <span class="sb-ops-sub muted"><%= it.t('owner_manage.host_sub') %></span>
-              </a>
-            <% } %>
-
-            <% if (canWaiter) { %>
-              <a class="sb-ops-btn" href="<%= r?._urls?.waiter %>" data-sb-search="מלצרים waiter pos" aria-label="<%= it.t('owner_manage.waiter_screen') %>">
-                <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#plate"/></svg></span>
-                <span class="sb-ops-label"><%= it.t('owner_manage.waiter_screen') %></span>
-                <span class="sb-ops-sub muted"><%= it.t('owner_manage.waiter_sub') %></span>
-              </a>
-              <a class="sb-ops-btn" href="<%= r?._urls?.waiterMap %>" data-sb-search="מפת שולחנות waiter map" aria-label="<%= it.t('owner_manage.table_map') %>">
-                <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#map"/></svg></span>
-                <span class="sb-ops-label"><%= it.t('owner_manage.table_map') %></span>
-                <span class="sb-ops-sub muted"><%= it.t('owner_manage.table_map_sub') %></span>
-              </a>
-            <% } %>
-
-            <% if (canKitchen) { %>
-              <a class="sb-ops-btn" href="<%= r?._urls?.kitchen %>" data-sb-search="מטבח kitchen pos" aria-label="<%= it.t('owner_manage.kitchen_screen') %>">
-                <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#chef"/></svg></span>
-                <span class="sb-ops-label"><%= it.t('owner_manage.kitchen_screen') %></span>
-                <span class="sb-ops-sub muted"><%= it.t('owner_manage.kitchen_sub') %></span>
-              </a>
-            <% } %>
-
-            <% if (canBar) { %>
-              <a class="sb-ops-btn" href="<%= r?._urls?.bar %>" data-sb-search="בר bar drinks" aria-label="<%= it.t('owner_manage.bar_screen') %>">
-                <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#cocktail"/></svg></span>
-                <span class="sb-ops-label"><%= it.t('owner_manage.bar_screen') %></span>
-                <span class="sb-ops-sub muted"><%= it.t('owner_manage.bar_sub') %></span>
-              </a>
-            <% } %>
-
-            <% if (isOwner && canMenu) { %>
-              <a class="sb-ops-btn" href="<%= r?._urls?.menu %>" data-sb-search="תפריט menu" aria-label="<%= it.t('owner_manage.edit_menu') %>">
-                <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#receipt"/></svg></span>
-                <span class="sb-ops-label"><%= it.t('owner_manage.edit_menu') %></span>
-                <span class="sb-ops-sub muted"><%= it.t('owner_manage.menu_sub') %></span>
-              </a>
-            <% } %>
+      <section class="sb-surface sb-rm-ops" aria-label="<%= it.t('owner_manage.ops_aria') %>" data-sb-search="operations host waiter kitchen bar menu app screens">
+        <div class="sb-rm-section-head">
+          <div>
+            <div class="sb-rm-section-kicker"><%= tt('owner_manage.operations_hub', 'Operations Hub') %></div>
+            <h2><%= it.t('owner_manage.ops_title') %></h2>
+            <p class="muted"><%= it.t('owner_manage.ops_sub') %></p>
           </div>
-        </section>
+        </div>
+        <div class="sb-rm-appgrid">
+          <% if (canHost) { %>
+          <a class="sb-rm-appcard" href="<%= r?._urls?.host %>">
+            <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#chair"/></svg></span>
+            <strong><%= it.t('owner_manage.host_screen') %></strong>
+            <span><%= it.t('owner_manage.host_sub') %></span>
+          </a>
+          <% } %>
+          <% if (canWaiter) { %>
+          <a class="sb-rm-appcard" href="<%= r?._urls?.waiter %>">
+            <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#utensils"/></svg></span>
+            <strong><%= it.t('owner_manage.waiter_screen') %></strong>
+            <span><%= it.t('owner_manage.waiter_sub') %></span>
+          </a>
+          <% } %>
+          <% if (canWaiter) { %>
+          <a class="sb-rm-appcard" href="<%= r?._urls?.waiterMap %>">
+            <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#map"/></svg></span>
+            <strong><%= it.t('owner_manage.table_map') %></strong>
+            <span><%= it.t('owner_manage.table_map_sub') %></span>
+          </a>
+          <% } %>
+          <% if (canKitchen) { %>
+          <a class="sb-rm-appcard" href="<%= r?._urls?.kitchen %>">
+            <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#chef"/></svg></span>
+            <strong><%= it.t('owner_manage.kitchen_screen') %></strong>
+            <span><%= it.t('owner_manage.kitchen_sub') %></span>
+          </a>
+          <% } %>
+          <% if (canBar) { %>
+          <a class="sb-rm-appcard" href="<%= r?._urls?.bar %>">
+            <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#cocktail"/></svg></span>
+            <strong><%= it.t('owner_manage.bar_screen') %></strong>
+            <span><%= it.t('owner_manage.bar_sub') %></span>
+          </a>
+          <% } %>
+          <% if (isOwner && canMenu) { %>
+          <a class="sb-rm-appcard" href="<%= r?._urls?.menu %>">
+            <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#receipt"/></svg></span>
+            <strong><%= it.t('owner_manage.edit_menu') %></strong>
+            <span><%= it.t('owner_manage.menu_sub') %></span>
+          </a>
+          <% } %>
+        </div>
+      </section>
       <% } %>
 
-      <!-- Category cards -->
-      <div class="sb-grid cols-3" aria-label="<%= it.t('owner_manage.categories_aria') %>">
+      <section class="sb-rm-panel-grid" aria-label="<%= it.t('owner_manage.categories_aria') %>">
         <% if (canCalendar) { %>
-        <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.card_reservations_title') %>" data-sb-search="הזמנות לקוחות יומן calendar reservations guests">
-          <header class="sb-card-hd">
-            <div class="sb-card-ttl">
-              <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#calendar"/></svg></span>
-              <div>
-                <div class="sb-card-title"><%= it.t('owner_manage.card_reservations_title') %></div>
-                <div class="sb-card-sub muted"><%= it.t('owner_manage.card_reservations_sub') %></div>
-              </div>
+        <article class="sb-surface sb-rm-panel" data-sb-search="reservations guests timeline calendar booking">
+          <div class="sb-rm-panel-top">
+            <div>
+              <div class="sb-rm-section-kicker"><%= tt('owner_manage.guest_flow', 'Guest Flow') %></div>
+              <h3><%= it.t('owner_manage.card_reservations_title') %></h3>
+              <p class="muted"><%= it.t('owner_manage.card_reservations_sub') %></p>
             </div>
-            <a class="btn sm ghost" href="<%= r?._urls?.calendar %>"><%= it.t('owner_manage.btn_open') %></a>
-          </header>
-          <div class="sb-card-links">
+            <span class="sb-rm-stat-pill"><%= reservationsToday %> <%= tt('owner_manage.today_label', 'today') %></span>
+          </div>
+          <div class="sb-rm-panel-metrics">
+            <span><strong><%= guestsToday %></strong> <%= tt('owner_manage.guests', 'guests') %></span>
+            <span><strong><%= avgPartySize ? avgPartySize.toFixed(1) : '—' %></strong> <%= tt('owner_manage.avg_party_size', 'Avg. party size') %></span>
+          </div>
+          <div class="sb-rm-linklist">
             <a class="sb-link" href="<%= r?._urls?.calendar %>"><%= it.t('owner_manage.link_daily_calendar') %></a>
             <a class="sb-link" href="<%= r?._urls?.calendar %>"><%= it.t('owner_manage.link_search_reservations') %></a>
             <a class="sb-link" href="<%= r?._urls?.calendar %>"><%= it.t('owner_manage.link_add_reservation') %></a>
           </div>
-        </section>
+        </article>
         <% } %>
 
         <% if (canFloor) { %>
-        <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.card_floor_title') %>" data-sb-search="פלור שולחנות floor layout tables">
-          <header class="sb-card-hd">
-            <div class="sb-card-ttl">
-              <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#floor"/></svg></span>
-              <div>
-                <div class="sb-card-title"><%= it.t('owner_manage.card_floor_title') %></div>
-                <div class="sb-card-sub muted"><%= it.t('owner_manage.card_floor_sub') %></div>
-              </div>
+        <article class="sb-surface sb-rm-panel" data-sb-search="floor tables seating plan map occupancy room">
+          <div class="sb-rm-panel-top">
+            <div>
+              <div class="sb-rm-section-kicker"><%= tt('owner_manage.layout_control', 'Layout Control') %></div>
+              <h3><%= it.t('owner_manage.card_floor_title') %></h3>
+              <p class="muted"><%= it.t('owner_manage.card_floor_sub') %></p>
             </div>
-            <a class="btn sm ghost" href="<%= r?._urls?.floor %>"><%= it.t('owner_manage.btn_open') %></a>
-          </header>
-          <div class="sb-card-links">
+            <span class="sb-rm-stat-pill"><%= r?.capacity || 0 %> <%= tt('owner_manage.seats', 'seats') %></span>
+          </div>
+          <div class="sb-rm-panel-metrics">
+            <span><strong><%= peakOccupancy %>%</strong> <%= tt('owner_manage.peak_load', 'peak load') %></span>
+            <span><strong><%= r?.slotIntervalMinutes || '—' %></strong> <%= tt('owner_manage.slot_minutes', 'slot min') %></span>
+          </div>
+          <div class="sb-rm-linklist">
             <a class="sb-link" href="<%= r?._urls?.floor %>"><%= it.t('owner_manage.link_edit_layout') %></a>
             <a class="sb-link" href="<%= r?._urls?.calendar %>"><%= it.t('owner_manage.link_assign_table') %></a>
             <a class="sb-link" href="<%= r?._urls?.hours %>"><%= it.t('owner_manage.link_hours') %></a>
           </div>
-        </section>
+        </article>
         <% } %>
 
-        <% if (canShifts || canStaff) { %>
-        <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.card_staff_title') %>" data-sb-search="צוות משמרות עובדים staff shifts schedule">
-          <header class="sb-card-hd">
-            <div class="sb-card-ttl">
-              <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#shifts"/></svg></span>
-              <div>
-                <div class="sb-card-title"><%= it.t('owner_manage.card_staff_title') %></div>
-                <div class="sb-card-sub muted"><%= it.t('owner_manage.card_staff_sub') %></div>
-              </div>
+        <% if (canShifts || canStaff || isStaff) { %>
+        <article class="sb-surface sb-rm-panel" data-sb-search="staff shifts team attendance payroll">
+          <div class="sb-rm-panel-top">
+            <div>
+              <div class="sb-rm-section-kicker"><%= tt('owner_manage.team_execution', 'Team Execution') %></div>
+              <h3><%= isStaff ? it.t('owner_manage.card_my_work_title') : it.t('owner_manage.card_staff_title') %></h3>
+              <p class="muted"><%= isStaff ? it.t('owner_manage.card_my_work_sub') : it.t('owner_manage.card_staff_sub') %></p>
             </div>
-            <a class="btn sm ghost" href="<%= (canShifts ? r?._urls?.shifts : r?._urls?.staff) %>"><%= it.t('owner_manage.btn_open') %></a>
-          </header>
-          <div class="sb-card-links">
+            <span class="sb-rm-stat-pill"><%= canShifts ? tt('owner_manage.scheduling', 'Scheduling') : tt('owner_manage.workday', 'Workday') %></span>
+          </div>
+          <div class="sb-rm-linklist">
             <% if (canShifts) { %><a class="sb-link" href="<%= r?._urls?.shifts %>"><%= it.t('owner_manage.link_shift_board') %></a><% } %>
             <% if (canStaff) { %><a class="sb-link" href="<%= r?._urls?.staff %>"><%= it.t('owner_manage.link_manage_staff') %></a><% } %>
-            <% if (isOwner) { %>
-              <a class="sb-link" href="<%= r?._urls?.time %>" data-sb-search="נוכחות עובדים timeclock attendance"><%= it.t('owner_manage.link_attendance') %></a>
-              <a class="sb-link" href="<%= r?._urls?.payroll %>" data-sb-search="שכר עובדים payroll"><%= it.t('owner_manage.link_payroll') %></a>
-            <% } %>
+            <% if (isOwner) { %><a class="sb-link" href="<%= r?._urls?.time %>"><%= it.t('owner_manage.link_attendance') %></a><% } %>
+            <% if (isOwner) { %><a class="sb-link" href="<%= r?._urls?.payroll %>"><%= it.t('owner_manage.link_payroll') %></a><% } %>
+            <% if (isStaff) { %><a class="sb-link" href="/staff/timeclock"><%= it.t('owner_manage.link_clock_in_out') %></a><% } %>
             <% if (isStaff) { %><a class="sb-link" href="/staff/shifts"><%= it.t('owner_manage.link_my_shifts') %></a><% } %>
-            <% if (isOwner && canShifts) { %><a class="sb-link" href="<%= r?._urls?.shifts %>"><%= it.t('owner_manage.link_shift_templates') %></a><% } %>
           </div>
-        </section>
+        </article>
         <% } %>
-      </div>
 
-      <div class="sb-grid cols-3" aria-label="<%= it.t('owner_manage.more_categories_aria') %>">
         <% if (canReports) { %>
-        <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.card_reports_title') %>" data-sb-search="דוחות תובנות סטטיסטיקה reports analytics stats">
-          <header class="sb-card-hd">
-            <div class="sb-card-ttl">
-              <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#chart"/></svg></span>
-              <div>
-                <div class="sb-card-title"><%= it.t('owner_manage.card_reports_title') %></div>
-                <div class="sb-card-sub muted"><%= it.t('owner_manage.card_reports_sub') %></div>
-              </div>
+        <article class="sb-surface sb-rm-panel" data-sb-search="reports analytics sales trends occupancy performance">
+          <div class="sb-rm-panel-top">
+            <div>
+              <div class="sb-rm-section-kicker"><%= tt('owner_manage.performance', 'Performance') %></div>
+              <h3><%= it.t('owner_manage.card_reports_title') %></h3>
+              <p class="muted"><%= it.t('owner_manage.card_reports_sub') %></p>
             </div>
-            <a class="btn sm ghost" href="<%= r?._urls?.stats %>"><%= it.t('owner_manage.btn_open') %></a>
-          </header>
-          <div class="sb-card-links">
+            <span class="sb-rm-stat-pill"><%= tt('owner_manage.insights', 'Insights') %></span>
+          </div>
+          <div class="sb-rm-linklist">
             <a class="sb-link" href="<%= r?._urls?.stats %>"><%= it.t('owner_manage.link_general_reports') %></a>
             <a class="sb-link" href="<%= r?._urls?.stats %>"><%= it.t('owner_manage.link_hourly_occupancy') %></a>
-            <a class="sb-link" href="<%= r?._urls?.stats %>"><%= it.t('owner_manage.link_profitability') %></a>
+            <a class="sb-link" href="<%= r?._urls?.bills %>"><%= it.t('owner_manage.link_recent_bills') %></a>
           </div>
-        </section>
+        </article>
         <% } %>
 
         <% if (canInvView) { %>
-        <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.card_inventory_title') %>" data-sb-search="מלאי inventory stock counts recipes">
-          <header class="sb-card-hd">
-            <div class="sb-card-ttl">
-              <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#box"/></svg></span>
-              <div>
-                <div class="sb-card-title"><%= it.t('owner_manage.card_inventory_title') %></div>
-                <div class="sb-card-sub muted"><%= it.t('owner_manage.card_inventory_sub') %></div>
-              </div>
+        <article class="sb-surface sb-rm-panel" data-sb-search="inventory stock counts recipes suppliers">
+          <div class="sb-rm-panel-top">
+            <div>
+              <div class="sb-rm-section-kicker"><%= tt('owner_manage.stock_control', 'Stock Control') %></div>
+              <h3><%= it.t('owner_manage.card_inventory_title') %></h3>
+              <p class="muted"><%= it.t('owner_manage.card_inventory_sub') %></p>
             </div>
-            <a class="btn sm ghost" href="<%= r?._urls?.inventory %>"><%= it.t('owner_manage.btn_open') %></a>
-          </header>
-          <div class="sb-card-links">
+            <span class="sb-rm-stat-pill"><%= tt('owner_manage.live', 'Live') %></span>
+          </div>
+          <div class="sb-rm-linklist">
             <a class="sb-link" href="<%= r?._urls?.inventory %>"><%= it.t('owner_manage.link_current_stock') %></a>
             <a class="sb-link" href="/owner/<%= encodeURIComponent(r?.id || '') %>/inventory/counts"><%= it.t('owner_manage.link_inventory_counts') %></a>
             <a class="sb-link" href="/owner/<%= encodeURIComponent(r?.id || '') %>/inventory/recipes"><%= it.t('owner_manage.link_recipes') %></a>
           </div>
-        </section>
-        <% } %>
-
-        <% if (canHost || canWaiter || canKitchen || canBar || canMenu || canReports) { %>
-        <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.card_ops_title') %>" data-sb-search="מסכי תפעול מארחת מלצרים מטבח בר POS waiter kitchen host bar">
-          <header class="sb-card-hd">
-            <div class="sb-card-ttl">
-              <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#screen"/></svg></span>
-              <div>
-                <div class="sb-card-title"><%= it.t('owner_manage.card_ops_title') %></div>
-                <div class="sb-card-sub muted"><%= it.t('owner_manage.card_ops_sub') %></div>
-              </div>
-            </div>
-            <a class="btn sm ghost" href="<%= (canHost ? r?._urls?.host : (canWaiter ? r?._urls?.waiter : (canKitchen ? r?._urls?.kitchen : '#'))) %>"><%= it.t('owner_manage.btn_open') %></a>
-          </header>
-          <div class="sb-card-links">
-            <% if (canHost) { %><a class="sb-link" href="<%= r?._urls?.host %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#chair"/></svg></span><%= it.t('owner_manage.host_screen') %></span></a><% } %>
-            <% if (canWaiter) { %><a class="sb-link" href="<%= r?._urls?.waiter %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#utensils"/></svg></span><%= it.t('owner_manage.waiter_screen') %></span></a><% } %>
-            <% if (canWaiter) { %><a class="sb-link" href="<%= r?._urls?.waiterMap %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#map"/></svg></span><%= it.t('owner_manage.table_map') %></span></a><% } %>
-            <% if (canKitchen) { %><a class="sb-link" href="<%= r?._urls?.kitchen %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#chef"/></svg></span><%= it.t('owner_manage.kitchen_screen') %></span></a><% } %>
-            <% if (canBar) { %><a class="sb-link" href="<%= r?._urls?.bar %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#cocktail"/></svg></span><%= it.t('owner_manage.bar_screen') %></span></a><% } %>
-            <% if (isOwner && canMenu) { %><a class="sb-link" href="<%= r?._urls?.menu %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#receipt"/></svg></span><%= it.t('owner_manage.edit_menu') %></span></a><% } %>
-            <% if (canReports) { %><a class="sb-link" href="<%= r?._urls?.bills %>"><span class="sb-mini"><span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#card"/></svg></span><%= it.t('owner_manage.link_recent_bills') %></span></a><% } %>
-          </div>
-        </section>
+        </article>
         <% } %>
 
         <% if (isOwner) { %>
-        <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.card_settings_title') %>" data-sb-search="הגדרות settings hours profile">
-          <header class="sb-card-hd">
-            <div class="sb-card-ttl">
-              <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#settings"/></svg></span>
-              <div>
-                <div class="sb-card-title"><%= it.t('owner_manage.card_settings_title') %></div>
-                <div class="sb-card-sub muted"><%= it.t('owner_manage.card_settings_sub') %></div>
-              </div>
+        <article class="sb-surface sb-rm-panel" data-sb-search="settings details hours photos deposit password profile">
+          <div class="sb-rm-panel-top">
+            <div>
+              <div class="sb-rm-section-kicker"><%= tt('owner_manage.brand_and_settings', 'Brand & Settings') %></div>
+              <h3><%= it.t('owner_manage.card_settings_title') %></h3>
+              <p class="muted"><%= it.t('owner_manage.card_settings_sub') %></p>
             </div>
-            <a class="btn sm ghost" href="<%= r?._urls?.edit %>"><%= it.t('owner_manage.btn_open') %></a>
-          </header>
-          <div class="sb-card-links">
+            <span class="sb-rm-stat-pill"><%= approvalLabel %></span>
+          </div>
+          <div class="sb-rm-linklist">
             <a class="sb-link" href="<%= r?._urls?.hours %>"><%= it.t('owner_manage.link_opening_hours') %></a>
             <a class="sb-link" href="<%= r?._urls?.systemTime %>"><%= it.t('owner_manage.link_system_time') %></a>
             <a class="sb-link" href="<%= r?._urls?.photos %>"><%= it.t('owner_manage.link_photos') %></a>
@@ -401,85 +468,54 @@
             <a class="sb-link" href="<%= r?._urls?.deposit %>"><%= it.t('owner_manage.link_deposit_settings') || 'Deposit Settings' %></a>
             <a class="sb-link" href="/auth/change-password"><%= it.t('owner_manage.link_change_password') %></a>
           </div>
-        </section>
+        </article>
         <% } %>
+      </section>
 
-        <% if (isStaff) { %>
-        <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.card_my_work_title') %>" data-sb-search="עובד משמרות נוכחות timeclock shifts">
-          <header class="sb-card-hd">
-            <div class="sb-card-ttl">
-              <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#shifts"/></svg></span>
-              <div>
-                <div class="sb-card-title"><%= it.t('owner_manage.card_my_work_title') %></div>
-                <div class="sb-card-sub muted"><%= it.t('owner_manage.card_my_work_sub') %></div>
-              </div>
-            </div>
-            <a class="btn sm ghost" href="/staff/shifts"><%= it.t('owner_manage.btn_open') %></a>
-          </header>
-          <div class="sb-card-links">
-            <a class="sb-link" href="/staff/timeclock"><%= it.t('owner_manage.link_clock_in_out') %></a>
-            <a class="sb-link" href="/staff/shifts"><%= it.t('owner_manage.link_my_shifts') %></a>
-            <a class="sb-link" href="/staff/shifts"><%= it.t('owner_manage.link_set_availability') %></a>
-          </div>
-        </section>
-        <% } %>
-      </div>
-
-      <!-- Upcoming reservations preview -->
       <% if (canCalendar) { %>
-      <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.upcoming_title') %>">
-        <header class="sb-card-hd">
-          <div class="sb-card-ttl">
-            <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#calendar"/></svg></span>
-            <div>
-              <div class="sb-card-title"><%= it.t('owner_manage.upcoming_title') %></div>
-              <div class="sb-card-sub muted"><%= it.t('owner_manage.upcoming_sub') %></div>
-            </div>
+      <section class="sb-surface sb-rm-agenda" aria-label="<%= it.t('owner_manage.upcoming_title') %>" data-sb-search="agenda upcoming reservations guest flow timeline today">
+        <div class="sb-rm-section-head">
+          <div>
+            <div class="sb-rm-section-kicker"><%= tt('owner_manage.service_timeline', 'Service Timeline') %></div>
+            <h2><%= it.t('owner_manage.upcoming_title') %></h2>
+            <p class="muted"><%= it.t('owner_manage.upcoming_sub') %></p>
           </div>
           <a class="btn sm ghost" href="<%= r?._urls?.calendar %>"><%= it.t('owner_manage.link_all_reservations') %></a>
-        </header>
-        <div class="sb-table" role="table" aria-label="<%= it.t('owner_manage.upcoming_title') %>">
-          <div class="sb-table-head" role="rowgroup">
-            <div class="sb-tr" role="row">
-              <div class="sb-th" role="columnheader"><%= it.t('owner_manage.table_time') %></div>
-              <div class="sb-th" role="columnheader"><%= it.t('owner_manage.table_name') %></div>
-              <div class="sb-th" role="columnheader"><%= it.t('owner_manage.table_guests') %></div>
-              <div class="sb-th" role="columnheader"><%= it.t('owner_manage.table_status') %></div>
-            </div>
-          </div>
-          <div class="sb-table-body" role="rowgroup">
-            <% if (!preview.length) { %>
-              <div class="sb-empty muted"><%= it.t('owner_manage.no_reservations') %></div>
-            <% } else { %>
-              <% preview.forEach(function(x){ %>
-                <a class="sb-tr sb-rowlink" role="row" href="<%= r?._urls?.calendar %>" aria-label="<%= it.t('owner_manage.open_in_calendar') %>">
-                  <div class="sb-td" role="cell"><strong><%= x.time %></strong></div>
-                  <div class="sb-td" role="cell">
-                    <%= x.name %>
-                    <% if (x.roomLabel) { %><span style="display:inline-block;margin-inline-start:6px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(59,130,246,.15);color:#93c5fd;border:1px solid rgba(59,130,246,.25)"><%= x.roomLabel %></span><% } %>
-                  </div>
-                  <div class="sb-td" role="cell"><%= x.people %></div>
-                  <div class="sb-td" role="cell"><span class="sb-badge <%= (String(x.status).toLowerCase()==='new')?'warn':'' %>"><%= x.status %></span></div>
-                </a>
-              <% }) %>
-            <% } %>
-          </div>
         </div>
+        <% if (!preview.length) { %>
+          <div class="sb-empty muted"><%= it.t('owner_manage.no_reservations') %></div>
+        <% } else { %>
+          <div class="sb-rm-timeline">
+            <% preview.forEach(function(x){ %>
+              <a class="sb-rm-timeitem" href="<%= r?._urls?.calendar %>" aria-label="<%= it.t('owner_manage.open_in_calendar') %>">
+                <div class="sb-rm-timecol">
+                  <div class="sb-rm-time"><%= x.time %></div>
+                  <div class="sb-rm-time-line"></div>
+                </div>
+                <div class="sb-rm-timebody">
+                  <div class="sb-rm-timehead">
+                    <strong><%= x.name %></strong>
+                    <span class="sb-badge <%= (String(x.status).toLowerCase()==='new')?'warn':'' %>"><%= x.status %></span>
+                  </div>
+                  <div class="sb-rm-timesub muted">
+                    <span><%= x.people %> <%= tt('owner_manage.guests', 'guests') %></span>
+                    <% if (x.roomLabel) { %><span>• <%= x.roomLabel %></span><% } %>
+                    <% if (x.phone) { %><span>• <%= x.phone %></span><% } %>
+                  </div>
+                </div>
+              </a>
+            <% }) %>
+          </div>
+        <% } %>
       </section>
       <% } %>
     </main>
 
-    <aside class="sb-dashboard-side" aria-label="Sidebar">
-      <section class="sb-surface sb-card">
-        <header class="sb-card-hd">
-          <div class="sb-card-ttl">
-            <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#check"/></svg></span>
-            <div>
-              <div class="sb-card-title"><%= it.t('owner_manage.tasks_title') %></div>
-              <div class="sb-card-sub muted"><%= it.t('owner_manage.tasks_sub') %></div>
-            </div>
-          </div>
-        </header>
+    <aside class="sb-dashboard-side sb-rm-side" aria-label="Sidebar">
+      <section class="sb-surface sb-rm-sidecard">
+        <div class="sb-rm-section-kicker"><%= tt('owner_manage.today_focus', 'Today’s Focus') %></div>
+        <h3><%= it.t('owner_manage.tasks_title') %></h3>
+        <p class="muted"><%= it.t('owner_manage.tasks_sub') %></p>
         <% if (!tasks.length) { %>
           <div class="sb-empty muted"><%= it.t('owner_manage.no_tasks') %></div>
         <% } else { %>
@@ -499,16 +535,35 @@
         <% } %>
       </section>
 
-      <section class="sb-surface sb-card">
-        <header class="sb-card-hd">
-          <div class="sb-card-ttl">
-            <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#bell"/></svg></span>
-            <div>
-              <div class="sb-card-title"><%= it.t('owner_manage.alerts_title') %></div>
-              <div class="sb-card-sub muted"><%= it.t('owner_manage.alerts_sub') %></div>
-            </div>
-          </div>
-        </header>
+      <section class="sb-surface sb-rm-sidecard" data-sb-search="profile details phone address category created photos menu">
+        <div class="sb-rm-section-kicker"><%= tt('owner_manage.profile_overview', 'Profile Overview') %></div>
+        <h3><%= tt('owner_manage.restaurant_profile', 'Restaurant Profile') %></h3>
+        <div class="sb-rm-profile-list">
+          <div><span><%= tt('owner_manage.phone', 'Phone') %></span><strong><%= r?.phone || '—' %></strong></div>
+          <div><span><%= tt('owner_manage.category', 'Category') %></span><strong><%= categoryLabels.slice(0, 2).join(', ') || '—' %></strong></div>
+          <div><span><%= tt('owner_manage.created', 'Created') %></span><strong><%= createdAtText %></strong></div>
+          <div><span><%= tt('owner_manage.capacity', 'Capacity') %></span><strong><%= r?.capacity || 0 %></strong></div>
+          <div><span><%= tt('owner_manage.menu_items', 'Menu items') %></span><strong><%= menuCount %></strong></div>
+          <div><span><%= tt('owner_manage.photos_count', 'Photos') %></span><strong><%= photoCount %></strong></div>
+        </div>
+      </section>
+
+      <section class="sb-surface sb-rm-sidecard" data-sb-search="configuration slot duration deposit schedule approval time">
+        <div class="sb-rm-section-kicker"><%= tt('owner_manage.configuration', 'Configuration') %></div>
+        <h3><%= tt('owner_manage.booking_policy', 'Booking Policy') %></h3>
+        <div class="sb-rm-policy-list">
+          <div class="sb-rm-policy-row"><span><%= tt('owner_manage.slot_interval', 'Slot interval') %></span><strong><%= r?.slotIntervalMinutes || '—' %> <%= tt('owner_manage.minutes', 'min') %></strong></div>
+          <div class="sb-rm-policy-row"><span><%= tt('owner_manage.service_duration', 'Service duration') %></span><strong><%= r?.serviceDurationMinutes || '—' %> <%= tt('owner_manage.minutes', 'min') %></strong></div>
+          <div class="sb-rm-policy-row"><span><%= tt('owner_manage.deposit', 'Deposit') %></span><strong><%= depositText %></strong></div>
+          <div class="sb-rm-policy-row"><span><%= tt('owner_manage.approval', 'Approval') %></span><strong><%= approvalLabel %></strong></div>
+          <div class="sb-rm-policy-row"><span><%= tt('owner_manage.system_time', 'Restaurant Time') %></span><a class="sb-link" href="<%= r?._urls?.systemTime %>"><%= it.t('owner_manage.link_system_time') %></a></div>
+        </div>
+      </section>
+
+      <section class="sb-surface sb-rm-sidecard" data-sb-search="alerts notifications issues warnings">
+        <div class="sb-rm-section-kicker"><%= tt('owner_manage.watchouts', 'Watchouts') %></div>
+        <h3><%= it.t('owner_manage.alerts_title') %></h3>
+        <p class="muted"><%= it.t('owner_manage.alerts_sub') %></p>
         <% if (!alerts.length) { %>
           <div class="sb-empty muted"><%= it.t('owner_manage.no_alerts') %></div>
         <% } else { %>
@@ -524,30 +579,191 @@
           </div>
         <% } %>
       </section>
-
-      <section class="sb-surface sb-card" aria-label="<%= it.t('owner_manage.quick_settings_title') %>">
-        <header class="sb-card-hd">
-          <div class="sb-card-ttl">
-            <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#settings"/></svg></span>
-            <div>
-              <div class="sb-card-title"><%= it.t('owner_manage.quick_settings_title') %></div>
-              <div class="sb-card-sub muted"><%= it.t('owner_manage.quick_settings_sub') %></div>
-            </div>
-          </div>
-        </header>
-        <div class="sb-card-links">
-          <a class="sb-link" href="<%= r?._urls?.hours %>"><%= it.t('owner_manage.link_opening_hours') %></a>
-          <a class="sb-link" href="<%= r?._urls?.photos %>"><%= it.t('owner_manage.link_photos') %></a>
-          <a class="sb-link" href="<%= r?._urls?.edit %>"><%= it.t('owner_manage.link_restaurant_details') %></a>
-          <a class="sb-link" href="<%= r?._urls?.deposit %>"><%= it.t('owner_manage.link_deposit_settings') || 'Deposit Settings' %></a>
-        </div>
-      </section>
     </aside>
   </div>
 
-  <div class="sb-note" style="margin-top:10px">
+  <div class="sb-note" style="margin-top:12px">
     <%= it.t('owner_manage.tip') %>
   </div>
+
+  <style>
+    .sb-rm{display:block}
+    .sb-rm-hero{
+      position:relative; overflow:hidden; border-radius:32px; min-height:360px; margin-bottom:18px;
+      background:
+        radial-gradient(circle at top left, rgba(59,130,246,.26), transparent 34%),
+        radial-gradient(circle at top right, rgba(244,114,182,.18), transparent 28%),
+        linear-gradient(135deg, rgba(3,7,18,.92), rgba(15,23,42,.88));
+      background-size:cover; background-position:center;
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow:0 32px 80px rgba(0,0,0,.45);
+    }
+    .sb-rm-hero-overlay{
+      position:absolute; inset:0;
+      background:linear-gradient(120deg, rgba(2,6,23,.92) 0%, rgba(2,6,23,.68) 46%, rgba(2,6,23,.80) 100%);
+      backdrop-filter: blur(8px);
+    }
+    .sb-rm-hero-inner{
+      position:relative; z-index:1; display:grid; grid-template-columns:minmax(0, 1.5fr) minmax(320px, .9fr);
+      gap:18px; padding:28px;
+    }
+    .sb-rm-hero-copy{display:flex; flex-direction:column; justify-content:space-between; min-height:304px}
+    .sb-rm-kicker, .sb-rm-section-kicker, .sb-rm-eyebrow{
+      display:inline-flex; align-items:center; gap:8px; font-size:12px; font-weight:900; letter-spacing:.18em;
+      text-transform:uppercase; color:#93c5fd;
+    }
+    .sb-rm-hero-copy h1{margin:8px 0 10px; font-size:clamp(30px, 4vw, 48px); line-height:.98}
+    .sb-rm-subline{display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:14px}
+    .sb-rm-desc{max-width:70ch; margin:16px 0 0; color:#dbe7ff; font-size:15px; line-height:1.65}
+    .sb-rm-chiprow{display:flex; flex-wrap:wrap; gap:10px; margin-top:16px}
+    .sb-rm-chip, .sb-rm-badge, .sb-rm-stat-pill{
+      display:inline-flex; align-items:center; gap:8px; border-radius:999px; padding:8px 12px;
+      font-size:12px; font-weight:800; border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.06); color:#eef4ff;
+    }
+    .tone-brand{background:rgba(59,130,246,.18); border-color:rgba(96,165,250,.32)}
+    .tone-good{background:rgba(34,197,94,.14); border-color:rgba(74,222,128,.28)}
+    .tone-warn{background:rgba(245,158,11,.14); border-color:rgba(251,191,36,.28)}
+    .tone-danger{background:rgba(239,68,68,.14); border-color:rgba(248,113,113,.28)}
+    .tone-info{background:rgba(6,182,212,.14); border-color:rgba(34,211,238,.28)}
+    .tone-muted{background:rgba(148,163,184,.12); border-color:rgba(148,163,184,.24)}
+
+    .sb-rm-quick{display:flex; flex-wrap:wrap; gap:12px; margin-top:22px}
+
+    .sb-rm-control{
+      background:linear-gradient(180deg, rgba(15,23,42,.76), rgba(2,6,23,.68));
+      border:1px solid rgba(255,255,255,.12); border-radius:28px; padding:18px;
+      box-shadow:0 18px 45px rgba(0,0,0,.28);
+      backdrop-filter: blur(16px);
+    }
+    .sb-rm-control-top, .sb-rm-panel-top, .sb-rm-section-head{
+      display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    }
+    .sb-rm-control-label{font-size:12px; font-weight:800; color:#93c5fd; text-transform:uppercase; letter-spacing:.15em}
+    .sb-rm-control-title{font-size:24px; font-weight:900; margin-top:4px}
+    .sb-rm-switcher{display:block; margin:16px 0 8px}
+    .sb-rm-select{width:100%; min-height:46px}
+    .sb-rm-control-actions{display:flex; flex-wrap:wrap; gap:10px; margin-top:14px}
+    .sb-rm-mini-grid{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; margin-top:18px}
+    .sb-rm-mini{
+      border-radius:20px; padding:14px; border:1px solid rgba(255,255,255,.10);
+      background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+      min-height:112px;
+    }
+    .sb-rm-mini-label{font-size:12px; font-weight:800; color:#cbd5e1}
+    .sb-rm-mini-value{font-size:30px; font-weight:900; line-height:1.05; margin:8px 0 6px}
+    .sb-rm-mini-sub{font-size:12px; color:#cbd5e1}
+
+    .sb-rm-dashboard{display:grid; grid-template-columns:minmax(0, 1.5fr) minmax(300px, .8fr); gap:18px; align-items:start}
+    .sb-rm-main{display:flex; flex-direction:column; gap:18px}
+    .sb-rm-side{display:flex; flex-direction:column; gap:18px; position:sticky; top:18px}
+    .sb-rm-sidecard{border-radius:24px}
+    .sb-rm-toolbar{align-items:center}
+    .sb-rm-search{flex:1}
+
+    .sb-rm-highlights{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px}
+    .sb-rm-highlight{
+      border-radius:28px; padding:20px; border:1px solid rgba(255,255,255,.10);
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      box-shadow:0 18px 45px rgba(0,0,0,.18);
+    }
+    .sb-rm-highlight-top{display:flex; align-items:center; gap:10px; margin-bottom:12px}
+    .sb-rm-highlight-value{font-size:42px; font-weight:900; line-height:1; margin-bottom:8px}
+    .sb-rm-highlight-title{font-size:18px; font-weight:900; margin-bottom:8px}
+    .sb-rm-highlight p{margin:0; color:#cbd5e1; line-height:1.6}
+    .sb-rm-metrics{display:flex; flex-wrap:wrap; gap:10px; margin-top:16px}
+    .sb-rm-metrics span{
+      display:inline-flex; align-items:center; gap:6px; padding:8px 10px; border-radius:999px;
+      background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); font-size:12px;
+    }
+    .sb-rm-progress-circle{
+      --deg: calc(var(--pct) * 3.6deg);
+      width:84px; height:84px; border-radius:999px; display:grid; place-items:center; margin:2px 0 12px;
+      background:conic-gradient(#60a5fa var(--deg), rgba(255,255,255,.08) 0deg);
+      position:relative;
+    }
+    .sb-rm-progress-circle::after{
+      content:""; position:absolute; inset:8px; border-radius:inherit; background:#09111f;
+      border:1px solid rgba(255,255,255,.08);
+    }
+    .sb-rm-progress-circle span{position:relative; z-index:1; font-size:18px; font-weight:900}
+
+    .sb-rm-ops, .sb-rm-agenda, .sb-rm-panel, .sb-rm-sidecard{
+      background:linear-gradient(180deg, rgba(15,23,42,.78), rgba(2,6,23,.72));
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow:0 18px 45px rgba(0,0,0,.20);
+    }
+    .sb-rm-ops, .sb-rm-agenda{border-radius:28px; padding:22px}
+    .sb-rm-panel-grid{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:16px}
+    .sb-rm-panel{border-radius:26px; padding:20px}
+    .sb-rm-panel h3, .sb-rm-sidecard h3, .sb-rm-section-head h2{margin:6px 0 6px; font-size:22px}
+    .sb-rm-panel-metrics{display:flex; flex-wrap:wrap; gap:10px; margin:16px 0}
+    .sb-rm-panel-metrics span{
+      display:inline-flex; gap:6px; align-items:center; padding:8px 10px; border-radius:12px;
+      background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); font-size:12px;
+    }
+    .sb-rm-linklist{display:grid; gap:10px; margin-top:14px}
+    .sb-rm-linklist .sb-link{
+      display:flex; align-items:center; justify-content:space-between; gap:10px; text-decoration:none;
+      padding:12px 14px; border-radius:16px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+      transition:transform .16s ease, border-color .16s ease, background .16s ease;
+    }
+    .sb-rm-linklist .sb-link:hover, .sb-rm-appcard:hover, .sb-rm-timeitem:hover{
+      transform:translateY(-1px); border-color:rgba(96,165,250,.32); background:rgba(59,130,246,.08);
+    }
+
+    .sb-rm-appgrid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px; margin-top:16px}
+    .sb-rm-appcard{
+      display:flex; flex-direction:column; gap:10px; text-decoration:none; color:inherit; min-height:132px;
+      padding:18px; border-radius:22px; border:1px solid rgba(255,255,255,.10);
+      background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+      transition:transform .16s ease, border-color .16s ease, background .16s ease;
+    }
+    .sb-rm-appcard strong{font-size:16px}
+    .sb-rm-appcard span:last-child{color:#cbd5e1; line-height:1.55}
+
+    .sb-rm-timeline{display:grid; gap:14px; margin-top:16px}
+    .sb-rm-timeitem{
+      display:grid; grid-template-columns:74px minmax(0,1fr); gap:14px; text-decoration:none; color:inherit;
+      padding:14px; border-radius:22px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04);
+    }
+    .sb-rm-timecol{display:flex; flex-direction:column; align-items:center; gap:10px}
+    .sb-rm-time{font-size:20px; font-weight:900}
+    .sb-rm-time-line{width:2px; flex:1; min-height:26px; background:linear-gradient(180deg, rgba(96,165,250,.9), rgba(255,255,255,.08)); border-radius:999px}
+    .sb-rm-timehead{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap}
+    .sb-rm-timesub{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; font-size:13px}
+
+    .sb-rm-profile-list, .sb-rm-policy-list{display:grid; gap:12px; margin-top:14px}
+    .sb-rm-profile-list div, .sb-rm-policy-row{
+      display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0;
+      border-bottom:1px solid rgba(255,255,255,.07);
+    }
+    .sb-rm-profile-list div:last-child, .sb-rm-policy-row:last-child{border-bottom:none}
+    .sb-rm-profile-list span, .sb-rm-policy-row span{color:#94a3b8; font-size:13px}
+    .sb-rm-profile-list strong, .sb-rm-policy-row strong{font-size:14px; text-align:end}
+
+    .sb-compact .sb-rm-highlight, .sb-compact .sb-rm-panel, .sb-compact .sb-rm-sidecard{padding:16px}
+    .sb-compact .sb-rm-ops, .sb-compact .sb-rm-agenda{padding:18px}
+    .sb-compact .sb-rm-appcard{min-height:116px; padding:14px}
+    .sb-compact .sb-rm-mini{min-height:96px; padding:12px}
+
+    @media (max-width: 1180px){
+      .sb-rm-hero-inner, .sb-rm-dashboard{grid-template-columns:1fr}
+      .sb-rm-side{position:static}
+    }
+    @media (max-width: 980px){
+      .sb-rm-highlights, .sb-rm-panel-grid, .sb-rm-appgrid{grid-template-columns:1fr 1fr}
+    }
+    @media (max-width: 720px){
+      .sb-rm-hero{border-radius:24px}
+      .sb-rm-hero-inner{padding:18px}
+      .sb-rm-highlights, .sb-rm-panel-grid, .sb-rm-appgrid, .sb-rm-mini-grid{grid-template-columns:1fr}
+      .sb-rm-timeitem{grid-template-columns:58px minmax(0,1fr)}
+      .sb-rm-control-actions, .sb-rm-quick{flex-direction:column; align-items:stretch}
+      .sb-rm-control-actions .btn, .sb-rm-quick .btn{width:100%; justify-content:center}
+      .sb-rm-panel-top, .sb-rm-section-head, .sb-rm-control-top{flex-direction:column; align-items:flex-start}
+    }
+  </style>
 
   <script src="/public/js/owner-restaurant-manage.js?v=<%= it.BUILD_TAG || Date.now() %>" defer></script>
 </section>
