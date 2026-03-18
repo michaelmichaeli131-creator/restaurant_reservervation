@@ -106,6 +106,25 @@
   const guestTone = rating >= 4.5 ? 'good' : (reviewCount ? 'warn' : 'muted');
   const descriptionShort = truncateText(r?.description, 180);
   const createdAtText = fmtDate(r?.createdAt);
+  const galleryThumbs = photos.slice(0, 4);
+  const serviceWindows = Array.isArray(r?._serviceWindows) ? r._serviceWindows : [];
+  const statusSummary = r?._statusSummary || {};
+  const hoursLabel = r?._hoursLabel || r?.hours || tt('owner_manage.schedule_missing', 'Schedule not set');
+  const healthScore = Math.max(0, Math.min(100, Math.round((setupPct * 0.42) + ((rating ? rating * 20 : 58) * 0.22) + ((r?.approved ? 100 : 58) * 0.12) + ((depositEnabled ? 84 : 62) * 0.10) + ((peakOccupancy >= 90 ? 72 : peakOccupancy >= 70 ? 82 : 92) * 0.14))));
+  const brandReadiness = Math.max(0, Math.min(100, Math.round(((Math.min(100, photoCount * 20)) * 0.32) + ((Math.min(100, menuCount * 8)) * 0.28) + ((r?.description ? 100 : 35) * 0.14) + ((r?.phone ? 100 : 45) * 0.10) + (((r?.city || r?.address) ? 100 : 50) * 0.08) + ((categories.length ? 100 : 40) * 0.08))));
+  const teamReadiness = Math.max(0, Math.min(100, Math.round(((canShifts ? 100 : 60) * 0.34) + ((canHost || canWaiter || canKitchen ? 100 : 55) * 0.26) + ((canStaff ? 100 : 70) * 0.20) + ((tasks.length ? 78 : 92) * 0.20))));
+  const profileReadiness = [
+    { label: tt('owner_manage.menu_items', 'Menu items'), value: menuCount, target: 12 },
+    { label: tt('owner_manage.photos_count', 'Photos'), value: photoCount, target: 5 },
+    { label: tt('owner_manage.categories', 'Categories'), value: categories.length, target: 2 },
+  ];
+  const actionChecklist = [
+    !r?.description ? { tone: 'warn', label: tt('owner_manage.add_description', 'Add a stronger restaurant description'), href: r?._urls?.edit } : null,
+    photoCount < 4 ? { tone: 'info', label: tt('owner_manage.add_photos', 'Upload more high-quality photos'), href: r?._urls?.photos } : null,
+    menuCount < 8 ? { tone: 'warn', label: tt('owner_manage.expand_menu', 'Expand the visible menu selection'), href: r?._urls?.menu } : null,
+    !depositEnabled && peakOccupancy >= 65 ? { tone: 'danger', label: tt('owner_manage.enable_deposit', 'Consider enabling a peak-time deposit'), href: r?._urls?.deposit } : null,
+    !r?.weeklySchedule && !r?.hours ? { tone: 'warn', label: tt('owner_manage.set_hours', 'Set clear opening hours'), href: r?._urls?.hours } : null,
+  ].filter(Boolean);
 %>
 
 <section class="sb-rm sb-page" aria-label="<%= it.t('owner_manage.aria_section') %>">
@@ -175,6 +194,30 @@
           <span class="sb-rm-badge tone-<%= serviceTone %>"><%= peakOccupancy %>% <%= tt('owner_manage.occupancy', 'occupancy') %></span>
         </div>
 
+        <div class="sb-rm-scorecard tone-<%= serviceTone %>">
+          <div>
+            <div class="sb-rm-score-eyebrow"><%= tt('owner_manage.health_score', 'Health Score') %></div>
+            <div class="sb-rm-score-value"><%= healthScore %></div>
+            <div class="sb-rm-score-copy muted"><%= healthScore >= 85 ? tt('owner_manage.health_score_good', 'The operation is in a strong place today.') : tt('owner_manage.health_score_warn', 'There are still a few high-impact areas worth tightening.') %></div>
+          </div>
+          <div class="sb-rm-score-ring" style="--pct:<%= healthScore %>"><span><%= healthScore %>%</span></div>
+        </div>
+
+        <div class="sb-rm-rail-group">
+          <div class="sb-rm-rail-item">
+            <div class="sb-rm-rail-head"><span><%= tt('owner_manage.setup_progress', 'Setup Progress') %></span><strong><%= setupPct %>%</strong></div>
+            <div class="sb-rm-rail"><span style="width:<%= setupPct %>%"></span></div>
+          </div>
+          <div class="sb-rm-rail-item">
+            <div class="sb-rm-rail-head"><span><%= tt('owner_manage.brand_readiness', 'Brand Readiness') %></span><strong><%= brandReadiness %>%</strong></div>
+            <div class="sb-rm-rail"><span style="width:<%= brandReadiness %>%"></span></div>
+          </div>
+          <div class="sb-rm-rail-item">
+            <div class="sb-rm-rail-head"><span><%= tt('owner_manage.team_readiness', 'Team Readiness') %></span><strong><%= teamReadiness %>%</strong></div>
+            <div class="sb-rm-rail"><span style="width:<%= teamReadiness %>%"></span></div>
+          </div>
+        </div>
+
         <label class="sb-rm-switcher muted" for="restaurantSwitch"><%= it.t('owner_manage.switcher_label') %></label>
         <select id="restaurantSwitch" class="sb-select sb-rm-select" onchange="if(this.value) location.href=this.value;">
           <% restaurants.forEach(function(x){ %>
@@ -217,8 +260,8 @@
             <div class="sb-rm-mini-sub"><%= tt('owner_manage.avg_party_size', 'Avg. party size') %> <strong><%= avgPartySize ? avgPartySize.toFixed(1) : '—' %></strong></div>
           </div>
           <div class="sb-rm-mini tone-<%= setupTone %>">
-            <div class="sb-rm-mini-label"><%= tt('owner_manage.setup_progress', 'Setup Progress') %></div>
-            <div class="sb-rm-mini-value"><%= setupPct %>%</div>
+            <div class="sb-rm-mini-label"><%= tt('owner_manage.hours_today', 'Hours Today') %></div>
+            <div class="sb-rm-mini-value sb-rm-mini-value-sm"><%= hoursLabel %></div>
             <div class="sb-rm-mini-sub"><%= missingSetup ? `${missingSetup} ${tt('owner_manage.items_missing', 'items missing')}` : tt('owner_manage.ready_for_growth', 'Ready for growth') %></div>
           </div>
           <div class="sb-rm-mini tone-<%= guestTone %>">
@@ -228,6 +271,29 @@
           </div>
         </div>
       </aside>
+    </div>
+
+    <div class="sb-rm-ribbon" aria-label="<%= tt('owner_manage.performance_snapshot', 'Performance Snapshot') %>">
+      <article class="sb-rm-ribbon-card tone-<%= serviceTone %>">
+        <div class="sb-rm-ribbon-label"><%= tt('owner_manage.service_pressure', 'Service Pressure') %></div>
+        <strong><%= peakOccupancy %>%</strong>
+        <span><%= peakOccupancy >= 85 ? tt('owner_manage.high_demand_copy', 'Demand is strong today. Review staffing and queue flow.') : tt('owner_manage.healthy_flow_copy', 'Service load looks balanced. Great time to focus on execution.') %></span>
+      </article>
+      <article class="sb-rm-ribbon-card tone-<%= setupTone %>">
+        <div class="sb-rm-ribbon-label"><%= tt('owner_manage.setup_progress', 'Setup Progress') %></div>
+        <strong><%= setupPct %>%</strong>
+        <span><%= missingSetup ? `${missingSetup} ${tt('owner_manage.setup_action_needed', 'core items still need attention.')}` : tt('owner_manage.setup_complete_copy', 'Core setup looks complete and ready to support growth.') %></span>
+      </article>
+      <article class="sb-rm-ribbon-card tone-<%= guestTone %>">
+        <div class="sb-rm-ribbon-label"><%= tt('owner_manage.guest_signal', 'Guest Signal') %></div>
+        <strong><%= rating ? rating.toFixed(1) : '—' %></strong>
+        <span><%= depositEnabled ? `${tt('owner_manage.deposit_policy', 'Deposit policy')}: ${depositText}` : tt('owner_manage.no_deposit_copy', 'Guests can book without a deposit. Consider enabling it for peak periods.') %></span>
+      </article>
+      <article class="sb-rm-ribbon-card tone-brand">
+        <div class="sb-rm-ribbon-label"><%= tt('owner_manage.brand_assets', 'Brand Assets') %></div>
+        <strong><%= photoCount + menuCount %></strong>
+        <span><%= photoCount %> <%= tt('owner_manage.photos_count', 'photos') %> · <%= menuCount %> <%= tt('owner_manage.menu_items', 'menu items') %></span>
+      </article>
     </div>
   </header>
 
@@ -242,6 +308,75 @@
       </div>
 
       <div class="sb-empty" data-sb-empty style="display:none" aria-live="polite"><%= it.t('owner_manage.no_results') %></div>
+
+      <section class="sb-surface sb-rm-pulse" aria-label="<%= tt('owner_manage.service_pulse', 'Service Pulse') %>" data-sb-search="service pulse periods lunch evening status checklist readiness">
+        <div class="sb-rm-section-head">
+          <div>
+            <div class="sb-rm-section-kicker"><%= tt('owner_manage.service_pulse', 'Service Pulse') %></div>
+            <h2><%= tt('owner_manage.operating_day_story', 'Operating Day Story') %></h2>
+            <p class="muted"><%= tt('owner_manage.operating_day_story_sub', 'Read today like a control room: demand windows, booking status, and the next best actions.') %></p>
+          </div>
+          <span class="sb-rm-stat-pill"><%= reservationsToday %> <%= tt('owner_manage.bookings', 'bookings') %></span>
+        </div>
+
+        <div class="sb-rm-pulse-grid">
+          <div class="sb-rm-window-grid">
+            <% serviceWindows.forEach(function(win){ %>
+              <article class="sb-rm-window tone-<%= win.tone %>">
+                <div class="sb-rm-window-top">
+                  <span class="sb-rm-window-name"><%= win.label %></span>
+                  <span class="sb-rm-window-badge"><%= win.demandPct %>%</span>
+                </div>
+                <strong><%= win.reservations %></strong>
+                <p><%= win.guests %> <%= tt('owner_manage.guests', 'guests') %></p>
+              </article>
+            <% }) %>
+            <% if (!serviceWindows.length) { %>
+              <div class="sb-empty muted"><%= tt('owner_manage.no_reservations', 'No reservations yet') %></div>
+            <% } %>
+          </div>
+
+          <div class="sb-rm-pulse-card">
+            <div class="sb-rm-pulse-card-top">
+              <div>
+                <div class="sb-rm-section-kicker"><%= tt('owner_manage.booking_mix', 'Booking Mix') %></div>
+                <h3><%= tt('owner_manage.status_overview', 'Status Overview') %></h3>
+              </div>
+              <span class="sb-rm-badge tone-info"><%= statusSummary.new || 0 %> <%= tt('owner_manage.new_label', 'new') %></span>
+            </div>
+            <div class="sb-rm-status-grid">
+              <div><span><%= tt('owner_manage.new_label', 'New') %></span><strong><%= statusSummary.new || 0 %></strong></div>
+              <div><span><%= tt('owner_manage.confirmed_label', 'Confirmed') %></span><strong><%= statusSummary.confirmed || 0 %></strong></div>
+              <div><span><%= tt('owner_manage.arrived_label', 'Arrived') %></span><strong><%= statusSummary.arrived || 0 %></strong></div>
+              <div><span><%= tt('owner_manage.cancelled_label', 'Cancelled') %></span><strong><%= statusSummary.cancelled || 0 %></strong></div>
+            </div>
+            <div class="sb-rm-pulse-note muted"><%= tt('owner_manage.booking_mix_sub', 'A quick read of demand quality helps you decide whether to focus on confirmations, service, or growth.') %></div>
+          </div>
+
+          <div class="sb-rm-pulse-card">
+            <div class="sb-rm-pulse-card-top">
+              <div>
+                <div class="sb-rm-section-kicker"><%= tt('owner_manage.next_best_actions', 'Next Best Actions') %></div>
+                <h3><%= tt('owner_manage.priority_checklist', 'Priority Checklist') %></h3>
+              </div>
+              <span class="sb-rm-badge tone-<%= actionChecklist.length ? 'warn' : 'good' %>"><%= actionChecklist.length ? actionChecklist.length : tt('owner_manage.all_good', 'Ready') %></span>
+            </div>
+            <% if (!actionChecklist.length) { %>
+              <div class="sb-empty muted"><%= tt('owner_manage.everything_looks_ready', 'Everything looks ready. Focus on execution and guest experience.') %></div>
+            <% } else { %>
+              <div class="sb-rm-checklist">
+                <% actionChecklist.forEach(function(item){ %>
+                  <a class="sb-rm-checkitem" href="<%= item.href || '#' %>">
+                    <span class="sb-dotmark <%= item.tone %>"></span>
+                    <span><%= item.label %></span>
+                    <span class="sb-icon sb-icon-16 sb-icon-muted"><svg><use href="/public/icons/sb-sprite.svg#chev"/></svg></span>
+                  </a>
+                <% }) %>
+              </div>
+            <% } %>
+          </div>
+        </div>
+      </section>
 
       <section class="sb-rm-highlights" aria-label="<%= tt('owner_manage.business_snapshot', 'Business Snapshot') %>">
         <article class="sb-rm-highlight tone-<%= serviceTone %>" data-sb-search="service load occupancy peak reservations guests">
@@ -535,6 +670,28 @@
         <% } %>
       </section>
 
+      <section class="sb-surface sb-rm-sidecard sb-rm-brandcard" data-sb-search="gallery photos brand readiness menu categories presentation">
+        <div class="sb-rm-section-kicker"><%= tt('owner_manage.brand_presence', 'Brand Presence') %></div>
+        <h3><%= tt('owner_manage.profile_readiness', 'Profile Readiness') %></h3>
+        <div class="sb-rm-readiness-list">
+          <% profileReadiness.forEach(function(item){ const pct = Math.max(0, Math.min(100, Math.round((item.value / Math.max(1, item.target)) * 100))); %>
+            <div class="sb-rm-readiness-row">
+              <div class="sb-rm-readiness-head"><span><%= item.label %></span><strong><%= item.value %>/<%= item.target %></strong></div>
+              <div class="sb-rm-rail thin"><span style="width:<%= pct %>%"></span></div>
+            </div>
+          <% }) %>
+        </div>
+        <% if (galleryThumbs.length) { %>
+          <div class="sb-rm-gallery">
+            <% galleryThumbs.forEach(function(photo, idx){ const src = photo?.dataUrl || photo; %>
+              <div class="sb-rm-gallery-item <%= idx === 0 ? 'is-large' : '' %>" style="background-image:url('<%= src %>')"></div>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <div class="sb-empty muted"><%= tt('owner_manage.add_photos', 'Upload more high-quality photos') %></div>
+        <% } %>
+      </section>
+
       <section class="sb-surface sb-rm-sidecard" data-sb-search="profile details phone address category created photos menu">
         <div class="sb-rm-section-kicker"><%= tt('owner_manage.profile_overview', 'Profile Overview') %></div>
         <h3><%= tt('owner_manage.restaurant_profile', 'Restaurant Profile') %></h3>
@@ -629,6 +786,50 @@
     .tone-muted{background:rgba(148,163,184,.12); border-color:rgba(148,163,184,.24)}
 
     .sb-rm-quick{display:flex; flex-wrap:wrap; gap:12px; margin-top:22px}
+
+    .sb-rm-scorecard{display:grid; grid-template-columns:minmax(0,1fr) 108px; gap:14px; margin-top:16px; padding:16px; border-radius:24px; border:1px solid rgba(255,255,255,.10); background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));}
+    .sb-rm-score-eyebrow{font-size:12px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#93c5fd}
+    .sb-rm-score-value{font-size:42px; line-height:1; font-weight:900; margin:8px 0 6px}
+    .sb-rm-score-copy{font-size:13px; line-height:1.55}
+    .sb-rm-score-ring{--deg: calc(var(--pct) * 3.6deg); width:108px; height:108px; border-radius:999px; background:conic-gradient(#60a5fa var(--deg), rgba(255,255,255,.08) 0deg); position:relative; display:grid; place-items:center;}
+    .sb-rm-score-ring::after{content:''; position:absolute; inset:10px; border-radius:inherit; background:#09111f; border:1px solid rgba(255,255,255,.08)}
+    .sb-rm-score-ring span{position:relative; z-index:1; font-size:18px; font-weight:900}
+    .sb-rm-rail-group{display:grid; gap:12px; margin-top:14px}
+    .sb-rm-rail-item{display:grid; gap:8px}
+    .sb-rm-rail-head{display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:13px}
+    .sb-rm-rail-head span{color:#cbd5e1}
+    .sb-rm-rail-head strong{font-size:13px}
+    .sb-rm-rail{position:relative; height:10px; border-radius:999px; overflow:hidden; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.07)}
+    .sb-rm-rail.thin{height:8px}
+    .sb-rm-rail span{display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg, rgba(59,130,246,.92), rgba(34,211,238,.88)); box-shadow:0 6px 18px rgba(59,130,246,.28)}
+    .sb-rm-mini-value-sm{font-size:20px; line-height:1.2}
+
+    .sb-rm-ribbon{position:relative; z-index:1; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px; padding:0 28px 28px}
+    .sb-rm-ribbon-card{padding:16px 16px 15px; border-radius:22px; border:1px solid rgba(255,255,255,.10); background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03)); box-shadow:0 18px 40px rgba(0,0,0,.16); display:grid; gap:6px}
+    .sb-rm-ribbon-label{font-size:11px; letter-spacing:.14em; font-weight:900; text-transform:uppercase; color:#cbd5e1}
+    .sb-rm-ribbon-card strong{font-size:28px; line-height:1; font-weight:900}
+    .sb-rm-ribbon-card span:last-child{font-size:13px; color:#d7e2f4; line-height:1.55}
+
+    .sb-rm-pulse{border-radius:28px; padding:22px; background:linear-gradient(180deg, rgba(15,23,42,.82), rgba(2,6,23,.72)); border:1px solid rgba(255,255,255,.10); box-shadow:0 18px 45px rgba(0,0,0,.20)}
+    .sb-rm-pulse-grid{display:grid; grid-template-columns:1.1fr .9fr .9fr; gap:16px; margin-top:16px}
+    .sb-rm-window-grid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px}
+    .sb-rm-window{padding:16px; border-radius:22px; border:1px solid rgba(255,255,255,.10); background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03)); display:grid; gap:8px; min-height:142px}
+    .sb-rm-window-top{display:flex; align-items:center; justify-content:space-between; gap:10px}
+    .sb-rm-window-name{font-size:13px; text-transform:uppercase; letter-spacing:.12em; font-weight:900; color:#cbd5e1}
+    .sb-rm-window-badge{display:inline-flex; align-items:center; justify-content:center; padding:6px 10px; border-radius:999px; font-size:12px; font-weight:800; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.10)}
+    .sb-rm-window strong{font-size:36px; line-height:1; font-weight:900}
+    .sb-rm-window p{margin:0; color:#d7e2f4; font-size:14px}
+    .sb-rm-pulse-card{padding:18px; border-radius:24px; border:1px solid rgba(255,255,255,.10); background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); display:flex; flex-direction:column; min-height:100%}
+    .sb-rm-pulse-card-top{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px}
+    .sb-rm-status-grid{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px}
+    .sb-rm-status-grid div{padding:12px 12px 10px; border-radius:18px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04); display:grid; gap:6px}
+    .sb-rm-status-grid span{font-size:12px; color:#9fb0c9; text-transform:uppercase; letter-spacing:.08em; font-weight:800}
+    .sb-rm-status-grid strong{font-size:26px; line-height:1; font-weight:900}
+    .sb-rm-pulse-note{margin-top:auto; padding-top:14px; font-size:13px; line-height:1.55}
+    .sb-rm-checklist{display:grid; gap:10px}
+    .sb-rm-checkitem{display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; padding:12px 14px; border-radius:16px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04); transition:transform .16s ease, border-color .16s ease, background .16s ease}
+    .sb-rm-checkitem span:nth-child(2){flex:1; line-height:1.45}
+    .sb-rm-checkitem:hover{transform:translateY(-1px); border-color:rgba(96,165,250,.32); background:rgba(59,130,246,.08)}
 
     .sb-rm-control{
       background:linear-gradient(180deg, rgba(15,23,42,.76), rgba(2,6,23,.68));
@@ -742,6 +943,15 @@
     .sb-rm-profile-list span, .sb-rm-policy-row span{color:#94a3b8; font-size:13px}
     .sb-rm-profile-list strong, .sb-rm-policy-row strong{font-size:14px; text-align:end}
 
+    .sb-rm-readiness-list{display:grid; gap:12px; margin-top:14px}
+    .sb-rm-readiness-row{display:grid; gap:8px}
+    .sb-rm-readiness-head{display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:13px}
+    .sb-rm-readiness-head span{color:#9fb0c9}
+    .sb-rm-readiness-head strong{font-size:13px}
+    .sb-rm-gallery{display:grid; grid-template-columns:1.2fr .8fr .8fr; gap:10px; margin-top:16px}
+    .sb-rm-gallery-item{min-height:86px; border-radius:18px; background-size:cover; background-position:center; border:1px solid rgba(255,255,255,.08); box-shadow:0 12px 28px rgba(0,0,0,.18)}
+    .sb-rm-gallery-item.is-large{grid-row:span 2; min-height:184px}
+
     .sb-compact .sb-rm-highlight, .sb-compact .sb-rm-panel, .sb-compact .sb-rm-sidecard{padding:16px}
     .sb-compact .sb-rm-ops, .sb-compact .sb-rm-agenda{padding:18px}
     .sb-compact .sb-rm-appcard{min-height:116px; padding:14px}
@@ -752,13 +962,18 @@
       .sb-rm-side{position:static}
     }
     @media (max-width: 980px){
-      .sb-rm-highlights, .sb-rm-panel-grid, .sb-rm-appgrid{grid-template-columns:1fr 1fr}
+      .sb-rm-ribbon, .sb-rm-highlights, .sb-rm-panel-grid, .sb-rm-appgrid{grid-template-columns:1fr 1fr}
+      .sb-rm-pulse-grid{grid-template-columns:1fr}
     }
     @media (max-width: 720px){
       .sb-rm-hero{border-radius:24px}
       .sb-rm-hero-inner{padding:18px}
-      .sb-rm-highlights, .sb-rm-panel-grid, .sb-rm-appgrid, .sb-rm-mini-grid{grid-template-columns:1fr}
+      .sb-rm-ribbon{padding:0 18px 18px; grid-template-columns:1fr}
+      .sb-rm-scorecard{grid-template-columns:1fr}
+      .sb-rm-score-ring{width:92px; height:92px}
+      .sb-rm-window-grid, .sb-rm-highlights, .sb-rm-panel-grid, .sb-rm-appgrid, .sb-rm-mini-grid, .sb-rm-status-grid, .sb-rm-gallery{grid-template-columns:1fr}
       .sb-rm-timeitem{grid-template-columns:58px minmax(0,1fr)}
+      .sb-rm-gallery-item.is-large{grid-row:auto; min-height:140px}
       .sb-rm-control-actions, .sb-rm-quick{flex-direction:column; align-items:stretch}
       .sb-rm-control-actions .btn, .sb-rm-quick .btn{width:100%; justify-content:center}
       .sb-rm-panel-top, .sb-rm-section-head, .sb-rm-control-top{flex-direction:column; align-items:flex-start}

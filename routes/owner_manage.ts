@@ -167,7 +167,8 @@ ownerManageRouter.get("/owner/restaurants/:id/manage", async (ctx) => {
   const normPhotos = photos.map((p: any) => (typeof p === "string" ? { dataUrl: p, alt: "" } : p));
 
   // Preview: upcoming reservations for this date (first 6 by time)
-  const reservationsPreview = (await enrichReservationsWithRoomMeta(r.id, [...reservations] as any[]))
+  const enrichedReservations = await enrichReservationsWithRoomMeta(r.id, [...reservations] as any[]);
+  const reservationsPreview = enrichedReservations
     .sort((a: any, b: any) => String(a.time || "").localeCompare(String(b.time || "")))
     .slice(0, 6)
     .map((x: any) => ({
@@ -179,6 +180,51 @@ ownerManageRouter.get("/owner/restaurants/:id/manage", async (ctx) => {
       phone: x.phone || "",
       roomLabel: x.roomLabel || x.preferredLayoutLabel || "",
     }));
+
+  const parseTimeToMinutes = (value?: string) => {
+    const t = String(value || "");
+    const [h, m] = t.split(":").map((x) => Number(x || 0));
+    return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+  };
+
+  const serviceWindows = [
+    { key: "early", label: "Early", from: 0, to: 12 * 60 },
+    { key: "lunch", label: "Lunch", from: 12 * 60, to: 17 * 60 },
+    { key: "evening", label: "Evening", from: 17 * 60, to: 24 * 60 },
+  ].map((win) => {
+    const items = enrichedReservations.filter((x: any) => {
+      const mins = parseTimeToMinutes(x.time);
+      return mins >= win.from && mins < win.to;
+    });
+    const guests = items.reduce((acc: number, x: any) => acc + Number(x.people || 0), 0);
+    const demandPct = capacity > 0 ? Math.min(100, Math.round((guests / capacity) * 100)) : 0;
+    return {
+      ...win,
+      reservations: items.length,
+      guests,
+      demandPct,
+      tone: demandPct >= 85 ? "danger" : demandPct >= 60 ? "warn" : (items.length ? "good" : "muted"),
+    };
+  });
+
+  const statusSummary = {
+    new: reservations.filter((x: any) => String(x.status || "").toLowerCase() === "new").length,
+    confirmed: reservations.filter((x: any) => {
+      const s = String(x.status || "").toLowerCase();
+      return s === "confirmed" || s === "approved";
+    }).length,
+    arrived: reservations.filter((x: any) => String(x.status || "").toLowerCase() === "arrived").length,
+    cancelled: reservations.filter((x: any) => {
+      const s = String(x.status || "").toLowerCase();
+      return s === "cancelled" || s === "canceled";
+    }).length,
+  };
+
+  const dayKey = new Date(`${date}T12:00:00`).getDay() as 0|1|2|3|4|5|6;
+  const todaysWindow = r.weeklySchedule?.[dayKey] || null;
+  const hoursLabel = todaysWindow?.open && todaysWindow?.close
+    ? `${todaysWindow.open}–${todaysWindow.close}`
+    : (r.hours || "Schedule not set");
 
   // Simple tasks/alerts derived from today's data (placeholder until full task engine)
   const pending = reservations.filter((x: any) => (x.status || "").toLowerCase() === "new").length;
@@ -218,6 +264,9 @@ ownerManageRouter.get("/owner/restaurants/:id/manage", async (ctx) => {
     _peopleToday: peopleToday,
     _peakOccupancyPct: peakPct,
     _reservationsPreview: reservationsPreview,
+    _serviceWindows: serviceWindows,
+    _statusSummary: statusSummary,
+    _hoursLabel: hoursLabel,
     _tasks: tasks,
     _alerts: alerts,
     _urls: {
