@@ -6,68 +6,30 @@ import {
   getRestaurant,
   updateRestaurant,
   listReservationsByOwner,
-  listReservationsFor,
-  computeOccupancy,
 } from "../database.ts";
 import { requireOwner } from "../lib/auth.ts";
 import { render } from "../lib/view.ts";
 
 export const ownerRouter = new Router();
 
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function todayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-
 ownerRouter.get("/owner", async (ctx) => {
   if (!requireOwner(ctx)) return;
 
-  const ownerId = (ctx.state as any).user.id;
-  const date = ctx.request.url.searchParams.get("date") || todayISO();
   const myRestaurants: any[] = [];
+  const ownerId = (ctx.state as any).user.id;
 
   for await (const key of kv.list({ prefix: ["restaurant_by_owner", ownerId] })) {
     const rid = key.key[key.key.length - 1] as string;
     const r = await getRestaurant(rid);
-    if (!r) continue;
-
-    const reservations = await listReservationsFor(r.id, date);
-    const peopleToday = reservations.reduce((acc, x) => acc + Number(x.people || 0), 0);
-    const occMap = await computeOccupancy(r, date);
-    let peakUsed = 0;
-    for (const used of occMap.values()) peakUsed = Math.max(peakUsed, Number(used || 0));
-
-    const capacity = Math.max(1, Number(r.capacity || 0));
-    const peakPct = Math.min(100, Math.round((peakUsed / capacity) * 100));
-
-    const photos = Array.isArray(r.photos) ? r.photos : [];
-    const normPhotos = photos.map((p: any) => (typeof p === "string" ? { dataUrl: p, alt: "" } : p));
-
-    myRestaurants.push({
-      ...r,
-      photos: normPhotos,
-      _today: date,
-      _reservationsCount: reservations.length,
-      _peopleToday: peopleToday,
-      _peakOccupancyPct: peakPct,
-      _calendarUrl: `/owner/restaurants/${r.id}/calendar?date=${encodeURIComponent(date)}`,
-      _manageUrl: `/owner/restaurants/${r.id}/manage?date=${encodeURIComponent(date)}`,
-    });
+    if (r) myRestaurants.push(r);
   }
-
-  myRestaurants.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
 
   const reservations = await listReservationsByOwner(ownerId);
 
   await render(ctx, "owner_dashboard", {
     restaurants: myRestaurants,
     reservations,
-    title: "Owner Dashboard",
-    page: "owner_dashboard",
+    title: "אזור מנהלים",
   });
 });
 
