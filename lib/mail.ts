@@ -39,8 +39,8 @@ const I18N = {
   time: { he: "שעה", en: "Time", ka: "დრო" },
   guests: { he: "אורחים", en: "Guests", ka: "სტუმრები" },
   dayLabel: { he: "יום / ת׳", en: "Day / D/M", ka: "დღე / D/M" },
-  noteTitle: { he: "הערות/בקשות הלקוח:", en: "Customer notes/requests:", ka: "კლიენტის შენიშვნები/მოთხოვნები:" },
-  manageCta: { he: "ניהול ההזמנה (אישור/ביטול/שינוי)", en: "Manage reservation (confirm/cancel/reschedule)", ka: "ჯავშნის მართვა (დადასტ./გაუქმ./დროის შეცვლა)" },
+  noteTitle: { he: "הערות/בקשות הלקוח:", en: "Customer notes/requests:", ka: "სტუმრის შენიშვნები / მოთხოვნები:" },
+  manageCta: { he: "ניהול ההזמנה (אישור/ביטול/שינוי)", en: "Manage reservation (confirm/cancel/reschedule)", ka: "ჯავშნის მართვა (დადასტურება / გაუქმება / დროის შეცვლა)" },
   directLink: { he: "קישור ישיר", en: "Direct link", ka: "პირდაპირი ბმული" },
   customerLabel: { he: "לקוח", en: "Customer", ka: "კლიენტი" },
   phoneLabel: { he: "טלפון", en: "Phone", ka: "ტელეფონი" },
@@ -51,8 +51,8 @@ const I18N = {
     ka: "ეს წერილი ავტომატურად გაიგზავნა. გთხოვთ, არ უპასუხოთ."
   },
   // subjects & leads
-  verifyTitle: { he: "ברוכים הבאים ל-SpotBook", en: "Welcome to SpotBook", ka: "მოგესალმებათ SpotBook" },
-  verifyLead: { he: "נשאר רק לאמת את כתובת הדוא״ל שלך.", en: "Please verify your email address to continue.", ka: "გთხოვთ, დაადასტუროთ ელფოსტა." },
+  verifyTitle: { he: "ברוכים הבאים ל-SpotBook", en: "Welcome to SpotBook", ka: "კეთილი იყოს თქვენი მობრძანება SpotBook-ში" },
+  verifyLead: { he: "נשאר רק לאמת את כתובת הדוא״ל שלך.", en: "Please verify your email address to continue.", ka: "გასაგრძელებლად დაადასტურეთ თქვენი ელ-ფოსტა." },
   verifyCta: { he: "אימות חשבון", en: "Verify account", ka: "ანგარიშის დადასტურება" },
   verifySubject: {
     he: `אימות כתובת דוא"ל – SpotBook`,
@@ -61,7 +61,7 @@ const I18N = {
   },
 
   resetTitle: { he: "איפוס סיסמה", en: "Reset password", ka: "პაროლის აღდგენა" },
-  resetLead: { he: "לחצי/לחץ על הכפתור כדי להגדיר סיסמה חדשה.", en: "Click the button to set a new password.", ka: "დააჭირეთ ღილაკს ახალი პაროლის დასაყენებლად." },
+  resetLead: { he: "לחצי/לחץ על הכפתור כדי להגדיר סיסמה חדשה.", en: "Click the button to set a new password.", ka: "ახალი პაროლის დასაყენებლად დააჭირეთ ღილაკს." },
   resetCta: { he: "איפוס סיסמה", en: "Reset password", ka: "პაროლის აღდგენა" },
   resetSubject: {
     he: "שחזור סיסמה – SpotBook",
@@ -72,7 +72,7 @@ const I18N = {
   reservationLead: {
     he: "פרטי ההזמנה שלך. ניתן לאשר/לבטל/לשנות מועד דרך הקישור למטה.",
     en: "Your reservation details. You can confirm/cancel/reschedule via the link below.",
-    ka: "ჯავშნის დეტალები. შეგიძლიათ დადასტურება/გაუქმება/დროის შეცვლა ქვემოთ მოცემული ბმით."
+    ka: "აქ არის თქვენი ჯავშნის დეტალები. ქვემოთ მოცემული ბმულით შეგიძლიათ დადასტურება, გაუქმება ან დროის შეცვლა."
   },
   reservationSubject: {
     he: (r: string) => `אישור הזמנה – ${r}`,
@@ -93,21 +93,21 @@ const I18N = {
       "See you soon ❤️",
     ],
     ka: [
-      "🎉 თქვენი ჯავშანი მიღებულია. გთხოვთ, დაევიდასტუროთ მოსვლა რამდენიმე წუთით ადრე.",
+      "🎉 თქვენი ჯავშანი მიღებულია. გთხოვთ, მოსვლა რამდენიმე წუთით ადრე დაადასტუროთ.",
       "🚗 შეღავათიანი პარკინგი შაბათ-კვირას 18:00-დან.",
       "⏱️ მაგიდა შენახულია 15 წუთით.",
       "გელოდებით ❤️",
     ],
   },
 
-  ownerNewTitle: { he: "התקבלה הזמנה חדשה", en: "New reservation received", ka: "ახალი ჯავშანი მიიღეს" },
+  ownerNewTitle: { he: "התקבלה הזמנה חדשה", en: "New reservation received", ka: "მიღებულია ახალი ჯავშანი" },
   ownerSubject: {
     he: (r: string) => `הזמנה חדשה – ${r}`,
     en: (r: string) => `New reservation — ${r}`,
     ka: (r: string) => `ახალი ჯავშანი — ${r}`,
   },
 
-  reminderTitle: { he: "תזכורת להזמנה", en: "Reservation reminder", ka: "შეხსენება ჯავშანზე" },
+  reminderTitle: { he: "תזכורת להזמנה", en: "Reservation reminder", ka: "ჯავშნის შეხსენება" },
   reminderLead: { he: "נא אשר/י הגעה בלחיצה:", en: "Please confirm your attendance:", ka: "გთხოვთ, დაადასტუროთ მოსვლა:" },
   reminderCta: { he: "אישור הגעה", en: "Confirm attendance", ka: "მოსვლის დადასტურება" },
   reminderSubject: {
@@ -116,17 +116,17 @@ const I18N = {
     ka: "შეხსენება — გთხოვთ, დაადასტუროთ",
   },
 
-  reviewTitle: { he: "נשמח לשמוע ממך!", en: "We'd love your feedback!", ka: "გვინდა თქვენი აზრი!" },
+  reviewTitle: { he: "נשמח לשמוע ממך!", en: "We'd love your feedback!", ka: "მოგვიყევით თქვენი შთაბეჭდილებების შესახებ!" },
   reviewLead: {
     he: "ביקרת לאחרונה ב-{restaurant}. ספר/י לנו על החוויה שלך.",
     en: "You recently visited {restaurant}. Tell us about your experience.",
-    ka: "თქვენ ახლახანს ეწვიეთ {restaurant}-ს. გვითხარით გამოცდილებაზე."
+    ka: "თქვენ ცოტა ხნის წინ ეწვიეთ {restaurant}-ს. გაგვიზიარეთ თქვენი გამოცდილება."
   },
   reviewCta: { he: "השאר ביקורת", en: "Leave a Review", ka: "დატოვეთ მიმოხილვა" },
   reviewSubject: {
     he: (r: string) => `איך היה? ספר/י על ${r}`,
     en: (r: string) => `How was it? Share your experience at ${r}`,
-    ka: (r: string) => `როგორ იყო? გაგვიზიარეთ გამოცდილება — ${r}`,
+    ka: (r: string) => `როგორი იყო თქვენი გამოცდილება — ${r}`,
   },
 };
 

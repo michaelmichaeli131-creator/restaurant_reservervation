@@ -9,7 +9,7 @@
       "prev_day_aria": "წინა დღე",
       "next_day_aria": "შემდეგი დღე",
       "jump_to_date_aria": "თარიღზე გადასვლა",
-      "pick_date": "აირჩიე თარიღი",
+      "pick_date": "აირჩიეთ თარიღი",
       "search_day_aria": "ძებნა მიმდინარე დღეში",
       "search_placeholder": "ძებნა სახელით",
       "sidebar": {
@@ -20,25 +20,25 @@
       "cap_line": "ტევადობა: სტუმრები — • მაგიდები — • ნაბიჯი: —",
       "th": {
         "time": "დრო",
-        "occupancy": "დაკავება",
+        "occupancy": "დატვირთვა",
         "people_tables_pct": "სტუმრები • მაგიდები • %"
       },
-      "hint": "შენიშვნა: დააჭირე სლოტს კლიენტების სამართავად",
+      "hint": "რჩევა: სლოტზე დაჭერით ამ დროის სტუმრების სიას გახსნით.",
       "daily_summary_loading": "დღიური შეჯამება — იტვირთება…",
       "drawer": {
         "title": "კლიენტები",
         "close": "დახურვა",
         "search_placeholder": "ძებნა ამ სლოტში",
         "add_customer": "კლიენტის დამატება",
-        "customers_at": "კლიენტები"
+        "customers_at": "სტუმრები ამ სლოტში"
       },
       "tbl": {
         "first_name": "სახელი",
         "last_name": "გვარი",
-        "party_size": "ჯგუფის ზომა",
+        "party_size": "სტუმრების რაოდენობა",
         "status": "სტატუსი",
         "phone": "ტელეფონი",
-        "room": "ოთახი"
+        "room": "დარბაზი"
       },
       "capacity_people": "სტუმრები",
       "capacity_tables": "მაგიდები",
@@ -55,10 +55,10 @@
         "no_show": "არ გამოცხადდა"
       },
       "actions": {
-        "arrived": "მოვიდა",
+        "arrived": "მოსვლის მონიშვნა",
         "cancel": "გაუქმება",
         "confirm_deposit": "დეპოზიტის დადასტურება",
-        "refund_deposit": "დაბრუნება"
+        "refund_deposit": "დეპოზიტის დაბრუნება"
       },
       "status": {
         "new": "ახალი",
@@ -66,11 +66,11 @@
         "booked": "დაჯავშნილი",
         "approved": "დამტკიცებული",
         "confirmed": "დადასტურებული",
-        "arrived": "მოვიდა",
+        "arrived": "მოსული",
         "cancelled": "გაუქმებული"
       },
       "deposit": {
-        "pending": "დეპოზიტი მოლოდინში",
+        "pending": "დეპოზიტი დადასტურების მოლოდინში",
         "received": "დეპოზიტი გადახდილია",
         "refunded": "დაბრუნებულია"
       }
