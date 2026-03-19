@@ -125,6 +125,18 @@
     !depositEnabled && peakOccupancy >= 65 ? { tone: 'danger', label: tt('owner_manage.enable_deposit', 'Consider enabling a peak-time deposit'), href: r?._urls?.deposit } : null,
     !r?.weeklySchedule && !r?.hours ? { tone: 'warn', label: tt('owner_manage.set_hours', 'Set clear opening hours'), href: r?._urls?.hours } : null,
   ].filter(Boolean);
+
+  const serviceHeadline = peakOccupancy >= 85
+    ? tt('owner_manage.service_headline_peak', 'High-demand day with strong table pressure.')
+    : (peakOccupancy >= 60
+      ? tt('owner_manage.service_headline_busy', 'Balanced demand with a few pressure windows.')
+      : tt('owner_manage.service_headline_soft', 'A lighter day — great for polishing execution.'));
+  const setupHeadline = missingSetup
+    ? `${missingSetup} ${tt('owner_manage.setup_action_needed', 'core items still need attention.')}`
+    : tt('owner_manage.setup_complete_copy', 'Core setup looks complete and ready to support growth.');
+  const policyHeadline = depositEnabled
+    ? `${tt('owner_manage.deposit_policy', 'Deposit policy')}: ${depositText}`
+    : tt('owner_manage.no_deposit_copy', 'Guests can book without a deposit. Consider enabling it for peak periods.');
 %>
 
 <section class="sb-rm sb-page" aria-label="<%= it.t('owner_manage.aria_section') %>">
@@ -157,6 +169,24 @@
           <p class="sb-rm-desc"><%= descriptionShort %></p>
         <% } %>
 
+        <div class="sb-rm-storyline" aria-label="<%= tt('owner_manage.business_snapshot', 'Business Snapshot') %>">
+          <article class="sb-rm-storyline-item tone-<%= serviceTone %>">
+            <span><%= tt('owner_manage.service_readiness', 'Service Readiness') %></span>
+            <strong><%= peakOccupancy %>%</strong>
+            <p><%= serviceHeadline %></p>
+          </article>
+          <article class="sb-rm-storyline-item tone-<%= setupTone %>">
+            <span><%= tt('owner_manage.setup_progress', 'Setup Progress') %></span>
+            <strong><%= setupPct %>%</strong>
+            <p><%= setupHeadline %></p>
+          </article>
+          <article class="sb-rm-storyline-item tone-<%= guestTone %>">
+            <span><%= tt('owner_manage.guest_experience', 'Guest Experience') %></span>
+            <strong><%= rating ? rating.toFixed(1) : '—' %></strong>
+            <p><%= policyHeadline %></p>
+          </article>
+        </div>
+
         <div class="sb-rm-quick" aria-label="<%= it.t('owner_manage.quick_actions') %>">
           <% if (canCalendar) { %>
             <a class="btn md primary" href="<%= r?._urls?.calendar %>" data-sb-search="calendar reservations daily guest timeline">
@@ -186,8 +216,8 @@
       </div>
 
       <aside class="sb-rm-control sb-surface">
-        <div class="sb-rm-control-top">
-          <div>
+        <div class="sb-rm-control-top sb-rm-card-head">
+          <div class="sb-rm-head-main">
             <div class="sb-rm-control-label"><%= tt('owner_manage.business_snapshot', 'Business Snapshot') %></div>
             <div class="sb-rm-control-title"><%= tt('owner_manage.today_focus', 'Today’s Focus') %></div>
           </div>
@@ -310,8 +340,8 @@
       <div class="sb-empty" data-sb-empty style="display:none" aria-live="polite"><%= it.t('owner_manage.no_results') %></div>
 
       <section class="sb-surface sb-rm-pulse" aria-label="<%= tt('owner_manage.service_pulse', 'Service Pulse') %>" data-sb-search="service pulse periods lunch evening status checklist readiness">
-        <div class="sb-rm-section-head">
-          <div>
+        <div class="sb-rm-section-head sb-rm-card-head">
+          <div class="sb-rm-head-main">
             <div class="sb-rm-section-kicker"><%= tt('owner_manage.service_pulse', 'Service Pulse') %></div>
             <h2><%= tt('owner_manage.operating_day_story', 'Operating Day Story') %></h2>
             <p class="muted"><%= tt('owner_manage.operating_day_story_sub', 'Read today like a control room: demand windows, booking status, and the next best actions.') %></p>
@@ -337,8 +367,8 @@
           </div>
 
           <div class="sb-rm-pulse-card">
-            <div class="sb-rm-pulse-card-top">
-              <div>
+            <div class="sb-rm-pulse-card-top sb-rm-card-head">
+              <div class="sb-rm-head-main">
                 <div class="sb-rm-section-kicker"><%= tt('owner_manage.booking_mix', 'Booking Mix') %></div>
                 <h3><%= tt('owner_manage.status_overview', 'Status Overview') %></h3>
               </div>
@@ -354,8 +384,8 @@
           </div>
 
           <div class="sb-rm-pulse-card">
-            <div class="sb-rm-pulse-card-top">
-              <div>
+            <div class="sb-rm-pulse-card-top sb-rm-card-head">
+              <div class="sb-rm-head-main">
                 <div class="sb-rm-section-kicker"><%= tt('owner_manage.next_best_actions', 'Next Best Actions') %></div>
                 <h3><%= tt('owner_manage.priority_checklist', 'Priority Checklist') %></h3>
               </div>
@@ -429,8 +459,8 @@
 
       <% if (canHost || canWaiter || canKitchen || canBar || canMenu) { %>
       <section class="sb-surface sb-rm-ops" aria-label="<%= it.t('owner_manage.ops_aria') %>" data-sb-search="operations host waiter kitchen bar menu app screens">
-        <div class="sb-rm-section-head">
-          <div>
+        <div class="sb-rm-section-head sb-rm-card-head">
+          <div class="sb-rm-head-main">
             <div class="sb-rm-section-kicker"><%= tt('owner_manage.operations_hub', 'Operations Hub') %></div>
             <h2><%= it.t('owner_manage.ops_title') %></h2>
             <p class="muted"><%= it.t('owner_manage.ops_sub') %></p>
@@ -486,8 +516,8 @@
       <section class="sb-rm-panel-grid" aria-label="<%= it.t('owner_manage.categories_aria') %>">
         <% if (canCalendar) { %>
         <article class="sb-surface sb-rm-panel" data-sb-search="reservations guests timeline calendar booking">
-          <div class="sb-rm-panel-top">
-            <div>
+          <div class="sb-rm-panel-top sb-rm-card-head">
+            <div class="sb-rm-head-main">
               <div class="sb-rm-section-kicker"><%= tt('owner_manage.guest_flow', 'Guest Flow') %></div>
               <h3><%= it.t('owner_manage.card_reservations_title') %></h3>
               <p class="muted"><%= it.t('owner_manage.card_reservations_sub') %></p>
@@ -508,8 +538,8 @@
 
         <% if (canFloor) { %>
         <article class="sb-surface sb-rm-panel" data-sb-search="floor tables seating plan map occupancy room">
-          <div class="sb-rm-panel-top">
-            <div>
+          <div class="sb-rm-panel-top sb-rm-card-head">
+            <div class="sb-rm-head-main">
               <div class="sb-rm-section-kicker"><%= tt('owner_manage.layout_control', 'Layout Control') %></div>
               <h3><%= it.t('owner_manage.card_floor_title') %></h3>
               <p class="muted"><%= it.t('owner_manage.card_floor_sub') %></p>
@@ -530,8 +560,8 @@
 
         <% if (canShifts || canStaff || isStaff) { %>
         <article class="sb-surface sb-rm-panel" data-sb-search="staff shifts team attendance payroll">
-          <div class="sb-rm-panel-top">
-            <div>
+          <div class="sb-rm-panel-top sb-rm-card-head">
+            <div class="sb-rm-head-main">
               <div class="sb-rm-section-kicker"><%= tt('owner_manage.team_execution', 'Team Execution') %></div>
               <h3><%= isStaff ? it.t('owner_manage.card_my_work_title') : it.t('owner_manage.card_staff_title') %></h3>
               <p class="muted"><%= isStaff ? it.t('owner_manage.card_my_work_sub') : it.t('owner_manage.card_staff_sub') %></p>
@@ -551,8 +581,8 @@
 
         <% if (canReports) { %>
         <article class="sb-surface sb-rm-panel" data-sb-search="reports analytics sales trends occupancy performance">
-          <div class="sb-rm-panel-top">
-            <div>
+          <div class="sb-rm-panel-top sb-rm-card-head">
+            <div class="sb-rm-head-main">
               <div class="sb-rm-section-kicker"><%= tt('owner_manage.performance', 'Performance') %></div>
               <h3><%= it.t('owner_manage.card_reports_title') %></h3>
               <p class="muted"><%= it.t('owner_manage.card_reports_sub') %></p>
@@ -569,8 +599,8 @@
 
         <% if (canInvView) { %>
         <article class="sb-surface sb-rm-panel" data-sb-search="inventory stock counts recipes suppliers">
-          <div class="sb-rm-panel-top">
-            <div>
+          <div class="sb-rm-panel-top sb-rm-card-head">
+            <div class="sb-rm-head-main">
               <div class="sb-rm-section-kicker"><%= tt('owner_manage.stock_control', 'Stock Control') %></div>
               <h3><%= it.t('owner_manage.card_inventory_title') %></h3>
               <p class="muted"><%= it.t('owner_manage.card_inventory_sub') %></p>
@@ -587,8 +617,8 @@
 
         <% if (isOwner) { %>
         <article class="sb-surface sb-rm-panel" data-sb-search="settings details hours photos deposit password profile">
-          <div class="sb-rm-panel-top">
-            <div>
+          <div class="sb-rm-panel-top sb-rm-card-head">
+            <div class="sb-rm-head-main">
               <div class="sb-rm-section-kicker"><%= tt('owner_manage.brand_and_settings', 'Brand & Settings') %></div>
               <h3><%= it.t('owner_manage.card_settings_title') %></h3>
               <p class="muted"><%= it.t('owner_manage.card_settings_sub') %></p>
@@ -609,8 +639,8 @@
 
       <% if (canCalendar) { %>
       <section class="sb-surface sb-rm-agenda" aria-label="<%= it.t('owner_manage.upcoming_title') %>" data-sb-search="agenda upcoming reservations guest flow timeline today">
-        <div class="sb-rm-section-head">
-          <div>
+        <div class="sb-rm-section-head sb-rm-card-head">
+          <div class="sb-rm-head-main">
             <div class="sb-rm-section-kicker"><%= tt('owner_manage.service_timeline', 'Service Timeline') %></div>
             <h2><%= it.t('owner_manage.upcoming_title') %></h2>
             <p class="muted"><%= it.t('owner_manage.upcoming_sub') %></p>
@@ -648,9 +678,11 @@
 
     <aside class="sb-dashboard-side sb-rm-side" aria-label="Sidebar">
       <section class="sb-surface sb-rm-sidecard">
-        <div class="sb-rm-section-kicker"><%= tt('owner_manage.today_focus', 'Today’s Focus') %></div>
-        <h3><%= it.t('owner_manage.tasks_title') %></h3>
-        <p class="muted"><%= it.t('owner_manage.tasks_sub') %></p>
+        <div class="sb-rm-card-stack">
+          <div class="sb-rm-section-kicker"><%= tt('owner_manage.today_focus', 'Today’s Focus') %></div>
+          <h3><%= it.t('owner_manage.tasks_title') %></h3>
+          <p class="muted"><%= it.t('owner_manage.tasks_sub') %></p>
+        </div>
         <% if (!tasks.length) { %>
           <div class="sb-empty muted"><%= it.t('owner_manage.no_tasks') %></div>
         <% } else { %>
@@ -671,8 +703,10 @@
       </section>
 
       <section class="sb-surface sb-rm-sidecard sb-rm-brandcard" data-sb-search="gallery photos brand readiness menu categories presentation">
-        <div class="sb-rm-section-kicker"><%= tt('owner_manage.brand_presence', 'Brand Presence') %></div>
-        <h3><%= tt('owner_manage.profile_readiness', 'Profile Readiness') %></h3>
+        <div class="sb-rm-card-stack">
+          <div class="sb-rm-section-kicker"><%= tt('owner_manage.brand_presence', 'Brand Presence') %></div>
+          <h3><%= tt('owner_manage.profile_readiness', 'Profile Readiness') %></h3>
+        </div>
         <div class="sb-rm-readiness-list">
           <% profileReadiness.forEach(function(item){ const pct = Math.max(0, Math.min(100, Math.round((item.value / Math.max(1, item.target)) * 100))); %>
             <div class="sb-rm-readiness-row">
@@ -693,8 +727,10 @@
       </section>
 
       <section class="sb-surface sb-rm-sidecard" data-sb-search="profile details phone address category created photos menu">
-        <div class="sb-rm-section-kicker"><%= tt('owner_manage.profile_overview', 'Profile Overview') %></div>
-        <h3><%= tt('owner_manage.restaurant_profile', 'Restaurant Profile') %></h3>
+        <div class="sb-rm-card-stack">
+          <div class="sb-rm-section-kicker"><%= tt('owner_manage.profile_overview', 'Profile Overview') %></div>
+          <h3><%= tt('owner_manage.restaurant_profile', 'Restaurant Profile') %></h3>
+        </div>
         <div class="sb-rm-profile-list">
           <div><span><%= tt('owner_manage.phone', 'Phone') %></span><strong><%= r?.phone || '—' %></strong></div>
           <div><span><%= tt('owner_manage.category', 'Category') %></span><strong><%= categoryLabels.slice(0, 2).join(', ') || '—' %></strong></div>
@@ -706,8 +742,10 @@
       </section>
 
       <section class="sb-surface sb-rm-sidecard" data-sb-search="configuration slot duration deposit schedule approval time">
-        <div class="sb-rm-section-kicker"><%= tt('owner_manage.configuration', 'Configuration') %></div>
-        <h3><%= tt('owner_manage.booking_policy', 'Booking Policy') %></h3>
+        <div class="sb-rm-card-stack">
+          <div class="sb-rm-section-kicker"><%= tt('owner_manage.configuration', 'Configuration') %></div>
+          <h3><%= tt('owner_manage.booking_policy', 'Booking Policy') %></h3>
+        </div>
         <div class="sb-rm-policy-list">
           <div class="sb-rm-policy-row"><span><%= tt('owner_manage.slot_interval', 'Slot interval') %></span><strong><%= r?.slotIntervalMinutes || '—' %> <%= tt('owner_manage.minutes', 'min') %></strong></div>
           <div class="sb-rm-policy-row"><span><%= tt('owner_manage.service_duration', 'Service duration') %></span><strong><%= r?.serviceDurationMinutes || '—' %> <%= tt('owner_manage.minutes', 'min') %></strong></div>
@@ -718,9 +756,11 @@
       </section>
 
       <section class="sb-surface sb-rm-sidecard" data-sb-search="alerts notifications issues warnings">
-        <div class="sb-rm-section-kicker"><%= tt('owner_manage.watchouts', 'Watchouts') %></div>
-        <h3><%= it.t('owner_manage.alerts_title') %></h3>
-        <p class="muted"><%= it.t('owner_manage.alerts_sub') %></p>
+        <div class="sb-rm-card-stack">
+          <div class="sb-rm-section-kicker"><%= tt('owner_manage.watchouts', 'Watchouts') %></div>
+          <h3><%= it.t('owner_manage.alerts_title') %></h3>
+          <p class="muted"><%= it.t('owner_manage.alerts_sub') %></p>
+        </div>
         <% if (!alerts.length) { %>
           <div class="sb-empty muted"><%= it.t('owner_manage.no_alerts') %></div>
         <% } else { %>
@@ -769,10 +809,16 @@
       display:inline-flex; align-items:center; gap:8px; font-size:12px; font-weight:900; letter-spacing:.18em;
       text-transform:uppercase; color:#93c5fd;
     }
-    .sb-rm-hero-copy h1{margin:8px 0 10px; font-size:clamp(30px, 4vw, 48px); line-height:.98}
+    .sb-rm-hero-copy h1{margin:8px 0 10px; max-width:14ch; font-size:clamp(30px, 4vw, 50px); line-height:.96; letter-spacing:-.03em; overflow-wrap:anywhere; text-wrap:balance}
     .sb-rm-subline{display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:14px}
     .sb-rm-desc{max-width:70ch; margin:16px 0 0; color:#dbe7ff; font-size:15px; line-height:1.65}
     .sb-rm-chiprow{display:flex; flex-wrap:wrap; gap:10px; margin-top:16px}
+    .sb-rm-storyline{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; margin-top:18px; max-width:940px}
+    .sb-rm-storyline-item{position:relative; display:grid; gap:8px; padding:15px 16px 16px; border-radius:20px; border:1px solid rgba(255,255,255,.10); background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03)); box-shadow:0 16px 34px rgba(0,0,0,.18); overflow:hidden}
+    .sb-rm-storyline-item::before{content:''; position:absolute; inset:0 0 auto; height:3px; background:linear-gradient(90deg, rgba(96,165,250,.95), rgba(34,211,238,.88)); opacity:.95}
+    .sb-rm-storyline-item span{font-size:11px; font-weight:900; letter-spacing:.16em; text-transform:uppercase; color:#c9ddff}
+    .sb-rm-storyline-item strong{font-size:28px; line-height:1; font-weight:900; letter-spacing:-.03em}
+    .sb-rm-storyline-item p{margin:0; color:#d9e5fb; font-size:13px; line-height:1.55; overflow-wrap:anywhere}
     .sb-rm-chip, .sb-rm-badge, .sb-rm-stat-pill{
       display:inline-flex; align-items:center; gap:8px; border-radius:999px; padding:8px 12px;
       font-size:12px; font-weight:800; border:1px solid rgba(255,255,255,.12);
@@ -785,7 +831,7 @@
     .tone-info{background:rgba(6,182,212,.14); border-color:rgba(34,211,238,.28)}
     .tone-muted{background:rgba(148,163,184,.12); border-color:rgba(148,163,184,.24)}
 
-    .sb-rm-quick{display:flex; flex-wrap:wrap; gap:12px; margin-top:22px}
+    .sb-rm-quick{display:flex; flex-wrap:wrap; gap:12px; margin-top:18px}
 
     .sb-rm-scorecard{display:grid; grid-template-columns:minmax(0,1fr) 108px; gap:14px; margin-top:16px; padding:16px; border-radius:24px; border:1px solid rgba(255,255,255,.10); background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));}
     .sb-rm-score-eyebrow{font-size:12px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#93c5fd}
@@ -804,14 +850,16 @@
     .sb-rm-rail span{display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg, rgba(59,130,246,.92), rgba(34,211,238,.88)); box-shadow:0 6px 18px rgba(59,130,246,.28)}
     .sb-rm-mini-value-sm{font-size:20px; line-height:1.2}
 
-    .sb-rm-ribbon{position:relative; z-index:1; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px; padding:0 28px 28px}
-    .sb-rm-ribbon-card{padding:16px 16px 15px; border-radius:22px; border:1px solid rgba(255,255,255,.10); background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03)); box-shadow:0 18px 40px rgba(0,0,0,.16); display:grid; gap:6px}
+    .sb-rm-ribbon{position:relative; z-index:1; display:grid; grid-template-columns:1.25fr .95fr .95fr .95fr; gap:14px; padding:0 28px 28px}
+    .sb-rm-ribbon-card{position:relative; overflow:hidden; padding:18px 18px 17px; border-radius:24px; border:1px solid rgba(255,255,255,.10); background:linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.03)); box-shadow:0 20px 46px rgba(0,0,0,.18); display:grid; gap:8px}
+    .sb-rm-ribbon-card::before{content:''; position:absolute; inset:0 0 auto; height:3px; background:linear-gradient(90deg, rgba(96,165,250,.95), rgba(34,211,238,.88)); opacity:.95}
     .sb-rm-ribbon-label{font-size:11px; letter-spacing:.14em; font-weight:900; text-transform:uppercase; color:#cbd5e1}
     .sb-rm-ribbon-card strong{font-size:28px; line-height:1; font-weight:900}
     .sb-rm-ribbon-card span:last-child{font-size:13px; color:#d7e2f4; line-height:1.55}
 
-    .sb-rm-pulse{border-radius:28px; padding:22px; background:linear-gradient(180deg, rgba(15,23,42,.82), rgba(2,6,23,.72)); border:1px solid rgba(255,255,255,.10); box-shadow:0 18px 45px rgba(0,0,0,.20)}
-    .sb-rm-pulse-grid{display:grid; grid-template-columns:1.1fr .9fr .9fr; gap:16px; margin-top:16px}
+    .sb-rm-pulse{position:relative; overflow:hidden; border-radius:30px; padding:24px; background:linear-gradient(180deg, rgba(15,23,42,.88), rgba(2,6,23,.76)); border:1px solid rgba(255,255,255,.10); box-shadow:0 22px 52px rgba(0,0,0,.22)}
+    .sb-rm-pulse::before{content:''; position:absolute; top:-80px; right:-40px; width:240px; height:240px; border-radius:999px; background:radial-gradient(circle, rgba(59,130,246,.20), transparent 68%); pointer-events:none}
+    .sb-rm-pulse-grid{display:grid; grid-template-columns:1.2fr .9fr .9fr; gap:16px; margin-top:18px}
     .sb-rm-window-grid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px}
     .sb-rm-window{padding:16px; border-radius:22px; border:1px solid rgba(255,255,255,.10); background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03)); display:grid; gap:8px; min-height:142px}
     .sb-rm-window-top{display:flex; align-items:center; justify-content:space-between; gap:10px}
@@ -838,10 +886,12 @@
       backdrop-filter: blur(16px);
     }
     .sb-rm-control-top, .sb-rm-panel-top, .sb-rm-section-head{
-      display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;
+      display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:14px;
     }
+    .sb-rm-card-head > .sb-rm-head-main, .sb-rm-section-head > .sb-rm-head-main, .sb-rm-panel-top > .sb-rm-head-main, .sb-rm-control-top > .sb-rm-head-main{min-width:0}
+    .sb-rm-card-stack{display:grid; gap:6px; min-width:0; margin-bottom:12px}
     .sb-rm-control-label{font-size:12px; font-weight:800; color:#93c5fd; text-transform:uppercase; letter-spacing:.15em}
-    .sb-rm-control-title{font-size:24px; font-weight:900; margin-top:4px}
+    .sb-rm-control-title{font-size:24px; font-weight:900; margin-top:4px; line-height:1.06; letter-spacing:-.02em; overflow-wrap:anywhere}
     .sb-rm-switcher{display:block; margin:16px 0 8px}
     .sb-rm-select{width:100%; min-height:46px}
     .sb-rm-control-actions{display:flex; flex-wrap:wrap; gap:10px; margin-top:14px}
@@ -855,22 +905,23 @@
     .sb-rm-mini-value{font-size:30px; font-weight:900; line-height:1.05; margin:8px 0 6px}
     .sb-rm-mini-sub{font-size:12px; color:#cbd5e1}
 
-    .sb-rm-dashboard{display:grid; grid-template-columns:minmax(0, 1.5fr) minmax(300px, .8fr); gap:18px; align-items:start}
+    .sb-rm-dashboard{display:grid; grid-template-columns:minmax(0, 1.56fr) minmax(320px, .78fr); gap:20px; align-items:start}
     .sb-rm-main{display:flex; flex-direction:column; gap:18px}
     .sb-rm-side{display:flex; flex-direction:column; gap:18px; position:sticky; top:18px}
     .sb-rm-sidecard{border-radius:24px}
     .sb-rm-toolbar{align-items:center}
     .sb-rm-search{flex:1}
 
-    .sb-rm-highlights{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px}
+    .sb-rm-highlights{display:grid; grid-template-columns:1.2fr .9fr .9fr; gap:16px}
     .sb-rm-highlight{
-      border-radius:28px; padding:20px; border:1px solid rgba(255,255,255,.10);
+      position:relative; overflow:hidden; border-radius:28px; padding:22px; border:1px solid rgba(255,255,255,.10);
       background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
       box-shadow:0 18px 45px rgba(0,0,0,.18);
     }
+    .sb-rm-highlight::before{content:''; position:absolute; inset:0 0 auto; height:3px; background:linear-gradient(90deg, rgba(96,165,250,.95), rgba(34,211,238,.88)); opacity:.95}
     .sb-rm-highlight-top{display:flex; align-items:center; gap:10px; margin-bottom:12px}
     .sb-rm-highlight-value{font-size:42px; font-weight:900; line-height:1; margin-bottom:8px}
-    .sb-rm-highlight-title{font-size:18px; font-weight:900; margin-bottom:8px}
+    .sb-rm-highlight-title{font-size:18px; font-weight:900; margin-bottom:8px; line-height:1.15; overflow-wrap:anywhere}
     .sb-rm-highlight p{margin:0; color:#cbd5e1; line-height:1.6}
     .sb-rm-metrics{display:flex; flex-wrap:wrap; gap:10px; margin-top:16px}
     .sb-rm-metrics span{
@@ -894,10 +945,12 @@
       border:1px solid rgba(255,255,255,.10);
       box-shadow:0 18px 45px rgba(0,0,0,.20);
     }
-    .sb-rm-ops, .sb-rm-agenda{border-radius:28px; padding:22px}
-    .sb-rm-panel-grid{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:16px}
-    .sb-rm-panel{border-radius:26px; padding:20px}
-    .sb-rm-panel h3, .sb-rm-sidecard h3, .sb-rm-section-head h2{margin:6px 0 6px; font-size:22px}
+    .sb-rm-ops, .sb-rm-agenda{position:relative; overflow:hidden; border-radius:30px; padding:24px}
+    .sb-rm-ops::before, .sb-rm-agenda::before, .sb-rm-sidecard::before, .sb-rm-panel::before{content:''; position:absolute; inset:0 0 auto; height:3px; background:linear-gradient(90deg, rgba(96,165,250,.92), rgba(34,211,238,.82)); opacity:.9}
+    .sb-rm-panel-grid{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:16px; align-items:stretch}
+    .sb-rm-panel{position:relative; overflow:hidden; border-radius:28px; padding:20px 20px 18px}
+    .sb-rm-panel h3, .sb-rm-sidecard h3, .sb-rm-section-head h2, .sb-rm-pulse-card h3{margin:4px 0 0; max-width:100%; font-size:clamp(18px, 2.1vw, 22px); line-height:1.12; letter-spacing:-.02em; overflow-wrap:anywhere; text-wrap:balance}
+    .sb-rm-panel p.muted, .sb-rm-sidecard p.muted, .sb-rm-head-main p.muted{max-width:64ch; overflow-wrap:anywhere}
     .sb-rm-panel-metrics{display:flex; flex-wrap:wrap; gap:10px; margin:16px 0}
     .sb-rm-panel-metrics span{
       display:inline-flex; gap:6px; align-items:center; padding:8px 10px; border-radius:12px;
@@ -913,14 +966,15 @@
       transform:translateY(-1px); border-color:rgba(96,165,250,.32); background:rgba(59,130,246,.08);
     }
 
-    .sb-rm-appgrid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px; margin-top:16px}
+    .sb-rm-appgrid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px; margin-top:18px}
     .sb-rm-appcard{
-      display:flex; flex-direction:column; gap:10px; text-decoration:none; color:inherit; min-height:132px;
-      padding:18px; border-radius:22px; border:1px solid rgba(255,255,255,.10);
+      position:relative; overflow:hidden; display:flex; flex-direction:column; gap:10px; text-decoration:none; color:inherit; min-height:144px;
+      padding:18px; border-radius:24px; border:1px solid rgba(255,255,255,.10);
       background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
       transition:transform .16s ease, border-color .16s ease, background .16s ease;
     }
-    .sb-rm-appcard strong{font-size:16px}
+    .sb-rm-appcard::before{content:''; position:absolute; inset:0 0 auto; height:3px; background:linear-gradient(90deg, rgba(96,165,250,.92), rgba(34,211,238,.84)); opacity:.88}
+    .sb-rm-appcard strong{font-size:16px; line-height:1.16; overflow-wrap:anywhere}
     .sb-rm-appcard span:last-child{color:#cbd5e1; line-height:1.55}
 
     .sb-rm-timeline{display:grid; gap:14px; margin-top:16px}
@@ -934,7 +988,7 @@
     .sb-rm-timehead{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap}
     .sb-rm-timesub{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; font-size:13px}
 
-    .sb-rm-profile-list, .sb-rm-policy-list{display:grid; gap:12px; margin-top:14px}
+    .sb-rm-profile-list, .sb-rm-policy-list{display:grid; gap:12px; margin-top:6px}
     .sb-rm-profile-list div, .sb-rm-policy-row{
       display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0;
       border-bottom:1px solid rgba(255,255,255,.07);
@@ -949,8 +1003,14 @@
     .sb-rm-readiness-head span{color:#9fb0c9}
     .sb-rm-readiness-head strong{font-size:13px}
     .sb-rm-gallery{display:grid; grid-template-columns:1.2fr .8fr .8fr; gap:10px; margin-top:16px}
+    .sb-rm-sidecard{position:relative; overflow:hidden; padding:20px}
     .sb-rm-gallery-item{min-height:86px; border-radius:18px; background-size:cover; background-position:center; border:1px solid rgba(255,255,255,.08); box-shadow:0 12px 28px rgba(0,0,0,.18)}
     .sb-rm-gallery-item.is-large{grid-row:span 2; min-height:184px}
+
+    .sb-rm *{min-width:0}
+    .sb-rm h1, .sb-rm h2, .sb-rm h3, .sb-rm strong, .sb-rm p, .sb-rm span{word-break:normal}
+    .sb-rm h2, .sb-rm h3, .sb-rm-highlight-title, .sb-rm-appcard strong, .sb-rm-control-title{overflow-wrap:anywhere}
+    .sb-rm-stat-pill, .sb-rm-badge{max-width:100%; white-space:normal; text-align:center; justify-content:center}
 
     .sb-compact .sb-rm-highlight, .sb-compact .sb-rm-panel, .sb-compact .sb-rm-sidecard{padding:16px}
     .sb-compact .sb-rm-ops, .sb-compact .sb-rm-agenda{padding:18px}
@@ -962,10 +1022,11 @@
       .sb-rm-side{position:static}
     }
     @media (max-width: 980px){
-      .sb-rm-ribbon, .sb-rm-highlights, .sb-rm-panel-grid, .sb-rm-appgrid{grid-template-columns:1fr 1fr}
+      .sb-rm-storyline, .sb-rm-ribbon, .sb-rm-highlights, .sb-rm-panel-grid, .sb-rm-appgrid{grid-template-columns:1fr 1fr}
       .sb-rm-pulse-grid{grid-template-columns:1fr}
     }
     @media (max-width: 720px){
+      .sb-rm-storyline{grid-template-columns:1fr}
       .sb-rm-hero{border-radius:24px}
       .sb-rm-hero-inner{padding:18px}
       .sb-rm-ribbon{padding:0 18px 18px; grid-template-columns:1fr}
@@ -975,6 +1036,7 @@
       .sb-rm-timeitem{grid-template-columns:58px minmax(0,1fr)}
       .sb-rm-gallery-item.is-large{grid-row:auto; min-height:140px}
       .sb-rm-control-actions, .sb-rm-quick{flex-direction:column; align-items:stretch}
+      .sb-rm-control-top, .sb-rm-panel-top, .sb-rm-section-head, .sb-rm-pulse-card-top{grid-template-columns:1fr}
       .sb-rm-control-actions .btn, .sb-rm-quick .btn{width:100%; justify-content:center}
       .sb-rm-panel-top, .sb-rm-section-head, .sb-rm-control-top{flex-direction:column; align-items:flex-start}
     }
