@@ -860,11 +860,11 @@
     .sb-rm-pulse{position:relative; overflow:hidden; border-radius:30px; padding:24px; background:linear-gradient(180deg, rgba(15,23,42,.88), rgba(2,6,23,.76)); border:1px solid rgba(255,255,255,.10); box-shadow:0 22px 52px rgba(0,0,0,.22)}
     .sb-rm-pulse::before{content:''; position:absolute; top:-80px; right:-40px; width:240px; height:240px; border-radius:999px; background:radial-gradient(circle, rgba(59,130,246,.20), transparent 68%); pointer-events:none}
     .sb-rm-pulse-grid{display:grid; grid-template-columns:1.2fr .9fr .9fr; gap:16px; margin-top:18px}
-    .sb-rm-window-grid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px}
-    .sb-rm-window{padding:16px; border-radius:22px; border:1px solid rgba(255,255,255,.10); background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03)); display:grid; gap:8px; min-height:142px}
-    .sb-rm-window-top{display:flex; align-items:center; justify-content:space-between; gap:10px}
-    .sb-rm-window-name{font-size:13px; text-transform:uppercase; letter-spacing:.12em; font-weight:900; color:#cbd5e1}
-    .sb-rm-window-badge{display:inline-flex; align-items:center; justify-content:center; padding:6px 10px; border-radius:999px; font-size:12px; font-weight:800; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.10)}
+    .sb-rm-window-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(172px,1fr)); gap:12px; align-items:stretch}
+    .sb-rm-window{padding:16px; border-radius:22px; border:1px solid rgba(255,255,255,.10); background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03)); display:grid; gap:10px; min-height:142px; align-content:start; overflow:hidden; min-width:0}
+    .sb-rm-window-top{display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:8px 10px; min-width:0}
+    .sb-rm-window-name{display:block; min-width:0; max-width:100%; font-size:12px; line-height:1.3; text-transform:uppercase; letter-spacing:.08em; font-weight:900; color:#cbd5e1; overflow-wrap:anywhere; word-break:break-word; text-wrap:balance}
+    .sb-rm-window-badge{display:inline-flex; align-items:center; justify-content:center; align-self:start; white-space:nowrap; padding:6px 10px; border-radius:999px; font-size:12px; font-weight:800; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.10)}
     .sb-rm-window strong{font-size:36px; line-height:1; font-weight:900}
     .sb-rm-window p{margin:0; color:#d7e2f4; font-size:14px}
     .sb-rm-pulse-card{padding:18px; border-radius:24px; border:1px solid rgba(255,255,255,.10); background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); display:flex; flex-direction:column; min-height:100%}
@@ -1011,6 +1011,8 @@
     .sb-rm h1, .sb-rm h2, .sb-rm h3, .sb-rm strong, .sb-rm p, .sb-rm span{word-break:normal}
     .sb-rm h2, .sb-rm h3, .sb-rm-highlight-title, .sb-rm-appcard strong, .sb-rm-control-title{overflow-wrap:anywhere}
     .sb-rm-stat-pill, .sb-rm-badge{max-width:100%; white-space:normal; text-align:center; justify-content:center}
+    .sb-rm-window > *{min-width:0}
+    .sb-rm-window-name, .sb-rm-window p{max-width:100%}
 
     .sb-compact .sb-rm-highlight, .sb-compact .sb-rm-panel, .sb-compact .sb-rm-sidecard{padding:16px}
     .sb-compact .sb-rm-ops, .sb-compact .sb-rm-agenda{padding:18px}
