@@ -15,6 +15,20 @@
   const restaurant = it.restaurant || {};
   const reservations = it.reservations || [];
   const sections = it.sections || [];
+  const statuses = it.statuses || [];
+
+  const totalReservations = reservations.length;
+  const totalGuests = reservations.reduce(function(sum, r){ return sum + Number(r && r.people ? r.people : 0); }, 0);
+  const newReservationsCount = reservations.filter(function(r){ return String((r && r.status) || 'new').toLowerCase() === 'new'; }).length;
+  const roomsCount = Array.from(new Set(reservations.map(function(r){ return String((r && r.roomLabel) || '').trim(); }).filter(Boolean))).length;
+  const tablesFlat = [];
+  (sections || []).forEach(function(sec){ (sec && sec.tables ? sec.tables : []).forEach(function(t){ tablesFlat.push(t); }); });
+  const totalTables = tablesFlat.length;
+  const occupiedTables = statuses.filter(function(s){ const st = String((s && s.status) || '').toLowerCase(); return st === 'occupied' || st === 'open'; }).length;
+  const reservedTables = statuses.filter(function(s){ return String((s && s.status) || '').toLowerCase() === 'reserved'; }).length;
+  const dirtyTables = statuses.filter(function(s){ return String((s && s.status) || '').toLowerCase() === 'dirty'; }).length;
+  const emptyTables = Math.max(totalTables - occupiedTables - reservedTables - dirtyTables, 0);
+  const nextReservation = reservations.slice().sort(function(a,b){ return String((a && a.time) || '').localeCompare(String((b && b.time) || '')); })[0] || null;
 
   // Small safe mapping: tableId -> tableNumber (no guest data)
   const __tableIdToNumber = {};
@@ -33,38 +47,105 @@
   });
 %>
 
-<main class="host container">
-  <header class="host-header">
-    <div>
-      <h1><%= tt('host.title', 'Host Screen') %> — <%= restaurant.name %></h1>
-      <p class="muted"><%= restaurant.city %> • <%= restaurant.address %></p>
+<main class="host host-ops container" data-system-now-time="<%= it.systemNowTime || '' %>">
+  <section class="host-shell">
+    <div class="host-hero panel card">
+      <div class="host-hero__content">
+        <div class="host-badge">Host command center</div>
+        <h1><%= tt('host.title', 'Host Screen') %> — <%= restaurant.name %></h1>
+        <p class="muted"><%= restaurant.city %> • <%= restaurant.address %></p>
+      </div>
+      <div class="host-hero__meta">
+        <div class="host-hero-chip">
+          <span class="host-hero-chip__label">Reservations</span>
+          <strong><%= totalReservations %></strong>
+        </div>
+        <div class="host-hero-chip">
+          <span class="host-hero-chip__label">Guests tonight</span>
+          <strong><%= totalGuests %></strong>
+        </div>
+        <div class="host-hero-chip">
+          <span class="host-hero-chip__label">Rooms in use</span>
+          <strong><%= roomsCount %></strong>
+        </div>
+      </div>
     </div>
-    <div class="host-time-card" id="host-time-card">
+
+    <aside class="host-time-card" id="host-time-card">
+      <div class="host-time-card__eyebrow">Restaurant clock</div>
       <div class="host-time-card__clock" id="host-system-time-preview"><%= it.systemNowTime || '' %></div>
-    </div>
-  </header>
+      <div class="host-time-card__date"><%= it.systemNowDate || '' %></div>
+      <div class="host-time-card__inputs">
+        <input id="host-system-date" type="date" value="<%= it.systemNowDate || '' %>" aria-label="Restaurant date">
+        <input id="host-system-time" type="time" value="<%= it.systemNowTime || '' %>" aria-label="Restaurant time">
+      </div>
+      <div class="host-time-card__actions">
+        <button id="host-system-apply-btn" type="button" class="btn primary sm">Apply preview</button>
+        <button id="host-system-now-btn" type="button" class="btn ghost sm">Use real time</button>
+      </div>
+      <p class="host-time-card__status muted small" id="host-system-time-status"><%= tt('host.system_time.help', 'Use preview time to rehearse service flow or switch back to the real clock.') %></p>
+    </aside>
+  </section>
+
+  <section class="host-kpi-grid" aria-label="Service overview">
+    <article class="host-kpi-card card">
+      <span class="host-kpi-card__label">New arrivals</span>
+      <strong><%= newReservationsCount %></strong>
+      <span class="host-kpi-card__hint">Fresh reservations still waiting</span>
+    </article>
+    <article class="host-kpi-card card">
+      <span class="host-kpi-card__label">Next seating</span>
+      <strong><%= nextReservation ? (nextReservation.time || '—') : '—' %></strong>
+      <span class="host-kpi-card__hint"><%= nextReservation ? (nextReservation.name || 'Walk-in') : 'No upcoming reservations' %></span>
+    </article>
+    <article class="host-kpi-card card">
+      <span class="host-kpi-card__label">Occupied tables</span>
+      <strong><%= occupiedTables %>/<%= totalTables %></strong>
+      <span class="host-kpi-card__hint"><%= emptyTables %> tables still available</span>
+    </article>
+    <article class="host-kpi-card card">
+      <span class="host-kpi-card__label">Service coverage</span>
+      <strong><%= totalTables ? Math.round((occupiedTables / totalTables) * 100) : 0 %>%</strong>
+      <span class="host-kpi-card__hint">Live dining room utilization</span>
+    </article>
+  </section>
 
   <section class="host-grid">
-    <!-- עמודת הזמנות -->
-    <div class="panel card">
-      <h2><%= tt('host.reservations_today', "Today's Reservations") %></h2>
+    <div class="panel card host-reservations-panel">
+      <div class="host-panel-head">
+        <div>
+          <h2><%= tt('host.reservations_today', "Today's Reservations") %></h2>
+          <p class="muted small">Queue the right guest fast, then send them to the right table with fewer taps.</p>
+        </div>
+        <div class="host-head-pill"><%= totalReservations %> total</div>
+      </div>
 
       <% if (reservations.length) { %>
-        <div class="host-resv-toolbar">
-          <label class="host-search">
-            <span class="host-search__icon">🔎</span>
-            <input id="host-resv-search" type="search" placeholder="<%= tt('host.search_placeholder', 'Search by guest name…') %>" aria-label="<%= tt('host.search_label', 'Search reservations by guest name') %>">
-          </label>
-          <label class="host-sort">
-            <span class="host-sort__label"><%= tt('host.sort_label', 'Sort by') %></span>
-            <select id="host-resv-sort" aria-label="<%= tt('host.sort_label', 'Sort by') %>">
-              <option value="new_first"><%= tt('host.sort_new_first', 'New first') %></option>
-              <option value="time_asc"><%= tt('host.sort_time', 'Time') %></option>
-              <option value="name_asc"><%= tt('host.sort_name', 'Guest name') %></option>
-              <option value="room_asc"><%= tt('host.sort_room', 'Room') %></option>
-              <option value="party_desc"><%= tt('host.sort_party', 'Party size') %></option>
-            </select>
-          </label>
+        <div class="host-filter-row">
+          <div class="host-filter-chips" role="tablist" aria-label="Reservation filters">
+            <button type="button" class="host-filter-chip is-active" data-host-filter="all">All</button>
+            <button type="button" class="host-filter-chip" data-host-filter="new">New</button>
+            <button type="button" class="host-filter-chip" data-host-filter="soon">Soon</button>
+            <button type="button" class="host-filter-chip" data-host-filter="large">Large party</button>
+            <button type="button" class="host-filter-chip" data-host-filter="room">Assigned room</button>
+          </div>
+
+          <div class="host-resv-toolbar">
+            <label class="host-search">
+              <span class="host-search__icon">🔎</span>
+              <input id="host-resv-search" type="search" placeholder="<%= tt('host.search_placeholder', 'Search by guest name…') %>" aria-label="<%= tt('host.search_label', 'Search reservations by guest name') %>">
+            </label>
+            <label class="host-sort">
+              <span class="host-sort__label"><%= tt('host.sort_label', 'Sort by') %></span>
+              <select id="host-resv-sort" aria-label="<%= tt('host.sort_label', 'Sort by') %>">
+                <option value="new_first"><%= tt('host.sort_new_first', 'New first') %></option>
+                <option value="time_asc"><%= tt('host.sort_time', 'Time') %></option>
+                <option value="name_asc"><%= tt('host.sort_name', 'Guest name') %></option>
+                <option value="room_asc"><%= tt('host.sort_room', 'Room') %></option>
+                <option value="party_desc"><%= tt('host.sort_party', 'Party size') %></option>
+              </select>
+            </label>
+          </div>
         </div>
         <div class="host-resv-summary" id="host-resv-summary"><%= reservations.length %> <%= tt('host.summary_suffix', 'reservations') %></div>
         <ul class="list" id="resv-list">
@@ -115,29 +196,57 @@
       <% } %>
     </div>
 
-    <!-- עמודת מפת מסעדה -->
-    <div class="panel card">
-      <h2><%= tt('host.floor_map_title', 'Restaurant Map (Live)') %></h2>
-      <p class="muted small">
-        <%= tt('host.floor_map_help', 'Select a reservation, choose a table or multiple tables (merge), then click the seat button.') %>
-      </p>
+    <div class="panel card host-map-panel">
+      <div class="host-map-head">
+        <div>
+          <h2><%= tt('host.floor_map_title', 'Restaurant Map (Live)') %></h2>
+          <p class="muted small"><%= tt('host.floor_map_help', 'Select a reservation, choose a table or multiple tables (merge), then click the seat button.') %></p>
+        </div>
+        <div class="host-map-flow" aria-label="Seating steps">
+          <span>1. Pick guest</span>
+          <span>2. Select table</span>
+          <span>3. Confirm seating</span>
+        </div>
+      </div>
+
+      <div class="host-ops-strip">
+        <div class="host-selection-card" id="host-selection-card">
+          <div class="host-selection-card__eyebrow">Current mission</div>
+          <div class="host-selection-card__name" id="host-selected-res-name">No reservation selected</div>
+          <div class="host-selection-card__meta" id="host-selected-res-meta">Choose a reservation from the queue to unlock seating actions.</div>
+          <div class="host-selection-card__targets">
+            <span class="host-target-pill" id="host-selected-target">No table selected</span>
+            <span class="host-target-pill is-soft" id="host-selected-state">Waiting for selection</span>
+          </div>
+        </div>
+
+        <div class="host-map-legend" aria-label="Dining room legend">
+          <span class="host-legend-pill"><i class="host-legend-dot is-empty"></i> Empty</span>
+          <span class="host-legend-pill"><i class="host-legend-dot is-occupied"></i> Occupied</span>
+          <span class="host-legend-pill"><i class="host-legend-dot is-reserved"></i> Reserved</span>
+          <span class="host-legend-pill"><i class="host-legend-dot is-dirty"></i> Dirty</span>
+        </div>
+      </div>
+
       <div
         id="sb-floor-root"
         class="floor-wrapper"
         data-rid="<%= it.rid %>"
         data-click-mode="host"
-      
         data-right-panel="outside"
       ></div>
-      <div class="host-actions">
-        <button id="seat-btn" type="button" class="btn primary sm">
-          <%= tt('host.btn_seat', 'Seat at Selected Table(s)') %>
-        </button>
+
+      <div class="host-actions host-actions--premium">
+        <div class="host-actions__main">
+          <button id="seat-btn" type="button" class="btn primary sm">
+            <%= tt('host.btn_seat', 'Seat at Selected Table(s)') %>
+          </button>
+        </div>
         <div class="host-mini-actions">
           <button id="mark-reserved-btn" type="button" class="btn ghost sm"><%= tt('host.btn_mark_reserved', 'Mark Reserved') %></button>
           <button id="mark-empty-btn" type="button" class="btn ghost sm"><%= tt('host.btn_mark_empty', 'Mark Empty') %></button>
         </div>
-        <p class="muted small"><%= tt('host.merge_hint', 'You can select multiple tables for the same reservation (table merge).') %></p>
+        <p class="muted small" id="host-selection-helper"><%= tt('host.merge_hint', 'You can select multiple tables for the same reservation (table merge).') %></p>
       </div>
     </div>
   </section>
@@ -256,6 +365,165 @@
   const hostResvSort = document.getElementById("host-resv-sort");
   const hostResvSummary = document.getElementById("host-resv-summary");
 
+  const hostRoot = document.querySelector('.host.host-ops');
+  const hostFilterButtons = Array.from(document.querySelectorAll('[data-host-filter]'));
+  const hostSelectedResName = document.getElementById('host-selected-res-name');
+  const hostSelectedResMeta = document.getElementById('host-selected-res-meta');
+  const hostSelectedTarget = document.getElementById('host-selected-target');
+  const hostSelectedState = document.getElementById('host-selected-state');
+  const hostSelectionHelper = document.getElementById('host-selection-helper');
+  const seatBtnDefaultLabel = "<%= tt('host.btn_seat', 'Seat at Selected Table(s)') %>";
+  const seatBtnReadyLabel = "<%= tt('host.btn_seat_ready', 'Seat reservation') %>";
+  const hostDefaultResName = 'No reservation selected';
+  const hostDefaultResMeta = 'Choose a reservation from the queue to unlock seating actions.';
+  const hostDefaultTarget = 'No table selected';
+  const hostDefaultState = 'Waiting for selection';
+  const __HOST_NOW_TIME = ((hostRoot && hostRoot.dataset && hostRoot.dataset.systemNowTime) || '').slice(0,5);
+  let activeReservationFilter = 'all';
+
+
+  function minutesFromHHMM(value) {
+    const m = String(value || '').match(/^(\d{1,2}):(\d{2})/);
+    if (!m) return null;
+    return Number(m[1]) * 60 + Number(m[2]);
+  }
+
+  function matchesReservationFilter(li) {
+    if (!li) return false;
+    if (activeReservationFilter === 'all') return true;
+    const status = String(li.dataset.status || 'new').toLowerCase();
+    const people = Number(li.dataset.people || 0);
+    const room = String(li.dataset.room || '').trim();
+    const itemMinutes = minutesFromHHMM(li.dataset.time || '');
+    const nowMinutes = minutesFromHHMM(__HOST_NOW_TIME);
+
+    if (activeReservationFilter === 'new') return status === 'new';
+    if (activeReservationFilter === 'large') return people >= 6;
+    if (activeReservationFilter === 'room') return !!room;
+    if (activeReservationFilter === 'soon') {
+      if (itemMinutes == null) return false;
+      if (nowMinutes == null) return true;
+      const delta = itemMinutes - nowMinutes;
+      return delta >= 0 && delta <= 90;
+    }
+    return true;
+  }
+
+  function updateFilterButtonsUI() {
+    hostFilterButtons.forEach(function(btn){
+      const isActive = String(btn.dataset.hostFilter || 'all') === activeReservationFilter;
+      btn.classList.toggle('is-active', isActive);
+      btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+  }
+
+  function getSelectedReservationItem() {
+    if (!resvList || !state.selectedResId) return null;
+    return resvList.querySelector('li[data-res-id="' + state.selectedResId + '"]');
+  }
+
+  function updateReservationSelectionStyles() {
+    if (!resvList) return;
+    Array.from(resvList.querySelectorAll('li[data-res-id]')).forEach(function(li){
+      li.classList.toggle('is-active', !!state.selectedResId && li.getAttribute('data-res-id') === String(state.selectedResId));
+    });
+  }
+
+  function getEffectiveSelectedTableNumbers() {
+    const direct = Array.from(state.selectedTables || []).map(Number).filter(function(n){ return Number.isFinite(n) && n > 0; });
+    if (direct.length) return Array.from(new Set(direct)).sort(function(a,b){ return a-b; });
+    const derived = Array.from(state.selectedTableIds || []).map(function(id){ return __SB_TABLE_ID_TO_NUMBER[String(id)]; }).map(Number).filter(function(n){ return Number.isFinite(n) && n > 0; });
+    return Array.from(new Set(derived)).sort(function(a,b){ return a-b; });
+  }
+
+  function getEffectiveSelectedBar() {
+    return (state.selectedBar && state.selectedBar.seatId)
+      ? state.selectedBar
+      : getSelectedBarFromDataset();
+  }
+
+  function updateSeatActionState() {
+    const effectiveBar = getEffectiveSelectedBar();
+    const selectedTables = getEffectiveSelectedTableNumbers();
+    const hasTarget = !!(selectedTables.length || (effectiveBar && effectiveBar.seatId));
+    const hasReservation = !!String(state.selectedResId || '').trim();
+    const ready = hasReservation && hasTarget;
+
+    if (seatBtn) {
+      seatBtn.disabled = !ready;
+      seatBtn.classList.toggle('is-disabled', !ready);
+      if (effectiveBar && effectiveBar.seatId) {
+        seatBtn.textContent = ready ? (seatBtnReadyLabel + ' · Bar') : seatBtnDefaultLabel;
+      } else if (selectedTables.length === 1) {
+        seatBtn.textContent = ready ? (seatBtnReadyLabel + ' · Table ' + selectedTables[0]) : seatBtnDefaultLabel;
+      } else if (selectedTables.length > 1) {
+        seatBtn.textContent = ready ? (seatBtnReadyLabel + ' · ' + selectedTables.length + ' tables') : seatBtnDefaultLabel;
+      } else {
+        seatBtn.textContent = seatBtnDefaultLabel;
+      }
+    }
+
+    const enableStatusActions = !!(selectedTables.length || Array.from(state.selectedTableIds || []).length || (effectiveBar && effectiveBar.tableId));
+    if (markReservedBtn) {
+      markReservedBtn.disabled = !enableStatusActions;
+      markReservedBtn.classList.toggle('is-disabled', !enableStatusActions);
+    }
+    if (markEmptyBtn) {
+      markEmptyBtn.disabled = !enableStatusActions;
+      markEmptyBtn.classList.toggle('is-disabled', !enableStatusActions);
+    }
+
+    if (hostSelectionHelper) {
+      if (!hasReservation && !hasTarget) hostSelectionHelper.textContent = 'Choose a reservation and then pick a table or bar seat.';
+      else if (!hasReservation) hostSelectionHelper.textContent = 'Table selected. Now choose which reservation to seat.';
+      else if (!hasTarget) hostSelectionHelper.textContent = 'Reservation selected. Pick one or more tables on the map.';
+      else hostSelectionHelper.textContent = 'Ready to seat. Review the target and confirm.';
+    }
+  }
+
+  function updateSelectionMission() {
+    const selectedItem = getSelectedReservationItem();
+    const effectiveBar = getEffectiveSelectedBar();
+    const selectedTables = getEffectiveSelectedTableNumbers();
+
+    if (selectedItem) {
+      const guestName = (selectedItem.querySelector('.resv-name') && selectedItem.querySelector('.resv-name').textContent || '').trim() || 'Guest';
+      const parts = [];
+      if (selectedItem.dataset.time) parts.push(selectedItem.dataset.time);
+      if (selectedItem.dataset.people) parts.push(selectedItem.dataset.people + ' guests');
+      if (selectedItem.dataset.room) parts.push('Room ' + selectedItem.dataset.room);
+      if (hostSelectedResName) hostSelectedResName.textContent = guestName;
+      if (hostSelectedResMeta) hostSelectedResMeta.textContent = parts.length ? parts.join(' · ') : hostDefaultResMeta;
+      if (hostSelectedState) hostSelectedState.textContent = hasTargetText();
+    } else {
+      if (hostSelectedResName) hostSelectedResName.textContent = hostDefaultResName;
+      if (hostSelectedResMeta) hostSelectedResMeta.textContent = hostDefaultResMeta;
+      if (hostSelectedState) hostSelectedState.textContent = hostDefaultState;
+    }
+
+    if (effectiveBar && effectiveBar.seatId) {
+      const seatNo = Number(effectiveBar.seatNumber || 0);
+      const cap = Number(effectiveBar.capacity || 0);
+      if (hostSelectedTarget) hostSelectedTarget.textContent = seatNo > 0 ? ('Bar seat ' + seatNo + (cap > 0 ? ' of ' + cap : '')) : 'Bar seating selected';
+    } else if (selectedTables.length === 1) {
+      if (hostSelectedTarget) hostSelectedTarget.textContent = 'Table ' + selectedTables[0];
+    } else if (selectedTables.length > 1) {
+      if (hostSelectedTarget) hostSelectedTarget.textContent = selectedTables.length + ' tables · ' + selectedTables.join(', ');
+    } else {
+      if (hostSelectedTarget) hostSelectedTarget.textContent = hostDefaultTarget;
+    }
+
+    updateReservationSelectionStyles();
+    updateSeatActionState();
+
+    function hasTargetText() {
+      if (effectiveBar && effectiveBar.seatId) return 'Bar seat selected';
+      if (selectedTables.length === 1) return 'Single table selected';
+      if (selectedTables.length > 1) return 'Merge layout selected';
+      return 'Choose seating target';
+    }
+  }
+
   function compareReservations(a, b, mode) {
     const nameA = (a.dataset.name || "");
     const nameB = (b.dataset.name || "");
@@ -289,7 +557,7 @@
 
     items.forEach(function(li){
       const haystack = [li.dataset.name || "", li.dataset.room || "", li.dataset.time || ""].join(" ");
-      const show = !term || haystack.indexOf(term) >= 0;
+      const show = (!term || haystack.indexOf(term) >= 0) && matchesReservationFilter(li);
       li.classList.toggle("is-hidden", !show);
       if (show) visible.push(li);
     });
@@ -302,10 +570,18 @@
         ? "<%= tt('host.summary_suffix_single', 'reservation') %>"
         : "<%= tt('host.summary_suffix', 'reservations') %>");
     }
+    updateFilterButtonsUI();
   }
 
   if (hostResvSearch) hostResvSearch.addEventListener("input", applyReservationFilters);
   if (hostResvSort) hostResvSort.addEventListener("change", applyReservationFilters);
+  hostFilterButtons.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      activeReservationFilter = String(btn.dataset.hostFilter || 'all');
+      applyReservationFilters();
+      updateSelectionMission();
+    });
+  });
 
   // Selection updates from the embedded floor-view app
   const __SB_TABLE_ID_TO_NUMBER = <%= JSON.stringify(__tableIdToNumber) %>;
@@ -346,6 +622,7 @@
         selectedTableIds: Array.from(state.selectedTableIds || []),
         selectedBar: state.selectedBar,
       });
+      updateSelectionMission();
     } catch (e) {
       console.warn("[HOST] selection event error", e);
     }
@@ -487,6 +764,7 @@
       const input = ev.target;
       if (input && input.name === "resv") {
         state.selectedResId = input.value;
+        updateSelectionMission();
       }
     });
 
@@ -553,6 +831,8 @@
           p.textContent = "<%= tt('host.no_reservations', 'No reservations for today at this restaurant.') %>";
           ul.replaceWith(p);
         }
+        applyReservationFilters();
+        updateSelectionMission();
       } catch (e) {
         console.error(e);
         alert("<%= tt('host.err_network_status', 'Network error while updating status.') %>");
@@ -561,6 +841,7 @@
   }
 
   applyReservationFilters();
+  updateSelectionMission();
 
   function getSelectedReservationName(){
     if (!state.selectedResId || !resvList) return "";
@@ -1025,6 +1306,8 @@
       state.selectedBar = null;
       try { window.dispatchEvent(new CustomEvent("sb-floor-clear-selection")); } catch(_e) {}
       closeTableInfoPanel();
+      applyReservationFilters();
+      updateSelectionMission();
 
       alert(
         tables.length === 1
@@ -1056,7 +1339,7 @@
       ids = Array.from(state.selectedTableIds.values());
     }
     if (!ids.length) {
-      alert('<%= tt("host.err_select_table", "რუკაზე მინიმუმ ერთი მაგიდა აირჩიეთ.") %>');
+      alert('<%= tt("host.err_select_table", "Please select at least one table on the map.") %>');
       return;
     }
 
@@ -1075,7 +1358,7 @@
       try { window.dispatchEvent(new Event("sb-floor-refresh")); } catch(_e) {}
     } catch (e) {
       console.error(e);
-      alert('<%= tt("host.err_update_status_prefix", "მაგიდის სტატუსის განახლება ვერ მოხერხდა") %>: ' + (e && e.message ? e.message : "unknown"));
+      alert('<%= tt("host.err_update_status_prefix", "Unable to update table status") %>: ' + (e && e.message ? e.message : "unknown"));
     }
   }
 
@@ -1449,5 +1732,403 @@
     height: min(72vh, 860px);
     /* Do not clip the right-side Table Details panel */
     overflow: visible;
+  }
+</style>
+
+<style>
+  .host.host-ops.container{
+    max-width: 1480px;
+    margin: 24px auto 40px;
+    padding: 0 18px;
+  }
+
+  .host-ops .host-shell{
+    display:grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(320px, .65fr);
+    gap:16px;
+    margin-bottom:16px;
+  }
+
+  .host-ops .host-hero,
+  .host-ops .host-time-card,
+  .host-ops .host-kpi-card,
+  .host-ops .host-reservations-panel,
+  .host-ops .host-map-panel{
+    background:
+      radial-gradient(circle at top right, rgba(59,130,246,.14), transparent 34%),
+      linear-gradient(180deg, rgba(15,23,42,.98), rgba(15,23,42,.88));
+    border:1px solid rgba(148,163,184,.15);
+    box-shadow: 0 24px 60px rgba(2,6,23,.35);
+  }
+
+  .host-ops .host-hero{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:18px;
+    min-height:140px;
+  }
+
+  .host-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:7px 12px;
+    border-radius:999px;
+    border:1px solid rgba(96,165,250,.26);
+    background:rgba(59,130,246,.12);
+    color:#bfdbfe;
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+  }
+
+  .host-hero__content h1{
+    margin:12px 0 8px;
+    font-size:clamp(26px, 3vw, 38px);
+    line-height:1.05;
+  }
+
+  .host-hero__meta{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    justify-content:flex-end;
+  }
+
+  .host-hero-chip,
+  .host-kpi-card{
+    min-width:138px;
+    padding:14px 16px;
+    border-radius:16px;
+    border:1px solid rgba(148,163,184,.15);
+    background:rgba(15,23,42,.66);
+  }
+
+  .host-hero-chip__label,
+  .host-kpi-card__label{
+    display:block;
+    font-size:11px;
+    color:#94a3b8;
+    font-weight:800;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    margin-bottom:6px;
+  }
+
+  .host-hero-chip strong,
+  .host-kpi-card strong{
+    font-size:24px;
+    line-height:1;
+    color:#f8fafc;
+  }
+
+  .host-kpi-card__hint{
+    display:block;
+    margin-top:8px;
+    font-size:12px;
+    color:#94a3b8;
+  }
+
+  .host-ops .host-time-card{
+    min-width:0;
+    padding:18px;
+    border-radius:20px;
+  }
+
+  .host-time-card__date{
+    color:#cbd5e1;
+    font-size:13px;
+    font-weight:700;
+    margin-top:6px;
+  }
+
+  .host-time-card__actions .btn{
+    flex:1 1 0;
+  }
+
+  .host-kpi-grid{
+    display:grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap:14px;
+    margin-bottom:16px;
+  }
+
+  .host-ops .host-grid{
+    display:grid;
+    grid-template-columns:minmax(360px, .8fr) minmax(0, 1.2fr);
+    gap:16px;
+    align-items:start;
+  }
+
+  .host-panel-head,
+  .host-map-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:14px;
+    margin-bottom:12px;
+  }
+
+  .host-panel-head h2,
+  .host-map-head h2{
+    margin:0;
+    font-size:22px;
+  }
+
+  .host-head-pill{
+    display:inline-flex;
+    align-items:center;
+    padding:8px 12px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:800;
+    color:#dbeafe;
+    background:rgba(59,130,246,.16);
+    border:1px solid rgba(59,130,246,.24);
+  }
+
+  .host-filter-row{
+    display:grid;
+    gap:12px;
+    margin-bottom:10px;
+  }
+
+  .host-filter-chips{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+
+  .host-filter-chip{
+    min-height:36px;
+    padding:0 12px;
+    border-radius:999px;
+    border:1px solid rgba(148,163,184,.16);
+    background:rgba(15,23,42,.62);
+    color:#cbd5e1;
+    font-size:12px;
+    font-weight:700;
+    cursor:pointer;
+    transition:all .18s ease;
+  }
+
+  .host-filter-chip.is-active{
+    background:linear-gradient(135deg, rgba(59,130,246,.22), rgba(37,99,235,.32));
+    border-color:rgba(96,165,250,.36);
+    color:#eff6ff;
+    box-shadow:0 8px 24px rgba(37,99,235,.18);
+  }
+
+  .host-resv-toolbar{
+    margin:0;
+  }
+
+  .host-reservations-panel .list{
+    margin-top:10px;
+  }
+
+  .host-reservations-panel .item{
+    border-top:0;
+    padding:0;
+  }
+
+  .host-reservations-panel .reservation-card{
+    padding:12px;
+    margin-bottom:10px;
+    border-radius:18px;
+    border:1px solid rgba(148,163,184,.12);
+    background:rgba(2,6,23,.28);
+    transition:transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+  }
+
+  .host-reservations-panel .reservation-card:hover,
+  .host-reservations-panel .reservation-card.is-active{
+    transform:translateY(-1px);
+    border-color:rgba(96,165,250,.34);
+    box-shadow:0 16px 34px rgba(2,6,23,.26);
+  }
+
+  .host-reservations-panel .reservation-card.is-active{
+    background:linear-gradient(135deg, rgba(59,130,246,.14), rgba(15,23,42,.9));
+  }
+
+  .host-map-flow{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    justify-content:flex-end;
+  }
+
+  .host-map-flow span,
+  .host-legend-pill,
+  .host-target-pill{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    min-height:34px;
+    padding:0 12px;
+    border-radius:999px;
+    border:1px solid rgba(148,163,184,.16);
+    background:rgba(15,23,42,.62);
+    color:#dbeafe;
+    font-size:12px;
+    font-weight:700;
+  }
+
+  .host-ops-strip{
+    display:grid;
+    grid-template-columns:minmax(260px, 1fr) auto;
+    gap:12px;
+    align-items:start;
+    margin-bottom:12px;
+  }
+
+  .host-selection-card{
+    padding:16px;
+    border-radius:18px;
+    border:1px solid rgba(96,165,250,.18);
+    background:linear-gradient(135deg, rgba(30,41,59,.84), rgba(15,23,42,.96));
+  }
+
+  .host-selection-card__eyebrow{
+    font-size:11px;
+    color:#93c5fd;
+    text-transform:uppercase;
+    letter-spacing:.12em;
+    font-weight:800;
+    margin-bottom:8px;
+  }
+
+  .host-selection-card__name{
+    font-size:20px;
+    font-weight:800;
+    color:#f8fafc;
+  }
+
+  .host-selection-card__meta{
+    margin-top:6px;
+    color:#94a3b8;
+    font-size:13px;
+  }
+
+  .host-selection-card__targets{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-top:14px;
+  }
+
+  .host-target-pill.is-soft{
+    background:rgba(148,163,184,.08);
+    color:#cbd5e1;
+  }
+
+  .host-map-legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    justify-content:flex-end;
+  }
+
+  .host-legend-dot{
+    width:10px;
+    height:10px;
+    border-radius:999px;
+    display:inline-block;
+  }
+
+  .host-legend-dot.is-empty{ background:#22c55e; }
+  .host-legend-dot.is-occupied{ background:#ef4444; }
+  .host-legend-dot.is-reserved{ background:#f59e0b; }
+  .host-legend-dot.is-dirty{ background:#a855f7; }
+
+  .host-ops .floor-wrapper{
+    margin-top:0;
+    border-radius:22px;
+    overflow:hidden;
+    border:1px solid rgba(148,163,184,.12);
+    background:rgba(15,23,42,.46);
+  }
+
+  .host-actions--premium{
+    margin-top:14px;
+    flex-direction:row;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+
+  .host-actions__main{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+
+  .host-ops .btn.primary,
+  .host-ops .btn.ghost{
+    min-height:42px;
+    padding:0 16px;
+    border-radius:14px;
+  }
+
+  .host-ops .btn.ghost{
+    background:rgba(15,23,42,.68);
+    border-color:rgba(148,163,184,.14);
+  }
+
+  .host-ops .btn.is-disabled,
+  .host-ops .btn:disabled{
+    opacity:.48;
+    cursor:not-allowed;
+    box-shadow:none;
+  }
+
+  @media (max-width: 1180px){
+    .host-ops .host-shell,
+    .host-ops .host-grid,
+    .host-ops-strip{
+      grid-template-columns:1fr;
+    }
+
+    .host-kpi-grid{
+      grid-template-columns:repeat(2, minmax(0,1fr));
+    }
+
+    .host-map-legend,
+    .host-map-flow,
+    .host-hero__meta{
+      justify-content:flex-start;
+    }
+  }
+
+  @media (max-width: 720px){
+    .host-kpi-grid{
+      grid-template-columns:1fr;
+    }
+
+    .host-ops .host-hero{
+      flex-direction:column;
+    }
+
+    .host-actions--premium,
+    .host-panel-head,
+    .host-map-head{
+      flex-direction:column;
+      align-items:stretch;
+    }
+
+    .host-ops .host-time-card__actions{
+      flex-direction:column;
+    }
+
+    .host-map-flow span,
+    .host-legend-pill,
+    .host-target-pill{
+      width:100%;
+      justify-content:flex-start;
+    }
   }
 </style>

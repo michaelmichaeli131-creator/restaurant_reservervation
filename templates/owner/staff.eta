@@ -14,283 +14,812 @@
 %>
 
 <style>
-  /* Match existing owner pages look (see owner_bills.eta style) */
-  .sb-owner.container{max-width:1100px;margin:20px auto;padding:0 16px}
+  :root{
+    --staff-bg-1: rgba(8,15,32,.92);
+    --staff-bg-2: rgba(14,23,43,.88);
+    --staff-line: rgba(148,163,184,.16);
+    --staff-line-strong: rgba(148,163,184,.26);
+    --staff-soft: rgba(255,255,255,.04);
+    --staff-glow: rgba(59,130,246,.20);
+    --staff-warm: rgba(245,158,11,.18);
+    --staff-green: rgba(34,197,94,.15);
+    --staff-red: rgba(239,68,68,.15);
+    --staff-text: var(--ink,#e8ecf7);
+    --staff-muted: var(--ink-muted,#96a0b5);
+  }
 
-  .card{
-    background: var(--panel,#121622);
-    border:1px solid var(--bd,#222834);
-    border-radius:18px;
-    padding:18px;
+  .sb-owner.container.staff-shell{
+    max-width:1280px;
+    margin:24px auto 34px;
+    padding:0 16px 28px;
+    color:var(--staff-text);
+  }
+
+  .staff-card,
+  .staff-modal .dialog,
+  .staff-audit-panel,
+  .staff-table-shell,
+  .staff-tile,
+  .staff-panel,
+  .staff-person-card,
+  .staff-request-card,
+  .staff-empty,
+  .staff-hero,
+  .restaurant-card{
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01)),
+      linear-gradient(140deg, var(--staff-bg-2), var(--staff-bg-1));
+    border:1px solid var(--staff-line);
+    box-shadow:0 22px 60px rgba(2,6,23,.34);
+  }
+
+  .staff-hero{
+    position:relative;
+    overflow:hidden;
+    border-radius:28px;
+    padding:26px;
     margin-bottom:18px;
-    color: var(--ink,#e6e8ef);
-    box-shadow:0 10px 30px rgba(0,0,0,.35);
   }
-
-  .owner-hd{
-    display:flex;
-    align-items:flex-end;
-    justify-content:space-between;
-    gap:12px;
-    margin-bottom:10px;
-  }
-
-  .owner-hd h1{
-    margin:0;
-    font-size:18px;        /* smaller like other owner pages */
-    line-height:1.2;
-    letter-spacing:.2px;
-  }
-  .owner-hd .muted{
-    color:var(--ink-muted,#9aa3b2);
-    font-size:13px;
-    line-height:1.35;
-    margin-top:6px;
-  }
-
-  .pill-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-start}
-  .pill{
-    display:inline-flex;align-items:center;gap:6px;
-    font-size:12px;
-    padding:6px 10px;
+  .staff-hero::before,
+  .staff-hero::after{
+    content:"";
+    position:absolute;
     border-radius:999px;
-    border:1px solid rgba(148,163,184,.25);
-    background:rgba(15,23,42,.55);
-    color:var(--ink,#e6e8ef);
+    filter:blur(8px);
+    pointer-events:none;
   }
-  .pill b{font-weight:700}
+  .staff-hero::before{
+    width:240px;height:240px;
+    inset-inline-end:-54px;
+    inset-block-start:-64px;
+    background:radial-gradient(circle, rgba(59,130,246,.28), transparent 72%);
+  }
+  .staff-hero::after{
+    width:220px;height:220px;
+    inset-inline-start:-40px;
+    inset-block-end:-120px;
+    background:radial-gradient(circle, rgba(245,158,11,.18), transparent 72%);
+  }
 
-  .grid{
+  .staff-hero-top{
+    position:relative;
+    z-index:1;
     display:grid;
-    grid-template-columns: 1.1fr .9fr;
-    gap:14px;
-    margin-top:14px;
+    grid-template-columns:minmax(0,1.35fr) minmax(310px,.9fr);
+    gap:18px;
+    align-items:start;
   }
   @media (max-width: 980px){
-    .grid{grid-template-columns:1fr}
+    .staff-hero-top{grid-template-columns:1fr}
   }
 
-  .section-title{
-    display:flex;align-items:baseline;justify-content:space-between;
-    gap:12px;margin:0 0 8px 0;
-  }
-  .section-title h2{
-    margin:0;
-    font-size:14px;
-    letter-spacing:.2px;
-  }
-  .section-title .muted{font-size:12px;color:var(--ink-muted,#9aa3b2)}
-
-  .table-wrap{
-    overflow:auto;
-    border-radius:14px;
+  .hero-eyebrow{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:7px 12px;
+    border-radius:999px;
+    background:rgba(15,23,42,.56);
     border:1px solid rgba(148,163,184,.22);
-    background:rgba(15,23,42,.35);
+    color:#c7d2fe;
+    font-size:12px;
+    letter-spacing:.28px;
+    text-transform:uppercase;
+    margin-bottom:14px;
   }
 
-  table{
-    width:100%;
-    border-collapse:collapse;
-    font-size:13px; /* compact */
+  .staff-hero h1{
+    margin:0;
+    font-size:clamp(28px, 4vw, 40px);
+    line-height:1.04;
+    letter-spacing:-.03em;
   }
-  thead tr{background:rgba(15,23,42,.85)}
-  th, td{
-    padding:8px 10px;
-    text-align:right;
-    border-bottom:1px solid rgba(148,163,184,.18);
-    vertical-align:top;
-    white-space:nowrap;
+
+  .hero-copy{
+    margin-top:12px;
+    max-width:720px;
+    color:var(--staff-muted);
+    font-size:15px;
+    line-height:1.65;
   }
-  tbody tr:hover{background:rgba(59,130,246,.08)}
 
-  .actions{white-space:nowrap}
-  .actions .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .hero-pills,
+  .staff-toolbar,
+  .staff-actions-row,
+  .restaurant-pills,
+  .person-pills,
+  .request-pills,
+  .card-actions,
+  .modal-top-actions,
+  .audit-actions{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    align-items:center;
+  }
 
-  /* Cards for approved staff */
-  .cards{
+  .hero-pills{margin-top:16px}
+
+  .staff-pill,
+  .staff-chip,
+  .staff-filter,
+  .staff-tag,
+  .staff-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 12px;
+    border-radius:999px;
+    font-size:12px;
+    color:var(--staff-text);
+    border:1px solid rgba(148,163,184,.22);
+    background:rgba(15,23,42,.50);
+  }
+
+  .staff-pill b,
+  .staff-chip b,
+  .staff-tag b,
+  .staff-badge b{font-weight:800}
+
+  .hero-aside{
+    position:relative;
+    z-index:1;
     display:grid;
-    grid-template-columns:1fr;
+    gap:14px;
+  }
+
+  .staff-focus-card{
+    border-radius:22px;
+    padding:18px;
+    background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)), rgba(2,6,23,.26);
+    border:1px solid rgba(148,163,184,.18);
+  }
+
+  .focus-heading{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    align-items:start;
+  }
+  .focus-heading h2,
+  .focus-heading h3{
+    margin:0;
+    font-size:15px;
+    line-height:1.25;
+  }
+  .focus-heading p,
+  .staff-section-note,
+  .muted,
+  .staff-muted{
+    margin:6px 0 0;
+    color:var(--staff-muted);
+    font-size:12.5px;
+    line-height:1.55;
+  }
+
+  .hero-actions{
+    display:flex;
+    justify-content:flex-end;
+    align-items:flex-start;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  @media (max-width: 980px){
+    .hero-actions{justify-content:flex-start}
+  }
+
+  .staff-stats{
+    position:relative;
+    z-index:1;
+    display:grid;
+    grid-template-columns:repeat(4, minmax(0,1fr));
+    gap:14px;
+    margin-top:20px;
+  }
+  @media (max-width: 1080px){
+    .staff-stats{grid-template-columns:repeat(2, minmax(0,1fr));}
+  }
+  @media (max-width: 620px){
+    .staff-stats{grid-template-columns:1fr;}
+  }
+
+  .staff-stat{
+    padding:18px 18px 16px;
+    border-radius:22px;
+    background:rgba(15,23,42,.42);
+    border:1px solid rgba(148,163,184,.17);
+  }
+  .staff-stat-label{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    font-size:12px;
+    color:#c7d2fe;
+    text-transform:uppercase;
+    letter-spacing:.18em;
+  }
+  .staff-stat-value{
+    font-size:34px;
+    font-weight:800;
+    letter-spacing:-.04em;
+    margin-top:10px;
+  }
+  .staff-stat-sub{
+    margin-top:8px;
+    color:var(--staff-muted);
+    font-size:12.5px;
+    line-height:1.5;
+  }
+
+  .staff-toolbar{
+    position:relative;
+    z-index:1;
+    justify-content:space-between;
+    gap:14px;
+    margin-top:18px;
+    padding-top:18px;
+    border-top:1px solid rgba(148,163,184,.12);
+  }
+  @media (max-width: 900px){
+    .staff-toolbar{align-items:stretch}
+  }
+
+  .staff-search{
+    position:relative;
+    min-width:min(520px, 100%);
+    flex:1 1 420px;
+  }
+  .staff-search input{
+    width:100%;
+    min-height:48px;
+    padding:12px 16px 12px 46px;
+    border-radius:16px;
+    border:1px solid rgba(148,163,184,.18);
+    background:rgba(15,23,42,.62);
+    color:var(--staff-text);
+    outline:none;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .staff-search input:focus{
+    border-color:rgba(96,165,250,.38);
+    box-shadow:0 0 0 4px rgba(59,130,246,.10);
+  }
+  .staff-search .icon{
+    position:absolute;
+    inset-inline-start:16px;
+    top:50%;
+    transform:translateY(-50%);
+    pointer-events:none;
+    opacity:.75;
+  }
+
+  .staff-filter-group{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
+  @media (max-width: 900px){
+    .staff-filter-group{justify-content:flex-start}
+  }
+
+  .staff-filter{
+    cursor:pointer;
+    transition:transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+    user-select:none;
+  }
+  .staff-filter.is-active{
+    border-color:rgba(96,165,250,.42);
+    background:rgba(59,130,246,.14);
+    box-shadow:0 10px 24px rgba(59,130,246,.16);
+  }
+  .staff-filter:hover{transform:translateY(-1px)}
+
+  .staff-page-note{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    align-items:center;
+    margin:16px 2px 18px;
+    color:var(--staff-muted);
+    font-size:12.5px;
+  }
+  @media (max-width: 780px){
+    .staff-page-note{flex-direction:column; align-items:flex-start}
+  }
+
+  .restaurant-stack{
+    display:grid;
+    gap:20px;
+  }
+
+  .restaurant-card{
+    border-radius:28px;
+    padding:22px;
+    overflow:hidden;
+  }
+
+  .restaurant-top{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:16px;
+    align-items:start;
+    margin-bottom:16px;
+  }
+  @media (max-width: 980px){
+    .restaurant-top{grid-template-columns:1fr}
+  }
+
+  .restaurant-kicker{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:7px 12px;
+    border-radius:999px;
+    background:rgba(96,165,250,.14);
+    border:1px solid rgba(96,165,250,.22);
+    color:#dbeafe;
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:.18em;
+  }
+
+  .restaurant-title{
+    margin:12px 0 0;
+    font-size:26px;
+    line-height:1.08;
+    letter-spacing:-.03em;
+  }
+  .restaurant-sub{
+    margin:10px 0 0;
+    color:var(--staff-muted);
+    font-size:13.5px;
+    line-height:1.6;
+  }
+
+  .restaurant-pills{
+    justify-content:flex-end;
+  }
+  @media (max-width: 980px){
+    .restaurant-pills{justify-content:flex-start}
+  }
+
+  .restaurant-glance{
+    display:grid;
+    grid-template-columns:repeat(4, minmax(0,1fr));
+    gap:12px;
+    margin-bottom:18px;
+  }
+  @media (max-width: 1000px){
+    .restaurant-glance{grid-template-columns:repeat(2, minmax(0,1fr));}
+  }
+  @media (max-width: 620px){
+    .restaurant-glance{grid-template-columns:1fr;}
+  }
+
+  .glance-card{
+    border-radius:20px;
+    padding:16px;
+    border:1px solid rgba(148,163,184,.16);
+    background:rgba(15,23,42,.44);
+  }
+  .glance-card .label{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.18em;
+    color:#c7d2fe;
+  }
+  .glance-card .value{
+    margin-top:10px;
+    font-size:28px;
+    font-weight:800;
+    letter-spacing:-.04em;
+  }
+  .glance-card .desc{
+    margin-top:6px;
+    color:var(--staff-muted);
+    font-size:12.5px;
+    line-height:1.5;
+  }
+
+  .staff-board{
+    display:grid;
+    grid-template-columns:380px minmax(0,1fr);
+    gap:16px;
+  }
+  @media (max-width: 1100px){
+    .staff-board{grid-template-columns:1fr}
+  }
+
+  .staff-panel{
+    border-radius:24px;
+    padding:18px;
+    background:rgba(2,6,23,.22);
+    border:1px solid rgba(148,163,184,.14);
+  }
+
+  .panel-heading{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:12px;
+    margin-bottom:14px;
+  }
+  .panel-heading h3{
+    margin:0;
+    font-size:16px;
+    line-height:1.2;
+  }
+
+  .panel-count{
+    min-width:48px;
+    height:34px;
+    padding:0 12px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:999px;
+    background:rgba(15,23,42,.62);
+    border:1px solid rgba(148,163,184,.18);
+    font-weight:700;
+    font-size:12px;
+  }
+
+  .request-list,
+  .person-grid{
+    display:grid;
     gap:12px;
   }
-  .staff-card{
-    border-radius:16px;
-    border:1px solid rgba(148,163,184,.22);
-    background:rgba(15,23,42,.35);
-    padding:14px;
+
+  .staff-request-card,
+  .staff-person-card{
+    border-radius:20px;
+    padding:16px;
+    border:1px solid rgba(148,163,184,.14);
+    background:rgba(15,23,42,.34);
   }
-  .staff-hd{
+
+  .request-top,
+  .person-top{
     display:flex;
     justify-content:space-between;
     gap:12px;
     align-items:flex-start;
-    margin-bottom:10px;
   }
-  .staff-name{
-    margin:0;
-    font-size:14px;
+
+  .request-name,
+  .person-name{
     display:flex;
-    align-items:center;
-    gap:10px;
+    gap:12px;
+    align-items:flex-start;
   }
+
   .avatar{
-    width:28px;height:28px;border-radius:10px;
-    display:inline-flex;align-items:center;justify-content:center;
-    background:linear-gradient(135deg, rgba(245,158,11,.25), rgba(59,130,246,.18));
-    border:1px solid rgba(148,163,184,.22);
-    font-weight:700;
-    font-size:12px;
-    color:var(--ink,#e6e8ef);
+    width:42px;
+    height:42px;
+    border-radius:14px;
+    flex:0 0 42px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    background:linear-gradient(135deg, rgba(245,158,11,.26), rgba(59,130,246,.20));
+    border:1px solid rgba(148,163,184,.20);
+    color:#f8fafc;
+    font-weight:800;
+    font-size:13px;
+    letter-spacing:.08em;
   }
-  .staff-meta{
-    display:flex;
-    gap:8px;
-    flex-wrap:wrap;
+
+  .person-title,
+  .request-title{
+    margin:0;
+    font-size:15px;
+    line-height:1.28;
+  }
+
+  .request-sub,
+  .person-sub{
+    margin-top:4px;
+    color:var(--staff-muted);
+    font-size:12.5px;
+    line-height:1.5;
+    word-break:break-word;
+  }
+
+  .person-grid{
+    grid-template-columns:repeat(2, minmax(0,1fr));
+  }
+  @media (max-width: 800px){
+    .person-grid{grid-template-columns:1fr}
+  }
+
+  .staff-chip.active{
+    border-color:rgba(34,197,94,.28);
+    background:rgba(34,197,94,.12);
+    color:#dcfce7;
+  }
+  .staff-chip.inactive{
+    border-color:rgba(239,68,68,.30);
+    background:rgba(239,68,68,.12);
+    color:#fee2e2;
+  }
+  .staff-chip.pending{
+    border-color:rgba(245,158,11,.28);
+    background:rgba(245,158,11,.12);
+    color:#fef3c7;
+  }
+  .staff-chip.role{
+    border-color:rgba(96,165,250,.28);
+    background:rgba(59,130,246,.10);
+    color:#dbeafe;
+  }
+
+  .person-pills,
+  .request-pills{
+    margin-top:12px;
+  }
+
+  .person-meta,
+  .request-meta{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0,1fr));
+    gap:10px;
+    margin-top:14px;
+  }
+  @media (max-width: 520px){
+    .person-meta,
+    .request-meta{grid-template-columns:1fr}
+  }
+
+  .meta-box{
+    min-height:60px;
+    border-radius:16px;
+    padding:12px 13px;
+    background:rgba(2,6,23,.26);
+    border:1px solid rgba(148,163,184,.12);
+  }
+  .meta-box .k{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.14em;
+    color:#c7d2fe;
+  }
+  .meta-box .v{
+    margin-top:8px;
+    font-size:13px;
+    line-height:1.45;
+    color:var(--staff-text);
+    word-break:break-word;
+  }
+
+  .card-actions{
+    margin-top:16px;
     justify-content:flex-end;
-    align-items:center;
   }
-  .tag{
-    font-size:12px;
-    padding:5px 9px;
-    border-radius:999px;
-    border:1px solid rgba(148,163,184,.22);
-    background:rgba(15,23,42,.65);
-    color:var(--ink,#e6e8ef);
+  .card-actions form{margin:0}
+
+  .btn.sm.compact{
+    min-height:38px;
+    padding-inline:14px;
   }
 
-  /* Minimal rows under staff */
-  .staff-mini{
-    display:flex;
-    gap:8px;
-    flex-wrap:wrap;
-    align-items:center;
-    justify-content:flex-start;
-    margin-top:10px;
-  }
-  .staff-mini .muted{color:var(--ink-muted,#9aa3b2);font-size:12px}
-  .staff-actions{
-    display:flex;
-    gap:8px;
-    flex-wrap:wrap;
-    justify-content:flex-end;
-    align-items:center;
-    margin-top:10px;
-  }
-
-  /* Empty state */
-  .empty{
-    text-align:center;
-    padding:26px 16px;
-  }
-  .empty .icon{font-size:28px;margin-bottom:8px}
-  .empty h2{margin:0 0 6px 0;font-size:16px}
-  .empty p{margin:0 0 14px 0;color:var(--ink-muted,#9aa3b2);font-size:13px}
-
-  /* Modal */
-  .sb-modal{
-    position:fixed; inset:0;
-    display:flex; align-items:center; justify-content:center;
-    background:rgba(0,0,0,.55);
-    padding:18px;
-    z-index:1000;
-  }
-  .sb-modal.hidden{display:none}
-  .sb-modal .dialog{
-    width:min(720px, 100%);
-    background: var(--panel,#121622);
-    border:1px solid var(--bd,#222834);
+  .staff-empty{
     border-radius:18px;
-    box-shadow:0 18px 60px rgba(0,0,0,.55);
-    color: var(--ink,#e6e8ef);
+    padding:24px 18px;
+    text-align:center;
+    border:1px dashed rgba(148,163,184,.18);
+    background:rgba(15,23,42,.26);
+  }
+  .staff-empty .icon{
+    font-size:28px;
+    margin-bottom:8px;
+  }
+  .staff-empty h4,
+  .staff-empty h3{
+    margin:0;
+    font-size:16px;
+  }
+  .staff-empty p{
+    margin:8px auto 0;
+    max-width:480px;
+    color:var(--staff-muted);
+    font-size:13px;
+    line-height:1.6;
+  }
+
+  .staff-hidden{display:none !important}
+
+  .staff-modal{
+    position:fixed;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+    background:rgba(2,6,23,.72);
+    backdrop-filter:blur(10px);
+    z-index:1100;
+  }
+  .staff-modal.hidden{display:none}
+  .staff-modal .dialog{
+    width:min(860px, 100%);
+    border-radius:24px;
     overflow:hidden;
   }
-  .sb-modal .dialog-hd{
-    padding:16px 18px;
+  .staff-modal .dialog-hd{
+    padding:18px 20px;
     display:flex;
     justify-content:space-between;
-    gap:12px;
-    align-items:center;
+    gap:14px;
+    align-items:flex-start;
     border-bottom:1px solid rgba(148,163,184,.12);
   }
-  .sb-modal .dialog-bd{padding:16px 18px}
-  .sb-modal .dialog-ft{
-    padding:14px 18px;
+  .staff-modal .dialog-bd{padding:20px}
+  .staff-modal .dialog-ft{
+    padding:16px 20px;
     display:flex;
     justify-content:flex-end;
     gap:10px;
     border-top:1px solid rgba(148,163,184,.12);
-    background:rgba(2,6,23,.18);
+    background:rgba(2,6,23,.22);
   }
-  .form-grid{
-    display:grid;
-    grid-template-columns: 1fr 1fr;
-    gap:12px;
-    margin-top:10px;
+  .staff-modal-title{
+    margin:0;
+    font-size:19px;
+    line-height:1.2;
   }
-  .form-grid .full{grid-column:1 / -1}
-  .field label{
-    display:block;
-    font-size:12px;
-    color:var(--ink-muted,#9aa3b2);
-    margin-bottom:6px;
-  }
-  .field input, .field select{
-    width:100%;
-    padding:10px 12px;
-    border-radius:12px;
-    border:1px solid rgba(148,163,184,.18);
-    background:rgba(2,6,23,.30);
-    color:var(--ink,#e6e8ef);
-    outline:none;
-  }
-  .hint{font-size:12px;color:var(--ink-muted,#9aa3b2);margin-top:6px}
-  .errbox{
-    display:none;
-    margin-top:10px;
-    padding:10px 12px;
-    border-radius:12px;
-    border:1px solid rgba(239,68,68,.35);
-    background:rgba(239,68,68,.08);
-    color:#fecaca;
+  .staff-modal-sub{
+    margin-top:7px;
+    color:var(--staff-muted);
     font-size:13px;
-  }
-  .alert.err{
-    margin-top:10px;
-    padding:10px 12px;
-    border-radius:12px;
-    border:1px solid rgba(239,68,68,.35);
-    background:rgba(239,68,68,.08);
-    color:#fecaca;
-    font-size:13px;
+    line-height:1.55;
+    max-width:620px;
   }
 
-  /* Permissions (still used only in Create modal) */
+  .dialog-panel{
+    border-radius:18px;
+    padding:16px;
+    border:1px solid rgba(148,163,184,.14);
+    background:rgba(15,23,42,.30);
+    margin-bottom:16px;
+  }
+  .dialog-panel:last-child{margin-bottom:0}
+
+  .form-grid{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0,1fr));
+    gap:14px;
+  }
+  @media (max-width: 720px){
+    .form-grid{grid-template-columns:1fr}
+  }
+  .form-grid .full{grid-column:1 / -1}
+
+  .field label{
+    display:block;
+    margin-bottom:8px;
+    font-size:12px;
+    font-weight:600;
+    color:#c7d2fe;
+    text-transform:uppercase;
+    letter-spacing:.12em;
+  }
+  .field input,
+  .field select{
+    width:100%;
+    min-height:48px;
+    border-radius:14px;
+    border:1px solid rgba(148,163,184,.18);
+    background:rgba(2,6,23,.34);
+    color:var(--staff-text);
+    padding:12px 14px;
+    outline:none;
+  }
+  .field input:focus,
+  .field select:focus{
+    border-color:rgba(96,165,250,.38);
+    box-shadow:0 0 0 4px rgba(59,130,246,.10);
+  }
+
+  .inline-actions{
+    display:flex;
+    gap:10px;
+    align-items:center;
+  }
+  .inline-actions .field-input-grow{flex:1 1 auto}
+
+  .hint{
+    margin-top:8px;
+    color:var(--staff-muted);
+    font-size:12.5px;
+    line-height:1.55;
+  }
+
+  .errbox,
+  .alert.err{
+    display:none;
+    margin-top:12px;
+    padding:12px 14px;
+    border-radius:14px;
+    border:1px solid rgba(239,68,68,.35);
+    background:rgba(239,68,68,.10);
+    color:#fecaca;
+    font-size:13px;
+    line-height:1.5;
+  }
+  .alert.err:not(.hidden){display:block}
+  .errbox:not(:empty){display:block}
+
+  .perm-panel{margin-top:6px}
   .perm-grid{
     display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:8px 10px;
+    grid-template-columns:repeat(2, minmax(0,1fr));
+    gap:10px;
   }
-  @media (max-width: 680px){
+  @media (max-width: 760px){
     .perm-grid{grid-template-columns:1fr}
   }
   .perm-item{
     display:flex;
     gap:10px;
     align-items:flex-start;
-    padding:8px 10px;
-    border-radius:12px;
-    border:1px solid rgba(148,163,184,.16);
-    background:rgba(2,6,23,.25);
+    border-radius:16px;
+    border:1px solid rgba(148,163,184,.14);
+    background:rgba(2,6,23,.24);
+    padding:12px;
   }
   .perm-item input{margin-top:2px}
-  .perm-item strong{font-size:12.5px}
-  .perm-panel{margin-top:10px}
+  .perm-item strong{font-size:13px}
+
+  .staff-audit-panel{
+    border-radius:20px;
+    overflow:hidden;
+    margin-top:14px;
+  }
+  .staff-audit-head{
+    padding:14px 16px;
+    border-bottom:1px solid rgba(148,163,184,.14);
+    font-weight:800;
+  }
+  .audit-list{padding:10px 16px}
+  .audit-event{
+    padding:12px 0;
+    border-bottom:1px solid rgba(148,163,184,.12);
+  }
+  .audit-event:last-child{border-bottom:none}
+  .audit-event-head{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:baseline;
+  }
+  .audit-event-meta{
+    margin-top:8px;
+    color:var(--staff-muted);
+    font-size:12px;
+    line-height:1.55;
+    white-space:pre-wrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  }
+
+  @media (max-width: 520px){
+    .staff-hero,
+    .restaurant-card{padding:18px}
+    .staff-modal .dialog-bd,
+    .staff-modal .dialog-ft,
+    .staff-modal .dialog-hd{padding-inline:16px}
+    .card-actions{justify-content:stretch}
+    .card-actions > *{flex:1 1 100%}
+    .card-actions .btn,
+    .card-actions a.btn{width:100%; justify-content:center}
+  }
 </style>
 
 <%
   const owner = it.owner;
   const restaurantsData = it.restaurantsData || [];
   const allPermissions = it.allPermissions || [];
-
   const staffRoleOptions = it.staffRoleOptions || [];
 
   const restaurantOptions = (Array.isArray(restaurantsData) ? restaurantsData : [])
@@ -299,19 +828,20 @@
 
   const locale = (String(it.lang||'en').startsWith('ka') ? 'ka-GE' : (String(it.lang||'en').startsWith('he') ? 'he-IL' : 'en-US'));
   const permLabels = {
-    "pos.waiter": "POS — მიმტანი (შეკვეთები და მაგიდების მომსახურება)",
-    "pos.kitchen": "POS — სამზარეულო (სამზარეულოს/ბარის შეკვეთების ეკრანი)",
-    "host.seating": "ჰოსტი — სტუმრების განთავსება და დარბაზის მართვა",
-    "reservations.view": "რესტორნის ჯავშნების ნახვა",
-    "reservations.manage": "ჯავშნების მართვა (დადასტურება/გაუქმება/განახლება)",
-    "floor.view": "მაგიდების რუკის ნახვა",
-    "floor.edit": "მაგიდების რუკის რედაქტირება",
-    "shifts.view": "ცვლების ნახვა",
-    "shifts.manage": "ცვლების მართვა (გეგმვა, შეცვლა, გაუქმება)",
-    "inventory.view": "მარაგისა და ინგრედიენტების ნახვა",
-    "inventory.manage": "მარაგის მართვა (განახლება, შეკვეთები, კორექტირება)",
-    "reports.view": "ანგარიშების ნახვა (გაყიდვები, დატვირთვა და სხვა)",
-    "menu.manage": "მენიუს მართვა (კერძები, ფასები, ხელმისაწვდომობა)"
+    "pos.waiter": "POS — waiter service and table handling",
+    "pos.kitchen": "POS — kitchen or bar order screen",
+    "host.seating": "Host — seating and dining room control",
+    "reservations.view": "View restaurant reservations",
+    "reservations.manage": "Manage reservations and updates",
+    "floor.view": "View floor map",
+    "floor.edit": "Edit floor map",
+    "shifts.view": "View shifts",
+    "shifts.manage": "Plan and manage shifts",
+    "inventory.view": "View stock and ingredients",
+    "inventory.manage": "Manage stock, orders and corrections",
+    "reports.view": "View reports and analytics",
+    "menu.manage": "Manage menu items and availability",
+    "time.clock": "Clock in and clock out"
   };
 
   function escAttr(s){
@@ -340,354 +870,589 @@
   it.__roleOptsHtml = __roleOpts.join("");
 
   it.__auditOptsHtml = it.__restOptsHtml;
-
   it.__permsSafe = Array.isArray(allPermissions)
     ? allPermissions
     : (typeof allPermissions === "string"
         ? allPermissions.split(",").map((s)=>s.trim()).filter(Boolean)
         : []);
+
+  const totals = { restaurants: 0, approved: 0, pending: 0, active: 0, inactive: 0, managers: 0 };
+  const topRoles = {};
+  for (const block of (restaurantsData || [])) {
+    const staff = Array.isArray(block?.staff) ? block.staff : [];
+    const pending = Array.isArray(block?.pending) ? block.pending : [];
+    totals.restaurants += 1;
+    totals.approved += staff.length;
+    totals.pending += pending.length;
+    for (const s of staff) {
+      if (s?.status === 'inactive') totals.inactive += 1; else totals.active += 1;
+      if (String(s?.role || '').toLowerCase() === 'manager') totals.managers += 1;
+      const roleKey = String(s?.role || 'staff');
+      topRoles[roleKey] = (topRoles[roleKey] || 0) + 1;
+    }
+  }
+  const sortedRoles = Object.entries(topRoles).sort((a,b)=> b[1]-a[1]);
+  const leadRole = sortedRoles[0] || null;
 %>
 
-<div class="sb-owner container">
-  <div class="card">
-    <div class="owner-hd">
+<div class="sb-owner container staff-shell">
+  <section class="staff-hero">
+    <div class="staff-hero-top">
       <div>
-        <h1>👥 <%= tt('owner.staff.manage_title', 'თანამშრომლების მართვა') %></h1>
-        <div class="muted">
-          <%= tt('owner.staff.list_hint', 'თანამშრომლების მოკლე სია. უფლებებისა და დამატებითი დეტალების სამართავად გახსენით თანამშრომლის გვერდი.') %>
+        <div class="hero-eyebrow">👥 <%= tt('owner.staff.hero.kicker', 'Team operations cockpit') %></div>
+        <h1><%= tt('owner.staff.manage_title', 'Manage restaurant staff') %></h1>
+        <div class="hero-copy">
+          <%= tt('owner.staff.hero.copy', 'Approve new team members, spot inactive accounts, open reset links fast, and keep every restaurant staffed with much clearer operational visibility.') %>
+        </div>
+
+        <div class="hero-pills">
+          <span class="staff-pill">🏷️ <span><%= tt('owner.staff.owner_label', 'Owner') %>: <b><%= owner?.firstName %> <%= owner?.lastName %></b></span></span>
+          <span class="staff-pill">✉️ <span><%= tt('owner.staff.email_label', 'Email') %>: <b><%= owner?.email %></b></span></span>
+          <% if (leadRole) { %>
+            <span class="staff-pill">📌 <span><%= tt('owner.staff.hero.top_role', 'Most common role') %>: <b><%= leadRole[0] %></b> · <%= leadRole[1] %></span></span>
+          <% } %>
         </div>
       </div>
-      <div class="pill-row">
-        <button type="button" class="btn sm" id="btnOpenCreateStaff"><%= tt('owner.staff.btn_add', '➕ თანამშრომლის დამატება') %></button>
-        <button type="button" class="btn sm ghost" id="btnOpenAudit">🧾 <%= tt('owner.staff.btn_audit', 'ქმედებების ჟურნალი') %></button>
-        <span class="pill"><%= tt('owner.staff.owner_label', 'მფლობელი') %>: <b><%= owner?.firstName %> <%= owner?.lastName %></b></span>
-        <span class="pill"><%= tt('owner.staff.email_label', 'ელ-ფოსტა') %>: <b><%= owner?.email %></b></span>
+
+      <div class="hero-aside">
+        <div class="hero-actions">
+          <button type="button" class="btn" id="btnOpenCreateStaff">➕ <%= tt('owner.staff.btn_add', 'Add team member') %></button>
+          <button type="button" class="btn ghost" id="btnOpenAudit">🧾 <%= tt('owner.staff.btn_audit', 'Open activity log') %></button>
+        </div>
+
+        <div class="staff-focus-card">
+          <div class="focus-heading">
+            <div>
+              <h2><%= tt('owner.staff.hero.focus_title', 'Today’s staffing focus') %></h2>
+              <p><%= tt('owner.staff.hero.focus_copy', 'Use the filters to review approvals, inactive accounts, or a specific teammate across all restaurants in one view.') %></p>
+            </div>
+            <span class="staff-badge"><b><%= totals.pending %></b> <%= tt('owner.staff.hero.pending_badge', 'awaiting action') %></span>
+          </div>
+          <div class="hero-pills" style="margin-top:14px">
+            <span class="staff-chip active">✅ <b><%= totals.active %></b> <%= tt('owner.staff.status_active', 'Active') %></span>
+            <span class="staff-chip inactive">⏸ <b><%= totals.inactive %></b> <%= tt('owner.staff.status_inactive', 'Inactive') %></span>
+            <span class="staff-chip pending">🕒 <b><%= totals.pending %></b> <%= tt('owner.staff.pending_title', 'Pending approvals') %></span>
+          </div>
+        </div>
       </div>
     </div>
+
+    <div class="staff-stats">
+      <div class="staff-stat">
+        <div class="staff-stat-label"><span><%= tt('owner.staff.stat.restaurants', 'Restaurants') %></span><span>🏪</span></div>
+        <div class="staff-stat-value"><%= totals.restaurants %></div>
+        <div class="staff-stat-sub"><%= tt('owner.staff.stat.restaurants_sub', 'Operational locations currently connected to this owner account.') %></div>
+      </div>
+      <div class="staff-stat">
+        <div class="staff-stat-label"><span><%= tt('owner.staff.stat.approved', 'Approved team') %></span><span>👤</span></div>
+        <div class="staff-stat-value"><%= totals.approved %></div>
+        <div class="staff-stat-sub"><%= tt('owner.staff.stat.approved_sub', 'All approved staff across every restaurant under management.') %></div>
+      </div>
+      <div class="staff-stat">
+        <div class="staff-stat-label"><span><%= tt('owner.staff.stat.pending', 'Pending approvals') %></span><span>🕒</span></div>
+        <div class="staff-stat-value"><%= totals.pending %></div>
+        <div class="staff-stat-sub"><%= tt('owner.staff.stat.pending_sub', 'Requests that still need an approval or rejection decision.') %></div>
+      </div>
+      <div class="staff-stat">
+        <div class="staff-stat-label"><span><%= tt('owner.staff.stat.managers', 'Managers') %></span><span>🧭</span></div>
+        <div class="staff-stat-value"><%= totals.managers %></div>
+        <div class="staff-stat-sub"><%= tt('owner.staff.stat.managers_sub', 'Manager-role accounts currently active or available to be reactivated.') %></div>
+      </div>
+    </div>
+
+    <div class="staff-toolbar">
+      <div class="staff-search">
+        <span class="icon">🔎</span>
+        <input id="staffSearch" type="search" autocomplete="off" placeholder="<%= tt('owner.staff.search_placeholder', 'Search by staff name, email, phone, role or restaurant…') %>" />
+      </div>
+      <div class="staff-filter-group" id="staffFilterGroup">
+        <button type="button" class="staff-filter is-active" data-filter-status="all">✨ <b><%= tt('owner.staff.filter_all', 'All') %></b></button>
+        <button type="button" class="staff-filter" data-filter-status="active">✅ <b><%= tt('owner.staff.status_active', 'Active') %></b></button>
+        <button type="button" class="staff-filter" data-filter-status="inactive">⏸ <b><%= tt('owner.staff.status_inactive', 'Inactive') %></b></button>
+        <button type="button" class="staff-filter" data-filter-status="pending">🕒 <b><%= tt('owner.staff.pending_title', 'Pending') %></b></button>
+      </div>
+    </div>
+  </section>
+
+  <div class="staff-page-note">
+    <div><%= tt('owner.staff.page_note_left', 'The page is now organized as a cleaner operations board: approvals on one side, active team on the other, and quick actions always visible.') %></div>
+    <div id="staffResultsNote"><%= tt('owner.staff.page_note_right', 'Use search or status filters to narrow the view instantly.') %></div>
   </div>
 
   <% if (!restaurantsData.length) { %>
-    <div class="card empty">
+    <div class="staff-empty" style="margin-top:6px">
       <div class="icon">🍽️</div>
-      <h2><%= tt('owner.staff.no_restaurants', 'თქვენს ანგარიშზე რესტორნები ჯერ არ არის მიბმული') %></h2>
-      <p><%= tt('owner.staff.no_restaurants_hint', 'თანამშრომლების სამართავად ჯერ რესტორანი შექმენით სისტემაში.') %></p>
-      <a href="/owner/restaurants/new" class="btn">+ <%= tt('owner.staff.btn_new_restaurant', 'ახალი რესტორნის შექმნა') %></a>
+      <h3><%= tt('owner.staff.no_restaurants', 'No restaurants are linked to this owner yet') %></h3>
+      <p><%= tt('owner.staff.no_restaurants_hint', 'Create your first restaurant and this page will become your staff control center for approvals, roles and account health.') %></p>
+      <div class="card-actions" style="justify-content:center">
+        <a href="/owner/restaurants/new" class="btn">+ <%= tt('owner.staff.btn_new_restaurant', 'Create a restaurant') %></a>
+      </div>
     </div>
   <% } %>
 
-  <% restaurantsData.forEach(function(block) {
-       const restaurant = block.restaurant;
-       const staff = block.staff || [];
-       const pending = block.pending || [];  %>
-    <div class="card">
-      <div class="owner-hd" style="margin-bottom:14px">
-        <div>
-          <h1 style="font-size:16px;margin:0"><%= restaurant.name %></h1>
-          <div class="muted"><%= restaurant.city %> · <%= restaurant.address %></div>
+  <div class="restaurant-stack" id="staffRestaurantStack">
+    <% restaurantsData.forEach(function(block, index) {
+         const restaurant = block.restaurant;
+         const staff = Array.isArray(block.staff) ? block.staff : [];
+         const pending = Array.isArray(block.pending) ? block.pending : [];
+         let activeCount = 0;
+         let inactiveCount = 0;
+         for (const s of staff) { if (s && s.status === 'inactive') inactiveCount++; else activeCount++; }
+         const coverage = staff.length ? Math.round((activeCount / Math.max(1, staff.length)) * 100) : 0;
+         const searchSeed = [restaurant?.name, restaurant?.city, restaurant?.address].filter(Boolean).join(' ');
+    %>
+      <section class="restaurant-card js-restaurant-card" data-restaurant-name="<%= escAttr(searchSeed) %>">
+        <div class="restaurant-top">
+          <div>
+            <div class="restaurant-kicker">🍽️ <%= tt('owner.staff.restaurant.kicker', 'Restaurant team hub') %></div>
+            <h2 class="restaurant-title"><%= restaurant.name %></h2>
+            <div class="restaurant-sub"><%= restaurant.city %> · <%= restaurant.address %></div>
+          </div>
+          <div class="restaurant-pills">
+            <span class="staff-pill">👤 <span><%= tt('owner.staff.approved_title', 'Approved staff') %>: <b><%= staff.length %></b></span></span>
+            <span class="staff-pill">🕒 <span><%= tt('owner.staff.pending_title', 'Pending') %>: <b><%= pending.length %></b></span></span>
+          </div>
         </div>
-        <div class="pill-row">
-          <span class="pill"><%= tt('owner.staff.approved_count', 'დამტკიცებული') %>: <b><%= staff.length %></b></span>
-          <span class="pill">pending (staff_db): <b><%= pending.length %></b></span>
-        </div>
-      </div>
 
-      <div class="grid">
-        <!-- LEFT: pending staff -->
-        <div>
-          <div style="margin-bottom:14px">
-            <div class="section-title">
-              <h2><%= tt('owner.staff.pending_title', 'დადასტურების მოლოდინში') %></h2>
-              <% if (!pending.length) { %><span class="muted"><%= tt('owner.staff.no_pending', 'ამჟამად მოთხოვნები არ არის') %></span><% } %>
+        <div class="restaurant-glance">
+          <div class="glance-card">
+            <div class="label"><%= tt('owner.staff.glance.active_team', 'Active team') %></div>
+            <div class="value"><%= activeCount %></div>
+            <div class="desc"><%= tt('owner.staff.glance.active_desc', 'People who can log in and work right now.') %></div>
+          </div>
+          <div class="glance-card">
+            <div class="label"><%= tt('owner.staff.glance.pending', 'Awaiting review') %></div>
+            <div class="value"><%= pending.length %></div>
+            <div class="desc"><%= tt('owner.staff.glance.pending_desc', 'Requests still waiting for approval or rejection.') %></div>
+          </div>
+          <div class="glance-card">
+            <div class="label"><%= tt('owner.staff.glance.inactive', 'Inactive accounts') %></div>
+            <div class="value"><%= inactiveCount %></div>
+            <div class="desc"><%= tt('owner.staff.glance.inactive_desc', 'Profiles currently disabled and not able to operate in the system.') %></div>
+          </div>
+          <div class="glance-card">
+            <div class="label"><%= tt('owner.staff.glance.coverage', 'Coverage health') %></div>
+            <div class="value"><%= coverage %>%</div>
+            <div class="desc"><%= tt('owner.staff.glance.coverage_desc', 'Share of approved staff that are active and ready for service.') %></div>
+          </div>
+        </div>
+
+        <div class="staff-board">
+          <aside class="staff-panel js-pending-panel" data-panel-type="pending">
+            <div class="panel-heading">
+              <div>
+                <h3><%= tt('owner.staff.pending_title', 'Pending approvals') %></h3>
+                <div class="staff-section-note"><%= tt('owner.staff.pending_note', 'Review new requests quickly and keep onboarding moving.') %></div>
+              </div>
+              <span class="panel-count"><%= pending.length %></span>
             </div>
 
             <% if (pending.length) { %>
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th><%= tt('owner.staff.tbl.name', 'სახელი') %></th>
-                      <th><%= tt('owner.staff.tbl.role', 'როლი') %></th>
-                      <th><%= tt('owner.staff.tbl.email', 'ელ-ფოსტა') %></th>
-                      <th><%= tt('owner.staff.tbl.phone', 'ტელეფონი') %></th>
-                      <th><%= tt('owner.staff.tbl.created', 'დარეგისტრირდა') %></th>
-                      <th class="actions"><%= tt('owner.staff.tbl.actions', 'ქმედებები') %></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <% pending.forEach(function(s){ %>
-                      <tr>
-                        <td><%= s.firstName %> <%= s.lastName %></td>
-                        <td><%= s.role %></td>
-                        <td><%= s.email %></td>
-                        <td><%= s.phone || "-" %></td>
-                        <td><%= s.createdAt ? new Date(s.createdAt).toLocaleString(locale) : "-" %></td>
-                        <td class="actions">
-                          <div class="row">
-                            <form method="post" action="/owner/staff/<%= s.id %>/approve">
-                              <input type="hidden" name="redirectTo" value="/owner/staff" />
-                              <input type="hidden" name="useDefaults" value="on" />
-                              <button type="submit" class="btn sm">✓ <%= tt('owner.staff.btn_approve', 'დადასტურება') %></button>
-                            </form>
-                            <form method="post" action="/owner/staff/<%= s.id %>/reject">
-                              <input type="hidden" name="redirectTo" value="/owner/staff" />
-                              <button type="submit" class="btn ghost sm">✕ <%= tt('owner.staff.btn_reject', 'უარყოფა') %></button>
-                            </form>
-                          </div>
-                        </td>
-                      </tr>
-                    <% }) %>
-                  </tbody>
-                </table>
+              <div class="request-list">
+                <% pending.forEach(function(s){
+                     const initials = ((s.firstName||"").slice(0,1) + (s.lastName||"").slice(0,1)).toUpperCase() || "SB";
+                     const personSeed = [s.firstName, s.lastName, s.email, s.phone, s.role, restaurant?.name].filter(Boolean).join(' ');
+                %>
+                  <div class="staff-request-card js-request-card" data-search="<%= escAttr(personSeed) %>">
+                    <div class="request-top">
+                      <div class="request-name">
+                        <span class="avatar"><%= initials %></span>
+                        <div>
+                          <h4 class="request-title"><%= s.firstName %> <%= s.lastName %></h4>
+                          <div class="request-sub"><%= s.email %></div>
+                        </div>
+                      </div>
+                      <span class="staff-chip pending">🕒 <%= tt('owner.staff.pending_title', 'Pending') %></span>
+                    </div>
+
+                    <div class="request-pills">
+                      <span class="staff-chip role">🎯 <%= tt('owner.staff.tbl.role', 'Role') %>: <b><%= s.role %></b></span>
+                    </div>
+
+                    <div class="request-meta">
+                      <div class="meta-box">
+                        <div class="k"><%= tt('owner.staff.tbl.phone', 'Phone') %></div>
+                        <div class="v"><%= s.phone || '—' %></div>
+                      </div>
+                      <div class="meta-box">
+                        <div class="k"><%= tt('owner.staff.tbl.created', 'Registered') %></div>
+                        <div class="v"><%= s.createdAt ? new Date(s.createdAt).toLocaleString(locale) : '—' %></div>
+                      </div>
+                    </div>
+
+                    <div class="card-actions">
+                      <form method="post" action="/owner/staff/<%= s.id %>/approve">
+                        <input type="hidden" name="redirectTo" value="/owner/staff" />
+                        <input type="hidden" name="useDefaults" value="on" />
+                        <button type="submit" class="btn sm compact">✓ <%= tt('owner.staff.btn_approve', 'Approve') %></button>
+                      </form>
+                      <form method="post" action="/owner/staff/<%= s.id %>/reject">
+                        <input type="hidden" name="redirectTo" value="/owner/staff" />
+                        <button type="submit" class="btn ghost sm compact">✕ <%= tt('owner.staff.btn_reject', 'Reject') %></button>
+                      </form>
+                    </div>
+                  </div>
+                <% }) %>
+              </div>
+            <% } else { %>
+              <div class="staff-empty">
+                <div class="icon">✨</div>
+                <h4><%= tt('owner.staff.no_pending', 'No approvals waiting right now') %></h4>
+                <p><%= tt('owner.staff.no_pending_copy', 'This restaurant is clear for now. New requests will appear here as soon as someone registers.') %></p>
+              </div>
+            <% } %>
+          </aside>
+
+          <div class="staff-panel js-approved-panel" data-panel-type="approved">
+            <div class="panel-heading">
+              <div>
+                <h3><%= tt('owner.staff.approved_title', 'Approved team members') %></h3>
+                <div class="staff-section-note"><%= tt('owner.staff.approved_note', 'Use the status chip and quick actions to manage each account faster.') %></div>
+              </div>
+              <span class="panel-count js-approved-visible"><%= staff.length %></span>
+            </div>
+
+            <% if (!staff.length) { %>
+              <div class="staff-empty">
+                <div class="icon">🧑‍🍳</div>
+                <h4><%= tt('owner.staff.empty_restaurant', 'No approved team members yet for this restaurant') %></h4>
+                <p><%= tt('owner.staff.empty_hint', 'Use the Add team member button to create the first staff account for this location.') %></p>
+              </div>
+            <% } else { %>
+              <div class="person-grid js-person-grid">
+                <% staff.forEach(function(s){
+                     const initials = ((s.firstName||"").slice(0,1) + (s.lastName||"").slice(0,1)).toUpperCase() || "SB";
+                     const isInactive = (s.status === "inactive");
+                     const personSeed = [s.firstName, s.lastName, s.email, s.phone, s.role, restaurant?.name, restaurant?.city].filter(Boolean).join(' ');
+                %>
+                  <article class="staff-person-card js-person-card" data-status="<%= isInactive ? 'inactive' : 'active' %>" data-search="<%= escAttr(personSeed) %>">
+                    <div class="person-top">
+                      <div class="person-name">
+                        <span class="avatar"><%= initials %></span>
+                        <div>
+                          <h4 class="person-title"><%= s.firstName %> <%= s.lastName %></h4>
+                          <div class="person-sub"><%= s.email %><% if (s.phone) { %> · <%= s.phone %><% } %></div>
+                        </div>
+                      </div>
+                      <div class="person-pills" style="margin-top:0; justify-content:flex-end">
+                        <span class="staff-chip role">🎯 <%= tt('owner.staff.tbl.role', 'Role') %>: <b><%= s.role %></b></span>
+                        <% if (isInactive) { %>
+                          <span class="staff-chip inactive">⏸ <%= tt('owner.staff.status_inactive', 'Inactive') %></span>
+                        <% } else { %>
+                          <span class="staff-chip active">✅ <%= tt('owner.staff.status_active', 'Active') %></span>
+                        <% } %>
+                      </div>
+                    </div>
+
+                    <div class="person-meta">
+                      <div class="meta-box">
+                        <div class="k"><%= tt('owner.staff.meta.access', 'Access mode') %></div>
+                        <div class="v"><%= isInactive ? tt('owner.staff.meta.access_inactive', 'Login blocked until reactivated') : tt('owner.staff.meta.access_active', 'Can log in and operate in assigned areas') %></div>
+                      </div>
+                      <div class="meta-box">
+                        <div class="k"><%= tt('owner.staff.meta.location', 'Restaurant') %></div>
+                        <div class="v"><%= restaurant.name %></div>
+                      </div>
+                    </div>
+
+                    <div class="card-actions">
+                      <a class="btn sm compact" href="/owner/staff/<%= s.id %>"><%= tt('owner.staff.btn_manage', 'Manage member') %></a>
+
+                      <form method="post" action="/owner/staff/<%= s.id %>/status">
+                        <input type="hidden" name="redirectTo" value="/owner/staff" />
+                        <input type="hidden" name="status" value="<%= isInactive ? 'active' : 'inactive' %>" />
+                        <% if (isInactive) { %>
+                          <button class="btn sm compact" type="submit"><%= tt('owner.staff.btn_activate', 'Reactivate') %></button>
+                        <% } else { %>
+                          <button class="btn ghost sm compact" type="submit"
+                            onclick="return confirm('<%= tt('owner.staff.confirm_deactivate', 'Deactivate this team member? They will not be able to work in the system until you reactivate the account.') %>');"><%= tt('owner.staff.btn_deactivate', 'Deactivate') %></button>
+                        <% } %>
+                      </form>
+
+                      <button type="button" class="btn ghost sm compact" onclick="openResetLinkModal('<%= s.id %>','<%= s.email %>')">
+                        <%= tt('owner.staff.reset_pw.create', 'Create password reset link') %>
+                      </button>
+                    </div>
+                  </article>
+                <% }) %>
               </div>
             <% } %>
           </div>
         </div>
-
-        <!-- RIGHT: approved staff cards (MINIMAL) -->
-        <div>
-          <div class="section-title">
-            <h2><%= tt('owner.staff.approved_title', 'თანამშრომლები (დამტკიცებული)') %></h2>
-            <% if (!staff.length) { %><span class="muted"><%= tt('owner.staff.no_staff_yet', 'თანამშრომლები ჯერ არ არის') %></span><% } %>
-          </div>
-
-          <% if (!staff.length) { %>
-            <div class="staff-card empty" style="padding:18px">
-              <div class="icon" style="font-size:22px">🧑‍🍳</div>
-              <h2 style="font-size:14px"><%= tt('owner.staff.empty_restaurant', 'ამ რესტორნისთვის თანამშრომლები არ არიან') %></h2>
-              <p><%= tt('owner.staff.empty_hint', 'ზემოთ დააჭირეთ „თანამშრომლის დამატებას“, რომ ამ რესტორნისთვის თანამშრომელი შექმნათ.') %></p>
-            </div>
-          <% } else { %>
-            <div class="cards">
-              <% staff.forEach(function(s){
-                   const initials = ((s.firstName||"").slice(0,1) + (s.lastName||"").slice(0,1)).toUpperCase() || "SB";
-                   const isInactive = (s.status === "inactive");
-              %>
-                <div class="staff-card">
-                  <div class="staff-hd">
-                    <div>
-                      <h3 class="staff-name">
-                        <span class="avatar"><%= initials %></span>
-                        <span><%= s.firstName %> <%= s.lastName %></span>
-                      </h3>
-                      <div class="muted" style="margin-top:4px;font-size:12px">
-                        <%= s.email %><% if (s.phone) { %> · <%= s.phone %><% } %>
-                      </div>
-                    </div>
-
-                    <div class="staff-meta">
-                      <span class="tag"><%= tt('owner.staff.tbl.role', 'როლი') %>: <b><%= s.role %></b></span>
-                      <% if (isInactive) { %>
-                        <span class="tag" style="border-color:rgba(239,68,68,.35); background:rgba(239,68,68,.10)"><%= tt('owner.staff.status_label', 'სტატუსი') %>: <%= tt('owner.staff.status_inactive', 'გამორთული') %></span>
-                      <% } else { %>
-                        <span class="tag" style="border-color:rgba(34,197,94,.28); background:rgba(34,197,94,.10)"><%= tt('owner.staff.status_label', 'სტატუსი') %>: <%= tt('owner.staff.status_active', 'აქტიური') %></span>
-                      <% } %>
-                    </div>
-                  </div>
-
-                  <div class="staff-actions">
-                    <a class="btn sm" href="/owner/staff/<%= s.id %>"><%= tt('owner.staff.btn_manage', 'თანამშრომლის მართვა') %></a>
-
-                    <form method="post" action="/owner/staff/<%= s.id %>/status">
-                      <input type="hidden" name="redirectTo" value="/owner/staff" />
-                      <input type="hidden" name="status" value="<%= isInactive ? "active" : "inactive" %>" />
-                      <% if (isInactive) { %>
-                        <button class="btn sm" type="submit"><%= tt('owner.staff.btn_activate', 'ჩართვა') %></button>
-                      <% } else { %>
-                        <button class="btn ghost sm" type="submit"
-                          onclick="return confirm('<%= tt('owner.staff.confirm_deactivate', 'გამოვრთოთ ეს თანამშრომელი? ის სისტემაში ვეღარ იმუშავებს, სანამ ისევ არ ჩაირთვება.') %>');"><%= tt('owner.staff.btn_deactivate', 'გამორთვა') %></button>
-                      <% } %>
-                    </form>
-
-                    <button type="button" class="btn ghost sm"
-                      onclick="openResetLinkModal('<%= s.id %>','<%= s.email %>')">
-                      <%= tt('owner.staff.reset_pw.create', 'პაროლის აღდგენის ბმულის შექმნა') %>
-                    </button>
-                  </div>
-                </div>
-              <% }) %>
-            </div>
-          <% } %>
-        </div>
-      </div>
-    </div>
-  <% }) %>
+      </section>
+    <% }) %>
+  </div>
 </div>
 
 <!-- Create staff modal -->
-<div class="sb-modal hidden" id="createStaffModal" aria-hidden="true">
+<div class="staff-modal hidden" id="createStaffModal" aria-hidden="true">
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="createStaffTitle">
     <div class="dialog-hd">
       <div>
-        <div style="font-size:16px;font-weight:800" id="createStaffTitle"><%= tt('owner.staff.btn_add', '➕ თანამშრომლის დამატება') %></div>
-        <div class="muted" style="margin-top:4px"><%= tt('owner.staff.modal_subtitle', 'ქმნის staff მომხმარებელს არჩეული რესტორნისთვის. თანამშრომლებისთვის საჯარო რეგისტრაცია არ არის ხელმისაწვდომი.') %></div>
+        <h3 class="staff-modal-title" id="createStaffTitle"><%= tt('owner.staff.btn_add', 'Add team member') %></h3>
+        <div class="staff-modal-sub"><%= tt('owner.staff.modal_subtitle', 'Create a staff user for one of your restaurants. Public self-registration for staff stays disabled, so onboarding remains fully owner controlled.') %></div>
       </div>
-      <button type="button" class="btn ghost sm" id="btnCloseCreateStaff">✕</button>
+      <div class="modal-top-actions">
+        <button type="button" class="btn ghost sm" id="btnCloseCreateStaff">✕</button>
+      </div>
     </div>
 
     <div class="dialog-bd">
       <div class="errbox" id="createStaffError"></div>
 
-      <form id="createStaffForm">
-        <div class="form-grid">
-          <div class="field full">
-            <label><%= tt('owner.staff.form.restaurant', 'რესტორანი (სავალდებულო)') %></label>
-            <select name="restaurantId" required>
-              <option value=""><%= tt('owner.staff.form.select_restaurant', 'აირჩიეთ რესტორანი…') %></option>
-              <%~ (it.__restOptsHtml || "") %>
-            </select>
-          </div>
-
-          <div class="field">
-            <label><%= tt('owner.staff.form.email', 'ელ-ფოსტა (სავალდებულო)') %></label>
-            <input name="email" type="email" autocomplete="email" placeholder="staff@restaurant.com" required />
-          </div>
-
-          <div class="field">
-            <label><%= tt('owner.staff.form.role', 'როლი (სავალდებულო)') %></label>
-            <select name="role" required>
-              <option value=""><%= tt('owner.staff.form.select_role', 'აირჩიეთ როლი…') %></option>
-              <%~ (it.__roleOptsHtml || "") %>
-            </select>
-          </div>
-
-          <div class="field full">
-            <label><%= tt('owner.staff.form.temp_password', 'დროებითი პაროლი (სავალდებულო)') %></label>
-            <div style="display:flex; gap:10px; align-items:center">
-              <input name="password" type="text" autocomplete="new-password" placeholder="მინიმუმ 8 სიმბოლო" minlength="8" required />
-              <button type="button" class="btn sm" id="btnGenTempPass">Generate</button>
+      <div class="dialog-panel">
+        <div class="staff-section-note" style="margin:0 0 12px"><%= tt('owner.staff.modal_panel_account', 'Account details') %></div>
+        <form id="createStaffForm">
+          <div class="form-grid">
+            <div class="field full">
+              <label><%= tt('owner.staff.form.restaurant', 'Restaurant') %></label>
+              <select name="restaurantId" required>
+                <option value=""><%= tt('owner.staff.form.select_restaurant', 'Select a restaurant…') %></option>
+                <%~ (it.__restOptsHtml || "") %>
+              </select>
             </div>
-            <div class="hint"><%= tt('owner.staff.form.password_hint', 'სასურველია თანამშრომელმა სისტემაში შესვლის შემდეგ პაროლი შეცვალოს (ან აღადგინოს ბმულით).') %></div>
-          </div>
 
-          <div class="field">
-            <label><%= tt('owner.staff.form.first_name', 'სახელი (არასავალდებულო)') %></label>
-            <input name="firstName" type="text" autocomplete="given-name" />
-          </div>
+            <div class="field">
+              <label><%= tt('owner.staff.form.email', 'Email') %></label>
+              <input name="email" type="email" autocomplete="email" placeholder="staff@restaurant.com" required />
+            </div>
 
-          <div class="field">
-            <label><%= tt('owner.staff.form.last_name', 'გვარი (არასავალდებულო)') %></label>
-            <input name="lastName" type="text" autocomplete="family-name" />
-          </div>
+            <div class="field">
+              <label><%= tt('owner.staff.form.role', 'Role') %></label>
+              <select name="role" required>
+                <option value=""><%= tt('owner.staff.form.select_role', 'Select a role…') %></option>
+                <%~ (it.__roleOptsHtml || "") %>
+              </select>
+            </div>
 
-          <div class="field full">
-            <label><%= tt('owner.staff.form.phone', 'ტელეფონი (არასავალდებულო)') %></label>
-            <input name="phone" type="tel" autocomplete="tel" />
-          </div>
-
-          <div class="field full perm-panel">
-            <label style="display:flex; align-items:center; gap:10px">
-              <input type="checkbox" name="useDefaults" checked />
-              <span><%= tt('owner.staff.form.use_defaults', 'გამოიყენე როლის ნაგულისხმევი უფლებები') %></span>
-            </label>
-
-            <div id="permOverrideBox" style="display:none; margin-top:10px">
-              <div class="muted" style="margin-bottom:8px"><%= tt('owner.staff.form.select_perms', 'აირჩიეთ კონკრეტული უფლებები (სურვილისამებრ)') %>:</div>
-              <div class="perm-grid">
-                <% ;((it.__permsSafe || [])).forEach(function(p){ %>
-                  <label class="perm-item">
-                    <input type="checkbox" name="permissions" value="<%= p %>" />
-                    <div>
-                      <strong><%= p %></strong>
-                      <div class="muted"><%= permLabels[p] || "" %></div>
-                    </div>
-                  </label>
-                <% }) %>
+            <div class="field full">
+              <label><%= tt('owner.staff.form.temp_password', 'Temporary password') %></label>
+              <div class="inline-actions">
+                <div class="field-input-grow"><input name="password" type="text" autocomplete="new-password" placeholder="Minimum 8 characters" minlength="8" required /></div>
+                <button type="button" class="btn sm" id="btnGenTempPass">Generate</button>
               </div>
-              <div class="hint"><%= tt('owner.staff.form.perms_hint', 'თუ უფლებებს არ აირჩევთ, ნაგულისხმევი უფლებები დარჩება აქტიური.') %></div>
+              <div class="hint"><%= tt('owner.staff.form.password_hint', 'Best practice: let the teammate reset this temporary password after the first successful login.') %></div>
+            </div>
+
+            <div class="field">
+              <label><%= tt('owner.staff.form.first_name', 'First name') %></label>
+              <input name="firstName" type="text" autocomplete="given-name" />
+            </div>
+
+            <div class="field">
+              <label><%= tt('owner.staff.form.last_name', 'Last name') %></label>
+              <input name="lastName" type="text" autocomplete="family-name" />
+            </div>
+
+            <div class="field full">
+              <label><%= tt('owner.staff.form.phone', 'Phone') %></label>
+              <input name="phone" type="tel" autocomplete="tel" />
+            </div>
+
+            <div class="field full perm-panel">
+              <label style="display:flex; align-items:center; gap:10px; margin-bottom:10px">
+                <input type="checkbox" name="useDefaults" checked />
+                <span><%= tt('owner.staff.form.use_defaults', 'Use the default permissions for this role') %></span>
+              </label>
+
+              <div id="permOverrideBox" style="display:none; margin-top:10px">
+                <div class="staff-section-note" style="margin:0 0 10px"><%= tt('owner.staff.form.select_perms', 'Select custom permissions only when you need a more tailored access set.') %></div>
+                <div class="perm-grid">
+                  <% ;((it.__permsSafe || [])).forEach(function(p){ %>
+                    <label class="perm-item">
+                      <input type="checkbox" name="permissions" value="<%= p %>" />
+                      <div>
+                        <strong><%= p %></strong>
+                        <div class="staff-muted"><%= permLabels[p] || "" %></div>
+                      </div>
+                    </label>
+                  <% }) %>
+                </div>
+                <div class="hint"><%= tt('owner.staff.form.perms_hint', 'Leave everything unchecked if you want the role defaults to stay in effect.') %></div>
+              </div>
             </div>
           </div>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
 
     <div class="dialog-ft">
-      <button type="button" class="btn ghost" id="btnCancelCreateStaff"><%= tt('common.btn_cancel', 'გაუქმება') %></button>
-      <button type="submit" class="btn" form="createStaffForm" id="btnSubmitCreateStaff"><%= tt('owner.staff.btn_create', 'თანამშრომლის შექმნა') %></button>
+      <button type="button" class="btn ghost" id="btnCancelCreateStaff"><%= tt('common.btn_cancel', 'Cancel') %></button>
+      <button type="submit" class="btn" form="createStaffForm" id="btnSubmitCreateStaff"><%= tt('owner.staff.btn_create', 'Create team member') %></button>
     </div>
   </div>
 </div>
 
-<!-- Reset password link modal (fixed to match .sb-modal .dialog styling) -->
-<div class="sb-modal hidden" id="resetPwModal" aria-hidden="true" style="z-index:1200">
+<!-- Reset password link modal -->
+<div class="staff-modal hidden" id="resetPwModal" aria-hidden="true" style="z-index:1200">
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="resetTitle">
     <div class="dialog-hd">
       <div>
-        <div style="font-size:16px;font-weight:800" id="resetTitle"><%= tt('owner.staff.reset_pw.title', 'პაროლის აღდგენის ბმული') %></div>
-        <div class="muted" style="margin-top:4px" id="resetPwSub"><%= tt('owner.staff.reset_pw.subtitle', 'შექმენით ბმული და გაუგზავნეთ თანამშრომელს.') %></div>
+        <h3 class="staff-modal-title" id="resetTitle"><%= tt('owner.staff.reset_pw.title', 'Password reset link') %></h3>
+        <div class="staff-modal-sub" id="resetPwSub"><%= tt('owner.staff.reset_pw.subtitle', 'Generate a one-time link and send it directly to the team member.') %></div>
       </div>
       <button class="btn ghost sm" type="button" id="btnCloseResetPw" aria-label="Close">✕</button>
     </div>
 
     <div class="dialog-bd">
-      <div class="field">
-        <label><%= tt('owner.staff.reset_pw.label', 'ბმული') %></label>
-        <input id="resetPwLink" type="text" readonly value="" />
-        <div style="display:flex; gap:8px; margin-top:10px">
-          <button type="button" class="btn" id="btnCopyResetPw"><%= tt('common.btn_copy', 'კოპირება') %></button>
-          <button type="button" class="btn ghost" id="btnOpenResetPw"><%= tt('common.btn_open', 'გახსნა') %></button>
+      <div class="dialog-panel">
+        <div class="field">
+          <label><%= tt('owner.staff.reset_pw.label', 'Link') %></label>
+          <input id="resetPwLink" type="text" readonly value="" />
+          <div class="inline-actions" style="margin-top:10px">
+            <button type="button" class="btn" id="btnCopyResetPw"><%= tt('common.btn_copy', 'Copy') %></button>
+            <button type="button" class="btn ghost" id="btnOpenResetPw"><%= tt('common.btn_open', 'Open') %></button>
+          </div>
+          <div class="hint" style="margin-top:10px"><%= tt('owner.staff.reset_pw.hint', 'For better security, send the link privately. The link is intended for a single use.') %></div>
         </div>
-        <div class="hint" style="margin-top:8px; opacity:.85">
-          <%= tt('owner.staff.reset_pw.hint', 'სჯობს ბმული თანამშრომელს პირად შეტყობინებაში გაუგზავნოთ. ბმული ერთჯერადია.') %>
-        </div>
+        <div class="alert err hidden" id="resetPwErr"></div>
       </div>
-      <div class="alert err hidden" id="resetPwErr"></div>
     </div>
 
     <div class="dialog-ft">
-      <button type="button" class="btn ghost" id="btnCloseResetPw2"><%= tt('common.btn_close', 'დახურვა') %></button>
+      <button type="button" class="btn ghost" id="btnCloseResetPw2"><%= tt('common.btn_close', 'Close') %></button>
     </div>
   </div>
 </div>
 
-<!-- Audit modal (kept) -->
-<div class="sb-modal hidden" id="auditModal" aria-hidden="true">
+<!-- Audit modal -->
+<div class="staff-modal hidden" id="auditModal" aria-hidden="true">
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="auditTitle">
     <div class="dialog-hd">
       <div>
-        <div style="font-size:16px;font-weight:800" id="auditTitle">🧾 <%= tt('owner.staff.btn_audit', 'ქმედებების ჟურნალი') %></div>
-        <div class="muted" style="margin-top:4px"><%= tt('owner.staff.audit.subtitle', 'აჩვენებს თანამშრომლების მართვის ეკრანზე შესრულებულ ბოლო მოქმედებებს.') %></div>
+        <h3 class="staff-modal-title" id="auditTitle">🧾 <%= tt('owner.staff.btn_audit', 'Activity log') %></h3>
+        <div class="staff-modal-sub"><%= tt('owner.staff.audit.subtitle', 'Review recent actions taken from the staff management area for any restaurant you own.') %></div>
       </div>
       <button class="btn ghost sm" type="button" id="auditCloseBtn" aria-label="Close">✕</button>
     </div>
 
     <div class="dialog-bd">
-      <div class="form-grid">
-        <div class="field">
-          <label><%= tt('common.restaurant', 'რესტორანი') %></label>
-          <select id="auditRestaurantId">
-            <%~ (it.__auditOptsHtml || "") %>
-          </select>
+      <div class="dialog-panel">
+        <div class="form-grid">
+          <div class="field">
+            <label><%= tt('common.restaurant', 'Restaurant') %></label>
+            <select id="auditRestaurantId">
+              <%~ (it.__auditOptsHtml || "") %>
+            </select>
+          </div>
+
+          <div class="field">
+            <label><%= tt('owner.staff.audit.limit', 'Limit') %></label>
+            <input id="auditLimit" type="number" min="1" max="200" value="50" />
+          </div>
+
+          <div class="field full audit-actions" style="align-items:flex-end">
+            <button type="button" class="btn sm" id="auditRefreshBtn"><%= tt('common.btn_refresh', 'Refresh') %></button>
+            <div class="staff-muted" id="auditHint"></div>
+          </div>
         </div>
 
-        <div class="field">
-          <label><%= tt('owner.staff.audit.limit', 'რაოდენობა') %></label>
-          <input id="auditLimit" type="number" min="1" max="200" value="50" />
-        </div>
-
-        <div class="field full" style="display:flex; gap:10px; align-items:flex-end">
-          <button type="button" class="btn sm" id="auditRefreshBtn"><%= tt('common.btn_refresh', 'განახლება') %></button>
-          <div class="muted" id="auditHint"></div>
-        </div>
+        <div class="alert err hidden" id="auditErr" style="margin-top:12px"></div>
       </div>
 
-      <div class="alert err hidden" id="auditErr" style="margin-top:10px"></div>
-
-      <div class="card" style="margin-top:12px; padding:0">
-        <div style="padding:12px 14px; border-bottom:1px solid rgba(148,163,184,.18); font-weight:800">
-          <%= tt('owner.staff.audit.recent', 'ბოლო მოვლენები') %>
-        </div>
-        <div id="auditList" style="padding:10px 14px"></div>
+      <div class="staff-audit-panel">
+        <div class="staff-audit-head"><%= tt('owner.staff.audit.recent', 'Recent events') %></div>
+        <div class="audit-list" id="auditList"></div>
       </div>
     </div>
 
     <div class="dialog-ft">
-      <button class="btn ghost" type="button" id="auditCloseBtn2"><%= tt('common.btn_close', 'დახურვა') %></button>
+      <button class="btn ghost" type="button" id="auditCloseBtn2"><%= tt('common.btn_close', 'Close') %></button>
     </div>
   </div>
 </div>
 
 <script>
 (function(){
+  // ───────── Dashboard filters ─────────
+  const searchInput = document.getElementById("staffSearch");
+  const filterButtons = Array.from(document.querySelectorAll("[data-filter-status]"));
+  const resultNote = document.getElementById("staffResultsNote");
+  let currentFilter = "all";
+
+  function normalizeText(value){
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function setFilter(next){
+    currentFilter = next || "all";
+    filterButtons.forEach((btn)=>{
+      btn.classList.toggle("is-active", btn.getAttribute("data-filter-status") === currentFilter);
+    });
+    applyDashboardFilters();
+  }
+
+  function applyDashboardFilters(){
+    const query = normalizeText(searchInput ? searchInput.value : "");
+    let totalVisiblePeople = 0;
+    let totalVisibleRequests = 0;
+    let visibleRestaurants = 0;
+
+    document.querySelectorAll(".js-restaurant-card").forEach((restaurantCard)=>{
+      const restaurantSeed = normalizeText(restaurantCard.getAttribute("data-restaurant-name"));
+      let restaurantVisiblePeople = 0;
+      let restaurantVisibleRequests = 0;
+
+      restaurantCard.querySelectorAll(".js-person-card").forEach((card)=>{
+        const status = normalizeText(card.getAttribute("data-status"));
+        const seed = normalizeText(card.getAttribute("data-search"));
+        const matchQuery = !query || seed.includes(query) || restaurantSeed.includes(query);
+        const matchFilter = currentFilter === "all" || currentFilter === status;
+        const visible = matchQuery && matchFilter;
+        card.classList.toggle("staff-hidden", !visible);
+        if (visible) restaurantVisiblePeople += 1;
+      });
+
+      restaurantCard.querySelectorAll(".js-request-card").forEach((card)=>{
+        const seed = normalizeText(card.getAttribute("data-search"));
+        const matchQuery = !query || seed.includes(query) || restaurantSeed.includes(query);
+        const matchFilter = currentFilter === "all" || currentFilter === "pending";
+        const visible = matchQuery && matchFilter;
+        card.classList.toggle("staff-hidden", !visible);
+        if (visible) restaurantVisibleRequests += 1;
+      });
+
+      const approvedPanel = restaurantCard.querySelector(".js-approved-panel");
+      const pendingPanel = restaurantCard.querySelector(".js-pending-panel");
+      const approvedCount = restaurantCard.querySelector(".js-approved-visible");
+      if (approvedCount) approvedCount.textContent = String(restaurantVisiblePeople);
+
+      if (approvedPanel) approvedPanel.classList.toggle("staff-hidden", currentFilter === "pending");
+      if (pendingPanel) pendingPanel.classList.toggle("staff-hidden", currentFilter === "active" || currentFilter === "inactive");
+
+      const hasVisiblePanels = (currentFilter === "pending" ? restaurantVisibleRequests > 0 : currentFilter === "all" ? (restaurantVisiblePeople + restaurantVisibleRequests) > 0 : restaurantVisiblePeople > 0);
+      const shouldHideRestaurant = currentFilter === "all" ? (!!query && !hasVisiblePanels) : !hasVisiblePanels;
+      restaurantCard.classList.toggle("staff-hidden", shouldHideRestaurant);
+      if (!restaurantCard.classList.contains("staff-hidden")) visibleRestaurants += 1;
+
+      totalVisiblePeople += restaurantVisiblePeople;
+      totalVisibleRequests += restaurantVisibleRequests;
+    });
+
+    if(resultNote){
+      const segments = [];
+      segments.push(`${visibleRestaurants} restaurant${visibleRestaurants === 1 ? '' : 's'} visible`);
+      if (currentFilter === "pending") {
+        segments.push(`${totalVisibleRequests} pending request${totalVisibleRequests === 1 ? '' : 's'}`);
+      } else if (currentFilter === "active" || currentFilter === "inactive") {
+        segments.push(`${totalVisiblePeople} ${currentFilter} team member${totalVisiblePeople === 1 ? '' : 's'}`);
+      } else {
+        segments.push(`${totalVisiblePeople} approved member${totalVisiblePeople === 1 ? '' : 's'}`);
+        segments.push(`${totalVisibleRequests} pending request${totalVisibleRequests === 1 ? '' : 's'}`);
+      }
+      if (query) segments.push(`search: “${query}”`);
+      resultNote.textContent = segments.join(" · ");
+    }
+  }
+
+  filterButtons.forEach((btn)=>{
+    btn.addEventListener("click", ()=> setFilter(btn.getAttribute("data-filter-status")));
+  });
+  if(searchInput){
+    searchInput.addEventListener("input", applyDashboardFilters);
+  }
+  applyDashboardFilters();
+
   // ───────── Create Staff modal ─────────
   const modal = document.getElementById("createStaffModal");
   const openBtn = document.getElementById("btnOpenCreateStaff");
@@ -713,15 +1478,13 @@
     modal.setAttribute("aria-hidden","true");
   }
   function showError(msg){
-    errBox.textContent = msg || "<%= tt('owner.staff.err_unknown', 'უცნობი შეცდომა') %>";
+    errBox.textContent = msg || "<%= tt('owner.staff.err_unknown', 'Unknown error') %>";
     errBox.style.display="block";
   }
   function genPass(){
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
     let out = "";
-    for(let i=0;i<12;i++){
-      out += chars[Math.floor(Math.random()*chars.length)];
-    }
+    for(let i=0;i<12;i++) out += chars[Math.floor(Math.random()*chars.length)];
     const inp = form.querySelector('input[name="password"]');
     inp.value = out;
     inp.focus();
@@ -746,7 +1509,7 @@
       errBox.style.display="none";
       errBox.textContent="";
       submitBtn.disabled = true;
-      submitBtn.textContent = "<%= tt('owner.staff.creating', 'იქმნება…') %>";
+      submitBtn.textContent = "<%= tt('owner.staff.creating', 'Creating…') %>";
 
       try{
         const fd = new FormData(form);
@@ -781,18 +1544,18 @@
         if(!res.ok || !data || data.ok !== true){
           const err = (data && (data.error || data.message)) ? (data.error || data.message) : ("HTTP " + res.status);
           const map = {
-            "email_required": "ელ-ფოსტის შეყვანა აუცილებელია.",
-            "password_too_short": "პაროლი ძალიან მოკლეა (მინიმუმ 8 სიმბოლო).",
-            "role_invalid": "როლი არასწორია.",
-            "restaurant_required": "რესტორნის არჩევა აუცილებელია.",
-            "not_your_restaurant": "ამ რესტორნზე წვდომა არ გაქვთ.",
-            "user_email_in_use": "ეს ელ-ფოსტა უკვე გამოყენებულია კლიენტის ან მფლობელის ანგარიშზე. აირჩიეთ სხვა ელ-ფოსტა.",
-            "staff_exists": "ეს თანამშრომელი ამ რესტორნზე უკვე მიბმულია.",
-            "invalid_body": "არასწორი მონაცემებია შეყვანილი."
+            "email_required": "Email is required.",
+            "password_too_short": "The password is too short. Use at least 8 characters.",
+            "role_invalid": "The selected role is invalid.",
+            "restaurant_required": "Please select a restaurant.",
+            "not_your_restaurant": "You do not have access to this restaurant.",
+            "user_email_in_use": "This email is already used by another customer or owner account.",
+            "staff_exists": "This team member is already linked to the selected restaurant.",
+            "invalid_body": "The submitted data is invalid."
           };
-          showError(map[err] || ("<%= tt('owner.staff.error_prefix', 'შეცდომა') %>: " + err));
+          showError(map[err] || ("<%= tt('owner.staff.error_prefix', 'Error') %>: " + err));
           submitBtn.disabled = false;
-          submitBtn.textContent = "<%= tt('owner.staff.btn_create', 'თანამშრომლის შექმნა') %>";
+          submitBtn.textContent = "<%= tt('owner.staff.btn_create', 'Create team member') %>";
           return;
         }
 
@@ -801,7 +1564,7 @@
       }catch(ex){
         showError(String(ex));
         submitBtn.disabled = false;
-        submitBtn.textContent = "<%= tt('owner.staff.btn_create', 'თანამშრომლის შექმნა') %>";
+        submitBtn.textContent = "<%= tt('owner.staff.btn_create', 'Create team member') %>";
       }
     });
   }
@@ -837,8 +1600,8 @@
   window.openResetLinkModal = async function(staffId, email){
     try{
       clearResetErr();
-      resetSub.textContent = "<%= tt('owner.staff.reset_pw.creating_for', 'ბმული მზადდება თანამშრომლისთვის') %>: " + (email || "");
-      resetLinkInput.value = "<%= tt('owner.staff.loading', 'იტვირთება...') %>";
+      resetSub.textContent = "<%= tt('owner.staff.reset_pw.creating_for', 'Preparing a reset link for') %>: " + (email || "");
+      resetLinkInput.value = "<%= tt('owner.staff.loading', 'Loading…') %>";
       openResetModal();
 
       const res = await fetch(`/owner/staff/${staffId}/password-reset-link`, {
@@ -850,14 +1613,14 @@
       if(!res.ok || !data || !data.ok){
         const err = (data && data.error) ? data.error : "unknown";
         const map = {
-          "staff_not_found": "თანამშრომელი ვერ მოიძებნა.",
-          "not_your_restaurant": "ამ რესტორნზე წვდომა არ გაქვთ.",
-          "user_not_found": "მომხმარებელი ვერ მოიძებნა.",
-          "non_local_user": "არალოკალური მომხმარებლის პაროლის აღდგენა შეუძლებელია.",
-          "unknown": "უცნობი შეცდომა."
+          "staff_not_found": "The staff member could not be found.",
+          "not_your_restaurant": "You do not have access to this restaurant.",
+          "user_not_found": "The related user record could not be found.",
+          "non_local_user": "Password reset is not available for non-local users.",
+          "unknown": "Unknown error."
         };
         resetLinkInput.value = "";
-        showResetErr(map[err] || ("<%= tt('owner.staff.error_prefix', 'შეცდომა') %>: " + err));
+        showResetErr(map[err] || ("<%= tt('owner.staff.error_prefix', 'Error') %>: " + err));
         return;
       }
 
@@ -878,10 +1641,10 @@
     btnCopy.addEventListener("click", async ()=>{
       try{
         await navigator.clipboard.writeText(resetLinkInput.value || "");
-        btnCopy.textContent = "<%= tt('owner.staff.copied', 'დაკოპირდა!') %>";
-        setTimeout(()=>btnCopy.textContent="<%= tt('common.btn_copy', 'კოპირება') %>", 900);
+        btnCopy.textContent = "<%= tt('owner.staff.copied', 'Copied!') %>";
+        setTimeout(()=>btnCopy.textContent="<%= tt('common.btn_copy', 'Copy') %>", 900);
       }catch{
-        showResetErr("<%= tt('owner.staff.copy_failed', 'კოპირება ვერ მოხერხდა. სურვილის შემთხვევაში ხელით დაკოპირებაც შეგიძლიათ.') %>");
+        showResetErr("<%= tt('owner.staff.copy_failed', 'Copy failed. You can still select the link and copy it manually.') %>");
       }
     });
   }
@@ -928,11 +1691,11 @@
 
   function renderEvents(events){
     if(!Array.isArray(events) || !events.length){
-      list.innerHTML = `<div class="muted" style="padding:10px 0"><%= tt('owner.staff.audit.empty', 'საჩვენებელი მოვლენები არ არის.') %></div>`;
+      list.innerHTML = `<div class="staff-muted" style="padding:10px 0"><%= tt('owner.staff.audit.empty', 'No events to display yet.') %></div>`;
       return;
     }
 
-    const rows = events.map(e=>{
+    const rows = events.map((e)=>{
       const when = e && e.ts ? new Date(e.ts).toLocaleString("he-IL") : "";
       const actor = e && e.actorEmail ? e.actorEmail : (e && e.actorUserId ? e.actorUserId : "");
       const action = e && e.action ? e.action : "";
@@ -946,19 +1709,19 @@
       }
 
       return `
-        <div style="padding:12px 0; border-bottom:1px solid rgba(148,163,184,.14)">
-          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:baseline">
+        <div class="audit-event">
+          <div class="audit-event-head">
             <div style="font-weight:800">${escapeHtml(action)}</div>
-            <div class="pill">${escapeHtml(when)}</div>
-            ${actor ? `<div class="pill">by <b>${escapeHtml(actor)}</b></div>` : ``}
-            ${target ? `<div class="pill">target <b>${escapeHtml(target)}</b></div>` : ``}
+            <div class="staff-pill">${escapeHtml(when)}</div>
+            ${actor ? `<div class="staff-pill">by <b>${escapeHtml(actor)}</b></div>` : ``}
+            ${target ? `<div class="staff-pill">target <b>${escapeHtml(target)}</b></div>` : ``}
           </div>
-          ${meta ? `<div class="muted" style="margin-top:6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size:12px; white-space:pre-wrap">${escapeHtml(meta)}</div>` : ``}
+          ${meta ? `<div class="audit-event-meta">${escapeHtml(meta)}</div>` : ``}
         </div>
       `;
     }).join("");
 
-    list.innerHTML = `<div>${rows}</div>`;
+    list.innerHTML = rows;
   }
 
   async function refreshAudit(){
@@ -967,7 +1730,7 @@
     inpLimit.value = String(limit);
 
     showAuditErr("");
-    setHint("<%= tt('owner.staff.loading', 'იტვირთება…') %>");
+    setHint("<%= tt('owner.staff.loading', 'Loading…') %>");
     list.innerHTML = "";
 
     try{
@@ -982,7 +1745,7 @@
         return;
       }
 
-      setHint(`ნაჩვენებია ბოლო ${data.events?.length || 0} მოვლენა.`);
+      setHint(`Showing the latest ${data.events?.length || 0} event${(data.events?.length || 0) === 1 ? '' : 's'}.`);
       renderEvents(data.events || []);
     }catch(ex){
       setHint("");

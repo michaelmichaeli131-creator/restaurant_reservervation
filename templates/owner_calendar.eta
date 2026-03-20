@@ -107,7 +107,7 @@
     .oc-layout{
       direction: ltr !important;
       display:grid !important;
-      grid-template-columns: 360px minmax(980px,1fr);
+      grid-template-columns: minmax(300px, 360px) minmax(0,1fr);
       gap:16px; align-items:start; padding:16px;
     }
     @media (max-width: 900px){
@@ -169,27 +169,77 @@
     /* Panel (Slots) */
     .oc-panel{
       grid-column:2/3 !important;
-      overflow:auto;
+      overflow:hidden;
       background:var(--panel);
       border:1px solid var(--bd);
       border-radius:var(--radius);
       box-shadow:var(--shadow-lg);
       padding:12px;
+      width:100% !important;
+      max-width:100% !important;
+      margin-inline:0 !important;
+      justify-self:stretch !important;
     }
     @media (max-width: 900px){
       .oc-panel{ grid-column:1/-1 !important; grid-row:1 !important; }
     }
-    .oc-cap{ color:var(--ink-muted); font-size:.95rem; margin:6px 4px 10px }
+    .oc-panel-header{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:4px 4px 12px; }
+    .oc-panel-eyebrow{ font-size:11px; text-transform:uppercase; letter-spacing:.16em; color:#93c5fd; font-weight:800; margin-bottom:6px; }
+    .oc-cap{ color:var(--ink-muted); font-size:.95rem; margin:0 }
+    .oc-panel-badge{ display:inline-flex; align-items:center; gap:8px; padding:10px 12px; border-radius:14px; border:1px solid var(--bd); background:color-mix(in srgb, var(--panel-2) 90%, transparent); color:var(--ink); font-size:13px; font-weight:700; }
+    .oc-panel-badge strong{ font-size:18px; }
 
-    .oc-slots{ min-width: 980px; }
-    .oc-row{ display:grid; grid-template-columns: 160px 1fr 260px; gap:10px; align-items:center;
-             border-bottom:1px solid var(--bd); padding:10px 8px }
-    .oc-row:hover{ background: color-mix(in srgb, var(--panel-2) 84%, transparent); }
-    .oc-th{ background: color-mix(in srgb, var(--panel-2) 88%, transparent); border-radius:12px; font-weight:700 }
+    .oc-kpis{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:0 4px 16px; }
+    .oc-kpi{ padding:14px; border-radius:16px; border:1px solid var(--bd); background:linear-gradient(180deg, rgba(15,23,42,.96), rgba(15,23,42,.72)); box-shadow:var(--shadow-md); min-height:110px; }
+    .oc-kpi__label{ font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--ink-muted); font-weight:800; }
+    .oc-kpi__value{ margin-top:10px; font-size:28px; line-height:1; font-weight:900; color:#fff; }
+    .oc-kpi__sub{ margin-top:10px; color:var(--ink-muted); font-size:13px; }
+
+    .oc-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:0 4px 14px; }
+    .oc-toolbar__legend{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; color:var(--ink-muted); font-size:13px; }
+    .oc-toolbar__legend .dot{ width:10px; height:10px; border-radius:999px; display:inline-block; }
+    .oc-toolbar__actions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .oc-filters{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .oc-filter{ appearance:none; border:1px solid var(--bd); background:color-mix(in srgb, var(--panel-2) 92%, transparent); color:var(--ink-muted); border-radius:999px; padding:8px 12px; font-size:13px; font-weight:800; cursor:pointer; transition:transform .08s ease, border-color .14s ease, color .14s ease, background .14s ease; }
+    .oc-filter:hover{ transform:translateY(-1px); color:var(--ink); }
+    .oc-filter.is-active{ border-color:color-mix(in srgb, var(--brand) 55%, var(--bd)); background:color-mix(in srgb, var(--brand) 18%, transparent); color:#dbeafe; box-shadow:0 10px 24px rgba(59,130,246,.16); }
+
+    .oc-slots-wrap{ position:relative; }
+    .oc-slots{ min-width:0 !important; }
+    .oc-row{ display:grid; grid-template-columns: minmax(88px,108px) minmax(260px,1.45fr) minmax(160px,.9fr) auto; gap:14px; align-items:center; border-bottom:1px solid var(--bd); padding:12px 10px; border-radius:14px; margin-bottom:8px; transition:background .12s ease, border-color .12s ease, transform .12s ease, box-shadow .12s ease; }
+    .oc-row:hover{ background: color-mix(in srgb, var(--panel-2) 84%, transparent); border-color: color-mix(in srgb, var(--brand) 28%, var(--bd)); transform:translateY(-1px); box-shadow:0 12px 24px rgba(2,6,23,.24); }
+    .oc-row.is-match{ outline:2px solid color-mix(in srgb, var(--brand) 60%, transparent); background:color-mix(in srgb, var(--brand) 12%, transparent); }
+    .oc-row.is-dim{ opacity:.5; }
+    .oc-th{ background: color-mix(in srgb, var(--panel-2) 88%, transparent); border-radius:12px; font-weight:700; margin-bottom:10px; }
+    .oc-time{ display:flex; flex-direction:column; gap:4px; }
+    .oc-time__main{ font-size:22px; line-height:1; font-weight:900; color:#fff; }
+    .oc-time__sub{ font-size:12px; color:var(--ink-muted); text-transform:uppercase; letter-spacing:.08em; }
+    .oc-load{ display:flex; flex-direction:column; gap:10px; min-width:0; }
+    .oc-load__top{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .oc-load__title{ font-weight:800; color:#fff; }
+    .oc-load__meta{ color:var(--ink-muted); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .oc-tag{ display:inline-flex; align-items:center; justify-content:center; border-radius:999px; padding:6px 10px; font-size:11px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; border:1px solid transparent; }
+    .oc-tag--quiet{ background:rgba(16,185,129,.15); color:#6ee7b7; border-color:rgba(16,185,129,.28); }
+    .oc-tag--busy{ background:rgba(245,158,11,.16); color:#fcd34d; border-color:rgba(245,158,11,.32); }
+    .oc-tag--full{ background:rgba(239,68,68,.16); color:#fca5a5; border-color:rgba(239,68,68,.32); }
     .oc-info{ color:var(--ink-muted) }
+    .oc-availability{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .oc-stat{ padding:10px; border-radius:12px; border:1px solid rgba(255,255,255,.06); background:rgba(255,255,255,.02); }
+    .oc-stat__label{ display:block; font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-muted); font-weight:800; }
+    .oc-stat__value{ display:block; margin-top:6px; font-weight:900; color:#fff; }
+    .oc-open{ display:inline-flex; align-items:center; gap:8px; border-radius:999px; border:1px solid var(--bd); padding:10px 12px; background:rgba(255,255,255,.02); color:#fff; font-weight:800; white-space:nowrap; }
+    .oc-open svg{ width:16px; height:16px; }
+    .oc-row[data-current="true"] .oc-open{ border-color:rgba(59,130,246,.45); background:rgba(59,130,246,.12); }
 
+    .oc-empty{ margin:4px; padding:20px; border-radius:16px; border:1px dashed rgba(255,255,255,.14); background:rgba(255,255,255,.02); color:var(--ink-muted); text-align:center; }
+    .oc-empty strong{ display:block; margin-bottom:6px; color:#fff; font-size:16px; }
     .oc-hint{ color:var(--ink-muted); font-size:.9rem; margin:12px 4px }
-    .oc-summary{ margin:12px 4px; background: color-mix(in srgb, var(--panel-2) 86%, transparent); border:1px solid var(--bd); border-radius:12px; padding:12px }
+    .oc-summary{ margin:12px 4px 4px; background: color-mix(in srgb, var(--panel-2) 86%, transparent); border:1px solid var(--bd); border-radius:16px; padding:16px }
+    .oc-summary-grid{ display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; }
+    .oc-summary-card{ padding:12px; border-radius:14px; border:1px solid rgba(255,255,255,.06); background:rgba(255,255,255,.03); }
+    .oc-summary-card__label{ font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-muted); font-weight:800; }
+    .oc-summary-card__value{ margin-top:10px; font-size:22px; font-weight:900; color:#fff; }
+    .oc-summary-card__sub{ margin-top:6px; color:var(--ink-muted); font-size:13px; }
 
     /* Drawer (Manage customers) */
     .oc-drawer{
@@ -282,6 +332,241 @@
     .deposit-actions .btn.warn{
       background: var(--warn); color:#000; border-color:transparent;
     }
+
+    .oc-drawer .body{ padding:0 16px 16px; overflow:auto; }
+    .tbl thead th{ position:sticky; top:0; background:var(--panel-2); z-index:1; }
+    .tbl td:last-child{ min-width:196px; }
+
+    @media (max-width: 1200px){
+      .oc-kpis{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .oc-summary-grid{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+      .oc-row{ grid-template-columns: minmax(82px,96px) minmax(220px,1fr) minmax(150px,.85fr) auto; }
+    }
+    @media (max-width: 900px){
+      .oc-panel-header{ flex-direction:column; align-items:flex-start; }
+      .oc-panel-badge{ width:100%; justify-content:space-between; }
+      .oc-row, .oc-th{ grid-template-columns: minmax(80px,100px) minmax(0,1fr); }
+      .oc-th > :nth-child(3), .oc-th > :nth-child(4){ display:none; }
+      .oc-availability, .oc-open{ grid-column:2 / -1; }
+      .oc-open{ width:100%; justify-content:center; }
+      .oc-kpis{ grid-template-columns:1fr 1fr; }
+      .oc-summary-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+    }
+    @media (max-width: 640px){
+      .oc-layout{ padding:12px; gap:12px; }
+      .oc-kpis{ grid-template-columns:1fr; }
+      .oc-summary-grid{ grid-template-columns:1fr; }
+      .oc-toolbar{ align-items:stretch; }
+      .oc-toolbar__actions{ width:100%; justify-content:space-between; }
+      .oc-filters{ width:100%; overflow:auto; flex-wrap:nowrap; padding-bottom:2px; }
+      .oc-filter{ flex:0 0 auto; }
+      .tbl, .tbl thead, .tbl tbody, .tbl tr, .tbl th, .tbl td{ display:block; width:100%; }
+      .tbl thead{ display:none; }
+      .tbl tr{ border-bottom:1px solid var(--bd); padding:12px 0; }
+      .tbl td{ border:0; padding:6px 0; text-align:start; }
+      .tbl td::before{ content:attr(data-label); display:block; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-muted); font-weight:800; margin-bottom:4px; }
+      .tbl td:last-child{ min-width:0; }
+    }
+
+    .oc-side-search{
+      margin-top:14px; display:flex; align-items:center; gap:10px; padding:12px 14px;
+      border-radius:16px; border:1px solid var(--bd);
+      background:linear-gradient(180deg, rgba(15,23,42,.94), rgba(15,23,42,.78));
+      box-shadow:var(--shadow-md);
+    }
+    .oc-side-search__icon{
+      width:18px; height:18px; color:#93c5fd; flex:0 0 auto;
+    }
+    .oc-side-search input{
+      width:100%; border:0; outline:0; background:transparent; color:var(--ink);
+      font-size:14px; min-width:0;
+    }
+    .oc-side-search input::placeholder{ color:#94a3b8; }
+
+    .oc-timebox{
+      position:relative; overflow:hidden;
+      background:
+        radial-gradient(circle at top right, rgba(59,130,246,.18), transparent 36%),
+        linear-gradient(180deg, rgba(15,23,42,.96), rgba(15,23,42,.8));
+      box-shadow:var(--shadow-lg);
+    }
+    .oc-timebox::after{
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background:linear-gradient(135deg, rgba(255,255,255,.06), transparent 42%);
+      opacity:.7;
+    }
+    .oc-timebox__label{ position:relative; z-index:1; }
+    .oc-timebox__current{ position:relative; z-index:1; font-size:30px; letter-spacing:.02em; }
+    .oc-timebox__sub{
+      position:relative; z-index:1; margin-top:6px; color:var(--ink-muted); font-size:13px; line-height:1.45;
+    }
+    .oc-timebox__inputs, .oc-timebox__actions, .oc-timebox__status{ position:relative; z-index:1; }
+    .oc-timebox__status{ margin-top:10px; color:var(--ink-muted); font-size:12px; min-height:18px; }
+
+    .oc-service-pulse{
+      margin-top:14px; padding:16px; border-radius:18px; border:1px solid var(--bd);
+      background:
+        radial-gradient(circle at top right, rgba(16,185,129,.1), transparent 36%),
+        linear-gradient(180deg, rgba(15,23,42,.96), rgba(15,23,42,.82));
+      box-shadow:var(--shadow-lg);
+    }
+    .oc-service-pulse__eyebrow{
+      font-size:11px; text-transform:uppercase; letter-spacing:.16em; color:#93c5fd; font-weight:800;
+    }
+    .oc-service-pulse__top{
+      display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin-top:10px;
+    }
+    .oc-service-pulse__score{
+      font-size:40px; line-height:1; font-weight:900; color:#fff;
+    }
+    .oc-service-pulse__mood{
+      text-align:end; color:var(--ink-muted); font-size:13px;
+    }
+    .oc-service-pulse__mood strong{
+      display:block; color:#fff; font-size:16px; margin-bottom:4px;
+    }
+    .oc-service-pulse__meter{
+      margin-top:14px; height:10px; background:#111827; border-radius:999px; overflow:hidden; border:1px solid rgba(255,255,255,.05);
+    }
+    .oc-service-pulse__meter span{
+      display:block; height:100%; width:0;
+      background:linear-gradient(90deg, rgba(16,185,129,.9), rgba(59,130,246,.95));
+      transition:width .2s ease;
+    }
+    .oc-service-pulse__grid{
+      display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:14px;
+    }
+    .oc-service-pulse__mini{
+      padding:12px; border-radius:14px; border:1px solid rgba(255,255,255,.06);
+      background:rgba(255,255,255,.03);
+    }
+    .oc-service-pulse__mini span{
+      display:block; color:var(--ink-muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; font-weight:800;
+    }
+    .oc-service-pulse__mini strong{
+      display:block; margin-top:6px; color:#fff; font-size:15px; line-height:1.3;
+    }
+
+    .oc-premium-grid{
+      display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr); gap:12px; padding:0 4px 14px;
+    }
+    .oc-spotlight-card{
+      position:relative; overflow:hidden; min-height:168px;
+      padding:18px; border-radius:20px; border:1px solid var(--bd);
+      background:
+        radial-gradient(circle at top right, rgba(59,130,246,.18), transparent 34%),
+        linear-gradient(180deg, rgba(15,23,42,.98), rgba(15,23,42,.82));
+      box-shadow:var(--shadow-lg);
+    }
+    .oc-spotlight-card--alt{
+      background:
+        radial-gradient(circle at top right, rgba(245,158,11,.12), transparent 34%),
+        linear-gradient(180deg, rgba(15,23,42,.98), rgba(15,23,42,.82));
+    }
+    .oc-spotlight-card::after{
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background:linear-gradient(135deg, rgba(255,255,255,.06), transparent 44%);
+    }
+    .oc-spotlight-card > *{ position:relative; z-index:1; }
+    .oc-spotlight-card__eyebrow{
+      font-size:11px; text-transform:uppercase; letter-spacing:.16em; color:#93c5fd; font-weight:800;
+    }
+    .oc-spotlight-card__title{
+      margin-top:10px; font-size:28px; line-height:1.05; font-weight:900; color:#fff;
+      max-width:14ch;
+    }
+    .oc-spotlight-card__sub{
+      margin-top:8px; color:var(--ink-muted); font-size:14px; line-height:1.5; max-width:58ch;
+    }
+    .oc-spotlight-card__metrics{
+      display:flex; flex-wrap:wrap; gap:10px; margin-top:16px;
+    }
+    .oc-spotlight-pill{
+      display:inline-flex; align-items:center; gap:8px; padding:10px 12px; border-radius:999px;
+      border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04); color:#fff; font-weight:800; font-size:13px;
+    }
+    .oc-spotlight-pill span{ color:var(--ink-muted); font-weight:700; }
+    .oc-spotlight-card__grid{
+      display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:18px;
+    }
+    .oc-spotlight-mini{
+      padding:12px; border-radius:16px; border:1px solid rgba(255,255,255,.06); background:rgba(255,255,255,.03);
+    }
+    .oc-spotlight-mini span{
+      display:block; color:var(--ink-muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; font-weight:800;
+    }
+    .oc-spotlight-mini strong{
+      display:block; margin-top:6px; color:#fff; font-size:17px; line-height:1.35;
+    }
+    .oc-spotlight-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+
+    .oc-density{
+      margin:0 4px 16px; padding:16px; border-radius:18px; border:1px solid var(--bd);
+      background:linear-gradient(180deg, rgba(15,23,42,.9), rgba(15,23,42,.72));
+      box-shadow:var(--shadow-md);
+    }
+    .oc-density__header{
+      display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px;
+    }
+    .oc-density__header strong{ display:block; font-size:15px; color:#fff; }
+    .oc-density__header span{ display:block; color:var(--ink-muted); font-size:12px; margin-top:3px; }
+    .oc-density__meta{ color:#cbd5e1; font-size:12px; font-weight:700; }
+    .oc-density__rail{
+      display:grid; grid-template-columns:repeat(auto-fit,minmax(36px,1fr)); gap:8px; align-items:end;
+    }
+    .oc-density__slot{
+      appearance:none; border:1px solid rgba(255,255,255,.07); background:rgba(255,255,255,.03); color:#fff;
+      border-radius:14px; min-height:96px; padding:10px 8px 8px; cursor:pointer;
+      display:flex; flex-direction:column; justify-content:flex-end; gap:8px;
+      transition:transform .1s ease, border-color .14s ease, background .14s ease, box-shadow .14s ease;
+    }
+    .oc-density__slot:hover{
+      transform:translateY(-2px); border-color:rgba(59,130,246,.34); background:rgba(59,130,246,.08); box-shadow:0 10px 22px rgba(2,6,23,.22);
+    }
+    .oc-density__slot.is-current{
+      border-color:rgba(59,130,246,.46); background:rgba(59,130,246,.12); box-shadow:0 14px 28px rgba(59,130,246,.14);
+    }
+    .oc-density__slot.is-match{
+      box-shadow:0 0 0 2px rgba(59,130,246,.34);
+    }
+    .oc-density__slot.is-dim{ opacity:.45; }
+    .oc-density__bar{
+      width:100%; border-radius:999px; min-height:12px; background:#111827; overflow:hidden; position:relative;
+    }
+    .oc-density__fill{
+      position:absolute; inset:0 auto 0 0; width:0; border-radius:999px;
+      transition:width .18s ease;
+    }
+    .oc-density__time{ font-size:12px; font-weight:900; line-height:1; }
+    .oc-density__pct{ font-size:11px; color:var(--ink-muted); }
+
+    .oc-band-grid{
+      display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; padding:0 4px 16px;
+    }
+    .oc-band-card{
+      appearance:none; border:1px solid var(--bd); background:rgba(255,255,255,.02); color:#fff; cursor:pointer;
+      border-radius:16px; padding:14px; text-align:start; transition:transform .08s ease, border-color .14s ease, background .14s ease, box-shadow .14s ease;
+    }
+    .oc-band-card:hover{ transform:translateY(-1px); border-color:rgba(59,130,246,.28); background:rgba(59,130,246,.06); box-shadow:0 12px 24px rgba(2,6,23,.18); }
+    .oc-band-card.is-active{ border-color:rgba(59,130,246,.48); background:rgba(59,130,246,.12); box-shadow:0 16px 28px rgba(59,130,246,.12); }
+    .oc-band-card__label{ display:block; color:var(--ink-muted); font-size:11px; letter-spacing:.1em; text-transform:uppercase; font-weight:800; }
+    .oc-band-card__value{ display:block; margin-top:10px; font-size:26px; font-weight:900; line-height:1; }
+    .oc-band-card__sub{ display:block; margin-top:8px; color:var(--ink-muted); font-size:13px; }
+
+    @media (max-width: 1200px){
+      .oc-premium-grid{ grid-template-columns:1fr; }
+    }
+    @media (max-width: 900px){
+      .oc-service-pulse__grid, .oc-spotlight-card__grid{ grid-template-columns:1fr 1fr; }
+      .oc-band-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+    }
+    @media (max-width: 640px){
+      .oc-service-pulse__top{ flex-direction:column; align-items:flex-start; }
+      .oc-service-pulse__mood{ text-align:start; }
+      .oc-service-pulse__grid, .oc-spotlight-card__grid, .oc-band-grid{ grid-template-columns:1fr; }
+      .oc-density__rail{ grid-template-columns:repeat(auto-fit,minmax(52px,1fr)); }
+    }
+
   </style>
 </head>
 <body>
@@ -355,8 +640,57 @@
           <div class="bar"><div id="day-summary-bar"></div></div>
         </div>
 
+        <div class="oc-side-search">
+          <svg class="oc-side-search__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="search" id="sideSearch" placeholder="<%= tt('owner.calendar.search_focus_placeholder','Quick focus search') %>" />
+        </div>
+
         <div class="oc-timebox" id="oc-timebox">
+          <div class="oc-timebox__label"><%= tt('owner.calendar.clock.label','Restaurant Clock') %></div>
           <div class="oc-timebox__current" id="oc-system-time-preview"><%= it.systemNowTime || '12:00' %></div>
+          <div class="oc-timebox__sub"><%= tt('owner.calendar.clock.subtitle','Preview the service flow at any date and time without leaving the calendar.') %></div>
+          <div class="oc-timebox__inputs">
+            <input type="date" id="oc-system-date" value="<%= it.systemNowDate || it.date %>">
+            <input type="time" id="oc-system-time" value="<%= it.systemNowTime || '12:00' %>">
+          </div>
+          <div class="oc-timebox__actions">
+            <button class="btn-live primary" id="oc-system-apply-btn" type="button"><%= tt('owner.calendar.clock.apply','Apply preview') %></button>
+            <button class="btn-live ghost" id="oc-system-now-btn" type="button"><%= tt('owner.calendar.clock.now','Use real time') %></button>
+          </div>
+          <div class="oc-timebox__status" id="oc-system-time-status"><%= tt('owner.calendar.clock.ready','Live view ready') %></div>
+        </div>
+
+        <div class="oc-service-pulse" id="oc-service-pulse">
+          <div class="oc-service-pulse__eyebrow"><%= tt('owner.calendar.service_pulse','Service Pulse') %></div>
+          <div class="oc-service-pulse__top">
+            <div class="oc-service-pulse__score" id="oc-service-score">—</div>
+            <div class="oc-service-pulse__mood">
+              <strong id="oc-service-mood">—</strong>
+              <span id="oc-service-mood-sub"><%= tt('owner.calendar.loading','טוען…') %></span>
+            </div>
+          </div>
+          <div class="oc-service-pulse__meter"><span id="oc-service-score-bar"></span></div>
+          <div class="oc-service-pulse__grid">
+            <div class="oc-service-pulse__mini">
+              <span><%= tt('owner.calendar.service_pulse.next_peak','Next peak') %></span>
+              <strong id="oc-next-peak">—</strong>
+            </div>
+            <div class="oc-service-pulse__mini">
+              <span><%= tt('owner.calendar.service_pulse.window','Service window') %></span>
+              <strong id="oc-service-window">—</strong>
+            </div>
+            <div class="oc-service-pulse__mini">
+              <span><%= tt('owner.calendar.service_pulse.peak_room','Peak room') %></span>
+              <strong id="oc-peak-room">—</strong>
+            </div>
+            <div class="oc-service-pulse__mini">
+              <span><%= tt('owner.calendar.service_pulse.focus','Visible focus') %></span>
+              <strong id="oc-visible-focus">—</strong>
+            </div>
+          </div>
         </div>
 
         <div class="oc-room-graph" id="oc-room-graph">
@@ -370,22 +704,123 @@
 
       <!-- Panel (ימין בפועל) -->
       <section class="oc-panel">
-        <header>
-          <div class="oc-cap" id="cap-line">
-            <%= tt('owner.calendar.cap_line','קיבולת: סועדים — • שולחנות — • צעד: —') %>
+        <header class="oc-panel-header">
+          <div>
+            <div class="oc-panel-eyebrow"><%= tt('owner.calendar.panel.eyebrow','Service Flow') %></div>
+            <div class="oc-cap" id="cap-line">
+              <%= tt('owner.calendar.cap_line','קיבולת: סועדים — • שולחנות — • צעד: —') %>
+            </div>
+          </div>
+          <div class="oc-panel-badge" id="oc-current-badge">
+            <span><%= tt('owner.calendar.current_badge','Current service time') %></span>
+            <strong id="oc-current-time-chip"><%= it.systemNowTime || '12:00' %></strong>
           </div>
         </header>
 
-        <div class="oc-slots" id="slots">
-          <div class="oc-row oc-th">
-            <div><%= tt('owner.calendar.th.time','שעה') %></div>
-            <div><%= tt('owner.calendar.th.occupancy','תפוסה') %></div>
-            <div class="oc-info"><%= tt('owner.calendar.th.people_tables_pct','סועדים • שולחנות • %') %></div>
+        <section class="oc-kpis" id="oc-kpis" aria-label="<%= tt('owner.calendar.kpis','Daily insights') %>">
+          <article class="oc-kpi">
+            <div class="oc-kpi__label"><%= tt('owner.calendar.summary.total_reservations','Total Reservations') %></div>
+            <div class="oc-kpi__value">—</div>
+            <div class="oc-kpi__sub"><%= tt('owner.calendar.loading','טוען…') %></div>
+          </article>
+          <article class="oc-kpi">
+            <div class="oc-kpi__label"><%= tt('owner.calendar.summary.total_guests','Total Guests') %></div>
+            <div class="oc-kpi__value">—</div>
+            <div class="oc-kpi__sub"><%= tt('owner.calendar.loading','טוען…') %></div>
+          </article>
+          <article class="oc-kpi">
+            <div class="oc-kpi__label"><%= tt('owner.calendar.summary.peak','Peak') %></div>
+            <div class="oc-kpi__value">—</div>
+            <div class="oc-kpi__sub"><%= tt('owner.calendar.loading','טוען…') %></div>
+          </article>
+          <article class="oc-kpi">
+            <div class="oc-kpi__label"><%= tt('owner.calendar.summary.avg_occupancy','Avg Occupancy') %></div>
+            <div class="oc-kpi__value">—</div>
+            <div class="oc-kpi__sub"><%= tt('owner.calendar.loading','טוען…') %></div>
+          </article>
+        </section>
+
+        <div class="oc-toolbar">
+          <div class="oc-toolbar__legend">
+            <span><span class="dot" style="background:var(--ok)"></span> <%= tt('owner.calendar.legend.quiet','Comfortable') %></span>
+            <span><span class="dot" style="background:var(--warn)"></span> <%= tt('owner.calendar.legend.busy','Busy') %></span>
+            <span><span class="dot" style="background:var(--danger)"></span> <%= tt('owner.calendar.legend.full','Nearly full') %></span>
           </div>
-          <!-- rows injected by JS -->
+          <div class="oc-toolbar__actions">
+            <div class="oc-filters" id="oc-filters" aria-label="<%= tt('owner.calendar.filters.aria','Occupancy filters') %>">
+              <button class="oc-filter is-active" data-filter="all" type="button"><%= tt('owner.calendar.filters.all','All slots') %></button>
+              <button class="oc-filter" data-filter="quiet" type="button"><%= tt('owner.calendar.filters.quiet','Quiet') %></button>
+              <button class="oc-filter" data-filter="busy" type="button"><%= tt('owner.calendar.filters.busy','Busy') %></button>
+              <button class="oc-filter" data-filter="full" type="button"><%= tt('owner.calendar.filters.full','Critical') %></button>
+            </div>
+            <button class="btn-live ghost" id="btn-jump-now" type="button">⏱ <%= tt('owner.calendar.jump_now','Jump to now') %></button>
+          </div>
         </div>
 
-        <div class="oc-hint"><%= tt('owner.calendar.hint','רמז: לחץ על סלוט כדי לנהל לקוחות') %></div>
+        <section class="oc-premium-grid">
+          <article class="oc-spotlight-card" id="oc-service-spotlight">
+            <div class="oc-spotlight-card__eyebrow"><%= tt('owner.calendar.spotlight.eyebrow','Luxury service overview') %></div>
+            <div class="oc-spotlight-card__title" id="oc-spotlight-title"><%= tt('owner.calendar.loading','טוען…') %></div>
+            <div class="oc-spotlight-card__sub" id="oc-spotlight-sub"><%= tt('owner.calendar.loading','טוען…') %></div>
+            <div class="oc-spotlight-card__metrics" id="oc-spotlight-metrics"></div>
+            <div class="oc-spotlight-actions">
+              <button class="btn-live primary" id="oc-open-next-peak" type="button"><%= tt('owner.calendar.spotlight.next_peak_cta','Go to next peak') %></button>
+              <button class="btn-live ghost" id="oc-open-current-slot" type="button"><%= tt('owner.calendar.spotlight.current_cta','Open current slot') %></button>
+            </div>
+          </article>
+          <article class="oc-spotlight-card oc-spotlight-card--alt">
+            <div class="oc-spotlight-card__eyebrow"><%= tt('owner.calendar.spotlight.detail_eyebrow','Operational details') %></div>
+            <div class="oc-spotlight-card__grid">
+              <div class="oc-spotlight-mini">
+                <span><%= tt('owner.calendar.spotlight.current_load','Current load') %></span>
+                <strong id="oc-current-load">—</strong>
+              </div>
+              <div class="oc-spotlight-mini">
+                <span><%= tt('owner.calendar.spotlight.current_room','Top room now') %></span>
+                <strong id="oc-current-room">—</strong>
+              </div>
+              <div class="oc-spotlight-mini">
+                <span><%= tt('owner.calendar.spotlight.expected_guests','Expected guests') %></span>
+                <strong id="oc-expected-guests">—</strong>
+              </div>
+              <div class="oc-spotlight-mini">
+                <span><%= tt('owner.calendar.spotlight.alerts','Recovery watch') %></span>
+                <strong id="oc-recovery-watch">—</strong>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="oc-density" id="oc-density">
+          <div class="oc-density__header">
+            <div>
+              <strong><%= tt('owner.calendar.density.title','Timeline density') %></strong>
+              <span><%= tt('owner.calendar.density.subtitle','Tap a pulse to jump straight to the slot') %></span>
+            </div>
+            <div class="oc-density__meta" id="oc-density-meta"><%= tt('owner.calendar.loading','טוען…') %></div>
+          </div>
+          <div class="oc-density__rail" id="oc-density-rail"></div>
+        </section>
+
+        <section class="oc-band-grid" id="oc-band-grid" aria-label="<%= tt('owner.calendar.band_cards','Slot mix') %>"></section>
+
+        <div class="oc-slots-wrap">
+          <div class="oc-slots" id="slots">
+            <div class="oc-row oc-th">
+              <div><%= tt('owner.calendar.th.time','שעה') %></div>
+              <div><%= tt('owner.calendar.th.occupancy','תפוסה') %></div>
+              <div class="oc-info"><%= tt('owner.calendar.th.people_tables_pct','Availability') %></div>
+              <div class="oc-info"><%= tt('owner.calendar.actions.open','Open') %></div>
+            </div>
+            <!-- rows injected by JS -->
+          </div>
+          <div class="oc-empty" id="oc-empty-state" hidden>
+            <strong><%= tt('owner.calendar.empty.title','No slots match this view') %></strong>
+            <span id="oc-empty-copy"><%= tt('owner.calendar.empty.subtitle','Try a different filter or search for another guest.') %></span>
+          </div>
+        </div>
+
+        <div class="oc-hint" id="oc-hint"><%= tt('owner.calendar.hint','רמז: לחץ על סלוט כדי לנהל לקוחות') %></div>
 
         <div class="oc-summary" id="summary">
           <%= tt('owner.calendar.daily_summary_loading','סיכום יומי — נטען…') %>
@@ -473,7 +908,34 @@
         statusCancelled: "<%= tt('owner.calendar.status.cancelled','Cancelled') %>",
         depositPending: "<%= tt('owner.calendar.deposit.pending','Deposit Pending') %>",
         depositReceived: "<%= tt('owner.calendar.deposit.received','Deposit Paid') %>",
-        depositRefunded: "<%= tt('owner.calendar.deposit.refunded','Refunded') %>"
+        depositRefunded: "<%= tt('owner.calendar.deposit.refunded','Refunded') %>",
+        servicePulseLabel: "<%= tt('owner.calendar.service_pulse','Service Pulse') %>",
+        serviceFlowBalanced: "<%= tt('owner.calendar.service_flow.balanced','Balanced flow') %>",
+        serviceFlowBusy: "<%= tt('owner.calendar.service_flow.busy','Rush building up') %>",
+        serviceFlowCritical: "<%= tt('owner.calendar.service_flow.critical','Critical pressure') %>",
+        serviceFlowCalm: "<%= tt('owner.calendar.service_flow.calm','Calm service') %>",
+        serviceWindowLabel: "<%= tt('owner.calendar.service_pulse.window','Service window') %>",
+        nextPeakLabel: "<%= tt('owner.calendar.service_pulse.next_peak','Next peak') %>",
+        peakRoomLabel: "<%= tt('owner.calendar.service_pulse.peak_room','Peak room') %>",
+        visibleFocusLabel: "<%= tt('owner.calendar.service_pulse.focus','Visible focus') %>",
+        densityJumpHint: "<%= tt('owner.calendar.density.subtitle','Tap a pulse to jump straight to the slot') %>",
+        visibleSlotsMeta: "<%= tt('owner.calendar.visible_slots_meta','Visible slots') %>",
+        currentLoadLabel: "<%= tt('owner.calendar.spotlight.current_load','Current load') %>",
+        currentRoomLabel: "<%= tt('owner.calendar.spotlight.current_room','Top room now') %>",
+        expectedGuestsLabel: "<%= tt('owner.calendar.spotlight.expected_guests','Expected guests') %>",
+        recoveryWatchLabel: "<%= tt('owner.calendar.spotlight.alerts','Recovery watch') %>",
+        guestsLeftLabel: "<%= tt('owner.calendar.left_guests','Guests left') %>",
+        topRoomNowSub: "<%= tt('owner.calendar.room_graph.title','Room Occupancy Right Now') %>",
+        nextPeakCta: "<%= tt('owner.calendar.spotlight.next_peak_cta','Go to next peak') %>",
+        openCurrentCta: "<%= tt('owner.calendar.spotlight.current_cta','Open current slot') %>",
+        viewSlotCta: "<%= tt('owner.calendar.open_slot','Open slot') %>",
+        allSlotsLabel: "<%= tt('owner.calendar.filters.all','All slots') %>",
+        quietLabel: "<%= tt('owner.calendar.filters.quiet','Quiet') %>",
+        busyLabel: "<%= tt('owner.calendar.filters.busy','Busy') %>",
+        fullLabel: "<%= tt('owner.calendar.filters.full','Critical') %>",
+        slotsLabel: "<%= tt('owner.calendar.slots_label','slots') %>",
+        matchingGuestsLabel: "<%= tt('owner.calendar.matching_guests','matching guests') %>",
+        occupancyScoreLabel: "<%= tt('owner.calendar.occupancy_score','Service score') %>"
       }
     };
 
