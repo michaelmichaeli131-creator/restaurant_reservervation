@@ -282,6 +282,12 @@ ownerManageRouter.get("/owner/restaurants/:id/manage", async (ctx) => {
       edit: `/owner/restaurants/${encodeURIComponent(r.id)}/edit`,
       deposit: `/owner/restaurants/${encodeURIComponent(r.id)}/deposit`,
       inventory: `/owner/${encodeURIComponent(r.id)}/inventory/stock`,
+      inventoryCounts: `/owner/${encodeURIComponent(r.id)}/inventory/counts`,
+      inventoryRecipes: `/owner/${encodeURIComponent(r.id)}/inventory/recipes`,
+      inventoryCosts: `/owner/${encodeURIComponent(r.id)}/inventory/costs`,
+      inventoryFoodCost: `/owner/${encodeURIComponent(r.id)}/inventory/foodcost`,
+      inventorySuppliers: `/owner/${encodeURIComponent(r.id)}/inventory/suppliers`,
+      inventoryPurchaseOrders: `/owner/${encodeURIComponent(r.id)}/inventory/purchase_orders`,
       stats: `/owner/${encodeURIComponent(r.id)}/stats`,
       // operational screens (host/waiter/kitchen)
       host: `/host/${encodeURIComponent(r.id)}`,

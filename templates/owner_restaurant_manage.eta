@@ -59,10 +59,72 @@
   const canMenu     = hasPerm('menu.manage');
   const canReports  = hasPerm('reports.view');
   const canInvView  = hasPerm('inventory.view') || hasPerm('inventory.manage');
+  const canInvManage = hasPerm('inventory.manage');
   const canWaiter   = hasPerm('pos.waiter');
   const canKitchen  = hasPerm('pos.kitchen');
   const canHost     = hasPerm('host.seating');
   const canBar      = hasPerm('pos.waiter');
+
+  const inventoryCards = [
+    {
+      href: r?._urls?.inventory,
+      icon: 'box',
+      title: tt('owner_manage.link_current_stock', 'Current Stock'),
+      desc: tt('owner_manage.inventory_stock_desc', 'Track quantities, minimum levels, and unit costs for every ingredient.'),
+      tone: 'primary',
+      badge: tt('owner_manage.inventory_core', 'Core')
+    },
+    ...(canInvManage ? [
+      {
+        href: r?._urls?.inventoryCosts,
+        icon: 'chart',
+        title: tt('owner_manage.link_ingredient_costs', 'Ingredient Costs'),
+        desc: tt('owner_manage.inventory_costs_desc', 'Monitor live ingredient cost baselines and manual overrides.'),
+        tone: 'info',
+        badge: tt('owner_manage.inventory_insights', 'Insights')
+      },
+      {
+        href: r?._urls?.inventoryCounts,
+        icon: 'check',
+        title: tt('owner_manage.link_inventory_counts', 'Inventory Counts'),
+        desc: tt('owner_manage.inventory_counts_desc', 'Run count sessions and reconcile real stock against the system.'),
+        tone: 'success',
+        badge: tt('owner_manage.inventory_control', 'Control')
+      },
+      {
+        href: r?._urls?.inventoryFoodCost,
+        icon: 'plate',
+        title: tt('owner_manage.link_food_cost_margin', 'Dish Cost & Margin'),
+        desc: tt('owner_manage.inventory_food_cost_desc', 'See plate cost, selling price, and margin for each dish.'),
+        tone: 'brand',
+        badge: tt('owner_manage.inventory_profit', 'Profit')
+      },
+      {
+        href: r?._urls?.inventorySuppliers,
+        icon: 'users',
+        title: tt('owner_manage.link_suppliers', 'Suppliers'),
+        desc: tt('owner_manage.inventory_suppliers_desc', 'Keep preferred vendors, contacts, and sourcing details in one place.'),
+        tone: 'muted',
+        badge: tt('owner_manage.inventory_procurement', 'Vendors')
+      },
+      {
+        href: r?._urls?.inventoryPurchaseOrders,
+        icon: 'receipt',
+        title: tt('owner_manage.link_purchase_orders', 'Purchase Orders'),
+        desc: tt('owner_manage.inventory_purchase_orders_desc', 'Create orders and update stock automatically when deliveries arrive.'),
+        tone: 'warn',
+        badge: tt('owner_manage.inventory_flow', 'Flow')
+      },
+      {
+        href: r?._urls?.inventoryRecipes,
+        icon: 'utensils',
+        title: tt('owner_manage.link_recipes', 'Recipes'),
+        desc: tt('owner_manage.inventory_recipes_desc', 'Connect dishes to ingredients so POS sales reduce stock correctly.'),
+        tone: 'primary',
+        badge: tt('owner_manage.inventory_automation', 'Automation')
+      },
+    ] : [])
+  ];
 
   const tasks = Array.isArray(r?._tasks) ? r._tasks : [];
   const alerts = Array.isArray(r?._alerts) ? r._alerts : [];
@@ -598,19 +660,39 @@
         <% } %>
 
         <% if (canInvView) { %>
-        <article class="sb-surface sb-rm-panel" data-sb-search="inventory stock counts recipes suppliers">
+        <article class="sb-surface sb-rm-panel sb-rm-panel-inventory" data-sb-search="inventory stock counts recipes suppliers purchase orders food cost ingredient costs">
           <div class="sb-rm-panel-top sb-rm-card-head">
             <div class="sb-rm-head-main">
               <div class="sb-rm-section-kicker"><%= tt('owner_manage.stock_control', 'Stock Control') %></div>
               <h3><%= it.t('owner_manage.card_inventory_title') %></h3>
               <p class="muted"><%= it.t('owner_manage.card_inventory_sub') %></p>
             </div>
-            <span class="sb-rm-stat-pill"><%= tt('owner_manage.live', 'Live') %></span>
+            <span class="sb-rm-stat-pill"><%= inventoryCards.length %> <%= tt('owner_manage.inventory_tools', 'tools') %></span>
           </div>
-          <div class="sb-rm-linklist">
-            <a class="sb-link" href="<%= r?._urls?.inventory %>"><%= it.t('owner_manage.link_current_stock') %></a>
-            <a class="sb-link" href="/owner/<%= encodeURIComponent(r?.id || '') %>/inventory/counts"><%= it.t('owner_manage.link_inventory_counts') %></a>
-            <a class="sb-link" href="/owner/<%= encodeURIComponent(r?.id || '') %>/inventory/recipes"><%= it.t('owner_manage.link_recipes') %></a>
+
+          <div class="sb-rm-panel-metrics sb-rm-panel-metrics-compact">
+            <span><strong><%= canInvManage ? 6 : 1 %></strong> <%= tt('owner_manage.inventory_modules', 'modules') %></span>
+            <span><strong><%= canInvManage ? tt('owner_manage.full_access', 'Full access') : tt('owner_manage.view_only', 'View only') %></strong></span>
+            <span><strong><%= tt('owner_manage.live', 'Live') %></strong> <%= tt('owner_manage.inventory_sync', 'inventory workspace') %></span>
+          </div>
+
+          <div class="sb-rm-featuregrid sb-rm-inventory-grid">
+            <% inventoryCards.forEach(function(card){ %>
+              <a class="sb-rm-featurecard tone-<%= card.tone %>" href="<%= card.href %>">
+                <div class="sb-rm-featurecard-top">
+                  <span class="sb-rm-featureicon" aria-hidden="true">
+                    <svg><use href="/public/icons/sb-sprite.svg#<%= card.icon %>"/></svg>
+                  </span>
+                  <span class="sb-rm-featurebadge"><%= card.badge %></span>
+                </div>
+                <strong><%= card.title %></strong>
+                <p><%= card.desc %></p>
+                <span class="sb-rm-featurecta">
+                  <%= tt('owner_manage.open_module', 'Open module') %>
+                  <span class="sb-icon sb-icon-16"><svg><use href="/public/icons/sb-sprite.svg#chev"/></svg></span>
+                </span>
+              </a>
+            <% }) %>
           </div>
         </article>
         <% } %>
@@ -965,6 +1047,30 @@
     .sb-rm-linklist .sb-link:hover, .sb-rm-appcard:hover, .sb-rm-timeitem:hover{
       transform:translateY(-1px); border-color:rgba(96,165,250,.32); background:rgba(59,130,246,.08);
     }
+    .sb-rm-panel-metrics-compact{margin:14px 0 10px}
+    .sb-rm-featuregrid{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; margin-top:10px}
+    .sb-rm-featurecard{
+      position:relative; overflow:hidden; display:flex; flex-direction:column; gap:10px; min-height:170px;
+      padding:16px; border-radius:22px; text-decoration:none; color:inherit;
+      background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow:0 14px 30px rgba(0,0,0,.16);
+      transition:transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+    }
+    .sb-rm-featurecard::before{content:''; position:absolute; inset:0 0 auto; height:3px; background:linear-gradient(90deg, rgba(96,165,250,.94), rgba(34,211,238,.84)); opacity:.92}
+    .sb-rm-featurecard:hover{transform:translateY(-2px); border-color:rgba(96,165,250,.34); background:linear-gradient(180deg, rgba(59,130,246,.14), rgba(15,23,42,.12)); box-shadow:0 20px 40px rgba(0,0,0,.22)}
+    .sb-rm-featurecard-top{display:flex; align-items:center; justify-content:space-between; gap:12px}
+    .sb-rm-featureicon{width:42px; height:42px; display:grid; place-items:center; border-radius:14px; background:rgba(59,130,246,.14); border:1px solid rgba(96,165,250,.24); color:#dbeafe}
+    .sb-rm-featureicon svg{width:20px; height:20px}
+    .sb-rm-featurebadge{display:inline-flex; align-items:center; justify-content:center; padding:6px 10px; border-radius:999px; font-size:11px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; color:#dbeafe; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.10)}
+    .sb-rm-featurecard strong{font-size:16px; line-height:1.2; overflow-wrap:anywhere}
+    .sb-rm-featurecard p{margin:0; color:#cbd5e1; line-height:1.55}
+    .sb-rm-featurecta{margin-top:auto; display:inline-flex; align-items:center; gap:8px; color:#dbeafe; font-weight:700}
+    .sb-rm-featurecard.tone-success .sb-rm-featureicon{background:rgba(16,185,129,.14); border-color:rgba(16,185,129,.28); color:#d1fae5}
+    .sb-rm-featurecard.tone-warn .sb-rm-featureicon{background:rgba(245,158,11,.14); border-color:rgba(245,158,11,.28); color:#fde68a}
+    .sb-rm-featurecard.tone-brand .sb-rm-featureicon{background:rgba(168,85,247,.16); border-color:rgba(168,85,247,.30); color:#f3e8ff}
+    .sb-rm-featurecard.tone-muted .sb-rm-featureicon{background:rgba(148,163,184,.14); border-color:rgba(148,163,184,.24); color:#e2e8f0}
+    .sb-rm-featurecard.tone-info .sb-rm-featureicon{background:rgba(34,211,238,.14); border-color:rgba(34,211,238,.28); color:#cffafe}
 
     .sb-rm-appgrid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px; margin-top:18px}
     .sb-rm-appcard{
@@ -1034,7 +1140,7 @@
       .sb-rm-ribbon{padding:0 18px 18px; grid-template-columns:1fr}
       .sb-rm-scorecard{grid-template-columns:1fr}
       .sb-rm-score-ring{width:92px; height:92px}
-      .sb-rm-window-grid, .sb-rm-highlights, .sb-rm-panel-grid, .sb-rm-appgrid, .sb-rm-mini-grid, .sb-rm-status-grid, .sb-rm-gallery{grid-template-columns:1fr}
+      .sb-rm-window-grid, .sb-rm-highlights, .sb-rm-panel-grid, .sb-rm-appgrid, .sb-rm-mini-grid, .sb-rm-status-grid, .sb-rm-gallery, .sb-rm-featuregrid{grid-template-columns:1fr}
       .sb-rm-timeitem{grid-template-columns:58px minmax(0,1fr)}
       .sb-rm-gallery-item.is-large{grid-row:auto; min-height:140px}
       .sb-rm-control-actions, .sb-rm-quick{flex-direction:column; align-items:stretch}
