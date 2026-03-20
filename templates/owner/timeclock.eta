@@ -6,6 +6,7 @@
   const rows = Array.isArray(it.rows) ? it.rows : [];
   const staffList = Array.isArray(it.staffList) ? it.staffList : [];
   const payroll = Array.isArray(it.payroll) ? it.payroll : [];
+  const locale = it.lang === 'ka' ? 'ka-GE' : (it.lang === 'he' ? 'he-IL' : 'en-US');
 
   const staffById = {};
   staffList.forEach(s => staffById[s.id] = s);
@@ -25,7 +26,7 @@
     if(!ms) return '';
     try{
       const d = new Date(ms);
-      return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+      return d.toLocaleTimeString(locale, {hour:'2-digit', minute:'2-digit'});
     }catch(e){ return ''; }
   }
   function minsWorked(r){
@@ -47,7 +48,7 @@
       <h2 style="margin:0 0 10px 0;font-size:16px"><%= tt('owner.timeclock.monthly_records', 'רשומות חודשיות') %></h2>
 
       <div class="muted" style="margin-bottom:10px">
-        <%= tt('owner.timeclock.tip', 'טיפ: לחץ על שורה כדי לערוך ידנית כניסה/יציאה (ולשנות hourlyRate אם צריך).') %>
+        <%= tt('owner.timeclock.tip', 'რჩევა: დააწკაპუნეთ სტრიქონზე, რომ ხელით შეცვალოთ შესვლის/გასვლის დრო (და საჭირო হলে საათობრივი ტარიფიც).') %>
       </div>
 
       <table class="tbl">
@@ -124,10 +125,10 @@
       <div class="muted" id="meta"></div>
 
       <div class="form">
-        <label><%= tt('owner.timeclock.edit.clock_in', 'כניסה (HH:MM)') %></label>
+        <label><%= tt('owner.timeclock.edit.clock_in', 'შესვლა (HH:MM)') %></label>
         <input id="inTime" placeholder="09:00" />
 
-        <label><%= tt('owner.timeclock.edit.clock_out', 'יציאה (HH:MM)') %></label>
+        <label><%= tt('owner.timeclock.edit.clock_out', 'გასვლა (HH:MM)') %></label>
         <input id="outTime" placeholder="17:00" />
 
         <label><%= tt('owner.timeclock.edit.note', 'הערה') %></label>
@@ -252,7 +253,7 @@
 
     const j = await r.json().catch(()=>({ok:false,error:'bad_json'}));
     if(!r.ok || !j.ok){
-      errBox.textContent = '<%= tt('owner.timeclock.error_prefix', 'שגיאה') %>: ' + (j.error || r.status);
+      errBox.textContent = '<%= tt('owner.timeclock.error_prefix', 'შეცდომა') %>: ' + (j.error || r.status);
       errBox.classList.remove('hidden');
       return;
     }

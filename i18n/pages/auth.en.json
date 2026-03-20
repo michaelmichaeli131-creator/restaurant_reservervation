@@ -35,7 +35,7 @@
     },
     "register": {
       "title": "Sign up",
-      "subtitle": "Create a new GeoTable account",
+      "subtitle": "Create a new SpotBook account",
       "form": {
         "firstName": "First name",
         "firstNamePh": "e.g. Daniel",

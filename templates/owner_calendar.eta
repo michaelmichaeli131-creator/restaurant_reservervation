@@ -5,7 +5,7 @@
   <title>
     <% /* tt: תרגום עם fallback אמיתי גם כש-it.t מחזיר "(key)" */ %>
     <% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
-    <%= (it.title && it.title.trim().length) ? it.title : tt('owner.calendar.head','יומן בעלים · SpotBook') %>
+    <%= (it.title && it.title.trim().length) ? it.title : tt('owner.calendar.head','SpotBook · მფლობელის კალენდარი') %>
   </title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- קובץ הלוגיקה/בסיס קיים שלך -->
@@ -428,6 +428,8 @@
     window.__OC__ = {
       rid: "<%= it.rid %>",
       date: "<%= it.date %>",
+      lang: "<%= it.lang || 'en' %>",
+      locale: "<%= it.lang === 'ka' ? 'ka-GE' : (it.lang === 'he' ? 'he-IL' : 'en-US') %>",
       systemNowDate: "<%= it.systemNowDate || it.date %>",
       systemNowTime: "<%= it.systemNowTime || '12:00' %>",
       txt: {
@@ -451,7 +453,13 @@
         peak: "<%= tt('owner.calendar.summary.peak','Peak') %>",
         cancelled: "<%= tt('owner.calendar.summary.cancelled','Cancelled') %>",
         noShow: "<%= tt('owner.calendar.summary.no_show','No-Show') %>",
+        dailySummaryLoading: "<%= tt('owner.calendar.daily_summary_loading','Daily summary — loading…') %>",
         customersAt: "<%= tt('owner.calendar.drawer.customers_at','Customers') %>",
+        promptFirstName: "<%= tt('owner.calendar.drawer.prompt_first_name','First name:') %>",
+        promptLastName: "<%= tt('owner.calendar.drawer.prompt_last_name','Last name:') %>",
+        promptPhone: "<%= tt('owner.calendar.drawer.prompt_phone','Phone (optional):') %>",
+        promptPartySize: "<%= tt('owner.calendar.drawer.prompt_party_size','Party size:') %>",
+        promptNotes: "<%= tt('owner.calendar.drawer.prompt_notes','Notes (optional):') %>",
         btnArrived: "<%= tt('owner.calendar.actions.arrived','Arrived') %>",
         btnCancel: "<%= tt('owner.calendar.actions.cancel','Cancel') %>",
         btnConfirmDeposit: "<%= tt('owner.calendar.actions.confirm_deposit','Confirm deposit') %>",

@@ -55,7 +55,7 @@
     data-kds-root
     data-rid="<%= rid %>"
     data-destination="bar"
-    data-locale="<%= it.lang === 'he' ? 'he-IL' : 'en-US' %>"
+    data-locale="<%= it.lang === 'he' ? 'he-IL' : (it.lang === 'ka' ? 'ka-GE' : 'en-US') %>"
 
     data-str-live="<%= tt('pos.kds.live', 'Live') %>"
     data-str-offline="<%= tt('pos.kds.offline', 'Offline') %>"

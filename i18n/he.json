@@ -742,7 +742,15 @@
         "title": "תפוסת חדרים עכשיו",
         "empty": "אין נתוני חדרים",
         "left_suffix": "נותרו"
-      }
+      },
+      "drawer": {
+        "prompt_first_name": "שם פרטי:",
+        "prompt_last_name": "שם משפחה:",
+        "prompt_phone": "טלפון (אופציונלי):",
+        "prompt_party_size": "מספר סועדים:",
+        "prompt_notes": "הערות (אופציונלי):"
+      },
+      "daily_summary_loading": "סיכום יומי — נטען…"
     },
     "tabs": {
       "aria": "חלקי המסעדה",
@@ -1117,7 +1125,13 @@
     "templates_title": "תבניות משמרת",
     "title": "ניהול משמרות",
     "unavailable": "לא זמין",
-    "week": "שבוע"
+    "week": "שבוע",
+    "pref_none": "ללא העדפה",
+    "pref_morning": "בוקר",
+    "pref_afternoon": "צהריים",
+    "pref_evening": "ערב",
+    "pref_night": "לילה",
+    "force_label": "כפוי"
   },
   "staff": {
     "dashboard": {

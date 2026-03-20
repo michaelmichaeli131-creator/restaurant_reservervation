@@ -8,8 +8,10 @@
   const rid = root.dataset.rid;
   const table = Number(root.dataset.table || "0");
   const currency = root.dataset.currency || "₪";
-  const itemsUnit = root.dataset.itemsUnit || "פריטים";
+  const itemsUnit = root.dataset.itemsUnit || "Items";
   const accountId = root.dataset.accountId || "main";
+  const statusCancelledText = root.dataset.statusCancelled || "Cancelled";
+  const statusServedText = root.dataset.statusServed || "Served";
 
   const rowsContainer = document.getElementById("order-items");
   const itemsSpan = document.getElementById("bill-items");
@@ -68,7 +70,7 @@
         const statusCell = row.querySelector(".js-status") ||
           row.querySelector("td.col-status");
         if (statusCell) {
-          statusCell.textContent = "בוטל";
+          statusCell.textContent = statusCancelledText;
           statusCell.classList.add("muted");
         }
         recalcTotals();
@@ -107,7 +109,7 @@
         const statusCell = row.querySelector(".js-status") ||
           row.querySelector("td.col-status");
         if (statusCell) {
-          statusCell.textContent = "הוגש";
+          statusCell.textContent = statusServedText;
         }
         const btnServe = row.querySelector(".btn-mark-served");
         if (btnServe) btnServe.remove();

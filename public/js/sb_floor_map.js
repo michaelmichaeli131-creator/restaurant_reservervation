@@ -1,4 +1,64 @@
 (function(){
+  const __lang = String(document.documentElement.lang || 'en').toLowerCase();
+  const FLOOR_I18N = __lang.startsWith('ka') ? {
+    status_occupied: 'დაკავებულია',
+    status_reserved: 'დაჯავშნილია',
+    status_dirty: 'დასასუფთავებელია',
+    status_empty: 'თავისუფალია',
+    main_section: 'მთავარი დარბაზი',
+    section_prefix: 'დარბაზი',
+    seating_now: 'განთავსება მიმდინარეობს',
+    waiting: 'მოლოდინში',
+    map_controls: 'რუკის კონტროლები',
+    zoom_out: 'დაპატარავება',
+    zoom_in: 'გადიდება',
+    center: 'ცენტრში დაბრუნება',
+    empty_table_alert: 'ეს მაგიდა ახლა თავისუფალია. სტუმრის განთავსება ხდება ჰოსტის ეკრანიდან.',
+    bad_json: 'სერვერმა /active ენდპოინტზე არასწორი პასუხი დააბრუნა (არა JSON). დეტალებისთვის შეამოწმეთ Console.',
+    no_active_layout: 'ამ რესტორნისთვის აქტიური განლაგება ვერ მოიძებნა (ან ჯერ განლაგება არ არის შექმნილი).',
+    load_error: 'რუკის ჩატვირთვისას შეცდომა მოხდა.',
+    load_error_title: 'რესტორნის რუკის ჩატვირთვა ვერ მოხერხდა.',
+    console_hint: 'დამატებითი დეტალებისთვის შეამოწმეთ Console.'
+  } : (__lang.startsWith('he') ? {
+    status_occupied: 'תפוס',
+    status_reserved: 'שמור',
+    status_dirty: 'מלוכלך',
+    status_empty: 'פנוי',
+    main_section: 'קומה ראשית',
+    section_prefix: 'קומה',
+    seating_now: 'בהושבה',
+    waiting: 'בהמתנה',
+    map_controls: 'בקרי מפה',
+    zoom_out: 'הקטן',
+    zoom_in: 'הגדל',
+    center: 'מרכז',
+    empty_table_alert: 'שולחן לא תפוס כרגע. הושבה נעשית דרך מסך המארחת.',
+    bad_json: 'השרת החזיר תשובה לא תקינה (לא JSON) ל- /active. בדוק Console כדי לראות preview של התגובה.',
+    no_active_layout: 'השרת לא מצא Layout פעיל למסעדה הזו (או שאין Layouts בכלל).',
+    load_error: 'קרתה שגיאה בטעינת המפה.',
+    load_error_title: 'לא ניתן לטעון את מפת המסעדה.',
+    console_hint: 'בדוק את ה-Console לפרטי דיבוג.'
+  } : {
+    status_occupied: 'Occupied',
+    status_reserved: 'Reserved',
+    status_dirty: 'Needs cleaning',
+    status_empty: 'Available',
+    main_section: 'Main room',
+    section_prefix: 'Room',
+    seating_now: 'Being seated',
+    waiting: 'Waiting',
+    map_controls: 'Map controls',
+    zoom_out: 'Zoom out',
+    zoom_in: 'Zoom in',
+    center: 'Center view',
+    empty_table_alert: 'This table is not occupied right now. Seating is done from the host screen.',
+    bad_json: 'The server returned an invalid response (not JSON) for /active. Check Console for the response preview.',
+    no_active_layout: 'No active layout was found for this restaurant (or no layouts exist yet).',
+    load_error: 'An error occurred while loading the map.',
+    load_error_title: 'Unable to load the restaurant map.',
+    console_hint: 'Check Console for debugging details.'
+  });
+  function floorT(key){ return FLOOR_I18N[key] || key; }
   function qs(el, sel){ return el ? el.querySelector(sel) : null; }
 
   function uniq(arr){
@@ -9,11 +69,11 @@
 
   function statusLabel(status){
     switch(status){
-      case 'occupied': return 'תפוס';
-      case 'reserved': return 'שמור';
-      case 'dirty': return 'מלוכלך';
+      case 'occupied': return floorT('status_occupied');
+      case 'reserved': return floorT('status_reserved');
+      case 'dirty': return floorT('status_dirty');
       case 'empty':
-      default: return 'פנוי';
+      default: return floorT('status_empty');
     }
   }
 
@@ -21,10 +81,10 @@
     const wrap = document.createElement('div');
     wrap.className = 'sb-floor-legend';
     const items = [
-      ['empty','פנוי'],
-      ['occupied','תפוס'],
-      ['reserved','שמור'],
-      ['dirty','מלוכלך'],
+      ['empty', floorT('status_empty')],
+      ['occupied', floorT('status_occupied')],
+      ['reserved', floorT('status_reserved')],
+      ['dirty', floorT('status_dirty')],
     ];
     items.forEach(([k,label]) => {
       const it = document.createElement('span');
@@ -41,11 +101,11 @@
   }
 
   function humanizeSection(id, idx){
-    if(!id) return idx === 0 ? 'קומה ראשית' : `קומה ${idx+1}`;
+    if(!id) return idx === 0 ? floorT('main_section') : `${floorT('section_prefix')} ${idx+1}`;
     // common patterns
     const t = String(id);
     if (/floor/i.test(t)) return t.replace(/_/g,' ');
-    return idx === 0 ? 'קומה 1' : `קומה ${idx+1}`;
+    return idx === 0 ? `${floorT('section_prefix')} 1` : `${floorT('section_prefix')} ${idx+1}`;
   }
 
   function createShell(root){
@@ -67,10 +127,10 @@
     const hud = document.createElement('div');
     hud.className = 'sb-floor-hud';
     hud.innerHTML = `
-      <div class="sb-floor-floatbar sb-floor-hudbar" role="toolbar" aria-label="Map controls">
-        <button type="button" class="sb-floor-floatbtn" data-action="zoom-out" aria-label="Zoom out">−</button>
-        <button type="button" class="sb-floor-floatbtn" data-action="zoom-in" aria-label="Zoom in">+</button>
-        <button type="button" class="sb-floor-floatbtn" data-action="center" aria-label="Center">◎</button>
+      <div class="sb-floor-floatbar sb-floor-hudbar" role="toolbar" aria-label="${floorT('map_controls')}">
+        <button type="button" class="sb-floor-floatbtn" data-action="zoom-out" aria-label="${floorT('zoom_out')}">−</button>
+        <button type="button" class="sb-floor-floatbtn" data-action="zoom-in" aria-label="${floorT('zoom_in')}">+</button>
+        <button type="button" class="sb-floor-floatbtn" data-action="center" aria-label="${floorT('center')}">◎</button>
       </div>
     `;
     const stage = document.createElement('div');
@@ -236,7 +296,7 @@ function tableAssetUrl(tbl){
 
     const sub = document.createElement('div');
     sub.className = 'sb-sub';
-    sub.textContent = status === 'occupied' ? (t.guestName || 'בהושבה') : (status === 'reserved' ? 'בהמתנה' : '');
+    sub.textContent = status === 'occupied' ? (t.guestName || floorT('seating_now')) : (status === 'reserved' ? floorT('waiting') : '');
 
     overlay.appendChild(tn);
     if (sub.textContent) overlay.appendChild(sub);
@@ -485,7 +545,7 @@ function objectAssetUrl(o){
       if (status === 'occupied') {
         window.location.href = `/waiter/${encodeURIComponent(rid)}/${encodeURIComponent(t.tableNumber)}`;
       } else {
-        alert('שולחן לא תפוס כרגע. הושבה נעשית דרך מסך המארחת.');
+        alert(floorT('empty_table_alert'));
       }
     };
 
@@ -638,15 +698,15 @@ function objectAssetUrl(o){
         // Rich UI error with a quick hint + encourage checking the console.
         const status = e && e._sb && e._sb.status ? String(e._sb.status) : '';
         const hint = (e && e.message === 'ACTIVE_LAYOUT_BAD_JSON')
-          ? 'השרת החזיר תשובה לא תקינה (לא JSON) ל- /active. בדוק Console כדי לראות preview של התגובה.'
+          ? floorT('bad_json')
           : (status === '404'
-              ? 'השרת לא מצא Layout פעיל למסעדה הזו (או שאין Layouts בכלל).'
-              : 'קרתה שגיאה בטעינת המפה.');
+              ? floorT('no_active_layout')
+              : floorT('load_error'));
         root.innerHTML = `
           <div class="sb-floor-error-box" style="padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(0,0,0,.25)">
-            <p style="margin:0 0 6px 0;"><strong>לא ניתן לטעון את מפת המסעדה.</strong></p>
+            <p style="margin:0 0 6px 0;"><strong>${floorT('load_error_title')}</strong></p>
             <p class="muted" style="margin:0;">${hint}</p>
-            <p class="muted" style="margin:6px 0 0 0;">(בדוק את ה-Console לפרטי דיבוג)</p>
+            <p class="muted" style="margin:6px 0 0 0;">(${floorT('console_hint')})</p>
           </div>
         `;
       }
@@ -682,7 +742,7 @@ function objectAssetUrl(o){
           const sub = el.querySelector('.sb-sub');
           if (sub) {
             const gn = statusMap.get(Number(tn))?.guestName;
-            sub.textContent = st === 'occupied' ? (gn || 'בהושבה') : (st === 'reserved' ? 'בהמתנה' : '');
+            sub.textContent = st === 'occupied' ? (gn || floorT('seating_now')) : (st === 'reserved' ? floorT('waiting') : '');
             sub.style.display = sub.textContent ? '' : 'none';
           }
         });

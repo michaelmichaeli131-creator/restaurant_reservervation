@@ -377,12 +377,12 @@ export async function confirmGet(ctx: any) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad(tr(lang, { en: "Invalid date", he: "תאריך לא תקין", ka: "არასწორი თარიღი" }));
   if (!/^\d{2}:\d{2}$/.test(time))       return bad(tr(lang, { en: "Invalid time", he: "שעה לא תקינה", ka: "არასწორი დრო" }));
   if (people < 1 || people > 100)        return bad(tr(lang, { en: "Invalid guest count (1-100)", he: "מספר סועדים לא תקין (1-100)", ka: "სტუმრების რაოდენობა არასწორია (1-100)" }));
-  if (!customerName)                     return bad(tr(lang, { en: "Please enter your name", he: "נא להזין שם", ka: "გთხოვთ, მიუთითოთ სახელი" }));
+  if (!customerName)                     return bad(tr(lang, { en: "Please enter your name", he: "נא להזין שם", ka: "გთხოვთ, მიუთითოთ თქვენი სახელი" }));
   if (customerName.length > 100)         return bad(tr(lang, { en: "Name is too long (up to 100 characters)", he: "שם ארוך מדי (עד 100 תווים)", ka: "სახელი ძალიან გრძელია (მაქს. 100 სიმბოლო)" }));
   if (customerNote.length > 500)         return bad(tr(lang, { en: "Note is too long (up to 500 characters)", he: "הערה ארוכה מדי (עד 500 תווים)", ka: "შენიშვნა ძალიან გრძელია (მაქს. 500 სიმბოლო)" }));
-  if (!customerPhone && !customerEmail)  return bad(tr(lang, { en: "Please enter a phone number or email", he: "נא להזין טלפון או אימייל", ka: "გთხოვთ, მიუთითოთ ტელეფონი ან ელ-ფოსტა" }));
+  if (!customerPhone && !customerEmail)  return bad(tr(lang, { en: "Please enter a phone number or email", he: "נא להזין טלפון או אימייל", ka: "გთხოვთ, მიუთითოთ ტელეფონის ნომერი ან ელ-ფოსტა" }));
   if (customerEmail && !isValidEmailStrict(customerEmail))
-    return bad(tr(lang, { en: "Please enter a valid email", he: "נא להזין אימייל תקין", ka: "გთხოვთ, მიუთითოთ სწორი ელ-ფოსტა" }), { customerEmail });
+    return bad(tr(lang, { en: "Please enter a valid email", he: "נא להזין אימייל תקין", ka: "გთხოვთ, მიუთითოთ სწორი ელ-ფოსტის მისამართი" }), { customerEmail });
 
   if (!within) {
     const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
@@ -397,7 +397,7 @@ export async function confirmGet(ctx: any) {
     const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.status = Status.Conflict;
-    ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "No availability at your selected time", he: "אין זמינות במועד שבחרת", ka: "არჩეულ დროს თავისუფალი ადგილი არ არის" }), suggestions }, null, 2);
+    ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "No availability at your selected time", he: "אין זמינות במועד שבחרת", ka: "არჩეულ დროს თავისუფალი ადგილი აღარ არის" }), suggestions }, null, 2);
     return;
   }
 
@@ -407,7 +407,7 @@ export async function confirmGet(ctx: any) {
     if (!roomCheck.ok) {
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
       ctx.response.status = Status.Conflict;
-      ctx.response.body = JSON.stringify({ ok:false, error: trf(lang, { en: "The selected room \"{room}\" is full at this time", he: "החלל \"{room}\" מלא במועד שבחרת", ka: "არჩეული დარბაზი \"{room}\" ამ დროს სავსეა" }, { room: roomCheck.roomLabel }) }, null, 2);
+      ctx.response.body = JSON.stringify({ ok:false, error: trf(lang, { en: "The selected room \"{room}\" is full at this time", he: "החלל \"{room}\" מלא במועד שבחרת", ka: "არჩეული დარბაზი \"{room}\" ამ დროს სრულად არის შევსებული" }, { room: roomCheck.roomLabel }) }, null, 2);
       return;
     }
   }
@@ -442,13 +442,13 @@ export async function confirmGet(ctx: any) {
     if (message === "room_full") {
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
       ctx.response.status = Status.Conflict;
-      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "There is not enough space in the selected room at this time", he: "אין מספיק מקום בחדר שבחרת במועד הזה", ka: "არჩეულ სივრცეში ამ დროს საკმარისი ადგილი არ არის" }) }, null, 2);
+      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "There is not enough space in the selected room at this time", he: "אין מספיק מקום בחדר שבחרת במועד הזה", ka: "არჩეულ დარბაზში ამ დროისთვის საკმარისი ადგილი არ არის" }) }, null, 2);
       return;
     }
     if (message === "no_availability") {
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
       ctx.response.status = Status.Conflict;
-      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "No availability at your selected time", he: "אין זמינות במועד שבחרת", ka: "არჩეულ დროს თავისუფალი ადგილი არ არის" }) }, null, 2);
+      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "No availability at your selected time", he: "אין זמינות במועד שבחרת", ka: "არჩეულ დროს თავისუფალი ადგილი აღარ არის" }) }, null, 2);
       return;
     }
     throw error;
@@ -574,11 +574,11 @@ export async function confirmPost(ctx: any) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return bad(tr(lang, { en: "Invalid date", he: "תאריך לא תקין", ka: "არასწორი თარიღი" }));
   if (!/^\d{2}:\d{2}$/.test(time))       return bad(tr(lang, { en: "Invalid time", he: "שעה לא תקינה", ka: "არასწორი დრო" }));
   if (people < 1 || people > 100)        return bad(tr(lang, { en: "Invalid guest count (1-100)", he: "מספר סועדים לא תקין (1-100)", ka: "სტუმრების რაოდენობა არასწორია (1-100)" }));
-  if (!customerName)                     return bad(tr(lang, { en: "Please enter your name", he: "נא להזין שם", ka: "გთხოვთ, მიუთითოთ სახელი" }));
+  if (!customerName)                     return bad(tr(lang, { en: "Please enter your name", he: "נא להזין שם", ka: "გთხოვთ, მიუთითოთ თქვენი სახელი" }));
   if (customerName.length > 100)         return bad(tr(lang, { en: "Name is too long (up to 100 characters)", he: "שם ארוך מדי (עד 100 תווים)", ka: "სახელი ძალიან გრძელია (მაქს. 100 სიმბოლო)" }));
   if (customerNote.length > 500)         return bad(tr(lang, { en: "Note is too long (up to 500 characters)", he: "הערה ארוכה מדי (עד 500 תווים)", ka: "შენიშვნა ძალიან გრძელია (მაქს. 500 სიმბოლო)" }));
-  if (!customerPhone && !customerEmail)  return bad(tr(lang, { en: "Please enter a phone number or email", he: "נא להזין טלפון או אימייל", ka: "გთხოვთ, მიუთითოთ ტელეფონი ან ელ-ფოსტა" }));
-  if (customerEmail && !isValidEmailStrict(customerEmail)) return bad(tr(lang, { en: "Please enter a valid email", he: "נא להזין אימייל תקין", ka: "გთხოვთ, მიუთითოთ სწორი ელ-ფოსტა" }), { customerEmail, note: "strict check" });
+  if (!customerPhone && !customerEmail)  return bad(tr(lang, { en: "Please enter a phone number or email", he: "נא להזין טלפון או אימייל", ka: "გთხოვთ, მიუთითოთ ტელეფონის ნომერი ან ელ-ფოსტა" }));
+  if (customerEmail && !isValidEmailStrict(customerEmail)) return bad(tr(lang, { en: "Please enter a valid email", he: "נא להזין אימייל תקין", ka: "გთხოვთ, მიუთითოთ სწორი ელ-ფოსტის მისამართი" }), { customerEmail, note: "strict check" });
 
   if (!within) {
     const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
@@ -593,7 +593,7 @@ export async function confirmPost(ctx: any) {
     const suggestions = await suggestionsWithinSchedule(rid, date, time, people, restaurant.weeklySchedule);
     ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
     ctx.response.status = Status.Conflict;
-    ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "No availability at your selected time", he: "אין זמינות במועד שבחרת", ka: "არჩეულ დროს თავისუფალი ადგილი არ არის" }), suggestions }, null, 2);
+    ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "No availability at your selected time", he: "אין זמינות במועד שבחרת", ka: "არჩეულ დროს თავისუფალი ადგილი აღარ არის" }), suggestions }, null, 2);
     return;
   }
 
@@ -603,7 +603,7 @@ export async function confirmPost(ctx: any) {
     if (!roomCheck.ok) {
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
       ctx.response.status = Status.Conflict;
-      ctx.response.body = JSON.stringify({ ok:false, error: trf(lang, { en: "The selected room \"{room}\" is full at this time", he: "החלל \"{room}\" מלא במועד שבחרת", ka: "არჩეული დარბაზი \"{room}\" ამ დროს სავსეა" }, { room: roomCheck.roomLabel }) }, null, 2);
+      ctx.response.body = JSON.stringify({ ok:false, error: trf(lang, { en: "The selected room \"{room}\" is full at this time", he: "החלל \"{room}\" מלא במועד שבחרת", ka: "არჩეული დარბაზი \"{room}\" ამ დროს სრულად არის შევსებული" }, { room: roomCheck.roomLabel }) }, null, 2);
       return;
     }
   }
@@ -661,13 +661,13 @@ export async function confirmPost(ctx: any) {
     if (message === "room_full") {
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
       ctx.response.status = Status.Conflict;
-      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "There is not enough space in the selected room at this time", he: "אין מספיק מקום בחדר שבחרת במועד הזה", ka: "არჩეულ სივრცეში ამ დროს საკმარისი ადგილი არ არის" }) }, null, 2);
+      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "There is not enough space in the selected room at this time", he: "אין מספיק מקום בחדר שבחרת במועד הזה", ka: "არჩეულ დარბაზში ამ დროისთვის საკმარისი ადგილი არ არის" }) }, null, 2);
       return;
     }
     if (message === "no_availability") {
       ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
       ctx.response.status = Status.Conflict;
-      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "No availability at your selected time", he: "אין זמינות במועד שבחרת", ka: "არჩეულ დროს თავისუფალი ადგილი არ არის" }) }, null, 2);
+      ctx.response.body = JSON.stringify({ ok:false, error: tr(lang, { en: "No availability at your selected time", he: "אין זמינות במועד שבחרת", ka: "არჩეულ დროს თავისუფალი ადგილი აღარ არის" }) }, null, 2);
       return;
     }
     throw error;
@@ -912,7 +912,7 @@ export async function confirmPaymentGet(ctx: any) {
     const roomCheck = await checkRoomCapacity(rid, tokenData.preferredLayoutId, tokenData.date, tokenData.time, tokenData.people);
     if (!roomCheck.ok) {
       ctx.response.status = Status.Conflict;
-      ctx.response.body = trf(ctx.state?.lang ?? getLang(ctx), { en: "The selected room \"{room}\" is full at this time", he: "החלל \"{room}\" מלא במועד זה", ka: "არჩეული დარბაზი \"{room}\" ამ დროს სავსეა" }, { room: roomCheck.roomLabel });
+      ctx.response.body = trf(ctx.state?.lang ?? getLang(ctx), { en: "The selected room \"{room}\" is full at this time", he: "החלל \"{room}\" מלא במועד זה", ka: "არჩეული დარბაზი \"{room}\" ამ დროს სრულად არის შევსებული" }, { room: roomCheck.roomLabel });
       return;
     }
   }
@@ -952,7 +952,7 @@ export async function confirmPaymentGet(ctx: any) {
     const message = error instanceof Error ? error.message : String(error);
     if (message === "room_full") {
       ctx.response.status = Status.Conflict;
-      ctx.response.body = tr(ctx.state?.lang ?? getLang(ctx), { en: "The selected room is full at this time", he: "החלל שנבחר מלא במועד זה", ka: "არჩეული დარბაზი ამ დროს სავსეა" });
+      ctx.response.body = tr(ctx.state?.lang ?? getLang(ctx), { en: "The selected room is full at this time", he: "החלל שנבחר מלא במועד זה", ka: "არჩეული დარბაზი ამ დროს სრულად არის შევსებული" });
       return;
     }
     if (message === "no_availability") {

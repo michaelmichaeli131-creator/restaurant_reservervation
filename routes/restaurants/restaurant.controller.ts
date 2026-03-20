@@ -72,7 +72,7 @@ export async function view(ctx: any) {
 
   await render(ctx, "restaurant", {
     page: "restaurant",
-    title: `${restaurant.name} — GeoTable`,
+    title: `${restaurant.name} — SpotBook`,
     restaurant: restaurantForView,
     openingWindows,
     slotIntervalMinutes,

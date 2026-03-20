@@ -19,7 +19,7 @@ function tt(k, fb){
     <header class="head">
       <div>
         <h1><%= tt('auth.register.title','הרשמה') %></h1>
-        <p class="muted"><%= tt('auth.register.subtitle','פתח/י חשבון חדש ל־GeoTable / SpotBook') %></p>
+        <p class="muted"><%= tt('auth.register.subtitle','Create a new SpotBook account') %></p>
       </div>
       <% if (it.error) { %>
         <p class="badge warn" role="alert">✗ <%= it.error %></p>

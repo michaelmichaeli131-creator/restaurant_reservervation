@@ -102,7 +102,7 @@ function fallbackHtml(
   lang = "en",
   dir: "rtl" | "ltr" = lang === "he" ? "rtl" : "ltr",
 ) {
-  const safeTitle = title || "GeoTable";
+  const safeTitle = title || "SpotBook";
   return `<!doctype html>
 <html lang="${escapeHtml(lang)}" dir="${escapeHtml(dir)}">
 <head>

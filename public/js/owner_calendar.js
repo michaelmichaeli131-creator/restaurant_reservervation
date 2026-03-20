@@ -8,6 +8,8 @@
 
   /* ========== Boot / State ========== */
   const init = window.__OC__ || {};
+  const lang = String(init.lang || document.documentElement.lang || document.documentElement.getAttribute("lang") || "en").toLowerCase();
+  const locale = String(init.locale || (lang === "ka" ? "ka-GE" : (lang === "he" ? "he-IL" : "en-US")));
   const state = {
     rid: init.rid || getRidFromPath(),
     date: init.date || todayISO(),                  // YYYY-MM-DD selected day
@@ -69,7 +71,8 @@
     const p = (n) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   }
-  function fmt(n) { return new Intl.NumberFormat("en-US").format(n); }
+  function fmt(n) { return new Intl.NumberFormat(locale).format(n); }
+  function fmtDate(d, opts) { return d.toLocaleDateString(locale, opts); }
   function color(p) {
     if (p >= 80) return getCSS("--danger");
     if (p >= 50) return getCSS("--warn");
@@ -123,8 +126,8 @@
       return;
     }
     const d = new Date(state.date + "T00:00:00");
-    const weekday = d.toLocaleDateString("en-US", { weekday: "short" });
-    const long = d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+    const weekday = fmtDate(d, { weekday: "short" });
+    const long = fmtDate(d, { year: "numeric", month: "short", day: "numeric" });
     if (dateLabel) dateLabel.textContent = `${weekday}, ${long}`;
     if (capLine) capLine.textContent = `${init?.txt?.capacityPeople || "People"} ${state.day.capacityPeople} • ${init?.txt?.capacityTables || "Tables"} ${state.day.capacityTables} • ${init?.txt?.capacityStep || "Step"}: ${state.day.slotMinutes}${init?.txt?.minutesShort || "m"}`;
   }
@@ -183,7 +186,7 @@
   function renderSummary() {
     if (!summaryRoot) return;
     const s = state.summary;
-    if (!s) { summaryRoot.textContent = "Daily Summary — loading…"; return; }
+    if (!s) { summaryRoot.textContent = init?.txt?.dailySummaryLoading || "Daily summary — loading…"; return; }
     summaryRoot.innerHTML = `
       <div><b>${escapeHTML(init?.txt?.totalReservations || "Total Reservations")}:</b> ${fmt(s.totalReservations)} · <b>${escapeHTML(init?.txt?.totalGuests || "Total Guests")}:</b> ${fmt(s.totalGuests)}</div>
       <div><b>${escapeHTML(init?.txt?.avgOccupancy || "Avg Occupancy")}:</b> ${escapeHTML(init?.txt?.people || "People")} ${fmt(s.avgOccupancyPeople)}% · ${escapeHTML(init?.txt?.tables || "Tables")} ${fmt(s.avgOccupancyTables)}%</div>
@@ -339,7 +342,7 @@
     if (datePicker) datePicker.value = state.date;
     if (dateLabel) {
       const d = isoToDate(state.date);
-      dateLabel.textContent = d.toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+      dateLabel.textContent = fmtDate(d, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
     }
     // רענון היומן החודשי אם חודש התצוגה לא תואם את התאריך הנבחר
     const d = isoToDate(state.date);
@@ -393,12 +396,12 @@
 
   async function createManual() {
     if (!state.drawer.time) return;
-    const firstName = prompt("First name:") || "";
-    const lastName  = prompt("Last name:") || "";
+    const firstName = prompt(init?.txt?.promptFirstName || "First name:") || "";
+    const lastName  = prompt(init?.txt?.promptLastName || "Last name:") || "";
     if (!firstName && !lastName) return;
-    const phone  = prompt("Phone (optional):") || "";
-    const people = Math.max(1, parseInt(prompt("Party size:", "2") || "2", 10));
-    const notes  = prompt("Notes (optional):") || "";
+    const phone  = prompt(init?.txt?.promptPhone || "Phone (optional):") || "";
+    const people = Math.max(1, parseInt(prompt(init?.txt?.promptPartySize || "Party size:", "2") || "2", 10));
+    const notes  = prompt(init?.txt?.promptNotes || "Notes (optional):") || "";
     await slotAction("create", { firstName, lastName, phone, people, notes, status: "booked" });
   }
 
@@ -475,14 +478,22 @@
 
   /* ========== Sidebar: Monthly Calendar ========== */
   // week days header (Sun..Sat)
-  if (calWk) calWk.innerHTML = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => `<th>${d}</th>`).join("");
+  if (calWk) {
+    const weekdayFmt = new Intl.DateTimeFormat(locale, { weekday: "short" });
+    const weekdayStart = new Date(2024, 0, 7); // Sunday
+    calWk.innerHTML = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(weekdayStart);
+      d.setDate(weekdayStart.getDate() + i);
+      return `<th>${escapeHTML(weekdayFmt.format(d))}</th>`;
+    }).join("");
+  }
 
   function buildCalendar(year, month) {
     if (!calBody || !calTitle) return;
 
     // Title
     const ref = new Date(year, month, 1);
-    calTitle.textContent = ref.toLocaleDateString(undefined, { year:"numeric", month:"long" });
+    calTitle.textContent = fmtDate(ref, { year:"numeric", month:"long" });
 
     // First visible cell starts at prev Sunday
     const first = new Date(year, month, 1);

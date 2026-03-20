@@ -3,6 +3,7 @@
 <%
   const staff = it.staff;
   const restaurant = it.restaurant;
+  const locale = it.lang === 'ka' ? 'ka-GE' : (it.lang === 'he' ? 'he-IL' : 'en-US');
 %>
 <%
   function tt(k, fb){
@@ -19,12 +20,12 @@
 
 <section class="container" style="max-width:900px;margin:20px auto;padding:0 16px">
   <div class="card">
-    <h1 style="margin:0 0 8px 0">🕒 <%= tt('staff.timeclock.title', 'כניסה / יציאה') %></h1>
-    <div class="muted"><%= tt('common.restaurant', 'מסעדה') %>: <strong><%= restaurant?.name %></strong></div>
+    <h1 style="margin:0 0 8px 0">🕒 <%= tt('staff.timeclock.title', 'My Time Clock') %></h1>
+    <div class="muted"><%= tt('common.restaurant', 'Restaurant') %>: <strong><%= restaurant?.name %></strong></div>
 
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
-      <button id="btnIn" class="btn primary">✅ <%= tt('staff.timeclock.btn_in', 'כניסה') %></button>
-      <button id="btnOut" class="btn ghost">⏹️ <%= tt('staff.timeclock.btn_out', 'יציאה') %></button>
+      <button id="btnIn" class="btn primary">✅ <%= tt('staff.timeclock.btn_in', 'Clock in') %></button>
+      <button id="btnOut" class="btn ghost">⏹️ <%= tt('staff.timeclock.btn_out', 'Clock out') %></button>
       <span id="msg" class="muted"></span>
     </div>
   </div>
@@ -43,11 +44,11 @@
     });
     const j = await r.json().catch(()=>({ok:false,error:'bad_json'}));
     if(!r.ok || !j.ok){
-      msg.textContent = '<%= tt('staff.timeclock.error_prefix', 'שגיאה') %>: ' + (j.error || r.status);
+      msg.textContent = '<%= tt('staff.timeclock.error_prefix', 'Error') %>: ' + (j.error || r.status);
       return;
     }
-    const t = new Date(j.row.checkInAt || j.row.checkOutAt || Date.now()).toLocaleTimeString();
-    msg.textContent = '<%= tt('staff.timeclock.saved', 'נשמר') %> ✓ (' + t + ')';
+    const t = new Date(j.row.checkInAt || j.row.checkOutAt || Date.now()).toLocaleTimeString('<%= locale %>', { hour:'2-digit', minute:'2-digit' });
+    msg.textContent = '<%= tt('staff.timeclock.saved', 'Saved') %> ✓ (' + t + ')';
   }
 
   btnIn.addEventListener('click', ()=>post('/staff/timeclock/checkin'));

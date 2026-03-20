@@ -742,7 +742,15 @@
         "title": "Room Occupancy Right Now",
         "empty": "No room data",
         "left_suffix": "left"
-      }
+      },
+      "drawer": {
+        "prompt_first_name": "First name:",
+        "prompt_last_name": "Last name:",
+        "prompt_phone": "Phone (optional):",
+        "prompt_party_size": "Party size:",
+        "prompt_notes": "Notes (optional):"
+      },
+      "daily_summary_loading": "Daily summary — loading…"
     },
     "tabs": {
       "aria": "Restaurant sections",
@@ -1118,7 +1126,13 @@
     "templates_title": "Shift Templates",
     "title": "Shift Management",
     "unavailable": "Unavailable",
-    "week": "Week"
+    "week": "Week",
+    "pref_none": "No preference",
+    "pref_morning": "Morning",
+    "pref_afternoon": "Afternoon",
+    "pref_evening": "Evening",
+    "pref_night": "Night",
+    "force_label": "Force"
   },
   "staff": {
     "dashboard": {

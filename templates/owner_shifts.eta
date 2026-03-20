@@ -15,6 +15,7 @@
   const restaurant = it.restaurant;
   const rid = it.restaurantId || restaurant?.id;
   const user = it.user;
+  const locale = it.lang === 'ka' ? 'ka-GE' : (it.lang === 'he' ? 'he-IL' : 'en-US');
 %>
 
 <section class="container sb-container">
@@ -76,7 +77,7 @@
               <button class="btn ghost sm" id="btnSuggest" type="button"><%= tt('shifts.btn_suggest', 'Suggest Employees') %></button>
               <label class="chk">
                 <input type="checkbox" id="fForce" />
-                <span>Force</span>
+                <span><%= tt('shifts.force_label', 'Force') %></span>
               </label>
             </div>
 
@@ -168,8 +169,8 @@
     x.setDate(x.getDate() - dow);
     return x;
   }
-  function hebDay(d){
-    try { return d.toLocaleDateString("he-IL", { weekday:"long", month:"2-digit", day:"2-digit" }); }
+  function formatDayLabel(d){
+    try { return d.toLocaleDateString('<%= locale %>', { weekday:'long', month:'2-digit', day:'2-digit' }); }
     catch { return iso(d); }
   }
   function esc(s){
@@ -215,7 +216,7 @@
 
   function setWeekLabel(){
     const end = addDays(weekStart, 6);
-    weekLabel.textContent = hebDay(weekStart) + " — " + hebDay(end);
+    weekLabel.textContent = formatDayLabel(weekStart) + " — " + formatDayLabel(end);
   }
 
   function setDefaultDate(){

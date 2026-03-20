@@ -14,17 +14,19 @@
 
   const staff = it.staff;
   const restaurant = it.restaurant;
+  const lang = String(it.lang || 'en');
+  const locale = lang === 'ka' ? 'ka-GE' : (lang === 'he' ? 'he-IL' : 'en-US');
 %>
 
 <section class="container" style="max-width:980px;margin:20px auto;padding:0 16px">
   <div class="card">
     <div class="hdr">
       <div>
-        <h1 style="margin:0 0 6px 0">📅 <%= it.t ? (it.t('staff.shifts.title') || 'המשמרות שלי') : 'המשמרות שלי' %></h1>
+        <h1 style="margin:0 0 6px 0">📅 <%= tt('shifts.board_title', 'My shifts') %></h1>
         <div class="muted">
-          מסעדה: <strong><%= restaurant?.name %></strong>
+          <%= tt('shifts.restaurant_label', 'Restaurant:') %> <strong><%= restaurant?.name %></strong>
           <% if (staff) { %>
-            · עובד/ת: <strong><%= [staff.firstName, staff.lastName].filter(Boolean).join(' ') %></strong>
+            · <%= tt('shifts.employee', 'Employee') %>: <strong><%= [staff.firstName, staff.lastName].filter(Boolean).join(' ') %></strong>
           <% } %>
         </div>
       </div>
@@ -44,12 +46,12 @@
     <div class="card availCard" id="availCard" style="margin-top:14px">
       <div class="avail-hdr">
         <div>
-          <div class="avail-title">🗓️ <%= tt('shifts.avail_title', 'העדפות זמינות') %></div>
+          <div class="avail-title">🗓️ <%= tt('shifts.avail_title', 'Availability preferences') %></div>
           <div class="muted" style="margin-top:6px">
-            <%= tt('shifts.avail_subtitle', 'סמן ימים שבהם נוח לך לעבוד ובחר העדפה (בוקר/צהריים/ערב/לילה). המנהל יראה זאת בהמלצות.') %>
+            <%= tt('shifts.avail_subtitle', 'Mark the days you can work and choose a preference (morning/afternoon/evening/night). The manager will see this in recommendations.') %>
           </div>
         </div>
-        <button class="btn primary sm" id="saveAvail" type="button"><%= tt('common.btn_save', 'שמירה') %></button>
+        <button class="btn primary sm" id="saveAvail" type="button"><%= tt('common.btn_save', 'Save') %></button>
       </div>
 
       <div id="availabilityMsg" class="muted" style="margin-top:8px"></div>
@@ -78,11 +80,11 @@
     return x;
   }
   function fmtHebDate(d){
-    try{ return d.toLocaleDateString('he-IL', { weekday:'long', year:'numeric', month:'2-digit', day:'2-digit' }); }
+    try{ return d.toLocaleDateString('<%= locale %>', { weekday:'long', year:'numeric', month:'2-digit', day:'2-digit' }); }
     catch{ return toISO(d); }
   }
   function fmtDayLabel(d){
-    try{ return d.toLocaleDateString('he-IL', { weekday:'long', month:'2-digit', day:'2-digit' }); }
+    try{ return d.toLocaleDateString('<%= locale %>', { weekday:'long', month:'2-digit', day:'2-digit' }); }
     catch{ return toISO(d); }
   }
   function esc(s){
@@ -119,11 +121,11 @@
   function statusBadge(st){
     const s = String(st||'scheduled');
     const map = {
-      scheduled: ['מתוזמן', 'badge'],
-      checked_in: ['נכנס/ה', 'badge ok'],
-      checked_out: ['יצא/ה', 'badge done'],
-      cancelled: ['בוטל', 'badge bad'],
-      called_out: ['היעדרות', 'badge warn'],
+      scheduled: ['<%= tt('shifts.status.scheduled', 'Scheduled') %>', 'badge'],
+      checked_in: ['<%= tt('shifts.status.checked_in', 'Checked in') %>', 'badge ok'],
+      checked_out: ['<%= tt('shifts.status.checked_out', 'Checked out') %>', 'badge done'],
+      cancelled: ['<%= tt('shifts.status.cancelled', 'Cancelled') %>', 'badge bad'],
+      called_out: ['<%= tt('shifts.status.called_out', 'Called out') %>', 'badge warn'],
     };
     const t = map[s] ? map[s][0] : s;
     const c = map[s] ? map[s][1] : 'badge';
@@ -142,7 +144,7 @@
       html.push('  <div class="day-h">' + esc(fmtDayLabel(d)) + '<span class="day-iso">' + esc(iso) + '</span></div>');
 
       if(!list.length){
-        html.push('  <div class="empty"><%= tt("shifts.no_shifts", "אין משמרות") %></div>');
+        html.push('  <div class="empty"><%= tt("shifts.no_shifts", "No shifts") %></div>');
       } else {
         html.push('  <div class="shlist">');
         for(const s of list){
@@ -166,7 +168,7 @@
 
   async function load(){
     setWeekLabel();
-    msg.textContent = 'טוען...';
+    msg.textContent = '<%= tt('shifts.loading', 'Loading…') %>';
 
     const from = toISO(weekStart);
     const to = toISO(addDays(weekStart, 6));
@@ -176,14 +178,14 @@
       const r = await fetch(url, { headers: { 'accept': 'application/json' } });
       const j = await r.json().catch(()=>null);
       if(!r.ok || !j || !j.ok){
-        msg.textContent = 'שגיאה בטעינת משמרות: ' + (j && j.error ? j.error : r.status);
+        msg.textContent = '<%= tt('shifts.error_loading', 'Error loading') %>: ' + (j && j.error ? j.error : r.status);
         renderWeek([]);
         return;
       }
       msg.textContent = '';
       renderWeek(j.shifts || []);
     }catch(e){
-      msg.textContent = 'שגיאת רשת';
+      msg.textContent = '<%= tt('shifts.error_loading', 'Error loading') %>';
       renderWeek([]);
     }
   }
@@ -201,21 +203,21 @@
   const saveAvailBtn = document.getElementById('saveAvail');
 
   const DOWS = [
-    { id: 0, name: 'ראשון' },
-    { id: 1, name: 'שני' },
-    { id: 2, name: 'שלישי' },
-    { id: 3, name: 'רביעי' },
-    { id: 4, name: 'חמישי' },
-    { id: 5, name: 'שישי' },
-    { id: 6, name: 'שבת' },
+    { id: 0, name: '<%= tt('owner.hours.days.0', 'Sunday') %>' },
+    { id: 1, name: '<%= tt('owner.hours.days.1', 'Monday') %>' },
+    { id: 2, name: '<%= tt('owner.hours.days.2', 'Tuesday') %>' },
+    { id: 3, name: '<%= tt('owner.hours.days.3', 'Wednesday') %>' },
+    { id: 4, name: '<%= tt('owner.hours.days.4', 'Thursday') %>' },
+    { id: 5, name: '<%= tt('owner.hours.days.5', 'Friday') %>' },
+    { id: 6, name: '<%= tt('owner.hours.days.6', 'Saturday') %>' },
   ];
 
   const SHIFT_OPTS = [
-    { v: '', t: 'ללא העדפה' },
-    { v: 'morning', t: 'בוקר' },
-    { v: 'afternoon', t: 'צהריים' },
-    { v: 'evening', t: 'ערב' },
-    { v: 'night', t: 'לילה' },
+    { v: '', t: '<%= tt('shifts.pref_none', 'No preference') %>' },
+    { v: 'morning', t: '<%= tt('shifts.pref_morning', 'Morning') %>' },
+    { v: 'afternoon', t: '<%= tt('shifts.pref_afternoon', 'Afternoon') %>' },
+    { v: 'evening', t: '<%= tt('shifts.pref_evening', 'Evening') %>' },
+    { v: 'night', t: '<%= tt('shifts.pref_night', 'Night') %>' },
   ];
 
   function el(tag, attrs, children){
@@ -266,7 +268,7 @@
 
   async function loadAvailability(){
     try{
-      availabilityMsg.textContent = 'טוען...';
+      availabilityMsg.textContent = '<%= tt('shifts.loading', 'Loading…') %>';
       const r = await fetch('/api/staff/availability', { headers: { 'accept': 'application/json' } });
       const j = await r.json().catch(()=>null);
       if (!r.ok || !j || !j.ok) throw new Error(j?.error || ('http_' + r.status));
@@ -282,14 +284,14 @@
       }
       availabilityMsg.textContent = '';
     }catch(e){
-      availabilityMsg.textContent = 'לא הצלחתי לטעון זמינות. נסה לרענן.';
+      availabilityMsg.textContent = '<%= tt('shifts.error_availability', 'Error updating availability') %>';
       console.warn(e);
     }
   }
 
   async function saveAvailability(){
     try{
-      availabilityMsg.textContent = 'שומר...';
+      availabilityMsg.textContent = '<%= tt('common.btn_save', 'Save') %>…';
 
       const rows = Array.from(availabilityGrid.querySelectorAll('.avail-row'));
       const days = rows.map(r => r._getPayload());
@@ -302,10 +304,10 @@
       const j = await r.json().catch(()=>null);
       if (!r.ok || !j || !j.ok) throw new Error(j?.error || ('http_' + r.status));
 
-      availabilityMsg.textContent = 'נשמר ✅';
-      setTimeout(()=>{ if (availabilityMsg.textContent === 'נשמר ✅') availabilityMsg.textContent=''; }, 2000);
+      availabilityMsg.textContent = '<%= tt('owner.edit.saved_ok', 'Saved') %> ✅';
+      setTimeout(()=>{ if (availabilityMsg.textContent === '<%= tt('owner.edit.saved_ok', 'Saved') %> ✅') availabilityMsg.textContent=''; }, 2000);
     }catch(e){
-      availabilityMsg.textContent = 'שמירה נכשלה. נסה שוב.';
+      availabilityMsg.textContent = '<%= tt('shifts.error_availability', 'Error updating availability') %>';
       console.warn(e);
     }
   }

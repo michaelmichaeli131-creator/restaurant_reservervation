@@ -92,6 +92,8 @@
         data-reservation-id="<%= currentReservationId || '' %>"
         data-location-id="<%= currentLocationId || '' %>"
         data-seat-ids="<%= encodeURIComponent(JSON.stringify(currentAccountSeatIds || [])) %>"
+        data-status-cancelled="<%= tt('pos.status.cancelled', 'Cancelled') %>"
+        data-status-served="<%= tt('pos.status.served', 'Served') %>"
       >
         <div class="sb-wt-bill-line">
           <span class="sb-wt-bill-label"><%= tt('pos.waiter.items_count', 'פריטים') %>:</span>
@@ -119,7 +121,7 @@
   </header>
 
   <% if (!isBarSeatMode && (accounts.length || true)) { %>
-  <section class="sb-wt-accounts sb-surface" aria-label="Shared checks">
+  <section class="sb-wt-accounts sb-surface" aria-label="<%= tt('pos.waiter.accounts', 'Open Checks') %>">
     <div class="sb-wt-accounts-main">
       <div>
         <div class="sb-wt-h2"><%= tt('pos.waiter.accounts', 'Open Checks') %></div>
@@ -187,7 +189,7 @@
           </div>
         </div>
 
-        <div id="menu-cats" class="sb-wt-chips" aria-label="Categories"></div>
+        <div id="menu-cats" class="sb-wt-chips" aria-label="<%= tt('pos.menu.category', 'Category') %>"></div>
       </div>
 
       <div
@@ -331,7 +333,7 @@
   </section>
 
   <!-- Mobile bottom actions -->
-  <nav class="sb-wt-bottom" aria-label="Order actions">
+  <nav class="sb-wt-bottom" aria-label="<%= tt('pos.order.title', 'Order') %>">
     <button type="button" class="sb-wt-bottom-btn" data-view="order">
       <span class="icon">🧾</span>
       <span class="lbl"><%= tt('pos.order.title', 'Order') %></span>

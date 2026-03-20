@@ -11,7 +11,9 @@
 
   const rid = String(root.getAttribute('data-rid') || '');
   const destination = String(root.getAttribute('data-destination') || 'kitchen');
-  const locale = String(root.getAttribute('data-locale') || 'he-IL');
+  const docLang = String(document.documentElement.lang || document.documentElement.getAttribute('lang') || 'en').toLowerCase();
+  const fallbackLocale = docLang === 'ka' ? 'ka-GE' : (docLang === 'he' ? 'he-IL' : 'en-US');
+  const locale = String(root.getAttribute('data-locale') || fallbackLocale);
 
   // i18n strings provided by template (fallbacks are okay)
   const STR = {

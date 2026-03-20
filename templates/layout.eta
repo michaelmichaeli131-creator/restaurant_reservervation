@@ -1,15 +1,15 @@
 <!doctype html>
-<html lang="he" dir="rtl">
+<html lang="<%= it.lang || 'en' %>" dir="<%= (it.lang === 'he') ? 'rtl' : 'ltr' %>">
   <head>
     <meta charset="utf-8" />
-    <title><%= it.title || "GeoTable" %></title>
+    <title><%= it.title || "SpotBook" %></title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
     <header class="site-header">
       <nav class="nav">
-        <a class="brand" href="/">GeoTable</a>
+        <a class="brand" href="/">SpotBook</a>
 
         <div class="nav-links">
           <% if (it.user && it.user.role === "owner") { %>
@@ -36,7 +36,7 @@
     </main>
 
     <footer class="site-footer">
-      <small>© <%= new Date().getFullYear() %> GeoTable</small>
+      <small>© <%= new Date().getFullYear() %> SpotBook</small>
     </footer>
   </body>
 </html>
