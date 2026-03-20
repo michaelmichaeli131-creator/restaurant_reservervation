@@ -23,34 +23,34 @@
     if (!ms && ms !== 0) return "";
     const d = new Date(ms);
     if (Number.isNaN(d.getTime())) return "";
-    return d.toLocaleDateString("he-IL", { day:"2-digit", month:"2-digit", year:"2-digit" });
+    return d.toLocaleDateString((it.lang === "he" ? "he-IL" : (it.lang === "ka" ? "ka-GE" : "en-US")), { day:"2-digit", month:"2-digit", year:"2-digit" });
   }
 
   function statusLabel(st){
-    if (!st) return tt('pos_list.status_draft', 'Draft');
+    if (!st) return tt('pos_list.status_draft', 'მონახაზი');
     switch(String(st)){
-      case "draft": return tt('pos_list.status_draft', 'Draft');
-      case "sent": return tt('pos_list.status_sent', 'Sent');
-      case "delivered": return tt('pos_list.status_delivered', 'Delivered');
-      case "cancelled": return tt('pos_list.status_cancelled', 'Cancelled');
+      case "draft": return tt('pos_list.status_draft', 'მონახაზი');
+      case "sent": return tt('pos_list.status_sent', 'გაგზავნილი');
+      case "delivered": return tt('pos_list.status_delivered', 'მიწოდებული');
+      case "cancelled": return tt('pos_list.status_cancelled', 'გაუქმებული');
       default: return st;
     }
   }
 %>
 
-<main class="sb-owner container sb-owner-page" aria-label="<%= tt('pos_list.aria', 'Purchase Orders') %>">
+<main class="sb-owner container sb-owner-page" aria-label="<%= tt('pos_list.aria', 'შესყიდვის ორდერები') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
-        <h1><%= tt('pos_list.title', 'Purchase Orders') %> · <%= restaurant.name || tt('pos_list.restaurant_fallback', 'Restaurant') %></h1>
+        <h1><%= tt('pos_list.title', 'შესყიდვის ორდერები') %> · <%= restaurant.name || tt('pos_list.restaurant_fallback', 'რესტორანი') %></h1>
         <p class="muted">
-          <%= tt('pos_list.subtitle', 'Create and manage purchase orders for suppliers. When an order is marked as "Delivered", ingredient inventory is automatically updated based on the order lines.') %>
+          <%= tt('pos_list.subtitle', 'შექმენით და მართეთ შესყიდვის შეკვეთები მომწოდებლებისთვის. როცა შეკვეთა მონიშნულია როგორც მიწოდებული, მარაგი ავტომატურად განახლდება შეკვეთის ხაზების მიხედვით.') %>
         </p>
       </div>
       <div class="actions">
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">🥬 <%= tt('pos_list.btn_stock', 'Inventory') %></a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/suppliers">📦 <%= tt('pos_list.btn_suppliers', 'Suppliers') %></a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📈 <%= tt('pos_list.btn_costs', 'Costs') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">🥬 <%= tt('pos_list.btn_stock', 'მარაგი') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/suppliers">📦 <%= tt('pos_list.btn_suppliers', 'მომწოდებლები') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📈 <%= tt('pos_list.btn_costs', 'ხარჯები') %></a>
       </div>
     </header>
 
@@ -59,13 +59,13 @@
 
     <!-- Create new order -->
     <div class="panel card" style="margin-top:14px">
-      <h2 class="card-title"><%= tt('pos_list.new_order', 'New Order') %></h2>
+      <h2 class="card-title"><%= tt('pos_list.new_order', 'ახალი შეკვეთა') %></h2>
 
       <form class="form row" method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/new">
         <label class="lbl">
-          <%= tt('pos_list.lbl_supplier', 'Supplier') %> *
+          <%= tt('pos_list.lbl_supplier', 'მომწოდებელი') %> *
           <select name="supplierId" required>
-            <option value=""><%= tt('pos_list.ph_select_supplier', 'Select supplier...') %></option>
+            <option value=""><%= tt('pos_list.ph_select_supplier', 'აირჩიეთ მომწოდებელი…') %></option>
             <% suppliers.forEach(function(s){ %>
               <% if (s && s.isActive !== false) { %>
                 <option value="<%= esc(s.id) %>"><%= esc(s.name) %></option>
@@ -75,38 +75,38 @@
         </label>
 
         <label class="lbl">
-          <%= tt('pos_list.lbl_expected', 'Expected Delivery') %>
+          <%= tt('pos_list.lbl_expected', 'მოსალოდნელი მიწოდება') %>
           <input name="expectedAt" type="date">
         </label>
 
         <label class="lbl" style="min-width:260px;flex:1">
-          <%= tt('po_list.lbl_notes', 'הערות להזמנה') %>
-          <input name="note" placeholder="<%= tt('po_list.ph_notes', 'לדוגמה: משלוח ליום חמישי בבוקר, לשים במקרר האמצעי') %>">
+          <%= tt('po_list.lbl_notes', 'შეკვეთის შენიშვნები') %>
+          <input name="note" placeholder="<%= tt('po_list.ph_notes', 'მაგ.: მიწოდება ხუთშაბათს დილით, დადეთ შუა მაცივარში') %>">
         </label>
 
-        <button class="btn primary sm" type="submit">➕ <%= tt('po_list.btn_create', 'צור הזמנה') %></button>
+        <button class="btn primary sm" type="submit">➕ <%= tt('po_list.btn_create', 'შეკვეთის შექმნა') %></button>
       </form>
       <p class="muted small" style="margin-top:8px">
-        <%= tt('po_list.lead_time_hint', 'אם לא הוזן תאריך צפי, המערכת יכולה להשתמש בזמן האספקה הטיפוסי של הספק (leadTimeDays).') %>
+        <%= tt('po_list.lead_time_hint', 'თუ მოსალოდნელი მიწოდების თარიღი მითითებული არ არის, სისტემა მომწოდებლის ჩვეულებრივ მიწოდების ვადას გამოიყენებს.') %>
       </p>
     </div>
 
     <!-- רשימת הזמנות -->
     <div class="panel card" style="margin-top:16px">
-      <h2 class="card-title"><%= tt('po_list.all_orders', 'כל הזמנות הרכש') %></h2>
+      <h2 class="card-title"><%= tt('po_list.all_orders', 'ყველა შესყიდვის ორდერი') %></h2>
 
       <% if (!pos.length) { %>
-        <p class="muted"><%= tt('po_list.empty', 'עדיין אין הזמנות רכש. צור הזמנה חדשה למעלה.') %></p>
+        <p class="muted"><%= tt('po_list.empty', 'ჯერ არ არის შესყიდვის ორდერები. შექმენით ახალი ზემოთ.') %></p>
       <% } else { %>
 
         <div class="table">
           <div class="tr th">
-            <div><%= tt('po_list.tbl_order_num', 'מס׳ הזמנה') %></div>
-            <div><%= tt('po_list.tbl_supplier', 'ספק') %></div>
-            <div><%= tt('po_list.tbl_status', 'סטטוס') %></div>
-            <div><%= tt('po_list.tbl_created', 'נוצר בתאריך') %></div>
-            <div><%= tt('po_list.tbl_expected', 'צפי אספקה') %></div>
-            <div><%= tt('po_list.tbl_delivered', 'סופק בתאריך') %></div>
+            <div><%= tt('po_list.tbl_order_num', 'შეკვეთა #') %></div>
+            <div><%= tt('po_list.tbl_supplier', 'მომწოდებელი') %></div>
+            <div><%= tt('po_list.tbl_status', 'სტატუსი') %></div>
+            <div><%= tt('po_list.tbl_created', 'შექმნის თარიღი') %></div>
+            <div><%= tt('po_list.tbl_expected', 'მოსალოდნელი მიწოდება') %></div>
+            <div><%= tt('po_list.tbl_delivered', 'მიწოდების თარიღი') %></div>
             <div></div>
           </div>
 
@@ -143,7 +143,7 @@
                   class="btn primary sm"
                   href="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= esc(po.id) %>"
                 >
-                  <%= tt('po_list.btn_open', 'פתיחת הזמנה') %>
+                  <%= tt('po_list.btn_open', 'შეკვეთის გახსნა') %>
                 </a>
               </div>
             </div>

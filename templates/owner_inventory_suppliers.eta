@@ -19,19 +19,19 @@
   }
 %>
 
-<main class="sb-owner container sb-owner-page" aria-label="<%= tt('suppliers.aria', 'Suppliers') %>">
+<main class="sb-owner container sb-owner-page" aria-label="<%= tt('suppliers.aria', 'მომწოდებლები') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
-        <h1><%= tt('suppliers.title', 'Suppliers') %> · <%= restaurant.name || tt('suppliers.restaurant_fallback', 'Restaurant') %></h1>
+        <h1><%= tt('suppliers.title', 'მომწოდებლები') %> · <%= restaurant.name || tt('suppliers.restaurant_fallback', 'რესტორანი') %></h1>
         <p class="muted">
-          <%= tt('suppliers.subtitle', 'Basic supplier management: contact info, payment terms, and typical lead time (days). Lead time is used to estimate arrival on new purchase orders.') %>
+          <%= tt('suppliers.subtitle', 'მომწოდებლების ძირითადი მართვა: საკონტაქტო ინფორმაცია, გადახდის პირობები და ტიპური მიწოდების დრო (დღეებში). მიწოდების დრო გამოიყენება ახალი შესყიდვის შეკვეთებში მოსვლის თარიღის შესაფასებლად.') %>
         </p>
       </div>
       <div class="actions">
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">🥬 <%= tt('suppliers.btn_stock', 'Inventory') %></a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/purchase_orders">🧾 <%= tt('suppliers.btn_po', 'Purchase Orders') %></a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📈 <%= tt('suppliers.btn_costs', 'Costs') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">🥬 <%= tt('suppliers.btn_stock', 'მარაგი') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/purchase_orders">🧾 <%= tt('suppliers.btn_po', 'შესყიდვის ორდერები') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📈 <%= tt('suppliers.btn_costs', 'ხარჯები') %></a>
       </div>
     </header>
 
@@ -39,59 +39,59 @@
 
 
     <div class="panel card" style="margin-top:14px">
-      <h2 class="card-title"><%= tt('suppliers.add_new', 'Add New Supplier') %></h2>
+      <h2 class="card-title"><%= tt('suppliers.add_new', 'ახალი მომწოდებლის დამატება') %></h2>
 
       <form class="form row" method="post" action="/owner/<%= restaurant.id %>/inventory/suppliers/save">
         <input type="hidden" name="id" value="">
         <label class="lbl">
-          <%= tt('suppliers.lbl_name', 'Supplier Name') %> *
-          <input name="name" required placeholder="<%= tt('suppliers.ph_name', 'e.g. Ocean Fish Ltd.') %>">
+          <%= tt('suppliers.lbl_name', 'მომწოდებლის სახელწოდება') %> *
+          <input name="name" required placeholder="<%= tt('suppliers.ph_name', 'მაგ.: Ocean Fish Ltd.') %>">
         </label>
         <label class="lbl">
-          <%= tt('suppliers.lbl_phone', 'Phone') %>
+          <%= tt('suppliers.lbl_phone', 'ტელეფონი') %>
           <input name="phone" placeholder="050-1234567">
         </label>
         <label class="lbl">
-          <%= tt('suppliers.lbl_email', 'Email') %>
+          <%= tt('suppliers.lbl_email', 'ელ.ფოსტა') %>
           <input name="email" type="email" placeholder="sales@supplier.com">
         </label>
         <label class="lbl">
-          <%= tt('suppliers.lbl_payment_terms', 'Payment Terms') %>
+          <%= tt('suppliers.lbl_payment_terms', 'გადახდის პირობები') %>
           <input name="paymentTerms" placeholder="<%= tt('suppliers.ph_payment_terms', 'Net +30') %>">
         </label>
         <label class="lbl">
-          <%= tt('suppliers.lbl_lead_time', 'Lead Time (days)') %>
-          <input name="leadTimeDays" type="number" min="0" step="1" placeholder="<%= tt('suppliers.ph_lead_time', 'e.g. 2') %>">
+          <%= tt('suppliers.lbl_lead_time', 'მიწოდების დრო (დღე)') %>
+          <input name="leadTimeDays" type="number" min="0" step="1" placeholder="<%= tt('suppliers.ph_lead_time', 'მაგ.: 2') %>">
         </label>
         <label class="lbl" style="min-width:220px;flex:1">
-          <%= tt('suppliers.lbl_notes', 'Notes') %>
-          <input name="notes" placeholder="<%= tt('suppliers.ph_notes', 'Delivery days, minimum order, response hours, etc.') %>">
+          <%= tt('suppliers.lbl_notes', 'შენიშვნები') %>
+          <input name="notes" placeholder="<%= tt('suppliers.ph_notes', 'მიწოდების დღეები, მინ. შეკვეთა, პასუხის დრო და ა.შ.') %>">
         </label>
 
         <label class="chk">
           <input type="checkbox" name="isActive" checked>
-          <%= tt('suppliers.lbl_active', 'Active') %>
+          <%= tt('suppliers.lbl_active', 'აქტიური') %>
         </label>
 
-        <button class="btn primary sm" type="submit">➕ <%= tt('suppliers.btn_add', 'Add Supplier') %></button>
+        <button class="btn primary sm" type="submit">➕ <%= tt('suppliers.btn_add', 'მომწოდებლის დამატება') %></button>
       </form>
     </div>
 
     <div class="panel card" style="margin-top:16px">
-      <h2 class="card-title"><%= tt('suppliers.all_suppliers', 'All Suppliers') %></h2>
+      <h2 class="card-title"><%= tt('suppliers.all_suppliers', 'ყველა მომწოდებელი') %></h2>
 
       <% if (!suppliers.length) { %>
-        <p class="muted"><%= tt('suppliers.no_suppliers', 'No suppliers yet. Add your first supplier above.') %></p>
+        <p class="muted"><%= tt('suppliers.no_suppliers', 'მომწოდებლები ჯერ არ არის. დაამატეთ პირველი ზემოთ.') %></p>
       <% } else { %>
 
         <div class="table">
           <div class="tr th">
-            <div><%= tt('suppliers.th_name', 'Name') %></div>
-            <div><%= tt('suppliers.th_phone', 'Phone') %></div>
-            <div><%= tt('suppliers.th_email', 'Email') %></div>
-            <div><%= tt('suppliers.th_payment_terms', 'Payment Terms') %></div>
-            <div><%= tt('suppliers.th_lead_time', 'Lead Time (days)') %></div>
-            <div><%= tt('suppliers.th_active', 'Active') %></div>
+            <div><%= tt('suppliers.th_name', 'სახელი') %></div>
+            <div><%= tt('suppliers.th_phone', 'ტელეფონი') %></div>
+            <div><%= tt('suppliers.th_email', 'ელ.ფოსტა') %></div>
+            <div><%= tt('suppliers.th_payment_terms', 'გადახდის პირობები') %></div>
+            <div><%= tt('suppliers.th_lead_time', 'მიწოდების დრო (დღე)') %></div>
+            <div><%= tt('suppliers.th_active', 'აქტიური') %></div>
             <div></div>
           </div>
 
@@ -103,7 +103,7 @@
                 <input class="in" name="name" required value="<%= esc(s.name) %>">
                 <% if (s.notes) { %>
                   <div class="muted small" style="margin-top:6px">
-                    <%= tt('suppliers.lbl_notes', 'Notes') %>: <%= esc(s.notes) %>
+                    <%= tt('suppliers.lbl_notes', 'შენიშვნები') %>: <%= esc(s.notes) %>
                   </div>
                 <% } %>
               </div>
@@ -130,14 +130,14 @@
                   placeholder="—"
                 >
                 <div class="muted small" style="margin-top:4px">
-                  <%= tt('suppliers.lead_time_hint', 'Used as default expected arrival for new orders.') %>
+                  <%= tt('suppliers.lead_time_hint', 'გამოიყენება როგორც ნაგულისხმევი მოსალოდნელი მიწოდება ახალი შეკვეთებისთვის.') %>
                 </div>
               </div>
 
               <div class="td">
-                <label class="chk tiny" title="<%= tt('suppliers.lbl_active', 'Active') %>">
+                <label class="chk tiny" title="<%= tt('suppliers.lbl_active', 'აქტიური') %>">
                   <input type="checkbox" name="isActive" <%= (s.isActive === false ? '' : 'checked') %> >
-                  <span class="muted small"><%= tt('suppliers.lbl_active', 'Active') %></span>
+                  <span class="muted small"><%= tt('suppliers.lbl_active', 'აქტიური') %></span>
                 </label>
               </div>
 
@@ -149,10 +149,10 @@
                   type="submit"
                   formaction="/owner/<%= restaurant.id %>/inventory/suppliers/<%= esc(s.id) %>/delete"
                   formmethod="post"
-                  onclick="return confirm('<%= tt('suppliers.confirm_delete', 'Delete this supplier?') %>')"
+                  onclick="return confirm('<%= tt('suppliers.confirm_delete', 'წავშალოთ ეს მომწოდებელი?') %>')"
                   style="margin-right:8px"
                 >
-                  <%= tt('suppliers.btn_delete', 'Delete') %>
+                  <%= tt('suppliers.btn_delete', 'წაშლა') %>
                 </button>
               </div>
             </form>

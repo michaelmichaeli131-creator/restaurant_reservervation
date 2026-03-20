@@ -191,19 +191,19 @@
   const error = it.error;
 
   const permLabels = {
-    "pos.waiter": "POS - מלצר (קליטת הזמנות וטיפול בשולחנות)",
-    "pos.kitchen": "POS - מטבח (מסך הזמנות למטבח/בר)",
-    "host.seating": "מארחת - השמת שולחנות וניהול רצפת המסעדה",
-    "reservations.view": "צפייה בהזמנות למסעדה",
-    "reservations.manage": "ניהול הזמנות (אישור/ביטול/עדכון)",
-    "floor.view": "צפייה במפת השולחנות",
-    "floor.edit": "עריכת מפת שולחנות",
-    "shifts.view": "צפייה במשמרות",
-    "shifts.manage": "ניהול משמרות (שיבוץ, שינוי, ביטול)",
-    "inventory.view": "צפייה במלאי וחומרי גלם",
-    "inventory.manage": "ניהול מלאי (עדכון, הזמנות, התאמות)",
-    "reports.view": "צפייה בדוחות (מכירות, תפוסה וכו')",
-    "menu.manage": "ניהול תפריט (מנות, מחירים, זמינות)"
+    "pos.waiter": "POS — მიმტანი (შეკვეთები და მაგიდების მომსახურება)",
+    "pos.kitchen": "POS — სამზარეულო (სამზარეულოს/ბარის შეკვეთების ეკრანი)",
+    "host.seating": "ჰოსტი — სტუმრების განთავსება და დარბაზის მართვა",
+    "reservations.view": "რესტორნის ჯავშნების ნახვა",
+    "reservations.manage": "ჯავშნების მართვა (დადასტურება/გაუქმება/განახლება)",
+    "floor.view": "მაგიდების რუკის ნახვა",
+    "floor.edit": "მაგიდების რუკის რედაქტირება",
+    "shifts.view": "ცვლების ნახვა",
+    "shifts.manage": "ცვლების მართვა (გეგმვა, შეცვლა, გაუქმება)",
+    "inventory.view": "მარაგისა და ინგრედიენტების ნახვა",
+    "inventory.manage": "მარაგის მართვა (განახლება, შეკვეთები, კორექტირება)",
+    "reports.view": "ანგარიშების ნახვა (გაყიდვები, დატვირთვა და სხვა)",
+    "menu.manage": "მენიუს მართვა (კერძები, ფასები, ხელმისაწვდომობა)"
   };
 %>
 
@@ -211,15 +211,15 @@
   <div class="card">
     <div class="owner-hd">
       <div>
-        <h1>👤 <%= tt('owner.staff_member.title', 'ניהול עובד') %></h1>
+        <h1>👤 <%= tt('owner.staff_member.title', 'თანამშრომლის მართვა') %></h1>
         <div class="muted" style="margin-top:6px;font-size:13px">
-          <%= tt('owner.staff_member.subtitle', 'כאן נמצאות ההרשאות והגדרות העובד. (אפשר להרחיב בהמשך: משמרות, פעילות וכו׳)') %>
+          <%= tt('owner.staff_member.subtitle', 'აქ ჩანს თანამშრომლის უფლებები და ძირითადი პარამეტრები. მომავალში შესაძლებელია ცვლების და აქტივობის ბლოკების დამატებაც.') %>
         </div>
       </div>
       <div class="pill-row">
-        <a href="/owner/staff" class="btn sm ghost">← <%= tt('owner.staff_member.btn_back', 'חזרה לניהול עובדים') %></a>
-        <span class="pill"><%= tt('owner.staff.owner_label', 'בעלים') %>: <b><%= owner?.firstName %> <%= owner?.lastName %></b></span>
-        <span class="pill"><%= tt('owner.staff.email_label', 'אימייל') %>: <b><%= owner?.email %></b></span>
+        <a href="/owner/staff" class="btn sm ghost">← <%= tt('owner.staff_member.btn_back', 'თანამშრომლების მართვაზე დაბრუნება') %></a>
+        <span class="pill"><%= tt('owner.staff.owner_label', 'მფლობელი') %>: <b><%= owner?.firstName %> <%= owner?.lastName %></b></span>
+        <span class="pill"><%= tt('owner.staff.email_label', 'ელ-ფოსტა') %>: <b><%= owner?.email %></b></span>
       </div>
     </div>
   </div>
@@ -228,15 +228,15 @@
     <div class="card">
       <div class="alert err">
         <% if (error === "staff_not_found") { %>
-          <%= tt('owner.staff_member.err_not_found', 'עובד לא נמצא.') %>
+          <%= tt('owner.staff_member.err_not_found', 'თანამშრომელი ვერ მოიძებნა.') %>
         <% } else if (error === "not_your_restaurant") { %>
-          <%= tt('owner.staff_member.err_no_permission', 'אין לך הרשאה לעובד הזה.') %>
+          <%= tt('owner.staff_member.err_no_permission', 'ამ თანამშრომლის ნახვის უფლება არ გაქვთ.') %>
         <% } else { %>
-          <%= tt('owner.staff_member.err_loading', 'שגיאה בטעינת עובד.') %>
+          <%= tt('owner.staff_member.err_loading', 'თანამშრომლის მონაცემების ჩატვირთვა ვერ მოხერხდა.') %>
         <% } %>
       </div>
       <div style="margin-top:12px">
-        <a href="/owner/staff" class="btn"><%= tt('common.btn_back', 'חזרה') %></a>
+        <a href="/owner/staff" class="btn"><%= tt('common.btn_back', 'დაბრუნება') %></a>
       </div>
     </div>
   <% } else { %>
@@ -266,46 +266,46 @@
                 <%= staff.email %><% if (staff.phone) { %> · <%= staff.phone %><% } %>
               </div>
               <div class="muted" style="margin-top:6px;font-size:12px">
-                <%= tt('common.restaurant', 'מסעדה') %>: <b><%= restaurant.name %></b>
+                <%= tt('common.restaurant', 'რესტორანი') %>: <b><%= restaurant.name %></b>
               </div>
             </div>
 
             <div class="actions-row">
-              <span class="tag"><%= tt('owner.staff.tbl.role', 'תפקיד') %>: <b><%= staff.role %></b></span>
+              <span class="tag"><%= tt('owner.staff.tbl.role', 'როლი') %>: <b><%= staff.role %></b></span>
 
               <% if (isInactive) { %>
-                <span class="tag" style="border-color:rgba(239,68,68,.35); background:rgba(239,68,68,.10)"><%= tt('owner.staff.status_label', 'סטטוס') %>: <%= tt('owner.staff.status_inactive', 'מושבת') %></span>
+                <span class="tag" style="border-color:rgba(239,68,68,.35); background:rgba(239,68,68,.10)"><%= tt('owner.staff.status_label', 'სტატუსი') %>: <%= tt('owner.staff.status_inactive', 'გამორთული') %></span>
               <% } else { %>
-                <span class="tag" style="border-color:rgba(34,197,94,.28); background:rgba(34,197,94,.10)"><%= tt('owner.staff.status_label', 'סטטוס') %>: <%= tt('owner.staff.status_active', 'פעיל') %></span>
+                <span class="tag" style="border-color:rgba(34,197,94,.28); background:rgba(34,197,94,.10)"><%= tt('owner.staff.status_label', 'სტატუსი') %>: <%= tt('owner.staff.status_active', 'აქტიური') %></span>
               <% } %>
 
               <form method="post" action="/owner/staff/<%= staff.id %>/status">
                 <input type="hidden" name="redirectTo" value="/owner/staff/<%= staff.id %>" />
                 <input type="hidden" name="status" value="<%= nextStatus %>" />
                 <% if (isInactive) { %>
-                  <button class="btn sm" type="submit"><%= tt('owner.staff.btn_activate', 'הפעל') %></button>
+                  <button class="btn sm" type="submit"><%= tt('owner.staff.btn_activate', 'ჩართვა') %></button>
                 <% } else { %>
                   <button class="btn ghost sm" type="submit"
-                    onclick="return confirm('<%= tt('owner.staff.confirm_deactivate', 'להשבית את העובד? הוא לא יוכל להיכנס/לעבוד במערכת.') %>');"><%= tt('owner.staff.btn_deactivate', 'השבת') %></button>
+                    onclick="return confirm('<%= tt('owner.staff.confirm_deactivate', 'გამოვრთოთ ეს თანამშრომელი? ის სისტემაში ვეღარ იმუშავებს, სანამ ისევ არ ჩაირთვება.') %>');"><%= tt('owner.staff.btn_deactivate', 'გამორთვა') %></button>
                 <% } %>
               </form>
 
               <button type="button" class="btn ghost sm" id="btnOpenResetLink"
                 data-staff-id="<%= staff.id %>" data-staff-email="<%= staff.email %>">
-                <%= tt('owner.staff.reset_pw.create', 'צור קישור לאיפוס סיסמה') %>
+                <%= tt('owner.staff.reset_pw.create', 'პაროლის აღდგენის ბმულის შექმნა') %>
               </button>
             </div>
           </div>
 
           <div class="muted" style="font-size:12px;margin-top:8px">
-            <%= tt('owner.staff_member.staff_id', 'מזהה עובד') %>: <b><%= staff.id %></b> · userId: <b><%= staff.userId %></b>
+            <%= tt('owner.staff_member.staff_id', 'თანამშრომლის ID') %>: <b><%= staff.id %></b> · userId: <b><%= staff.userId %></b>
           </div>
         </div>
 
         <div class="staff-card" style="margin-top:12px">
-          <div style="font-weight:900; margin-bottom:8px"><%= tt('owner.staff_member.coming_soon', 'בקרוב') %></div>
+          <div style="font-weight:900; margin-bottom:8px"><%= tt('owner.staff_member.coming_soon', 'მალე') %></div>
           <div class="muted" style="font-size:12px">
-            <%= tt('owner.staff_member.expansion_hint', 'אזור להרחבות: משמרות, פעילות אחרונה, הערות מנהל, מגבלות עבודה וכו׳.') %>
+            <%= tt('owner.staff_member.expansion_hint', 'ეს ბლოკი მომავალში გაფართოვდება: ცვლები, ბოლო აქტივობა, მენეჯერის შენიშვნები, სამუშაო შეზღუდვები და სხვა.') %>
           </div>
         </div>
       </div>
@@ -313,9 +313,9 @@
       <div class="card">
         <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
           <div>
-            <div style="font-weight:900"><%= tt('owner.staff.permissions', 'הרשאות') %></div>
+            <div style="font-weight:900"><%= tt('owner.staff.permissions', 'უფლებები') %></div>
             <div class="muted" style="font-size:12px;margin-top:4px">
-              <%= tt('owner.staff_member.perms_subtitle', 'עדכן הרשאות לעובד. (איפוס לברירת־מחדל לפי תפקיד דרך הכפתור)') %>
+              <%= tt('owner.staff_member.perms_subtitle', 'განაახლეთ თანამშრომლის უფლებები. საჭირო হলে როლის ნაგულისხმევი უფლებებიც შეგიძლიათ აღადგინოთ.') %>
             </div>
           </div>
           <div class="pill">Approval: <b><%= staff.approvalStatus || "-" %></b></div>
@@ -343,14 +343,14 @@
           <div class="perm-actions">
             <div class="muted" style="font-size:12px">
               <% if (staff.status === 'inactive') { %>
-                <%= tt('owner.staff_member.perms_disabled', 'העובד מושבת — לא ניתן לערוך הרשאות עד להפעלה.') %>
+                <%= tt('owner.staff_member.perms_disabled', 'თანამშრომელი გამორთულია — უფლებების შეცვლა ჩართვამდე შეუძლებელია.') %>
               <% } else { %>
-                <%= tt('owner.staff_member.perms_hint', 'שמור שינויים או אפס לברירת מחדל.') %>
+                <%= tt('owner.staff_member.perms_hint', 'შეინახეთ ცვლილებები ან დააბრუნეთ ნაგულისხმევი მნიშვნელობები.') %>
               <% } %>
             </div>
 
             <div style="display:flex; gap:8px; flex-wrap:wrap">
-              <button type="submit" class="btn sm" <%= saveDisabledAttr %>><%= tt('owner.staff.btn_save_permissions', 'שמור הרשאות') %></button>
+              <button type="submit" class="btn sm" <%= saveDisabledAttr %>><%= tt('owner.staff.btn_save_permissions', 'უფლებების შენახვა') %></button>
             </div>
           </div>
         </form>
@@ -359,7 +359,7 @@
           <input type="hidden" name="redirectTo" value="/owner/staff/<%= staff.id %>" />
           <input type="hidden" name="resetToDefaults" value="on" />
           <button type="submit" class="btn ghost sm" <%= saveDisabledAttr %>>
-            <%= tt('owner.staff_member.btn_reset_defaults', 'אפס לברירת מחדל') %>
+            <%= tt('owner.staff_member.btn_reset_defaults', 'ნაგულისხმევზე დაბრუნება') %>
           </button>
         </form>
       </div>
@@ -373,26 +373,26 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="resetTitle">
     <div class="dialog-hd">
       <div>
-        <div style="font-size:16px;font-weight:900" id="resetTitle"><%= tt('owner.staff.reset_pw.title', 'קישור לאיפוס סיסמה') %></div>
-        <div class="muted" style="margin-top:4px" id="resetPwSub"><%= tt('owner.staff.reset_pw.subtitle', 'צור קישור והעתק לעובד.') %></div>
+        <div style="font-size:16px;font-weight:900" id="resetTitle"><%= tt('owner.staff.reset_pw.title', 'პაროლის აღდგენის ბმული') %></div>
+        <div class="muted" style="margin-top:4px" id="resetPwSub"><%= tt('owner.staff.reset_pw.subtitle', 'შექმენით ბმული და გაუგზავნეთ თანამშრომელს.') %></div>
       </div>
       <button class="btn ghost sm" type="button" id="btnCloseResetPw">✕</button>
     </div>
 
     <div class="dialog-bd">
       <div class="field">
-        <label><%= tt('owner.staff.reset_pw.label', 'קישור') %></label>
+        <label><%= tt('owner.staff.reset_pw.label', 'ბმული') %></label>
         <input id="resetPwLink" type="text" readonly value="" />
         <div style="display:flex; gap:8px; margin-top:10px">
-          <button type="button" class="btn" id="btnCopyResetPw"><%= tt('common.btn_copy', 'העתק') %></button>
-          <button type="button" class="btn ghost" id="btnOpenResetPw"><%= tt('common.btn_open', 'פתח') %></button>
+          <button type="button" class="btn" id="btnCopyResetPw"><%= tt('common.btn_copy', 'კოპირება') %></button>
+          <button type="button" class="btn ghost" id="btnOpenResetPw"><%= tt('common.btn_open', 'გახსნა') %></button>
         </div>
       </div>
       <div class="alert err hidden" id="resetPwErr"></div>
     </div>
 
     <div class="dialog-ft">
-      <button type="button" class="btn ghost" id="btnCloseResetPw2"><%= tt('common.btn_close', 'סגור') %></button>
+      <button type="button" class="btn ghost" id="btnCloseResetPw2"><%= tt('common.btn_close', 'დახურვა') %></button>
     </div>
   </div>
 </div>
@@ -425,8 +425,8 @@
   async function createLink(staffId, email){
     try{
       showErr("");
-      sub.textContent = "<%= tt('owner.staff.reset_pw.creating_for', 'יוצר קישור עבור') %>: " + (email || "");
-      linkInp.value = "<%= tt('owner.staff.loading', 'טוען...') %>";
+      sub.textContent = "<%= tt('owner.staff.reset_pw.creating_for', 'ბმული მზადდება თანამშრომლისთვის') %>: " + (email || "");
+      linkInp.value = "<%= tt('owner.staff.loading', 'იტვირთება...') %>";
       openModal();
 
       const res = await fetch(`/owner/staff/${staffId}/password-reset-link`, {
@@ -438,14 +438,14 @@
       if(!res.ok || !data || !data.ok){
         const errCode = (data && data.error) ? data.error : "unknown";
         const map = {
-          "staff_not_found": "העובד לא נמצא.",
-          "not_your_restaurant": "אין לך הרשאה למסעדה הזו.",
-          "user_not_found": "המשתמש לא נמצא.",
-          "non_local_user": "לא ניתן לאפס סיסמה למשתמש שאינו Local.",
-          "unknown": "שגיאה לא ידועה."
+          "staff_not_found": "თანამშრომელი ვერ მოიძებნა.",
+          "not_your_restaurant": "ამ რესტორნზე წვდომა არ გაქვთ.",
+          "user_not_found": "მომხმარებელი ვერ მოიძებნა.",
+          "non_local_user": "არალოკალური მომხმარებლის პაროლის აღდგენა შეუძლებელია.",
+          "unknown": "უცნობი შეცდომა."
         };
         linkInp.value = "";
-        showErr(map[errCode] || ("<%= tt('owner.staff.error_prefix', 'שגיאה') %>: " + errCode));
+        showErr(map[errCode] || ("<%= tt('owner.staff.error_prefix', 'შეცდომა') %>: " + errCode));
         return;
       }
 
@@ -473,10 +473,10 @@
     btnCopy.addEventListener("click", async ()=>{
       try{
         await navigator.clipboard.writeText(linkInp.value || "");
-        btnCopy.textContent = "<%= tt('owner.staff.copied', 'הועתק!') %>";
-        setTimeout(()=>btnCopy.textContent="<%= tt('common.btn_copy', 'העתק') %>", 900);
+        btnCopy.textContent = "<%= tt('owner.staff.copied', 'დაკოპირდა!') %>";
+        setTimeout(()=>btnCopy.textContent="<%= tt('common.btn_copy', 'კოპირება') %>", 900);
       }catch{
-        showErr("<%= tt('owner.staff.copy_failed', 'לא הצלחתי להעתיק. אפשר לסמן ולהעתיק ידנית.') %>");
+        showErr("<%= tt('owner.staff.copy_failed', 'კოპირება ვერ მოხერხდა. სურვილის შემთხვევაში ხელით დაკოპირებაც შეგიძლიათ.') %>");
       }
     });
   }

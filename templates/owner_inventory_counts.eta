@@ -21,55 +21,55 @@
     try{
       const d = new Date(Number(ts||0));
       if(!Number.isFinite(d.getTime())) return '';
-      return d.toLocaleString('he-IL', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+      return d.toLocaleString((it.lang === 'he' ? 'he-IL' : (it.lang === 'ka' ? 'ka-GE' : 'en-US')), { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
     }catch(_){ return ''; }
   }
 %>
 
-<section class="sb-owner container" aria-label="<%= tt('counts.aria', 'Inventory Counts') %>">
+<section class="sb-owner container" aria-label="<%= tt('counts.aria', 'მარაგის დათვლები') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
-        <h1><%= tt('counts.title', 'Inventory Counts') %> · <%= restaurant.name || tt('common.restaurant', 'מסעדה') %></h1>
+        <h1><%= tt('counts.title', 'მარაგის დათვლები') %> · <%= restaurant.name || tt('common.restaurant', 'რესტორანი') %></h1>
         <p class="muted">
-          <%= tt('counts.subtitle', 'Here you can create an Inventory Count session and manage periodic counts. On the next page you will enter the actual count table (Actual vs Expected).') %>
+          <%= tt('counts.subtitle', 'აქ შეგიძლიათ შექმნათ მარაგის დათვლის სესია და მართოთ პერიოდული დათვლები. შემდეგ გვერდზე შეავსებთ რეალურ დათვლის ცხრილს (რეალური vs მოსალოდნელი).') %>
         </p>
       </div>
       <div class="actions">
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">⬅ <%= tt('counts.btn_stock', 'Inventory') %></a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📊 <%= tt('counts.btn_costs', 'Costs') %></a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/recipes">🧾 <%= tt('counts.btn_recipes', 'Recipes') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">⬅ <%= tt('counts.btn_stock', 'მარაგი') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📊 <%= tt('counts.btn_costs', 'ხარჯები') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/recipes">🧾 <%= tt('counts.btn_recipes', 'რეცეპტები') %></a>
       </div>
     </header>
 
     <% if (created) { %>
       <div class="notice ok">
-        ✅ <%= tt('counts.created_notice', 'New count created:') %>
-        <a href="/owner/<%= restaurant.id %>/inventory/counts/<%= created %>"><%= tt('counts.open_count', 'Open count') %></a>
+        ✅ <%= tt('counts.created_notice', 'შეიქმნა ახალი დათვლა:') %>
+        <a href="/owner/<%= restaurant.id %>/inventory/counts/<%= created %>"><%= tt('counts.open_count', 'დათვლის გახსნა') %></a>
       </div>
     <% } %>
 
     <div class="grid">
       <div class="panel card">
-        <h2 class="card-title"><%= tt('counts.new_count_title', 'Create New Count') %></h2>
+        <h2 class="card-title"><%= tt('counts.new_count_title', 'ახალი დათვლის შექმნა') %></h2>
         <form class="form" method="post" action="/owner/<%= restaurant.id %>/inventory/counts/new">
           <label>
-            <%= tt('counts.note_label', 'Note (optional)') %>
-            <input name="note" placeholder="<%= tt('counts.note_placeholder', 'e.g.: monthly count / end of shift') %>">
+            <%= tt('counts.note_label', 'შენიშვნა (არასავალდებულო)') %>
+            <input name="note" placeholder="<%= tt('counts.note_placeholder', 'მაგ.: თვიური დათვლა / ცვლის ბოლოს') %>">
           </label>
-          <button class="btn primary sm" type="submit" style="margin-top:10px">➕ <%= tt('counts.btn_create', 'Create Count') %></button>
+          <button class="btn primary sm" type="submit" style="margin-top:10px">➕ <%= tt('counts.btn_create', 'დათვლის შექმნა') %></button>
         </form>
 
         <p class="muted small" style="margin-top:10px">
-          <%= tt('counts.tip', 'Tip: It is recommended to perform counts regularly (weekly/monthly) to detect shrinkage, theft, or inventory errors.') %>
+          <%= tt('counts.tip', 'რჩევა: რეკომენდებულია დათვლების რეგულარულად ჩატარება (კვირაში/თვეში ერთხელ), რათა გამოავლინოთ დანაკარგი, ქურდობა ან მარაგის შეცდომები.') %>
         </p>
       </div>
 
       <div class="panel card">
-        <h2 class="card-title"><%= tt('counts.recent_title', 'Recent Counts') %></h2>
+        <h2 class="card-title"><%= tt('counts.recent_title', 'ბოლო დათვლები') %></h2>
 
         <% if (!sessions.length) { %>
-          <p class="muted"><%= tt('counts.no_counts', 'No inventory counts have been created for this restaurant yet.') %></p>
+          <p class="muted"><%= tt('counts.no_counts', 'ამ რესტორნისთვის ჯერ არ შექმნილა მარაგის დათვლები.') %></p>
         <% } else { %>
           <div class="list">
             <% sessions.forEach(function(s){ 
@@ -78,19 +78,19 @@
             %>
               <a class="row" href="/owner/<%= restaurant.id %>/inventory/counts/<%= s.id %>">
                 <div class="meta">
-                  <div class="title"><strong><%= tt('counts.count_label', 'Count') %> #<%= String(s.id).slice(0,8) %></strong></div>
+                  <div class="title"><strong><%= tt('counts.count_label', 'დათვლა') %> #<%= String(s.id).slice(0,8) %></strong></div>
                   <div class="sub muted small">
-                    <%= tt('counts.created_at', 'Created') %>: <%= fmt(s.createdAt) %>
-                    <% if (s.finalizedAt) { %> • <%= tt('counts.finalized_at', 'Closed') %>: <%= fmt(s.finalizedAt) %><% } %>
+                    <%= tt('counts.created_at', 'შექმნილია') %>: <%= fmt(s.createdAt) %>
+                    <% if (s.finalizedAt) { %> • <%= tt('counts.finalized_at', 'დაიხურა') %>: <%= fmt(s.finalizedAt) %><% } %>
                   </div>
                   <% if (s.note) { %>
-                    <div class="sub muted small"><%= tt('counts.note', 'Note') %>: <%= s.note %></div>
+                    <div class="sub muted small"><%= tt('counts.note', 'შენიშვნა') %>: <%= s.note %></div>
                   <% } %>
                 </div>
 
                 <div class="right">
                   <span class="pill <%= isFinal ? 'ok' : 'warn' %>">
-                    <%= isFinal ? tt('counts.status_finalized', 'Closed') : tt('counts.status_draft', 'Draft') %>
+                    <%= isFinal ? tt('counts.status_finalized', 'დახურული') : tt('counts.status_draft', 'მონახაზი') %>
                   </span>
                   <span class="chev">›</span>
                 </div>

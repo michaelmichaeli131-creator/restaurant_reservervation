@@ -6,7 +6,7 @@
 <main class="sb-auth container">
   <section class="card auth-card">
     <header class="head">
-      <h1><%= tt('auth.reset.title','איפוס סיסמה') %></h1>
+      <h1><%= tt('auth.reset.title','პაროლის აღდგენა') %></h1>
       <% if (it.error) { %>
         <p class="badge warn" role="alert">✗ <%= it.error %></p>
       <% } %>
@@ -16,25 +16,25 @@
       <input type="hidden" name="token" value="<%= it.token || '' %>"/>
 
       <label class="row">
-        <span><%= tt('auth.reset.form.password','סיסמה חדשה') %></span>
+        <span><%= tt('auth.reset.form.password','ახალი პაროლი') %></span>
         <div class="pw-wrap">
           <input type="password" name="password" required autocomplete="new-password" minlength="8" />
-          <button class="pw-toggle" type="button" aria-label="<%= tt('auth.reset.form.pwToggleAria','הצג/הסתר סיסמה') %>">👁</button>
+          <button class="pw-toggle" type="button" aria-label="<%= tt('auth.reset.form.pwToggleAria','პაროლის ჩვენება/დამალვა') %>">👁</button>
         </div>
-        <small class="muted"><%= tt('auth.reset.form.passwordHint','לפחות 8 תווים') %></small>
+        <small class="muted"><%= tt('auth.reset.form.passwordHint','მინიმუმ 8 სიმბოლო') %></small>
       </label>
 
       <label class="row">
-        <span><%= tt('auth.reset.form.confirm','אימות סיסמה') %></span>
+        <span><%= tt('auth.reset.form.confirm','პაროლის დადასტურება') %></span>
         <div class="pw-wrap">
           <input type="password" name="confirm" required autocomplete="new-password" minlength="8" />
-          <button class="pw-toggle" type="button" aria-label="<%= tt('auth.reset.form.pwToggleAria','הצג/הסתר סיסמה') %>">👁</button>
+          <button class="pw-toggle" type="button" aria-label="<%= tt('auth.reset.form.pwToggleAria','პაროლის ჩვენება/დამალვა') %>">👁</button>
         </div>
       </label>
 
       <div class="actions">
-        <button class="btn primary" type="submit"><%= tt('auth.reset.actions.save','שמור') %></button>
-        <a class="btn ghost" href="/auth/login"><%= tt('auth.reset.actions.cancel','ביטול') %></a>
+        <button class="btn primary" type="submit"><%= tt('auth.reset.actions.save','შენახვა') %></button>
+        <a class="btn ghost" href="/auth/login"><%= tt('auth.reset.actions.cancel','გაუქმება') %></a>
       </div>
     </form>
   </section>

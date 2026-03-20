@@ -6,45 +6,45 @@
 <main class="sb-owner-edit container sb-owner-page">
   <header class="page-header head">
     <div>
-      <h1 class="h1"><%= tt('owner.edit.title','עריכת פרטי המסעדה') %> — <%= it.restaurant.name %></h1>
+      <h1 class="h1"><%= tt('owner.edit.title','რესტორნის დეტალების შეცვლა') %> — <%= it.restaurant.name %></h1>
       <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
     </div>
-    <a class="btn ghost sm" href="/owner"><%= tt('owner.common.back_to_dashboard','חזרה לדשבורד') %></a>
+    <a class="btn ghost sm" href="/owner"><%= tt('owner.common.back_to_dashboard','პანელზე დაბრუნება') %></a>
   </header>
 
   <%~ include("components/_owner_tabs", { restaurant: it.restaurant, active: "details", t: it.t }) %>
 
 
   <% if (it.saved) { %>
-    <div class="alert success" role="status">✓ <%= tt('owner.edit.saved_ok','הפרטים נשמרו') %></div>
+    <div class="alert success" role="status">✓ <%= tt('owner.edit.saved_ok','ცვლილებები შენახულია') %></div>
   <% } %>
 
   <section class="card">
     <!-- שמירה ב-GET ל-/edit/save כדי לעקוף קריאת גוף -->
     <form action="/owner/restaurants/<%= it.restaurant.id %>/edit/save" method="get" class="form-grid" novalidate>
       <div class="form-row">
-        <label for="name"><%= tt('owner.edit.fields.name','שם') %></label>
+        <label for="name"><%= tt('owner.edit.fields.name','დასახელება') %></label>
         <input id="name" name="name" value="<%= it.restaurant.name %>" required />
       </div>
       <div class="form-row">
-        <label for="city"><%= tt('owner.edit.fields.city','עיר') %></label>
+        <label for="city"><%= tt('owner.edit.fields.city','ქალაქი') %></label>
         <input id="city" name="city" value="<%= it.restaurant.city %>" required />
       </div>
       <div class="form-row">
-        <label for="address"><%= tt('owner.edit.fields.address','כתובת') %></label>
+        <label for="address"><%= tt('owner.edit.fields.address','მისამართი') %></label>
         <input id="address" name="address" value="<%= it.restaurant.address %>" required />
       </div>
       <div class="form-row">
-        <label for="phone"><%= tt('owner.edit.fields.phone','טלפון') %></label>
+        <label for="phone"><%= tt('owner.edit.fields.phone','ტელეფონი') %></label>
         <input id="phone" name="phone" value="<%= it.restaurant.phone || "" %>" />
       </div>
       <div class="form-row full">
-        <label for="description"><%= tt('owner.edit.fields.description','תיאור (אופציונלי)') %></label>
+        <label for="description"><%= tt('owner.edit.fields.description','აღწერა (არასავალდებულო)') %></label>
         <textarea id="description" name="description" rows="4"><%= it.restaurant.description || "" %></textarea>
       </div>
 
       <div class="form-row full">
-        <label for="categories"><%= tt('owner.edit.fields.categories','סוגי מטבח') %></label>
+        <label for="categories"><%= tt('owner.edit.fields.categories','სამზარეულოს ტიპები') %></label>
         <select id="categories" name="categories" multiple size="6" >
           <option value="italian" <%= (it.restaurant.kitchenCategories || []).includes('italian') ? 'selected' : '' %>>🍝 Italian</option>
           <option value="asian" <%= (it.restaurant.kitchenCategories || []).includes('asian') ? 'selected' : '' %>>🍜 Asian</option>
@@ -64,44 +64,44 @@
           <option value="fast_food" <%= (it.restaurant.kitchenCategories || []).includes('fast_food') ? 'selected' : '' %>>🍟 Fast Food</option>
           <option value="other" <%= (it.restaurant.kitchenCategories || []).includes('other') ? 'selected' : '' %>>🍽️ Other</option>
         </select>
-        <small class="muted" style="margin-top: 4px;"><%= tt('owner.edit.fields.categories_hint','החזק Ctrl/Cmd לבחירת מספר קטגוריות') %></small>
+        <small class="muted" style="margin-top: 4px;"><%= tt('owner.edit.fields.categories_hint','რამდენიმე კატეგორიის ასარჩევად გამოიყენეთ Ctrl/Cmd') %></small>
       </div>
 
       <div class="form-actions full">
-        <button class="btn primary sm" type="submit"><%= tt('owner.edit.actions.save','שמור') %></button>
-        <a class="btn ghost sm" href="/owner/restaurants/<%= it.restaurant.id %>/hours"><%= tt('owner.edit.actions.hours','שעות פתיחה') %></a>
+        <button class="btn primary sm" type="submit"><%= tt('owner.edit.actions.save','შენახვა') %></button>
+        <a class="btn ghost sm" href="/owner/restaurants/<%= it.restaurant.id %>/hours"><%= tt('owner.edit.actions.hours','სამუშაო საათები') %></a>
       </div>
     </form>
   </section>
 
   <!-- ניהול תמונות ישירות מתוך מסך העריכה -->
   <section class="card">
-    <h3 class="card-title"><%= tt('owner.edit.photos.title','תמונות המסעדה') %></h3>
-    <p class="muted"><%= tt('owner.edit.photos.hint','העלאת JPG/PNG/WebP (עד ~1.8MB לקובץ).') %></p>
+    <h3 class="card-title"><%= tt('owner.edit.photos.title','რესტორნის ფოტოები') %></h3>
+    <p class="muted"><%= tt('owner.edit.photos.hint','ატვირთეთ JPG, PNG ან WebP ფაილები (დაახლოებით 1.8 MB-მდე თითო ფაილი).') %></p>
 
     <div class="uploader">
-      <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple aria-label="<%= tt('owner.edit.photos.input_aria','בחירת קבצי תמונה') %>">
-      <button id="upload-btn" class="btn primary sm" type="button"><%= tt('owner.edit.photos.upload_btn','העלה') %></button>
+      <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple aria-label="<%= tt('owner.edit.photos.input_aria','აირჩიეთ სურათის ფაილები') %>">
+      <button id="upload-btn" class="btn primary sm" type="button"><%= tt('owner.edit.photos.upload_btn','ატვირთვა') %></button>
     </div>
 
     <div id="preview" class="grid preview-grid" aria-live="polite"></div>
 
     <hr class="sep"/>
 
-    <h4 class="card-subtitle"><%= tt('owner.edit.photos.gallery','גלריה') %></h4>
+    <h4 class="card-subtitle"><%= tt('owner.edit.photos.gallery','გალერეა') %></h4>
     <%
       const photos = Array.isArray(it.restaurant.photos) ? it.restaurant.photos : [];
     %>
     <% if (!photos.length) { %>
-      <p class="muted"><%= tt('owner.edit.photos.empty','אין עדיין תמונות.') %></p>
+      <p class="muted"><%= tt('owner.edit.photos.empty','ფოტოები ჯერ დამატებული არ არის.') %></p>
     <% } else { %>
       <div class="grid gallery-grid">
         <% photos.forEach(function(p){ %>
           <figure class="photo-card" data-id="<%= p.id %>">
             <img src="<%= p.dataUrl %>" alt="<%= p.alt || it.restaurant.name %>">
             <figcaption class="caption">
-              <input class="alt-edit" value="<%= p.alt || '' %>" placeholder="<%= tt('owner.edit.photos.alt_placeholder','כיתוב') %>" />
-              <button class="btn danger sm delete-btn" data-id="<%= p.id %>" type="button"><%= tt('owner.edit.photos.delete_btn','מחיקה') %></button>
+              <input class="alt-edit" value="<%= p.alt || '' %>" placeholder="<%= tt('owner.edit.photos.alt_placeholder','სათაური') %>" />
+              <button class="btn danger sm delete-btn" data-id="<%= p.id %>" type="button"><%= tt('owner.edit.photos.delete_btn','წაშლა') %></button>
             </figcaption>
           </figure>
         <% }) %>
@@ -135,15 +135,15 @@
       var card = document.createElement('div');
       card.className = 'preview-card';
       card.innerHTML =
-        '<img class="preview-img" src="'+url+'" alt="<%= tt('owner.edit.photos.preview_alt','תצוגה מקדימה') %>">' +
-        '<input class="alt" placeholder="<%= tt('owner.edit.photos.alt_placeholder','כיתוב לתמונה') %>">';
+        '<img class="preview-img" src="'+url+'" alt="<%= tt('owner.edit.photos.preview_alt','წინასწარი ნახვა') %>">' +
+        '<input class="alt" placeholder="<%= tt('owner.edit.photos.alt_placeholder','ფოტოს სათაური') %>">';
       preview.appendChild(card);
     }
   });
 
   uploadBtn.addEventListener('click', async function(){
     var files = Array.from(fileInput.files || []);
-    if (!files.length) { alert('<%= tt('owner.edit.photos.no_files','לא נבחרו קבצים') %>'); return; }
+    if (!files.length) { alert('<%= tt('owner.edit.photos.no_files','ფაილები არჩეული არ არის') %>'); return; }
 
     var images = [];
     var cards = Array.from(preview.children);
@@ -154,7 +154,7 @@
       var alt = cards[i]?.querySelector('.alt')?.value || '';
       images.push({ dataUrl: dataUrl, alt: alt });
     }
-    if (!images.length) { alert('<%= tt('owner.edit.photos.too_big_or_bad','הקבצים גדולים מדי או לא תקינים') %>'); return; }
+    if (!images.length) { alert('<%= tt('owner.edit.photos.too_big_or_bad','ზოგი ფაილი მეტისმეტად დიდია ან არასწორ ფორმატშია') %>'); return; }
 
     try {
       var res = await fetch('/owner/restaurants/'+encodeURIComponent(rid)+'/photos/upload', {
@@ -164,15 +164,15 @@
       });
       if (!res.ok) {
         var txt = await res.text().catch(function(){ return ""; });
-        alert('<%= tt('owner.edit.photos.upload_failed','העלאה נכשלה') %>: ' + res.status + '\n' + txt);
+        alert('<%= tt('owner.edit.photos.upload_failed','ატვირთვა ვერ შესრულდა') %>: ' + res.status + '\n' + txt);
         return;
       }
       var data = await res.json();
       if (data.ok) { location.reload(); }
-      else { alert('<%= tt('owner.edit.photos.upload_failed','העלאה נכשלה') %>'); }
+      else { alert('<%= tt('owner.edit.photos.upload_failed','ატვირთვა ვერ შესრულდა') %>'); }
     } catch (e) {
       console.error(e);
-      alert('<%= tt('owner.edit.photos.net_err','שגיאת רשת') %>');
+      alert('<%= tt('owner.edit.photos.net_err','ქსელის შეცდომა') %>');
     }
   });
 
@@ -182,7 +182,7 @@
     if (!btn) return;
     var pid = btn.getAttribute('data-id');
     if (!pid) return;
-    if (!confirm('<%= tt('owner.edit.photos.confirm_delete','למחוק תמונה זו?') %>')) return;
+    if (!confirm('<%= tt('owner.edit.photos.confirm_delete','წავშალოთ ეს ფოტო?') %>')) return;
 
     try {
       var res = await fetch('/owner/restaurants/'+encodeURIComponent(rid)+'/photos/delete', {
@@ -190,7 +190,7 @@
         headers: { "Content-Type": "application/json", "Accept":"application/json" },
         body: JSON.stringify({ id: pid }),
       });
-      if (!res.ok) { alert('<%= tt('owner.edit.photos.delete_failed','מחיקה נכשלה') %>'); return; }
+      if (!res.ok) { alert('<%= tt('owner.edit.photos.delete_failed','წაშლა ვერ შესრულდა') %>'); return; }
       var data = await res.json();
       if (data.ok) {
         var card = document.querySelector('.photo-card[data-id="'+pid+'"]');
@@ -198,7 +198,7 @@
       }
     } catch (e) {
       console.error(e);
-      alert('<%= tt('owner.edit.photos.net_err','שגיאת רשת') %>');
+      alert('<%= tt('owner.edit.photos.net_err','ქსელის შეცდომა') %>');
     }
   });
 })();

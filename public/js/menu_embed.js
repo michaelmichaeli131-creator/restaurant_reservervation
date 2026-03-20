@@ -6,9 +6,12 @@
   const rid = el.dataset.rid;
   if (!rid) return;
   const currency = el.dataset.currency || "₪";
-  const emptyMsg = el.dataset.emptyMsg || "אין מנות להצגה כרגע.";
-  const errorMsg = el.dataset.errorMsg || "שגיאה בטעינת התפריט";
-  const defaultCategory = el.dataset.defaultCategory || "קטגוריה";
+  const lang = String(document.documentElement.lang || 'en').toLowerCase();
+  const nameKey = lang.startsWith('ka') ? 'name_ka' : (lang.startsWith('he') ? 'name_he' : 'name_en');
+  const categoryKey = lang.startsWith('ka') ? 'categoryName_ka' : (lang.startsWith('he') ? 'categoryName_he' : 'categoryName_en');
+  const emptyMsg = el.dataset.emptyMsg || (lang.startsWith('ka') ? 'ამჟამად საჩვენებელი კერძები არ არის.' : (lang.startsWith('he') ? 'אין מנות להצגה כרגע.' : 'No dishes to display right now.'));
+  const errorMsg = el.dataset.errorMsg || (lang.startsWith('ka') ? 'მენიუს ჩატვირთვა ვერ მოხერხდა' : (lang.startsWith('he') ? 'שגיאה בטעינת התפריט' : 'Error loading the menu'));
+  const defaultCategory = el.dataset.defaultCategory || (lang.startsWith('ka') ? 'კატეგორია' : (lang.startsWith('he') ? 'קטגוריה' : 'Category'));
   fetch(`/api/pos/menu/${encodeURIComponent(rid)}`).then(r=>r.json()).then(items => {
     if (!Array.isArray(items) || items.length===0) {
       el.innerHTML = '<p class="muted">' + emptyMsg + '</p>';
@@ -23,7 +26,7 @@
     for (const [k, arr] of Object.entries(groups)) {
       if (k !== "_") {
         const h = document.createElement("h4");
-        h.textContent = (arr[0]?.categoryName_he || arr[0]?.categoryName_en || defaultCategory);
+        h.textContent = (arr[0]?.[categoryKey] || arr[0]?.categoryName_en || arr[0]?.categoryName_he || arr[0]?.categoryName_ka || defaultCategory);
         frag.appendChild(h);
       }
       const ul = document.createElement("ul");
@@ -32,7 +35,7 @@
         const li = document.createElement("li");
         li.className = "item";
         const name = document.createElement("span");
-        name.textContent = `${m.name_he || m.name_en} — ${(m.price||0).toFixed(2)} ${currency}`;
+        name.textContent = `${m[nameKey] || m.name_en || m.name_he || m.name_ka || ''} — ${(m.price||0).toFixed(2)} ${currency}`;
         li.appendChild(name);
         ul.appendChild(li);
       }

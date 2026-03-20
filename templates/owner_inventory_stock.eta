@@ -21,19 +21,19 @@
   const activeSuppliers = suppliers.filter(s => s && s.isActive !== false);
 %>
 
-<main class="sb-owner container sb-owner-page" aria-label="<%= tt('owner.inventory.title', 'Raw Materials Inventory') %>">
+<main class="sb-owner container sb-owner-page" aria-label="<%= tt('owner.inventory.title', 'ნედლეულის მარაგი') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
-        <h1><%= tt('owner.inventory.title', 'Raw Materials Inventory') %> · <%= restaurant.name || tt('common.restaurant', 'Restaurant') %></h1>
+        <h1><%= tt('owner.inventory.title', 'ნედლეულის მარაგი') %> · <%= restaurant.name || tt('common.restaurant', 'რესტორანი') %></h1>
         <p class="muted">
-          <%= tt('stock.description', 'Basic raw material management: quantity, minimum, unit cost, and preferred supplier. Purchase orders update inventory automatically when marked as delivered.') %>
+          <%= tt('stock.description', 'ნედლეულის ძირითადი მართვა: რაოდენობა, მინიმუმი, ერთეულის ღირებულება და სასურველი მომწოდებელი. შესყიდვის ორდერები ავტომატურად განაახლებს მარაგს მიწოდებულად მონიშვნისას.') %>
         </p>
       </div>
       <div class="actions">
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/suppliers">📦 <%= tt('stock.btn_suppliers', 'Suppliers') %></a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/purchase_orders">🧾 <%= tt('stock.btn_po', 'Purchase Orders') %></a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📈 <%= tt('stock.btn_costs', 'Costs') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/suppliers">📦 <%= tt('stock.btn_suppliers', 'მომწოდებლები') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/purchase_orders">🧾 <%= tt('stock.btn_po', 'შესყიდვის ორდერები') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/costs">📈 <%= tt('stock.btn_costs', 'ხარჯები') %></a>
       </div>
     </header>
 
@@ -42,40 +42,40 @@
 
     <!-- New ingredient form -->
     <div class="panel card" style="margin-top:14px">
-      <h2 class="card-title"><%= tt('owner.inventory.add_new', 'Add a new raw material') %></h2>
+      <h2 class="card-title"><%= tt('owner.inventory.add_new', 'ახალი ნედლეულის დამატება') %></h2>
 
       <form class="form row" method="post" action="/owner/<%= restaurant.id %>/inventory/stock/ingredient">
         <input type="hidden" name="id" value="">
 
         <label class="lbl">
-          <%= tt('owner.inventory.form.name', 'Raw material name') %> *
-          <input name="name" required placeholder="<%= tt('owner.inventory.placeholder.name', 'e.g. White flour 00') %>">
+          <%= tt('owner.inventory.form.name', 'ნედლეულის დასახელება') %> *
+          <input name="name" required placeholder="<%= tt('owner.inventory.placeholder.name', 'მაგ.: თეთრი ფქვილი 00') %>">
         </label>
 
         <label class="lbl">
-          <%= tt('owner.inventory.form.unit', 'Unit') %>
-          <input name="unit" placeholder="<%= tt('stock.unit_placeholder', 'kg / liter / unit') %>" value="<%= tt('stock.unit_default', 'kg') %>">
+          <%= tt('owner.inventory.form.unit', 'საზომი ერთეული') %>
+          <input name="unit" placeholder="<%= tt('stock.unit_placeholder', 'კგ / ლიტრი / ერთეული') %>" value="<%= tt('stock.unit_default', 'კგ') %>">
         </label>
 
         <label class="lbl">
-          <%= tt('owner.inventory.form.current_qty', 'Current quantity') %>
+          <%= tt('owner.inventory.form.current_qty', 'ნაშთი') %>
           <input name="currentQty" type="number" step="0.01" placeholder="0">
         </label>
 
         <label class="lbl">
-          <%= tt('owner.inventory.form.min_qty', 'Minimum quantity') %>
+          <%= tt('owner.inventory.form.min_qty', 'მინიმალური ნაშთი') %>
           <input name="minQty" type="number" step="0.01" placeholder="0">
         </label>
 
         <label class="lbl">
-          <%= tt('owner.inventory.form.cost_per_unit', 'Cost per unit') %>
-          <input name="costPerUnit" type="number" step="0.01" placeholder="<%= tt('common.optional', 'Optional') %>">
+          <%= tt('owner.inventory.form.cost_per_unit', 'თვითღირებულება ერთეულზე') %>
+          <input name="costPerUnit" type="number" step="0.01" placeholder="<%= tt('common.optional', 'სურვილისამებრ') %>">
         </label>
 
         <label class="lbl">
-          <%= tt('owner.inventory.form.supplier', 'Preferred supplier') %>
+          <%= tt('owner.inventory.form.supplier', 'სასურველი მომწოდებელი') %>
           <select name="supplierId">
-            <option value="">— <%= tt('common.none', 'None') %> —</option>
+            <option value="">— <%= tt('common.none', 'არცერთი') %> —</option>
             <% activeSuppliers.forEach(function(s){ %>
               <option value="<%= esc(s.id) %>"><%= esc(s.name) %></option>
             <% }) %>
@@ -83,29 +83,29 @@
         </label>
 
         <label class="lbl" style="min-width:220px;flex:1">
-          <%= tt('owner.inventory.form.notes', 'Notes') %>
-          <input name="notes" placeholder="<%= tt('owner.inventory.placeholder.notes', 'Extra information: type, storage, allergens, etc.') %>">
+          <%= tt('owner.inventory.form.notes', 'შენიშვნები') %>
+          <input name="notes" placeholder="<%= tt('owner.inventory.placeholder.notes', 'დამატებითი ინფორმაცია: ტიპი, შენახვა, ალერგენები და სხვა') %>">
         </label>
 
-        <button class="btn primary sm" type="submit">➕ <%= tt('owner.inventory.btn_add', 'Add raw material') %></button>
+        <button class="btn primary sm" type="submit">➕ <%= tt('owner.inventory.btn_add', 'ნედლეულის დამატება') %></button>
       </form>
     </div>
 
     <!-- All ingredients table -->
     <div class="panel card" style="margin-top:16px">
-      <h2 class="card-title"><%= tt('owner.inventory.all_items', 'All raw materials') %></h2>
+      <h2 class="card-title"><%= tt('owner.inventory.all_items', 'ყველა ნედლეული') %></h2>
 
       <% if (!ingredients.length) { %>
-        <p class="muted"><%= tt('owner.inventory.empty', 'No raw materials yet. Add your first one above.') %></p>
+        <p class="muted"><%= tt('owner.inventory.empty', 'ნედლეული ჯერ არ არის დამატებული') %></p>
       <% } else { %>
 
         <div class="table">
           <div class="tr th">
-            <div><%= tt('owner.inventory.form.name', 'Name') %></div>
-            <div><%= tt('owner.inventory.form.current_qty', 'Current quantity') %></div>
-            <div><%= tt('owner.inventory.form.min_qty', 'Minimum') %></div>
-            <div><%= tt('owner.inventory.form.cost_per_unit', 'Unit cost') %></div>
-            <div><%= tt('owner.inventory.form.supplier', 'Preferred supplier') %></div>
+            <div><%= tt('owner.inventory.form.name', 'სახელი') %></div>
+            <div><%= tt('owner.inventory.form.current_qty', 'ნაშთი') %></div>
+            <div><%= tt('owner.inventory.form.min_qty', 'მინიმუმი') %></div>
+            <div><%= tt('owner.inventory.form.cost_per_unit', 'ერთეულის ღირებულება') %></div>
+            <div><%= tt('owner.inventory.form.supplier', 'სასურველი მომწოდებელი') %></div>
             <div></div>
           </div>
 
@@ -117,17 +117,17 @@
               <div class="td">
                 <input class="in" name="name" required value="<%= esc(ing.name || '') %>">
                 <div class="muted small" style="margin-top:4px">
-                  <%= tt('stock.unit_label', 'Unit') %>:
+                  <%= tt('stock.unit_label', 'ერთეული') %>:
                   <input
                     class="in in-inline"
                     name="unit"
                     value="<%= esc(ing.unit || '') %>"
-                    placeholder="<%= tt('stock.unit_placeholder', 'kg / liter / unit') %>"
+                    placeholder="<%= tt('stock.unit_placeholder', 'კგ / ლიტრი / ერთეული') %>"
                   >
                 </div>
                 <% if (ing.notes) { %>
                   <div class="muted small" style="margin-top:4px">
-                    <%= tt('stock.notes_label', 'Notes') %>: <%= esc(ing.notes) %>
+                    <%= tt('stock.notes_label', 'შენიშვნები') %>: <%= esc(ing.notes) %>
                   </div>
                 <% } %>
               </div>
@@ -171,7 +171,7 @@
               <!-- Preferred supplier -->
               <div class="td">
                 <select class="in" name="supplierId">
-                  <option value="">— <%= tt('common.none', 'None') %> —</option>
+                  <option value="">— <%= tt('common.none', 'არცერთი') %> —</option>
                   <% activeSuppliers.forEach(function(s){ %>
                     <option
                       value="<%= esc(s.id) %>"
@@ -183,24 +183,24 @@
                 </select>
                 <% if (ing.supplierName && !ing.preferredSupplierId) { %>
                   <div class="muted small" style="margin-top:4px">
-                    <%= tt('stock.supplier_legacy', 'Supplier (legacy)') %>: <%= esc(ing.supplierName) %>
+                    <%= tt('stock.supplier_legacy', 'მომწოდებელი (ძველი)') %>: <%= esc(ing.supplierName) %>
                   </div>
                 <% } %>
               </div>
 
               <!-- Actions -->
               <div class="td right">
-                <button class="btn primary sm" type="submit"><%= tt('common.btn_save', 'Save') %></button>
+                <button class="btn primary sm" type="submit"><%= tt('common.btn_save', 'შენახვა') %></button>
 
                 <button
                   class="btn ghost sm danger"
                   type="submit"
                   formaction="/owner/<%= restaurant.id %>/inventory/stock/ingredient/<%= esc(ing.id) %>/delete"
                   formmethod="post"
-                  onclick="return confirm('<%= tt('stock.confirm_delete', 'Delete this ingredient?') %>')"
+                  onclick="return confirm('<%= tt('stock.confirm_delete', 'წავშალოთ ეს ინგრედიენტი?') %>')"
                   style="margin-right:8px"
                 >
-                  <%= tt('common.btn_delete', 'Delete') %>
+                  <%= tt('common.btn_delete', 'წაშლა') %>
                 </button>
               </div>
             </form>

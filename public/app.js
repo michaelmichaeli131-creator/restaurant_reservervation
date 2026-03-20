@@ -182,6 +182,24 @@
     }
   }
 
+  const __lang = String(document.documentElement.lang || 'en').toLowerCase();
+  const APP_UI = __lang.startsWith('ka') ? {
+    pickDate: 'გთხოვთ, აირჩიოთ თარიღი.',
+    badDate: 'თარიღი არასწორია. საჭიროა ფორმატი: YYYY-MM-DD.',
+    pickTime: 'გთხოვთ, აირჩიოთ დრო.',
+    badTime: 'დრო არასწორია. საჭიროა ფორმატი: HH:MM.'
+  } : (__lang.startsWith('he') ? {
+    pickDate: 'אנא בחר/י תאריך.',
+    badDate: 'תאריך לא תקין. פורמט נדרש: YYYY-MM-DD.',
+    pickTime: 'אנא בחר/י שעה.',
+    badTime: 'שעה לא תקינה. פורמט נדרש: HH:MM.'
+  } : {
+    pickDate: 'Please choose a date.',
+    badDate: 'Invalid date. Required format: YYYY-MM-DD.',
+    pickTime: 'Please choose a time.',
+    badTime: 'Invalid time. Required format: HH:MM.'
+  });
+
   // ---------- Form submit guard ----------
   function wireSubmitGuard() {
     const form = Q("#reserve-form") || Q('form[action*="/reserve"]');
@@ -220,15 +238,15 @@
       // ולידציה בסיסית בצד לקוח
       const errors = [];
       if (!dateInput || !dateInput.value) {
-        errors.push("אנא בחר/י תאריך.");
+        errors.push(APP_UI.pickDate);
       } else if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInput.value)) {
-        errors.push("תאריך לא תקין. פורמט נדרש: YYYY-MM-DD.");
+        errors.push(APP_UI.badDate);
       }
 
       if (!hiddenTime || !hiddenTime.value) {
-        errors.push("אנא בחר/י שעה.");
+        errors.push(APP_UI.pickTime);
       } else if (!/^\d{2}:\d{2}$/.test(hiddenTime.value)) {
-        errors.push("שעה לא תקינה. פורמט נדרש: HH:MM.");
+        errors.push(APP_UI.badTime);
       }
 
       if (errors.length) {

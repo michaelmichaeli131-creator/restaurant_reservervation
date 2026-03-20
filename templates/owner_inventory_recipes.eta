@@ -26,13 +26,13 @@
   });
 %>
 
-<main class="sb-owner container sb-owner-page" aria-label="<%= tt('recipes.aria', 'Dish Recipes & Ingredients') %>">
+<main class="sb-owner container sb-owner-page" aria-label="<%= tt('recipes.aria', 'კერძების რეცეპტები და ინგრედიენტები') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
-        <h1><%= tt('recipes.title', 'Dish Recipes') %> · <%= restaurant.name || tt('common.restaurant', 'Restaurant') %></h1>
+        <h1><%= tt('recipes.title', 'კერძების რეცეპტები') %> · <%= restaurant.name || tt('common.restaurant', 'რესტორანი') %></h1>
         <p class="muted">
-          <%= tt('recipes.subtitle', 'Here you define which ingredients and quantities belong to each menu dish. Every time a dish is ordered via POS, the system will automatically deduct the quantity from inventory.') %>
+          <%= tt('recipes.subtitle', 'აქ განსაზღვრავთ, რომელი ინგრედიენტები და რაოდენობები ეკუთვნის თითოეულ მენიუს კერძს. ყოველი შეკვეთისას POS-ით, სისტემა ავტომატურად ჩამოაკლებს რაოდენობას მარაგიდან.') %>
         </p>
       </div>
     </header>
@@ -43,19 +43,19 @@
     <div class="inv-grid">
       <!-- Left panel: recipe editing form for selected dish -->
       <div class="panel card">
-        <h2 class="card-title"><%= tt('recipes.edit_title', 'Edit Dish Recipe') %></h2>
+        <h2 class="card-title"><%= tt('recipes.edit_title', 'კერძის რეცეპტის რედაქტირება') %></h2>
 
         <% if (!menuItems.length) { %>
           <p class="muted">
-            <%= tt('recipes.no_menu_items', 'There are no menu items yet, so there is nothing to define as recipes.') %>
+            <%= tt('recipes.no_menu_items', 'მენიუს ელემენტები ჯერ არ არის, ამიტომ რეცეპტების განსაზღვრა შეუძლებელია.') %>
             <br>
-            <small><%= tt('recipes.no_menu_items_hint', 'Go to the "Edit Menu" page and add new dishes.') %></small>
+            <small><%= tt('recipes.no_menu_items_hint', 'გადადით "მენიუს რედაქტირება" გვერდზე და დაამატეთ ახალი კერძები.') %></small>
           </p>
         <% } else if (!ingredients.length) { %>
           <p class="muted">
-            <%= tt('recipes.no_ingredients', 'There are no ingredients in inventory yet, so recipes cannot be created.') %>
+            <%= tt('recipes.no_ingredients', 'მარაგში ინგრედიენტები ჯერ არ არის, ამიტომ რეცეპტების შექმნა შეუძლებელია.') %>
             <br>
-            <small><%= tt('recipes.no_ingredients_hint', 'Go to the "Ingredient Inventory" page and add ingredients.') %></small>
+            <small><%= tt('recipes.no_ingredients_hint', 'გადადით "ნედლეულის მარაგი" გვერდზე ინგრედიენტების დასამატებლად.') %></small>
           </p>
         <% } else { %>
           <form
@@ -65,19 +65,19 @@
             id="recipe-form"
           >
             <label>
-              <%= tt('recipes.menu_item_label', 'Menu Item') %>
+              <%= tt('recipes.menu_item_label', 'მენიუს კერძი') %>
               <select name="menuItemId" id="menuItemId" required>
-                <option value=""><%= tt('recipes.select_dish', 'Select a dish...') %></option>
+                <option value=""><%= tt('recipes.select_dish', 'აირჩიეთ კერძი...') %></option>
                 <% menuItems.forEach(function(mi){ %>
                   <option value="<%= mi.id %>">
-                    <%= mi.name_he || mi.name_en || tt('recipes.no_name', 'No name') %>
+                    <%= mi.name_he || mi.name_en || tt('recipes.no_name', 'სახელი არ არის') %>
                   </option>
                 <% }) %>
               </select>
             </label>
 
             <p class="muted" style="margin-top:6px">
-              <%= tt('recipes.instructions', '1. Select a dish above. 2. For each row below: select an ingredient and enter the quantity per serving. 3. You can add as many components as you like with "➕ Add component".') %>
+              <%= tt('recipes.instructions', '1. ზემოთ აირჩიეთ კერძი. 2. ქვემოთ თითოეულ რიგში აირჩიეთ ინგრედიენტი და შეიყვანეთ რაოდენობა ერთ პორციაზე. 3. შეგიძლიათ დაამატოთ იმდენი კომპონენტი, რამდენიც გსურთ "➕ კომპონენტის დამატება"-ით.') %>
             </p>
 
             <!-- כאן מופיעות שורות חומרי הגלם למנה -->
@@ -91,30 +91,30 @@
               id="btn-add-component"
               style="margin-top:8px"
             >
-              ➕ <%= tt('recipes.btn_add_ingredient', 'Add Ingredient (add ingredient to dish)') %>
+              ➕ <%= tt('recipes.btn_add_ingredient', 'ინგრედიენტის დამატება (კერძში ინგრედიენტის დამატება)') %>
             </button>
 
             <label style="margin-top:12px">
-              <%= tt('recipes.notes_label', 'Notes (optional)') %>
+              <%= tt('recipes.notes_label', 'შენიშვნები (არასავალდებულო)') %>
               <input
                 name="note"
                 id="recipe-note"
-                placeholder="<%= tt('recipes.notes_placeholder', 'Chef notes / special version of dish') %>"
+                placeholder="<%= tt('recipes.notes_placeholder', 'შეფის შენიშვნები / კერძის სპეციალური ვერსია') %>"
               >
             </label>
 
             <input type="hidden" name="components" id="components-json">
 
             <button class="btn primary sm" type="submit" style="margin-top:10px">
-              💾 <%= tt('recipes.btn_save', 'Save Recipe') %>
+              💾 <%= tt('recipes.btn_save', 'რეცეპტის შენახვა') %>
             </button>
           </form>
 
           <select id="ingredient-options-template" style="display:none">
-            <option value=""><%= tt('recipes.select_ingredient', 'Ingredient...') %></option>
+            <option value=""><%= tt('recipes.select_ingredient', 'ინგრედიენტი...') %></option>
             <% ingredients.forEach(function(ing){ %>
               <option value="<%= ing.id %>">
-                <%= ing.name || ing.ingredientName || tt('recipes.ingredient_fallback', 'Ingredient') %> (<%= ing.unit || 'unit' %>)
+                <%= ing.name || ing.ingredientName || tt('recipes.ingredient_fallback', 'ინგრედიენტი') %> (<%= ing.unit || 'ერთეული' %>)
               </option>
             <% }) %>
           </select>
@@ -123,7 +123,7 @@
 
       <!-- צד שמאל: סקירה של כל המנות עם הפירוק שלהן -->
       <div class="panel card">
-        <h2 class="card-title"><%= tt('recipes.all_dishes_title', 'All Dishes and Their Ingredients') %></h2>
+        <h2 class="card-title"><%= tt('recipes.all_dishes_title', 'ყველა კერძი და მათი ინგრედიენტები') %></h2>
 
         <% if (menuItems.length) { %>
           <div class="recipes-list">
@@ -139,14 +139,14 @@
                     </div>
                     <% if (mi.price) { %>
                       <div class="recipe-sub muted">
-                        <%= tt('recipes.menu_price', 'Menu price:') %> <%= Number(mi.price).toFixed(2) %> <%= tt('common.currency', '₪') %>
+                        <%= tt('recipes.menu_price', 'მენიუს ფასი:') %> <%= Number(mi.price).toFixed(2) %> <%= tt('common.currency', '₾') %>
                       </div>
                     <% } %>
                   </div>
                   <% if (rows.length) { %>
-                    <span class="badge ok"><%= tt('recipes.has_recipe', 'Recipe defined') %></span>
+                    <span class="badge ok"><%= tt('recipes.has_recipe', 'რეცეპტი განსაზღვრულია') %></span>
                   <% } else { %>
-                    <span class="badge bad"><%= tt('recipes.no_recipe', 'No recipe') %></span>
+                    <span class="badge bad"><%= tt('recipes.no_recipe', 'რეცეპტის გარეშე') %></span>
                   <% } %>
                 </header>
 
@@ -162,7 +162,7 @@
                         data-qty="<%= qty %>"
                       >
                         <span class="ing-name">
-                          <%= ing.name || ing.ingredientName || tt('recipes.ingredient_fallback', 'Ingredient') %>
+                          <%= ing.name || ing.ingredientName || tt('recipes.ingredient_fallback', 'ინგრედიენტი') %>
                         </span>
                         <span class="ing-qty">
                           <%= qty %> <%= ing.unit || '' %>
@@ -172,7 +172,7 @@
                   </ul>
                 <% } else { %>
                   <p class="muted small">
-                    <%= tt('recipes.no_ingredients_yet', 'No ingredients defined for this dish yet.') %>
+                    <%= tt('recipes.no_ingredients_yet', 'ამ კერძისთვის ინგრედიენტები ჯერ არ არის განსაზღვრული.') %>
                   </p>
                 <% } %>
 
@@ -181,7 +181,7 @@
                     class="muted small"
                     data-recipe-note="<%= r.note %>"
                   >
-                    <%= tt('recipes.notes', 'Notes:') %> <%= r.note %>
+                    <%= tt('recipes.notes', 'შენიშვნები:') %> <%= r.note %>
                   </p>
                 <% } %>
               </article>
@@ -189,7 +189,7 @@
           </div>
         <% } else { %>
           <p class="muted">
-            <%= tt('recipes.no_dishes_in_menu', 'No menu items yet, so there is nothing to define as recipes.') %>
+            <%= tt('recipes.no_dishes_in_menu', 'მენიუში ჯერ არ არის კერძები, ამიტომ რეცეპტების განსაზღვრა შეუძლებელია.') %>
           </p>
         <% } %>
       </div>
@@ -241,7 +241,7 @@
       inputQty.min = '0';
       inputQty.step = '0.001';
       inputQty.required = true;
-      inputQty.placeholder = '<%= tt("recipes.qty_placeholder", "Qty per serving") %>';
+      inputQty.placeholder = '<%= tt("recipes.qty_placeholder", "რაოდენობა პორციაზე") %>';
       inputQty.className = 'recipe-qty';
       if (value && typeof value.qty === 'number') {
         inputQty.value = value.qty;

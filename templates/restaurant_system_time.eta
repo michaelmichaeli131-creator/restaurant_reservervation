@@ -29,7 +29,7 @@
         <p class="muted"><%= restaurant.city %> • <%= restaurant.address %></p>
       </div>
       <div class="sb-time-page__hero-actions">
-        <a class="btn ghost" href="<%= backHref %>" onclick="if (window.history.length > 1) { history.back(); return false; }"><%= tt('common.back', 'Back') %></a>
+        <a class="btn ghost" href="<%= backHref %>" onclick="if (window.history.length > 1) { history.back(); return false; }"><%= tt('common.btn_back', 'უკან') %></a>
       </div>
     </div>
 

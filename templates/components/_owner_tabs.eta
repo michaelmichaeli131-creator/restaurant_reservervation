@@ -29,26 +29,26 @@ const active = it.active || "";
 <nav class="sb-owner-tabs" aria-label="<%= tt('owner.tabs.aria','Restaurant sections') %>">
   <a class="sb-owner-tab <%= active==='details' ? 'is-active' : '' %>" href="/owner/restaurants/<%= rid %>/edit">
     <span class="sb-owner-tab-ic">⚙️</span>
-    <span class="sb-owner-tab-tx"><%= tt('owner.tabs.details','פרטי מסעדה') %></span>
+    <span class="sb-owner-tab-tx"><%= tt('owner.tabs.details','რესტორნის დეტალები') %></span>
   </a>
 
   <a class="sb-owner-tab <%= active==='menu' ? 'is-active' : '' %>" href="/owner/<%= rid %>/menu">
     <span class="sb-owner-tab-ic">📋</span>
-    <span class="sb-owner-tab-tx"><%= tt('owner.tabs.menu','תפריט') %></span>
+    <span class="sb-owner-tab-tx"><%= tt('owner.tabs.menu','მენიუ') %></span>
   </a>
 
   <a class="sb-owner-tab <%= active==='inventory' ? 'is-active' : '' %>" href="/owner/<%= rid %>/inventory/stock">
     <span class="sb-owner-tab-ic">🧺</span>
-    <span class="sb-owner-tab-tx"><%= tt('owner.tabs.inventory','מלאי חומרי גלם') %></span>
+    <span class="sb-owner-tab-tx"><%= tt('owner.tabs.inventory','ინგრედიენტების მარაგი') %></span>
   </a>
 
   <a class="sb-owner-tab <%= active==='bills' ? 'is-active' : '' %>" href="/owner/<%= rid %>/bills">
     <span class="sb-owner-tab-ic">🧾</span>
-    <span class="sb-owner-tab-tx"><%= tt('owner.tabs.bills','חשבונות') %></span>
+    <span class="sb-owner-tab-tx"><%= tt('owner.tabs.bills','ანგარიშები') %></span>
   </a>
 
   <a class="sb-owner-tab <%= active==='photos' ? 'is-active' : '' %>" href="/owner/restaurants/<%= rid %>/photos">
     <span class="sb-owner-tab-ic">🖼️</span>
-    <span class="sb-owner-tab-tx"><%= tt('owner.tabs.photos','תמונות') %></span>
+    <span class="sb-owner-tab-tx"><%= tt('owner.tabs.photos','ფოტოები') %></span>
   </a>
 </nav>

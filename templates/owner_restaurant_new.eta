@@ -12,66 +12,66 @@ function tt(k, fb){
 }
 %>
 
-<section class="sb-page" aria-label="<%= tt('restaurant_new.title', 'פתיחת מסעדה חדשה') %>">
+<section class="sb-page" aria-label="<%= tt('restaurant_new.title', 'ახალი რესტორნის გახსნა') %>">
   <div class="sb-surface sb-stack sb-pad-16">
     <header class="sb-row between">
       <div>
-        <h1 class="sb-manage-title"><%= tt('restaurant_new.title', 'פתיחת מסעדה חדשה') %></h1>
-        <div class="muted"><%= tt('restaurant_new.subtitle', 'ממלאים פרטים בסיסיים, אפשר להשלים מאוחר יותר.') %></div>
+        <h1 class="sb-manage-title"><%= tt('restaurant_new.title', 'ახალი რესტორნის გახსნა') %></h1>
+        <div class="muted"><%= tt('restaurant_new.subtitle', 'შეავსეთ ძირითადი ინფორმაცია — დანარჩენის დამატება მოგვიანებითაც შეიძლება.') %></div>
       </div>
       <div>
-        <a href="/owner/manage" class="btn sm ghost"><%= tt('restaurant_new.btn_back', 'חזרה לדשבורד') %></a>
+        <a href="/owner/manage" class="btn sm ghost"><%= tt('restaurant_new.btn_back', 'დაფაზე დაბრუნება') %></a>
       </div>
     </header>
 
     <form method="post" action="/owner/restaurant/new" class="sb-stack">
       <div class="sb-form-grid">
         <label class="sb-field">
-          <span class="sb-label"><%= tt('restaurant_new.form.name', 'שם מסעדה') %></span>
-          <input class="sb-input" name="name" required maxlength="120" placeholder="לדוגמה: Riviera Bistro" />
+          <span class="sb-label"><%= tt('restaurant_new.form.name', 'რესტორნის სახელი') %></span>
+          <input class="sb-input" name="name" required maxlength="120" placeholder="მაგალითად: Riviera Bistro" />
         </label>
         <label class="sb-field">
-          <span class="sb-label"><%= tt('restaurant_new.form.city', 'עיר') %></span>
-          <input class="sb-input" name="city" required maxlength="80" placeholder="<%= tt('restaurant_new.ph.city', 'תל אביב') %>" />
+          <span class="sb-label"><%= tt('restaurant_new.form.city', 'ქალაქი') %></span>
+          <input class="sb-input" name="city" required maxlength="80" placeholder="<%= tt('restaurant_new.ph.city', 'თბილისი') %>" />
         </label>
 
         <label class="sb-field sb-span-all">
-          <span class="sb-label"><%= tt('restaurant_new.form.address', 'כתובת') %></span>
-          <input class="sb-input" name="address" required maxlength="160" placeholder="<%= tt('restaurant_new.ph.address', 'דיזנגוף 100') %>" />
+          <span class="sb-label"><%= tt('restaurant_new.form.address', 'მისამართი') %></span>
+          <input class="sb-input" name="address" required maxlength="160" placeholder="<%= tt('restaurant_new.ph.address', 'რუსთაველის გამზირი 10') %>" />
         </label>
 
         <label class="sb-field">
-          <span class="sb-label"><%= tt('restaurant_new.form.phone', 'טלפון') %></span>
+          <span class="sb-label"><%= tt('restaurant_new.form.phone', 'ტელეფონი') %></span>
           <input class="sb-input" name="phone" maxlength="40" placeholder="03-1234567" />
         </label>
         <label class="sb-field">
-          <span class="sb-label"><%= tt('restaurant_new.form.capacity', 'קיבולת (מושבים)') %></span>
+          <span class="sb-label"><%= tt('restaurant_new.form.capacity', 'ტევადობა (ადგილები)') %></span>
           <input class="sb-input" name="capacity" type="number" min="1" max="10000" value="30" />
         </label>
         <label class="sb-field">
-          <span class="sb-label"><%= tt('restaurant_new.form.intervals', 'אינטרוולים (דקות)') %></span>
+          <span class="sb-label"><%= tt('restaurant_new.form.intervals', 'ინტერვალები (წუთები)') %></span>
           <input class="sb-input" name="slotIntervalMinutes" type="number" min="5" max="120" value="15" />
         </label>
         <label class="sb-field">
-          <span class="sb-label"><%= tt('restaurant_new.form.duration', 'משך שירות (דקות)') %></span>
+          <span class="sb-label"><%= tt('restaurant_new.form.duration', 'სერვისის ხანგრძლივობა (წუთები)') %></span>
           <input class="sb-input" name="serviceDurationMinutes" type="number" min="15" max="600" value="120" />
         </label>
 
         <label class="sb-field sb-span-all">
-          <span class="sb-label"><%= tt('restaurant_new.form.description', 'תיאור') %></span>
-          <textarea class="sb-textarea" name="description" rows="3" maxlength="1000" placeholder="<%= tt('restaurant_new.ph.description', 'תיאור קצר…') %>"></textarea>
+          <span class="sb-label"><%= tt('restaurant_new.form.description', 'აღწერა') %></span>
+          <textarea class="sb-textarea" name="description" rows="3" maxlength="1000" placeholder="<%= tt('restaurant_new.ph.description', 'მოკლე აღწერა…') %>"></textarea>
         </label>
         <label class="sb-field sb-span-all">
-          <span class="sb-label"><%= tt('restaurant_new.form.photos', 'תמונות (אופציונלי) — URLs, מופרדים בפסיק/שורה') %></span>
+          <span class="sb-label"><%= tt('restaurant_new.form.photos', 'ფოტოები (სურვილისამებრ) — URL-ები, გამოყავით მძიმით ან ახალი ხაზით') %></span>
           <textarea class="sb-textarea" name="photos" rows="2" placeholder="https://...\nhttps://..."></textarea>
         </label>
       </div>
 
       <div class="sb-actions">
-        <a href="/owner/manage" class="btn md"><%= tt('common.btn_cancel', 'ביטול') %></a>
+        <a href="/owner/manage" class="btn md"><%= tt('common.btn_cancel', 'გაუქმება') %></a>
         <button class="btn md primary" type="submit">
           <span class="sb-icon sb-icon-20"><svg><use href="/public/icons/sb-sprite.svg#plus"/></svg></span>
-          <%= tt('restaurant_new.btn_create', 'צור מסעדה') %>
+          <%= tt('restaurant_new.btn_create', 'რესტორნის შექმნა') %>
         </button>
       </div>
     </form>

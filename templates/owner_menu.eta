@@ -25,19 +25,19 @@
   }catch(e){}
 %>
 
-<main class="sb-page sb-om-page" dir="rtl" data-page="owner-menu">
+<main class="sb-page sb-om-page" dir="<%= (it.lang === 'he') ? 'rtl' : 'ltr' %>" data-page="owner-menu">
   <header class="sb-om-hd sb-surface">
     <div class="sb-om-title">
       <div class="sb-om-kicker"><%= it.restaurant.name %></div>
-      <h1 class="sb-om-h1"><%= tt('owner.menu.page_title', 'Edit Menu') %></h1>
+      <h1 class="sb-om-h1"><%= tt('owner.menu.page_title', 'მენიუს რედაქტირება') %></h1>
       <p class="muted"><%= it.restaurant.city %> <span class="sb-dot">•</span> <%= it.restaurant.address %></p>
     </div>
     <div class="sb-om-tools">
       <div class="sb-search" role="search">
         <span class="icon">🔎</span>
-        <input id="menu-owner-search" class="sb-input" type="search" placeholder="<%= tt('owner.menu.search', 'חיפוש מנות...') %>" autocomplete="off" />
+        <input id="menu-owner-search" class="sb-input" type="search" placeholder="<%= tt('owner.menu.search', 'კერძის ძიება...') %>" autocomplete="off" />
       </div>
-      <a class="btn ghost" href="/owner/<%= it.restaurant.id %>">← <%= tt('common.back', 'חזרה') %></a>
+      <a class="btn ghost" href="/owner/<%= it.restaurant.id %>">← <%= tt('common.btn_back', 'უკან') %></a>
     </div>
   </header>
 
@@ -46,50 +46,50 @@
 
   <div class="sb-om-grid">
   <section class="card sb-om-card">
-    <h2 class="card-title"><%= tt('owner.menu.categories', 'קטגוריות') %></h2>
+    <h2 class="card-title"><%= tt('owner.menu.categories', 'კატეგორიები') %></h2>
     <ul class="list sb-om-list">
       <li class="item is-active" data-filter="__all__">
         <div class="sb-om-cat" role="button" tabindex="0" data-filter="__all__">
-          <strong><%= tt('owner.menu.all', 'הכל') %></strong>
+          <strong><%= tt('owner.menu.all', 'ყველა') %></strong>
           <span class="sb-om-count"><%= (it.items || []).length %></span>
         </div>
       </li>
       <% it.cats.forEach(c => { %>
         <li class="item" data-filter="<%= c.id %>">
           <div class="sb-om-cat" role="button" tabindex="0" data-filter="<%= c.id %>">
-            <strong><%= c.name_he || c.name_en || tt('owner.menu.no_name', '(No name)') %></strong>
+            <strong><%= c.name_he || c.name_en || tt('owner.menu.no_name', '(სახელი არ არის)') %></strong>
             <span class="sb-om-count"><%= (catCounts[c.id] || 0) %></span>
           </div>
           <form method="post" action="/owner/<%= it.restaurant.id %>/menu/category/<%= c.id %>/delete" class="inline-form">
-            <button class="btn ghost" onclick="return confirm('<%= tt('owner.menu.confirm_delete_category', 'למחוק קטגוריה?') %>')"><%= tt('common.btn_delete', 'מחק') %></button>
+            <button class="btn ghost" onclick="return confirm('<%= tt('owner.menu.confirm_delete_category', 'წავშალოთ კატეგორია?') %>')"><%= tt('common.btn_delete', 'წაშლა') %></button>
           </form>
         </li>
       <% }) %>
     </ul>
     <form method="post" action="/owner/<%= it.restaurant.id %>/menu/category" class="form row">
-      <label class="fld"><span><%= tt('owner.menu.label_name_en', 'Name (EN)') %></span><input name="name_en" required></label>
-      <label class="fld"><span><%= tt('owner.menu.label_name_he', 'Name (HE)') %></span><input name="name_he"></label>
-      <button class="btn"><%= tt('owner.menu.btn_add_category', 'הוסף קטגוריה') %></button>
+      <label class="fld"><span><%= tt('owner.menu.label_name_en', 'სახელი (EN)') %></span><input name="name_en" required></label>
+      <label class="fld"><span><%= tt('owner.menu.label_name_he', 'სახელი (HE)') %></span><input name="name_he"></label>
+      <button class="btn"><%= tt('owner.menu.btn_add_category', 'კატეგორიის დამატება') %></button>
     </form>
   </section>
 
   <section class="card sb-om-card">
-    <h2 class="card-title"><%= tt('owner.menu.items', 'מנות') %></h2>
+    <h2 class="card-title"><%= tt('owner.menu.items', 'კერძები') %></h2>
     <table class="table sb-om-table" id="owner-menu-items">
-      <thead><tr><th><%= tt('owner.menu.tbl.name', 'שם') %></th><th><%= tt('owner.menu.tbl.price', 'מחיר') %></th><th><%= tt('owner.menu.tbl.destination', 'יעד') %></th><th><%= tt('owner.menu.tbl.category', 'קטגוריה') %></th><th></th></tr></thead>
+      <thead><tr><th><%= tt('owner.menu.tbl.name', 'სახელი') %></th><th><%= tt('owner.menu.tbl.price', 'ფასი') %></th><th><%= tt('owner.menu.tbl.destination', 'დანიშნულება') %></th><th><%= tt('owner.menu.tbl.category', 'კატეგორია') %></th><th></th></tr></thead>
       <tbody>
         <% it.items.forEach(m => { %>
           <tr data-name="<%= ((m.name_he || m.name_en) || '').toString().toLowerCase() %>" data-cat="<%= ((it.cats.find(c=>c.id===m.categoryId)?.name_he || it.cats.find(c=>c.id===m.categoryId)?.name_en) || '').toString().toLowerCase() %>" data-cid="<%= m.categoryId || '' %>">
-            <td data-label="<%= tt('owner.menu.tbl.name', 'שם') %>">
+            <td data-label="<%= tt('owner.menu.tbl.name', 'სახელი') %>">
               <div class="sb-om-item-title"><%= m.name_he || m.name_en %></div>
             </td>
-            <td data-label="<%= tt('owner.menu.tbl.price', 'מחיר') %>"><%= (m.price || 0).toFixed(2) %> <%= tt('common.currency', '₪') %></td>
-            <td data-label="<%= tt('owner.menu.tbl.destination', 'יעד') %>"><span class="sb-om-pill <%= m.destination === 'bar' ? 'is-bar' : 'is-kitchen' %>"><%= m.destination === 'bar' ? tt('owner.menu.dest_bar', 'בר') : tt('owner.menu.dest_kitchen', 'מטבח') %></span></td>
-            <td data-label="<%= tt('owner.menu.tbl.category', 'קטגוריה') %>"><span class="sb-om-pill"><%= (it.cats.find(c=>c.id===m.categoryId)?.name_he || it.cats.find(c=>c.id===m.categoryId)?.name_en || '-') %></span></td>
-            <td data-label="<%= tt('common.actions', 'Actions') %>">
+            <td data-label="<%= tt('owner.menu.tbl.price', 'ფასი') %>"><%= (m.price || 0).toFixed(2) %> <%= tt('common.currency', '₾') %></td>
+            <td data-label="<%= tt('owner.menu.tbl.destination', 'დანიშნულება') %>"><span class="sb-om-pill <%= m.destination === 'bar' ? 'is-bar' : 'is-kitchen' %>"><%= m.destination === 'bar' ? tt('owner.menu.dest_bar', 'ბარი') : tt('owner.menu.dest_kitchen', 'სამზარეულო') %></span></td>
+            <td data-label="<%= tt('owner.menu.tbl.category', 'კატეგორია') %>"><span class="sb-om-pill"><%= (it.cats.find(c=>c.id===m.categoryId)?.name_he || it.cats.find(c=>c.id===m.categoryId)?.name_en || '-') %></span></td>
+            <td data-label="<%= tt('common.actions', 'მოქმედებები') %>">
               <div class="sb-om-row-actions">
               <form method="post" action="/owner/<%= it.restaurant.id %>/menu/item/<%= m.id %>/delete">
-                <button class="btn ghost">🗑 <%= tt('common.btn_delete', 'מחק') %></button>
+                <button class="btn ghost">🗑 <%= tt('common.btn_delete', 'წაშლა') %></button>
               </form>
               </div>
             </td>
@@ -99,26 +99,26 @@
     </table>
 
     <form method="post" action="/owner/<%= it.restaurant.id %>/menu/item" class="form row">
-      <label class="fld"><span><%= tt('owner.menu.label_name_en', 'Name (EN)') %></span><input name="name_en" required></label>
-      <label class="fld"><span><%= tt('owner.menu.label_name_he', 'Name (HE)') %></span><input name="name_he"></label>
-      <label class="fld"><span><%= tt('owner.menu.label_price', 'Price (₪)') %></span><input name="price" type="number" step="0.01" required></label>
+      <label class="fld"><span><%= tt('owner.menu.label_name_en', 'სახელი (EN)') %></span><input name="name_en" required></label>
+      <label class="fld"><span><%= tt('owner.menu.label_name_he', 'სახელი (HE)') %></span><input name="name_he"></label>
+      <label class="fld"><span><%= tt('owner.menu.label_price', 'ფასი (₾)') %></span><input name="price" type="number" step="0.01" required></label>
       <label class="fld">
-        <span><%= tt('owner.menu.tbl.destination', 'Destination') %></span>
+        <span><%= tt('owner.menu.tbl.destination', 'დანიშნულება') %></span>
         <select name="destination">
-          <option value="kitchen"><%= tt('owner.menu.dest_kitchen', 'מטבח') %></option>
-          <option value="bar"><%= tt('owner.menu.dest_bar', 'בר') %></option>
+          <option value="kitchen"><%= tt('owner.menu.dest_kitchen', 'სამზარეულო') %></option>
+          <option value="bar"><%= tt('owner.menu.dest_bar', 'ბარი') %></option>
         </select>
       </label>
       <label class="fld">
-        <span><%= tt('owner.menu.tbl.category', 'Category') %></span>
+        <span><%= tt('owner.menu.tbl.category', 'კატეგორია') %></span>
         <select name="categoryId">
-          <option value=""><%= tt('owner.menu.no_category', '(None)') %></option>
+          <option value=""><%= tt('owner.menu.no_category', '(არცერთი)') %></option>
           <% it.cats.forEach(c => { %>
             <option value="<%= c.id %>"><%= c.name_he || c.name_en %></option>
           <% }) %>
         </select>
       </label>
-      <button class="btn"><%= tt('owner.menu.btn_add_item', 'הוסף מנה') %></button>
+      <button class="btn"><%= tt('owner.menu.btn_add_item', 'კერძის დამატება') %></button>
     </form>
   </section>
   </div>

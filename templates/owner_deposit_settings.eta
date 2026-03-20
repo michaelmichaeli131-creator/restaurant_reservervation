@@ -4,25 +4,25 @@
 
 <main class="sb-deposit container">
   <header class="page-header">
-    <h1><%= tt('owner.deposit.head','Deposit Settings') %> — <%= it.restaurant.name %></h1>
+    <h1><%= tt('owner.deposit.head','დეპოზიტის პარამეტრები') %> — <%= it.restaurant.name %></h1>
     <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
   </header>
 
   <% if (it.saved) { %>
     <div class="alert success" role="status">
-      <%= tt('owner.deposit.alert.saved','Settings saved successfully') %>
+      <%= tt('owner.deposit.alert.saved','პარამეტრები შენახულია') %>
     </div>
   <% } %>
 
   <% if (it.error === 'amount') { %>
     <div class="alert error" role="alert">
-      <%= tt('owner.deposit.alert.error_amount','Please enter a valid deposit amount') %>
+      <%= tt('owner.deposit.alert.error_amount','გთხოვთ, შეიყვანეთ სწორი დეპოზიტის თანხა') %>
     </div>
   <% } %>
 
   <% if (it.error === 'method') { %>
     <div class="alert error" role="alert">
-      <%= tt('owner.deposit.alert.error_method','Please configure at least one payment method') %>
+      <%= tt('owner.deposit.alert.error_method','გთხოვთ, დააყენოთ მინიმუმ ერთი გადახდის მეთოდი') %>
     </div>
   <% } %>
 
@@ -34,16 +34,16 @@
         <label class="toggle-label">
           <input type="checkbox" name="depositEnabled" id="depositEnabled"
                  <%= it.restaurant.depositEnabled ? 'checked' : '' %> />
-          <span><%= tt('owner.deposit.form.enabled','Require deposit for reservations') %></span>
+          <span><%= tt('owner.deposit.form.enabled','ჯავშნებისთვის მოითხოვეთ დეპოზიტი') %></span>
         </label>
-        <p class="hint"><%= tt('owner.deposit.form.enabled_hint','When enabled, customers must pay a deposit to confirm their reservation') %></p>
+        <p class="hint"><%= tt('owner.deposit.form.enabled_hint','თუ ჩართულია, ჯავშნის დასადასტურებლად სტუმარმა დეპოზიტი უნდა გადაიხადოს') %></p>
       </div>
 
       <hr class="sep full" />
 
       <!-- Deposit Amount -->
       <div class="form-row">
-        <label for="depositAmount"><%= tt('owner.deposit.form.amount','Deposit Amount') %></label>
+        <label for="depositAmount"><%= tt('owner.deposit.form.amount','დეპოზიტის თანხა') %></label>
         <div class="input-with-symbol">
           <span class="symbol" id="currencySymbol"><%= it.currencies.find(c => c.code === (it.restaurant.depositCurrency || 'EUR'))?.symbol || '€' %></span>
           <input id="depositAmount" name="depositAmount" type="number" min="0.01" step="0.01"
@@ -54,7 +54,7 @@
 
       <!-- Currency -->
       <div class="form-row">
-        <label for="depositCurrency"><%= tt('owner.deposit.form.currency','Currency') %></label>
+        <label for="depositCurrency"><%= tt('owner.deposit.form.currency','ვალუტა') %></label>
         <select id="depositCurrency" name="depositCurrency">
           <% for (const c of it.currencies) { %>
             <option value="<%= c.code %>" <%= (it.restaurant.depositCurrency || 'EUR') === c.code ? 'selected' : '' %>><%= c.label %></option>
@@ -64,8 +64,8 @@
 
       <hr class="sep full" />
 
-      <h3 class="card-title full"><%= tt('owner.deposit.form.methods_title','Payment Methods') %></h3>
-      <p class="muted full"><%= tt('owner.deposit.form.methods_hint','Configure at least one payment method. Customers will pay directly to your account.') %></p>
+      <h3 class="card-title full"><%= tt('owner.deposit.form.methods_title','გადახდის მეთოდები') %></h3>
+      <p class="muted full"><%= tt('owner.deposit.form.methods_hint','დააყენეთ მინიმუმ ერთი გადახდის მეთოდი. სტუმრები თანხას პირდაპირ თქვენს ანგარიშზე გადაიხდიან.') %></p>
 
       <% for (const pm of it.paymentMethods) { %>
         <div class="form-row full">
@@ -78,20 +78,20 @@
       <% } %>
 
       <div class="form-actions full">
-        <button type="submit" class="btn primary sm"><%= tt('owner.deposit.btn.save','Save Settings') %></button>
-        <a class="btn ghost sm" href="/owner"><%= tt('owner.deposit.btn.back','Back to Dashboard') %></a>
+        <button type="submit" class="btn primary sm"><%= tt('owner.deposit.btn.save','პარამეტრების შენახვა') %></button>
+        <a class="btn ghost sm" href="/owner"><%= tt('owner.deposit.btn.back','პანელზე დაბრუნება') %></a>
       </div>
     </form>
   </section>
 
   <!-- Info Card -->
   <section class="card info-card">
-    <h3 class="card-title"><%= tt('owner.deposit.info.title','How Direct Payments Work') %></h3>
+    <h3 class="card-title"><%= tt('owner.deposit.info.title','როგორ მუშაობს პირდაპირი გადახდა') %></h3>
     <ul class="info-list">
-      <li><%= tt('owner.deposit.info.item1','Customers choose their preferred payment method when booking') %></li>
-      <li><%= tt('owner.deposit.info.item2','They pay directly to your Stripe, SumUp, PayPal, or Revolut account') %></li>
-      <li><%= tt('owner.deposit.info.item3','You confirm receipt in your calendar dashboard') %></li>
-      <li><%= tt('owner.deposit.info.item4','SpotBook never handles or holds your money') %></li>
+      <li><%= tt('owner.deposit.info.item1','ჯავშნისას სტუმარი ირჩევს სასურველ გადახდის მეთოდს') %></li>
+      <li><%= tt('owner.deposit.info.item2','თანხა პირდაპირ ირიცხება თქვენს Stripe, SumUp, PayPal ან Revolut ანგარიშზე') %></li>
+      <li><%= tt('owner.deposit.info.item3','მიღებას ადასტურებთ თქვენი კალენდრის პანელიდან') %></li>
+      <li><%= tt('owner.deposit.info.item4','SpotBook არასოდეს ამუშავებს და არ ინახავს თქვენს თანხას') %></li>
     </ul>
   </section>
 </main>

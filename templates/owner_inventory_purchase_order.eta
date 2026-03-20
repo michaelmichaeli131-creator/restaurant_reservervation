@@ -42,59 +42,59 @@
     if (!ms && ms !== 0) return "";
     const d = new Date(ms);
     if (Number.isNaN(d.getTime())) return "";
-    return d.toLocaleDateString("he-IL", { day:"2-digit", month:"2-digit", year:"2-digit" });
+    return d.toLocaleDateString((it.lang === "he" ? "he-IL" : (it.lang === "ka" ? "ka-GE" : "en-US")), { day:"2-digit", month:"2-digit", year:"2-digit" });
   }
 
   function statusLabel(st){
-    if (!st) return tt('po.status_draft', 'Draft');
+    if (!st) return tt('po.status_draft', 'მონახაზი');
     switch(String(st)){
-      case "draft": return tt('po.status_draft', 'Draft');
-      case "sent": return tt('po.status_sent', 'Sent');
-      case "delivered": return tt('po.status_delivered', 'Delivered');
-      case "cancelled": return tt('po.status_cancelled', 'Cancelled');
+      case "draft": return tt('po.status_draft', 'მონახაზი');
+      case "sent": return tt('po.status_sent', 'გაგზავნილი');
+      case "delivered": return tt('po.status_delivered', 'მიწოდებული');
+      case "cancelled": return tt('po.status_cancelled', 'გაუქმებული');
       default: return st;
     }
   }
 %>
 
-<section class="sb-owner container" aria-label="<%= tt('po.aria', 'Purchase Order') %>">
+<section class="sb-owner container" aria-label="<%= tt('po.aria', 'შესყიდვის ორდერი') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
         <h1>
-          <%= tt('po.title', 'Purchase Order') %> · <%= restaurant.name || tt('po.restaurant_fallback', 'Restaurant') %>
+          <%= tt('po.title', 'შესყიდვის ორდერი') %> · <%= restaurant.name || tt('po.restaurant_fallback', 'რესტორანი') %>
         </h1>
         <p class="muted">
-          <%= tt('po.order_number', 'Order No.') %>
+          <%= tt('po.order_number', 'შეკვეთის №') %>
           <span class="muted small">PO-</span><strong><%= esc(po.id) %></strong>
-          <%= tt('po.for_supplier', 'Supplier:') %>
-          <strong><%= esc(supplierName || tt('po.unknown_supplier', 'Unknown')) %></strong>
+          <%= tt('po.for_supplier', 'მომწოდებელი:') %>
+          <strong><%= esc(supplierName || tt('po.unknown_supplier', 'უცნობი')) %></strong>
         </p>
       </div>
       <div class="actions">
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/purchase_orders">⬅ <%= tt('po.btn_all_orders', 'All Orders') %></a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">🥬 <%= tt('po.btn_stock', 'Inventory') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/purchase_orders">⬅ <%= tt('po.btn_all_orders', 'ყველა შეკვეთა') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">🥬 <%= tt('po.btn_stock', 'მარაგი') %></a>
       </div>
     </header>
 
     <div class="panel card" style="margin-top:14px">
       <div class="po-header-row">
         <div>
-          <div class="muted small"><%= tt('po.lbl_status', 'Status') %></div>
+          <div class="muted small"><%= tt('po.lbl_status', 'სტატუსი') %></div>
           <div class="po-status po-status-<%= esc(po.status || 'draft') %>">
             <%= statusLabel(po.status) %>
           </div>
         </div>
         <div>
-          <div class="muted small"><%= tt('po.lbl_created', 'Created') %></div>
+          <div class="muted small"><%= tt('po.lbl_created', 'შექმნილია') %></div>
           <div><%= fmtDate(po.createdAt) || '—' %></div>
         </div>
         <div>
-          <div class="muted small"><%= tt('po.lbl_expected', 'Expected Delivery') %></div>
+          <div class="muted small"><%= tt('po.lbl_expected', 'მოსალოდნელი მიწოდება') %></div>
           <div><%= fmtDate(po.expectedAt) || '—' %></div>
         </div>
         <div>
-          <div class="muted small"><%= tt('po.lbl_delivered_at', 'Delivered On') %></div>
+          <div class="muted small"><%= tt('po.lbl_delivered_at', 'მიწოდებულია') %></div>
           <div><%= fmtDate(po.deliveredAt) || '—' %></div>
         </div>
       </div>
@@ -103,7 +103,7 @@
       <div class="po-actions" style="margin-top:10px">
         <% if (po.status === "draft") { %>
           <form method="post" action="/owner/<%= restaurant.id %>/inventory/purchase_orders/<%= esc(po.id) %>/send">
-            <button class="btn primary sm" type="submit">📤 <%= tt('po.btn_mark_sent', 'Mark as Sent') %></button>
+            <button class="btn primary sm" type="submit">📤 <%= tt('po.btn_mark_sent', 'გაგზავნილად მონიშვნა') %></button>
           </form>
         <% } %>
 
@@ -112,9 +112,9 @@
             <button
               class="btn ghost sm danger"
               type="submit"
-              onclick="return confirm('<%= tt('po.confirm_cancel', 'Cancel this order? Inventory will not be updated.') %>')"
+              onclick="return confirm('<%= tt('po.confirm_cancel', 'გავაუქმოთ ეს შეკვეთა? მარაგი არ განახლდება.') %>')"
             >
-              ❌ <%= tt('po.btn_cancel', 'Cancel Order') %>
+              ❌ <%= tt('po.btn_cancel', 'შეკვეთის გაუქმება') %>
             </button>
           </form>
         <% } %>
@@ -124,9 +124,9 @@
             <button
               class="btn ghost sm"
               type="submit"
-              onclick="return confirm('<%= tt('po.confirm_delivered', 'Mark order as delivered? Inventory will be updated automatically based on lines.') %>')"
+              onclick="return confirm('<%= tt('po.confirm_delivered', 'მოვნიშნოთ შეკვეთა მიწოდებულად? მარაგი ავტომატურად განახლდება ხაზების მიხედვით.') %>')"
             >
-              ✅ <%= tt('po.btn_mark_delivered', 'Mark as Delivered') %>
+              ✅ <%= tt('po.btn_mark_delivered', 'მიწოდებულად მონიშვნა') %>
             </button>
           </form>
         <% } %>
@@ -136,7 +136,7 @@
     <!-- Edit order (lines + expected delivery + note) -->
     <div class="panel card" style="margin-top:16px">
       <h2 class="card-title">
-        <%= tt('po.order_details', 'Order Details') %>
+        <%= tt('po.order_details', 'შეკვეთის დეტალები') %>
         <% if (!editable) { %>
           <span class="muted small">(<%= tt('po.not_editable', 'Not editable after sending/delivery/cancellation') %>)</span>
         <% } %>
@@ -151,7 +151,7 @@
 
         <div class="row" style="margin-bottom:12px">
           <label class="lbl">
-            <%= tt('po.lbl_expected', 'Expected Delivery') %>
+            <%= tt('po.lbl_expected', 'მოსალოდნელი მიწოდება') %>
             <input
               name="expectedAt"
               type="date"
@@ -161,7 +161,7 @@
           </label>
 
           <label class="lbl" style="min-width:260px;flex:1">
-            <%= tt('po.lbl_notes', 'Order Notes') %>
+            <%= tt('po.lbl_notes', 'შეკვეთის შენიშვნები') %>
             <input
               name="note"
               value="<%= esc(po.note || '') %>"
@@ -173,9 +173,9 @@
 
         <div class="table">
           <div class="tr th">
-            <div><%= tt('po.th_ingredient', 'Ingredient') %></div>
-            <div><%= tt('po.th_qty', 'Quantity') %></div>
-            <div><%= tt('po.th_unit', 'Unit') %></div>
+            <div><%= tt('po.th_ingredient', 'ინგრედიენტი') %></div>
+            <div><%= tt('po.th_qty', 'რაოდენობა') %></div>
+            <div><%= tt('po.th_unit', 'საზომი ერთეული') %></div>
             <div></div>
           </div>
 
@@ -227,7 +227,7 @@
                     class="btn ghost sm danger po-line-remove"
                     type="button"
                   >
-                    <%= tt('po.btn_remove_line', 'Remove Line') %>
+                    <%= tt('po.btn_remove_line', 'სტრიქონის წაშლა') %>
                   </button>
                 <% } %>
               </div>
@@ -242,16 +242,16 @@
               type="button"
               id="po-add-line-btn"
             >
-              ➕ <%= tt('po.btn_add_line', 'Add Ingredient to Order') %>
+              ➕ <%= tt('po.btn_add_line', 'ინგრედიენტის დამატება შეკვეთაში') %>
             </button>
 
             <button class="btn primary sm" type="submit">
-              💾 <%= tt('po.btn_save', 'Save Order') %>
+              💾 <%= tt('po.btn_save', 'შეკვეთის შენახვა') %>
             </button>
           </div>
 
           <p class="muted small" style="margin-top:6px">
-            <%= tt('po.save_hint', 'When saving, only lines with an ingredient and quantity > 0 are kept.') %>
+            <%= tt('po.save_hint', 'შენახვისას მხოლოდ ინგრედიენტიანი და რაოდენობა > 0 სტრიქონები შეინახება.') %>
           </p>
         <% } %>
       </form>
@@ -323,7 +323,7 @@
         </div>
         <div class="td right">
           <button class="btn ghost sm danger po-line-remove" type="button">
-            <%= tt('po.btn_remove_line', 'Remove Line') %>
+            <%= tt('po.btn_remove_line', 'სტრიქონის წაშლა') %>
           </button>
         </div>
       `;

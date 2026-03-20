@@ -297,20 +297,21 @@
     .map((b) => (b && (b.restaurant || b.res)) || null)
     .filter(Boolean);
 
+  const locale = (String(it.lang||'en').startsWith('ka') ? 'ka-GE' : (String(it.lang||'en').startsWith('he') ? 'he-IL' : 'en-US'));
   const permLabels = {
-    "pos.waiter": "POS - מלצר (קליטת הזמנות וטיפול בשולחנות)",
-    "pos.kitchen": "POS - מטבח (מסך הזמנות למטבח/בר)",
-    "host.seating": "מארחת - השמת שולחנות וניהול רצפת המסעדה",
-    "reservations.view": "צפייה בהזמנות למסעדה",
-    "reservations.manage": "ניהול הזמנות (אישור/ביטול/עדכון)",
-    "floor.view": "צפייה במפת השולחנות",
-    "floor.edit": "עריכת מפת שולחנות",
-    "shifts.view": "צפייה במשמרות",
-    "shifts.manage": "ניהול משמרות (שיבוץ, שינוי, ביטול)",
-    "inventory.view": "צפייה במלאי וחומרי גלם",
-    "inventory.manage": "ניהול מלאי (עדכון, הזמנות, התאמות)",
-    "reports.view": "צפייה בדוחות (מכירות, תפוסה וכו')",
-    "menu.manage": "ניהול תפריט (מנות, מחירים, זמינות)"
+    "pos.waiter": "POS — მიმტანი (შეკვეთები და მაგიდების მომსახურება)",
+    "pos.kitchen": "POS — სამზარეულო (სამზარეულოს/ბარის შეკვეთების ეკრანი)",
+    "host.seating": "ჰოსტი — სტუმრების განთავსება და დარბაზის მართვა",
+    "reservations.view": "რესტორნის ჯავშნების ნახვა",
+    "reservations.manage": "ჯავშნების მართვა (დადასტურება/გაუქმება/განახლება)",
+    "floor.view": "მაგიდების რუკის ნახვა",
+    "floor.edit": "მაგიდების რუკის რედაქტირება",
+    "shifts.view": "ცვლების ნახვა",
+    "shifts.manage": "ცვლების მართვა (გეგმვა, შეცვლა, გაუქმება)",
+    "inventory.view": "მარაგისა და ინგრედიენტების ნახვა",
+    "inventory.manage": "მარაგის მართვა (განახლება, შეკვეთები, კორექტირება)",
+    "reports.view": "ანგარიშების ნახვა (გაყიდვები, დატვირთვა და სხვა)",
+    "menu.manage": "მენიუს მართვა (კერძები, ფასები, ხელმისაწვდომობა)"
   };
 
   function escAttr(s){
@@ -351,16 +352,16 @@
   <div class="card">
     <div class="owner-hd">
       <div>
-        <h1>👥 <%= tt('owner.staff.manage_title', 'ניהול עובדים') %></h1>
+        <h1>👥 <%= tt('owner.staff.manage_title', 'თანამშრომლების მართვა') %></h1>
         <div class="muted">
-          <%= tt('owner.staff.list_hint', 'רשימת עובדים מינימלית. לניהול הרשאות ופרטים נוספים — כנס לעמוד העובד.') %>
+          <%= tt('owner.staff.list_hint', 'თანამშრომლების მოკლე სია. უფლებებისა და დამატებითი დეტალების სამართავად გახსენით თანამშრომლის გვერდი.') %>
         </div>
       </div>
       <div class="pill-row">
-        <button type="button" class="btn sm" id="btnOpenCreateStaff"><%= tt('owner.staff.btn_add', '➕ הוסף עובד') %></button>
-        <button type="button" class="btn sm ghost" id="btnOpenAudit">🧾 <%= tt('owner.staff.btn_audit', 'לוג פעולות') %></button>
-        <span class="pill"><%= tt('owner.staff.owner_label', 'בעלים') %>: <b><%= owner?.firstName %> <%= owner?.lastName %></b></span>
-        <span class="pill"><%= tt('owner.staff.email_label', 'אימייל') %>: <b><%= owner?.email %></b></span>
+        <button type="button" class="btn sm" id="btnOpenCreateStaff"><%= tt('owner.staff.btn_add', '➕ თანამშრომლის დამატება') %></button>
+        <button type="button" class="btn sm ghost" id="btnOpenAudit">🧾 <%= tt('owner.staff.btn_audit', 'ქმედებების ჟურნალი') %></button>
+        <span class="pill"><%= tt('owner.staff.owner_label', 'მფლობელი') %>: <b><%= owner?.firstName %> <%= owner?.lastName %></b></span>
+        <span class="pill"><%= tt('owner.staff.email_label', 'ელ-ფოსტა') %>: <b><%= owner?.email %></b></span>
       </div>
     </div>
   </div>
@@ -368,9 +369,9 @@
   <% if (!restaurantsData.length) { %>
     <div class="card empty">
       <div class="icon">🍽️</div>
-      <h2><%= tt('owner.staff.no_restaurants', 'אין מסעדות משויכות לחשבון שלך עדיין') %></h2>
-      <p><%= tt('owner.staff.no_restaurants_hint', 'כדי לנהל עובדים, קודם צור מסעדה במערכת.') %></p>
-      <a href="/owner/restaurants/new" class="btn">+ <%= tt('owner.staff.btn_new_restaurant', 'יצירת מסעדה חדשה') %></a>
+      <h2><%= tt('owner.staff.no_restaurants', 'თქვენს ანგარიშზე რესტორნები ჯერ არ არის მიბმული') %></h2>
+      <p><%= tt('owner.staff.no_restaurants_hint', 'თანამშრომლების სამართავად ჯერ რესტორანი შექმენით სისტემაში.') %></p>
+      <a href="/owner/restaurants/new" class="btn">+ <%= tt('owner.staff.btn_new_restaurant', 'ახალი რესტორნის შექმნა') %></a>
     </div>
   <% } %>
 
@@ -385,7 +386,7 @@
           <div class="muted"><%= restaurant.city %> · <%= restaurant.address %></div>
         </div>
         <div class="pill-row">
-          <span class="pill"><%= tt('owner.staff.approved_count', 'מאושרים') %>: <b><%= staff.length %></b></span>
+          <span class="pill"><%= tt('owner.staff.approved_count', 'დამტკიცებული') %>: <b><%= staff.length %></b></span>
           <span class="pill">pending (staff_db): <b><%= pending.length %></b></span>
         </div>
       </div>
@@ -395,8 +396,8 @@
         <div>
           <div style="margin-bottom:14px">
             <div class="section-title">
-              <h2><%= tt('owner.staff.pending_title', 'ממתינים לאישור') %></h2>
-              <% if (!pending.length) { %><span class="muted"><%= tt('owner.staff.no_pending', 'אין בקשות כרגע') %></span><% } %>
+              <h2><%= tt('owner.staff.pending_title', 'დადასტურების მოლოდინში') %></h2>
+              <% if (!pending.length) { %><span class="muted"><%= tt('owner.staff.no_pending', 'ამჟამად მოთხოვნები არ არის') %></span><% } %>
             </div>
 
             <% if (pending.length) { %>
@@ -404,12 +405,12 @@
                 <table>
                   <thead>
                     <tr>
-                      <th><%= tt('owner.staff.tbl.name', 'שם') %></th>
-                      <th><%= tt('owner.staff.tbl.role', 'תפקיד') %></th>
-                      <th><%= tt('owner.staff.tbl.email', 'אימייל') %></th>
-                      <th><%= tt('owner.staff.tbl.phone', 'טלפון') %></th>
-                      <th><%= tt('owner.staff.tbl.created', 'נרשם') %></th>
-                      <th class="actions"><%= tt('owner.staff.tbl.actions', 'פעולות') %></th>
+                      <th><%= tt('owner.staff.tbl.name', 'სახელი') %></th>
+                      <th><%= tt('owner.staff.tbl.role', 'როლი') %></th>
+                      <th><%= tt('owner.staff.tbl.email', 'ელ-ფოსტა') %></th>
+                      <th><%= tt('owner.staff.tbl.phone', 'ტელეფონი') %></th>
+                      <th><%= tt('owner.staff.tbl.created', 'დარეგისტრირდა') %></th>
+                      <th class="actions"><%= tt('owner.staff.tbl.actions', 'ქმედებები') %></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -419,17 +420,17 @@
                         <td><%= s.role %></td>
                         <td><%= s.email %></td>
                         <td><%= s.phone || "-" %></td>
-                        <td><%= s.createdAt ? new Date(s.createdAt).toLocaleString("he-IL") : "-" %></td>
+                        <td><%= s.createdAt ? new Date(s.createdAt).toLocaleString(locale) : "-" %></td>
                         <td class="actions">
                           <div class="row">
                             <form method="post" action="/owner/staff/<%= s.id %>/approve">
                               <input type="hidden" name="redirectTo" value="/owner/staff" />
                               <input type="hidden" name="useDefaults" value="on" />
-                              <button type="submit" class="btn sm">✓ <%= tt('owner.staff.btn_approve', 'אישור') %></button>
+                              <button type="submit" class="btn sm">✓ <%= tt('owner.staff.btn_approve', 'დადასტურება') %></button>
                             </form>
                             <form method="post" action="/owner/staff/<%= s.id %>/reject">
                               <input type="hidden" name="redirectTo" value="/owner/staff" />
-                              <button type="submit" class="btn ghost sm">✕ <%= tt('owner.staff.btn_reject', 'דחייה') %></button>
+                              <button type="submit" class="btn ghost sm">✕ <%= tt('owner.staff.btn_reject', 'უარყოფა') %></button>
                             </form>
                           </div>
                         </td>
@@ -445,15 +446,15 @@
         <!-- RIGHT: approved staff cards (MINIMAL) -->
         <div>
           <div class="section-title">
-            <h2><%= tt('owner.staff.approved_title', 'עובדים (מאושרים)') %></h2>
-            <% if (!staff.length) { %><span class="muted"><%= tt('owner.staff.no_staff_yet', 'עדיין אין עובדים') %></span><% } %>
+            <h2><%= tt('owner.staff.approved_title', 'თანამშრომლები (დამტკიცებული)') %></h2>
+            <% if (!staff.length) { %><span class="muted"><%= tt('owner.staff.no_staff_yet', 'თანამშრომლები ჯერ არ არის') %></span><% } %>
           </div>
 
           <% if (!staff.length) { %>
             <div class="staff-card empty" style="padding:18px">
               <div class="icon" style="font-size:22px">🧑‍🍳</div>
-              <h2 style="font-size:14px"><%= tt('owner.staff.empty_restaurant', 'אין עובדים למסעדה הזו') %></h2>
-              <p><%= tt('owner.staff.empty_hint', 'לחץ למעלה על \"הוסף עובד\" כדי ליצור עובד למסעדה.') %></p>
+              <h2 style="font-size:14px"><%= tt('owner.staff.empty_restaurant', 'ამ რესტორნისთვის თანამშრომლები არ არიან') %></h2>
+              <p><%= tt('owner.staff.empty_hint', 'ზემოთ დააჭირეთ „თანამშრომლის დამატებას“, რომ ამ რესტორნისთვის თანამშრომელი შექმნათ.') %></p>
             </div>
           <% } else { %>
             <div class="cards">
@@ -474,32 +475,32 @@
                     </div>
 
                     <div class="staff-meta">
-                      <span class="tag"><%= tt('owner.staff.tbl.role', 'תפקיד') %>: <b><%= s.role %></b></span>
+                      <span class="tag"><%= tt('owner.staff.tbl.role', 'როლი') %>: <b><%= s.role %></b></span>
                       <% if (isInactive) { %>
-                        <span class="tag" style="border-color:rgba(239,68,68,.35); background:rgba(239,68,68,.10)"><%= tt('owner.staff.status_label', 'סטטוס') %>: <%= tt('owner.staff.status_inactive', 'מושבת') %></span>
+                        <span class="tag" style="border-color:rgba(239,68,68,.35); background:rgba(239,68,68,.10)"><%= tt('owner.staff.status_label', 'სტატუსი') %>: <%= tt('owner.staff.status_inactive', 'გამორთული') %></span>
                       <% } else { %>
-                        <span class="tag" style="border-color:rgba(34,197,94,.28); background:rgba(34,197,94,.10)"><%= tt('owner.staff.status_label', 'סטטוס') %>: <%= tt('owner.staff.status_active', 'פעיל') %></span>
+                        <span class="tag" style="border-color:rgba(34,197,94,.28); background:rgba(34,197,94,.10)"><%= tt('owner.staff.status_label', 'სტატუსი') %>: <%= tt('owner.staff.status_active', 'აქტიური') %></span>
                       <% } %>
                     </div>
                   </div>
 
                   <div class="staff-actions">
-                    <a class="btn sm" href="/owner/staff/<%= s.id %>"><%= tt('owner.staff.btn_manage', 'ניהול עובד') %></a>
+                    <a class="btn sm" href="/owner/staff/<%= s.id %>"><%= tt('owner.staff.btn_manage', 'თანამშრომლის მართვა') %></a>
 
                     <form method="post" action="/owner/staff/<%= s.id %>/status">
                       <input type="hidden" name="redirectTo" value="/owner/staff" />
                       <input type="hidden" name="status" value="<%= isInactive ? "active" : "inactive" %>" />
                       <% if (isInactive) { %>
-                        <button class="btn sm" type="submit"><%= tt('owner.staff.btn_activate', 'הפעל') %></button>
+                        <button class="btn sm" type="submit"><%= tt('owner.staff.btn_activate', 'ჩართვა') %></button>
                       <% } else { %>
                         <button class="btn ghost sm" type="submit"
-                          onclick="return confirm('<%= tt('owner.staff.confirm_deactivate', 'להשבית את העובד? הוא לא יוכל להיכנס/לעבוד במערכת.') %>');"><%= tt('owner.staff.btn_deactivate', 'השבת') %></button>
+                          onclick="return confirm('<%= tt('owner.staff.confirm_deactivate', 'გამოვრთოთ ეს თანამშრომელი? ის სისტემაში ვეღარ იმუშავებს, სანამ ისევ არ ჩაირთვება.') %>');"><%= tt('owner.staff.btn_deactivate', 'გამორთვა') %></button>
                       <% } %>
                     </form>
 
                     <button type="button" class="btn ghost sm"
                       onclick="openResetLinkModal('<%= s.id %>','<%= s.email %>')">
-                      <%= tt('owner.staff.reset_pw.create', 'צור קישור לאיפוס סיסמה') %>
+                      <%= tt('owner.staff.reset_pw.create', 'პაროლის აღდგენის ბმულის შექმნა') %>
                     </button>
                   </div>
                 </div>
@@ -517,8 +518,8 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="createStaffTitle">
     <div class="dialog-hd">
       <div>
-        <div style="font-size:16px;font-weight:800" id="createStaffTitle"><%= tt('owner.staff.btn_add', '➕ הוסף עובד') %></div>
-        <div class="muted" style="margin-top:4px"><%= tt('owner.staff.modal_subtitle', 'יוצר משתמש עובד (staff) למסעדה הנבחרת. אין הרשמה ציבורית לעובדים.') %></div>
+        <div style="font-size:16px;font-weight:800" id="createStaffTitle"><%= tt('owner.staff.btn_add', '➕ თანამშრომლის დამატება') %></div>
+        <div class="muted" style="margin-top:4px"><%= tt('owner.staff.modal_subtitle', 'ქმნის staff მომხმარებელს არჩეული რესტორნისთვის. თანამშრომლებისთვის საჯარო რეგისტრაცია არ არის ხელმისაწვდომი.') %></div>
       </div>
       <button type="button" class="btn ghost sm" id="btnCloseCreateStaff">✕</button>
     </div>
@@ -529,58 +530,58 @@
       <form id="createStaffForm">
         <div class="form-grid">
           <div class="field full">
-            <label><%= tt('owner.staff.form.restaurant', 'מסעדה (חובה)') %></label>
+            <label><%= tt('owner.staff.form.restaurant', 'რესტორანი (სავალდებულო)') %></label>
             <select name="restaurantId" required>
-              <option value=""><%= tt('owner.staff.form.select_restaurant', 'בחר מסעדה…') %></option>
+              <option value=""><%= tt('owner.staff.form.select_restaurant', 'აირჩიეთ რესტორანი…') %></option>
               <%~ (it.__restOptsHtml || "") %>
             </select>
           </div>
 
           <div class="field">
-            <label><%= tt('owner.staff.form.email', 'אימייל (חובה)') %></label>
+            <label><%= tt('owner.staff.form.email', 'ელ-ფოსტა (სავალდებულო)') %></label>
             <input name="email" type="email" autocomplete="email" placeholder="staff@restaurant.com" required />
           </div>
 
           <div class="field">
-            <label><%= tt('owner.staff.form.role', 'תפקיד (חובה)') %></label>
+            <label><%= tt('owner.staff.form.role', 'როლი (სავალდებულო)') %></label>
             <select name="role" required>
-              <option value=""><%= tt('owner.staff.form.select_role', 'בחר תפקיד…') %></option>
+              <option value=""><%= tt('owner.staff.form.select_role', 'აირჩიეთ როლი…') %></option>
               <%~ (it.__roleOptsHtml || "") %>
             </select>
           </div>
 
           <div class="field full">
-            <label><%= tt('owner.staff.form.temp_password', 'סיסמה זמנית (חובה)') %></label>
+            <label><%= tt('owner.staff.form.temp_password', 'დროებითი პაროლი (სავალდებულო)') %></label>
             <div style="display:flex; gap:10px; align-items:center">
-              <input name="password" type="text" autocomplete="new-password" placeholder="לפחות 8 תווים" minlength="8" required />
+              <input name="password" type="text" autocomplete="new-password" placeholder="მინიმუმ 8 სიმბოლო" minlength="8" required />
               <button type="button" class="btn sm" id="btnGenTempPass">Generate</button>
             </div>
-            <div class="hint"><%= tt('owner.staff.form.password_hint', 'מומלץ שהעובד ישנה סיסמה אחרי כניסה (או דרך \"שכחתי סיסמה\").') %></div>
+            <div class="hint"><%= tt('owner.staff.form.password_hint', 'სასურველია თანამშრომელმა სისტემაში შესვლის შემდეგ პაროლი შეცვალოს (ან აღადგინოს ბმულით).') %></div>
           </div>
 
           <div class="field">
-            <label><%= tt('owner.staff.form.first_name', 'שם פרטי (רשות)') %></label>
+            <label><%= tt('owner.staff.form.first_name', 'სახელი (არასავალდებულო)') %></label>
             <input name="firstName" type="text" autocomplete="given-name" />
           </div>
 
           <div class="field">
-            <label><%= tt('owner.staff.form.last_name', 'שם משפחה (רשות)') %></label>
+            <label><%= tt('owner.staff.form.last_name', 'გვარი (არასავალდებულო)') %></label>
             <input name="lastName" type="text" autocomplete="family-name" />
           </div>
 
           <div class="field full">
-            <label><%= tt('owner.staff.form.phone', 'טלפון (רשות)') %></label>
+            <label><%= tt('owner.staff.form.phone', 'ტელეფონი (არასავალდებულო)') %></label>
             <input name="phone" type="tel" autocomplete="tel" />
           </div>
 
           <div class="field full perm-panel">
             <label style="display:flex; align-items:center; gap:10px">
               <input type="checkbox" name="useDefaults" checked />
-              <span><%= tt('owner.staff.form.use_defaults', 'השתמש בהרשאות ברירת מחדל לפי תפקיד') %></span>
+              <span><%= tt('owner.staff.form.use_defaults', 'გამოიყენე როლის ნაგულისხმევი უფლებები') %></span>
             </label>
 
             <div id="permOverrideBox" style="display:none; margin-top:10px">
-              <div class="muted" style="margin-bottom:8px"><%= tt('owner.staff.form.select_perms', 'בחר הרשאות ספציפיות (אופציונלי)') %>:</div>
+              <div class="muted" style="margin-bottom:8px"><%= tt('owner.staff.form.select_perms', 'აირჩიეთ კონკრეტული უფლებები (სურვილისამებრ)') %>:</div>
               <div class="perm-grid">
                 <% ;((it.__permsSafe || [])).forEach(function(p){ %>
                   <label class="perm-item">
@@ -592,7 +593,7 @@
                   </label>
                 <% }) %>
               </div>
-              <div class="hint"><%= tt('owner.staff.form.perms_hint', 'אם לא תבחר הרשאות, יישמרו הרשאות ברירת מחדל.') %></div>
+              <div class="hint"><%= tt('owner.staff.form.perms_hint', 'თუ უფლებებს არ აირჩევთ, ნაგულისხმევი უფლებები დარჩება აქტიური.') %></div>
             </div>
           </div>
         </div>
@@ -600,8 +601,8 @@
     </div>
 
     <div class="dialog-ft">
-      <button type="button" class="btn ghost" id="btnCancelCreateStaff"><%= tt('common.btn_cancel', 'ביטול') %></button>
-      <button type="submit" class="btn" form="createStaffForm" id="btnSubmitCreateStaff"><%= tt('owner.staff.btn_create', 'צור עובד') %></button>
+      <button type="button" class="btn ghost" id="btnCancelCreateStaff"><%= tt('common.btn_cancel', 'გაუქმება') %></button>
+      <button type="submit" class="btn" form="createStaffForm" id="btnSubmitCreateStaff"><%= tt('owner.staff.btn_create', 'თანამშრომლის შექმნა') %></button>
     </div>
   </div>
 </div>
@@ -611,29 +612,29 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="resetTitle">
     <div class="dialog-hd">
       <div>
-        <div style="font-size:16px;font-weight:800" id="resetTitle"><%= tt('owner.staff.reset_pw.title', 'קישור לאיפוס סיסמה') %></div>
-        <div class="muted" style="margin-top:4px" id="resetPwSub"><%= tt('owner.staff.reset_pw.subtitle', 'צור קישור והעתק לעובד.') %></div>
+        <div style="font-size:16px;font-weight:800" id="resetTitle"><%= tt('owner.staff.reset_pw.title', 'პაროლის აღდგენის ბმული') %></div>
+        <div class="muted" style="margin-top:4px" id="resetPwSub"><%= tt('owner.staff.reset_pw.subtitle', 'შექმენით ბმული და გაუგზავნეთ თანამშრომელს.') %></div>
       </div>
       <button class="btn ghost sm" type="button" id="btnCloseResetPw" aria-label="Close">✕</button>
     </div>
 
     <div class="dialog-bd">
       <div class="field">
-        <label><%= tt('owner.staff.reset_pw.label', 'קישור') %></label>
+        <label><%= tt('owner.staff.reset_pw.label', 'ბმული') %></label>
         <input id="resetPwLink" type="text" readonly value="" />
         <div style="display:flex; gap:8px; margin-top:10px">
-          <button type="button" class="btn" id="btnCopyResetPw"><%= tt('common.btn_copy', 'העתק') %></button>
-          <button type="button" class="btn ghost" id="btnOpenResetPw"><%= tt('common.btn_open', 'פתח') %></button>
+          <button type="button" class="btn" id="btnCopyResetPw"><%= tt('common.btn_copy', 'კოპირება') %></button>
+          <button type="button" class="btn ghost" id="btnOpenResetPw"><%= tt('common.btn_open', 'გახსნა') %></button>
         </div>
         <div class="hint" style="margin-top:8px; opacity:.85">
-          <%= tt('owner.staff.reset_pw.hint', 'מומלץ לשלוח לעובד את הקישור בהודעה פרטית. הקישור חד-פעמי.') %>
+          <%= tt('owner.staff.reset_pw.hint', 'სჯობს ბმული თანამშრომელს პირად შეტყობინებაში გაუგზავნოთ. ბმული ერთჯერადია.') %>
         </div>
       </div>
       <div class="alert err hidden" id="resetPwErr"></div>
     </div>
 
     <div class="dialog-ft">
-      <button type="button" class="btn ghost" id="btnCloseResetPw2"><%= tt('common.btn_close', 'סגור') %></button>
+      <button type="button" class="btn ghost" id="btnCloseResetPw2"><%= tt('common.btn_close', 'დახურვა') %></button>
     </div>
   </div>
 </div>
@@ -643,8 +644,8 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="auditTitle">
     <div class="dialog-hd">
       <div>
-        <div style="font-size:16px;font-weight:800" id="auditTitle">🧾 <%= tt('owner.staff.btn_audit', 'לוג פעולות') %></div>
-        <div class="muted" style="margin-top:4px"><%= tt('owner.staff.audit.subtitle', 'מציג את הפעולות האחרונות שבוצעו במסך ניהול עובדים.') %></div>
+        <div style="font-size:16px;font-weight:800" id="auditTitle">🧾 <%= tt('owner.staff.btn_audit', 'ქმედებების ჟურნალი') %></div>
+        <div class="muted" style="margin-top:4px"><%= tt('owner.staff.audit.subtitle', 'აჩვენებს თანამშრომლების მართვის ეკრანზე შესრულებულ ბოლო მოქმედებებს.') %></div>
       </div>
       <button class="btn ghost sm" type="button" id="auditCloseBtn" aria-label="Close">✕</button>
     </div>
@@ -652,19 +653,19 @@
     <div class="dialog-bd">
       <div class="form-grid">
         <div class="field">
-          <label><%= tt('common.restaurant', 'מסעדה') %></label>
+          <label><%= tt('common.restaurant', 'რესტორანი') %></label>
           <select id="auditRestaurantId">
             <%~ (it.__auditOptsHtml || "") %>
           </select>
         </div>
 
         <div class="field">
-          <label><%= tt('owner.staff.audit.limit', 'כמות') %></label>
+          <label><%= tt('owner.staff.audit.limit', 'რაოდენობა') %></label>
           <input id="auditLimit" type="number" min="1" max="200" value="50" />
         </div>
 
         <div class="field full" style="display:flex; gap:10px; align-items:flex-end">
-          <button type="button" class="btn sm" id="auditRefreshBtn"><%= tt('common.btn_refresh', 'רענן') %></button>
+          <button type="button" class="btn sm" id="auditRefreshBtn"><%= tt('common.btn_refresh', 'განახლება') %></button>
           <div class="muted" id="auditHint"></div>
         </div>
       </div>
@@ -673,14 +674,14 @@
 
       <div class="card" style="margin-top:12px; padding:0">
         <div style="padding:12px 14px; border-bottom:1px solid rgba(148,163,184,.18); font-weight:800">
-          <%= tt('owner.staff.audit.recent', 'אירועים אחרונים') %>
+          <%= tt('owner.staff.audit.recent', 'ბოლო მოვლენები') %>
         </div>
         <div id="auditList" style="padding:10px 14px"></div>
       </div>
     </div>
 
     <div class="dialog-ft">
-      <button class="btn ghost" type="button" id="auditCloseBtn2"><%= tt('common.btn_close', 'סגור') %></button>
+      <button class="btn ghost" type="button" id="auditCloseBtn2"><%= tt('common.btn_close', 'დახურვა') %></button>
     </div>
   </div>
 </div>
@@ -712,7 +713,7 @@
     modal.setAttribute("aria-hidden","true");
   }
   function showError(msg){
-    errBox.textContent = msg || "<%= tt('owner.staff.err_unknown', 'שגיאה לא ידועה') %>";
+    errBox.textContent = msg || "<%= tt('owner.staff.err_unknown', 'უცნობი შეცდომა') %>";
     errBox.style.display="block";
   }
   function genPass(){
@@ -745,7 +746,7 @@
       errBox.style.display="none";
       errBox.textContent="";
       submitBtn.disabled = true;
-      submitBtn.textContent = "<%= tt('owner.staff.creating', 'יוצר…') %>";
+      submitBtn.textContent = "<%= tt('owner.staff.creating', 'იქმნება…') %>";
 
       try{
         const fd = new FormData(form);
@@ -780,18 +781,18 @@
         if(!res.ok || !data || data.ok !== true){
           const err = (data && (data.error || data.message)) ? (data.error || data.message) : ("HTTP " + res.status);
           const map = {
-            "email_required": "חובה להזין אימייל.",
-            "password_too_short": "הסיסמה קצרה מדי (מינימום 8).",
-            "role_invalid": "תפקיד לא תקין.",
-            "restaurant_required": "חובה לבחור מסעדה.",
-            "not_your_restaurant": "אין לך הרשאה למסעדה הזו.",
-            "user_email_in_use": "האימייל הזה כבר שייך ללקוח/בעלים. בחר אימייל אחר.",
-            "staff_exists": "לעובד הזה כבר יש שיוך למסעדה הזו.",
-            "invalid_body": "קלט לא תקין."
+            "email_required": "ელ-ფოსტის შეყვანა აუცილებელია.",
+            "password_too_short": "პაროლი ძალიან მოკლეა (მინიმუმ 8 სიმბოლო).",
+            "role_invalid": "როლი არასწორია.",
+            "restaurant_required": "რესტორნის არჩევა აუცილებელია.",
+            "not_your_restaurant": "ამ რესტორნზე წვდომა არ გაქვთ.",
+            "user_email_in_use": "ეს ელ-ფოსტა უკვე გამოყენებულია კლიენტის ან მფლობელის ანგარიშზე. აირჩიეთ სხვა ელ-ფოსტა.",
+            "staff_exists": "ეს თანამშრომელი ამ რესტორნზე უკვე მიბმულია.",
+            "invalid_body": "არასწორი მონაცემებია შეყვანილი."
           };
-          showError(map[err] || ("<%= tt('owner.staff.error_prefix', 'שגיאה') %>: " + err));
+          showError(map[err] || ("<%= tt('owner.staff.error_prefix', 'შეცდომა') %>: " + err));
           submitBtn.disabled = false;
-          submitBtn.textContent = "<%= tt('owner.staff.btn_create', 'צור עובד') %>";
+          submitBtn.textContent = "<%= tt('owner.staff.btn_create', 'თანამშრომლის შექმნა') %>";
           return;
         }
 
@@ -800,7 +801,7 @@
       }catch(ex){
         showError(String(ex));
         submitBtn.disabled = false;
-        submitBtn.textContent = "<%= tt('owner.staff.btn_create', 'צור עובד') %>";
+        submitBtn.textContent = "<%= tt('owner.staff.btn_create', 'თანამშრომლის შექმნა') %>";
       }
     });
   }
@@ -836,8 +837,8 @@
   window.openResetLinkModal = async function(staffId, email){
     try{
       clearResetErr();
-      resetSub.textContent = "<%= tt('owner.staff.reset_pw.creating_for', 'יוצר קישור עבור') %>: " + (email || "");
-      resetLinkInput.value = "<%= tt('owner.staff.loading', 'טוען...') %>";
+      resetSub.textContent = "<%= tt('owner.staff.reset_pw.creating_for', 'ბმული მზადდება თანამშრომლისთვის') %>: " + (email || "");
+      resetLinkInput.value = "<%= tt('owner.staff.loading', 'იტვირთება...') %>";
       openResetModal();
 
       const res = await fetch(`/owner/staff/${staffId}/password-reset-link`, {
@@ -849,14 +850,14 @@
       if(!res.ok || !data || !data.ok){
         const err = (data && data.error) ? data.error : "unknown";
         const map = {
-          "staff_not_found": "העובד לא נמצא.",
-          "not_your_restaurant": "אין לך הרשאה למסעדה הזו.",
-          "user_not_found": "המשתמש לא נמצא.",
-          "non_local_user": "לא ניתן לאפס סיסמה למשתמש שאינו Local.",
-          "unknown": "שגיאה לא ידועה."
+          "staff_not_found": "თანამშრომელი ვერ მოიძებნა.",
+          "not_your_restaurant": "ამ რესტორნზე წვდომა არ გაქვთ.",
+          "user_not_found": "მომხმარებელი ვერ მოიძებნა.",
+          "non_local_user": "არალოკალური მომხმარებლის პაროლის აღდგენა შეუძლებელია.",
+          "unknown": "უცნობი შეცდომა."
         };
         resetLinkInput.value = "";
-        showResetErr(map[err] || ("<%= tt('owner.staff.error_prefix', 'שגיאה') %>: " + err));
+        showResetErr(map[err] || ("<%= tt('owner.staff.error_prefix', 'შეცდომა') %>: " + err));
         return;
       }
 
@@ -877,10 +878,10 @@
     btnCopy.addEventListener("click", async ()=>{
       try{
         await navigator.clipboard.writeText(resetLinkInput.value || "");
-        btnCopy.textContent = "<%= tt('owner.staff.copied', 'הועתק!') %>";
-        setTimeout(()=>btnCopy.textContent="<%= tt('common.btn_copy', 'העתק') %>", 900);
+        btnCopy.textContent = "<%= tt('owner.staff.copied', 'დაკოპირდა!') %>";
+        setTimeout(()=>btnCopy.textContent="<%= tt('common.btn_copy', 'კოპირება') %>", 900);
       }catch{
-        showResetErr("<%= tt('owner.staff.copy_failed', 'לא הצלחתי להעתיק. אפשר לסמן ולהעתיק ידנית.') %>");
+        showResetErr("<%= tt('owner.staff.copy_failed', 'კოპირება ვერ მოხერხდა. სურვილის შემთხვევაში ხელით დაკოპირებაც შეგიძლიათ.') %>");
       }
     });
   }
@@ -927,7 +928,7 @@
 
   function renderEvents(events){
     if(!Array.isArray(events) || !events.length){
-      list.innerHTML = `<div class="muted" style="padding:10px 0"><%= tt('owner.staff.audit.empty', 'אין אירועים להצגה.') %></div>`;
+      list.innerHTML = `<div class="muted" style="padding:10px 0"><%= tt('owner.staff.audit.empty', 'საჩვენებელი მოვლენები არ არის.') %></div>`;
       return;
     }
 
@@ -966,7 +967,7 @@
     inpLimit.value = String(limit);
 
     showAuditErr("");
-    setHint("<%= tt('owner.staff.loading', 'טוען…') %>");
+    setHint("<%= tt('owner.staff.loading', 'იტვირთება…') %>");
     list.innerHTML = "";
 
     try{
@@ -981,7 +982,7 @@
         return;
       }
 
-      setHint(`מציג ${data.events?.length || 0} אירועים אחרונים.`);
+      setHint(`ნაჩვენებია ბოლო ${data.events?.length || 0} მოვლენა.`);
       renderEvents(data.events || []);
     }catch(ex){
       setHint("");

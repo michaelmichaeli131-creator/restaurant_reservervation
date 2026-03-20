@@ -21,15 +21,15 @@ const month = it.month || '';
   <div class="card">
     <header style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
       <div>
-        <h1 style="margin:0"><%= tt('owner.payroll.title','שכר עובדים') %></h1>
+        <h1 style="margin:0"><%= tt('owner.payroll.title','თანამშრომლების ხელფასი') %></h1>
         <div class="muted" style="margin-top:4px">
-          <%= tt('owner.payroll.subtitle','שכר שעתי לפי חודש, חישוב אוטומטי לפי נוכחות') %>
+          <%= tt('owner.payroll.subtitle','საათობრივი ხელფასი თვეების მიხედვით, ავტომატური დათვლა დასწრების საფუძველზე') %>
         </div>
       </div>
 
       <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
         <label style="display:flex;flex-direction:column;gap:6px;font-weight:700">
-          <span class="muted" style="font-weight:600"><%= tt('owner.payroll.restaurant','מסעדה') %></span>
+          <span class="muted" style="font-weight:600"><%= tt('owner.payroll.restaurant','რესტორანი') %></span>
           <select id="restaurant" class="inp">
             <% restaurants.forEach(function(r){ %>
               <option value="<%= r.id %>" <%= r.id===restaurantId ? 'selected' : '' %>><%= r.name %></option>
@@ -38,11 +38,11 @@ const month = it.month || '';
         </label>
 
         <label style="display:flex;flex-direction:column;gap:6px;font-weight:700">
-          <span class="muted" style="font-weight:600"><%= tt('owner.payroll.month','חודש') %></span>
+          <span class="muted" style="font-weight:600"><%= tt('owner.payroll.month','თვე') %></span>
           <input id="month" class="inp" type="month" value="<%= month %>"/>
         </label>
 
-        <button id="load" class="btn primary sm"><%= tt('owner.payroll.load','טען') %></button>
+        <button id="load" class="btn primary sm"><%= tt('owner.payroll.load','ჩატვირთვა') %></button>
       </div>
     </header>
 
@@ -54,17 +54,17 @@ const month = it.month || '';
       <table class="tbl" style="width:100%;border-collapse:collapse;min-width:850px">
         <thead>
           <tr>
-            <th><%= tt('owner.payroll.tbl.employee', 'עובד') %></th>
-            <th><%= tt('owner.payroll.tbl.email', 'מייל') %></th>
-            <th><%= tt('owner.payroll.tbl.hourly_rate', 'שכר לשעה (₪)') %></th>
-            <th><%= tt('owner.payroll.tbl.hours', 'שעות') %></th>
-            <th><%= tt('owner.payroll.tbl.minutes', 'דקות') %></th>
-            <th><%= tt('owner.payroll.tbl.gross', 'ברוטו לחודש (₪)') %></th>
-            <th><%= tt('owner.payroll.tbl.actions', 'פעולות') %></th>
+            <th><%= tt('owner.payroll.tbl.employee', 'თანამშრომელი') %></th>
+            <th><%= tt('owner.payroll.tbl.email', 'ელ-ფოსტა') %></th>
+            <th><%= tt('owner.payroll.tbl.hourly_rate', 'საათობრივი ანაზღაურება (₪)') %></th>
+            <th><%= tt('owner.payroll.tbl.hours', 'საათები') %></th>
+            <th><%= tt('owner.payroll.tbl.minutes', 'წუთები') %></th>
+            <th><%= tt('owner.payroll.tbl.gross', 'თვის მთლიანი თანხა (₪)') %></th>
+            <th><%= tt('owner.payroll.tbl.actions', 'ქმედებები') %></th>
           </tr>
         </thead>
         <tbody id="rows">
-          <tr><td colspan="7" class="muted"><%= tt('owner.payroll.loading', 'טוען...') %></td></tr>
+          <tr><td colspan="7" class="muted"><%= tt('owner.payroll.loading', 'იტვირთება...') %></td></tr>
         </tbody>
       </table>
     </div>
@@ -124,7 +124,7 @@ const month = it.month || '';
     const rid = $('restaurant').value;
     const month = $('month').value;
     const tbody = $('rows');
-    tbody.innerHTML = `<tr><td colspan="7" class="muted"><%= tt('owner.payroll.loading', 'טוען...') %></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="muted"><%= tt('owner.payroll.loading', 'იტვირთება...') %></td></tr>`;
 
     try{
       const res = await fetch(`/owner/payroll/data?restaurantId=${encodeURIComponent(rid)}&month=${encodeURIComponent(month)}`, {
@@ -137,7 +137,7 @@ const month = it.month || '';
 
       const rows = data.payroll || [];
       if(!rows.length){
-        tbody.innerHTML = `<tr><td colspan="7" class="muted"><%= tt('owner.payroll.no_hours', 'אין שעות עבודה לחודש הזה.') %></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="muted"><%= tt('owner.payroll.no_hours', 'ამ თვეში სამუშაო საათები არ არის.') %></td></tr>`;
         return;
       }
 
@@ -160,15 +160,15 @@ const month = it.month || '';
             <td>${mins}</td>
             <td>${formatMoney(r.gross ?? 0)}</td>
             <td>
-              <button class="btn sm" onclick="saveRate('${r.staffId}')"><%= tt('common.btn_save', 'שמור') %></button>
+              <button class="btn sm" onclick="saveRate('${r.staffId}')"><%= tt('common.btn_save', 'შენახვა') %></button>
             </td>
           </tr>
         `;
       }).join('');
     }catch(e){
       console.error(e);
-      showErr('<%= tt('owner.payroll.err_loading', 'שגיאה בטעינת נתוני השכר') %>: ' + (e?.message || e));
-      tbody.innerHTML = `<tr><td colspan="7" class="muted"><%= tt('owner.payroll.err_generic', 'שגיאה.') %></td></tr>`;
+      showErr('<%= tt('owner.payroll.err_loading', 'ხელფასის მონაცემების ჩატვირთვა ვერ მოხერხდა') %>: ' + (e?.message || e));
+      tbody.innerHTML = `<tr><td colspan="7" class="muted"><%= tt('owner.payroll.err_generic', 'შეცდომა.') %></td></tr>`;
     }
   }
 
@@ -181,7 +181,7 @@ const month = it.month || '';
       const v = inp.value.trim();
       const n = Number(v);
       if(!isFinite(n) || n < 0){
-        alert('<%= tt('owner.payroll.err_invalid_rate', 'שכר לשעה לא חוקי') %>');
+        alert('<%= tt('owner.payroll.err_invalid_rate', 'საათობრივი ანაზღაურება არასწორია') %>');
         return;
       }
 
@@ -197,9 +197,9 @@ const month = it.month || '';
 
       // נטען מחדש כדי לעדכן את הברוטו לפי השכר
       await loadPayroll();
-      alert('<%= tt('owner.payroll.saved', 'השכר השעתי נשמר וחושב מחדש בהצלחה') %>');
+      alert('<%= tt('owner.payroll.saved', 'საათობრივი ანაზღაურება შენახულია და ხელახლა გამოითვალა') %>');
     }catch(e){
-      alert('<%= tt('owner.payroll.err_saving', 'שגיאה בשמירת השכר') %>: ' + (e?.message || e));
+      alert('<%= tt('owner.payroll.err_saving', 'ხელფასის შენახვა ვერ მოხერხდა') %>: ' + (e?.message || e));
     }
   }
 

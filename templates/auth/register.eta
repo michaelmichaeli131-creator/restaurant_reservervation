@@ -70,7 +70,7 @@ function tt(k, fb){
                  minlength="8"
                  placeholder="<%= tt('auth.register.form.passwordPh','לפחות 8 תווים') %>"/>
           <button class="pw-toggle" type="button"
-                  aria-label="<%= tt('auth.register.form.pwToggleAria','הצג/הסתר סיסמה') %>">👁</button>
+                  aria-label="<%= tt('auth.register.form.pwToggleAria','პაროლის ჩვენება/დამალვა') %>">👁</button>
         </div>
       </div>
 
@@ -80,69 +80,69 @@ function tt(k, fb){
         <div class="pw-wrap">
           <input id="confirm" name="confirm" type="password" required autocomplete="new-password"
                  minlength="8"
-                 placeholder="<%= tt('auth.register.form.confirmPh','הקלד/י שוב את הסיסמה') %>"/>
+                 placeholder="<%= tt('auth.register.form.confirmPh','შეიყვანეთ პაროლი კიდევ ერთხელ') %>"/>
           <button class="pw-toggle" type="button"
-                  aria-label="<%= tt('auth.register.form.pwToggleAria','הצג/הסתר סיסמה') %>">👁</button>
+                  aria-label="<%= tt('auth.register.form.pwToggleAria','პაროლის ჩვენება/დამალვა') %>">👁</button>
         </div>
       </div>
 
       <!-- סוג העסק (קיים במקור – נשאר) -->
       <div class="form-row">
-        <label for="businessType"><%= tt('auth.register.form.businessType','סוג העסק') %></label>
+        <label for="businessType"><%= tt('auth.register.form.businessType','ბიზნესის ტიპი') %></label>
         <select id="businessType" name="businessType" required>
           <option value=""
                   disabled
                   <%= (it.prefill?.businessType ? '' : 'selected') %>>
-            <%= tt('auth.register.form.chooseType','בחר/י סוג עסק') %>
+            <%= tt('auth.register.form.chooseType','აირჩიეთ ბიზნესის ტიპი') %>
           </option>
           <option value="restaurant"
                   <%= it.prefill?.businessType === 'restaurant' ? 'selected' : '' %>>
-            <%= tt('auth.register.form.optRestaurant','מסעדה') %>
+            <%= tt('auth.register.form.optRestaurant','რესტორანი') %>
           </option>
           <option value="cafe"
                   <%= it.prefill?.businessType === 'cafe' ? 'selected' : '' %>>
-            <%= tt('auth.register.form.optCafe','בית קפה') %>
+            <%= tt('auth.register.form.optCafe','კაფე') %>
           </option>
           <option value="bar"
                   <%= it.prefill?.businessType === 'bar' ? 'selected' : '' %>>
-            <%= tt('auth.register.form.optBar','בר') %>
+            <%= tt('auth.register.form.optBar','ბარი') %>
           </option>
           <option value="hotel"
                   <%= it.prefill?.businessType === 'hotel' ? 'selected' : '' %>>
-            <%= tt('auth.register.form.optHotel','מלון / אירוח') %>
+            <%= tt('auth.register.form.optHotel','სასტუმრო / განთავსება') %>
           </option>
           <option value="other"
                   <%= it.prefill?.businessType === 'other' ? 'selected' : '' %>>
-            <%= tt('auth.register.form.optOther','אחר') %>
+            <%= tt('auth.register.form.optOther','სხვა') %>
           </option>
         </select>
       </div>
 
       <!-- סוג חשבון (לקוח / בעל מסעדה) -->
       <div class="form-row">
-        <label for="accountType"><%= tt('auth.register.form.accountTypeLabel','סוג חשבון') %></label>
+        <label for="accountType"><%= tt('auth.register.form.accountTypeLabel','ანგარიშის ტიპი') %></label>
         <select id="accountType" name="accountType" required>
           <%
             const acc = it.prefill?.accountType || 'owner';
           %>
           <option value="customer" <%= acc === 'customer' ? 'selected' : '' %>>
-            <%= tt('auth.register.form.accountType.customer','לקוח מזמין בלבד') %>
+            <%= tt('auth.register.form.accountType.customer','მხოლოდ კლიენტი') %>
           </option>
           <option value="owner"    <%= acc === 'owner' ? 'selected' : '' %>>
-            <%= tt('auth.register.form.accountType.owner','בעל / מנהל מסעדה') %>
+            <%= tt('auth.register.form.accountType.owner','რესტორნის მფლობელი / მენეჯერი') %>
           </option>
         </select>
         <small class="muted">
           <%= tt(
                 'auth.register.form.accountTypeHint',
-                'לקוח יכול להזמין שולחנות בלבד. בעל מסעדה מקבל גישה לניהול.'
+                'კლიენტს მხოლოდ დაჯავშნა შეუძლია. რესტორნის მფლობელს კი მართვის წვდომა აქვს.'
           ) %>
         </small>
       </div>
 
       <!-- טלפון (קיים במקור – נשאר) -->
       <div class="form-row">
-        <label for="phone"><%= tt('auth.register.form.phone','נייד (לא חובה)') %></label>
+        <label for="phone"><%= tt('auth.register.form.phone','მობილური (არასავალდებულო)') %></label>
         <input id="phone" name="phone" type="tel" inputmode="tel"
                placeholder="<%= tt('auth.register.form.phonePh','050-1234567') %>"
                value="<%= it.prefill?.phone || '' %>"/>

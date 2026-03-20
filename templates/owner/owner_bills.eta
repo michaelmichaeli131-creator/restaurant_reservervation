@@ -15,25 +15,26 @@ function tt(k, fb){
 function formatDateTime(ts){
   try{
     var d = new Date(ts);
-    var dd = d.toLocaleDateString('he-IL');
-    var tt = d.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+    var locale = (String(it.lang||'en').startsWith('ka') ? 'ka-GE' : (String(it.lang||'en').startsWith('he') ? 'he-IL' : 'en-US'));
+    var dd = d.toLocaleDateString(locale);
+    var tt = d.toLocaleTimeString(locale,{hour:'2-digit',minute:'2-digit'});
     return dd + " " + tt;
   }catch(e){ return ''; }
 }
 %>
 
-<main class="sb-owner container sb-owner-page" aria-label="<%= tt('owner.bills.aria', 'חשבונות מסעדה') %>">
+<main class="sb-owner container sb-owner-page" aria-label="<%= tt('owner.bills.aria', 'რესტორნის ანგარიშები') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
         <div class="sb-owner-kicker"><%= tt('owner.bills.kicker','Restaurant billing') %></div>
-        <h1><%= tt('owner.bills.title', 'חשבונות') %> · <%= it.restaurant?.name %></h1>
+        <h1><%= tt('owner.bills.title', 'ანგარიშები') %> · <%= it.restaurant?.name %></h1>
         <p class="muted">
           <%= it.restaurant?.city || '' %> • <%= it.restaurant?.address || '' %>
         </p>
       </div>
       <div class="actions">
-        <a class="btn ghost sm" href="/owner"><%= tt('owner.bills.back_to_dashboard','חזרה לדשבורד') %></a>
+        <a class="btn ghost sm" href="/owner"><%= tt('owner.bills.back_to_dashboard','დაფაზე დაბრუნება') %></a>
       </div>
     </header>
 
@@ -46,28 +47,28 @@ function formatDateTime(ts){
           <thead>
             <tr>
               <th>#</th>
-              <th><%= tt('owner.bills.tbl.date', 'תאריך') %></th>
-              <th><%= tt('owner.bills.tbl.table', 'שולחן') %></th>
-              <th><%= tt('owner.bills.tbl.account', 'חשבון') %></th>
-              <th><%= tt('owner.bills.tbl.amount', 'סכום') %></th>
-              <th><%= tt('owner.bills.tbl.actions', 'פעולות') %></th>
+              <th><%= tt('owner.bills.tbl.date', 'თარიღი') %></th>
+              <th><%= tt('owner.bills.tbl.table', 'მაგიდა') %></th>
+              <th><%= tt('owner.bills.tbl.account', 'ჩეკი') %></th>
+              <th><%= tt('owner.bills.tbl.amount', 'თანხა') %></th>
+              <th><%= tt('owner.bills.tbl.actions', 'ქმედებები') %></th>
             </tr>
           </thead>
           <tbody>
             <% it.bills.forEach(function(b, idx){ %>
               <tr>
                 <td data-label="#"> <%= idx + 1 %></td>
-                <td data-label="<%= tt('owner.bills.tbl.date', 'תאריך') %>"><%= formatDateTime(b.createdAt) %></td>
-                <td data-label="<%= tt('owner.bills.tbl.table', 'שולחן') %>"><%= tt('bill.table_prefix', 'שולחן') %> <%= b.table %></td>
-                <td data-label="<%= tt('owner.bills.tbl.account', 'חשבון') %>"><%= b.accountLabel || (b.accountId === 'main' || !b.accountId ? tt('pos.waiter.main_check', 'Main Check') : b.accountId) %></td>
-                <td data-label="<%= tt('owner.bills.tbl.amount', 'סכום') %>">
+                <td data-label="<%= tt('owner.bills.tbl.date', 'თარიღი') %>"><%= formatDateTime(b.createdAt) %></td>
+                <td data-label="<%= tt('owner.bills.tbl.table', 'მაგიდა') %>"><%= tt('bill.table_prefix', 'მაგიდა') %> <%= b.table %></td>
+                <td data-label="<%= tt('owner.bills.tbl.account', 'ჩეკი') %>"><%= b.accountLabel || (b.accountId === 'main' || !b.accountId ? tt('pos.waiter.main_check', 'Main Check') : b.accountId) %></td>
+                <td data-label="<%= tt('owner.bills.tbl.amount', 'თანხა') %>">
                   <%= (b.totals && typeof b.totals.total==='number'
                       ? b.totals.total.toFixed(2)
                       : (b.totals?.subtotal ?? 0).toFixed(2)) %> <%= tt('common.currency', '₪') %>
                 </td>
-                <td class="bills-actions" data-label="<%= tt('owner.bills.tbl.actions', 'פעולות') %>">
+                <td class="bills-actions" data-label="<%= tt('owner.bills.tbl.actions', 'ქმედებები') %>">
                   <a class="btn ghost sm" href="/owner/<%= it.restaurant.id %>/bills/<%= b.id %>">
-                    <%= tt('common.btn_open', 'הצג') %>
+                    <%= tt('common.btn_open', 'გახსნა') %>
                   </a>
                   <a
                     class="btn ghost sm"
@@ -75,16 +76,16 @@ function formatDateTime(ts){
                     target="_blank"
                     rel="noopener"
                   >
-                    <%= tt('owner.bills.btn_print', 'הדפס') %>
+                    <%= tt('owner.bills.btn_print', 'ბეჭდვა') %>
                   </a>
                   <form
                     action="/owner/<%= it.restaurant.id %>/bills/<%= b.id %>/delete"
                     method="post"
                     class="inline-form"
-                    onsubmit="return confirm('<%= tt('owner.bills.confirm_delete', 'למחוק את החשבון הזה?') %>');"
+                    onsubmit="return confirm('<%= tt('owner.bills.confirm_delete', 'მართლა წავშალოთ ეს ანგარიში?') %>');"
                   >
                     <button type="submit" class="btn ghost sm danger">
-                      <%= tt('common.btn_delete', 'מחיקה') %>
+                      <%= tt('common.btn_delete', 'წაშლა') %>
                     </button>
                   </form>
                 </td>
@@ -94,7 +95,7 @@ function formatDateTime(ts){
         </table>
       <% } else { %>
         <p class="muted" style="margin-top:10px">
-          <%= tt('owner.bills.empty', 'עדיין אין חשבונות שמורים למסעדה זו.') %>
+          <%= tt('owner.bills.empty', 'ამ რესტორნისთვის შენახული ანგარიშები ჯერ არ არის.') %>
         </p>
       <% } %>
     </div>

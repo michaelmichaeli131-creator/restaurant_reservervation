@@ -30,21 +30,21 @@
   const hasOverride = override && typeof override.overrideTotal === 'number' && Number.isFinite(override.overrideTotal);
 %>
 
-<main class="sb-owner container sb-owner-page" aria-label="<%= tt('owner.costs.title', 'Raw Material Costs') %>">
+<main class="sb-owner container sb-owner-page" aria-label="<%= tt('owner.costs.title', 'ნედლეულის ხარჯები') %>">
   <div class="card">
     <header class="owner-hd">
       <div>
-        <h1><%= tt('owner.costs.title', 'Raw Material Costs') %> · <%= restaurant.name || tt('common.restaurant', 'Restaurant') %></h1>
+        <h1><%= tt('owner.costs.title', 'ნედლეულის ხარჯები') %> · <%= restaurant.name || tt('common.restaurant', 'რესტორანი') %></h1>
         <p class="muted">
-          <%= tt('owner.costs.description', 'Costs are calculated <strong>automatically</strong> from inventory movements of type <code>delivery</code> that have a <code>costTotal</code>.') %>
+          <%= tt('owner.costs.description', 'ხარჯები <strong>ავტომატურად</strong> ითვლება იმ მიწოდებების მიხედვით, სადაც ჯამური ღირებულება უკვე მითითებულია.') %>
           <% if (hasOverride) { %>
-            <span class="pill warn" title="<%= tt('owner.costs.override_active_hint', 'Manual override is active for this month') %>"><%= tt('owner.costs.override_active', 'Override active') %></span>
+            <span class="pill warn" title="<%= tt('owner.costs.override_active_hint', 'ამ თვეზე ხელით გადაფარვა აქტიურია') %>"><%= tt('owner.costs.override_active', 'ხელით გადაფარვა ჩართულია') %></span>
           <% } %>
         </p>
       </div>
       <div class="actions">
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">⬅ <%= tt('owner.costs.btn_stock', 'Raw Materials Inventory') %></a>
-        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/recipes">🧾 <%= tt('owner.costs.btn_recipes', 'Recipes') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/stock">⬅ <%= tt('owner.costs.btn_stock', 'ნედლეულის მარაგი') %></a>
+        <a class="btn ghost sm" href="/owner/<%= restaurant.id %>/inventory/recipes">🧾 <%= tt('owner.costs.btn_recipes', 'რეცეპტები') %></a>
       </div>
     </header>
 
@@ -55,96 +55,96 @@
       <div class="panel card">
         <form method="get" action="/owner/<%= restaurant.id %>/inventory/costs" class="row">
           <label class="lbl">
-            <%= tt('owner.costs.month', 'Month') %>
+            <%= tt('owner.costs.month', 'თვე') %>
             <input name="month" value="<%= monthKey %>" placeholder="YYYY-MM" inputmode="numeric" />
           </label>
-          <button class="btn primary sm" type="submit"><%= tt('owner.costs.btn_show', 'Show') %></button>
+          <button class="btn primary sm" type="submit"><%= tt('owner.costs.btn_show', 'ჩვენება') %></button>
         </form>
 
         <div class="stats">
           <div class="stat">
-            <div class="k"><%= tt('owner.costs.total_monthly', 'Total Monthly Spend') %></div>
+            <div class="k"><%= tt('owner.costs.total_monthly', 'თვის ჯამური ხარჯი') %></div>
             <div class="v">
-              <%= tt('common.currency', '₪') %> <%= num(summary.totalSpend, 2) %>
+              <%= tt('common.currency', '₾') %> <%= num(summary.totalSpend, 2) %>
               <% if (hasOverride) { %>
-                <span class="badge warn" title="<%= tt('owner.costs.override_manual_hint', 'Amount entered manually, overrides calculation') %>">Override</span>
+                <span class="badge warn" title="<%= tt('owner.costs.override_manual_hint', 'თანხა ხელითაა შეყვანილი და გამოთვლილ მნიშვნელობას ანაცვლებს') %>">გადაფარვა</span>
               <% } %>
             </div>
             <% if (hasOverride) { %>
               <div class="muted small" style="margin-top:4px">
-                <%= tt('owner.costs.auto_computed', 'Auto-computed') %>: <%= tt('common.currency', '₪') %> <%= num(summary.computedTotal, 2) %>
+                <%= tt('owner.costs.auto_computed', 'ავტომატურად დათვლილი') %>: <%= tt('common.currency', '₾') %> <%= num(summary.computedTotal, 2) %>
               </div>
             <% } %>
           </div>
 
           <div class="stat">
-            <div class="k"><%= tt('owner.costs.deliveries_with_cost', 'Deliveries with Cost') %></div>
+            <div class="k"><%= tt('owner.costs.deliveries_with_cost', 'მიწოდებები ღირებულებით') %></div>
             <div class="v"><%= Number(summary.deliveriesWithCost || 0) %></div>
             <% if (Number(summary.deliveriesMissingCost || 0) > 0) { %>
               <div class="muted small" style="margin-top:4px">
-                <%= tt('owner.costs.missing_cost', 'Missing costTotal in') %> <%= Number(summary.deliveriesMissingCost) %> <%= tt('owner.costs.deliveries', 'deliveries') %>
+                <%= tt('owner.costs.missing_cost', 'ჯამური ღირებულება აკლია') %> <%= Number(summary.deliveriesMissingCost) %> <%= tt('owner.costs.deliveries', 'მიწოდებებში') %>
               </div>
             <% } %>
           </div>
 
           <div class="stat">
-            <div class="k"><%= tt('owner.costs.avg_per_delivery', 'Average Cost per Delivery') %></div>
-            <div class="v"><%= tt('common.currency', '₪') %> <%= num(summary.avgPerDelivery, 2) %></div>
+            <div class="k"><%= tt('owner.costs.avg_per_delivery', 'საშუალო ღირებულება ერთ მიწოდებაზე') %></div>
+            <div class="v"><%= tt('common.currency', '₾') %> <%= num(summary.avgPerDelivery, 2) %></div>
           </div>
         </div>
 
         <div class="spark">
           <div class="spark-hd">
-            <span class="muted small"><%= tt('owner.costs.daily_spend', 'Daily Spend (Sparkline)') %></span>
-            <span class="muted small">Max day: <%= tt('common.currency', '₪') %> <%= num(summary.maxDaily, 2) %></span>
+            <span class="muted small"><%= tt('owner.costs.daily_spend', 'ყოველდღიური ხარჯი (სპარკლაინი)') %></span>
+            <span class="muted small">Max day: <%= tt('common.currency', '₾') %> <%= num(summary.maxDaily, 2) %></span>
           </div>
-          <svg id="spark-svg" viewBox="0 0 300 60" preserveAspectRatio="none" aria-label="<%= tt('owner.costs.daily_spend_chart', 'Daily spend chart') %>"></svg>
+          <svg id="spark-svg" viewBox="0 0 300 60" preserveAspectRatio="none" aria-label="<%= tt('owner.costs.daily_spend_chart', 'ყოველდღიური ხარჯის გრაფიკი') %>"></svg>
         </div>
 
         <details class="override">
           <summary>
-            <span><%= tt('owner.costs.override_monthly', 'Monthly Override (explicit — overrides auto)') %></span>
-            <% if (hasOverride) { %><span class="pill warn"><%= tt('owner.costs.override_on', 'Active') %></span><% } else { %><span class="pill"><%= tt('owner.costs.override_off', 'Off') %></span><% } %>
+            <span><%= tt('owner.costs.override_monthly', 'თვიური ხელით მითითებული თანხა (გადაფარავს ავტომატურ გამოთვლას)') %></span>
+            <% if (hasOverride) { %><span class="pill warn"><%= tt('owner.costs.override_on', 'აქტიური') %></span><% } else { %><span class="pill"><%= tt('owner.costs.override_off', 'გამორთული') %></span><% } %>
           </summary>
 
           <form method="post" action="/owner/<%= restaurant.id %>/inventory/costs/override" class="form" style="margin-top:10px">
             <input type="hidden" name="month" value="<%= monthKey %>">
 
             <label class="lbl2">
-              <%= tt('owner.costs.override_amount_label', 'Manual amount (₪) — leave empty to revert to auto') %>
+              <%= tt('owner.costs.override_amount_label', 'ხელით მითითებული თანხა (₾) — დატოვეთ ცარიელი, თუ გსურთ ავტომატურზე დაბრუნება') %>
               <input
                 class="in"
                 name="overrideTotal"
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder="<%= tt('owner.costs.override_placeholder', 'Leave empty = auto') %>"
+                placeholder="<%= tt('owner.costs.override_placeholder', 'ცარიელი = ავტომატური') %>"
                 value="<%= hasOverride ? String(override.overrideTotal) : '' %>"
               />
             </label>
 
             <label class="lbl2">
-              <%= tt('owner.costs.override_note_label', 'Note (optional)') %>
-              <input class="in" name="note" placeholder="<%= tt('owner.costs.override_note_placeholder', 'e.g.: correction / irregular invoice') %>" value="<%= (override && override.note) ? String(override.note) : '' %>">
+              <%= tt('owner.costs.override_note_label', 'შენიშვნა (არასავალდებულო)') %>
+              <input class="in" name="note" placeholder="<%= tt('owner.costs.override_note_placeholder', 'მაგ.: კორექტირება / არარეგულარული ინვოისი') %>" value="<%= (override && override.note) ? String(override.note) : '' %>">
             </label>
 
             <div class="actions" style="margin-top:10px">
-              <button class="btn primary sm" type="submit"><%= tt('owner.costs.btn_save_override', 'Save Override') %></button>
-              <button class="btn ghost sm" type="submit" name="overrideTotal" value=""><%= tt('owner.costs.btn_reset_override', 'Reset Override') %></button>
+              <button class="btn primary sm" type="submit"><%= tt('owner.costs.btn_save_override', 'გადაფარვის შენახვა') %></button>
+              <button class="btn ghost sm" type="submit" name="overrideTotal" value=""><%= tt('owner.costs.btn_reset_override', 'გადაფარვის გაუქმება') %></button>
             </div>
 
             <p class="muted small" style="margin-top:8px">
-              <%= tt('owner.costs.override_warning', 'Override is saved only if you enter a number. If left empty and saved — reverts to auto calculation.') %>
+              <%= tt('owner.costs.override_warning', 'ხელით მითითებული თანხა შეინახება მხოლოდ მაშინ, თუ რიცხვს შეიყვანთ. თუ ველს ცარიელს დატოვებთ და ისე შეინახავთ, სისტემა ავტომატურ გამოთვლაზე დაბრუნდება.') %>
             </p>
           </form>
         </details>
       </div>
 
       <div class="panel card">
-        <h2 class="card-title"><%= tt('owner.costs.top_ingredients', 'Top Ingredients by Monthly Spend') %></h2>
+        <h2 class="card-title"><%= tt('owner.costs.top_ingredients', 'თვის ყველაზე ძვირი ინგრედიენტები') %></h2>
 
         <% if (!topIngredients.length) { %>
-          <p class="muted"><%= tt('owner.costs.no_cost_data', 'No cost data for this month yet (no deliveries with costTotal).') %></p>
+          <p class="muted"><%= tt('owner.costs.no_cost_data', 'ამ თვეზე ხარჯის მონაცემები ჯერ არ არის — ჯამური ღირებულებით მიწოდებები ვერ მოიძებნა.') %></p>
         <% } else { %>
           <div class="top-list">
             <% const max = Math.max.apply(null, topIngredients.map(x => Number(x.spend||0)).concat([1])); %>
@@ -154,7 +154,7 @@
               <div class="top-row">
                 <div class="top-meta">
                   <div class="top-name"><strong><%= x.name %></strong></div>
-                  <div class="top-sub muted small"><%= tt('common.currency', '₪') %> <%= num(x.spend, 2) %></div>
+                  <div class="top-sub muted small"><%= tt('common.currency', '₾') %> <%= num(x.spend, 2) %></div>
                 </div>
                 <div class="bar" aria-label="bar">
                   <div class="bar-fill" style="width:<%= pct %>%"></div>
@@ -167,19 +167,19 @@
     </div>
 
     <div class="panel card" style="margin-top:16px">
-      <h2 class="card-title"><%= tt('owner.costs.unit_price_title', 'Unit Price for Ingredients') %></h2>
+      <h2 class="card-title"><%= tt('owner.costs.unit_price_title', 'ინგრედიენტების ერთეულის ფასი') %></h2>
       <p class="muted small">
-        <%= tt('owner.costs.unit_price_desc', 'The <strong>unit price</strong> field is used for food cost calculation per dish. Leave empty for no manual override.') %>
+        <%= tt('owner.costs.unit_price_desc', '<strong>ერთეულის ფასი</strong> გამოიყენება კერძის თვითღირებულების დასათვლელად. თუ ხელით გადაფარვა არ გსურთ, ველი ცარიელი დატოვეთ.') %>
       </p>
 
       <% if (!ingredients.length) { %>
-        <p class="muted"><%= tt('owner.costs.no_ingredients', 'No ingredients yet. Go to the inventory page to add ingredients.') %></p>
+        <p class="muted"><%= tt('owner.costs.no_ingredients', 'ჯერ არ არის ინგრედიენტები. გადადით მარაგის გვერდზე ინგრედიენტების დასამატებლად.') %></p>
       <% } else { %>
         <div class="table">
           <div class="tr th">
-            <div><%= tt('owner.costs.tbl_ingredient', 'Ingredient') %></div>
-            <div><%= tt('owner.costs.tbl_unit', 'Unit') %></div>
-            <div><%= tt('owner.costs.tbl_unit_price', 'Unit Price (Manual Override)') %></div>
+            <div><%= tt('owner.costs.tbl_ingredient', 'ინგრედიენტი') %></div>
+            <div><%= tt('owner.costs.tbl_unit', 'ერთეული') %></div>
+            <div><%= tt('owner.costs.tbl_unit_price', 'ერთეულის ფასი (ხელით გადაფარვა)') %></div>
             <div></div>
           </div>
 
@@ -188,9 +188,9 @@
               <div class="td">
                 <div class="name"><strong><%= ing.name %></strong></div>
                 <div class="muted small">
-                  <%= tt('owner.costs.in_stock', 'In stock') %>: <%= Number(ing.currentQty || 0) %> • <%= tt('owner.costs.min_threshold', 'Min') %>: <%= Number(ing.minQty || 0) %>
+                  <%= tt('owner.costs.in_stock', 'მარაგშია') %>: <%= Number(ing.currentQty || 0) %> • <%= tt('owner.costs.min_threshold', 'მინიმუმი') %>: <%= Number(ing.minQty || 0) %>
                   <% if (typeof ing.costPerUnitAuto === 'number' && Number.isFinite(ing.costPerUnitAuto)) { %>
-                    • AUTO: <%= tt('common.currency', '₪') %> <%= num(ing.costPerUnitAuto, 2) %> / <%= ing.unit || 'unit' %>
+                    • AUTO: <%= tt('common.currency', '₾') %> <%= num(ing.costPerUnitAuto, 2) %> / <%= ing.unit || 'unit' %>
                   <% } %>
                 </div>
               </div>
@@ -206,15 +206,15 @@
                   type="number"
                   step="0.01"
                   min="0"
-                  placeholder="<%= tt('owner.costs.unit_price_placeholder', 'e.g.: 12.50 (empty = no override)') %>"
+                  placeholder="<%= tt('owner.costs.unit_price_placeholder', 'მაგ.: 12.50 (ცარიელი = ხელით გადაფარვის გარეშე)') %>"
                   value="<%= (typeof ing.costPerUnit === 'number' ? String(ing.costPerUnit) : '') %>"
                 />
-                <div class="muted small"><%= tt('common.currency', '₪') %> / <%= ing.unit || 'unit' %></div>
+                <div class="muted small"><%= tt('common.currency', '₾') %> / <%= ing.unit || 'unit' %></div>
               </div>
 
               <div class="td right">
                 <input type="hidden" name="month" value="<%= monthKey %>">
-                <button class="btn primary sm" type="submit"><%= tt('common.btn_save', 'Save') %></button>
+                <button class="btn primary sm" type="submit"><%= tt('common.btn_save', 'შენახვა') %></button>
               </div>
             </form>
           <% }) %>
