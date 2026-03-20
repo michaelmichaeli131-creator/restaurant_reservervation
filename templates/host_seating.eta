@@ -45,6 +45,22 @@
       if (Number.isFinite(num) && num > 0) __tableIdToNumber[String(t.id)] = num;
     });
   });
+  const __tableIdToStatusEntry = {};
+  const __tableNumberToStatusEntry = {};
+  (statuses || []).forEach(function(s){
+    const safeEntry = {
+      tableId: String((s && s.tableId) || ''),
+      tableNumber: Number((s && s.tableNumber) || 0) || 0,
+      status: String((s && s.status) || 'empty'),
+      guestName: String((s && s.guestName) || ''),
+      guestCount: (s && s.guestCount != null) ? Number(s.guestCount) : '',
+      reservationTime: String((s && s.reservationTime) || ''),
+      itemsCount: (s && s.itemsCount != null) ? Number(s.itemsCount) : '',
+      subtotal: (s && s.subtotal != null) ? String(s.subtotal) : '',
+    };
+    if (safeEntry.tableId) __tableIdToStatusEntry[safeEntry.tableId] = safeEntry;
+    if (safeEntry.tableNumber > 0) __tableNumberToStatusEntry[String(safeEntry.tableNumber)] = safeEntry;
+  });
 %>
 
 <main class="host host-ops container" data-system-now-time="<%= it.systemNowTime || '' %>">
@@ -332,6 +348,14 @@
   .reservation-card.is-hidden{ display:none !important; }
   @media (max-width: 900px){ .host-header{ flex-direction:column; } .host-time-card{ width:100%; max-width:none; } }
   @media (max-width: 640px){ .reservation-card{ grid-template-columns:1fr; } .reservation-card__actions{ align-items:stretch; } .reservation-card__top{ align-items:flex-start; flex-direction:column; } .host-time-card__inputs{ grid-template-columns:1fr; } .host-resv-toolbar{ flex-direction:column; align-items:stretch; } .host-sort{ width:100%; justify-content:space-between; } .host-sort select{ flex:1 1 auto; } }
+
+
+  /* Keep the classic host-side table details panel instead of the embedded drawer */
+  .host-map-panel #sb-floor-root .sbv-right,
+  .host-map-panel #sb-floor-root .sbv-mobile-backdrop{
+    display:none !important;
+  }
+
 </style>
 <!-- Same floor-view assets as the waiter lobby -->
 
@@ -585,6 +609,92 @@
 
   // Selection updates from the embedded floor-view app
   const __SB_TABLE_ID_TO_NUMBER = <%= JSON.stringify(__tableIdToNumber) %>;
+  const __SB_STATUS_BY_ID = <%= JSON.stringify(__tableIdToStatusEntry) %>;
+  const __SB_STATUS_BY_NUMBER = <%= JSON.stringify(__tableNumberToStatusEntry) %>;
+  let __hostTableInfoRequestId = 0;
+
+  function getStatusEntryBySelection(tableId, tableNumber){
+    const idKey = String(tableId || '').trim();
+    if (idKey && __SB_STATUS_BY_ID[idKey]) return __SB_STATUS_BY_ID[idKey];
+    const numKey = String(Number(tableNumber || 0) || 0);
+    if (numKey !== '0' && __SB_STATUS_BY_NUMBER[numKey]) return __SB_STATUS_BY_NUMBER[numKey];
+    return null;
+  }
+
+  function normalizeHostTableStatus(status){
+    const s = String(status || '').toLowerCase();
+    if (s === 'open') return 'occupied';
+    if (s === 'free') return 'empty';
+    return s || 'empty';
+  }
+
+  async function syncTableInfoPanelFromSelection(detail){
+    try {
+      const root = document.getElementById('sb-floor-root');
+      const ds = root && root.dataset ? root.dataset : {};
+      const tableIds = detail && Array.isArray(detail.tableIds) ? detail.tableIds : [];
+      const tableNumbers = detail && Array.isArray(detail.tableNumbers) ? detail.tableNumbers : [];
+      const tableId = String(tableIds[0] || ds.selectedTableId || ds.selectedBarTableId || '').trim();
+      const tableNumber = Number(tableNumbers[0] || ds.selectedTableNumber || ds.selectedBarTableNumber || 0) || 0;
+      if (!tableId && !tableNumber) {
+        closeTableInfoPanel();
+        return;
+      }
+
+      const statusEntry = getStatusEntryBySelection(tableId, tableNumber);
+      const normalizedStatus = normalizeHostTableStatus((statusEntry && statusEntry.status) || 'empty');
+      const requestId = ++__hostTableInfoRequestId;
+      const baseInfo = {
+        tableNumber: tableNumber || (statusEntry && statusEntry.tableNumber) || '—',
+        name: (statusEntry && statusEntry.guestName) || '',
+        people: (statusEntry && statusEntry.guestCount !== '') ? statusEntry.guestCount : '',
+        time: (statusEntry && statusEntry.reservationTime) || '',
+        status: normalizedStatus,
+      };
+
+      if (detail && detail.isBarSeat) {
+        const seatNumber = Number(detail.barSeatNumber || ds.selectedBarSeatNumber || 0) || 0;
+        const seatCapacity = Number(detail.barSeatCapacity || ds.selectedBarSeatCapacity || 0) || 0;
+        if (!baseInfo.name) baseInfo.name = seatNumber > 0 ? ('Bar seat ' + seatNumber) : 'Bar seating';
+        if (!baseInfo.people && seatNumber > 0) baseInfo.people = seatCapacity > 0 ? (seatNumber + ' / ' + seatCapacity) : seatNumber;
+      }
+
+      if (normalizedStatus !== 'occupied') {
+        openTableInfoPanel(baseInfo);
+        return;
+      }
+
+      try {
+        const url = new URL('/api/host/table/info', window.location.origin);
+        url.searchParams.set('restaurantId', rid);
+        url.searchParams.set('table', String(tableNumber || (statusEntry && statusEntry.tableNumber) || ''));
+        const res = await fetch(url.toString(), {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+        });
+        const data = await res.json().catch(function(){ return {}; });
+        if (requestId !== __hostTableInfoRequestId) return;
+
+        if (res.ok && data && data.ok) {
+          openTableInfoPanel({
+            tableNumber: tableNumber || (statusEntry && statusEntry.tableNumber) || '—',
+            name: data.name || data.guestName || baseInfo.name || '',
+            people: (data.people != null && data.people !== '') ? data.people : baseInfo.people,
+            time: data.time || baseInfo.time || '',
+            status: normalizedStatus,
+          });
+          return;
+        }
+      } catch (e) {
+        console.warn('[HOST] table info fallback', e);
+      }
+
+      if (requestId === __hostTableInfoRequestId) openTableInfoPanel(baseInfo);
+    } catch (e) {
+      console.warn('[HOST] syncTableInfoPanelFromSelection error', e);
+    }
+  }
+
 
   function barDebug(label, payload){
     try {
@@ -623,6 +733,7 @@
         selectedBar: state.selectedBar,
       });
       updateSelectionMission();
+      syncTableInfoPanelFromSelection(d);
     } catch (e) {
       console.warn("[HOST] selection event error", e);
     }
