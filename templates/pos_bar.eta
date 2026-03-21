@@ -66,6 +66,7 @@
     data-str-table="<%= tt('host.table_label', 'Table') %>"
     data-str-qty="<%= tt('pos.bar.quantity', 'Qty') %>"
     data-str-created="<%= tt('pos.waiter.created_at', 'Created at') %>"
+    data-str-note="<%= tt('common.note', 'Note') %>"
     data-str-none="<%= tt('pos.bar.no_items', 'No items.') %>"
     data-str-back="<%= tt('common.btn_back', 'Back') %>"
     data-str-compact="<%= tt('pos.kds.compact', 'Compact') %>"

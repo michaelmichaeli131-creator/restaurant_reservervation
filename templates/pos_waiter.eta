@@ -328,8 +328,6 @@
         data-cancel-text="<%= tt('common.btn_cancel', 'Cancel') %>"
         data-mark-served-text="<%= tt('pos.waiter.btn_mark_served', 'Mark as Served') %>"
         data-added-text="<%= tt('pos.menu.added_to_order', 'Added to order') %>"
-        data-tap-to-add-text="<%= tt('pos.menu.tap_to_add', 'Tap to add') %>"
-        data-add-note-text="<%= tt('pos.menu.add_note', 'Add to current check') %>"
         data-section-help-text="<%= tt('pos.menu.section_help', 'Choose a dish and add it straight to the live check.') %>"
         data-dishes-text="<%= tt('pos.menu.dishes', 'dishes') %>"
         data-locale="<%= it.lang === 'he' ? 'he-IL' : (it.lang === 'ka' ? 'ka-GE' : 'en-US') %>"
@@ -357,7 +355,6 @@
                   <button type="button" class="menu-item-card" data-menu-item-id="<%= m.id %>" data-price="<%= m.price %>" data-dest="<%= m.destination %>">
                     <div class="menu-item-topline">
                       <span class="menu-item-dest-badge"><%= destText %></span>
-                      <span class="menu-item-cta"><%= tt('pos.menu.tap_to_add', 'Tap to add') %></span>
                     </div>
                     <div class="menu-item-head">
                       <div class="menu-item-copy">
@@ -367,7 +364,6 @@
                       <span class="menu-item-price"><%= Number(m.price || 0).toFixed(2) %> <%= tt('common.currency', '₪') %></span>
                     </div>
                     <div class="menu-item-footer">
-                      <span class="menu-item-note"><%= tt('pos.menu.add_note', 'Add to current check') %></span>
                       <span class="menu-item-add" aria-hidden="true">＋</span>
                     </div>
                   </button>
@@ -415,7 +411,7 @@
         <div class="sb-wt-service-note-card__head">
           <div>
             <div class="sb-wt-service-note-card__label">Order note</div>
-            <div class="sb-wt-service-note-card__hint">Saved on the active check and available across the waiter flow.</div>
+            <div class="sb-wt-service-note-card__hint">Optional shared note for the active check.</div>
           </div>
           <button type="button" id="btn-save-order-note" class="btn ghost md">Save note</button>
         </div>
@@ -424,12 +420,12 @@
           class="sb-wt-service-note-input"
           dir="auto"
           maxlength="500"
-          placeholder="Add a shared service note for this check..."
+          placeholder="Shared note for this check..."
           data-initial=""
         ><%= currentServiceNote %></textarea>
         <div class="sb-wt-service-note-card__foot">
           <span id="order-service-note-status" class="sb-wt-service-note-status"><%= currentServiceNote ? 'Saved to this check' : 'No shared note yet' %></span>
-          <span class="sb-wt-service-note-meta">Visible for the active waiter order.</span>
+          <span class="sb-wt-service-note-meta">Per-item notes still go to kitchen/bar.</span>
         </div>
       </section>
 
@@ -453,9 +449,6 @@
               <div class="sb-wt-item-shell">
                 <div class="sb-wt-item-rail">
                   <span class="sb-wt-item-state"><span class="sb-wt-item-state__dot" aria-hidden="true"><%= orderStatusDot(row.status) %></span><span class="js-status-label"><%= statusLabel %></span></span>
-                  <span class="sb-wt-item-rail-chip"><%= row.destination === 'bar' ? tt('owner.menu.dest_bar', 'Bar') : tt('owner.menu.dest_kitchen', 'Kitchen') %></span>
-                  <span class="sb-wt-item-rail-chip">x<%= row.quantity %></span>
-                  <span class="sb-wt-item-rail-chip"><%= tt('pos.waiter.created_at', 'Created') %> <%= createdAtText %></span>
                   <% if ((row.accountId || currentAccountId) && openChecksCount > 1) { %>
                     <span class="sb-wt-item-rail-chip is-soft"><%= accountLabel %></span>
                   <% } %>
@@ -560,13 +553,14 @@
 
   <!-- Notes modal -->
   <div id="notes-overlay" class="sb-notes-overlay" hidden>
-    <div class="sb-notes-modal" role="dialog" aria-label="<%= tt('pos.waiter.notes_title', 'הערות למטבח') %>">
-      <h3><%= tt('pos.waiter.notes_title', 'הערות למטבח') %></h3>
+    <div class="sb-notes-modal" role="dialog" aria-label="<%= tt('pos.waiter.notes_title', 'Item note') %>">
+      <h3><%= tt('pos.waiter.notes_title', 'Item note') %></h3>
       <div id="notes-dish-name" class="sb-notes-dish"></div>
-      <textarea id="notes-input" dir="auto" placeholder="<%= tt('pos.waiter.notes_placeholder', 'לדוגמה: בלי בצל, אלרגיה לגלוטן, מדיום רייר...') %>"></textarea>
+      <textarea id="notes-input" dir="auto" placeholder="<%= tt('pos.waiter.notes_placeholder', 'Example: no onion, gluten allergy, medium rare...') %>"></textarea>
+      <div class="sb-notes-hint">This note will appear for the kitchen or bar.</div>
       <div class="sb-notes-btns">
-        <button type="button" id="notes-skip" class="sb-notes-skip"><%= tt('pos.waiter.notes_skip', 'ללא הערות') %></button>
-        <button type="button" id="notes-send" class="sb-notes-send"><%= tt('pos.waiter.notes_send', 'הוסף להזמנה') %></button>
+        <button type="button" id="notes-skip" class="sb-notes-skip"><%= tt('pos.waiter.notes_skip', 'No note') %></button>
+        <button type="button" id="notes-send" class="sb-notes-send"><%= tt('pos.waiter.notes_send', 'Add item') %></button>
       </div>
     </div>
   </div>

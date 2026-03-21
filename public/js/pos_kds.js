@@ -26,6 +26,7 @@
     table: root.getAttribute('data-str-table') || 'Table',
     qty: root.getAttribute('data-str-qty') || 'Qty',
     created: root.getAttribute('data-str-created') || 'Created',
+    note: root.getAttribute('data-str-note') || 'Note',
     none: root.getAttribute('data-str-none') || 'No items.',
     btn_back: root.getAttribute('data-str-back') || 'Back',
     btn_compact: root.getAttribute('data-str-compact') || 'Compact',
@@ -223,7 +224,7 @@
       card.dataset.orderId = it.orderId;
       card.dataset.status = it.status;
 
-      const notesHtml = it.notes ? `<div class="kds-item-notes">${escapeHtml(it.notes)}</div>` : '';
+      const notesHtml = it.notes ? `<div class="kds-item-notes"><strong>${escapeHtml(STR.note)}</strong><span>${escapeHtml(it.notes)}</span></div>` : '';
       card.innerHTML = `
         <div class="kds-ticket-top">
           <div class="kds-badges">
@@ -293,7 +294,7 @@
         line.dataset.itemId = it.id;
         line.dataset.orderId = it.orderId;
         line.dataset.status = it.status;
-        const lineNotesHtml = it.notes ? `<div class="kds-item-notes kds-line-notes">${escapeHtml(it.notes)}</div>` : '';
+        const lineNotesHtml = it.notes ? `<div class="kds-item-notes kds-line-notes"><strong>${escapeHtml(STR.note)}</strong><span>${escapeHtml(it.notes)}</span></div>` : '';
         line.innerHTML = `
           <div class="kds-line-left">
             <span class="kds-badge qty">x${it.quantity}</span>

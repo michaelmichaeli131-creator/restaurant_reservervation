@@ -373,6 +373,8 @@
   margin: 2px 0 2px 32px;
   font-size: 12px;
 }
+.kds-item-notes strong{display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;opacity:.85;margin-bottom:2px}
+.kds-item-notes span{display:block}
 
 .kds-actions{
   margin-top: 12px;

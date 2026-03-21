@@ -34,8 +34,6 @@
   const cancelText = String(root.dataset.cancelText || 'Cancel');
   const markServedText = String(root.dataset.markServedText || 'Mark as Served');
   const addedText = String(root.dataset.addedText || 'Added to order');
-  const tapToAddText = String(root.dataset.tapToAddText || 'Tap to add');
-  const addNoteText = String(root.dataset.addNoteText || 'Add to current check');
   const sectionHelpText = String(root.dataset.sectionHelpText || 'Choose a dish and add it straight to the live check.');
   const dishesText = String(root.dataset.dishesText || 'dishes');
   const locale = String(root.dataset.locale || 'en-US');
@@ -179,7 +177,6 @@
         card.innerHTML = `
           <div class="menu-item-topline">
             <span class="menu-item-dest-badge">${escapeHtml(destText)}</span>
-            <span class="menu-item-cta">${escapeHtml(tapToAddText)}</span>
           </div>
           <div class="menu-item-head">
             <div class="menu-item-copy">
@@ -189,7 +186,6 @@
             <span class="menu-item-price">${Number(m.price || 0).toFixed(2)} ${escapeHtml(currency)}</span>
           </div>
           <div class="menu-item-footer">
-            <span class="menu-item-note">${escapeHtml(addNoteText)}</span>
             <span class="menu-item-add" aria-hidden="true">＋</span>
           </div>
         `;
@@ -320,9 +316,6 @@
           <div class="sb-wt-item-shell">
             <div class="sb-wt-item-rail">
               <span class="sb-wt-item-state"><span class="sb-wt-item-state__dot" aria-hidden="true">•</span><span class="js-status-label">${escapeHtml(statusLabel)}</span></span>
-              <span class="sb-wt-item-rail-chip">${escapeHtml(destText)}</span>
-              <span class="sb-wt-item-rail-chip">x${escapeHtml(String(item.quantity || 1))}</span>
-              <span class="sb-wt-item-rail-chip">${escapeHtml(createdText)} ${escapeHtml(timeStr)}</span>
             </div>
             <div class="sb-wt-item-content">
               <div class="sb-wt-item-main">

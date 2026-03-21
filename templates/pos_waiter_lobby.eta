@@ -187,23 +187,23 @@
                       <span class="open-table-num"><%= tt('pos.waiter.table_label', 'Table') %> <%= tn %></span>
                       <span class="open-status-chip is-<%= statusKey %>"><%= statusLabel %></span>
                     </div>
+                    <% if (guestName || roomLabel) { %>
                     <div class="open-main__title">
                       <% if (guestName) { %>
                         <span class="open-guest-name"><%= guestName %></span>
-                      <% } else { %>
-                        <span class="open-guest-name open-guest-name--empty">Walk-in / no guest name</span>
                       <% } %>
                       <% if (roomLabel) { %>
                         <span class="waiter-room-badge"><%= roomLabel %></span>
                       <% } %>
                     </div>
+                    <% } %>
                   </div>
                   <div class="open-sub">
                     <% if (people) { %>
                       <span class="open-meta-pill"><strong><%= people %></strong> <%= tt('host.people_unit', 'Guests') %></span>
                     <% } %>
                     <% if (time) { %>
-                      <span class="open-meta-pill"><strong><%= time %></strong> service time</span>
+                      <span class="open-meta-pill"><strong><%= time %></strong></span>
                     <% } %>
                     <% if (itemsCount !== "" && itemsCount != null) { %>
                       <span class="open-meta-pill"><strong><%= itemsCount %></strong> <%= tt('pos.waiter.items_count', 'Items') %></span>
@@ -212,7 +212,6 @@
                       <span class="open-meta-pill"><strong><%= subtotal %></strong> <%= tt('common.currency', '₪') %></span>
                     <% } %>
                   </div>
-                  <div class="open-foot">Tap for table details and live status.</div>
                 </button>
                 <a class="open-pos-link" href="<%= posUrl %>">
                   <%= tt('pos.waiter.btn_to_order', 'Go to Order') %>
