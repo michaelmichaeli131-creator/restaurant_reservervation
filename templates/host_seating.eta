@@ -193,6 +193,17 @@
                         <strong>—</strong>
                       </span>
                     <% } %>
+                    <span class="reservation-pill reservation-pill--service <%= (r.status || 'new') === 'new' ? 'is-live' : '' %>">
+                      <span class="reservation-pill__label">Service</span>
+                      <strong><%= (r.status || 'new') === 'new' ? tt('host.badge_ready', 'Ready to seat') : String(r.status || 'Pending') %></strong>
+                    </span>
+                  </div>
+                  <div class="reservation-card__footer">
+                    <span class="reservation-card__footnote"><%= r.roomLabel ? 'Preferred area is already assigned.' : 'Choose the best room after selecting a table.' %></span>
+                    <span class="reservation-card__signal <%= Number(r.people || 0) >= 6 ? 'is-strong' : '' %>">
+                      <i></i>
+                      <%= Number(r.people || 0) >= 6 ? 'Large party' : 'Standard flow' %>
+                    </span>
                   </div>
                 </div>
               </label>
@@ -282,26 +293,40 @@
       </button>
     </header>
 
-    <div class="table-info-body">
-      <div class="tip-row">
-        <span class="tip-row-label"><%= tt('host.guest_name', 'Guest Name') %></span>
-        <span class="tip-row-value" id="tip-guest-name">—</span>
+    <section class="table-info-hero" id="table-info-hero" data-status="unknown">
+      <div class="table-info-hero__row">
+        <span id="tip-status" class="tip-status-badge">—</span>
+        <span class="table-info-hero__copy" id="tip-status-copy"><%= tt('host.table_info_note', 'Information is taken from the last reservation assigned to this table.') %></span>
       </div>
-      <div class="tip-row">
-        <span class="tip-row-label"><%= tt('host.num_guests', 'Number of Guests') %></span>
-        <span class="tip-row-value" id="tip-people">—</span>
+      <div class="table-info-hero__table"><%= tt('host.table_label', 'Table') %> <span id="tip-table-number-hero">—</span></div>
+      <p class="table-info-hero__subtitle" id="tip-summary-line"><%= tt('host.table_info_note', 'Information is taken from the last reservation assigned to this table.') %></p>
+    </section>
+
+    <section class="table-info-grid" aria-label="Table details summary">
+      <article class="table-info-card">
+        <span class="table-info-card__label"><%= tt('host.guest_name', 'Guest Name') %></span>
+        <strong class="table-info-card__value" id="tip-guest-name">—</strong>
+      </article>
+      <article class="table-info-card">
+        <span class="table-info-card__label"><%= tt('host.num_guests', 'Number of Guests') %></span>
+        <strong class="table-info-card__value" id="tip-people">—</strong>
+      </article>
+      <article class="table-info-card">
+        <span class="table-info-card__label"><%= tt('host.reservation_time', 'Reservation Time') %></span>
+        <strong class="table-info-card__value" id="tip-time">—</strong>
+      </article>
+      <article class="table-info-card">
+        <span class="table-info-card__label"><%= tt('host.table_status_label', 'Table Status') %></span>
+        <strong class="table-info-card__value" id="tip-status-text">—</strong>
+      </article>
+    </section>
+
+    <section class="table-info-body">
+      <div class="tip-row tip-row--stacked">
+        <span class="tip-row-label"><%= tt('host.table_details', 'Table Details') %></span>
+        <span class="tip-row-note" id="tip-guidance"><%= tt('host.table_info_note', 'Information is taken from the last reservation assigned to this table.') %></span>
       </div>
-      <div class="tip-row">
-        <span class="tip-row-label"><%= tt('host.reservation_time', 'Reservation Time') %></span>
-        <span class="tip-row-value" id="tip-time">—</span>
-      </div>
-      <div class="tip-row">
-        <span class="tip-row-label"><%= tt('host.table_status_label', 'Table Status') %></span>
-        <span class="tip-row-value">
-          <span id="tip-status" class="tip-status-badge">—</span>
-        </span>
-      </div>
-    </div>
+    </section>
 
     <footer class="table-info-footer">
       <p class="muted small">
@@ -328,26 +353,36 @@
   .host-sort__label{ font-size:12px; color:#94a3b8; font-weight:700; }
   .host-sort select{ min-height:42px; border-radius:12px; border:1px solid rgba(148,163,184,.18); background:#0b1327; color:#e5eefb; padding:0 12px; }
   .host-resv-summary{ color:#94a3b8; font-size:12px; margin-bottom:8px; }
-  .reservation-card{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:center; padding:14px 0; }
-  .reservation-card__label{ display:block; width:100%; }
-  .reservation-card__body{ display:flex; flex-direction:column; gap:10px; }
+  .reservation-card{ position:relative; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; align-items:center; padding:14px 0; }
+  .reservation-card::before{ content:""; position:absolute; inset:12px auto 12px 12px; width:4px; border-radius:999px; background:linear-gradient(180deg, rgba(59,130,246,.92), rgba(96,165,250,.22)); box-shadow:0 0 0 1px rgba(147,197,253,.14); opacity:.88; }
+  .reservation-card__label{ display:block; width:100%; cursor:pointer; }
+  .reservation-card__body{ display:flex; flex-direction:column; gap:12px; padding-inline-start:8px; }
   .reservation-card__top{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
   .reservation-card__top-main{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .reservation-card__guest{ font-size:16px; font-weight:800; color:#f8fafc; }
   .reservation-card__time{ font-size:14px; font-weight:800; color:#93c5fd; padding:4px 10px; border-radius:999px; background:rgba(59,130,246,.14); border:1px solid rgba(59,130,246,.24); }
   .reservation-card__meta{ display:flex; gap:8px; flex-wrap:wrap; }
-  .reservation-pill{ display:inline-flex; align-items:center; gap:7px; padding:7px 10px; border-radius:12px; border:1px solid rgba(148,163,184,.16); background:rgba(15,23,42,.72); color:#e5eefb; }
+  .reservation-pill{ display:inline-flex; align-items:center; gap:7px; padding:8px 11px; border-radius:14px; border:1px solid rgba(148,163,184,.16); background:rgba(15,23,42,.76); color:#e5eefb; box-shadow:inset 0 1px 0 rgba(255,255,255,.03); }
   .reservation-pill strong{ font-size:13px; }
   .reservation-pill__label{ font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:#94a3b8; font-weight:800; }
   .reservation-pill--room{ background:rgba(59,130,246,.12); border-color:rgba(59,130,246,.24); }
   .reservation-pill--guests{ background:rgba(148,163,184,.08); }
+  .reservation-pill--service{ background:rgba(14,116,144,.12); border-color:rgba(34,211,238,.2); }
+  .reservation-pill--service.is-live{ background:rgba(37,99,235,.18); border-color:rgba(96,165,250,.26); }
   .reservation-pill.is-muted{ opacity:.78; }
+  .reservation-card__footer{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .reservation-card__footnote{ font-size:12px; color:#94a3b8; }
+  .reservation-card__signal{ display:inline-flex; align-items:center; gap:8px; font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#bfdbfe; }
+  .reservation-card__signal i{ width:8px; height:8px; border-radius:999px; background:#60a5fa; box-shadow:0 0 0 5px rgba(59,130,246,.14); }
+  .reservation-card__signal.is-strong i{ background:#f59e0b; box-shadow:0 0 0 5px rgba(245,158,11,.14); }
   .reservation-card__actions{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+  .reservation-card__actions .link-btn{ min-width:108px; text-align:center; padding:10px 12px; border-radius:12px; border:1px solid rgba(148,163,184,.14); background:rgba(15,23,42,.66); color:#dbeafe; font-weight:700; box-shadow:0 10px 24px rgba(2,6,23,.18); }
+  .reservation-card__actions .link-btn:hover{ border-color:rgba(96,165,250,.28); background:rgba(30,41,59,.88); }
   .room-badge { display:inline-block; padding:1px 7px; border-radius:6px; font-size:11px; font-weight:700; background: rgba(59,130,246,.15); color: #93c5fd; border: 1px solid rgba(59,130,246,.25); margin-inline-start: 4px; vertical-align: middle; }
   .reservation-badge-new{ display:inline-flex; align-items:center; padding:4px 8px; border-radius:999px; font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#fef3c7; background:rgba(245,158,11,.16); border:1px solid rgba(245,158,11,.30); }
   .reservation-card.is-hidden{ display:none !important; }
   @media (max-width: 900px){ .host-header{ flex-direction:column; } .host-time-card{ width:100%; max-width:none; } }
-  @media (max-width: 640px){ .reservation-card{ grid-template-columns:1fr; } .reservation-card__actions{ align-items:stretch; } .reservation-card__top{ align-items:flex-start; flex-direction:column; } .host-time-card__inputs{ grid-template-columns:1fr; } .host-resv-toolbar{ flex-direction:column; align-items:stretch; } .host-sort{ width:100%; justify-content:space-between; } .host-sort select{ flex:1 1 auto; } }
+  @media (max-width: 640px){ .reservation-card{ grid-template-columns:1fr; } .reservation-card::before{ inset:12px auto auto 12px; width:42px; height:4px; } .reservation-card__actions{ align-items:stretch; } .reservation-card__actions .link-btn{ width:100%; } .reservation-card__top{ align-items:flex-start; flex-direction:column; } .reservation-card__footer{ align-items:flex-start; } .host-time-card__inputs{ grid-template-columns:1fr; } .host-resv-toolbar{ flex-direction:column; align-items:stretch; } .host-sort{ width:100%; justify-content:space-between; } .host-sort select{ flex:1 1 auto; } }
 
 
   /* Keep the classic host-side table details panel instead of the embedded drawer */
@@ -642,14 +677,18 @@
       }
 
       const statusEntry = getStatusEntryBySelection(tableId, tableNumber);
-      const normalizedStatus = normalizeHostTableStatus((statusEntry && statusEntry.status) || 'empty');
+      const detailStatus = normalizeHostTableStatus(
+        (detail && (detail.status || (detail.statusEntry && detail.statusEntry.status))) ||
+        (ds.selectedTableStatus || ds.selectedBarTableStatus || '')
+      );
+      const fallbackStatus = normalizeHostTableStatus((statusEntry && statusEntry.status) || detailStatus || 'empty');
       const requestId = ++__hostTableInfoRequestId;
       const baseInfo = {
         tableNumber: tableNumber || (statusEntry && statusEntry.tableNumber) || '—',
         name: (statusEntry && statusEntry.guestName) || '',
         people: (statusEntry && statusEntry.guestCount !== '') ? statusEntry.guestCount : '',
         time: (statusEntry && statusEntry.reservationTime) || '',
-        status: normalizedStatus,
+        status: fallbackStatus || 'empty',
       };
 
       if (detail && detail.isBarSeat) {
@@ -659,36 +698,35 @@
         if (!baseInfo.people && seatNumber > 0) baseInfo.people = seatCapacity > 0 ? (seatNumber + ' / ' + seatCapacity) : seatNumber;
       }
 
-      if (normalizedStatus !== 'occupied') {
-        openTableInfoPanel(baseInfo);
-        return;
-      }
-
-      try {
-        const url = new URL('/api/host/table/info', window.location.origin);
-        url.searchParams.set('restaurantId', rid);
-        url.searchParams.set('table', String(tableNumber || (statusEntry && statusEntry.tableNumber) || ''));
-        const res = await fetch(url.toString(), {
-          method: 'GET',
-          headers: { 'Accept': 'application/json' },
-        });
-        const data = await res.json().catch(function(){ return {}; });
-        if (requestId !== __hostTableInfoRequestId) return;
-
-        if (res.ok && data && data.ok) {
-          openTableInfoPanel({
-            tableNumber: tableNumber || (statusEntry && statusEntry.tableNumber) || '—',
-            name: data.name || data.guestName || baseInfo.name || '',
-            people: (data.people != null && data.people !== '') ? data.people : baseInfo.people,
-            time: data.time || baseInfo.time || '',
-            status: normalizedStatus,
+      const lookupTableNumber = String(tableNumber || (statusEntry && statusEntry.tableNumber) || '').trim();
+      if (lookupTableNumber) {
+        try {
+          const url = new URL('/api/host/table/info', window.location.origin);
+          url.searchParams.set('restaurantId', rid);
+          url.searchParams.set('table', lookupTableNumber);
+          const res = await fetch(url.toString(), {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
           });
-          return;
+          const data = await res.json().catch(function(){ return {}; });
+          if (requestId !== __hostTableInfoRequestId) return;
+
+          if (res.ok && data && data.ok) {
+            openTableInfoPanel({
+              tableNumber: tableNumber || (statusEntry && statusEntry.tableNumber) || '—',
+              name: data.name || data.guestName || baseInfo.name || '',
+              people: (data.people != null && data.people !== '') ? data.people : baseInfo.people,
+              time: data.time || baseInfo.time || '',
+              status: 'occupied',
+            });
+            return;
+          }
+        } catch (e) {
+          console.warn('[HOST] table info lookup failed, using local fallback', e);
         }
-      } catch (e) {
-        console.warn('[HOST] table info fallback', e);
       }
 
+      if (!baseInfo.name && baseInfo.status === 'occupied') baseInfo.name = 'Active table';
       if (requestId === __hostTableInfoRequestId) openTableInfoPanel(baseInfo);
     } catch (e) {
       console.warn('[HOST] syncTableInfoPanelFromSelection error', e);
@@ -782,10 +820,16 @@
   const tableInfoBackdrop = document.getElementById("table-info-backdrop");
   const tipCloseBtn = document.getElementById("tip-close-btn");
   const tipTableNumber = document.getElementById("tip-table-number");
+  const tipTableNumberHero = document.getElementById("tip-table-number-hero");
   const tipGuestName = document.getElementById("tip-guest-name");
   const tipPeople = document.getElementById("tip-people");
   const tipTime = document.getElementById("tip-time");
   const tipStatus = document.getElementById("tip-status");
+  const tipStatusText = document.getElementById("tip-status-text");
+  const tipStatusCopy = document.getElementById("tip-status-copy");
+  const tipSummaryLine = document.getElementById("tip-summary-line");
+  const tipGuidance = document.getElementById("tip-guidance");
+  const tableInfoHero = document.getElementById("table-info-hero");
 
   function mapStatusToLabel(status){
     const s = (status || "").toLowerCase();
@@ -807,17 +851,53 @@
 
   function openTableInfoPanel(info){
     if (!tableInfoPanel) return;
-    tipTableNumber.textContent = info.tableNumber != null ? info.tableNumber : "—";
-    tipGuestName.textContent = info.name || "—";
-    tipPeople.textContent = (info.people != null && info.people !== "") ? info.people : "—";
-    tipTime.textContent = info.time || "—";
+    const tableNumberText = info.tableNumber != null ? info.tableNumber : "—";
+    const guestNameText = info.name || "—";
+    const peopleText = (info.people != null && info.people !== "") ? info.people : "—";
+    const timeText = info.time || "—";
+    const statusLabel = mapStatusToLabel(info.status);
+    const statusClass = mapStatusToClass(info.status);
+    const normalizedStatus = String(info.status || '').toLowerCase();
+
+    let statusCopy = "<%= tt('host.table_info_note', 'Information is taken from the last reservation assigned to this table.') %>";
+    let summaryLine = "<%= tt('host.table_panel_default_summary', 'Review the latest assignment and table state before the next action.') %>";
+    let guidance = "<%= tt('host.table_panel_default_guidance', 'Use this panel to quickly verify who is seated here and what should happen next.') %>";
+
+    if (normalizedStatus === 'occupied' || normalizedStatus === 'open') {
+      statusCopy = "<%= tt('host.table_panel_occupied_copy', 'Guests are currently dining here.') %>";
+      summaryLine = "<%= tt('host.table_panel_occupied_summary', 'This table is active now. Double-check the party and timing before making changes.') %>";
+      guidance = "<%= tt('host.table_panel_occupied_guidance', 'Keep the table occupied unless service or reassignment requires an update.') %>";
+    } else if (normalizedStatus === 'reserved') {
+      statusCopy = "<%= tt('host.table_panel_reserved_copy', 'This table is being held for an upcoming arrival.') %>";
+      summaryLine = "<%= tt('host.table_panel_reserved_summary', 'The table is reserved. Confirm the guest and arrival time before reusing it.') %>";
+      guidance = "<%= tt('host.table_panel_reserved_guidance', 'Keep the table ready and avoid assigning walk-ins unless the reservation changes.') %>";
+    } else if (normalizedStatus === 'dirty') {
+      statusCopy = "<%= tt('host.table_panel_dirty_copy', 'This table needs cleanup before the next seating.') %>";
+      summaryLine = "<%= tt('host.table_panel_dirty_summary', 'The table is blocked by housekeeping. Wait until it is marked ready again.') %>";
+      guidance = "<%= tt('host.table_panel_dirty_guidance', 'Coordinate with the floor team, then mark it empty once it is ready.') %>";
+    } else if (normalizedStatus === 'empty' || normalizedStatus === 'free') {
+      statusCopy = "<%= tt('host.table_panel_empty_copy', 'This table is open for the next seating decision.') %>";
+      summaryLine = "<%= tt('host.table_panel_empty_summary', 'The table is currently available. It can be used for the next suitable reservation.') %>";
+      guidance = "<%= tt('host.table_panel_empty_guidance', 'Use the seating flow to pair this table with the right guest or keep it available.') %>";
+    }
+
+    tipTableNumber.textContent = tableNumberText;
+    if (tipTableNumberHero) tipTableNumberHero.textContent = tableNumberText;
+    tipGuestName.textContent = guestNameText;
+    tipPeople.textContent = peopleText;
+    tipTime.textContent = timeText;
+    if (tipStatusText) tipStatusText.textContent = statusLabel;
+    if (tipStatusCopy) tipStatusCopy.textContent = statusCopy;
+    if (tipSummaryLine) tipSummaryLine.textContent = summaryLine;
+    if (tipGuidance) tipGuidance.textContent = guidance;
 
     // סטטוס עם באדג׳
     const clsBase = ["tip-status-badge","tip-status-empty","tip-status-occupied","tip-status-reserved","tip-status-dirty","tip-status-unknown"];
     if (tipStatus) {
-      tipStatus.textContent = mapStatusToLabel(info.status);
-      tipStatus.className = clsBase[0] + " " + mapStatusToClass(info.status);
+      tipStatus.textContent = statusLabel;
+      tipStatus.className = clsBase[0] + " " + statusClass;
     }
+    if (tableInfoHero) tableInfoHero.setAttribute('data-status', normalizedStatus || 'unknown');
 
     tableInfoPanel.classList.add("open");
     tableInfoBackdrop.classList.add("open");
@@ -1704,10 +1784,11 @@
   .table-info-backdrop{
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.35);
+    background: rgba(2,6,23,0.56);
+    backdrop-filter: blur(4px);
     opacity: 0;
     pointer-events: none;
-    transition: opacity .18s ease;
+    transition: opacity .2s ease;
     z-index: 40;
   }
   .table-info-backdrop.open{
@@ -1720,9 +1801,9 @@
     top: 0;
     right: 0;
     height: 100vh;
-    width: min(340px, 90vw);
+    width: min(420px, 92vw);
     transform: translateX(100%);
-    transition: transform .22s ease-out;
+    transition: transform .24s ease-out;
     z-index: 41;
     display:flex;
     align-items:stretch;
@@ -1733,54 +1814,170 @@
   }
 
   .table-info-inner{
-    background: rgba(8,12,24,0.98);
-    border-left: 1px solid rgba(148,163,184,0.35);
-    box-shadow: -18px 0 40px rgba(0,0,0,0.6);
+    position:relative;
+    background:
+      radial-gradient(circle at top left, rgba(59,130,246,0.18), transparent 38%),
+      linear-gradient(180deg, rgba(8,12,24,0.985), rgba(8,12,24,0.965));
+    border-left: 1px solid rgba(148,163,184,0.24);
+    box-shadow: -24px 0 54px rgba(2,6,23,0.56);
     width: 100%;
-    padding: 14px 16px 16px;
+    padding: 18px 18px 20px;
     display:flex;
     flex-direction:column;
-    gap:10px;
+    gap:14px;
+    overflow-y:auto;
+  }
+
+  .table-info-inner::before{
+    content:"";
+    position:absolute;
+    inset:0 auto auto 0;
+    width:100%;
+    height:1px;
+    background:linear-gradient(90deg, rgba(96,165,250,0.58), rgba(148,163,184,0));
   }
 
   .table-info-header{
     display:flex;
-    align-items:center;
+    align-items:flex-start;
     justify-content:space-between;
-    gap:8px;
-    margin-bottom:4px;
+    gap:12px;
   }
 
   .tip-label{
     font-size:11px;
     text-transform:uppercase;
-    letter-spacing:0.08em;
-    color:#9aa3b2;
+    letter-spacing:0.12em;
+    color:#93c5fd;
+    font-weight:800;
   }
   .tip-title{
-    font-size:18px;
-    font-weight:600;
+    margin-top:6px;
+    font-size:24px;
+    line-height:1.1;
+    font-weight:800;
+    color:#f8fafc;
   }
 
   .tip-close-btn{
-    border:none;
+    border:1px solid rgba(148,163,184,0.18);
     background: rgba(15,23,42,0.7);
     color:#e5e7eb;
-    width:28px;
-    height:28px;
+    width:36px;
+    height:36px;
     border-radius:999px;
     display:flex;
     align-items:center;
     justify-content:center;
     cursor:pointer;
-    font-size:14px;
+    font-size:15px;
+    box-shadow:0 10px 22px rgba(2,6,23,0.2);
+  }
+
+  .table-info-hero{
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    padding:16px;
+    border-radius:22px;
+    border:1px solid rgba(148,163,184,0.16);
+    background:linear-gradient(180deg, rgba(15,23,42,0.84), rgba(15,23,42,0.62));
+    box-shadow:0 16px 34px rgba(2,6,23,0.2);
+    overflow:hidden;
+  }
+
+  .table-info-hero::after{
+    content:"";
+    position:absolute;
+    inset:auto -36px -36px auto;
+    width:120px;
+    height:120px;
+    border-radius:999px;
+    background:rgba(59,130,246,0.14);
+    filter:blur(10px);
+    pointer-events:none;
+  }
+
+  .table-info-hero[data-status="occupied"],
+  .table-info-hero[data-status="open"]{
+    background:linear-gradient(180deg, rgba(127,29,29,0.5), rgba(15,23,42,0.82));
+  }
+  .table-info-hero[data-status="reserved"]{
+    background:linear-gradient(180deg, rgba(120,53,15,0.5), rgba(15,23,42,0.82));
+  }
+  .table-info-hero[data-status="dirty"]{
+    background:linear-gradient(180deg, rgba(88,28,135,0.5), rgba(15,23,42,0.82));
+  }
+  .table-info-hero[data-status="empty"],
+  .table-info-hero[data-status="free"]{
+    background:linear-gradient(180deg, rgba(20,83,45,0.46), rgba(15,23,42,0.82));
+  }
+
+  .table-info-hero__row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+
+  .table-info-hero__copy{
+    font-size:12px;
+    color:#cbd5e1;
+  }
+
+  .table-info-hero__table{
+    font-size:28px;
+    font-weight:900;
+    color:#ffffff;
+    letter-spacing:-0.02em;
+  }
+
+  .table-info-hero__subtitle{
+    margin:0;
+    font-size:13px;
+    line-height:1.6;
+    color:#dbe7f6;
+    max-width:32ch;
+  }
+
+  .table-info-grid{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0,1fr));
+    gap:10px;
+  }
+
+  .table-info-card{
+    padding:14px;
+    border-radius:18px;
+    border:1px solid rgba(148,163,184,0.14);
+    background:rgba(15,23,42,0.72);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.03);
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    min-height:88px;
+  }
+
+  .table-info-card__label{
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:#94a3b8;
+  }
+
+  .table-info-card__value{
+    font-size:16px;
+    line-height:1.35;
+    color:#f8fafc;
+    word-break:break-word;
   }
 
   .table-info-body{
     display:flex;
     flex-direction:column;
-    gap:8px;
-    margin-top:4px;
+    gap:10px;
   }
 
   .tip-row{
@@ -1789,27 +1986,45 @@
     gap:10px;
     font-size:13px;
   }
+  .tip-row--stacked{
+    padding:14px 16px;
+    border-radius:18px;
+    border:1px solid rgba(148,163,184,0.14);
+    background:rgba(15,23,42,0.58);
+    flex-direction:column;
+    align-items:flex-start;
+  }
   .tip-row-label{
     color:#9aa3b2;
+    font-weight:800;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    font-size:11px;
   }
   .tip-row-value{
-    font-weight:500;
+    font-weight:600;
+  }
+  .tip-row-note{
+    color:#dbe7f6;
+    line-height:1.65;
   }
 
   .tip-status-badge{
     display:inline-flex;
     align-items:center;
     justify-content:center;
-    padding:2px 8px;
+    padding:6px 10px;
     border-radius:999px;
     font-size:11px;
+    font-weight:800;
+    letter-spacing:0.04em;
     border:1px solid transparent;
   }
 
   .tip-status-empty{
     background:rgba(34,197,94,0.12);
     border-color:rgba(34,197,94,0.4);
-    color:#4ade80;
+    color:#86efac;
   }
   .tip-status-occupied{
     background:rgba(239,68,68,0.16);
@@ -1834,10 +2049,27 @@
 
   .table-info-footer{
     margin-top:auto;
-    padding-top:8px;
-    border-top:1px solid rgba(148,163,184,0.25);
+    padding-top:12px;
+    border-top:1px solid rgba(148,163,184,0.16);
   }
 
+  @media (max-width: 640px){
+    .table-info-panel{
+      width:100vw;
+    }
+    .table-info-inner{
+      padding:16px 14px 18px;
+    }
+    .table-info-grid{
+      grid-template-columns:1fr;
+    }
+    .tip-title{
+      font-size:22px;
+    }
+    .table-info-hero__table{
+      font-size:24px;
+    }
+  }
 
   .host-grid .floor-wrapper{
     height: min(72vh, 860px);
@@ -2046,23 +2278,32 @@
   }
 
   .host-reservations-panel .reservation-card{
-    padding:12px;
-    margin-bottom:10px;
-    border-radius:18px;
+    padding:14px;
+    margin-bottom:12px;
+    border-radius:22px;
     border:1px solid rgba(148,163,184,.12);
-    background:rgba(2,6,23,.28);
-    transition:transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+    background:
+      radial-gradient(circle at top right, rgba(59,130,246,.08), transparent 32%),
+      linear-gradient(180deg, rgba(7,12,24,.64), rgba(7,12,24,.4));
+    box-shadow:0 14px 34px rgba(2,6,23,.18);
+    transition:transform .16s ease, border-color .16s ease, box-shadow .16s ease, background .16s ease;
   }
 
   .host-reservations-panel .reservation-card:hover,
   .host-reservations-panel .reservation-card.is-active{
-    transform:translateY(-1px);
+    transform:translateY(-2px);
     border-color:rgba(96,165,250,.34);
-    box-shadow:0 16px 34px rgba(2,6,23,.26);
+    box-shadow:0 20px 40px rgba(2,6,23,.28);
+  }
+
+  .host-reservations-panel .reservation-card:hover{
+    background:
+      radial-gradient(circle at top right, rgba(96,165,250,.12), transparent 30%),
+      linear-gradient(180deg, rgba(10,18,34,.82), rgba(8,13,26,.58));
   }
 
   .host-reservations-panel .reservation-card.is-active{
-    background:linear-gradient(135deg, rgba(59,130,246,.14), rgba(15,23,42,.9));
+    background:linear-gradient(135deg, rgba(59,130,246,.16), rgba(15,23,42,.96));
   }
 
   .host-map-flow{
