@@ -27,6 +27,7 @@ import {
   getTableNumberById,
   ensureTableNumberById,
   markTableDirty,
+  computeAllTableStatuses as computeLiveTableStatuses,
 } from "../services/floor_service.ts";
 
 import {
@@ -300,7 +301,7 @@ hostRouter.get("/host/:rid", async (ctx) => {
     }
   }
 
-  const statuses = await computeAllTableStatuses(rid, tablesFlat);
+  const statuses = await computeLiveTableStatuses(rid, tablesFlat);
 
   hlog("render host page", {
     rid,

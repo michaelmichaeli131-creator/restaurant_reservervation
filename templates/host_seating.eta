@@ -245,6 +245,20 @@
             <span class="host-target-pill" id="host-selected-target">No table selected</span>
             <span class="host-target-pill is-soft" id="host-selected-state">Waiting for selection</span>
           </div>
+          <div class="host-selection-card__stats">
+            <div class="host-selection-stat">
+              <span class="host-selection-stat__label">Reservation</span>
+              <strong id="host-selected-res-short">—</strong>
+            </div>
+            <div class="host-selection-stat">
+              <span class="host-selection-stat__label">Target</span>
+              <strong id="host-selected-target-short">—</strong>
+            </div>
+            <div class="host-selection-stat">
+              <span class="host-selection-stat__label">Table status</span>
+              <strong id="host-selected-table-status">Waiting</strong>
+            </div>
+          </div>
         </div>
 
         <div class="host-map-legend" aria-label="Dining room legend">
@@ -269,9 +283,14 @@
             <%= tt('host.btn_seat', 'Seat at Selected Table(s)') %>
           </button>
         </div>
-        <div class="host-mini-actions">
-          <button id="mark-reserved-btn" type="button" class="btn ghost sm"><%= tt('host.btn_mark_reserved', 'Mark Reserved') %></button>
-          <button id="mark-empty-btn" type="button" class="btn ghost sm"><%= tt('host.btn_mark_empty', 'Mark Empty') %></button>
+        <div class="host-status-cluster">
+          <div class="host-status-cluster__label">Quick table status</div>
+          <div class="host-mini-actions host-mini-actions--status-grid">
+            <button id="mark-occupied-btn" type="button" class="btn ghost sm host-status-btn is-occupied">Occupied</button>
+            <button id="mark-reserved-btn" type="button" class="btn ghost sm host-status-btn is-reserved"><%= tt('host.btn_mark_reserved', 'Mark Reserved') %></button>
+            <button id="mark-dirty-btn" type="button" class="btn ghost sm host-status-btn is-dirty">Dirty</button>
+            <button id="mark-empty-btn" type="button" class="btn ghost sm host-status-btn is-empty"><%= tt('host.btn_mark_empty', 'Mark Empty') %></button>
+          </div>
         </div>
         <p class="muted small" id="host-selection-helper"><%= tt('host.merge_hint', 'You can select multiple tables for the same reservation (table merge).') %></p>
       </div>
@@ -411,7 +430,9 @@
 
   const resvList = document.getElementById("resv-list");
   const seatBtn = document.getElementById("seat-btn");
+  const markOccupiedBtn = document.getElementById("mark-occupied-btn");
   const markReservedBtn = document.getElementById("mark-reserved-btn");
+  const markDirtyBtn = document.getElementById("mark-dirty-btn");
   const markEmptyBtn = document.getElementById("mark-empty-btn");
   const systemDateInput = document.getElementById("host-system-date");
   const systemTimeInput = document.getElementById("host-system-time");
@@ -431,6 +452,9 @@
   const hostSelectedTarget = document.getElementById('host-selected-target');
   const hostSelectedState = document.getElementById('host-selected-state');
   const hostSelectionHelper = document.getElementById('host-selection-helper');
+  const hostSelectedResShort = document.getElementById('host-selected-res-short');
+  const hostSelectedTargetShort = document.getElementById('host-selected-target-short');
+  const hostSelectedTableStatus = document.getElementById('host-selected-table-status');
   const seatBtnDefaultLabel = "<%= tt('host.btn_seat', 'Seat at Selected Table(s)') %>";
   const seatBtnReadyLabel = "<%= tt('host.btn_seat_ready', 'Seat reservation') %>";
   const hostDefaultResName = 'No reservation selected';
@@ -523,18 +547,15 @@
     }
 
     const enableStatusActions = !!(selectedTables.length || Array.from(state.selectedTableIds || []).length || (effectiveBar && effectiveBar.tableId));
-    if (markReservedBtn) {
-      markReservedBtn.disabled = !enableStatusActions;
-      markReservedBtn.classList.toggle('is-disabled', !enableStatusActions);
-    }
-    if (markEmptyBtn) {
-      markEmptyBtn.disabled = !enableStatusActions;
-      markEmptyBtn.classList.toggle('is-disabled', !enableStatusActions);
-    }
+    [markOccupiedBtn, markReservedBtn, markDirtyBtn, markEmptyBtn].forEach(function(btn){
+      if (!btn) return;
+      btn.disabled = !enableStatusActions;
+      btn.classList.toggle('is-disabled', !enableStatusActions);
+    });
 
     if (hostSelectionHelper) {
       if (!hasReservation && !hasTarget) hostSelectionHelper.textContent = 'Choose a reservation and then pick a table or bar seat.';
-      else if (!hasReservation) hostSelectionHelper.textContent = 'Table selected. Now choose which reservation to seat.';
+      else if (!hasReservation) hostSelectionHelper.textContent = 'Target selected. Now choose which reservation to seat.';
       else if (!hasTarget) hostSelectionHelper.textContent = 'Reservation selected. Pick one or more tables on the map.';
       else hostSelectionHelper.textContent = 'Ready to seat. Review the target and confirm.';
     }
@@ -544,6 +565,8 @@
     const selectedItem = getSelectedReservationItem();
     const effectiveBar = getEffectiveSelectedBar();
     const selectedTables = getEffectiveSelectedTableNumbers();
+    const selectedStatusEntry = getSelectedStatusEntry();
+    const selectedStatusLabel = mapStatusToLabel((selectedStatusEntry && selectedStatusEntry.status) || '');
 
     if (selectedItem) {
       const guestName = (selectedItem.querySelector('.resv-name') && selectedItem.querySelector('.resv-name').textContent || '').trim() || 'Guest';
@@ -553,29 +576,41 @@
       if (selectedItem.dataset.room) parts.push('Room ' + selectedItem.dataset.room);
       if (hostSelectedResName) hostSelectedResName.textContent = guestName;
       if (hostSelectedResMeta) hostSelectedResMeta.textContent = parts.length ? parts.join(' · ') : hostDefaultResMeta;
+      if (hostSelectedResShort) hostSelectedResShort.textContent = guestName;
       if (hostSelectedState) hostSelectedState.textContent = hasTargetText();
     } else {
       if (hostSelectedResName) hostSelectedResName.textContent = hostDefaultResName;
       if (hostSelectedResMeta) hostSelectedResMeta.textContent = hostDefaultResMeta;
+      if (hostSelectedResShort) hostSelectedResShort.textContent = '—';
       if (hostSelectedState) hostSelectedState.textContent = hostDefaultState;
     }
 
     if (effectiveBar && effectiveBar.seatId) {
       const seatNo = Number(effectiveBar.seatNumber || 0);
       const cap = Number(effectiveBar.capacity || 0);
-      if (hostSelectedTarget) hostSelectedTarget.textContent = seatNo > 0 ? ('Bar seat ' + seatNo + (cap > 0 ? ' of ' + cap : '')) : 'Bar seating selected';
+      const text = seatNo > 0 ? ('Bar seat ' + seatNo + (cap > 0 ? ' of ' + cap : '')) : 'Bar seating selected';
+      if (hostSelectedTarget) hostSelectedTarget.textContent = text;
+      if (hostSelectedTargetShort) hostSelectedTargetShort.textContent = seatNo > 0 ? ('Seat ' + seatNo) : 'Bar';
     } else if (selectedTables.length === 1) {
       if (hostSelectedTarget) hostSelectedTarget.textContent = 'Table ' + selectedTables[0];
+      if (hostSelectedTargetShort) hostSelectedTargetShort.textContent = 'T' + selectedTables[0];
     } else if (selectedTables.length > 1) {
       if (hostSelectedTarget) hostSelectedTarget.textContent = selectedTables.length + ' tables · ' + selectedTables.join(', ');
+      if (hostSelectedTargetShort) hostSelectedTargetShort.textContent = selectedTables.length + ' tables';
     } else {
       if (hostSelectedTarget) hostSelectedTarget.textContent = hostDefaultTarget;
+      if (hostSelectedTargetShort) hostSelectedTargetShort.textContent = '—';
+    }
+
+    if (hostSelectedTableStatus) {
+      hostSelectedTableStatus.textContent = selectedStatusEntry ? selectedStatusLabel : 'Waiting';
     }
 
     updateReservationSelectionStyles();
     updateSeatActionState();
 
     function hasTargetText() {
+      if (selectedStatusEntry && selectedStatusEntry.status) return selectedStatusLabel;
       if (effectiveBar && effectiveBar.seatId) return 'Bar seat selected';
       if (selectedTables.length === 1) return 'Single table selected';
       if (selectedTables.length > 1) return 'Merge layout selected';
@@ -647,6 +682,8 @@
   const __SB_STATUS_BY_ID = <%= JSON.stringify(__tableIdToStatusEntry) %>;
   const __SB_STATUS_BY_NUMBER = <%= JSON.stringify(__tableNumberToStatusEntry) %>;
   let __hostTableInfoRequestId = 0;
+  let __hostStatusesLoadedAt = 0;
+  let __hostStatusesPromise = null;
 
   function getStatusEntryBySelection(tableId, tableNumber){
     const idKey = String(tableId || '').trim();
@@ -656,11 +693,65 @@
     return null;
   }
 
+  function setStatusEntry(entry){
+    if (!entry) return null;
+    const safeEntry = {
+      tableId: String((entry && entry.tableId) || ''),
+      tableNumber: Number((entry && entry.tableNumber) || 0) || 0,
+      status: normalizeHostTableStatus((entry && entry.status) || 'empty'),
+      guestName: String((entry && entry.guestName) || ''),
+      guestCount: (entry && entry.guestCount != null) ? Number(entry.guestCount) : '',
+      reservationTime: String((entry && entry.reservationTime) || ''),
+      itemsCount: (entry && entry.itemsCount != null) ? Number(entry.itemsCount) : '',
+      subtotal: (entry && entry.subtotal != null) ? String(entry.subtotal) : '',
+    };
+    if (safeEntry.tableId) __SB_STATUS_BY_ID[safeEntry.tableId] = safeEntry;
+    if (safeEntry.tableNumber > 0) __SB_STATUS_BY_NUMBER[String(safeEntry.tableNumber)] = safeEntry;
+    return safeEntry;
+  }
+
   function normalizeHostTableStatus(status){
     const s = String(status || '').toLowerCase();
     if (s === 'open') return 'occupied';
     if (s === 'free') return 'empty';
+    if (s === 'needs_cleaning') return 'dirty';
     return s || 'empty';
+  }
+
+  async function ensureLiveHostStatuses(force){
+    const now = Date.now();
+    if (!force && __hostStatusesLoadedAt && (now - __hostStatusesLoadedAt) < 12000) return;
+    if (__hostStatusesPromise) {
+      await __hostStatusesPromise;
+      return;
+    }
+
+    __hostStatusesPromise = (async function(){
+      try {
+        const res = await fetch('/api/floor-plans/' + encodeURIComponent(rid) + '/statuses', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+        });
+        const data = await res.json().catch(function(){ return []; });
+        if (!res.ok || !Array.isArray(data)) throw new Error('status_refresh_failed');
+        data.forEach(function(entry){ setStatusEntry(entry); });
+        __hostStatusesLoadedAt = Date.now();
+      } catch (e) {
+        console.warn('[HOST] live status refresh failed', e);
+      } finally {
+        __hostStatusesPromise = null;
+      }
+    })();
+
+    await __hostStatusesPromise;
+  }
+
+  function getSelectedStatusEntry(){
+    const effectiveBar = getEffectiveSelectedBar();
+    const selectedTables = getEffectiveSelectedTableNumbers();
+    const tableId = effectiveBar && effectiveBar.tableId ? String(effectiveBar.tableId) : String(Array.from(state.selectedTableIds || [])[0] || '');
+    const tableNumber = effectiveBar && effectiveBar.tableNumber ? Number(effectiveBar.tableNumber) : Number(selectedTables[0] || 0);
+    return getStatusEntryBySelection(tableId, tableNumber);
   }
 
   async function syncTableInfoPanelFromSelection(detail){
@@ -676,13 +767,14 @@
         return;
       }
 
-      const statusEntry = getStatusEntryBySelection(tableId, tableNumber);
+      const requestId = ++__hostTableInfoRequestId;
+      await ensureLiveHostStatuses(false);
+      let statusEntry = getStatusEntryBySelection(tableId, tableNumber);
       const detailStatus = normalizeHostTableStatus(
         (detail && (detail.status || (detail.statusEntry && detail.statusEntry.status))) ||
         (ds.selectedTableStatus || ds.selectedBarTableStatus || '')
       );
       const fallbackStatus = normalizeHostTableStatus((statusEntry && statusEntry.status) || detailStatus || 'empty');
-      const requestId = ++__hostTableInfoRequestId;
       const baseInfo = {
         tableNumber: tableNumber || (statusEntry && statusEntry.tableNumber) || '—',
         name: (statusEntry && statusEntry.guestName) || '',
@@ -712,8 +804,17 @@
           if (requestId !== __hostTableInfoRequestId) return;
 
           if (res.ok && data && data.ok) {
+            const mergedEntry = setStatusEntry({
+              tableId: tableId,
+              tableNumber: Number(lookupTableNumber || 0) || tableNumber,
+              status: 'occupied',
+              guestName: data.name || data.guestName || baseInfo.name || '',
+              guestCount: (data.people != null && data.people !== '') ? data.people : baseInfo.people,
+              reservationTime: data.time || baseInfo.time || '',
+            });
+            updateSelectionMission();
             openTableInfoPanel({
-              tableNumber: tableNumber || (statusEntry && statusEntry.tableNumber) || '—',
+              tableNumber: tableNumber || (mergedEntry && mergedEntry.tableNumber) || '—',
               name: data.name || data.guestName || baseInfo.name || '',
               people: (data.people != null && data.people !== '') ? data.people : baseInfo.people,
               time: data.time || baseInfo.time || '',
@@ -721,6 +822,16 @@
             });
             return;
           }
+
+          await ensureLiveHostStatuses(true);
+          statusEntry = getStatusEntryBySelection(tableId, tableNumber) || statusEntry;
+          if (statusEntry) {
+            baseInfo.status = normalizeHostTableStatus(statusEntry.status || baseInfo.status || 'empty');
+            if (!baseInfo.name) baseInfo.name = statusEntry.guestName || '';
+            if (baseInfo.people === '' || baseInfo.people == null) baseInfo.people = statusEntry.guestCount !== '' ? statusEntry.guestCount : '';
+            if (!baseInfo.time) baseInfo.time = statusEntry.reservationTime || '';
+          }
+          updateSelectionMission();
         } catch (e) {
           console.warn('[HOST] table info lookup failed, using local fallback', e);
         }
@@ -1546,6 +1657,18 @@
           throw new Error(data.error || ("HTTP " + res.status));
         }
       }));
+
+      const numbers = getEffectiveSelectedTableNumbers();
+      ids.forEach(function(tid, idx){
+        setStatusEntry({
+          tableId: tid,
+          tableNumber: Number(numbers[idx] || numbers[0] || 0) || 0,
+          status: status,
+        });
+      });
+      __hostStatusesLoadedAt = 0;
+      updateSelectionMission();
+      try { await syncTableInfoPanelFromSelection({ tableIds: ids, tableNumbers: numbers }); } catch (_e) {}
       try { window.dispatchEvent(new Event("sb-floor-refresh")); } catch(_e) {}
     } catch (e) {
       console.error(e);
@@ -1553,9 +1676,19 @@
     }
   }
 
+  if (markOccupiedBtn) {
+    markOccupiedBtn.addEventListener("click", function(){
+      markStatusForSelected("occupied");
+    });
+  }
   if (markReservedBtn) {
     markReservedBtn.addEventListener("click", function(){
       markStatusForSelected("reserved");
+    });
+  }
+  if (markDirtyBtn) {
+    markDirtyBtn.addEventListener("click", function(){
+      markStatusForSelected("dirty");
     });
   }
   if (markEmptyBtn) {
@@ -2372,6 +2505,39 @@
     margin-top:14px;
   }
 
+  .host-selection-card__stats{
+    display:grid;
+    grid-template-columns:repeat(3, minmax(0,1fr));
+    gap:10px;
+    margin-top:14px;
+  }
+
+  .host-selection-stat{
+    padding:12px 12px 11px;
+    border-radius:16px;
+    border:1px solid rgba(148,163,184,.12);
+    background:linear-gradient(180deg, rgba(9,15,28,.68), rgba(9,15,28,.42));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
+  }
+
+  .host-selection-stat__label{
+    display:block;
+    font-size:10px;
+    letter-spacing:.11em;
+    text-transform:uppercase;
+    color:#93c5fd;
+    font-weight:800;
+    margin-bottom:6px;
+  }
+
+  .host-selection-stat strong{
+    display:block;
+    font-size:14px;
+    color:#f8fafc;
+    line-height:1.25;
+    word-break:break-word;
+  }
+
   .host-target-pill.is-soft{
     background:rgba(148,163,184,.08);
     color:#cbd5e1;
@@ -2407,10 +2573,14 @@
   .host-actions--premium{
     margin-top:14px;
     flex-direction:row;
-    align-items:center;
+    align-items:flex-start;
     justify-content:space-between;
     gap:12px;
     flex-wrap:wrap;
+    padding:14px 16px;
+    border-radius:20px;
+    border:1px solid rgba(148,163,184,.12);
+    background:linear-gradient(180deg, rgba(9,15,28,.66), rgba(9,15,28,.4));
   }
 
   .host-actions__main{
@@ -2418,6 +2588,40 @@
     align-items:center;
     gap:10px;
   }
+
+  .host-status-cluster{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    min-width:min(100%, 460px);
+    flex:1 1 380px;
+  }
+
+  .host-status-cluster__label{
+    font-size:11px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:#93c5fd;
+    font-weight:800;
+  }
+
+  .host-mini-actions--status-grid{
+    display:grid;
+    grid-template-columns:repeat(4, minmax(0,1fr));
+    gap:8px;
+    width:100%;
+  }
+
+  .host-status-btn{
+    width:100%;
+    justify-content:center;
+    font-weight:800;
+  }
+
+  .host-status-btn.is-occupied{ border-color:rgba(239,68,68,.24); }
+  .host-status-btn.is-reserved{ border-color:rgba(245,158,11,.24); }
+  .host-status-btn.is-dirty{ border-color:rgba(168,85,247,.24); }
+  .host-status-btn.is-empty{ border-color:rgba(34,197,94,.24); }
 
   .host-ops .btn.primary,
   .host-ops .btn.ghost{
@@ -2445,6 +2649,11 @@
       grid-template-columns:1fr;
     }
 
+    .host-selection-card__stats,
+    .host-mini-actions--status-grid{
+      grid-template-columns:repeat(2, minmax(0,1fr));
+    }
+
     .host-kpi-grid{
       grid-template-columns:repeat(2, minmax(0,1fr));
     }
@@ -2458,6 +2667,11 @@
 
   @media (max-width: 720px){
     .host-kpi-grid{
+      grid-template-columns:1fr;
+    }
+
+    .host-selection-card__stats,
+    .host-mini-actions--status-grid{
       grid-template-columns:1fr;
     }
 
