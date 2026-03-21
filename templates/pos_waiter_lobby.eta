@@ -1,5 +1,6 @@
 <% it.head = (it.head || "") + `
-<link rel="stylesheet" href="/public/css/restaurant_system_time.css?v=${it.BUILD_TAG || Date.now()}"/>`; %>
+<link rel="stylesheet" href="/public/css/restaurant_system_time.css?v=${it.BUILD_TAG || Date.now()}"/>
+<link rel="stylesheet" href="/public/css/sb-waiter-lobby-premium.css?v=${it.BUILD_TAG || Date.now()}"/>`; %>
 <% layout("_layout", it) %>
 
 <%
@@ -19,11 +20,30 @@
   const waiterStatuses = it.waiterStatuses || [];
   const waiterStatusStats = it.waiterStatusStats || { total: 0, occupied: 0, reserved: 0, dirty: 0, empty: 0 };
   const rid = it.rid;
+  const activeChecksCount = openTables.length;
+  const totalItemsInFlight = openTables.reduce((sum, t) => {
+    const itemsCount = (t && t.totals && t.totals.itemsCount != null)
+      ? Number(t.totals.itemsCount || 0)
+      : Number(t && t.itemsCount != null ? t.itemsCount : 0);
+    return sum + (Number.isFinite(itemsCount) ? itemsCount : 0);
+  }, 0);
+  const pendingSubtotal = openTables.reduce((sum, t) => {
+    const subtotal = (t && t.totals && t.totals.subtotal != null)
+      ? Number(t.totals.subtotal || 0)
+      : Number(t && t.subtotal != null ? t.subtotal : 0);
+    return sum + (Number.isFinite(subtotal) ? subtotal : 0);
+  }, 0);
+  const roomsInService = Array.from(new Set(openTables.map((t) => String(t && t.roomLabel || '').trim()).filter(Boolean))).length;
+  const nextServiceTime = (openTables.find((t) => String(t && (t.time || t.openedAt) || '').trim()) || {}).time || (openTables.find((t) => String(t && (t.time || t.openedAt) || '').trim()) || {}).openedAt || '';
+  const firstGuestName = String(((openTables.find((t) => String(t && (t.guestName || t.name || t.customerName) || '').trim()) || {}).guestName || (openTables.find((t) => String(t && (t.guestName || t.name || t.customerName) || '').trim()) || {}).name || (openTables.find((t) => String(t && (t.guestName || t.name || t.customerName) || '').trim()) || {}).customerName || '')).trim();
+  const serviceCoverage = waiterStatusStats.total ? Math.round((Number(waiterStatusStats.occupied || 0) / Number(waiterStatusStats.total || 1)) * 100) : 0;
+  const attentionCount = Number(waiterStatusStats.dirty || 0) + Number(waiterStatusStats.reserved || 0);
 %>
 
 <main class="waiter container">
-  <header class="waiter-header">
-    <div>
+  <header class="waiter-header sb-wl-hero">
+    <div class="sb-wl-head-copy">
+      <div class="sb-wl-eyebrow">Waiter command center</div>
       <h1><%= tt('pos.waiter.lobby_title', 'Waiter Screen') %> — <%= restaurant.name %></h1>
       <p class="muted"><%= restaurant.city %> • <%= restaurant.address %></p>
     </div>
@@ -38,7 +58,51 @@
         <span><%= tt('pos.waiter.panel', 'Panel') %></span>
       </button>
     </div>
+  
+    <div class="sb-wl-hero-body">
+      <div class="sb-wl-focus-wrap">
+        <div class="sb-wl-focus-title">Service focus</div>
+        <div class="sb-wl-focus-row">
+          <span class="sb-wl-focus-pill"><strong><%= activeChecksCount %></strong> active checks</span>
+          <span class="sb-wl-focus-pill"><strong><%= totalItemsInFlight %></strong> items in flight</span>
+          <span class="sb-wl-focus-pill"><strong><%= attentionCount %></strong> tables need attention</span>
+          <span class="sb-wl-focus-pill"><strong><%= roomsInService || 1 %></strong> rooms in service</span>
+        </div>
+      </div>
+      <div class="sb-wl-hero-panel">
+        <div class="sb-wl-hero-panel__label">Live service snapshot</div>
+        <div class="sb-wl-hero-panel__value"><%= serviceCoverage %>%</div>
+        <div class="sb-wl-hero-panel__sub">floor coverage right now</div>
+        <div class="sb-wl-hero-panel__meta">
+          <span><%= nextServiceTime || 'Now' %></span>
+          <span><%= firstGuestName || 'Dining room live' %></span>
+        </div>
+      </div>
+    </div>
   </header>
+
+  <section class="sb-wl-kpis" aria-label="Waiter highlights">
+    <article class="sb-wl-kpi is-primary">
+      <div class="sb-wl-kpi__label">Open tables</div>
+      <strong class="sb-wl-kpi__value"><%= activeChecksCount %></strong>
+      <div class="sb-wl-kpi__note">tables with active service</div>
+    </article>
+    <article class="sb-wl-kpi">
+      <div class="sb-wl-kpi__label">Items in flight</div>
+      <strong class="sb-wl-kpi__value"><%= totalItemsInFlight %></strong>
+      <div class="sb-wl-kpi__note">items currently on checks</div>
+    </article>
+    <article class="sb-wl-kpi">
+      <div class="sb-wl-kpi__label">Pending subtotal</div>
+      <strong class="sb-wl-kpi__value"><%= pendingSubtotal.toFixed(0) %> <%= tt('common.currency', '₪') %></strong>
+      <div class="sb-wl-kpi__note">open value across the floor</div>
+    </article>
+    <article class="sb-wl-kpi is-attention">
+      <div class="sb-wl-kpi__label">Needs attention</div>
+      <strong class="sb-wl-kpi__value"><%= attentionCount %></strong>
+      <div class="sb-wl-kpi__note">dirty or reserved tables</div>
+    </article>
+  </section>
 
   <!-- Mobile backdrop for the left panel -->
   <div id="waiter-mobile-backdrop" class="sb-waiter-mobile-backdrop" aria-hidden="true"></div>
@@ -47,11 +111,17 @@
     <!-- Left panel (sticky on desktop, offcanvas on mobile) -->
     <aside class="sb-waiter-left" aria-label="<%= tt('pos.waiter.panel_label', 'Waiter Panel') %>">
       <!-- כרטיסייה: שולחנות פתוחים -->
-      <div class="panel card">
+      <div class="panel card sb-wl-panel">
       <h2><%= tt('pos.waiter.open_tables', 'Open Tables') %></h2>
       <p class="muted small">
         <%= tt('pos.waiter.open_tables_help', 'List of all tables with open checks / active service. Click a row for table details, and the "Go to Order" button opens the POS screen for that table.') %>
       </p>
+
+      <div class="sb-wl-list-summary">
+        <div class="sb-wl-list-summary__item"><span>Checks</span><strong><%= activeChecksCount %></strong></div>
+        <div class="sb-wl-list-summary__item"><span>Guests live</span><strong><%= openTables.reduce((sum, t) => sum + Number(t.people || t.covers || 0 || 0), 0) %></strong></div>
+        <div class="sb-wl-list-summary__item"><span>Rooms</span><strong><%= roomsInService || 1 %></strong></div>
+      </div>
 
       <section class="waiter-status-card" aria-label="Floor status sync">
         <div class="waiter-status-card__header">
@@ -85,6 +155,16 @@
                 ? t.totals.subtotal
                 : (t.subtotal != null ? t.subtotal : "");
               const roomLabel = t.roomLabel || "";
+              const statusKey = String(status || 'occupied').toLowerCase() === 'needs_cleaning'
+                ? 'dirty'
+                : (String(status || 'occupied').toLowerCase() === 'open'
+                  ? 'occupied'
+                  : (String(status || 'occupied').toLowerCase() === 'free' ? 'empty' : String(status || 'occupied').toLowerCase()));
+              const statusLabel = statusKey === 'reserved'
+                ? 'Reserved'
+                : (statusKey === 'dirty'
+                  ? 'Dirty'
+                  : (statusKey === 'empty' ? 'Available' : 'Occupied'));
 
               // URL למסך ההזמנה – קודם מהשרת, ואם אין אז fallback למסלול הישן: /pos/:rid/table/:tn
               const posUrl = t.posUrl || t.url || t.href || `/pos/${rid}/table/${tn}`;
@@ -103,34 +183,37 @@
               <div class="open-row">
                 <button type="button" class="open-table-btn">
                   <div class="open-main">
-                    <span class="open-table-num"><%= tt('pos.waiter.table_label', 'Table') %> <%= tn %></span>
-                    <% if (guestName) { %>
-                      <span class="open-guest-name">• <%= guestName %></span>
-                    <% } %>
-                    <% if (roomLabel) { %>
-                      <span class="waiter-room-badge"><%= roomLabel %></span>
-                    <% } %>
+                    <div class="open-main__top">
+                      <span class="open-table-num"><%= tt('pos.waiter.table_label', 'Table') %> <%= tn %></span>
+                      <span class="open-status-chip is-<%= statusKey %>"><%= statusLabel %></span>
+                    </div>
+                    <div class="open-main__title">
+                      <% if (guestName) { %>
+                        <span class="open-guest-name"><%= guestName %></span>
+                      <% } else { %>
+                        <span class="open-guest-name open-guest-name--empty">Walk-in / no guest name</span>
+                      <% } %>
+                      <% if (roomLabel) { %>
+                        <span class="waiter-room-badge"><%= roomLabel %></span>
+                      <% } %>
+                    </div>
                   </div>
                   <div class="open-sub">
                     <% if (people) { %>
-                      <span><%= people %> <%= tt('host.people_unit', 'Guests') %></span>
+                      <span class="open-meta-pill"><strong><%= people %></strong> <%= tt('host.people_unit', 'Guests') %></span>
                     <% } %>
                     <% if (time) { %>
-                      <span>• <%= time %></span>
+                      <span class="open-meta-pill"><strong><%= time %></strong> service time</span>
                     <% } %>
                     <% if (itemsCount !== "" && itemsCount != null) { %>
-                      <span>• <%= itemsCount %> <%= tt('pos.waiter.items_count', 'Items') %></span>
+                      <span class="open-meta-pill"><strong><%= itemsCount %></strong> <%= tt('pos.waiter.items_count', 'Items') %></span>
                     <% } %>
                     <% if (subtotal !== "" && subtotal != null) { %>
-                      <span>• <%= subtotal %> <%= tt('common.currency', '₪') %></span>
+                      <span class="open-meta-pill"><strong><%= subtotal %></strong> <%= tt('common.currency', '₪') %></span>
                     <% } %>
                   </div>
+                  <div class="open-foot">Tap for table details and live status.</div>
                 </button>
-                <!--
-                  "Go to Order" should navigate to the POS table screen.
-                  We render it as a link (styled like a button) so it works even
-                  if the JS bundle doesn't attach a click handler.
-                -->
                 <a class="open-pos-link" href="<%= posUrl %>">
                   <%= tt('pos.waiter.btn_to_order', 'Go to Order') %>
                 </a>
@@ -149,11 +232,17 @@
     <!-- Right content: Live map -->
     <div class="sb-waiter-right">
       <!-- כרטיסייה: מפת המסעדה (חי) -->
-      <div class="panel card sb-waiter-map-card">
+      <div class="panel card sb-waiter-map-card sb-wl-map-card">
       <h2><%= tt('pos.waiter.floor_map_title', 'Restaurant Map (Live)') %></h2>
       <p class="muted small">
         <%= tt('pos.waiter.floor_map_help', 'Click on an occupied table to view order details; click on an empty table for basic info.') %>
       </p>
+      <div class="sb-wl-map-meta">
+        <span class="sb-wl-map-chip"><strong><%= waiterStatusStats.occupied || 0 %></strong> occupied</span>
+        <span class="sb-wl-map-chip"><strong><%= waiterStatusStats.reserved || 0 %></strong> reserved</span>
+        <span class="sb-wl-map-chip"><strong><%= waiterStatusStats.dirty || 0 %></strong> dirty</span>
+        <span class="sb-wl-map-chip"><strong><%= waiterStatusStats.empty || 0 %></strong> available</span>
+      </div>
       <div id="sb-floor-root" class="floor-wrapper" data-rid="<%= it.rid %>" data-click-mode="lobby" data-right-panel="outside"></div>
       </div>
     </div>

@@ -34,6 +34,10 @@
   const cancelText = String(root.dataset.cancelText || 'Cancel');
   const markServedText = String(root.dataset.markServedText || 'Mark as Served');
   const addedText = String(root.dataset.addedText || 'Added to order');
+  const tapToAddText = String(root.dataset.tapToAddText || 'Tap to add');
+  const addNoteText = String(root.dataset.addNoteText || 'Add to current check');
+  const sectionHelpText = String(root.dataset.sectionHelpText || 'Choose a dish and add it straight to the live check.');
+  const dishesText = String(root.dataset.dishesText || 'dishes');
   const locale = String(root.dataset.locale || 'en-US');
   const currency = document.getElementById('bill-summary')?.dataset.currency || '₪';
   let currentSeatIds = [];
@@ -144,13 +148,21 @@
       const section = document.createElement('section');
       section.className = 'menu-section';
 
-      const title = document.createElement('h3');
-      title.className = 'menu-section-title';
       const first = list[0] || {};
-      title.textContent = cid === '__no_cat__'
+      const sectionTitle = cid === '__no_cat__'
         ? noCategoryText
         : (first.categoryName || first.categoryName_en || first.categoryName_he || first.categoryName_ka || categoryText);
-      section.appendChild(title);
+
+      const head = document.createElement('div');
+      head.className = 'menu-section-head';
+      head.innerHTML = `
+        <div>
+          <h3 class="menu-section-title">${escapeHtml(sectionTitle)}</h3>
+          <div class="menu-section-subtitle">${escapeHtml(sectionHelpText)}</div>
+        </div>
+        <span class="menu-section-count">${list.length} ${escapeHtml(dishesText)}</span>
+      `;
+      section.appendChild(head);
 
       const grid = document.createElement('div');
       grid.className = 'menu-grid';
@@ -165,14 +177,20 @@
         const dishDesc = m.desc_en || m.desc_he || m.desc_ka || '';
         const destText = String(m.destination || '') === 'bar' ? destBarText : destKitchenText;
         card.innerHTML = `
-          <div class="menu-item-head">
-            <div class="menu-item-name">${escapeHtml(dishName)}</div>
-            <span class="menu-item-add" aria-hidden="true">＋</span>
+          <div class="menu-item-topline">
+            <span class="menu-item-dest-badge">${escapeHtml(destText)}</span>
+            <span class="menu-item-cta">${escapeHtml(tapToAddText)}</span>
           </div>
-          <div class="menu-item-desc muted">${escapeHtml(dishDesc)}</div>
+          <div class="menu-item-head">
+            <div class="menu-item-copy">
+              <div class="menu-item-name">${escapeHtml(dishName)}</div>
+              <div class="menu-item-desc muted">${escapeHtml(dishDesc)}</div>
+            </div>
+            <span class="menu-item-price">${Number(m.price || 0).toFixed(2)} ${escapeHtml(currency)}</span>
+          </div>
           <div class="menu-item-footer">
-            <span class="price">${Number(m.price || 0).toFixed(2)} ${escapeHtml(currency)}</span>
-            <span class="dest">${escapeHtml(destText)}</span>
+            <span class="menu-item-note">${escapeHtml(addNoteText)}</span>
+            <span class="menu-item-add" aria-hidden="true">＋</span>
           </div>
         `;
         grid.appendChild(card);
