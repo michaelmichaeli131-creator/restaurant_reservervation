@@ -237,35 +237,19 @@
       </div>
 
       <div class="host-ops-strip">
-        <div class="host-selection-card" id="host-selection-card">
+        <div class="host-selection-card" id="host-selection-card" data-status="waiting">
           <div class="host-selection-card__eyebrow">Current mission</div>
           <div class="host-selection-card__name" id="host-selected-res-name">No reservation selected</div>
           <div class="host-selection-card__meta" id="host-selected-res-meta">Choose a reservation from the queue to unlock seating actions.</div>
-          <div class="host-selection-card__targets">
+          <div class="host-selection-card__targets host-selection-card__targets--compact">
             <span class="host-target-pill" id="host-selected-target">No table selected</span>
             <span class="host-target-pill is-soft" id="host-selected-state">Waiting for selection</span>
+            <span class="host-target-pill is-status" id="host-selected-table-status" data-status="waiting">Table status: Waiting</span>
           </div>
-          <div class="host-selection-card__stats">
-            <div class="host-selection-stat">
-              <span class="host-selection-stat__label">Reservation</span>
-              <strong id="host-selected-res-short">—</strong>
-            </div>
-            <div class="host-selection-stat">
-              <span class="host-selection-stat__label">Target</span>
-              <strong id="host-selected-target-short">—</strong>
-            </div>
-            <div class="host-selection-stat">
-              <span class="host-selection-stat__label">Table status</span>
-              <strong id="host-selected-table-status">Waiting</strong>
-            </div>
+          <div class="host-selection-card__ghost" hidden>
+            <strong id="host-selected-res-short">—</strong>
+            <strong id="host-selected-target-short">—</strong>
           </div>
-        </div>
-
-        <div class="host-map-legend" aria-label="Dining room legend">
-          <span class="host-legend-pill"><i class="host-legend-dot is-empty"></i> Empty</span>
-          <span class="host-legend-pill"><i class="host-legend-dot is-occupied"></i> Occupied</span>
-          <span class="host-legend-pill"><i class="host-legend-dot is-reserved"></i> Reserved</span>
-          <span class="host-legend-pill"><i class="host-legend-dot is-dirty"></i> Dirty</span>
         </div>
       </div>
 
@@ -446,6 +430,7 @@
   const hostResvSummary = document.getElementById("host-resv-summary");
 
   const hostRoot = document.querySelector('.host.host-ops');
+  const hostSelectionCard = document.getElementById('host-selection-card');
   const hostFilterButtons = Array.from(document.querySelectorAll('[data-host-filter]'));
   const hostSelectedResName = document.getElementById('host-selected-res-name');
   const hostSelectedResMeta = document.getElementById('host-selected-res-meta');
@@ -602,8 +587,13 @@
       if (hostSelectedTargetShort) hostSelectedTargetShort.textContent = '—';
     }
 
+    const statusKey = selectedStatusEntry && selectedStatusEntry.status ? String(selectedStatusEntry.status).toLowerCase() : 'waiting';
     if (hostSelectedTableStatus) {
-      hostSelectedTableStatus.textContent = selectedStatusEntry ? selectedStatusLabel : 'Waiting';
+      hostSelectedTableStatus.textContent = 'Table status: ' + (selectedStatusEntry ? selectedStatusLabel : 'Waiting');
+      hostSelectedTableStatus.dataset.status = statusKey;
+    }
+    if (hostSelectionCard) {
+      hostSelectionCard.dataset.status = statusKey;
     }
 
     updateReservationSelectionStyles();
@@ -2523,16 +2513,16 @@
   }
 
   .host-ops-strip{
-    display:grid;
-    grid-template-columns:minmax(560px, 1.45fr) minmax(260px, .9fr);
-    gap:16px;
-    align-items:stretch;
+    display:flex;
+    align-items:flex-start;
+    justify-content:flex-start;
     margin-bottom:14px;
   }
 
   .host-selection-card{
-    padding:20px 22px;
-    min-height:216px;
+    width:min(100%, 430px);
+    padding:18px 20px;
+    min-height:auto;
     border-radius:22px;
     border:1px solid rgba(96,165,250,.18);
     background:linear-gradient(135deg, rgba(30,41,59,.84), rgba(15,23,42,.96));
@@ -2545,22 +2535,22 @@
     text-transform:uppercase;
     letter-spacing:.14em;
     font-weight:800;
-    margin-bottom:10px;
+    margin-bottom:8px;
   }
 
   .host-selection-card__name{
-    font-size:24px;
+    font-size:18px;
     font-weight:800;
     color:#f8fafc;
-    line-height:1.18;
+    line-height:1.2;
     overflow-wrap:anywhere;
   }
 
   .host-selection-card__meta{
-    margin-top:8px;
-    color:#94a3b8;
-    font-size:14px;
-    line-height:1.55;
+    margin-top:6px;
+    color:#cbd5e1;
+    font-size:13px;
+    line-height:1.5;
     overflow-wrap:anywhere;
   }
 
@@ -2568,48 +2558,15 @@
     display:flex;
     flex-wrap:wrap;
     gap:10px;
-    margin-top:18px;
+    margin-top:16px;
   }
 
-  .host-selection-card__stats{
-    display:grid;
-    grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
-    gap:12px;
-    margin-top:18px;
+  .host-selection-card__targets--compact{
+    max-width:100%;
   }
 
-  .host-selection-stat{
-    display:flex;
-    flex-direction:column;
-    justify-content:flex-start;
-    gap:8px;
-    min-height:102px;
-    padding:16px 16px 15px;
-    border-radius:18px;
-    border:1px solid rgba(148,163,184,.12);
-    background:linear-gradient(180deg, rgba(9,15,28,.68), rgba(9,15,28,.42));
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
-  }
-
-  .host-selection-stat__label{
-    display:block;
-    font-size:10px;
-    letter-spacing:.12em;
-    text-transform:uppercase;
-    color:#93c5fd;
-    font-weight:800;
-    margin-bottom:0;
-    line-height:1.35;
-  }
-
-  .host-selection-stat strong{
-    display:block;
-    font-size:16px;
-    color:#f8fafc;
-    line-height:1.4;
-    word-break:break-word;
-    overflow-wrap:anywhere;
-    white-space:normal;
+  .host-selection-card__ghost{
+    display:none;
   }
 
   .host-target-pill.is-soft{
@@ -2617,11 +2574,49 @@
     color:#cbd5e1;
   }
 
+  .host-target-pill.is-status{
+    border-color:rgba(148,163,184,.18);
+    background:rgba(15,23,42,.76);
+    color:#e2e8f0;
+  }
+
+  .host-selection-card[data-status="empty"] .host-target-pill.is-status,
+  .host-target-pill.is-status[data-status="empty"]{
+    border-color:rgba(34,197,94,.24);
+    background:rgba(34,197,94,.12);
+    color:#dcfce7;
+  }
+
+  .host-selection-card[data-status="occupied"] .host-target-pill.is-status,
+  .host-target-pill.is-status[data-status="occupied"]{
+    border-color:rgba(239,68,68,.26);
+    background:rgba(239,68,68,.12);
+    color:#fee2e2;
+  }
+
+  .host-selection-card[data-status="reserved"] .host-target-pill.is-status,
+  .host-target-pill.is-status[data-status="reserved"]{
+    border-color:rgba(245,158,11,.28);
+    background:rgba(245,158,11,.12);
+    color:#fef3c7;
+  }
+
+  .host-selection-card[data-status="dirty"] .host-target-pill.is-status,
+  .host-target-pill.is-status[data-status="dirty"]{
+    border-color:rgba(168,85,247,.28);
+    background:rgba(168,85,247,.14);
+    color:#f3e8ff;
+  }
+
+  .host-selection-card[data-status="waiting"] .host-target-pill.is-status,
+  .host-target-pill.is-status[data-status="waiting"]{
+    border-color:rgba(148,163,184,.18);
+    background:rgba(148,163,184,.08);
+    color:#e2e8f0;
+  }
+
   .host-map-legend{
-    display:flex;
-    flex-wrap:wrap;
-    gap:8px;
-    justify-content:flex-end;
+    display:none;
   }
 
   .host-legend-dot{
@@ -2718,17 +2713,19 @@
 
   @media (max-width: 1180px){
     .host-ops .host-shell,
-    .host-ops .host-grid,
-    .host-ops-strip{
+    .host-ops .host-grid{
       grid-template-columns:1fr;
     }
 
+    .host-ops-strip{
+      display:block;
+    }
+
     .host-selection-card{
-      min-height:auto;
+      width:100%;
       padding:18px 18px 20px;
     }
 
-    .host-selection-card__stats,
     .host-mini-actions--status-grid{
       grid-template-columns:repeat(2, minmax(0,1fr));
     }
@@ -2757,7 +2754,6 @@
       font-size:20px;
     }
 
-    .host-selection-card__stats,
     .host-mini-actions--status-grid{
       grid-template-columns:1fr;
     }
