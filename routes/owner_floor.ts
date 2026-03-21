@@ -11,6 +11,7 @@ import {
   computeAllTableStatuses,
   setTableMappingsFromFloorPlan,
   setTableStatusOverride,
+  getTableNumberById,
   markTableDirty,
   markTableClean,
   createFloorSection,
@@ -306,8 +307,9 @@ ownerFloorRouter.post(
     }
 
     // Permissions are enforced by requireStaff() and requireRestaurantAccess().
-    // Persist table status override via the floor service
-    await setTableStatusOverride(restaurantId, tableId, status as FloorTableStatus, user.id);
+    // Persist table status override via the shared floor-status store.
+    const tableNumber = await getTableNumberById(restaurantId, tableId);
+    await setTableStatusOverride(restaurantId, tableId, status as FloorTableStatus, user.id, tableNumber);
 
     ctx.response.status = 200;
     ctx.response.body = { success: true, tableId, status };
@@ -360,22 +362,48 @@ ownerFloorRouter.get(
       return;
     }
 
-    // Get floor plan
-    const floorPlanKey = toKey("floor_plan", restaurantId);
-    const floorPlanRes = await kv.get(floorPlanKey);
+    // Build the live table list from the active floor layouts/sections first.
+    // This is the same source that host + waiter views use, so the shared status
+    // refresh stays aligned with what the map actually renders.
+    const layoutCandidates = await listFloorLayouts(restaurantId).catch(() => []);
+    let liveTables = (layoutCandidates ?? [])
+      .flatMap((layout) => Array.isArray((layout as any).tables) ? (layout as any).tables : [])
+      .map((table: any) => ({
+        id: String(table?.id ?? "").trim(),
+        tableNumber: Number(table?.tableNumber ?? table?.number ?? table?.table_number ?? 0) || 0,
+      }))
+      .filter((table) => table.id && table.tableNumber > 0);
 
-    if (!floorPlanRes.value) {
+    if (!liveTables.length) {
+      const sectionCandidates = await listFloorSections(restaurantId).catch(() => []);
+      liveTables = (sectionCandidates ?? [])
+        .flatMap((section) => Array.isArray((section as any).tables) ? (section as any).tables : [])
+        .map((table: any) => ({
+          id: String(table?.id ?? "").trim(),
+          tableNumber: Number(table?.tableNumber ?? table?.number ?? table?.table_number ?? 0) || 0,
+        }))
+        .filter((table) => table.id && table.tableNumber > 0);
+    }
+
+    if (!liveTables.length) {
+      const floorPlanKey = toKey("floor_plan", restaurantId);
+      const floorPlanRes = await kv.get(floorPlanKey);
+      if (floorPlanRes.value) {
+        const floorPlan = floorPlanRes.value as FloorPlan;
+        liveTables = Array.isArray((floorPlan as any).tables) ? (floorPlan as any).tables : [];
+      }
+    }
+
+    if (!liveTables.length) {
       ctx.response.status = 404;
       ctx.response.body = { error: "Floor plan not found" };
       return;
     }
 
-    const floorPlan = floorPlanRes.value as FloorPlan;
-
-    // Compute live table statuses using the restaurant-wide system clock context
+    // Compute live table statuses using the same shared source of truth.
     const baseStatuses = await computeAllTableStatuses(
       restaurantId,
-      floorPlan.tables,
+      liveTables,
     );
     const tableStatuses = await enrichTableStatusesWithReservationGuests(
       restaurantId,
@@ -427,22 +455,48 @@ ownerFloorRouter.get(
       return;
     }
 
-    // Get floor plan
-    const floorPlanKey = toKey("floor_plan", restaurantId);
-    const floorPlanRes = await kv.get(floorPlanKey);
+    // Build the live table list from the active floor layouts/sections first.
+    // This is the same source that host + waiter views use, so the shared status
+    // refresh stays aligned with what the map actually renders.
+    const layoutCandidates = await listFloorLayouts(restaurantId).catch(() => []);
+    let liveTables = (layoutCandidates ?? [])
+      .flatMap((layout) => Array.isArray((layout as any).tables) ? (layout as any).tables : [])
+      .map((table: any) => ({
+        id: String(table?.id ?? "").trim(),
+        tableNumber: Number(table?.tableNumber ?? table?.number ?? table?.table_number ?? 0) || 0,
+      }))
+      .filter((table) => table.id && table.tableNumber > 0);
 
-    if (!floorPlanRes.value) {
+    if (!liveTables.length) {
+      const sectionCandidates = await listFloorSections(restaurantId).catch(() => []);
+      liveTables = (sectionCandidates ?? [])
+        .flatMap((section) => Array.isArray((section as any).tables) ? (section as any).tables : [])
+        .map((table: any) => ({
+          id: String(table?.id ?? "").trim(),
+          tableNumber: Number(table?.tableNumber ?? table?.number ?? table?.table_number ?? 0) || 0,
+        }))
+        .filter((table) => table.id && table.tableNumber > 0);
+    }
+
+    if (!liveTables.length) {
+      const floorPlanKey = toKey("floor_plan", restaurantId);
+      const floorPlanRes = await kv.get(floorPlanKey);
+      if (floorPlanRes.value) {
+        const floorPlan = floorPlanRes.value as FloorPlan;
+        liveTables = Array.isArray((floorPlan as any).tables) ? (floorPlan as any).tables : [];
+      }
+    }
+
+    if (!liveTables.length) {
       ctx.response.status = 404;
       ctx.response.body = { error: "Floor plan not found" };
       return;
     }
 
-    const floorPlan = floorPlanRes.value as FloorPlan;
-
-    // Compute live table statuses using the restaurant-wide system clock context
+    // Compute live table statuses using the same shared source of truth.
     const baseStatuses = await computeAllTableStatuses(
       restaurantId,
-      floorPlan.tables,
+      liveTables,
     );
     const tableStatuses = await enrichTableStatusesWithReservationGuests(
       restaurantId,

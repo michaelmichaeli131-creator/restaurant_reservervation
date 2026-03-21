@@ -28,6 +28,8 @@ import {
   ensureTableNumberById,
   markTableDirty,
   computeAllTableStatuses as computeLiveTableStatuses,
+  computeTableStatus,
+  type TableStatusData,
 } from "../services/floor_service.ts";
 
 import {
@@ -1015,6 +1017,48 @@ hostRouter.post("/api/host/table/clean", async (ctx) => {
 
   ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
   ctx.response.body = { ok: true, cleaned, errors };
+});
+
+/** GET /api/host/table/status - exact shared status for one table */
+hostRouter.get("/api/host/table/status", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+
+  const sp = ctx.request.url.searchParams;
+  const ridRaw = (sp.get("restaurantId") ?? sp.get("rid") ?? "").toString();
+  const rid = resolveRestaurantIdForRequest(ctx, ridRaw);
+  if (!rid) return;
+  if (!(await requireRestaurantAccess(ctx, rid))) return;
+
+  const tableId = String(sp.get("tableId") ?? "").trim();
+  let tableNumber = toIntLoose((sp.get("table") ?? sp.get("tableNumber") ?? "").toString()) ?? 0;
+
+  if (!tableId && !tableNumber) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { ok: false, error: "missing_fields" };
+    return;
+  }
+
+  let resolvedTableId = tableId;
+  if (!tableNumber && resolvedTableId) {
+    tableNumber = (await getTableNumberById(rid, resolvedTableId)) ?? 0;
+  }
+  if (!resolvedTableId && tableNumber) {
+    resolvedTableId = (await getTableIdByNumber(rid, tableNumber)) ?? "";
+  }
+
+  if (!tableNumber || !resolvedTableId) {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = { ok: false, error: "table_not_found" };
+    return;
+  }
+
+  const statusEntry: TableStatusData = await computeTableStatus(rid, resolvedTableId, tableNumber);
+
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = {
+    ok: true,
+    status: statusEntry,
+  };
 });
 
 /** GET /api/host/table/info - Table occupant details for host */

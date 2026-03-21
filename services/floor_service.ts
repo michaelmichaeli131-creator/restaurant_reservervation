@@ -181,6 +181,7 @@ export async function setTableMappingsFromFloorPlan(
 
 export interface TableStatusOverride {
   tableId: string;
+  tableNumber?: number;
   status: TableStatus;
   updatedAt: number;
   updatedBy: string;
@@ -190,39 +191,71 @@ function kTableStatusOverride(restaurantId: string, tableId: string): Deno.KvKey
   return ["table_status", restaurantId, tableId];
 }
 
+function kTableStatusOverrideByNumber(restaurantId: string, tableNumber: number): Deno.KvKey {
+  return ["table_status_by_number", restaurantId, Number(tableNumber)];
+}
+
 /**
  * Set a manual status override for a table (e.g. "dirty" after order close).
  * Set to "empty" to clear the override.
+ *
+ * The override is written both by floor table id and by table number so that
+ * host, waiter, and live-floor views can all resolve the same shared status
+ * even if they loaded the table from different layout snapshots.
  */
 export async function setTableStatusOverride(
   restaurantId: string,
   tableId: string,
   status: TableStatus,
   userId: string,
+  tableNumber?: number | null,
 ): Promise<void> {
+  const normalizedTableId = String(tableId || "").trim();
+  const normalizedTableNumber = Number(tableNumber || 0) || 0;
+  const writes: Promise<unknown>[] = [];
+
   if (status === "empty") {
-    // Clear override — let computed status take over
-    await kv.delete(kTableStatusOverride(restaurantId, tableId));
+    if (normalizedTableId) writes.push(kv.delete(kTableStatusOverride(restaurantId, normalizedTableId)));
+    if (normalizedTableNumber > 0) writes.push(kv.delete(kTableStatusOverrideByNumber(restaurantId, normalizedTableNumber)));
+    await Promise.all(writes);
     return;
   }
+
   const data: TableStatusOverride = {
-    tableId,
+    tableId: normalizedTableId,
+    tableNumber: normalizedTableNumber > 0 ? normalizedTableNumber : undefined,
     status,
     updatedAt: Date.now(),
     updatedBy: userId,
   };
-  await kv.set(kTableStatusOverride(restaurantId, tableId), data);
+
+  if (normalizedTableId) writes.push(kv.set(kTableStatusOverride(restaurantId, normalizedTableId), data));
+  if (normalizedTableNumber > 0) writes.push(kv.set(kTableStatusOverrideByNumber(restaurantId, normalizedTableNumber), data));
+  await Promise.all(writes);
 }
 
 /**
  * Get the manual status override for a table, if any.
+ * First tries the exact floor table id, then falls back to the shared
+ * restaurant/tableNumber key so all operational views can read the same state.
  */
 export async function getTableStatusOverride(
   restaurantId: string,
   tableId: string,
+  tableNumber?: number | null,
 ): Promise<TableStatusOverride | null> {
-  const res = await kv.get(kTableStatusOverride(restaurantId, tableId));
-  return res.value as TableStatusOverride | null;
+  const normalizedTableId = String(tableId || "").trim();
+  const normalizedTableNumber = Number(tableNumber || 0) || 0;
+
+  if (normalizedTableId) {
+    const byId = await kv.get(kTableStatusOverride(restaurantId, normalizedTableId));
+    if (byId.value) return byId.value as TableStatusOverride;
+  }
+  if (normalizedTableNumber > 0) {
+    const byNumber = await kv.get(kTableStatusOverrideByNumber(restaurantId, normalizedTableNumber));
+    if (byNumber.value) return byNumber.value as TableStatusOverride;
+  }
+  return null;
 }
 
 /**
@@ -233,7 +266,8 @@ export async function markTableDirty(
   tableId: string,
   userId: string,
 ): Promise<void> {
-  await setTableStatusOverride(restaurantId, tableId, "dirty", userId);
+  const tableNumber = await getTableNumberById(restaurantId, tableId);
+  await setTableStatusOverride(restaurantId, tableId, "dirty", userId, tableNumber);
 }
 
 /**
@@ -244,7 +278,8 @@ export async function markTableClean(
   tableId: string,
   userId: string,
 ): Promise<void> {
-  await setTableStatusOverride(restaurantId, tableId, "empty", userId);
+  const tableNumber = await getTableNumberById(restaurantId, tableId);
+  await setTableStatusOverride(restaurantId, tableId, "empty", userId, tableNumber);
 }
 
 // ========== SEATING + RESERVATION ENRICHMENT (for Table Details) ==========
@@ -412,7 +447,7 @@ export async function computeTableStatus(
   }
 
   // 3) Manual override (reserved/dirty)
-  const override = await getTableStatusOverride(restaurantId, floorTableId);
+  const override = await getTableStatusOverride(restaurantId, floorTableId, tableNumber);
   if (override && override.status !== "empty") {
     return {
       ...base,

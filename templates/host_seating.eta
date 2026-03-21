@@ -816,6 +816,32 @@
             if (!mergedInfo.time) mergedInfo.time = refreshedEntry.reservationTime || '';
           }
 
+          try {
+            const exactUrl = new URL('/api/host/table/status', window.location.origin);
+            exactUrl.searchParams.set('restaurantId', rid);
+            if (tableId) exactUrl.searchParams.set('tableId', tableId);
+            if (lookupTableNumber) exactUrl.searchParams.set('table', lookupTableNumber);
+            const exactRes = await fetch(exactUrl.toString(), {
+              method: 'GET',
+              headers: { 'Accept': 'application/json' },
+            });
+            const exactData = await exactRes.json().catch(function(){ return {}; });
+            if (requestId !== __hostTableInfoRequestId) return;
+
+            if (exactRes.ok && exactData && exactData.ok && exactData.status) {
+              refreshedEntry = setStatusEntry(exactData.status);
+              if (refreshedEntry) {
+                mergedInfo.tableNumber = refreshedEntry.tableNumber || mergedInfo.tableNumber;
+                mergedInfo.status = normalizeHostTableStatus(refreshedEntry.status || mergedInfo.status || 'empty');
+                mergedInfo.name = refreshedEntry.guestName || mergedInfo.name || '';
+                if (refreshedEntry.guestCount !== '' && refreshedEntry.guestCount != null) mergedInfo.people = refreshedEntry.guestCount;
+                mergedInfo.time = refreshedEntry.reservationTime || mergedInfo.time || '';
+              }
+            }
+          } catch (e) {
+            console.warn('[HOST] exact shared status lookup failed', e);
+          }
+
           const shouldLookupHostInfo = !!lookupTableNumber && (
             mergedInfo.status === 'occupied' ||
             mergedInfo.name === '' ||
@@ -839,7 +865,7 @@
                 refreshedEntry = setStatusEntry({
                   tableId: tableId,
                   tableNumber: Number(lookupTableNumber || 0) || tableNumber,
-                  status: 'occupied',
+                  status: mergedInfo.status === 'reserved' || mergedInfo.status === 'dirty' ? mergedInfo.status : 'occupied',
                   guestName: data.name || data.guestName || mergedInfo.name || '',
                   guestCount: (data.people != null && data.people !== '') ? data.people : mergedInfo.people,
                   reservationTime: data.time || mergedInfo.time || '',
@@ -848,7 +874,7 @@
                 mergedInfo.name = data.name || data.guestName || mergedInfo.name || '';
                 mergedInfo.people = (data.people != null && data.people !== '') ? data.people : mergedInfo.people;
                 mergedInfo.time = data.time || mergedInfo.time || '';
-                mergedInfo.status = 'occupied';
+                if (mergedInfo.status !== 'reserved' && mergedInfo.status !== 'dirty') mergedInfo.status = 'occupied';
               } else {
                 await ensureLiveHostStatuses(true);
                 refreshedEntry = getStatusEntryBySelection(tableId, tableNumber) || refreshedEntry;
