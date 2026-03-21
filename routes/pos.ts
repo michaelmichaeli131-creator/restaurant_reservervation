@@ -8,7 +8,7 @@ import { requireRestaurantAccess } from "../services/authz.ts";
 import { getRestaurant } from "../database.ts";
 import { getRestaurantSystemNow, splitIsoParts } from "../services/system_time.ts";
 import { isTableSeated } from "../services/seating_service.ts";
-import { getTableIdByNumber, markTableDirty, listFloorLayouts, ensureTableNumberById } from "../services/floor_service.ts";
+import { getTableIdByNumber, markTableDirty, listFloorLayouts, ensureTableNumberById, computeAllTableStatuses as computeLiveTableStatuses } from "../services/floor_service.ts";
 import {
   listItems,
   listCategories,
@@ -524,13 +524,27 @@ posRouter.get("/waiter/:rid", async (ctx) => {
   // Build tableNumber -> roomLabel map from floor layouts
   const layouts = await listFloorLayouts(rid).catch(() => []);
   const tableRoomMap = new Map<number, string>();
+  const liveTablesMap = new Map<string, { id: string; tableNumber: number }>();
   for (const layout of layouts) {
     const roomLabel = (layout as any).floorLabel || layout.name || "";
     for (const t of (layout.tables ?? [])) {
       const tn = Number(t.tableNumber);
+      const tableId = String((t as any).id || "").trim();
       if (tn > 0 && !tableRoomMap.has(tn)) tableRoomMap.set(tn, roomLabel);
+      if (tn > 0) {
+        const key = tableId || `tn:${tn}`;
+        if (!liveTablesMap.has(key)) liveTablesMap.set(key, { id: tableId || `table-${tn}`, tableNumber: tn });
+      }
     }
   }
+  const waiterStatuses = await computeLiveTableStatuses(rid, Array.from(liveTablesMap.values())).catch(() => []);
+  const waiterStatusStats = waiterStatuses.reduce((acc: any, entry: any) => {
+    const key = String(entry?.status || 'empty').toLowerCase();
+    if (acc[key] == null) acc[key] = 0;
+    acc[key] += 1;
+    acc.total += 1;
+    return acc;
+  }, { total: 0, occupied: 0, reserved: 0, dirty: 0, empty: 0 });
 
   const enriched: any[] = [];
   const seenTables = new Set<number>();
@@ -565,6 +579,8 @@ posRouter.get("/waiter/:rid", async (ctx) => {
     restaurant: r,
     rid,
     openTables: enriched,
+    waiterStatuses,
+    waiterStatusStats,
     systemNowIso: systemNowParts.iso,
     systemNowDate: systemNowParts.date,
     systemNowTime: systemNowParts.time,

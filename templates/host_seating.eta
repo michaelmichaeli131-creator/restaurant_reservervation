@@ -768,7 +768,6 @@
       }
 
       const requestId = ++__hostTableInfoRequestId;
-      await ensureLiveHostStatuses(false);
       let statusEntry = getStatusEntryBySelection(tableId, tableNumber);
       const detailStatus = normalizeHostTableStatus(
         (detail && (detail.status || (detail.statusEntry && detail.statusEntry.status))) ||
@@ -790,55 +789,90 @@
         if (!baseInfo.people && seatNumber > 0) baseInfo.people = seatCapacity > 0 ? (seatNumber + ' / ' + seatCapacity) : seatNumber;
       }
 
+      if (!baseInfo.name && baseInfo.status === 'occupied') baseInfo.name = 'Active table';
+      openTableInfoPanel(baseInfo);
+      updateSelectionMission();
+
       const lookupTableNumber = String(tableNumber || (statusEntry && statusEntry.tableNumber) || '').trim();
-      if (lookupTableNumber) {
+      Promise.resolve().then(async function(){
         try {
-          const url = new URL('/api/host/table/info', window.location.origin);
-          url.searchParams.set('restaurantId', rid);
-          url.searchParams.set('table', lookupTableNumber);
-          const res = await fetch(url.toString(), {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' },
-          });
-          const data = await res.json().catch(function(){ return {}; });
+          await ensureLiveHostStatuses(false);
           if (requestId !== __hostTableInfoRequestId) return;
 
-          if (res.ok && data && data.ok) {
-            const mergedEntry = setStatusEntry({
-              tableId: tableId,
-              tableNumber: Number(lookupTableNumber || 0) || tableNumber,
-              status: 'occupied',
-              guestName: data.name || data.guestName || baseInfo.name || '',
-              guestCount: (data.people != null && data.people !== '') ? data.people : baseInfo.people,
-              reservationTime: data.time || baseInfo.time || '',
-            });
+          let refreshedEntry = getStatusEntryBySelection(tableId, tableNumber) || statusEntry;
+          const mergedInfo = {
+            tableNumber: baseInfo.tableNumber,
+            name: baseInfo.name,
+            people: baseInfo.people,
+            time: baseInfo.time,
+            status: baseInfo.status,
+          };
+
+          if (refreshedEntry) {
+            mergedInfo.tableNumber = refreshedEntry.tableNumber || mergedInfo.tableNumber;
+            mergedInfo.status = normalizeHostTableStatus(refreshedEntry.status || mergedInfo.status || 'empty');
+            if (!mergedInfo.name) mergedInfo.name = refreshedEntry.guestName || '';
+            if (mergedInfo.people === '' || mergedInfo.people == null) mergedInfo.people = refreshedEntry.guestCount !== '' ? refreshedEntry.guestCount : '';
+            if (!mergedInfo.time) mergedInfo.time = refreshedEntry.reservationTime || '';
+          }
+
+          const shouldLookupHostInfo = !!lookupTableNumber && (
+            mergedInfo.status === 'occupied' ||
+            mergedInfo.name === '' ||
+            mergedInfo.people === '' ||
+            mergedInfo.time === ''
+          );
+
+          if (shouldLookupHostInfo) {
+            try {
+              const url = new URL('/api/host/table/info', window.location.origin);
+              url.searchParams.set('restaurantId', rid);
+              url.searchParams.set('table', lookupTableNumber);
+              const res = await fetch(url.toString(), {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+              });
+              const data = await res.json().catch(function(){ return {}; });
+              if (requestId !== __hostTableInfoRequestId) return;
+
+              if (res.ok && data && data.ok) {
+                refreshedEntry = setStatusEntry({
+                  tableId: tableId,
+                  tableNumber: Number(lookupTableNumber || 0) || tableNumber,
+                  status: 'occupied',
+                  guestName: data.name || data.guestName || mergedInfo.name || '',
+                  guestCount: (data.people != null && data.people !== '') ? data.people : mergedInfo.people,
+                  reservationTime: data.time || mergedInfo.time || '',
+                });
+                mergedInfo.tableNumber = tableNumber || (refreshedEntry && refreshedEntry.tableNumber) || mergedInfo.tableNumber;
+                mergedInfo.name = data.name || data.guestName || mergedInfo.name || '';
+                mergedInfo.people = (data.people != null && data.people !== '') ? data.people : mergedInfo.people;
+                mergedInfo.time = data.time || mergedInfo.time || '';
+                mergedInfo.status = 'occupied';
+              } else {
+                await ensureLiveHostStatuses(true);
+                refreshedEntry = getStatusEntryBySelection(tableId, tableNumber) || refreshedEntry;
+                if (refreshedEntry) {
+                  mergedInfo.status = normalizeHostTableStatus(refreshedEntry.status || mergedInfo.status || 'empty');
+                  if (!mergedInfo.name) mergedInfo.name = refreshedEntry.guestName || '';
+                  if (mergedInfo.people === '' || mergedInfo.people == null) mergedInfo.people = refreshedEntry.guestCount !== '' ? refreshedEntry.guestCount : '';
+                  if (!mergedInfo.time) mergedInfo.time = refreshedEntry.reservationTime || '';
+                }
+              }
+            } catch (e) {
+              console.warn('[HOST] table info lookup failed, using local fallback', e);
+            }
+          }
+
+          if (!mergedInfo.name && mergedInfo.status === 'occupied') mergedInfo.name = 'Active table';
+          if (requestId === __hostTableInfoRequestId) {
+            openTableInfoPanel(mergedInfo);
             updateSelectionMission();
-            openTableInfoPanel({
-              tableNumber: tableNumber || (mergedEntry && mergedEntry.tableNumber) || '—',
-              name: data.name || data.guestName || baseInfo.name || '',
-              people: (data.people != null && data.people !== '') ? data.people : baseInfo.people,
-              time: data.time || baseInfo.time || '',
-              status: 'occupied',
-            });
-            return;
           }
-
-          await ensureLiveHostStatuses(true);
-          statusEntry = getStatusEntryBySelection(tableId, tableNumber) || statusEntry;
-          if (statusEntry) {
-            baseInfo.status = normalizeHostTableStatus(statusEntry.status || baseInfo.status || 'empty');
-            if (!baseInfo.name) baseInfo.name = statusEntry.guestName || '';
-            if (baseInfo.people === '' || baseInfo.people == null) baseInfo.people = statusEntry.guestCount !== '' ? statusEntry.guestCount : '';
-            if (!baseInfo.time) baseInfo.time = statusEntry.reservationTime || '';
-          }
-          updateSelectionMission();
         } catch (e) {
-          console.warn('[HOST] table info lookup failed, using local fallback', e);
+          console.warn('[HOST] syncTableInfoPanelFromSelection background refresh failed', e);
         }
-      }
-
-      if (!baseInfo.name && baseInfo.status === 'occupied') baseInfo.name = 'Active table';
-      if (requestId === __hostTableInfoRequestId) openTableInfoPanel(baseInfo);
+      });
     } catch (e) {
       console.warn('[HOST] syncTableInfoPanelFromSelection error', e);
     }

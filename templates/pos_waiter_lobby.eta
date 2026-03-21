@@ -16,6 +16,8 @@
 
   const restaurant = it.restaurant || {};
   const openTables = it.openTables || []; // מגיע מהשרת כמו בגרסה הישנה
+  const waiterStatuses = it.waiterStatuses || [];
+  const waiterStatusStats = it.waiterStatusStats || { total: 0, occupied: 0, reserved: 0, dirty: 0, empty: 0 };
   const rid = it.rid;
 %>
 
@@ -50,6 +52,23 @@
       <p class="muted small">
         <%= tt('pos.waiter.open_tables_help', 'List of all tables with open checks / active service. Click a row for table details, and the "Go to Order" button opens the POS screen for that table.') %>
       </p>
+
+      <section class="waiter-status-card" aria-label="Floor status sync">
+        <div class="waiter-status-card__header">
+          <div>
+            <div class="waiter-status-card__eyebrow">Floor status sync</div>
+            <strong class="waiter-status-card__title">Shared host statuses</strong>
+          </div>
+          <span class="waiter-status-card__badge" id="waiter-status-sync-state">Live</span>
+        </div>
+        <div class="waiter-status-grid" id="waiter-status-grid">
+          <div class="waiter-status-pill is-occupied"><span>Occupied</span><strong id="waiter-stat-occupied"><%= waiterStatusStats.occupied || 0 %></strong></div>
+          <div class="waiter-status-pill is-reserved"><span>Reserved</span><strong id="waiter-stat-reserved"><%= waiterStatusStats.reserved || 0 %></strong></div>
+          <div class="waiter-status-pill is-dirty"><span>Dirty</span><strong id="waiter-stat-dirty"><%= waiterStatusStats.dirty || 0 %></strong></div>
+          <div class="waiter-status-pill is-empty"><span>Available</span><strong id="waiter-stat-empty"><%= waiterStatusStats.empty || 0 %></strong></div>
+        </div>
+        <p class="waiter-status-card__note muted small">Updates from the host screen are reflected here automatically.</p>
+      </section>
 
       <% if (openTables.length) { %>
         <ul id="open-tables-list" class="list open-tables-list">
@@ -177,6 +196,10 @@
         </span>
       </div>
       <div class="tip-row">
+        <span class="tip-row-label">Service note</span>
+        <span class="tip-row-value" id="tip-service-note">—</span>
+      </div>
+      <div class="tip-row">
         <span class="tip-row-label"><%= tt('pos.waiter.items_label', 'Number of Items') %></span>
         <span class="tip-row-value" id="tip-items-count">—</span>
       </div>
@@ -233,8 +256,245 @@
     window.addEventListener('resize', function(){ if(window.innerWidth > 820) close(); });
   })();
 </script>
+<script>
+  (function(){
+    const rid = <%- JSON.stringify(rid) %>;
+    const seedStatuses = <%- JSON.stringify(waiterStatuses) %>;
+    const statusByNumber = Object.create(null);
+    const statusById = Object.create(null);
+    let selectedTableNumber = 0;
+    let selectedTableId = "";
+    let refreshInFlight = null;
+    let lastLoadedAt = 0;
 
+    function normalizeStatus(status){
+      const s = String(status || '').toLowerCase();
+      if (s === 'open') return 'occupied';
+      if (s === 'free') return 'empty';
+      if (s === 'needs_cleaning') return 'dirty';
+      return s || 'empty';
+    }
 
+    function setStatusEntry(entry){
+      if (!entry) return null;
+      const safe = {
+        tableId: String(entry.tableId || ''),
+        tableNumber: Number(entry.tableNumber || 0) || 0,
+        status: normalizeStatus(entry.status),
+        guestName: String(entry.guestName || entry.name || ''),
+        guestCount: entry.guestCount != null ? entry.guestCount : (entry.people != null ? entry.people : ''),
+        reservationTime: String(entry.reservationTime || entry.time || ''),
+        itemsCount: entry.itemsCount != null ? entry.itemsCount : '',
+        subtotal: entry.subtotal != null ? entry.subtotal : '',
+      };
+      if (safe.tableId) statusById[safe.tableId] = safe;
+      if (safe.tableNumber > 0) statusByNumber[String(safe.tableNumber)] = safe;
+      return safe;
+    }
+
+    seedStatuses.forEach(setStatusEntry);
+
+    const panel = document.getElementById('table-info-panel');
+    const backdrop = document.getElementById('table-info-backdrop');
+    const closeBtn = document.getElementById('tip-close-btn');
+    const closeSecondary = document.getElementById('tip-close-secondary');
+    const goOrderBtn = document.getElementById('tip-go-order');
+    const tipTableNumber = document.getElementById('tip-table-number');
+    const tipGuestName = document.getElementById('tip-guest-name');
+    const tipPeople = document.getElementById('tip-people');
+    const tipTime = document.getElementById('tip-time');
+    const tipStatus = document.getElementById('tip-status');
+    const tipServiceNote = document.getElementById('tip-service-note');
+    const tipItemsCount = document.getElementById('tip-items-count');
+    const tipSubtotal = document.getElementById('tip-subtotal');
+    const syncBadge = document.getElementById('waiter-status-sync-state');
+    const statOccupied = document.getElementById('waiter-stat-occupied');
+    const statReserved = document.getElementById('waiter-stat-reserved');
+    const statDirty = document.getElementById('waiter-stat-dirty');
+    const statEmpty = document.getElementById('waiter-stat-empty');
+
+    function mapStatusLabel(status){
+      const s = normalizeStatus(status);
+      if (s === 'occupied') return 'Occupied';
+      if (s === 'reserved') return 'Reserved';
+      if (s === 'dirty') return 'Dirty';
+      if (s === 'empty') return 'Available';
+      return status || 'Unknown';
+    }
+
+    function mapStatusClass(status){
+      const s = normalizeStatus(status);
+      if (s === 'occupied') return 'tip-status-occupied';
+      if (s === 'reserved') return 'tip-status-reserved';
+      if (s === 'dirty') return 'tip-status-dirty';
+      if (s === 'empty') return 'tip-status-empty';
+      return 'tip-status-unknown';
+    }
+
+    function serviceNoteForStatus(status){
+      const s = normalizeStatus(status);
+      if (s === 'occupied') return 'Guests are currently being served here.';
+      if (s === 'reserved') return 'Keep this table ready for the upcoming party.';
+      if (s === 'dirty') return 'This table needs cleanup before it can be seated again.';
+      return 'This table is currently available for seating.';
+    }
+
+    function updateStats(){
+      const counts = { occupied: 0, reserved: 0, dirty: 0, empty: 0 };
+      Object.values(statusByNumber).forEach(function(entry){
+        const key = normalizeStatus(entry.status);
+        if (counts[key] == null) counts[key] = 0;
+        counts[key] += 1;
+      });
+      if (statOccupied) statOccupied.textContent = String(counts.occupied || 0);
+      if (statReserved) statReserved.textContent = String(counts.reserved || 0);
+      if (statDirty) statDirty.textContent = String(counts.dirty || 0);
+      if (statEmpty) statEmpty.textContent = String(counts.empty || 0);
+    }
+
+    function setSyncBadge(label, mode){
+      if (!syncBadge) return;
+      syncBadge.textContent = label;
+      syncBadge.dataset.mode = mode || 'live';
+    }
+
+    function openPanel(entry){
+      if (!panel || !entry) return;
+      const status = normalizeStatus(entry.status);
+      tipTableNumber.textContent = entry.tableNumber || '—';
+      tipGuestName.textContent = entry.guestName || '—';
+      tipPeople.textContent = (entry.guestCount !== '' && entry.guestCount != null) ? entry.guestCount : '—';
+      tipTime.textContent = entry.reservationTime || '—';
+      tipItemsCount.textContent = (entry.itemsCount !== '' && entry.itemsCount != null) ? entry.itemsCount : '—';
+      tipSubtotal.textContent = (entry.subtotal !== '' && entry.subtotal != null) ? (String(entry.subtotal) + ' ₪') : '—';
+      tipServiceNote.textContent = serviceNoteForStatus(status);
+      tipStatus.textContent = mapStatusLabel(status);
+      tipStatus.className = 'tip-status-badge ' + mapStatusClass(status);
+      if (goOrderBtn) {
+        const canOpen = status === 'occupied' && entry.tableNumber > 0;
+        goOrderBtn.disabled = !canOpen;
+        goOrderBtn.dataset.tableNumber = canOpen ? String(entry.tableNumber) : '';
+      }
+      panel.classList.add('open');
+      backdrop.classList.add('open');
+      panel.setAttribute('aria-hidden', 'false');
+    }
+
+    function closePanel(){
+      if (!panel) return;
+      panel.classList.remove('open');
+      backdrop.classList.remove('open');
+      panel.setAttribute('aria-hidden', 'true');
+    }
+
+    async function ensureLiveStatuses(force){
+      const now = Date.now();
+      if (!force && lastLoadedAt && (now - lastLoadedAt) < 10000) return;
+      if (refreshInFlight) return refreshInFlight;
+      refreshInFlight = fetch('/api/floor-plans/' + encodeURIComponent(rid) + '/statuses', {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      }).then(async function(res){
+        const data = await res.json().catch(function(){ return []; });
+        if (!res.ok || !Array.isArray(data)) throw new Error('waiter_status_refresh_failed');
+        data.forEach(setStatusEntry);
+        lastLoadedAt = Date.now();
+        updateStats();
+        setSyncBadge('Live', 'live');
+      }).catch(function(err){
+        console.warn('[WAITER] status refresh failed', err);
+        setSyncBadge('Stale', 'stale');
+      }).finally(function(){
+        refreshInFlight = null;
+      });
+      return refreshInFlight;
+    }
+
+    function getEntry(tableId, tableNumber){
+      const idKey = String(tableId || '').trim();
+      if (idKey && statusById[idKey]) return statusById[idKey];
+      const numKey = String(Number(tableNumber || 0) || 0);
+      if (numKey !== '0' && statusByNumber[numKey]) return statusByNumber[numKey];
+      return null;
+    }
+
+    function syncFromSelection(detail){
+      const root = document.getElementById('sb-floor-root');
+      const ds = root && root.dataset ? root.dataset : {};
+      const tableIds = detail && Array.isArray(detail.tableIds) ? detail.tableIds : [];
+      const tableNumbers = detail && Array.isArray(detail.tableNumbers) ? detail.tableNumbers : [];
+      selectedTableId = String(tableIds[0] || ds.selectedTableId || '').trim();
+      selectedTableNumber = Number(tableNumbers[0] || ds.selectedTableNumber || 0) || 0;
+      if (!selectedTableId && !selectedTableNumber) {
+        closePanel();
+        return;
+      }
+      const baseEntry = getEntry(selectedTableId, selectedTableNumber) || {
+        tableId: selectedTableId,
+        tableNumber: selectedTableNumber,
+        status: 'empty',
+        guestName: '',
+        guestCount: '',
+        reservationTime: '',
+        itemsCount: '',
+        subtotal: '',
+      };
+      openPanel(baseEntry);
+      Promise.resolve().then(async function(){
+        await ensureLiveStatuses(false);
+        const refreshed = getEntry(selectedTableId, selectedTableNumber);
+        if (refreshed && Number(refreshed.tableNumber || 0) === Number(selectedTableNumber || refreshed.tableNumber || 0)) {
+          openPanel(refreshed);
+        }
+      });
+    }
+
+    window.addEventListener('sb-floor-selection', function(ev){
+      syncFromSelection(ev && ev.detail ? ev.detail : {});
+    });
+
+    document.querySelectorAll('.open-item').forEach(function(item){
+      item.addEventListener('click', function(ev){
+        const target = ev.target;
+        if (target && target.closest && target.closest('.open-pos-link')) return;
+        const tableNumber = Number(item.dataset.table || 0) || 0;
+        selectedTableId = '';
+        selectedTableNumber = tableNumber;
+        const entry = getEntry('', tableNumber) || {
+          tableNumber: tableNumber,
+          status: item.dataset.status || 'occupied',
+          guestName: item.dataset.name || '',
+          guestCount: item.dataset.people || '',
+          reservationTime: item.dataset.time || '',
+          itemsCount: item.dataset.itemsCount || '',
+          subtotal: item.dataset.subtotal || '',
+        };
+        openPanel(entry);
+        ensureLiveStatuses(false).then(function(){
+          const refreshed = getEntry('', tableNumber);
+          if (refreshed) openPanel(refreshed);
+        });
+      });
+    });
+
+    if (closeBtn) closeBtn.addEventListener('click', closePanel);
+    if (closeSecondary) closeSecondary.addEventListener('click', closePanel);
+    if (backdrop) backdrop.addEventListener('click', closePanel);
+    if (goOrderBtn) {
+      goOrderBtn.addEventListener('click', function(){
+        const tableNumber = String(goOrderBtn.dataset.tableNumber || '').trim();
+        if (!tableNumber) return;
+        window.location.href = '/waiter/' + encodeURIComponent(rid) + '/' + encodeURIComponent(tableNumber);
+      });
+    }
+
+    updateStats();
+    setSyncBadge('Live', 'live');
+    ensureLiveStatuses(false);
+    window.setInterval(function(){ ensureLiveStatuses(true); }, 10000);
+    document.addEventListener('visibilitychange', function(){ if (!document.hidden) ensureLiveStatuses(true); });
+  })();
+</script>
 
 <style>
   .waiter.container{
@@ -275,6 +535,77 @@
     color: var(--ink, #e6e8ef);
     box-shadow: 0 10px 30px rgba(0,0,0,.35);
   }
+
+  .waiter-status-card{
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: 16px;
+    border: 1px solid rgba(148,163,184,.18);
+    background: linear-gradient(180deg, rgba(15,23,42,.92), rgba(15,23,42,.76));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  .waiter-status-card__header{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:12px;
+  }
+  .waiter-status-card__eyebrow{
+    font-size:11px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:#93c5fd;
+    font-weight:800;
+  }
+  .waiter-status-card__title{
+    display:block;
+    margin-top:4px;
+    font-size:15px;
+    color:#f8fafc;
+  }
+  .waiter-status-card__badge{
+    padding:6px 10px;
+    border-radius:999px;
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    background:rgba(34,197,94,.16);
+    color:#bbf7d0;
+    border:1px solid rgba(34,197,94,.34);
+  }
+  .waiter-status-card__badge[data-mode="stale"]{
+    background:rgba(245,158,11,.16);
+    color:#fde68a;
+    border-color:rgba(245,158,11,.34);
+  }
+  .waiter-status-grid{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+  }
+  .waiter-status-pill{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    padding:10px 12px;
+    border-radius:14px;
+    border:1px solid rgba(148,163,184,.16);
+    background:rgba(255,255,255,.04);
+    font-size:12px;
+    color:#cbd5e1;
+  }
+  .waiter-status-pill strong{
+    font-size:16px;
+    color:#f8fafc;
+  }
+  .waiter-status-pill.is-occupied{ background:rgba(239,68,68,.12); border-color:rgba(239,68,68,.24); }
+  .waiter-status-pill.is-reserved{ background:rgba(245,158,11,.12); border-color:rgba(245,158,11,.24); }
+  .waiter-status-pill.is-dirty{ background:rgba(168,85,247,.14); border-color:rgba(168,85,247,.26); }
+  .waiter-status-pill.is-empty{ background:rgba(34,197,94,.10); border-color:rgba(34,197,94,.22); }
+  .waiter-status-card__note{ margin:12px 0 0; }
 
   .list{
     list-style:none;
