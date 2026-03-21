@@ -26,6 +26,7 @@ import {
   addOrderItem,
   getItem,
   getOrCreateOpenOrder,
+  updateOpenOrderServiceNote,
   updateOrderItemStatus,
   listBillsForRestaurant, // ✅ לסטטיסטיקות + חשבונות
   getBill,                // ✅ להצגת חשבונית
@@ -857,6 +858,35 @@ posRouter.get("/api/pos/table-accounts", async (ctx) => {
   );
   ctx.response.body = JSON.stringify({ ok: true, table, accounts });
 });
+
+posRouter.post("/api/pos/table-account/note", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+  const body = await ctx.request.body.json();
+  const restaurantId0 = String(body.restaurantId ?? "");
+  const restaurantId = resolveRestaurantIdForStaff(ctx, restaurantId0);
+  if (!restaurantId) return;
+  if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
+
+  const table = Number(body.table ?? 0);
+  const accountId = String(body.accountId ?? "").trim() || undefined;
+  const serviceNote = String(body.serviceNote ?? body.note ?? "").trim();
+
+  if (!restaurantId || !table) ctx.throw(Status.BadRequest, "missing fields");
+
+  const order = await updateOpenOrderServiceNote(restaurantId, table, {
+    accountId,
+    serviceNote,
+  });
+  if (!order) ctx.throw(Status.NotFound, "open order not found");
+
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = JSON.stringify({
+    ok: true,
+    accountId: order.accountId ?? accountId ?? "main",
+    serviceNote: order.serviceNote ?? "",
+  });
+});
+
 
 posRouter.post("/api/pos/table-account/open", async (ctx) => {
   if (!requireStaff(ctx)) return;

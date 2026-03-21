@@ -67,11 +67,11 @@
         if (btnCancel) btnCancel.remove();
         const btnServe = row.querySelector(".btn-mark-served");
         if (btnServe) btnServe.remove();
-        const statusCell = row.querySelector(".js-status") ||
+        const statusLabel = row.querySelector(".js-status-label") || row.querySelector(".js-status") ||
           row.querySelector("td.col-status");
-        if (statusCell) {
-          statusCell.textContent = statusCancelledText;
-          statusCell.classList.add("muted");
+        if (statusLabel) {
+          statusLabel.textContent = statusCancelledText;
+          statusLabel.classList.add("muted");
         }
         recalcTotals();
       }
@@ -106,10 +106,10 @@
           "status-ready",
         );
         row.classList.add("status-served");
-        const statusCell = row.querySelector(".js-status") ||
+        const statusLabel = row.querySelector(".js-status-label") || row.querySelector(".js-status") ||
           row.querySelector("td.col-status");
-        if (statusCell) {
-          statusCell.textContent = statusServedText;
+        if (statusLabel) {
+          statusLabel.textContent = statusServedText;
         }
         const btnServe = row.querySelector(".btn-mark-served");
         if (btnServe) btnServe.remove();

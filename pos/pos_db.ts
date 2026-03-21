@@ -56,6 +56,7 @@ export interface Order {
   seatIds?: string[];
   reservationId?: string;
   guestName?: string;
+  serviceNote?: string;
   status: "open" | "closed" | "cancelled";
   createdAt: number;
   closedAt?: number;
@@ -101,6 +102,7 @@ export interface Bill {
   seatId?: string;
   seatIds?: string[];
   reservationId?: string;
+  serviceNote?: string;
   createdAt: number;
   items: OrderItem[];
   totals: BillTotals;
@@ -117,6 +119,7 @@ export interface TableAccountSummary {
   seatId?: string;
   seatIds?: string[];
   reservationId?: string;
+  serviceNote?: string;
   createdAt: number;
   itemsCount: number;
   subtotal: number;
@@ -299,6 +302,7 @@ export async function listTableAccounts(
       seatId: order.seatId,
       seatIds: normalizeSeatIds((order as any).seatIds, order.seatId),
       reservationId: (order as any).reservationId || undefined,
+      serviceNote: order.serviceNote || undefined,
       createdAt: order.createdAt,
       itemsCount,
       subtotal,
@@ -439,6 +443,7 @@ export async function getOrCreateOpenOrder(
     seatIds?: string[];
     reservationId?: string;
     guestName?: string;
+    serviceNote?: string;
   } = {},
 ): Promise<Order> {
   const accountId = normalizeAccountId(options.accountId);
@@ -460,6 +465,7 @@ export async function getOrCreateOpenOrder(
       seatIds: mergedSeatIds,
       reservationId: String(options.reservationId ?? (cur as any).reservationId ?? "").trim() || undefined,
       guestName: options.guestName || cur.guestName || undefined,
+      serviceNote: String(options.serviceNote ?? cur.serviceNote ?? "").trim() || undefined,
     };
     const changed = JSON.stringify({
       accountLabel: cur.accountLabel,
@@ -469,6 +475,7 @@ export async function getOrCreateOpenOrder(
       seatIds: normalizeSeatIds((cur as any).seatIds, cur.seatId),
       reservationId: (cur as any).reservationId || undefined,
       guestName: cur.guestName || undefined,
+      serviceNote: cur.serviceNote || undefined,
     }) !== JSON.stringify({
       accountLabel: nextOrder.accountLabel,
       locationType: nextOrder.locationType,
@@ -477,6 +484,7 @@ export async function getOrCreateOpenOrder(
       seatIds: nextOrder.seatIds || [],
       reservationId: (nextOrder as any).reservationId || undefined,
       guestName: nextOrder.guestName || undefined,
+      serviceNote: nextOrder.serviceNote || undefined,
     });
     if (changed) {
       const tx = kv.atomic()
@@ -504,6 +512,7 @@ export async function getOrCreateOpenOrder(
     seatIds: nextSeatIds,
     reservationId: String(options.reservationId ?? "").trim() || undefined,
     guestName: options.guestName || undefined,
+    serviceNote: String(options.serviceNote ?? "").trim() || undefined,
     status: "open",
     createdAt: Date.now(),
   };
@@ -518,6 +527,38 @@ export async function getOrCreateOpenOrder(
     throw new Error("failed_create_order");
   }
   return order;
+}
+
+export async function updateOpenOrderServiceNote(
+  restaurantId: string,
+  table: number,
+  options: { accountId?: string; serviceNote?: string | null } = {},
+): Promise<Order | null> {
+  const accountId = normalizeAccountId(options.accountId);
+  const cur = await getOpenOrderForAccount(restaurantId, table, accountId);
+  if (!cur) return null;
+
+  const nextServiceNote = String(options.serviceNote ?? "").trim() || undefined;
+  const nextOrder: Order = {
+    ...cur,
+    serviceNote: nextServiceNote,
+  };
+
+  const orderKey = kOrder(restaurantId, cur.id);
+  const orderRow = await kv.get<Order>(orderKey);
+  const base = orderRow.value ?? cur;
+  const updated: Order = {
+    ...base,
+    serviceNote: nextServiceNote,
+  };
+
+  const tx = kv.atomic()
+    .set(orderKey, updated)
+    .set(kOrderByTableAccount(restaurantId, table, accountId), updated);
+  if (accountId === "main") tx.set(kOrderByTable(restaurantId, table), updated);
+  const res = await tx.commit();
+  if (!res.ok) return null;
+  return updated;
 }
 
 export async function addOrderItem(params: {

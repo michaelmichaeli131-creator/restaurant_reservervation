@@ -39,6 +39,7 @@
     ? 'Reservation tab'
     : (isBarSeatMode ? 'Seat service' : 'Dining table');
   const currentCheckLabel = currentAccount?.accountLabel || (currentAccountId === 'main' ? tt('pos.waiter.main_check', 'Main Check') : currentAccountId);
+  const currentServiceNote = String(currentAccount?.serviceNote || '').trim();
   const itemStatusCounts = items.reduce((acc, row) => {
     const key = String(row && row.status || 'received').toLowerCase();
     if (acc[key] == null) acc[key] = 0;
@@ -321,6 +322,9 @@
         data-dest-kitchen-text="<%= tt('owner.menu.dest_kitchen', 'Kitchen') %>"
         data-created-text="<%= tt('pos.waiter.created_at', 'Created') %>"
         data-received-text="<%= tt('pos.status.received', 'Received') %>"
+        data-in-progress-text="<%= tt('pos.status.in_progress', 'In Progress') %>"
+        data-ready-text="<%= tt('pos.status.ready', 'Ready') %>"
+        data-served-text="<%= tt('pos.status.served', 'Served') %>"
         data-cancel-text="<%= tt('common.btn_cancel', 'Cancel') %>"
         data-mark-served-text="<%= tt('pos.waiter.btn_mark_served', 'Mark as Served') %>"
         data-added-text="<%= tt('pos.menu.added_to_order', 'Added to order') %>"
@@ -407,6 +411,28 @@
         </div>
       </div>
 
+      <section class="sb-wt-service-note-card" aria-label="Order note">
+        <div class="sb-wt-service-note-card__head">
+          <div>
+            <div class="sb-wt-service-note-card__label">Order note</div>
+            <div class="sb-wt-service-note-card__hint">Saved on the active check and available across the waiter flow.</div>
+          </div>
+          <button type="button" id="btn-save-order-note" class="btn ghost md">Save note</button>
+        </div>
+        <textarea
+          id="order-service-note"
+          class="sb-wt-service-note-input"
+          dir="auto"
+          maxlength="500"
+          placeholder="Add a shared service note for this check..."
+          data-initial=""
+        ><%= currentServiceNote %></textarea>
+        <div class="sb-wt-service-note-card__foot">
+          <span id="order-service-note-status" class="sb-wt-service-note-status"><%= currentServiceNote ? 'Saved to this check' : 'No shared note yet' %></span>
+          <span class="sb-wt-service-note-meta">Visible for the active waiter order.</span>
+        </div>
+      </section>
+
       <div id="order-items" class="sb-wt-items" aria-live="polite">
         <% if (items.length) { %>
           <% items.forEach(function(row){ 
@@ -426,7 +452,7 @@
             >
               <div class="sb-wt-item-shell">
                 <div class="sb-wt-item-rail">
-                  <span class="sb-wt-item-state"><span class="sb-wt-item-state__dot" aria-hidden="true"><%= orderStatusDot(row.status) %></span><%= statusLabel %></span>
+                  <span class="sb-wt-item-state"><span class="sb-wt-item-state__dot" aria-hidden="true"><%= orderStatusDot(row.status) %></span><span class="js-status-label"><%= statusLabel %></span></span>
                   <span class="sb-wt-item-rail-chip"><%= row.destination === 'bar' ? tt('owner.menu.dest_bar', 'Bar') : tt('owner.menu.dest_kitchen', 'Kitchen') %></span>
                   <span class="sb-wt-item-rail-chip">x<%= row.quantity %></span>
                   <span class="sb-wt-item-rail-chip"><%= tt('pos.waiter.created_at', 'Created') %> <%= createdAtText %></span>
@@ -449,25 +475,25 @@
                     </div>
 
                     <% if (row.notes) { %>
-                      <div class="sb-wt-item-notes"><strong>Note</strong><span><%= row.notes %></span></div>
+                      <div class="sb-wt-item-notes"><strong>Note</strong><span class="sb-wt-item-notes__text"><%= row.notes %></span></div>
                     <% } %>
 
                     <div class="sb-wt-item-info-grid">
                       <div class="sb-wt-item-info-card">
                         <span class="sb-wt-item-info-card__label">Destination</span>
-                        <strong><%= row.destination === 'bar' ? tt('owner.menu.dest_bar', 'Bar') : tt('owner.menu.dest_kitchen', 'Kitchen') %></strong>
+                        <strong class="sb-wt-item-info-card__value"><%= row.destination === 'bar' ? tt('owner.menu.dest_bar', 'Bar') : tt('owner.menu.dest_kitchen', 'Kitchen') %></strong>
                       </div>
                       <div class="sb-wt-item-info-card">
                         <span class="sb-wt-item-info-card__label">Quantity</span>
-                        <strong>x<%= row.quantity %></strong>
+                        <strong class="sb-wt-item-info-card__value">x<%= row.quantity %></strong>
                       </div>
                       <div class="sb-wt-item-info-card">
                         <span class="sb-wt-item-info-card__label">Status</span>
-                        <strong><%= statusLabel %></strong>
+                        <strong class="sb-wt-item-info-card__value"><%= statusLabel %></strong>
                       </div>
                       <div class="sb-wt-item-info-card">
                         <span class="sb-wt-item-info-card__label">Created</span>
-                        <strong><%= createdAtText %></strong>
+                        <strong class="sb-wt-item-info-card__value"><%= createdAtText %></strong>
                       </div>
                     </div>
                   </div>
@@ -554,3 +580,4 @@
 
 <!-- תפריט אינטראקטיבי + הוספת מנות -->
 <script src="/public/js/pos_waiter_menu.js?v=<%= it.BUILD_TAG || '' %>"></script>
+<script src="/public/js/pos_waiter_note.js?v=<%= it.BUILD_TAG || '' %>"></script>

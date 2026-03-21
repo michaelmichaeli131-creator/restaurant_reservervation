@@ -298,29 +298,76 @@
         const destText = item.destination === 'bar' ? destBarText : destKitchenText;
         const notesHtml = item.notes ? `<div class="sb-wt-item-notes">${escapeHtml(item.notes)}</div>` : '';
         const showServe = item.status === 'ready' || item.status === 'in_progress';
-
+        const statusLabel = item.status === 'ready' ? statusTextReady
+          : item.status === 'in_progress' ? statusTextInProgress
+          : item.status === 'served' ? statusTextServed
+          : statusTextReceived;
+        const statusHint = item.status === 'ready'
+          ? 'Ready to run to the guest'
+          : item.status === 'in_progress'
+            ? 'Being prepared now'
+            : item.status === 'served'
+              ? 'Delivered to the table'
+              : 'Queued for the line';
+        const nextActionText = item.status === 'ready'
+          ? 'Serve to guest'
+          : item.status === 'in_progress'
+            ? 'Track kitchen progress'
+            : item.status === 'served'
+              ? 'Completed'
+              : 'Waiting for prep';
         rowEl.innerHTML = `
-          <div class="sb-wt-item-main">
-            <div class="sb-wt-item-title">${escapeHtml(item.name || '')}</div>
-            ${notesHtml}
-            <div class="sb-wt-item-meta muted">
-              <span class="sb-wt-pill dest">${escapeHtml(destText)}</span>
-              <span class="sb-dot">•</span>
-              <span>x${escapeHtml(String(item.quantity || 1))}</span>
-              <span class="sb-dot">•</span>
-              <span>${escapeHtml(createdText)} ${escapeHtml(timeStr)}</span>
+          <div class="sb-wt-item-shell">
+            <div class="sb-wt-item-rail">
+              <span class="sb-wt-item-state"><span class="sb-wt-item-state__dot" aria-hidden="true">•</span><span class="js-status-label">${escapeHtml(statusLabel)}</span></span>
+              <span class="sb-wt-item-rail-chip">${escapeHtml(destText)}</span>
+              <span class="sb-wt-item-rail-chip">x${escapeHtml(String(item.quantity || 1))}</span>
+              <span class="sb-wt-item-rail-chip">${escapeHtml(createdText)} ${escapeHtml(timeStr)}</span>
             </div>
-          </div>
-          <div class="sb-wt-item-side">
-            <div class="sb-wt-item-top">
-              <span class="sb-wt-pill status js-status">${escapeHtml(receivedText)}</span>
-              <div class="sb-wt-item-total">${(Number(item.unitPrice || 0) * Number(item.quantity || 0)).toFixed(2)} ${escapeHtml(currency)}</div>
-            </div>
-            <div class="sb-wt-item-actions">
-              <button type="button" class="btn ghost md btn-cancel-item" title="${escapeHtml(cancelText)}">
-                <span class="icon">🗑</span> ${escapeHtml(cancelText)}
-              </button>
-              ${showServe ? `<button type="button" class="btn ghost md btn-mark-served" title="${escapeHtml(markServedText)}"><span class="icon">✅</span> ${escapeHtml(markServedText)}</button>` : ''}
+            <div class="sb-wt-item-content">
+              <div class="sb-wt-item-main">
+                <div class="sb-wt-item-heading">
+                  <div>
+                    <div class="sb-wt-item-title">${escapeHtml(item.name || '')}</div>
+                    <div class="sb-wt-item-subtitle">${escapeHtml(statusHint)}</div>
+                  </div>
+                  <div class="sb-wt-item-total-wrap">
+                    <div class="sb-wt-item-total-label">Line total</div>
+                    <div class="sb-wt-item-total">${(Number(item.unitPrice || 0) * Number(item.quantity || 0)).toFixed(2)} ${escapeHtml(currency)}</div>
+                  </div>
+                </div>
+                ${notesHtml ? `<div class="sb-wt-item-notes"><strong>Note</strong><span class="sb-wt-item-notes__text">${escapeHtml(item.notes)}</span></div>` : ''}
+                <div class="sb-wt-item-info-grid">
+                  <div class="sb-wt-item-info-card">
+                    <span class="sb-wt-item-info-card__label">Destination</span>
+                    <strong class="sb-wt-item-info-card__value">${escapeHtml(destText)}</strong>
+                  </div>
+                  <div class="sb-wt-item-info-card">
+                    <span class="sb-wt-item-info-card__label">Quantity</span>
+                    <strong class="sb-wt-item-info-card__value">x${escapeHtml(String(item.quantity || 1))}</strong>
+                  </div>
+                  <div class="sb-wt-item-info-card">
+                    <span class="sb-wt-item-info-card__label">Status</span>
+                    <strong class="sb-wt-item-info-card__value">${escapeHtml(statusLabel)}</strong>
+                  </div>
+                  <div class="sb-wt-item-info-card">
+                    <span class="sb-wt-item-info-card__label">Created</span>
+                    <strong class="sb-wt-item-info-card__value">${escapeHtml(timeStr)}</strong>
+                  </div>
+                </div>
+              </div>
+              <div class="sb-wt-item-side">
+                <div class="sb-wt-item-side-card">
+                  <div class="sb-wt-item-side-card__label">Next action</div>
+                  <div class="sb-wt-item-side-card__value">${escapeHtml(nextActionText)}</div>
+                </div>
+                <div class="sb-wt-item-actions">
+                  <button type="button" class="btn ghost md btn-cancel-item" title="${escapeHtml(cancelText)}">
+                    <span class="icon">🗑</span> ${escapeHtml(cancelText)}
+                  </button>
+                  ${showServe ? `<button type="button" class="btn ghost md btn-mark-served" title="${escapeHtml(markServedText)}"><span class="icon">✅</span> ${escapeHtml(markServedText)}</button>` : ''}
+                </div>
+              </div>
             </div>
           </div>
         `;
