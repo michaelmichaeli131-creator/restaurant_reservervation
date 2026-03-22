@@ -149,6 +149,24 @@
     },
     "head": {
       "dashboard": "პანელი · ადმინისტრატორი"
+    },
+    "ui": {
+      "login_help": "Use the console for approvals, users, and maintenance operations.",
+      "dashboard_intro": "Central place for restaurant approvals, homepage featuring, and maintenance tasks.",
+      "unlinked": "unlinked",
+      "quick_maintenance": "Quick maintenance",
+      "restaurant_toolbar_help": "Review restaurants quickly, search by owner, city, or address, and perform actions without leaving the page.",
+      "filter_all": "All",
+      "pending_help": "Restaurants waiting for approval are shown here.",
+      "approved_help": "Approved restaurants stay live and can be featured on the homepage.",
+      "tools_intro": "Use these tools carefully. Every destructive action should be confirmed and double-checked.",
+      "tools_help": "Open a confirmation page before executing any reset.",
+      "reset_warning": "Resets are immediate and affect production-like data in this environment.",
+      "restaurant_label": "restaurants",
+      "confirm_help": "This action cannot be undone once executed.",
+      "users_intro": "Search by name, email, role, or restaurant and manage accounts with fewer clicks.",
+      "owner_accounts": "Owner accounts",
+      "user_toolbar_help": "Filter by active status or search by user and restaurant name."
     }
   }
 }
