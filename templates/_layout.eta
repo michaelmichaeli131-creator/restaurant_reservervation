@@ -23,6 +23,7 @@
   <link rel="stylesheet" href="/public/css/sb-owner-modern.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
 
   <%~ it.head || '' %>
+  <link rel="stylesheet" href="/public/css/sb-tablet-support.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
 
   <style>
     /* ===== Language switch (minimal clean) ===== */

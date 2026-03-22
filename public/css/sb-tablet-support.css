@@ -1,0 +1,350 @@
+/* SpotBook tablet support layer for upgraded screens */
+
+/* Shared tablet rhythm */
+@media (min-width: 768px) and (max-width: 1180px){
+  .sb-owner.container.staff-shell,
+  .host.host-ops.container,
+  .waiter.container,
+  .sb-page.sb-wt-page{
+    max-width:none !important;
+    padding-inline:14px !important;
+  }
+
+  .card,
+  .sb-wt-panel,
+  .sb-wl-panel,
+  .host-map-panel,
+  .host-reservations-panel,
+  .staff-panel,
+  .restaurant-card,
+  .staff-hero,
+  .sb-wl-map-card,
+  .waiter-status-card,
+  .kds-topbar,
+  .kds-tabs,
+  .kds-col{
+    border-radius:20px;
+  }
+}
+
+/* Owner calendar */
+@media (min-width: 981px) and (max-width: 1180px){
+  .oc-header .wrap{
+    max-width:none !important;
+    margin:0 !important;
+    padding-inline:14px !important;
+  }
+  .oc-main{
+    max-width:none !important;
+    margin:0 !important;
+    padding:0 14px 18px !important;
+  }
+  .oc-layout{
+    grid-template-columns:minmax(220px, 260px) minmax(0, 1fr) !important;
+    min-width:0 !important;
+  }
+  .oc-sidebar,
+  .oc-panel{
+    width:100%;
+    min-width:0 !important;
+  }
+  .oc-row,
+  .oc-th{
+    grid-template-columns:58px 1fr minmax(118px, 152px) !important;
+  }
+  .oc-drawer{
+    width:min(420px, 74vw) !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 980px){
+  .oc-header .wrap{
+    max-width:none !important;
+    margin:0 !important;
+    padding-inline:14px !important;
+  }
+  .oc-main{
+    max-width:none !important;
+    margin:0 !important;
+    padding:0 14px 18px !important;
+    grid-template-columns:1fr !important;
+  }
+  .oc-layout{
+    grid-template-columns:1fr !important;
+    min-width:0 !important;
+  }
+  .oc-sidebar,
+  .oc-panel{
+    width:100%;
+    min-width:0 !important;
+  }
+}
+
+/* Owner staff */
+@media (min-width: 768px) and (max-width: 1180px){
+  .staff-hero-top,
+  .staff-board{
+    grid-template-columns:1fr !important;
+  }
+  .staff-toolbar,
+  .restaurant-top,
+  .panel-heading,
+  .staff-modal .dialog-head,
+  .focus-heading{
+    flex-direction:column;
+    align-items:stretch !important;
+  }
+  .hero-actions,
+  .restaurant-pills,
+  .staff-filter-group,
+  .staff-search{
+    width:100%;
+  }
+  .staff-stats,
+  .restaurant-glance,
+  .person-grid,
+  .request-meta,
+  .audit-list,
+  .staff-modal-grid{
+    grid-template-columns:repeat(2, minmax(0, 1fr)) !important;
+  }
+  .hero-pills,
+  .person-pills,
+  .request-pills,
+  .card-actions{
+    flex-wrap:wrap;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 900px){
+  .staff-stats,
+  .restaurant-glance,
+  .person-grid,
+  .request-meta,
+  .audit-list,
+  .staff-modal-grid{
+    grid-template-columns:1fr !important;
+  }
+}
+
+/* Host seating */
+@media (min-width: 768px) and (max-width: 1180px){
+  .host-ops .host-shell,
+  .host-ops .host-grid{
+    grid-template-columns:minmax(0, 1fr) !important;
+  }
+  .host-kpi-grid{
+    grid-template-columns:repeat(2, minmax(0, 1fr)) !important;
+  }
+  .host-panel-head,
+  .host-map-head,
+  .host-resv-toolbar,
+  .host-time-card__actions{
+    flex-direction:column;
+    align-items:stretch !important;
+  }
+  .host-map-flow,
+  .host-filter-chips,
+  .host-selection-card__targets,
+  .host-hero__meta{
+    flex-wrap:wrap;
+  }
+  .host-selection-card__targets--compact{
+    display:grid !important;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:8px;
+  }
+  .host-selection-card__targets--compact .host-target-pill.is-status{
+    grid-column:1 / -1;
+  }
+  .host-actions--premium{
+    align-items:stretch !important;
+  }
+  .host-actions__main,
+  .host-status-cluster,
+  .host-search,
+  .host-sort{
+    width:100%;
+  }
+  .host-mini-actions--status-grid{
+    display:grid !important;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:8px;
+  }
+  .host-grid .floor-wrapper,
+  .host-map-panel .floor-wrapper,
+  .floor-wrapper{
+    height:clamp(500px, 58vh, 760px) !important;
+    min-height:500px !important;
+  }
+  .table-info-panel{
+    width:min(440px, 74vw) !important;
+  }
+}
+
+/* Waiter lobby */
+@media (min-width: 768px) and (max-width: 1180px){
+  .waiter-grid{
+    grid-template-columns:minmax(0, 1fr) !important;
+  }
+  .waiter-header,
+  .waiter-header.sb-wl-hero,
+  .waiter-header.sb-wl-hero .header-actions,
+  .waiter-status-card__header,
+  .open-row{
+    flex-direction:column;
+    align-items:stretch !important;
+  }
+  .sb-wl-list-summary,
+  .waiter-status-grid{
+    grid-template-columns:repeat(2, minmax(0, 1fr)) !important;
+  }
+  .open-table-btn,
+  .open-pos-link{
+    width:100%;
+  }
+  .open-main,
+  .open-main__top,
+  .open-main__title,
+  .open-sub,
+  .sb-wl-map-meta{
+    flex-wrap:wrap;
+  }
+  .open-pos-link{
+    min-height:38px;
+    text-align:center;
+  }
+  .sb-waiter-map-card .floor-wrapper,
+  .sb-wl-map-card .floor-wrapper{
+    height:clamp(470px, 55vh, 700px) !important;
+    min-height:470px !important;
+  }
+}
+
+/* Waiter table */
+@media (min-width: 768px) and (max-width: 1180px){
+  .sb-wt-hd-main,
+  .sb-wt-hd-actions,
+  .sb-wt-accounts-main,
+  .sb-wt-panel-hd,
+  .sb-wt-service-note-card__head{
+    flex-direction:column;
+    align-items:stretch !important;
+  }
+  .sb-wt-bill,
+  .sb-wt-tabs,
+  .sb-wt-account-actions,
+  .sb-wt-menu-row,
+  .sb-seg,
+  .sb-wt-service-note-card__foot{
+    width:100%;
+  }
+  .sb-wt-shell{
+    grid-template-columns:minmax(0, 1fr) !important;
+  }
+  .sb-wt-account-tabs,
+  .sb-wt-meta-strip,
+  .sb-wt-service-strip,
+  .menu-grid{
+    grid-template-columns:repeat(2, minmax(0, 1fr)) !important;
+  }
+  .sb-wt-menu-list{
+    max-height:none !important;
+  }
+  .menu-item-card{
+    min-height:136px !important;
+    padding:12px !important;
+  }
+  .menu-item-heading,
+  .menu-item-meta,
+  .sb-wt-item-rail,
+  .sb-wt-item-meta-line,
+  .sb-wt-item-actions{
+    flex-wrap:wrap;
+  }
+  .sb-wt-item-shell{
+    padding:8px 10px 9px 11px !important;
+    gap:7px !important;
+  }
+  .sb-wt-item-content,
+  .sb-wt-item-content.is-compact{
+    grid-template-columns:minmax(0, 1fr) !important;
+    display:grid !important;
+    gap:10px !important;
+  }
+  .sb-wt-item-side{
+    display:grid !important;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:8px;
+  }
+  .sb-wt-item-heading{
+    align-items:flex-start;
+    gap:10px;
+  }
+  .sb-wt-item-title{
+    font-size:14px !important;
+    line-height:1.22 !important;
+  }
+  .sb-wt-item-total-wrap{
+    min-width:88px !important;
+    width:auto !important;
+    padding:6px 8px !important;
+  }
+  .sb-wt-item-total{
+    font-size:13px !important;
+  }
+  .sb-wt-inline-meta{
+    min-height:26px !important;
+    padding:0 8px !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 900px){
+  .sb-wt-account-tabs,
+  .sb-wt-meta-strip,
+  .sb-wt-service-strip,
+  .menu-grid,
+  .sb-wt-item-side{
+    grid-template-columns:1fr !important;
+  }
+}
+
+/* Kitchen / Bar KDS */
+@media (min-width: 768px) and (max-width: 1180px){
+  .kds-topbar{
+    flex-direction:column;
+    align-items:stretch !important;
+  }
+  .kds-controls{
+    justify-content:flex-start !important;
+    width:100%;
+  }
+  .kds-search{
+    flex:1 1 260px;
+    width:100%;
+  }
+  .kds-search input{
+    width:100% !important;
+  }
+  .kds-columns{
+    display:grid !important;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:12px !important;
+    overflow:visible !important;
+  }
+  .kds-col{
+    min-height:calc(100dvh - 260px);
+  }
+  .kds-col:last-child{
+    grid-column:1 / -1;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 900px){
+  .kds-columns{
+    grid-template-columns:1fr !important;
+  }
+  .kds-col:last-child{
+    grid-column:auto;
+  }
+}

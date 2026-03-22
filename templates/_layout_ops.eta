@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="/public/css/sb-kds.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
 
   <%~ it.head || '' %>
+  <link rel="stylesheet" href="/public/css/sb-tablet-support.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
 </head>
 
 <body class="sb-body sb-kds" data-theme="dark">
