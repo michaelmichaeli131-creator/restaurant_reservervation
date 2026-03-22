@@ -28,6 +28,7 @@ import {
   getOrCreateOpenOrder,
   updateOpenOrderServiceNote,
   updateOrderItemStatus,
+  updateOrderItemNotes,
   listBillsForRestaurant, // ✅ לסטטיסטיקות + חשבונות
   getBill,                // ✅ להצגת חשבונית
   deleteBill,             // ✅ למחיקת חשבונית
@@ -1110,6 +1111,28 @@ posRouter.post("/api/pos/order-item/add", async (ctx) => {
     item: orderItem,
     totals,
   });
+});
+
+posRouter.post("/api/pos/order-item/note", async (ctx) => {
+  if (!requireStaff(ctx)) return;
+
+  const body = await ctx.request.body.json();
+  const restaurantId0 = String(body.restaurantId ?? "");
+  const restaurantId = resolveRestaurantIdForStaff(ctx, restaurantId0);
+  if (!restaurantId) return;
+  if (!(await requireRestaurantAccess(ctx, restaurantId))) return;
+
+  const orderId = String(body.orderId ?? "").trim();
+  const orderItemId = String(body.orderItemId ?? body.itemId ?? "").trim();
+  const notes = String(body.notes ?? "");
+  if (!orderId || !orderItemId) ctx.throw(Status.BadRequest, "missing fields");
+
+  const updated = await updateOrderItemNotes(orderItemId, orderId, notes);
+  if (!updated) ctx.throw(Status.NotFound, "order item not found");
+
+  notifyOrderItemUpdated(updated);
+  ctx.response.headers.set("Content-Type", "application/json; charset=utf-8");
+  ctx.response.body = JSON.stringify({ ok: true, item: updated });
 });
 
 /* ------------ API: cancel item (waiter) ------------ */

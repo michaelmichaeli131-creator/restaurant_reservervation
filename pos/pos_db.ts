@@ -665,6 +665,27 @@ export async function computeTotalsForTable(
   return { itemsCount, subtotal };
 }
 
+
+export async function updateOrderItemNotes(
+  orderItemId: string,
+  orderId: string,
+  notes: string,
+): Promise<OrderItem | null> {
+  const key = kOrderItem(orderId, orderItemId);
+  const row = await kv.get<OrderItem>(key);
+  if (!row.value) return null;
+  const cur = row.value;
+  const trimmed = String(notes || '').trim();
+  const updated: OrderItem = {
+    ...cur,
+    ...(trimmed ? { notes: trimmed } : { notes: undefined }),
+    updatedAt: Date.now(),
+  };
+  const ok = await kv.atomic().check(row).set(key, updated).commit();
+  if (!ok.ok) return null;
+  return updated;
+}
+
 export async function updateOrderItemStatus(
   orderItemId: string,
   orderId: string,

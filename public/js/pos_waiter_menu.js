@@ -31,6 +31,9 @@
   const destKitchenText = String(root.dataset.destKitchenText || 'Kitchen');
   const createdText = String(root.dataset.createdText || 'Created');
   const receivedText = String(root.dataset.receivedText || 'Received');
+  const inProgressText = String(root.dataset.inProgressText || 'In Progress');
+  const readyText = String(root.dataset.readyText || 'Ready');
+  const servedText = String(root.dataset.servedText || 'Served');
   const cancelText = String(root.dataset.cancelText || 'Cancel');
   const markServedText = String(root.dataset.markServedText || 'Mark as Served');
   const addedText = String(root.dataset.addedText || 'Added to order');
@@ -75,9 +78,12 @@
   const notesOverlay = document.getElementById('notes-overlay');
   const notesInput = document.getElementById('notes-input');
   const notesDishName = document.getElementById('notes-dish-name');
+  const notesTitle = document.getElementById('notes-title');
+  const notesHint = document.getElementById('notes-hint');
   const notesSkipBtn = document.getElementById('notes-skip');
   const notesSendBtn = document.getElementById('notes-send');
-  let pendingCard = null;
+  const orderItemsEl = document.getElementById('order-items');
+  let pendingAction = null;
 
   function renderCategories(items) {
     if (!catsEl || catsEl.dataset.built === '1') return;
@@ -165,9 +171,10 @@
       const grid = document.createElement('div');
       grid.className = 'menu-grid';
       list.forEach((m) => {
-        const card = document.createElement('button');
-        card.type = 'button';
+        const card = document.createElement('article');
         card.className = 'menu-item-card';
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', '0');
         card.dataset.menuItemId = String(m.id || '');
         card.dataset.price = String(m.price || 0);
         card.dataset.dest = String(m.destination || 'kitchen');
@@ -178,15 +185,16 @@
           <div class="menu-item-topline">
             <span class="menu-item-dest-badge">${escapeHtml(destText)}</span>
           </div>
-          <div class="menu-item-head">
-            <div class="menu-item-copy">
-              <div class="menu-item-name">${escapeHtml(dishName)}</div>
-              <div class="menu-item-desc muted">${escapeHtml(dishDesc)}</div>
-            </div>
-            <span class="menu-item-price">${Number(m.price || 0).toFixed(2)} ${escapeHtml(currency)}</span>
+          <div class="menu-item-copy">
+            <div class="menu-item-name">${escapeHtml(dishName)}</div>
+            <div class="menu-item-desc muted">${escapeHtml(dishDesc)}</div>
           </div>
           <div class="menu-item-footer">
-            <span class="menu-item-add" aria-hidden="true">＋</span>
+            <span class="menu-item-price">${Number(m.price || 0).toFixed(2)} ${escapeHtml(currency)}</span>
+            <span class="menu-item-actions" aria-hidden="true">
+              <span class="menu-item-note-trigger" role="button" tabindex="-1" title="Item note">📝</span>
+              <span class="menu-item-add" aria-hidden="true">＋</span>
+            </span>
           </div>
         `;
         grid.appendChild(card);
@@ -225,19 +233,88 @@
     }
   }
 
-  function openNotesModal(card) {
-    pendingCard = card;
+  function openNotesModalForAdd(card) {
+    pendingAction = { type: 'add', card };
+    if (notesTitle) notesTitle.textContent = 'Item note';
+    if (notesHint) notesHint.textContent = 'This note will be sent with the dish to the kitchen or bar.';
     if (notesDishName) {
       notesDishName.textContent = card.querySelector('.menu-item-name')?.textContent || '';
     }
     if (notesInput) notesInput.value = '';
+    if (notesSkipBtn) notesSkipBtn.textContent = 'No note';
+    if (notesSendBtn) notesSendBtn.textContent = 'Add item';
+    if (notesOverlay) notesOverlay.hidden = false;
+    setTimeout(() => notesInput?.focus(), 50);
+  }
+
+  function openNotesModalForEdit(row) {
+    pendingAction = { type: 'edit', row };
+    if (notesTitle) notesTitle.textContent = 'Item note';
+    if (notesHint) notesHint.textContent = 'Update the note that the kitchen or bar should see for this item.';
+    if (notesDishName) {
+      notesDishName.textContent = row.dataset.itemName || row.querySelector('.sb-wt-item-title')?.textContent || '';
+    }
+    if (notesInput) notesInput.value = row.dataset.itemNote || '';
+    if (notesSkipBtn) notesSkipBtn.textContent = 'Clear note';
+    if (notesSendBtn) notesSendBtn.textContent = 'Save note';
     if (notesOverlay) notesOverlay.hidden = false;
     setTimeout(() => notesInput?.focus(), 50);
   }
 
   function closeNotesModal() {
     if (notesOverlay) notesOverlay.hidden = true;
-    pendingCard = null;
+    pendingAction = null;
+  }
+
+  function syncItemNoteUI(row, note) {
+    if (!row) return;
+    const clean = String(note || '').trim();
+    row.dataset.itemNote = clean;
+    let block = row.querySelector('.sb-wt-item-notes');
+    if (!clean) {
+      if (block) block.remove();
+      return;
+    }
+    if (!block) {
+      block = document.createElement('div');
+      block.className = 'sb-wt-item-notes';
+      const heading = document.createElement('strong');
+      heading.textContent = 'Note';
+      const span = document.createElement('span');
+      span.className = 'sb-wt-item-notes__text';
+      block.appendChild(heading);
+      block.appendChild(span);
+      const headingRow = row.querySelector('.sb-wt-item-heading');
+      if (headingRow?.parentNode) headingRow.parentNode.insertBefore(block, headingRow.nextSibling);
+    }
+    const span = block.querySelector('.sb-wt-item-notes__text') || block.querySelector('span');
+    if (span) span.textContent = clean;
+  }
+
+  async function saveExistingItemNote(row, note) {
+    const orderId = String(row?.dataset?.orderId || '').trim();
+    const itemId = String(row?.dataset?.itemId || '').trim();
+    if (!rid || !table || !orderId || !itemId) return;
+    const body = {
+      restaurantId: rid,
+      table,
+      accountId: String(row.dataset.accountId || accountId || 'main'),
+      orderId,
+      orderItemId: itemId,
+      notes: String(note || '').trim(),
+    };
+    const res = await fetch('/api/pos/order-item/note', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    let data = null;
+    try { data = await res.json(); } catch {}
+    if (!res.ok || !data?.ok) {
+      throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+    }
+    syncItemNoteUI(row, data.item?.notes || '');
+    return data.item;
   }
 
   async function addItem(card, notes) {
@@ -292,12 +369,13 @@
         const createdAt = new Date(item.createdAt || Date.now());
         const timeStr = createdAt.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
         const destText = item.destination === 'bar' ? destBarText : destKitchenText;
-        const notesHtml = item.notes ? `<div class="sb-wt-item-notes">${escapeHtml(item.notes)}</div>` : '';
+        rowEl.dataset.itemName = String(item.name || '');
+        rowEl.dataset.itemNote = String(item.notes || '');
         const showServe = item.status === 'ready' || item.status === 'in_progress';
-        const statusLabel = item.status === 'ready' ? statusTextReady
-          : item.status === 'in_progress' ? statusTextInProgress
-          : item.status === 'served' ? statusTextServed
-          : statusTextReceived;
+        const statusLabel = item.status === 'ready' ? readyText
+          : item.status === 'in_progress' ? inProgressText
+          : item.status === 'served' ? servedText
+          : receivedText;
         const statusHint = item.status === 'ready'
           ? 'Ready to run to the guest'
           : item.status === 'in_progress'
@@ -305,56 +383,33 @@
             : item.status === 'served'
               ? 'Delivered to the table'
               : 'Queued for the line';
-        const nextActionText = item.status === 'ready'
-          ? 'Serve to guest'
-          : item.status === 'in_progress'
-            ? 'Track kitchen progress'
-            : item.status === 'served'
-              ? 'Completed'
-              : 'Waiting for prep';
         rowEl.innerHTML = `
           <div class="sb-wt-item-shell">
             <div class="sb-wt-item-rail">
               <span class="sb-wt-item-state"><span class="sb-wt-item-state__dot" aria-hidden="true">•</span><span class="js-status-label">${escapeHtml(statusLabel)}</span></span>
             </div>
-            <div class="sb-wt-item-content">
+            <div class="sb-wt-item-content is-compact">
               <div class="sb-wt-item-main">
                 <div class="sb-wt-item-heading">
-                  <div>
+                  <div class="sb-wt-item-title-wrap">
                     <div class="sb-wt-item-title">${escapeHtml(item.name || '')}</div>
                     <div class="sb-wt-item-subtitle">${escapeHtml(statusHint)}</div>
                   </div>
                   <div class="sb-wt-item-total-wrap">
-                    <div class="sb-wt-item-total-label">Line total</div>
                     <div class="sb-wt-item-total">${(Number(item.unitPrice || 0) * Number(item.quantity || 0)).toFixed(2)} ${escapeHtml(currency)}</div>
                   </div>
                 </div>
-                ${notesHtml ? `<div class="sb-wt-item-notes"><strong>Note</strong><span class="sb-wt-item-notes__text">${escapeHtml(item.notes)}</span></div>` : ''}
-                <div class="sb-wt-item-info-grid">
-                  <div class="sb-wt-item-info-card">
-                    <span class="sb-wt-item-info-card__label">Destination</span>
-                    <strong class="sb-wt-item-info-card__value">${escapeHtml(destText)}</strong>
-                  </div>
-                  <div class="sb-wt-item-info-card">
-                    <span class="sb-wt-item-info-card__label">Quantity</span>
-                    <strong class="sb-wt-item-info-card__value">x${escapeHtml(String(item.quantity || 1))}</strong>
-                  </div>
-                  <div class="sb-wt-item-info-card">
-                    <span class="sb-wt-item-info-card__label">Status</span>
-                    <strong class="sb-wt-item-info-card__value">${escapeHtml(statusLabel)}</strong>
-                  </div>
-                  <div class="sb-wt-item-info-card">
-                    <span class="sb-wt-item-info-card__label">Created</span>
-                    <strong class="sb-wt-item-info-card__value">${escapeHtml(timeStr)}</strong>
-                  </div>
-                </div>
-              </div>
-              <div class="sb-wt-item-side">
-                <div class="sb-wt-item-side-card">
-                  <div class="sb-wt-item-side-card__label">Next action</div>
-                  <div class="sb-wt-item-side-card__value">${escapeHtml(nextActionText)}</div>
+                ${item.notes ? `<div class="sb-wt-item-notes"><strong>Note</strong><span class="sb-wt-item-notes__text">${escapeHtml(item.notes)}</span></div>` : ''}
+                <div class="sb-wt-item-meta-line">
+                  <span class="sb-wt-inline-meta"><span>Destination</span><strong>${escapeHtml(destText)}</strong></span>
+                  <span class="sb-wt-inline-meta"><span>Qty</span><strong>x${escapeHtml(String(item.quantity || 1))}</strong></span>
+                  <span class="sb-wt-inline-meta"><span>Status</span><strong>${escapeHtml(statusLabel)}</strong></span>
+                  <span class="sb-wt-inline-meta"><span>Created</span><strong>${escapeHtml(timeStr)}</strong></span>
                 </div>
                 <div class="sb-wt-item-actions">
+                  <button type="button" class="btn ghost md btn-item-note" title="Item note">
+                    <span class="icon">📝</span> Note
+                  </button>
                   <button type="button" class="btn ghost md btn-cancel-item" title="${escapeHtml(cancelText)}">
                     <span class="icon">🗑</span> ${escapeHtml(cancelText)}
                   </button>
@@ -412,33 +467,84 @@
   }
 
   root.addEventListener('click', (ev) => {
+    const noteTrigger = ev.target.closest('.menu-item-note-trigger');
     const card = ev.target.closest('.menu-item-card');
     if (!card) return;
     ev.preventDefault();
+    if (noteTrigger) {
+      ev.stopPropagation();
+      openNotesModalForAdd(card);
+      return;
+    }
     addItem(card, '');
   });
 
-  notesSkipBtn?.addEventListener('click', () => {
-    if (pendingCard) addItem(pendingCard, '');
-    closeNotesModal();
+  root.addEventListener('keydown', (ev) => {
+    const card = ev.target.closest('.menu-item-card');
+    if (!card) return;
+    if (ev.key === 'Enter' || ev.key === ' ') {
+      ev.preventDefault();
+      addItem(card, '');
+    }
   });
-  notesSendBtn?.addEventListener('click', () => {
-    if (pendingCard) addItem(pendingCard, notesInput?.value || '');
-    closeNotesModal();
+
+  orderItemsEl?.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.btn-item-note');
+    const row = ev.target.closest('.order-row');
+    if (!btn || !row) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    openNotesModalForEdit(row);
   });
-  notesInput?.addEventListener('keydown', (ev) => {
+
+  notesSkipBtn?.addEventListener('click', async () => {
+    try {
+      if (pendingAction?.type === 'add' && pendingAction.card) await addItem(pendingAction.card, '');
+      if (pendingAction?.type === 'edit' && pendingAction.row) {
+        await saveExistingItemNote(pendingAction.row, '');
+        showToast('Item note updated');
+      }
+    } catch (err) {
+      console.error('item note action failed', err);
+      showToast('Could not save item note');
+    } finally {
+      closeNotesModal();
+    }
+  });
+  notesSendBtn?.addEventListener('click', async () => {
+    try {
+      if (pendingAction?.type === 'add' && pendingAction.card) await addItem(pendingAction.card, notesInput?.value || '');
+      if (pendingAction?.type === 'edit' && pendingAction.row) {
+        await saveExistingItemNote(pendingAction.row, notesInput?.value || '');
+        showToast('Item note updated');
+      }
+    } catch (err) {
+      console.error('item note save failed', err);
+      showToast('Could not save item note');
+    } finally {
+      closeNotesModal();
+    }
+  });
+  notesInput?.addEventListener('keydown', async (ev) => {
     if (ev.key === 'Enter' && !ev.shiftKey) {
       ev.preventDefault();
-      if (pendingCard) addItem(pendingCard, notesInput.value || '');
-      closeNotesModal();
+      try {
+        if (pendingAction?.type === 'add' && pendingAction.card) await addItem(pendingAction.card, notesInput.value || '');
+        if (pendingAction?.type === 'edit' && pendingAction.row) {
+          await saveExistingItemNote(pendingAction.row, notesInput.value || '');
+          showToast('Item note updated');
+        }
+      } catch (err) {
+        console.error('item note enter save failed', err);
+        showToast('Could not save item note');
+      } finally {
+        closeNotesModal();
+      }
     }
   });
   notesOverlay?.addEventListener('click', (ev) => {
     if (ev.target === notesOverlay) closeNotesModal();
   });
-
-  // Optional long-press / secondary action can open notes modal in the future.
-  // For now keep direct add on tap.
 
   loadMenu();
 })();

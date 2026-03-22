@@ -352,21 +352,22 @@
               </div>
               <div class="menu-grid">
                 <% list.forEach(function(m){ const dishName = menuText(m, 'name') || tt('pos.menu.dish', 'Dish'); const dishDesc = menuText(m, 'desc'); const destText = m.destination === 'bar' ? tt('owner.menu.dest_bar', 'Bar') : tt('owner.menu.dest_kitchen', 'Kitchen'); %>
-                  <button type="button" class="menu-item-card" data-menu-item-id="<%= m.id %>" data-price="<%= m.price %>" data-dest="<%= m.destination %>">
+                  <article class="menu-item-card" role="button" tabindex="0" data-menu-item-id="<%= m.id %>" data-price="<%= m.price %>" data-dest="<%= m.destination %>">
                     <div class="menu-item-topline">
                       <span class="menu-item-dest-badge"><%= destText %></span>
                     </div>
-                    <div class="menu-item-head">
-                      <div class="menu-item-copy">
-                        <div class="menu-item-name"><%= dishName %></div>
-                        <div class="menu-item-desc muted"><%= dishDesc %></div>
-                      </div>
-                      <span class="menu-item-price"><%= Number(m.price || 0).toFixed(2) %> <%= tt('common.currency', '₪') %></span>
+                    <div class="menu-item-copy">
+                      <div class="menu-item-name"><%= dishName %></div>
+                      <div class="menu-item-desc muted"><%= dishDesc %></div>
                     </div>
                     <div class="menu-item-footer">
-                      <span class="menu-item-add" aria-hidden="true">＋</span>
+                      <span class="menu-item-price"><%= Number(m.price || 0).toFixed(2) %> <%= tt('common.currency', '₪') %></span>
+                      <span class="menu-item-actions" aria-hidden="true">
+                        <span class="menu-item-note-trigger" role="button" tabindex="-1" title="<%= tt('pos.waiter.notes_title', 'Item note') %>">📝</span>
+                        <span class="menu-item-add" aria-hidden="true">＋</span>
+                      </span>
                     </div>
-                  </button>
+                  </article>
                 <% }) %>
               </div>
             </section>
@@ -442,6 +443,8 @@
               class="order-row sb-wt-item status-<%= row.status %>"
               data-order-id="<%= row.orderId %>"
               data-item-id="<%= row.id %>"
+              data-item-name="<%= row.name %>"
+              data-item-note="<%= row.notes || '' %>"
               data-qty="<%= row.quantity %>"
               data-price="<%= row.unitPrice %>"
               data-account-id="<%= row.accountId || currentAccountId %>"
@@ -454,15 +457,14 @@
                   <% } %>
                 </div>
 
-                <div class="sb-wt-item-content">
+                <div class="sb-wt-item-content is-compact">
                   <div class="sb-wt-item-main">
                     <div class="sb-wt-item-heading">
-                      <div>
+                      <div class="sb-wt-item-title-wrap">
                         <div class="sb-wt-item-title"><%= row.name %></div>
                         <div class="sb-wt-item-subtitle"><%= statusHint %></div>
                       </div>
                       <div class="sb-wt-item-total-wrap">
-                        <div class="sb-wt-item-total-label">Line total</div>
                         <div class="sb-wt-item-total"><%= itemTotal %> <%= tt('common.currency', '₪') %></div>
                       </div>
                     </div>
@@ -471,45 +473,25 @@
                       <div class="sb-wt-item-notes"><strong>Note</strong><span class="sb-wt-item-notes__text"><%= row.notes %></span></div>
                     <% } %>
 
-                    <div class="sb-wt-item-info-grid">
-                      <div class="sb-wt-item-info-card">
-                        <span class="sb-wt-item-info-card__label">Destination</span>
-                        <strong class="sb-wt-item-info-card__value"><%= row.destination === 'bar' ? tt('owner.menu.dest_bar', 'Bar') : tt('owner.menu.dest_kitchen', 'Kitchen') %></strong>
-                      </div>
-                      <div class="sb-wt-item-info-card">
-                        <span class="sb-wt-item-info-card__label">Quantity</span>
-                        <strong class="sb-wt-item-info-card__value">x<%= row.quantity %></strong>
-                      </div>
-                      <div class="sb-wt-item-info-card">
-                        <span class="sb-wt-item-info-card__label">Status</span>
-                        <strong class="sb-wt-item-info-card__value"><%= statusLabel %></strong>
-                      </div>
-                      <div class="sb-wt-item-info-card">
-                        <span class="sb-wt-item-info-card__label">Created</span>
-                        <strong class="sb-wt-item-info-card__value"><%= createdAtText %></strong>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="sb-wt-item-side">
-                    <div class="sb-wt-item-side-card">
-                      <div class="sb-wt-item-side-card__label">Next action</div>
-                      <div class="sb-wt-item-side-card__value">
-                        <% if (row.status === 'ready') { %>Serve to guest
-                        <% } else if (row.status === 'in_progress') { %>Track kitchen progress
-                        <% } else if (row.status === 'received') { %>Waiting for prep
-                        <% } else if (row.status === 'served') { %>Completed
-                        <% } else if (row.status === 'cancelled') { %>No action needed
-                        <% } else { %>Review item<% } %>
-                      </div>
+                    <div class="sb-wt-item-meta-line">
+                      <span class="sb-wt-inline-meta"><span>Destination</span><strong><%= row.destination === 'bar' ? tt('owner.menu.dest_bar', 'Bar') : tt('owner.menu.dest_kitchen', 'Kitchen') %></strong></span>
+                      <span class="sb-wt-inline-meta"><span>Qty</span><strong>x<%= row.quantity %></strong></span>
+                      <span class="sb-wt-inline-meta"><span>Status</span><strong><%= statusLabel %></strong></span>
+                      <span class="sb-wt-inline-meta"><span>Created</span><strong><%= createdAtText %></strong></span>
                     </div>
 
                     <div class="sb-wt-item-actions">
                       <% if (row.status === 'cancelled') { %>
                         <span class="sb-wt-action-state muted"><%= tt('pos.status.cancelled', 'Cancelled') %></span>
                       <% } else if (row.status === 'served') { %>
+                        <button type="button" class="btn ghost md btn-item-note" title="<%= tt('pos.waiter.notes_title', 'Item note') %>">
+                          <span class="icon">📝</span> <%= tt('common.note', 'Note') %>
+                        </button>
                         <span class="sb-wt-action-state muted"><%= tt('pos.status.served', 'Served') %></span>
                       <% } else { %>
+                        <button type="button" class="btn ghost md btn-item-note" title="<%= tt('pos.waiter.notes_title', 'Item note') %>">
+                          <span class="icon">📝</span> <%= tt('common.note', 'Note') %>
+                        </button>
                         <button type="button" class="btn ghost md btn-cancel-item" title="<%= tt('common.btn_cancel', 'Cancel') %>">
                           <span class="icon">🗑</span> <%= tt('common.btn_cancel', 'Cancel') %>
                         </button>
@@ -554,10 +536,10 @@
   <!-- Notes modal -->
   <div id="notes-overlay" class="sb-notes-overlay" hidden>
     <div class="sb-notes-modal" role="dialog" aria-label="<%= tt('pos.waiter.notes_title', 'Item note') %>">
-      <h3><%= tt('pos.waiter.notes_title', 'Item note') %></h3>
+      <h3 id="notes-title"><%= tt('pos.waiter.notes_title', 'Item note') %></h3>
       <div id="notes-dish-name" class="sb-notes-dish"></div>
       <textarea id="notes-input" dir="auto" placeholder="<%= tt('pos.waiter.notes_placeholder', 'Example: no onion, gluten allergy, medium rare...') %>"></textarea>
-      <div class="sb-notes-hint">This note will appear for the kitchen or bar.</div>
+      <div id="notes-hint" class="sb-notes-hint">This note will appear for the kitchen or bar.</div>
       <div class="sb-notes-btns">
         <button type="button" id="notes-skip" class="sb-notes-skip"><%= tt('pos.waiter.notes_skip', 'No note') %></button>
         <button type="button" id="notes-send" class="sb-notes-send"><%= tt('pos.waiter.notes_send', 'Add item') %></button>
