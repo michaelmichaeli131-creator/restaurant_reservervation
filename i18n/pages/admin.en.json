@@ -166,7 +166,14 @@
       "confirm_help": "This action cannot be undone once executed.",
       "users_intro": "Search by name, email, role, or restaurant and manage accounts with fewer clicks.",
       "owner_accounts": "Owner accounts",
-      "user_toolbar_help": "Filter by active status or search by user and restaurant name."
+      "user_toolbar_help": "Filter by active status or search by user and restaurant name.",
+      "select": "Select",
+      "details": "Details",
+      "selected": "selected",
+      "bulk_help": "Run the same action on multiple items at once.",
+      "select_visible": "Select visible",
+      "quick_view": "Quick view",
+      "select_record": "Choose a record to inspect it here."
     }
   }
 }

@@ -141,15 +141,6 @@ function num(value: unknown, fallback = "0"): string {
   return Number.isFinite(n) ? String(n) : fallback;
 }
 
-function safeDomId(value: unknown): string {
-  return String(value ?? "").replace(/[^a-zA-Z0-9_-]/g, "_") || "item";
-}
-
-function parseBulkIds(value: unknown): string[] {
-  const raw = String(value ?? "");
-  return Array.from(new Set(raw.split(/[\s,]+/).map((v) => v.trim()).filter(Boolean)));
-}
-
 function photoUrls(r: Restaurant): string[] {
   const arr = Array.isArray((r as any).photos) ? (r as any).photos : [];
   return arr
@@ -270,25 +261,14 @@ function renderRestaurantCard(ctx: any, r: RestaurantWithOwner, key: string): st
     ? (`${r.owner.firstName ?? ""} ${r.owner.lastName ?? ""}`.trim() || r.owner.email || "—")
     : "—";
   const ownerEmail = r.owner?.email || "";
-  const cardId = `entity-restaurant-${safeDomId(r.id)}`;
 
   return `
     <article
-      id="${esc(cardId)}"
       class="entity-card restaurant-card"
       data-search-item
-      data-entity-kind="restaurant"
-      data-entity-title="${esc(compact(r.name, "Restaurant"))}"
       data-status="${esc(statusTokens)}"
       data-search-text="${esc(restaurantSearchText(r))}"
     >
-      <div class="entity-card-top">
-        <label class="select-toggle">
-          <input type="checkbox" data-bulk-checkbox data-entity-type="restaurants" data-entity-id="${esc(String(r.id))}"/>
-          <span>${esc(t("admin.ui.select", "Select"))}</span>
-        </label>
-        <button class="btn ghost btn-sm" type="button" data-open-drawer data-drawer-source="${esc(cardId)}">${esc(t("admin.ui.details", "Details"))}</button>
-      </div>
       <div class="entity-media ${cover ? "has-photo" : "has-fallback"}">
         ${cover
           ? `<img src="${esc(cover)}" alt="${esc(r.name)}" loading="lazy"/>`
@@ -328,24 +308,13 @@ function renderUserCard(ctx: any, u: UserWithRestaurants, key: string): string {
   const isInactive = u.isActive === false;
   const restaurants = Array.isArray(u.restaurants) ? u.restaurants : [];
   const displayName = `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() || u.email || "User";
-  const cardId = `entity-user-${safeDomId(u.id)}`;
   return `
     <article
-      id="${esc(cardId)}"
       class="entity-card user-card"
       data-search-item
-      data-entity-kind="user"
-      data-entity-title="${esc(displayName)}"
       data-status="${esc(isInactive ? "inactive" : "active")} ${esc(String(u.role ?? "user").toLowerCase())}"
       data-search-text="${esc(userSearchText(u))}"
     >
-      <div class="entity-card-top">
-        <label class="select-toggle">
-          <input type="checkbox" data-bulk-checkbox data-entity-type="users" data-entity-id="${esc(String(u.id))}"/>
-          <span>${esc(t("admin.ui.select", "Select"))}</span>
-        </label>
-        <button class="btn ghost btn-sm" type="button" data-open-drawer data-drawer-source="${esc(cardId)}">${esc(t("admin.ui.details", "Details"))}</button>
-      </div>
       <div class="entity-media has-fallback"><span>${esc(initials(displayName))}</span></div>
       <div class="entity-body">
         <div class="entity-head">
@@ -381,40 +350,6 @@ function renderUserCard(ctx: any, u: UserWithRestaurants, key: string): string {
         </div>
       </div>
     </article>`;
-}
-
-function bulkToolbar(ctx: any, type: "restaurants" | "users", key: string): string {
-  const t = (k: string, fb: string, v?: Record<string, unknown>) => tr(ctx, k, fb, v);
-  const actions = type === "restaurants"
-    ? [
-        { action: "approve", label: t("admin.actions.approve", "Approve"), cls: "btn" },
-        { action: "unapprove", label: t("admin.actions.unapprove", "Unapprove"), cls: "btn secondary" },
-        { action: "feature", label: `☆ ${t("admin.actions.feature", "Feature")}`, cls: "btn secondary" },
-        { action: "unfeature", label: `⭐ ${t("admin.actions.unfeature", "Unfeature")}`, cls: "btn secondary" },
-        { action: "delete", label: t("admin.actions.remove_from_site", "Remove"), cls: "btn warn" },
-      ]
-    : [
-        { action: "activate", label: t("admin.users.activate", "Activate"), cls: "btn" },
-        { action: "deactivate", label: t("admin.users.deactivate", "Deactivate"), cls: "btn secondary" },
-        { action: "delete", label: t("admin.users.delete", "Delete"), cls: "btn warn" },
-      ];
-
-  return `
-    <div class="bulk-bar" data-bulk-root data-bulk-type="${type}" hidden>
-      <div class="bulk-summary">
-        <div class="bulk-count"><span data-bulk-count>0</span> ${esc(t("admin.ui.selected", "selected"))}</div>
-        <div class="bulk-note">${esc(t("admin.ui.bulk_help", "Run the same action on multiple items at once."))}</div>
-      </div>
-      <div class="bulk-actions">
-        <button class="btn secondary btn-sm" type="button" data-bulk-visible>${esc(t("admin.ui.select_visible", "Select visible"))}</button>
-        <button class="btn ghost btn-sm" type="button" data-bulk-clear>${esc(t("common.cancel", "Clear"))}</button>
-        ${actions.map((a) => `<button class="${a.cls} btn-sm" type="button" data-bulk-submit="${a.action}">${esc(a.label)}</button>`).join("")}
-      </div>
-      <form method="post" action="/admin/${type}/bulk?key=${encodeURIComponent(key)}" data-bulk-form>
-        <input type="hidden" name="ids" value=""/>
-        <input type="hidden" name="action" value=""/>
-      </form>
-    </div>`;
 }
 
 function page(
@@ -651,23 +586,6 @@ function page(
       border:1px solid rgba(255,255,255,.08);
       background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
       box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
-      transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease;
-    }
-    .entity-card:hover{ border-color:rgba(125,211,252,.18); }
-    .entity-card.is-selected{
-      border-color:rgba(125,211,252,.42);
-      box-shadow:0 0 0 3px rgba(125,211,252,.10), inset 0 1px 0 rgba(255,255,255,.04);
-    }
-    .entity-card-top{
-      grid-column:1 / -1; display:flex; align-items:center; justify-content:space-between; gap:10px;
-      padding-bottom:4px;
-    }
-    .select-toggle{
-      display:inline-flex; align-items:center; gap:10px; font-size:12px; font-weight:800; color:#dce8f2;
-      text-transform:uppercase; letter-spacing:.08em;
-    }
-    .select-toggle input{
-      width:18px; height:18px; accent-color:#7dd3fc; cursor:pointer;
     }
     .entity-media{
       min-height:132px; border-radius:18px; overflow:hidden;
@@ -738,16 +656,6 @@ function page(
       background:rgba(125,211,252,.10); border:1px solid rgba(125,211,252,.18);
     }
     .action-row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
-    .bulk-bar{
-      display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
-      margin-top:16px; padding:14px 16px; border-radius:18px;
-      border:1px solid rgba(125,211,252,.20);
-      background:linear-gradient(180deg, rgba(125,211,252,.12), rgba(255,255,255,.03));
-    }
-    .bulk-summary{ display:grid; gap:4px; }
-    .bulk-count{ font-size:15px; font-weight:900; color:#ecfaff; }
-    .bulk-note{ font-size:12px; color:var(--ink-dim); }
-    .bulk-actions{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
     .btn{
       display:inline-flex; align-items:center; justify-content:center; min-height:42px; padding:0 14px;
       border-radius:14px; text-decoration:none; cursor:pointer; font-weight:800; font-size:13px;
@@ -759,7 +667,6 @@ function page(
     .btn.secondary{ background:rgba(255,255,255,.02); color:var(--ink); border-color:rgba(255,255,255,.12); box-shadow:none; }
     .btn.ghost{ background:transparent; color:var(--ink); border-color:rgba(255,255,255,.10); box-shadow:none; }
     .btn.warn{ background:linear-gradient(180deg, #ffb4b4, #ef4444); color:#290c0c; box-shadow:0 10px 20px rgba(239,68,68,.12); }
-    .btn-sm{ min-height:36px; padding:0 12px; border-radius:12px; font-size:12px; }
     .muted{ color:var(--ink-dim); }
     .code{
       font-family:ui-monospace,Consolas,monospace; display:block; overflow:auto;
@@ -772,27 +679,6 @@ function page(
       border:1px dashed rgba(255,255,255,.12); color:var(--ink-dim);
       background:rgba(255,255,255,.02);
     }
-    .drawer-backdrop{
-      position:fixed; inset:0; background:rgba(1,8,13,.58); backdrop-filter:blur(3px); z-index:60;
-    }
-    .admin-drawer{
-      position:fixed; top:0; ${dir === "rtl" ? "left:0;" : "right:0;"} height:100vh; width:min(540px, calc(100vw - 16px));
-      background:linear-gradient(180deg, rgba(7,16,25,.98), rgba(11,18,26,.98));
-      border-${dir === "rtl" ? "right" : "left"}:1px solid rgba(125,211,252,.16);
-      box-shadow:0 24px 64px rgba(0,0,0,.4); z-index:70; transform:translateX(${dir === "rtl" ? "-104%" : "104%"}); transition:transform .22s ease;
-      display:flex; flex-direction:column;
-    }
-    .admin-drawer.open{ transform:translateX(0); }
-    .admin-drawer-head{
-      display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
-      padding:18px; border-bottom:1px solid rgba(255,255,255,.08);
-    }
-    .drawer-eyebrow{ font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); }
-    .drawer-title{ margin:6px 0 0; font-size:22px; }
-    .drawer-body{ padding:18px; overflow:auto; display:grid; gap:16px; }
-    .drawer-stack{ display:grid; gap:16px; }
-    .drawer-stack .entity-media{ min-height:220px; }
-    body.drawer-open{ overflow:hidden; }
     .footer-meta{ margin-top:18px; color:var(--ink-dim); font-size:12px; }
     html[data-lang="ka"] .tab,
     html[data-lang="ka"] .btn,
@@ -811,16 +697,12 @@ function page(
       .stats-grid{ grid-template-columns:1fr; }
       .danger-grid, .grid-two{ grid-template-columns:1fr; }
       .entity-card{ grid-template-columns:1fr; }
-      .entity-card-top{ padding-bottom:0; }
       .entity-media{ min-height:170px; }
       .badge-row{ justify-content:flex-start; }
       .tabs{ width:100%; }
       .tab{ flex:1 1 120px; }
       .action-row > *{ flex:1 1 140px; }
-      .bulk-bar, .bulk-actions{ align-items:stretch; }
-      .bulk-actions > *{ flex:1 1 140px; }
-      .action-row .btn, .action-row button, .bulk-actions .btn, .bulk-actions button{ width:100%; }
-      .admin-drawer{ width:100vw; }
+      .action-row .btn, .action-row button{ width:100%; }
     }
   </style>
 </head>
@@ -851,19 +733,6 @@ function page(
   <main class="wrap main-area">
     <div class="debug">${esc(BUILD_TAG)}</div>
     ${layout.body}
-    <div class="drawer-backdrop" data-drawer-backdrop hidden></div>
-    <aside class="admin-drawer" id="adminDrawer" aria-hidden="true">
-      <div class="admin-drawer-head">
-        <div>
-          <div class="drawer-eyebrow">${esc(t("admin.ui.quick_view", "Quick view"))}</div>
-          <h2 class="drawer-title" data-drawer-title>${esc(t("admin.ui.details", "Details"))}</h2>
-        </div>
-        <button class="btn ghost btn-sm" type="button" data-close-drawer>${esc(t("common.cancel", "Close"))}</button>
-      </div>
-      <div class="drawer-body" data-drawer-content>
-        <div class="empty-state">${esc(t("admin.ui.select_record", "Choose a record to inspect it here."))}</div>
-      </div>
-    </aside>
     <div class="footer-meta">${esc(t("admin.key_masked", "Key masked"))}: ${esc(keyMasked)}</div>
   </main>
 
@@ -887,74 +756,11 @@ function page(
     })();
 
     (function(){
-      const drawer = document.getElementById('adminDrawer');
-      const drawerTitle = drawer?.querySelector('[data-drawer-title]');
-      const drawerContent = drawer?.querySelector('[data-drawer-content]');
-      const drawerBackdrop = document.querySelector('[data-drawer-backdrop]');
-
-      const closeDrawer = () => {
-        if (!drawer || !drawerBackdrop) return;
-        drawer.classList.remove('open');
-        drawer.setAttribute('aria-hidden', 'true');
-        drawerBackdrop.hidden = true;
-        document.body.classList.remove('drawer-open');
-      };
-
-      const openDrawerFrom = (sourceId) => {
-        if (!drawer || !drawerBackdrop || !drawerContent || !sourceId) return;
-        const source = document.getElementById(sourceId);
-        if (!source) return;
-        const title = source.getAttribute('data-entity-title') || 'Details';
-        const media = source.querySelector('.entity-media');
-        const body = source.querySelector('.entity-body');
-        if (drawerTitle) drawerTitle.textContent = title;
-        drawerContent.innerHTML = '';
-        const stack = document.createElement('div');
-        stack.className = 'drawer-stack';
-        if (media) stack.appendChild(media.cloneNode(true));
-        if (body) stack.appendChild(body.cloneNode(true));
-        drawerContent.appendChild(stack);
-        drawerBackdrop.hidden = false;
-        drawer.classList.add('open');
-        drawer.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('drawer-open');
-      };
-
-      document.querySelectorAll('[data-open-drawer]').forEach((btn) => {
-        btn.addEventListener('click', () => openDrawerFrom(btn.getAttribute('data-drawer-source')));
-      });
-      document.querySelectorAll('[data-close-drawer]').forEach((btn) => btn.addEventListener('click', closeDrawer));
-      drawerBackdrop?.addEventListener('click', closeDrawer);
-      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
-
       document.querySelectorAll('[data-search-root]').forEach((root) => {
         const input = root.querySelector('[data-search-input]');
         const chips = Array.from(root.querySelectorAll('[data-filter-chip]'));
         const sections = Array.from(root.querySelectorAll('[data-filter-section]'));
-        const bulkRoot = root.querySelector('[data-bulk-root]');
-        const bulkType = bulkRoot?.getAttribute('data-bulk-type') || '';
-        const bulkForm = bulkRoot?.querySelector('[data-bulk-form]');
-        const bulkCount = bulkRoot?.querySelector('[data-bulk-count]');
-        const bulkButtons = Array.from(bulkRoot?.querySelectorAll('[data-bulk-submit]') || []);
-        const bulkVisible = bulkRoot?.querySelector('[data-bulk-visible]');
-        const bulkClear = bulkRoot?.querySelector('[data-bulk-clear]');
-        const checkboxes = Array.from(document.querySelectorAll('[data-bulk-checkbox][data-entity-type="' + bulkType + '"]'));
         let filter = 'all';
-
-        const selectedIds = () => checkboxes
-          .filter((box) => box.checked)
-          .map((box) => box.getAttribute('data-entity-id'))
-          .filter(Boolean);
-
-        const syncBulkUi = () => {
-          const ids = selectedIds();
-          if (bulkRoot) bulkRoot.hidden = ids.length === 0;
-          if (bulkCount) bulkCount.textContent = String(ids.length);
-          checkboxes.forEach((box) => {
-            const card = box.closest('.entity-card');
-            if (card) card.classList.toggle('is-selected', box.checked);
-          });
-        };
 
         const apply = () => {
           const q = (input?.value || '').trim().toLowerCase();
@@ -989,7 +795,6 @@ function page(
             root.appendChild(rootEmpty);
           }
           rootEmpty.hidden = totalVisible > 0;
-          syncBulkUi();
         };
 
         input?.addEventListener('input', apply);
@@ -1001,35 +806,6 @@ function page(
             apply();
           });
         });
-        checkboxes.forEach((box) => box.addEventListener('change', syncBulkUi));
-
-        bulkVisible?.addEventListener('click', () => {
-          checkboxes.forEach((box) => {
-            const card = box.closest('[data-search-item]');
-            if (card && !card.hidden) box.checked = true;
-          });
-          syncBulkUi();
-        });
-
-        bulkClear?.addEventListener('click', () => {
-          checkboxes.forEach((box) => { box.checked = false; });
-          syncBulkUi();
-        });
-
-        bulkButtons.forEach((btn) => {
-          btn.addEventListener('click', () => {
-            const ids = selectedIds();
-            if (!ids.length || !bulkForm) return;
-            const action = btn.getAttribute('data-bulk-submit') || '';
-            if (action === 'delete' && !confirm('Apply this action to all selected items?')) return;
-            const idsInput = bulkForm.querySelector('input[name="ids"]');
-            const actionInput = bulkForm.querySelector('input[name="action"]');
-            if (idsInput) idsInput.value = ids.join(',');
-            if (actionInput) actionInput.value = action;
-            bulkForm.submit();
-          });
-        });
-
         apply();
       });
     })();
@@ -1154,7 +930,6 @@ adminRouter.get("/admin", async (ctx) => {
         <button class="filter-chip" type="button" data-filter-chip data-filter-status="approved">${esc(t("admin.status.approved", "Approved"))}</button>
         <button class="filter-chip" type="button" data-filter-chip data-filter-status="featured">${esc(t("admin.status.featured", "Featured"))}</button>
       </div>
-      ${bulkToolbar(ctx, "restaurants", key)}
 
       <section class="panel tight" style="margin-top:16px;" data-filter-section>
         <div class="section-head">
@@ -1527,7 +1302,6 @@ adminRouter.get("/admin/users", async (ctx) => {
         <button class="filter-chip" type="button" data-filter-chip data-filter-status="active">${esc(t("admin.owner.active", "Active"))}</button>
         <button class="filter-chip" type="button" data-filter-chip data-filter-status="inactive">${esc(t("admin.owner.inactive", "Inactive"))}</button>
       </div>
-      ${bulkToolbar(ctx, "users", key)}
 
       <section class="panel tight" style="margin-top:16px;" data-filter-section>
         <div class="section-head">
@@ -1603,55 +1377,6 @@ adminRouter.post("/admin/users/:id/delete", async (ctx) => {
   }
   await deleteUserCascade(ctx.params.id!);
   const key = getAdminKey(ctx)!;
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", `/admin/users?key=${encodeURIComponent(key)}`);
-});
-
-adminRouter.post("/admin/restaurants/bulk", async (ctx) => {
-  if (!assertAdmin(ctx)) return;
-  setNoStore(ctx);
-  const key = getAdminKey(ctx)!;
-  const form = await ctx.request.body.formData();
-  const ids = parseBulkIds(form.get("ids"));
-  const action = String(form.get("action") ?? "").trim().toLowerCase();
-
-  for (const id of ids) {
-    if (action === "delete") {
-      const r = await getRestaurant(id);
-      if (r) await deleteRestaurantCascade(id);
-      continue;
-    }
-    const r = await getRestaurant(id);
-    if (!r) continue;
-    if (action === "approve") await updateRestaurant(id, { approved: true });
-    else if (action === "unapprove") await updateRestaurant(id, { approved: false });
-    else if (action === "feature") await updateRestaurant(id, { featured: true } as any);
-    else if (action === "unfeature") await updateRestaurant(id, { featured: false } as any);
-  }
-
-  ctx.response.status = Status.SeeOther;
-  ctx.response.headers.set("Location", `/admin?key=${encodeURIComponent(key)}`);
-});
-
-adminRouter.post("/admin/users/bulk", async (ctx) => {
-  if (!assertAdmin(ctx)) return;
-  setNoStore(ctx);
-  const key = getAdminKey(ctx)!;
-  const form = await ctx.request.body.formData();
-  const ids = parseBulkIds(form.get("ids"));
-  const action = String(form.get("action") ?? "").trim().toLowerCase();
-  const { setUserActive, deleteUserCascade } = await getDbExtra();
-
-  for (const id of ids) {
-    if (action === "activate" && typeof setUserActive === "function") {
-      await setUserActive(id, true);
-    } else if (action === "deactivate" && typeof setUserActive === "function") {
-      await setUserActive(id, false);
-    } else if (action === "delete" && typeof deleteUserCascade === "function") {
-      await deleteUserCascade(id);
-    }
-  }
-
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set("Location", `/admin/users?key=${encodeURIComponent(key)}`);
 });

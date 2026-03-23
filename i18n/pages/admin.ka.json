@@ -166,7 +166,14 @@
       "confirm_help": "This action cannot be undone once executed.",
       "users_intro": "Search by name, email, role, or restaurant and manage accounts with fewer clicks.",
       "owner_accounts": "Owner accounts",
-      "user_toolbar_help": "Filter by active status or search by user and restaurant name."
+      "user_toolbar_help": "Filter by active status or search by user and restaurant name.",
+      "select": "არჩევა",
+      "details": "დეტალები",
+      "selected": "მონიშნულია",
+      "bulk_help": "იგივე მოქმედება ერთდროულად რამდენიმე ჩანაწერზე გაუშვი.",
+      "select_visible": "ხილულის მონიშვნა",
+      "quick_view": "სწრაფი ნახვა",
+      "select_record": "აირჩიე ჩანაწერი, რომ აქ ნახო."
     }
   }
 }
