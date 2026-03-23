@@ -764,6 +764,7 @@ function page(
 
         const apply = () => {
           const q = (input?.value || '').trim().toLowerCase();
+          let totalVisible = 0;
           sections.forEach((section) => {
             const items = Array.from(section.querySelectorAll('[data-search-item]'));
             let visible = 0;
@@ -776,9 +777,24 @@ function page(
               item.hidden = !show;
               if (show) visible++;
             });
+            totalVisible += visible;
             const empty = section.querySelector('[data-empty-placeholder]');
             if (empty) empty.hidden = visible > 0;
+            section.hidden = visible === 0;
+            const badge = section.querySelector('.count-badge');
+            if (badge) badge.textContent = String(visible);
           });
+
+          let rootEmpty = root.querySelector('[data-root-empty]');
+          if (!rootEmpty) {
+            rootEmpty = document.createElement('div');
+            rootEmpty.className = 'empty-state';
+            rootEmpty.setAttribute('data-root-empty', '');
+            rootEmpty.hidden = true;
+            rootEmpty.textContent = root.getAttribute('data-empty-message') || 'No matching results.';
+            root.appendChild(rootEmpty);
+          }
+          rootEmpty.hidden = totalVisible > 0;
         };
 
         input?.addEventListener('input', apply);
@@ -898,7 +914,7 @@ adminRouter.get("/admin", async (ctx) => {
       </div>
     </section>
 
-    <section class="panel" data-search-root>
+    <section class="panel" data-search-root data-empty-message="${esc(t("admin.ui.no_matches", "No matching results."))}">
       <div class="toolbar">
         <div>
           <h2 class="toolbar-title">${esc(t("admin.tabs.restaurants", "Restaurants"))}</h2>
@@ -1271,7 +1287,7 @@ adminRouter.get("/admin/users", async (ctx) => {
       </div>
     </section>
 
-    <section class="panel" data-search-root>
+    <section class="panel" data-search-root data-empty-message="${esc(t("admin.ui.no_matches", "No matching results."))}">
       <div class="toolbar">
         <div>
           <h2 class="toolbar-title">${esc(t("admin.users.title", "User Management"))}</h2>
