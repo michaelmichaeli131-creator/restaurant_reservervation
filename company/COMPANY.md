@@ -55,6 +55,21 @@ Target markets: **Israel 🇮🇱, Georgia 🇬🇪** (underserved!), expanding 
 
 ---
 
+### Day 2 — Sprint 2: "Growth Engines"
+
+**הושלם:**
+- ✅ **Widget הזמנות להטמעה** — מנוע הצמיחה מס' 1 מדוח המוצר:
+  - `/widget/:rid` — עמוד הזמנה עצמאי, קליל (ללא תלות ב‑CSS של האתר), נטען ב‑iframe
+  - `/embed.js` — סקריפט loader שמסעדה מדביקה באתר שלה (שורה אחת)
+  - תמיכה ב‑light/dark theme ושלוש שפות, בדיקת זמינות חיה, deep-link להשלמת ההזמנה
+  - CSP מותאם: `frame-ancestors *` רק לנתיב `/widget/`, השאר נשאר נעול
+  - פאנל "Booking widget" בדף ניהול המסעדה עם קוד מוכן להעתקה
+- ✅ פיצ'ר "אירוע מיוחד והעדפות תזונה" בהזמנות (CRM-lite) — בעבודה ע"י agent
+
+**Blockers:** עדיין אין Twilio (משימה אנושית #3) — SMS נדחה לספרינט 3.
+
+---
+
 ## 💰 CFO Corner — Revenue Model (v1)
 
 | Tier | מחיר | כולל |

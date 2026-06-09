@@ -53,6 +53,7 @@ import ownerBillsRouter from "./routes/owner_bills.ts";
 import inventoryRouter from "./routes/inventory.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
 import { favoritesRouter } from "./routes/favorites.ts";
+import { widgetRouter } from "./routes/widget.ts";
 import { staffTimeRouter } from "./routes/staff_time.ts";
 import { ownerTimeRouter } from "./routes/owner_time.ts";
 import { timeClockRouter } from "./routes/timeclock.ts";
@@ -149,11 +150,17 @@ app.use(async (ctx, next) => {
 
 // --- Security headers (CSP כולל blob: לתמונות preview) ---
 app.use(async (ctx, next) => {
+  const path = ctx.request.url.pathname;
+  // /widget/* is designed to be embedded in restaurant websites via <iframe>
+  const embeddable = path.startsWith("/widget/");
   ctx.response.headers.set(
     "Content-Security-Policy",
-    "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';",
+    "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';" +
+      (embeddable ? " frame-ancestors *;" : " frame-ancestors 'none';"),
   );
-  ctx.response.headers.set("X-Frame-Options", "DENY");
+  if (!embeddable) {
+    ctx.response.headers.set("X-Frame-Options", "DENY");
+  }
   ctx.response.headers.set("X-Content-Type-Options", "nosniff");
   ctx.response.headers.set(
     "Referrer-Policy",
@@ -551,6 +558,10 @@ app.use(root.allowedMethods());
 // -------------------- FAVORITES --------------------
 app.use(favoritesRouter.routes());
 app.use(favoritesRouter.allowedMethods());
+
+// -------------------- EMBEDDABLE WIDGET (public) --------------------
+app.use(widgetRouter.routes());
+app.use(widgetRouter.allowedMethods());
 
 // -------------------- AUTH GATE (חדש) --------------------
 app.use(async (ctx, next) => {

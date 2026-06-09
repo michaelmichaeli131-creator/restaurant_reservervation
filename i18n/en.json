@@ -1394,5 +1394,26 @@
       "empty_hint": "Try searching by restaurant name, city, or cuisine — or browse our featured picks below.",
       "empty_reset": "Clear search"
     }
+  },
+  "widget": {
+    "date": "Date",
+    "guests": "Guests",
+    "fewer": "Fewer guests",
+    "more": "More guests",
+    "time": "Time",
+    "closed": "Closed on this date — try another day.",
+    "book": "Book on SpotBook",
+    "powered": "Powered by",
+    "available": "Available — finish your booking!",
+    "unavailable": "That time is busy — try a nearby time.",
+    "pick_room": "Almost there — pick a seating area on the next step."
+  },
+  "owner_manage": {
+    "growth": "Growth",
+    "widget_title": "Booking widget for your website",
+    "widget_sub": "Paste this snippet into your website and guests can book directly from there.",
+    "widget_preview": "Preview",
+    "widget_copy": "Copy code",
+    "widget_copied": "Copied!"
   }
 }
