@@ -1741,6 +1741,43 @@ export async function hasUserReviewedReservation(reservationId: string): Promise
   return entry.value !== null;
 }
 
+/* ===================== Favorites (מועדפים) ===================== */
+// keys: ["favorite", userId, restaurantId] -> savedAt timestamp
+
+export async function isFavorite(userId: string, restaurantId: string): Promise<boolean> {
+  return (await kv.get(toKey("favorite", userId, restaurantId))).value !== null;
+}
+
+/** הוספה/הסרה ממועדפים; מחזיר את המצב החדש (true = במועדפים) */
+export async function toggleFavorite(userId: string, restaurantId: string): Promise<boolean> {
+  const key = toKey("favorite", userId, restaurantId);
+  const existing = await kv.get(key);
+  if (existing.value !== null) {
+    await kv.delete(key);
+    return false;
+  }
+  await kv.set(key, now());
+  return true;
+}
+
+/** רשימת המסעדות המועדפות של משתמש (חדש -> ישן) */
+export async function listFavoriteRestaurants(userId: string): Promise<Restaurant[]> {
+  const entries: Array<{ rid: string; savedAt: number }> = [];
+  for await (const row of kv.list<number>({ prefix: toKey("favorite", userId) })) {
+    entries.push({
+      rid: row.key[row.key.length - 1] as string,
+      savedAt: (row.value as number) ?? 0,
+    });
+  }
+  entries.sort((a, b) => b.savedAt - a.savedAt);
+  const out: Restaurant[] = [];
+  for (const e of entries) {
+    const r = await getRestaurant(e.rid);
+    if (r) out.push(r);
+  }
+  return out;
+}
+
 /** בדיקה אם משתמש זכאי לכתוב ביקורת */
 export async function canUserReview(userId: string, restaurantId: string, reservationId: string): Promise<boolean> {
   // בדוק שההזמנה קיימת ושייכת למשתמש

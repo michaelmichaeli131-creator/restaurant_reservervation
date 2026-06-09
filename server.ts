@@ -52,6 +52,7 @@ import { staffContextMiddleware } from "./middleware/staff_context.ts";
 import ownerBillsRouter from "./routes/owner_bills.ts";
 import inventoryRouter from "./routes/inventory.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
+import { favoritesRouter } from "./routes/favorites.ts";
 import { staffTimeRouter } from "./routes/staff_time.ts";
 import { ownerTimeRouter } from "./routes/owner_time.ts";
 import { timeClockRouter } from "./routes/timeclock.ts";
@@ -417,6 +418,50 @@ root.get("/for-restaurants", async (ctx) => {
   });
 });
 
+// SEO: robots.txt
+root.get("/robots.txt", (ctx) => {
+  const base = (BASE_URL || "").replace(/\/+$/, "");
+  ctx.response.headers.set("Content-Type", "text/plain; charset=utf-8");
+  ctx.response.body = [
+    "User-agent: *",
+    "Allow: /",
+    "Disallow: /admin",
+    "Disallow: /owner",
+    "Disallow: /auth",
+    "Disallow: /pos",
+    "Disallow: /r/",
+    base ? `Sitemap: ${base}/sitemap.xml` : "",
+  ].filter(Boolean).join("\n");
+});
+
+// SEO: dynamic sitemap with all approved restaurants
+root.get("/sitemap.xml", async (ctx) => {
+  const base = (BASE_URL || "").replace(/\/+$/, "") ||
+    `${ctx.request.url.protocol}//${ctx.request.url.host}`;
+  const esc = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const urls: string[] = [
+    `<url><loc>${esc(base)}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`,
+    `<url><loc>${esc(base)}/for-restaurants</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>`,
+  ];
+  try {
+    const approved = await listRestaurants("", true);
+    for (const r of approved) {
+      urls.push(
+        `<url><loc>${esc(`${base}/restaurants/${r.id}`)}</loc><changefreq>daily</changefreq><priority>0.9</priority></url>`,
+      );
+    }
+  } catch (e) {
+    console.warn("[sitemap] failed to list restaurants:", e);
+  }
+  ctx.response.headers.set("Content-Type", "application/xml; charset=utf-8");
+  ctx.response.headers.set("Cache-Control", "public, max-age=3600");
+  ctx.response.body =
+    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${
+      urls.join("\n")
+    }\n</urlset>`;
+});
+
 // Health
 root.get("/__health", (ctx) => {
   ctx.response.status = 200;
@@ -502,6 +547,10 @@ root.get("/__env", (ctx) => {
 
 app.use(root.routes());
 app.use(root.allowedMethods());
+
+// -------------------- FAVORITES --------------------
+app.use(favoritesRouter.routes());
+app.use(favoritesRouter.allowedMethods());
 
 // -------------------- AUTH GATE (חדש) --------------------
 app.use(async (ctx, next) => {

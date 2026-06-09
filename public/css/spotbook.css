@@ -3,7 +3,7 @@
   --panel:#121622;
   --panel-2:#171b29;
   --ink:#e6e8ef;
-  --ink-muted:#9aa3b2;
+  --ink-muted:#a8b2c4; /* WCAG AA contrast on dark panels */
   --bd:#23293a;
   --brand:#3b82f6;        /* כחול יוקרתי (אפשר להחליף לזהב #C6A230) */
   --brand-ink:#fff;
@@ -14,6 +14,33 @@
 
 *{box-sizing:border-box}
 html,body{height:100%}
+
+/* Accessibility: visible keyboard focus everywhere */
+:focus-visible{outline:2px solid var(--brand,#3b82f6); outline-offset:2px; border-radius:4px;}
+
+/* Accessibility: skip-to-content link (hidden until focused) */
+.skip-link{
+  position:absolute; top:-48px; inset-inline-start:12px; z-index:200;
+  background:var(--brand,#3b82f6); color:#fff; font-weight:600;
+  padding:10px 18px; border-radius:0 0 10px 10px; text-decoration:none;
+  transition:top .15s ease;
+}
+.skip-link:focus{top:0;}
+
+/* Loading state for async buttons */
+.btn.is-loading, .rsv-btn.is-loading{
+  opacity:.65; pointer-events:none; cursor:wait; position:relative;
+}
+.btn.is-loading::after, .rsv-btn.is-loading::after{
+  content:""; display:inline-block; width:14px; height:14px;
+  margin-inline-start:8px; vertical-align:-2px;
+  border:2px solid currentColor; border-top-color:transparent;
+  border-radius:50%; animation:sb-spin .7s linear infinite;
+}
+@keyframes sb-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){
+  .btn.is-loading::after, .rsv-btn.is-loading::after{animation:none;}
+}
 /* Prevent page-level horizontal scroll (only allow in dedicated scrollers) */
 html,body{max-width:100%; overflow-x:hidden;}
 body.sb-body{
@@ -362,4 +389,12 @@ body.sb-body {
 
 @media (max-width: 640px){
   .hero-inner{ min-height: 260px; padding: 16px; padding-left: calc(16px + env(safe-area-inset-left)); padding-right: calc(16px + env(safe-area-inset-right)); }
+}
+
+/* ===== Mobile ergonomics: WCAG touch targets (44-48px min) ===== */
+@media (max-width: 640px){
+  .btn{ min-height: 46px; }
+  .rsv-people__btn{ width: 52px; height: 52px; }
+  .rsv-time-chip{ min-height: 44px; }
+  input, select, textarea{ font-size: 16px; } /* prevent iOS zoom-on-focus */
 }

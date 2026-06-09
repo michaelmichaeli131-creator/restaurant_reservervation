@@ -1,6 +1,6 @@
 // src/routes/restaurants/restaurant.controller.ts
 import { Status } from "jsr:@oak/oak";
-import { listRestaurants, getRestaurant, type WeeklySchedule } from "../../database.ts";
+import { listRestaurants, getRestaurant, isFavorite, type WeeklySchedule } from "../../database.ts";
 import { listFloorLayouts } from "../../services/floor_service.ts";
 import { render } from "../../lib/view.ts";
 import { debugLog } from "../../lib/debug.ts";
@@ -70,9 +70,44 @@ export async function view(ctx: any) {
     serviceDurationMinutes,
   };
 
+  const viewer = (ctx.state as any)?.user ?? null;
+  const isFav = viewer ? await isFavorite(viewer.id, id).catch(() => false) : false;
+
+  // SEO: schema.org Restaurant structured data + social sharing meta
+  const pageUrl = `${ctx.request.url.protocol}//${ctx.request.url.host}/restaurants/${restaurant.id}`;
+  const structuredData: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Restaurant",
+    name: restaurant.name,
+    url: pageUrl,
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: restaurant.city || undefined,
+      streetAddress: (restaurant as any).address || undefined,
+    },
+    telephone: (restaurant as any).phone || undefined,
+    servesCuisine: (restaurant as any).kitchenCategories || undefined,
+    image: photos[0] && !photos[0].startsWith("data:") ? photos[0] : undefined,
+    acceptsReservations: "True",
+  };
+  const avgRating = Number((restaurant as any).averageRating);
+  const reviewCount = Number((restaurant as any).reviewCount);
+  if (Number.isFinite(avgRating) && avgRating > 0 && reviewCount > 0) {
+    structuredData.aggregateRating = {
+      "@type": "AggregateRating",
+      ratingValue: avgRating.toFixed(1),
+      reviewCount,
+    };
+  }
+
   await render(ctx, "restaurant", {
     page: "restaurant",
     title: `${restaurant.name} — SpotBook`,
+    metaDescription: ((restaurant as any).description || "").slice(0, 160) ||
+      `Book a table at ${restaurant.name}${restaurant.city ? ` in ${restaurant.city}` : ""} — instant online reservation on SpotBook.`,
+    canonicalUrl: pageUrl,
+    ogImage: photos[0] && !photos[0].startsWith("data:") ? photos[0] : undefined,
+    structuredData,
     restaurant: restaurantForView,
     openingWindows,
     slotIntervalMinutes,
@@ -85,5 +120,6 @@ export async function view(ctx: any) {
     people,
     rooms,
     preferredLayoutId: ctx.request.url.searchParams.get("preferredLayoutId") ?? "",
+    isFav,
   });
 }
