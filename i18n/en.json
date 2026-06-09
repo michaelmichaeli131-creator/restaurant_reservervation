@@ -92,7 +92,9 @@
     "none": "None",
     "optional": "Optional",
     "people_unit": "Guests",
-    "restaurant": "Restaurant"
+    "restaurant": "Restaurant",
+    "actions": "Actions",
+    "back": "Back"
   },
   "count": {
     "actual_value": "Actual Value (display)",
@@ -282,6 +284,9 @@
       "open_seat": "Open seat",
       "open_new_check": "Open new check",
       "host_help": "Pick the first free seat. The host can seat groups on adjacent bar seats."
+    },
+    "placeholder": {
+      "layout_name": "Layout name (e.g. Main Floor, Patio)"
     }
   },
   "foodcost": {
@@ -409,12 +414,14 @@
     "badge_new": "New",
     "err_no_adjacent_bar_seats": "Not enough adjacent free seats at the bar for this reservation.",
     "confirm_seat_bar": "Seat the reservation at bar seats",
-    "success_seat_bar": "Reservation seated at bar seats"
+    "success_seat_bar": "Reservation seated at bar seats",
+    "next_seating": "Next seating"
   },
   "lang": {
     "english": "English",
     "georgian": "ქართული",
-    "hebrew": "עברית"
+    "hebrew": "עברית",
+    "italian": "Italian"
   },
   "live": {
     "auto_refresh": "Auto-refresh",
@@ -437,7 +444,9 @@
     "manage": "Manage Restaurant",
     "register": "Register",
     "signedin": "Signed in",
-    "system_time": "Restaurant Time"
+    "system_time": "Restaurant Time",
+    "skipToContent": "Skip to main content",
+    "favorites": "My favorites"
   },
   "owner": {
     "bills": {
@@ -556,7 +565,9 @@
         "destination": "Destination",
         "name": "Name",
         "price": "Price"
-      }
+      },
+      "all": "All",
+      "search": "Search dishes..."
     },
     "payroll": {
       "err_generic": "An error occurred",
@@ -748,9 +759,78 @@
         "prompt_last_name": "Last name:",
         "prompt_phone": "Phone (optional):",
         "prompt_party_size": "Party size:",
-        "prompt_notes": "Notes (optional):"
+        "prompt_notes": "Notes (optional):",
+        "add_customer": "Add customer",
+        "close": "Close",
+        "customers_at": "Customers",
+        "search_placeholder": "Search name in this slot",
+        "title": "Customers"
       },
-      "daily_summary_loading": "Daily summary — loading…"
+      "daily_summary_loading": "Daily summary — loading…",
+      "actions": {
+        "arrived": "Arrived",
+        "cancel": "Cancel",
+        "confirm_deposit": "Confirm deposit",
+        "refund_deposit": "Refund"
+      },
+      "cap_line": "Capacity: People — • Tables — • Step: —",
+      "capacity_people": "People",
+      "capacity_step": "Step",
+      "capacity_tables": "Tables",
+      "deposit": {
+        "pending": "Deposit Pending",
+        "received": "Deposit Paid",
+        "refunded": "Refunded"
+      },
+      "head": "Owner Calendar · SpotBook",
+      "hint": "Hint: Click a slot to manage customers",
+      "jump_to_date_aria": "Jump to date",
+      "loading": "loading…",
+      "minutes_short": "m",
+      "next_day_aria": "Next day",
+      "next_month": "Next month",
+      "people": "People",
+      "pick_date": "Pick a date",
+      "prev_day_aria": "Previous day",
+      "prev_month": "Previous month",
+      "search_day_aria": "Search in current day",
+      "search_placeholder": "Search name",
+      "sidebar": {
+        "calendar": "Calendar",
+        "daily_summary": "Daily Summary"
+      },
+      "status": {
+        "approved": "Approved",
+        "arrived": "Arrived",
+        "booked": "Booked",
+        "cancelled": "Cancelled",
+        "confirmed": "Confirmed",
+        "new": "New",
+        "pending": "Pending"
+      },
+      "summary": {
+        "avg_occupancy": "Avg Occupancy",
+        "cancelled": "Cancelled",
+        "no_show": "No-Show",
+        "peak": "Peak",
+        "total_guests": "Total Guests",
+        "total_reservations": "Total Reservations"
+      },
+      "tables": "Tables",
+      "tbl": {
+        "first_name": "First Name",
+        "last_name": "Last Name",
+        "party_size": "Party size",
+        "phone": "Phone",
+        "room": "Room",
+        "status": "Status"
+      },
+      "th": {
+        "occupancy": "Occupancy",
+        "people_tables_pct": "People • Tables • %",
+        "time": "Time"
+      },
+      "title": "Owner Calendar"
     },
     "tabs": {
       "aria": "Restaurant sections",
@@ -759,6 +839,33 @@
       "inventory": "Raw Materials Inventory",
       "bills": "Bills",
       "photos": "Photos"
+    },
+    "deposit": {
+      "alert": {
+        "error_amount": "Please enter a valid deposit amount",
+        "error_method": "Please set up at least one payment method",
+        "saved": "Settings saved"
+      },
+      "btn": {
+        "back": "Back to dashboard",
+        "save": "Save settings"
+      },
+      "form": {
+        "amount": "Deposit amount",
+        "currency": "Currency",
+        "enabled": "Require a deposit for reservations",
+        "enabled_hint": "When enabled, guests must pay a deposit to confirm their reservation",
+        "methods_hint": "Set up at least one payment method. Guests pay directly into your account.",
+        "methods_title": "Payment methods"
+      },
+      "head": "Deposit Settings",
+      "info": {
+        "item1": "When booking, the guest chooses their preferred payment method",
+        "item2": "Funds go directly to your Stripe, SumUp, PayPal or Revolut account",
+        "item3": "You confirm receipt from your calendar dashboard",
+        "item4": "SpotBook never processes or holds your money",
+        "title": "How direct payment works"
+      }
     }
   },
   "po": {
@@ -839,7 +946,8 @@
     },
     "btn_back_dashboard": "Back to Dashboard",
     "error": {
-      "load_menu": "Error loading menu"
+      "load_menu": "Error loading menu",
+      "add_item": "Could not add item"
     },
     "kitchen": {
       "instructions": "Arrows change status: forward (Received > In Progress > Ready) or backward.",
@@ -858,7 +966,8 @@
       "loading": "Loading menu...",
       "no_category": "Uncategorized",
       "search": "Search dishes...",
-      "title": "Menu"
+      "title": "Menu",
+      "filter_destination": "Destination filter"
     },
     "order": {
       "tbl": {
@@ -903,7 +1012,17 @@
       "panel_label": "Waiter Panel",
       "subtotal": "Subtotal",
       "table_info_note": "Information is taken from the last order / check at this table.",
-      "table_label": "Table"
+      "table_label": "Table",
+      "accounts": "Open Checks",
+      "accounts_help": "Useful for the bar or any shared seating area with separate bills.",
+      "btn_close_order_short": "Close",
+      "btn_new_account": "Open another check",
+      "current_check": "Current check",
+      "guest_check": "Guest Check",
+      "main_check": "Main Check",
+      "order_help": "Tap an item to manage status or cancel. Use Close Table when ready to issue the bill.",
+      "open_checks": "Open checks",
+      "save_note": "Save note"
     }
   },
   "pos.menu.add": "Add",
@@ -964,7 +1083,10 @@
   },
   "reservation": {
     "form": {
-      "title": "Reservation"
+      "title": "Reservation",
+      "notes": "Reservation notes",
+      "notes_placeholder": "Allergies, seating preferences...",
+      "submit": "Place Reservation"
     },
     "preferred_room": "Preferred Room",
     "preferred_room_any": "No preference",
@@ -1013,7 +1135,9 @@
       "loading": "Loading reviews...",
       "owner_reply": "Owner's Reply:",
       "title": "Reviews"
-    }
+    },
+    "check_availability": "Check Availability",
+    "select_date": "Select Date"
   },
   "restaurant_new": {
     "btn_back": "Back to Dashboard",
@@ -1251,5 +1375,24 @@
     "th_payment_terms": "Payment Terms",
     "th_phone": "Phone",
     "title": "Suppliers"
+  },
+  "meta": {
+    "description": "SpotBook — discover great restaurants and book a table online in seconds. Free for diners."
+  },
+  "favorites": {
+    "title": "My favorites",
+    "kicker": "Saved for later",
+    "empty": "You have no saved restaurants yet.",
+    "empty_hint": "Tap the heart on any restaurant page to save it here.",
+    "browse": "Browse restaurants",
+    "toggle": "Save to favorites",
+    "added": "Saved to favorites ❤️",
+    "removed": "Removed from favorites"
+  },
+  "home": {
+    "results": {
+      "empty_hint": "Try searching by restaurant name, city, or cuisine — or browse our featured picks below.",
+      "empty_reset": "Clear search"
+    }
   }
 }

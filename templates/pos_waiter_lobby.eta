@@ -83,7 +83,7 @@
 
   <section class="sb-wl-kpis" aria-label="Waiter highlights">
     <article class="sb-wl-kpi is-primary">
-      <div class="sb-wl-kpi__label">Open tables</div>
+      <div class="sb-wl-kpi__label"><%= tt('pos.waiter.open_tables', 'Open tables') %></div>
       <strong class="sb-wl-kpi__value"><%= activeChecksCount %></strong>
       <div class="sb-wl-kpi__note">tables with active service</div>
     </article>
