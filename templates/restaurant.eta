@@ -182,12 +182,13 @@
             </span>
             <span class="rsv-room-card__name"><%= room.label %></span>
             <% if (room.capacity) { %>
-              <span class="rsv-room-card__cap"><%= tt('restaurant.form.up_to','עד') %> <%= room.capacity %> <%= tt('restaurant.form.guests','אורחים') %></span>
+              <span class="rsv-room-card__cap"><%= tt('restaurant.form.seats','Seats {n}').replace('{n}', String(room.capacity)) %></span>
             <% } %>
           </button>
         <% }) %>
       </div>
-      <input type="hidden" id="preferredLayoutId" name="preferredLayoutId" value="<%= it.preferredLayoutId || '' %>"/>
+      <p class="rsv-room-hint"><%= tt('reservation.room_hint',"Not sure? Pick any room — we'll suggest alternatives if it's full.") %></p>
+      <input type="hidden" id="preferredLayoutId" name="preferredLayoutId" value="<%= it.preferredLayoutId || (it.rooms.length === 1 ? it.rooms[0].id : '') %>"/>
     </div>
     <% } %>
 
@@ -296,6 +297,15 @@
   </section>
   <script type="module" src="/public/js/menu_embed.js"></script>
   </div>
+</div>
+
+<!-- ===== Sticky mobile booking bar ===== -->
+<div class="rsv-sticky-bar" id="rsv-sticky-bar" hidden aria-hidden="true">
+  <span class="rsv-sticky-bar__name"><%= it.restaurant.name %></span>
+  <button type="button" class="rsv-sticky-bar__btn" id="rsv-sticky-book">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <%= tt('restaurant.sticky.book','Book a table') %>
+  </button>
 </div>
 
 <!-- *** Server data injection *** -->
@@ -447,6 +457,14 @@
       }
     }
   });
+
+  /* ===== Auto-select when there is exactly one room ===== */
+  (function autoSelectSingleRoom(){
+    const cards = document.querySelectorAll(".rsv-room-card");
+    if (cards.length === 1 && roomInput && !roomInput.value) {
+      roomInput.value = cards[0].dataset.roomId || "";
+    }
+  })();
 
   syncSelectedRoomCard();
 
@@ -772,6 +790,30 @@
     }
   }
 
+  /* ===== Sticky mobile booking bar ===== */
+  (function initStickyBar(){
+    const bar = document.getElementById("rsv-sticky-bar");
+    const bookBtn = document.getElementById("rsv-sticky-book");
+    if (!bar || !form || !("IntersectionObserver" in window)) return;
+    const mq = window.matchMedia("(max-width: 760px)");
+    let formInView = true;
+    const sync = () => {
+      const show = mq.matches && !formInView;
+      bar.hidden = !show;
+      bar.setAttribute("aria-hidden", show ? "false" : "true");
+    };
+    const io = new IntersectionObserver((entries) => {
+      for (const entry of entries) formInView = entry.isIntersecting;
+      sync();
+    }, { threshold: 0 });
+    io.observe(form);
+    if (typeof mq.addEventListener === "function") mq.addEventListener("change", sync);
+    else if (typeof mq.addListener === "function") mq.addListener(sync);
+    bookBtn?.addEventListener("click", () => {
+      form.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  })();
+
   /* ===== Toast ===== */
   function showToast(msg, type) {
     const existing = document.querySelector(".rsv-toast");
@@ -1023,6 +1065,12 @@
   .rsv-room-card.is-selected .rsv-room-card__icon { opacity: 1; color: var(--brand, #3b82f6); }
   .rsv-room-card__name { font-weight: 700; font-size: 15px; }
   .rsv-room-card__cap { font-size: 12px; color: var(--ink-muted, #9aa3b2); }
+  .rsv-room-hint {
+    margin: 8px 2px 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--ink-muted, #9aa3b2);
+  }
 
   /* ===== Buttons ===== */
   .rsv-actions {
@@ -1751,6 +1799,60 @@
     .rsv-gallery img { height: 170px; }
     .rsv-form__title { font-size: 22px; }
     .rsv-actions { flex-direction: column; }
+  }
+
+  /* ===== Sticky mobile booking bar ===== */
+  .rsv-sticky-bar {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 9000;
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    background: rgba(9, 14, 24, .96);
+    border-top: 1px solid rgba(59,130,246,.22);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 -12px 32px rgba(2,6,23,.5);
+  }
+  .rsv-sticky-bar[hidden] { display: none !important; }
+  .rsv-sticky-bar__name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink, #e6e8ef);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rsv-sticky-bar__btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(59,130,246,.35);
+    white-space: nowrap;
+    -webkit-appearance: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .rsv-sticky-bar__btn:active { transform: scale(.97); }
+  @media (max-width: 760px) {
+    .rsv-sticky-bar:not([hidden]) { display: flex; }
   }
 
 </style>
