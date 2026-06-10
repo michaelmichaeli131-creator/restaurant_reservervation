@@ -1416,5 +1416,41 @@
     "widget_preview": "תצוגה מקדימה",
     "widget_copy": "העתקת קוד",
     "widget_copied": "הועתק!"
+  },
+  "occasion": {
+    "birthday": "יום הולדת",
+    "anniversary": "יום נישואין",
+    "date": "דייט",
+    "business": "ארוחה עסקית",
+    "celebration": "חגיגה",
+    "other": "אחר"
+  },
+  "dietary": {
+    "vegetarian": "צמחוני",
+    "vegan": "טבעוני",
+    "gluten_free": "ללא גלוטן",
+    "kosher": "כשר",
+    "halal": "חלאל",
+    "allergies": "אלרגיות"
+  },
+  "details": {
+    "form": {
+      "occasion": "אירוע מיוחד (אופציונלי)",
+      "occasionNone": "ללא אירוע מיוחד",
+      "dietary": "העדפות תזונה (אופציונלי)",
+      "dietaryHint": "סמנו את כל מה שרלוונטי — המסעדה תקבל עדכון."
+    }
+  },
+  "confirm": {
+    "details": {
+      "occasion": "אירוע",
+      "dietary": "העדפות תזונה"
+    }
+  },
+  "manage": {
+    "details": {
+      "occasion": "אירוע",
+      "dietary": "העדפות תזונה"
+    }
   }
 }

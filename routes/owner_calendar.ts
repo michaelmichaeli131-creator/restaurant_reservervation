@@ -567,6 +567,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
       notes,
       at: it.time ?? time,
       roomLabel,
+      occasion: typeof it.occasion === "string" ? it.occasion : "",
+      dietary: Array.isArray(it.dietary) ? it.dietary.map((d: unknown) => String(d)) : [],
       depositStatus: it.depositStatus,
       depositAmount: it.depositAmount,
       depositCurrency: it.depositCurrency,
@@ -632,6 +634,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
         phone: it.phone ?? "",
         note: it.note ?? it.notes ?? "",
         roomLabel,
+        occasion: typeof it.occasion === "string" ? it.occasion : "",
+        dietary: Array.isArray(it.dietary) ? it.dietary.map((d: unknown) => String(d)) : [],
       };
     }),
   });

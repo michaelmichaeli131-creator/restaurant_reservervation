@@ -596,9 +596,10 @@
         ? `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(59,130,246,.15);color:#93c5fd;border:1px solid rgba(59,130,246,.25)">${escapeHTML(item.roomLabel)}</span>`
         : `<span style="color:var(--ink-muted,#9aa3b2)">—</span>`;
       const depositButtons = renderDepositButtons(item);
+      const guestChips = occasionDietaryChips(item);
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td data-label="${escapeHTML(init?.txt?.firstName || "First name")}">${escapeHTML(item.firstName || "")}</td>
+        <td data-label="${escapeHTML(init?.txt?.firstName || "First name")}">${escapeHTML(item.firstName || "")}${guestChips}</td>
         <td data-label="${escapeHTML(init?.txt?.lastName || "Last name")}">${escapeHTML(item.lastName || "")}</td>
         <td data-label="${escapeHTML(init?.txt?.partySize || "Party size")}">${Number(item.people || 0)}</td>
         <td data-label="${escapeHTML(init?.txt?.room || "Room")}">${roomCell}</td>
@@ -618,6 +619,37 @@
     $$('button[data-act="cancel"]', drawerTableBody).forEach((b) => b.addEventListener("click", () => slotAction("cancel", { id: b.dataset.id })));
     $$('button[data-act="confirm_deposit"]', drawerTableBody).forEach((b) => b.addEventListener("click", () => slotAction("confirm_deposit", { id: b.dataset.id })));
     $$('button[data-act="refund_deposit"]', drawerTableBody).forEach((b) => b.addEventListener("click", () => slotAction("refund_deposit", { id: b.dataset.id })));
+  }
+
+  function occasionDietaryChips(item) {
+    const occasionMeta = {
+      birthday:    { emoji: "🎂", label: init?.txt?.occasionBirthday || "Birthday" },
+      anniversary: { emoji: "💍", label: init?.txt?.occasionAnniversary || "Anniversary" },
+      date:        { emoji: "❤️", label: init?.txt?.occasionDate || "Date night" },
+      business:    { emoji: "💼", label: init?.txt?.occasionBusiness || "Business meal" },
+      celebration: { emoji: "🎉", label: init?.txt?.occasionCelebration || "Celebration" },
+      other:       { emoji: "✨", label: init?.txt?.occasionOther || "Other" },
+    };
+    const dietaryMeta = {
+      vegetarian:  init?.txt?.dietaryVegetarian || "Vegetarian",
+      vegan:       init?.txt?.dietaryVegan || "Vegan",
+      gluten_free: init?.txt?.dietaryGlutenFree || "Gluten-free",
+      kosher:      init?.txt?.dietaryKosher || "Kosher",
+      halal:       init?.txt?.dietaryHalal || "Halal",
+      allergies:   init?.txt?.dietaryAllergies || "Allergies",
+    };
+    const chips = [];
+    const occ = occasionMeta[String(item.occasion || "")];
+    if (occ) {
+      chips.push(`<span title="${escapeHTML(occ.label)}" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:rgba(245,158,11,.14);color:#fcd34d;border:1px solid rgba(245,158,11,.3)">${occ.emoji} ${escapeHTML(occ.label)}</span>`);
+    }
+    for (const d of Array.isArray(item.dietary) ? item.dietary : []) {
+      const label = dietaryMeta[String(d)];
+      if (!label) continue;
+      chips.push(`<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:rgba(16,185,129,.14);color:#6ee7b7;border:1px solid rgba(16,185,129,.3)">${escapeHTML(label)}</span>`);
+    }
+    if (!chips.length) return "";
+    return `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;justify-content:center">${chips.join("")}</div>`;
   }
 
   function depositBadge(depositStatus, depositAmount, depositCurrency) {

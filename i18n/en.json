@@ -1415,5 +1415,41 @@
     "widget_preview": "Preview",
     "widget_copy": "Copy code",
     "widget_copied": "Copied!"
+  },
+  "occasion": {
+    "birthday": "Birthday",
+    "anniversary": "Anniversary",
+    "date": "Date night",
+    "business": "Business meal",
+    "celebration": "Celebration",
+    "other": "Other"
+  },
+  "dietary": {
+    "vegetarian": "Vegetarian",
+    "vegan": "Vegan",
+    "gluten_free": "Gluten-free",
+    "kosher": "Kosher",
+    "halal": "Halal",
+    "allergies": "Allergies"
+  },
+  "details": {
+    "form": {
+      "occasion": "Occasion (optional)",
+      "occasionNone": "No special occasion",
+      "dietary": "Dietary preferences (optional)",
+      "dietaryHint": "Select all that apply — the restaurant will be notified."
+    }
+  },
+  "confirm": {
+    "details": {
+      "occasion": "Occasion",
+      "dietary": "Dietary preferences"
+    }
+  },
+  "manage": {
+    "details": {
+      "occasion": "Occasion",
+      "dietary": "Dietary preferences"
+    }
   }
 }

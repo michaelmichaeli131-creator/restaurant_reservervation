@@ -177,6 +177,9 @@ export interface Reservation {
   phone?: string;
   durationMinutes?: number; // ברירת מחדל לוגית 120 כשהשדה חסר
   preferredLayoutId?: string; // חלל/קומה מועדף (preference, לא binding)
+  // === Special occasion & dietary preferences (guest-supplied, optional) ===
+  occasion?: string;   // one of: birthday | anniversary | date | business | celebration | other
+  dietary?: string[];  // subset of: vegetarian | vegan | gluten_free | kosher | halal | allergies
   status?:
     | "new" | "confirmed" | "canceled" | "completed" | "blocked" | "rescheduled"
     | "approved" | "arrived" | "cancelled"; // תמיכה בשתי האיותים והסטטוסים החדשים
