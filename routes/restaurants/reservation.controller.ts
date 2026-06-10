@@ -504,6 +504,8 @@ export async function confirmGet(ctx: any) {
       manageUrl,
       reservationId: reservation.id,
       note: customerNote,
+      occasion: occasion || undefined,
+      dietary: dietary.length ? dietary : undefined,
       lang, // ← חשוב: מייל לפי שפת ההקלקה
     }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
   }
@@ -519,6 +521,8 @@ export async function confirmGet(ctx: any) {
       date,
       time,
       people,
+      occasion: occasion || undefined,
+      dietary: dietary.length ? dietary : undefined,
       lang,
     }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
   } else {
@@ -738,6 +742,8 @@ export async function confirmPost(ctx: any) {
       manageUrl,
       reservationId: reservation.id,
       note: customerNote,
+      occasion: occasion || undefined,
+      dietary: dietary.length ? dietary : undefined,
       lang, // ← חשוב: מייל לפי שפת ההקלקה
     }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
   }
@@ -749,6 +755,8 @@ export async function confirmPost(ctx: any) {
       restaurantName: restaurant.name,
       customerName, customerPhone, customerEmail,
       date, time, people,
+      occasion: occasion || undefined,
+      dietary: dietary.length ? dietary : undefined,
       lang,
     }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
   } else {
@@ -1036,6 +1044,8 @@ export async function confirmPaymentGet(ctx: any) {
       manageUrl,
       reservationId: reservation.id,
       note: tokenData.note,
+      occasion: occasion || undefined,
+      dietary: dietary.length ? dietary : undefined,
       lang,
     }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
   }
@@ -1051,6 +1061,8 @@ export async function confirmPaymentGet(ctx: any) {
       date: tokenData.date,
       time: tokenData.time,
       people: tokenData.people,
+      occasion: occasion || undefined,
+      dietary: dietary.length ? dietary : undefined,
       lang,
     }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
   }

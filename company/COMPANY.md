@@ -75,6 +75,17 @@ Target markets: **Israel 🇮🇱, Georgia 🇬🇪** (underserved!), expanding 
 
 ---
 
+### Day 3 — Sprint 3: "Sell & Communicate"
+
+**הושלם:**
+- ✅ **דף המכירה `/for-restaurants` משודרג**: סקשן widget עם mock חי ב‑CSS, מחירון Free/Pro/Enterprise (מחירים פר־שפה: ₪/$ /₾), הצעת השקה "5 מסעדות ראשונות — Pro חינם ל־6 חודשים", FAQ נגיש (5 שאלות), פס CTA סוגר. 65 מפתחות תרגום חדשים בכל שפה (parity 146=146=146).
+- ✅ **מערכת מיילים חדשה**: shell אחיד בהיר ובטוח לכל קליינט מייל (Gmail/Outlook), RTL לעברית, כל 6 סוגי המיילים שודרגו, occasion/dietary מוצגים כצ'יפים במייל לאורח ולמסעדן — בשלוש שפות. נבדק runtime ב‑dry-run.
+- ✅ **PWA**: אייקון אפליקציה ממותג (SVG), manifest, favicon — האתר ניתן להתקנה על מסך הבית בנייד.
+
+**Blockers:** ללא שינוי (Twilio, Stripe, דומיין — משימות אנושיות).
+
+---
+
 ## 💰 CFO Corner — Revenue Model (v1)
 
 | Tier | מחיר | כולל |
