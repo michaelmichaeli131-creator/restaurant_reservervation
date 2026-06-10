@@ -2,7 +2,9 @@
   "owner": {
     "hours": {
       "head": "Opening Hours Setup",
-      "alert": { "saved": "✓ Hours saved successfully" },
+      "alert": {
+        "saved": "✓ Hours saved successfully"
+      },
       "form": {
         "capacity": "Maximum simultaneous capacity",
         "slot_interval": "Slot grid (minutes)",
@@ -22,13 +24,22 @@
         "5": "Friday",
         "6": "Saturday"
       },
-      "tbl": { "day": "Day", "open": "Open", "close": "Close", "closed": "Closed" },
+      "tbl": {
+        "day": "Day",
+        "open": "Open",
+        "close": "Close",
+        "closed": "Closed"
+      },
       "aria": {
         "open": "Select opening time",
         "close": "Select closing time",
         "closed_toggle": "Mark this day as closed"
       },
-      "btn": { "save": "Save", "back": "Back to Dashboard" }
+      "btn": {
+        "save": "Save",
+        "back": "Back to Dashboard"
+      },
+      "setup_step": "Step 2 of 5: set your opening hours so guests know when they can book."
     }
   }
 }

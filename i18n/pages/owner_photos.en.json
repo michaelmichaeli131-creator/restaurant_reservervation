@@ -18,7 +18,9 @@
       "upload_err": "Upload error",
       "save_err": "Save error",
       "confirm_delete": "Delete this photo?",
-      "delete_err": "Delete failed"
+      "delete_err": "Delete failed",
+      "setup_step": "Step 3 of 5: upload photos to show guests what to expect.",
+      "choose_file": "Choose a photo"
     }
   }
 }

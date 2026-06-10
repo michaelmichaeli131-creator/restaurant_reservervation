@@ -116,9 +116,10 @@ Unit economics יעד: CAC ‹ ₪600/מסעדה, LTV (Pro, 24 חודשים) ≈
 
 | # | משימה | למה | סטטוס |
 |---|---|---|---|
-| 1 | רכישת דומיין (spotbook.ge / spotbook.co.il) | אמינות + SEO | ⬜ |
-| 2 | חשבון Resend מאומת דומיין + RESEND_DRY_RUN=false | מיילים אמיתיים ללקוחות | ⬜ |
+| 1 | ~~רכישת דומיין~~ | אמינות + SEO | ✅ **spotbook.rest** |
+| 2 | ~~מיילים על הדומיין~~ + לוודא `RESEND_DRY_RUN=false` ו‑`BASE_URL=https://spotbook.rest` בפרודקשן | מיילים אמיתיים + קישורים נכונים | ✅ (לוודא env) |
 | 3 | חשבון Twilio (או provider מקומי) ל‑SMS | תזכורות = פחות no-shows | ⬜ |
 | 4 | 10 שיחות עם מסעדנים בטביליסי/ת"א (discovery) | ולידציה לתמחור | ⬜ |
 | 5 | צילומי מסך/וידאו דמו לדף הנחיתה | שיווק | ⬜ |
-| 6 | רישום Google Business Profile + Search Console | הופעה בחיפוש | ⬜ |
+| 6 | רישום Google Search Console + הגשת `https://spotbook.rest/sitemap.xml` | הופעה בחיפוש | ⬜ |
+| 7 | חשבון Stripe ל‑billing | גביית מנויי Pro | ⬜ |

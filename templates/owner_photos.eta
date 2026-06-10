@@ -8,6 +8,7 @@
     <div>
       <h1 class="h1"><%= tt('owner.photos.title','ფოტოები') %> — <%= it.restaurant.name %></h1>
       <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+      <p class="muted"><%= tt('owner.photos.setup_step','Step 3 of 5: upload photos to show guests what to expect.') %></p>
     </div>
     <a class="btn ghost sm" href="/owner"><%= tt('owner.photos.back_to_dashboard','პანელზე დაბრუნება') %></a>
   </header>

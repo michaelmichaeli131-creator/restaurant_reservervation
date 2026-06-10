@@ -33,7 +33,25 @@
         "photos_hint": "Files will be automatically uploaded to the new restaurant after creation.",
         "submit": "Save & Create"
       },
-      "after_create_hint": "After creation, you can update opening hours, details, and photos in the “Edit Details” or “Photos” screens."
+      "after_create_hint": "After creation, you can update opening hours, details, and photos in the “Edit Details” or “Photos” screens.",
+      "setup": {
+        "title": "Finish your setup",
+        "subtitle": "Complete these steps so guests can find and book your restaurant.",
+        "steps_done": "steps completed",
+        "progress_aria": "Setup progress",
+        "step_profile": "Profile created",
+        "step_hours": "Opening hours set",
+        "step_photos": "Photos uploaded",
+        "step_menu": "Menu added",
+        "step_approval": "Approved & live",
+        "waiting_approval": "Waiting for approval",
+        "approval_hint": "Completed automatically after review",
+        "tip_description": "Tip: add a description to attract guests",
+        "tip_more_photos": "Tip: 3+ photos work best",
+        "welcome_title": "Welcome to SpotBook!",
+        "welcome_text": "Create your restaurant profile to start taking reservations — it takes about 10 minutes.",
+        "welcome_cta": "Create your restaurant"
+      }
     }
   }
 }
