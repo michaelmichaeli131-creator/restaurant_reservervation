@@ -49,6 +49,27 @@ function trf(
 ): string {
   return tr(lang, values).replace(/\{(\w+)\}/g, (_m, key) => String(vars[key] ?? ""));
 }
+/* ====================== occasion & dietary helpers ====================== */
+const OCCASION_KEYS = ["birthday", "anniversary", "date", "business", "celebration", "other"];
+const DIETARY_KEYS = ["vegetarian", "vegan", "gluten_free", "kosher", "halal", "allergies"];
+
+function sanitizeOccasion(v: unknown): string {
+  const s = String(v ?? "").trim().toLowerCase();
+  return OCCASION_KEYS.includes(s) ? s : "";
+}
+
+function sanitizeDietary(v: unknown): string[] {
+  let raw: string[] = [];
+  if (Array.isArray(v)) raw = v.map((x) => String(x ?? ""));
+  else if (typeof v === "string") raw = v.split(",");
+  const out: string[] = [];
+  for (const item of raw) {
+    const s = item.trim().toLowerCase();
+    if (DIETARY_KEYS.includes(s) && !out.includes(s)) out.push(s);
+  }
+  return out;
+}
+
 function paymentMethodLabel(lang: string, key: string): string {
   switch (key) {
     case "stripe":
@@ -345,6 +366,8 @@ export async function confirmGet(ctx: any) {
     sp.get("note") ?? sp.get("comments") ?? sp.get("special_requests") ?? sp.get("specialRequests") ?? "";
   const preferredLayoutId = (sp.get("preferredLayoutId") ?? "").trim();
   const preferredLayoutLabel = preferredLayoutId ? await getRoomLabelByLayoutId(rid, preferredLayoutId) : "";
+  const occasion = sanitizeOccasion(sp.get("occasion"));
+  const dietary = sanitizeDietary(sp.getAll("dietary"));
 
   const customerName  = normalizePlain(customerNameRaw ?? "");
   const customerPhone = normalizePlain(customerPhoneRaw ?? "");
@@ -420,6 +443,8 @@ export async function confirmGet(ctx: any) {
     `Phone: ${customerPhone}`,
     `Email: ${customerEmail}`,
     ...(preferredLayoutId ? [`PreferredRoomId: ${preferredLayoutId}`] : []),
+    ...(occasion ? [`Occasion: ${occasion}`] : []),
+    ...(dietary.length ? [`Dietary: ${dietary.join(",")}`] : []),
     ...(customerNote ? [`Note: ${customerNote}`] : []),
   ].join("; ");
 
@@ -433,6 +458,8 @@ export async function confirmGet(ctx: any) {
     status: "new",
     note: reservationNote,
     ...(preferredLayoutId ? { preferredLayoutId } : {}),
+    ...(occasion ? { occasion } : {}),
+    ...(dietary.length ? { dietary } : {}),
     createdAt: Date.now(),
   };
   try {
@@ -477,6 +504,8 @@ export async function confirmGet(ctx: any) {
       manageUrl,
       reservationId: reservation.id,
       note: customerNote,
+      occasion: occasion || undefined,
+      dietary: dietary.length ? dietary : undefined,
       lang, // ← חשוב: מייל לפי שפת ההקלקה
     }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
   }
@@ -492,6 +521,8 @@ export async function confirmGet(ctx: any) {
       date,
       time,
       people,
+      occasion: occasion || undefined,
+      dietary: dietary.length ? dietary : undefined,
       lang,
     }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
   } else {
@@ -512,6 +543,8 @@ export async function confirmGet(ctx: any) {
     customerName, customerPhone, customerEmail,
     reservationId: reservation.id,
     note: customerNote,
+    occasion,
+    dietary,
     preferredLayoutId,
     preferredLayoutLabel,
   });
@@ -539,6 +572,13 @@ export async function confirmPost(ctx: any) {
   const customerNoteRaw =
     (payload as any).note ?? (payload as any).comments ?? (payload as any)["special_requests"] ?? (payload as any).specialRequests ?? "";
   const preferredLayoutIdPost = String((payload as any).preferredLayoutId ?? ctx.request.url.searchParams.get("preferredLayoutId") ?? "").trim();
+  const occasion = sanitizeOccasion((payload as any).occasion ?? ctx.request.url.searchParams.get("occasion"));
+  const qsDietary = ctx.request.url.searchParams.getAll("dietary");
+  const dietary = sanitizeDietary(
+    (payload as any).dietary !== undefined && (payload as any).dietary !== ""
+      ? (payload as any).dietary
+      : qsDietary,
+  );
 
   debugLog("[ROOM_DEBUG][POST confirm]", {
     rid,
@@ -621,6 +661,8 @@ export async function confirmPost(ctx: any) {
       email: customerEmail,
       note: customerNote,
       preferredLayoutId: preferredLayoutIdPost || undefined,
+      occasion: occasion || undefined,
+      dietary: dietary.length ? dietary : undefined,
       ts: Date.now(),
     });
     const lang = ctx.state?.lang ?? getLang(ctx);
@@ -639,6 +681,8 @@ export async function confirmPost(ctx: any) {
     `Phone: ${customerPhone}`,
     `Email: ${customerEmail}`,
     ...(preferredLayoutIdPost ? [`PreferredRoomId: ${preferredLayoutIdPost}`] : []),
+    ...(occasion ? [`Occasion: ${occasion}`] : []),
+    ...(dietary.length ? [`Dietary: ${dietary.join(",")}`] : []),
     ...(customerNote ? [`Note: ${customerNote}`] : []),
   ].join("; ");
 
@@ -652,6 +696,8 @@ export async function confirmPost(ctx: any) {
     status: "new",
     note: reservationNote,
     ...(preferredLayoutIdPost ? { preferredLayoutId: preferredLayoutIdPost } : {}),
+    ...(occasion ? { occasion } : {}),
+    ...(dietary.length ? { dietary } : {}),
     createdAt: Date.now(),
   };
   try {
@@ -696,6 +742,8 @@ export async function confirmPost(ctx: any) {
       manageUrl,
       reservationId: reservation.id,
       note: customerNote,
+      occasion: occasion || undefined,
+      dietary: dietary.length ? dietary : undefined,
       lang, // ← חשוב: מייל לפי שפת ההקלקה
     }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
   }
@@ -707,6 +755,8 @@ export async function confirmPost(ctx: any) {
       restaurantName: restaurant.name,
       customerName, customerPhone, customerEmail,
       date, time, people,
+      occasion: occasion || undefined,
+      dietary: dietary.length ? dietary : undefined,
       lang,
     }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
   } else {
@@ -727,6 +777,8 @@ export async function confirmPost(ctx: any) {
     customerName, customerPhone, customerEmail,
     reservationId: reservation.id,
     note: customerNote,
+    occasion,
+    dietary,
   });
 }
 
@@ -741,6 +793,8 @@ interface PaymentTokenData {
   email: string;
   note: string;
   preferredLayoutId?: string;
+  occasion?: string;
+  dietary?: string[];
   ts: number; // timestamp for expiry
 }
 
@@ -837,6 +891,8 @@ export async function paymentGet(ctx: any) {
     confirmUrl.searchParams.set("email", tokenData.email);
     confirmUrl.searchParams.set("note", tokenData.note);
     if (tokenData.preferredLayoutId) confirmUrl.searchParams.set("preferredLayoutId", tokenData.preferredLayoutId);
+    if (tokenData.occasion) confirmUrl.searchParams.set("occasion", tokenData.occasion);
+    for (const d of tokenData.dietary ?? []) confirmUrl.searchParams.append("dietary", d);
     appendLang(confirmUrl, ctx.state?.lang ?? getLang(ctx));
     ctx.response.redirect(confirmUrl.toString());
     return;
@@ -920,11 +976,15 @@ export async function confirmPaymentGet(ctx: any) {
   // --- Create reservation with deposit status ---
   const user = (ctx.state as any)?.user ?? null;
   const userId: string = user?.id ?? `guest:${crypto.randomUUID().slice(0, 8)}`;
+  const occasion = sanitizeOccasion(tokenData.occasion);
+  const dietary = sanitizeDietary(tokenData.dietary);
   const reservationNote = [
     `Name: ${tokenData.name}`,
     `Phone: ${tokenData.phone}`,
     `Email: ${tokenData.email}`,
     ...(tokenData.preferredLayoutId ? [`PreferredRoomId: ${tokenData.preferredLayoutId}`] : []),
+    ...(occasion ? [`Occasion: ${occasion}`] : []),
+    ...(dietary.length ? [`Dietary: ${dietary.join(",")}`] : []),
     ...(tokenData.note ? [`Note: ${tokenData.note}`] : []),
   ].join("; ");
 
@@ -939,6 +999,8 @@ export async function confirmPaymentGet(ctx: any) {
     status: "new",
     note: reservationNote,
     ...(tokenData.preferredLayoutId ? { preferredLayoutId: tokenData.preferredLayoutId } : {}),
+    ...(occasion ? { occasion } : {}),
+    ...(dietary.length ? { dietary } : {}),
     // Payment tracking fields
     depositStatus: hasDeposit ? "pending" : "not_required",
     depositAmount: hasDeposit ? restaurant.depositAmount : undefined,
@@ -982,6 +1044,8 @@ export async function confirmPaymentGet(ctx: any) {
       manageUrl,
       reservationId: reservation.id,
       note: tokenData.note,
+      occasion: occasion || undefined,
+      dietary: dietary.length ? dietary : undefined,
       lang,
     }).catch((e) => console.warn("[mail] sendReservationEmail failed:", e));
   }
@@ -997,6 +1061,8 @@ export async function confirmPaymentGet(ctx: any) {
       date: tokenData.date,
       time: tokenData.time,
       people: tokenData.people,
+      occasion: occasion || undefined,
+      dietary: dietary.length ? dietary : undefined,
       lang,
     }).catch((e) => console.warn("[mail] notifyOwnerEmail failed:", e));
   }
@@ -1019,6 +1085,8 @@ export async function confirmPaymentGet(ctx: any) {
     customerEmail: tokenData.email,
     reservationId: reservation.id,
     note: tokenData.note,
+    occasion,
+    dietary,
     preferredLayoutId: tokenData.preferredLayoutId,
     preferredLayoutLabel,
     // Payment info for display

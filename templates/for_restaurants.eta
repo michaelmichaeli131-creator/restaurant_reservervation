@@ -128,6 +128,54 @@
   </div>
 </section>
 
+<section class="section olp3-widget" id="widget-showcase">
+  <div class="sb-container olp3-widget__grid">
+    <div class="olp3-widget__copy">
+      <div class="section-kicker"><%= (it.t && it.t('for_restaurants.widget.kicker')) || 'New — embeddable widget' %></div>
+      <h2 class="section-title"><%= (it.t && it.t('for_restaurants.widget.title')) || 'Your website becomes a booking machine' %></h2>
+      <p class="olp3-widget__text"><%= (it.t && it.t('for_restaurants.widget.desc')) || 'Drop the SpotBook widget into your site and turn visitors into seated guests. It shows live availability straight from your floor, matches your brand, and confirms bookings instantly — no plugins, no maintenance.' %></p>
+      <div class="olp3-widget-points">
+        <div><span>⚡</span><p><%= (it.t && it.t('for_restaurants.widget.point1')) || 'One line of code — paste it once and you are live' %></p></div>
+        <div><span>◉</span><p><%= (it.t && it.t('for_restaurants.widget.point2')) || 'Live availability synced with your floor map' %></p></div>
+        <div><span>文</span><p><%= (it.t && it.t('for_restaurants.widget.point3')) || 'Speaks Hebrew, English, and Georgian out of the box' %></p></div>
+        <div><span>◐</span><p><%= (it.t && it.t('for_restaurants.widget.point4')) || 'Light and dark themes to match your site' %></p></div>
+      </div>
+      <div class="olp3-code">
+        <span class="olp3-code__label"><%= (it.t && it.t('for_restaurants.widget.code_label')) || 'All it takes:' %></span>
+        <code>&lt;script src="https://spotbook.app/widget.js" data-restaurant="your-id"&gt;&lt;/script&gt;</code>
+      </div>
+      <a class="btn primary owners-btn-primary olp3-widget__cta" href="#owner-signup"><%= (it.t && it.t('for_restaurants.widget.cta')) || 'Put the widget on my site' %></a>
+    </div>
+    <div class="olp3-widget__demo">
+      <div class="olp3-mockcard" role="img" aria-label="<%= (it.t && it.t('for_restaurants.widget.mock_title')) || 'Book a table' %>">
+        <div class="olp3-mockcard__head">
+          <strong><%= (it.t && it.t('for_restaurants.widget.mock_title')) || 'Book a table' %></strong>
+          <span class="olp3-mockcard__brand">SpotBook</span>
+        </div>
+        <div class="olp3-mockcard__row">
+          <div class="olp3-mockfield">
+            <span><%= (it.t && it.t('for_restaurants.widget.mock_date_label')) || 'Date' %></span>
+            <strong><%= (it.t && it.t('for_restaurants.widget.mock_date_value')) || 'Fri, 12 Jun' %></strong>
+          </div>
+          <div class="olp3-mockfield">
+            <span><%= (it.t && it.t('for_restaurants.widget.mock_guests_label')) || 'Guests' %></span>
+            <strong><%= (it.t && it.t('for_restaurants.widget.mock_guests_value')) || '2 guests' %></strong>
+          </div>
+        </div>
+        <div class="olp3-mockcard__label"><%= (it.t && it.t('for_restaurants.widget.mock_time_label')) || 'Time' %></div>
+        <div class="olp3-mockchips">
+          <span>19:00</span>
+          <span class="olp3-mockchips__active">19:30</span>
+          <span>20:00</span>
+          <span>20:30</span>
+        </div>
+        <div class="olp3-mockbtn"><%= (it.t && it.t('for_restaurants.widget.mock_button')) || 'Reserve now' %></div>
+        <div class="olp3-mockcard__foot"><%= (it.t && it.t('for_restaurants.widget.mock_footnote')) || 'Powered by SpotBook' %></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="section owners-before-after">
   <div class="sb-container">
     <div class="section-head-center">
@@ -177,6 +225,111 @@
         <summary><%= (it.t && it.t('for_restaurants.faq.q3')) || 'Can I start as an owner account now?' %></summary>
         <p><%= (it.t && it.t('for_restaurants.faq.a3')) || 'Yes. Use the registration form below and choose the restaurant owner flow.' %></p>
       </details>
+    </div>
+  </div>
+</section>
+
+<section class="section olp3-pricing" id="pricing">
+  <div class="sb-container">
+    <div class="section-head-center">
+      <div class="section-kicker"><%= (it.t && it.t('for_restaurants.pricing.kicker')) || 'Pricing' %></div>
+      <h2 class="section-title"><%= (it.t && it.t('for_restaurants.pricing.title')) || 'Plans that pay for themselves on the first busy night' %></h2>
+      <p class="section-head-center__desc"><%= (it.t && it.t('for_restaurants.pricing.desc')) || 'Start free, upgrade when you are ready. Every plan includes your guest-facing booking page.' %></p>
+    </div>
+
+    <div class="olp3-pricing-grid">
+      <article class="olp3-price-card">
+        <h3><%= (it.t && it.t('for_restaurants.pricing.free_name')) || 'Free' %></h3>
+        <div class="olp3-price-amount">
+          <strong><%= (it.t && it.t('for_restaurants.pricing.free_price')) || '$0' %></strong>
+          <span><%= (it.t && it.t('for_restaurants.pricing.free_period')) || 'free forever' %></span>
+        </div>
+        <ul>
+          <li><%= (it.t && it.t('for_restaurants.pricing.free_f1')) || 'Up to 100 reservations a month' %></li>
+          <li><%= (it.t && it.t('for_restaurants.pricing.free_f2')) || 'Email confirmations' %></li>
+          <li><%= (it.t && it.t('for_restaurants.pricing.free_f3')) || 'Your own booking page' %></li>
+          <li><%= (it.t && it.t('for_restaurants.pricing.free_f4')) || '1 staff account' %></li>
+        </ul>
+        <a class="btn secondary ghost owners-btn-secondary" href="#owner-signup"><%= (it.t && it.t('for_restaurants.pricing.free_cta')) || 'Start free' %></a>
+      </article>
+
+      <article class="olp3-price-card olp3-price-card--pro">
+        <div class="olp3-price-badge"><%= (it.t && it.t('for_restaurants.pricing.pro_badge')) || 'Most popular' %></div>
+        <h3><%= (it.t && it.t('for_restaurants.pricing.pro_name')) || 'Pro' %></h3>
+        <div class="olp3-price-amount">
+          <strong><%= (it.t && it.t('for_restaurants.pricing.pro_price')) || '$49' %></strong>
+          <span><%= (it.t && it.t('for_restaurants.pricing.pro_period')) || 'per month' %></span>
+        </div>
+        <ul>
+          <li><%= (it.t && it.t('for_restaurants.pricing.pro_f1')) || 'Unlimited reservations' %></li>
+          <li><%= (it.t && it.t('for_restaurants.pricing.pro_f2')) || 'Embeddable website widget' %></li>
+          <li><%= (it.t && it.t('for_restaurants.pricing.pro_f3')) || 'Floor map + live service view' %></li>
+          <li><%= (it.t && it.t('for_restaurants.pricing.pro_f4')) || 'POS, inventory, and shifts' %></li>
+          <li><%= (it.t && it.t('for_restaurants.pricing.pro_f5')) || 'Occasion & dietary insights' %></li>
+          <li><%= (it.t && it.t('for_restaurants.pricing.pro_f6')) || 'Priority support' %></li>
+        </ul>
+        <a class="btn primary owners-btn-primary" href="#owner-signup"><%= (it.t && it.t('for_restaurants.pricing.pro_cta')) || 'Start with Pro' %></a>
+      </article>
+
+      <article class="olp3-price-card">
+        <h3><%= (it.t && it.t('for_restaurants.pricing.ent_name')) || 'Enterprise' %></h3>
+        <div class="olp3-price-amount">
+          <strong><%= (it.t && it.t('for_restaurants.pricing.ent_price')) || 'Custom' %></strong>
+          <span><%= (it.t && it.t('for_restaurants.pricing.ent_period')) || 'tailored to your group' %></span>
+        </div>
+        <ul>
+          <li><%= (it.t && it.t('for_restaurants.pricing.ent_f1')) || 'White-label experience' %></li>
+          <li><%= (it.t && it.t('for_restaurants.pricing.ent_f2')) || 'API access' %></li>
+          <li><%= (it.t && it.t('for_restaurants.pricing.ent_f3')) || 'Multi-location management' %></li>
+          <li><%= (it.t && it.t('for_restaurants.pricing.ent_f4')) || 'Dedicated support' %></li>
+        </ul>
+        <a class="btn secondary ghost owners-btn-secondary" href="#owner-signup"><%= (it.t && it.t('for_restaurants.pricing.ent_cta')) || 'Talk to us' %></a>
+      </article>
+    </div>
+
+    <p class="olp3-pricing-note"><%= (it.t && it.t('for_restaurants.pricing.note')) || 'Early partner program: the first 5 restaurants get Pro free for 6 months.' %></p>
+  </div>
+</section>
+
+<section class="section olp3-faq2">
+  <div class="sb-container">
+    <div class="section-head-center">
+      <div class="section-kicker"><%= (it.t && it.t('for_restaurants.faq2.kicker')) || 'Before you decide' %></div>
+      <h2 class="section-title"><%= (it.t && it.t('for_restaurants.faq2.title')) || 'Straight answers to the practical questions' %></h2>
+      <p class="section-head-center__desc"><%= (it.t && it.t('for_restaurants.faq2.desc')) || 'The things owners ask us right before they sign up.' %></p>
+    </div>
+    <div class="olp3-faq2-list">
+      <details class="owners-faq-item" open>
+        <summary><%= (it.t && it.t('for_restaurants.faq2.q1')) || 'How long does setup take?' %></summary>
+        <p><%= (it.t && it.t('for_restaurants.faq2.a1')) || 'Under 15 minutes. Create your account, add your restaurant details, and you can take your first booking the same day.' %></p>
+      </details>
+      <details class="owners-faq-item">
+        <summary><%= (it.t && it.t('for_restaurants.faq2.q2')) || 'Do I need new hardware?' %></summary>
+        <p><%= (it.t && it.t('for_restaurants.faq2.a2')) || 'No — SpotBook works in the browser on any tablet, phone, or computer you already own.' %></p>
+      </details>
+      <details class="owners-faq-item">
+        <summary><%= (it.t && it.t('for_restaurants.faq2.q3')) || 'Can guests book from my Instagram?' %></summary>
+        <p><%= (it.t && it.t('for_restaurants.faq2.a3')) || 'Yes — put your SpotBook page link in your bio, or add the widget to your website and send guests straight to it.' %></p>
+      </details>
+      <details class="owners-faq-item">
+        <summary><%= (it.t && it.t('for_restaurants.faq2.q4')) || 'What happens to my existing reservations?' %></summary>
+        <p><%= (it.t && it.t('for_restaurants.faq2.a4')) || 'Add them manually in minutes, or our team will help you import them so you never lose a booking.' %></p>
+      </details>
+      <details class="owners-faq-item">
+        <summary><%= (it.t && it.t('for_restaurants.faq2.q5')) || 'Can I cancel anytime?' %></summary>
+        <p><%= (it.t && it.t('for_restaurants.faq2.a5')) || 'Yes. There are no contracts and no lock-in — cancel whenever you like.' %></p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section class="section olp3-cta">
+  <div class="sb-container">
+    <div class="olp3-cta__band">
+      <h2><%= (it.t && it.t('for_restaurants.cta.title')) || "Tonight's empty tables don't have to stay empty." %></h2>
+      <p><%= (it.t && it.t('for_restaurants.cta.sub')) || 'Join the restaurants turning lookers into bookers with SpotBook.' %></p>
+      <a class="btn primary owners-btn-primary" href="#owner-signup"><%= (it.t && it.t('for_restaurants.cta.button')) || 'Create your owner account' %></a>
+      <p class="olp3-cta__note"><%= (it.t && it.t('for_restaurants.cta.note')) || 'Free to start. No credit card.' %></p>
     </div>
   </div>
 </section>
@@ -362,5 +515,68 @@ html[dir="rtl"] .owners-compare-card li::before{left:auto;right:0}
   .owners-hero-actions{gap:10px}
   .owners-command-step{grid-template-columns:36px 1fr;gap:10px}
   .owners-command-step span{width:36px;height:36px;border-radius:12px}
+}
+
+/* ===== olp3: widget showcase, pricing, faq2, final cta ===== */
+.olp3-widget,.olp3-pricing,.olp3-faq2,.olp3-cta{position:relative}
+.olp3-widget__grid{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,1.08fr) minmax(320px,.92fr);gap:28px;align-items:center}
+.olp3-widget__text{margin:0;color:#97aac4;line-height:1.85;font-size:16px}
+.olp3-widget-points{display:grid;gap:12px;margin-block-start:18px}
+.olp3-widget-points>div{display:grid;grid-template-columns:30px 1fr;gap:12px;align-items:start;padding:12px 14px;border-radius:18px;background:rgba(15,23,42,.4);border:1px solid rgba(148,163,184,.12)}
+.olp3-widget-points span{width:30px;height:30px;display:grid;place-items:center;border-radius:10px;background:rgba(59,130,246,.14);border:1px solid rgba(96,165,250,.22);color:#bfe3ff;font-size:14px;font-weight:800}
+.olp3-widget-points p{margin:0;color:#c9d9eb;line-height:1.7}
+.olp3-code{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-block-start:18px;padding:12px 16px;border-radius:16px;background:rgba(2,8,23,.62);border:1px solid rgba(125,211,252,.18)}
+.olp3-code__label{font-size:13px;font-weight:700;color:#7dd3fc;white-space:nowrap}
+.olp3-code code{direction:ltr;unicode-bidi:isolate;font-size:12.5px;color:#bfe3ff;word-break:break-all;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.olp3-widget__cta{margin-block-start:20px}
+.olp3-widget__demo{display:grid;place-items:center}
+.olp3-mockcard{width:100%;max-width:380px;padding:22px;border-radius:26px;background:linear-gradient(180deg,#f8fafc,#e7edf5);border:1px solid rgba(148,163,184,.4);box-shadow:0 30px 80px rgba(2,8,23,.5)}
+.olp3-mockcard__head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-block-end:14px}
+.olp3-mockcard__head strong{color:#0f172a;font-size:18px}
+.olp3-mockcard__brand{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#2563eb;background:rgba(37,99,235,.1);padding:4px 10px;border-radius:999px;white-space:nowrap}
+.olp3-mockcard__row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.olp3-mockfield{padding:10px 12px;border-radius:14px;background:#fff;border:1px solid rgba(148,163,184,.35)}
+.olp3-mockfield span{display:block;font-size:10.5px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-block-end:2px}
+.olp3-mockfield strong{color:#0f172a;font-size:14px}
+.olp3-mockcard__label{margin-block:12px 8px;font-size:10.5px;color:#64748b;text-transform:uppercase;letter-spacing:.08em}
+.olp3-mockchips{display:flex;flex-wrap:wrap;gap:8px}
+.olp3-mockchips span{padding:8px 14px;border-radius:999px;background:#fff;border:1px solid rgba(148,163,184,.35);color:#0f172a;font-size:13px;font-weight:600}
+.olp3-mockchips .olp3-mockchips__active{background:#2563eb;border-color:#2563eb;color:#fff;box-shadow:0 8px 18px rgba(37,99,235,.35)}
+.olp3-mockbtn{margin-block-start:14px;padding:13px;border-radius:14px;background:linear-gradient(135deg,#2563eb,#38bdf8);color:#fff;text-align:center;font-weight:800;letter-spacing:.01em}
+.olp3-mockcard__foot{margin-block-start:10px;text-align:center;font-size:11px;color:#94a3b8}
+.olp3-pricing-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:stretch;margin-block-start:30px}
+.olp3-price-card{position:relative;display:flex;flex-direction:column;padding:26px 24px;border-radius:28px;background:linear-gradient(180deg, rgba(15,23,42,.8), rgba(15,23,42,.56));border:1px solid rgba(148,163,184,.13);box-shadow:0 22px 60px rgba(2,8,23,.2)}
+.olp3-price-card--pro{border-color:rgba(125,211,252,.45);background:linear-gradient(180deg, rgba(23,37,84,.85), rgba(15,23,42,.62));box-shadow:0 26px 70px rgba(37,99,235,.28)}
+.olp3-price-badge{position:absolute;top:-13px;left:50%;transform:translateX(-50%);padding:6px 14px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#38bdf8);color:#fff;font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;box-shadow:0 10px 24px rgba(37,99,235,.35)}
+.olp3-price-card h3{margin:0 0 8px;color:#eef6ff;font-size:20px}
+.olp3-price-amount{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.olp3-price-amount strong{font-size:40px;color:#f8fbff;letter-spacing:-.03em;line-height:1}
+.olp3-price-amount span{color:#9db1cb;font-size:14px}
+.olp3-price-card ul{margin:18px 0 22px;padding:0;list-style:none;display:grid;gap:10px}
+.olp3-price-card li{position:relative;padding-inline-start:26px;color:#c7d7ea;line-height:1.65;font-size:14.5px}
+.olp3-price-card li::before{content:"✓";position:absolute;inset-inline-start:0;top:0;color:#4ade80;font-weight:900}
+.olp3-price-card .btn{margin-block-start:auto;width:100%;text-align:center;justify-content:center}
+.olp3-pricing-note{margin:22px auto 0;max-width:760px;text-align:center;padding:14px 18px;border-radius:18px;background:rgba(250,204,21,.08);border:1px solid rgba(250,204,21,.25);color:#fde68a;font-weight:600;line-height:1.7}
+.olp3-faq2-list{display:grid;gap:12px;max-width:860px;margin-inline:auto}
+.olp3-cta__band{position:relative;overflow:hidden;text-align:center;padding:clamp(36px,5vw,64px) 24px;border-radius:32px;border:1px solid rgba(125,211,252,.25);box-shadow:0 30px 80px rgba(2,8,23,.4);background:
+  radial-gradient(circle at top, rgba(56,189,248,.22), transparent 55%),
+  linear-gradient(180deg, rgba(23,37,84,.92), rgba(8,13,24,.96))}
+.olp3-cta__band h2{margin:0 0 12px;color:#f8fbff;font-size:clamp(30px,4.4vw,52px);letter-spacing:-.03em;line-height:1.05}
+.olp3-cta__band p{margin:0 auto;max-width:60ch;color:#a8bfd8;line-height:1.8}
+.olp3-cta__band .btn{margin-block-start:24px;display:inline-flex;min-height:52px;font-size:16px;padding-inline:28px}
+.olp3-cta__band .olp3-cta__note{margin-block-start:14px;font-size:14px;color:#7dd3fc;font-weight:600}
+@media (max-width:1240px){
+  .olp3-pricing-grid{gap:14px}
+}
+@media (max-width:1024px){
+  .olp3-widget__grid{grid-template-columns:1fr}
+  .olp3-pricing-grid{grid-template-columns:1fr;max-width:540px;margin-inline:auto}
+  .olp3-price-card--pro{order:-1}
+}
+@media (max-width:640px){
+  .olp3-mockcard{padding:18px;border-radius:20px}
+  .olp3-price-card{padding:22px 18px;border-radius:22px}
+  .olp3-cta__band{border-radius:22px;padding-inline:18px}
+  .olp3-code{padding:10px 14px}
 }
 </style>

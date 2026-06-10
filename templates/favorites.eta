@@ -1,0 +1,53 @@
+<%
+  /* Favorites page — saved restaurants for the signed-in user */
+  function tt(key, fallback){
+    try { const v = it.t ? it.t(key) : null; return (v && v !== key) ? v : fallback; }
+    catch(_e){ return fallback; }
+  }
+%>
+
+<section class="section">
+  <div class="sb-container">
+    <div class="section-head-inline">
+      <div>
+        <div class="section-kicker"><%= tt('favorites.kicker','Saved for later') %></div>
+        <h2 class="section-title">&#10084;&#65039; <%= tt('favorites.title','My favorites') %></h2>
+      </div>
+    </div>
+
+    <% if (!it.restaurants || !it.restaurants.length) { %>
+      <div class="sb-empty-state home-empty-state">
+        <div class="sb-empty-state__icon">&#129293;</div>
+        <p class="sb-empty-state__message"><%= tt('favorites.empty','You have no saved restaurants yet.') %></p>
+        <p class="sb-empty-state__hint muted"><%= tt('favorites.empty_hint','Tap the heart on any restaurant page to save it here.') %></p>
+        <a class="btn primary" href="/"><%= tt('favorites.browse','Browse restaurants') %></a>
+      </div>
+    <% } else { %>
+      <div class="cards">
+        <% (it.restaurants || []).forEach(function(r){
+             var cover = (r && r.coverUrl) || (r.photos && r.photos[0]) || "/static/placeholder.png";
+        %>
+          <a class="card home-card-v3" href="/restaurants/<%= r.id %>">
+            <div class="card-img" style="background-image:url('<%= cover %>')" role="img" aria-label="<%= r.name %>"></div>
+            <div class="card-body">
+              <div class="home-card-v3__top">
+                <h3 class="card-title"><%= r.name %></h3>
+                <% if (r.averageRating && r.reviewCount) { %>
+                  <div class="rating-badge"><span class="stars">&#9733;</span><span><%= r.averageRating.toFixed(1) %></span></div>
+                <% } %>
+              </div>
+              <p class="card-meta"><%= r.city %><% if (r.address) { %> &middot; <%= r.address %><% } %></p>
+              <% if (r.kitchenCategories && r.kitchenCategories.length) { %>
+                <div class="category-tags">
+                  <% r.kitchenCategories.slice(0, 3).forEach(function(cat){ %>
+                    <span class="cat-tag"><%= cat %></span>
+                  <% }); %>
+                </div>
+              <% } %>
+            </div>
+          </a>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+</section>

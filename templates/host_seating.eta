@@ -110,7 +110,7 @@
       <span class="host-kpi-card__hint">Fresh reservations still waiting</span>
     </article>
     <article class="host-kpi-card card">
-      <span class="host-kpi-card__label">Next seating</span>
+      <span class="host-kpi-card__label"><%= tt('host.next_seating', 'Next seating') %></span>
       <strong><%= nextReservation ? (nextReservation.time || '—') : '—' %></strong>
       <span class="host-kpi-card__hint"><%= nextReservation ? (nextReservation.name || 'Walk-in') : 'No upcoming reservations' %></span>
     </article>

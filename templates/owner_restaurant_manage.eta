@@ -716,6 +716,34 @@
             <a class="sb-link" href="/auth/change-password"><%= it.t('owner_manage.link_change_password') %></a>
           </div>
         </article>
+
+        <article class="sb-surface sb-rm-panel" data-sb-search="widget embed website iframe booking button">
+          <div class="sb-rm-panel-top sb-rm-card-head">
+            <div class="sb-rm-head-main">
+              <div class="sb-rm-section-kicker"><%= tt('owner_manage.growth', 'Growth') %></div>
+              <h3><%= tt('owner_manage.widget_title', 'Booking widget for your website') %></h3>
+              <p class="muted"><%= tt('owner_manage.widget_sub', 'Paste this snippet into your website and guests can book directly from there.') %></p>
+            </div>
+            <a class="btn sm ghost" href="/widget/<%= r?.id %>" target="_blank" rel="noopener"><%= tt('owner_manage.widget_preview', 'Preview') %></a>
+          </div>
+          <pre class="sb-rm-embed-code" id="sb-embed-code" dir="ltr" style="overflow-x:auto; background:rgba(15,23,42,.5); border:1px solid var(--bd,#23293a); border-radius:10px; padding:12px; font-size:12px; white-space:pre-wrap; word-break:break-all; user-select:all;"></pre>
+          <button type="button" class="btn sm" id="sb-embed-copy"><%= tt('owner_manage.widget_copy', 'Copy code') %></button>
+          <script>
+          (function(){
+            var rid = <%~ JSON.stringify(String(r?.id || '')) %>;
+            var lang = <%~ JSON.stringify(String(it.lang || 'en')) %>;
+            var code = '<scr' + 'ipt src="' + location.origin + '/embed.js" data-spotbook="' + rid + '" data-lang="' + lang + '" data-theme="light" async></scr' + 'ipt>';
+            var pre = document.getElementById('sb-embed-code');
+            var btn = document.getElementById('sb-embed-copy');
+            if (pre) pre.textContent = code;
+            if (btn) btn.addEventListener('click', function(){
+              (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject())
+                .then(function(){ btn.textContent = <%~ JSON.stringify(tt('owner_manage.widget_copied', 'Copied!')) %>; setTimeout(function(){ btn.textContent = <%~ JSON.stringify(tt('owner_manage.widget_copy', 'Copy code')) %>; }, 1600); })
+                .catch(function(){ if (pre) { var sel = window.getSelection(), range = document.createRange(); range.selectNodeContents(pre); sel.removeAllRanges(); sel.addRange(range); } });
+            });
+          })();
+          </script>
+        </article>
         <% } %>
       </section>
 

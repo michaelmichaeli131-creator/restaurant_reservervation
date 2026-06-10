@@ -46,6 +46,12 @@
     }
     a{color:inherit; text-decoration:none}
     .wrap{max-width:var(--max); margin:24px auto; padding:0 16px}
+    .back-home{
+      display:inline-flex; align-items:center; gap:6px;
+      margin-bottom:12px; color:var(--ink-muted); font-weight:700; font-size:14px;
+      transition:color .12s ease;
+    }
+    .back-home:hover{ color:var(--ink) }
     .card{ background:var(--panel); border:1px solid var(--bd); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
 
     .head{
@@ -91,6 +97,13 @@
     .pill{ border:1px solid var(--bd); border-radius:14px; padding:12px 14px; background: color-mix(in srgb, var(--panel-2) 90%, transparent); }
     .pill strong{display:block; font-size:12px; color:var(--ink-muted); margin-bottom:6px}
     .pill span{font-weight:800; letter-spacing:.3px}
+    .pill .diet-tags{display:flex; flex-wrap:wrap; gap:6px}
+    .pill .diet-tag{
+      display:inline-flex; align-items:center; gap:4px;
+      padding:3px 10px; border-radius:999px;
+      background:rgba(59,130,246,.14); border:1px solid rgba(59,130,246,.35);
+      color:#bfdbfe; font-size:12px; font-weight:700; white-space:nowrap;
+    }
 
     .actions{display:flex; flex-wrap:wrap; gap:10px; margin-top:14px}
 
@@ -132,6 +145,7 @@
 
 <body>
   <div class="wrap">
+    <a class="back-home" href="/">&larr; <%= tt('manage.backHome','Back to SpotBook') %></a>
     <div class="card">
       <div class="head">
         <!-- צד שמאל: לוגו + כותרת -->
@@ -210,6 +224,40 @@
             <span><%= it.reservation.preferredLayoutLabel || it.reservation.roomLabel %></span>
           </div>
           <% } %>
+          <%
+            const occasionMeta = {
+              birthday:    { emoji: '🎂', label: tt('occasion.birthday','Birthday') },
+              anniversary: { emoji: '💍', label: tt('occasion.anniversary','Anniversary') },
+              date:        { emoji: '❤️', label: tt('occasion.date','Date night') },
+              business:    { emoji: '💼', label: tt('occasion.business','Business meal') },
+              celebration: { emoji: '🎉', label: tt('occasion.celebration','Celebration') },
+              other:       { emoji: '✨', label: tt('occasion.other','Other') },
+            };
+            const dietaryLabels = {
+              vegetarian:  '🥗 ' + tt('dietary.vegetarian','Vegetarian'),
+              vegan:       '🌱 ' + tt('dietary.vegan','Vegan'),
+              gluten_free: '🌾 ' + tt('dietary.gluten_free','Gluten-free'),
+              kosher:      '✡️ ' + tt('dietary.kosher','Kosher'),
+              halal:       '☪️ ' + tt('dietary.halal','Halal'),
+              allergies:   '⚠️ ' + tt('dietary.allergies','Allergies'),
+            };
+            const occ = it.reservation?.occasion && occasionMeta[it.reservation.occasion] ? occasionMeta[it.reservation.occasion] : null;
+            const dietaryList = Array.isArray(it.reservation?.dietary) ? it.reservation.dietary.filter(d => dietaryLabels[d]) : [];
+          %>
+          <% if (occ) { %>
+          <div class="pill">
+            <strong><%= tt('manage.details.occasion','אירוע') %></strong>
+            <span><%= occ.emoji %> <%= occ.label %></span>
+          </div>
+          <% } %>
+          <% if (dietaryList.length) { %>
+          <div class="pill">
+            <strong><%= tt('manage.details.dietary','העדפות תזונה') %></strong>
+            <span class="diet-tags">
+              <% dietaryList.forEach(function(d){ %><span class="diet-tag"><%= dietaryLabels[d] %></span><% }) %>
+            </span>
+          </div>
+          <% } %>
         </div>
 
         <% if (it.flash?.ok) { %>
@@ -264,6 +312,10 @@
             <strong><a class="tel" href="tel:<%= it.restaurant.phone %>"><%= it.restaurant.phone %></a></strong>.
           <% } %>
         </p>
+
+        <div class="actions">
+          <a class="btn btn-brand" href="/"><%= tt('manage.bookAnother','Book another table') %></a>
+        </div>
       </div>
     </div>
   </div>

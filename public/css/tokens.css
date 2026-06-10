@@ -386,6 +386,13 @@
   margin-top: var(--sb-space-xl);
 }
 
+.sb-empty-state__hint {
+  margin: var(--sb-space-sm) 0 var(--sb-space-lg);
+  font-size: var(--sb-font-sm);
+  color: var(--sb-color-ink-muted);
+  max-width: 420px;
+}
+
 
 /* ==========================================================================
    Component: Toast (.sb-toast)

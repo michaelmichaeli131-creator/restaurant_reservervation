@@ -4,7 +4,29 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0b0f1a">
+  <link rel="icon" type="image/svg+xml" href="/public/icons/app-icon.svg"/>
+  <link rel="apple-touch-icon" href="/public/img/logo-spotbook.png"/>
+  <link rel="manifest" href="/public/manifest.webmanifest"/>
   <title><%= it.title ? it.title + ' · SpotBook' : 'SpotBook' %></title>
+  <%
+    const __metaDesc = it.metaDescription
+      || (it.t ? it.t('meta.description') : null)
+      || 'SpotBook — discover great restaurants and book a table online in seconds. Free for diners.';
+    const __ogImage = it.ogImage || '/public/img/logo-spotbook.png';
+  %>
+  <meta name="description" content="<%= __metaDesc %>">
+  <meta property="og:site_name" content="SpotBook">
+  <meta property="og:title" content="<%= it.title || 'SpotBook' %>">
+  <meta property="og:description" content="<%= __metaDesc %>">
+  <meta property="og:type" content="<%= it.ogType || 'website' %>">
+  <meta property="og:image" content="<%= __ogImage %>">
+  <% if (it.canonicalUrl) { %><link rel="canonical" href="<%= it.canonicalUrl %>"><meta property="og:url" content="<%= it.canonicalUrl %>"><% } %>
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="<%= it.title || 'SpotBook' %>">
+  <meta name="twitter:description" content="<%= __metaDesc %>">
+  <meta name="twitter:image" content="<%= __ogImage %>">
+  <% if (it.structuredData) { %><script type="application/ld+json"><%~ JSON.stringify(it.structuredData).replace(/</g, "\\u003c") %></script><% } %>
 
   <% if (!it.admin) { %>
     <link rel="stylesheet" href="/static/styles.css?v=<%= it.BUILD_TAG || '' %>"/>
@@ -150,6 +172,7 @@
 %>
 
 <body class="sb-body<%= it.admin ? ' admin' : '' %>" data-theme="<%= it.admin ? 'dark' : 'auto' %>">
+  <a href="#main-content" class="skip-link"><%= it.t ? (it.t('nav.skipToContent') || 'Skip to main content') : 'Skip to main content' %></a>
   <header class="sb-header">
     <div class="sb-container sb-header-row">
       <a class="brand" href="/" aria-label="SpotBook">
@@ -165,6 +188,10 @@
 
       <nav class="sb-actions" aria-label="Main actions">
         <% if (it.user) { %>
+          <% if (it.user.role !== 'owner') { %>
+            <a class="btn ghost btn-favs" href="/favorites" title="<%= it.t ? (it.t('nav.favorites') || 'My favorites') : 'My favorites' %>">&#10084;&#65039;</a>
+            <a class="btn ghost btn-favs" href="/my-reservations" title="<%= it.t ? (it.t('nav.myReservations') || 'My reservations') : 'My reservations' %>">&#128197;</a>
+          <% } %>
           <a class="btn primary btn-manage" href="/owner"><%= it.t ? it.t('nav.manage') : 'Manage Restaurant' %></a>
           <a class="btn ghost btn-logout" href="/auth/logout"><%= it.t ? it.t('nav.logout') : 'Logout' %></a>
         <% } else { %>
@@ -185,7 +212,7 @@
     </div>
   </header>
 
-  <main class="sb-container">
+  <main id="main-content" class="sb-container">
     <%~ it.body %>
   </main>
 

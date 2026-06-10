@@ -92,7 +92,9 @@
     "none": "ללא",
     "optional": "אופציונלי",
     "people_unit": "סועדים",
-    "restaurant": "מסעדה"
+    "restaurant": "מסעדה",
+    "actions": "פעולות",
+    "back": "חזרה"
   },
   "count": {
     "actual_value": "שווי Actual (תצוגה)",
@@ -282,6 +284,9 @@
       "open_seat": "פתח מושב",
       "open_new_check": "פתח חשבון חדש",
       "host_help": "בחרו את המושב הפנוי הראשון. ניתן להושיב קבוצות על מושבים סמוכים בבר."
+    },
+    "placeholder": {
+      "layout_name": "שם פריסה (לדוגמה: קומה ראשית, מרפסת)"
     }
   },
   "foodcost": {
@@ -409,12 +414,14 @@
     "badge_new": "חדש",
     "err_no_adjacent_bar_seats": "אין מספיק מושבים סמוכים פנויים בבר עבור ההזמנה הזו.",
     "confirm_seat_bar": "להושיב את ההזמנה במושבי הבר",
-    "success_seat_bar": "ההזמנה הושבה במושבי הבר"
+    "success_seat_bar": "ההזמנה הושבה במושבי הבר",
+    "next_seating": "ההושבה הבאה"
   },
   "lang": {
     "english": "English",
     "georgian": "ქართული",
-    "hebrew": "עברית"
+    "hebrew": "עברית",
+    "italian": "איטלקית"
   },
   "live": {
     "auto_refresh": "רענון אוטומטי",
@@ -437,7 +444,10 @@
     "manage": "נהל מסעדה",
     "register": "הרשם",
     "signedin": "מחובר/ת",
-    "system_time": "שעון המסעדה"
+    "system_time": "שעון המסעדה",
+    "skipToContent": "דלגו לתוכן הראשי",
+    "favorites": "המועדפים שלי",
+    "myReservations": "ההזמנות שלי"
   },
   "owner": {
     "bills": {
@@ -556,7 +566,9 @@
         "destination": "יעד",
         "name": "שם",
         "price": "מחיר"
-      }
+      },
+      "all": "הכל",
+      "search": "חיפוש מנות..."
     },
     "payroll": {
       "err_generic": "אירעה שגיאה",
@@ -748,9 +760,78 @@
         "prompt_last_name": "שם משפחה:",
         "prompt_phone": "טלפון (אופציונלי):",
         "prompt_party_size": "מספר סועדים:",
-        "prompt_notes": "הערות (אופציונלי):"
+        "prompt_notes": "הערות (אופציונלי):",
+        "add_customer": "הוסף לקוח",
+        "close": "סגור",
+        "customers_at": "לקוחות",
+        "search_placeholder": "חפש שם בסלוט זה",
+        "title": "לקוחות"
       },
-      "daily_summary_loading": "סיכום יומי — נטען…"
+      "daily_summary_loading": "סיכום יומי — נטען…",
+      "actions": {
+        "arrived": "הגיע",
+        "cancel": "ביטול",
+        "confirm_deposit": "אשר פיקדון",
+        "refund_deposit": "החזר"
+      },
+      "cap_line": "קיבולת: סועדים — • שולחנות — • צעד: —",
+      "capacity_people": "סועדים",
+      "capacity_step": "צעד",
+      "capacity_tables": "שולחנות",
+      "deposit": {
+        "pending": "פיקדון ממתין",
+        "received": "פיקדון שולם",
+        "refunded": "הוחזר"
+      },
+      "head": "יומן בעלים · SpotBook",
+      "hint": "רמז: לחץ על סלוט כדי לנהל לקוחות",
+      "jump_to_date_aria": "קפיצה לתאריך",
+      "loading": "טוען…",
+      "minutes_short": "דק׳",
+      "next_day_aria": "יום הבא",
+      "next_month": "חודש הבא",
+      "people": "סועדים",
+      "pick_date": "בחר תאריך",
+      "prev_day_aria": "יום קודם",
+      "prev_month": "חודש קודם",
+      "search_day_aria": "חיפוש ביום הנוכחי",
+      "search_placeholder": "חפש שם",
+      "sidebar": {
+        "calendar": "לוח שנה",
+        "daily_summary": "סיכום יומי"
+      },
+      "status": {
+        "approved": "מאושרת",
+        "arrived": "הגיע",
+        "booked": "שמורה",
+        "cancelled": "בוטלה",
+        "confirmed": "אושרה",
+        "new": "חדש",
+        "pending": "ממתין"
+      },
+      "summary": {
+        "avg_occupancy": "תפוסה ממוצעת",
+        "cancelled": "בוטלו",
+        "no_show": "לא הגיעו",
+        "peak": "שיא",
+        "total_guests": "סה״כ סועדים",
+        "total_reservations": "סה״כ הזמנות"
+      },
+      "tables": "שולחנות",
+      "tbl": {
+        "first_name": "שם פרטי",
+        "last_name": "שם משפחה",
+        "party_size": "גודל קבוצה",
+        "phone": "טלפון",
+        "room": "חדר",
+        "status": "סטטוס"
+      },
+      "th": {
+        "occupancy": "תפוסה",
+        "people_tables_pct": "סועדים • שולחנות • %",
+        "time": "שעה"
+      },
+      "title": "יומן בעלים"
     },
     "tabs": {
       "aria": "חלקי המסעדה",
@@ -759,6 +840,33 @@
       "inventory": "מלאי חומרי גלם",
       "bills": "חשבונות",
       "photos": "תמונות"
+    },
+    "deposit": {
+      "alert": {
+        "error_amount": "אנא הזינו סכום פיקדון תקין",
+        "error_method": "אנא הגדירו לפחות אמצעי תשלום אחד",
+        "saved": "ההגדרות נשמרו"
+      },
+      "btn": {
+        "back": "חזרה ללוח הבקרה",
+        "save": "שמירת הגדרות"
+      },
+      "form": {
+        "amount": "סכום הפיקדון",
+        "currency": "מטבע",
+        "enabled": "דרשו פיקדון עבור הזמנות",
+        "enabled_hint": "כאשר האפשרות מופעלת, על האורח לשלם פיקדון כדי לאשר את ההזמנה",
+        "methods_hint": "הגדירו לפחות אמצעי תשלום אחד. האורחים משלמים ישירות לחשבון שלכם.",
+        "methods_title": "אמצעי תשלום"
+      },
+      "head": "הגדרות פיקדון",
+      "info": {
+        "item1": "בעת ההזמנה האורח בוחר את אמצעי התשלום המועדף עליו",
+        "item2": "הכסף מועבר ישירות לחשבון ה-Stripe, SumUp, PayPal או Revolut שלכם",
+        "item3": "אתם מאשרים את קבלת התשלום מלוח השנה שלכם",
+        "item4": "SpotBook לעולם אינה מעבדת או מחזיקה את הכסף שלכם",
+        "title": "איך עובד תשלום ישיר"
+      }
     }
   },
   "owner.menu.no_category": "ללא קטגוריה",
@@ -840,7 +948,8 @@
     },
     "btn_back_dashboard": "חזרה לדשבורד",
     "error": {
-      "load_menu": "שגיאה בטעינת התפריט"
+      "load_menu": "שגיאה בטעינת התפריט",
+      "add_item": "לא ניתן להוסיף את הפריט"
     },
     "kitchen": {
       "instructions": "החצים משנים סטטוס: קדימה (התקבל > בהכנה > מוכן) או אחורה.",
@@ -859,7 +968,8 @@
       "loading": "טוען תפריט...",
       "no_category": "ללא קטגוריה",
       "search": "חפש מנות...",
-      "title": "תפריט"
+      "title": "תפריט",
+      "filter_destination": "סינון לפי יעד"
     },
     "order": {
       "tbl": {
@@ -904,7 +1014,17 @@
       "panel_label": "פאנל מלצרים",
       "subtotal": "סיכום ביניים",
       "table_info_note": "המידע נלקח מההזמנה / חשבון האחרון בשולחן זה.",
-      "table_label": "שולחן"
+      "table_label": "שולחן",
+      "accounts": "חשבונות פתוחים",
+      "accounts_help": "שימושי לבר או לכל אזור ישיבה משותף עם חשבונות נפרדים.",
+      "btn_close_order_short": "סגירה",
+      "btn_new_account": "פתיחת חשבון נוסף",
+      "current_check": "חשבון נוכחי",
+      "guest_check": "חשבון אורח",
+      "main_check": "חשבון ראשי",
+      "order_help": "לחצו על פריט כדי לנהל סטטוס או לבטל. כשמוכנים, סגרו את השולחן והפיקו את החשבון.",
+      "open_checks": "חשבונות פתוחים",
+      "save_note": "שמירת הערה"
     }
   },
   "pos.menu.add": "הוסף",
@@ -965,7 +1085,10 @@
   },
   "reservation": {
     "form": {
-      "title": "הזמנה"
+      "title": "הזמנה",
+      "notes": "הערות להזמנה",
+      "notes_placeholder": "אלרגיות, העדפות ישיבה...",
+      "submit": "בצע הזמנה"
     },
     "preferred_room": "חלל מועדף",
     "preferred_room_any": "ללא העדפה",
@@ -1014,7 +1137,9 @@
       "loading": "טוען ביקורות...",
       "owner_reply": "תגובת הבעלים:",
       "title": "ביקורות"
-    }
+    },
+    "check_availability": "בדיקת זמינות",
+    "select_date": "בחירת תאריך"
   },
   "restaurant_new": {
     "btn_back": "חזרה לדשבורד",
@@ -1131,7 +1256,9 @@
     "pref_afternoon": "צהריים",
     "pref_evening": "ערב",
     "pref_night": "לילה",
-    "force_label": "כפוי"
+    "force_label": "כפוי",
+    "avail_subtitle": "סמנו ימים שבהם אתם זמינים לעבודה ובחרו העדפה (בוקר/צהריים/ערב/לילה). המנהל יראה זאת בהמלצות.",
+    "avail_title": "העדפות זמינות"
   },
   "staff": {
     "dashboard": {
@@ -1250,5 +1377,103 @@
     "th_payment_terms": "תנאי תשלום",
     "th_phone": "טלפון",
     "title": "ספקים"
+  },
+  "meta": {
+    "description": "SpotBook — גלו מסעדות מעולות והזמינו שולחן אונליין בשניות. חינם לסועדים."
+  },
+  "favorites": {
+    "title": "המועדפים שלי",
+    "kicker": "שמורים לפעם הבאה",
+    "empty": "עוד אין לך מסעדות שמורות.",
+    "empty_hint": "לחצו על הלב בדף מסעדה כדי לשמור אותה כאן.",
+    "browse": "לעיון במסעדות",
+    "toggle": "שמירה במועדפים",
+    "added": "נשמר במועדפים ❤️",
+    "removed": "הוסר מהמועדפים"
+  },
+  "home": {
+    "results": {
+      "empty_hint": "נסו לחפש לפי שם מסעדה, עיר או סוג מטבח — או גלו את המומלצות שלנו למטה.",
+      "empty_reset": "ניקוי חיפוש",
+      "empty_with_query": "לא מצאנו תוצאות עבור \"{q}\"."
+    }
+  },
+  "widget": {
+    "date": "תאריך",
+    "guests": "סועדים",
+    "fewer": "פחות סועדים",
+    "more": "יותר סועדים",
+    "time": "שעה",
+    "closed": "סגור בתאריך הזה — נסו יום אחר.",
+    "book": "להזמנה ב‑SpotBook",
+    "powered": "מופעל על־ידי",
+    "available": "יש זמינות — השלימו את ההזמנה!",
+    "unavailable": "השעה הזו תפוסה — נסו שעה קרובה.",
+    "pick_room": "כמעט שם — בחירת אזור ישיבה בשלב הבא."
+  },
+  "owner_manage": {
+    "growth": "צמיחה",
+    "widget_title": "Widget הזמנות לאתר שלכם",
+    "widget_sub": "הדביקו את הקוד באתר שלכם והאורחים יוכלו להזמין ישירות משם.",
+    "widget_preview": "תצוגה מקדימה",
+    "widget_copy": "העתקת קוד",
+    "widget_copied": "הועתק!"
+  },
+  "occasion": {
+    "birthday": "יום הולדת",
+    "anniversary": "יום נישואין",
+    "date": "דייט",
+    "business": "ארוחה עסקית",
+    "celebration": "חגיגה",
+    "other": "אחר"
+  },
+  "dietary": {
+    "vegetarian": "צמחוני",
+    "vegan": "טבעוני",
+    "gluten_free": "ללא גלוטן",
+    "kosher": "כשר",
+    "halal": "חלאל",
+    "allergies": "אלרגיות"
+  },
+  "details": {
+    "form": {
+      "occasion": "אירוע מיוחד (אופציונלי)",
+      "occasionNone": "ללא אירוע מיוחד",
+      "dietary": "העדפות תזונה (אופציונלי)",
+      "dietaryHint": "סמנו את כל מה שרלוונטי — המסעדה תקבל עדכון."
+    }
+  },
+  "confirm": {
+    "details": {
+      "occasion": "אירוע",
+      "dietary": "העדפות תזונה"
+    }
+  },
+  "manage": {
+    "details": {
+      "occasion": "אירוע",
+      "dietary": "העדפות תזונה"
+    },
+    "backHome": "חזרה ל‑SpotBook",
+    "bookAnother": "להזמנת שולחן נוסף"
+  },
+  "myReservations": {
+    "title": "ההזמנות שלי",
+    "kicker": "ההזמנות שלך",
+    "upcoming": "הזמנות קרובות",
+    "past": "הזמנות קודמות",
+    "empty": "אין לך עדיין הזמנות.",
+    "empty_hint": "מצאו מסעדה שאתם אוהבים והזמינו את השולחן הראשון שלכם.",
+    "browse": "עיון במסעדות",
+    "manage": "ניהול",
+    "guests": "סועדים",
+    "restaurant_fallback": "מסעדה",
+    "status": {
+      "new": "ממתין לאישור",
+      "confirmed": "מאושר",
+      "canceled": "מבוטל",
+      "completed": "הושלם",
+      "arrived": "הגיע"
+    }
   }
 }

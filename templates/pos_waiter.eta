@@ -124,7 +124,7 @@
   }
 %>
 
-<main class="sb-page sb-wt-page" dir="rtl" data-page="waiter-table">
+<main class="sb-page sb-wt-page" dir="<%= it.dir || ((it.lang === 'he') ? 'rtl' : 'ltr') %>" data-page="waiter-table">
   <header class="sb-wt-hd sb-surface sb-wt-premium-head">
     <div class="sb-wt-hd-main">
       <div class="sb-wt-title">
@@ -190,7 +190,7 @@
       <div class="sb-wt-meta-card__note"><%= tt('pos.waiter.items_count', 'Items') %> currently active</div>
     </article>
     <article class="sb-wt-meta-card">
-      <div class="sb-wt-meta-card__label">Open checks</div>
+      <div class="sb-wt-meta-card__label"><%= tt('pos.waiter.open_checks', 'Open checks') %></div>
       <strong class="sb-wt-meta-card__value"><%= openChecksCount %></strong>
       <div class="sb-wt-meta-card__note">split bills available</div>
     </article>
@@ -414,7 +414,7 @@
             <div class="sb-wt-service-note-card__label">Order note</div>
             <div class="sb-wt-service-note-card__hint">Optional shared note for the active check.</div>
           </div>
-          <button type="button" id="btn-save-order-note" class="btn ghost md">Save note</button>
+          <button type="button" id="btn-save-order-note" class="btn ghost md"><%= tt('pos.waiter.save_note', 'Save note') %></button>
         </div>
         <textarea
           id="order-service-note"

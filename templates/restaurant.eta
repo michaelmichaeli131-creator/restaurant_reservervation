@@ -44,6 +44,16 @@
         <span><%= tt('restaurant.photos.open','Open photo') %></span>
       </button>
     <% } %>
+    <button
+      type="button"
+      id="fav-btn"
+      class="rsv-fav-btn<%= it.isFav ? ' is-active' : '' %>"
+      data-rid="<%= it.restaurant.id %>"
+      aria-pressed="<%= it.isFav ? 'true' : 'false' %>"
+      aria-label="<%= tt('favorites.toggle','Save to favorites') %>"
+      title="<%= tt('favorites.toggle','Save to favorites') %>">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="<%= it.isFav ? 'currentColor' : 'none' %>" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+    </button>
     <div class="rsv-hero__overlay">
       <h1 class="rsv-hero__name"><%= it.restaurant.name %></h1>
       <p class="rsv-hero__meta">
@@ -181,15 +191,15 @@
     </div>
     <% } %>
 
-    <!-- Actions -->
+    <!-- Actions: secondary (check) first, primary (book) last so the primary action is most prominent -->
     <div class="rsv-actions">
+      <button type="button" id="check-btn" class="rsv-btn rsv-btn--ghost" data-rid="<%= it.restaurant.id %>" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <%= tt('restaurant.form.check','See other times nearby') %>
+      </button>
       <button type="submit" class="rsv-btn rsv-btn--primary" id="submit-btn">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-        <%= tt('restaurant.form.next','המשך לשלב הבא') %>
-      </button>
-      <button type="button" id="check-btn" class="rsv-btn rsv-btn--ghost" data-rid="<%= it.restaurant.id %>">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        <%= tt('restaurant.form.check','בדוק זמינות') %>
+        <%= tt('restaurant.form.next','Book this time') %>
       </button>
     </div>
   </form>
@@ -315,6 +325,15 @@
   const peopleInput = document.getElementById("people");
   const roomInput = document.getElementById("preferredLayoutId");
   const form = document.getElementById("reserve-form");
+  const checkBtnEl = document.getElementById("check-btn");
+
+  /* ===== Check button is enabled only once date + time are selected ===== */
+  function updateCheckBtnState() {
+    if (!checkBtnEl) return;
+    const ready = !!(dateInput?.value || "").trim() && !!(hiddenTime?.value || "").trim();
+    checkBtnEl.disabled = !ready;
+    checkBtnEl.classList.toggle("is-disabled", !ready);
+  }
 
   /* ===== People counter ===== */
   function getSelectedRoomCap() {
@@ -502,6 +521,7 @@
         timeGrid.querySelectorAll(".rsv-time-chip").forEach(c => c.classList.remove("is-selected"));
         chip.classList.add("is-selected");
         hiddenTime.value = t;
+        updateCheckBtnState();
         // Refresh room occupancy for new time slot
         updateAllRoomOccupancies();
       });
@@ -524,6 +544,7 @@
 
   dateInput.addEventListener("change", () => {
     hiddenTime.value = "";
+    updateCheckBtnState();
     // Clear occupancy cache since date changed
     Object.keys(roomOccupancyCache).forEach(k => delete roomOccupancyCache[k]);
     // Reset room badges to original text
@@ -536,6 +557,7 @@
 
   // Init
   rebuildTimeFor(dateInput.value || new Date().toISOString().slice(0,10));
+  updateCheckBtnState();
 
   /* ===== Time carousel arrows (RTL-aware) ===== */
   const isRTL = document.documentElement.dir === "rtl";
@@ -593,12 +615,16 @@
 
     if (!dateVal || !timeVal) {
       ev.preventDefault();
-      alert("<%= tt('restaurant.form.missing','נא לבחור תאריך ושעה') %>");
+      showToast("<%= tt('restaurant.form.missing','נא לבחור תאריך ושעה') %>", "warn");
+      timeGrid?.setAttribute("aria-invalid", "true");
+      (dateVal ? timeGrid : dateInput)?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+    timeGrid?.setAttribute("aria-invalid", "false");
     if (roomInput && !roomInput.value) {
       ev.preventDefault();
-      alert("<%= tt('reservation.select_room_required','נא לבחור חדר') %>");
+      showToast("<%= tt('reservation.select_room_required','נא לבחור חדר') %>", "warn");
+      document.getElementById("room-cards")?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     // Validate selected room can fit the requested number of guests
@@ -635,6 +661,8 @@
       roomVal,
       formActionAfter: form.action,
     });
+    // Visual feedback while navigating to the next step (prevents double submits)
+    document.getElementById("submit-btn")?.classList.add("is-loading");
   });
 
   /* ===== Check availability ===== */
@@ -644,11 +672,11 @@
     const time = (hiddenTime.value || "").trim();
     const people = Math.max(1, parseInt((peopleInput.value || "1"), 10) || 1);
     if (!date || !time) {
-      alert("<%= tt('restaurant.form.missing','נא לבחור תאריך ושעה') %>");
+      showToast("<%= tt('restaurant.form.missing','נא לבחור תאריך ושעה') %>", "warn");
       return;
     }
     if (roomInput && !roomInput.value) {
-      alert("<%= tt('reservation.select_room_required','נא לבחור חדר') %>");
+      showToast("<%= tt('reservation.select_room_required','נא לבחור חדר') %>", "warn");
       return;
     }
     const rid = checkBtn.dataset.rid;
@@ -688,6 +716,33 @@
     }
   });
 
+  /* ===== Favorites toggle ===== */
+  const favBtn = document.getElementById("fav-btn");
+  favBtn?.addEventListener("click", async () => {
+    const rid = favBtn.dataset.rid;
+    try {
+      const resp = await fetch(`/api/favorites/${encodeURIComponent(rid)}/toggle`, { method: "POST" });
+      if (resp.status === 401) {
+        window.location.href = `/auth/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+        return;
+      }
+      const data = await resp.json().catch(() => null);
+      if (data && data.ok) {
+        favBtn.classList.toggle("is-active", data.favorite);
+        favBtn.setAttribute("aria-pressed", data.favorite ? "true" : "false");
+        favBtn.querySelector("svg")?.setAttribute("fill", data.favorite ? "currentColor" : "none");
+        favBtn.classList.add("is-pop");
+        setTimeout(() => favBtn.classList.remove("is-pop"), 320);
+        showToast(
+          data.favorite
+            ? "<%= tt('favorites.added','נשמר במועדפים ❤️') %>"
+            : "<%= tt('favorites.removed','הוסר מהמועדפים') %>",
+          "success",
+        );
+      }
+    } catch (_e) { /* network hiccup — keep current state */ }
+  });
+
   /* ===== Suggestions ===== */
   function renderAround(slots) {
     const card = document.getElementById("around-card");
@@ -703,6 +758,7 @@
         b.textContent = t;
         b.onclick = () => {
           hiddenTime.value = t;
+          updateCheckBtnState();
           // Update time grid selection
           timeGrid.querySelectorAll(".rsv-time-chip").forEach(c => {
             c.classList.toggle("is-selected", c.dataset.value === t);
@@ -1010,6 +1066,14 @@
     border-color: rgba(59,130,246,.3);
   }
   .rsv-btn.is-loading { pointer-events: none; opacity: .7; }
+  .rsv-btn:disabled,
+  .rsv-btn.is-disabled {
+    opacity: .45;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .rsv-btn:disabled:hover,
+  .rsv-btn.is-disabled:hover { transform: none; }
 
   /* ===== Alert ===== */
   .rsv-alert {
@@ -1104,6 +1168,22 @@
   }
   .rsv-photo-zoom:hover { background: rgba(18,28,46,.86); transform: translateY(-1px); }
   .rsv-photo-zoom--hero { position: absolute; top: 16px; right: 16px; z-index: 2; }
+
+  .rsv-fav-btn {
+    position: absolute; top: 16px; left: 16px; z-index: 2;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.25);
+    background: rgba(10,12,18,.55); color: #fff;
+    cursor: pointer; backdrop-filter: blur(6px);
+    transition: transform .15s ease, color .15s ease, background .15s ease;
+  }
+  .rsv-fav-btn:hover { transform: scale(1.08); background: rgba(10,12,18,.75); }
+  .rsv-fav-btn.is-active { color: #f43f5e; border-color: rgba(244,63,94,.5); }
+  .rsv-fav-btn.is-pop { animation: rsv-fav-pop .3s ease; }
+  @keyframes rsv-fav-pop { 50% { transform: scale(1.3); } }
+  html[dir="rtl"] .rsv-fav-btn { left: auto; right: 16px; }
+  html[dir="rtl"] .rsv-photo-zoom--hero { right: auto; left: 16px; }
   .rsv-gallery {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px;
   }
