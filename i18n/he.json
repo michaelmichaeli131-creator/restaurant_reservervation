@@ -446,7 +446,8 @@
     "signedin": "מחובר/ת",
     "system_time": "שעון המסעדה",
     "skipToContent": "דלגו לתוכן הראשי",
-    "favorites": "המועדפים שלי"
+    "favorites": "המועדפים שלי",
+    "myReservations": "ההזמנות שלי"
   },
   "owner": {
     "bills": {
@@ -1393,7 +1394,8 @@
   "home": {
     "results": {
       "empty_hint": "נסו לחפש לפי שם מסעדה, עיר או סוג מטבח — או גלו את המומלצות שלנו למטה.",
-      "empty_reset": "ניקוי חיפוש"
+      "empty_reset": "ניקוי חיפוש",
+      "empty_with_query": "לא מצאנו תוצאות עבור \"{q}\"."
     }
   },
   "widget": {
@@ -1451,6 +1453,27 @@
     "details": {
       "occasion": "אירוע",
       "dietary": "העדפות תזונה"
+    },
+    "backHome": "חזרה ל‑SpotBook",
+    "bookAnother": "להזמנת שולחן נוסף"
+  },
+  "myReservations": {
+    "title": "ההזמנות שלי",
+    "kicker": "ההזמנות שלך",
+    "upcoming": "הזמנות קרובות",
+    "past": "הזמנות קודמות",
+    "empty": "אין לך עדיין הזמנות.",
+    "empty_hint": "מצאו מסעדה שאתם אוהבים והזמינו את השולחן הראשון שלכם.",
+    "browse": "עיון במסעדות",
+    "manage": "ניהול",
+    "guests": "סועדים",
+    "restaurant_fallback": "מסעדה",
+    "status": {
+      "new": "ממתין לאישור",
+      "confirmed": "מאושר",
+      "canceled": "מבוטל",
+      "completed": "הושלם",
+      "arrived": "הגיע"
     }
   }
 }

@@ -53,6 +53,7 @@ import ownerBillsRouter from "./routes/owner_bills.ts";
 import inventoryRouter from "./routes/inventory.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
 import { favoritesRouter } from "./routes/favorites.ts";
+import { myReservationsRouter } from "./routes/my_reservations.ts";
 import { widgetRouter } from "./routes/widget.ts";
 import { staffTimeRouter } from "./routes/staff_time.ts";
 import { ownerTimeRouter } from "./routes/owner_time.ts";
@@ -564,6 +565,10 @@ app.use(root.allowedMethods());
 // -------------------- FAVORITES --------------------
 app.use(favoritesRouter.routes());
 app.use(favoritesRouter.allowedMethods());
+
+// -------------------- MY RESERVATIONS --------------------
+app.use(myReservationsRouter.routes());
+app.use(myReservationsRouter.allowedMethods());
 
 // -------------------- EMBEDDABLE WIDGET (public) --------------------
 app.use(widgetRouter.routes());

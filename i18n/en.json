@@ -446,7 +446,8 @@
     "signedin": "Signed in",
     "system_time": "Restaurant Time",
     "skipToContent": "Skip to main content",
-    "favorites": "My favorites"
+    "favorites": "My favorites",
+    "myReservations": "My reservations"
   },
   "owner": {
     "bills": {
@@ -1392,7 +1393,8 @@
   "home": {
     "results": {
       "empty_hint": "Try searching by restaurant name, city, or cuisine — or browse our featured picks below.",
-      "empty_reset": "Clear search"
+      "empty_reset": "Clear search",
+      "empty_with_query": "We couldn't find anything for \"{q}\"."
     }
   },
   "widget": {
@@ -1450,6 +1452,27 @@
     "details": {
       "occasion": "Occasion",
       "dietary": "Dietary preferences"
+    },
+    "backHome": "Back to SpotBook",
+    "bookAnother": "Book another table"
+  },
+  "myReservations": {
+    "title": "My reservations",
+    "kicker": "Your bookings",
+    "upcoming": "Upcoming",
+    "past": "Past",
+    "empty": "You have no reservations yet.",
+    "empty_hint": "Find a restaurant you love and book your first table.",
+    "browse": "Browse restaurants",
+    "manage": "Manage",
+    "guests": "guests",
+    "restaurant_fallback": "Restaurant",
+    "status": {
+      "new": "Pending",
+      "confirmed": "Confirmed",
+      "canceled": "Canceled",
+      "completed": "Completed",
+      "arrived": "Arrived"
     }
   }
 }

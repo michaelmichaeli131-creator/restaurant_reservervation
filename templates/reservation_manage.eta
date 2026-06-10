@@ -46,6 +46,12 @@
     }
     a{color:inherit; text-decoration:none}
     .wrap{max-width:var(--max); margin:24px auto; padding:0 16px}
+    .back-home{
+      display:inline-flex; align-items:center; gap:6px;
+      margin-bottom:12px; color:var(--ink-muted); font-weight:700; font-size:14px;
+      transition:color .12s ease;
+    }
+    .back-home:hover{ color:var(--ink) }
     .card{ background:var(--panel); border:1px solid var(--bd); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
 
     .head{
@@ -139,6 +145,7 @@
 
 <body>
   <div class="wrap">
+    <a class="back-home" href="/">&larr; <%= tt('manage.backHome','Back to SpotBook') %></a>
     <div class="card">
       <div class="head">
         <!-- צד שמאל: לוגו + כותרת -->
@@ -305,6 +312,10 @@
             <strong><a class="tel" href="tel:<%= it.restaurant.phone %>"><%= it.restaurant.phone %></a></strong>.
           <% } %>
         </p>
+
+        <div class="actions">
+          <a class="btn btn-brand" href="/"><%= tt('manage.bookAnother','Book another table') %></a>
+        </div>
       </div>
     </div>
   </div>

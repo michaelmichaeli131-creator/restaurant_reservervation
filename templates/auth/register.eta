@@ -194,6 +194,27 @@ function tt(k, fb){
       t.classList.toggle('on', inp.type === 'text');
     }, {passive:true});
 
+    // חשיפה הדרגתית: "סוג העסק" רלוונטי רק לבעלי מסעדה
+    const accountType = document.getElementById('accountType');
+    const businessType = document.getElementById('businessType');
+    const businessRow = businessType ? businessType.closest('.form-row') : null;
+
+    function syncBusinessTypeVisibility(){
+      if (!accountType || !businessType || !businessRow) return;
+      const isOwner = accountType.value !== 'customer';
+      businessRow.style.display = isOwner ? '' : 'none';
+      if (isOwner) {
+        businessType.setAttribute('required', 'required');
+      } else {
+        businessType.removeAttribute('required');
+      }
+    }
+
+    if (accountType) {
+      syncBusinessTypeVisibility();
+      accountType.addEventListener('change', syncBusinessTypeVisibility, {passive:true});
+    }
+
     // ולידציה לקוח: התאמת סיסמאות
     if (form) {
       form.addEventListener('submit', function(ev){

@@ -190,6 +190,7 @@
         <% if (it.user) { %>
           <% if (it.user.role !== 'owner') { %>
             <a class="btn ghost btn-favs" href="/favorites" title="<%= it.t ? (it.t('nav.favorites') || 'My favorites') : 'My favorites' %>">&#10084;&#65039;</a>
+            <a class="btn ghost btn-favs" href="/my-reservations" title="<%= it.t ? (it.t('nav.myReservations') || 'My reservations') : 'My reservations' %>">&#128197;</a>
           <% } %>
           <a class="btn primary btn-manage" href="/owner"><%= it.t ? it.t('nav.manage') : 'Manage Restaurant' %></a>
           <a class="btn ghost btn-logout" href="/auth/logout"><%= it.t ? it.t('nav.logout') : 'Logout' %></a>

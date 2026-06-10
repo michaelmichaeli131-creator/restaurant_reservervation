@@ -1,0 +1,113 @@
+<% layout("_layout", it) %>
+
+<%
+  /* My reservations page — upcoming & past reservations for the signed-in user */
+  function tt(key, fallback){
+    try { const v = it.t ? it.t(key) : null; return (v && v !== key && v !== `(${key})`) ? v : fallback; }
+    catch(_e){ return fallback; }
+  }
+
+  const occasionEmoji = {
+    birthday: "\u{1F382}",
+    anniversary: "\u{1F48D}",
+    date: "❤️",
+    business: "\u{1F4BC}",
+    celebration: "\u{1F389}",
+    other: "✨",
+  };
+
+  function statusInfo(status){
+    const s = String(status || "new");
+    if (s === "confirmed" || s === "approved") return { cls: "confirmed", label: tt('myReservations.status.confirmed','Confirmed') };
+    if (s === "canceled" || s === "cancelled") return { cls: "canceled", label: tt('myReservations.status.canceled','Canceled') };
+    if (s === "completed") return { cls: "completed", label: tt('myReservations.status.completed','Completed') };
+    if (s === "arrived") return { cls: "confirmed", label: tt('myReservations.status.arrived','Arrived') };
+    return { cls: "new", label: tt('myReservations.status.new','Pending') };
+  }
+%>
+
+<section class="section">
+  <div class="sb-container">
+    <div class="section-head-inline">
+      <div>
+        <div class="section-kicker"><%= tt('myReservations.kicker','Your bookings') %></div>
+        <h2 class="section-title">&#128197; <%= tt('myReservations.title','My reservations') %></h2>
+      </div>
+    </div>
+
+    <% if ((!it.upcoming || !it.upcoming.length) && (!it.past || !it.past.length)) { %>
+      <div class="sb-empty-state home-empty-state">
+        <div class="sb-empty-state__icon">&#128197;</div>
+        <p class="sb-empty-state__message"><%= tt('myReservations.empty','You have no reservations yet.') %></p>
+        <p class="sb-empty-state__hint muted"><%= tt('myReservations.empty_hint','Find a restaurant you love and book your first table.') %></p>
+        <a class="btn primary" href="/"><%= tt('myReservations.browse','Browse restaurants') %></a>
+      </div>
+    <% } else { %>
+
+      <% const groups = [
+           { key: 'upcoming', list: (it.upcoming || []), title: tt('myReservations.upcoming','Upcoming') },
+           { key: 'past', list: (it.past || []), title: tt('myReservations.past','Past') },
+         ];
+         groups.forEach(function(group){ %>
+        <% if (group.list.length) { %>
+          <h3 class="myres-group-title<%= group.key === 'past' ? ' myres-group-title--past' : '' %>"><%= group.title %></h3>
+          <div class="myres-list">
+            <% group.list.forEach(function(r){
+                 const st = statusInfo(r.status);
+                 const occ = r.occasion ? (occasionEmoji[r.occasion] || occasionEmoji.other) : "";
+            %>
+              <article class="myres-card<%= group.key === 'past' ? ' myres-card--past' : '' %>">
+                <div class="myres-card__main">
+                  <a class="myres-card__name" href="/restaurants/<%= r.restaurantId %>">
+                    <%= r.restaurantName || tt('myReservations.restaurant_fallback','Restaurant') %><% if (occ) { %> <span class="myres-card__occasion" aria-hidden="true"><%= occ %></span><% } %>
+                  </a>
+                  <p class="myres-card__meta">
+                    <span>&#128197; <%= r.date %></span>
+                    <span>&#128336; <%= r.time %></span>
+                    <span>&#128101; <%= r.people %> <%= tt('myReservations.guests','guests') %></span>
+                  </p>
+                </div>
+                <div class="myres-card__side">
+                  <span class="myres-badge myres-badge--<%= st.cls %>"><%= st.label %></span>
+                  <% if (r.manageUrl) { %>
+                    <a class="btn ghost myres-manage" href="<%= r.manageUrl %>"><%= tt('myReservations.manage','Manage') %></a>
+                  <% } %>
+                </div>
+              </article>
+            <% }); %>
+          </div>
+        <% } %>
+      <% }); %>
+
+    <% } %>
+  </div>
+</section>
+
+<style>
+  .myres-group-title{ margin:18px 0 10px; font-size:16px; font-weight:800; }
+  .myres-group-title--past{ color:var(--ink-muted, #9aa3b2); }
+  .myres-list{ display:grid; gap:10px; margin-bottom:8px; }
+  .myres-card{
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    background:var(--panel, #121622); border:1px solid var(--bd, #23293a);
+    border-radius:16px; padding:14px 16px;
+  }
+  .myres-card--past{ opacity:.72; }
+  .myres-card__name{ font-weight:800; font-size:16px; text-decoration:none; color:inherit; }
+  .myres-card__name:hover{ text-decoration:underline; }
+  .myres-card__occasion{ font-size:15px; }
+  .myres-card__meta{
+    margin:6px 0 0; display:flex; gap:14px; flex-wrap:wrap;
+    color:var(--ink-muted, #9aa3b2); font-size:14px;
+  }
+  .myres-card__side{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .myres-badge{
+    display:inline-flex; align-items:center; padding:5px 12px; border-radius:999px;
+    font-size:12px; font-weight:800; border:1px solid var(--bd, #23293a);
+  }
+  .myres-badge--new{ border-color:#94a3b8; background:rgba(148,163,184,.18); color:#e2e8f0; }
+  .myres-badge--confirmed{ border-color:rgba(34,197,94,.45); background:rgba(34,197,94,.14); color:#86efac; }
+  .myres-badge--canceled{ border-color:rgba(239,68,68,.45); background:rgba(239,68,68,.12); color:#fecaca; }
+  .myres-badge--completed{ border-color:rgba(59,130,246,.45); background:rgba(59,130,246,.14); color:#bfdbfe; }
+  .myres-manage{ min-height:34px; padding:6px 14px; }
+</style>

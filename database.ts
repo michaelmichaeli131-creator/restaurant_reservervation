@@ -717,6 +717,7 @@ export async function createReservation(r: Reservation) {
   const tx = kv.atomic()
     .set(toKey("reservation", r.id), r)
     .set(toKey("reservation_by_day", r.restaurantId, r.date, r.id), 1);
+  if (r.userId) tx.set(toKey("reservation_user", r.userId, r.id), 1);
   const res = await tx.commit();
   if (!res.ok) throw new Error("create_reservation_race");
   return r;
@@ -757,6 +758,7 @@ export async function createReservationSafe(r: Reservation): Promise<Reservation
       .set(toKey("reservation", r.id), r)
       .set(toKey("reservation_by_day", r.restaurantId, r.date, r.id), 1)
       .set(dayLockKey, Date.now()); // Bump lock so other concurrent writes detect the change
+    if (r.userId) tx.set(toKey("reservation_user", r.userId, r.id), 1);
     const res = await tx.commit();
     if (res.ok) return r;
 
@@ -766,6 +768,29 @@ export async function createReservationSafe(r: Reservation): Promise<Reservation
     );
   }
   throw new Error("create_reservation_race: max retries exceeded");
+}
+
+/** ← חדש: כל ההזמנות של משתמש (לפי אינדקס reservation_user) */
+export async function listReservationsByUser(userId: string): Promise<Reservation[]> {
+  const out: Reservation[] = [];
+  for await (const row of kv.list({ prefix: toKey("reservation_user", userId) })) {
+    const id = row.key[row.key.length - 1] as string;
+    const r = (await kv.get<Reservation>(toKey("reservation", id))).value;
+    if (r) out.push(r);
+  }
+  // Backfill: הזמנות ותיקות שנוצרו לפני שהאינדקס reservation_user נכתב
+  if (!out.length) {
+    for await (const e of kv.list<Reservation>({ prefix: toKey("reservation") })) {
+      const r = e.value;
+      if (r && r.userId === userId) {
+        out.push(r);
+        await kv.set(toKey("reservation_user", userId, r.id), 1).catch(() => {});
+      }
+    }
+  }
+  // מיון לפי תאריך+שעה
+  out.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  return out;
 }
 
 /** ← חדש: קבלת הזמנה לפי מזהה */
@@ -804,6 +829,12 @@ export async function updateReservation(id: string, patch: Partial<Reservation>)
   if (dayChanged) {
     tx.delete(toKey("reservation_by_day", prev.restaurantId, prev.date, id))
       .set(toKey("reservation_by_day", next.restaurantId, next.date, id), 1);
+  }
+
+  // אם userId השתנה — לעדכן אינדקס reservation_user
+  if (next.userId !== prev.userId) {
+    if (prev.userId) tx.delete(toKey("reservation_user", prev.userId, id));
+    if (next.userId) tx.set(toKey("reservation_user", next.userId, id), 1);
   }
 
   const res = await tx.commit();
@@ -1362,6 +1393,7 @@ export async function deleteRestaurantCascade(restaurantId: string): Promise<num
       if (resv) {
         tx.delete(toKey("reservation", id));
         tx.delete(toKey("reservation_by_day", restaurantId, resv.date, id));
+        if (resv.userId) tx.delete(toKey("reservation_user", resv.userId, id));
         deleted++;
       } else {
         tx.delete(toKey("reservation", id));
@@ -1426,6 +1458,7 @@ export async function resetReservations(): Promise<{ deleted: number }> {
     deleted++;
   }
   for await (const e of kv.list({ prefix: toKey("reservation_by_day") })) await kv.delete(e.key);
+  for await (const e of kv.list({ prefix: toKey("reservation_user") })) await kv.delete(e.key);
   return { deleted };
 }
 

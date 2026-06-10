@@ -157,7 +157,11 @@
       <% if (!it.restaurants || !it.restaurants.length) { %>
         <div class="sb-empty-state home-empty-state">
           <div class="sb-empty-state__icon">&#128269;</div>
-          <p class="sb-empty-state__message"><%= (it.t && it.t('home.results.empty')) || 'No results found.' %></p>
+          <% if (_q && _q.trim()) { %>
+            <p class="sb-empty-state__message"><%= (it.t && it.t('home.results.empty_with_query', { q: _q.trim() })) || ('We couldn\'t find anything for "' + _q.trim() + '".') %></p>
+          <% } else { %>
+            <p class="sb-empty-state__message"><%= (it.t && it.t('home.results.empty')) || 'No results found.' %></p>
+          <% } %>
           <p class="sb-empty-state__hint muted"><%= (it.t && it.t('home.results.empty_hint')) || 'Try searching by restaurant name, city, or cuisine — or browse our featured picks below.' %></p>
           <a class="btn ghost" href="/"><%= (it.t && it.t('home.results.empty_reset')) || 'Clear search' %></a>
         </div>
