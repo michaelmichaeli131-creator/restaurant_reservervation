@@ -49,7 +49,11 @@
       "open_gallery": "Open gallery",
       "close": "Close gallery",
       "prev": "Previous photo",
-      "next": "Next photo"
+      "next": "Next photo",
+      "browse_all": "Browse all photos ({n})"
+    },
+    "rating": {
+      "reviews_count": "({n} reviews)"
     }
   }
 }

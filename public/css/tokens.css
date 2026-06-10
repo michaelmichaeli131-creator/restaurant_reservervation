@@ -24,6 +24,11 @@
   --sb-color-accent-soft:  rgba(59, 130, 246, 0.18);
   --sb-color-accent-border: rgba(59, 130, 246, 0.35);
 
+  /* Warm hospitality accent — use near food imagery and dining CTAs */
+  --sb-color-warm:        #C6A230;
+  --sb-color-warm-soft:   rgba(198, 162, 48, 0.18);
+  --sb-color-warm-border: rgba(198, 162, 48, 0.35);
+
   /* ----- Colors: Semantic ----- */
   --sb-color-success:    #10b981;
   --sb-color-warning:    #f59e0b;

@@ -265,7 +265,14 @@
     display: flex; justify-content: center; margin: 24px 0 8px;
     animation: rsv-pop .5s cubic-bezier(.175,.885,.32,1.275);
   }
-  .rsv-success-icon svg { color: #22c55e; }
+  .rsv-success-icon svg {
+    color: #22c55e;
+    padding: 14px;
+    border-radius: 50%;
+    background: var(--sb-color-warm-soft, rgba(198,162,48,.18));
+    border: 1px solid var(--sb-color-warm-border, rgba(198,162,48,.35));
+    box-shadow: 0 0 36px rgba(198,162,48,.22);
+  }
   @keyframes rsv-pop {
     0% { transform: scale(0); opacity: 0; }
     100% { transform: scale(1); opacity: 1; }

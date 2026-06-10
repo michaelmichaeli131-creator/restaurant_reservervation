@@ -66,6 +66,13 @@
           <%= it.restaurant.phone %>
         </p>
       <% } %>
+      <% if (it.restaurant.averageRating && it.restaurant.reviewCount) { %>
+        <div class="rsv-hero__rating">
+          <span class="rsv-hero__rating-star" aria-hidden="true">★</span>
+          <span class="rsv-hero__rating-score"><%= Number(it.restaurant.averageRating).toFixed(1) %></span>
+          <span class="rsv-hero__rating-count"><%= tt('restaurant.rating.reviews_count','({n} reviews)').replace('{n}', it.restaurant.reviewCount) %></span>
+        </div>
+      <% } %>
     </div>
   </section>
 
@@ -77,6 +84,11 @@
           </button>
         <% }) %>
       </div>
+      <% if (_photos.length > 4) { %>
+        <button type="button" class="rsv-browse-all" data-gallery-open="0">
+          <%= tt('restaurant.photos.browse_all','Browse all photos ({n})').replace('{n}', _photos.length) %>
+        </button>
+      <% } %>
     <% } %>
 
     <div class="rsv-top-grid__facts">
@@ -883,6 +895,20 @@
     flex-wrap: wrap;
     overflow-wrap: anywhere;
   }
+  .rsv-hero__rating {
+    display: inline-flex; align-items: center; gap: 8px;
+    width: fit-content;
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: var(--sb-color-warm-soft, rgba(198,162,48,.18));
+    border: 1px solid var(--sb-color-warm-border, rgba(198,162,48,.35));
+    border-radius: 20px;
+    color: #fff;
+    font-size: 14px; font-weight: 700;
+    backdrop-filter: blur(8px);
+  }
+  .rsv-hero__rating-star { color: var(--sb-color-warm, #C6A230); font-size: 16px; line-height: 1; }
+  .rsv-hero__rating-count { font-weight: 500; color: rgba(255,255,255,.85); }
 
   /* ===== Form card ===== */
   .rsv-form {
@@ -1535,6 +1561,23 @@
     height: 100%;
     object-fit: cover;
     display: block;
+  }
+  .rsv-browse-all {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin: -4px 0 14px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--bd, #23293a);
+    background: transparent;
+    color: var(--ink-muted, #9aa3b2);
+    font-size: 13px; font-weight: 700;
+    cursor: pointer;
+    transition: .18s ease;
+  }
+  .rsv-browse-all:hover {
+    background: rgba(255,255,255,.06);
+    color: var(--ink, #e6e8ef);
+    border-color: var(--sb-color-warm-border, rgba(198,162,48,.35));
   }
   .rsv-top-grid__facts {
     display: grid;
