@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <meta name="color-scheme" content="dark light">
   <meta name="theme-color" content="#0b0f1a">
+  <link rel="icon" type="image/svg+xml" href="/public/icons/app-icon.svg"/>
+  <link rel="apple-touch-icon" href="/public/img/logo-spotbook.png"/>
+  <link rel="manifest" href="/public/manifest.webmanifest"/>
   <title><%= it.title ? it.title + ' · SpotBook' : 'SpotBook' %></title>
   <%
     const __metaDesc = it.metaDescription

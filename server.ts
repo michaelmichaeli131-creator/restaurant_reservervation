@@ -425,6 +425,12 @@ root.get("/for-restaurants", async (ctx) => {
   });
 });
 
+// Favicon fallback (browsers request /favicon.ico unprompted)
+root.get("/favicon.ico", (ctx) => {
+  ctx.response.status = Status.MovedPermanently;
+  ctx.response.headers.set("Location", "/public/icons/app-icon.svg");
+});
+
 // SEO: robots.txt
 root.get("/robots.txt", (ctx) => {
   const base = (BASE_URL || "").replace(/\/+$/, "");

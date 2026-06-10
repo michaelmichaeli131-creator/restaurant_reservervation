@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- SpotBook app icon: location pin + plate -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101522"/>
+      <stop offset="1" stop-color="#0b0f1a"/>
+    </linearGradient>
+    <linearGradient id="pin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#60a5fa"/>
+      <stop offset="1" stop-color="#3b82f6"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- pin -->
+  <path d="M256 88c-66 0-118 52-118 118 0 88 118 218 118 218s118-130 118-218c0-66-52-118-118-118z" fill="url(#pin)"/>
+  <!-- plate -->
+  <circle cx="256" cy="206" r="64" fill="#ffffff"/>
+  <circle cx="256" cy="206" r="44" fill="none" stroke="#0b0f1a" stroke-width="10"/>
+  <!-- fork tine accent -->
+  <rect x="250" y="178" width="12" height="56" rx="6" fill="#3b82f6"/>
+</svg>
