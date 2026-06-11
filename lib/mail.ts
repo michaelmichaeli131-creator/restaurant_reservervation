@@ -141,6 +141,24 @@ const I18N = {
     ka: "შეხსენება — გთხოვთ, დაადასტუროთ",
   },
 
+  findResvTitle: { he: "ההזמנות שלך ב-SpotBook", en: "Your reservations on SpotBook", ka: "თქვენი ჯავშნები SpotBook-ზე" },
+  findResvLead: {
+    he: "ביקשת לאתר הזמנות המשויכות לכתובת אימייל זו. אלו ההזמנות שמצאנו:",
+    en: "You asked to find reservations linked to this email address. Here is what we found:",
+    ka: "თქვენ მოითხოვეთ ამ ელ-ფოსტასთან დაკავშირებული ჯავშნების მოძიება. აი, რა ვიპოვეთ:",
+  },
+  findResvManageCta: { he: "ניהול ההזמנה", en: "Manage reservation", ka: "ჯავშნის მართვა" },
+  findResvIgnore: {
+    he: "אם לא ביקשת את האימייל הזה, אפשר להתעלם ממנו בבטחה.",
+    en: "If you didn't request this email, you can safely ignore it.",
+    ka: "თუ ეს წერილი თქვენ არ მოგითხოვიათ, შეგიძლიათ უგულებელყოთ.",
+  },
+  findResvSubject: {
+    he: "ההזמנות שלך – SpotBook",
+    en: "Your reservations — SpotBook",
+    ka: "თქვენი ჯავშნები — SpotBook",
+  },
+
   reviewTitle: { he: "נשמח לשמוע ממך!", en: "We'd love your feedback!", ka: "თქვენი აზრი ჩვენთვის მნიშვნელოვანია!" },
   reviewLead: {
     he: "ביקרת לאחרונה ב-{restaurant}. ספר/י לנו על החוויה שלך.",
@@ -799,6 +817,84 @@ export async function sendReminderEmail(opts: {
     subject: t("reminderSubject", L),
     html,
     text,
+  });
+}
+
+/* =================== Find My Reservations (magic links) =================== */
+export async function sendFindReservationsEmail(opts: {
+  to: string;
+  items: Array<{
+    restaurantName: string;
+    date: string;       // YYYY-MM-DD
+    time: string;       // HH:mm
+    people: number;
+    manageUrl: string;  // absolute /r/:token link
+  }>;
+  lang?: string | null;
+}) {
+  const L = normLang(opts.lang);
+  const { to, items } = opts;
+  if (!items.length) return { ok: false, reason: "no_items" };
+
+  const esc = (s: unknown) =>
+    String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const cards = items.map((it) => {
+    const d = new Date(`${it.date}T12:00:00`);
+    const dayShort = isNaN(d.getTime()) ? "" : weekdayShortByLang(L, d);
+    const dm = formatDM(it.date);
+    const withLang = ((): string => {
+      try {
+        const u = new URL(it.manageUrl, "http://local");
+        u.searchParams.set("lang", L);
+        return it.manageUrl.startsWith("http") ? u.toString() : `${u.pathname}${u.search}`;
+      } catch { return it.manageUrl; }
+    })();
+    return `
+      <div style="border:1px solid ${palette.border};border-radius:12px;background:${palette.soft};padding:14px 16px;margin:0 0 12px;">
+        <div style="font-size:16px;font-weight:800;color:${palette.text};margin-bottom:6px;">${esc(it.restaurantName)}</div>
+        <p style="margin:0 0 10px;font-size:14px;color:${palette.text};">
+          <strong>${t("date", L)}:</strong> ${dayShort} ${dm} (${esc(it.date)}) ·
+          <strong>${t("time", L)}:</strong> ${esc(it.time)} ·
+          <strong>${t("guests", L)}:</strong> ${it.people}
+        </p>
+        <a href="${withLang}" style="display:inline-block;padding:9px 18px;background:${palette.accent};border-radius:10px;font-family:${FONT_STACK};font-size:13px;font-weight:700;color:${palette.btnText};text-decoration:none;">${t("findResvManageCta", L)}</a>
+      </div>`;
+  }).join("");
+
+  const bodyHtml = `
+    ${cards}
+    <p style="margin:8px 0 0;color:${palette.sub};font-size:13px;">${t("findResvIgnore", L)}</p>
+  `;
+
+  const html = renderEmailShell({
+    lang: L,
+    title: t("findResvTitle", L),
+    subtitle: t("findResvLead", L),
+    bodyHtml,
+    preheader: t("findResvSubject", L),
+  });
+
+  const text = [
+    t("findResvTitle", L),
+    t("findResvLead", L),
+    "",
+    ...items.map((it) =>
+      `${it.restaurantName} | ${t("date", L)}: ${it.date} | ${t("time", L)}: ${it.time} | ${t("guests", L)}: ${it.people}\n${t("findResvManageCta", L)}: ${it.manageUrl}`
+    ),
+    "",
+    t("findResvIgnore", L),
+  ].join("\n");
+
+  return await sendMailAny({
+    to,
+    subject: t("findResvSubject", L),
+    html,
+    text,
+    headers: {
+      "Reply-To": "no-reply",
+      "List-Unsubscribe": "<mailto:no-reply>",
+    },
   });
 }
 

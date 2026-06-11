@@ -1,0 +1,125 @@
+<% layout("_layout", it) %>
+
+<% /* tt: translation with real fallback even when it.t returns "(key)" */ %>
+<% function tt(k, fb){ try{ if (it && typeof it.t==='function'){ const s = it.t(k); if(!s || s===k || s===`(${k})`) return fb; return s; } }catch(e){} return fb; } %>
+<% const state = it.state || 'form'; %>
+
+<main class="sb-findresv container" aria-labelledby="findresv-title">
+  <section class="card findresv-card">
+    <% if (state === 'sent') { %>
+      <div class="findresv-success" role="status">
+        <div class="findresv-success__icon" aria-hidden="true">&#9993;</div>
+        <h1 id="findresv-title"><%= tt('findResv.success_title','Check your inbox') %></h1>
+        <p class="muted"><%= tt('findResv.success_text','If we found reservations for this address, an email is on its way.') %></p>
+        <p class="links"><a href="/"><%= tt('findResv.link_home','Back to home') %></a></p>
+      </div>
+    <% } else { %>
+      <header class="head">
+        <h1 id="findresv-title"><%= tt('findResv.title','Find my reservation') %></h1>
+        <p class="muted"><%= tt('findResv.intro','Lost your confirmation email? Enter the address you booked with and we will email you your manage links.') %></p>
+        <% if (state === 'rate_limited') { %>
+          <p class="badge warn" role="alert">&#9888; <%= tt('findResv.rate_limited','Too many attempts, try again later.') %></p>
+        <% } %>
+      </header>
+
+      <form class="form" id="findresv-form" action="/find-reservation" method="post" novalidate>
+        <div class="form-row">
+          <label for="findresv-email"><%= tt('findResv.email_label','Email address') %></label>
+          <input id="findresv-email" name="email" type="email" dir="ltr" inputmode="email"
+                 autocomplete="email" autocapitalize="off" spellcheck="false"
+                 placeholder="name@example.com" required />
+        </div>
+        <div class="form-actions">
+          <button class="btn primary" id="findresv-submit" type="submit"
+                  data-loading-label="&#8987;&nbsp;<%= tt('findResv.submit','Email me my reservations') %>">
+            <%= tt('findResv.submit','Email me my reservations') %>
+          </button>
+        </div>
+      </form>
+
+      <footer class="ft">
+        <p class="links"><a href="/"><%= tt('findResv.link_home','Back to home') %></a></p>
+      </footer>
+    <% } %>
+  </section>
+</main>
+
+<script>
+  (function(){
+    // normalize email (strip bidi chars / odd spaces, lowercase) — same as login page
+    var BIDI=/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, ZSP=/[\s\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]+/g;
+    function normalizeEmail(s){
+      s=(s||'')+''; s=s.replace(BIDI,'').replace(/\uFF20/g,'@').replace(/\uFF0E/g,'.');
+      s=s.replace(ZSP,' ').trim().replace(/^[<"'\s]+/,'').replace(/[>"'\s]+$/,'');
+      return s.toLowerCase();
+    }
+    var emailEl=document.getElementById('findresv-email');
+    if(emailEl){ emailEl.addEventListener('blur',function(){ emailEl.value=normalizeEmail(emailEl.value); }); }
+
+    // loading state on submit (prevents double submits)
+    var form=document.getElementById('findresv-form');
+    var btn=document.getElementById('findresv-submit');
+    if(form && btn){
+      form.addEventListener('submit',function(){
+        btn.disabled=true;
+        btn.setAttribute('aria-busy','true');
+        btn.innerHTML=btn.getAttribute('data-loading-label')||btn.innerHTML;
+      });
+    }
+  })();
+</script>
+
+<style>
+  :root{
+    --bg:#0b1120; --card:#111827; --ink:#e5e7eb; --muted:#9aa3b2; --bd:#1f2937;
+    --brand:#3b82f6; --warn:#f59e0b;
+    --radius:16px;
+    --shadow-md:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .sb-findresv.container{ max-width:520px; margin:28px auto; padding:0 16px; }
+  .findresv-card.card{
+    background:var(--card); border:1px solid var(--bd); border-radius:var(--radius);
+    color:var(--ink); box-shadow:var(--shadow-md); padding:18px;
+  }
+  .findresv-card .head h1{ margin:0 0 6px; font-size:22px; letter-spacing:.2px }
+  .muted{ color:var(--muted) }
+
+  .badge{
+    display:inline-flex; align-items:center; gap:8px; padding:6px 10px; margin-top:8px;
+    border-radius:999px; font-weight:800; font-size:.9rem; border:1px solid transparent;
+  }
+  .badge.warn{ background:color-mix(in srgb, var(--warn) 18%, #0d1526); color:#ffedd5; border-color:color-mix(in srgb, var(--warn) 55%, var(--bd)); }
+
+  .form{ margin-top:12px }
+  .form-row{ display:flex; flex-direction:column; gap:6px; margin-bottom:10px }
+  .form-row label{ font-weight:600 }
+  .form-row input{
+    background:#0b1327; color:var(--ink);
+    border:1px solid var(--bd); border-radius:12px; padding:10px 12px; font-size:15px; outline:0;
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  .form-row input:focus{
+    border-color: color-mix(in srgb, var(--brand) 60%, var(--bd));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent);
+  }
+  .form-actions{ margin-top:6px; display:flex; gap:10px; flex-wrap:wrap }
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    padding:10px 14px; border-radius:12px; border:1px solid var(--bd);
+    cursor:pointer; text-decoration:none; font-weight:800; color:var(--ink); background:#0f172a;
+    transition:transform .08s ease, filter .12s ease;
+  }
+  .btn:hover{ transform:translateY(-1px) }
+  .btn.primary{ background:var(--brand); border-color:var(--brand); color:#fff; box-shadow:0 10px 24px rgba(59,130,246,.28); }
+  .btn[disabled]{ opacity:.7; cursor:progress; transform:none }
+
+  .ft{ margin-top:12px; padding-top:10px; border-top:1px solid var(--bd) }
+  .links{ color:var(--muted) }
+  .links a{ color:#c6d5ff; text-decoration:underline dotted }
+
+  .findresv-success{ text-align:center; padding:14px 4px }
+  .findresv-success__icon{ font-size:40px; margin-bottom:8px }
+  .findresv-success h1{ margin:0 0 8px; font-size:22px }
+
+  @media (max-width:520px){ .sb-findresv.container{ margin:22px auto } }
+</style>

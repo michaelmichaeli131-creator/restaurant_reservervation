@@ -54,6 +54,7 @@ import inventoryRouter from "./routes/inventory.ts";
 import { reservationPortal } from "./routes/reservation_portal.ts";
 import { favoritesRouter } from "./routes/favorites.ts";
 import { myReservationsRouter } from "./routes/my_reservations.ts";
+import { findReservationRouter } from "./routes/find_reservation.ts";
 import { widgetRouter } from "./routes/widget.ts";
 import { staffTimeRouter } from "./routes/staff_time.ts";
 import { ownerTimeRouter } from "./routes/owner_time.ts";
@@ -569,6 +570,10 @@ app.use(favoritesRouter.allowedMethods());
 // -------------------- MY RESERVATIONS --------------------
 app.use(myReservationsRouter.routes());
 app.use(myReservationsRouter.allowedMethods());
+
+// -------------------- FIND MY RESERVATION (public, magic-link) --------------------
+app.use(findReservationRouter.routes());
+app.use(findReservationRouter.allowedMethods());
 
 // -------------------- EMBEDDABLE WIDGET (public) --------------------
 app.use(widgetRouter.routes());

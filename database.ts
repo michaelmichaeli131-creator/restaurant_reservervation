@@ -793,6 +793,48 @@ export async function listReservationsByUser(userId: string): Promise<Reservatio
   return out;
 }
 
+/**
+ * ← חדש: כל ההזמנות לפי כתובת אימייל ("Find my reservation").
+ * שני מסלולים:
+ *   1) משתמש רשום — user_by_email → אינדקס reservation_user.
+ *   2) אורחים — האימייל שמור בתוך note בתבנית "Email: x@y; ..." (אין אינדקס ייעודי),
+ *      ולכן סריקה של prefix ["reservation"] עם פירסור ה-note (כמו ה-backfill למעלה).
+ */
+export async function listReservationsByEmail(email: string): Promise<Reservation[]> {
+  const emailNorm = lower(email);
+  if (!emailNorm || !emailNorm.includes("@")) return [];
+
+  const seen = new Set<string>();
+  const out: Reservation[] = [];
+
+  // 1) registered user with this email → existing per-user index
+  const user = await findUserByEmail(emailNorm);
+  if (user) {
+    for (const r of await listReservationsByUser(user.id)) {
+      if (!seen.has(r.id)) {
+        seen.add(r.id);
+        out.push(r);
+      }
+    }
+  }
+
+  // 2) guest reservations: email embedded in the note string
+  const NOTE_EMAIL_RE = /(?:^|;\s*)Email:\s*([^;]+)/i;
+  for await (const e of kv.list<Reservation>({ prefix: toKey("reservation") })) {
+    const r = e.value;
+    if (!r || !r.id || seen.has(r.id)) continue;
+    const m = NOTE_EMAIL_RE.exec(String(r.note ?? ""));
+    const noteEmail = lower(m?.[1] ?? "");
+    if (noteEmail && noteEmail === emailNorm) {
+      seen.add(r.id);
+      out.push(r);
+    }
+  }
+
+  out.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  return out;
+}
+
 /** ← חדש: קבלת הזמנה לפי מזהה */
 export async function getReservationById(id: string): Promise<Reservation | null> {
   return (await kv.get<Reservation>(toKey("reservation", id))).value ?? null;

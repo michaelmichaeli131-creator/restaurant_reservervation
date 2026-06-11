@@ -1,16 +1,20 @@
 // src/routes/admin.ts
 import { Router, Status } from "jsr:@oak/oak";
 import {
+  kv,
   listRestaurants,
+  listUsers,
   getRestaurant,
   updateRestaurant,
   type Restaurant,
+  type Reservation,
   resetRestaurants,
   resetReservations,
   resetUsers,
   resetAll,
   deleteRestaurantCascade,
 } from "../database.ts";
+import { render } from "../lib/view.ts";
 
 const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
 const BUILD_TAG = new Date().toISOString().slice(0, 19).replace("T", " ");
@@ -196,12 +200,13 @@ function statCard(label: string, value: string, tone = "default", note = ""): st
     </article>`;
 }
 
-function tabs(ctx: any, key: string, active: "restaurants" | "users" | "tools"): string {
+function tabs(ctx: any, key: string, active: "restaurants" | "users" | "analytics" | "tools"): string {
   const t = (k: string, fb: string, v?: Record<string, unknown>) => tr(ctx, k, fb, v);
   return `
     <nav class="tabs" aria-label="Admin sections">
       <a class="tab ${active === "restaurants" ? "active" : ""}" href="/admin?key=${encodeURIComponent(key)}">${esc(t("admin.tabs.restaurants", "Restaurants"))}</a>
       <a class="tab ${active === "users" ? "active" : ""}" href="/admin/users?key=${encodeURIComponent(key)}">${esc(t("admin.tabs.users", "Users"))}</a>
+      <a class="tab ${active === "analytics" ? "active" : ""}" href="/admin/analytics?key=${encodeURIComponent(key)}">${esc(t("admin.tabs.analytics", "Analytics"))}</a>
       <a class="tab ${active === "tools" ? "active" : ""}" href="/admin/tools?key=${encodeURIComponent(key)}">${esc(t("admin.tabs.tools", "Tools"))}</a>
     </nav>`;
 }
@@ -1269,6 +1274,134 @@ adminRouter.get("/admin/tools", (ctx) => {
     </div>`;
   ctx.response.headers.set("Content-Type", "text/html; charset=utf-8");
   ctx.response.body = page(ctx, { title: t("admin.head.dashboard", "Dashboard · Admin"), body, key });
+});
+
+adminRouter.get("/admin/analytics", async (ctx) => {
+  if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
+  const key = getAdminKey(ctx)!;
+  const t = (k: string, fb: string, v?: Record<string, unknown>) => tr(ctx, k, fb, v);
+
+  const HARD_CAP = 50_000; // guard against unbounded KV scans
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const nowTs = Date.now();
+  const cut30 = nowTs - 30 * DAY_MS;
+  const cut60 = nowTs - 60 * DAY_MS;
+  const dayKey = (ts: number) => new Date(ts).toISOString().slice(0, 10);
+
+  // Load restaurants ONCE (names + approval split) — avoids N+1 lookups below.
+  const restaurants = await listRestaurants("", false);
+  const nameById = new Map<string, string>(
+    restaurants.map((r) => [String(r.id), String(r.name ?? r.id)]),
+  );
+  const approvedRestaurants = restaurants.filter((r) => Boolean(r.approved)).length;
+  const pendingRestaurants = restaurants.length - approvedRestaurants;
+
+  // Users by role
+  const users = await listUsers(100_000);
+  const usersByRole: Record<string, number> = {};
+  for (const u of users) {
+    const role = String((u as any).role ?? "user").trim().toLowerCase() || "user";
+    usersByRole[role] = (usersByRole[role] ?? 0) + 1;
+  }
+  const roleOrder = ["user", "owner", "manager", "staff"];
+  const roles = [
+    ...roleOrder.filter((r) => usersByRole[r]),
+    ...Object.keys(usersByRole).filter((r) => !roleOrder.includes(r)).sort(),
+  ].map((role) => ({ role, count: usersByRole[role] }));
+
+  // ── ONE pass over all reservation records, computing every aggregate ──
+  let scanned = 0;
+  let truncated = false;
+  let covers30 = 0;
+  let coversPrev = 0;
+  const perDay = new Map<string, number>();
+  const statusCounts = new Map<string, number>();
+  const perRestaurant = new Map<string, number>();
+
+  for await (const entry of kv.list<Reservation>({ prefix: ["reservation"] })) {
+    if (scanned >= HARD_CAP) {
+      truncated = true;
+      break;
+    }
+    const r = entry.value;
+    if (!r || typeof r !== "object" || !(r as any).restaurantId) continue;
+    scanned++;
+    const created = Number(r.createdAt ?? 0);
+    if (!Number.isFinite(created) || created <= 0) continue;
+    const people = Number(r.people ?? 0);
+    if (created >= cut30) {
+      const dk = dayKey(created);
+      perDay.set(dk, (perDay.get(dk) ?? 0) + 1);
+      let status = String(r.status ?? "new").trim().toLowerCase() || "new";
+      if (status === "cancelled") status = "canceled";
+      statusCounts.set(status, (statusCounts.get(status) ?? 0) + 1);
+      const rid = String(r.restaurantId ?? "");
+      if (rid) perRestaurant.set(rid, (perRestaurant.get(rid) ?? 0) + 1);
+      if (Number.isFinite(people) && people > 0) covers30 += people;
+    } else if (created >= cut60) {
+      if (Number.isFinite(people) && people > 0) coversPrev += people;
+    }
+  }
+
+  // Daily series — last 30 days, oldest → newest
+  const days: Array<{ date: string; count: number }> = [];
+  for (let i = 29; i >= 0; i--) {
+    const dk = dayKey(nowTs - i * DAY_MS);
+    days.push({ date: dk, count: perDay.get(dk) ?? 0 });
+  }
+  const maxPerDay = Math.max(1, ...days.map((d) => d.count));
+  const reservations30 = [...statusCounts.values()].reduce((a, b) => a + b, 0);
+
+  // Status breakdown (last 30 days), sorted by count
+  const statuses = [...statusCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([status, count]) => ({
+      status,
+      count,
+      pct: reservations30 ? Math.round((count / reservations30) * 100) : 0,
+    }));
+
+  // Top 10 restaurants by reservation count (last 30 days)
+  const topRestaurants = [...perRestaurant.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([id, count]) => ({ id, name: nameById.get(id) ?? "", count }));
+
+  // Covers trend: last 30 days vs previous 30 days
+  let trendDir: "up" | "down" | "flat" = "flat";
+  let trendPct = 0;
+  if (coversPrev > 0) {
+    trendPct = Math.round((Math.abs(covers30 - coversPrev) / coversPrev) * 1000) / 10;
+    trendDir = covers30 > coversPrev ? "up" : covers30 < coversPrev ? "down" : "flat";
+  } else if (covers30 > 0) {
+    trendDir = "up";
+    trendPct = 100;
+  }
+
+  await render(ctx, "admin_analytics", {
+    page: "admin",
+    title: t("admin.analytics.head", "Analytics · Admin"),
+    adminKey: key,
+    buildTag: BUILD_TAG,
+    currentPath: currentUrl(ctx),
+    totals: {
+      restaurants: restaurants.length,
+      approvedRestaurants,
+      pendingRestaurants,
+      users: users.length,
+      reservations: scanned,
+      reservations30,
+    },
+    roles,
+    days,
+    maxPerDay,
+    statuses,
+    topRestaurants,
+    covers: { current: covers30, previous: coversPrev, trendDir, trendPct },
+    truncated,
+    hardCap: HARD_CAP,
+  });
 });
 
 async function handleReset(ctx: any) {

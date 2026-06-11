@@ -38,6 +38,9 @@
                 <button class="btn primary home-search-shell__btn" type="submit"><%= (it.t && it.t('home.search.cta')) || 'Search' %></button>
               </form>
               <div id="ac-list" class="ac-list home-search-ac" role="listbox" aria-label="<%= (it.t && it.t('home.search.suggestions_aria')) || 'Search suggestions' %>" hidden></div>
+              <p style="margin:8px 2px 0;font-size:.88rem;opacity:.78;">
+                <a href="/find-reservation" style="color:inherit;text-decoration:underline dotted;"><%= (it.t && it.t('findResv.home_link_text')) || 'Already booked? Find your reservation' %></a>
+              </p>
             </div>
 
             <div class="home-hero-v3__proofs">
