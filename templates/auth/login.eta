@@ -45,6 +45,7 @@
 
     <footer class="ft">
       <p class="links"><%= tt('auth.login.links.newHere','חדש/ה כאן?') %> <a href="/auth/register"><%= tt('auth.login.links.register','פתיחת חשבון') %></a></p>
+      <p class="links"><a href="/find-reservation"><%= tt('findResv.login_link_text','Looking for a reservation? No account needed') %></a></p>
     </footer>
   </section>
 </main>

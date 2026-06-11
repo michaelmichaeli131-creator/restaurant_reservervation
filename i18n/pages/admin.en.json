@@ -13,7 +13,8 @@
     "tabs": {
       "restaurants": "Restaurants",
       "users": "Users",
-      "tools": "Tools"
+      "tools": "Tools",
+      "analytics": "Analytics"
     },
     "login": {
       "title": "Admin Login",
@@ -174,6 +175,68 @@
       "select_visible": "Select visible",
       "quick_view": "Quick view",
       "select_record": "Choose a record to inspect it here."
+    },
+    "analytics": {
+      "head": "Analytics · Admin",
+      "title": "Platform Analytics",
+      "subtitle": "Platform-wide totals, reservation trends for the last 30 days, and top performing restaurants.",
+      "back": "Back to dashboard",
+      "truncated": "Partial data: the scan stopped after {cap} reservations, so the numbers below are a lower bound.",
+      "totals": {
+        "restaurants": "Restaurants",
+        "restaurants_note": "{approved} approved · {pending} pending",
+        "users": "Users",
+        "users_note": "All accounts, broken down by role below",
+        "reservations": "Reservations",
+        "reservations_note": "All time",
+        "window": "Created · last 30 days",
+        "window_note": "Based on creation time"
+      },
+      "roles": {
+        "title": "Users by role",
+        "user": "Customer",
+        "owner": "Owner",
+        "manager": "Manager",
+        "staff": "Staff"
+      },
+      "chart": {
+        "title": "Reservations created · last 30 days",
+        "help": "One bar per day, based on when each reservation was created.",
+        "bar_label": "{date}: {count} reservations",
+        "empty": "No reservations were created in the last 30 days."
+      },
+      "status": {
+        "title": "Status breakdown · last 30 days",
+        "help": "Current status of reservations created in the window.",
+        "empty": "No data for this window.",
+        "labels": {
+          "new": "New",
+          "confirmed": "Confirmed",
+          "approved": "Approved",
+          "arrived": "Arrived",
+          "completed": "Completed",
+          "rescheduled": "Rescheduled",
+          "canceled": "Canceled",
+          "blocked": "Blocked"
+        }
+      },
+      "top": {
+        "title": "Top restaurants · last 30 days",
+        "help": "Top 10 restaurants by reservations created in the window.",
+        "restaurant": "Restaurant",
+        "count": "Reservations",
+        "empty": "No reservations in the last 30 days.",
+        "unknown": "Deleted restaurant"
+      },
+      "covers": {
+        "title": "Covers · 30-day trend",
+        "help": "Total guests (sum of party sizes) on reservations created in each window.",
+        "current": "Last 30 days",
+        "previous": "Previous 30 days",
+        "up": "Up {pct}% vs previous 30 days",
+        "down": "Down {pct}% vs previous 30 days",
+        "flat": "No change vs previous 30 days"
+      }
     }
   }
 }

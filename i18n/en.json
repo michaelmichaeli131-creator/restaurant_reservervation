@@ -1474,5 +1474,17 @@
       "completed": "Completed",
       "arrived": "Arrived"
     }
+  },
+  "findResv": {
+    "title": "Find my reservation",
+    "intro": "Lost your confirmation email? Enter the address you booked with and we'll email you your manage links.",
+    "email_label": "Email address",
+    "submit": "Email me my reservations",
+    "success_title": "Check your inbox",
+    "success_text": "If we found reservations for this address, an email is on its way.",
+    "rate_limited": "Too many attempts, try again later.",
+    "link_home": "Back to home",
+    "home_link_text": "Already booked? Find your reservation",
+    "login_link_text": "Looking for a reservation? No account needed"
   }
 }
