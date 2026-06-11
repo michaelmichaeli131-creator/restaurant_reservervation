@@ -190,8 +190,82 @@ const shortcutsCount = restaurants.reduce((acc, r) => acc + actionCountFor(r), 0
       </div>
     </div>
 
+    <%
+      const setupPending = isOwner
+        ? restaurants.filter((r) => r._setup && r._setup.doneCount < r._setup.total)
+        : [];
+      const setupStepLabels = {
+        profile:  tt('owner.dashboard.setup.step_profile','Profile created'),
+        hours:    tt('owner.dashboard.setup.step_hours','Opening hours set'),
+        photos:   tt('owner.dashboard.setup.step_photos','Photos uploaded'),
+        menu:     tt('owner.dashboard.setup.step_menu','Menu added'),
+        approval: tt('owner.dashboard.setup.step_approval','Approved & live'),
+      };
+    %>
+
     <div class="sb-owner-layout">
       <div class="sb-owner-main">
+        <% if (setupPending.length) { %>
+          <section class="card sb-setup-section" aria-label="<%= tt('owner.dashboard.setup.title','Finish your setup') %>">
+            <div class="sb-section-head compact">
+              <div>
+                <h2 class="sb-section-title"><%= tt('owner.dashboard.setup.title','Finish your setup') %></h2>
+                <p class="muted sb-section-sub"><%= tt('owner.dashboard.setup.subtitle','Complete these steps so guests can find and book your restaurant.') %></p>
+              </div>
+            </div>
+
+            <div class="sb-setup-list">
+              <% setupPending.forEach(function(r){
+                   const s = r._setup;
+                   const pct = Math.round((s.doneCount / s.total) * 100);
+              %>
+                <article class="sb-setup-card">
+                  <div class="sb-setup-head">
+                    <strong class="sb-setup-name"><%= r.name %></strong>
+                    <span class="sb-setup-count"><%= s.doneCount %>/<%= s.total %> <%= tt('owner.dashboard.setup.steps_done','steps completed') %></span>
+                  </div>
+
+                  <div class="sb-setup-track" role="progressbar" aria-valuemin="0" aria-valuemax="<%= s.total %>" aria-valuenow="<%= s.doneCount %>" aria-label="<%= tt('owner.dashboard.setup.progress_aria','Setup progress') %>">
+                    <div class="sb-setup-fill" style="width:<%= pct %>%"></div>
+                  </div>
+
+                  <ul class="sb-setup-steps">
+                    <% s.steps.forEach(function(step){
+                         const label = setupStepLabels[step.key] || step.key;
+                    %>
+                      <li class="sb-setup-step <%= step.done ? 'done' : 'todo' %>">
+                        <span class="sb-setup-mark" aria-hidden="true"><%= step.done ? '✓' : '○' %></span>
+                        <% if (step.key === 'approval') { %>
+                          <span class="sb-setup-label">
+                            <%= label %>
+                            <% if (!step.done) { %>
+                              <small class="muted"><%= step.waiting ? tt('owner.dashboard.setup.waiting_approval','Waiting for approval') : tt('owner.dashboard.setup.approval_hint','Completed automatically after review') %></small>
+                            <% } %>
+                          </span>
+                        <% } else if (step.done) { %>
+                          <span class="sb-setup-label">
+                            <%= label %>
+                            <% if (step.key === 'profile' && step.needsDescription) { %>
+                              <small class="muted"><a class="sb-setup-tip" href="<%= step.href %>"><%= tt('owner.dashboard.setup.tip_description','Tip: add a description to attract guests') %></a></small>
+                            <% } else if (step.key === 'photos' && step.fewPhotos) { %>
+                              <small class="muted"><a class="sb-setup-tip" href="<%= step.href %>"><%= tt('owner.dashboard.setup.tip_more_photos','Tip: 3+ photos work best') %></a></small>
+                            <% } %>
+                          </span>
+                        <% } else { %>
+                          <a class="sb-setup-label sb-setup-link" href="<%= step.href %>">
+                            <%= label %>
+                            <span class="sb-setup-go" aria-hidden="true">→</span>
+                          </a>
+                        <% } %>
+                      </li>
+                    <% }) %>
+                  </ul>
+                </article>
+              <% }) %>
+            </div>
+          </section>
+        <% } %>
+
         <section class="sb-restaurants-section card">
           <div class="sb-section-head">
             <div>
@@ -424,13 +498,19 @@ const shortcutsCount = restaurants.reduce((acc, r) => acc + actionCountFor(r), 0
             </div>
             <p class="sb-owner-empty muted" data-owner-empty style="display:none"><%= tt('owner.dashboard.no_results','No restaurants match your search.') %></p>
           <% } else { %>
-            <div class="sb-empty-state">
+            <div class="sb-empty-state sb-welcome-state">
               <div class="sb-empty-icon">
                 <span class="sb-icon sb-icon-24"><svg><use href="/public/icons/sb-sprite.svg#plus"/></svg></span>
               </div>
-              <div>
-                <h3><%= tt('owner.dashboard.no_restaurants_title','No restaurants yet') %></h3>
-                <p class="muted"><%= tt('owner.dashboard.no_restaurants','You have not added any restaurants yet.') %></p>
+              <div class="sb-welcome-copy">
+                <h3><%= tt('owner.dashboard.setup.welcome_title','Welcome to SpotBook!') %></h3>
+                <p class="muted"><%= tt('owner.dashboard.setup.welcome_text','Create your restaurant profile to start taking reservations — it takes about 10 minutes.') %></p>
+                <% if (isOwner) { %>
+                  <a class="btn primary sb-welcome-cta" href="#create-restaurant-form">
+                    <span class="sb-icon sb-icon-18"><svg><use href="/public/icons/sb-sprite.svg#plus"/></svg></span>
+                    <%= tt('owner.dashboard.setup.welcome_cta','Create your restaurant') %>
+                  </a>
+                <% } %>
               </div>
             </div>
           <% } %>
@@ -1136,6 +1216,125 @@ const shortcutsCount = restaurants.reduce((acc, r) => acc + actionCountFor(r), 0
     border:1px solid rgba(255,255,255,.06);
     color:#d6dff3;
     line-height:1.55;
+  }
+
+  .sb-setup-section{
+    padding:18px;
+    border-color:rgba(96,165,250,.30);
+    box-shadow:0 18px 50px rgba(0,0,0,.30), inset 0 0 0 1px rgba(96,165,250,.10);
+  }
+  .sb-setup-list{
+    display:grid;
+    gap:14px;
+  }
+  .sb-setup-card{
+    padding:16px;
+    border-radius:18px;
+    background:rgba(255,255,255,.035);
+    border:1px solid rgba(255,255,255,.07);
+  }
+  .sb-setup-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:10px;
+  }
+  .sb-setup-name{
+    font-size:1.05rem;
+    letter-spacing:-.02em;
+  }
+  .sb-setup-count{
+    white-space:nowrap;
+    padding:7px 11px;
+    border-radius:999px;
+    font-size:.85rem;
+    font-weight:800;
+    color:#dce8ff;
+    background:rgba(59,130,246,.14);
+    border:1px solid rgba(96,165,250,.28);
+  }
+  .sb-setup-track{
+    height:10px;
+    border-radius:999px;
+    background:rgba(255,255,255,.06);
+    overflow:hidden;
+    margin-bottom:14px;
+  }
+  .sb-setup-fill{
+    height:100%;
+    border-radius:999px;
+    background:linear-gradient(90deg, rgba(59,130,246,.55), #60a5fa);
+  }
+  .sb-setup-steps{
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:grid;
+    gap:8px;
+  }
+  .sb-setup-step{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    padding:10px 12px;
+    border-radius:14px;
+    background:rgba(255,255,255,.03);
+    border:1px solid rgba(255,255,255,.05);
+  }
+  .sb-setup-step.done{ color:#b9c7e4; }
+  .sb-setup-step.done .sb-setup-mark{ color:#9fe7b2; }
+  .sb-setup-step.todo .sb-setup-mark{ color:#8ca0c7; }
+  .sb-setup-mark{
+    width:22px;
+    text-align:center;
+    font-weight:800;
+    flex:none;
+  }
+  .sb-setup-label{
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    color:inherit;
+  }
+  .sb-setup-label small{ line-height:1.4; }
+  .sb-setup-link{
+    text-decoration:none;
+    color:#e9eefc;
+    font-weight:700;
+    flex-direction:row;
+    align-items:center;
+    gap:8px;
+  }
+  .sb-setup-link:hover{ color:#bcd6ff; }
+  .sb-setup-go{ color:#8fb4ff; }
+  .sb-setup-tip{
+    color:#9fc2ff;
+    text-decoration:none;
+  }
+  .sb-setup-tip:hover{ text-decoration:underline; }
+
+  .sb-welcome-state{ align-items:flex-start; }
+  .sb-welcome-copy{
+    display:grid;
+    gap:10px;
+  }
+  .sb-welcome-copy h3{
+    margin:0;
+    font-size:clamp(20px, 2vw, 26px);
+    letter-spacing:-.02em;
+  }
+  .sb-welcome-copy p{ margin:0; line-height:1.6; }
+  .sb-welcome-cta{
+    width:max-content;
+    min-height:52px;
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    padding:12px 20px;
+    border-radius:16px;
+    font-size:1.02rem;
+    font-weight:800;
   }
 
   .sb-empty-state{

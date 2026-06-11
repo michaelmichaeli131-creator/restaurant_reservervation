@@ -6,6 +6,7 @@
   <header class="page-header">
     <h1><%= tt('owner.hours.head','სამუშაო საათების მართვა') %> — <%= it.restaurant.name %></h1>
     <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
+    <p class="muted"><%= tt('owner.hours.setup_step','Step 2 of 5: set your opening hours so guests know when they can book.') %></p>
   </header>
 
   <% if (it.saved) { %>

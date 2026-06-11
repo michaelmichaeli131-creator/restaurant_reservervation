@@ -17,6 +17,13 @@
   <div class="rsv-confirmed-header">
     <h1 class="rsv-confirmed-header__title"><%= tt('confirm.header.title','Reservation Confirmed') %></h1>
     <p class="rsv-confirmed-header__sub"><%= tt('confirm.header.subtitle','Thank you for booking at ') %><strong><%= it.restaurant.name %></strong></p>
+    <% const shortId = it.reservationId ? String(it.reservationId).slice(0, 8) : ""; %>
+    <% if (shortId) { %>
+    <div class="rsv-resid" title="<%= it.reservationId %>">
+      <span class="rsv-resid__label"><%= tt('confirm.details.id','Reservation ID') %></span>
+      <code class="rsv-resid__code"><%= shortId %></code>
+    </div>
+    <% } %>
   </div>
 
   <!-- Booking summary chips -->
@@ -179,15 +186,42 @@
     </div>
   </div>
 
-  <!-- Email hint -->
-  <p class="rsv-email-hint">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-    <%= tt('confirm.footer.emailSent','We sent you an email with your reservation details. See you soon!') %>
-  </p>
+  <!-- What's next? -->
+  <div class="rsv-confirm-card rsv-next-card">
+    <h2 class="rsv-confirm-card__title"><%= tt('confirm.next.title',"What's next?") %></h2>
+    <ul class="rsv-next-steps">
+      <li class="rsv-next-step">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        <span class="rsv-next-step__text">
+          <% if (it.customerEmail) { %>
+            <%= tt('confirm.next.email_sent','A confirmation email was sent to {email}').replace('{email}', it.customerEmail) %>
+          <% } else { %>
+            <%= tt('confirm.footer.emailSent','We sent you an email with your reservation details. See you soon!') %>
+          <% } %>
+        </span>
+      </li>
+      <li class="rsv-next-step">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        <span class="rsv-next-step__text"><%= tt('confirm.next.manage_hint','Manage or cancel anytime with the link in your email') %></span>
+      </li>
+      <% if (it.restaurant.phone) { %>
+      <li class="rsv-next-step">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        <span class="rsv-next-step__text"><%= tt('confirm.next.call_restaurant','Running late? Call the restaurant') %> — <a href="tel:<%= it.restaurant.phone %>" dir="ltr"><%= it.restaurant.phone %></a></span>
+      </li>
+      <% } %>
+    </ul>
+  </div>
 
   <!-- Actions -->
   <div class="rsv-actions-stack">
-    <a class="rsv-btn rsv-btn--primary" href="/restaurants/<%= it.restaurant.id %><%= langSuffix %>">
+    <% if (it.user) { %>
+    <a class="rsv-btn rsv-btn--primary" href="/my-reservations<%= langSuffix %>">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <%= tt('confirm.actions.myReservations','View my reservations') %>
+    </a>
+    <% } %>
+    <a class="rsv-btn <%= it.user ? 'rsv-btn--ghost' : 'rsv-btn--primary' %>" href="/restaurants/<%= it.restaurant.id %><%= langSuffix %>">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
       <%= tt('confirm.actions.backToRestaurant','Back to restaurant page') %>
     </a>
@@ -231,7 +265,14 @@
     display: flex; justify-content: center; margin: 24px 0 8px;
     animation: rsv-pop .5s cubic-bezier(.175,.885,.32,1.275);
   }
-  .rsv-success-icon svg { color: #22c55e; }
+  .rsv-success-icon svg {
+    color: #22c55e;
+    padding: 14px;
+    border-radius: 50%;
+    background: var(--sb-color-warm-soft, rgba(198,162,48,.18));
+    border: 1px solid var(--sb-color-warm-border, rgba(198,162,48,.35));
+    box-shadow: 0 0 36px rgba(198,162,48,.22);
+  }
   @keyframes rsv-pop {
     0% { transform: scale(0); opacity: 0; }
     100% { transform: scale(1); opacity: 1; }
@@ -354,6 +395,48 @@
   @media (max-width: 500px) {
     .rsv-dietary-tags { justify-content: flex-start; }
   }
+
+  /* Reservation short ID */
+  .rsv-resid {
+    display: inline-flex; align-items: center; gap: 10px;
+    margin-top: 14px;
+    padding: 8px 16px;
+    background: var(--panel-2, #171b29);
+    border: 1px solid var(--bd, #23293a);
+    border-radius: 12px;
+  }
+  .rsv-resid__label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--ink-muted, #9aa3b2);
+  }
+  .rsv-resid__code {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 18px; font-weight: 700; letter-spacing: .12em;
+    color: var(--ink, #e6e8ef);
+  }
+
+  /* What's next? steps */
+  .rsv-next-steps {
+    list-style: none;
+    margin: 0; padding: 0;
+    display: flex; flex-direction: column;
+  }
+  .rsv-next-step {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255,255,255,.05);
+    font-size: 14px; line-height: 1.5;
+    color: var(--ink, #e6e8ef);
+  }
+  .rsv-next-step:first-child { padding-top: 0; }
+  .rsv-next-step:last-child { border-bottom: none; padding-bottom: 0; }
+  .rsv-next-step svg { color: var(--brand, #3b82f6); opacity: .85; flex-shrink: 0; margin-top: 2px; }
+  .rsv-next-step__text { min-width: 0; overflow-wrap: anywhere; }
+  .rsv-next-step__text a {
+    color: var(--brand, #3b82f6); font-weight: 700; text-decoration: none;
+    white-space: nowrap;
+  }
+  .rsv-next-step__text a:hover { text-decoration: underline; }
 
   /* Email hint */
   .rsv-email-hint {

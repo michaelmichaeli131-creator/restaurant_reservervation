@@ -22,7 +22,14 @@
     "actions": {
       "backToRestaurant": "Back to Restaurant",
       "edit": "Edit Date/Time/Guests",
-      "home": "Back to Home"
+      "home": "Back to Home",
+      "myReservations": "View my reservations"
+    },
+    "next": {
+      "title": "What's next?",
+      "email_sent": "A confirmation email was sent to {email}",
+      "manage_hint": "Manage or cancel anytime with the link in your email",
+      "call_restaurant": "Running late? Call the restaurant"
     },
     "footer": {
       "emailSent": "A confirmation email was sent to you. See you soon!"
