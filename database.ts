@@ -713,6 +713,44 @@ export async function listReservationsByRestaurant(restaurantId: string): Promis
   return out;
 }
 
+/**
+ * Phone normalization for guest matching: keep digits only and compare the
+ * last 9 digits, so "+972-50-123-4567", "0501234567" and "050 123 4567"
+ * all resolve to the same key. Returns "" when there is nothing usable.
+ */
+export function normalizePhone(raw?: string): string {
+  const digits = String(raw ?? "").replace(/\D+/g, "");
+  if (!digits) return "";
+  return digits.length > 9 ? digits.slice(-9) : digits;
+}
+
+/**
+ * Returning-guest counter: how many reservations in this restaurant share the
+ * given phone number (normalized), excluding canceled/blocked entries.
+ * When `beforeDate` (YYYY-MM-DD) is given, only reservations dated on or
+ * before it are counted — so the result reads as "visit N as of that day",
+ * including the current reservation itself.
+ */
+export async function countGuestVisits(
+  restaurantId: string,
+  phone: string,
+  beforeDate?: string,
+): Promise<number> {
+  const target = normalizePhone(phone);
+  if (!target) return 0;
+  const skip = new Set(["canceled", "cancelled", "blocked"]);
+  let count = 0;
+  for await (const row of kv.list({ prefix: toKey("reservation_by_day", restaurantId) })) {
+    const id = row.key[row.key.length - 1] as string;
+    const r = (await kv.get<Reservation>(toKey("reservation", id))).value;
+    if (!r) continue;
+    if (skip.has(String(r.status ?? "").toLowerCase())) continue;
+    if (beforeDate && String(r.date ?? "") > beforeDate) continue;
+    if (normalizePhone(r.phone) === target) count++;
+  }
+  return count;
+}
+
 export async function createReservation(r: Reservation) {
   const tx = kv.atomic()
     .set(toKey("reservation", r.id), r)

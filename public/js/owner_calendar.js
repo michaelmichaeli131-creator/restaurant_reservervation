@@ -639,6 +639,12 @@
       allergies:   init?.txt?.dietaryAllergies || "Allergies",
     };
     const chips = [];
+    const visits = Number(item.visitCount || 0);
+    if (visits >= 2) {
+      const tpl = init?.txt?.returningGuest || "Returning guest · visit {n}";
+      const label = tpl.replace("{n}", String(visits));
+      chips.push(`<span title="${escapeHTML(label)}" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:rgba(198,162,48,.18);color:#C6A230;border:1px solid rgba(198,162,48,.35)">⭐ ${escapeHTML(label)}</span>`);
+    }
     const occ = occasionMeta[String(item.occasion || "")];
     if (occ) {
       chips.push(`<span title="${escapeHTML(occ.label)}" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:rgba(245,158,11,.14);color:#fcd34d;border:1px solid rgba(245,158,11,.3)">${occ.emoji} ${escapeHTML(occ.label)}</span>`);

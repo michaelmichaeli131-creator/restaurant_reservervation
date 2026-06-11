@@ -1486,5 +1486,20 @@
     "link_home": "Back to home",
     "home_link_text": "Already booked? Find your reservation",
     "login_link_text": "Looking for a reservation? No account needed"
+  },
+  "export": {
+    "csv": {
+      "date": "Date",
+      "time": "Time",
+      "name": "Guest name",
+      "phone": "Phone",
+      "people": "Guests",
+      "status": "Status",
+      "room": "Room",
+      "occasion": "Occasion",
+      "dietary": "Dietary",
+      "note": "Notes",
+      "created": "Created at"
+    }
   }
 }

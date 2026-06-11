@@ -141,6 +141,11 @@
     "inventory_food_cost_desc": "See plate cost, selling price, and margin for each dish.",
     "inventory_suppliers_desc": "Keep preferred vendors, contacts, and sourcing details in one place.",
     "inventory_purchase_orders_desc": "Create orders and update stock automatically when deliveries arrive.",
-    "inventory_recipes_desc": "Connect dishes to ingredients so POS sales reduce stock correctly."
+    "inventory_recipes_desc": "Connect dishes to ingredients so POS sales reduce stock correctly.",
+    "export_title": "Export reservations",
+    "export_sub": "Download your bookings as a spreadsheet (Excel/CSV).",
+    "export_from": "From",
+    "export_to": "To",
+    "export_btn": "Download CSV"
   }
 }

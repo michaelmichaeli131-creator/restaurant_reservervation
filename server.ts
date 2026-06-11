@@ -41,6 +41,7 @@ import {
 import { sendVerifyEmail } from "./lib/mail_wrappers.ts";
 import ownerManageRouter from "./routes/owner_manage.ts";
 import { ownerHoursRouter } from "./routes/owner_hours.ts";
+import { ownerExportRouter } from "./routes/owner_export.ts";
 import { ownerDepositRouter } from "./routes/owner_deposit_settings.ts";
 import ownerPhotosRouter from "./routes/owner_photos.ts";
 import { requestLogger } from "./lib/log_mw.ts";
@@ -681,6 +682,10 @@ app.use(ownerCalendarRouter.allowedMethods());
 
 app.use(ownerHoursRouter.routes());
 app.use(ownerHoursRouter.allowedMethods());
+
+// ייצוא הזמנות ל-CSV (בעלים)
+app.use(ownerExportRouter.routes());
+app.use(ownerExportRouter.allowedMethods());
 
 app.use(ownerDepositRouter.routes());
 app.use(ownerDepositRouter.allowedMethods());
