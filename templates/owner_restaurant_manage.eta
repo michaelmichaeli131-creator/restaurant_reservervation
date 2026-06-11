@@ -744,6 +744,33 @@
           })();
           </script>
         </article>
+
+        <article class="sb-surface sb-rm-panel" data-sb-search="export csv download reservations spreadsheet excel report">
+          <%
+            const _expNow = new Date();
+            const _expPad = function(n){ return String(n).padStart(2, '0'); };
+            const _expToday = _expNow.getFullYear() + '-' + _expPad(_expNow.getMonth() + 1) + '-' + _expPad(_expNow.getDate());
+            const _expMonthStart = _expNow.getFullYear() + '-' + _expPad(_expNow.getMonth() + 1) + '-01';
+          %>
+          <div class="sb-rm-panel-top sb-rm-card-head">
+            <div class="sb-rm-head-main">
+              <div class="sb-rm-section-kicker"><%= tt('owner_manage.reports', 'Reports') %></div>
+              <h3><%= tt('owner_manage.export_title', 'Export reservations') %></h3>
+              <p class="muted"><%= tt('owner_manage.export_sub', 'Download your bookings as a spreadsheet (Excel/CSV).') %></p>
+            </div>
+          </div>
+          <form method="get" action="/owner/restaurants/<%= r?.id %>/export.csv" style="display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px;">
+            <label style="display:flex; flex-direction:column; gap:4px; font-size:12px;">
+              <span class="muted"><%= tt('owner_manage.export_from', 'From') %></span>
+              <input type="date" name="from" value="<%= _expMonthStart %>" required />
+            </label>
+            <label style="display:flex; flex-direction:column; gap:4px; font-size:12px;">
+              <span class="muted"><%= tt('owner_manage.export_to', 'To') %></span>
+              <input type="date" name="to" value="<%= _expToday %>" required />
+            </label>
+            <button type="submit" class="btn sm"><%= tt('owner_manage.export_btn', 'Download CSV') %></button>
+          </form>
+        </article>
         <% } %>
       </section>
 

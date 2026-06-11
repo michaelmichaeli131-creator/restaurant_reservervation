@@ -922,6 +922,7 @@
         dietaryKosher: "<%= tt('dietary.kosher','Kosher') %>",
         dietaryHalal: "<%= tt('dietary.halal','Halal') %>",
         dietaryAllergies: "<%= tt('dietary.allergies','Allergies') %>",
+        returningGuest: "<%= tt('owner.calendar.returning_guest','Returning guest · visit {n}') %>",
         servicePulseLabel: "<%= tt('owner.calendar.service_pulse','Service Pulse') %>",
         serviceFlowBalanced: "<%= tt('owner.calendar.service_flow.balanced','Balanced flow') %>",
         serviceFlowBusy: "<%= tt('owner.calendar.service_flow.busy','Rush building up') %>",

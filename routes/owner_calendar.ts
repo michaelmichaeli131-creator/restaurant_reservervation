@@ -13,6 +13,7 @@ import {
   type Reservation,
   getReservationPreferredLayoutId,
   getRoomLabelMapForRestaurant,
+  normalizePhone,
 } from "../database.ts";
 
 import { readBody } from "./restaurants/_utils/body.ts";
@@ -114,6 +115,42 @@ function extractFromNote(note?: string): { name?: string; phone?: string } {
   const mName = t.match(/\bName:\s*([^;]+)\b/i);
   const mPhone = t.match(/\bPhone:\s*([^;]+)/i);
   return { name: mName ? mName[1].trim() : undefined, phone: mPhone ? mPhone[1].trim() : undefined };
+}
+
+/**
+ * Returning-guest counts for a batch of phones in ONE pass over the
+ * restaurant's reservation index (instead of N countGuestVisits scans).
+ * Returns a Map of normalizedPhone → visit count up to and including
+ * `uptoDate`, excluding canceled/blocked reservations.
+ */
+async function computeVisitCounts(
+  rid: string,
+  phones: Array<string | undefined>,
+  uptoDate: string,
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  const wanted = new Set<string>();
+  for (const p of phones) {
+    const n = normalizePhone(p);
+    if (n) wanted.add(n);
+  }
+  if (!wanted.size) return counts;
+
+  const db = await import("../database.ts");
+  const all: Reservation[] =
+    (await (db as any).listReservationsByRestaurant?.(rid).catch(() => [])) ?? [];
+
+  const skip = new Set(["canceled", "cancelled", "blocked"]);
+  for (const rv of all) {
+    if (skip.has(String((rv as any)?.status ?? "").toLowerCase())) continue;
+    if (uptoDate && String((rv as any)?.date ?? "") > uptoDate) continue;
+    let phone = String((rv as any)?.phone ?? "");
+    if (!phone) phone = extractFromNote(String((rv as any)?.note ?? "")).phone ?? "";
+    const n = normalizePhone(phone);
+    if (!n || !wanted.has(n)) continue;
+    counts.set(n, (counts.get(n) ?? 0) + 1);
+  }
+  return counts;
 }
 
 /* ---------- Body parser wrapper (uses your readBody) ---------- */
@@ -575,12 +612,20 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
     };
   });
 
+  // Returning-guest recognition: one index pass for all drawer items.
+  const visitCounts = await computeVisitCounts(rid, enriched.map((e) => e.phone), date!);
+  const items2 = enriched.map((e) => {
+    const n = normalizePhone(e.phone);
+    const c = n ? (visitCounts.get(n) ?? 0) : 0;
+    return c >= 2 ? { ...e, visitCount: c } : e;
+  });
+
   json(ctx, {
     ok: true,
     date,
     time,
     range,
-    items: enriched,
+    items: items2,
   });
 });
 
@@ -616,6 +661,13 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
 
   const roomLabelMap = await buildRoomLabelMap(rid);
 
+  // Returning-guest recognition: one index pass for all matched items.
+  const visitCounts = await computeVisitCounts(
+    rid,
+    matches.map((it: any) => String(it.phone ?? "")),
+    date!,
+  );
+
   json(ctx, {
     ok: true,
     date,
@@ -624,7 +676,10 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/search", async (ct
     items: matches.map((it: any) => {
       const layoutId = extractLayoutIdFromReservation(it);
       const roomLabel = layoutId ? (roomLabelMap.get(layoutId) ?? "") : "";
+      const np = normalizePhone(String(it.phone ?? ""));
+      const visits = np ? (visitCounts.get(np) ?? 0) : 0;
       return {
+        ...(visits >= 2 ? { visitCount: visits } : {}),
         id: it.id,
         time: it.time,
         firstName: it.firstName ?? "",

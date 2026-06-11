@@ -17,6 +17,7 @@
         "daily_summary": "Daily Summary"
       },
       "loading": "loading…",
+      "returning_guest": "Returning guest · visit {n}",
       "cap_line": "Capacity: People — • Tables — • Step: —",
       "th": {
         "time": "Time",
