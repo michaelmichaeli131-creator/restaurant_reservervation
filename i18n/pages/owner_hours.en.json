@@ -13,7 +13,7 @@
       },
       "weekly": {
         "title": "Weekly Opening Hours (24h)",
-        "hint": "Choose hours in 15-minute intervals. To close a day — check 'Closed'."
+        "hint": "Use 24-hour times (HH:mm). Turn a day's switch off to mark it closed."
       },
       "days": {
         "0": "Sunday",
@@ -28,17 +28,28 @@
         "day": "Day",
         "open": "Open",
         "close": "Close",
-        "closed": "Closed"
+        "closed": "Closed",
+        "open_day": "Open this day"
       },
       "aria": {
         "open": "Select opening time",
         "close": "Select closing time",
-        "closed_toggle": "Mark this day as closed"
+        "closed_toggle": "Mark this day as closed",
+        "open_toggle": "Toggle whether this day is open"
       },
       "btn": {
         "save": "Save",
-        "back": "Back to Dashboard"
+        "back": "Back to Dashboard",
+        "copy_all": "Copy to all days",
+        "copy_done": "Copied to all days"
       },
+      "preview": {
+        "closed": "Closed"
+      },
+      "validation": {
+        "close_after_open": "Closing time must be after opening time"
+      },
+      "example_hint": "Example: open 11:00, close 22:00. Toggle a day off if you're closed.",
       "setup_step": "Step 2 of 5: set your opening hours so guests know when they can book."
     }
   }
