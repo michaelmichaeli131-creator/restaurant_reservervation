@@ -31,6 +31,9 @@
     "sticky": {
       "book": "Book a table"
     },
+    "quick": {
+      "today": "Book today:"
+    },
     "around": {
       "title": "Available times around your choice (±2h)",
       "hint": "Click a time to copy it to the field."

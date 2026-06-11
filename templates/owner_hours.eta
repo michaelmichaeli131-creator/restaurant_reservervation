@@ -7,6 +7,7 @@
     <h1><%= tt('owner.hours.head','სამუშაო საათების მართვა') %> — <%= it.restaurant.name %></h1>
     <p class="muted"><%= it.restaurant.city %> · <%= it.restaurant.address %></p>
     <p class="muted"><%= tt('owner.hours.setup_step','Step 2 of 5: set your opening hours so guests know when they can book.') %></p>
+    <p class="muted example-hint"><%= tt('owner.hours.example_hint','მაგალითად: გახსნა 11:00, დახურვა 22:00. თუ დღე დახურულია, გამორთეთ გადამრთველი.') %></p>
   </header>
 
   <% if (it.saved) { %>
@@ -48,7 +49,7 @@
 
       <h3 class="card-title" style="grid-column:1/-1"><%= tt('owner.hours.weekly.title','კვირის სამუშაო საათები (24-საათიანი ფორმატი)') %></h3>
       <p class="muted" style="grid-column:1/-1">
-        <%= tt('owner.hours.weekly.hint','აირჩიეთ დრო 15-წუთიანი ინტერვალით. თუ დღე დახურულია, მონიშნეთ „დახურული“.') %>
+        <%= tt('owner.hours.weekly.hint','გამოიყენეთ 24-საათიანი ფორმატი (HH:mm). დღის დასახურად გამორთეთ გადამრთველი.') %>
       </p>
 
       <%
@@ -67,55 +68,59 @@
           const oh = it.restaurant && it.restaurant.openingHours ? it.restaurant.openingHours[di] : undefined;
           return oh;
         }
-        const timeOptions = [];
-        for (let h=0; h<24; h++) {
-          for (let m=0; m<60; m+=15) {
-            const hh = String(h).padStart(2,"0");
-            const mm = String(m).padStart(2,"0");
-            timeOptions.push(`${hh}:${mm}`);
-          }
-        }
-        function optSel(v, cur){ return v === cur ? "selected" : ""; }
       %>
 
       <div class="table-wrap" style="grid-column:1/-1">
-        <table class="tbl compact">
+        <table class="tbl compact" data-closed-text="<%= tt('owner.hours.preview.closed','დახურული') %>">
           <thead>
             <tr>
               <th><%= tt('owner.hours.tbl.day','დღე') %></th>
               <th><%= tt('owner.hours.tbl.open','გახსნა') %></th>
               <th><%= tt('owner.hours.tbl.close','დახურვა') %></th>
-              <th style="text-align:center"><%= tt('owner.hours.tbl.closed','დახურული') %></th>
+              <th style="text-align:center"><%= tt('owner.hours.tbl.open_day','ღიაა ამ დღეს') %></th>
             </tr>
           </thead>
           <tbody>
             <% for (let di=0; di<7; di++) {
                  const row = dayData(di);
                  const isClosed = row == null;
-                 const first = (Array.isArray(row) && row.length) ? row[0] : { open: "09:00", close: "22:00" };
+                 const def = { open: "09:00", close: "22:00" };
+                 const first = Array.isArray(row)
+                   ? (row.length ? row[0] : def)
+                   : ((row && row.open && row.close) ? row : def);
                  const openVal = isClosed ? "" : first.open;
                  const closeVal = isClosed ? "" : first.close;
             %>
-            <tr data-day="<%= di %>">
-              <td class="day"><strong><%= dayNames[di] %></strong></td>
-              <td>
-                <select name="w<%= di %>_open" class="open" <%= isClosed ? "disabled" : "" %> aria-label="<%= tt('owner.hours.aria.open','აირჩიეთ გახსნის დრო') %>">
-                  <option value="">—</option>
-                  <% for (const t of timeOptions) { %>
-                    <option value="<%= t %>" <%= optSel(t, openVal) %>><%= t %></option>
-                  <% } %>
-                </select>
+            <tr data-day="<%= di %>" class="<%= isClosed ? 'is-closed' : '' %>">
+              <td class="day">
+                <strong><%= dayNames[di] %></strong>
+                <span class="day-preview muted" data-preview></span>
+                <% if (di === 0) { %>
+                  <button type="button" class="btn ghost sm copy-all" id="copyAllBtn"
+                          data-done-label="<%= tt('owner.hours.btn.copy_done','დაკოპირდა ყველა დღეზე') %>">
+                    <%= tt('owner.hours.btn.copy_all','ყველა დღეზე კოპირება') %>
+                  </button>
+                <% } %>
               </td>
               <td>
-                <select name="w<%= di %>_close" class="close" <%= isClosed ? "disabled" : "" %> aria-label="<%= tt('owner.hours.aria.close','აირჩიეთ დახურვის დრო') %>">
-                  <option value="">—</option>
-                  <% for (const t of timeOptions) { %>
-                    <option value="<%= t %>" <%= optSel(t, closeVal) %>><%= t %></option>
-                  <% } %>
-                </select>
+                <input type="time" name="w<%= di %>_open" class="open" step="900"
+                       value="<%= openVal %>" <%= isClosed ? "disabled" : "" %>
+                       aria-label="<%= tt('owner.hours.aria.open','აირჩიეთ გახსნის დრო') %>" />
+              </td>
+              <td>
+                <input type="time" name="w<%= di %>_close" class="close" step="900"
+                       value="<%= closeVal %>" <%= isClosed ? "disabled" : "" %>
+                       aria-label="<%= tt('owner.hours.aria.close','აირჩიეთ დახურვის დრო') %>" />
+                <span class="time-warning" role="alert" hidden><%= tt('owner.hours.validation.close_after_open','დახურვის დრო უნდა იყოს გახსნის დროის შემდეგ') %></span>
               </td>
               <td style="text-align:center">
-                <input type="checkbox" class="closed" name="w<%= di %>_closed" <%= isClosed ? "checked" : "" %> aria-label="<%= tt('owner.hours.aria.closed_toggle','მონიშნეთ დღე როგორც დახურული') %>" />
+                <!-- submitted field (unchanged contract: w{d}_closed=on means closed) -->
+                <input type="checkbox" class="closed" name="w<%= di %>_closed" <%= isClosed ? "checked" : "" %> hidden tabindex="-1" aria-hidden="true" />
+                <!-- visual switch: checked = open this day -->
+                <label class="switch">
+                  <input type="checkbox" class="open-toggle" <%= isClosed ? "" : "checked" %> aria-label="<%= tt('owner.hours.aria.open_toggle','გადართეთ, ღიაა თუ არა ეს დღე') %>" />
+                  <span class="slider" aria-hidden="true"></span>
+                </label>
               </td>
             </tr>
             <% } %>
@@ -133,21 +138,82 @@
 
 <script>
 (function(){
-  document.querySelectorAll('tr[data-day]').forEach(function(tr){
-    var chk = tr.querySelector('.closed');
-    var openSel = tr.querySelector('.open');
-    var closeSel = tr.querySelector('.close');
-    chk.addEventListener('change', function(){
-      var dis = chk.checked;
-      openSel.disabled = dis;
-      closeSel.disabled = dis;
-      if (dis) { openSel.value = ""; closeSel.value = ""; }
-      else {
-        if (!openSel.value) openSel.value = "09:00";
-        if (!closeSel.value) closeSel.value = "22:00";
+  var table = document.querySelector('.sb-hours table.tbl');
+  if (!table) return;
+  var closedText = table.getAttribute('data-closed-text') || 'Closed';
+
+  function refresh(p){
+    var isOpen = p.toggle.checked;
+    // Keep the submitted w{d}_closed checkbox in sync (inverse of the visual switch).
+    p.closedBox.checked = !isOpen;
+    p.open.disabled = !isOpen;
+    p.close.disabled = !isOpen;
+    var bad = isOpen && !!p.open.value && !!p.close.value && p.close.value <= p.open.value;
+    p.warning.hidden = !bad;
+    p.open.classList.toggle('invalid', bad);
+    p.close.classList.toggle('invalid', bad);
+    if (!isOpen) {
+      p.preview.textContent = closedText;
+    } else if (p.open.value && p.close.value && !bad) {
+      p.preview.textContent = p.open.value + '–' + p.close.value;
+    } else {
+      p.preview.textContent = '';
+    }
+    p.tr.classList.toggle('is-closed', !isOpen);
+  }
+
+  var rows = [];
+  table.querySelectorAll('tr[data-day]').forEach(function(tr){
+    var p = {
+      tr: tr,
+      open: tr.querySelector('.open'),
+      close: tr.querySelector('.close'),
+      closedBox: tr.querySelector('.closed'),
+      toggle: tr.querySelector('.open-toggle'),
+      preview: tr.querySelector('[data-preview]'),
+      warning: tr.querySelector('.time-warning')
+    };
+    rows.push(p);
+
+    p.toggle.addEventListener('change', function(){
+      if (p.toggle.checked) {
+        if (!p.open.value) p.open.value = "09:00";
+        if (!p.close.value) p.close.value = "22:00";
+      } else {
+        p.open.value = "";
+        p.close.value = "";
       }
-    }, { passive: true });
+      refresh(p);
+    });
+    p.open.addEventListener('input', function(){ refresh(p); });
+    p.close.addEventListener('input', function(){ refresh(p); });
+    refresh(p);
   });
+
+  var copyBtn = document.getElementById('copyAllBtn');
+  if (copyBtn && rows.length > 1) {
+    copyBtn.addEventListener('click', function(){
+      var src = rows[0];
+      for (var i = 1; i < rows.length; i++) {
+        var p = rows[i];
+        p.toggle.checked = src.toggle.checked;
+        p.open.value = src.open.value;
+        p.close.value = src.close.value;
+        refresh(p);
+      }
+      var orig = copyBtn.getAttribute('data-label');
+      if (!orig) {
+        orig = copyBtn.textContent.trim();
+        copyBtn.setAttribute('data-label', orig);
+      }
+      copyBtn.textContent = copyBtn.getAttribute('data-done-label') || orig;
+      copyBtn.disabled = true;
+      setTimeout(function(){
+        copyBtn.textContent = orig;
+        copyBtn.disabled = false;
+      }, 1200);
+    });
+  }
 })();
 </script>
 
@@ -206,16 +272,58 @@
     padding:10px; border-bottom:1px solid rgba(255,255,255,.06); text-align:center;
   }
   .tbl tbody tr:hover{ background: rgba(255,255,255,.02) }
-  .tbl .day{ text-align:right }
+  .tbl .day{ text-align:start }
+  .tbl tbody tr.is-closed .open,
+  .tbl tbody tr.is-closed .close{ opacity:.45 }
 
-  .tbl select{
+  .tbl select, .tbl input[type="time"]{
     width:100%;
     background:#171b29; color:#e6e8ef; border:1px solid #23293a;
     border-radius:10px; padding:8px 10px; font-size:14px; outline:none;
   }
-  .tbl select:focus{
+  .tbl select:focus, .tbl input[type="time"]:focus{
     border-color: color-mix(in srgb, var(--brand, #3b82f6) 60%, #23293a);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 18%, transparent);
+  }
+  .tbl input[type="time"].invalid{
+    border-color: color-mix(in srgb, #ef4444 70%, #23293a);
+  }
+
+  /* preview + inline warning */
+  .day-preview{ display:block; font-size:12px; font-weight:400; margin-block-start:2px; min-height:1em }
+  .time-warning{ display:block; color:#fca5a5; font-size:12px; margin-block-start:4px; text-align:start }
+  .time-warning[hidden]{ display:none }
+
+  /* "copy to all days" helper on the first row */
+  .copy-all{ margin-block-start:6px; padding:4px 8px; font-size:12px; font-weight:600 }
+
+  /* open/closed switch (RTL-safe via logical properties) */
+  .switch{ position:relative; display:inline-block; width:42px; height:24px; vertical-align:middle }
+  .switch .open-toggle{
+    position:absolute; inset:0; width:100%; height:100%;
+    margin:0; opacity:0; cursor:pointer; z-index:1;
+  }
+  .switch .slider{
+    position:absolute; inset:0;
+    background:#23293a; border:1px solid #2c3346; border-radius:999px;
+    transition: background .15s ease, border-color .15s ease;
+  }
+  .switch .slider::before{
+    content:""; position:absolute;
+    inset-block-start:2px; inset-inline-start:2px;
+    width:18px; height:18px; border-radius:50%;
+    background:#9aa3b2;
+    transition: inset-inline-start .15s ease, background .15s ease;
+  }
+  .switch .open-toggle:checked + .slider{
+    background: color-mix(in srgb, var(--brand, #3b82f6) 55%, #23293a);
+    border-color: transparent;
+  }
+  .switch .open-toggle:checked + .slider::before{
+    inset-inline-start: 20px; background:#fff;
+  }
+  .switch .open-toggle:focus-visible + .slider{
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3b82f6) 25%, transparent);
   }
 
   /* כפתורים “חיים” */

@@ -112,6 +112,12 @@
     </div>
 
     <div class="rsv-top-grid__booking">
+  <!-- ===== Quick-pick today times (opening-hour slots, not verified availability) ===== -->
+  <div class="rsv-quick-today" id="quick-today" hidden aria-hidden="true">
+    <span class="rsv-quick-today__label"><%= tt('restaurant.quick.today','Book today:') %></span>
+    <div class="rsv-quick-today__list" id="quick-today-list"></div>
+  </div>
+
   <!-- ===== Alerts ===== -->
   <% if (it.roomFull) { %>
     <div class="rsv-alert rsv-alert--warn" role="alert">
@@ -588,6 +594,59 @@
   // Init
   rebuildTimeFor(dateInput.value || new Date().toISOString().slice(0,10));
   updateCheckBtnState();
+
+  /* ===== Quick-pick today times =====
+     Opening-hour slots only (NOT verified availability) — shown only when the
+     initially selected date is today (client clock), filtered to >= now+30min. */
+  (function initQuickToday(){
+    const strip = document.getElementById("quick-today");
+    const list = document.getElementById("quick-today-list");
+    if (!strip || !list || !dateInput || !timeGrid || !hiddenTime) return;
+
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+    if ((dateInput.value || "").trim() !== todayStr) return;
+
+    const windows = Array.isArray(FALLBACK_WINDOWS_TODAY) ? FALLBACK_WINDOWS_TODAY : [];
+    if (!windows.length) return;
+
+    const cutoff = now.getHours() * 60 + now.getMinutes() + 30;
+    const times = buildTimeChips(windows, STEP_MIN)
+      .filter(t => { const m = toMin(t); return m != null && m >= cutoff; })
+      .slice(0, 5);
+    if (!times.length) return;
+
+    times.forEach(t => {
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "rsv-quick-pill";
+      pill.dataset.value = t;
+      pill.textContent = t;
+      pill.addEventListener("click", () => {
+        // Ensure the date is today; the change handler rebuilds the grid for today.
+        if ((dateInput.value || "").trim() !== todayStr) {
+          dateInput.value = todayStr;
+          dateInput.dispatchEvent(new Event("change"));
+        }
+        const chip = timeGrid.querySelector(`.rsv-time-chip[data-value="${CSS.escape(t)}"]`);
+        if (chip) {
+          // Exact same code path as tapping a grid chip
+          // (is-selected, hidden #time, updateCheckBtnState, occupancy refresh).
+          chip.click();
+        } else {
+          // Grid still loading — renderTimeGrid marks is-selected from hiddenTime once built.
+          hiddenTime.value = t;
+          updateCheckBtnState();
+          updateAllRoomOccupancies();
+        }
+        form?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      list.appendChild(pill);
+    });
+
+    strip.hidden = false;
+    strip.setAttribute("aria-hidden", "false");
+  })();
 
   /* ===== Time carousel arrows (RTL-aware) ===== */
   const isRTL = document.documentElement.dir === "rtl";
@@ -1896,6 +1955,68 @@
   .rsv-sticky-bar__btn:active { transform: scale(.97); }
   @media (max-width: 760px) {
     .rsv-sticky-bar:not([hidden]) { display: flex; }
+  }
+
+  /* ===== Quick-pick today times ===== */
+  .rsv-quick-today {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    border-radius: 18px;
+    border: 1px solid var(--sb-color-warm-border, rgba(198,162,48,.35));
+    background: var(--sb-color-warm-soft, rgba(198,162,48,.18));
+  }
+  .rsv-quick-today[hidden] { display: none !important; }
+  .rsv-quick-today__label {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--sb-color-warm, #C6A230);
+    white-space: nowrap;
+  }
+  .rsv-quick-today__list {
+    display: flex;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 2px;
+  }
+  .rsv-quick-today__list::-webkit-scrollbar { display: none; }
+  .rsv-quick-pill {
+    flex-shrink: 0;
+    min-height: 40px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--sb-color-warm-border, rgba(198,162,48,.35));
+    background: var(--sb-color-warm-soft, rgba(198,162,48,.18));
+    color: var(--ink, #e6e8ef);
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: transform .15s ease, background .15s ease, border-color .15s ease;
+    -webkit-appearance: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .rsv-quick-pill:hover {
+    transform: translateY(-1px);
+    border-color: var(--sb-color-warm, #C6A230);
+    background: var(--sb-color-warm-soft, rgba(198,162,48,.28));
+  }
+  @media (hover: none) {
+    .rsv-quick-pill:hover { transform: none; }
+    .rsv-quick-pill:active { transform: scale(.95); }
+  }
+  @media (max-width: 760px) {
+    .rsv-quick-today { margin-bottom: 10px; padding: 8px 12px; border-radius: 16px; }
   }
 
 </style>
