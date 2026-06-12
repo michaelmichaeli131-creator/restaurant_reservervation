@@ -816,14 +816,21 @@ export async function listReservationsByUser(userId: string): Promise<Reservatio
     const r = (await kv.get<Reservation>(toKey("reservation", id))).value;
     if (r) out.push(r);
   }
-  // Backfill: הזמנות ותיקות שנוצרו לפני שהאינדקס reservation_user נכתב
+  // Backfill: הזמנות ותיקות שנוצרו לפני שהאינדקס reservation_user נכתב.
+  // רץ פעם אחת בלבד פר משתמש (מסומן ב-KV) — אחרת משתמש בלי הזמנות היה
+  // גורר סריקה מלאה בכל טעינת עמוד.
   if (!out.length) {
-    for await (const e of kv.list<Reservation>({ prefix: toKey("reservation") })) {
-      const r = e.value;
-      if (r && r.userId === userId) {
-        out.push(r);
-        await kv.set(toKey("reservation_user", userId, r.id), 1).catch(() => {});
+    const marker = toKey("reservation_user_backfilled", userId);
+    const done = await kv.get(marker);
+    if (done.value === null) {
+      for await (const e of kv.list<Reservation>({ prefix: toKey("reservation") })) {
+        const r = e.value;
+        if (r && r.userId === userId) {
+          out.push(r);
+          await kv.set(toKey("reservation_user", userId, r.id), 1).catch(() => {});
+        }
       }
+      await kv.set(marker, Date.now()).catch(() => {});
     }
   }
   // מיון לפי תאריך+שעה
