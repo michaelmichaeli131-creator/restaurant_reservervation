@@ -731,14 +731,6 @@
       }
     }
     const roomVal = (roomInput?.value || "").trim();
-    console.log("[ROOM_DEBUG][restaurant.submit.before]", {
-      dateVal,
-      timeVal,
-      pplVal,
-      roomVal,
-      formMethod: form.method,
-      formActionBefore: form.action,
-    });
     const u = new URL(form.action, window.location.origin);
     u.searchParams.set("date", dateVal);
     u.searchParams.set("time", timeVal);
@@ -746,10 +738,6 @@
     if (roomVal) u.searchParams.set("preferredLayoutId", roomVal);
     <% if (it.lang) { %>u.searchParams.set("lang", "<%= it.lang %>");<% } %>
     form.action = u.pathname + u.search;
-    console.log("[ROOM_DEBUG][restaurant.submit.after]", {
-      roomVal,
-      formActionAfter: form.action,
-    });
     // Visual feedback while navigating to the next step (prevents double submits)
     document.getElementById("submit-btn")?.classList.add("is-loading");
   });
@@ -1453,6 +1441,8 @@
     .rsv-lightbox__btn--prev, .rsv-lightbox__btn--next { position: absolute; top: 50%; transform: translateY(-50%); }
     .rsv-lightbox__btn--prev { left: 10px; }
     .rsv-lightbox__btn--next { right: 10px; }
+    html[dir="rtl"] .rsv-lightbox__btn--prev { left: auto; right: 10px; }
+    html[dir="rtl"] .rsv-lightbox__btn--next { right: auto; left: 10px; }
     .rsv-actions { flex-direction: column; }
     .rsv-btn { width: 100%; justify-content: center; min-height: 48px; }
     .rsv-time-chip { padding: 10px 14px; font-size: 14px; min-height: 44px; }

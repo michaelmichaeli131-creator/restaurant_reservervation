@@ -14,6 +14,7 @@
 | **Head of Product** | Product agent | פערי פיצ'רים מול השוק, roadmap |
 | **CMO (Marketing)** | Marketing hat | מיתוג, SEO, משפך רכישה, תוכן |
 | **CFO (Finance)** | Finance hat | מודל הכנסות, תמחור, unit economics |
+| **QA Engineer** | `.claude/agents/qa-reviewer.md` | בודק כל פיצ'ר לפני release: אינטגרציה, Eta/JS, i18n, אבטחה, מובייל. **חובה על כל פיצ'ר חדש.** |
 
 ## 🎯 Mission
 
@@ -133,6 +134,18 @@ Target markets: **Israel 🇮🇱, Georgia 🇬🇪** (underserved!), expanding 
 - ✅ **זיהוי אורח חוזר** — צ'יפ "⭐ אורח חוזר · ביקור N" ביומן המסעדן לפי התאמת טלפון (נרמול +972/0, ספירה במעבר אחד), רק מ‑2 ביקורים ומעלה
 
 **ידע תשתיתי שתועד:** האינדקס האמיתי הוא ["reservation_by_day", rid, date, id] — התיעוד הישן (reservation_rest) שגוי.
+
+---
+
+### Day 9 — סבב QA מלא + הקמת תפקיד QA קבוע
+
+**תהליך חדש:** נוסד תפקיד QA קבוע (`.claude/agents/qa-reviewer.md`) — כל פיצ'ר עובר QA לפני commit מעכשיו.
+
+**סבב QA על כל פיצ'רי הסשן (2 בודקים במקביל — צד אורח + צד מסעדן/אדמין):**
+- ✅ אומת: כל ה‑IDs ייחודיים, אין התנגשויות observers/z-index, מובייל 360px תקין (safe-area, מטרות מגע 44px+), parity מלא ב‑27 קובצי תרגום, הרשאות בעלות על CSV, escaping תקין
+- 🔧 תוקן: כפתורי lightbox לא התהפכו ב‑RTL; ה‑backfill של אינדקס ההזמנות רץ בכל טעינה למשתמש בלי הזמנות (נוסף סמן חד־פעמי); הוסרו console.log של דיבוג
+- 📋 הוחלט לקבל (סיכון זניח): widget שולח גובה iframe ב‑postMessage עם target "*" — מידע לא רגיש, הצד המקבל מאמת origin+source
+- ⚠️ לקח ארגוני: ~40% מממצאי ה‑QA היו false positives שאומתו ונדחו ידנית — תמיד לאמת ממצא לפני תיקון
 
 ---
 
