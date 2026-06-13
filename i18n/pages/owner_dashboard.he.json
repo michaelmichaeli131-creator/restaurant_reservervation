@@ -51,6 +51,18 @@
         "welcome_title": "ברוכים הבאים ל-SpotBook!",
         "welcome_text": "צרו את פרופיל המסעדה שלכם כדי להתחיל לקבל הזמנות — זה לוקח בערך 10 דקות.",
         "welcome_cta": "צרו את המסעדה שלכם"
+      },
+      "plan": {
+        "title": "התוכנית שלכם",
+        "tier_free": "חינם",
+        "tier_pro": "Pro",
+        "tier_enterprise": "Enterprise",
+        "usage_suffix": "הזמנות החודש",
+        "usage_aria": "ניצול הזמנות חודשי",
+        "unlimited": "הזמנות ללא הגבלה",
+        "warn_approaching": "אתם מתקרבים למכסה החודשית שלכם",
+        "warn_over": "עברתם את מגבלת תוכנית החינם — שדרגו כדי להמשיך לצמוח",
+        "upgrade": "שדרוג"
       }
     }
   }

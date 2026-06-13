@@ -205,6 +205,62 @@ const shortcutsCount = restaurants.reduce((acc, r) => acc + actionCountFor(r), 0
 
     <div class="sb-owner-layout">
       <div class="sb-owner-main">
+        <%
+          /* ── Plan / subscription card (owner-only, soft-launch: informational, never blocking) ── */
+          const plan = (isOwner && it.plan && it.plan.tier) ? it.plan : null;
+          if (plan) {
+            var planTier = (plan.tier === 'pro' || plan.tier === 'enterprise') ? plan.tier : 'free';
+            var planUsed = safeNum(plan.usage && plan.usage.reservations);
+            var planLimit = (plan.usage && plan.usage.limit != null) ? safeNum(plan.usage.limit) : null;
+            var planPct = (planLimit && planLimit > 0) ? Math.round((planUsed / planLimit) * 100) : 0;
+            var planBarPct = Math.min(100, planPct);
+            var planOver = planLimit != null && planUsed > planLimit;
+            var planNear = !planOver && planLimit != null && planPct >= 80;
+            var planTierName =
+              planTier === 'pro' ? tt('owner.dashboard.plan.tier_pro','Pro')
+              : planTier === 'enterprise' ? tt('owner.dashboard.plan.tier_enterprise','Enterprise')
+              : tt('owner.dashboard.plan.tier_free','Free');
+            var planBadgeStyle =
+              planTier === 'pro' ? 'background:#C6A230;color:#fff;'
+              : planTier === 'enterprise' ? 'background:#2563eb;color:#fff;'
+              : 'background:#e5e7eb;color:#374151;';
+            var planBarColor = planOver ? '#dc2626' : (planNear ? '#C6A230' : '#16a34a');
+        %>
+          <section class="card sb-plan-card" aria-label="<%= tt('owner.dashboard.plan.title','Your plan') %>" style="padding:16px 18px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <h2 class="sb-section-title" style="margin:0;"><%= tt('owner.dashboard.plan.title','Your plan') %></h2>
+                <span class="sb-plan-badge" style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;letter-spacing:.02em;<%= planBadgeStyle %>"><%= planTierName %></span>
+              </div>
+              <% if (planTier === 'free') { %>
+                <a class="btn sm" href="/for-restaurants#pricing"><%= tt('owner.dashboard.plan.upgrade','Upgrade') %></a>
+              <% } %>
+            </div>
+
+            <% if (planLimit != null) { %>
+              <p class="muted" style="margin:10px 0 6px;">
+                <strong><%= planUsed %></strong> / <%= planLimit %> <%= tt('owner.dashboard.plan.usage_suffix','reservations this month') %>
+              </p>
+              <div role="progressbar" aria-valuemin="0" aria-valuemax="<%= planLimit %>" aria-valuenow="<%= Math.min(planUsed, planLimit) %>" aria-label="<%= tt('owner.dashboard.plan.usage_aria','Monthly reservation usage') %>" style="height:6px;border-radius:999px;background:rgba(0,0,0,.08);overflow:hidden;">
+                <div style="height:100%;width:<%= planBarPct %>%;border-radius:999px;background:<%= planBarColor %>;"></div>
+              </div>
+              <% if (planOver) { %>
+                <p style="margin:10px 0 0;color:#b91c1c;font-size:.9rem;">
+                  ⚠ <%= tt('owner.dashboard.plan.warn_over',"You've passed the Free plan limit — upgrade to keep growing") %>
+                </p>
+              <% } else if (planNear) { %>
+                <p style="margin:10px 0 0;color:#92600a;font-size:.9rem;">
+                  ⚠ <%= tt('owner.dashboard.plan.warn_approaching',"You're approaching your monthly limit") %>
+                </p>
+              <% } %>
+            <% } else { %>
+              <p class="muted" style="margin:10px 0 0;">
+                <%= tt('owner.dashboard.plan.unlimited','Unlimited reservations') %> · <strong><%= planUsed %></strong> <%= tt('owner.dashboard.plan.usage_suffix','reservations this month') %>
+              </p>
+            <% } %>
+          </section>
+        <% } %>
+
         <% if (setupPending.length) { %>
           <section class="card sb-setup-section" aria-label="<%= tt('owner.dashboard.setup.title','Finish your setup') %>">
             <div class="sb-section-head compact">

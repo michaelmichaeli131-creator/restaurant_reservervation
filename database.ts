@@ -2062,6 +2062,113 @@ export async function isReviewTokenUsed(reservationId: string): Promise<boolean>
 
 
 
+/* ─────────────────────── Subscriptions (manual billing tiers) ───────────────────────
+ * Soft-launch billing: tiers are set manually by an admin (no payment processing).
+ * KV key: ["subscription", ownerUserId] → Subscription
+ * Enforcement is intentionally SOFT — usage is surfaced in the UI, nothing is blocked.
+ */
+
+export type SubscriptionTier = "free" | "pro" | "enterprise";
+
+export interface Subscription {
+  tier: SubscriptionTier;
+  since: number;            // when the current tier was set (ms epoch)
+  validUntil?: number | null; // optional expiry (ms epoch); past expiry → effective tier is "free"
+  note?: string;            // free-form admin note ("paid via invoice #12", etc.)
+}
+
+const SUBSCRIPTION_TIERS: SubscriptionTier[] = ["free", "pro", "enterprise"];
+
+export function normalizeTier(tier: unknown): SubscriptionTier {
+  const t = String(tier ?? "").trim().toLowerCase();
+  return (SUBSCRIPTION_TIERS as string[]).includes(t) ? (t as SubscriptionTier) : "free";
+}
+
+/**
+ * Effective subscription for an owner. Defaults to free when:
+ *  - no record exists, or
+ *  - the record has a validUntil in the past (paid period lapsed).
+ * The stored record is never mutated here — only the effective view changes.
+ */
+export async function getSubscription(ownerId: string): Promise<Subscription> {
+  const row = await kv.get<Subscription>(toKey("subscription", ownerId));
+  const sub = row.value;
+  if (!sub || !sub.tier) {
+    return { tier: "free", since: 0, validUntil: null };
+  }
+  const validUntilRaw = sub.validUntil == null ? null : Number(sub.validUntil);
+  const validUntil = validUntilRaw != null && Number.isFinite(validUntilRaw) ? validUntilRaw : null;
+  if (validUntil != null && validUntil > 0 && validUntil < now()) {
+    // Lapsed — fall back to free, keep the note for context.
+    return { tier: "free", since: Number(sub.since) || 0, validUntil, note: sub.note };
+  }
+  return {
+    tier: normalizeTier(sub.tier),
+    since: Number(sub.since) || 0,
+    validUntil,
+    note: sub.note,
+  };
+}
+
+/** Upsert the subscription record. `since` resets when the tier changes. */
+export async function setSubscription(
+  ownerId: string,
+  patch: Partial<Subscription>,
+): Promise<Subscription> {
+  const cur = (await kv.get<Subscription>(toKey("subscription", ownerId))).value;
+  const tier = patch.tier !== undefined ? normalizeTier(patch.tier) : normalizeTier(cur?.tier);
+  const next: Subscription = {
+    tier,
+    since: patch.since ?? (cur && normalizeTier(cur.tier) === tier ? (Number(cur.since) || now()) : now()),
+    validUntil: patch.validUntil !== undefined ? patch.validUntil : (cur?.validUntil ?? null),
+    note: patch.note !== undefined ? patch.note : cur?.note,
+  };
+  await kv.set(toKey("subscription", ownerId), next);
+  return next;
+}
+
+/**
+ * Total non-canceled reservations in the current calendar month across the
+ * given restaurants. One bounded KV range scan per restaurant over
+ * ["reservation_by_day", rid, "YYYY-MM-01"] .. ["reservation_by_day", rid, "<nextMonth>-01")
+ * (plus one kv.get per matching reservation to read its status).
+ */
+export async function countReservationsThisMonth(restaurantIds: string[]): Promise<number> {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = d.getMonth(); // 0-based
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const fromDate = `${y}-${pad(m + 1)}-01`;
+  const toDateExclusive = m === 11 ? `${y + 1}-01-01` : `${y}-${pad(m + 2)}-01`;
+
+  let total = 0;
+  for (const rid of restaurantIds) {
+    if (!rid) continue;
+    const ids: string[] = [];
+    for await (const row of kv.list({
+      start: toKey("reservation_by_day", rid, fromDate),
+      end: toKey("reservation_by_day", rid, toDateExclusive),
+    })) {
+      ids.push(row.key[row.key.length - 1] as string);
+    }
+    // Batched hydration (getMany takes up to 10 keys per call)
+    for (let i = 0; i < ids.length; i += 10) {
+      const chunk = ids.slice(i, i + 10).map((id) => toKey("reservation", id));
+      const entries = await kv.getMany(chunk as Deno.KvKey[]);
+      for (const e of entries) {
+        const r = e.value as Reservation | null;
+        if (!r) continue;
+        const status = String(r.status ?? "").toLowerCase();
+        // "blocked" = owner table-block, not a guest booking — must not
+        // count toward plan usage (matches the other counters here)
+        if (isCancelled(r.status) || status === "blocked") continue;
+        total++;
+      }
+    }
+  }
+  return total;
+}
+
 // (Staff signup requests removed – staff accounts are created only by owners.)
 
 
