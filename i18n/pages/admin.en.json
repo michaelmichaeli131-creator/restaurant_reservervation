@@ -139,7 +139,12 @@
       "disabled": "This feature requires",
       "in": "in",
       "no_active": "No active users.",
-      "no_inactive": "No disabled users."
+      "no_inactive": "No disabled users.",
+      "tier": {
+        "label": "Plan",
+        "valid_until": "Valid until",
+        "save": "Save"
+      }
     },
     "delete": {
       "back_dashboard": "Back to dashboard",
@@ -237,6 +242,13 @@
         "down": "Down {pct}% vs previous 30 days",
         "flat": "No change vs previous 30 days"
       }
+    }
+  },
+  "billing": {
+    "tier": {
+      "free": "Free",
+      "pro": "Pro",
+      "enterprise": "Enterprise"
     }
   }
 }

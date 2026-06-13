@@ -8,8 +8,11 @@ import {
   listReservationsByOwner,
   listReservationsFor,
   computeOccupancy,
+  getSubscription,
+  countReservationsThisMonth,
 } from "../database.ts";
 import { requireOwner } from "../lib/auth.ts";
+import { TIER_LIMITS } from "../lib/limits.ts";
 import { render } from "../lib/view.ts";
 import { listItems as listPosMenuItems } from "../pos/pos_db.ts";
 
@@ -126,9 +129,26 @@ ownerRouter.get("/owner", async (ctx) => {
 
   const reservations = await listReservationsByOwner(ownerId);
 
+  // Subscription plan + current-month usage (soft-launch: display only, never blocks).
+  const subscription = await getSubscription(ownerId);
+  const tierLimits = TIER_LIMITS[subscription.tier] ?? TIER_LIMITS.free;
+  const reservationsThisMonth = await countReservationsThisMonth(
+    myRestaurants.map((r) => String(r.id)),
+  );
+
   await render(ctx, "owner_dashboard", {
     restaurants: myRestaurants,
     reservations,
+    plan: {
+      tier: subscription.tier,
+      usage: {
+        reservations: reservationsThisMonth,
+        // Infinity is not JSON-serializable → null means "unlimited" in the template.
+        limit: Number.isFinite(tierLimits.reservationsPerMonth)
+          ? tierLimits.reservationsPerMonth
+          : null,
+      },
+    },
     title: "Owner Dashboard",
     page: "owner_dashboard",
   });

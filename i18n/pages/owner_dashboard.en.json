@@ -51,6 +51,18 @@
         "welcome_title": "Welcome to SpotBook!",
         "welcome_text": "Create your restaurant profile to start taking reservations — it takes about 10 minutes.",
         "welcome_cta": "Create your restaurant"
+      },
+      "plan": {
+        "title": "Your plan",
+        "tier_free": "Free",
+        "tier_pro": "Pro",
+        "tier_enterprise": "Enterprise",
+        "usage_suffix": "reservations this month",
+        "usage_aria": "Monthly reservation usage",
+        "unlimited": "Unlimited reservations",
+        "warn_approaching": "You're approaching your monthly limit",
+        "warn_over": "You've passed the Free plan limit — upgrade to keep growing",
+        "upgrade": "Upgrade"
       }
     }
   }

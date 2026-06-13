@@ -13,8 +13,13 @@ import {
   resetUsers,
   resetAll,
   deleteRestaurantCascade,
+  getSubscription,
+  setSubscription,
+  getUserById,
+  type Subscription,
 } from "../database.ts";
 import { render } from "../lib/view.ts";
+import { tierLabel } from "../lib/limits.ts";
 
 const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET") ?? "";
 const BUILD_TAG = new Date().toISOString().slice(0, 19).replace("T", " ");
@@ -328,12 +333,48 @@ function renderRestaurantCard(ctx: any, r: RestaurantWithOwner, key: string): st
     </article>`;
 }
 
-function renderUserCard(ctx: any, u: UserWithRestaurants, key: string): string {
+/** Inline tier controls for owner-role users (soft-launch billing: admin sets tiers by hand). */
+function renderTierControls(ctx: any, u: UserWithRestaurants, key: string, sub: Subscription | null): string {
+  const t = (k: string, fb: string, v?: Record<string, unknown>) => tr(ctx, k, fb, v);
+  const baseT = (ctx.state as any)?.t as ((k: string, v?: any) => string) | undefined;
+  const tier = sub?.tier ?? "free";
+  const tierName = tierLabel(tier, baseT);
+  const tierBadgeStyle = tier === "pro"
+    ? "background:#C6A230;color:#fff;"
+    : tier === "enterprise"
+    ? "background:#2563eb;color:#fff;"
+    : "background:#e5e7eb;color:#374151;";
+  const validUntilISO = sub?.validUntil
+    ? new Date(Number(sub.validUntil)).toISOString().slice(0, 10)
+    : "";
+  const opt = (value: string, label: string) =>
+    `<option value="${esc(value)}" ${tier === value ? "selected" : ""}>${esc(label)}</option>`;
+  return `
+    <div class="inline-note sb-tier-row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <strong>${esc(t("admin.users.tier.label", "Plan"))}:</strong>
+      <span class="status-badge" style="${tierBadgeStyle}">${esc(tierName)}</span>
+      <form class="inline" method="post" action="/admin/users/${encodeURIComponent(String(u.id))}/tier?key=${encodeURIComponent(key)}" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <select name="tier" aria-label="${esc(t("admin.users.tier.label", "Plan"))}">
+          ${opt("free", tierLabel("free", baseT))}
+          ${opt("pro", tierLabel("pro", baseT))}
+          ${opt("enterprise", tierLabel("enterprise", baseT))}
+        </select>
+        <label style="display:flex;align-items:center;gap:4px;font-size:.85em;">
+          ${esc(t("admin.users.tier.valid_until", "Valid until"))}
+          <input type="date" name="validUntil" value="${esc(validUntilISO)}"/>
+        </label>
+        <button class="btn secondary btn-sm" type="submit">${esc(t("admin.users.tier.save", "Save"))}</button>
+      </form>
+    </div>`;
+}
+
+function renderUserCard(ctx: any, u: UserWithRestaurants, key: string, sub?: Subscription | null): string {
   const t = (k: string, fb: string, v?: Record<string, unknown>) => tr(ctx, k, fb, v);
   const isInactive = u.isActive === false;
   const restaurants = Array.isArray(u.restaurants) ? u.restaurants : [];
   const displayName = `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() || u.email || "User";
   const cardId = `entity-user-${safeDomId(u.id)}`;
+  const isOwnerRole = String(u.role ?? "").toLowerCase() === "owner";
   return `
     <article
       id="${esc(cardId)}"
@@ -375,6 +416,8 @@ function renderUserCard(ctx: any, u: UserWithRestaurants, key: string): string {
             ? restaurants.map((r) => `<a class="restaurant-pill" href="/restaurants/${encodeURIComponent(String(r.id))}" target="_blank" rel="noopener">${esc(r.name)}</a>`).join("")
             : `<span class="muted">${esc(t("common.none", "None"))}</span>`}
         </div>
+
+        ${isOwnerRole ? renderTierControls(ctx, u, key, sub ?? null) : ""}
 
         <div class="action-row">
           ${isInactive
@@ -1627,6 +1670,18 @@ adminRouter.get("/admin/users", async (ctx) => {
   const owners = users.filter((u) => String(u.role ?? "").toLowerCase() === "owner");
   const admins = users.filter((u) => String(u.role ?? "").toLowerCase() === "admin");
 
+  // Subscription tier per owner-role user (manual billing; soft-launch).
+  const subByOwner = new Map<string, Subscription>();
+  for (const o of owners) {
+    try {
+      subByOwner.set(String(o.id), await getSubscription(String(o.id)));
+    } catch {
+      // tolerate missing subscription data — card falls back to "free"
+    }
+  }
+  const cardFor = (u: UserWithRestaurants) =>
+    renderUserCard(ctx, u, key, subByOwner.get(String(u.id)) ?? null);
+
   const body = `
     <section class="hero">
       <div class="section-kicker">${esc(t("admin.tabs.users", "Users"))}</div>
@@ -1671,7 +1726,7 @@ adminRouter.get("/admin/users", async (ctx) => {
           <div class="count-badge">${esc(String(active.length))}</div>
         </div>
         <div class="entity-grid">
-          ${active.map((u) => renderUserCard(ctx, u, key)).join("")}
+          ${active.map(cardFor).join("")}
         </div>
         <div class="empty-state" data-empty-placeholder ${active.length ? "hidden" : ""}>${esc(t("admin.users.no_active", "No active users."))}</div>
       </section>
@@ -1685,7 +1740,7 @@ adminRouter.get("/admin/users", async (ctx) => {
           <div class="count-badge">${esc(String(inactive.length))}</div>
         </div>
         <div class="entity-grid">
-          ${inactive.map((u) => renderUserCard(ctx, u, key)).join("")}
+          ${inactive.map(cardFor).join("")}
         </div>
         <div class="empty-state" data-empty-placeholder ${inactive.length ? "hidden" : ""}>${esc(t("admin.users.no_inactive", "No disabled users."))}</div>
       </section>
@@ -1721,6 +1776,43 @@ adminRouter.post("/admin/users/:id/activate", async (ctx) => {
   }
   await setUserActive(ctx.params.id!, true);
   const key = getAdminKey(ctx)!;
+  ctx.response.status = Status.SeeOther;
+  ctx.response.headers.set("Location", `/admin/users?key=${encodeURIComponent(key)}`);
+});
+
+// Manual subscription-tier assignment (soft-launch billing — no payment processing).
+adminRouter.post("/admin/users/:id/tier", async (ctx) => {
+  if (!assertAdmin(ctx)) return;
+  setNoStore(ctx);
+  const id = ctx.params.id!;
+  const key = getAdminKey(ctx)!;
+
+  // Only existing owner-role users can hold a subscription — a typo'd id must
+  // fail loudly, not silently write an orphan record
+  const target = await getUserById(id).catch(() => null);
+  if (!target || String((target as any).role ?? "").toLowerCase() !== "owner") {
+    ctx.response.status = Status.NotFound;
+    ctx.response.body = "Owner user not found";
+    return;
+  }
+
+  const form = await ctx.request.body.formData();
+  const tierRaw = String(form.get("tier") ?? "").trim().toLowerCase();
+  const tier = (["free", "pro", "enterprise"].includes(tierRaw) ? tierRaw : "free") as
+    | "free"
+    | "pro"
+    | "enterprise";
+
+  // Optional expiry: a date input (YYYY-MM-DD) → end of that day (UTC); empty = no expiry.
+  const validUntilRaw = String(form.get("validUntil") ?? "").trim();
+  let validUntil: number | null = null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(validUntilRaw)) {
+    const ts = Date.parse(`${validUntilRaw}T23:59:59.999Z`);
+    if (Number.isFinite(ts)) validUntil = ts;
+  }
+
+  await setSubscription(id, { tier, validUntil });
+
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set("Location", `/admin/users?key=${encodeURIComponent(key)}`);
 });
