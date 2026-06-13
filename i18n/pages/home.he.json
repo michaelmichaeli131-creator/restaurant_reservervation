@@ -56,10 +56,22 @@
     "results": {
       "kicker": "תוצאות חיפוש",
       "title": "מסעדות שמתאימות לחיפוש שלכם",
+      "count": "נמצאו {n} מסעדות",
       "empty": "לא נמצאו תוצאות.",
       "open_label": "פתח את {name}",
       "badge_pending": "ממתין לאישור",
       "badge_pending_title": "עדיין לא אושר"
+    },
+    "filters": {
+      "city_label": "עיר",
+      "city_all": "כל הערים",
+      "rating_label": "דירוג מינימלי",
+      "rating_any": "כל דירוג",
+      "sort_label": "מיון לפי",
+      "sort_rating": "המדורגות ביותר",
+      "sort_reviews": "הכי הרבה ביקורות",
+      "sort_name": "שם",
+      "clear": "ניקוי סינון"
     },
     "featured": {
       "kicker": "בחירות פופולריות",

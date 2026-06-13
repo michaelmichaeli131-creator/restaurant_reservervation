@@ -1,7 +1,22 @@
 <% layout("_layout", it) %>
 <%
   var _q = (it.q || "");
-  var showResults = (it.search === "1") || (_q.trim().length > 0) || (it.category && it.category.trim().length > 0);
+  var _city = (it.city || "");
+  var _minRating = Number(it.minRating || 0) || 0;
+  var _sort = (it.sort || "rating");
+  var _cities = Array.isArray(it.cities) ? it.cities : [];
+  var _filtersActive = !!(_city || _minRating > 0);
+  var showResults = (it.search === "1") || (_q.trim().length > 0) || (it.category && it.category.trim().length > 0) || (_city.trim().length > 0);
+
+  // Query-string suffix that keeps active filters + query (used by the category chips)
+  var _fp = [];
+  if (_q && _q.trim()) _fp.push("search=1&q=" + encodeURIComponent(_q.trim()));
+  if (_city) _fp.push("city=" + encodeURIComponent(_city));
+  if (_minRating > 0) _fp.push("minRating=" + encodeURIComponent(_minRating));
+  if (_sort && _sort !== "rating") _fp.push("sort=" + encodeURIComponent(_sort));
+  var _fq = _fp.join("&");
+  var _chipAllHref = _fq ? ("/?" + _fq) : "/";
+  function _chipHref(cat){ return "/?category=" + encodeURIComponent(cat) + (_fq ? "&" + _fq : ""); }
 %>
 
 <section class="home-canvas">
@@ -50,14 +65,14 @@
             </div>
 
             <div class="category-chips home-hero-v3__chips">
-              <a href="/" class="chip <%= !it.category ? 'active' : '' %>"><%= (it.t && it.t('home.categories.all')) || 'All' %></a>
-              <a href="/?category=italian" class="chip <%= it.category === 'italian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.italian')) || 'Italian' %></a>
-              <a href="/?category=asian" class="chip <%= it.category === 'asian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.asian')) || 'Asian' %></a>
-              <a href="/?category=japanese" class="chip <%= it.category === 'japanese' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.japanese')) || 'Japanese' %></a>
-              <a href="/?category=steakhouse" class="chip <%= it.category === 'steakhouse' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.steakhouse')) || 'Steakhouse' %></a>
-              <a href="/?category=mediterranean" class="chip <%= it.category === 'mediterranean' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.mediterranean')) || 'Mediterranean' %></a>
-              <a href="/?category=cafe" class="chip <%= it.category === 'cafe' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.cafe')) || 'Cafe' %></a>
-              <a href="/?category=vegetarian" class="chip <%= it.category === 'vegetarian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.vegetarian')) || 'Vegetarian' %></a>
+              <a href="<%= _chipAllHref %>" class="chip <%= !it.category ? 'active' : '' %>"><%= (it.t && it.t('home.categories.all')) || 'All' %></a>
+              <a href="<%= _chipHref('italian') %>" class="chip <%= it.category === 'italian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.italian')) || 'Italian' %></a>
+              <a href="<%= _chipHref('asian') %>" class="chip <%= it.category === 'asian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.asian')) || 'Asian' %></a>
+              <a href="<%= _chipHref('japanese') %>" class="chip <%= it.category === 'japanese' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.japanese')) || 'Japanese' %></a>
+              <a href="<%= _chipHref('steakhouse') %>" class="chip <%= it.category === 'steakhouse' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.steakhouse')) || 'Steakhouse' %></a>
+              <a href="<%= _chipHref('mediterranean') %>" class="chip <%= it.category === 'mediterranean' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.mediterranean')) || 'Mediterranean' %></a>
+              <a href="<%= _chipHref('cafe') %>" class="chip <%= it.category === 'cafe' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.cafe')) || 'Cafe' %></a>
+              <a href="<%= _chipHref('vegetarian') %>" class="chip <%= it.category === 'vegetarian' ? 'active' : '' %>"><%= (it.t && it.t('home.categories.vegetarian')) || 'Vegetarian' %></a>
             </div>
           </div>
 
@@ -154,8 +169,49 @@
         <div>
           <div class="section-kicker"><%= (it.t && it.t('home.results.kicker')) || 'Search results' %></div>
           <h2 class="section-title"><%= (it.t && it.t('home.results.title')) || 'Restaurants for your search' %></h2>
+          <%
+            var _count = (typeof it.resultsCount === 'number') ? it.resultsCount : ((it.restaurants || []).length);
+          %>
+          <p class="results-count"><%= (it.t && it.t('home.results.count', { n: _count })) || (_count + ' restaurants found') %></p>
         </div>
       </div>
+
+      <form id="results-filters" class="results-filter-bar" method="GET" action="/">
+        <% if (it.search === '1') { %><input type="hidden" name="search" value="1"/><% } %>
+        <% if (_q && _q.trim()) { %><input type="hidden" name="q" value="<%= _q %>"/><% } %>
+        <% if (it.category && it.category.trim()) { %><input type="hidden" name="category" value="<%= it.category %>"/><% } %>
+
+        <label class="results-filter">
+          <span class="results-filter__label"><%= (it.t && it.t('home.filters.city_label')) || 'City' %></span>
+          <select name="city" class="results-filter__select">
+            <option value=""><%= (it.t && it.t('home.filters.city_all')) || 'All cities' %></option>
+            <% _cities.forEach(function(c){ %>
+              <option value="<%= c %>" <%= (_city && _city.toLowerCase() === String(c).toLowerCase()) ? 'selected' : '' %>><%= c %></option>
+            <% }); %>
+          </select>
+        </label>
+
+        <label class="results-filter">
+          <span class="results-filter__label"><%= (it.t && it.t('home.filters.rating_label')) || 'Minimum rating' %></span>
+          <select name="minRating" class="results-filter__select">
+            <option value=""><%= (it.t && it.t('home.filters.rating_any')) || 'Any rating' %></option>
+            <option value="3" dir="ltr" <%= _minRating === 3 ? 'selected' : '' %>>3+ ★</option>
+            <option value="4" dir="ltr" <%= _minRating === 4 ? 'selected' : '' %>>4+ ★</option>
+            <option value="4.5" dir="ltr" <%= _minRating === 4.5 ? 'selected' : '' %>>4.5+ ★</option>
+          </select>
+        </label>
+
+        <label class="results-filter">
+          <span class="results-filter__label"><%= (it.t && it.t('home.filters.sort_label')) || 'Sort by' %></span>
+          <select name="sort" class="results-filter__select">
+            <option value="rating" <%= _sort === 'rating' ? 'selected' : '' %>><%= (it.t && it.t('home.filters.sort_rating')) || 'Top rated' %></option>
+            <option value="reviews" <%= _sort === 'reviews' ? 'selected' : '' %>><%= (it.t && it.t('home.filters.sort_reviews')) || 'Most reviewed' %></option>
+            <option value="name" <%= _sort === 'name' ? 'selected' : '' %>><%= (it.t && it.t('home.filters.sort_name')) || 'Name' %></option>
+          </select>
+        </label>
+
+        <button class="sb-visually-hidden" type="submit"><%= (it.t && it.t('home.search.cta')) || 'Search' %></button>
+      </form>
 
       <% if (!it.restaurants || !it.restaurants.length) { %>
         <div class="sb-empty-state home-empty-state">
@@ -166,6 +222,20 @@
             <p class="sb-empty-state__message"><%= (it.t && it.t('home.results.empty')) || 'No results found.' %></p>
           <% } %>
           <p class="sb-empty-state__hint muted"><%= (it.t && it.t('home.results.empty_hint')) || 'Try searching by restaurant name, city, or cuisine — or browse our featured picks below.' %></p>
+          <% if (_filtersActive) { %>
+            <%
+              // Clear filters but keep the active search context (q / category)
+              var _clearHref = "/";
+              if (it.category && it.category.trim()) {
+                _clearHref = "/?category=" + encodeURIComponent(it.category.trim());
+              } else if (_q && _q.trim()) {
+                _clearHref = "/?search=1&q=" + encodeURIComponent(_q.trim());
+              } else {
+                _clearHref = "/?search=1";
+              }
+            %>
+            <a class="btn ghost" href="<%= _clearHref %>"><%= (it.t && it.t('home.filters.clear')) || 'Clear filters' %></a>
+          <% } %>
           <a class="btn ghost" href="/"><%= (it.t && it.t('home.results.empty_reset')) || 'Clear search' %></a>
         </div>
       <% } else { %>
@@ -462,6 +532,20 @@
 .home-card-v3 .card-body{padding:18px}
 .home-card-v3__top{display:flex;justify-content:space-between;gap:12px;align-items:start}
 .home-empty-state{padding:28px;border-radius:24px;background:rgba(15,23,42,.52);border:1px solid rgba(148,163,184,.12)}
+.home-empty-state .btn{margin-inline-end:8px}
+.results-count{margin:10px 0 0;color:#95a7c0;font-size:14px;font-weight:700}
+.results-filter-bar{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin:0 0 18px;padding:16px 18px;border-radius:22px;background:linear-gradient(180deg, rgba(15,23,42,.78), rgba(15,23,42,.56));border:1px solid rgba(148,163,184,.13);box-shadow:0 18px 42px rgba(2,8,23,.16)}
+.results-filter{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1 1 180px;max-width:260px}
+.results-filter__label{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#93c5fd}
+.results-filter__select{width:100%;min-height:44px;padding:8px 12px;border-radius:14px;border:1px solid rgba(191,219,254,.20);background:rgba(7,16,39,.92);color:#f8fbff;font-size:14px;font-weight:700;cursor:pointer;outline:none;transition:border-color .16s ease, box-shadow .16s ease}
+.results-filter__select:focus-visible{border-color:rgba(96,165,250,.6);box-shadow:0 0 0 3px rgba(59,130,246,.25)}
+.results-filter__select option{background:#0f172a;color:#f8fbff}
+.sb-visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.sb-visually-hidden:focus{position:static;width:auto;height:auto;margin:0;padding:10px 16px;overflow:visible;clip:auto;white-space:normal}
+@media (max-width:680px){
+  .results-filter-bar{padding:14px;gap:10px}
+  .results-filter{flex-basis:100%;max-width:none}
+}
 .home-featured-v3__head{align-items:flex-end;margin-bottom:8px}
 .home-featured-v3__summary{display:flex;flex-direction:column;gap:8px;align-items:flex-end;max-width:420px}
 
@@ -570,3 +654,13 @@
 </style>
 
 <script src="/static/js/homepage_v3.js?v=<%= it.BUILD_TAG || '' %>" defer></script>
+<script>
+(function () {
+  var form = document.getElementById("results-filters");
+  if (!form) return;
+  form.addEventListener("change", function (ev) {
+    var el = ev.target;
+    if (el && el.tagName === "SELECT") form.submit();
+  });
+})();
+</script>

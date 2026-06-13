@@ -56,10 +56,22 @@
     "results": {
       "kicker": "Search results",
       "title": "Restaurants for your search",
+      "count": "{n} restaurants found",
       "empty": "No results found.",
       "open_label": "Open {name}",
       "badge_pending": "Pending approval",
       "badge_pending_title": "Not approved yet"
+    },
+    "filters": {
+      "city_label": "City",
+      "city_all": "All cities",
+      "rating_label": "Minimum rating",
+      "rating_any": "Any rating",
+      "sort_label": "Sort by",
+      "sort_rating": "Top rated",
+      "sort_reviews": "Most reviewed",
+      "sort_name": "Name",
+      "clear": "Clear filters"
     },
     "featured": {
       "kicker": "Popular choices",
