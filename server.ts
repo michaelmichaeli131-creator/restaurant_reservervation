@@ -35,6 +35,7 @@ import { ownerStaffRouter } from "./routes/owner_staff.ts";
 import {
   listRestaurants,
   listRestaurantsByCategory,
+  listCityKeys,
   getUserById,
   type KitchenCategory,
 } from "./database.ts";
@@ -367,6 +368,18 @@ root.get("/", async (ctx) => {
   const search = url.searchParams.get("search")?.toString() ?? "";
   const category = url.searchParams.get("category")?.toString() ?? "";
 
+  // Result filters (applied after the q/category fetch)
+  const city = url.searchParams.get("city")?.toString().trim() ?? "";
+  const minRatingRaw = url.searchParams.get("minRating")?.toString() ?? "";
+  // Whitelist — must match the options the UI offers, otherwise a crafted URL
+  // silently filters while the select shows "Any rating"
+  const minRatingParsed = Number.parseFloat(minRatingRaw);
+  const minRating = [3, 4, 4.5].includes(minRatingParsed) ? minRatingParsed : 0;
+  const sortRaw = url.searchParams.get("sort")?.toString() ?? "";
+  const explicitSort = sortRaw === "rating" || sortRaw === "reviews" ||
+    sortRaw === "name";
+  const sort = explicitSort ? sortRaw : "rating";
+
   let restaurants: any[] = [];
 
   if (category && category.trim()) {
@@ -376,9 +389,43 @@ root.get("/", async (ctx) => {
       true,
     );
   } else {
-    // Text search
-    const shouldSearch = search === "1" || q.trim().length > 0;
-    restaurants = shouldSearch ? await listRestaurants(q, true) : [];
+    // Text search (a city-only filter also counts as an active search).
+    // City-only: use the city as the search needle so the restaurant_city
+    // index is range-scanned — listRestaurants("") caps at the 50 newest
+    // and would silently drop matches on a larger catalog.
+    const shouldSearch = search === "1" || q.trim().length > 0 ||
+      city.length > 0;
+    const needle = q.trim() || city;
+    restaurants = shouldSearch ? await listRestaurants(needle, true) : [];
+  }
+
+  // Apply filters on top of the q/category results
+  if (city) {
+    const cityLc = city.toLowerCase();
+    restaurants = restaurants.filter(
+      (r: any) => (r.city || "").toString().trim().toLowerCase() === cityLc,
+    );
+  }
+  if (minRating > 0) {
+    restaurants = restaurants.filter(
+      (r: any) => (r.averageRating || 0) >= minRating,
+    );
+  }
+  // Preserve listRestaurants' relevance ranking for text queries unless the
+  // user explicitly chose a sort order
+  if (explicitSort || !q.trim()) {
+    const lang = (ctx.state as any)?.lang;
+    restaurants = [...restaurants].sort((a: any, b: any) => {
+      if (sort === "name") {
+        return String(a.name || "").localeCompare(String(b.name || ""), lang);
+      }
+      if (sort === "reviews") {
+        return (b.reviewCount || 0) - (a.reviewCount || 0);
+      }
+      // "rating" (default): rating desc, reviewCount tiebreak
+      return ((b.averageRating || 0) - (a.averageRating || 0)) ||
+        ((b.reviewCount || 0) - (a.reviewCount || 0));
+    });
   }
 
   // ✅ IMPORTANT: featured carousel data for templates/index.eta
@@ -401,12 +448,35 @@ root.get("/", async (ctx) => {
     kitchenCategories: r.kitchenCategories || [],
   }));
 
+  // City list for the results filter bar: complete set from the city index
+  // (allApproved is capped at 50, so older restaurants' cities would vanish).
+  // Display casing comes from allApproved when available, else title-case.
+  const cityDisplay = new Map<string, string>();
+  for (const r of allApproved as any[]) {
+    const c = (r.city || "").toString().trim();
+    if (c) cityDisplay.set(c.toLowerCase(), c);
+  }
+  const cityKeys = await listCityKeys().catch(() => [...cityDisplay.keys()]);
+  const cities = cityKeys
+    .map((lc) =>
+      cityDisplay.get(lc) ??
+        lc.replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1))
+    )
+    .sort((a, b) => a.localeCompare(b));
+
   const t = (ctx.state as any)?.t;
   await render(ctx, "index", {
     restaurants,
     q,
-    search: (search === "1" || q.trim().length > 0) ? "1" : "",
+    search: (search === "1" || q.trim().length > 0 || city.length > 0)
+      ? "1"
+      : "",
     category,
+    city,
+    minRating,
+    sort,
+    cities,
+    resultsCount: restaurants.length,
     featured,
     page: "home",
     title: t ? `SpotBook — ${t("home.hero.title")}` : "SpotBook — Find Restaurants",

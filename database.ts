@@ -1864,8 +1864,21 @@ export async function hasUserReviewedReservation(reservationId: string): Promise
   return entry.value !== null;
 }
 
-/* ===================== Favorites (מועדפים) ===================== */
-// keys: ["favorite", userId, restaurantId] -> savedAt timestamp
+/**
+ * רשימת כל הערים (מאינדקס restaurant_city, key-only — סריקה חסומה וזולה).
+ * הערכים באינדקס הם lowercase; ההצגה ממופה לשם המקורי בצד הקורא.
+ * הערה: האינדקס כולל גם מסעדות שטרם אושרו — מקובל עבור פילטר ערים.
+ */
+export async function listCityKeys(): Promise<string[]> {
+  const seen = new Set<string>();
+  for await (const row of kv.list({ prefix: toKey("restaurant_city") })) {
+    const cityLc = String(row.key[1] ?? "").trim();
+    if (cityLc) seen.add(cityLc);
+  }
+  return [...seen].sort((a, b) => a.localeCompare(b));
+}
+
+/* ===================== Favorites (מועדפים) ===================== */// keys: ["favorite", userId, restaurantId] -> savedAt timestamp
 
 export async function isFavorite(userId: string, restaurantId: string): Promise<boolean> {
   return (await kv.get(toKey("favorite", userId, restaurantId))).value !== null;
