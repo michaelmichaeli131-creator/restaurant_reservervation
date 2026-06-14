@@ -145,7 +145,10 @@ body.sb-body{
 
 /* Sections */
 .section{margin-top:28px}
-.section-title{margin:0 0 14px; font-size:clamp(18px,2.4vw,26px)}
+.section-title{margin:0 0 14px; font-size:clamp(var(--sb-font-xl,20px),2.4vw,var(--sb-font-3xl,32px)); font-weight:var(--sb-weight-bold,700); line-height:var(--sb-leading-tight,1.2)}
+/* Shared section kicker (index.eta defines a richer variant in its own scope;
+   this provides a consistent baseline on the newer pages that reuse the class). */
+.section-kicker{display:inline-flex;align-items:center;gap:var(--sb-space-sm,8px);width:max-content;margin-bottom:var(--sb-space-sm,8px);padding:8px 14px;border-radius:var(--sb-radius-pill,999px);font-size:var(--sb-font-xs,11px);font-weight:var(--sb-weight-black,900);letter-spacing:.06em;text-transform:uppercase;color:#eff6ff;background:linear-gradient(180deg, var(--sb-color-accent-soft,rgba(59,130,246,.18)), rgba(59,130,246,.10));border:1px solid var(--sb-color-accent-border,rgba(59,130,246,.35))}
 
 /* Cards */
 .cards{display:grid; gap:14px; grid-template-columns:repeat(3, 1fr)}
@@ -154,6 +157,7 @@ body.sb-body{
   border:1px solid var(--bd); text-decoration:none; color:inherit; transition:transform .16s ease, box-shadow .16s ease;
 }
 .card:hover{transform:translateY(-2px); box-shadow:0 16px 40px rgba(0,0,0,.35)}
+.card:focus-visible{transform:translateY(-2px); box-shadow:0 16px 40px rgba(0,0,0,.35); outline:2px solid var(--brand,#3b82f6); outline-offset:2px}
 .card-img{aspect-ratio:16/10; background:#222 center/cover no-repeat}
 .card-body{padding:12px}
 .card-title{margin:0 0 4px; font-weight:700}

@@ -175,8 +175,13 @@
         <button type="button" class="rsv-time-arrow rsv-time-arrow--prev" id="time-prev" aria-label="<%= tt('restaurant.form.prev_times','Previous times') %>">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <div class="rsv-time-carousel" id="time-grid">
-          <div class="rsv-time-carousel__loading"><%= tt('restaurant.form.loading_times','טוען שעות...') %></div>
+        <div class="rsv-time-carousel" id="time-grid" aria-busy="true">
+          <span class="sb-skeleton rsv-time-skeleton" aria-hidden="true"></span>
+          <span class="sb-skeleton rsv-time-skeleton" aria-hidden="true"></span>
+          <span class="sb-skeleton rsv-time-skeleton" aria-hidden="true"></span>
+          <span class="sb-skeleton rsv-time-skeleton" aria-hidden="true"></span>
+          <span class="sb-skeleton rsv-time-skeleton" aria-hidden="true"></span>
+          <span class="rsv-time-carousel__loading rsv-visually-hidden" role="status" aria-live="polite"><%= tt('restaurant.form.loading_times','טוען שעות...') %></span>
         </div>
         <button type="button" class="rsv-time-arrow rsv-time-arrow--next" id="time-next" aria-label="<%= tt('restaurant.form.next_times','Next times') %>">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
@@ -542,6 +547,7 @@
 
   function renderTimeGrid(chips) {
     timeGrid.innerHTML = "";
+    timeGrid.setAttribute("aria-busy", "false");
     if (!chips.length) {
       timeGrid.innerHTML = '<div class="rsv-time-carousel__empty"><%= tt("restaurant.form.closed","המסעדה סגורה ביום זה") %></div>';
       return;
@@ -566,7 +572,14 @@
   }
 
   function rebuildTimeFor(dateStr) {
-    timeGrid.innerHTML = '<div class="rsv-time-carousel__loading"><%= tt("restaurant.form.loading_times","טוען שעות...") %></div>';
+    timeGrid.setAttribute("aria-busy", "true");
+    timeGrid.innerHTML =
+      '<span class="sb-skeleton rsv-time-skeleton" aria-hidden="true"></span>'
+      + '<span class="sb-skeleton rsv-time-skeleton" aria-hidden="true"></span>'
+      + '<span class="sb-skeleton rsv-time-skeleton" aria-hidden="true"></span>'
+      + '<span class="sb-skeleton rsv-time-skeleton" aria-hidden="true"></span>'
+      + '<span class="sb-skeleton rsv-time-skeleton" aria-hidden="true"></span>'
+      + '<span class="rsv-time-carousel__loading rsv-visually-hidden" role="status" aria-live="polite"><%= tt("restaurant.form.loading_times","טוען שעות...") %></span>';
     fetchOpeningForDate(RID, dateStr).then(data => {
       const windows = Array.isArray(data?.openingWindows) && data.openingWindows.length ? data.openingWindows : [];
       STEP_MIN = Math.max(1, parseInt(data?.slotIntervalMinutes ?? STEP_MIN, 10) || STEP_MIN);
@@ -1103,6 +1116,25 @@
     color: #fff;
     border-color: var(--brand, #3b82f6);
     box-shadow: 0 4px 14px rgba(59,130,246,.35);
+  }
+
+  /* Skeleton time chips (shimmer placeholders while opening hours load) */
+  .rsv-time-skeleton {
+    flex-shrink: 0;
+    width: 64px;
+    height: 40px;
+    border-radius: var(--sb-radius-pill, 999px);
+  }
+
+  /* Visually hidden but available to screen readers */
+  .rsv-visually-hidden {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   /* ===== Room cards ===== */
@@ -1978,6 +2010,7 @@
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     padding: 2px;
+    scroll-snap-type: x proximity;
   }
   .rsv-quick-today__list::-webkit-scrollbar { display: none; }
   .rsv-quick-pill {
@@ -1995,6 +2028,7 @@
     transition: transform .15s ease, background .15s ease, border-color .15s ease;
     -webkit-appearance: none;
     -webkit-tap-highlight-color: transparent;
+    scroll-snap-align: start;
   }
   .rsv-quick-pill:hover {
     transform: translateY(-1px);
