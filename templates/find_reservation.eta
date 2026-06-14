@@ -7,11 +7,11 @@
 <main class="sb-findresv container" aria-labelledby="findresv-title">
   <section class="card findresv-card">
     <% if (state === 'sent') { %>
-      <div class="findresv-success" role="status">
-        <div class="findresv-success__icon" aria-hidden="true">&#9993;</div>
-        <h1 id="findresv-title"><%= tt('findResv.success_title','Check your inbox') %></h1>
-        <p class="muted"><%= tt('findResv.success_text','If we found reservations for this address, an email is on its way.') %></p>
-        <p class="links"><a href="/"><%= tt('findResv.link_home','Back to home') %></a></p>
+      <div class="findresv-success sb-empty-state" role="status">
+        <div class="findresv-success__icon sb-empty-state__icon" aria-hidden="true">&#9993;</div>
+        <h1 id="findresv-title" class="sb-empty-state__message"><%= tt('findResv.success_title','Check your inbox') %></h1>
+        <p class="muted sb-empty-state__sub"><%= tt('findResv.success_text','If we found reservations for this address, an email is on its way.') %></p>
+        <p class="links sb-empty-state__cta"><a href="/"><%= tt('findResv.link_home','Back to home') %></a></p>
       </div>
     <% } else { %>
       <header class="head">
@@ -70,56 +70,76 @@
 </script>
 
 <style>
-  :root{
-    --bg:#0b1120; --card:#111827; --ink:#e5e7eb; --muted:#9aa3b2; --bd:#1f2937;
-    --brand:#3b82f6; --warn:#f59e0b;
-    --radius:16px;
-    --shadow-md:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
-  }
   .sb-findresv.container{ max-width:520px; margin:28px auto; padding:0 16px; }
   .findresv-card.card{
-    background:var(--card); border:1px solid var(--bd); border-radius:var(--radius);
-    color:var(--ink); box-shadow:var(--shadow-md); padding:18px;
+    background:var(--sb-color-panel, #121622);
+    border:1px solid var(--sb-color-bd, #23293a);
+    border-radius:var(--sb-radius-xl, 16px);
+    color:var(--sb-color-ink, #e6e8ef);
+    box-shadow:var(--sb-shadow-md, 0 10px 30px rgba(0,0,0,.35));
+    padding:18px;
   }
-  .findresv-card .head h1{ margin:0 0 6px; font-size:22px; letter-spacing:.2px }
-  .muted{ color:var(--muted) }
+  .findresv-card .head h1{ margin:0 0 6px; font-size:var(--sb-font-2xl, 22px); letter-spacing:.2px }
+  .muted{ color:var(--sb-color-ink-muted, #9aa3b2) }
 
   .badge{
     display:inline-flex; align-items:center; gap:8px; padding:6px 10px; margin-top:8px;
-    border-radius:999px; font-weight:800; font-size:.9rem; border:1px solid transparent;
+    border-radius:var(--sb-radius-pill, 999px); font-weight:800; font-size:.9rem; border:1px solid transparent;
   }
-  .badge.warn{ background:color-mix(in srgb, var(--warn) 18%, #0d1526); color:#ffedd5; border-color:color-mix(in srgb, var(--warn) 55%, var(--bd)); }
+  .badge.warn{
+    background:var(--sb-color-warning-soft, rgba(245,158,11,.14)); color:#ffedd5;
+    border-color:var(--sb-color-warning, #f59e0b);
+  }
 
   .form{ margin-top:12px }
   .form-row{ display:flex; flex-direction:column; gap:6px; margin-bottom:10px }
-  .form-row label{ font-weight:600 }
+  .form-row label{ font-weight:var(--sb-weight-semibold, 600) }
   .form-row input{
-    background:#0b1327; color:var(--ink);
-    border:1px solid var(--bd); border-radius:12px; padding:10px 12px; font-size:15px; outline:0;
-    transition:border-color .15s ease, box-shadow .15s ease;
+    background:var(--sb-color-panel-2, #171b29); color:var(--sb-color-ink, #e6e8ef);
+    border:1px solid var(--sb-color-bd, #23293a); border-radius:var(--sb-radius-lg, 12px);
+    padding:10px 12px; font-size:var(--sb-font-base, 15px); outline:0;
+    transition:border-color var(--sb-ease-fast, 150ms ease), box-shadow var(--sb-ease-fast, 150ms ease);
   }
-  .form-row input:focus{
-    border-color: color-mix(in srgb, var(--brand) 60%, var(--bd));
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent);
+  /* Warm focus accent on the email input */
+  .form-row input:focus,
+  .form-row input:focus-visible{
+    border-color: var(--sb-color-warm-border, rgba(198,162,48,.35));
+    box-shadow: 0 0 0 3px var(--sb-color-warm-soft, rgba(198,162,48,.18));
   }
   .form-actions{ margin-top:6px; display:flex; gap:10px; flex-wrap:wrap }
   .btn{
     display:inline-flex; align-items:center; justify-content:center;
-    padding:10px 14px; border-radius:12px; border:1px solid var(--bd);
-    cursor:pointer; text-decoration:none; font-weight:800; color:var(--ink); background:#0f172a;
-    transition:transform .08s ease, filter .12s ease;
+    padding:10px 14px; border-radius:var(--sb-radius-lg, 12px); border:1px solid var(--sb-color-bd, #23293a);
+    cursor:pointer; text-decoration:none; font-weight:800; color:var(--sb-color-ink, #e6e8ef);
+    background:var(--sb-color-panel-2, #171b29);
+    transition:transform .08s ease, filter var(--sb-ease-fast, 150ms ease);
   }
   .btn:hover{ transform:translateY(-1px) }
-  .btn.primary{ background:var(--brand); border-color:var(--brand); color:#fff; box-shadow:0 10px 24px rgba(59,130,246,.28); }
+  .btn.primary{
+    background:var(--sb-color-brand, #3b82f6); border-color:var(--sb-color-brand, #3b82f6);
+    color:var(--sb-color-brand-ink, #fff); box-shadow:0 10px 24px rgba(59,130,246,.28);
+  }
   .btn[disabled]{ opacity:.7; cursor:progress; transform:none }
+  /* Busy spinner (reuses sb-spin keyframe from spotbook.css) */
+  .btn[aria-busy="true"]::after{
+    content:""; display:inline-block; width:14px; height:14px;
+    margin-inline-start:8px; vertical-align:-2px;
+    border:2px solid currentColor; border-top-color:transparent;
+    border-radius:50%; animation:sb-spin .7s linear infinite;
+  }
 
-  .ft{ margin-top:12px; padding-top:10px; border-top:1px solid var(--bd) }
-  .links{ color:var(--muted) }
+  .ft{ margin-top:12px; padding-top:10px; border-top:1px solid var(--sb-color-bd, #23293a) }
+  .links{ color:var(--sb-color-ink-muted, #9aa3b2) }
   .links a{ color:#c6d5ff; text-decoration:underline dotted }
 
-  .findresv-success{ text-align:center; padding:14px 4px }
-  .findresv-success__icon{ font-size:40px; margin-bottom:8px }
-  .findresv-success h1{ margin:0 0 8px; font-size:22px }
+  /* Polished success state (uses .sb-empty-state look) */
+  .findresv-success.sb-empty-state{ padding:var(--sb-space-2xl, 32px) var(--sb-space-lg, 16px) }
+  .findresv-success__icon{ margin-bottom:var(--sb-space-md, 12px) }
+  .findresv-success.sb-empty-state .sb-empty-state__message{ font-size:var(--sb-font-2xl, 22px) }
 
   @media (max-width:520px){ .sb-findresv.container{ margin:22px auto } }
+  @media (max-width:640px){
+    .form-row input{ font-size:16px; min-height:44px; }
+    .findresv-card .btn{ min-height:44px; }
+  }
 </style>

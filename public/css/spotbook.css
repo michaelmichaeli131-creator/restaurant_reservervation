@@ -255,7 +255,12 @@ body.sb-body {
   .card:hover { transform: none; box-shadow: none; }
 }
 @media (prefers-reduced-motion: reduce){
-  * { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ====== הדר כ־Grid: המשתמש מתחת ללוגו ====== */

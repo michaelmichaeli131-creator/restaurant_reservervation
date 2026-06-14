@@ -617,9 +617,9 @@
   .home-search-shell{grid-template-columns:1fr}
   .home-search-shell__btn{width:100%;min-height:52px}
   .home-search-ac{inset-inline:0;width:100%}
-  .home-hero-v3__chips{display:flex;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .home-hero-v3__chips{display:flex;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory}
   .home-hero-v3__chips::-webkit-scrollbar{display:none}
-  .chip{white-space:nowrap;flex:0 0 auto}
+  .chip{white-space:nowrap;flex:0 0 auto;scroll-snap-align:start}
   .featured-shell{grid-template-columns:1fr;grid-template-rows:auto auto auto}
   .featured-viewport{grid-column:1}
   .featured-nav{display:inline-flex;width:46px;height:46px}

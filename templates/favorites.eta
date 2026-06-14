@@ -51,3 +51,40 @@
     <% } %>
   </div>
 </section>
+
+<style>
+  /* Favorites: card depth + hover lift to match homepage quality */
+  .section .cards .card.home-card-v3{
+    border:1px solid var(--bd, #23293a);
+    border-radius:var(--sb-radius-xl, 16px);
+    box-shadow:var(--sb-shadow-md, 0 10px 30px rgba(0,0,0,.35));
+    transition:transform var(--sb-ease-fast, 150ms ease),
+               box-shadow var(--sb-ease-fast, 150ms ease),
+               border-color var(--sb-ease-fast, 150ms ease);
+  }
+  .section .cards .card.home-card-v3:hover{
+    transform:translateY(-2px);
+    box-shadow:var(--sb-shadow-lg, 0 18px 60px rgba(0,0,0,.45));
+    border-color:var(--sb-color-warm-border, rgba(198,162,48,.35));
+  }
+  .section .cards .card.home-card-v3:focus-visible{
+    outline:2px solid var(--sb-color-brand, #3b82f6);
+    outline-offset:2px;
+  }
+
+  /* Staggered fade-in-up entrance */
+  .section .cards .card.home-card-v3{ animation:sb-fade-in-up .3s ease both; }
+  .section .cards .card.home-card-v3:nth-child(1){ animation-delay:.00s }
+  .section .cards .card.home-card-v3:nth-child(2){ animation-delay:.05s }
+  .section .cards .card.home-card-v3:nth-child(3){ animation-delay:.10s }
+  .section .cards .card.home-card-v3:nth-child(4){ animation-delay:.15s }
+  .section .cards .card.home-card-v3:nth-child(5){ animation-delay:.20s }
+  .section .cards .card.home-card-v3:nth-child(6){ animation-delay:.25s }
+
+  @media (max-width: 640px){
+    .section .cards .card.home-card-v3{ min-height:44px; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .section .cards .card.home-card-v3{ animation:none; }
+  }
+</style>

@@ -160,6 +160,23 @@ Target markets: **Israel 🇮🇱, Georgia 🇬🇪** (underserved!), expanding 
 
 ---
 
+### Day 11 — ליטוש עיצוב וחווית משתמש (מחקר → פיתוח → QA)
+
+**תהליך:** חוקר עיצוב הפיק spec מלא → מפתח web יישם את התת‑קבוצה בטוחה והגבוהת‑השפעה → QA.
+
+**הושלם:**
+- ✅ **הדפים החדשים שודרגו לרמת דף הבית**: favorites + my_reservations קיבלו עומק (צללים, hover lift), אנימציית כניסה מדורגת (gated ל‑prefers-reduced-motion)
+- ✅ **find_reservation מלוטש**: צבעים הומרו ל‑tokens, focus חם בשדה המייל, ספינר במצב שליחה, מצב הצלחה מעוצב
+- ✅ **שדרוג גלובלי ל‑empty states** (אייקון עם drop-shadow, גרדיאנט מותג+חם) — משפר כל דף באתר
+- ✅ **רשת ביטחון גלובלית ל‑prefers-reduced-motion** (תבנית .001ms, לא animation:none — לא שובר layouts)
+- ✅ Quick wins: ::selection, scroll-snap בצ'יפים, מטרות מגע 44px במובייל בדפים החדשים
+- 🔧 QA תפס באג shorthand ב‑animation (טוקן duration נבלע כ‑delay) — תוקן. אישר שאין סיכון "תוכן בלתי נראה" (opacity:0 רק בתוך keyframe, מצב סופי תמיד גלוי)
+- ⏸️ נדחה במכוון (סיכון רגרסיה): איחוד כפתורים גורף, חוקי h1/h2/h3 גלובליים, ריפקטור spacing — נבנו ע"י הרבה ידיים, שינוי גורף עלול לשבור.
+
+**QA verdict: SHIP.**
+
+---
+
 ## 💰 CFO Corner — Revenue Model (v1)
 
 | Tier | מחיר | כולל |
