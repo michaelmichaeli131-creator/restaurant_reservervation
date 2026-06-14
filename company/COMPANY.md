@@ -177,6 +177,18 @@ Target markets: **Israel 🇮🇱, Georgia 🇬🇪** (underserved!), expanding 
 
 ---
 
+### Day 11 (cont.) — ליטוש סבב 2
+
+**הושלם (מחקר→פיתוח→QA):**
+- ✅ **סקלטון‑לואדר** בקרוסלת השעות בדף המסעדה (shimmer pills במקום טקסט "טוען") — עם נפילה בטוחה: גם אם ה‑fetch נכשל, fallback מרנדר תמיד, אין shimmer תקוע. נגיש (aria-hidden על הפילים, טקסט SR נפרד).
+- ✅ **.section-kicker משותף** — היה מעוצב רק בדף הבית; עכשיו הדפים החדשים מקבלים את אותה היררכיה ויזואלית.
+- ✅ **.section-title בסקלת tokens**, .card:focus-visible למקלדת, scroll-snap ברצועות אופקיות (ללא התנגשות עם JS).
+- 🔧 QA תפס רגרסיה page-scoped: ה‑.section-kicker המשותף הפך eyebrows בדף for-restaurants לגלולות כחולות — תוקן (reset ל‑background/border/padding בסגנון העמוד).
+
+**QA verdict: SHIP.**
+
+---
+
 ## 💰 CFO Corner — Revenue Model (v1)
 
 | Tier | מחיר | כולל |
