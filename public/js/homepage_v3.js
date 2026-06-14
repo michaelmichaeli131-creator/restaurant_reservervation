@@ -24,6 +24,10 @@
       return first.getBoundingClientRect().width + gapSize();
     }
 
+    function isRTL() {
+      return getComputedStyle(viewport).direction === 'rtl';
+    }
+
     function maxIndex() {
       const maxScroll = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
       const span = slideSpan();
@@ -31,10 +35,26 @@
       return Math.max(0, Math.round(maxScroll / span));
     }
 
+    // Direction-agnostic: which slide's start edge sits closest to the
+    // viewport's start edge. Works identically in LTR and RTL because it
+    // compares visual positions (getBoundingClientRect), never relying on
+    // the sign/convention of scrollLeft (which differs across browsers in RTL).
     function currentIndex() {
-      const span = slideSpan();
-      if (!span) return 0;
-      return Math.max(0, Math.min(maxIndex(), Math.round(viewport.scrollLeft / span)));
+      const rtl = isRTL();
+      const vRect = viewport.getBoundingClientRect();
+      const vEdge = rtl ? vRect.right : vRect.left;
+      let best = 0;
+      let bestDist = Infinity;
+      slides.forEach((s, i) => {
+        const r = s.getBoundingClientRect();
+        const sEdge = rtl ? r.right : r.left;
+        const dist = Math.abs(sEdge - vEdge);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = i;
+        }
+      });
+      return Math.max(0, Math.min(maxIndex(), best));
     }
 
     function renderDots() {
@@ -61,10 +81,19 @@
       dots.forEach((dot, idx) => dot.classList.toggle('is-active', idx === index));
     }
 
+    // Direction-agnostic scroll: move by the visual delta between the target
+    // slide's start edge and the viewport's start edge, so a positive/negative
+    // scrollBy is computed correctly for both LTR and RTL.
     function goToIndex(index) {
-      const span = slideSpan();
       const target = Math.max(0, Math.min(maxIndex(), index));
-      viewport.scrollTo({ left: target * span, behavior: 'smooth' });
+      const slide = slides[target];
+      if (!slide) return;
+      const rtl = isRTL();
+      const vRect = viewport.getBoundingClientRect();
+      const sRect = slide.getBoundingClientRect();
+      const delta = rtl ? (sRect.right - vRect.right) : (sRect.left - vRect.left);
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      viewport.scrollBy({ left: delta, behavior: reduced ? 'auto' : 'smooth' });
       raf(syncDots);
     }
 
