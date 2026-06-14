@@ -90,9 +90,33 @@
   .myres-card{
     display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
     background:var(--panel, #121622); border:1px solid var(--bd, #23293a);
-    border-radius:16px; padding:14px 16px;
+    border-radius:var(--sb-radius-xl, 16px); padding:14px 16px;
+    box-shadow:var(--sb-shadow-md, 0 10px 30px rgba(0,0,0,.35));
+    transition:transform var(--sb-ease-fast, 150ms ease),
+               box-shadow var(--sb-ease-fast, 150ms ease),
+               border-color var(--sb-ease-fast, 150ms ease);
+    animation:sb-fade-in-up .3s ease both;
   }
+  .myres-card:hover{
+    transform:translateY(-2px);
+    box-shadow:var(--sb-shadow-lg, 0 18px 60px rgba(0,0,0,.45));
+    border-color:var(--sb-color-warm-border, rgba(198,162,48,.35));
+  }
+  .myres-list .myres-card:nth-child(1){ animation-delay:.00s }
+  .myres-list .myres-card:nth-child(2){ animation-delay:.05s }
+  .myres-list .myres-card:nth-child(3){ animation-delay:.10s }
+  .myres-list .myres-card:nth-child(4){ animation-delay:.15s }
+  .myres-list .myres-card:nth-child(5){ animation-delay:.20s }
+  .myres-list .myres-card:nth-child(6){ animation-delay:.25s }
   .myres-card--past{ opacity:.72; }
+  .myres-card--past:hover{ border-color:var(--bd, #23293a); }
+  .myres-card__name:focus-visible{ outline:2px solid var(--sb-color-brand, #3b82f6); outline-offset:2px; border-radius:4px; }
+  @media (prefers-reduced-motion: reduce){
+    .myres-card{ animation:none; }
+  }
+  @media (max-width: 640px){
+    .myres-manage{ min-height:44px; }
+  }
   .myres-card__name{ font-weight:800; font-size:16px; text-decoration:none; color:inherit; }
   .myres-card__name:hover{ text-decoration:underline; }
   .myres-card__occasion{ font-size:15px; }

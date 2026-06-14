@@ -124,6 +124,21 @@
 
 
 /* ==========================================================================
+   Global text selection accent
+   ========================================================================== */
+::selection { background: rgba(59,130,246,.4); color:#fff; }
+
+/* ==========================================================================
+   Entrance animation: fade-in-up (used by list/card items)
+   Gate with prefers-reduced-motion at the usage site or via the global
+   reduced-motion net in spotbook.css.
+   ========================================================================== */
+@keyframes sb-fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================================
    Skeleton / Shimmer loading animation
    Usage: <div class="sb-skeleton" style="--sb-skel-h: 16px"></div>
           or use the .sb-skeleton-text, .sb-skeleton-heading, .sb-skeleton-avatar helpers.
@@ -363,14 +378,19 @@
   padding: var(--sb-space-3xl) var(--sb-space-xl);
   border: 1px dashed rgba(148, 163, 184, 0.25);
   border-radius: var(--sb-radius-xl);
-  background: rgba(15, 23, 42, 0.25);
+  /* subtle brand + warm gradient lift */
+  background:
+    radial-gradient(120% 90% at 50% -10%, var(--sb-color-accent-soft), transparent 60%),
+    radial-gradient(90% 80% at 50% 120%, var(--sb-color-warm-soft), transparent 60%),
+    rgba(15, 23, 42, 0.25);
 }
 
 .sb-empty-state__icon {
-  font-size: 48px;
+  font-size: 60px;
   line-height: 1;
   margin-bottom: var(--sb-space-lg);
-  opacity: 0.7;
+  opacity: 0.92;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
 }
 
 .sb-empty-state__message {
