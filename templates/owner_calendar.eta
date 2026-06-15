@@ -190,7 +190,7 @@
     .oc-panel-badge strong{ font-size:18px; }
 
     .oc-kpis{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:0 4px 16px; }
-    .oc-kpi{ padding:14px; border-radius:16px; border:1px solid var(--bd); background:linear-gradient(180deg, rgba(15,23,42,.96), rgba(15,23,42,.72)); box-shadow:var(--shadow-md); min-height:110px; }
+    .oc-kpi{ padding:14px; border-radius:16px; border:1px solid var(--bd); border-inline-start:3px solid var(--brand); background:linear-gradient(180deg, rgba(15,23,42,.96), rgba(15,23,42,.72)); box-shadow:var(--shadow-md); min-height:110px; }
     .oc-kpi__label{ font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--ink-muted); font-weight:800; }
     .oc-kpi__value{ margin-top:10px; font-size:28px; line-height:1; font-weight:900; color:#fff; }
     .oc-kpi__sub{ margin-top:10px; color:var(--ink-muted); font-size:13px; }

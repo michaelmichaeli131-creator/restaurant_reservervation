@@ -3,7 +3,7 @@
 /* ===== Theme ===== */
 :root{
   --bg:#0b1120; --card:#111827; --ink:#e5e7eb; --muted:#9aa3b2; --bd:#1f2937;
-  --brand:#3b82f6; --ok:#10b981; --warn:#f59e0b; --danger:#ef4444;
+  --brand:#3b82f6; --brand-ink:#fff; --ok:#10b981; --warn:#f59e0b; --danger:#ef4444;
   --radius:16px; --radius-sm:12px;
   --shadow-sm:0 4px 14px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.03);
   --shadow-md:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
@@ -182,16 +182,20 @@ body{
   transition:transform .08s ease, box-shadow .12s ease;
 }
 .btn:hover{ transform:translateY(-1px) }
-.btn.primary{ background:var(--brand); border-color:var(--brand); color:#fff; box-shadow:0 10px 24px rgba(59,130,246,.28) }
+.btn.primary{ background:var(--brand); border-color:var(--brand); color:var(--brand-ink); box-shadow:0 10px 24px rgba(59,130,246,.28) }
 .btn.warn{ background:var(--danger); border-color:var(--danger); color:#fff }
 .badge{
   display:inline-block; padding:2px 8px; border-radius:999px;
   font-size:.78rem; color:#0b1120; font-weight:800; border:1px solid transparent;
 }
-.badge.approved{ background:color-mix(in srgb, var(--ok) 90%, #fff 0%); color:#052e23; border-color:#064e3b }
-.badge.booked{   background:color-mix(in srgb, var(--warn) 90%, #fff 0%); color:#3b2502; border-color:#713f12 }
-.badge.arrived{  background:#22d3ee; color:#002a33; border-color:#0891b2 }
-.badge.cancelled{background:color-mix(in srgb, var(--danger) 90%, #fff 0%); color:#3f0005; border-color:#7f1d1d }
+/* Semantic, token-based status badges: soft tinted bg + light readable text + matching border.
+   new/booked = brand blue · confirmed/arrived = success green · canceled/cancelled = danger red · blocked = neutral. */
+.badge.booked{   background:rgba(59,130,246,.18);  color:#93c5fd; border-color:rgba(59,130,246,.35) }
+.badge.approved{ background:rgba(16,185,129,.18); color:#6ee7b7; border-color:rgba(16,185,129,.35) }
+.badge.arrived{  background:rgba(16,185,129,.18); color:#6ee7b7; border-color:rgba(16,185,129,.35) }
+.badge.cancelled,
+.badge.canceled{ background:rgba(239,68,68,.18);  color:#fca5a5; border-color:rgba(239,68,68,.35) }
+.badge.blocked{  background:rgba(100,116,139,.18); color:#cbd5e1; border-color:rgba(100,116,139,.4) }
 
 /* ===== Compact tweaks + Mobile (בלי גלילה, עדיין שמאלה) ===== */
 .oc-row{ min-height:32px }
