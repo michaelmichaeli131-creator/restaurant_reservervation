@@ -143,7 +143,7 @@
 .sb-photos select,
 .sb-photos textarea{
   width:100%;
-  background: color-mix(in srgb, var(--panel) 70%, #000);
+  background: var(--panel);
   border:1px solid color-mix(in srgb, var(--bd) 88%, #000);
   color: var(--ink);
   border-radius: 14px;
