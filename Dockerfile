@@ -17,6 +17,11 @@ RUN cat .deploy2/part* \
   && mkdir -p /data \
   && chown -R deno:deno /app /data
 
+# Railway terminates TLS at its proxy. Tell Oak to trust X-Forwarded-Proto so
+# secure cookies can be emitted correctly on public HTTPS requests.
+RUN sed -i 's/const app = new Application();/const app = new Application({ proxy: true });/' /app/server.ts \
+  && grep -q 'new Application({ proxy: true })' /app/server.ts
+
 # Cache dependencies as the unprivileged runtime user.
 USER deno
 RUN deno cache --unstable-kv server.ts
