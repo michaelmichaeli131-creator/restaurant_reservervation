@@ -2,7 +2,7 @@ FROM denoland/deno:2.5.4
 
 USER root
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends xz-utils ca-certificates \
+  && apt-get install -y --no-install-recommends xz-utils ca-certificates gosu \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -17,6 +17,7 @@ RUN cat .deploy2/part* \
   && mkdir -p /data \
   && chown -R deno:deno /app /data
 
+# Cache dependencies as the unprivileged runtime user.
 USER deno
 RUN deno cache --unstable-kv server.ts
 
@@ -26,4 +27,9 @@ ENV NODE_ENV=production \
     COOKIE_SECURE=true
 
 EXPOSE 8000
-CMD ["run", "--cached-only", "--allow-net", "--allow-env", "--allow-read", "--allow-write=/data", "--allow-sys", "--unstable-kv", "server.ts"]
+
+# Railway volumes are mounted at runtime, after image build. The mount may be
+# root-owned even though /data was chowned during build, so fix ownership on
+# every container start and then immediately drop privileges back to `deno`.
+USER root
+CMD ["sh", "-c", "chown -R deno:deno /data && exec gosu deno deno run --cached-only --allow-net --allow-env --allow-read --allow-write=/data --allow-sys --unstable-kv server.ts"]
