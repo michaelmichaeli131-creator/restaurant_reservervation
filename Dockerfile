@@ -17,10 +17,17 @@ RUN cat .deploy2/part* \
   && mkdir -p /data \
   && chown -R deno:deno /app /data
 
-# Railway terminates TLS at its proxy. Tell Oak to trust X-Forwarded-Proto so
-# secure cookies can be emitted correctly on public HTTPS requests.
+# Railway terminates TLS at its proxy. Trust forwarded request metadata, and
+# allow Oak to emit Secure cookies even though the backend hop itself is HTTP.
+# Also keep the request-header echo endpoint unavailable in production.
 RUN sed -i 's/const app = new Application();/const app = new Application({ proxy: true });/' /app/server.ts \
-  && grep -q 'new Application({ proxy: true })' /app/server.ts
+  && sed -i '/    secure, /a\    ignoreInsecure: true,' /app/lib/session.ts \
+  && sed -i 's/const firstTry = { ...base, secure: isSecure(ctx) };/const firstTry = { ...base, secure: isSecure(ctx), ignoreInsecure: true };/' /app/middleware/i18n.ts \
+  && sed -i 's#root.get("/__echo", (ctx) => {#root.get("/__echo", (ctx) => { if (NODE_ENV !== "development") { ctx.response.status = Status.NotFound; ctx.response.body = "Not Found"; return; }#' /app/server.ts \
+  && grep -q 'new Application({ proxy: true })' /app/server.ts \
+  && grep -q 'ignoreInsecure: true' /app/lib/session.ts \
+  && grep -q 'ignoreInsecure: true' /app/middleware/i18n.ts \
+  && grep -q 'NODE_ENV !== "development"' /app/server.ts
 
 # Cache dependencies as the unprivileged runtime user.
 USER deno
