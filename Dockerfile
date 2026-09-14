@@ -31,5 +31,7 @@ EXPOSE 8000
 # Railway volumes are mounted at runtime, after image build. The mount may be
 # root-owned even though /data was chowned during build, so fix ownership on
 # every container start and then immediately drop privileges back to `deno`.
+# R2_SMOKE_ON_BOOT is a one-shot operational check; it uploads, fetches, and
+# deletes a tiny temporary PNG before the web server starts.
 USER root
-CMD ["sh", "-c", "chown -R deno:deno /data && exec gosu deno deno run --cached-only --allow-net --allow-env --allow-read --allow-write=/data --allow-sys --unstable-kv server.ts"]
+CMD ["sh", "-c", "chown -R deno:deno /data && if [ \"$R2_SMOKE_ON_BOOT\" = \"1\" ]; then gosu deno deno run --cached-only --allow-net --allow-env --allow-read --allow-sys --unstable-kv scripts/r2_smoke.ts || exit 1; fi && exec gosu deno deno run --cached-only --allow-net --allow-env --allow-read --allow-write=/data --allow-sys --unstable-kv server.ts"]
