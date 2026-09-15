@@ -18,9 +18,9 @@ RUN cat .deploy2/part* \
   && chown -R deno:deno /app /data
 
 # Apply the Railway/TLS production compatibility fixes after the overlay has
-# replaced the source tree. The helper fails the build if an expected marker is
-# missing, instead of silently shipping a partially patched image.
-RUN deno run --allow-read --allow-write /app/railway_runtime_patch.ts \
+# replaced the source tree. The helper reads SPOTBOOK_ROOT (default /app), so
+# it needs environment access as well as read/write access.
+RUN deno run --allow-env --allow-read --allow-write /app/railway_runtime_patch.ts \
   && rm -f /app/railway_runtime_patch.ts
 
 # The base image keeps DENO_DIR at /deno-dir. Builds run as root up to this
