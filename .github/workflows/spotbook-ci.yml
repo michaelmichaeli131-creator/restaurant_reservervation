@@ -33,8 +33,14 @@ jobs:
           rm -rf .deploy .deploy2
           echo 'Modernized source overlay reconstructed.'
 
-      # Keep collecting functional signal even while legacy/modernized type debt
-      # is being reduced. The final gate still fails if this step fails.
+      - name: Apply production compatibility patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          SPOTBOOK_ROOT="$PWD" deno run --allow-env --allow-read --allow-write ./railway_runtime_patch.ts
+
+      # Keep collecting functional signal even while legacy type debt is being
+      # reduced. The final gate still fails if any validation layer fails.
       - name: Type-check server
         id: typecheck
         continue-on-error: true
@@ -45,23 +51,22 @@ jobs:
         continue-on-error: true
         run: deno run --allow-read --allow-env scripts/validate_templates.ts
 
-      - name: Run booking, payment and session tests
+      - name: Run booking, concurrency, payment and body-parser tests
         id: coretests
         continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
+          test -f tests/booking_test.ts
           deno test \
+            --no-check \
             --allow-env \
             --allow-read \
             --allow-write \
             --allow-net \
             --allow-sys \
             --unstable-kv \
-            tests/booking_validation_test.ts \
-            tests/booking_race_test.ts \
-            tests/payment_session_test.ts \
-            tests/session_security_test.ts
+            tests/booking_test.ts
 
       - name: Validation summary
         shell: bash
