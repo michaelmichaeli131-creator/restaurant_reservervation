@@ -1,0 +1,114 @@
+name: SpotBook production smoke
+
+on:
+  push:
+    branches:
+      - deploy/spotbook-modernized
+    paths-ignore:
+      - '**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      BASE_URL: https://spotbook-modernized-production.up.railway.app
+    steps:
+      - name: Wait for Railway rollout
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in {1..30}; do
+            code="$(curl -sS -o /tmp/health -w '%{http_code}' "$BASE_URL/__health" || true)"
+            if [[ "$code" == "200" ]]; then
+              echo "Railway health endpoint is ready"
+              cat /tmp/health
+              exit 0
+            fi
+            echo "Attempt $i: health returned ${code:-no-response}; retrying..."
+            sleep 10
+          done
+          echo "Railway did not become healthy in time" >&2
+          exit 1
+
+      - name: Verify public pages and assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          check_200() {
+            local path="$1"
+            local out="/tmp/body-$(echo "$path" | tr '/?&=' '____')"
+            local code
+            code="$(curl -sS -o "$out" -w '%{http_code}' "$BASE_URL$path")"
+            [[ "$code" == "200" ]] || { echo "$path -> $code" >&2; cat "$out" >&2 || true; exit 1; }
+            ! grep -q 'Internal Server Error' "$out" || { echo "$path rendered an internal error" >&2; exit 1; }
+            echo "PASS $path -> 200"
+          }
+
+          check_200 '/'
+          check_200 '/__health'
+          check_200 '/for-restaurants'
+          check_200 '/auth/login'
+          check_200 '/auth/register'
+          check_200 '/find-reservation'
+          check_200 '/api/i18n/en'
+          check_200 '/api/i18n/he'
+          check_200 '/api/i18n/ka'
+          check_200 '/robots.txt'
+          check_200 '/sitemap.xml'
+          check_200 '/public/icons/app-icon.svg'
+          check_200 '/public/img/logo-spotbook.png'
+          check_200 '/public/manifest.webmanifest'
+
+          jq -e . /tmp/body-_api_i18n_en >/dev/null
+          jq -e . /tmp/body-_api_i18n_he >/dev/null
+          jq -e . /tmp/body-_api_i18n_ka >/dev/null
+
+      - name: Verify auth gates and production-only routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          expect_code() {
+            local expected="$1" path="$2"
+            local code
+            code="$(curl -sS -o /tmp/resp -w '%{http_code}' "$BASE_URL$path")"
+            [[ "$code" == "$expected" ]] || { echo "$path expected $expected, got $code" >&2; cat /tmp/resp >&2 || true; exit 1; }
+            echo "PASS $path -> $code"
+          }
+          expect_code 303 '/owner'
+          expect_code 401 '/admin'
+          expect_code 404 '/__echo'
+          expect_code 404 '/definitely-not-a-real-spotbook-route'
+
+      - name: Verify secure cookies and security headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sS -D /tmp/headers -o /dev/null "$BASE_URL/"
+
+          grep -Eiq '^strict-transport-security: .*max-age=' /tmp/headers
+          grep -Eiq '^content-security-policy:' /tmp/headers
+          grep -Eiq '^x-content-type-options: *nosniff' /tmp/headers
+          grep -Eiq '^x-frame-options: *DENY' /tmp/headers
+          grep -Eiq '^set-cookie: sid=.*httponly' /tmp/headers
+          grep -Eiq '^set-cookie: sid=.*secure' /tmp/headers
+
+          echo 'Session cookie is HttpOnly + Secure and security headers are present.'
+
+      - name: Verify language switching and RTL
+        shell: bash
+        run: |
+          set -euo pipefail
+          jar=/tmp/cookies.txt
+          curl -sS -c "$jar" -b "$jar" -L "$BASE_URL/lang/he?redirect=/" -o /tmp/he-home
+          grep -q '<html lang="he" dir="rtl">' /tmp/he-home
+          grep -q $'\tlang\the' "$jar"
+          grep -q $'\tsb_lang\the' "$jar"
+          echo 'Hebrew switch persisted and rendered RTL.'
+
+      - name: Summary
+        run: echo 'SpotBook public production smoke suite passed.'
