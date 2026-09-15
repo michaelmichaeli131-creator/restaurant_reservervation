@@ -99,16 +99,24 @@ jobs:
 
           echo 'Session cookie is HttpOnly + Secure and security headers are present.'
 
-      - name: Verify language switching and RTL
+      - name: Verify language switching, Secure cookies and RTL
         shell: bash
         run: |
           set -euo pipefail
+
+          # The explicit language route writes its own cookies. Check the raw
+          # redirect response before following it so we verify those cookies
+          # are Secure even though Railway terminates TLS at the edge.
+          curl -sS -D /tmp/he-headers -o /dev/null "$BASE_URL/lang/he?redirect=/"
+          grep -Eiq '^set-cookie: lang=he;.*secure' /tmp/he-headers
+          grep -Eiq '^set-cookie: sb_lang=he;.*secure' /tmp/he-headers
+
           jar=/tmp/cookies.txt
           curl -sS -c "$jar" -b "$jar" -L "$BASE_URL/lang/he?redirect=/" -o /tmp/he-home
           grep -q '<html lang="he" dir="rtl">' /tmp/he-home
           grep -q $'\tlang\the' "$jar"
           grep -q $'\tsb_lang\the' "$jar"
-          echo 'Hebrew switch persisted and rendered RTL.'
+          echo 'Hebrew switch persisted, both language cookies are Secure, and the page rendered RTL.'
 
       - name: Summary
         run: echo 'SpotBook public production smoke suite passed.'
