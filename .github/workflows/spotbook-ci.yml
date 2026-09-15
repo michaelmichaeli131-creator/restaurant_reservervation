@@ -14,7 +14,7 @@ permissions:
 jobs:
   validate-modernized-source:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,13 +33,21 @@ jobs:
           rm -rf .deploy .deploy2
           echo 'Modernized source overlay reconstructed.'
 
+      # Keep collecting functional signal even while legacy/modernized type debt
+      # is being reduced. The final gate still fails if this step fails.
       - name: Type-check server
+        id: typecheck
+        continue-on-error: true
         run: deno check --unstable-kv server.ts
 
       - name: Validate templates
+        id: templates
+        continue-on-error: true
         run: deno run --allow-read --allow-env scripts/validate_templates.ts
 
       - name: Run booking, payment and session tests
+        id: coretests
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -55,5 +63,20 @@ jobs:
             tests/payment_session_test.ts \
             tests/session_security_test.ts
 
-      - name: Summary
-        run: echo 'Modernized SpotBook source validation passed.'
+      - name: Validation summary
+        shell: bash
+        run: |
+          echo "typecheck=${{ steps.typecheck.outcome }}"
+          echo "templates=${{ steps.templates.outcome }}"
+          echo "coretests=${{ steps.coretests.outcome }}"
+
+          failed=0
+          [[ "${{ steps.typecheck.outcome }}" == "success" ]] || failed=1
+          [[ "${{ steps.templates.outcome }}" == "success" ]] || failed=1
+          [[ "${{ steps.coretests.outcome }}" == "success" ]] || failed=1
+
+          if [[ "$failed" -ne 0 ]]; then
+            echo 'One or more validation layers failed. See the individual steps above.' >&2
+            exit 1
+          fi
+          echo 'Modernized SpotBook source validation passed.'
