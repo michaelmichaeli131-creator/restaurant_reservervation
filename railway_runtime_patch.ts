@@ -70,7 +70,8 @@ function replaceRequired(
   await write(path, text);
 }
 
-// 3) Apply the same trusted-proxy treatment to language preference cookies.
+// 3) Apply the same trusted-proxy treatment to language preference cookies
+// set by the i18n middleware.
 {
   const path = "/app/middleware/i18n.ts";
   let text = await read(path);
@@ -79,6 +80,21 @@ function replaceRequired(
     "const firstTry = { ...base, secure: isSecure(ctx) };",
     "const firstTry = { ...base, secure: isSecure(ctx), ignoreInsecure: true };",
     "i18n secure cookie options",
+    "const firstTry = { ...base, secure: isSecure(ctx), ignoreInsecure: true };",
+  );
+  await write(path, text);
+}
+
+// 4) The explicit /lang/:code router writes its own cookies separately from
+// the i18n middleware, so it needs the same trusted internal-hop treatment.
+{
+  const path = "/app/routes/lang.ts";
+  let text = await read(path);
+  text = replaceRequired(
+    text,
+    "const firstTry = { ...base, secure: isSecure(ctx) };",
+    "const firstTry = { ...base, secure: isSecure(ctx), ignoreInsecure: true };",
+    "language-route secure cookie options",
     "const firstTry = { ...base, secure: isSecure(ctx), ignoreInsecure: true };",
   );
   await write(path, text);
