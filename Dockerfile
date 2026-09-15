@@ -23,6 +23,11 @@ RUN cat .deploy2/part* \
 RUN deno run --allow-read --allow-write /app/railway_runtime_patch.ts \
   && rm -f /app/railway_runtime_patch.ts
 
+# The base image keeps DENO_DIR at /deno-dir. Builds run as root up to this
+# point, so make the cache writable before dropping privileges to the deno user.
+RUN mkdir -p /deno-dir \
+  && chown -R deno:deno /deno-dir /app
+
 # Cache dependencies as the unprivileged runtime user.
 USER deno
 RUN deno cache --unstable-kv server.ts
