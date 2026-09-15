@@ -1,6 +1,7 @@
 // Build-time compatibility/security patch for the modernized overlay.
 // The deployment overlay is reconstructed during the Docker build, so these
-// small production-only fixes must be applied after extraction.
+// production-only fixes are applied after extraction. Every required marker is
+// checked so the image fails closed instead of shipping a partial patch.
 
 async function read(path: string): Promise<string> {
   return await Deno.readTextFile(path);
@@ -23,17 +24,16 @@ function replaceRequired(
   return next;
 }
 
-// 1) Trust Railway's forwarded scheme/host, keep the debug echo endpoint out of
-// production, and allow Railway's internal HTTP health probe through without
-// redirecting it to HTTPS.
+// 1) Trust Railway's forwarded scheme/host and let Railway's internal HTTP
+// health probe reach /__health without being redirected to HTTPS.
 {
   const path = "/app/server.ts";
   let text = await read(path);
 
   text = replaceRequired(
     text,
-    "const app = new Application();",
-    "const app = new Application({ proxy: true });",
+    "export const app = new Application();",
+    "export const app = new Application({ proxy: true });",
     "Oak proxy configuration",
     "new Application({ proxy: true })",
   );
@@ -46,45 +46,31 @@ function replaceRequired(
     'ctx.request.url.pathname !== "/__health"',
   );
 
-  const echoMarker = 'root.get("/__echo", (ctx) => {\n';
-  const echoGuard =
-    '  if (NODE_ENV !== "development") {\n' +
-    '    ctx.response.status = Status.NotFound;\n' +
-    '    ctx.response.body = "Not Found";\n' +
-    '    return;\n' +
-    '  }\n';
-  if (!text.includes('ctx.response.body = "Not Found";\n    return;\n  }\n  const info = {')) {
-    if (!text.includes(echoMarker)) throw new Error("Patch marker not found: /__echo");
-    text = text.replace(echoMarker, echoMarker + echoGuard);
+  // The modernized overlay already hides /__echo in production. Verify that
+  // protection is still present rather than adding a second, brittle guard.
+  if (!text.includes('if (NODE_ENV !== "development") { ctx.response.status = 404; return; }')) {
+    throw new Error("Expected production gate on /__echo");
   }
 
   await write(path, text);
 }
 
-// 2) Session cookie: the public request is HTTPS but Railway terminates TLS at
-// the edge. Oak therefore sees an HTTP backend hop. `ignoreInsecure` prevents
-// Oak from throwing while still emitting the Secure attribute requested by us.
+// 2) Railway terminates TLS at the edge. Keep the browser cookie Secure while
+// allowing Oak to emit it over the trusted internal HTTP hop.
 {
   const path = "/app/lib/session.ts";
   let text = await read(path);
-  if (!text.includes("ignoreInsecure: true")) {
-    const startMarker = "await ctx.cookies.set(cookieName, sid, {";
-    const start = text.indexOf(startMarker);
-    if (start < 0) throw new Error("Patch marker not found: session cookie set");
-    const end = text.indexOf("\n  });", start);
-    if (end < 0) throw new Error("Patch marker not found: session cookie block end");
-    const block = text.slice(start, end);
-    const patched = block.replace(
-      /(\n\s*secure,[^\n]*)/,
-      "$1\n    ignoreInsecure: true,",
-    );
-    if (patched === block) throw new Error("Patch marker not found: session secure option");
-    text = text.slice(0, start) + patched + text.slice(end);
-  }
+  text = replaceRequired(
+    text,
+    "secure: isHttps(ctx),",
+    "secure: isHttps(ctx), ignoreInsecure: true,",
+    "session secure cookie options",
+    "secure: isHttps(ctx), ignoreInsecure: true,",
+  );
   await write(path, text);
 }
 
-// 3) Language cookies use the same TLS-terminated proxy path.
+// 3) Apply the same trusted-proxy treatment to language preference cookies.
 {
   const path = "/app/middleware/i18n.ts";
   let text = await read(path);
