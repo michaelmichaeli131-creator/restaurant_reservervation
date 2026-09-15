@@ -188,16 +188,14 @@ for (const rel of ["lib/session.ts", "middleware/i18n.ts", "routes/lang.ts"]) {
 }
 
 // 7) One body utility in older snapshots calls debugLog without importing it.
+// Prepend the import when missing instead of depending on an exact leading
+// comment marker, because some overlay snapshots start with a BOM/blank line.
 {
   const path = file("routes/restaurants/_utils/body.ts");
   let text = await read(path);
-  if (!text.includes('import { debugLog } from "../../../lib/debug.ts";')) {
-    text = replaceRequired(
-      text,
-      "// src/routes/restaurants/_utils/body.ts\n",
-      '// src/routes/restaurants/_utils/body.ts\nimport { debugLog } from "../../../lib/debug.ts";\n',
-      "restaurant body debugLog import",
-    );
+  const importLine = 'import { debugLog } from "../../../lib/debug.ts";';
+  if (!text.includes(importLine)) {
+    text = `${importLine}\n${text}`;
   }
   await write(path, text);
 }
