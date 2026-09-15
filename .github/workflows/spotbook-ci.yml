@@ -33,11 +33,12 @@ jobs:
           rm -rf .deploy .deploy2
           echo 'Modernized source overlay reconstructed.'
 
-      - name: Apply production compatibility patch
+      - name: Apply production compatibility and privacy patches
         shell: bash
         run: |
           set -euo pipefail
           SPOTBOOK_ROOT="$PWD" deno run --allow-env --allow-read --allow-write ./railway_runtime_patch.ts
+          SPOTBOOK_ROOT="$PWD" deno run --allow-env --allow-read --allow-write ./railway_privacy_patch.ts
 
       # Full-project type debt predates this deployment work. Keep running the
       # check on every push so regressions stay visible, but do not block a
