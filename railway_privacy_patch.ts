@@ -69,8 +69,45 @@ function replaceRequired(
     '  console.log("[AUTH_GATE] access granted", { path, role: user.role });',
   );
 
+  // Railway production already has a compact, redacted [RES] request log.
+  // Remove the verbose informational auth-gate/debug chatter so production logs
+  // contain only useful request summaries and exceptional auth warnings.
+  text = text.replace(
+    '  // Production auth-gate log: intentionally excludes email/user ID.\n  console.log("[AUTH_GATE] check", {\n    path,\n    needsAuth,\n    hasUser: Boolean(user),\n    role: user?.role,\n  });\n\n',
+    "",
+  );
+
+  text = text.replace(
+    '    console.log("[AUTH_GATE] path does not need auth, continue", { path });\n',
+    "",
+  );
+
+  text = text.replace(
+    '    console.log("[AUTH_GATE] no user, redirect to login", {\n      path,\n      redirect,\n    });\n',
+    "",
+  );
+
+  text = text.replace(
+    '  console.log("[AUTH_GATE] access granted", { path, role: user.role });\n\n',
+    "",
+  );
+
+  text = text.replace(
+    '// לוג קצר לכל בקשה (debug)\napp.use(async (ctx, next) => {\n  console.log(\n    `[DEBUG] incoming: ${ctx.request.method} ${ctx.request.url.pathname}`,\n  );\n  await next();\n});\n\n',
+    "",
+  );
+
   if (text.includes("userEmail: user?.email") || text.includes("email: user.email")) {
     throw new Error("Privacy patch left a raw user email in AUTH_GATE logging");
+  }
+  if (text.includes("[DEBUG] incoming:")) {
+    throw new Error("Privacy patch left verbose production DEBUG request logging enabled");
+  }
+  if (text.includes('console.log("[AUTH_GATE] check"') ||
+      text.includes('console.log("[AUTH_GATE] path does not need auth') ||
+      text.includes('console.log("[AUTH_GATE] no user') ||
+      text.includes('console.log("[AUTH_GATE] access granted"')) {
+    throw new Error("Privacy patch left verbose AUTH_GATE informational logging enabled");
   }
 
   await Deno.writeTextFile(path, text);
