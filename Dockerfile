@@ -23,6 +23,10 @@ RUN deno run --allow-env --allow-read --allow-write /app/railway_runtime_patch.t
   && deno run --allow-env --allow-read --allow-write /app/railway_privacy_patch.ts \
   && deno run --allow-read --allow-write /app/railway_design_patch.ts \
   && deno run --allow-read --allow-write /app/railway_design_v2_patch.ts \
+  && cat /app/assets/patch/homepage-v4.part* > /tmp/railway_homepage_v4_patch.ts \
+  && deno run --allow-read --allow-write /tmp/railway_homepage_v4_patch.ts \
+  && rm -f /tmp/railway_homepage_v4_patch.ts \
+  && rm -rf /app/assets/hero /app/assets/patch \
   && rm -f /app/railway_runtime_patch.ts /app/railway_privacy_patch.ts /app/railway_design_patch.ts /app/railway_design_v2_patch.ts
 
 # The base image keeps DENO_DIR at /deno-dir. Builds run as root up to this
