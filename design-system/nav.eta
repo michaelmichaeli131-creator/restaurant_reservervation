@@ -1,0 +1,36 @@
+<%
+const ar = it.restaurant || {};
+const aid = ar.id || it.restaurantId || it.rid || '';
+const encoded = encodeURIComponent(aid);
+const alang = it.lang || 'en';
+const labels = {
+ en:['Workspace','Overview','Restaurant details','Menu','Photos','Opening hours','Inventory','Suppliers','Purchase orders','Stock counts','Recipes','Food cost','Shifts','Deposits','Bills','Restaurant workspace'],
+ he:['סביבת עבודה','סקירה כללית','פרטי המסעדה','תפריט','תמונות','שעות פתיחה','מלאי','ספקים','הזמנות רכש','ספירות מלאי','מתכונים','עלויות מנות','משמרות','מקדמות','חשבונות','ניהול המסעדה'],
+ ka:['სამუშაო სივრცე','მიმოხილვა','რესტორნის დეტალები','მენიუ','ფოტოები','სამუშაო საათები','მარაგი','მომწოდებლები','შესყიდვები','ინვენტარიზაცია','რეცეპტები','კერძების ხარჯები','ცვლები','დეპოზიტები','ანგარიშები','რესტორნის მართვა']
+}[alang] || ['Workspace','Overview','Restaurant details','Menu','Photos','Opening hours','Inventory','Suppliers','Purchase orders','Stock counts','Recipes','Food cost','Shifts','Deposits','Bills','Restaurant workspace'];
+const links = [
+ [1,'/owner','owner_dashboard','◈'],
+ [2,`/owner/restaurants/${encoded}/edit`,'owner_restaurant_edit','⚙'],
+ [3,`/owner/${encoded}/menu`,'owner_menu','≡'],
+ [4,`/owner/restaurants/${encoded}/photos`,'owner_photos','▧'],
+ [5,`/owner/restaurants/${encoded}/hours`,'owner_hours','◷'],
+ [6,`/owner/${encoded}/inventory/stock`,'owner_inventory_stock','▦'],
+ [7,`/owner/${encoded}/inventory/suppliers`,'owner_inventory_suppliers','◇'],
+ [8,`/owner/${encoded}/inventory/purchase_orders`,'owner_inventory_purchase_orders','▤'],
+ [9,`/owner/${encoded}/inventory/counts`,'owner_inventory_counts','☑'],
+ [10,`/owner/${encoded}/inventory/recipes`,'owner_inventory_recipes','⌑'],
+ [11,`/owner/${encoded}/inventory/foodcost`,'owner_inventory_foodcost','▥'],
+ [12,`/owner/restaurants/${encoded}/shifts`,'owner_shifts','▦'],
+ [13,`/owner/restaurants/${encoded}/deposit`,'owner_deposit_settings','◇'],
+ [14,`/owner/${encoded}/bills`,'owner/owner_bills','▤']
+];
+%>
+<aside class="sb-design-nav">
+ <a class="sb-design-brand" href="/owner"><span aria-hidden="true">◈</span> SpotBook</a>
+ <div class="sb-design-restaurant"><strong><%= ar.name || 'SpotBook' %></strong><small><%= labels[15] %></small></div>
+ <nav aria-label="<%= labels[0] %>">
+ <% for (const [label,href,page,icon] of links) { if (!aid && label !== 1) continue; const selected = it.approvedPage === page || (page==='owner_inventory_purchase_orders' && it.approvedPage==='owner_inventory_purchase_order') || (page==='owner_inventory_counts' && it.approvedPage==='owner_inventory_count'); %>
+ <a href="<%= href %>" class="sb-design-nav-link<%= selected ? ' is-current' : '' %>" <% if (selected) { %>aria-current="page"<% } %>><span aria-hidden="true"><%= icon %></span><span><%= labels[label] %></span></a>
+ <% } %>
+ </nav>
+</aside>

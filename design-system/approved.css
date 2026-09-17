@@ -1,0 +1,78 @@
+/* Approved SpotBook waterfront collection, September 2026.
+   Scoped to upgraded pages; homepage composition and application state remain intact. */
+body:has(.sb-approved){background:#061321!important;color:#e9f1ff!important;color-scheme:dark}
+.sb-approved{--brand:#3188ff;--bd:#1c3046;--muted:#9baec5;--card:#0a1b2c;--ink:#e9f1ff;--panel:#0b1c2e;--panel-2:#102438;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.5;min-width:0}
+.sb-approved *, .sb-approved *::before,.sb-approved *::after{box-sizing:border-box}
+.sb-approved h1,.sb-approved h2,.sb-approved h3{color:#f0f5ff;letter-spacing:-.035em}
+.sb-approved h1{font-size:clamp(24px,2.5vw,34px);line-height:1.2;font-weight:700}
+.sb-approved h2{font-size:22px}.sb-approved .muted{color:#9baec5!important}
+.sb-approved a:focus-visible,.sb-approved button:focus-visible,.sb-approved input:focus-visible,.sb-approved select:focus-visible,.sb-approved textarea:focus-visible{outline:3px solid #87baff!important;outline-offset:3px}
+.sb-approved .btn.primary,.sb-approved .sb-btn--primary,.sb-approved .kds-btn.primary{background:linear-gradient(120deg,#3794ff,#2374ec)!important;border:1px solid #529eff!important;box-shadow:0 5px 16px #1168ee26!important;color:#fff!important}
+.sb-approved .btn,.sb-approved .sb-btn,.sb-approved .kds-btn{border-radius:7px!important;min-height:42px;font-weight:600}
+.sb-approved :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=range]):not([type=file]),select,textarea){background:#091827!important;color:#e9f1ff!important;border:1px solid #294159!important;border-radius:7px!important;min-height:42px;max-width:100%;font:inherit}
+.sb-approved input::placeholder,.sb-approved textarea::placeholder{color:#7f96b2;opacity:1}
+.sb-approved label{font-size:13px;color:#bacade}
+.sb-approved :is(.card,.panel,.review-card,.sb-card){background:#0a1b2c!important;border:1px solid #1c3046!important;border-radius:11px!important;box-shadow:0 10px 35px #00000012!important}
+.sb-approved :is(.card,.panel) :is(.card,.panel){background:#091827!important;box-shadow:none!important}
+.sb-approved :is(.badge,.chip){border-radius:5px!important}
+.sb-approved table{width:100%;border-collapse:collapse;font-size:13px}
+.sb-approved th{color:#91a8c2!important;background:#0c2033!important;text-align:start;font-size:11px;letter-spacing:.035em;font-weight:600}
+.sb-approved td,.sb-approved th{padding:13px 14px;border-bottom:1px solid #1b3046!important}
+.sb-approved tbody tr:hover{background:#10273c}
+.sb-approved :is(.table-wrap,.table-scroll){max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;border:1px solid #1c3046;border-radius:8px}
+.sb-design-workspace,.sb-design-content{min-width:0}
+.sb-design-photo{overflow:hidden;position:relative;background:#0d2439}
+.sb-design-photo img{width:100%;height:100%;object-fit:cover;display:block}
+/* Customer imagery has its own space above the form, with unobscured glassware. */
+.sb-approved--customer{max-width:620px;margin:28px auto 48px}
+.sb-approved--customer .sb-design-workspace{border:1px solid #1b3148;border-radius:16px;overflow:hidden;background:#071727;box-shadow:0 25px 80px #0003}
+.sb-approved--customer .sb-design-photo{height:280px}
+.sb-approved--customer .sb-design-photo img{object-position:center 62%}
+.sb-approved--customer .sb-design-content{padding:26px 28px 30px}
+.sb-approved--customer .sb-design-content :is(main,.wrap,.container,.sb-auth,.sb-findresv,.review-page){width:100%!important;max-width:none!important;margin:0!important;padding:0!important}
+.sb-approved--customer .sb-design-content :is(.auth-card,.verify-card,.findresv-card,.review-card){padding:0!important;border:0!important;box-shadow:none!important;background:transparent!important}
+.sb-approved--customer .sb-design-content>main>.card{margin-top:18px}
+.sb-approved--customer .sb-design-content h1{font-size:27px}
+.sb-approved--customer .sb-design-content .head{margin-bottom:22px}
+.sb-approved--customer .form-actions{display:flex;flex-direction:column;gap:12px}
+.sb-approved--customer .form-actions .btn{width:100%}
+.sb-approved--customer .sb-design-content :is(.summary-card,.payment-card){padding:18px!important}
+.sb-design-icon{width:64px;height:64px;object-fit:contain;display:block;margin:20px auto -8px}
+.sb-page-verify_notice .icon-bubble,.sb-page-verify_done .icon-bubble{display:none}
+.sb-approved--customer-wide{margin:24px auto 44px}
+.sb-approved--customer-wide .sb-design-photo{height:200px;border-radius:14px}
+.sb-approved--customer-wide .sb-design-content{padding-top:24px}
+.sb-approved--customer-wide .card-img{aspect-ratio:1.6;height:auto!important}
+/* Operational workspace: persistent restaurant navigation, narrow photographic banner. */
+body:has(.sb-approved--owner)>.sb-header .sb-container{max-width:none!important;width:calc(100% - 48px)!important}
+body:has(.sb-approved--owner)>main.sb-container{max-width:1600px!important;width:100%!important}
+.sb-approved--owner{display:grid;grid-template-columns:210px minmax(0,1fr);min-height:calc(100svh - 65px);gap:0}
+.sb-design-nav{background:#071625;border-inline-end:1px solid #1b2c40;padding:24px 14px;align-self:start;position:sticky;top:66px;height:calc(100svh - 66px);overflow-y:auto;scrollbar-width:thin}
+.sb-design-brand{display:flex;align-items:center;gap:8px;font-weight:750;font-size:19px;color:#eaf3ff;text-decoration:none;padding:0 10px 24px}.sb-design-brand>span{color:#368fff;font-size:27px}
+.sb-design-restaurant{padding:0 10px 20px;display:grid;gap:4px;border-bottom:1px solid #1a2c40;margin-bottom:14px;overflow-wrap:anywhere}.sb-design-restaurant strong{font-size:14px}.sb-design-restaurant small{font-size:10px;color:#8da5bd}
+.sb-design-nav nav{display:grid;gap:4px}
+.sb-design-nav-link{display:flex;align-items:center;gap:11px;border-radius:6px;padding:10px 11px;font-size:12px;color:#9eb2ca;text-decoration:none;min-height:40px}
+.sb-design-nav-link>span:first-child{width:18px;text-align:center;font-size:17px;color:#83a2c4}.sb-design-nav-link:hover{background:#102940;color:#fff}.sb-design-nav-link.is-current{background:linear-gradient(105deg,#2076ee,#3296ff);color:white;box-shadow:0 4px 14px #005bda24}.sb-design-nav-link.is-current>span{color:#fff}
+.sb-approved--owner .sb-design-workspace{padding:0 30px 36px}
+.sb-approved--owner .sb-design-photo{height:100px;margin:0 -30px 26px;border-bottom:1px solid #20334a}
+.sb-approved--owner .sb-design-photo::after,.sb-approved--ops .sb-design-photo::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,#061321 3%,#061321a0 35%,transparent 80%)}
+.sb-approved--owner .sb-design-photo img{object-position:center 58%}
+.sb-approved--owner .sb-design-content> :is(main,section,.container){max-width:none!important;width:100%!important;margin:0!important;padding:0!important}
+.sb-approved--owner .sb-design-content> :is(main,section)> :is(.card,.sb-card){border:0!important;padding:0!important;background:transparent!important;box-shadow:none!important}
+.sb-approved--owner .sb-design-content :is(.owner-hd,.page-header,.sb-hdr){margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid #1b3046;gap:20px}
+.sb-approved--owner .sb-owner-tabs{display:none!important}
+.sb-approved--owner .sb-design-content :is(.card,.panel){padding:20px}
+.sb-approved--owner .sb-design-content p.muted{max-width:78ch;font-size:13px;line-height:1.6}
+.sb-approved--owner .sb-photos .grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.sb-approved--owner .photo-card{overflow:hidden;border-radius:9px!important;border:1px solid #263b51!important}.sb-approved--owner .photo-card img{width:100%;aspect-ratio:1.7;object-fit:cover}
+.sb-approved--owner .photo-card .caption{background:#10243a!important}
+.sb-approved--owner .dropzone{border:1px dashed #385779!important;border-radius:10px!important;background:#0a1c2e!important}
+.sb-approved--staff{max-width:1200px;margin:24px auto}.sb-approved--staff .sb-design-photo{height:140px;border-radius:12px;margin-bottom:24px}
+.sb-approved--ops .sb-design-photo{height:80px}.sb-approved--ops .kds-topbar{background:#081827!important;border-color:#21364b!important}.sb-approved--ops .kds-board{gap:18px!important}.sb-approved--ops :is(.kds-column,.kds-col){background:#071827!important;border:1px solid #20344b!important;border-radius:9px!important}.sb-approved--ops :is(.kds-ticket,.kds-card){background:#0d2237!important;border-color:#284058!important;border-radius:8px!important}
+@media(min-width:1100px){.sb-page-owner_inventory_suppliers .sb-design-content .sb-owner>.card{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px}.sb-page-owner_inventory_suppliers .owner-hd{grid-column:1/-1}.sb-page-owner_inventory_suppliers .panel:has(form){grid-column:2;grid-row:2;align-self:start}.sb-page-owner_inventory_suppliers .panel:has(table){grid-column:1;grid-row:2}.sb-page-owner_inventory_suppliers form.row{display:grid!important;grid-template-columns:1fr!important}.sb-page-owner_inventory_suppliers form.row>*{min-width:0!important;width:100%!important}}
+@media(max-width:1000px){.sb-approved--owner{grid-template-columns:172px minmax(0,1fr)}.sb-approved--owner .sb-design-workspace{padding-inline:20px}.sb-approved--owner .sb-design-photo{margin-inline:-20px}.sb-design-nav{padding-inline:9px}.sb-design-nav-link{font-size:11px;padding-inline:8px}.sb-approved--owner .sb-photos .grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){body:has(.sb-approved)>main.sb-container{width:100%!important}.sb-approved--customer{margin:0 auto 26px;max-width:520px}.sb-approved--customer .sb-design-workspace{border:0;border-radius:0;box-shadow:none}.sb-approved--customer .sb-design-photo{height:clamp(210px,62vw,310px)}.sb-approved--customer .sb-design-content{padding:24px 20px}.sb-approved--customer .sb-design-content h1{font-size:25px}.sb-approved--customer-wide{margin:0 16px 28px}.sb-approved--customer-wide .sb-design-photo{height:180px}.sb-approved--owner{display:block}.sb-design-nav{position:relative;top:auto;height:auto;padding:10px 12px;border-inline-end:0;border-bottom:1px solid #20344b;overflow:visible}.sb-design-brand,.sb-design-restaurant{display:none}.sb-design-nav nav{display:flex;overflow-x:auto;gap:6px;padding-bottom:4px;scrollbar-width:thin}.sb-design-nav-link{flex-shrink:0;white-space:nowrap;padding:9px 12px;min-height:44px;font-size:12px}.sb-approved--owner .sb-design-workspace{padding:0 16px 28px}.sb-approved--owner .sb-design-photo{height:90px;margin:0 -16px 22px}.sb-approved--owner .sb-design-content :is(.card,.panel){padding:14px}.sb-approved--owner .sb-design-content :is(.owner-hd,.page-header,.sb-hdr){display:flex;flex-wrap:wrap;gap:12px}.sb-approved--owner table{min-width:560px}.sb-approved--owner .sb-design-content .row{flex-wrap:wrap}.sb-approved--owner input,.sb-approved--owner select{font-size:16px!important}.sb-approved--owner .sb-design-content .actions{flex-wrap:wrap}.sb-approved--ops .sb-design-photo{height:64px}.sb-approved--staff{margin:0 12px}.sb-approved--staff .sb-design-photo{height:130px}.sb-approved--customer .summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(prefers-reduced-motion:reduce){.sb-approved *{animation:none!important;scroll-behavior:auto!important;transition:none!important}}
+@media print{.sb-design-nav,.sb-design-photo,.sb-design-icon{display:none!important}.sb-approved--owner{display:block}.sb-approved{color:black!important}.sb-approved .sb-design-workspace{padding:0}}
+.sb-approved .table{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+@media(min-width:1100px){.sb-page-owner_inventory_suppliers .sb-owner>.card>.panel:last-of-type{grid-column:1;grid-row:2;align-self:start}.sb-page-owner_inventory_suppliers .sb-owner>.card>.panel:first-of-type{grid-column:2;grid-row:2}}
