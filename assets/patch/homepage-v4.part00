@@ -1,0 +1,151 @@
+// SpotBook homepage v4 — cinematic restaurant discovery experience.
+// Applied after the archived modernized overlay so production remains reproducible.
+// Reconstruct the generated hero photo from text-safe repository chunks.
+const heroDir = "/app/public/img";
+const heroOut = `${heroDir}/spotbook-hero-waterfront.webp`;
+const heroParts = [];
+for (let i = 0; i <= 6; i++) {
+  heroParts.push(await Deno.readTextFile(`/app/assets/hero/spotbook-hero-waterfront.b64.${String(i).padStart(2, "0")}`));
+}
+const heroB64 = heroParts.join("");
+const heroBytes = Uint8Array.from(atob(heroB64), (c) => c.charCodeAt(0));
+await Deno.mkdir(heroDir, { recursive: true });
+await Deno.writeFile(heroOut, heroBytes);
+
+const indexPath = "/app/templates/index.eta";
+const layoutPath = "/app/templates/_layout.eta";
+const cssPath = "/app/public/css/spotbook.css";
+
+let index = await Deno.readTextFile(indexPath);
+const startMarker = '<section class="home-canvas">';
+const resultsMarker = '  <% if (showResults) { %>';
+const start = index.indexOf(startMarker);
+const results = index.indexOf(resultsMarker, start);
+if (start < 0 || results < 0) throw new Error("Homepage markers not found");
+
+const hero = `<section class="home-canvas sb-home-v4">
+  <section class="sb-home-hero" aria-labelledby="sb-home-title">
+    <div class="sb-home-hero__shade"></div>
+    <div class="sb-home-hero__content sb-container">
+      <%
+        var _heroCopy = it.lang === 'he' ? {
+          kicker: 'אוכל טוב מחבר בין אנשים',
+          line1: 'מפנים זמן', line2: 'לשולחן.',
+          sub: 'מגלים מסעדות מעולות ומזמינים שולחן בפשטות, בכל זמן ומכל מקום.',
+          where: 'מה מחפשים?', wherePh: 'מסעדה, מטבח או אווירה',
+          city: 'עיר', allCities: 'כל הערים', cuisine: 'מטבח', allCuisine: 'כל הסוגים',
+          cta: 'מצאו שולחן', booked: 'כבר הזמנתם? מצאו את ההזמנה שלכם',
+          trust1: 'מסעדות נבחרות', trust1s: 'מקומות ששווה להכיר',
+          trust2: 'הזמנה מהירה', trust2s: 'פחות צעדים, יותר פשוט',
+          trust3: 'חוויה בטוחה', trust3s: 'פרטים ברורים לפני שמזמינים',
+          trust4: 'נבנה לסועדים', trust4s: 'נוח גם מהטלפון', explore: 'גלו עוד'
+        } : it.lang === 'ka' ? {
+          kicker: 'კარგი საჭმელი ადამიანებს აერთიანებს',
+          line1: 'გამონახე დრო', line2: 'სუფრისთვის.',
+          sub: 'აღმოაჩინე გამორჩეული რესტორნები და დაჯავშნე მაგიდა მარტივად — ნებისმიერ დროს, ნებისმიერი ადგილიდან.',
+          where: 'რას ეძებ?', wherePh: 'რესტორანი, სამზარეულო ან ატმოსფერო',
+          city: 'ქალაქი', allCities: 'ყველა ქალაქი', cuisine: 'სამზარეულო', allCuisine: 'ყველა ტიპი',
+          cta: 'იპოვე მაგიდა', booked: 'უკვე დაჯავშნე? იპოვე შენი ჯავშანი',
+          trust1: 'შერჩეული ადგილები', trust1s: 'რესტორნები, რომლებიც ღირს აღმოჩენად',
+          trust2: 'სწრაფი დაჯავშნა', trust2s: 'ნაკლები ნაბიჯი, მარტივი პროცესი',
+          trust3: 'სანდო გამოცდილება', trust3s: 'მკაფიო ინფორმაცია დაჯავშნამდე',
+          trust4: 'სტუმრებისთვის შექმნილი', trust4s: 'შესანიშნავია მობილურზეც', explore: 'აღმოაჩინე'
+        } : {
+          kicker: 'GREAT FOOD BRINGS PEOPLE TOGETHER',
+          line1: 'Make time', line2: 'for the table.',
+          sub: 'Discover standout restaurants and book your table with less friction, anytime, anywhere.',
+          where: 'What are you craving?', wherePh: 'Restaurant, cuisine or vibe',
+          city: 'City', allCities: 'All cities', cuisine: 'Cuisine', allCuisine: 'All cuisines',
+          cta: 'Find a Table', booked: 'Already booked? Find your reservation',
+          trust1: 'Curated restaurants', trust1s: 'Places worth discovering',
+          trust2: 'Fast booking', trust2s: 'Fewer steps, smoother flow',
+          trust3: 'Trusted experience', trust3s: 'Clear details before you book',
+          trust4: 'Made for diners', trust4s: 'Beautiful on mobile too', explore: 'EXPLORE'
+        };
+        var _cats = [
+          ['italian', (it.t && it.t('home.categories.italian')) || 'Italian'],
+          ['asian', (it.t && it.t('home.categories.asian')) || 'Asian'],
+          ['japanese', (it.t && it.t('home.categories.japanese')) || 'Japanese'],
+          ['steakhouse', (it.t && it.t('home.categories.steakhouse')) || 'Steakhouse'],
+          ['mediterranean', (it.t && it.t('home.categories.mediterranean')) || 'Mediterranean'],
+          ['cafe', (it.t && it.t('home.categories.cafe')) || 'Cafe'],
+          ['vegetarian', (it.t && it.t('home.categories.vegetarian')) || 'Vegetarian']
+        ];
+      %>
+      <div class="sb-home-hero__copy">
+        <div class="sb-home-hero__kicker"><%= _heroCopy.kicker %></div>
+        <h1 id="sb-home-title" class="sb-home-hero__title"><span><%= _heroCopy.line1 %></span><strong><%= _heroCopy.line2 %></strong></h1>
+        <p class="sb-home-hero__sub"><%= _heroCopy.sub %></p>
+      </div>
+
+      <div class="sb-home-search-wrap">
+        <form id="search-form" class="sb-home-search" method="GET" action="/" role="search" data-autocomplete-url="/api/restaurants">
+          <input type="hidden" name="search" value="1"/>
+          <label class="sb-home-search__segment sb-home-search__segment--query">
+            <span class="sb-home-search__icon" aria-hidden="true">⌕</span>
+            <span class="sb-home-search__control">
+              <span class="sb-home-search__label"><%= _heroCopy.where %></span>
+              <input name="q" id="q" type="search" inputmode="search" enterkeyhint="search" autocomplete="on" placeholder="<%= _heroCopy.wherePh %>" value="<%= it.q || '' %>">
+            </span>
+          </label>
+          <label class="sb-home-search__segment">
+            <span class="sb-home-search__icon" aria-hidden="true">⌖</span>
+            <span class="sb-home-search__control">
+              <span class="sb-home-search__label"><%= _heroCopy.city %></span>
+              <select name="city" aria-label="<%= _heroCopy.city %>">
+                <option value=""><%= _heroCopy.allCities %></option>
+                <% _cities.forEach(function(c){ %><option value="<%= c %>" <%= (_city && _city.toLowerCase() === String(c).toLowerCase()) ? 'selected' : '' %>><%= c %></option><% }); %>
+              </select>
+            </span>
+          </label>
+          <label class="sb-home-search__segment">
+            <span class="sb-home-search__icon" aria-hidden="true">◇</span>
+            <span class="sb-home-search__control">
+              <span class="sb-home-search__label"><%= _heroCopy.cuisine %></span>
+              <select name="category" aria-label="<%= _heroCopy.cuisine %>">
+                <option value=""><%= _heroCopy.allCuisine %></option>
+                <% _cats.forEach(function(pair){ %><option value="<%= pair[0] %>" <%= it.category === pair[0] ? 'selected' : '' %>><%= pair[1] %></option><% }); %>
+              </select>
+            </span>
+          </label>
+          <button class="sb-home-search__submit" type="submit"><span aria-hidden="true">⌕</span><%= _heroCopy.cta %></button>
+        </form>
+        <div id="ac-list" class="ac-list home-search-ac sb-home-search-ac" role="listbox" hidden></div>
+        <a class="sb-home-reservation-link" href="/find-reservation"><%= _heroCopy.booked %></a>
+      </div>
+
+      <div class="sb-home-trust" aria-label="SpotBook benefits">
+        <div class="sb-home-trust__item"><span class="sb-home-trust__icon">♨</span><span><strong><%= _heroCopy.trust1 %></strong><small><%= _heroCopy.trust1s %></small></span></div>
+        <div class="sb-home-trust__item"><span class="sb-home-trust__icon">ϟ</span><span><strong><%= _heroCopy.trust2 %></strong><small><%= _heroCopy.trust2s %></small></span></div>
+        <div class="sb-home-trust__item"><span class="sb-home-trust__icon">✓</span><span><strong><%= _heroCopy.trust3 %></strong><small><%= _heroCopy.trust3s %></small></span></div>
+        <div class="sb-home-trust__item"><span class="sb-home-trust__icon">♡</span><span><strong><%= _heroCopy.trust4 %></strong><small><%= _heroCopy.trust4s %></small></span></div>
+      </div>
+      <a class="sb-home-explore" href="#popular"><span>⌄</span><%= _heroCopy.explore %></a>
+    </div>
+  </section>
+
+`;
+index = index.slice(0, start) + hero + index.slice(results);
+index = index.replace('<section class="section home-featured-v3">', '<section id="popular" class="section home-featured-v3">');
+index = index.replace('<section class="section how-it-works-v3">', '<section id="how-it-works" class="section how-it-works-v3">');
+await Deno.writeTextFile(indexPath, index);
+
+let layout = await Deno.readTextFile(layoutPath);
+const navMarker = '<!-- SpotBook primary discovery nav v4 -->';
+if (!layout.includes(navMarker)) {
+  const brandEnd = `      </a>\n\n      <% if (it.user) { %>`;
+  const nav = `      </a>\n\n      ${navMarker}\n      <nav class="sb-primary-nav" aria-label="Primary navigation">\n        <a href="/#popular">Restaurants</a>\n        <a href="/for-restaurants">For Business</a>\n        <a href="/#how-it-works">About</a>\n      </nav>\n\n      <% if (it.user) { %>`;
+  if (!layout.includes(brandEnd)) throw new Error("Layout brand marker not found");
+  layout = layout.replace(brandEnd, nav);
+  await Deno.writeTextFile(layoutPath, layout);
+}
+
+let css = await Deno.readTextFile(cssPath);
+const cssMarker = '/* SpotBook Cinematic Homepage v4 */';
+if (!css.includes(cssMarker)) css += `
+${cssMarker}
+.sb-primary-nav{display:flex;align-items:center;gap:30px;margin-inline:auto 24px}
+.sb-primary-nav a{color:#eef4ff;text-decoration:none;font-size:.96rem;font-weight:620;opacity:.88;transition:opacity .18s ease,color .18s ease}
+.sb-primary-nav a:hover{opacity:1;color:#fff}
+
+body.sb-body:has(.sb-home-v4){background:#07101d !important}
