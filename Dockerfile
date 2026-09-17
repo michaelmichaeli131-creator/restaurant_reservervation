@@ -18,6 +18,10 @@ RUN cat .deploy2/part* \
   && mkdir -p /data \
   && chown -R deno:deno /app /data
 
+# Temporary bounded marker diagnostics while making the cinematic homepage
+# patch compatible with the archived production overlay.
+RUN grep -nE 'home-canvas|showResults|home-hero|search-form' /app/templates/index.eta | head -80 || true
+
 # Keep production patch layers separate so Railway reports the exact failing
 # layer instead of collapsing every patch into one opaque Docker build step.
 RUN deno run --allow-env --allow-read --allow-write /app/railway_runtime_patch.ts
