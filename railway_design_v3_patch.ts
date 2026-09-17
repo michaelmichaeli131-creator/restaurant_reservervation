@@ -287,7 +287,7 @@ body.sb-body:has(.sb-home-v4) .sb-home-search__segment{
 }
 @media (max-width:560px){
   body.sb-body:has(.sb-home-v4) .sb-home-hero{
-    background-position:62% calc(36% - clamp(90px,12vh,150px)) !important;
+    background-position:62% calc(36% - clamp(210px,27vh,300px)) !important;
   }
   body.sb-body:has(.sb-home-v4) .sb-home-hero__shade{
     background:
