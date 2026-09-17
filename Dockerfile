@@ -9,18 +9,29 @@ RUN apt-get update \
 WORKDIR /app
 COPY . /app
 
-# Reconstruct and apply the verified modernized SpotBook overlay.
+# The archived overlay contains the verified production backend, but its public
+# homepage shell predates the current SpotBook discovery UI. Preserve the
+# current frontend shell before extraction, then restore it over the backend
+# overlay so the cinematic v4 patch is applied to the template it was built for.
+RUN mkdir -p /tmp/spotbook-ui/templates /tmp/spotbook-ui/public/css /tmp/spotbook-ui/public \
+  && cp /app/templates/index.eta /tmp/spotbook-ui/templates/index.eta \
+  && cp /app/templates/_layout.eta /tmp/spotbook-ui/templates/_layout.eta \
+  && cp /app/public/css/spotbook.css /tmp/spotbook-ui/public/css/spotbook.css \
+  && cp /app/public/app.js /tmp/spotbook-ui/public/app.js
+
+# Reconstruct and apply the verified modernized SpotBook backend overlay.
 RUN cat .deploy2/part* \
   | base64 -d \
   | xz -d \
   | tar -x -C /app \
   && rm -rf /app/.deploy /app/.deploy2 \
+  && cp /tmp/spotbook-ui/templates/index.eta /app/templates/index.eta \
+  && cp /tmp/spotbook-ui/templates/_layout.eta /app/templates/_layout.eta \
+  && cp /tmp/spotbook-ui/public/css/spotbook.css /app/public/css/spotbook.css \
+  && cp /tmp/spotbook-ui/public/app.js /app/public/app.js \
+  && rm -rf /tmp/spotbook-ui \
   && mkdir -p /data \
   && chown -R deno:deno /app /data
-
-# Temporary bounded marker diagnostics while making the cinematic homepage
-# patch compatible with the archived production overlay.
-RUN grep -nE 'home-canvas|showResults|home-hero|search-form' /app/templates/index.eta | head -80 || true
 
 # Keep production patch layers separate so Railway reports the exact failing
 # layer instead of collapsing every patch into one opaque Docker build step.
