@@ -41,9 +41,13 @@ RUN deno run --allow-read --allow-write /app/railway_design_patch.ts
 RUN deno run --allow-read --allow-write /app/railway_design_v2_patch.ts
 RUN cat /app/assets/patch/homepage-v4.part* > /tmp/railway_homepage_v4_patch.ts \
   && deno run --allow-read --allow-write /tmp/railway_homepage_v4_patch.ts \
-  && rm -f /tmp/railway_homepage_v4_patch.ts \
+  && rm -f /tmp/railway_homepage_v4_patch.ts
+
+# Final design layer runs last so the homepage and every shared customer/owner
+# surface use the same blue mobile-first visual system.
+RUN deno run --allow-read --allow-write /app/railway_design_v3_patch.ts \
   && rm -rf /app/assets/hero /app/assets/patch \
-  && rm -f /app/railway_runtime_patch.ts /app/railway_privacy_patch.ts /app/railway_design_patch.ts /app/railway_design_v2_patch.ts
+  && rm -f /app/railway_runtime_patch.ts /app/railway_privacy_patch.ts /app/railway_design_patch.ts /app/railway_design_v2_patch.ts /app/railway_design_v3_patch.ts
 
 # The base image keeps DENO_DIR at /deno-dir. Builds run as root up to this
 # point, so make the cache writable before dropping privileges to the deno user.
