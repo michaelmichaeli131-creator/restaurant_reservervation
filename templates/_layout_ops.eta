@@ -19,6 +19,7 @@
 
   <%~ it.head || '' %>
   <link rel="stylesheet" href="/public/css/sb-tablet-support.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
+  <link rel="stylesheet" href="/public/css/spotbook-product.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
 </head>
 
 <body class="sb-body sb-kds" data-theme="dark">
@@ -27,5 +28,6 @@
   <% if (it.scripts) { it.scripts.forEach(function(src){ %>
     <script src="<%= src %>" type="module"></script>
   <% }) } %>
+  <script src="/public/js/spotbook-product.js?v=<%= it.BUILD_TAG || Date.now() %>" defer></script>
 </body>
 </html>

@@ -238,7 +238,7 @@
     </div>
 
     <div class="olp3-pricing-grid">
-      <article class="olp3-price-card">
+      <article class="olp3-price-card" data-plan="free" aria-selected="false">
         <h3><%= (it.t && it.t('for_restaurants.pricing.free_name')) || 'Free' %></h3>
         <div class="olp3-price-amount">
           <strong><%= (it.t && it.t('for_restaurants.pricing.free_price')) || '$0' %></strong>
@@ -250,10 +250,10 @@
           <li><%= (it.t && it.t('for_restaurants.pricing.free_f3')) || 'Your own booking page' %></li>
           <li><%= (it.t && it.t('for_restaurants.pricing.free_f4')) || '1 staff account' %></li>
         </ul>
-        <a class="btn secondary ghost owners-btn-secondary" href="#owner-signup"><%= (it.t && it.t('for_restaurants.pricing.free_cta')) || 'Start free' %></a>
+        <a class="btn secondary ghost owners-btn-secondary" href="?plan=free#owner-signup" data-select-plan><%= (it.t && it.t('for_restaurants.pricing.free_cta')) || 'Start free' %></a>
       </article>
 
-      <article class="olp3-price-card olp3-price-card--pro">
+      <article class="olp3-price-card olp3-price-card--pro" data-plan="pro" aria-selected="false">
         <div class="olp3-price-badge"><%= (it.t && it.t('for_restaurants.pricing.pro_badge')) || 'Most popular' %></div>
         <h3><%= (it.t && it.t('for_restaurants.pricing.pro_name')) || 'Pro' %></h3>
         <div class="olp3-price-amount">
@@ -268,10 +268,10 @@
           <li><%= (it.t && it.t('for_restaurants.pricing.pro_f5')) || 'Occasion & dietary insights' %></li>
           <li><%= (it.t && it.t('for_restaurants.pricing.pro_f6')) || 'Priority support' %></li>
         </ul>
-        <a class="btn primary owners-btn-primary" href="#owner-signup"><%= (it.t && it.t('for_restaurants.pricing.pro_cta')) || 'Start with Pro' %></a>
+        <a class="btn primary owners-btn-primary" href="?plan=pro#owner-signup" data-select-plan><%= (it.t && it.t('for_restaurants.pricing.pro_cta')) || 'Start with Pro' %></a>
       </article>
 
-      <article class="olp3-price-card">
+      <article class="olp3-price-card" data-plan="enterprise" aria-selected="false">
         <h3><%= (it.t && it.t('for_restaurants.pricing.ent_name')) || 'Enterprise' %></h3>
         <div class="olp3-price-amount">
           <strong><%= (it.t && it.t('for_restaurants.pricing.ent_price')) || 'Custom' %></strong>
@@ -283,7 +283,7 @@
           <li><%= (it.t && it.t('for_restaurants.pricing.ent_f3')) || 'Multi-location management' %></li>
           <li><%= (it.t && it.t('for_restaurants.pricing.ent_f4')) || 'Dedicated support' %></li>
         </ul>
-        <a class="btn secondary ghost owners-btn-secondary" href="#owner-signup"><%= (it.t && it.t('for_restaurants.pricing.ent_cta')) || 'Talk to us' %></a>
+        <a class="btn secondary ghost owners-btn-secondary" href="?plan=enterprise#owner-signup" data-select-plan><%= (it.t && it.t('for_restaurants.pricing.ent_cta')) || 'Talk to us' %></a>
       </article>
     </div>
 
@@ -334,7 +334,10 @@
   </div>
 </section>
 
-<section id="owner-signup" class="section owners-signup">
+<section id="owner-signup" class="section owners-signup"
+  data-plan-free="<%= (it.t && it.t('for_restaurants.pricing.free_name')) || 'Free' %>"
+  data-plan-pro="<%= (it.t && it.t('for_restaurants.pricing.pro_name')) || 'Pro' %>"
+  data-plan-enterprise="<%= (it.t && it.t('for_restaurants.pricing.ent_name')) || 'Enterprise' %>">
   <div class="sb-container owners-signup__grid">
     <div class="owners-signup__copy">
       <div class="section-kicker"><%= (it.t && it.t('for_restaurants.signup.kicker')) || 'Create your owner account' %></div>
@@ -350,6 +353,15 @@
     <div class="owners-signup-card">
       <form method="POST" action="/auth/register" class="owners-signup-form">
         <input type="hidden" name="accountType" value="owner" />
+        <input type="hidden" name="requestedPlan" value="free" />
+
+        <div class="owners-signup-selection" aria-live="polite">
+          <div class="owners-signup-selection__copy">
+            <span><%= (it.t && it.t('for_restaurants.pricing.kicker')) || 'Selected plan' %></span>
+            <strong data-selected-plan-name><%= (it.t && it.t('for_restaurants.pricing.free_name')) || 'Free' %></strong>
+          </div>
+          <a href="#pricing"><%= (it.t && it.t('for_restaurants.pricing.change')) || 'Change plan' %></a>
+        </div>
 
         <div class="owners-form-grid owners-form-grid--two">
           <label class="owners-field">

@@ -13,10 +13,17 @@ COPY . /app
 # homepage shell predates the current SpotBook discovery UI. Preserve the
 # current frontend shell before extraction, then restore it over the backend
 # overlay so the cinematic v4 patch is applied to the template it was built for.
-RUN mkdir -p /tmp/spotbook-ui/templates /tmp/spotbook-ui/public/css /tmp/spotbook-ui/public \
+RUN mkdir -p /tmp/spotbook-ui/templates/auth /tmp/spotbook-ui/routes /tmp/spotbook-ui/public/css /tmp/spotbook-ui/public/js /tmp/spotbook-ui/public \
   && cp /app/templates/index.eta /tmp/spotbook-ui/templates/index.eta \
   && cp /app/templates/_layout.eta /tmp/spotbook-ui/templates/_layout.eta \
+  && cp /app/templates/_layout_ops.eta /tmp/spotbook-ui/templates/_layout_ops.eta \
+  && cp /app/templates/for_restaurants.eta /tmp/spotbook-ui/templates/for_restaurants.eta \
+  && cp /app/templates/auth/_layout.eta /tmp/spotbook-ui/templates/auth/_layout.eta \
+  && cp /app/templates/auth/register.eta /tmp/spotbook-ui/templates/auth/register.eta \
+  && cp /app/routes/auth.ts /tmp/spotbook-ui/routes/auth.ts \
   && cp /app/public/css/spotbook.css /tmp/spotbook-ui/public/css/spotbook.css \
+  && cp /app/public/css/spotbook-product.css /tmp/spotbook-ui/public/css/spotbook-product.css \
+  && cp /app/public/js/spotbook-product.js /tmp/spotbook-ui/public/js/spotbook-product.js \
   && cp /app/public/app.js /tmp/spotbook-ui/public/app.js
 
 # Reconstruct and apply the verified modernized SpotBook backend overlay.
@@ -27,7 +34,14 @@ RUN cat .deploy2/part* \
   && rm -rf /app/.deploy /app/.deploy2 \
   && cp /tmp/spotbook-ui/templates/index.eta /app/templates/index.eta \
   && cp /tmp/spotbook-ui/templates/_layout.eta /app/templates/_layout.eta \
+  && cp /tmp/spotbook-ui/templates/_layout_ops.eta /app/templates/_layout_ops.eta \
+  && cp /tmp/spotbook-ui/templates/for_restaurants.eta /app/templates/for_restaurants.eta \
+  && cp /tmp/spotbook-ui/templates/auth/_layout.eta /app/templates/auth/_layout.eta \
+  && cp /tmp/spotbook-ui/templates/auth/register.eta /app/templates/auth/register.eta \
+  && cp /tmp/spotbook-ui/routes/auth.ts /app/routes/auth.ts \
   && cp /tmp/spotbook-ui/public/css/spotbook.css /app/public/css/spotbook.css \
+  && cp /tmp/spotbook-ui/public/css/spotbook-product.css /app/public/css/spotbook-product.css \
+  && cp /tmp/spotbook-ui/public/js/spotbook-product.js /app/public/js/spotbook-product.js \
   && cp /tmp/spotbook-ui/public/app.js /app/public/app.js \
   && rm -rf /tmp/spotbook-ui \
   && mkdir -p /data \

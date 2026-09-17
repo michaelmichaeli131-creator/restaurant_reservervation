@@ -280,8 +280,14 @@ for (const path of layouts) {
   try {
     let html = await Deno.readTextFile(path);
     if (html.includes(marker)) continue;
-    const link = `${marker}\n  <link rel="stylesheet" href="/public/css/spotbook-v3.css?v=<%= it.BUILD_TAG || Date.now() %>"/>`;
-    if (html.includes("</head>")) {
+    const link =
+      `${marker}\n  <link rel="stylesheet" href="/public/css/spotbook-v3.css?v=<%= it.BUILD_TAG || Date.now() %>"/>`;
+    const productLink =
+      '  <link rel="stylesheet" href="/public/css/spotbook-product.css';
+    if (html.includes(productLink)) {
+      html = html.replace(productLink, `  ${link}\n${productLink}`);
+      await Deno.writeTextFile(path, html);
+    } else if (html.includes("</head>")) {
       html = html.replace("</head>", `  ${link}\n</head>`);
       await Deno.writeTextFile(path, html);
     }
@@ -290,4 +296,6 @@ for (const path of layouts) {
   }
 }
 
-console.log("[design-v3] Applied final blue design system and mobile-first polish across SpotBook");
+console.log(
+  "[design-v3] Applied final blue design system and mobile-first polish across SpotBook",
+);
