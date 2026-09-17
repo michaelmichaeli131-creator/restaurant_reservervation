@@ -22,8 +22,6 @@ RUN mkdir -p /tmp/spotbook-ui/templates/auth /tmp/spotbook-ui/routes /tmp/spotbo
   && cp /app/templates/auth/register.eta /tmp/spotbook-ui/templates/auth/register.eta \
   && cp /app/routes/auth.ts /tmp/spotbook-ui/routes/auth.ts \
   && cp /app/public/css/spotbook.css /tmp/spotbook-ui/public/css/spotbook.css \
-  && cp /app/public/css/spotbook-product.css /tmp/spotbook-ui/public/css/spotbook-product.css \
-  && cp /app/public/js/spotbook-product.js /tmp/spotbook-ui/public/js/spotbook-product.js \
   && cp /app/public/app.js /tmp/spotbook-ui/public/app.js
 
 # Reconstruct and apply the verified modernized SpotBook backend overlay.
@@ -40,8 +38,6 @@ RUN cat .deploy2/part* \
   && cp /tmp/spotbook-ui/templates/auth/register.eta /app/templates/auth/register.eta \
   && cp /tmp/spotbook-ui/routes/auth.ts /app/routes/auth.ts \
   && cp /tmp/spotbook-ui/public/css/spotbook.css /app/public/css/spotbook.css \
-  && cp /tmp/spotbook-ui/public/css/spotbook-product.css /app/public/css/spotbook-product.css \
-  && cp /tmp/spotbook-ui/public/js/spotbook-product.js /app/public/js/spotbook-product.js \
   && cp /tmp/spotbook-ui/public/app.js /app/public/app.js \
   && rm -rf /tmp/spotbook-ui \
   && mkdir -p /data \

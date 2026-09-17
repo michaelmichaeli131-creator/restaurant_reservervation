@@ -46,7 +46,6 @@
 
   <%~ it.head || '' %>
   <link rel="stylesheet" href="/public/css/sb-tablet-support.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
-  <link rel="stylesheet" href="/public/css/spotbook-product.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
 
   <style>
     /* ===== Language switch (minimal clean) ===== */
@@ -180,17 +179,6 @@
         <img class="brand-logo" src="/public/img/logo-spotbook.png" alt="SpotBook Logo"/>
       </a>
 
-      <nav class="sb-primary-nav" aria-label="Primary navigation">
-        <% if (it.user && it.user.role === 'owner') { %>
-          <a href="/owner" class="<%= String(it.page || '').startsWith('owner') ? 'active' : '' %>"><%= it.t ? (it.t('nav.manage') || 'Workspace') : 'Workspace' %></a>
-          <a href="/?search=1"><%= it.t ? (it.t('nav.discover') || 'Discover') : 'Discover' %></a>
-        <% } else { %>
-          <a href="/?search=1" class="<%= it.page === 'home' ? 'active' : '' %>"><%= it.t ? (it.t('nav.discover') || 'Discover') : 'Discover' %></a>
-          <a href="/find-reservation" class="<%= it.page === 'find_reservation' ? 'active' : '' %>"><%= it.t ? (it.t('nav.findReservation') || 'Find booking') : 'Find booking' %></a>
-          <a href="/for-restaurants" class="<%= it.page === 'for_restaurants' ? 'active' : '' %>"><%= it.t ? (it.t('nav.forRestaurants') || 'For restaurants') : 'For restaurants' %></a>
-        <% } %>
-      </nav>
-
       <% if (it.user) { %>
       <div class="user-mobile">
         <%= it.t ? it.t('nav.signedin') : 'Signed in' %>:
@@ -198,15 +186,13 @@
       </div>
       <% } %>
 
-      <nav class="sb-actions" aria-label="Account actions">
+      <nav class="sb-actions" aria-label="Main actions">
         <% if (it.user) { %>
           <% if (it.user.role !== 'owner') { %>
             <a class="btn ghost btn-favs" href="/favorites" title="<%= it.t ? (it.t('nav.favorites') || 'My favorites') : 'My favorites' %>">&#10084;&#65039;</a>
             <a class="btn ghost btn-favs" href="/my-reservations" title="<%= it.t ? (it.t('nav.myReservations') || 'My reservations') : 'My reservations' %>">&#128197;</a>
           <% } %>
-          <% if (it.user.role === 'owner' || it.user.role === 'manager' || it.user.role === 'staff') { %>
-            <a class="btn primary btn-manage" href="/owner"><%= it.t ? it.t('nav.manage') : 'Workspace' %></a>
-          <% } %>
+          <a class="btn primary btn-manage" href="/owner"><%= it.t ? it.t('nav.manage') : 'Manage Restaurant' %></a>
           <a class="btn ghost btn-logout" href="/auth/logout"><%= it.t ? it.t('nav.logout') : 'Logout' %></a>
         <% } else { %>
           <a class="btn ghost" href="/auth/login"><%= it.t ? it.t('nav.login') : 'Login' %></a>
@@ -222,63 +208,15 @@
             <a class="lang-item <%= (it.lang==='he'?'active':'') %>" href="/lang/he" role="menuitem">HE</a>
           </div>
         </div>
-
-        <button class="sb-menu-button" type="button" aria-label="Open navigation" aria-controls="sbMobileMenu" aria-expanded="false">
-          <span></span><span></span><span></span>
-        </button>
       </nav>
     </div>
   </header>
-
-  <div class="sb-menu-backdrop" data-menu-close hidden></div>
-  <aside class="sb-mobile-menu" id="sbMobileMenu" aria-label="Mobile navigation" aria-hidden="true">
-    <div class="sb-mobile-menu__head">
-      <div>
-        <span class="sb-mobile-menu__eyebrow">SpotBook</span>
-        <strong><%= it.user ? [it.user.firstName, it.user.lastName].filter(Boolean).join(' ') : (it.t ? (it.t('nav.menu') || 'Menu') : 'Menu') %></strong>
-      </div>
-      <button type="button" class="sb-mobile-menu__close" data-menu-close aria-label="Close navigation">×</button>
-    </div>
-    <nav class="sb-mobile-menu__links">
-      <a href="/?search=1"><span>⌕</span><%= it.t ? (it.t('nav.discover') || 'Discover restaurants') : 'Discover restaurants' %></a>
-      <a href="/find-reservation"><span>◷</span><%= it.t ? (it.t('nav.findReservation') || 'Find a booking') : 'Find a booking' %></a>
-      <% if (it.user && it.user.role !== 'owner') { %>
-        <a href="/my-reservations"><span>▣</span><%= it.t ? (it.t('nav.myReservations') || 'My reservations') : 'My reservations' %></a>
-        <a href="/favorites"><span>♡</span><%= it.t ? (it.t('nav.favorites') || 'Favorites') : 'Favorites' %></a>
-      <% } %>
-      <% if (it.user && (it.user.role === 'owner' || it.user.role === 'manager' || it.user.role === 'staff')) { %>
-        <a href="/owner"><span>▦</span><%= it.t ? (it.t('nav.manage') || 'Restaurant workspace') : 'Restaurant workspace' %></a>
-      <% } else { %>
-        <a href="/for-restaurants"><span>↗</span><%= it.t ? (it.t('nav.forRestaurants') || 'For restaurants') : 'For restaurants' %></a>
-      <% } %>
-    </nav>
-    <div class="sb-mobile-menu__foot">
-      <% if (it.user) { %>
-        <a class="btn ghost" href="/auth/logout"><%= it.t ? it.t('nav.logout') : 'Log out' %></a>
-      <% } else { %>
-        <a class="btn ghost" href="/auth/login"><%= it.t ? it.t('nav.login') : 'Log in' %></a>
-        <a class="btn primary" href="/auth/register"><%= it.t ? it.t('nav.register') : 'Create account' %></a>
-      <% } %>
-    </div>
-  </aside>
 
   <main id="main-content" class="sb-container">
     <%~ it.body %>
   </main>
 
-  <footer class="sb-footer sb-product-footer">
-    <div class="sb-container sb-product-footer__grid">
-      <div class="sb-product-footer__brand">
-        <img src="/public/img/logo-spotbook.png" alt="SpotBook" loading="lazy"/>
-        <p><%= it.t ? (it.t('footer.tagline') || 'A clearer way to discover, book, and run great restaurants.') : 'A clearer way to discover, book, and run great restaurants.' %></p>
-      </div>
-      <nav aria-label="Footer navigation">
-        <a href="/?search=1"><%= it.t ? (it.t('nav.discover') || 'Discover') : 'Discover' %></a>
-        <a href="/find-reservation"><%= it.t ? (it.t('nav.findReservation') || 'Find booking') : 'Find booking' %></a>
-        <a href="/for-restaurants"><%= it.t ? (it.t('nav.forRestaurants') || 'For restaurants') : 'For restaurants' %></a>
-        <a href="/auth/login"><%= it.t ? it.t('nav.login') : 'Log in' %></a>
-      </nav>
-    </div>
+  <footer class="sb-footer">
     <div class="admin-bottom-right">
       <a href="/admin/login"><%= it.t ? (it.t('nav.admin') || 'Admin') : 'Admin' %></a>
     </div>
@@ -286,7 +224,6 @@
   </footer>
 
   <script src="/static/app.js?v=<%= it.BUILD_TAG || '' %>" defer></script>
-  <script src="/public/js/spotbook-product.js?v=<%= it.BUILD_TAG || Date.now() %>" defer></script>
   <script>
   (function(){
     function ready(fn){ if(document.readyState!=='loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }

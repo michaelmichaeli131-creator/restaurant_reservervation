@@ -13,7 +13,6 @@
   <!-- External fonts intentionally not loaded to keep CSP strict (style-src 'self').
        spotbook.css uses a system font stack fallback. -->
   <link rel="stylesheet" href="/public/css/spotbook.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
-  <link rel="stylesheet" href="/public/css/spotbook-product.css?v=<%= it.BUILD_TAG || Date.now() %>"/>
 
   <%~ it.head || '' %>
 
@@ -129,7 +128,6 @@
   </footer>
 
   <script src="/static/app.js?v=<%= it.BUILD_TAG || '' %>" defer></script>
-  <script src="/public/js/spotbook-product.js?v=<%= it.BUILD_TAG || Date.now() %>" defer></script>
   <script>
   (function(){
     function ready(fn){ if(document.readyState!=='loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
