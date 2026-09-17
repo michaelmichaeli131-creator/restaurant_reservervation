@@ -272,6 +272,74 @@ body.sb-body .restaurant-card img,body.sb-body .featured-card img{transition:tra
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto !important;transition-duration:.01ms !important;animation-duration:.01ms !important;animation-iteration-count:1 !important}
 }
+
+/* Homepage photo visibility fix — keep the restaurant scene readable behind the search card. */
+body.sb-body:has(.sb-home-v4) .sb-home-search{
+  background:linear-gradient(180deg,rgba(7,17,31,.66),rgba(7,17,31,.48)) !important;
+  border-color:rgba(147,197,253,.24) !important;
+  box-shadow:0 20px 52px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.10) !important;
+  backdrop-filter:blur(8px) saturate(125%) !important;
+  -webkit-backdrop-filter:blur(8px) saturate(125%) !important;
+}
+body.sb-body:has(.sb-home-v4) .sb-home-search__segment{
+  background:rgba(4,12,26,.12) !important;
+  border-color:rgba(255,255,255,.13) !important;
+}
+@media (max-width:560px){
+  body.sb-body:has(.sb-home-v4) .sb-home-hero{
+    background-position:62% 36% !important;
+  }
+  body.sb-body:has(.sb-home-v4) .sb-home-hero__shade{
+    background:
+      linear-gradient(180deg,rgba(2,8,18,.20) 0%,rgba(2,8,18,.30) 34%,rgba(2,8,18,.62) 66%,rgba(7,16,29,.92) 86%,#07101d 100%) !important;
+  }
+  body.sb-body:has(.sb-home-v4) .sb-home-search-wrap{
+    margin-top:16px !important;
+  }
+  body.sb-body:has(.sb-home-v4) .sb-home-search{
+    display:grid !important;
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    gap:0 !important;
+    padding:5px !important;
+    border-radius:17px !important;
+    background:rgba(7,17,31,.58) !important;
+  }
+  body.sb-body:has(.sb-home-v4) .sb-home-search__segment{
+    min-height:52px !important;
+    padding:5px 8px !important;
+    gap:7px !important;
+  }
+  body.sb-body:has(.sb-home-v4) .sb-home-search__segment--query{
+    grid-column:1/-1 !important;
+  }
+  body.sb-body:has(.sb-home-v4) .sb-home-search__segment:nth-of-type(2),
+  body.sb-body:has(.sb-home-v4) .sb-home-search__segment:nth-of-type(3){
+    border-bottom:0 !important;
+    border-inline-end:0 !important;
+  }
+  body.sb-body:has(.sb-home-v4) .sb-home-search__icon{
+    width:25px !important;
+    height:25px !important;
+    flex-basis:25px !important;
+    font-size:.95rem !important;
+  }
+  body.sb-body:has(.sb-home-v4) .sb-home-search__label{
+    font-size:.68rem !important;
+  }
+  body.sb-body:has(.sb-home-v4) .sb-home-search input,
+  body.sb-body:has(.sb-home-v4) .sb-home-search select{
+    font-size:15px !important;
+    min-height:24px !important;
+  }
+  body.sb-body:has(.sb-home-v4) .sb-home-search__submit{
+    grid-column:1/-1 !important;
+    min-height:48px !important;
+    margin-top:4px !important;
+    border-radius:12px !important;
+    font-size:.92rem !important;
+  }
+}
+
 `;
 
 await Deno.writeTextFile(cssOut, css);
