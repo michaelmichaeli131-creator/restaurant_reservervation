@@ -1,3 +1,4 @@
+# SpotBook Railway source refresh — 2026-09-17
 FROM denoland/deno:2.5.4
 
 USER root
