@@ -13,14 +13,9 @@ COPY . /app
 # homepage shell predates the current SpotBook discovery UI. Preserve the
 # current frontend shell before extraction, then restore it over the backend
 # overlay so the cinematic v4 patch is applied to the template it was built for.
-RUN mkdir -p /tmp/spotbook-ui/templates/auth /tmp/spotbook-ui/routes /tmp/spotbook-ui/public/css /tmp/spotbook-ui/public/js /tmp/spotbook-ui/public \
+RUN mkdir -p /tmp/spotbook-ui/templates /tmp/spotbook-ui/public/css /tmp/spotbook-ui/public \
   && cp /app/templates/index.eta /tmp/spotbook-ui/templates/index.eta \
   && cp /app/templates/_layout.eta /tmp/spotbook-ui/templates/_layout.eta \
-  && cp /app/templates/_layout_ops.eta /tmp/spotbook-ui/templates/_layout_ops.eta \
-  && cp /app/templates/for_restaurants.eta /tmp/spotbook-ui/templates/for_restaurants.eta \
-  && cp /app/templates/auth/_layout.eta /tmp/spotbook-ui/templates/auth/_layout.eta \
-  && cp /app/templates/auth/register.eta /tmp/spotbook-ui/templates/auth/register.eta \
-  && cp /app/routes/auth.ts /tmp/spotbook-ui/routes/auth.ts \
   && cp /app/public/css/spotbook.css /tmp/spotbook-ui/public/css/spotbook.css \
   && cp /app/public/app.js /tmp/spotbook-ui/public/app.js
 
@@ -32,11 +27,6 @@ RUN cat .deploy2/part* \
   && rm -rf /app/.deploy /app/.deploy2 \
   && cp /tmp/spotbook-ui/templates/index.eta /app/templates/index.eta \
   && cp /tmp/spotbook-ui/templates/_layout.eta /app/templates/_layout.eta \
-  && cp /tmp/spotbook-ui/templates/_layout_ops.eta /app/templates/_layout_ops.eta \
-  && cp /tmp/spotbook-ui/templates/for_restaurants.eta /app/templates/for_restaurants.eta \
-  && cp /tmp/spotbook-ui/templates/auth/_layout.eta /app/templates/auth/_layout.eta \
-  && cp /tmp/spotbook-ui/templates/auth/register.eta /app/templates/auth/register.eta \
-  && cp /tmp/spotbook-ui/routes/auth.ts /app/routes/auth.ts \
   && cp /tmp/spotbook-ui/public/css/spotbook.css /app/public/css/spotbook.css \
   && cp /tmp/spotbook-ui/public/app.js /app/public/app.js \
   && rm -rf /tmp/spotbook-ui \
@@ -49,9 +39,15 @@ RUN deno run --allow-env --allow-read --allow-write /app/railway_runtime_patch.t
 RUN deno run --allow-env --allow-read --allow-write /app/railway_privacy_patch.ts
 RUN deno run --allow-read --allow-write /app/railway_design_patch.ts
 RUN deno run --allow-read --allow-write /app/railway_design_v2_patch.ts
-# Remove build-only assets after the established SpotBook design layers run.
-RUN rm -rf /app/assets/hero /app/assets/patch \
-  && rm -f /app/railway_runtime_patch.ts /app/railway_privacy_patch.ts /app/railway_design_patch.ts /app/railway_design_v2_patch.ts
+RUN cat /app/assets/patch/homepage-v4.part* > /tmp/railway_homepage_v4_patch.ts \
+  && deno run --allow-read --allow-write /tmp/railway_homepage_v4_patch.ts \
+  && rm -f /tmp/railway_homepage_v4_patch.ts
+
+# Final design layer runs last so the homepage and every shared customer/owner
+# surface use the same blue mobile-first visual system.
+RUN deno run --allow-read --allow-write /app/railway_design_v3_patch.ts \
+  && rm -rf /app/assets/hero /app/assets/patch \
+  && rm -f /app/railway_runtime_patch.ts /app/railway_privacy_patch.ts /app/railway_design_patch.ts /app/railway_design_v2_patch.ts /app/railway_design_v3_patch.ts
 
 # The base image keeps DENO_DIR at /deno-dir. Builds run as root up to this
 # point, so make the cache writable before dropping privileges to the deno user.

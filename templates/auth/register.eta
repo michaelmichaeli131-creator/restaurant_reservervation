@@ -12,14 +12,6 @@ function tt(k, fb){
   }catch(e){}
   return fb;
 }
-const requestedPlan = ['free','pro','enterprise'].includes(String(it.prefill?.requestedPlan || '').toLowerCase())
-  ? String(it.prefill.requestedPlan).toLowerCase()
-  : 'free';
-const requestedPlanLabel = requestedPlan === 'pro'
-  ? ((it.t && it.t('for_restaurants.pricing.pro_name')) || 'Pro')
-  : requestedPlan === 'enterprise'
-    ? ((it.t && it.t('for_restaurants.pricing.ent_name')) || 'Enterprise')
-    : ((it.t && it.t('for_restaurants.pricing.free_name')) || 'Free');
 %>
 
 <main class="sb-auth container">
@@ -41,17 +33,6 @@ const requestedPlanLabel = requestedPlan === 'pro'
           method="post"
           enctype="application/x-www-form-urlencoded"
           novalidate>
-      <input type="hidden" name="requestedPlan" value="<%= requestedPlan %>"/>
-
-      <% if ((it.prefill?.accountType || 'customer') === 'owner') { %>
-        <div class="sb-plan-interest" style="grid-column:1/-1">
-          <span aria-hidden="true">✓</span>
-          <div>
-            <strong><%= requestedPlanLabel %></strong>
-            <div class="muted"><%= tt('auth.register.form.planHint','Your selected plan is saved with your application. Paid access is activated only after confirmation.') %></div>
-          </div>
-        </div>
-      <% } %>
 
       <!-- שם פרטי -->
       <div class="form-row">

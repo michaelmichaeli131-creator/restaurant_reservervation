@@ -8,37 +8,34 @@
 import { Router, Status } from "jsr:@oak/oak";
 
 import {
-  createResetToken,
   createUser,
-  createVerifyToken,
   findUserByEmail,
-  getUserById,
-  setEmailVerified,
-  setSubscription,
-  updateUserPassword,
-  useResetToken,
+  createVerifyToken,
+  createResetToken,
   useVerifyToken,
+  useResetToken,
+  setEmailVerified,
+  updateUserPassword,
+  getUserById,
 } from "../database.ts";
 
 import { hashPassword, verifyPassword } from "../lib/auth.ts";
 import { render } from "../lib/view.ts";
 // עטיפות האימיילים עם תמיכה בשפה
-import { sendResetEmail, sendVerifyEmail } from "../lib/mail_wrappers.ts";
+import { sendVerifyEmail, sendResetEmail } from "../lib/mail_wrappers.ts";
 
 export const authRouter = new Router();
 
 const AUTH_I18N: Record<string, Record<string, string>> = {
   en: {
-    staff_no_signup:
-      "Staff sign-up is disabled. Ask the restaurant owner to create your account.",
+    staff_no_signup: "Staff sign-up is disabled. Ask the restaurant owner to create your account.",
     fill_required: "Please fill in all required fields",
     passwords_mismatch: "Passwords do not match",
     password_min_8: "Password must contain at least 8 characters",
     email_exists: "This email address already exists in the system",
     login_fill: "Please enter email and password",
     login_invalid: "Incorrect email or password",
-    email_verify_required:
-      "Email verification is required before logging in. We sent you another verification link.",
+    email_verify_required: "Email verification is required before logging in. We sent you another verification link.",
     account_disabled: "This account is disabled. Please contact support.",
     change_fill_all: "Please fill in all fields",
     current_password_wrong: "Current password is incorrect",
@@ -46,28 +43,23 @@ const AUTH_I18N: Record<string, Record<string, string>> = {
     bad_link: "Invalid link",
     bad_or_expired_link: "Invalid or expired link",
     provide_email: "Please provide an email address",
-    verify_if_exists:
-      "If the email exists in the system, a verification link has been sent.",
-    account_already_verified:
-      "The account is already verified. You can log in.",
+    verify_if_exists: "If the email exists in the system, a verification link has been sent.",
+    account_already_verified: "The account is already verified. You can log in.",
     verify_resent: "A verification link has been resent to your email inbox.",
     enter_email: "Please enter an email address",
-    reset_if_exists:
-      "If the email exists in the system, a password reset link has been sent.",
+    reset_if_exists: "If the email exists in the system, a password reset link has been sent.",
     confirm_password_mismatch: "Password confirmation does not match",
-    user_not_found: "User not found",
+    user_not_found: "User not found"
   },
   he: {
-    staff_no_signup:
-      "אין הרשמה לעובדים. פנה/י לבעל המסעדה כדי שיצור עבורך משתמש.",
+    staff_no_signup: "אין הרשמה לעובדים. פנה/י לבעל המסעדה כדי שיצור עבורך משתמש.",
     fill_required: "נא למלא את כל השדות החיוניים",
     passwords_mismatch: "הסיסמאות אינן תואמות",
     password_min_8: "הסיסמה צריכה להכיל לפחות 8 תווים",
     email_exists: "כתובת הדוא״ל כבר קיימת במערכת",
     login_fill: "נא להזין דוא״ל וסיסמה",
     login_invalid: "דוא״ל או סיסמה שגויים",
-    email_verify_required:
-      "נדרש אימות דוא״ל לפני התחברות. שלחנו לך קישור אימות נוסף.",
+    email_verify_required: "נדרש אימות דוא״ל לפני התחברות. שלחנו לך קישור אימות נוסף.",
     account_disabled: "החשבון מבוטל. פנה/י לתמיכה.",
     change_fill_all: "נא למלא את כל השדות",
     current_password_wrong: "הסיסמה הנוכחית שגויה",
@@ -81,42 +73,36 @@ const AUTH_I18N: Record<string, Record<string, string>> = {
     enter_email: "נא להזין דוא״ל",
     reset_if_exists: "אם הדוא״ל קיים במערכת, נשלח קישור לאיפוס סיסמה.",
     confirm_password_mismatch: "אימות סיסמה לא תואם",
-    user_not_found: "משתמש לא נמצא",
+    user_not_found: "משתמש לא נמצא"
   },
   ka: {
-    staff_no_signup:
-      "პერსონალისთვის თვითრეგისტრაცია გამორთულია. სთხოვეთ რესტორნის მფლობელს, შეგიქმნათ ანგარიში.",
+    staff_no_signup: "პერსონალისთვის თვითრეგისტრაცია გამორთულია. სთხოვეთ რესტორნის მფლობელს, შეგიქმნათ ანგარიში.",
     fill_required: "გთხოვთ, შეავსოთ ყველა სავალდებულო ველი",
     passwords_mismatch: "პაროლები არ ემთხვევა",
     password_min_8: "პაროლი უნდა შეიცავდეს მინიმუმ 8 სიმბოლოს",
     email_exists: "ეს ელ-ფოსტა უკვე გამოყენებულია.",
     login_fill: "გთხოვთ, შეიყვანოთ ელ-ფოსტა და პაროლი",
     login_invalid: "ელ-ფოსტა ან პაროლი არასწორია",
-    email_verify_required:
-      "შესვლამდე საჭიროა ელ-ფოსტის დადასტურება. ახალი ბმული უკვე გამოგიგზავნეთ.",
-    account_disabled:
-      "ეს ანგარიში გამორთულია. გთხოვთ, დაუკავშირდეთ მხარდაჭერას.",
+    email_verify_required: "შესვლამდე საჭიროა ელ-ფოსტის დადასტურება. ახალი ბმული უკვე გამოგიგზავნეთ.",
+    account_disabled: "ეს ანგარიში გამორთულია. გთხოვთ, დაუკავშირდეთ მხარდაჭერას.",
     change_fill_all: "გთხოვთ, შეავსოთ ყველა ველი",
     current_password_wrong: "მიმდინარე პაროლი არასწორია",
     password_updated: "პაროლი წარმატებით განახლდა",
     bad_link: "არასწორი ბმული",
     bad_or_expired_link: "ბმული არასწორია ან ვადა გაუვიდა.",
     provide_email: "გთხოვთ, მიუთითოთ ელ-ფოსტის მისამართი",
-    verify_if_exists:
-      "თუ ეს ელ-ფოსტა ჩვენს სისტემაშია, დამადასტურებელი ბმული უკვე გამოგზავნილია.",
-    account_already_verified:
-      "ანგარიში უკვე დადასტურებულია. შეგიძლიათ შეხვიდეთ.",
+    verify_if_exists: "თუ ეს ელ-ფოსტა ჩვენს სისტემაშია, დამადასტურებელი ბმული უკვე გამოგზავნილია.",
+    account_already_verified: "ანგარიში უკვე დადასტურებულია. შეგიძლიათ შეხვიდეთ.",
     verify_resent: "დამადასტურებელი ბმული ხელახლა გამოგიგზავნეთ.",
     enter_email: "გთხოვთ, შეიყვანოთ ელ-ფოსტა",
-    reset_if_exists:
-      "თუ ეს ელ-ფოსტა ჩვენს სისტემაშია, პაროლის აღდგენის ბმული უკვე გამოგზავნილია.",
+    reset_if_exists: "თუ ეს ელ-ფოსტა ჩვენს სისტემაშია, პაროლის აღდგენის ბმული უკვე გამოგზავნილია.",
     confirm_password_mismatch: "პაროლის დადასტურება არ ემთხვევა",
-    user_not_found: "მომხმარებელი ვერ მოიძებნა",
-  },
+    user_not_found: "მომხმარებელი ვერ მოიძებნა"
+  }
 };
 
 function authMsg(ctx: any, key: string): string {
-  const lang = String(ctx.state?.lang || "en");
+  const lang = String(ctx.state?.lang || 'en');
   return AUTH_I18N[lang]?.[key] || AUTH_I18N.en[key] || key;
 }
 
@@ -138,7 +124,7 @@ const lower = (s: string) => s.trim().toLowerCase();
 
 function pageTitle(ctx: any, key: string, fb: string): string {
   const t = (ctx.state as any)?.t;
-  if (typeof t === "function") {
+  if (typeof t === 'function') {
     const s = t(key);
     if (s && s !== key && s !== `(${key})`) return s;
   }
@@ -196,24 +182,9 @@ async function readForm(ctx: any): Promise<Record<string, string>> {
 /* ---------------- Register ---------------- */
 
 authRouter.get("/auth/register", async (ctx) => {
-  const hasPlanChoice = ctx.request.url.searchParams.has("plan");
-  const requestedPlanRaw = String(
-    ctx.request.url.searchParams.get("plan") || "free",
-  ).toLowerCase();
-  const requestedPlan = ["free", "pro", "enterprise"].includes(requestedPlanRaw)
-    ? requestedPlanRaw
-    : "free";
   await render(ctx, "auth/register", {
     title: pageTitle(ctx, "page_titles.register", "הרשמה"),
     page: "register",
-    prefill: {
-      accountType:
-        ctx.request.url.searchParams.get("accountType") === "owner" ||
-          hasPlanChoice
-          ? "owner"
-          : "customer",
-      requestedPlan,
-    },
   });
 });
 
@@ -227,11 +198,6 @@ authRouter.post("/auth/register", async (ctx) => {
   const confirm = String(b.confirm ?? b.passwordConfirm ?? "");
   const businessType = String(b.businessType ?? "").trim();
   const phone = String(b.phone ?? "").trim();
-  const requestedPlanRaw = String(b.requestedPlan ?? "free").trim()
-    .toLowerCase();
-  const requestedPlan = ["free", "pro", "enterprise"].includes(requestedPlanRaw)
-    ? requestedPlanRaw
-    : "free";
 
   // סוג חשבון ציבורי: customer / owner בלבד
   const rawAccountType = String(b.accountType ?? "").trim();
@@ -248,25 +214,15 @@ authRouter.post("/auth/register", async (ctx) => {
         businessType,
         phone,
         accountType: "owner",
-        requestedPlan,
       },
     });
     return;
   }
 
-  const accountType: "customer" | "owner" = rawAccountType === "owner"
-    ? "owner"
-    : "customer";
+  const accountType: "customer" | "owner" =
+    rawAccountType === "customer" ? "customer" : "owner";
 
-  const prefill = {
-    firstName,
-    lastName,
-    email,
-    businessType,
-    phone,
-    accountType,
-    requestedPlan,
-  };
+  const prefill = { firstName, lastName, email, businessType, phone, accountType };
 
   if (!firstName || !lastName || !email || !password) {
     ctx.response.status = Status.BadRequest;
@@ -318,9 +274,7 @@ authRouter.post("/auth/register", async (ctx) => {
 
   // מיפוי accountType → user.role
   // customer → user, owner → owner
-  const targetRole: "user" | "owner" = accountType === "customer"
-    ? "user"
-    : "owner";
+  const targetRole: "user" | "owner" = accountType === "customer" ? "user" : "owner";
 
   const created = await createUser({
     firstName,
@@ -332,15 +286,6 @@ authRouter.post("/auth/register", async (ctx) => {
     role: targetRole as any, // createUser טייפ ישן ("user" | "owner") – גוררים ידנית
     provider: "local",
   } as any);
-
-  // Billing is intentionally manual during the soft launch. Record the plan
-  // the owner selected without granting paid access before payment/approval.
-  if (accountType === "owner") {
-    await setSubscription(created.id, {
-      tier: "free",
-      note: `signup_interest:${requestedPlan}`,
-    });
-  }
 
   // אין הרשמה ציבורית לעובדים — יצירת StaffMember מתבצעת רק ע"י בעלים מתוך /owner/staff
 
@@ -358,7 +303,8 @@ authRouter.post("/auth/register", async (ctx) => {
     title: pageTitle(ctx, "page_titles.verify_email", "בדיקת דוא״ל"),
     page: "verify",
     email: created.email,
-    resendUrl: `/auth/verify/resend?email=${encodeURIComponent(created.email)}`,
+    resendUrl:
+      `/auth/verify/resend?email=${encodeURIComponent(created.email)}`,
   });
 });
 
@@ -410,7 +356,8 @@ authRouter.post("/auth/login", async (ctx) => {
     await render(ctx, "auth/login", {
       title: pageTitle(ctx, "page_titles.login", "התחברות"),
       page: "login",
-      error: authMsg(ctx, "email_verify_required"),
+      error:
+        authMsg(ctx, "email_verify_required"),
       verifyResend: true,
     });
     return;
@@ -439,19 +386,12 @@ authRouter.post("/auth/login", async (ctx) => {
 
   const session = (ctx.state as any).session;
   if (session) {
-    await session.regenerate?.(String(b.remember || "") === "1");
     await session.set("userId", user.id);
   }
 
   // שמרתי את ההתנהגות הקיימת כדי לא לשבור כלום:
   // admin → /admin, כל השאר → /owner
-  ctx.response.redirect(
-    (user.role as string) === "admin"
-      ? "/admin"
-      : user.role === "user"
-      ? "/my-reservations"
-      : "/owner",
-  );
+  ctx.response.redirect(user.role === "admin" ? "/admin" : "/owner");
 });
 
 /* ---------------- Logout ---------------- */
@@ -467,6 +407,8 @@ async function doLogout(ctx: any) {
 // תמיכה גם ב-POST (מכפתור/טופס) וגם ב-GET (מלינק פשוט)
 authRouter.post("/auth/logout", doLogout);
 authRouter.get("/auth/logout", doLogout);
+
+
 
 /* ---------------- Change password (logged-in) ---------------- */
 
@@ -560,6 +502,8 @@ authRouter.post("/auth/change-password", async (ctx) => {
   });
 });
 
+
+
 /* ---------------- Email verify ---------------- */
 
 authRouter.get("/auth/verify", async (ctx) => {
@@ -570,7 +514,7 @@ authRouter.get("/auth/verify", async (ctx) => {
     await render(ctx, "verify_notice", {
       title: pageTitle(ctx, "page_titles.verify", "אימות דוא״ל"),
       page: "verify",
-      infoKey: "auth.verify.info.linkInvalid", // ⭐
+      infoKey: "auth.verify.info.linkInvalid",             // ⭐
       info: authMsg(ctx, "bad_link"),
     });
     return;
@@ -582,7 +526,7 @@ authRouter.get("/auth/verify", async (ctx) => {
     await render(ctx, "verify_notice", {
       title: pageTitle(ctx, "page_titles.verify", "אימות דוא״ל"),
       page: "verify",
-      infoKey: "auth.verify.info.linkInvalidOrExpired", // ⭐
+      infoKey: "auth.verify.info.linkInvalidOrExpired",    // ⭐
       info: authMsg(ctx, "bad_or_expired_link"),
     });
     return;
@@ -608,7 +552,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
     await render(ctx, "verify_notice", {
       title: pageTitle(ctx, "page_titles.resend_verify", "שליחת אימות"),
       page: "verify",
-      infoKey: "auth.verify.info.needEmail", // ⭐
+      infoKey: "auth.verify.info.needEmail",               // ⭐
       info: authMsg(ctx, "provide_email"),
     });
     return;
@@ -620,7 +564,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
     await render(ctx, "verify_notice", {
       title: pageTitle(ctx, "page_titles.resend_verify", "שליחת אימות"),
       page: "verify",
-      infoKey: "auth.verify.info.maybeExists", // ⭐
+      infoKey: "auth.verify.info.maybeExists",             // ⭐
       info: authMsg(ctx, "verify_if_exists"),
     });
     return;
@@ -630,7 +574,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
     await render(ctx, "verify_notice", {
       title: pageTitle(ctx, "page_titles.resend_verify", "שליחת אימות"),
       page: "verify",
-      infoKey: "auth.verify.info.alreadyVerified", // ⭐
+      infoKey: "auth.verify.info.alreadyVerified",         // ⭐
       info: authMsg(ctx, "account_already_verified"),
     });
     return;
@@ -647,7 +591,7 @@ authRouter.get("/auth/verify/resend", async (ctx) => {
   await render(ctx, "verify_notice", {
     title: pageTitle(ctx, "page_titles.resend_verify", "שליחת אימות"),
     page: "verify",
-    infoKey: "auth.verify.info.resent", // ⭐
+    infoKey: "auth.verify.info.resent",                   // ⭐
     info: authMsg(ctx, "verify_resent"),
   });
 });
