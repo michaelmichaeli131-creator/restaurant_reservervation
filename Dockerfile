@@ -18,13 +18,13 @@ RUN cat .deploy2/part* \
   && mkdir -p /data \
   && chown -R deno:deno /app /data
 
-# Apply Railway/TLS compatibility, privacy hardening, then the reproducible
-# design layers after the overlay has replaced the source tree.
-RUN deno run --allow-env --allow-read --allow-write /app/railway_runtime_patch.ts \
-  && deno run --allow-env --allow-read --allow-write /app/railway_privacy_patch.ts \
-  && deno run --allow-read --allow-write /app/railway_design_patch.ts \
-  && deno run --allow-read --allow-write /app/railway_design_v2_patch.ts \
-  && cat /app/assets/patch/homepage-v4.part* > /tmp/railway_homepage_v4_patch.ts \
+# Keep production patch layers separate so Railway reports the exact failing
+# layer instead of collapsing every patch into one opaque Docker build step.
+RUN deno run --allow-env --allow-read --allow-write /app/railway_runtime_patch.ts
+RUN deno run --allow-env --allow-read --allow-write /app/railway_privacy_patch.ts
+RUN deno run --allow-read --allow-write /app/railway_design_patch.ts
+RUN deno run --allow-read --allow-write /app/railway_design_v2_patch.ts
+RUN cat /app/assets/patch/homepage-v4.part* > /tmp/railway_homepage_v4_patch.ts \
   && deno run --allow-read --allow-write /tmp/railway_homepage_v4_patch.ts \
   && rm -f /tmp/railway_homepage_v4_patch.ts \
   && rm -rf /app/assets/hero /app/assets/patch \
