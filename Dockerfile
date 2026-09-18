@@ -1,4 +1,11 @@
 # SpotBook Railway source refresh — 2026-09-17
+FROM node:22-bookworm-slim AS floor-build
+WORKDIR /floor/client
+COPY client/package.json client/package-lock.json ./
+RUN npm ci --ignore-scripts
+COPY client/ ./
+RUN npm run build
+
 FROM denoland/deno:2.5.4
 
 USER root
@@ -55,6 +62,9 @@ RUN deno run --allow-env --allow-read --allow-write /app/railway_approved_design
 # Final screenshot-alignment layer: quarter-hour selectors, fuller imagery, and
 # page-specific workspace layout refinements.
 RUN deno run --allow-env --allow-read --allow-write /app/railway_refinement_patch.ts
+
+# Compile the authoritative editor source and restore it after the old overlay.
+COPY --from=floor-build /floor/public/dist/ /app/public/dist/
 
 # The base image keeps DENO_DIR at /deno-dir. Builds run as root up to this
 # point, so make the cache writable before dropping privileges to the deno user.

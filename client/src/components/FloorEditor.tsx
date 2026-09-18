@@ -139,6 +139,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   }>(null);
 
   const [cellSize, setCellSize] = useState(60);
+  const resizeCleanup = useRef<(() => void) | null>(null);
+  useEffect(() => () => resizeCleanup.current?.(), []);
 
   const clearSelection = () => {
     setSelectedTableId(null);
@@ -1009,7 +1011,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   };
 
   const beginResizeItem = (
-    e: React.MouseEvent,
+    e: React.PointerEvent,
     kind: 'table' | 'object',
     id: string,
     anchorX: number,
@@ -1019,48 +1021,64 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   ) => {
     e.preventDefault();
     e.stopPropagation();
-    setResizeDraft({
+    if (e.button !== 0 || !currentLayout) return;
+    resizeCleanup.current?.();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const pointerId = e.pointerId;
+    const pixelsPerCell = cellSize * zoomRef.current;
+    const object = kind === 'object' ? currentLayout.objects?.find(o => o.id === id) : null;
+    const angle = getItemRotation(object?.rotationDeg ?? object?.rotation ?? 0) * Math.PI / 180;
+    let draft = {
       kind,
       id,
       anchorX,
       anchorY,
       spanX: Math.max(1, spanX || 1),
       spanY: Math.max(1, spanY || 1),
-    });
-  };
-
-  useEffect(() => {
-    if (!resizeDraft || !currentLayout) return;
-
-    const onMove = (ev: MouseEvent) => {
-      const cell = clientPointToGridCell(ev.clientX, ev.clientY);
-      if (!cell) return;
-
-      const nextSpanX = Math.max(1, Math.min(currentLayout.gridCols - resizeDraft.anchorX, cell.x - resizeDraft.anchorX + 1));
-      const nextSpanY = Math.max(1, Math.min(currentLayout.gridRows - resizeDraft.anchorY, cell.y - resizeDraft.anchorY + 1));
-
-      if (!maskAllows(resizeDraft.anchorX, resizeDraft.anchorY, nextSpanX, nextSpanY)) {
-        return;
-      }
-
-      setResizeDraft((prev) => prev ? { ...prev, spanX: nextSpanX, spanY: nextSpanY } : prev);
     };
-
-    const onUp = () => {
-      if (resizeDraft.kind === 'table') {
-        updateTable(resizeDraft.id, { spanX: resizeDraft.spanX, spanY: resizeDraft.spanY });
-      } else {
-        updateObject(resizeDraft.id, { spanX: resizeDraft.spanX, spanY: resizeDraft.spanY });
-      }
+    setResizeDraft(draft);
+    const initialX = draft.spanX;
+    const initialY = draft.spanY;
+    const onMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      ev.preventDefault();
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      const nextSpanX = Math.max(1, Math.min(currentLayout.gridCols - anchorX,
+        initialX + Math.round((dx * Math.cos(angle) + dy * Math.sin(angle)) / pixelsPerCell)));
+      const nextSpanY = Math.max(1, Math.min(currentLayout.gridRows - anchorY,
+        initialY + Math.round((-dx * Math.sin(angle) + dy * Math.cos(angle)) / pixelsPerCell)));
+      if (!maskAllows(anchorX, anchorY, nextSpanX, nextSpanY)) return;
+      draft = { ...draft, spanX: nextSpanX, spanY: nextSpanY };
+      setResizeDraft(draft);
+    };
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('blur', cancel);
+      resizeCleanup.current = null;
+    };
+    const cancel = () => { cleanup(); setResizeDraft(null); };
+    const onCancel = (ev: PointerEvent) => { if (ev.pointerId === pointerId) cancel(); };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') cancel(); };
+    const onUp = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      onMove(ev);
+      cleanup();
+      const update = kind === 'table' ? updateTable : updateObject;
+      update(id, { spanX: draft.spanX, spanY: draft.spanY });
       setResizeDraft(null);
     };
-
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp, { once: true });
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-    };
-  }, [resizeDraft, currentLayout]);
+    resizeCleanup.current = cleanup;
+    window.addEventListener('pointermove', onMove, { passive: false });
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('blur', cancel);
+  };
 
   // ---- Pointer-based drag (precise, stable) ----
   const beginPointerDragNew = (
@@ -1418,15 +1436,29 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   const updateObject = (objectId: string, updates: Partial<FloorObject>) => {
     if (!currentLayout) return;
     const objects = currentLayout.objects ?? [];
+    const item = objects.find(o => o.id === objectId);
+    if (item && !validateSizeUpdate(item, updates)) return;
     const nextObjects = objects.map(o => o.id === objectId ? { ...o, ...updates } : o);
     setCurrentLayout({ ...currentLayout, objects: nextObjects });
 };
 
   const updateTable = (tableId: string, updates: Partial<FloorTable>) => {
     if (!currentLayout) return;
+    const item = currentLayout.tables.find(t => t.id === tableId);
+    if (item && !validateSizeUpdate(item, updates)) return;
     const nextTables = currentLayout.tables.map(t => t.id === tableId ? { ...t, ...updates } : t);
     setCurrentLayout({ ...currentLayout, tables: nextTables });
 };
+
+  function validateSizeUpdate(item: FloorTable | FloorObject, updates: { spanX?: number; spanY?: number }) {
+    if (!currentLayout || (updates.spanX === undefined && updates.spanY === undefined)) return true;
+    const width = Math.max(1, Math.min(currentLayout.gridCols - item.gridX, Math.round(updates.spanX ?? item.spanX)));
+    const height = Math.max(1, Math.min(currentLayout.gridRows - item.gridY, Math.round(updates.spanY ?? item.spanY)));
+    if (!maskAllows(item.gridX, item.gridY, width, height)) return false;
+    updates.spanX = width;
+    updates.spanY = height;
+    return true;
+  }
 
   const saveCurrentLayout = async () => {
     if (!currentLayout) return;
@@ -2285,7 +2317,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                           </button>
                           <div
                             className="fe-resize-handle"
-                            onMouseDown={(e) => beginResizeItem(e, 'object', objectHere.id, objectHere.gridX, objectHere.gridY, objectHere.spanX || 1, objectHere.spanY || 1)}
+                            style={{ transform: `scale(${1 / zoom})` }}
+                            onPointerDown={(e) => beginResizeItem(e, 'object', objectHere.id, objectHere.gridX, objectHere.gridY, objectHere.spanX || 1, objectHere.spanY || 1)}
+                            onMouseDown={(e) => e.stopPropagation()}
                             title={t('floor.properties.resize_hint', 'Drag to resize')}
                           />
                         </>
@@ -2336,7 +2370,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                           </button>
                           <div
                             className="fe-resize-handle"
-                            onMouseDown={(e) => beginResizeItem(e, 'table', tableHere.id, tableHere.gridX, tableHere.gridY, tableHere.spanX || 1, tableHere.spanY || 1)}
+                            style={{ transform: `scale(${1 / zoom})` }}
+                            onPointerDown={(e) => beginResizeItem(e, 'table', tableHere.id, tableHere.gridX, tableHere.gridY, tableHere.spanX || 1, tableHere.spanY || 1)}
+                            onMouseDown={(e) => e.stopPropagation()}
                             title={t('floor.properties.resize_hint', 'Drag to resize')}
                           />
                         </>

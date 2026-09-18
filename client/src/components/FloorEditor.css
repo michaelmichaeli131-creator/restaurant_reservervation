@@ -490,17 +490,24 @@
 
 .fe-resize-handle{
   position: absolute;
-  right: -8px;
-  bottom: -8px;
+  right: -14px;
+  bottom: -14px;
   z-index: 30;
-  width: 18px;
-  height: 18px;
-  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  touch-action: none;
+  user-select: none;
   border: 2px solid rgba(255,255,255,.95);
   background: linear-gradient(135deg, rgba(37,99,235,.98), rgba(56,156,255,.98));
   box-shadow: 0 8px 18px rgba(0,0,0,.28);
   cursor: nwse-resize;
 }
+
+.fe-resize-handle:hover{background:#60a5fa;box-shadow:0 0 0 6px #3b82f633}
+.table.selected,.floor-object.selected{outline:2px solid #60a5fa;outline-offset:3px;overflow:visible}
+.properties-panel input[type="number"]{min-height:44px;width:100%;font-variant-numeric:tabular-nums}
+.properties-panel .fe-hint{line-height:1.5;color:#a8bfdc}
 
 .fe-resize-handle::before,
 .fe-resize-handle::after{
