@@ -76,3 +76,94 @@ body:has(.sb-approved--owner)>main.sb-container{max-width:1600px!important;width
 @media print{.sb-design-nav,.sb-design-photo,.sb-design-icon{display:none!important}.sb-approved--owner{display:block}.sb-approved{color:black!important}.sb-approved .sb-design-workspace{padding:0}}
 .sb-approved .table{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
 @media(min-width:1100px){.sb-page-owner_inventory_suppliers .sb-owner>.card>.panel:last-of-type{grid-column:1;grid-row:2;align-self:start}.sb-page-owner_inventory_suppliers .sb-owner>.card>.panel:first-of-type{grid-column:2;grid-row:2}}
+
+/* September 2026 refinement: screenshot-aligned layouts, fuller imagery, and
+   quarter-hour time selectors. These rules intentionally come last so they
+   refine the shared wrapper without changing page-specific behavior. */
+.sb-approved .sb-time-select{font-variant-numeric:tabular-nums;min-width:126px}
+.sb-design-photo img{object-position:center center}
+.sb-approved--customer .sb-design-photo{height:330px}
+.sb-approved--customer .sb-design-photo img{object-position:center center}
+.sb-approved--customer-wide .sb-design-photo{height:300px;border-radius:14px}
+.sb-approved--customer-wide .sb-design-photo img{object-position:center center}
+.sb-approved--owner .sb-design-photo{height:150px}
+.sb-approved--owner .sb-design-photo img{object-position:center 50%}
+.sb-approved--ops .sb-design-photo{height:132px}
+.sb-approved--ops .sb-design-photo img{object-position:center 50%}
+
+/* Restaurant gallery images should remain legible instead of being forced into
+   tiny cover crops. The dark backing keeps letterboxed landscape photos clean. */
+.sb-page-restaurant_detail .photo-grid .photo,
+.sb-page-restaurant_detail .photo-grid img{height:auto;min-height:180px;max-height:330px;aspect-ratio:16/9;object-fit:contain;background:#071727}
+.sb-page-restaurant_detail .photo-grid .photo{display:flex;align-items:center;justify-content:center}
+.sb-approved--owner .photo-card img{object-fit:contain;background:#071727}
+
+/* Deposit page: title, panoramic image, and the payment flow share the same
+   readable column while keeping the image wide enough to show the setting. */
+.sb-page-reservation_payment{max-width:960px!important;margin:0 auto 48px!important}
+.sb-page-reservation_payment .sb-design-workspace{border-radius:0!important;box-shadow:none!important;background:transparent!important}
+.sb-page-reservation_payment .sb-design-content{padding:28px 44px 48px!important}
+.sb-page-reservation_payment .sb-payment.container{max-width:860px!important;margin:0 auto!important;padding:0!important}
+.sb-page-reservation_payment .sb-payment .page-header{text-align:start;margin-bottom:18px}
+.sb-page-reservation_payment .page-header h1{font-size:clamp(30px,4vw,44px)}
+.sb-page-reservation_payment .sb-design-photo{height:320px;border:1px solid #294159;border-radius:16px;margin:0 0 22px}
+.sb-page-reservation_payment .sb-design-photo img{object-fit:cover;object-position:center 52%}
+.sb-page-reservation_payment .sb-payment .card{padding:24px!important;margin-bottom:18px}
+.sb-page-reservation_payment .summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.sb-page-reservation_payment .summary-item{background:#0e2236;border:1px solid #203b56;padding:15px 16px}
+.sb-page-reservation_payment .deposit-card{background:#0d2135!important;border-color:#285078!important}
+.sb-page-reservation_payment .deposit-header{gap:18px}
+.sb-page-reservation_payment .deposit-amount{font-size:38px;white-space:nowrap}
+.sb-page-reservation_payment .payment-methods{gap:12px}
+.sb-page-reservation_payment .payment-btn{background:#0e2236;border-color:#3262a0;padding:16px 18px}
+.sb-page-reservation_payment .confirm-card button{width:100%;min-height:58px;font-size:18px}
+
+/* Shift management: give the week board the space it needs and keep the
+   create-shift form compact, matching the reference desktop composition. */
+.sb-page-owner_shifts .sb-design-content{width:100%}
+.sb-page-owner_shifts .sb-grid{grid-template-columns:minmax(0,1fr) minmax(260px,300px)!important;align-items:start;gap:18px}
+.sb-page-owner_shifts .sb-left{grid-column:2;grid-row:1}
+.sb-page-owner_shifts .sb-right{grid-column:1;grid-row:1}
+.sb-page-owner_shifts .sb-left,.sb-page-owner_shifts .sb-right{min-width:0}
+.sb-page-owner_shifts #weekBoard{overflow-x:auto;padding-bottom:6px}
+.sb-page-owner_shifts #weekBoard .board-grid{min-width:840px;grid-template-columns:repeat(7,minmax(110px,1fr));gap:8px}
+.sb-page-owner_shifts #weekBoard .day{min-height:400px;padding:10px 8px;border-radius:8px}
+
+/* Floor plan and bar KDS are dense workspaces; avoid squeezing their canvases
+   inside the owner shell. */
+.sb-page-owner_floor .sb-design-workspace{padding:0 16px 24px!important}
+.sb-page-owner_floor .sb-design-photo{height:132px;margin:0 -16px 20px}
+.sb-page-owner_floor .sb-design-content{padding:0!important}
+.sb-page-owner_floor .app{min-height:0;height:100%}
+.sb-page-owner_floor .app-header{flex-shrink:0;flex-wrap:wrap;gap:12px;padding:12px 16px}
+.sb-page-owner_floor .app-main{min-height:0;padding:0;display:flex;flex-direction:column}
+.sb-page-owner_floor .floor-editor{height:100%;min-height:0;flex:1}
+.sb-page-owner_floor .editor-content{min-height:0}
+.sb-page-owner_floor .editor-canvas{min-width:0;min-height:360px}
+.sb-page-owner_floor .layout-tabs-bar{flex-wrap:wrap;gap:10px}
+.sb-page-owner_floor .table{overflow:visible}
+.sb-page-owner_floor .floor-page,.sb-page-owner_floor .floor-container,.sb-page-owner_floor #root{width:100%!important;min-height:calc(100svh - 190px)!important;height:calc(100svh - 190px)!important}
+.sb-page-pos_bar .sb-design-workspace{padding:0 24px 28px!important}
+.sb-page-pos_bar .sb-design-photo{height:132px;margin:0 -24px 0}
+.sb-page-pos_bar .sb-design-content{padding:0!important}
+.sb-page-pos_bar .kds-shell{min-height:calc(100svh - 132px);padding:14px 0 24px;gap:14px}
+.sb-page-pos_bar .kds-board{width:100%;min-width:0}
+.sb-page-pos_bar .kds-columns{grid-template-columns:repeat(3,minmax(0,1fr));min-height:calc(100svh - 310px);gap:16px}
+.sb-page-pos_bar .kds-colbody{min-height:360px}
+
+@media(max-width:760px){
+  .sb-approved--customer .sb-design-photo{height:clamp(250px,72vw,360px)}
+  .sb-approved--customer-wide .sb-design-photo{height:220px}
+  .sb-approved--owner .sb-design-photo{height:116px}
+  .sb-page-reservation_payment .sb-design-content{padding:24px 20px 36px!important}
+  .sb-page-reservation_payment .sb-design-photo{height:270px}
+  .sb-page-reservation_payment .summary-grid{grid-template-columns:1fr}
+  .sb-page-reservation_payment .deposit-header{align-items:flex-start;flex-direction:column}
+  .sb-page-owner_shifts .sb-grid{grid-template-columns:1fr!important}
+  .sb-page-owner_shifts .sb-left,.sb-page-owner_shifts .sb-right{grid-column:1;grid-row:auto}
+  .sb-page-owner_floor .sb-design-photo{height:112px}
+  .sb-page-pos_bar .sb-design-workspace{padding-inline:14px!important}
+  .sb-page-pos_bar .sb-design-photo{margin-inline:-14px;height:104px}
+  .sb-page-pos_bar .kds-columns{grid-template-columns:1fr;min-height:0}
+  .sb-page-pos_bar .kds-colbody{min-height:180px}
+}

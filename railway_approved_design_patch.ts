@@ -2,7 +2,7 @@
 // Deliberately preserve forms, field names, script hooks, permissions and restaurant data.
 const root = Deno.env.get('SPOTBOOK_ROOT') || '/app';
 const pages = JSON.parse(await Deno.readTextFile(`${root}/design-system/pages.json`));
-const link = '\n<link rel="stylesheet" href="/public/css/spotbook-approved.css?v=20260917-1">\n';
+const link = '\n<link rel="stylesheet" href="/public/css/spotbook-approved.css?v=20260918-2">\n';
 for (const name of ['_layout','auth/_layout','_layout_ops','layout']) {
   const path = `${root}/templates/${name}.eta`;
   let text = await Deno.readTextFile(path);

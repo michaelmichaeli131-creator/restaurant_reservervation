@@ -52,6 +52,10 @@ RUN deno run --allow-read --allow-write /app/railway_design_v3_patch.ts \
 # Approved page designs run after all legacy layers so the backend overlay cannot overwrite them.
 RUN deno run --allow-env --allow-read --allow-write /app/railway_approved_design_patch.ts
 
+# Final screenshot-alignment layer: quarter-hour selectors, fuller imagery, and
+# page-specific workspace layout refinements.
+RUN deno run --allow-env --allow-read --allow-write /app/railway_refinement_patch.ts
+
 # The base image keeps DENO_DIR at /deno-dir. Builds run as root up to this
 # point, so make the cache writable before dropping privileges to the deno user.
 RUN mkdir -p /deno-dir \
