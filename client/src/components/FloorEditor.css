@@ -431,9 +431,18 @@
 }
 
 .table:hover {
-  transform: translateY(-2px);
   z-index: 10;
 }
+
+/* Shared page styles also use .table for data tables. Map furniture must be
+   allowed to span multiple grid cells and keep its resize handle visible. */
+.floor-editor .fe-grid .table{
+  max-width:none;
+  overflow:visible;
+  transition:border-color .15s,box-shadow .15s;
+}
+.floor-editor .fe-grid .floor-object{transition:border-color .15s,box-shadow .15s}
+.floor-editor .fe-grid .table.selected,.floor-editor .fe-grid .floor-object.selected{z-index:40}
 
 .table.selected {
   border-color: rgba(255,255,255,.22);
