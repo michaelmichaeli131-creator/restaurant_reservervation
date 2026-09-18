@@ -87,7 +87,7 @@ const enhancement = String.raw`<script data-spotbook-time-picker>
 </script>`;
 
 let changed = 0;
-for (const name of Object.keys(pages)) {
+for (const name of [...Object.keys(pages), 'restaurant_detail', 'restaurant_system_time', 'host_seating']) {
   const path = `${root}/templates/${name}.eta`;
   let text = await Deno.readTextFile(path);
   if (text.includes('data-spotbook-time-picker')) continue;

@@ -162,6 +162,9 @@ body:has(.sb-approved--owner)>main.sb-container{max-width:1600px!important;width
   .sb-page-owner_shifts .sb-grid{grid-template-columns:1fr!important}
   .sb-page-owner_shifts .sb-left,.sb-page-owner_shifts .sb-right{grid-column:1;grid-row:auto}
   .sb-page-owner_floor .sb-design-photo{height:112px}
+  .sb-page-owner_floor .editor-content{overflow:auto;flex-shrink:0}
+  .sb-page-owner_floor .editor-sidebar{max-height:280px;flex-shrink:0}
+  .sb-page-owner_floor .editor-canvas{flex:none;height:440px}
   .sb-page-pos_bar .sb-design-workspace{padding-inline:14px!important}
   .sb-page-pos_bar .sb-design-photo{margin-inline:-14px;height:104px}
   .sb-page-pos_bar .kds-columns{grid-template-columns:1fr;min-height:0}
