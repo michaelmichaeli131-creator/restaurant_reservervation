@@ -100,3 +100,22 @@ for (const name of [...Object.keys(pages), 'restaurant_detail', 'restaurant_syst
 }
 
 console.log(`[refinement] Added screenshot-aligned interactions to ${changed} page templates`);
+
+// The production overlay owns this route; patch it after extraction. A canceled
+// SSE stream must stop its heartbeat instead of crashing the server on enqueue.
+const calendarPath = `${root}/routes/owner_calendar.ts`;
+let calendar = await Deno.readTextFile(calendarPath);
+calendar = calendar.replace('const stream = new ReadableStream({', 'let cleanupStream = () => {};\n  const stream = new ReadableStream({');
+calendar = calendar.replace('controller.enqueue(new TextEncoder().encode(sseFormat(event, data)));',
+  'try { controller.enqueue(new TextEncoder().encode(sseFormat(event, data))); } catch { cleanupStream(); }');
+calendar = calendar.replace('try { controller.close(); } catch { /* ignore */ }',
+  'cleanupStream();\n        try { controller.close(); } catch { /* ignore */ }');
+calendar = calendar.replace('const pingTimer = setInterval(() => send("ping", { t: Date.now() }), 25000);',
+  `const pingTimer = setInterval(() => send("ping", { t: Date.now() }), 25000);
+      cleanupStream = () => {
+        clearInterval(pingTimer);
+        channels.get(key)?.delete(client);
+        if (channels.get(key)?.size === 0) channels.delete(key);
+      };`);
+calendar = calendar.replace('cancel() {', 'cancel() {\n      cleanupStream();');
+await Deno.writeTextFile(calendarPath, calendar);
