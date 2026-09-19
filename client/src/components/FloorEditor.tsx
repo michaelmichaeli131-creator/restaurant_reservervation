@@ -513,6 +513,13 @@ const assetForTable = (shape: string, seats: number) => {
         setSelectedObjectId(null);
         return;
       }
+      if (selectedKeys.length && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+        e.preventDefault();
+        const dx = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0;
+        const dy = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
+        nudgeSelection(dx, dy);
+        return;
+      }
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       if (selectedKeys.length > 1) { e.preventDefault(); deleteSelection(); return; }
       if (selectedTableId) {
