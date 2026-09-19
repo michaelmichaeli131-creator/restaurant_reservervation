@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { FLOOR_ASSETS, filterFloorAssets } from '../src/components/floorAssets.ts';
-assert.equal(FLOOR_ASSETS.length, 17, 'all existing assets are represented');
+assert.equal(FLOOR_ASSETS.length, 18, 'all existing assets are represented');
 assert.equal(new Set(FLOOR_ASSETS.map(a => a.id)).size, FLOOR_ASSETS.length, 'unique keys');
 assert.equal(new Set(FLOOR_ASSETS.map(a => a.file)).size, FLOOR_ASSETS.length, 'unique files');
 assert.ok(FLOOR_ASSETS.every(a => a.spanX > 0 && a.spanY > 0 && a.nameEn && a.nameHe));
