@@ -93,3 +93,41 @@ export function distributeSelection<T extends GridItem, O extends GridItem>(layo
   }
   return change(layout, picked, updates);
 }
+
+/** Select every item touched by an inclusive grid-cell marquee, including mixed item types. */
+export function selectInRectangle(layout: GridLayout, x1: number, y1: number, x2: number, y2: number): SelectionKey[] {
+  const left = Math.min(x1, x2), top = Math.min(y1, y2);
+  const right = Math.max(x1, x2) + 1, bottom = Math.max(y1, y2) + 1;
+  return [
+    ...layout.tables.filter(t => t.gridX < right && t.gridX + t.spanX > left &&
+      t.gridY < bottom && t.gridY + t.spanY > top).map(t => `table:${t.id}` as SelectionKey),
+    ...(layout.objects ?? []).filter(o => o.gridX < right && o.gridX + o.spanX > left &&
+      o.gridY < bottom && o.gridY + o.spanY > top).map(o => `object:${o.id}` as SelectionKey),
+  ];
+}
+/** Find a single offset for an entire copied group, without leaving the mask or overlapping existing items. */
+export function findCopyOffset(layout: GridLayout, keys: readonly SelectionKey[]): { dx: number; dy: number } | null {
+  const picked = selectedItems(layout, keys);
+  if (!picked.length) return null;
+  const existing = [...layout.tables, ...(layout.objects ?? [])];
+  const intersects = (a: GridItem, b: GridItem) => a.gridX < b.gridX + b.spanX &&
+    a.gridX + a.spanX > b.gridX && a.gridY < b.gridY + b.spanY && a.gridY + a.spanY > b.gridY;
+  // Prefer one cell diagonally, then nearby offsets, including negative ones.
+  const candidates: { dx: number; dy: number }[] = [];
+  for (let radius = 1; radius <= Math.max(layout.gridCols, layout.gridRows); radius++) {
+    for (let dy = -radius; dy <= radius; dy++) for (let dx = -radius; dx <= radius; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) === radius) candidates.push({ dx, dy });
+    }
+  }
+  candidates.sort((a, b) => {
+    const ra = Math.max(Math.abs(a.dx), Math.abs(a.dy)), rb = Math.max(Math.abs(b.dx), Math.abs(b.dy));
+    return ra - rb || (a.dx === 1 && a.dy === 1 ? -1 : 0) - (b.dx === 1 && b.dy === 1 ? -1 : 0) ||
+      Math.abs(a.dx) + Math.abs(a.dy) - Math.abs(b.dx) - Math.abs(b.dy);
+  });
+  for (const offset of candidates) {
+    const copies = picked.map(({ item }) => ({ ...item, gridX: item.gridX + offset.dx, gridY: item.gridY + offset.dy }));
+    if (copies.every(copy => activeFootprint(layout, copy) &&
+      existing.every(item => !intersects(copy, item)))) return offset;
+  }
+  return null;
+}
