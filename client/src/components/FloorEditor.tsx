@@ -1222,7 +1222,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     e.preventDefault();
     e.stopPropagation();
     if (e.button !== 0 || !currentLayout) return;
-    const resizing = kind === 'table' ? currentLayout.tables.find(t => t.id === id) : (currentLayout.objects ?? []).find(o => o.id === id);
+    const resizing = kind === 'table' ? currentLayout.tables?.find(t => t.id === id) : currentLayout.objects?.find(o => o.id === id);
     if (resizing?.locked) return;
     resizeCleanup.current?.();
     const startX = e.clientX;
