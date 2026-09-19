@@ -1165,7 +1165,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   };
 
   const beginMarquee = (e: React.PointerEvent<HTMLDivElement>, x: number, y: number) => {
-    if (!marqueeMode || shapeMode || spacePressed || pointerDrag || e.button !== 0 ||
+    if (previewMode || !marqueeMode || shapeMode || spacePressed || pointerDrag || e.button !== 0 ||
         e.target !== e.currentTarget || !currentLayout) return;
     e.preventDefault(); e.stopPropagation();
     marqueeCleanup.current?.();
@@ -1966,7 +1966,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             })}
             <button type="button" onClick={duplicateSelected}>{he ? 'שכפל אובייקט' : 'Duplicate item'}</button>
             <div className="fe-history-actions">
-              {[-45,45].map(delta => <button type="button" key={delta} onClick={() => {
+              {[-15,15].map(delta => <button type="button" key={delta} onClick={() => {
                 const item = (selectedTable || selectedObject)!;
                 (selectedTable ? updateTable : updateObject)(item.id, { rotationDeg: getItemRotation((item.rotationDeg ?? selectedObject?.rotation ?? 0) + delta) });
               }}>{delta < 0 ? '↶' : '↷'} {he ? 'סובב' : 'Rotate'} {Math.abs(delta)}°</button>)}
@@ -2350,10 +2350,10 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 	                  className="btn-icon-small"
 	                  onClick={() =>
 	                    updateTable(selectedTable.id, {
-	                      rotationDeg: getItemRotation(((selectedTable as any).rotationDeg ?? 0) - 45),
+	                      rotationDeg: getItemRotation(((selectedTable as any).rotationDeg ?? 0) - 15),
 	                    })
 	                  }
-	                  title="Rotate -45°"
+	                  title="Rotate -15°"
 	                >
 	                  ↺
 	                </button>
@@ -2364,10 +2364,10 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 	                  className="btn-icon-small"
 	                  onClick={() =>
 	                    updateTable(selectedTable.id, {
-	                      rotationDeg: getItemRotation(((selectedTable as any).rotationDeg ?? 0) + 45),
+	                      rotationDeg: getItemRotation(((selectedTable as any).rotationDeg ?? 0) + 15),
 	                    })
 	                  }
-	                  title="Rotate +45°"
+	                  title="Rotate +15°"
 	                >
 	                  ↻
 	                </button>
@@ -2430,16 +2430,16 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   <span style={{ opacity: .85 }}>{t('floor.properties.rotate', 'Rotate:')}</span>
   <button
     className="btn-icon-small"
-    onClick={() => updateObject(selectedObject.id, { rotationDeg: getItemRotation((((selectedObject as any).rotationDeg ?? selectedObject.rotation ?? 0) as number) - 45) })}
-    title="Rotate -45°"
+    onClick={() => updateObject(selectedObject.id, { rotationDeg: getItemRotation((((selectedObject as any).rotationDeg ?? selectedObject.rotation ?? 0) as number) - 15) })}
+    title="Rotate -15°"
   >↺</button>
   <span style={{ minWidth: 54, textAlign: 'center', opacity: 0.9 }}>
     {getItemRotation((selectedObject as any).rotationDeg ?? selectedObject.rotation ?? 0)}°
   </span>
   <button
     className="btn-icon-small"
-    onClick={() => updateObject(selectedObject.id, { rotationDeg: getItemRotation((((selectedObject as any).rotationDeg ?? selectedObject.rotation ?? 0) as number) + 45) })}
-    title="Rotate +45°"
+    onClick={() => updateObject(selectedObject.id, { rotationDeg: getItemRotation((((selectedObject as any).rotationDeg ?? selectedObject.rotation ?? 0) as number) + 15) })}
+    title="Rotate +15°"
   >↻</button>
 </div>
               <button className="btn-danger" onClick={() => deleteObject(selectedObject.id)}>
