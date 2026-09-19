@@ -409,10 +409,14 @@ const assetForTable = (shape: string, seats: number) => {
     return true;
   };
 
-  const placementIssue = (x: number, y: number, w: number, h: number, exclude?: { kind: 'table' | 'object'; id?: string }) => {
+  const placementIssue = (x: number, y: number, w: number, h: number, exclude?: { kind: 'table' | 'object'; id?: string; visualOnly?: boolean }) => {
     if (!currentLayout) return '';
     if (x < 0 || y < 0 || x + w > currentLayout.gridCols || y + h > currentLayout.gridRows || !maskAllows(x, y, w, h))
       return t('floor.error.placement_outside', 'Cannot place item outside the restaurant shape');
+    // Decorative elements can sit above the floor or other furniture by design.
+    const visualOnly = exclude?.visualOnly || (exclude?.kind === 'object' &&
+      (currentLayout.objects ?? []).some(o => o.id === exclude.id && o.kind === 'visualOnly'));
+    if (visualOnly) return '';
     const overlaps = (o: FloorTable | FloorObject) => x < o.gridX + o.spanX && x + w > o.gridX && y < o.gridY + o.spanY && y + h > o.gridY;
     if (currentLayout.tables.some(o => !(exclude?.kind === 'table' && exclude.id === o.id) && overlaps(o)))
       return t('floor.error.table_overlap', 'Overlaps another table');
@@ -420,7 +424,7 @@ const assetForTable = (shape: string, seats: number) => {
       return t('floor.error.obstacle_overlap', 'Overlaps a wall or bar');
     return '';
   };
-  const checkPlacement = (x: number, y: number, w: number, h: number, exclude?: { kind: 'table' | 'object'; id?: string }) => {
+  const checkPlacement = (x: number, y: number, w: number, h: number, exclude?: { kind: 'table' | 'object'; id?: string; visualOnly?: boolean }) => {
     const issue = placementIssue(x, y, w, h, exclude);
     setPlacementWarning(issue);
     return !issue;
@@ -1199,7 +1203,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
       const snapped = snapPlacement(baseX, baseY, pointerDrag.spanX, pointerDrag.spanY, pointerDrag.kind, pointerDrag.payload?.shape ?? pointerDrag.payload?.objectType, disableSnap, exclude);
 
-      if (!checkPlacement(snapped.x, snapped.y, pointerDrag.spanX, pointerDrag.spanY, pointerDrag.mode === 'existing' ? { kind: pointerDrag.kind, id: pointerDrag.tableId ?? pointerDrag.objectId } : undefined)) {
+      if (!checkPlacement(snapped.x, snapped.y, pointerDrag.spanX, pointerDrag.spanY, pointerDrag.mode === 'existing' ? { kind: pointerDrag.kind, id: pointerDrag.tableId ?? pointerDrag.objectId } : pointerDrag.kind === 'object' ? { kind: 'object', visualOnly: pointerDrag.payload?.objectKind === 'visualOnly' } : undefined)) {
         setDragPreviewCell(null);
         return;
       }
@@ -1218,7 +1222,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
       const x = dragPreviewCell.x;
       const y = dragPreviewCell.y;
-      if (!checkPlacement(x, y, pointerDrag.spanX, pointerDrag.spanY, pointerDrag.mode === 'existing' ? { kind: pointerDrag.kind, id: pointerDrag.tableId ?? pointerDrag.objectId } : undefined)) { setPointerDrag(null); setDragPreviewCell(null); return; }
+      if (!checkPlacement(x, y, pointerDrag.spanX, pointerDrag.spanY, pointerDrag.mode === 'existing' ? { kind: pointerDrag.kind, id: pointerDrag.tableId ?? pointerDrag.objectId } : pointerDrag.kind === 'object' ? { kind: 'object', visualOnly: pointerDrag.payload?.objectKind === 'visualOnly' } : undefined)) { setPointerDrag(null); setDragPreviewCell(null); return; }
 
       if (pointerDrag.mode === 'existing') {
         if (pointerDrag.kind === 'table' && pointerDrag.tableId) {
@@ -1317,7 +1321,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
       const snapped = snapPlacement(gridX, gridY, sp.spanX, sp.spanY, 'table', draggedItem.shape, disableSnap);
 
-      if (!checkPlacement(snapped.x, snapped.y, sp.spanX, sp.spanY)) {
+      if (!checkPlacement(snapped.x, snapped.y, sp.spanX, sp.spanY, { kind: 'object', visualOnly: draggedItem.objectKind === 'visualOnly' })) {
         alert(t('floor.error.placement_outside', 'Cannot place item outside the restaurant shape'));
         return;
       }
