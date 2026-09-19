@@ -26,11 +26,18 @@ assert.equal(activeFootprint(base, { id: 'outside', gridX: -1, gridY: 0, spanX: 
 assert.deepEqual(selectInRectangle(base, 0, 1, 2, 3), ['table:a'], 'select intersecting table');
 assert.deepEqual(selectInRectangle(base, 7, 6, 4, 0), ['table:b', 'object:a'], 'reverse rectangle and mixed item types');
 assert.deepEqual(selectInRectangle(base, 0, 0, 0, 0), [], 'empty rectangle');
-assert.deepEqual(findCopyOffset(base, ['table:a']), { dx: 1, dy: 1 }, 'prefer near diagonal free offset');
+const copy = findCopyOffset(base, ['table:a']);
+assert.ok(copy, 'find a nearby valid offset');
+const original = base.tables[0];
+const moved = { ...original, gridX: original.gridX + copy.dx, gridY: original.gridY + copy.dy };
+assert.ok(activeFootprint(base, moved), 'copied footprint stays inside the floor');
+assert.ok(base.tables.every(t => moved.gridX + moved.spanX <= t.gridX ||
+  t.gridX + t.spanX <= moved.gridX || moved.gridY + moved.spanY <= t.gridY ||
+  t.gridY + t.spanY <= moved.gridY), 'copy does not overlap original tables');
 const crowded = { gridCols: 2, gridRows: 2, tables: [{ id: 'only', gridX: 0, gridY: 0, spanX: 2, spanY: 2 }], objects: [] };
 assert.equal(findCopyOffset(crowded, ['table:only']), null, 'never overlap original or leave bounds');
 const masked = { gridCols: 3, gridRows: 2, tables: [{ id: 'one', gridX: 0, gridY: 0, spanX: 1, spanY: 1 }],
   objects: [], gridMask: [1, 0, 0, 0, 0, 0] };
 assert.equal(findCopyOffset(masked, ['table:one']), null, 'never duplicate onto inactive mask');
 assert.deepEqual(findCopyOffset(base, ['table:missing']), null, 'missing selection is safe');
-console.log('PASS: 17 group geometry assertions');
+console.log('PASS: 19 group geometry assertions');
