@@ -560,7 +560,7 @@ const assetForTable = (shape: string, seats: number) => {
       const target = e.target as HTMLElement | null;
       const tag = String(target?.tagName || '').toLowerCase();
       const isTyping = Boolean(target?.isContentEditable) || ['input', 'textarea', 'select'].includes(tag);
-      if (isTyping) return;
+      if (isTyping || previewMode) return;
 
       if (e.key === 'Escape') {
         clearSelection();
@@ -605,7 +605,7 @@ const assetForTable = (shape: string, seats: number) => {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedTableId, selectedObjectId, selectedKeys, currentLayout]);
+  }, [selectedTableId, selectedObjectId, selectedKeys, currentLayout, previewMode]);
 
 
   const createNewLayout = async () => {
@@ -1198,7 +1198,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       if (showOnlyActiveSection && activeSection)
         found = found.filter(key => !key.startsWith('table:') ||
           snapshot.tables.some(t => ('table:' + t.id) === key && String(t.sectionId || '') === String(activeSection.id)));
-      setSelectedKeys([...new Set([...previous, ...found])]);
+      setSelectedKeys(expandGroupSelection(snapshot, [...new Set([...previous, ...found])]));
       setSelectedTableId(null); setSelectedObjectId(null);
       setMarquee(null);
     };
@@ -1221,7 +1221,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   ) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.button !== 0 || !currentLayout) return;
+    if (e.button !== 0 || !currentLayout || previewMode) return;
+    const resizing = kind === 'table' ? currentLayout.tables.find(t => t.id === id) : (currentLayout.objects ?? []).find(o => o.id === id);
+    if (resizing?.locked) return;
     resizeCleanup.current?.();
     const startX = e.clientX;
     const startY = e.clientY;
@@ -1324,9 +1326,13 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     spanX: number,
     spanY: number
   ) => {
-    if (!currentLayout) return;
+    if (!currentLayout || previewMode) return;
+    const target = kind === 'table' ? currentLayout.tables.find(t => t.id === id) : (currentLayout.objects ?? []).find(o => o.id === id);
+    if (!target || target.locked) return;
     e.preventDefault();
     e.stopPropagation();
+    const keys = expandGroupSelection(currentLayout, selectedKeys.includes((kind + ':' + id) as SelectionKey) ? selectedKeys : [(kind + ':' + id) as SelectionKey]);
+    if (selectedItems(currentLayout, keys).some(p => p.item.locked)) return;
     setPointerDrag({
       kind,
       mode: 'existing',
@@ -1334,7 +1340,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       spanY,
       tableId: kind === 'table' ? id : undefined,
       objectId: kind === 'object' ? id : undefined,
-      groupKeys: selectedKeys.includes((kind + ':' + id) as SelectionKey) && selectedKeys.length > 1 ? [...selectedKeys] : undefined,
+      groupKeys: keys.length > 1 ? keys : undefined,
     });
     setDragPreviewCell(null);
   };
@@ -1648,7 +1654,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   };
 
   const deleteTable = (tableId: string) => {
-    if (!currentLayout) return;
+    if (!currentLayout || currentLayout.tables.find(t => t.id === tableId)?.locked) return;
     setCurrentLayout({
       ...currentLayout,
       tables: currentLayout.tables.filter(t => t.id !== tableId)
@@ -1661,6 +1667,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   const deleteObject = (objectId: string) => {
     if (!currentLayout) return;
     const objects = currentLayout.objects ?? [];
+    if (objects.find(o => o.id === objectId)?.locked) return;
     setCurrentLayout({
       ...currentLayout,
       objects: objects.filter(o => o.id !== objectId),
@@ -1673,7 +1680,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     if (!currentLayout) return;
     const objects = currentLayout.objects ?? [];
     const item = objects.find(o => o.id === objectId);
-    if (item && !validateSizeUpdate(item, updates)) return;
+    if (item?.locked || (item && !validateSizeUpdate(item, updates))) return;
     const nextObjects = objects.map(o => o.id === objectId ? { ...o, ...updates } : o);
     setCurrentLayout({ ...currentLayout, objects: nextObjects });
 };
@@ -1681,7 +1688,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   const updateTable = (tableId: string, updates: Partial<FloorTable>) => {
     if (!currentLayout) return;
     const item = currentLayout.tables.find(t => t.id === tableId);
-    if (item && !validateSizeUpdate(item, updates)) return;
+    if (item?.locked || (item && !validateSizeUpdate(item, updates))) return;
     const nextTables = currentLayout.tables.map(t => t.id === tableId ? { ...t, ...updates } : t);
     setCurrentLayout({ ...currentLayout, tables: nextTables });
 };
