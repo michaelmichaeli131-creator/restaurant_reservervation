@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 // Exercise the actual interaction handler without requiring a backend or browser.
 const source = readFileSync(new URL('../src/components/FloorEditor.tsx', import.meta.url), 'utf8');
 const handler = source.slice(source.indexOf('  const beginResizeItem ='), source.indexOf('  // ---- Pointer-based drag'));
-function setup(zoom = 1, rotation = 0) {
+function setup(zoom = 1, rotation = 0, direction = 'se') {
   const listeners = new Map();
   const updates = [];
   const cleanup = { current: null };
@@ -23,7 +23,7 @@ function setup(zoom = 1, rotation = 0) {
   };
   const start = runInNewContext(stripTypeScriptTypes(handler) + '\nbeginResizeItem;', ctx);
   const event = (x, y) => ({ button: 0, pointerId: 3, clientX: x, clientY: y, preventDefault() {}, stopPropagation() {} });
-  start(event(100, 100), rotation ? 'object' : 'table', 'item', 1, 1, 2, 2);
+  start(event(100, 100), rotation ? 'object' : 'table', 'item', 1, 1, 2, 2, direction);
   return { listeners, updates, event };
 }
 for (const zoom of [0.5, 1, 2]) {
@@ -53,4 +53,17 @@ for (const cancel of ['pointercancel', 'blur', 'keydown']) {
   assert.equal(updates[0].spanX, 4, 'Rotated object follows local resize axis');
   assert.equal(updates[0].spanY, 2);
 }
-console.log('Resize regression passed: zoom, repeated moves, cancel, boundaries, rotation.');
+for (const [direction, delta, expected] of [
+  ['nw', [-60, -60], { gridX: 0, gridY: 0, spanX: 3, spanY: 3 }],
+  ['w', [-60, 0], { gridX: 0, gridY: 1, spanX: 3, spanY: 2 }],
+  ['n', [0, -60], { gridX: 1, gridY: 0, spanX: 2, spanY: 3 }],
+  ['e', [60, 0], { gridX: 1, gridY: 1, spanX: 3, spanY: 2 }],
+  ['s', [0, 60], { gridX: 1, gridY: 1, spanX: 2, spanY: 3 }],
+  ['sw', [-60, 60], { gridX: 0, gridY: 1, spanX: 3, spanY: 3 }],
+  ['ne', [60, -60], { gridX: 1, gridY: 0, spanX: 3, spanY: 3 }],
+]) {
+  const { listeners, updates, event } = setup(1, 0, direction);
+  listeners.get('pointerup')(event(100 + delta[0], 100 + delta[1]));
+  assert.deepEqual(JSON.parse(JSON.stringify(updates[0])), expected, direction + ' anchor and dimensions');
+}
+console.log('Resize regression passed: zoom, repeated moves, cancel, boundaries, rotation and seven new directions.');
