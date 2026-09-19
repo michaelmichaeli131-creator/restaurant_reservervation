@@ -1,4 +1,4 @@
-import { activeFootprint, bounds, type GridItem, type GridLayout } from './floorBatch';
+import { activeFootprint, bounds, type GridItem, type GridLayout } from './floorBatch.ts';
 
 /** Find a translation that preserves a copied arrangement and respects the destination floor. */
 export function findPastePosition(layout: GridLayout, source: readonly GridItem[]):
