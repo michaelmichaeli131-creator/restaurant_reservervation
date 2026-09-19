@@ -13,7 +13,7 @@ function setup(zoom = 1, rotation = 0) {
   const ctx = {
     currentLayout: { gridCols: 12, gridRows: 12, objects: [{ id: 'item', rotationDeg: rotation }] },
     cellSize: 60, zoomRef: { current: zoom }, resizeCleanup: cleanup,
-    getItemRotation: x => x, maskAllows: () => true, setResizeDraft: () => {},
+    getItemRotation: x => x, checkPlacement: () => true, setResizeDraft: () => {},
     updateTable: (id, value) => updates.push(value), updateObject: (id, value) => updates.push(value),
     window: {
       addEventListener: (name, fn) => listeners.set(name, fn),
