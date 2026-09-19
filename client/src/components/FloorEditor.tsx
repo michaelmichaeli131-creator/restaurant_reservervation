@@ -938,7 +938,7 @@ const assetForTable = (shape: string, seats: number) => {
     y: number,
     spanX: number,
     spanY: number,
-    exclude?: { kind: 'table' | 'object'; id?: string }
+    exclude?: { kind: 'table' | 'object'; id?: string; keys?: SelectionKey[] }
   ) => {
     if (!currentLayout) return { x, y, guides: { v: [] as number[], h: [] as number[] } };
 
@@ -946,7 +946,7 @@ const assetForTable = (shape: string, seats: number) => {
 
     // Collect other items (tables + objects) in grid units
     for (const t of currentLayout.tables) {
-      if (exclude?.kind === 'table' && exclude?.id && t.id === exclude.id) continue;
+      if ((exclude?.kind === 'table' && exclude?.id && t.id === exclude.id) || exclude?.keys?.includes(('table:' + t.id) as SelectionKey)) continue;
       others.push({
         left: t.gridX,
         top: t.gridY,
@@ -957,7 +957,7 @@ const assetForTable = (shape: string, seats: number) => {
       });
     }
     for (const o of (currentLayout.objects ?? [])) {
-      if (exclude?.kind === 'object' && exclude?.id && o.id === exclude.id) continue;
+      if ((exclude?.kind === 'object' && exclude?.id && o.id === exclude.id) || exclude?.keys?.includes(('object:' + o.id) as SelectionKey)) continue;
       others.push({
         left: o.gridX,
         top: o.gridY,
@@ -1029,7 +1029,7 @@ const assetForTable = (shape: string, seats: number) => {
     kind: 'table' | 'object',
     subtype?: string,
     disableSnap?: boolean,
-    exclude?: { kind: 'table' | 'object'; id?: string }
+    exclude?: { kind: 'table' | 'object'; id?: string; keys?: SelectionKey[] }
   ) => {
     // Always clamp
     const base = clampToGrid(x, y, spanX, spanY);
@@ -1051,7 +1051,7 @@ const assetForTable = (shape: string, seats: number) => {
     return { x: clamped.x, y: clamped.y, guides: aligned.guides };
   };
 
-const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind: 'table' | 'object', subtype?: string, disableSnap?: boolean, exclude?: { kind: 'table' | 'object'; id?: string }) => {
+const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind: 'table' | 'object', subtype?: string, disableSnap?: boolean, exclude?: { kind: 'table' | 'object'; id?: string; keys?: SelectionKey[] }) => {
     return computeSnap(x, y, spanX, spanY, kind, subtype, disableSnap, exclude);
   };
 
@@ -1210,6 +1210,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       spanY,
       tableId: kind === 'table' ? id : undefined,
       objectId: kind === 'object' ? id : undefined,
+      groupKeys: selectedKeys.includes((kind + ':' + id) as SelectionKey) && selectedKeys.length > 1 ? [...selectedKeys] : undefined,
     });
     setDragPreviewCell(null);
   };
