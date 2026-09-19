@@ -1056,3 +1056,8 @@
 .floor-editor .fe-batch-actions button:disabled{opacity:.45;cursor:not-allowed}
 .floor-editor .fe-batch-actions{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:760px){.floor-editor.fe-preview-mode .editor-canvas{height:72svh;min-height:440px}}
+
+.fe-context-menu{position:fixed;z-index:9999;display:grid;gap:2px;min-width:190px;max-width:calc(100vw - 16px);padding:6px;border:1px solid #57708e;border-radius:10px;background:#172c46;box-shadow:0 16px 48px #0008;direction:inherit}
+.fe-context-menu button{border:0;background:transparent;color:#f0f7ff;text-align:start;border-radius:6px;min-height:40px;padding:8px 12px;cursor:pointer}
+.fe-context-menu button:hover:not(:disabled),.fe-context-menu button:focus-visible{background:#28527c}
+.fe-context-menu button:disabled{opacity:.45;cursor:not-allowed}
