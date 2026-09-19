@@ -44,19 +44,20 @@ const state = {
   historyReplay: { current: false },
   setUndoStack: update => { state.pendingUndo = update; },
   setRedoStack: update => { state.pendingRedo = update; },
-  setCurrentLayout: update => { state.currentLayout = update; },
+  setCurrentLayout: update => {
+    // React flushes the functional stack updates from the same render together.
+    if (state.pendingUndo) { state.undoStack = state.pendingUndo(state.undoStack); state.pendingUndo = null; }
+    if (state.pendingRedo) { state.redoStack = state.pendingRedo(state.redoStack); state.pendingRedo = null; }
+    state.currentLayout = update;
+  },
   setSelectedTableId: () => {},
   setSelectedObjectId: () => {},
 };
 const history = runInNewContext(historyCode + '\n({ undo, redo });', state);
 history.undo();
-state.undoStack = state.pendingUndo(state.undoStack);
-state.redoStack = state.pendingRedo(state.redoStack);
 assert.equal(state.currentLayout.name, 'old');
 assert.equal(state.redoStack.length, 1);
 history.redo();
-state.undoStack = state.pendingUndo(state.undoStack);
-state.redoStack = state.pendingRedo(state.redoStack);
 assert.equal(state.currentLayout.name, 'new');
 assert.equal(state.undoStack.length, 1);
 console.log('Floor session 1 regression passed: collision, boundaries, decorations, undo and redo.');
