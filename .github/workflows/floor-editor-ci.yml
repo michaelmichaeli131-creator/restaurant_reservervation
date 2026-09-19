@@ -1,0 +1,41 @@
+name: Floor editor client validation
+
+on:
+  push:
+    branches:
+      - feature/spotbook-floor-session-2
+      - deploy/spotbook-modernized
+    paths:
+      - 'client/**'
+      - '.github/workflows/floor-editor-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-floor-editor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci --ignore-scripts
+      - name: Type-check client
+        working-directory: client
+        run: npx tsc --noEmit
+      - name: Build client
+        working-directory: client
+        run: npm run build
+      - name: Run floor group geometry tests
+        working-directory: client
+        run: node --experimental-strip-types tests/floor-batch.test.mjs
+      - name: Existing resize regression
+        working-directory: client
+        run: node tests/resize-regression.mjs
