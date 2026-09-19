@@ -1697,6 +1697,14 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   return (
     <div className="floor-editor">
       <div className="fe-session-toolbar">
+        <div className="fe-multi-controls">
+          <button type="button" aria-pressed={multiSelectMode} onClick={() => setMultiSelectMode(v => !v)}>{he ? 'בחירה מרובה' : 'Multi-select'} {multiSelectMode ? '✓' : ''}</button>
+          <button type="button" onClick={() => { if (!currentLayout) return;
+            setSelectedKeys([...currentLayout.tables.map(i => ('table:' + i.id) as SelectionKey), ...(currentLayout.objects ?? []).map(i => ('object:' + i.id) as SelectionKey)]);
+            setSelectedTableId(null); setSelectedObjectId(null);
+          }}>{he ? 'בחר הכול' : 'Select all'}</button>
+          {!!groupItems.length && <button type="button" onClick={clearSelection}>{he ? 'נקה בחירה' : 'Clear selection'} ({groupItems.length})</button>}
+        </div>
         <div className="fe-history-actions">
           <button type="button" disabled={!history.canUndo || !!resizeDraft || !!pointerDrag} onClick={history.undo}>↶ {he ? 'בטל' : 'Undo'}</button>
           <button type="button" disabled={!history.canRedo || !!resizeDraft || !!pointerDrag} onClick={history.redo}>↷ {he ? 'החזר' : 'Redo'}</button>
@@ -1742,7 +1750,43 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
       <div className="editor-content">
         <div className="editor-sidebar">
-          {(selectedTable || selectedObject) && <div className="fe-selection-tools">
+          {!!groupItems.length && <div className="fe-selection-tools fe-batch-tools">
+            <strong>{he ? 'פריטים נבחרים' : 'Selected items'}: {groupItems.length}</strong>
+            <small>{he ? 'Ctrl / Shift + לחיצה לבחירה נוספת. בטלפון הפעל בחירה מרובה.' : 'Ctrl / Shift + click to add items. On mobile use Multi-select.'}</small>
+            {groupItems.length === 1 && (() => { const item = groupItems[0].item; return <div className="fe-xy-fields">
+              <label>{he ? 'מיקום X (תאים)' : 'X position (cells)'}
+                <input type="number" min="0" max={currentLayout.gridCols-item.spanX} value={item.gridX} onChange={e=>{const x=Number(e.target.value);if(Number.isInteger(x))nudgeSelection(x-item.gridX,0)}} />
+              </label>
+              <label>{he ? 'מיקום Y (תאים)' : 'Y position (cells)'}
+                <input type="number" min="0" max={currentLayout.gridRows-item.spanY} value={item.gridY} onChange={e=>{const y=Number(e.target.value);if(Number.isInteger(y))nudgeSelection(0,y-item.gridY)}} />
+              </label>
+            </div>})()}
+            {groupItems.length > 1 && <>
+              <div className="fe-batch-section-label">{he ? 'יישור' : 'Align'}</div>
+              <div className="fe-batch-actions">
+                <button type="button" onClick={()=>alignBatch('x','start')}>{he?'שמאל':'Left'}</button>
+                <button type="button" onClick={()=>alignBatch('x','center')}>{he?'מרכז X':'Center X'}</button>
+                <button type="button" onClick={()=>alignBatch('x','end')}>{he?'ימין':'Right'}</button>
+                <button type="button" onClick={()=>alignBatch('y','start')}>{he?'למעלה':'Top'}</button>
+                <button type="button" onClick={()=>alignBatch('y','center')}>{he?'מרכז Y':'Center Y'}</button>
+                <button type="button" onClick={()=>alignBatch('y','end')}>{he?'למטה':'Bottom'}</button>
+              </div>
+              <div className="fe-batch-section-label">{he ? 'ריווח אחיד' : 'Even spacing'}</div>
+              <div className="fe-batch-actions">
+                <button type="button" disabled={groupItems.length<3} onClick={()=>distributeBatch('x')}>{he?'אופקי':'Horizontal'}</button>
+                <button type="button" disabled={groupItems.length<3} onClick={()=>distributeBatch('y')}>{he?'אנכי':'Vertical'}</button>
+              </div>
+            </>}
+            <div className="fe-batch-section-label">{he ? 'הזזה מדויקת (תא אחד)' : 'Precise move (one cell)'}</div>
+            <div className="fe-nudge-controls">
+              <button type="button" aria-label={he?'שמאלה':'Move left'} onClick={()=>nudgeSelection(-1,0)}>←</button>
+              <button type="button" aria-label={he?'למעלה':'Move up'} onClick={()=>nudgeSelection(0,-1)}>↑</button>
+              <button type="button" aria-label={he?'למטה':'Move down'} onClick={()=>nudgeSelection(0,1)}>↓</button>
+              <button type="button" aria-label={he?'ימינה':'Move right'} onClick={()=>nudgeSelection(1,0)}>→</button>
+            </div>
+            <button type="button" onClick={deleteSelection}>{he?'מחק פריטים נבחרים':'Delete selected items'}</button>
+          </div>}
+          {(selectedTable || selectedObject) && groupItems.length <= 1 && <div className="fe-selection-tools">
             <strong>{he ? 'עריכת האובייקט הנבחר' : 'Selected item'}</strong>
             <label><input type="checkbox" checked={ratioLocked} onChange={e => setRatioLocked(e.target.checked)} /> {he ? 'נעילת יחס רוחב־גובה' : 'Lock proportions'}</label>
             {(['spanX', 'spanY'] as const).map(axis => {
@@ -2068,7 +2112,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             </div>
           </div>
 
-{selectedTable && (
+{selectedTable && groupItems.length <= 1 && (
             <div className="properties-panel">
               <h3>{t('floor.properties.selected_table', 'Selected: {name}').replace('{name}', selectedTable.name)}</h3>
               <label>
@@ -2168,7 +2212,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             </div>
           )}
 
-          {selectedObject && (
+          {selectedObject && groupItems.length <= 1 && (
             <div className="properties-panel">
               <h3>{t('floor.properties.selected_object', 'Selected: {type}').replace('{type}', selectedObject.type)}</h3>
               <label>
