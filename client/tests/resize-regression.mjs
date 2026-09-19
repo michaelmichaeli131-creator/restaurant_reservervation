@@ -12,7 +12,7 @@ function setup(zoom = 1, rotation = 0, direction = 'se') {
   const updates = [];
   const cleanup = { current: null };
   const ctx = {
-    currentLayout: { gridCols: 12, gridRows: 12, objects: [{ id: 'item', rotationDeg: rotation }] },
+    currentLayout: { gridCols: 12, gridRows: 12, tables: [], objects: [{ id: 'item', rotationDeg: rotation }] },
     cellSize: 60, zoomRef: { current: zoom }, resizeCleanup: cleanup,
     ratioLocked: false, setEditWarning: () => {}, he: false, canResize,
     getItemRotation: x => x, maskAllows: () => true, setResizeDraft: () => {},
