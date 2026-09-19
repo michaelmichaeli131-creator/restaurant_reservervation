@@ -2770,6 +2770,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                       onMouseDown={(e) => { if (previewMode || objectHere.locked || e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('object:' + objectHere.id) as SelectionKey))) { e.preventDefault(); e.stopPropagation(); return; } beginPointerDragExisting(e, 'object', objectHere.id, objectHere.spanX || 1, objectHere.spanY || 1); }}
                       onClick={(e) => { if (!previewMode) selectItem('object', objectHere.id, e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('object:' + objectHere.id) as SelectionKey))); }}
                       style={{
+                        left: (resizeDraft?.kind === 'object' && resizeDraft.id === objectHere.id) ? (resizeDraft.anchorX - objectHere.gridX) * cellSize : undefined,
+                        top: (resizeDraft?.kind === 'object' && resizeDraft.id === objectHere.id) ? (resizeDraft.anchorY - objectHere.gridY) * cellSize : undefined,
                         width: `${spanToPx((resizeDraft?.kind === 'object' && resizeDraft.id === objectHere.id) ? resizeDraft.spanX : objectHere.spanX)}px`,
                         height: `${spanToPx((resizeDraft?.kind === 'object' && resizeDraft.id === objectHere.id) ? resizeDraft.spanY : objectHere.spanY)}px`,
                         transform: `rotate(${getItemRotation((objectHere as any).rotationDeg ?? objectHere.rotation ?? 0)}deg)`,
@@ -2794,13 +2796,19 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                           >
                             ×
                           </button>
-                          <div
-                            className="fe-resize-handle"
-                            style={{ transform: `scale(${1 / zoom})` }}
-                            onPointerDown={(e) => beginResizeItem(e, 'object', objectHere.id, objectHere.gridX, objectHere.gridY, objectHere.spanX || 1, objectHere.spanY || 1)}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            title={t('floor.properties.resize_hint', 'Drag to resize')}
-                          />
+                          {(['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const).map(direction => (
+                            <div key={direction}
+                              role="slider"
+                              aria-label={he ? 'שינוי גודל ' + direction : 'Resize ' + direction}
+                              aria-valuemin={1}
+                              aria-valuenow={direction.includes('w') || direction.includes('e') ? objectHere.spanX : objectHere.spanY}
+                              className={`fe-resize-handle fe-resize-handle--${direction}`}
+                              style={{ transform: `scale(${1 / zoom})` }}
+                              onPointerDown={(e) => beginResizeItem(e, 'object', objectHere.id, objectHere.gridX, objectHere.gridY, objectHere.spanX || 1, objectHere.spanY || 1, direction)}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              title={he ? 'גרור לשינוי גודל' : 'Drag to resize'}
+                            />
+                          ))}
                         </>
                       )}
                     </div>
@@ -2812,6 +2820,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                       onMouseDown={(e) => { if (previewMode || tableHere.locked || e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('table:' + tableHere.id) as SelectionKey))) { e.preventDefault(); e.stopPropagation(); return; } beginPointerDragExisting(e, 'table', tableHere.id, tableHere.spanX || 1, tableHere.spanY || 1); }}
                       onClick={(e) => { if (!previewMode) selectItem('table', tableHere.id, e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('table:' + tableHere.id) as SelectionKey))); }}
                       style={{
+                        left: (resizeDraft?.kind === 'table' && resizeDraft.id === tableHere.id) ? (resizeDraft.anchorX - tableHere.gridX) * cellSize : undefined,
+                        top: (resizeDraft?.kind === 'table' && resizeDraft.id === tableHere.id) ? (resizeDraft.anchorY - tableHere.gridY) * cellSize : undefined,
                         width: `${spanToPx((resizeDraft?.kind === 'table' && resizeDraft.id === tableHere.id) ? resizeDraft.spanX : tableHere.spanX)}px`,
                         height: `${spanToPx((resizeDraft?.kind === 'table' && resizeDraft.id === tableHere.id) ? resizeDraft.spanY : tableHere.spanY)}px`,
                         zIndex: selectedKeys.includes(('table:' + tableHere.id) as SelectionKey) ? 500 : 200 + (tableHere.zIndex ?? 0),
@@ -2846,13 +2856,19 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                           >
                             ×
                           </button>
-                          <div
-                            className="fe-resize-handle"
-                            style={{ transform: `scale(${1 / zoom})` }}
-                            onPointerDown={(e) => beginResizeItem(e, 'table', tableHere.id, tableHere.gridX, tableHere.gridY, tableHere.spanX || 1, tableHere.spanY || 1)}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            title={t('floor.properties.resize_hint', 'Drag to resize')}
-                          />
+                          {(['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const).map(direction => (
+                            <div key={direction}
+                              role="slider"
+                              aria-label={he ? 'שינוי גודל ' + direction : 'Resize ' + direction}
+                              aria-valuemin={1}
+                              aria-valuenow={direction.includes('w') || direction.includes('e') ? tableHere.spanX : tableHere.spanY}
+                              className={`fe-resize-handle fe-resize-handle--${direction}`}
+                              style={{ transform: `scale(${1 / zoom})` }}
+                              onPointerDown={(e) => beginResizeItem(e, 'table', tableHere.id, tableHere.gridX, tableHere.gridY, tableHere.spanX || 1, tableHere.spanY || 1, direction)}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              title={he ? 'גרור לשינוי גודל' : 'Drag to resize'}
+                            />
+                          ))}
                         </>
                       )}
                     </div>
