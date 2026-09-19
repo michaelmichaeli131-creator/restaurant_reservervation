@@ -1,4 +1,4 @@
-import { activeFootprint, type GridItem, type GridLayout } from './floorBatch';
+import { activeFootprint, type GridItem, type GridLayout } from './floorBatch.ts';
 
 export type ResizeDirection = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 export type ResizeBox = Pick<GridItem, 'gridX' | 'gridY' | 'spanX' | 'spanY'>;
