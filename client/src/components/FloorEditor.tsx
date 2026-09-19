@@ -251,13 +251,13 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     currentLayout.tables.filter(t => chosen.has(('table:' + t.id) as SelectionKey)).forEach((item, index) => {
       const id = 'T' + stamp + '_' + index;
       const tableNumber = nextNumber++;
-      newTables.push({ ...item, id, name: 'T' + tableNumber, tableNumber,
+      newTables.push({ ...item, id, groupId: item.groupId ? 'copy-' + stamp + '-' + item.groupId : undefined, name: 'T' + tableNumber, tableNumber,
         gridX: item.gridX + offset.dx, gridY: item.gridY + offset.dy });
       newKeys.push(('table:' + id) as SelectionKey);
     });
     (currentLayout.objects ?? []).filter(o => chosen.has(('object:' + o.id) as SelectionKey)).forEach((item, index) => {
       const id = 'O' + stamp + '_' + index;
-      newObjects.push({ ...item, id, gridX: item.gridX + offset.dx, gridY: item.gridY + offset.dy });
+      newObjects.push({ ...item, id, groupId: item.groupId ? 'copy-' + stamp + '-' + item.groupId : undefined, gridX: item.gridX + offset.dx, gridY: item.gridY + offset.dy });
       newKeys.push(('object:' + id) as SelectionKey);
     });
     setCurrentLayout({ ...currentLayout, tables: [...currentLayout.tables, ...newTables],
@@ -433,8 +433,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const getItemRotation = (deg?: number) => {
     const v = Number(deg);
     if (!Number.isFinite(v)) return 0;
-    // snap to 45-degree steps, wrap to 0..315
-    const snapped = Math.round(v / 45) * 45;
+    // 15-degree steps; preserve legacy rotations on load.
+    const snapped = Math.round(v / 15) * 15;
     const wrapped = ((snapped % 360) + 360) % 360;
     return wrapped;
   };
@@ -1850,16 +1850,17 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   }
 
   return (
-    <div className="floor-editor">
+    <div className={`floor-editor ${previewMode ? 'fe-preview-mode' : ''}`}>
       <div className="fe-session-toolbar">
         <div className="fe-multi-controls">
-          <button type="button" aria-pressed={multiSelectMode} onClick={() => { setMultiSelectMode(v => !v); setMarqueeMode(false); }}>{he ? 'בחירה מרובה' : 'Multi-select'} {multiSelectMode ? '✓' : ''}</button>
-          <button type="button" aria-pressed={marqueeMode} onClick={() => { setMarqueeMode(v => !v); setMultiSelectMode(false); }}>{he ? 'בחירת אזור' : 'Area select'} {marqueeMode ? '✓' : ''}</button>
-          <button type="button" onClick={() => { if (!currentLayout) return;
+          <button type="button" aria-pressed={previewMode} onClick={() => { clearSelection(); setPreviewMode(v => !v); setMarqueeMode(false); setMultiSelectMode(false); }}>{previewMode ? (he ? 'חזור לעריכה' : 'Back to editing') : (he ? 'תצוגה מקדימה' : 'Preview map')}</button>
+          {!previewMode && <button type="button" aria-pressed={multiSelectMode} onClick={() => { setMultiSelectMode(v => !v); setMarqueeMode(false); }}>{he ? 'בחירה מרובה' : 'Multi-select'} {multiSelectMode ? '✓' : ''}</button>
+          {!previewMode && <button type="button" aria-pressed={marqueeMode} onClick={() => { setMarqueeMode(v => !v); setMultiSelectMode(false); }}>{he ? 'בחירת אזור' : 'Area select'} {marqueeMode ? '✓' : ''}</button>
+          {!previewMode && <button type="button" onClick={() => { if (!currentLayout) return;
             setSelectedKeys([...currentLayout.tables.map(i => ('table:' + i.id) as SelectionKey), ...(currentLayout.objects ?? []).map(i => ('object:' + i.id) as SelectionKey)]);
             setSelectedTableId(null); setSelectedObjectId(null);
           }}>{he ? 'בחר הכול' : 'Select all'}</button>
-          {!!groupItems.length && <button type="button" onClick={clearSelection}>{he ? 'נקה בחירה' : 'Clear selection'} ({groupItems.length})</button>}
+          {!previewMode && !!groupItems.length && <button type="button" onClick={clearSelection}>{he ? 'נקה בחירה' : 'Clear selection'} ({groupItems.length})</button>}
         </div>
         <div className="fe-history-actions">
           <button type="button" disabled={!history.canUndo || !!resizeDraft || !!pointerDrag} onClick={history.undo}>↶ {he ? 'בטל' : 'Undo'}</button>
@@ -1905,10 +1906,18 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       </div>
 
       <div className="editor-content">
-        <div className="editor-sidebar">
+        {!previewMode && <div className="editor-sidebar">
           {!!groupItems.length && <div className="fe-selection-tools fe-batch-tools">
             <strong>{he ? 'פריטים נבחרים' : 'Selected items'}: {groupItems.length}</strong>
-            <button type="button" onClick={duplicateGroup}>{he ? 'שכפל בחירה' : 'Duplicate selection'} (Ctrl+D)</button>
+            <div className="fe-batch-actions">
+              <button type="button" disabled={selectionHasLocked} onClick={duplicateGroup}>{he ? 'שכפל' : 'Duplicate'}</button>
+              <button type="button" onClick={() => updateSelectedMetadata({ locked: !groupItems.every(p => p.item.locked) })}>{groupItems.every(p => p.item.locked) ? (he ? 'בטל נעילה' : 'Unlock') : (he ? 'נעל' : 'Lock')}</button>
+              <button type="button" disabled={selectionHasLocked || groupItems.length < 2} onClick={groupSelection}>{he ? 'קבץ' : 'Group'}</button>
+              <button type="button" onClick={ungroupSelection}>{he ? 'פרק קבוצה' : 'Ungroup'}</button>
+              <button type="button" onClick={() => updateSelectedMetadata({ zDelta: 1 })}>{he ? 'קדימה' : 'Forward'}</button>
+              <button type="button" onClick={() => updateSelectedMetadata({ zDelta: -1 })}>{he ? 'אחורה' : 'Backward'}</button>
+            </div>
+            <small>{he ? 'קבוצה נשמרת גם לאחר שמירת המפה. נעילה מונעת הזזה, מחיקה ושינוי גודל.' : 'Groups persist after saving. Locked items cannot be moved, resized or deleted.'}</small>
             <small>{he ? 'Ctrl / Shift + לחיצה לבחירה נוספת. בטלפון הפעל בחירה מרובה.' : 'Ctrl / Shift + click to add items. On mobile use Multi-select.'}</small>
             {groupItems.length === 1 && (() => { const item = groupItems[0].item; return <div className="fe-xy-fields">
               <label>{he ? 'מיקום X (תאים)' : 'X position (cells)'}
@@ -1941,7 +1950,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               <button type="button" aria-label={he?'למטה':'Move down'} onClick={()=>nudgeSelection(0,1)}>↓</button>
               <button type="button" aria-label={he?'ימינה':'Move right'} onClick={()=>nudgeSelection(1,0)}>→</button>
             </div>
-            <button type="button" onClick={deleteSelection}>{he?'מחק פריטים נבחרים':'Delete selected items'}</button>
+            <button type="button" disabled={selectionHasLocked} onClick={deleteSelection}>{he?'מחק פריטים נבחרים':'Delete selected items'}</button>
           </div>}
           {(selectedTable || selectedObject) && groupItems.length <= 1 && <div className="fe-selection-tools">
             <strong>{he ? 'עריכת האובייקט הנבחר' : 'Selected item'}</strong>
@@ -2442,7 +2451,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
           <button className="btn-save" onClick={saveCurrentLayout}>
             💾 {t('floor.btn_save_layout', 'Save Layout')}
           </button>
-        </div>
+        </div>}
 
         <div
           className={`editor-canvas ${isPanning ? "is-panning" : ""}`}
