@@ -27,6 +27,7 @@ assert.equal(placementIssue(1, 1, 1, 1, { kind: 'object', visualOnly: true }), '
 assert.ok(placementIssue(-1, 1, 1, 1), 'out-of-bounds rejected');
 ctx.maskAllows = () => false;
 assert.ok(placementIssue(8, 6, 1, 1), 'inactive grid rejected');
+ctx.maskAllows = () => true;
 assert.equal(checkPlacement(2, 2, 2, 2), false);
 assert.match(warnings.at(-1), /table/);
 ctx.maskAllows = () => true;
