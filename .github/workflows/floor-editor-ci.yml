@@ -6,6 +6,7 @@ on:
       - feature/spotbook-floor-session-2
       - feature/spotbook-floor-session-3
       - feature/spotbook-floor-session-4
+      - feature/spotbook-floor-session-4-completion
       - deploy/spotbook-modernized
     paths:
       - 'client/**'
@@ -36,13 +37,16 @@ jobs:
         run: npx tsc --noEmit
       - name: Strict-check new geometry module
         working-directory: client
-        run: npx tsc --noEmit --strict --target ES2020 --module ESNext --moduleResolution bundler src/components/floorBatch.ts
+        run: npx tsc --noEmit --strict --target ES2020 --module ESNext --moduleResolution bundler src/components/floorBatch.ts src/components/floorClipboard.ts
       - name: Build client
         working-directory: client
         run: npm run build
       - name: Run floor group geometry tests
         working-directory: client
         run: node --experimental-strip-types tests/floor-batch.test.mjs
+      - name: Clipboard placement regression
+        working-directory: client
+        run: node --experimental-strip-types tests/floor-clipboard.test.mjs
       - name: Existing resize regression
         working-directory: client
         run: node tests/resize-regression.mjs
