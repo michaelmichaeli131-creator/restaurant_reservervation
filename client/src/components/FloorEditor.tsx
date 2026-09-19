@@ -1283,6 +1283,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     anchorY: number,
     spanX: number,
     spanY: number,
+    direction: 'se' | 'sw' | 'ne' | 'nw' | 'e' | 'w' | 'n' | 's' = 'se',
   ) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1312,21 +1313,33 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       ev.preventDefault();
       const dx = ev.clientX - startX;
       const dy = ev.clientY - startY;
-      let nextSpanX = Math.max(1, Math.min(currentLayout.gridCols - anchorX,
-        initialX + Math.round((dx * Math.cos(angle) + dy * Math.sin(angle)) / pixelsPerCell)));
-      let nextSpanY = Math.max(1, Math.min(currentLayout.gridRows - anchorY,
-        initialY + Math.round((-dx * Math.sin(angle) + dy * Math.cos(angle)) / pixelsPerCell)));
+      const localX = Math.round((dx * Math.cos(angle) + dy * Math.sin(angle)) / pixelsPerCell);
+      const localY = Math.round((-dx * Math.sin(angle) + dy * Math.cos(angle)) / pixelsPerCell);
+      const west = direction.includes('w'), north = direction.includes('n');
+      const horizontal = direction.includes('w') || direction.includes('e');
+      const vertical = direction.includes('n') || direction.includes('s');
+      const maxX = west ? anchorX + initialX : currentLayout.gridCols - anchorX;
+      const maxY = north ? anchorY + initialY : currentLayout.gridRows - anchorY;
+      let nextSpanX = horizontal ? Math.max(1, Math.min(maxX, initialX + (west ? -localX : localX))) : initialX;
+      let nextSpanY = vertical ? Math.max(1, Math.min(maxY, initialY + (north ? -localY : localY))) : initialY;
       if (ratioLocked) {
-        const sized = proportionalSize(initialX, initialY, nextSpanX, nextSpanY,
-          currentLayout.gridCols - anchorX, currentLayout.gridRows - anchorY);
+        const sized = proportionalSize(initialX, initialY, nextSpanX, nextSpanY, maxX, maxY);
         nextSpanX = sized.spanX; nextSpanY = sized.spanY;
       }
-      if (!maskAllows(anchorX, anchorY, nextSpanX, nextSpanY)) {
+      const nextX = west ? anchorX + initialX - nextSpanX : anchorX;
+      const nextY = north ? anchorY + initialY - nextSpanY : anchorY;
+      if (!maskAllows(nextX, nextY, nextSpanX, nextSpanY)) {
         setEditWarning(he ? 'אין מקום בגבולות האזור הפעיל' : 'Outside the active floor area');
         return;
       }
+      const nextBox = { id, gridX: nextX, gridY: nextY, spanX: nextSpanX, spanY: nextSpanY };
+      if ([...(currentLayout.tables ?? []), ...(currentLayout.objects ?? [])].some(item =>
+        item.id !== id && overlaps(nextBox, item))) {
+        setEditWarning(he ? 'שינוי הגודל יגרום לחפיפה עם פריט אחר' : 'Resize would overlap another item');
+        return;
+      }
       setEditWarning('');
-      draft = { ...draft, spanX: nextSpanX, spanY: nextSpanY };
+      draft = { ...draft, anchorX: nextX, anchorY: nextY, spanX: nextSpanX, spanY: nextSpanY };
       setResizeDraft(draft);
     };
     const cleanup = () => {
@@ -1345,7 +1358,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       onMove(ev);
       cleanup();
       const update = kind === 'table' ? updateTable : updateObject;
-      update(id, { spanX: draft.spanX, spanY: draft.spanY });
+      update(id, { gridX: draft.anchorX, gridY: draft.anchorY, spanX: draft.spanX, spanY: draft.spanY });
       setResizeDraft(null);
     };
     resizeCleanup.current = cleanup;
@@ -1760,14 +1773,16 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
   function validateSizeUpdate(item: FloorTable | FloorObject, updates: { spanX?: number; spanY?: number }) {
     if (!currentLayout || (updates.spanX === undefined && updates.spanY === undefined)) return true;
-    let width = Math.max(1, Math.min(currentLayout.gridCols - item.gridX, Math.round(updates.spanX ?? item.spanX)));
-    let height = Math.max(1, Math.min(currentLayout.gridRows - item.gridY, Math.round(updates.spanY ?? item.spanY)));
-    if (ratioLocked) {
+    const x = ('gridX' in updates && typeof updates.gridX === 'number') ? updates.gridX : item.gridX;
+    const y = ('gridY' in updates && typeof updates.gridY === 'number') ? updates.gridY : item.gridY;
+    let width = Math.max(1, Math.min(currentLayout.gridCols - x, Math.round(updates.spanX ?? item.spanX)));
+    let height = Math.max(1, Math.min(currentLayout.gridRows - y, Math.round(updates.spanY ?? item.spanY)));
+    if (ratioLocked && x === item.gridX && y === item.gridY) {
       const sized = proportionalSize(item.spanX, item.spanY, width, height,
-        currentLayout.gridCols - item.gridX, currentLayout.gridRows - item.gridY);
+        currentLayout.gridCols - x, currentLayout.gridRows - y);
       width = sized.spanX; height = sized.spanY;
     }
-    if (!maskAllows(item.gridX, item.gridY, width, height)) {
+    if (!maskAllows(x, y, width, height)) {
       setEditWarning(he ? 'אין מקום בגבולות האזור הפעיל' : 'Outside the active floor area');
       return false;
     }
