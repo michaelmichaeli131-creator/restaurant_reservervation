@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import './FloorEditor.css';
 import { useFloorHistory } from './useFloorHistory';
 import { proportionalSize, overlaps } from './floorGeometry';
+import { type SelectionKey, selectedItems, bounds, activeFootprint, moveSelection, alignSelection, distributeSelection } from './floorBatch';
 import { t, getCurrentLang } from '../i18n';
 
 interface FloorTable {
@@ -78,6 +79,9 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [saving, setSaving] = useState(false);
   const [ratioLocked, setRatioLocked] = useState(false);
   const [editWarning, setEditWarning] = useState('');
+  const [selectedKeys, setSelectedKeys] = useState<SelectionKey[]>([]);
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [snapGuides, setSnapGuides] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
   useEffect(() => {
     const shortcut = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || (e.target as HTMLElement)?.closest('input,textarea,[contenteditable="true"]')) return;
@@ -104,6 +108,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     if (!currentLayout || !selectedObjectId) return null;
     return (currentLayout.objects ?? []).find(o => o.id === selectedObjectId) ?? null;
   }, [currentLayout, selectedObjectId]);
+  const groupItems = useMemo(() => currentLayout ? selectedItems(currentLayout, selectedKeys) : [], [currentLayout, selectedKeys]);
+  const groupBounds = groupItems.length ? bounds(groupItems.map(p => p.item)) : null;
   const [draggedItem, setDraggedItem] = useState<{
     kind: 'table' | 'object';
     mode: 'new' | 'existing';
@@ -137,6 +143,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     spanY: number;
     tableId?: string;
     objectId?: string;
+    groupKeys?: SelectionKey[];
     payload?: {
       shape?: string;
       seats?: number;
@@ -163,6 +170,44 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const clearSelection = () => {
     setSelectedTableId(null);
     setSelectedObjectId(null);
+    setSelectedKeys([]);
+    setSnapGuides({ v: [], h: [] });
+  };
+  useEffect(() => { clearSelection(); }, [currentLayout?.id]);
+  const selectItem = (kind: 'table' | 'object', id: string, append: boolean) => {
+    const key = (kind + ':' + id) as SelectionKey;
+    setSelectedKeys(previous => {
+      if (append) return previous.includes(key) ? previous.filter(k => k !== key) : [...previous, key];
+      return previous.includes(key) && previous.length > 1 ? previous : [key];
+    });
+    setSelectedTableId(kind === 'table' ? id : null);
+    setSelectedObjectId(kind === 'object' ? id : null);
+  };
+  const applyBatch = (next: FloorLayout | null) => {
+    if (!next) {
+      setEditWarning(he ? 'אין מקום באזור הפעיל, או שאין שינוי לבצע.' : 'No valid room in the active floor, or nothing to change.');
+      return;
+    }
+    setEditWarning('');
+    setCurrentLayout(next);
+  };
+  const nudgeSelection = (dx: number, dy: number) => {
+    if (currentLayout) applyBatch(moveSelection(currentLayout, selectedKeys, dx, dy));
+  };
+  const alignBatch = (axis: 'x' | 'y', alignment: 'start' | 'center' | 'end') => {
+    if (currentLayout) applyBatch(alignSelection(currentLayout, selectedKeys, axis, alignment));
+  };
+  const distributeBatch = (axis: 'x' | 'y') => {
+    if (currentLayout) applyBatch(distributeSelection(currentLayout, selectedKeys, axis));
+  };
+  const deleteSelection = () => {
+    if (!currentLayout || !selectedKeys.length) return;
+    const keys = new Set(selectedKeys);
+    setCurrentLayout({ ...currentLayout,
+      tables: currentLayout.tables.filter(item => !keys.has(('table:' + item.id) as SelectionKey)),
+      objects: (currentLayout.objects ?? []).filter(item => !keys.has(('object:' + item.id) as SelectionKey)),
+    });
+    clearSelection();
   };
 
   type FloorThemeKey = 'parquet_blue' | 'parquet_brown' | 'slate_dark' | 'navy_carpet' | 'teal_terrazzo';
@@ -458,7 +503,18 @@ const assetForTable = (shape: string, seats: number) => {
         return;
       }
 
+      if (e.key.toLowerCase() === 'a' && (e.ctrlKey || e.metaKey) && currentLayout) {
+        e.preventDefault();
+        setSelectedKeys([
+          ...currentLayout.tables.map(item => ('table:' + item.id) as SelectionKey),
+          ...(currentLayout.objects ?? []).map(item => ('object:' + item.id) as SelectionKey),
+        ]);
+        setSelectedTableId(null);
+        setSelectedObjectId(null);
+        return;
+      }
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      if (selectedKeys.length > 1) { e.preventDefault(); deleteSelection(); return; }
       if (selectedTableId) {
         e.preventDefault();
         deleteTable(selectedTableId);
@@ -472,7 +528,7 @@ const assetForTable = (shape: string, seats: number) => {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedTableId, selectedObjectId, currentLayout]);
+  }, [selectedTableId, selectedObjectId, selectedKeys, currentLayout]);
 
 
   const createNewLayout = async () => {
