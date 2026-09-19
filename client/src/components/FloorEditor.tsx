@@ -4,6 +4,7 @@ import { useFloorHistory } from './useFloorHistory';
 import { proportionalSize, overlaps } from './floorGeometry';
 import { type GridLayout, type SelectionKey, selectedItems, bounds, activeFootprint, moveSelection, alignSelection, distributeSelection, selectInRectangle, findCopyOffset, expandGroupSelection } from './floorBatch';
 import { t, getCurrentLang } from '../i18n';
+import { findPastePosition } from './floorClipboard';
 
 interface FloorTable {
   id: string;
@@ -89,6 +90,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
   const [contextMenu, setContextMenu] = useState<null | { x: number; y: number }>(null);
+  const [copiedItems, setCopiedItems] = useState<{ tables: FloorTable[]; objects: FloorObject[] } | null>(null);
+  const pasteSerial = useRef(0);
   const [marqueeMode, setMarqueeMode] = useState(false);
   const [marquee, setMarquee] = useState<null | { x1: number; y1: number; x2: number; y2: number }>(null);
   const marqueeCleanup = useRef<(() => void) | null>(null);
@@ -242,6 +245,54 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   };
   const distributeBatch = (axis: 'x' | 'y') => {
     if (currentLayout) applyBatch(distributeSelection(currentLayout, selectedKeys, axis));
+  };
+  const copySelection = () => {
+    if (!currentLayout || !selectedKeys.length) return;
+    const keys = new Set(expandGroupSelection(currentLayout, selectedKeys));
+    setCopiedItems({
+      tables: currentLayout.tables.filter(item => keys.has(('table:' + item.id) as SelectionKey)).map(item => ({ ...item })),
+      objects: (currentLayout.objects ?? []).filter(item => keys.has(('object:' + item.id) as SelectionKey)).map(item => ({ ...item })),
+    });
+    setEditWarning('');
+  };
+  const pasteSelection = () => {
+    if (!currentLayout || !copiedItems) return;
+    const source = [...copiedItems.tables, ...copiedItems.objects];
+    if (!source.length) return;
+    const offset = findPastePosition(currentLayout, source);
+    if (!offset) {
+      setEditWarning(he ? 'אין מקום פנוי להדבקה במפה זו. נסה להגדיל את האזור הפעיל.' :
+        'No free room for the copied items on this floor. Expand the active floor or clear some space.');
+      return;
+    }
+    const stamp = Date.now().toString(36) + '-' + (++pasteSerial.current).toString(36);
+    const groupIds = new Map<string, string>();
+    const remapGroup = (id?: string) => {
+      if (!id) return undefined;
+      if (!groupIds.has(id)) groupIds.set(id, 'paste-' + stamp + '-' + groupIds.size);
+      return groupIds.get(id);
+    };
+    let number = Math.max(nextTableNumber, 1 + Math.max(0, ...currentLayout.tables.map(t => Number(t.tableNumber) || 0)));
+    const newKeys: SelectionKey[] = [];
+    const tables = copiedItems.tables.map((item, index) => {
+      const id = 'T' + stamp + '-' + index, tableNumber = number++;
+      newKeys.push(('table:' + id) as SelectionKey);
+      return { ...item, id, tableNumber, name: 'T' + tableNumber, locked: false,
+        groupId: remapGroup(item.groupId),
+        gridX: item.gridX + offset.dx, gridY: item.gridY + offset.dy };
+    });
+    const objects = copiedItems.objects.map((item, index) => {
+      const id = 'O' + stamp + '-' + index;
+      newKeys.push(('object:' + id) as SelectionKey);
+      return { ...item, id, locked: false, groupId: remapGroup(item.groupId),
+        gridX: item.gridX + offset.dx, gridY: item.gridY + offset.dy };
+    });
+    setCurrentLayout({ ...currentLayout, tables: [...currentLayout.tables, ...tables],
+      objects: [...(currentLayout.objects ?? []), ...objects] });
+    setNextTableNumber(number);
+    setSelectedKeys(newKeys);
+    setSelectedTableId(null); setSelectedObjectId(null);
+    setEditWarning('');
   };
   const duplicateGroup = () => {
     if (!currentLayout || !selectedKeys.length || selectionHasLocked) return;
@@ -595,6 +646,12 @@ const assetForTable = (shape: string, seats: number) => {
         nudgeSelection(dx, dy);
         return;
       }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && selectedKeys.length) {
+        e.preventDefault(); copySelection(); return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v' && copiedItems) {
+        e.preventDefault(); pasteSelection(); return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && selectedKeys.length) {
         e.preventDefault(); duplicateGroup(); return;
       }
@@ -613,7 +670,7 @@ const assetForTable = (shape: string, seats: number) => {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedTableId, selectedObjectId, selectedKeys, currentLayout, previewMode]);
+  }, [selectedTableId, selectedObjectId, selectedKeys, currentLayout, previewMode, copiedItems]);
 
 
   const createNewLayout = async () => {
@@ -1861,6 +1918,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     <div className={`floor-editor ${previewMode ? 'fe-preview-mode' : ''}`} onClick={() => contextMenu && setContextMenu(null)}>
       <div className="fe-session-toolbar">
         <div className="fe-multi-controls">
+          {!previewMode && <button type="button" disabled={!selectedKeys.length} onClick={copySelection}>{he ? 'העתק' : 'Copy'} (Ctrl+C)</button>}
+          {!previewMode && <button type="button" disabled={!copiedItems} onClick={pasteSelection}>{he ? 'הדבק' : 'Paste'} (Ctrl+V)</button>}
           <button type="button" aria-pressed={previewMode} onClick={() => { clearSelection(); setPreviewMode(v => !v); setMarqueeMode(false); setMultiSelectMode(false); setShapeMode(false); }}>{previewMode ? (he ? 'חזור לעריכה' : 'Back to editing') : (he ? 'תצוגה מקדימה' : 'Preview map')}</button>
           {!previewMode && <button type="button" aria-pressed={multiSelectMode} onClick={() => { setMultiSelectMode(v => !v); setMarqueeMode(false); }}>{he ? 'בחירה מרובה' : 'Multi-select'} {multiSelectMode ? '✓' : ''}</button>}
           {!previewMode && <button type="button" aria-pressed={marqueeMode} onClick={() => { setMarqueeMode(v => !v); setMultiSelectMode(false); }}>{he ? 'בחירת אזור' : 'Area select'} {marqueeMode ? '✓' : ''}</button>}
@@ -1917,6 +1976,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         {!previewMode && <div className="editor-sidebar">
           {!!groupItems.length && <div className="fe-selection-tools fe-batch-tools">
             <strong>{he ? 'פריטים נבחרים' : 'Selected items'}: {groupItems.length}</strong>
+            <small>{he ? 'העתק פריטים, עבור למפה אחרת והדבק. הסידור והקבוצות יישמרו.' : 'Copy, switch floors, then paste. Spacing and groups are preserved.'}</small>
             <div className="fe-batch-actions">
               <button type="button" disabled={selectionHasLocked} onClick={duplicateGroup}>{he ? 'שכפל' : 'Duplicate'}</button>
               <button type="button" onClick={() => updateSelectedMetadata({ locked: !groupItems.every(p => p.item.locked) })}>{groupItems.every(p => p.item.locked) ? (he ? 'בטל נעילה' : 'Unlock') : (he ? 'נעל' : 'Lock')}</button>
