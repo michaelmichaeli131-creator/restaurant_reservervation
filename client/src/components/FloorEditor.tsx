@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import './FloorEditor.css';
 import { useFloorHistory } from './useFloorHistory';
 import { proportionalSize, overlaps } from './floorGeometry';
-import { type GridLayout, type SelectionKey, selectedItems, bounds, activeFootprint, moveSelection, alignSelection, distributeSelection } from './floorBatch';
+import { type GridLayout, type SelectionKey, selectedItems, bounds, activeFootprint, moveSelection, alignSelection, distributeSelection, selectInRectangle, findCopyOffset } from './floorBatch';
 import { t, getCurrentLang } from '../i18n';
 
 interface FloorTable {
@@ -81,6 +81,10 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [editWarning, setEditWarning] = useState('');
   const [selectedKeys, setSelectedKeys] = useState<SelectionKey[]>([]);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [marqueeMode, setMarqueeMode] = useState(false);
+  const [marquee, setMarquee] = useState<null | { x1: number; y1: number; x2: number; y2: number }>(null);
+  const marqueeCleanup = useRef<(() => void) | null>(null);
+  useEffect(() => () => marqueeCleanup.current?.(), []);
   const [snapGuides, setSnapGuides] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
   useEffect(() => {
     const shortcut = (e: KeyboardEvent) => {
@@ -199,6 +203,38 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   };
   const distributeBatch = (axis: 'x' | 'y') => {
     if (currentLayout) applyBatch(distributeSelection(currentLayout, selectedKeys, axis));
+  };
+  const duplicateGroup = () => {
+    if (!currentLayout || !selectedKeys.length) return;
+    const offset = findCopyOffset(currentLayout, selectedKeys);
+    if (!offset) {
+      setEditWarning(he ? 'אין מקום פנוי לשכפול הקבוצה באזור הפעיל.' : 'No free space to duplicate the group in the active floor.');
+      return;
+    }
+    const chosen = new Set(selectedKeys);
+    const stamp = Date.now().toString(36);
+    let nextNumber = Math.max(nextTableNumber, 1 + Math.max(0, ...currentLayout.tables.map(t => Number(t.tableNumber) || 0)));
+    const newTables: FloorTable[] = [];
+    const newObjects: FloorObject[] = [];
+    const newKeys: SelectionKey[] = [];
+    currentLayout.tables.filter(t => chosen.has(('table:' + t.id) as SelectionKey)).forEach((item, index) => {
+      const id = 'T' + stamp + '_' + index;
+      const tableNumber = nextNumber++;
+      newTables.push({ ...item, id, name: 'T' + tableNumber, tableNumber,
+        gridX: item.gridX + offset.dx, gridY: item.gridY + offset.dy });
+      newKeys.push(('table:' + id) as SelectionKey);
+    });
+    (currentLayout.objects ?? []).filter(o => chosen.has(('object:' + o.id) as SelectionKey)).forEach((item, index) => {
+      const id = 'O' + stamp + '_' + index;
+      newObjects.push({ ...item, id, gridX: item.gridX + offset.dx, gridY: item.gridY + offset.dy });
+      newKeys.push(('object:' + id) as SelectionKey);
+    });
+    setCurrentLayout({ ...currentLayout, tables: [...currentLayout.tables, ...newTables],
+      objects: [...(currentLayout.objects ?? []), ...newObjects] });
+    setNextTableNumber(nextNumber);
+    setSelectedKeys(newKeys);
+    setSelectedTableId(null); setSelectedObjectId(null);
+    setEditWarning('');
   };
   const deleteSelection = () => {
     if (!currentLayout || !selectedKeys.length) return;
@@ -519,6 +555,9 @@ const assetForTable = (shape: string, seats: number) => {
         const dy = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
         nudgeSelection(dx, dy);
         return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && selectedKeys.length) {
+        e.preventDefault(); duplicateGroup(); return;
       }
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       if (selectedKeys.length > 1) { e.preventDefault(); deleteSelection(); return; }
