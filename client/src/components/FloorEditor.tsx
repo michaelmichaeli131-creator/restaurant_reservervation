@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import './FloorEditor.css';
 import { useFloorHistory } from './useFloorHistory';
 import { proportionalSize, overlaps } from './floorGeometry';
-import { type SelectionKey, selectedItems, bounds, activeFootprint, moveSelection, alignSelection, distributeSelection } from './floorBatch';
+import { type GridLayout, type SelectionKey, selectedItems, bounds, activeFootprint, moveSelection, alignSelection, distributeSelection } from './floorBatch';
 import { t, getCurrentLang } from '../i18n';
 
 interface FloorTable {
@@ -183,13 +183,13 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     setSelectedTableId(kind === 'table' ? id : null);
     setSelectedObjectId(kind === 'object' ? id : null);
   };
-  const applyBatch = (next: FloorLayout | null) => {
+  const applyBatch = (next: GridLayout<FloorTable, FloorObject> | null) => {
     if (!next) {
       setEditWarning(he ? 'אין מקום באזור הפעיל, או שאין שינוי לבצע.' : 'No valid room in the active floor, or nothing to change.');
       return;
     }
     setEditWarning('');
-    setCurrentLayout(next);
+    setCurrentLayout(next as FloorLayout);
   };
   const nudgeSelection = (dx: number, dy: number) => {
     if (currentLayout) applyBatch(moveSelection(currentLayout, selectedKeys, dx, dy));
@@ -1286,7 +1286,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
           : (currentLayout.objects ?? []).find(t => t.id === pointerDrag.objectId);
         if (pointerDrag.groupKeys?.length && primary) {
           const next = moveSelection(currentLayout, pointerDrag.groupKeys, x - primary.gridX, y - primary.gridY);
-          if (next) setCurrentLayout(next); // one atomic Undo step
+          if (next) setCurrentLayout(next as FloorLayout); // one atomic Undo step
         } else if (pointerDrag.kind === 'table' && pointerDrag.tableId) {
           updateTable(pointerDrag.tableId, { gridX: x, gridY: y });
         } else if (pointerDrag.kind === 'object' && pointerDrag.objectId) {
