@@ -1854,12 +1854,12 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       <div className="fe-session-toolbar">
         <div className="fe-multi-controls">
           <button type="button" aria-pressed={previewMode} onClick={() => { clearSelection(); setPreviewMode(v => !v); setMarqueeMode(false); setMultiSelectMode(false); }}>{previewMode ? (he ? 'חזור לעריכה' : 'Back to editing') : (he ? 'תצוגה מקדימה' : 'Preview map')}</button>
-          {!previewMode && <button type="button" aria-pressed={multiSelectMode} onClick={() => { setMultiSelectMode(v => !v); setMarqueeMode(false); }}>{he ? 'בחירה מרובה' : 'Multi-select'} {multiSelectMode ? '✓' : ''}</button>
-          {!previewMode && <button type="button" aria-pressed={marqueeMode} onClick={() => { setMarqueeMode(v => !v); setMultiSelectMode(false); }}>{he ? 'בחירת אזור' : 'Area select'} {marqueeMode ? '✓' : ''}</button>
+          {!previewMode && <button type="button" aria-pressed={multiSelectMode} onClick={() => { setMultiSelectMode(v => !v); setMarqueeMode(false); }}>{he ? 'בחירה מרובה' : 'Multi-select'} {multiSelectMode ? '✓' : ''}</button>}
+          {!previewMode && <button type="button" aria-pressed={marqueeMode} onClick={() => { setMarqueeMode(v => !v); setMultiSelectMode(false); }}>{he ? 'בחירת אזור' : 'Area select'} {marqueeMode ? '✓' : ''}</button>}
           {!previewMode && <button type="button" onClick={() => { if (!currentLayout) return;
             setSelectedKeys([...currentLayout.tables.map(i => ('table:' + i.id) as SelectionKey), ...(currentLayout.objects ?? []).map(i => ('object:' + i.id) as SelectionKey)]);
             setSelectedTableId(null); setSelectedObjectId(null);
-          }}>{he ? 'בחר הכול' : 'Select all'}</button>
+          }}>{he ? 'בחר הכול' : 'Select all'}</button>}
           {!previewMode && !!groupItems.length && <button type="button" onClick={clearSelection}>{he ? 'נקה בחירה' : 'Clear selection'} ({groupItems.length})</button>}
         </div>
         <div className="fe-history-actions">
