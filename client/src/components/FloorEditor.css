@@ -1104,7 +1104,8 @@
   .floor-editor .fe-asset-library{display:none}
   .floor-editor.fe-mobile-library-open .fe-asset-library{display:grid}
   .floor-editor.fe-mobile-library-open .editor-sidebar{max-height:64svh}
-  .floor-editor .fe-mobile-toolbar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;position:sticky;bottom:0;z-index:150;padding:8px max(8px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));background:#112940f5;border-top:1px solid #52718f;box-shadow:0 -8px 28px #0005}
+  .floor-editor{padding-bottom:calc(74px + env(safe-area-inset-bottom))}
+  .floor-editor .fe-mobile-toolbar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;position:fixed;left:0;right:0;bottom:0;z-index:150;padding:8px max(8px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));background:#112940f5;border-top:1px solid #52718f;box-shadow:0 -8px 28px #0005}
   .floor-editor .fe-mobile-toolbar button{min-width:0;min-height:48px;padding:5px 2px;border:1px solid #4c6e91;border-radius:9px;background:#1d3d5b;color:#fff;font-size:clamp(10px,2.5vw,13px);white-space:normal}
   .floor-editor .fe-mobile-toolbar button[aria-pressed=true],.floor-editor .fe-mobile-toolbar button[aria-expanded=true]{background:#2367ae;border-color:#a7d2ff}
   .floor-editor .fe-mobile-toolbar button:disabled{opacity:.45}
