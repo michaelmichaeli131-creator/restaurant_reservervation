@@ -88,6 +88,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [selectedKeys, setSelectedKeys] = useState<SelectionKey[]>([]);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
+  const [contextMenu, setContextMenu] = useState<null | { x: number; y: number }>(null);
   const [marqueeMode, setMarqueeMode] = useState(false);
   const [marquee, setMarquee] = useState<null | { x1: number; y1: number; x2: number; y2: number }>(null);
   const marqueeCleanup = useRef<(() => void) | null>(null);
@@ -194,6 +195,13 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     });
     setSelectedTableId(kind === 'table' ? id : null);
     setSelectedObjectId(kind === 'object' ? id : null);
+  };
+  const openItemMenu = (e: React.MouseEvent, kind: 'table' | 'object', id: string) => {
+    if (previewMode) return;
+    e.preventDefault(); e.stopPropagation();
+    selectItem(kind, id, false);
+    setContextMenu({ x: Math.max(8, Math.min(e.clientX, window.innerWidth - 210)),
+      y: Math.max(8, Math.min(e.clientY, window.innerHeight - 240)) });
   };
   const applyBatch = (next: GridLayout<FloorTable, FloorObject> | null) => {
     if (!next) {
@@ -1850,7 +1858,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   }
 
   return (
-    <div className={`floor-editor ${previewMode ? 'fe-preview-mode' : ''}`}>
+    <div className={`floor-editor ${previewMode ? 'fe-preview-mode' : ''}`} onClick={() => contextMenu && setContextMenu(null)}>
       <div className="fe-session-toolbar">
         <div className="fe-multi-controls">
           <button type="button" aria-pressed={previewMode} onClick={() => { clearSelection(); setPreviewMode(v => !v); setMarqueeMode(false); setMultiSelectMode(false); setShapeMode(false); }}>{previewMode ? (he ? 'חזור לעריכה' : 'Back to editing') : (he ? 'תצוגה מקדימה' : 'Preview map')}</button>
@@ -2683,6 +2691,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   {isObjTopLeft && objectHere && (
                     <div
                       className={`floor-object type-${objectHere.type} ${objectHere.locked ? 'fe-locked' : ''} ${conflicts.has(objectHere.id) ? 'fe-conflict' : ''} ${selectedKeys.includes(('object:' + objectHere.id) as SelectionKey) ? 'selected' : ''}`}
+                      onContextMenu={(e) => openItemMenu(e, 'object', objectHere.id)}
                       onMouseDown={(e) => { if (previewMode || objectHere.locked || e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('object:' + objectHere.id) as SelectionKey))) { e.preventDefault(); e.stopPropagation(); return; } beginPointerDragExisting(e, 'object', objectHere.id, objectHere.spanX || 1, objectHere.spanY || 1); }}
                       onClick={(e) => { if (!previewMode) selectItem('object', objectHere.id, e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('object:' + objectHere.id) as SelectionKey))); }}
                       style={{
@@ -2724,6 +2733,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   {isTopLeft && (
                     <div
                       className={`table ${tableHere.shape} ${tableHere.locked ? 'fe-locked' : ''} ${conflicts.has(tableHere.id) ? 'fe-conflict' : ''} ${selectedKeys.includes(('table:' + tableHere.id) as SelectionKey) ? 'selected' : ''} ${(!showOnlyActiveSection && activeSection && String(tableHere.sectionId || '') && String(tableHere.sectionId || '') !== String(activeSection.id)) ? 'dimmed' : ''}`}
+                      onContextMenu={(e) => openItemMenu(e, 'table', tableHere.id)}
                       onMouseDown={(e) => { if (previewMode || tableHere.locked || e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('table:' + tableHere.id) as SelectionKey))) { e.preventDefault(); e.stopPropagation(); return; } beginPointerDragExisting(e, 'table', tableHere.id, tableHere.spanX || 1, tableHere.spanY || 1); }}
                       onClick={(e) => { if (!previewMode) selectItem('table', tableHere.id, e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('table:' + tableHere.id) as SelectionKey))); }}
                       style={{
@@ -2781,6 +2791,15 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         </div>
       </div>
 
+      {contextMenu && !previewMode && <div className="fe-context-menu" role="menu"
+        style={{ left: contextMenu.x, top: contextMenu.y }}
+        onClick={e => e.stopPropagation()}>
+        <button type="button" role="menuitem" disabled={selectionHasLocked} onClick={() => { duplicateGroup(); setContextMenu(null); }}>{he ? 'שכפל בחירה' : 'Duplicate selection'}</button>
+        <button type="button" role="menuitem" onClick={() => { updateSelectedMetadata({ locked: !groupItems.every(p => p.item.locked) }); setContextMenu(null); }}>{groupItems.every(p => p.item.locked) ? (he ? 'בטל נעילה' : 'Unlock') : (he ? 'נעל' : 'Lock')}</button>
+        <button type="button" role="menuitem" disabled={selectionHasLocked || groupItems.length < 2} onClick={() => { groupSelection(); setContextMenu(null); }}>{he ? 'קבץ' : 'Group'}</button>
+        <button type="button" role="menuitem" onClick={() => { ungroupSelection(); setContextMenu(null); }}>{he ? 'פרק קבוצה' : 'Ungroup'}</button>
+        <button type="button" role="menuitem" disabled={selectionHasLocked} onClick={() => { deleteSelection(); setContextMenu(null); }}>{he ? 'מחק' : 'Delete'}</button>
+      </div>}
       {isCreateModalOpen && (
         <div className="modal-overlay" onClick={() => setIsCreateModalOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
