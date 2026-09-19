@@ -1133,6 +1133,52 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     return { x: gx, y: gy };
   };
 
+  const beginMarquee = (e: React.PointerEvent<HTMLDivElement>, x: number, y: number) => {
+    if (!marqueeMode || shapeMode || spacePressed || pointerDrag || e.button !== 0 ||
+        e.target !== e.currentTarget || !currentLayout) return;
+    e.preventDefault(); e.stopPropagation();
+    marqueeCleanup.current?.();
+    const pointerId = e.pointerId;
+    const snapshot = currentLayout;
+    const initial = { x1: x, y1: y, x2: x, y2: y };
+    let draft = initial;
+    const previous = e.shiftKey ? [...selectedKeys] : [];
+    setMarquee(initial);
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+      window.removeEventListener('blur', cancel);
+      marqueeCleanup.current = null;
+    };
+    const cancel = () => { cleanup(); setMarquee(null); };
+    const onMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      const cell = clientPointToGridCell(ev.clientX, ev.clientY);
+      if (!cell) return;
+      draft = { ...draft, x2: cell.x, y2: cell.y };
+      setMarquee(draft);
+    };
+    const onUp = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      onMove(ev);
+      cleanup();
+      let found = selectInRectangle(snapshot, draft.x1, draft.y1, draft.x2, draft.y2);
+      if (showOnlyActiveSection && activeSection)
+        found = found.filter(key => !key.startsWith('table:') ||
+          snapshot.tables.some(t => ('table:' + t.id) === key && String(t.sectionId || '') === String(activeSection.id)));
+      setSelectedKeys([...new Set([...previous, ...found])]);
+      setSelectedTableId(null); setSelectedObjectId(null);
+      setMarquee(null);
+    };
+    const onCancel = (ev: PointerEvent) => { if (ev.pointerId === pointerId) cancel(); };
+    marqueeCleanup.current = cleanup;
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+    window.addEventListener('blur', cancel);
+  };
+
   const beginResizeItem = (
     e: React.PointerEvent,
     kind: 'table' | 'object',
@@ -1769,7 +1815,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     <div className="floor-editor">
       <div className="fe-session-toolbar">
         <div className="fe-multi-controls">
-          <button type="button" aria-pressed={multiSelectMode} onClick={() => setMultiSelectMode(v => !v)}>{he ? 'בחירה מרובה' : 'Multi-select'} {multiSelectMode ? '✓' : ''}</button>
+          <button type="button" aria-pressed={multiSelectMode} onClick={() => { setMultiSelectMode(v => !v); setMarqueeMode(false); }}>{he ? 'בחירה מרובה' : 'Multi-select'} {multiSelectMode ? '✓' : ''}</button>
+          <button type="button" aria-pressed={marqueeMode} onClick={() => { setMarqueeMode(v => !v); setMultiSelectMode(false); }}>{he ? 'בחירת אזור' : 'Area select'} {marqueeMode ? '✓' : ''}</button>
           <button type="button" onClick={() => { if (!currentLayout) return;
             setSelectedKeys([...currentLayout.tables.map(i => ('table:' + i.id) as SelectionKey), ...(currentLayout.objects ?? []).map(i => ('object:' + i.id) as SelectionKey)]);
             setSelectedTableId(null); setSelectedObjectId(null);
@@ -1823,6 +1870,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         <div className="editor-sidebar">
           {!!groupItems.length && <div className="fe-selection-tools fe-batch-tools">
             <strong>{he ? 'פריטים נבחרים' : 'Selected items'}: {groupItems.length}</strong>
+            <button type="button" onClick={duplicateGroup}>{he ? 'שכפל בחירה' : 'Duplicate selection'} (Ctrl+D)</button>
             <small>{he ? 'Ctrl / Shift + לחיצה לבחירה נוספת. בטלפון הפעל בחירה מרובה.' : 'Ctrl / Shift + click to add items. On mobile use Multi-select.'}</small>
             {groupItems.length === 1 && (() => { const item = groupItems[0].item; return <div className="fe-xy-fields">
               <label>{he ? 'מיקום X (תאים)' : 'X position (cells)'}
