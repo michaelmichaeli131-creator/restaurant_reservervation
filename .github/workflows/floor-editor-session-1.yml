@@ -1,0 +1,27 @@
+name: Floor editor session 1
+on:
+  push:
+    branches:
+      - feature/floor-editor-ux-session-1
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  floor-editor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install client dependencies
+        run: npm ci --prefix client
+      - name: Check resize interactions
+        run: node client/tests/resize-regression.mjs
+      - name: Check floor editor session 1
+        run: node client/tests/floor-session-regression.mjs
+      - name: Build floor apps
+        run: npm run build --prefix client
