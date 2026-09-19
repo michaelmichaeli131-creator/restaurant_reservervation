@@ -71,6 +71,39 @@ interface FloorEditorProps {
 export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [layouts, setLayouts] = useState<FloorLayout[]>([]);
   const [currentLayout, setCurrentLayout] = useState<FloorLayout | null>(null);
+  const [undoStack, setUndoStack] = useState<FloorLayout[]>([]);
+  const [redoStack, setRedoStack] = useState<FloorLayout[]>([]);
+  const previousLayout = useRef<FloorLayout | null>(null);
+  const historyReplay = useRef(false);
+  const [placementWarning, setPlacementWarning] = useState('');
+  const [lockAspect, setLockAspect] = useState(false);
+  useEffect(() => {
+    const previous = previousLayout.current;
+    if (!currentLayout || !previous || previous.id !== currentLayout.id) {
+      setUndoStack([]); setRedoStack([]);
+    } else if (!historyReplay.current && previous !== currentLayout) {
+      setUndoStack(stack => [...stack.slice(-49), previous]);
+      setRedoStack([]);
+    }
+    historyReplay.current = false;
+    previousLayout.current = currentLayout;
+  }, [currentLayout]);
+  const undo = () => {
+    if (!currentLayout || !undoStack.length) return;
+    historyReplay.current = true;
+    setUndoStack(stack => stack.slice(0, -1));
+    setRedoStack(stack => [...stack, currentLayout]);
+    setCurrentLayout(undoStack[undoStack.length - 1]);
+    setSelectedTableId(null); setSelectedObjectId(null);
+  };
+  const redo = () => {
+    if (!currentLayout || !redoStack.length) return;
+    historyReplay.current = true;
+    setRedoStack(stack => stack.slice(0, -1));
+    setUndoStack(stack => [...stack, currentLayout]);
+    setCurrentLayout(redoStack[redoStack.length - 1]);
+    setSelectedTableId(null); setSelectedObjectId(null);
+  };
   const [sections, setSections] = useState<FloorSection[]>([]);
   const [activeSection, setActiveSection] = useState<FloorSection | null>(null);
 
@@ -374,6 +407,23 @@ const assetForTable = (shape: string, seats: number) => {
       }
     }
     return true;
+  };
+
+  const placementIssue = (x: number, y: number, w: number, h: number, exclude?: { kind: 'table' | 'object'; id?: string }) => {
+    if (!currentLayout) return '';
+    if (x < 0 || y < 0 || x + w > currentLayout.gridCols || y + h > currentLayout.gridRows || !maskAllows(x, y, w, h))
+      return t('floor.error.placement_outside', 'Cannot place item outside the restaurant shape');
+    const overlaps = (o: FloorTable | FloorObject) => x < o.gridX + o.spanX && x + w > o.gridX && y < o.gridY + o.spanY && y + h > o.gridY;
+    if (currentLayout.tables.some(o => !(exclude?.kind === 'table' && exclude.id === o.id) && overlaps(o)))
+      return t('floor.error.table_overlap', 'Overlaps another table');
+    if ((currentLayout.objects ?? []).some(o => !(exclude?.kind === 'object' && exclude.id === o.id) && ['wall', 'divider', 'bar'].includes(o.type) && o.kind !== 'visualOnly' && overlaps(o)))
+      return t('floor.error.obstacle_overlap', 'Overlaps a wall or bar');
+    return '';
+  };
+  const checkPlacement = (x: number, y: number, w: number, h: number, exclude?: { kind: 'table' | 'object'; id?: string }) => {
+    const issue = placementIssue(x, y, w, h, exclude);
+    setPlacementWarning(issue);
+    return !issue;
   };
 
 // Load all layouts
@@ -1049,7 +1099,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         initialX + Math.round((dx * Math.cos(angle) + dy * Math.sin(angle)) / pixelsPerCell)));
       const nextSpanY = Math.max(1, Math.min(currentLayout.gridRows - anchorY,
         initialY + Math.round((-dx * Math.sin(angle) + dy * Math.cos(angle)) / pixelsPerCell)));
-      if (!maskAllows(anchorX, anchorY, nextSpanX, nextSpanY)) return;
+      if (!checkPlacement(anchorX, anchorY, nextSpanX, nextSpanY, { kind, id })) return;
       draft = { ...draft, spanX: nextSpanX, spanY: nextSpanY };
       setResizeDraft(draft);
     };
@@ -1069,7 +1119,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       onMove(ev);
       cleanup();
       const update = kind === 'table' ? updateTable : updateObject;
-      update(id, { spanX: draft.spanX, spanY: draft.spanY });
+      if (checkPlacement(anchorX, anchorY, draft.spanX, draft.spanY, { kind, id })) update(id, { spanX: draft.spanX, spanY: draft.spanY });
       setResizeDraft(null);
     };
     resizeCleanup.current = cleanup;
@@ -1149,7 +1199,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
       const snapped = snapPlacement(baseX, baseY, pointerDrag.spanX, pointerDrag.spanY, pointerDrag.kind, pointerDrag.payload?.shape ?? pointerDrag.payload?.objectType, disableSnap, exclude);
 
-      if (!maskAllows(snapped.x, snapped.y, pointerDrag.spanX, pointerDrag.spanY)) {
+      if (!checkPlacement(snapped.x, snapped.y, pointerDrag.spanX, pointerDrag.spanY, pointerDrag.mode === 'existing' ? { kind: pointerDrag.kind, id: pointerDrag.tableId ?? pointerDrag.objectId } : undefined)) {
         setDragPreviewCell(null);
         return;
       }
@@ -1168,6 +1218,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
       const x = dragPreviewCell.x;
       const y = dragPreviewCell.y;
+      if (!checkPlacement(x, y, pointerDrag.spanX, pointerDrag.spanY, pointerDrag.mode === 'existing' ? { kind: pointerDrag.kind, id: pointerDrag.tableId ?? pointerDrag.objectId } : undefined)) { setPointerDrag(null); setDragPreviewCell(null); return; }
 
       if (pointerDrag.mode === 'existing') {
         if (pointerDrag.kind === 'table' && pointerDrag.tableId) {
@@ -1266,7 +1317,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
       const snapped = snapPlacement(gridX, gridY, sp.spanX, sp.spanY, 'table', draggedItem.shape, disableSnap);
 
-      if (!maskAllows(snapped.x, snapped.y, sp.spanX, sp.spanY)) {
+      if (!checkPlacement(snapped.x, snapped.y, sp.spanX, sp.spanY)) {
         alert(t('floor.error.placement_outside', 'Cannot place item outside the restaurant shape'));
         return;
       }
@@ -1306,7 +1357,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       if (!moving) return;
       const snapped = snapPlacement(gridX, gridY, moving.spanX || 1, moving.spanY || 1, 'table', moving.shape, disableSnap, { kind: 'table', id: moving.id });
 
-      if (!maskAllows(snapped.x, snapped.y, moving.spanX || 1, moving.spanY || 1)) {
+      if (!checkPlacement(snapped.x, snapped.y, moving.spanX || 1, moving.spanY || 1, { kind: 'table', id: moving.id })) {
         alert(t('floor.error.move_outside', 'Cannot move item outside the restaurant shape'));
         return;
       }
@@ -1339,7 +1390,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
       const snapped = snapPlacement(gridX, gridY, sp.spanX, sp.spanY, 'object', draggedItem.objectType, disableSnap);
 
-      if (!maskAllows(snapped.x, snapped.y, sp.spanX, sp.spanY)) {
+      if (!checkPlacement(snapped.x, snapped.y, sp.spanX, sp.spanY)) {
         alert(t('floor.error.placement_outside', 'Cannot place item outside the restaurant shape'));
         return;
       }
@@ -1376,7 +1427,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       if (!moving) return;
       const snapped = snapPlacement(gridX, gridY, moving.spanX || 1, moving.spanY || 1, 'object', moving.type, disableSnap, { kind: 'object', id: moving.id });
 
-      if (!maskAllows(snapped.x, snapped.y, moving.spanX || 1, moving.spanY || 1)) {
+      if (!checkPlacement(snapped.x, snapped.y, moving.spanX || 1, moving.spanY || 1, { kind: 'object', id: moving.id })) {
         alert(t('floor.error.move_outside', 'Cannot move item outside the restaurant shape'));
         return;
       }
@@ -1438,6 +1489,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     const objects = currentLayout.objects ?? [];
     const item = objects.find(o => o.id === objectId);
     if (item && !validateSizeUpdate(item, updates)) return;
+    if (item && (updates.gridX !== undefined || updates.gridY !== undefined) && !checkPlacement(updates.gridX ?? item.gridX, updates.gridY ?? item.gridY, updates.spanX ?? item.spanX, updates.spanY ?? item.spanY, { kind: 'object', id: objectId })) return;
     const nextObjects = objects.map(o => o.id === objectId ? { ...o, ...updates } : o);
     setCurrentLayout({ ...currentLayout, objects: nextObjects });
 };
@@ -1446,6 +1498,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     if (!currentLayout) return;
     const item = currentLayout.tables.find(t => t.id === tableId);
     if (item && !validateSizeUpdate(item, updates)) return;
+    if (item && (updates.gridX !== undefined || updates.gridY !== undefined) && !checkPlacement(updates.gridX ?? item.gridX, updates.gridY ?? item.gridY, updates.spanX ?? item.spanX, updates.spanY ?? item.spanY, { kind: 'table', id: tableId })) return;
     const nextTables = currentLayout.tables.map(t => t.id === tableId ? { ...t, ...updates } : t);
     setCurrentLayout({ ...currentLayout, tables: nextTables });
 };
@@ -1454,12 +1507,23 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     if (!currentLayout || (updates.spanX === undefined && updates.spanY === undefined)) return true;
     const width = Math.max(1, Math.min(currentLayout.gridCols - item.gridX, Math.round(updates.spanX ?? item.spanX)));
     const height = Math.max(1, Math.min(currentLayout.gridRows - item.gridY, Math.round(updates.spanY ?? item.spanY)));
-    if (!maskAllows(item.gridX, item.gridY, width, height)) return false;
+    if (!checkPlacement(item.gridX, item.gridY, width, height, { kind: 'shape' in item ? 'table' : 'object', id: item.id })) return false;
     updates.spanX = width;
     updates.spanY = height;
     return true;
   }
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName ?? '')) return;
+      if (!(e.ctrlKey || e.metaKey) || !['z', 'y'].includes(e.key.toLowerCase())) return;
+      e.preventDefault();
+      if (e.key.toLowerCase() === 'y' || e.shiftKey) redo(); else undo();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [currentLayout, undoStack, redoStack]);
   const saveCurrentLayout = async () => {
     if (!currentLayout) return;
 
@@ -1595,6 +1659,11 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         </div>
       </div>
 
+      <div className="fe-history-toolbar" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '8px 16px' }}>
+        <button className="btn-secondary" onClick={undo} disabled={!undoStack.length} title="Ctrl/Cmd+Z">↶ {t('floor.undo', 'Undo')}</button>
+        <button className="btn-secondary" onClick={redo} disabled={!redoStack.length} title="Ctrl/Cmd+Shift+Z">↷ {t('floor.redo', 'Redo')}</button>
+        {placementWarning && <span role="alert" style={{ color: '#b45309', fontWeight: 600 }}>⚠ {placementWarning}</span>}
+      </div>
       <div className="editor-content">
         <div className="editor-sidebar">
           {sections.length > 0 && (
@@ -1936,7 +2005,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                     min="1"
                     max={Math.max(1, currentLayout.gridCols - selectedTable.gridX)}
                     value={(resizeDraft?.kind === 'table' && resizeDraft.id === selectedTable.id) ? resizeDraft.spanX : selectedTable.spanX}
-                    onChange={(e) => updateTable(selectedTable.id, { spanX: Math.max(1, Number(e.target.value) || 1) })}
+                    onChange={(e) => { const value = Math.max(1, Number(e.target.value) || 1); updateTable(selectedTable.id, lockAspect ? { spanX: value, spanY: Math.max(1, Math.round(value * selectedTable.spanY / selectedTable.spanX)) } : { spanX: value }); }}
                   />
                 </label>
                 <label style={{ flex: 1 }}>
@@ -1946,10 +2015,11 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                     min="1"
                     max={Math.max(1, currentLayout.gridRows - selectedTable.gridY)}
                     value={(resizeDraft?.kind === 'table' && resizeDraft.id === selectedTable.id) ? resizeDraft.spanY : selectedTable.spanY}
-                    onChange={(e) => updateTable(selectedTable.id, { spanY: Math.max(1, Number(e.target.value) || 1) })}
+                    onChange={(e) => { const value = Math.max(1, Number(e.target.value) || 1); updateTable(selectedTable.id, lockAspect ? { spanY: value, spanX: Math.max(1, Math.round(value * selectedTable.spanX / selectedTable.spanY)) } : { spanY: value }); }}
                   />
                 </label>
               </div>
+              <label className="fe-toggle"><input type="checkbox" checked={lockAspect} onChange={e => setLockAspect(e.target.checked)} /> {t('floor.properties.lock_aspect', 'Lock proportions')}</label>
               <div className="fe-hint">{t('floor.properties.resize_hint', 'Tip: drag the bottom-right handle on the selected item to resize it.')}</div>
 
 	              <label>
@@ -2021,7 +2091,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                     min="1"
                     max={Math.max(1, currentLayout.gridCols - selectedObject.gridX)}
                     value={(resizeDraft?.kind === 'object' && resizeDraft.id === selectedObject.id) ? resizeDraft.spanX : selectedObject.spanX}
-                    onChange={(e) => updateObject(selectedObject.id, { spanX: Math.max(1, Number(e.target.value) || 1) })}
+                    onChange={(e) => { const value = Math.max(1, Number(e.target.value) || 1); updateObject(selectedObject.id, lockAspect ? { spanX: value, spanY: Math.max(1, Math.round(value * selectedObject.spanY / selectedObject.spanX)) } : { spanX: value }); }}
                   />
                 </label>
                 <label style={{ flex: 1 }}>
@@ -2031,10 +2101,11 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                     min="1"
                     max={Math.max(1, currentLayout.gridRows - selectedObject.gridY)}
                     value={(resizeDraft?.kind === 'object' && resizeDraft.id === selectedObject.id) ? resizeDraft.spanY : selectedObject.spanY}
-                    onChange={(e) => updateObject(selectedObject.id, { spanY: Math.max(1, Number(e.target.value) || 1) })}
+                    onChange={(e) => { const value = Math.max(1, Number(e.target.value) || 1); updateObject(selectedObject.id, lockAspect ? { spanY: value, spanX: Math.max(1, Math.round(value * selectedObject.spanX / selectedObject.spanY)) } : { spanY: value }); }}
                   />
                 </label>
               </div>
+              <label className="fe-toggle"><input type="checkbox" checked={lockAspect} onChange={e => setLockAspect(e.target.checked)} /> {t('floor.properties.lock_aspect', 'Lock proportions')}</label>
               <div className="fe-hint">{t('floor.properties.resize_hint', 'Tip: drag the bottom-right handle on the selected item to resize it.')}</div>
               <label>
   {t('floor.properties.size', 'Size:')}
