@@ -1222,6 +1222,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       const cell = clientPointToGridCell(ev.clientX, ev.clientY);
       if (!cell) {
         setDragPreviewCell(null);
+        setSnapGuides({ v: [], h: [] });
         return;
       }
 
@@ -1230,20 +1231,34 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       const baseY = cell.y - Math.floor(pointerDrag.spanY / 2);
 
       const disableSnap = ev.shiftKey;
-      const exclude = pointerDrag.mode === 'existing'
-        ? { kind: pointerDrag.kind as any, id: pointerDrag.kind === 'table' ? pointerDrag.tableId : pointerDrag.objectId }
-        : undefined;
-
-      const snapped = snapPlacement(baseX, baseY, pointerDrag.spanX, pointerDrag.spanY, pointerDrag.kind, pointerDrag.payload?.shape ?? pointerDrag.payload?.objectType, disableSnap, exclude);
-
-      if (!maskAllows(snapped.x, snapped.y, pointerDrag.spanX, pointerDrag.spanY)) {
+      const group = pointerDrag.groupKeys?.length
+        ? selectedItems(currentLayout, pointerDrag.groupKeys) : [];
+      const primary = pointerDrag.kind === 'table'
+        ? currentLayout.tables.find(t => t.id === pointerDrag.tableId)
+        : (currentLayout.objects ?? []).find(t => t.id === pointerDrag.objectId);
+      const groupBox = group.length > 1 ? bounds(group.map(p => p.item)) : null;
+      const snapped = groupBox && primary
+        ? snapPlacement(groupBox.left + baseX - primary.gridX, groupBox.top + baseY - primary.gridY,
+            groupBox.right - groupBox.left, groupBox.bottom - groupBox.top, pointerDrag.kind,
+            undefined, disableSnap, { kind: pointerDrag.kind, keys: pointerDrag.groupKeys })
+        : snapPlacement(baseX, baseY, pointerDrag.spanX, pointerDrag.spanY, pointerDrag.kind,
+            pointerDrag.payload?.shape ?? pointerDrag.payload?.objectType, disableSnap,
+            pointerDrag.mode === 'existing' ? { kind: pointerDrag.kind, id: pointerDrag.kind === 'table' ? pointerDrag.tableId : pointerDrag.objectId } : undefined);
+      const x = groupBox && primary ? primary.gridX + snapped.x - groupBox.left : snapped.x;
+      const y = groupBox && primary ? primary.gridY + snapped.y - groupBox.top : snapped.y;
+      const valid = groupBox && primary
+        ? group.every(p => activeFootprint(currentLayout, { ...p.item, gridX: p.item.gridX + x - primary.gridX, gridY: p.item.gridY + y - primary.gridY }))
+        : maskAllows(x, y, pointerDrag.spanX, pointerDrag.spanY);
+      if (!valid) {
         setEditWarning(he ? 'אין מקום בגבולות האזור הפעיל' : 'Outside the active floor area');
         setDragPreviewCell(null);
+        setSnapGuides({ v: [], h: [] });
         return;
       }
       setEditWarning('');
-      setDragPreviewCell({ x: snapped.x, y: snapped.y });
-      setHoverCell({ x: snapped.x, y: snapped.y });
+      setSnapGuides(snapped.guides);
+      setDragPreviewCell({ x, y });
+      setHoverCell({ x, y });
     };
 
     const onUp = () => {
@@ -1258,7 +1273,13 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       const y = dragPreviewCell.y;
 
       if (pointerDrag.mode === 'existing') {
-        if (pointerDrag.kind === 'table' && pointerDrag.tableId) {
+        const primary = pointerDrag.kind === 'table'
+          ? currentLayout.tables.find(t => t.id === pointerDrag.tableId)
+          : (currentLayout.objects ?? []).find(t => t.id === pointerDrag.objectId);
+        if (pointerDrag.groupKeys?.length && primary) {
+          const next = moveSelection(currentLayout, pointerDrag.groupKeys, x - primary.gridX, y - primary.gridY);
+          if (next) setCurrentLayout(next); // one atomic Undo step
+        } else if (pointerDrag.kind === 'table' && pointerDrag.tableId) {
           updateTable(pointerDrag.tableId, { gridX: x, gridY: y });
         } else if (pointerDrag.kind === 'object' && pointerDrag.objectId) {
           updateObject(pointerDrag.objectId, { gridX: x, gridY: y });
@@ -1313,6 +1334,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       setPointerDrag(null);
       setDragPreviewCell(null);
       setHoverCell(null);
+      setSnapGuides({ v: [], h: [] });
     };
 
     const onKey = (ev: KeyboardEvent) => {
@@ -1320,6 +1342,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         setPointerDrag(null);
         setDragPreviewCell(null);
         setHoverCell(null);
+        setSnapGuides({ v: [], h: [] });
       }
     };
 
