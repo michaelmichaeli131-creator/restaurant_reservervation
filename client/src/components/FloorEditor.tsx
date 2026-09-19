@@ -476,6 +476,7 @@ const assetForTable = (shape: string, seats: number) => {
 
 
   const createNewLayout = async () => {
+    if (!allowLayoutManagement()) return;
     if (!newLayoutName.trim()) {
       alert(t('floor.error.enter_name', 'Please enter a layout name'));
       return;
@@ -537,6 +538,7 @@ const assetForTable = (shape: string, seats: number) => {
   };
 
   const deleteLayout = async (layoutId: string) => {
+    if (!allowLayoutManagement()) return;
     if (!confirm(t('floor.confirm.delete_layout', 'Are you sure you want to delete this layout?'))) return;
 
     try {
@@ -562,6 +564,7 @@ const assetForTable = (shape: string, seats: number) => {
   };
 
   const duplicateLayout = async (layoutId: string) => {
+    if (!allowLayoutManagement()) return;
     const name = prompt(t('floor.prompt.duplicate_name', 'Enter name for duplicated layout:'));
     if (!name) return;
 
@@ -1496,6 +1499,12 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     updates.spanX = width;
     updates.spanY = height;
     return true;
+  }
+
+  function allowLayoutManagement() {
+    if (!history.dirty && !saving) return true;
+    alert(he ? 'שמור את השינויים או בטל אותם לפני ניהול מפות.' : 'Save or undo your changes before managing layouts.');
+    return false;
   }
 
   const saveCurrentLayout = async () => {
