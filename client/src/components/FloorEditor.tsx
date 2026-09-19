@@ -7,6 +7,7 @@ import { t, getCurrentLang } from '../i18n';
 import { findPastePosition } from './floorClipboard';
 import { canResize, resizeByKeyboard, type ResizeDirection } from './floorResize';
 import { reconcileSavedLayouts } from './floorSave';
+import { FLOOR_ASSETS, filterFloorAssets, type FloorAsset, type AssetCategory } from './floorAssets';
 
 interface FloorTable {
   id: string;
@@ -91,6 +92,11 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [selectedKeys, setSelectedKeys] = useState<SelectionKey[]>([]);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
+  const [mobilePanMode, setMobilePanMode] = useState(false);
+  const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false);
+  const [assetSearch, setAssetSearch] = useState('');
+  const [assetCategory, setAssetCategory] = useState<AssetCategory | 'all'>('all');
+  const [armedAsset, setArmedAsset] = useState<FloorAsset | null>(null);
   const [contextMenu, setContextMenu] = useState<null | { x: number; y: number }>(null);
   const [copiedItems, setCopiedItems] = useState<{ tables: FloorTable[]; objects: FloorObject[] } | null>(null);
   const pasteSerial = useRef(0);
@@ -421,6 +427,10 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   }, [zoom]);
 
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  const touchPoints = useRef(new Map<number, { x: number; y: number }>());
+  const touchGesture = useRef<null | { distance: number; zoom: number; pan: { x: number; y: number }; center: { x: number; y: number } }>(null);
+  const panRef = useRef(pan);
+  useEffect(() => { panRef.current = pan; }, [pan]);
   const gridRef = useRef<HTMLDivElement | null>(null);
 
   const paintValueRef = useRef<0 | 1 | null>(null);
@@ -1050,6 +1060,50 @@ const assetForTable = (shape: string, seats: number) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentLayout?.id]);
 
+  const onCanvasTouchDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'touch') return;
+    touchPoints.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (mobilePanMode || touchPoints.current.size > 1) {
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+    }
+    if (touchPoints.current.size === 2) {
+      const [a, b] = [...touchPoints.current.values()];
+      touchGesture.current = {
+        distance: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+        zoom: zoomRef.current,
+        pan: { ...panRef.current },
+        center: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+      };
+    }
+  };
+  const onCanvasTouchMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'touch' || !touchPoints.current.has(e.pointerId)) return;
+    const previous = touchPoints.current.get(e.pointerId)!;
+    touchPoints.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touchPoints.current.size === 2 && touchGesture.current && canvasRef.current) {
+      const [a, b] = [...touchPoints.current.values()];
+      const g = touchGesture.current;
+      const nextZoom = clampZoom(g.zoom * Math.hypot(a.x - b.x, a.y - b.y) / g.distance);
+      const rect = canvasRef.current.getBoundingClientRect();
+      const originX = g.center.x - rect.left, originY = g.center.y - rect.top;
+      const centerX = (a.x + b.x) / 2 - rect.left, centerY = (a.y + b.y) / 2 - rect.top;
+      const nextPan = { x: centerX - (originX - g.pan.x) * nextZoom / g.zoom,
+        y: centerY - (originY - g.pan.y) * nextZoom / g.zoom };
+      panRef.current = nextPan; zoomRef.current = nextZoom;
+      setPan(nextPan); setZoom(nextZoom);
+    } else if (mobilePanMode && touchPoints.current.size === 1) {
+      const nextPan = { x: panRef.current.x + e.clientX - previous.x,
+        y: panRef.current.y + e.clientY - previous.y };
+      panRef.current = nextPan;
+      setPan(nextPan);
+    }
+  };
+  const onCanvasTouchEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'touch') return;
+    touchPoints.current.delete(e.pointerId);
+    touchGesture.current = null;
+    try { if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+  };
   const onCanvasMouseDown = (e: React.MouseEvent) => {
     // Middle mouse OR Space+Left mouse -> pan
     const isMiddle = e.button === 1;
@@ -1390,6 +1444,37 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   };
 
   // ---- Pointer-based drag (precise, stable) ----
+  const placeArmedAsset = (x: number, y: number) => {
+    if (!currentLayout || !armedAsset || previewMode || mobilePanMode) return;
+    const candidate = { gridX: x, gridY: y, spanX: armedAsset.spanX, spanY: armedAsset.spanY };
+    if (!canResize(currentLayout, armedAsset.kind, '__new_asset__', candidate)) {
+      setEditWarning(he ? 'אין מקום פנוי לפריט כאן. בחר תא אחר.' : 'No free room here. Choose another cell.');
+      return;
+    }
+    const id = crypto.randomUUID();
+    if (armedAsset.kind === 'table') {
+      const number = Math.max(nextTableNumber, 1 + Math.max(0, ...currentLayout.tables.map(t => t.tableNumber || 0)));
+      const table: FloorTable = {
+        id, name: 'T' + number, tableNumber: number, gridX: x, gridY: y,
+        spanX: armedAsset.spanX, spanY: armedAsset.spanY, shape: armedAsset.shape ?? 'square',
+        seats: armedAsset.seats ?? 2, assetFile: armedAsset.file, kind: 'table',
+        sectionId: activeSection?.id, scale: 1, rotationDeg: 0,
+      };
+      setCurrentLayout({ ...currentLayout, tables: [...currentLayout.tables, table] });
+      setNextTableNumber(number + 1);
+      setSelectedTableId(id); setSelectedObjectId(null); setSelectedKeys([('table:' + id) as SelectionKey]);
+    } else {
+      const object: FloorObject = {
+        id, type: armedAsset.objectType ?? 'visual', gridX: x, gridY: y,
+        spanX: armedAsset.spanX, spanY: armedAsset.spanY, label: armedAsset.nameEn,
+        assetFile: armedAsset.file, kind: armedAsset.objectKind ?? 'object',
+        scale: 1, rotationDeg: 0,
+      };
+      setCurrentLayout({ ...currentLayout, objects: [...(currentLayout.objects ?? []), object] });
+      setSelectedObjectId(id); setSelectedTableId(null); setSelectedKeys([('object:' + id) as SelectionKey]);
+    }
+    setArmedAsset(null); setEditWarning(''); setMobileLibraryOpen(false);
+  };
   const beginPointerDragNew = (
     e: React.MouseEvent,
     kind: 'table' | 'object',
@@ -1952,7 +2037,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   }
 
   return (
-    <div className={`floor-editor ${previewMode ? 'fe-preview-mode' : ''}`} onClick={() => contextMenu && setContextMenu(null)}>
+    <div className={`floor-editor ${previewMode ? 'fe-preview-mode' : ''} ${mobileLibraryOpen ? 'fe-mobile-library-open' : ''} ${mobilePanMode ? 'fe-mobile-pan-mode' : ''}`} onClick={() => contextMenu && setContextMenu(null)}>
       <div className="fe-session-toolbar">
         <div className="fe-multi-controls">
           {!previewMode && <button type="button" disabled={!selectedKeys.length} onClick={copySelection}>{he ? 'העתק' : 'Copy'} (Ctrl+C)</button>}
@@ -2108,141 +2193,49 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             </div>
           )}
 
-          <h2>🧩 {t('floor.assets.title', 'Assets')}</h2>
-
-          <h3 className="fe-subtitle">{t('floor.assets.seating', 'Seating')}</h3>
-          <div className="palette">
-            <div
-              className="palette-item"
-              onMouseDown={(e) => beginPointerDragNew(e, 'table', 5, 2, { shape: 'rect', seats: 5, assetFile: 'bar.svg' })}
-            >
-              <div className="preview"><img className="preview-img" src={`${ASSET_BASE}bar.svg`} alt="" /></div>
-              <span>bar.svg • 5 (5×2)</span>
+          <section className="fe-asset-library" aria-label={he ? 'ספריית אובייקטים' : 'Asset library'}>
+            <div className="fe-library-heading">
+              <h2>🧩 {he ? 'ספריית אובייקטים' : 'Asset library'}</h2>
+              <span>{filterFloorAssets(assetSearch, assetCategory).length} / {FLOOR_ASSETS.length}</span>
             </div>
-
-            <div
-              className="palette-item"
-              onMouseDown={(e) => beginPointerDragNew(e, 'table', 2, 2, { shape: 'booth', seats: 4, assetFile: 'booth4.svg' })}
-            >
-              <div className="preview"><img className="preview-img" src={assetForTable('booth', 4)} alt="" /></div>
-              <span>booth4.svg • 4 (2×2)</span>
+            <input type="search" className="fe-library-search" value={assetSearch}
+              onChange={e => setAssetSearch(e.target.value)}
+              placeholder={he ? 'חיפוש שולחן, כיסא, דלת…' : 'Search tables, chairs, doors…'}
+              aria-label={he ? 'חיפוש אובייקטים' : 'Search assets'} />
+            <div className="fe-library-categories" role="group" aria-label={he ? 'סינון לפי סוג' : 'Filter assets'}>
+              {(['all', 'tables', 'chairs', 'architecture', 'decor'] as const).map(category =>
+                <button key={category} type="button" aria-pressed={assetCategory === category}
+                  onClick={() => setAssetCategory(category)}>
+                  {he ? ({ all: 'הכול', tables: 'שולחנות', chairs: 'כיסאות', architecture: 'קירות ודלתות', decor: 'עיצוב' })[category]
+                    : ({ all: 'All', tables: 'Tables', chairs: 'Chairs', architecture: 'Walls & doors', decor: 'Decor' })[category]}
+                </button>)}
             </div>
-
-            <div
-              className="palette-item"
-              onMouseDown={(e) => beginPointerDragNew(e, 'table', 6, 2, { shape: 'booth', seats: 6, assetFile: 'large_booth.svg' })}
-            >
-              <div className="preview"><img className="preview-img" src={assetForTable('booth', 6)} alt="" /></div>
-              <span>large_booth.svg • 6 (6×2)</span>
+            <p className="fe-library-hint">{he ? 'לחץ על פריט ואז על תא פנוי במפה, או גרור בעכבר.' : 'Select an asset and tap an empty cell, or drag with a mouse.'}</p>
+            <div className="fe-library-grid">
+              {filterFloorAssets(assetSearch, assetCategory).map(asset =>
+                <button type="button" key={asset.id}
+                  className={`fe-library-item ${armedAsset?.id === asset.id ? 'is-armed' : ''}`}
+                  aria-pressed={armedAsset?.id === asset.id}
+                  onMouseDown={e => {
+                    if (window.matchMedia('(pointer: coarse)').matches) return;
+                    beginPointerDragNew(e, asset.kind, asset.spanX, asset.spanY, asset.kind === 'table'
+                      ? { shape: asset.shape, seats: asset.seats, assetFile: asset.file }
+                      : { objectType: asset.objectType, objectLabel: asset.nameEn,
+                          objectKind: asset.objectKind, assetFile: asset.file });
+                  }}
+                  onClick={() => { setArmedAsset(asset); setMobilePanMode(false); }}>
+                  <span className="fe-library-preview"><img src={`${ASSET_BASE}${asset.file}`}
+                    alt="" loading="lazy" /></span>
+                  <span className="fe-library-name">{he ? asset.nameHe : asset.nameEn}</span>
+                  <small>{asset.spanX} × {asset.spanY}</small>
+                </button>)}
             </div>
+            {!filterFloorAssets(assetSearch, assetCategory).length &&
+              <p role="status">{he ? 'לא נמצאו פריטים. נסה חיפוש אחר.' : 'No matching assets. Try another search.'}</p>}
+            {armedAsset && <button type="button" className="fe-cancel-placement"
+              onClick={() => setArmedAsset(null)}>{he ? 'בטל הוספה' : 'Cancel placement'} ×</button>}
+          </section>
 
-            <div
-              className="palette-item"
-              onMouseDown={(e) => beginPointerDragNew(e, 'object', 1, 1, { objectType: 'chair', objectLabel: 'chair', assetFile: 'chair.svg', objectKind: 'object' })}
-            >
-              <div className="preview"><img className="preview-img" src={`${ASSET_BASE}chair.svg`} alt="" /></div>
-              <span>chair.svg • 1 (1×1)</span>
-            </div>
-
-            <div
-              className="palette-item"
-              onMouseDown={(e) => beginPointerDragNew(e, 'object', 1, 1, { objectType: 'plant', objectLabel: 'plant', assetFile: 'plant.svg', objectKind: 'object' })}
-            >
-              <div className="preview"><img className="preview-img" src={`${ASSET_BASE}plant.svg`} alt="" /></div>
-              <span>plant.svg • 1 (1×1)</span>
-            </div>
-
-            <div
-              className="palette-item"
-              onMouseDown={(e) => beginPointerDragNew(e, 'table', 2, 2, { shape: 'round', seats: 4, assetFile: 'round_table4.svg' })}
-            >
-              <div className="preview"><img className="preview-img" src={assetForTable('round', 4)} alt="" /></div>
-              <span>round_table4.svg • 4 (2×2)</span>
-            </div>
-
-            <div
-              className="palette-item"
-              onMouseDown={(e) => beginPointerDragNew(e, 'table', 3, 3, { shape: 'round', seats: 10, assetFile: 'round_table_10.svg' })}
-            >
-              <div className="preview"><img className="preview-img" src={assetForTable('round', 10)} alt="" /></div>
-              <span>round_table_10.svg • 10 (3×3)</span>
-            </div>
-
-            <div
-              className="palette-item"
-              onMouseDown={(e) => beginPointerDragNew(e, 'table', 2, 1, { shape: 'square', seats: 2, assetFile: 'square_table2.svg' })}
-            >
-              <div className="preview"><img className="preview-img" src={assetForTable('square', 2)} alt="" /></div>
-              <span>square_table2.svg • 2 (2×1)</span>
-            </div>
-
-            <div
-              className="palette-item"
-              onMouseDown={(e) => beginPointerDragNew(e, 'table', 2, 2, { shape: 'square', seats: 4, assetFile: 'square_table4.svg' })}
-            >
-              <div className="preview"><img className="preview-img" src={assetForTable('square', 4)} alt="" /></div>
-              <span>square_table4.svg • 4 (2×2)</span>
-            </div>
-
-            <div
-              className="palette-item"
-              onMouseDown={(e) => beginPointerDragNew(e, 'table', 2, 2, { shape: 'square', seats: 6, assetFile: 'square_table6.svg' })}
-            >
-              <div className="preview"><img className="preview-img" src={assetForTable('square', 6)} alt="" /></div>
-              <span>square_table6.svg • 6 (2×2)</span>
-            </div>
-
-            <div
-              className="palette-item"
-              onMouseDown={(e) => beginPointerDragNew(e, 'table', 2, 2, { shape: 'square', seats: 8, assetFile: 'square_table8.svg' })}
-            >
-              <div className="preview"><img className="preview-img" src={assetForTable('square', 8)} alt="" /></div>
-              <span>square_table8.svg • 8 (2×2)</span>
-            </div>
-
-            <div
-              className="palette-item"
-              onMouseDown={(e) => beginPointerDragNew(e, 'table', 2, 2, { shape: 'square', seats: 10, assetFile: 'square_table10.svg' })}
-            >
-              <div className="preview"><img className="preview-img" src={assetForTable('square', 10)} alt="" /></div>
-              <span>square_table10.svg • 10 (2×2)</span>
-            </div>
-          </div>
-
-          <h3 className="fe-subtitle" style={{ marginTop: 14 }}>{t('floor.assets.visual_only', 'Visual only')}</h3>
-          <div className="palette">
-            <div className="palette-item" onMouseDown={(e) => beginPointerDragNew(e, 'object', 1, 1, { objectType: 'visual', objectLabel: 'corner_partitaion', assetFile: 'corner_partitaion.svg', objectKind: 'visualOnly' })}>
-              <div className="preview"><img className="preview-img" src={assetForObject('divider', 1, 1, 'corner_partitaion')} alt="" /></div>
-              <span>corner_partitaion.svg</span>
-            </div>
-
-            <div className="palette-item" onMouseDown={(e) => beginPointerDragNew(e, 'object', 2, 2, { objectType: 'visual', objectLabel: 'cyclic_partition', assetFile: 'cyclic_partition.svg', objectKind: 'visualOnly' })}>
-              <div className="preview"><img className="preview-img" src={assetForObject('divider', 2, 2, 'cyclic_partition')} alt="" /></div>
-              <span>cyclic_partition.svg</span>
-            </div>
-
-            <div className="palette-item" onMouseDown={(e) => beginPointerDragNew(e, 'object', 1, 1, { objectType: 'door', objectLabel: 'door', assetFile: 'door.svg', objectKind: 'visualOnly' })}>
-              <div className="preview"><img className="preview-img" src={assetForObject('door', 1, 1, 'door')} alt="" /></div>
-              <span>door.svg</span>
-            </div>
-
-            <div className="palette-item" onMouseDown={(e) => beginPointerDragNew(e, 'object', 1, 1, { objectType: 'visual', objectLabel: 'floor_brown', assetFile: 'floor_brown.svg', objectKind: 'visualOnly' })}>
-              <div className="preview"><img className="preview-img" src={assetForObject('divider', 1, 1, 'floor_brown')} alt="" /></div>
-              <span>floor_brown.svg</span>
-            </div>
-
-            <div className="palette-item" onMouseDown={(e) => beginPointerDragNew(e, 'object', 4, 1, { objectType: 'visual', objectLabel: 'horizintal_partitaion', assetFile: 'horizintal_partitaion.svg', objectKind: 'visualOnly' })}>
-              <div className="preview"><img className="preview-img" src={assetForObject('divider', 4, 1, 'horizintal_partitaion')} alt="" /></div>
-              <span>horizintal_partitaion.svg</span>
-            </div>
-
-            <div className="palette-item" onMouseDown={(e) => beginPointerDragNew(e, 'object', 1, 4, { objectType: 'visual', objectLabel: 'vertical_partition', assetFile: 'vertical_partition.svg', objectKind: 'visualOnly' })}>
-              <div className="preview"><img className="preview-img" src={assetForObject('divider', 1, 4, 'vertical_partition')} alt="" /></div>
-              <span>vertical_partition.svg</span>
-            </div>
-          </div>
-
-          
           <div className="properties-panel">
             <h3>{t('floor.map.title', 'Map')}</h3>
             <label>
@@ -2566,6 +2559,10 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         <div
           className={`editor-canvas ${isPanning ? "is-panning" : ""}`}
           ref={canvasRef}
+          onPointerDown={onCanvasTouchDown}
+          onPointerMove={onCanvasTouchMove}
+          onPointerUp={onCanvasTouchEnd}
+          onPointerCancel={onCanvasTouchEnd}
           onMouseDown={(e) => {
             onCanvasMouseDown(e);
             if (e.target === e.currentTarget) clearSelection();
@@ -2579,6 +2576,10 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div className="fe-zoom-readout">{Math.round(zoom * 100)}%</div>
             <div className="fe-hint">{spacePressed ? t('floor.hints.pan_drag', 'Pan: drag') : t('floor.hints.controls', 'Tip: hold Space to pan, Ctrl+wheel to zoom')}</div>
           </div>
+          {armedAsset && !previewMode && <div className="fe-placement-banner" role="status">
+            {he ? 'מיקום' : 'Place'}: {he ? armedAsset.nameHe : armedAsset.nameEn}
+            <button type="button" onClick={() => setArmedAsset(null)}>{he ? 'בטל' : 'Cancel'} ×</button>
+          </div>}
           {(() => {
             const ft = FLOOR_THEMES[floorTheme];
             return (
@@ -2763,7 +2764,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                 <div
                   key={i}
                   className={`fe-grid-cell ${marqueeMode ? 'fe-marquee-cell' : ''} ${(() => { const idx = gridY * currentLayout.gridCols + gridX; const active = (currentLayout.gridMask?.[idx] ?? 1) === 1; return active ? "active" : "inactive"; })()}` }
-                  onPointerDown={(e) => { if (!previewMode) beginMarquee(e, gridX, gridY); }}
+                  onPointerDown={(e) => { if (!previewMode && !mobilePanMode) beginMarquee(e, gridX, gridY); }}
+                  onClick={(e) => { if (e.target === e.currentTarget && armedAsset && !mobilePanMode) placeArmedAsset(gridX, gridY); }}
                   onMouseDown={(e) => {
                     if (!shapeMode || !currentLayout || previewMode) return;
                     e.preventDefault();
@@ -2794,8 +2796,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                     <div
                       className={`floor-object type-${objectHere.type} ${objectHere.locked ? 'fe-locked' : ''} ${conflicts.has(objectHere.id) ? 'fe-conflict' : ''} ${selectedKeys.includes(('object:' + objectHere.id) as SelectionKey) ? 'selected' : ''}`}
                       onContextMenu={(e) => openItemMenu(e, 'object', objectHere.id)}
-                      onMouseDown={(e) => { if (previewMode || objectHere.locked || e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('object:' + objectHere.id) as SelectionKey))) { e.preventDefault(); e.stopPropagation(); return; } beginPointerDragExisting(e, 'object', objectHere.id, objectHere.spanX || 1, objectHere.spanY || 1); }}
-                      onClick={(e) => { if (!previewMode) selectItem('object', objectHere.id, e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('object:' + objectHere.id) as SelectionKey))); }}
+                      onMouseDown={(e) => { if (mobilePanMode || window.matchMedia('(pointer: coarse)').matches || previewMode || objectHere.locked || e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('object:' + objectHere.id) as SelectionKey))) { e.preventDefault(); e.stopPropagation(); return; } beginPointerDragExisting(e, 'object', objectHere.id, objectHere.spanX || 1, objectHere.spanY || 1); }}
+                      onClick={(e) => { if (!previewMode && !mobilePanMode) selectItem('object', objectHere.id, e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('object:' + objectHere.id) as SelectionKey))); }}
                       style={{
                         left: (resizeDraft?.kind === 'object' && resizeDraft.id === objectHere.id) ? (resizeDraft.anchorX - objectHere.gridX) * cellSize : undefined,
                         top: (resizeDraft?.kind === 'object' && resizeDraft.id === objectHere.id) ? (resizeDraft.anchorY - objectHere.gridY) * cellSize : undefined,
@@ -2846,8 +2848,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                     <div
                       className={`table ${tableHere.shape} ${tableHere.locked ? 'fe-locked' : ''} ${conflicts.has(tableHere.id) ? 'fe-conflict' : ''} ${selectedKeys.includes(('table:' + tableHere.id) as SelectionKey) ? 'selected' : ''} ${(!showOnlyActiveSection && activeSection && String(tableHere.sectionId || '') && String(tableHere.sectionId || '') !== String(activeSection.id)) ? 'dimmed' : ''}`}
                       onContextMenu={(e) => openItemMenu(e, 'table', tableHere.id)}
-                      onMouseDown={(e) => { if (previewMode || tableHere.locked || e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('table:' + tableHere.id) as SelectionKey))) { e.preventDefault(); e.stopPropagation(); return; } beginPointerDragExisting(e, 'table', tableHere.id, tableHere.spanX || 1, tableHere.spanY || 1); }}
-                      onClick={(e) => { if (!previewMode) selectItem('table', tableHere.id, e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('table:' + tableHere.id) as SelectionKey))); }}
+                      onMouseDown={(e) => { if (mobilePanMode || window.matchMedia('(pointer: coarse)').matches || previewMode || tableHere.locked || e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('table:' + tableHere.id) as SelectionKey))) { e.preventDefault(); e.stopPropagation(); return; } beginPointerDragExisting(e, 'table', tableHere.id, tableHere.spanX || 1, tableHere.spanY || 1); }}
+                      onClick={(e) => { if (!previewMode && !mobilePanMode) selectItem('table', tableHere.id, e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('table:' + tableHere.id) as SelectionKey))); }}
                       style={{
                         left: (resizeDraft?.kind === 'table' && resizeDraft.id === tableHere.id) ? (resizeDraft.anchorX - tableHere.gridX) * cellSize : undefined,
                         top: (resizeDraft?.kind === 'table' && resizeDraft.id === tableHere.id) ? (resizeDraft.anchorY - tableHere.gridY) * cellSize : undefined,
@@ -2912,6 +2914,20 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
           })()}
         </div>
       </div>
+      <nav className="fe-mobile-toolbar" aria-label={he ? 'כלי מפת המסעדה' : 'Floor map tools'}>
+        <button type="button" aria-pressed={!mobilePanMode} onClick={() => setMobilePanMode(false)}>
+          ✎ {he ? 'עריכה' : 'Edit'}
+        </button>
+        <button type="button" aria-pressed={mobilePanMode} onClick={() => {
+          setMobilePanMode(true); setArmedAsset(null); clearSelection();
+        }}>✥ {he ? 'הזז מפה' : 'Pan map'}</button>
+        <button type="button" aria-expanded={mobileLibraryOpen} onClick={() => {
+          setMobileLibraryOpen(v => !v); setMobilePanMode(false);
+        }}>▦ {he ? 'פריטים' : 'Assets'}</button>
+        <button type="button" onClick={fitToScreen}>⤢ {he ? 'התאם' : 'Fit'}</button>
+        <button type="button" disabled={saving || !history.dirty || !!resizeDraft || !!pointerDrag}
+          onClick={saveCurrentLayout}>💾 {he ? 'שמור' : 'Save'}</button>
+      </nav>
 
       {contextMenu && !previewMode && <div className="fe-context-menu" role="menu"
         style={{ left: contextMenu.x, top: contextMenu.y }}
