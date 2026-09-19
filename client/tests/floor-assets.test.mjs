@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { FLOOR_ASSETS, filterFloorAssets } from '../src/components/floorAssets.ts';
+assert.equal(FLOOR_ASSETS.length, 17, 'all existing assets are represented');
+assert.equal(new Set(FLOOR_ASSETS.map(a => a.id)).size, FLOOR_ASSETS.length, 'unique keys');
+assert.equal(new Set(FLOOR_ASSETS.map(a => a.file)).size, FLOOR_ASSETS.length, 'unique files');
+assert.ok(FLOOR_ASSETS.every(a => a.spanX > 0 && a.spanY > 0 && a.nameEn && a.nameHe));
+assert.equal(filterFloorAssets(' כיסא ', 'all')[0].id, 'chair');
+assert.equal(filterFloorAssets('DOOR', 'architecture')[0].file, 'door.svg');
+assert.equal(filterFloorAssets('round', 'tables').length, 2);
+assert.equal(filterFloorAssets('', 'chairs').length, 1);
+assert.equal(filterFloorAssets('door', 'tables').length, 0);
+assert.equal(filterFloorAssets('no-such-asset', 'all').length, 0);
+console.log('PASS: bilingual asset catalog, category and search filters.');
