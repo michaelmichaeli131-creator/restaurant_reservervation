@@ -6,6 +6,7 @@ import { type GridLayout, type SelectionKey, selectedItems, bounds, activeFootpr
 import { t, getCurrentLang } from '../i18n';
 import { findPastePosition } from './floorClipboard';
 import { canResize, resizeByKeyboard, type ResizeDirection } from './floorResize';
+import { reconcileSavedLayouts } from './floorSave';
 
 interface FloorTable {
   id: string;
@@ -1777,7 +1778,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     if (!currentLayout) return;
     const objects = currentLayout.objects ?? [];
     const item = objects.find(o => o.id === objectId);
-    if (item?.locked || (item && !validateSizeUpdate(item, updates))) return;
+    if (item?.locked || (item && !validateSizeUpdate(item, updates, 'object'))) return;
     const nextObjects = objects.map(o => o.id === objectId ? { ...o, ...updates } : o);
     setCurrentLayout({ ...currentLayout, objects: nextObjects });
 };
@@ -1785,12 +1786,12 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   const updateTable = (tableId: string, updates: Partial<FloorTable>) => {
     if (!currentLayout) return;
     const item = currentLayout.tables.find(t => t.id === tableId);
-    if (item?.locked || (item && !validateSizeUpdate(item, updates))) return;
+    if (item?.locked || (item && !validateSizeUpdate(item, updates, 'table'))) return;
     const nextTables = currentLayout.tables.map(t => t.id === tableId ? { ...t, ...updates } : t);
     setCurrentLayout({ ...currentLayout, tables: nextTables });
 };
 
-  function validateSizeUpdate(item: FloorTable | FloorObject, updates: { spanX?: number; spanY?: number }) {
+  function validateSizeUpdate(item: FloorTable | FloorObject, updates: { spanX?: number; spanY?: number; gridX?: number; gridY?: number }, kind: 'table' | 'object') {
     if (!currentLayout || (updates.spanX === undefined && updates.spanY === undefined)) return true;
     const x = ('gridX' in updates && typeof updates.gridX === 'number') ? updates.gridX : item.gridX;
     const y = ('gridY' in updates && typeof updates.gridY === 'number') ? updates.gridY : item.gridY;
@@ -1803,6 +1804,10 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     }
     if (!maskAllows(x, y, width, height)) {
       setEditWarning(he ? 'אין מקום בגבולות האזור הפעיל' : 'Outside the active floor area');
+      return false;
+    }
+    if (!canResize(currentLayout, kind, item.id, { gridX: x, gridY: y, spanX: width, spanY: height })) {
+      setEditWarning(he ? 'שינוי הגודל יגרום לחפיפה עם פריט אחר' : 'Resize would overlap another item');
       return false;
     }
     setEditWarning('');
@@ -1818,24 +1823,25 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   }
 
   const saveCurrentLayout = async () => {
-    if (!currentLayout || saving) return;
+    if (!currentLayout || saving || !!resizeDraft || !!pointerDrag) return;
+    const snapshot = currentLayout;
     setSaving(true);
 
     try {
-      const response = await fetch(`/api/floor-layouts/${restaurantId}/${currentLayout.id}`, {
+      const response = await fetch(`/api/floor-layouts/${restaurantId}/${snapshot.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(currentLayout)
+        body: JSON.stringify(snapshot)
       });
 
       if (response.ok) {
-        history.markSaved(currentLayout);
+        history.markSaved(snapshot);
         // ===== Solution A: Always activate after save =====
         let activateOk = false;
         let activateErr: string | null = null;
         try {
-          const actRes = await fetch(`/api/floor-layouts/${restaurantId}/${currentLayout.id}/activate`, {
+          const actRes = await fetch(`/api/floor-layouts/${restaurantId}/${snapshot.id}/activate`, {
             method: 'POST',
             credentials: 'include',
           });
@@ -1850,19 +1856,16 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
           console.error('[FloorEditor] activate threw', e);
         }
 
-        // Update local layouts list (sync saved data and mark this one as active)
-        setLayouts(layouts.map(l => l.id === currentLayout.id
-          ? { ...currentLayout, isActive: true }
-          : { ...l, isActive: false }
-        ));
+        // The PUT may succeed while activation fails: preserve the actual live layout.
+        setLayouts(previous => reconcileSavedLayouts(previous, snapshot, activateOk));
 
         const msg = activateOk
           ? t('floor.success.save_and_activate', 'Layout saved and activated ✅')
           : t('floor.success.save_but_activate_failed', 'Layout saved ✅ but activation failed: {error}').replace('{error}', activateErr || 'unknown');
-        alert('✅ ' + msg);
+        alert((activateOk ? '✅ ' : '⚠️ ') + msg);
       } else {
-        const data = await response.json();
-        alert('❌ ' + t('floor.error.save', 'Error saving: {error}').replace('{error}', data.error || 'Unknown error'));
+        const data = await response.json().catch(() => ({}));
+        alert('❌ ' + t('floor.error.save', 'Error saving: {error}').replace('{error}', data.error || `${response.status} ${response.statusText}`));
       }
     } catch (err) {
       console.error('Save failed:', err);
@@ -1968,7 +1971,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
           <button type="button" disabled={!history.canRedo || !!resizeDraft || !!pointerDrag} onClick={history.redo}>↷ {he ? 'החזר' : 'Redo'}</button>
         </div>
         <span role="status" className={history.dirty ? 'fe-save-status dirty' : 'fe-save-status'}>{saving ? (he ? 'שומר…' : 'Saving…') : history.dirty ? (he ? 'שינויים שלא נשמרו' : 'Unsaved changes') : (he ? 'כל השינויים נשמרו' : 'All changes saved')}</span>
-        <button type="button" disabled={saving || !history.dirty} onClick={saveCurrentLayout}>{he ? 'שמור מפה' : 'Save layout'}</button>
+        <button type="button" disabled={saving || !history.dirty || !!resizeDraft || !!pointerDrag} onClick={saveCurrentLayout}>{he ? 'שמור מפה' : 'Save layout'}</button>
       </div>
       {(editWarning || conflicts.size > 0) && <div className="fe-edit-warning" role="status">{editWarning || (he ? 'יש חפיפה בין אובייקטים המסומנים בכתום. בדוק את המרווחים.' : 'Orange items have overlapping footprints. Check their spacing.')}</div>}
       {/* Horizontal layout tabs at the top */}
@@ -1978,9 +1981,10 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <button
               key={layout.id}
               className={`layout-tab ${currentLayout.id === layout.id ? 'active' : ''} ${layout.isActive ? 'is-active' : ''}`}
+              disabled={saving}
               onClick={() => {
-                if (layout.id === currentLayout.id) return;
-                if (history.dirty && !window.confirm(he ? 'יש שינויים שלא נשמרו. לעבור למפה אחרת ולבטל אותם?' : 'Unsaved changes. Switch floors and discard them?')) return;
+                if (saving || layout.id === currentLayout.id) return;
+                // useFloorHistory owns the discard confirmation; never show two dialogs.
                 setCurrentLayout(ensureMask(layout));
               }}
               title={layout.isActive ? t('floor.toolbar.active_hint', 'Active layout (shown in live view)') : ''}
