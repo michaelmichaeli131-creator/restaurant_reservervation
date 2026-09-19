@@ -2223,7 +2223,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                       : { objectType: asset.objectType, objectLabel: asset.nameEn,
                           objectKind: asset.objectKind, assetFile: asset.file });
                   }}
-                  onClick={() => { setArmedAsset(asset); setMobilePanMode(false); }}>
+                  onClick={() => { setArmedAsset(asset); setMobilePanMode(false); setShapeMode(false); setMarqueeMode(false); }}>
                   <span className="fe-library-preview"><img src={`${ASSET_BASE}${asset.file}`}
                     alt="" loading="lazy" /></span>
                   <span className="fe-library-name">{he ? asset.nameHe : asset.nameEn}</span>
