@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import './FloorEditor.css';
+import { useFloorHistory } from './useFloorHistory';
+import { proportionalSize, overlaps } from './floorGeometry';
 import { t, getCurrentLang } from '../i18n';
 
 interface FloorTable {
@@ -70,7 +72,23 @@ interface FloorEditorProps {
 
 export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [layouts, setLayouts] = useState<FloorLayout[]>([]);
-  const [currentLayout, setCurrentLayout] = useState<FloorLayout | null>(null);
+  const he = getCurrentLang() === 'he';
+  const history = useFloorHistory<FloorLayout>(he ? 'יש שינויים שלא נשמרו. לצאת בלי לשמור?' : 'Discard unsaved changes and leave?');
+  const { value: currentLayout, setValue: setCurrentLayout } = history;
+  const [saving, setSaving] = useState(false);
+  const [ratioLocked, setRatioLocked] = useState(false);
+  const [editWarning, setEditWarning] = useState('');
+  useEffect(() => {
+    const shortcut = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || (e.target as HTMLElement)?.closest('input,textarea,[contenteditable="true"]')) return;
+      if (e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        if (e.shiftKey || e.key.toLowerCase() === 'y') history.redo(); else history.undo();
+      }
+    };
+    window.addEventListener('keydown', shortcut);
+    return () => window.removeEventListener('keydown', shortcut);
+  }, [history]);
   const [sections, setSections] = useState<FloorSection[]>([]);
   const [activeSection, setActiveSection] = useState<FloorSection | null>(null);
 
@@ -1045,11 +1063,20 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       ev.preventDefault();
       const dx = ev.clientX - startX;
       const dy = ev.clientY - startY;
-      const nextSpanX = Math.max(1, Math.min(currentLayout.gridCols - anchorX,
+      let nextSpanX = Math.max(1, Math.min(currentLayout.gridCols - anchorX,
         initialX + Math.round((dx * Math.cos(angle) + dy * Math.sin(angle)) / pixelsPerCell)));
-      const nextSpanY = Math.max(1, Math.min(currentLayout.gridRows - anchorY,
+      let nextSpanY = Math.max(1, Math.min(currentLayout.gridRows - anchorY,
         initialY + Math.round((-dx * Math.sin(angle) + dy * Math.cos(angle)) / pixelsPerCell)));
-      if (!maskAllows(anchorX, anchorY, nextSpanX, nextSpanY)) return;
+      if (ratioLocked) {
+        const sized = proportionalSize(initialX, initialY, nextSpanX, nextSpanY,
+          currentLayout.gridCols - anchorX, currentLayout.gridRows - anchorY);
+        nextSpanX = sized.spanX; nextSpanY = sized.spanY;
+      }
+      if (!maskAllows(anchorX, anchorY, nextSpanX, nextSpanY)) {
+        setEditWarning(he ? 'אין מקום בגבולות האזור הפעיל' : 'Outside the active floor area');
+        return;
+      }
+      setEditWarning('');
       draft = { ...draft, spanX: nextSpanX, spanY: nextSpanY };
       setResizeDraft(draft);
     };
@@ -1150,10 +1177,11 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       const snapped = snapPlacement(baseX, baseY, pointerDrag.spanX, pointerDrag.spanY, pointerDrag.kind, pointerDrag.payload?.shape ?? pointerDrag.payload?.objectType, disableSnap, exclude);
 
       if (!maskAllows(snapped.x, snapped.y, pointerDrag.spanX, pointerDrag.spanY)) {
+        setEditWarning(he ? 'אין מקום בגבולות האזור הפעיל' : 'Outside the active floor area');
         setDragPreviewCell(null);
         return;
       }
-
+      setEditWarning('');
       setDragPreviewCell({ x: snapped.x, y: snapped.y });
       setHoverCell({ x: snapped.x, y: snapped.y });
     };
@@ -1240,6 +1268,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
       window.removeEventListener('keydown', onKey);
     };
   }, [pointerDrag, currentLayout, cellSize, dragPreviewCell, nextTableNumber, activeSection?.id]);
@@ -1452,16 +1481,26 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
   function validateSizeUpdate(item: FloorTable | FloorObject, updates: { spanX?: number; spanY?: number }) {
     if (!currentLayout || (updates.spanX === undefined && updates.spanY === undefined)) return true;
-    const width = Math.max(1, Math.min(currentLayout.gridCols - item.gridX, Math.round(updates.spanX ?? item.spanX)));
-    const height = Math.max(1, Math.min(currentLayout.gridRows - item.gridY, Math.round(updates.spanY ?? item.spanY)));
-    if (!maskAllows(item.gridX, item.gridY, width, height)) return false;
+    let width = Math.max(1, Math.min(currentLayout.gridCols - item.gridX, Math.round(updates.spanX ?? item.spanX)));
+    let height = Math.max(1, Math.min(currentLayout.gridRows - item.gridY, Math.round(updates.spanY ?? item.spanY)));
+    if (ratioLocked) {
+      const sized = proportionalSize(item.spanX, item.spanY, width, height,
+        currentLayout.gridCols - item.gridX, currentLayout.gridRows - item.gridY);
+      width = sized.spanX; height = sized.spanY;
+    }
+    if (!maskAllows(item.gridX, item.gridY, width, height)) {
+      setEditWarning(he ? 'אין מקום בגבולות האזור הפעיל' : 'Outside the active floor area');
+      return false;
+    }
+    setEditWarning('');
     updates.spanX = width;
     updates.spanY = height;
     return true;
   }
 
   const saveCurrentLayout = async () => {
-    if (!currentLayout) return;
+    if (!currentLayout || saving) return;
+    setSaving(true);
 
     try {
       const response = await fetch(`/api/floor-layouts/${restaurantId}/${currentLayout.id}`, {
@@ -1472,6 +1511,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       });
 
       if (response.ok) {
+        history.markSaved(currentLayout);
         // ===== Solution A: Always activate after save =====
         let activateOk = false;
         let activateErr: string | null = null;
@@ -1508,8 +1548,39 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     } catch (err) {
       console.error('Save failed:', err);
       alert('❌ ' + t('floor.error.save', 'Error saving: {error}').replace('{error}', err instanceof Error ? err.message : String(err)));
-    }
+    } finally { setSaving(false); }
   };
+
+  const footprints = currentLayout ? [...currentLayout.tables, ...(currentLayout.objects ?? [])].map(item => {
+    if (resizeDraft?.id === item.id) return { ...item, spanX: resizeDraft.spanX, spanY: resizeDraft.spanY };
+    if (dragPreviewCell && pointerDrag?.mode === 'existing' && (pointerDrag.tableId === item.id || pointerDrag.objectId === item.id))
+      return { ...item, gridX: dragPreviewCell.x, gridY: dragPreviewCell.y };
+    return item;
+  }) : [];
+  if (pointerDrag?.mode === 'new' && dragPreviewCell) footprints.push({
+    id: '__preview', gridX: dragPreviewCell.x, gridY: dragPreviewCell.y, spanX: pointerDrag.spanX, spanY: pointerDrag.spanY,
+  } as FloorObject);
+  const conflicts = new Set(footprints.filter(a => footprints.some(b => overlaps(a, b))).map(a => a.id));
+  function duplicateSelected() {
+    const item = selectedTable || selectedObject;
+    if (!item || !currentLayout) return;
+    for (let y = 0; y <= currentLayout.gridRows - item.spanY; y++) {
+      for (let x = 0; x <= currentLayout.gridCols - item.spanX; x++) {
+        const copy = { ...item, id: crypto.randomUUID(), gridX: x, gridY: y };
+        if (!maskAllows(x, y, item.spanX, item.spanY) || footprints.some(other => overlaps(copy, other))) continue;
+        if (selectedTable) {
+          const number = Math.max(0, ...currentLayout.tables.map(t => t.tableNumber)) + 1;
+          setCurrentLayout({ ...currentLayout, tables: [...currentLayout.tables, { ...copy, name: `${selectedTable.name} (${number})`, tableNumber: number } as FloorTable] });
+          setSelectedTableId(copy.id); setSelectedObjectId(null); setNextTableNumber(number + 1);
+        } else {
+          setCurrentLayout({ ...currentLayout, objects: [...(currentLayout.objects ?? []), copy as FloorObject] });
+          setSelectedObjectId(copy.id); setSelectedTableId(null);
+        }
+        setEditWarning(''); return;
+      }
+    }
+    setEditWarning(he ? 'אין מקום פנוי לשכפול האובייקט' : 'No free space for a duplicate');
+  }
 
   if (!currentLayout) {
     return (
@@ -1560,6 +1631,15 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
   return (
     <div className="floor-editor">
+      <div className="fe-session-toolbar">
+        <div className="fe-history-actions">
+          <button type="button" disabled={!history.canUndo || !!resizeDraft || !!pointerDrag} onClick={history.undo}>↶ {he ? 'בטל' : 'Undo'}</button>
+          <button type="button" disabled={!history.canRedo || !!resizeDraft || !!pointerDrag} onClick={history.redo}>↷ {he ? 'החזר' : 'Redo'}</button>
+        </div>
+        <span role="status" className={history.dirty ? 'fe-save-status dirty' : 'fe-save-status'}>{saving ? (he ? 'שומר…' : 'Saving…') : history.dirty ? (he ? 'שינויים שלא נשמרו' : 'Unsaved changes') : (he ? 'כל השינויים נשמרו' : 'All changes saved')}</span>
+        <button type="button" disabled={saving || !history.dirty} onClick={saveCurrentLayout}>{he ? 'שמור מפה' : 'Save layout'}</button>
+      </div>
+      {(editWarning || conflicts.size > 0) && <div className="fe-edit-warning" role="status">{editWarning || (he ? 'יש חפיפה בין אובייקטים המסומנים בכתום. בדוק את המרווחים.' : 'Orange items have overlapping footprints. Check their spacing.')}</div>}
       {/* Horizontal layout tabs at the top */}
       <div className="layout-tabs-bar">
         <div className="layout-tabs">
@@ -1597,6 +1677,27 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
       <div className="editor-content">
         <div className="editor-sidebar">
+          {(selectedTable || selectedObject) && <div className="fe-selection-tools">
+            <strong>{he ? 'עריכת האובייקט הנבחר' : 'Selected item'}</strong>
+            <label><input type="checkbox" checked={ratioLocked} onChange={e => setRatioLocked(e.target.checked)} /> {he ? 'נעילת יחס רוחב־גובה' : 'Lock proportions'}</label>
+            {(['spanX', 'spanY'] as const).map(axis => {
+              const item = (selectedTable || selectedObject)!;
+              const label = axis === 'spanX' ? (he ? 'רוחב' : 'Width') : (he ? 'גובה' : 'Height');
+              const change = (delta: number) => (selectedTable ? updateTable : updateObject)(item.id, { [axis]: Math.max(1, item[axis] + delta) });
+              return <div className="fe-dimension-stepper" key={axis}>
+                <span>{label}</span><button type="button" aria-label={`${label} −`} onClick={() => change(-1)}>−</button>
+                <output>{item[axis]}</output><button type="button" aria-label={`${label} +`} onClick={() => change(1)}>+</button>
+              </div>;
+            })}
+            <button type="button" onClick={duplicateSelected}>{he ? 'שכפל אובייקט' : 'Duplicate item'}</button>
+            <div className="fe-history-actions">
+              {[-45,45].map(delta => <button type="button" key={delta} onClick={() => {
+                const item = (selectedTable || selectedObject)!;
+                (selectedTable ? updateTable : updateObject)(item.id, { rotationDeg: getItemRotation((item.rotationDeg ?? selectedObject?.rotation ?? 0) + delta) });
+              }}>{delta < 0 ? '↶' : '↷'} {he ? 'סובב' : 'Rotate'} {Math.abs(delta)}°</button>)}
+            </div>
+            <small>{he ? 'המידות מוצגות בתאי רשת' : 'Dimensions are in grid cells'}</small>
+          </div>}
           {sections.length > 0 && (
             <div className="sections-tabs">
               <h3>{t('floor.sections.title', 'Sections')}</h3>
@@ -1930,7 +2031,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
               <div className="row" style={{ display: 'flex', gap: 8 }}>
                 <label style={{ flex: 1 }}>
-                  W:
+                  {he ? 'רוחב' : 'Width'}:
                   <input
                     type="number"
                     min="1"
@@ -1940,7 +2041,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   />
                 </label>
                 <label style={{ flex: 1 }}>
-                  H:
+                  {he ? 'גובה' : 'Height'}:
                   <input
                     type="number"
                     min="1"
@@ -2015,7 +2116,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               </label>
               <div className="row" style={{ display: 'flex', gap: 8 }}>
                 <label style={{ flex: 1 }}>
-                  W:
+                  {he ? 'רוחב' : 'Width'}:
                   <input
                     type="number"
                     min="1"
@@ -2025,7 +2126,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   />
                 </label>
                 <label style={{ flex: 1 }}>
-                  H:
+                  {he ? 'גובה' : 'Height'}:
                   <input
                     type="number"
                     min="1"
@@ -2239,15 +2340,13 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               const tableHere = currentLayout.tables.find(t => {
                 if (showOnlyActiveSection && activeSection && String(t.sectionId || '') !== String(activeSection.id)) return false;
                 return (
-                  gridX >= t.gridX && gridX < t.gridX + t.spanX &&
-                  gridY >= t.gridY && gridY < t.gridY + t.spanY
+                  gridX === t.gridX && gridY === t.gridY
                 );
               });
 
               const objects = currentLayout.objects ?? [];
               const objectHere = objects.find(o =>
-                gridX >= o.gridX && gridX < o.gridX + o.spanX &&
-                gridY >= o.gridY && gridY < o.gridY + o.spanY
+                gridX === o.gridX && gridY === o.gridY
               );
 
               const isTopLeft = tableHere && tableHere.gridX === gridX && tableHere.gridY === gridY;
@@ -2285,7 +2384,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                 >
                   {isObjTopLeft && objectHere && (
                     <div
-                      className={`floor-object type-${objectHere.type} ${selectedObject?.id === objectHere.id ? 'selected' : ''}`}
+                      className={`floor-object type-${objectHere.type} ${conflicts.has(objectHere.id) ? 'fe-conflict' : ''} ${selectedObject?.id === objectHere.id ? 'selected' : ''}`}
                       onMouseDown={(e) => beginPointerDragExisting(e, 'object', objectHere.id, objectHere.spanX || 1, objectHere.spanY || 1)}
                       onClick={() => {
                         clearSelection();
@@ -2328,7 +2427,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   )}
                   {isTopLeft && (
                     <div
-                      className={`table ${tableHere.shape} ${selectedTable?.id === tableHere.id ? 'selected' : ''} ${(!showOnlyActiveSection && activeSection && String(tableHere.sectionId || '') && String(tableHere.sectionId || '') !== String(activeSection.id)) ? 'dimmed' : ''}`}
+                      className={`table ${tableHere.shape} ${conflicts.has(tableHere.id) ? 'fe-conflict' : ''} ${selectedTable?.id === tableHere.id ? 'selected' : ''} ${(!showOnlyActiveSection && activeSection && String(tableHere.sectionId || '') && String(tableHere.sectionId || '') !== String(activeSection.id)) ? 'dimmed' : ''}`}
                       onMouseDown={(e) => beginPointerDragExisting(e, 'table', tableHere.id, tableHere.spanX || 1, tableHere.spanY || 1)}
                       onClick={() => {
                         clearSelection();

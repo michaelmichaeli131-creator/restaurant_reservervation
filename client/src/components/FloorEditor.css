@@ -5,6 +5,30 @@
   gap: 0;
 }
 
+.fe-session-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;background:#102238;border-bottom:1px solid #29435e;flex-shrink:0}
+.fe-session-toolbar button,.fe-selection-tools button{min-height:42px;padding:8px 14px;border:1px solid #3b5876;border-radius:8px;background:#17334f;color:#e9f2ff;cursor:pointer}
+.fe-session-toolbar button:disabled{opacity:.4;cursor:default}
+.fe-history-actions{display:flex;gap:8px}
+.fe-save-status{margin-inline-start:auto;color:#82d6ba;font-size:13px}
+.fe-save-status.dirty{color:#ffcc80}
+.fe-edit-warning{padding:10px 16px;border-bottom:1px solid #81542e;background:#3b2a1b;color:#ffd296;font-size:13px;flex-shrink:0}
+.fe-selection-tools{display:grid;gap:12px;padding:14px;border:1px solid #3c6896;border-radius:12px;background:#10263d;order:-2}
+.fe-selection-tools label{display:flex;align-items:center;gap:8px}
+.fe-selection-tools small{color:#a4b9d2}
+.fe-dimension-stepper{display:grid;grid-template-columns:1fr 42px 32px 42px;align-items:center;gap:4px}
+.fe-dimension-stepper output{text-align:center;font-variant-numeric:tabular-nums}
+.editor-sidebar .properties-panel{order:-1;margin-top:0}
+.floor-editor .fe-grid .fe-conflict{outline:3px dashed #ffad54;outline-offset:3px}
+@media(max-width:760px){.fe-session-toolbar{gap:8px;padding:10px}.fe-save-status{order:3;flex-basis:100%;margin:0}.fe-selection-tools{padding:10px}}
+@media(max-width:980px){
+  .floor-editor{height:auto;min-height:calc(100svh - 100px)}
+  .floor-editor .editor-content{overflow:visible;flex:none}
+  .floor-editor .editor-sidebar{max-height:420px;flex-shrink:0}
+  .floor-editor .editor-canvas{height:480px;min-height:480px;flex:none}
+  .floor-editor .fe-canvas-controls{max-width:calc(100% - 24px);flex-wrap:wrap}
+  .floor-editor .fe-canvas-controls .fe-hint{display:none}
+}
+
 .layout-tabs-bar {
   display: flex;
   align-items: center;

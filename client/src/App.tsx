@@ -38,7 +38,9 @@ function App() {
           </button>
           <button
             className={floorMode === 'live' ? 'active' : ''}
-            onClick={() => setFloorMode('live')}
+            onClick={() => {
+              if (window.dispatchEvent(new Event('floor-before-leave', { cancelable: true }))) setFloorMode('live');
+            }}
             aria-pressed={floorMode === 'live'}
             aria-label="Switch to live view mode"
           >
