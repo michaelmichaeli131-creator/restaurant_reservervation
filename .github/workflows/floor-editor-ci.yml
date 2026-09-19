@@ -9,6 +9,7 @@ on:
       - feature/spotbook-floor-session-4-completion
       - feature/spotbook-floor-session-5
       - feature/spotbook-floor-session-6
+      - feature/spotbook-floor-session-7-8
       - deploy/spotbook-modernized
     paths:
       - 'client/**'
@@ -39,7 +40,7 @@ jobs:
         run: npx tsc --noEmit
       - name: Strict-check new geometry module
         working-directory: client
-        run: npx tsc --noEmit --strict --target ES2020 --module ESNext --moduleResolution bundler --allowImportingTsExtensions src/components/floorBatch.ts src/components/floorClipboard.ts src/components/floorResize.ts src/components/floorSave.ts
+        run: npx tsc --noEmit --strict --target ES2020 --module ESNext --moduleResolution bundler --allowImportingTsExtensions src/components/floorBatch.ts src/components/floorClipboard.ts src/components/floorResize.ts src/components/floorSave.ts src/components/floorAssets.ts
       - name: Build client
         working-directory: client
         run: npm run build
@@ -55,6 +56,9 @@ jobs:
       - name: Save and activation reconciliation regression
         working-directory: client
         run: node --experimental-strip-types tests/floor-save.test.mjs
+      - name: Asset library regression
+        working-directory: client
+        run: node --experimental-strip-types tests/floor-assets.test.mjs
       - name: Existing resize regression
         working-directory: client
         run: node --experimental-strip-types tests/resize-regression.mjs
