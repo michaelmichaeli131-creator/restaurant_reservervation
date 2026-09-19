@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import './FloorEditor.css';
 import { useFloorHistory } from './useFloorHistory';
 import { proportionalSize, overlaps } from './floorGeometry';
-import { type GridLayout, type SelectionKey, selectedItems, bounds, activeFootprint, moveSelection, alignSelection, distributeSelection, selectInRectangle, findCopyOffset } from './floorBatch';
+import { type GridLayout, type SelectionKey, selectedItems, bounds, activeFootprint, moveSelection, alignSelection, distributeSelection, selectInRectangle, findCopyOffset, expandGroupSelection } from './floorBatch';
 import { t, getCurrentLang } from '../i18n';
 
 interface FloorTable {
@@ -21,6 +21,9 @@ interface FloorTable {
   assetFile?: string; // e.g. "square_table6.svg"
   kind?: 'table';
   sectionId?: string;
+  locked?: boolean;
+  groupId?: string;
+  zIndex?: number;
 }
 
 interface FloorObject {
@@ -36,6 +39,9 @@ interface FloorObject {
   label?: string;
   assetFile?: string; // e.g. "door.svg"
   kind?: 'object' | 'visualOnly';
+  locked?: boolean;
+  groupId?: string;
+  zIndex?: number;
 }
 
 interface FloorLayout {
@@ -81,6 +87,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [editWarning, setEditWarning] = useState('');
   const [selectedKeys, setSelectedKeys] = useState<SelectionKey[]>([]);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [previewMode, setPreviewMode] = useState(false);
   const [marqueeMode, setMarqueeMode] = useState(false);
   const [marquee, setMarquee] = useState<null | { x1: number; y1: number; x2: number; y2: number }>(null);
   const marqueeCleanup = useRef<(() => void) | null>(null);
@@ -181,8 +188,9 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const selectItem = (kind: 'table' | 'object', id: string, append: boolean) => {
     const key = (kind + ':' + id) as SelectionKey;
     setSelectedKeys(previous => {
-      if (append) return previous.includes(key) ? previous.filter(k => k !== key) : [...previous, key];
-      return previous.includes(key) && previous.length > 1 ? previous : [key];
+      const group = currentLayout ? expandGroupSelection(currentLayout, [key]) : [key];
+      if (append) return previous.includes(key) ? previous.filter(k => !group.includes(k)) : [...new Set([...previous, ...group])];
+      return previous.includes(key) && previous.length > 1 ? previous : group;
     });
     setSelectedTableId(kind === 'table' ? id : null);
     setSelectedObjectId(kind === 'object' ? id : null);
@@ -195,6 +203,29 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     setEditWarning('');
     setCurrentLayout(next as FloorLayout);
   };
+  const selectionHasLocked = Boolean(currentLayout && selectedItems(currentLayout, selectedKeys).some(p => p.item.locked));
+  const updateSelectedMetadata = (change: { locked?: boolean; groupId?: string | null; zDelta?: number }) => {
+    if (!currentLayout || !selectedKeys.length) return;
+    const chosen = new Set(selectedKeys);
+    const modify = <T extends FloorTable | FloorObject>(item: T, key: SelectionKey): T => {
+      if (!chosen.has(key)) return item;
+      return { ...item,
+        ...(change.locked === undefined ? {} : { locked: change.locked }),
+        ...(change.groupId === undefined ? {} : { groupId: change.groupId || undefined }),
+        ...(change.zDelta === undefined ? {} : { zIndex: Math.max(-100, Math.min(100, (item.zIndex ?? 0) + change.zDelta)) }),
+      };
+    };
+    setCurrentLayout({ ...currentLayout,
+      tables: currentLayout.tables.map(t => modify(t, ('table:' + t.id) as SelectionKey)),
+      objects: (currentLayout.objects ?? []).map(o => modify(o, ('object:' + o.id) as SelectionKey)),
+    });
+    setEditWarning('');
+  };
+  const groupSelection = () => {
+    if (selectedKeys.length < 2 || selectionHasLocked) return;
+    updateSelectedMetadata({ groupId: 'group-' + Date.now().toString(36) });
+  };
+  const ungroupSelection = () => updateSelectedMetadata({ groupId: null });
   const nudgeSelection = (dx: number, dy: number) => {
     if (currentLayout) applyBatch(moveSelection(currentLayout, selectedKeys, dx, dy));
   };
@@ -205,7 +236,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     if (currentLayout) applyBatch(distributeSelection(currentLayout, selectedKeys, axis));
   };
   const duplicateGroup = () => {
-    if (!currentLayout || !selectedKeys.length) return;
+    if (!currentLayout || !selectedKeys.length || selectionHasLocked) return;
     const offset = findCopyOffset(currentLayout, selectedKeys);
     if (!offset) {
       setEditWarning(he ? 'אין מקום פנוי לשכפול הקבוצה באזור הפעיל.' : 'No free space to duplicate the group in the active floor.');
@@ -237,7 +268,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     setEditWarning('');
   };
   const deleteSelection = () => {
-    if (!currentLayout || !selectedKeys.length) return;
+    if (!currentLayout || !selectedKeys.length || selectionHasLocked) return;
     const keys = new Set(selectedKeys);
     setCurrentLayout({ ...currentLayout,
       tables: currentLayout.tables.filter(item => !keys.has(('table:' + item.id) as SelectionKey)),
