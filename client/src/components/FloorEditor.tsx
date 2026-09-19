@@ -1165,7 +1165,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   };
 
   const beginMarquee = (e: React.PointerEvent<HTMLDivElement>, x: number, y: number) => {
-    if (previewMode || !marqueeMode || shapeMode || spacePressed || pointerDrag || e.button !== 0 ||
+    if (!marqueeMode || shapeMode || spacePressed || pointerDrag || e.button !== 0 ||
         e.target !== e.currentTarget || !currentLayout) return;
     e.preventDefault(); e.stopPropagation();
     marqueeCleanup.current?.();
