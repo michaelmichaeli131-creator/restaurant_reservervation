@@ -1853,7 +1853,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     <div className={`floor-editor ${previewMode ? 'fe-preview-mode' : ''}`}>
       <div className="fe-session-toolbar">
         <div className="fe-multi-controls">
-          <button type="button" aria-pressed={previewMode} onClick={() => { clearSelection(); setPreviewMode(v => !v); setMarqueeMode(false); setMultiSelectMode(false); }}>{previewMode ? (he ? 'חזור לעריכה' : 'Back to editing') : (he ? 'תצוגה מקדימה' : 'Preview map')}</button>
+          <button type="button" aria-pressed={previewMode} onClick={() => { clearSelection(); setPreviewMode(v => !v); setMarqueeMode(false); setMultiSelectMode(false); setShapeMode(false); }}>{previewMode ? (he ? 'חזור לעריכה' : 'Back to editing') : (he ? 'תצוגה מקדימה' : 'Preview map')}</button>
           {!previewMode && <button type="button" aria-pressed={multiSelectMode} onClick={() => { setMultiSelectMode(v => !v); setMarqueeMode(false); }}>{he ? 'בחירה מרובה' : 'Multi-select'} {multiSelectMode ? '✓' : ''}</button>}
           {!previewMode && <button type="button" aria-pressed={marqueeMode} onClick={() => { setMarqueeMode(v => !v); setMultiSelectMode(false); }}>{he ? 'בחירת אזור' : 'Area select'} {marqueeMode ? '✓' : ''}</button>}
           {!previewMode && <button type="button" onClick={() => { if (!currentLayout) return;
@@ -2655,7 +2655,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   className={`fe-grid-cell ${marqueeMode ? 'fe-marquee-cell' : ''} ${(() => { const idx = gridY * currentLayout.gridCols + gridX; const active = (currentLayout.gridMask?.[idx] ?? 1) === 1; return active ? "active" : "inactive"; })()}` }
                   onPointerDown={(e) => { if (!previewMode) beginMarquee(e, gridX, gridY); }}
                   onMouseDown={(e) => {
-                    if (!shapeMode || !currentLayout) return;
+                    if (!shapeMode || !currentLayout || previewMode) return;
                     e.preventDefault();
                     setIsPainting(true);
                     const idx = gridY * currentLayout.gridCols + gridX;
@@ -2667,7 +2667,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                     setCurrentLayout({ ...currentLayout, gridMask: m });
                   }}
                   onMouseEnter={(e) => {
-                    if (!shapeMode || !isPainting || !currentLayout) return;
+                    if (!shapeMode || !isPainting || !currentLayout || previewMode) return;
                     e.preventDefault();
                     const targetVal = paintValueRef.current;
                     if (targetVal == null) return;
