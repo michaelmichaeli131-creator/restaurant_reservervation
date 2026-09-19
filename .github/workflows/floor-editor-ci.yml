@@ -37,7 +37,7 @@ jobs:
         run: npx tsc --noEmit
       - name: Strict-check new geometry module
         working-directory: client
-        run: npx tsc --noEmit --strict --target ES2020 --module ESNext --moduleResolution bundler src/components/floorBatch.ts src/components/floorClipboard.ts
+        run: npx tsc --noEmit --strict --target ES2020 --module ESNext --moduleResolution bundler --allowImportingTsExtensions src/components/floorBatch.ts src/components/floorClipboard.ts
       - name: Build client
         working-directory: client
         run: npm run build
