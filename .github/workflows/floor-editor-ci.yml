@@ -5,6 +5,7 @@ on:
     branches:
       - feature/spotbook-floor-session-2
       - feature/spotbook-floor-session-3
+      - feature/spotbook-floor-session-4
       - deploy/spotbook-modernized
     paths:
       - 'client/**'
