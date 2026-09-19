@@ -1045,3 +1045,14 @@
 .fe-grid .fe-marquee {position:absolute;z-index:65;pointer-events:none;border:2px dashed #b5dbff;border-radius:5px;background:rgba(59,130,246,.19);box-shadow:0 0 0 2px rgba(59,130,246,.13)}
 .fe-grid-cell.fe-marquee-cell.active {cursor:crosshair;touch-action:none}
 .fe-multi-controls button[aria-pressed="true"] {background:#2464b0;border-color:#80b6ff}
+
+/* Session 4: dedicated read-only preview, persistent lock and group controls. */
+.floor-editor.fe-preview-mode .editor-content{padding:12px;display:flex}
+.floor-editor.fe-preview-mode .editor-canvas{flex:1;min-height:70vh}
+.floor-editor.fe-preview-mode .fe-grid-cell{cursor:default}
+.floor-editor.fe-preview-mode .table,.floor-editor.fe-preview-mode .floor-object{cursor:default;pointer-events:none}
+.floor-editor.fe-preview-mode .fe-grid-cell.active{box-shadow:none}
+.floor-editor .fe-grid .fe-locked{cursor:not-allowed;outline:1px dashed rgba(250,204,21,.7);outline-offset:2px}
+.floor-editor .fe-batch-actions button:disabled{opacity:.45;cursor:not-allowed}
+.floor-editor .fe-batch-actions{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:760px){.floor-editor.fe-preview-mode .editor-canvas{height:72svh;min-height:440px}}
