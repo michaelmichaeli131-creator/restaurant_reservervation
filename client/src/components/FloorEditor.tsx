@@ -1189,6 +1189,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       setSelectedTableId(null);
       setSelectedObjectId(null);
       setSelectedTableId(null);
+      setSelectedKeys([]);
       setPointerDrag({ kind, mode: 'new', spanX, spanY, payload });
     setDragPreviewCell(null);
   };
@@ -2413,6 +2414,22 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               );
             })()}
 
+            {snapGuides.v.map((gx, idx) => <div key={'drag-v-' + idx} className="fe-guide-line v" style={{ left: 10 + gx * cellSize }} />)}
+            {snapGuides.h.map((gy, idx) => <div key={'drag-h-' + idx} className="fe-guide-line h" style={{ top: 10 + gy * cellSize }} />)}
+            {pointerDrag?.groupKeys && pointerDrag.groupKeys.length > 1 && dragPreviewCell && groupBounds && (() => {
+              const primary = pointerDrag.kind === 'table'
+                ? currentLayout.tables.find(t => t.id === pointerDrag.tableId)
+                : (currentLayout.objects ?? []).find(t => t.id === pointerDrag.objectId);
+              if (!primary) return null;
+              const dx = dragPreviewCell.x - primary.gridX;
+              const dy = dragPreviewCell.y - primary.gridY;
+              return <div className="fe-group-drag-preview" style={{
+                left: 10 + (groupBounds.left + dx) * cellSize,
+                top: 10 + (groupBounds.top + dy) * cellSize,
+                width: (groupBounds.right - groupBounds.left) * cellSize,
+                height: (groupBounds.bottom - groupBounds.top) * cellSize,
+              }} aria-hidden="true" />;
+            })()}
             {/* Pointer-drag preview (used for the new precise dragging system) */}
             {pointerDrag && dragPreviewCell && (() => {
               const cellPx = cellSize;
