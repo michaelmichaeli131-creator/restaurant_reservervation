@@ -2493,12 +2493,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                 >
                   {isObjTopLeft && objectHere && (
                     <div
-                      className={`floor-object type-${objectHere.type} ${conflicts.has(objectHere.id) ? 'fe-conflict' : ''} ${selectedObject?.id === objectHere.id ? 'selected' : ''}`}
-                      onMouseDown={(e) => beginPointerDragExisting(e, 'object', objectHere.id, objectHere.spanX || 1, objectHere.spanY || 1)}
-                      onClick={() => {
-                        clearSelection();
-                        setSelectedObjectId(objectHere.id);
-                      }}
+                      className={`floor-object type-${objectHere.type} ${conflicts.has(objectHere.id) ? 'fe-conflict' : ''} ${selectedKeys.includes(('object:' + objectHere.id) as SelectionKey) ? 'selected' : ''}`}
+                      onMouseDown={(e) => { if (e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('object:' + objectHere.id) as SelectionKey))) { e.preventDefault(); e.stopPropagation(); return; } beginPointerDragExisting(e, 'object', objectHere.id, objectHere.spanX || 1, objectHere.spanY || 1); }}
+                      onClick={(e) => selectItem('object', objectHere.id, e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('object:' + objectHere.id) as SelectionKey)))}
                       style={{
                         width: `${spanToPx((resizeDraft?.kind === 'object' && resizeDraft.id === objectHere.id) ? resizeDraft.spanX : objectHere.spanX)}px`,
                         height: `${spanToPx((resizeDraft?.kind === 'object' && resizeDraft.id === objectHere.id) ? resizeDraft.spanY : objectHere.spanY)}px`,
@@ -2512,7 +2509,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                         alt=""
                       />
                       {objectHere.label && <div className="obj-label">{objectHere.label}</div>}
-                      {selectedObject?.id === objectHere.id && (
+                      {selectedObject?.id === objectHere.id && groupItems.length <= 1 && (
                         <>
                           <button
                             type="button"
@@ -2536,12 +2533,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   )}
                   {isTopLeft && (
                     <div
-                      className={`table ${tableHere.shape} ${conflicts.has(tableHere.id) ? 'fe-conflict' : ''} ${selectedTable?.id === tableHere.id ? 'selected' : ''} ${(!showOnlyActiveSection && activeSection && String(tableHere.sectionId || '') && String(tableHere.sectionId || '') !== String(activeSection.id)) ? 'dimmed' : ''}`}
-                      onMouseDown={(e) => beginPointerDragExisting(e, 'table', tableHere.id, tableHere.spanX || 1, tableHere.spanY || 1)}
-                      onClick={() => {
-                        clearSelection();
-                        setSelectedTableId(tableHere.id);
-                      }}
+                      className={`table ${tableHere.shape} ${conflicts.has(tableHere.id) ? 'fe-conflict' : ''} ${selectedKeys.includes(('table:' + tableHere.id) as SelectionKey) ? 'selected' : ''} ${(!showOnlyActiveSection && activeSection && String(tableHere.sectionId || '') && String(tableHere.sectionId || '') !== String(activeSection.id)) ? 'dimmed' : ''}`}
+                      onMouseDown={(e) => { if (e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('table:' + tableHere.id) as SelectionKey))) { e.preventDefault(); e.stopPropagation(); return; } beginPointerDragExisting(e, 'table', tableHere.id, tableHere.spanX || 1, tableHere.spanY || 1); }}
+                      onClick={(e) => selectItem('table', tableHere.id, e.shiftKey || e.ctrlKey || e.metaKey || (multiSelectMode && !selectedKeys.includes(('table:' + tableHere.id) as SelectionKey)))}
                       style={{
                         width: `${spanToPx((resizeDraft?.kind === 'table' && resizeDraft.id === tableHere.id) ? resizeDraft.spanX : tableHere.spanX)}px`,
                         height: `${spanToPx((resizeDraft?.kind === 'table' && resizeDraft.id === tableHere.id) ? resizeDraft.spanY : tableHere.spanY)}px`,
@@ -2565,7 +2559,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                           </div>
                         )}
                       </div>
-                      {selectedTable?.id === tableHere.id && (
+                      {selectedTable?.id === tableHere.id && groupItems.length <= 1 && (
                         <>
                           <button
                             type="button"
