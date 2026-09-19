@@ -1061,3 +1061,16 @@
 .fe-context-menu button{border:0;background:transparent;color:#f0f7ff;text-align:start;border-radius:6px;min-height:40px;padding:8px 12px;cursor:pointer}
 .fe-context-menu button:hover:not(:disabled),.fe-context-menu button:focus-visible{background:#28527c}
 .fe-context-menu button:disabled{opacity:.45;cursor:not-allowed}
+
+/* Session 4 completion: eight accessible edge/corner handles; no layout shift at any zoom. */
+.floor-editor .fe-resize-handle{width:22px;height:22px;border-radius:7px;right:auto;bottom:auto;z-index:80;touch-action:none}
+.floor-editor .fe-resize-handle--nw{left:-11px;top:-11px;cursor:nwse-resize}
+.floor-editor .fe-resize-handle--n{left:calc(50% - 11px);top:-11px;cursor:ns-resize}
+.floor-editor .fe-resize-handle--ne{right:-11px;top:-11px;cursor:nesw-resize}
+.floor-editor .fe-resize-handle--e{right:-11px;top:calc(50% - 11px);cursor:ew-resize}
+.floor-editor .fe-resize-handle--se{right:-11px;bottom:-11px;cursor:nwse-resize}
+.floor-editor .fe-resize-handle--s{left:calc(50% - 11px);bottom:-11px;cursor:ns-resize}
+.floor-editor .fe-resize-handle--sw{left:-11px;bottom:-11px;cursor:nesw-resize}
+.floor-editor .fe-resize-handle--w{left:-11px;top:calc(50% - 11px);cursor:ew-resize}
+.floor-editor .fe-resize-handle:focus-visible{outline:3px solid #facc15;outline-offset:2px}
+@media (pointer:coarse){.floor-editor .fe-resize-handle{width:26px;height:26px}}
