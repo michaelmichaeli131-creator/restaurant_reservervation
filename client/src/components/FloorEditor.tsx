@@ -5,6 +5,7 @@ import { proportionalSize, overlaps } from './floorGeometry';
 import { type GridLayout, type SelectionKey, selectedItems, bounds, activeFootprint, moveSelection, alignSelection, distributeSelection, selectInRectangle, findCopyOffset, expandGroupSelection } from './floorBatch';
 import { t, getCurrentLang } from '../i18n';
 import { findPastePosition } from './floorClipboard';
+import { canResize, resizeByKeyboard, type ResizeDirection } from './floorResize';
 
 interface FloorTable {
   id: string;
@@ -1275,6 +1276,25 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     window.addEventListener('blur', cancel);
   };
 
+  const resizeWithKeyboard = (event: React.KeyboardEvent, kind: 'table' | 'object', id: string,
+    direction: ResizeDirection) => {
+    if (!currentLayout || !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const item = kind === 'table' ? currentLayout.tables.find(t => t.id === id) :
+      (currentLayout.objects ?? []).find(o => o.id === id);
+    if (!item || item.locked) return;
+    const amount = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
+    const next = resizeByKeyboard(item, direction, amount);
+    if (next.spanX === item.spanX && next.spanY === item.spanY) return;
+    if (!canResize(currentLayout, kind, id, next)) {
+      setEditWarning(he ? 'אין מקום לשינוי הגודל בכיוון הזה' : 'Cannot resize in that direction');
+      return;
+    }
+    setEditWarning('');
+    if (kind === 'table') updateTable(id, next);
+    else updateObject(id, next);
+  };
   const beginResizeItem = (
     e: React.PointerEvent,
     kind: 'table' | 'object',
@@ -1283,7 +1303,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     anchorY: number,
     spanX: number,
     spanY: number,
-    direction: 'se' | 'sw' | 'ne' | 'nw' | 'e' | 'w' | 'n' | 's' = 'se',
+    direction: ResizeDirection = 'se',
   ) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1332,9 +1352,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         setEditWarning(he ? 'אין מקום בגבולות האזור הפעיל' : 'Outside the active floor area');
         return;
       }
-      const nextBox = { id, gridX: nextX, gridY: nextY, spanX: nextSpanX, spanY: nextSpanY };
-      if ([...(currentLayout.tables ?? []), ...(currentLayout.objects ?? [])].some(item =>
-        item.id !== id && overlaps(nextBox, item))) {
+      const nextBox = { gridX: nextX, gridY: nextY, spanX: nextSpanX, spanY: nextSpanY };
+      if (!canResize(currentLayout, kind, id, nextBox)) {
         setEditWarning(he ? 'שינוי הגודל יגרום לחפיפה עם פריט אחר' : 'Resize would overlap another item');
         return;
       }
@@ -1852,7 +1871,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
   };
 
   const footprints = currentLayout ? [...currentLayout.tables, ...(currentLayout.objects ?? [])].map(item => {
-    if (resizeDraft?.id === item.id) return { ...item, spanX: resizeDraft.spanX, spanY: resizeDraft.spanY };
+    if (resizeDraft?.id === item.id) return { ...item, gridX: resizeDraft.anchorX, gridY: resizeDraft.anchorY, spanX: resizeDraft.spanX, spanY: resizeDraft.spanY };
     if (dragPreviewCell && pointerDrag?.mode === 'existing' && (pointerDrag.tableId === item.id || pointerDrag.objectId === item.id))
       return { ...item, gridX: dragPreviewCell.x, gridY: dragPreviewCell.y };
     return item;
@@ -1959,7 +1978,11 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <button
               key={layout.id}
               className={`layout-tab ${currentLayout.id === layout.id ? 'active' : ''} ${layout.isActive ? 'is-active' : ''}`}
-              onClick={() => setCurrentLayout(ensureMask(layout))}
+              onClick={() => {
+                if (layout.id === currentLayout.id) return;
+                if (history.dirty && !window.confirm(he ? 'יש שינויים שלא נשמרו. לעבור למפה אחרת ולבטל אותם?' : 'Unsaved changes. Switch floors and discard them?')) return;
+                setCurrentLayout(ensureMask(layout));
+              }}
               title={layout.isActive ? t('floor.toolbar.active_hint', 'Active layout (shown in live view)') : ''}
             >
               {(layout as any).floorLabel || layout.name}
@@ -2799,7 +2822,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                           {(['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const).map(direction => (
                             <div key={direction}
                               role="slider"
-                              aria-label={he ? 'שינוי גודל ' + direction : 'Resize ' + direction}
+                              tabIndex={0}
+                              onKeyDown={(e) => resizeWithKeyboard(e, 'object', objectHere.id, direction)}
+                              aria-label={he ? 'שינוי גודל ' + direction + ' עם החצים' : 'Resize ' + direction + ' with arrow keys'}
                               aria-valuemin={1}
                               aria-valuenow={direction.includes('w') || direction.includes('e') ? objectHere.spanX : objectHere.spanY}
                               className={`fe-resize-handle fe-resize-handle--${direction}`}
@@ -2859,7 +2884,9 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                           {(['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const).map(direction => (
                             <div key={direction}
                               role="slider"
-                              aria-label={he ? 'שינוי גודל ' + direction : 'Resize ' + direction}
+                              tabIndex={0}
+                              onKeyDown={(e) => resizeWithKeyboard(e, 'table', tableHere.id, direction)}
+                              aria-label={he ? 'שינוי גודל ' + direction + ' עם החצים' : 'Resize ' + direction + ' with arrow keys'}
                               aria-valuemin={1}
                               aria-valuenow={direction.includes('w') || direction.includes('e') ? tableHere.spanX : tableHere.spanY}
                               className={`fe-resize-handle fe-resize-handle--${direction}`}
