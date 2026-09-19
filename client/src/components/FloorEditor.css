@@ -1040,3 +1040,8 @@
   .fe-batch-tools {padding:12px}
   .fe-batch-actions {grid-template-columns:repeat(3,minmax(0,1fr))}
 }
+
+/* Session 3: rectangle selection with mouse or touch; grid-aligned overlay. */
+.fe-grid .fe-marquee {position:absolute;z-index:65;pointer-events:none;border:2px dashed #b5dbff;border-radius:5px;background:rgba(59,130,246,.19);box-shadow:0 0 0 2px rgba(59,130,246,.13)}
+.fe-grid-cell.fe-marquee-cell.active {cursor:crosshair;touch-action:none}
+.fe-multi-controls button[aria-pressed="true"] {background:#2464b0;border-color:#80b6ff}
