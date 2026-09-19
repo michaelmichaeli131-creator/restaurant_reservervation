@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { moveSelection, alignSelection, distributeSelection, selectedItems, activeFootprint, selectInRectangle, findCopyOffset } from '../src/components/floorBatch.ts';
+import { moveSelection, alignSelection, distributeSelection, selectedItems, activeFootprint, selectInRectangle, findCopyOffset, expandGroupSelection } from '../src/components/floorBatch.ts';
 
 const base = {
   gridCols: 14, gridRows: 12,
@@ -40,4 +40,15 @@ const masked = { gridCols: 3, gridRows: 2, tables: [{ id: 'one', gridX: 0, gridY
   objects: [], gridMask: [1, 0, 0, 0, 0, 0] };
 assert.equal(findCopyOffset(masked, ['table:one']), null, 'never duplicate onto inactive mask');
 assert.deepEqual(findCopyOffset(base, ['table:missing']), null, 'missing selection is safe');
-console.log('PASS: 19 group geometry assertions');
+const linked = { ...base,
+  tables: [{ ...base.tables[0], groupId: 'dining-set' }, ...base.tables.slice(1)],
+  objects: [{ ...base.objects[0], groupId: 'dining-set' }] };
+assert.deepEqual(expandGroupSelection(linked, ['table:a']), ['table:a', 'object:a'], 'selecting table includes linked chair');
+assert.deepEqual(expandGroupSelection(linked, ['object:a']), ['object:a', 'table:a'], 'selecting chair includes linked table');
+assert.deepEqual(expandGroupSelection(linked, ['table:b']), ['table:b'], 'unlinked item remains independent');
+const locked = { ...base, tables: [{ ...base.tables[0], locked: true }, ...base.tables.slice(1)] };
+assert.equal(moveSelection(locked, ['table:a'], 1, 0), null, 'locked table cannot move');
+assert.equal(alignSelection(locked, ['table:a', 'table:b'], 'x', 'start'), null, 'locked table blocks group alignment');
+assert.equal(findCopyOffset(locked, ['table:a']), null, 'locked table cannot be duplicated');
+assert.equal(moveSelection(base, ['table:b'], 1, 0).tables[1].gridX, 6, 'unlocked table still moves');
+console.log('PASS: 26 group geometry assertions');
