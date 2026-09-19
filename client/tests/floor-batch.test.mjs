@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { moveSelection, alignSelection, distributeSelection, selectedItems, activeFootprint } from '../src/components/floorBatch.ts';
+import { moveSelection, alignSelection, distributeSelection, selectedItems, activeFootprint, selectInRectangle, findCopyOffset } from '../src/components/floorBatch.ts';
 
 const base = {
   gridCols: 14, gridRows: 12,
@@ -23,4 +23,14 @@ const mask = { ...base, gridMask: Array(168).fill(1) };
 mask.gridMask[2 * 14 + 2] = 0;
 assert.equal(moveSelection(mask, ['table:a'], 1, 0), null, 'active floor mask');
 assert.equal(activeFootprint(base, { id: 'outside', gridX: -1, gridY: 0, spanX: 1, spanY: 1 }), false);
-console.log('PASS: 10 group geometry assertions');
+assert.deepEqual(selectInRectangle(base, 0, 1, 2, 3), ['table:a'], 'select intersecting table');
+assert.deepEqual(selectInRectangle(base, 7, 6, 4, 0), ['table:b', 'object:a'], 'reverse rectangle and mixed item types');
+assert.deepEqual(selectInRectangle(base, 0, 0, 0, 0), [], 'empty rectangle');
+assert.deepEqual(findCopyOffset(base, ['table:a']), { dx: 1, dy: 1 }, 'prefer near diagonal free offset');
+const crowded = { gridCols: 2, gridRows: 2, tables: [{ id: 'only', gridX: 0, gridY: 0, spanX: 2, spanY: 2 }], objects: [] };
+assert.equal(findCopyOffset(crowded, ['table:only']), null, 'never overlap original or leave bounds');
+const masked = { gridCols: 3, gridRows: 2, tables: [{ id: 'one', gridX: 0, gridY: 0, spanX: 1, spanY: 1 }],
+  objects: [], gridMask: [1, 0, 0, 0, 0, 0] };
+assert.equal(findCopyOffset(masked, ['table:one']), null, 'never duplicate onto inactive mask');
+assert.deepEqual(findCopyOffset(base, ['table:missing']), null, 'missing selection is safe');
+console.log('PASS: 17 group geometry assertions');
