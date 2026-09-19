@@ -2441,13 +2441,19 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   ['--floor-bg-repeat' as any]: ft.repeat,
                   ['--floor-bg-position' as any]: ft.pos,
                 }}
-                onDragOver={shapeMode ? undefined : handleDragOver}
-                onDrop={shapeMode ? undefined : handleDrop}
+                onDragOver={shapeMode || marqueeMode ? undefined : handleDragOver}
+                onDrop={shapeMode || marqueeMode ? undefined : handleDrop}
                 onDragLeave={() => setHoverCell(null)}
                 onMouseDown={(e) => {
-                  if (e.target === e.currentTarget) clearSelection();
+                  if (!marqueeMode && e.target === e.currentTarget) clearSelection();
                 }}
               >
+            {marquee && <div className="fe-marquee" style={{
+              left: 10 + Math.min(marquee.x1, marquee.x2) * cellSize,
+              top: 10 + Math.min(marquee.y1, marquee.y2) * cellSize,
+              width: (Math.abs(marquee.x2 - marquee.x1) + 1) * cellSize,
+              height: (Math.abs(marquee.y2 - marquee.y1) + 1) * cellSize,
+            }} aria-hidden="true" />}
             {(() => {
               // Drop preview: shows where the dragged item will land (with snapping)
               if (!hoverCell || !draggedItem || !currentLayout) return null;
@@ -2599,7 +2605,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               return (
                 <div
                   key={i}
-                  className={`fe-grid-cell ${(() => { const idx = gridY * currentLayout.gridCols + gridX; const active = (currentLayout.gridMask?.[idx] ?? 1) === 1; return active ? "active" : "inactive"; })()}` }
+                  className={`fe-grid-cell ${marqueeMode ? 'fe-marquee-cell' : ''} ${(() => { const idx = gridY * currentLayout.gridCols + gridX; const active = (currentLayout.gridMask?.[idx] ?? 1) === 1; return active ? "active" : "inactive"; })()}` }
+                  onPointerDown={(e) => beginMarquee(e, gridX, gridY)}
                   onMouseDown={(e) => {
                     if (!shapeMode || !currentLayout) return;
                     e.preventDefault();
