@@ -1,5 +1,5 @@
 // Pure grid-geometry operations: one layout update per group action (one Undo step).
-export type GridItem = { id: string; gridX: number; gridY: number; spanX: number; spanY: number };
+export type GridItem = { id: string; gridX: number; gridY: number; spanX: number; spanY: number; locked?: boolean; groupId?: string };
 export type SelectionKey = `table:${string}` | `object:${string}`;
 export type GridLayout<T extends GridItem = GridItem, O extends GridItem = GridItem> = {
   gridCols: number; gridRows: number; gridMask?: number[]; tables: T[]; objects?: O[];
@@ -37,7 +37,7 @@ export function activeFootprint(layout: GridLayout, item: GridItem): boolean {
 }
 function change<T extends GridItem, O extends GridItem>(layout: GridLayout<T, O>, picked: readonly Picked[],
   updates: Map<SelectionKey, { gridX: number; gridY: number }>): GridLayout<T, O> | null {
-  if (!picked.length || !updates.size) return null;
+  if (!picked.length || !updates.size || picked.some(p => p.item.locked)) return null;
   for (const { key, item } of picked) {
     const next = updates.get(key);
     if (next && !activeFootprint(layout, { ...item, ...next })) return null;
@@ -108,7 +108,7 @@ export function selectInRectangle(layout: GridLayout, x1: number, y1: number, x2
 /** Find a single offset for an entire copied group, without leaving the mask or overlapping existing items. */
 export function findCopyOffset(layout: GridLayout, keys: readonly SelectionKey[]): { dx: number; dy: number } | null {
   const picked = selectedItems(layout, keys);
-  if (!picked.length) return null;
+  if (!picked.length || picked.some(p => p.item.locked)) return null;
   const existing = [...layout.tables, ...(layout.objects ?? [])];
   const intersects = (a: GridItem, b: GridItem) => a.gridX < b.gridX + b.spanX &&
     a.gridX + a.spanX > b.gridX && a.gridY < b.gridY + b.spanY && a.gridY + a.spanY > b.gridY;
@@ -130,4 +130,13 @@ export function findCopyOffset(layout: GridLayout, keys: readonly SelectionKey[]
       existing.every(item => !intersects(copy, item)))) return offset;
   }
   return null;
+}
+
+/** Include all members of each selected persistent group, across tables and furniture. */
+export function expandGroupSelection(layout: GridLayout, keys: readonly SelectionKey[]): SelectionKey[] {
+  const picked = selectedItems(layout, keys);
+  const groupIds = new Set(picked.map(p => p.item.groupId).filter((id): id is string => Boolean(id)));
+  const all = [...layout.tables.map(t => ({ key: `table:${t.id}` as SelectionKey, item: t })),
+    ...(layout.objects ?? []).map(o => ({ key: `object:${o.id}` as SelectionKey, item: o }))];
+  return [...new Set([...keys, ...all.filter(p => p.item.groupId && groupIds.has(p.item.groupId)).map(p => p.key)])];
 }
