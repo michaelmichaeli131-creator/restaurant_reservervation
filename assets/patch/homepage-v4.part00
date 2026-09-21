@@ -1,16 +1,11 @@
 // SpotBook homepage v4 — cinematic restaurant discovery experience.
 // Applied after the archived modernized overlay so production remains reproducible.
-// Reconstruct the generated hero photo from text-safe repository chunks.
+// Use the same new photo for legacy hero URLs so stale styles cannot
+// resurrect the old image after deployment.
 const heroDir = "/app/public/img";
 const heroOut = `${heroDir}/spotbook-hero-waterfront.webp`;
-const heroParts = [];
-for (let i = 0; i <= 6; i++) {
-  heroParts.push(await Deno.readTextFile(`/app/assets/hero/spotbook-hero-waterfront.b64.${String(i).padStart(2, "0")}`));
-}
-const heroB64 = heroParts.join("");
-const heroBytes = Uint8Array.from(atob(heroB64), (c) => c.charCodeAt(0));
 await Deno.mkdir(heroDir, { recursive: true });
-await Deno.writeFile(heroOut, heroBytes);
+await Deno.copyFile("/app/public/img/spotbook/spotbook-hero-20260922.webp", heroOut);
 
 const indexPath = "/app/templates/index.eta";
 const layoutPath = "/app/templates/_layout.eta";
@@ -25,6 +20,7 @@ if (start < 0 || results < 0) throw new Error("Homepage markers not found");
 
 const hero = `<section class="home-canvas sb-home-v4">
   <section class="sb-home-hero" aria-labelledby="sb-home-title">
+    <div class="sb-home-hero__photo" aria-hidden="true"><img src="/public/img/spotbook/spotbook-hero-20260922.webp?v=20260922b" width="1536" height="569" alt="" decoding="async" fetchpriority="high"></div>
     <div class="sb-home-hero__shade"></div>
     <div class="sb-home-hero__content sb-container">
       <%
@@ -76,6 +72,7 @@ const hero = `<section class="home-canvas sb-home-v4">
         <div class="sb-home-hero__kicker"><%= _heroCopy.kicker %></div>
         <h1 id="sb-home-title" class="sb-home-hero__title"><span><%= _heroCopy.line1 %></span><strong><%= _heroCopy.line2 %></strong></h1>
         <p class="sb-home-hero__sub"><%= _heroCopy.sub %></p>
+        <a class="sb-home-owner-shortcut" href="/owner"><span aria-hidden="true">⚙</span><%= it.lang === 'he' ? 'כניסה לניהול מסעדה' : it.lang === 'ka' ? 'რესტორნის მართვა' : 'Restaurant management' %><span aria-hidden="true">↗</span></a>
       </div>
 
       <div class="sb-home-search-wrap">

@@ -7,7 +7,7 @@ body.sb-body:has(.sb-home-v4) .sb-actions .btn.primary,
 body.sb-body:has(.sb-home-v4) .sb-actions a.btn[style*="background:var(--brand)"]{background:linear-gradient(135deg,#3b82f6,#1677ff) !important;border-color:rgba(96,165,250,.62) !important;color:#fff !important;box-shadow:0 12px 30px rgba(22,119,255,.25) !important}
 
 .sb-home-v4{background:#07101d;overflow:hidden}
-.sb-home-hero{position:relative;min-height:min(850px,100svh);display:flex;align-items:flex-end;background-image:url('/public/img/spotbook/waterfront-replacement.webp');background-size:cover;background-position:center calc(48% - clamp(60px,8vh,100px));background-repeat:no-repeat;background-color:#07101d;isolation:isolate}
+.sb-home-hero{position:relative;min-height:min(850px,100svh);display:flex;align-items:flex-end;background-image:url('/public/img/spotbook/spotbook-hero-20260922.webp?v=20260922b');background-size:cover;background-position:center calc(48% - clamp(60px,8vh,100px));background-repeat:no-repeat;background-color:#07101d;isolation:isolate}
 .sb-home-hero__shade{position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(2,8,18,.92) 0%,rgba(2,8,18,.70) 35%,rgba(2,8,18,.18) 68%,rgba(2,8,18,.26) 100%),linear-gradient(180deg,rgba(2,8,18,.18) 0%,rgba(2,8,18,.10) 45%,rgba(3,10,22,.94) 100%)}
 .sb-home-hero__content{width:100%;max-width:1320px !important;padding-top:132px;padding-bottom:42px}
 .sb-home-hero__copy{max-width:690px}
