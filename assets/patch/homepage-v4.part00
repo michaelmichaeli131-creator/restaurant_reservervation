@@ -28,7 +28,7 @@ const hero = `<section class="home-canvas sb-home-v4">
           kicker: 'אוכל טוב מחבר בין אנשים',
           line1: 'מפנים זמן', line2: 'לשולחן.',
           sub: 'מגלים מסעדות מעולות ומזמינים שולחן בפשטות, בכל זמן ומכל מקום.',
-          where: 'מה מחפשים?', wherePh: 'מסעדה, מטבח או אווירה',
+          where: 'מקום', wherePh: 'מסעדה, שכונה או אווירה',
           city: 'עיר', allCities: 'כל הערים', cuisine: 'מטבח', allCuisine: 'כל הסוגים',
           cta: 'מצאו שולחן', booked: 'כבר הזמנתם? מצאו את ההזמנה שלכם',
           trust1: 'מסעדות נבחרות', trust1s: 'מקומות ששווה להכיר',
@@ -50,7 +50,7 @@ const hero = `<section class="home-canvas sb-home-v4">
           kicker: 'GREAT FOOD BRINGS PEOPLE TOGETHER',
           line1: 'Make time', line2: 'for the table.',
           sub: 'Discover standout restaurants and book your table with less friction, anytime, anywhere.',
-          where: 'What are you craving?', wherePh: 'Restaurant, cuisine or vibe',
+          where: 'Location', wherePh: 'Restaurant, neighbourhood or vibe',
           city: 'City', allCities: 'All cities', cuisine: 'Cuisine', allCuisine: 'All cuisines',
           cta: 'Find a Table', booked: 'Already booked? Find your reservation',
           trust1: 'Curated restaurants', trust1s: 'Places worth discovering',
@@ -96,7 +96,7 @@ const hero = `<section class="home-canvas sb-home-v4">
             </span>
           </label>
           <label class="sb-home-search__segment">
-            <span class="sb-home-search__icon" aria-hidden="true">◇</span>
+            <span class="sb-home-search__icon" aria-hidden="true">♧</span>
             <span class="sb-home-search__control">
               <span class="sb-home-search__label"><%= _heroCopy.cuisine %></span>
               <select name="category" aria-label="<%= _heroCopy.cuisine %>">
@@ -105,7 +105,7 @@ const hero = `<section class="home-canvas sb-home-v4">
               </select>
             </span>
           </label>
-          <button class="sb-home-search__submit" type="submit"><span aria-hidden="true">⌕</span><%= _heroCopy.cta %></button>
+          <button class="sb-home-search__submit" type="submit"><%= _heroCopy.cta %><span aria-hidden="true">→</span></button>
         </form>
         <div id="ac-list" class="ac-list home-search-ac sb-home-search-ac" role="listbox" hidden></div>
         <a class="sb-home-reservation-link" href="/find-reservation"><%= _heroCopy.booked %></a>
