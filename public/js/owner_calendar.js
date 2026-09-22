@@ -501,7 +501,7 @@
         <small>${escapeHTML(meta)}</small></span>
         <span class="oc-agenda__status oc-agenda__status--${statusTone}">${escapeHTML(item.status || "new")}</span>
         <span class="oc-agenda__arrow" aria-hidden="true">↗</span>`;
-      row.addEventListener("click", () => { if (/^\\d{2}:\\d{2}$/.test(item.time || "")) openDrawer(item.time); });
+      row.addEventListener("click", () => { if (/^\d{2}:\d{2}$/.test(item.time || "")) openDrawer(item.time); });
       agendaRows.appendChild(row);
     }
   }
