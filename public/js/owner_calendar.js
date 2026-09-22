@@ -13,13 +13,28 @@
     rid: init.rid || getRidFromPath(),
     date: init.date || todayISO(),
     day: null,
+    agenda: null,
     summary: null,
     drawer: { open: false, time: null, items: [] },
     sse: { es: null, retryMs: 1500, pollTimer: null },
     cal: { year: 0, month: 0 },
     systemTime: { date: init.systemNowDate || init.date || todayISO(), time: init.systemNowTime || "12:00" },
-    ui: { occupancyFilter: "all", searchMatchTimes: null },
+    ui: { occupancyFilter: "all", searchMatchTimes: null, view: "day", statusFilter: "all" },
   };
+
+  const viewButtons = $("[data-calendar-view]");
+  const agendaPanel = $("#oc-agenda");
+  const agendaRows = $("#oc-agenda-rows");
+  const agendaStatus = $("#oc-agenda-status");
+  const deviceClass = window.matchMedia && window.matchMedia("(max-width: 760px)").matches ? "mobile" : "desktop";
+  const viewStoreKey = ["spotbook", "calendar-v2", init.userId || "owner", state.rid, deviceClass].join(":");
+
+  function restoreView() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(viewStoreKey) || "null");
+      return saved && ["day", "list"].includes(saved.view) ? saved.view : (deviceClass === "mobile" ? "list" : "day");
+    } catch { return deviceClass === "mobile" ? "list" : "day"; }
+  }
 
   const datePicker = $("#datePicker");
   const dateLabel = $("#date-label");
@@ -437,6 +452,95 @@
     if (recoveryWatchEl) recoveryWatchEl.textContent = `${fmt(cancellations)} ${init?.txt?.cancelled || "Cancelled"} • ${fmt(noShow)} ${init?.txt?.noShow || "No-Show"}`;
   }
 
+  function renderAgenda() {
+    if (!agendaRows) return;
+    if (!state.agenda || state.agenda.date !== state.date) {
+      agendaRows.textContent = lang === "he" ? "טוען הזמנות…" : "Loading reservations…";
+      return;
+    }
+    const query = String(daySearch?.value || "").trim().toLowerCase();
+    const statusFilter = state.ui.statusFilter;
+    const normalized = (s) => {
+      const value = String(s || "").toLowerCase();
+      if (value === "canceled") return "cancelled";
+      if (value === "approved") return "confirmed";
+      if (value === "noshow" || value === "no-show") return "no_show";
+      return value;
+    };
+    const items = (state.agenda.items || []).filter((item) => {
+      if (statusFilter !== "all" && normalized(item.status) !== statusFilter) return false;
+      return !query || [item.firstName, item.lastName, item.phone, item.roomLabel, item.occasion]
+        .some((part) => String(part || "").toLowerCase().includes(query));
+    });
+    agendaRows.textContent = "";
+    if (!items.length) {
+      const empty = document.createElement("p");
+      empty.className = "oc-agenda__empty";
+      empty.textContent = lang === "he" ? "אין הזמנות התואמות לבחירה" : "No reservations match this selection";
+      agendaRows.appendChild(empty);
+      return;
+    }
+    for (const item of items) {
+      const status = normalized(item.status);
+      const isBlocked = status === "blocked";
+      const statusTone = ["cancelled", "no_show"].includes(status) ? "danger"
+        : status === "arrived" ? "arrived" : status === "confirmed" ? "confirmed"
+        : isBlocked ? "blocked" : "new";
+      const label = [item.firstName, item.lastName].filter(Boolean).join(" ") ||
+        (isBlocked ? (lang === "he" ? "שעה חסומה" : "Blocked time") : (lang === "he" ? "אורח" : "Guest"));
+      const meta = [
+        item.people > 0 ? `${Number(item.people)} ${lang === "he" ? "סועדים" : "guests"}` : "",
+        item.roomLabel || "",
+        item.occasion || "",
+      ].filter(Boolean).join(" · ");
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "oc-agenda__item";
+      row.innerHTML = `<time class="oc-agenda__time">${escapeHTML(item.time || "—")}</time>
+        <span class="oc-agenda__person"><strong>${escapeHTML(label)}</strong>
+        <small>${escapeHTML(meta)}</small></span>
+        <span class="oc-agenda__status oc-agenda__status--${statusTone}">${escapeHTML(item.status || "new")}</span>
+        <span class="oc-agenda__arrow" aria-hidden="true">↗</span>`;
+      row.addEventListener("click", () => { if (/^\\d{2}:\\d{2}$/.test(item.time || "")) openDrawer(item.time); });
+      agendaRows.appendChild(row);
+    }
+  }
+
+  async function loadAgenda() {
+    if (state.ui.view !== "list") return;
+    const selected = state.date;
+    state.agenda = null;
+    renderAgenda();
+    try {
+      const data = await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/agenda?date=${encodeURIComponent(selected)}`);
+      if (state.date !== selected || state.ui.view !== "list") return;
+      state.agenda = data;
+      renderAgenda();
+    } catch {
+      if (state.date === selected && agendaRows) {
+        agendaRows.textContent = lang === "he" ? "טעינת ההזמנות נכשלה. נסה לרענן את העמוד." : "Could not load reservations. Try refreshing.";
+      }
+    }
+  }
+
+  function setCalendarView(next) {
+    if (!["day", "list"].includes(next)) return;
+    state.ui.view = next;
+    document.body.classList.toggle("oc-calendar-list-mode", next === "list");
+    if (agendaPanel) agendaPanel.hidden = next !== "list";
+    viewButtons.forEach((button) => {
+      const selected = button.dataset.calendarView === next;
+      button.classList.toggle("is-active", selected);
+      button.setAttribute("aria-pressed", String(selected));
+    });
+    try { localStorage.setItem(viewStoreKey, JSON.stringify({ view: next })); } catch { /* private mode */ }
+    if (next === "list") {
+      if (state.agenda?.date === state.date) renderAgenda();
+      else if (state.day) void loadAgenda();
+      else renderAgenda();
+    }
+  }
+
   function renderSlots() {
     if (!slotsRoot) return;
     rowHeader();
@@ -721,6 +825,7 @@
     }
     renderHeaderLine();
     renderSlots();
+    if (state.ui.view === "list") await loadAgenda();
     renderRoomOccupancy();
     renderKPIs();
     if (datePicker) datePicker.value = state.date;
@@ -939,6 +1044,11 @@
   }
 
   function wire() {
+    viewButtons.forEach((button) => button.addEventListener("click", () => setCalendarView(button.dataset.calendarView)));
+    if (agendaStatus) agendaStatus.addEventListener("change", () => {
+      state.ui.statusFilter = agendaStatus.value || "all";
+      renderAgenda();
+    });
     if (btnPrev) btnPrev.addEventListener("click", async () => {
       state.date = addDays(state.date, -1);
       if (datePicker) datePicker.value = state.date;
@@ -959,11 +1069,15 @@
       connectSSE();
     });
 
-    if (daySearch) daySearch.addEventListener("input", debounce(() => searchInDay(daySearch.value.trim()), 250));
+    if (daySearch) daySearch.addEventListener("input", debounce(() => {
+      if (state.ui.view === "list") renderAgenda();
+      else searchInDay(daySearch.value.trim());
+    }, 250));
     if (sideSearch) sideSearch.addEventListener("input", debounce(() => {
       const v = sideSearch.value || "";
       if (daySearch) daySearch.value = v;
-      searchInDay(v.trim());
+      if (state.ui.view === "list") renderAgenda();
+      else searchInDay(v.trim());
     }, 250));
 
     if (filtersRoot) {
@@ -1018,6 +1132,7 @@
   }
 
   async function initApp() {
+    setCalendarView(restoreView());
     if (datePicker) datePicker.value = state.date;
     initMonthFromSelected();
     wire();
