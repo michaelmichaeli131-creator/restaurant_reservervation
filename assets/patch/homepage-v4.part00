@@ -27,8 +27,8 @@ const hero = `<section class="home-canvas sb-home-v4">
         var _heroCopy = it.lang === 'he' ? {
           kicker: 'אוכל טוב מחבר בין אנשים',
           line1: 'מפנים זמן', line2: 'לשולחן.',
-          sub: 'מגלים מסעדות מעולות ומזמינים שולחן בפשטות, בכל זמן ומכל מקום.',
-          where: 'מקום', wherePh: 'מסעדה, שכונה או אווירה',
+          sub: 'אוכל טוב. אנשים טובים. השולחן שלכם מחכה.',
+          where: 'מיקום', wherePh: 'מסעדה, עיר, שכונה או אווירה',
           city: 'עיר', allCities: 'כל הערים', cuisine: 'מטבח', allCuisine: 'כל הסוגים',
           cta: 'מצאו שולחן', booked: 'כבר הזמנתם? מצאו את ההזמנה שלכם',
           trust1: 'מסעדות נבחרות', trust1s: 'מקומות ששווה להכיר',
@@ -49,8 +49,8 @@ const hero = `<section class="home-canvas sb-home-v4">
         } : {
           kicker: 'GREAT FOOD BRINGS PEOPLE TOGETHER',
           line1: 'Make time', line2: 'for the table.',
-          sub: 'Discover standout restaurants and book your table with less friction, anytime, anywhere.',
-          where: 'Location', wherePh: 'Restaurant, neighbourhood or vibe',
+          sub: 'Great food. Good company. Your table is waiting.',
+          where: 'Location', wherePh: 'Any city, neighbourhood or restaurant',
           city: 'City', allCities: 'All cities', cuisine: 'Cuisine', allCuisine: 'All cuisines',
           cta: 'Find a Table', booked: 'Already booked? Find your reservation',
           trust1: 'Curated restaurants', trust1s: 'Places worth discovering',
@@ -79,14 +79,14 @@ const hero = `<section class="home-canvas sb-home-v4">
         <form id="search-form" class="sb-home-search" method="GET" action="/" role="search" data-autocomplete-url="/api/restaurants">
           <input type="hidden" name="search" value="1"/>
           <label class="sb-home-search__segment sb-home-search__segment--query">
-            <span class="sb-home-search__icon" aria-hidden="true">⌕</span>
+            <span class="sb-home-search__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 5.1-8 11-8 11S4 15.1 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.7"/></svg></span>
             <span class="sb-home-search__control">
               <span class="sb-home-search__label"><%= _heroCopy.where %></span>
               <input name="q" id="q" type="search" inputmode="search" enterkeyhint="search" autocomplete="on" placeholder="<%= _heroCopy.wherePh %>" value="<%= it.q || '' %>">
             </span>
           </label>
           <label class="sb-home-search__segment">
-            <span class="sb-home-search__icon" aria-hidden="true">⌖</span>
+            <span class="sb-home-search__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="13" rx="1"/><path d="M9 8V3h6v5M8 12v2m4-2v2m4-2v2m-8 4v1m4-1v1m4-1v1"/></svg></span>
             <span class="sb-home-search__control">
               <span class="sb-home-search__label"><%= _heroCopy.city %></span>
               <select name="city" aria-label="<%= _heroCopy.city %>">
@@ -96,7 +96,7 @@ const hero = `<section class="home-canvas sb-home-v4">
             </span>
           </label>
           <label class="sb-home-search__segment">
-            <span class="sb-home-search__icon" aria-hidden="true">♧</span>
+            <span class="sb-home-search__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v7m3-7v7m-3-3h3m-1.5 3v11M17 3c-2 2-3 5-3 10h5V3Zm2 10v8"/></svg></span>
             <span class="sb-home-search__control">
               <span class="sb-home-search__label"><%= _heroCopy.cuisine %></span>
               <select name="category" aria-label="<%= _heroCopy.cuisine %>">
@@ -131,7 +131,7 @@ let layout = await Deno.readTextFile(layoutPath);
 const navMarker = '<!-- SpotBook primary discovery nav v4 -->';
 if (!layout.includes(navMarker)) {
   const brandEnd = `      </a>\n\n      <% if (it.user) { %>`;
-  const nav = `      </a>\n\n      ${navMarker}\n      <nav class="sb-primary-nav" aria-label="Primary navigation">\n        <a href="/#popular">Restaurants</a>\n        <a href="/for-restaurants">For Business</a>\n        <a href="/#how-it-works">About</a>\n      </nav>\n\n      <% if (it.user) { %>`;
+  const nav = `      </a>\n\n      ${navMarker}\n      <nav class="sb-primary-nav" aria-label="Primary navigation">\n        <a href="/#popular">Discover</a>\n        <a href="/for-restaurants">For restaurants</a>\n        <a href="/#how-it-works">About</a>\n      </nav>\n\n      <% if (it.user) { %>`;
   if (!layout.includes(brandEnd)) throw new Error("Layout brand marker not found");
   layout = layout.replace(brandEnd, nav);
   await Deno.writeTextFile(layoutPath, layout);
