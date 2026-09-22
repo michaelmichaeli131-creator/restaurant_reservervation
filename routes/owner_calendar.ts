@@ -468,6 +468,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
     title: "ניהול תפוסה יומי",
     rid,
     date: selected,
+    userId: String(ctx.state?.user?.id ?? "owner"),
     restaurant: { id: r.id, name: (r as any).name ?? "Restaurant" },
     r: { id: r.id, name: (r as any).name ?? "Restaurant" },
     systemNowIso: systemNowParts.iso,
@@ -550,6 +551,37 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
       sourceDate: systemNowParts.date,
     },
   });
+});
+
+// Calendar 2.0: read-only day agenda, based on the existing reservation index.
+// Never treat occupancy estimates as actual guest reservations.
+ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/agenda", async (ctx) => {
+  const { rid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+  const date = ctx.request.url.searchParams.get("date");
+  if (!isISODate(date)) ctx.throw(Status.BadRequest, "Bad date");
+  const db = await import("../database.ts");
+  const reservations: Reservation[] =
+    (await (db as any).listReservationsByRestaurantAndDate?.(rid, date!)) ?? [];
+  const rooms = await buildRoomLabelMap(rid);
+  const items = reservations.map((item: any) => {
+    const layoutId = extractLayoutIdFromReservation(item);
+    return {
+      id: String(item.id ?? ""),
+      time: String(item.time ?? ""),
+      firstName: String(item.firstName ?? ""),
+      lastName: String(item.lastName ?? ""),
+      phone: String(item.phone ?? ""),
+      people: Number(item.people ?? 0),
+      status: String(item.status ?? "new"),
+      roomLabel: layoutId ? (rooms.get(layoutId) ?? "") : "",
+      occasion: String(item.occasion ?? ""),
+      dietary: Array.isArray(item.dietary) ? item.dietary.map((d: unknown) => String(d)) : [],
+      durationMinutes: Number(item.durationMinutes ?? 0),
+      depositStatus: String(item.depositStatus ?? ""),
+    };
+  }).sort((a, b) => a.time.localeCompare(b.time) || a.id.localeCompare(b.id));
+  json(ctx, { ok: true, date, items });
 });
 
 // JSON — סלוט (עם range + העשרת פרטי לקוח מה־note)
