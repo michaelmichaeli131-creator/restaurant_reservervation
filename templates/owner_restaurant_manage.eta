@@ -934,8 +934,8 @@
     }
     .sb-rm-hero-overlay{
       position:absolute; inset:0;
-      background:linear-gradient(120deg, rgba(2,6,23,.92) 0%, rgba(2,6,23,.68) 46%, rgba(2,6,23,.80) 100%);
-      backdrop-filter: blur(8px);
+      background:linear-gradient(90deg, rgba(2,6,23,.57) 0%, rgba(2,6,23,.20) 67%, rgba(2,6,23,.12) 100%);
+      backdrop-filter:none;
     }
     .sb-rm-hero-inner{
       position:relative; z-index:1; display:grid; grid-template-columns:minmax(0, 1.5fr) minmax(320px, .9fr);
