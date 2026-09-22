@@ -1,0 +1,54 @@
+/* SpotBook Calendar 2.0 — Day/List foundation. The existing slot engine is unchanged. */
+.oc-viewbar {display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  margin:12px 0 22px;padding:10px;border:1px solid #273950;border-radius:16px;
+  background:linear-gradient(135deg,#101d31,#0b1425)}
+.oc-viewbar__tabs {display:flex;gap:6px;padding:4px;background:#07111f;border-radius:12px}
+.oc-viewbar__tab {border:0;border-radius:9px;padding:11px 23px;min-height:42px;color:#b9c9de;
+  background:transparent;font:inherit;font-weight:700;cursor:pointer}
+.oc-viewbar__tab.is-active {background:#2563eb;color:#fff;box-shadow:0 4px 18px #12356b}
+.oc-viewbar__tab:focus-visible,.oc-agenda__item:focus-visible {outline:3px solid #93c5fd;outline-offset:3px}
+.oc-viewbar__caption{color:#a9bad0;font-size:.87rem}
+.oc-agenda[hidden]{display:none!important}
+.oc-agenda{margin:0 0 22px;border:1px solid #273950;border-radius:19px;padding:23px;background:#0d192c}
+.oc-agenda__header{display:flex;justify-content:space-between;align-items:end;flex-wrap:wrap;gap:16px;margin-bottom:20px}
+.oc-agenda__eyebrow{font-size:11px;font-weight:800;letter-spacing:.16em;color:#76abff}
+.oc-agenda__header h2{margin:6px 0;font-size:clamp(1.45rem,2.4vw,2.2rem);color:#f5f8ff}
+.oc-agenda__header p{margin:0;color:#a9bad0;font-size:.88rem;line-height:1.5}
+.oc-agenda__filter{display:grid;gap:6px;color:#d5e4f6;font-size:.86rem}
+.oc-agenda__filter select{color:#eff6ff;background:#101f36;border:1px solid #3b526e;
+  border-radius:10px;padding:10px 13px;min-height:43px;font-size:16px}
+.oc-agenda__rows{display:grid;gap:10px;min-width:0}
+.oc-agenda__item{display:grid;grid-template-columns:86px minmax(0,1fr) auto 18px;align-items:center;gap:14px;
+  text-align:start;width:100%;padding:15px 18px;min-height:76px;border-radius:13px;
+  border:1px solid #283b55;background:#121f33;color:#f0f6ff;cursor:pointer}
+.oc-agenda__item:hover{border-color:#528de7;background:#172940}
+.oc-agenda__time{color:#a9caff;font-size:1.12rem;font-weight:800;font-variant-numeric:tabular-nums}
+.oc-agenda__person{min-width:0;display:grid;gap:6px}
+.oc-agenda__person strong{overflow-wrap:anywhere;font-size:1rem}
+.oc-agenda__person small{color:#afc1d7;line-height:1.4}
+.oc-agenda__status{border-radius:999px;padding:6px 11px;border:1px solid #475569;
+  background:#253248;color:#d9e6f5;font-size:.76rem;white-space:nowrap;text-transform:capitalize}
+.oc-agenda__status--confirmed,.oc-agenda__status--arrived{background:#103b32;border-color:#267562;color:#a7f3d0}
+.oc-agenda__status--new,.oc-agenda__status--blocked{background:#493213;border-color:#795722;color:#fcd34d}
+.oc-agenda__status--danger{background:#46222a;border-color:#7e3544;color:#fecdd3}
+.oc-agenda__arrow{color:#86acdf;font-size:1.3rem}
+.oc-agenda__empty{padding:44px 12px;text-align:center;color:#b9c9de}
+body.oc-calendar-list-mode .oc-premium-grid,
+body.oc-calendar-list-mode .oc-density,
+body.oc-calendar-list-mode .oc-band-grid,
+body.oc-calendar-list-mode .oc-slots-wrap,
+body.oc-calendar-list-mode .oc-hint,
+body.oc-calendar-list-mode .oc-toolbar{display:none!important}
+@media(max-width:700px){
+ .oc-viewbar{padding:8px;margin:8px 0 15px;gap:9px}
+ .oc-viewbar__tabs{width:100%}
+ .oc-viewbar__tab{flex:1}
+ .oc-viewbar__caption{font-size:.79rem;padding:0 6px}
+ .oc-agenda{padding:14px 10px;border-radius:15px}
+ .oc-agenda__header{align-items:stretch}
+ .oc-agenda__filter select{width:100%}
+ .oc-agenda__item{grid-template-columns:65px minmax(0,1fr) auto;gap:8px;padding:14px 10px;min-height:83px}
+ .oc-agenda__time{font-size:.96rem}
+ .oc-agenda__status{padding:5px 7px;font-size:.67rem;max-width:90px;overflow:hidden;text-overflow:ellipsis}
+ .oc-agenda__arrow{display:none}
+}
