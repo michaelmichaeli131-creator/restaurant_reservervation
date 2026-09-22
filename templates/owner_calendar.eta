@@ -9,7 +9,7 @@
   </title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- קובץ הלוגיקה/בסיס קיים שלך -->
-  <link rel="stylesheet" href="/static/css/owner_calendar.css" />
+  <link rel="stylesheet" href="/static/css/owner_calendar.css?v=calendar-v2-1" />
 
   <style>
     /* ===== SpotBook Luxury Dark – Skins only (No feature changes) ===== */
@@ -569,6 +569,7 @@
 
   </style>
   <link rel="stylesheet" href="/public/css/sb-tablet-support.css?v=<%= it.BUILD_TAG || Date.now() %>" />
+  <link rel="stylesheet" href="/static/css/owner_calendar_v2.css?v=1" />
 </head>
 <body>
   <!-- Header -->
@@ -758,6 +759,33 @@
           </div>
         </div>
 
+        <nav class="oc-viewbar" aria-label="<%= it.lang === 'he' ? 'תצוגת יומן' : 'Calendar views' %>">
+          <div class="oc-viewbar__tabs" role="group" aria-label="<%= it.lang === 'he' ? 'בחירת תצוגה' : 'Select view' %>">
+            <button type="button" class="oc-viewbar__tab is-active" data-calendar-view="day" aria-pressed="true"><%= it.lang === 'he' ? 'יום' : 'Day' %></button>
+            <button type="button" class="oc-viewbar__tab" data-calendar-view="list" aria-pressed="false"><%= it.lang === 'he' ? 'רשימה' : 'List' %></button>
+          </div>
+          <span class="oc-viewbar__caption"><%= it.lang === 'he' ? 'הזמנות ליום שנבחר' : 'Reservations for the selected day' %></span>
+        </nav>
+        <section id="oc-agenda" class="oc-agenda" aria-label="<%= it.lang === 'he' ? 'רשימת הזמנות' : 'Reservation list' %>" hidden>
+          <div class="oc-agenda__header">
+            <div><span class="oc-agenda__eyebrow">SPOTBOOK / SERVICE</span>
+              <h2><%= it.lang === 'he' ? 'הזמנות לפי שעה' : 'Reservations by time' %></h2>
+              <p><%= it.lang === 'he' ? 'לחיצה על הזמנה תפתח את הפרטים והפעולות שלה' : 'Select a reservation to manage its details' %></p>
+            </div>
+            <label class="oc-agenda__filter"><%= it.lang === 'he' ? 'סטטוס' : 'Status' %>
+              <select id="oc-agenda-status">
+                <option value="all"><%= it.lang === 'he' ? 'הכול' : 'All statuses' %></option>
+                <option value="new"><%= it.lang === 'he' ? 'חדש' : 'New' %></option>
+                <option value="confirmed"><%= it.lang === 'he' ? 'מאושר' : 'Confirmed' %></option>
+                <option value="arrived"><%= it.lang === 'he' ? 'הגיע' : 'Arrived' %></option>
+                <option value="blocked"><%= it.lang === 'he' ? 'חסום' : 'Blocked' %></option>
+                <option value="cancelled"><%= it.lang === 'he' ? 'בוטל' : 'Cancelled' %></option>
+                <option value="no_show">No-show</option>
+              </select>
+            </label>
+          </div>
+          <div id="oc-agenda-rows" class="oc-agenda__rows" aria-live="polite"></div>
+        </section>
         <section class="oc-premium-grid">
           <article class="oc-spotlight-card" id="oc-service-spotlight">
             <div class="oc-spotlight-card__eyebrow"><%= tt('owner.calendar.spotlight.eyebrow','Luxury service overview') %></div>
@@ -863,6 +891,7 @@
   <script>
     window.__OC__ = {
       rid: "<%= it.rid %>",
+      userId: "<%= it.userId || 'owner' %>",
       date: "<%= it.date %>",
       lang: "<%= it.lang || 'en' %>",
       locale: "<%= it.lang === 'ka' ? 'ka-GE' : (it.lang === 'he' ? 'he-IL' : 'en-US') %>",
