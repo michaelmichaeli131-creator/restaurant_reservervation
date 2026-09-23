@@ -602,8 +602,15 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/month", async (ctx) =>
     const results = await Promise.all(batch.map(async ({ date }) => {
       const reservations: Reservation[] =
         (await (db as any).listReservationsByRestaurantAndDate(rid, date)) ?? [];
+      // Keep monthly booking counts consistent with the active day view.
+      // No-shows, declined requests and blocked operational slots are not
+      // confirmed guest bookings; they will have separate event metrics.
+      const inactive = new Set([
+        "canceled", "cancelled", "rescheduled", "rejected", "declined",
+        "no-show", "noshow", "no_show", "blocked",
+      ]);
       const active = reservations.filter((r) =>
-        !["canceled", "cancelled", "rescheduled"].includes(String(r.status ?? "new").toLowerCase()));
+        !inactive.has(String(r.status ?? "new").toLowerCase()));
       return {
         date,
         reservations: active.length,
