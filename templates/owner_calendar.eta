@@ -763,6 +763,7 @@
           <div class="oc-viewbar__tabs" role="group" aria-label="<%= it.lang === 'he' ? 'בחירת תצוגה' : 'Select view' %>">
             <button type="button" class="oc-viewbar__tab is-active" data-calendar-view="day" aria-pressed="true"><%= it.lang === 'he' ? 'יום' : 'Day' %></button>
             <button type="button" class="oc-viewbar__tab" data-calendar-view="list" aria-pressed="false"><%= it.lang === 'he' ? 'רשימה' : 'List' %></button>
+            <button type="button" class="oc-viewbar__tab" data-calendar-view="week" aria-pressed="false"><%= it.lang === 'he' ? 'שבוע' : 'Week' %></button>
           </div>
           <span class="oc-viewbar__caption"><%= it.lang === 'he' ? 'הזמנות ליום שנבחר' : 'Reservations for the selected day' %></span>
         </nav>
@@ -785,6 +786,13 @@
             </label>
           </div>
           <div id="oc-agenda-rows" class="oc-agenda__rows" aria-live="polite"></div>
+        </section>
+        <section id="oc-week" class="oc-week" hidden aria-label="<%= it.lang === 'he' ? 'הזמנות לשבוע' : 'Weekly reservations' %>">
+          <div class="oc-agenda__header"><div><span class="oc-agenda__eyebrow">SPOTBOOK / WEEK</span>
+            <h2><%= it.lang === 'he' ? 'מבט שבועי' : 'Weekly overview' %></h2>
+            <p><%= it.lang === 'he' ? 'בחר יום כדי לעבור ליומן היומי' : 'Select a day to open its calendar' %></p>
+          </div></div>
+          <div id="oc-week-grid" class="oc-week__grid" aria-live="polite"></div>
         </section>
         <section class="oc-premium-grid">
           <article class="oc-spotlight-card" id="oc-service-spotlight">
