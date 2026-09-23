@@ -584,6 +584,37 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/agenda", async (ctx) =
   json(ctx, { ok: true, date, items });
 });
 
+// Calendar 2.0 monthly counts; one authorized request, bounded database concurrency.
+ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/month", async (ctx) => {
+  const { rid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+  const month = ctx.request.url.searchParams.get("month") ?? "";
+  if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(month)) ctx.throw(Status.BadRequest, "Bad month");
+  const [year, monthNumber] = month.split("-").map(Number);
+  const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+  const db = await import("../database.ts");
+  const days: Array<{ date: string; reservations: number; guests: number }> = [];
+  for (let start = 1; start <= daysInMonth; start += 5) {
+    const batch = Array.from({ length: Math.min(5, daysInMonth - start + 1) }, (_, i) => {
+      const date = `${month}-${String(start + i).padStart(2, "0")}`;
+      return { date };
+    });
+    const results = await Promise.all(batch.map(async ({ date }) => {
+      const reservations: Reservation[] =
+        (await (db as any).listReservationsByRestaurantAndDate(rid, date)) ?? [];
+      const active = reservations.filter((r) =>
+        !["canceled", "cancelled", "rescheduled"].includes(String(r.status ?? "new").toLowerCase()));
+      return {
+        date,
+        reservations: active.length,
+        guests: active.reduce((total, r) => total + Math.max(0, Number(r.people) || 0), 0),
+      };
+    }));
+    days.push(...results);
+  }
+  json(ctx, { ok: true, month, days });
+});
+
 // JSON — סלוט (עם range + העשרת פרטי לקוח מה־note)
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => {
   const { rid } = ctx.params;
