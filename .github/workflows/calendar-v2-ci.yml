@@ -1,0 +1,64 @@
+name: Calendar v2 branch validation
+
+on:
+  push:
+    branches:
+      - feature/calendar-v2
+  pull_request:
+    paths:
+      - 'routes/owner_calendar.ts'
+      - 'templates/owner_calendar.eta'
+      - 'public/js/owner_calendar.js'
+      - 'public/css/owner_calendar_v2.css'
+      - 'Dockerfile'
+      - '.github/workflows/calendar-v2-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-calendar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.5.4'
+
+      - name: Verify browser JavaScript syntax
+        run: node --check public/js/owner_calendar.js
+
+      - name: Reconstruct the same calendar sources the Dockerfile will ship
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/calendar-v2/routes /tmp/calendar-v2/templates /tmp/calendar-v2/public/js /tmp/calendar-v2/public/css
+          for file in routes/owner_calendar.ts templates/owner_calendar.eta public/js/owner_calendar.js public/css/owner_calendar_v2.css; do
+            mkdir -p "/tmp/calendar-v2/$(dirname "$file")"
+            cp "$file" "/tmp/calendar-v2/$file"
+          done
+          cat .deploy2/part* | base64 -d | xz -d | tar -x -C .
+          for file in routes/owner_calendar.ts templates/owner_calendar.eta public/js/owner_calendar.js public/css/owner_calendar_v2.css; do
+            cp "/tmp/calendar-v2/$file" "$file"
+            cmp "$file" "/tmp/calendar-v2/$file"
+          done
+          node --check public/js/owner_calendar.js
+
+      - name: Apply deployment compatibility patches (including owner auth and SSE)
+        shell: bash
+        run: |
+          set -euo pipefail
+          SPOTBOOK_ROOT="$PWD" deno run --allow-env --allow-read --allow-write ./railway_runtime_patch.ts
+          SPOTBOOK_ROOT="$PWD" deno run --allow-env --allow-read --allow-write ./railway_privacy_patch.ts
+          SPOTBOOK_ROOT="$PWD" deno run --allow-env --allow-read --allow-write ./railway_refinement_patch.ts
+          grep -Fq 'const user = ctx.state.user;' routes/owner_calendar.ts
+          grep -Fq 'calendar/agenda' routes/owner_calendar.ts
+          grep -Fq 'calendar/month' routes/owner_calendar.ts
+          grep -Fq 'data-calendar-view="week"' templates/owner_calendar.eta
+          grep -Fq 'data-calendar-view="month"' templates/owner_calendar.eta
+
+      - name: Run existing booking regression tests
+        shell: bash
+        run: |
+          deno test --no-check --allow-env --allow-read --allow-write --allow-net --allow-sys --unstable-kv tests/booking_test.ts
