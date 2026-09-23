@@ -768,6 +768,32 @@
           </div>
           <span class="oc-viewbar__caption"><%= it.lang === 'he' ? 'הזמנות ליום שנבחר' : 'Reservations for the selected day' %></span>
         </nav>
+        <details class="oc-waitlist" id="oc-waitlist">
+          <summary class="oc-waitlist__toggle">
+            <span class="oc-waitlist__headline">
+              <span class="oc-agenda__eyebrow">SPOTBOOK / WAITLIST</span>
+              <strong><%= it.lang === 'he' ? 'רשימת המתנה' : 'Waitlist' %>
+                <span class="oc-waitlist__count" id="oc-waitlist-count" aria-live="polite">—</span>
+              </strong>
+              <small><%= it.lang === 'he' ? 'בקשות בלבד, ללא הקצאת שולחן אוטומטית' : 'Requests only; no automatic table allocation' %></small>
+            </span>
+            <span class="oc-waitlist__chevron" aria-hidden="true">⌄</span>
+          </summary>
+          <div class="oc-waitlist__content">
+            <p id="oc-waitlist-date" class="oc-waitlist__date"></p>
+            <form id="oc-waitlist-form" class="oc-waitlist__form">
+              <label><%= it.lang === 'he' ? 'שם לקוח' : 'Guest name' %><input name="name" maxlength="100" autocomplete="name" required /></label>
+              <label><%= it.lang === 'he' ? 'טלפון' : 'Phone' %><input name="phone" type="tel" maxlength="40" autocomplete="tel" required /></label>
+              <label><%= it.lang === 'he' ? 'מספר סועדים' : 'Guests' %><input name="people" type="number" min="1" max="30" value="2" required /></label>
+              <label><%= it.lang === 'he' ? 'שעה מבוקשת' : 'Requested time' %><input name="time" type="time" required /></label>
+              <label><%= it.lang === 'he' ? 'אזור מועדף' : 'Preferred area' %><input name="area" maxlength="90" /></label>
+              <label class="oc-waitlist__notes"><%= it.lang === 'he' ? 'הערות' : 'Notes' %><textarea name="note" maxlength="500" rows="2"></textarea></label>
+              <button type="submit" class="oc-waitlist__add"><%= it.lang === 'he' ? '+ הוסף לרשימת המתנה' : '+ Add to waitlist' %></button>
+            </form>
+            <p class="oc-waitlist__feedback" id="oc-waitlist-feedback" role="status" aria-live="polite"></p>
+            <div id="oc-waitlist-rows" class="oc-waitlist__rows" aria-live="polite"></div>
+          </div>
+        </details>
         <section id="oc-agenda" class="oc-agenda" aria-label="<%= it.lang === 'he' ? 'רשימת הזמנות' : 'Reservation list' %>" hidden>
           <div class="oc-agenda__header">
             <div><span class="oc-agenda__eyebrow">SPOTBOOK / SERVICE</span>
