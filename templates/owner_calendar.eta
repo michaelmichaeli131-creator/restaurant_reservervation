@@ -1008,12 +1008,8 @@
       const picker = document.getElementById('datePicker');
       if (btnJump && picker) {
         btnJump.addEventListener('click', () => picker.showPicker ? picker.showPicker() : picker.click());
-        picker.addEventListener('change', () => {
-          const v = picker.value; if (!v) return;
-          const url = new URL(window.location.href);
-          url.searchParams.set('date', v);
-          window.location.href = url.toString();
-        });
+        // Date changes are handled by owner_calendar.js: changing the date
+        // must not reload the page or discard the chosen view and filters.
       }
     })();
 
