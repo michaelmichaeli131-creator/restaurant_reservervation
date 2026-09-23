@@ -36,7 +36,8 @@
   let monthRequest = 0;
   let weekRequest = 0;
   let weekCache = null;
-  const weekModeButtons = $("[data-week-mode]");
+  let agendaRequest = 0;
+  const weekModeButtons = Array.from(document.querySelectorAll("[data-week-mode]"));
   const weekIntervalSelect = $("#oc-week-interval");
   function restoreWeekOptions() {
     try {
@@ -494,8 +495,9 @@
     const statusFilter = state.ui.statusFilter;
     const normalized = (s) => {
       const value = String(s || "").toLowerCase();
-      if (value === "canceled") return "cancelled";
-      if (value === "approved") return "confirmed";
+      if (["canceled", "rejected", "declined"].includes(value)) return "cancelled";
+      if (["approved", "booked", "hold", "on-hold", "invited"].includes(value)) return "confirmed";
+      if (["request", "requested", "tentative"].includes(value)) return "pending";
       if (value === "noshow" || value === "no-show") return "no_show";
       return value;
     };
@@ -541,15 +543,16 @@
   async function loadAgenda() {
     if (state.ui.view !== "list") return;
     const selected = state.date;
+    const request = ++agendaRequest;
     state.agenda = null;
     renderAgenda();
     try {
       const data = await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/agenda?date=${encodeURIComponent(selected)}`);
-      if (state.date !== selected || state.ui.view !== "list") return;
+      if (request !== agendaRequest || state.date !== selected || state.ui.view !== "list") return;
       state.agenda = data;
       renderAgenda();
     } catch {
-      if (state.date === selected && state.ui.view === "list" && agendaRows) {
+      if (request === agendaRequest && state.date === selected && state.ui.view === "list" && agendaRows) {
         agendaRows.textContent = lang === "he" ? "טעינת ההזמנות נכשלה. נסה לרענן את העמוד." : "Could not load reservations. Try refreshing.";
       }
     }
@@ -819,6 +822,7 @@
     if (!["day", "list", "week", "month"].includes(next)) return;
     state.ui.view = next;
     document.body.classList.toggle("oc-calendar-list-mode", next === "list");
+    if (next !== "list") ++agendaRequest;
     if (agendaPanel) agendaPanel.hidden = next !== "list";
     if (weekPanel) weekPanel.hidden = next !== "week";
     if (monthPanel) monthPanel.hidden = next !== "month";
@@ -1182,6 +1186,8 @@
     } catch {
       await fetchJSON(url, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body });
     }
+    state.agenda = null;
+    weekCache = null;
     await Promise.all([loadSlot(), loadDay(), loadSummary()]);
   }
 
@@ -1224,6 +1230,8 @@
 
     const onRefresh = (e) => {
       weekCache = null;
+      state.agenda = null;
+      ++agendaRequest;
       try {
         const data = JSON.parse(e.data || "{}");
         Promise.all([loadDay(), loadSummary()]).then(() => {
@@ -1259,6 +1267,9 @@
   function schedulePolling() {
     cleanupSSE();
     state.sse.pollTimer = setInterval(() => {
+      weekCache = null;
+      state.agenda = null;
+      ++agendaRequest;
       Promise.all([loadDay(), loadSummary()]).catch(() => {});
     }, 15000);
   }
