@@ -517,7 +517,7 @@
       state.agenda = data;
       renderAgenda();
     } catch {
-      if (state.date === selected && agendaRows) {
+      if (state.date === selected && state.ui.view === "list" && agendaRows) {
         agendaRows.textContent = lang === "he" ? "טעינת ההזמנות נכשלה. נסה לרענן את העמוד." : "Could not load reservations. Try refreshing.";
       }
     }
@@ -536,8 +536,7 @@
     try { localStorage.setItem(viewStoreKey, JSON.stringify({ view: next })); } catch { /* private mode */ }
     if (next === "list") {
       if (state.agenda?.date === state.date) renderAgenda();
-      else if (state.day) void loadAgenda();
-      else renderAgenda();
+      else void loadAgenda();
     }
   }
 
@@ -815,7 +814,10 @@
 
   async function loadDay() {
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day?date=${encodeURIComponent(state.date)}`;
-    state.day = await fetchJSON(url);
+    const selectedDate = state.date;
+    const result = await fetchJSON(url);
+    if (selectedDate !== state.date) return;
+    state.day = result;
     if (state.day?.currentTime) {
       state.systemTime.date = state.day.currentTime.sourceDate || state.day.currentTime.date || state.systemTime.date;
       state.systemTime.time = state.day.currentTime.time || state.systemTime.time;
@@ -825,7 +827,7 @@
     }
     renderHeaderLine();
     renderSlots();
-    if (state.ui.view === "list") await loadAgenda();
+    if (state.ui.view === "list" && state.agenda?.date !== state.date) await loadAgenda();
     renderRoomOccupancy();
     renderKPIs();
     if (datePicker) datePicker.value = state.date;
@@ -840,7 +842,10 @@
 
   async function loadSummary() {
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day/summary?date=${encodeURIComponent(state.date)}`;
-    state.summary = await fetchJSON(url);
+    const selectedDate = state.date;
+    const result = await fetchJSON(url);
+    if (selectedDate !== state.date) return;
+    state.summary = result;
     renderSummary();
   }
 
