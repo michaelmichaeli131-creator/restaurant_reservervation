@@ -31,6 +31,8 @@
   const monthPanel = $("#oc-month");
   const monthGrid = $("#oc-month-grid");
   const monthTitle = $("#oc-month-title");
+  const monthPrev = $("#oc-month-prev");
+  const monthNext = $("#oc-month-next");
   let monthRequest = 0;
   let weekRequest = 0;
   const deviceClass = window.matchMedia && window.matchMedia("(max-width: 760px)").matches ? "mobile" : "desktop";
@@ -644,6 +646,19 @@
     }
   }
 
+  async function moveCalendarMonth(delta) {
+    if (state.ui.view !== "month") return;
+    const [year, month] = state.date.slice(0, 7).split("-").map(Number);
+    const target = new Date(year, month - 1 + delta, 1);
+    const targetYear = target.getFullYear();
+    const targetMonth = String(target.getMonth() + 1).padStart(2, "0");
+    const targetDay = Math.min(Number(state.date.slice(8)), new Date(targetYear, target.getMonth() + 1, 0).getDate());
+    state.date = `${targetYear}-${targetMonth}-${String(targetDay).padStart(2, "0")}`;
+    if (datePicker) datePicker.value = state.date;
+    await Promise.all([loadDay(), loadSummary()]);
+    connectSSE();
+  }
+
   function setCalendarView(next) {
     if (!["day", "list", "week", "month"].includes(next)) return;
     state.ui.view = next;
@@ -1180,6 +1195,8 @@
   }
 
   function wire() {
+    if (monthPrev) monthPrev.addEventListener("click", () => { void moveCalendarMonth(-1); });
+    if (monthNext) monthNext.addEventListener("click", () => { void moveCalendarMonth(1); });
     viewButtons.forEach((button) => button.addEventListener("click", () => setCalendarView(button.dataset.calendarView)));
     if (agendaStatus) agendaStatus.addEventListener("change", () => {
       state.ui.statusFilter = agendaStatus.value || "all";
