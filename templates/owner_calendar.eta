@@ -764,6 +764,7 @@
             <button type="button" class="oc-viewbar__tab is-active" data-calendar-view="day" aria-pressed="true"><%= it.lang === 'he' ? 'יום' : 'Day' %></button>
             <button type="button" class="oc-viewbar__tab" data-calendar-view="list" aria-pressed="false"><%= it.lang === 'he' ? 'רשימה' : 'List' %></button>
             <button type="button" class="oc-viewbar__tab" data-calendar-view="week" aria-pressed="false"><%= it.lang === 'he' ? 'שבוע' : 'Week' %></button>
+            <button type="button" class="oc-viewbar__tab" data-calendar-view="month" aria-pressed="false"><%= it.lang === 'he' ? 'חודש' : 'Month' %></button>
           </div>
           <span class="oc-viewbar__caption"><%= it.lang === 'he' ? 'הזמנות ליום שנבחר' : 'Reservations for the selected day' %></span>
         </nav>
@@ -793,6 +794,15 @@
             <p><%= it.lang === 'he' ? 'בחר יום כדי לעבור ליומן היומי' : 'Select a day to open its calendar' %></p>
           </div></div>
           <div id="oc-week-grid" class="oc-week__grid" aria-live="polite"></div>
+        </section>
+        <section id="oc-month" class="oc-month" hidden aria-label="<%= it.lang === 'he' ? 'לוח חודשי' : 'Monthly calendar' %>">
+          <div class="oc-agenda__header">
+            <div><span class="oc-agenda__eyebrow">SPOTBOOK / MONTH</span>
+              <h2 id="oc-month-title"><%= it.lang === 'he' ? 'סקירה חודשית' : 'Monthly overview' %></h2>
+              <p><%= it.lang === 'he' ? 'בחר יום להצגת ההזמנות שלו' : 'Select a date to open its reservations' %></p>
+            </div>
+          </div>
+          <div id="oc-month-grid" class="oc-month__grid" aria-live="polite"></div>
         </section>
         <section class="oc-premium-grid">
           <article class="oc-spotlight-card" id="oc-service-spotlight">
