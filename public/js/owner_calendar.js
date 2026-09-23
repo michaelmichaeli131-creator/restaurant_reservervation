@@ -26,13 +26,16 @@
   const agendaPanel = $("#oc-agenda");
   const agendaRows = $("#oc-agenda-rows");
   const agendaStatus = $("#oc-agenda-status");
+  const weekPanel = $("#oc-week");
+  const weekGrid = $("#oc-week-grid");
+  let weekRequest = 0;
   const deviceClass = window.matchMedia && window.matchMedia("(max-width: 760px)").matches ? "mobile" : "desktop";
   const viewStoreKey = ["spotbook", "calendar-v2", init.userId || "owner", state.rid, deviceClass].join(":");
 
   function restoreView() {
     try {
       const saved = JSON.parse(localStorage.getItem(viewStoreKey) || "null");
-      return saved && ["day", "list"].includes(saved.view) ? saved.view : (deviceClass === "mobile" ? "list" : "day");
+      return saved && ["day", "list", "week"].includes(saved.view) ? saved.view : (deviceClass === "mobile" ? "list" : "day");
     } catch { return deviceClass === "mobile" ? "list" : "day"; }
   }
 
@@ -523,11 +526,75 @@
     }
   }
 
+  async function loadWeek() {
+    if (!weekGrid || state.ui.view !== "week") return;
+    const request = ++weekRequest;
+    const selected = state.date;
+    const anchor = isoToDate(selected);
+    const weekday = (anchor.getDay() + 6) % 7;
+    const start = addDays(selected, -weekday);
+    const dates = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+    weekGrid.textContent = lang === "he" ? "טוען שבוע…" : "Loading week…";
+    const results = await Promise.allSettled(dates.map((date) =>
+      fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/agenda?date=${encodeURIComponent(date)}`)
+    ));
+    if (request !== weekRequest || state.date !== selected || state.ui.view !== "week") return;
+    weekGrid.textContent = "";
+    dates.forEach((date, i) => {
+      const result = results[i];
+      const card = document.createElement("section");
+      card.className = "oc-week__day";
+      const heading = document.createElement("button");
+      heading.type = "button";
+      heading.className = "oc-week__heading";
+      heading.textContent = fmtDate(isoToDate(date), { weekday: "short", month: "short", day: "numeric" });
+      heading.addEventListener("click", async () => {
+        state.date = date;
+        setCalendarView("day");
+        await Promise.all([loadDay(), loadSummary()]);
+        connectSSE();
+      });
+      card.appendChild(heading);
+      if (result.status !== "fulfilled") {
+        const error = document.createElement("p");
+        error.className = "oc-week__empty";
+        error.textContent = lang === "he" ? "לא ניתן לטעון" : "Could not load";
+        card.appendChild(error);
+      } else {
+        const items = result.value.items || [];
+        const count = document.createElement("small");
+        count.className = "oc-week__count";
+        count.textContent = `${items.length} ${lang === "he" ? "הזמנות" : "reservations"}`;
+        card.appendChild(count);
+        for (const item of items) {
+          const row = document.createElement("button");
+          row.type = "button";
+          row.className = "oc-week__booking";
+          const name = [item.firstName, item.lastName].filter(Boolean).join(" ") ||
+            (lang === "he" ? "הזמנה" : "Reservation");
+          row.innerHTML = `<time>${escapeHTML(item.time || "—")}</time><strong>${escapeHTML(name)}</strong><small>${Number(item.people || 0)} · ${escapeHTML(item.status || "")}</small>`;
+          row.addEventListener("click", async () => {
+            state.date = date;
+            setCalendarView("day");
+            await Promise.all([loadDay(), loadSummary()]);
+            connectSSE();
+            if (/^\\d{2}:\\d{2}$/.test(item.time || "")) openDrawer(item.time);
+          });
+          card.appendChild(row);
+        }
+      }
+      weekGrid.appendChild(card);
+    });
+  }
+
   function setCalendarView(next) {
-    if (!["day", "list"].includes(next)) return;
+    if (!["day", "list", "week"].includes(next)) return;
     state.ui.view = next;
     document.body.classList.toggle("oc-calendar-list-mode", next === "list");
     if (agendaPanel) agendaPanel.hidden = next !== "list";
+    if (weekPanel) weekPanel.hidden = next !== "week";
+    document.body.classList.toggle("oc-calendar-week-mode", next === "week");
+    if (next !== "week") ++weekRequest;
     viewButtons.forEach((button) => {
       const selected = button.dataset.calendarView === next;
       button.classList.toggle("is-active", selected);
@@ -538,6 +605,7 @@
       if (state.agenda?.date === state.date) renderAgenda();
       else void loadAgenda();
     }
+    if (next === "week") void loadWeek();
   }
 
   function renderSlots() {
@@ -828,6 +896,7 @@
     renderHeaderLine();
     renderSlots();
     if (state.ui.view === "list" && state.agenda?.date !== state.date) await loadAgenda();
+    if (state.ui.view === "week") void loadWeek();
     renderRoomOccupancy();
     renderKPIs();
     if (datePicker) datePicker.value = state.date;
