@@ -75,3 +75,33 @@ body.oc-calendar-week-mode .oc-hint,
 body.oc-calendar-week-mode .oc-toolbar{display:none!important}
 @media(max-width:1100px){.oc-week__grid{grid-template-columns:repeat(7,minmax(140px,1fr));overflow-x:auto;padding-bottom:10px;scroll-snap-type:x proximity}.oc-week__day{scroll-snap-align:start}}
 @media(max-width:700px){.oc-week{padding:13px 8px}.oc-week__grid{grid-template-columns:repeat(7,minmax(175px,1fr))}}
+
+/* Month calendar: booking counts are factual, not an invented occupancy percentage. */
+.oc-month[hidden]{display:none!important}
+.oc-month{margin:0 0 22px;border:1px solid #273950;border-radius:19px;padding:20px;background:#0d192c}
+.oc-month__grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.oc-month__weekday{text-align:center;padding:10px 2px;color:#a9bad0;font-size:.82rem;font-weight:800}
+.oc-month__spacer{min-height:85px}
+.oc-month__day{display:flex;flex-direction:column;align-items:flex-start;gap:7px;min-width:0;min-height:104px;
+  border:1px solid #2b405b;border-radius:12px;padding:11px;background:#12213a;color:#f0f6ff;
+  text-align:start;cursor:pointer;font:inherit}
+.oc-month__day strong{font-size:1.16rem;color:#eaf2ff}
+.oc-month__day span{font-size:.84rem;color:#a9caff}
+.oc-month__day small{font-size:.77rem;color:#aabdd4}
+.oc-month__day:hover{background:#1a3353;border-color:#6295e7}
+.oc-month__day.is-selected{border:2px solid #5a9eff;background:#16345b}
+.oc-month__day:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+body.oc-calendar-month-mode .oc-premium-grid,
+body.oc-calendar-month-mode .oc-density,
+body.oc-calendar-month-mode .oc-band-grid,
+body.oc-calendar-month-mode .oc-slots-wrap,
+body.oc-calendar-month-mode .oc-hint,
+body.oc-calendar-month-mode .oc-toolbar{display:none!important}
+@media(max-width:700px){
+ .oc-month{padding:13px 8px}
+ .oc-month__grid{gap:4px}
+ .oc-month__day{min-height:76px;padding:7px 4px;gap:4px;border-radius:8px}
+ .oc-month__day strong{font-size:.98rem}
+ .oc-month__day span,.oc-month__day small{font-size:.66rem;overflow-wrap:anywhere}
+ .oc-month__spacer{min-height:76px}
+}
