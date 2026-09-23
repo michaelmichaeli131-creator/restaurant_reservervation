@@ -496,7 +496,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const reservations: Reservation[] =
     (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
 
-  const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow"]);
+  const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow","no_show","rescheduled"]);
   const effective = reservations.filter((rv: any) => !inactive.has(String(rv?.status ?? "").toLowerCase()));
 
   const occupancy = computeOccupancyForDay({
@@ -658,7 +658,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
       if (!phone && ext.phone) phone = ext.phone;
     }
 
-    const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow"]);
+    const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow","no_show","rescheduled"]);
     const people = inactive.has(String(it.status ?? "").toLowerCase()) ? 0 : Number(it.people ?? 0);
 
     const layoutId = extractLayoutIdFromReservation(it);
@@ -785,7 +785,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
   const reservations: Reservation[] =
     (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
 
-  const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow"]);
+  const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow","no_show","rescheduled"]);
   const effective = reservations.filter((rv: any) =>
     !inactive.has(String(rv?.status ?? "").toLowerCase())
   );
