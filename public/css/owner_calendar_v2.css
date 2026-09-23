@@ -138,3 +138,53 @@ body.oc-calendar-month-mode .oc-toolbar{display:none!important}
  .oc-week__grid--timeline{grid-template-columns:52px repeat(7,minmax(164px,1fr))}
  .oc-week__tick{font-size:.67rem}
 }
+
+/* Owner waitlist is a real operational panel, not a second reservation form. */
+.oc-waitlist{margin:0 0 20px;border:1px solid #2d4969;border-radius:17px;background:#0d192c;overflow:hidden}
+.oc-waitlist__toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:76px;padding:13px 20px;cursor:pointer;list-style:none}
+.oc-waitlist__toggle::-webkit-details-marker{display:none}
+.oc-waitlist__toggle:focus-visible{outline:3px solid #93c5fd;outline-offset:-4px}
+.oc-waitlist[open] .oc-waitlist__toggle{border-bottom:1px solid #29415e;background:#101f34}
+.oc-waitlist__headline{display:grid;gap:5px;min-width:0}
+.oc-waitlist__headline strong{font-size:1.16rem;color:#f0f6ff}
+.oc-waitlist__headline small{font-size:.82rem;color:#abbfd8;line-height:1.4}
+.oc-waitlist__count{display:inline-flex;align-items:center;justify-content:center;margin-inline-start:10px;min-width:27px;height:27px;padding:0 6px;border-radius:10px;background:#2563eb;color:#fff;font-size:.82rem}
+.oc-waitlist__chevron{color:#93c5fd;font-size:1.35rem}
+.oc-waitlist[open] .oc-waitlist__chevron{transform:rotate(180deg)}
+.oc-waitlist__content{padding:18px}
+.oc-waitlist__date{margin:0 0 14px;color:#a9bad0;font-weight:600}
+.oc-waitlist__form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.oc-waitlist__form label{display:grid;gap:6px;min-width:0;color:#dae7f7;font-size:.84rem}
+.oc-waitlist__form input,.oc-waitlist__form textarea{
+  box-sizing:border-box;width:100%;min-width:0;min-height:43px;padding:10px 12px;border:1px solid #3b526e;
+  border-radius:10px;background:#101f36;color:#f3f8ff;font:inherit;font-size:16px}
+.oc-waitlist__form input:focus-visible,.oc-waitlist__form textarea:focus-visible{
+  outline:2px solid #7eb5ff;outline-offset:2px}
+.oc-waitlist__notes{grid-column:span 2}
+.oc-waitlist__add{grid-column:1/-1;justify-self:end;min-height:43px;padding:9px 18px;
+  border:0;border-radius:10px;background:#2563eb;color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.oc-waitlist__add:disabled{opacity:.65;cursor:wait}
+.oc-waitlist__feedback{min-height:16px;color:#bad1ef;font-size:.86rem}
+.oc-waitlist__rows{display:grid;gap:9px}
+.oc-waitlist__item{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:13px 15px;border:1px solid #2d4969;border-radius:11px;background:#111f33;color:#f0f6ff}
+.oc-waitlist__item.is-closed{opacity:.65}
+.oc-waitlist__person{display:grid;gap:6px;min-width:0}
+.oc-waitlist__person strong{overflow-wrap:anywhere}
+.oc-waitlist__person small{color:#afc3dc;line-height:1.4;overflow-wrap:anywhere}
+.oc-waitlist__actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.oc-waitlist__actions a,.oc-waitlist__actions button{display:inline-flex;justify-content:center;align-items:center;
+  min-height:36px;padding:6px 10px;background:#193555;border:1px solid #40618a;border-radius:9px;color:#eff6ff;font:inherit;font-size:.81rem;cursor:pointer}
+.oc-waitlist__actions a{text-decoration:none}
+.oc-waitlist__actions .oc-waitlist__cancel{background:#3b242c;border-color:#784051}
+.oc-waitlist__empty{padding:18px;text-align:center;color:#afc3dc}
+@media(max-width:760px){
+ .oc-waitlist__toggle{padding:13px 12px}
+ .oc-waitlist__content{padding:12px}
+ .oc-waitlist__form{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .oc-waitlist__notes{grid-column:1/-1}
+ .oc-waitlist__add{width:100%}
+ .oc-waitlist__item{align-items:stretch;flex-direction:column}
+ .oc-waitlist__actions{justify-content:flex-start}
+}
+@media(max-width:360px){.oc-waitlist__form{grid-template-columns:minmax(0,1fr)}}
