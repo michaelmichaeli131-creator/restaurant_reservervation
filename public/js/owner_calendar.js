@@ -972,11 +972,11 @@
     renderHeaderLine();
     renderSlots();
     if (state.ui.view === "list" && state.agenda?.date !== state.date) await loadAgenda();
-    if (state.ui.view === "week") void loadWeek();
-    if (state.ui.view === "month") void loadMonth();
     renderRoomOccupancy();
     renderKPIs();
     if (datePicker) datePicker.value = state.date;
+    if (state.ui.view === "week") void loadWeek();
+    if (state.ui.view === "month") void loadMonth();
     const d = isoToDate(state.date);
     if (dateLabel) dateLabel.textContent = fmtDate(d, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
     if (state.cal.year !== d.getFullYear() || state.cal.month !== d.getMonth()) {
