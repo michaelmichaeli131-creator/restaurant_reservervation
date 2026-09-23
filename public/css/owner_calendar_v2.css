@@ -105,3 +105,36 @@ body.oc-calendar-month-mode .oc-toolbar{display:none!important}
  .oc-month__day span,.oc-month__day small{font-size:.66rem;overflow-wrap:anywhere}
  .oc-month__spacer{min-height:76px}
 }
+
+/* Calendar v2 week: two layouts with user-selectable 15/30-minute display ruler. */
+.oc-week__controls{display:flex;align-items:end;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+.oc-week__modes{display:flex;align-items:center;gap:4px;padding:4px;border:1px solid #345071;border-radius:11px;background:#091425}
+.oc-week__mode{min-height:42px;border:0;border-radius:8px;padding:9px 13px;background:transparent;color:#b7cae1;font:inherit;font-size:.85rem;cursor:pointer}
+.oc-week__mode.is-active{background:#2563eb;color:#fff;font-weight:700}
+.oc-week__mode:focus-visible,.oc-week__heading:focus-visible,.oc-week__booking:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+.oc-week__interval{display:grid;gap:4px;font-size:.78rem;color:#b7cae1}
+.oc-week__interval select{min-height:42px;border:1px solid #345071;border-radius:9px;background:#111f34;color:#f3f8ff;padding:7px 10px;font:inherit;font-size:.9rem}
+.oc-week__booking.is-inactive{background:#26303d;border-color:#516073;color:#b3becd}
+.oc-week__booking.is-blocked{background:#443018;border-color:#7c5727}
+.oc-week__booking.is-confirmed{background:#133b36;border-color:#237b67}
+.oc-week__grid--timeline{grid-template-columns:64px repeat(7,minmax(164px,1fr));gap:0;overflow-x:auto;padding-bottom:12px}
+.oc-week__grid--timeline .oc-week__heading{border-radius:8px 8px 0 0;min-height:58px;position:sticky;top:0;z-index:2}
+.oc-week__axis,.oc-week__track{min-width:0;border-inline-end:1px solid #2d4058}
+.oc-week__axis-header{height:58px;display:flex;align-items:center;justify-content:center;font-size:.77rem;color:#b7cae1}
+.oc-week__axis-body{position:relative;background:#0b1729}
+.oc-week__tick{position:absolute;inset-inline:0;text-align:center;transform:translateY(-6px);font-size:.72rem;color:#9bb5d0;font-variant-numeric:tabular-nums}
+.oc-week__canvas{position:relative;background-color:#0d1a2c;
+  background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(var(--week-step-height) - 1px),#34475b calc(var(--week-step-height) - 1px),#34475b var(--week-step-height))}
+.oc-week__canvas .oc-week__booking{position:absolute;box-sizing:border-box;margin:0;z-index:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:3px;border-radius:5px;padding:5px 4px;font-size:.76rem}
+.oc-week__canvas .oc-week__booking:hover,.oc-week__canvas .oc-week__booking:focus-visible{z-index:5;filter:brightness(1.13)}
+.oc-week__canvas .oc-week__booking time{font-size:.78rem}
+.oc-week__canvas .oc-week__booking strong{font-size:.73rem;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.oc-week__canvas .oc-week__booking small{font-size:.68rem;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+@media(max-width:700px){
+ .oc-week__controls{width:100%;justify-content:stretch;align-items:stretch}
+ .oc-week__modes{flex:1}
+ .oc-week__mode{flex:1;padding:9px 7px;font-size:.77rem}
+ .oc-week__interval{flex:0 0 auto}
+ .oc-week__grid--timeline{grid-template-columns:52px repeat(7,minmax(164px,1fr))}
+ .oc-week__tick{font-size:.67rem}
+}
