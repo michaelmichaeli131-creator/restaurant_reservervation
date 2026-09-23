@@ -589,7 +589,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/month", async (ctx) =>
   const { rid } = ctx.params;
   await ensureOwnerAccess(ctx, rid);
   const month = ctx.request.url.searchParams.get("month") ?? "";
-  if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(month)) ctx.throw(Status.BadRequest, "Bad month");
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) ctx.throw(Status.BadRequest, "Bad month");
   const [year, monthNumber] = month.split("-").map(Number);
   const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
   const db = await import("../database.ts");
