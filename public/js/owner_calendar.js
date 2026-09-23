@@ -26,6 +26,13 @@
   const agendaPanel = $("#oc-agenda");
   const agendaRows = $("#oc-agenda-rows");
   const agendaStatus = $("#oc-agenda-status");
+  const waitlistPanel = $("#oc-waitlist");
+  const waitlistForm = $("#oc-waitlist-form");
+  const waitlistRows = $("#oc-waitlist-rows");
+  const waitlistCount = $("#oc-waitlist-count");
+  const waitlistDate = $("#oc-waitlist-date");
+  const waitlistFeedback = $("#oc-waitlist-feedback");
+  let waitlistRequest = 0;
   const weekPanel = $("#oc-week");
   const weekGrid = $("#oc-week-grid");
   const monthPanel = $("#oc-month");
@@ -483,6 +490,111 @@
     if (currentRoomEl) currentRoomEl.textContent = topRoom ? `${topRoom.label || "—"} • ${fmt(topRoom.remainingPeople || 0)} ${init?.txt?.guestsLeftLabel || "Guests left"}` : "—";
     if (expectedGuestsEl) expectedGuestsEl.textContent = fmt(summary.totalGuests || 0);
     if (recoveryWatchEl) recoveryWatchEl.textContent = `${fmt(cancellations)} ${init?.txt?.cancelled || "Cancelled"} • ${fmt(noShow)} ${init?.txt?.noShow || "No-Show"}`;
+  }
+
+  function waitlistMessage(message) {
+    if (waitlistFeedback) waitlistFeedback.textContent = message;
+  }
+
+  function renderWaitlist(data) {
+    if (!waitlistRows) return;
+    waitlistRows.textContent = "";
+    const items = data.items || [];
+    if (waitlistCount) waitlistCount.textContent = String((data.waiting || 0) + (data.offered || 0));
+    if (!items.length) {
+      const empty = document.createElement("p");
+      empty.className = "oc-waitlist__empty";
+      empty.textContent = lang === "he" ? "אין בקשות המתנה ביום הזה" : "No waitlist requests for this day";
+      waitlistRows.appendChild(empty);
+      return;
+    }
+    for (const item of items) {
+      const row = document.createElement("article");
+      row.className = "oc-waitlist__item";
+      if (["cancelled", "converted"].includes(item.status)) row.classList.add("is-closed");
+      const description = document.createElement("div");
+      description.className = "oc-waitlist__person";
+      const name = document.createElement("strong");
+      name.textContent = item.name;
+      const details = document.createElement("small");
+      details.textContent = [item.time, item.people + (lang === "he" ? " סועדים" : " guests"),
+        item.area, item.status].filter(Boolean).join(" · ");
+      description.append(name, details);
+      if (item.note) {
+        const note = document.createElement("small");
+        note.textContent = item.note;
+        description.appendChild(note);
+      }
+      const actions = document.createElement("div");
+      actions.className = "oc-waitlist__actions";
+      if (item.phone) {
+        const call = document.createElement("a");
+        call.href = "tel:" + item.phone.replace(/[^\d+]/g, "");
+        call.textContent = lang === "he" ? "התקשר" : "Call";
+        actions.appendChild(call);
+      }
+      if (["waiting", "offered"].includes(item.status)) {
+        const action = document.createElement("button");
+        action.type = "button";
+        action.textContent = item.status === "waiting"
+          ? (lang === "he" ? "סמן כטופל" : "Mark contacted")
+          : (lang === "he" ? "החזר להמתנה" : "Back to waiting");
+        action.addEventListener("click", () => {
+          void changeWaitlistStatus(item, item.status === "waiting" ? "offered" : "waiting");
+        });
+        actions.appendChild(action);
+        const cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.className = "oc-waitlist__cancel";
+        cancel.textContent = lang === "he" ? "בטל בקשה" : "Cancel request";
+        cancel.addEventListener("click", () => {
+          if (window.confirm(lang === "he" ? "לבטל את בקשת ההמתנה?" : "Cancel this waitlist request?")) {
+            void changeWaitlistStatus(item, "cancelled");
+          }
+        });
+        actions.appendChild(cancel);
+      }
+      row.append(description, actions);
+      waitlistRows.appendChild(row);
+    }
+  }
+
+  async function loadWaitlist() {
+    if (!waitlistRows) return;
+    const request = ++waitlistRequest;
+    const date = state.date;
+    if (waitlistDate) waitlistDate.textContent = date;
+    if (waitlistCount) waitlistCount.textContent = "…";
+    waitlistRows.textContent = lang === "he" ? "טוען רשימת המתנה…" : "Loading waitlist…";
+    try {
+      const data = await fetchJSON("/owner/restaurants/" + encodeURIComponent(state.rid) +
+        "/calendar/waitlist?date=" + encodeURIComponent(date));
+      if (request !== waitlistRequest || state.date !== date) return;
+      renderWaitlist(data);
+    } catch {
+      if (request === waitlistRequest && state.date === date) {
+        if (waitlistCount) waitlistCount.textContent = "!";
+        waitlistRows.textContent = lang === "he"
+          ? "לא ניתן לטעון את רשימת ההמתנה כרגע"
+          : "Could not load the waitlist";
+      }
+    }
+  }
+
+  async function changeWaitlistStatus(item, status) {
+    waitlistMessage("");
+    try {
+      await fetchJSON("/owner/restaurants/" + encodeURIComponent(state.rid) +
+        "/calendar/waitlist/" + encodeURIComponent(item.id), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ date: item.date, status }),
+      });
+      if (state.date === item.date) await loadWaitlist();
+    } catch {
+      waitlistMessage(lang === "he" ? "לא ניתן לעדכן. רענן את הרשימה ונסה שוב." :
+        "Could not update this entry. Refresh the list and retry.");
+    }
   }
 
   function renderAgenda() {
@@ -1139,6 +1251,7 @@
     }
     renderHeaderLine();
     renderSlots();
+    void loadWaitlist();
     if (state.ui.view === "list" && state.agenda?.date !== state.date) await loadAgenda();
     renderRoomOccupancy();
     renderKPIs();
@@ -1371,6 +1484,41 @@
   }
 
   function wire() {
+    if (waitlistForm) waitlistForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = waitlistForm.querySelector('[type="submit"]');
+      if (button?.disabled) return;
+      const date = state.date;
+      const fields = new FormData(waitlistForm);
+      const payload = {
+        date,
+        name: String(fields.get("name") || ""),
+        phone: String(fields.get("phone") || ""),
+        people: Number(fields.get("people")),
+        time: String(fields.get("time") || ""),
+        area: String(fields.get("area") || ""),
+        note: String(fields.get("note") || ""),
+      };
+      if (button) button.disabled = true;
+      waitlistMessage("");
+      try {
+        await fetchJSON("/owner/restaurants/" + encodeURIComponent(state.rid) +
+          "/calendar/waitlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(payload),
+        });
+        waitlistForm.reset();
+        waitlistMessage(lang === "he" ? "הבקשה נוספה לרשימת ההמתנה (לא נוצרה הזמנה)." :
+          "Added to waitlist. No reservation has been created.");
+        if (state.date === date) await loadWaitlist();
+      } catch {
+        waitlistMessage(lang === "he" ? "לא ניתן להוסיף בקשה. בדוק פרטים ונסה שוב." :
+          "Could not add request. Check the details and retry.");
+      } finally {
+        if (button) button.disabled = false;
+      }
+    });
     weekModeButtons.forEach((button) => button.addEventListener("click", () => {
       const mode = button.dataset.weekMode;
       if (!["columns", "timeline"].includes(mode)) return;
