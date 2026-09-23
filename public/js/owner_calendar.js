@@ -22,7 +22,7 @@
     ui: { occupancyFilter: "all", searchMatchTimes: null, view: "day", statusFilter: "all" },
   };
 
-  const viewButtons = $("[data-calendar-view]");
+  const viewButtons = Array.from(document.querySelectorAll("[data-calendar-view]"));
   const agendaPanel = $("#oc-agenda");
   const agendaRows = $("#oc-agenda-rows");
   const agendaStatus = $("#oc-agenda-status");
