@@ -20,6 +20,10 @@ import { readBody } from "./restaurants/_utils/body.ts";
 import { buildDayTimeline, slotRange } from "../services/timeline.ts";
 import { computeOccupancyForDay, summarizeDay } from "../services/occupancy.ts";
 import { listFloorLayouts } from "../services/floor_service.ts";
+import {
+  createCalendarWaitlist, listCalendarWaitlist, updateCalendarWaitlistStatus,
+  validateWaitlistDate,
+} from "../services/calendar_waitlist.ts";
 import { getRestaurantSystemNow, splitIsoParts } from "../services/system_time.ts";
 
 const ownerCalendarRouter = new Router();
@@ -551,6 +555,63 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
       sourceDate: systemNowParts.date,
     },
   });
+});
+
+// Calendar v2 waitlist: owner-scoped management, independent of reservations.
+// Public signup and reservation conversion have separate auth/capacity requirements.
+ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/waitlist", async (ctx) => {
+  const { rid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+  const date = ctx.request.url.searchParams.get("date") ?? "";
+  try {
+    validateWaitlistDate(date);
+  } catch {
+    ctx.throw(Status.BadRequest, "Invalid waitlist date");
+  }
+  const items = await listCalendarWaitlist(rid, date);
+  json(ctx, {
+    ok: true, date, items,
+    waiting: items.filter((item) => item.status === "waiting").length,
+    offered: items.filter((item) => item.status === "offered").length,
+  });
+});
+
+ownerCalendarRouter.post("/owner/restaurants/:rid/calendar/waitlist", async (ctx) => {
+  const { rid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+  const { payload } = await readBody(ctx);
+  if (!payload || typeof payload !== "object") ctx.throw(Status.BadRequest, "Invalid request");
+  try {
+    // This operation creates a request on the waitlist, NOT a reservation.
+    // In particular, it never consumes a table or changes occupancy.
+    const item = await createCalendarWaitlist(rid, payload, "staff");
+    json(ctx, { ok: true, item }, Status.Created);
+  } catch (error) {
+    if (error instanceof RangeError) ctx.throw(Status.BadRequest, error.message);
+    throw error;
+  }
+});
+
+ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/waitlist/:wid", async (ctx) => {
+  const { rid, wid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+  const { payload } = await readBody(ctx);
+  const date = String(payload?.date ?? "");
+  const status = String(payload?.status ?? "");
+  try {
+    const item = await updateCalendarWaitlistStatus(
+      rid, date, wid,
+      status as "waiting" | "offered" | "cancelled",
+    );
+    if (!item) ctx.throw(Status.NotFound, "Waitlist entry not found");
+    json(ctx, { ok: true, item });
+  } catch (error) {
+    if (error instanceof RangeError) ctx.throw(Status.BadRequest, error.message);
+    if (error instanceof Error && error.message.startsWith("Waitlist entry changed")) {
+      ctx.throw(Status.Conflict, error.message);
+    }
+    throw error;
+  }
 });
 
 // Calendar 2.0: read-only day agenda, based on the existing reservation index.
