@@ -28,6 +28,10 @@
   const agendaStatus = $("#oc-agenda-status");
   const weekPanel = $("#oc-week");
   const weekGrid = $("#oc-week-grid");
+  const monthPanel = $("#oc-month");
+  const monthGrid = $("#oc-month-grid");
+  const monthTitle = $("#oc-month-title");
+  let monthRequest = 0;
   let weekRequest = 0;
   const deviceClass = window.matchMedia && window.matchMedia("(max-width: 760px)").matches ? "mobile" : "desktop";
   const viewStoreKey = ["spotbook", "calendar-v2", init.userId || "owner", state.rid, deviceClass].join(":");
@@ -35,7 +39,7 @@
   function restoreView() {
     try {
       const saved = JSON.parse(localStorage.getItem(viewStoreKey) || "null");
-      return saved && ["day", "list", "week"].includes(saved.view) ? saved.view : (deviceClass === "mobile" ? "list" : "day");
+      return saved && ["day", "list", "week", "month"].includes(saved.view) ? saved.view : (deviceClass === "mobile" ? "list" : "day");
     } catch { return deviceClass === "mobile" ? "list" : "day"; }
   }
 
@@ -587,14 +591,70 @@
     });
   }
 
+  async function loadMonth() {
+    if (!monthGrid || state.ui.view !== "month") return;
+    const request = ++monthRequest;
+    const selected = state.date;
+    const month = selected.slice(0, 7);
+    const [year, monthNumber] = month.split("-").map(Number);
+    const first = new Date(year, monthNumber - 1, 1);
+    const count = new Date(year, monthNumber, 0).getDate();
+    if (monthTitle) monthTitle.textContent = fmtDate(first, { month: "long", year: "numeric" });
+    monthGrid.textContent = lang === "he" ? "טוען חודש…" : "Loading month…";
+    try {
+      const data = await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/month?month=${encodeURIComponent(month)}`);
+      if (request !== monthRequest || state.date !== selected || state.ui.view !== "month") return;
+      monthGrid.textContent = "";
+      const weekdays = lang === "he" ? ["ב", "ג", "ד", "ה", "ו", "ש", "א"] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+      weekdays.forEach((name) => {
+        const cell = document.createElement("span");
+        cell.className = "oc-month__weekday";
+        cell.textContent = name;
+        monthGrid.appendChild(cell);
+      });
+      const offset = (first.getDay() + 6) % 7;
+      for (let i = 0; i < offset; i++) {
+        const spacer = document.createElement("span");
+        spacer.className = "oc-month__spacer";
+        spacer.setAttribute("aria-hidden", "true");
+        monthGrid.appendChild(spacer);
+      }
+      const byDate = new Map((data.days || []).map((day) => [day.date, day]));
+      for (let day = 1; day <= count; day++) {
+        const date = `${month}-${String(day).padStart(2, "0")}`;
+        const item = byDate.get(date) || { reservations: 0, guests: 0 };
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "oc-month__day" + (date === selected ? " is-selected" : "");
+        button.innerHTML = `<strong>${day}</strong><span>${Number(item.reservations || 0)} ${lang === "he" ? "הזמנות" : "bookings"}</span><small>${Number(item.guests || 0)} ${lang === "he" ? "סועדים" : "guests"}</small>`;
+        button.setAttribute("aria-label", `${date}: ${Number(item.reservations || 0)} ${lang === "he" ? "הזמנות" : "bookings"}`);
+        button.addEventListener("click", async () => {
+          state.date = date;
+          if (datePicker) datePicker.value = date;
+          setCalendarView(deviceClass === "mobile" ? "list" : "day");
+          await Promise.all([loadDay(), loadSummary()]);
+          connectSSE();
+        });
+        monthGrid.appendChild(button);
+      }
+    } catch {
+      if (request === monthRequest && state.ui.view === "month" && state.date === selected) {
+        monthGrid.textContent = lang === "he" ? "טעינת החודש נכשלה. נסה שוב." : "Could not load the month. Please try again.";
+      }
+    }
+  }
+
   function setCalendarView(next) {
-    if (!["day", "list", "week"].includes(next)) return;
+    if (!["day", "list", "week", "month"].includes(next)) return;
     state.ui.view = next;
     document.body.classList.toggle("oc-calendar-list-mode", next === "list");
     if (agendaPanel) agendaPanel.hidden = next !== "list";
     if (weekPanel) weekPanel.hidden = next !== "week";
+    if (monthPanel) monthPanel.hidden = next !== "month";
     document.body.classList.toggle("oc-calendar-week-mode", next === "week");
     if (next !== "week") ++weekRequest;
+    if (next !== "month") ++monthRequest;
+    document.body.classList.toggle("oc-calendar-month-mode", next === "month");
     viewButtons.forEach((button) => {
       const selected = button.dataset.calendarView === next;
       button.classList.toggle("is-active", selected);
@@ -606,6 +666,7 @@
       else void loadAgenda();
     }
     if (next === "week") void loadWeek();
+    if (next === "month") void loadMonth();
   }
 
   function renderSlots() {
@@ -897,6 +958,7 @@
     renderSlots();
     if (state.ui.view === "list" && state.agenda?.date !== state.date) await loadAgenda();
     if (state.ui.view === "week") void loadWeek();
+    if (state.ui.view === "month") void loadMonth();
     renderRoomOccupancy();
     renderKPIs();
     if (datePicker) datePicker.value = state.date;
