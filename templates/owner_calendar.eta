@@ -798,7 +798,9 @@
         <section id="oc-month" class="oc-month" hidden aria-label="<%= it.lang === 'he' ? 'לוח חודשי' : 'Monthly calendar' %>">
           <div class="oc-agenda__header">
             <div><span class="oc-agenda__eyebrow">SPOTBOOK / MONTH</span>
+              <div class="oc-month__navigation"><button type="button" id="oc-month-prev" aria-label="<%= it.lang === 'he' ? 'חודש קודם' : 'Previous month' %>">‹</button>
               <h2 id="oc-month-title"><%= it.lang === 'he' ? 'סקירה חודשית' : 'Monthly overview' %></h2>
+              <button type="button" id="oc-month-next" aria-label="<%= it.lang === 'he' ? 'חודש הבא' : 'Next month' %>">›</button></div>
               <p><%= it.lang === 'he' ? 'בחר יום להצגת ההזמנות שלו' : 'Select a date to open its reservations' %></p>
             </div>
           </div>
