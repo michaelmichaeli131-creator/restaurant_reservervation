@@ -792,6 +792,18 @@
           <div class="oc-agenda__header"><div><span class="oc-agenda__eyebrow">SPOTBOOK / WEEK</span>
             <h2><%= it.lang === 'he' ? 'מבט שבועי' : 'Weekly overview' %></h2>
             <p><%= it.lang === 'he' ? 'בחר יום כדי לעבור ליומן היומי' : 'Select a day to open its calendar' %></p>
+          </div>
+          <div class="oc-week__controls">
+            <div class="oc-week__modes" role="group" aria-label="<%= it.lang === 'he' ? 'סגנון תצוגה שבועי' : 'Weekly layout' %>">
+              <button type="button" class="oc-week__mode is-active" data-week-mode="columns" aria-pressed="true"><%= it.lang === 'he' ? 'עמודות ימים' : 'Day columns' %></button>
+              <button type="button" class="oc-week__mode" data-week-mode="timeline" aria-pressed="false"><%= it.lang === 'he' ? 'גריד שעות' : 'Time grid' %></button>
+            </div>
+            <label class="oc-week__interval"><%= it.lang === 'he' ? 'מרווחי תצוגה' : 'Display intervals' %>
+              <select id="oc-week-interval">
+                <option value="30"><%= it.lang === 'he' ? '30 דקות' : '30 minutes' %></option>
+                <option value="15"><%= it.lang === 'he' ? '15 דקות' : '15 minutes' %></option>
+              </select>
+            </label>
           </div></div>
           <div id="oc-week-grid" class="oc-week__grid" aria-live="polite"></div>
         </section>
