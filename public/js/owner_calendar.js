@@ -578,7 +578,7 @@
             setCalendarView("day");
             await Promise.all([loadDay(), loadSummary()]);
             connectSSE();
-            if (/^\\d{2}:\\d{2}$/.test(item.time || "")) openDrawer(item.time);
+            if (/^\d{2}:\d{2}$/.test(item.time || "")) openDrawer(item.time);
           });
           card.appendChild(row);
         }
