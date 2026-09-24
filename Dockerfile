@@ -72,6 +72,8 @@ RUN deno run --allow-env --allow-read --allow-write /app/railway_approved_design
 # page-specific workspace layout refinements.
 RUN deno run --allow-env --allow-read --allow-write /app/railway_refinement_patch.ts
 
+RUN deno run --allow-env --allow-read --allow-write /app/calendar_release_patch.ts
+
 # Compile the authoritative editor source and restore it after the old overlay.
 COPY --from=floor-build /floor/public/dist/ /app/public/dist/
 

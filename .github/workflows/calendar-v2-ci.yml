@@ -7,8 +7,11 @@ on:
   pull_request:
     paths:
       - 'routes/owner_calendar.ts'
-      - 'services/calendar_waitlist.ts'
-      - 'tests/calendar_waitlist_test.ts'
+      - 'services/calendar_*.ts'
+      - 'routes/calendar_guest.ts'
+      - 'calendar_release_patch.ts'
+      - 'templates/calendar_waitlist_guest.eta'
+      - 'tests/calendar_*test.ts'
       - 'templates/owner_calendar.eta'
       - 'public/js/owner_calendar.js'
       - 'public/css/owner_calendar_v2.css'
@@ -54,6 +57,7 @@ jobs:
           SPOTBOOK_ROOT="$PWD" deno run --allow-env --allow-read --allow-write ./railway_runtime_patch.ts
           SPOTBOOK_ROOT="$PWD" deno run --allow-env --allow-read --allow-write ./railway_privacy_patch.ts
           SPOTBOOK_ROOT="$PWD" deno run --allow-env --allow-read --allow-write ./railway_refinement_patch.ts
+          SPOTBOOK_ROOT="$PWD" deno run --allow-env --allow-read --allow-write ./calendar_release_patch.ts
           grep -Fq 'const user = ctx.state.user;' routes/owner_calendar.ts
           grep -Fq 'calendar/agenda' routes/owner_calendar.ts
           grep -Fq 'calendar/month' routes/owner_calendar.ts
@@ -72,3 +76,8 @@ jobs:
         run: |
           set -euo pipefail
           deno test --no-check --allow-env --allow-read --allow-write --allow-net --allow-sys --unstable-kv tests/calendar_waitlist_test.ts
+
+      - name: Verify atomic calendar writes and HTTP permissions
+        run: |
+          deno test --no-check -A --unstable-kv tests/calendar_operations_test.ts
+          deno test --no-check -A --unstable-kv tests/calendar_http_test.ts

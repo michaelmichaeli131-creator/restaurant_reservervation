@@ -949,6 +949,7 @@
   <script>
     window.__OC__ = {
       rid: "<%= it.rid %>",
+      canManage: <%= it.canManage ? "true" : "false" %>,
       userId: "<%= it.userId || 'owner' %>",
       date: "<%= it.date %>",
       lang: "<%= it.lang || 'en' %>",

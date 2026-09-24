@@ -555,6 +555,18 @@
         actions.appendChild(cancel);
       }
       row.append(description, actions);
+      if(resources.canManage && ["waiting","offered"].includes(item.status)) {
+        const convert=document.createElement('button'); convert.type='button'; convert.textContent=tr('Create reservation','יצירת הזמנה');
+        convert.onclick=()=>openEditor({waitlistId:item.id,date:item.date,time:item.time,firstName:item.name,phone:item.phone,people:item.people,note:item.note});
+        actions.append(convert);
+      }
+      if(resources.canManage) {
+        const remove=document.createElement('button'); remove.type='button'; remove.textContent=tr('Delete details','מחיקת פרטים');
+        remove.onclick=async()=>{ if(!confirm(tr('Delete these waitlist details permanently?','למחוק את פרטי ההמתנה לצמיתות?'))) return;
+          try { await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/waitlist/${encodeURIComponent(item.id)}?date=${encodeURIComponent(item.date)}`,{method:'DELETE'}); await loadWaitlist(); }
+          catch(error) {waitlistMessage(error.message);} };
+        actions.append(remove);
+      } else actions.querySelectorAll('button').forEach(b=>b.remove());
       waitlistRows.appendChild(row);
     }
   }
@@ -613,11 +625,7 @@
       if (value === "noshow" || value === "no-show") return "no_show";
       return value;
     };
-    const items = (state.agenda.items || []).filter((item) => {
-      if (statusFilter !== "all" && normalized(item.status) !== statusFilter) return false;
-      return !query || [item.firstName, item.lastName, item.phone, item.roomLabel, item.occasion]
-        .some((part) => String(part || "").toLowerCase().includes(query));
-    });
+    const items = state.agenda.items || [];
     agendaRows.textContent = "";
     if (!items.length) {
       const empty = document.createElement("p");
@@ -632,7 +640,7 @@
       const statusTone = ["cancelled", "no_show"].includes(status) ? "danger"
         : status === "arrived" ? "arrived" : status === "confirmed" ? "confirmed"
         : isBlocked ? "blocked" : "new";
-      const label = [item.firstName, item.lastName].filter(Boolean).join(" ") ||
+      const label = item.eventTitle || [item.firstName, item.lastName].filter(Boolean).join(" ") ||
         (isBlocked ? (lang === "he" ? "שעה חסומה" : "Blocked time") : (lang === "he" ? "אורח" : "Guest"));
       const meta = [
         item.people > 0 ? `${Number(item.people)} ${lang === "he" ? "סועדים" : "guests"}` : "",
@@ -641,30 +649,30 @@
       ].filter(Boolean).join(" · ");
       const row = document.createElement("button");
       row.type = "button";
-      row.className = "oc-agenda__item";
+      row.className = "oc-agenda__item" + (item.calendarKind === "event" ? " is-event" : item.calendarKind === "block" ? " is-blocked" : "");
       row.innerHTML = `<time class="oc-agenda__time">${escapeHTML(item.time || "—")}</time>
         <span class="oc-agenda__person"><strong>${escapeHTML(label)}</strong>
         <small>${escapeHTML(meta)}</small></span>
         <span class="oc-agenda__status oc-agenda__status--${statusTone}">${escapeHTML(item.status || "new")}</span>
         <span class="oc-agenda__arrow" aria-hidden="true">↗</span>`;
-      row.addEventListener("click", () => { if (/^\d{2}:\d{2}$/.test(item.time || "")) openDrawer(item.time); });
+      row.addEventListener("click", () => openEditor(item));
       agendaRows.appendChild(row);
     }
   }
 
   async function loadAgenda() {
-    if (state.ui.view !== "list") return;
+    if (!["day", "list"].includes(state.ui.view)) return;
     const selected = state.date;
     const request = ++agendaRequest;
     state.agenda = null;
     renderAgenda();
     try {
-      const data = await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/agenda?date=${encodeURIComponent(selected)}`);
-      if (request !== agendaRequest || state.date !== selected || state.ui.view !== "list") return;
+      const data = await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/agenda?date=${encodeURIComponent(selected)}&${filterQuery()}`);
+      if (request !== agendaRequest || state.date !== selected || !["day", "list"].includes(state.ui.view)) return;
       state.agenda = data;
       renderAgenda();
     } catch {
-      if (request === agendaRequest && state.date === selected && state.ui.view === "list" && agendaRows) {
+      if (request === agendaRequest && state.date === selected && ["day", "list"].includes(state.ui.view) && agendaRows) {
         agendaRows.textContent = lang === "he" ? "טעינת ההזמנות נכשלה. נסה לרענן את העמוד." : "Could not load reservations. Try refreshing.";
       }
     }
@@ -692,7 +700,8 @@
     const button = document.createElement("button");
     button.type = "button";
     button.className = "oc-week__booking";
-    const name = [item.firstName, item.lastName].filter(Boolean).join(" ") ||
+    if(item.calendarKind === "event") button.classList.add("is-event");
+    const name = item.eventTitle || [item.firstName, item.lastName].filter(Boolean).join(" ") ||
       (String(item.status || "").toLowerCase() === "blocked"
         ? (lang === "he" ? "שעה חסומה" : "Blocked time")
         : (lang === "he" ? "הזמנה" : "Reservation"));
@@ -711,7 +720,7 @@
       button.classList.add("is-inactive");
     } else if (status === "blocked") button.classList.add("is-blocked");
     else if (["arrived", "confirmed", "approved"].includes(status)) button.classList.add("is-confirmed");
-    button.addEventListener("click", () => { void openWeekDay(date, time); });
+    button.addEventListener("click", () => openEditor({...item,date}));
     return button;
   }
 
@@ -855,7 +864,7 @@
     weekGrid.textContent = lang === "he" ? "טוען שבוע…" : "Loading week…";
     const results = await Promise.allSettled(dates.map((date) =>
       fetchJSON("/owner/restaurants/" + encodeURIComponent(state.rid) +
-        "/calendar/agenda?date=" + encodeURIComponent(date))
+        "/calendar/agenda?date=" + encodeURIComponent(date) + "&" + filterQuery())
     ));
     if (request !== weekRequest || state.date !== selected || state.ui.view !== "week") return;
     // A partial failure should be retried on next visit instead of cached.
@@ -875,7 +884,7 @@
     if (monthTitle) monthTitle.textContent = fmtDate(first, { month: "long", year: "numeric" });
     monthGrid.textContent = lang === "he" ? "טוען חודש…" : "Loading month…";
     try {
-      const data = await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/month?month=${encodeURIComponent(month)}`);
+      const data = await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/month?month=${encodeURIComponent(month)}&${filterQuery()}`);
       if (request !== monthRequest || state.date !== selected || state.ui.view !== "month") return;
       monthGrid.textContent = "";
       const weekdays = lang === "he" ? ["ב", "ג", "ד", "ה", "ו", "ש", "א"] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -899,7 +908,7 @@
         const button = document.createElement("button");
         button.type = "button";
         button.className = "oc-month__day" + (date === selected ? " is-selected" : "");
-        button.innerHTML = `<strong>${day}</strong><span>${Number(item.reservations || 0)} ${lang === "he" ? "הזמנות" : "bookings"}</span><small>${Number(item.guests || 0)} ${lang === "he" ? "סועדים" : "guests"}</small>`;
+        button.innerHTML = `<strong>${day}</strong><span>${Number(item.reservations || 0)} ${lang === "he" ? "הזמנות" : "bookings"}</span><small>${Number(item.guests || 0)} ${lang === "he" ? "סועדים" : "guests"}</small><small class="oc-event-count">${Number(item.events || 0)} ${lang === "he" ? "אירועים" : "events"}</small>`;
         button.setAttribute("aria-label", `${date}: ${Number(item.reservations || 0)} ${lang === "he" ? "הזמנות" : "bookings"}`);
         button.addEventListener("click", async () => {
           state.date = date;
@@ -934,8 +943,8 @@
     if (!["day", "list", "week", "month"].includes(next)) return;
     state.ui.view = next;
     document.body.classList.toggle("oc-calendar-list-mode", next === "list");
-    if (next !== "list") ++agendaRequest;
-    if (agendaPanel) agendaPanel.hidden = next !== "list";
+    if (!["day", "list"].includes(next)) ++agendaRequest;
+    if (agendaPanel) agendaPanel.hidden = !["day", "list"].includes(next);
     if (weekPanel) weekPanel.hidden = next !== "week";
     if (monthPanel) monthPanel.hidden = next !== "month";
     document.body.classList.toggle("oc-calendar-week-mode", next === "week");
@@ -948,7 +957,7 @@
       button.setAttribute("aria-pressed", String(selected));
     });
     persistCalendarOptions();
-    if (next === "list") {
+    if (["day", "list"].includes(next)) {
       if (state.agenda?.date === state.date) renderAgenda();
       else void loadAgenda();
     }
@@ -1131,7 +1140,7 @@
         <td data-label="${escapeHTML(init?.txt?.partySize || "Party size")}">${Number(item.people || 0)}</td>
         <td data-label="${escapeHTML(init?.txt?.room || "Room")}">${roomCell}</td>
         <td data-label="${escapeHTML(init?.txt?.status || "Status")}">${badge(item.status || "")}${depositBadge(item.depositStatus, item.depositAmount, item.depositCurrency)}</td>
-        <td data-label="${escapeHTML(init?.txt?.phone || "Phone")}"><a href="tel:${(item.phone || "").replace(/\s+/g, "")}">${escapeHTML(item.phone || "")}</a></td>
+        <td data-label="${escapeHTML(init?.txt?.phone || "Phone")}"><a href="tel:${escapeHTML((item.phone || "").replace(/[^+0-9]/g, ""))}">${escapeHTML(item.phone || "")}</a></td>
         <td data-label="${escapeHTML(init?.txt?.actions || "Actions")}">
           <button class="btn" data-act="arrived" data-id="${item.id}">${escapeHTML(init?.txt?.btnArrived || "Arrived")}</button>
           <button class="btn warn" data-act="cancel" data-id="${item.id}">${escapeHTML(init?.txt?.btnCancel || "Cancel")}</button>
@@ -1141,6 +1150,7 @@
       frag.appendChild(tr);
     }
     drawerTableBody.appendChild(frag);
+    if(!resources.canManage) $$("button[data-act]", drawerTableBody).forEach(b=>b.remove());
 
     $$('button[data-act="arrived"]', drawerTableBody).forEach((b) => b.addEventListener("click", () => slotAction("arrived", { id: b.dataset.id })));
     $$('button[data-act="cancel"]', drawerTableBody).forEach((b) => b.addEventListener("click", () => slotAction("cancel", { id: b.dataset.id })));
@@ -1241,6 +1251,7 @@
     const selectedDate = state.date;
     const result = await fetchJSON(url);
     if (selectedDate !== state.date) return;
+    if(state.day && state.day.date !== selectedDate) closeDrawer();
     state.day = result;
     if (state.day?.currentTime) {
       state.systemTime.date = state.day.currentTime.sourceDate || state.day.currentTime.date || state.systemTime.date;
@@ -1252,7 +1263,7 @@
     renderHeaderLine();
     renderSlots();
     void loadWaitlist();
-    if (state.ui.view === "list" && state.agenda?.date !== state.date) await loadAgenda();
+    if (["day", "list"].includes(state.ui.view) && state.agenda?.date !== state.date) await loadAgenda();
     renderRoomOccupancy();
     renderKPIs();
     if (datePicker) datePicker.value = state.date;
@@ -1279,7 +1290,9 @@
   async function loadSlot() {
     if (!state.drawer.time) return;
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/slot?date=${encodeURIComponent(state.date)}&time=${encodeURIComponent(state.drawer.time)}`;
+    const selectedDate=state.date, selectedTime=state.drawer.time;
     const data = await fetchJSON(url);
+    if(state.date!==selectedDate || state.drawer.time!==selectedTime || !state.drawer.open) return;
     state.drawer.items = data.items || [];
     renderDrawer(state.drawer.items);
   }
@@ -1294,11 +1307,7 @@
     });
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/slot?${qs.toString()}`;
     const body = JSON.stringify({ action, date: state.date, time: state.drawer.time, reservation });
-    try {
-      await fetchJSON(url, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body });
-    } catch {
-      await fetchJSON(url, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body });
-    }
+    await fetchJSON(url, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body });
     state.agenda = null;
     weekCache = null;
     await Promise.all([loadSlot(), loadDay(), loadSummary()]);
@@ -1306,13 +1315,7 @@
 
   async function createManual() {
     if (!state.drawer.time) return;
-    const firstName = prompt(init?.txt?.promptFirstName || "First name:") || "";
-    const lastName = prompt(init?.txt?.promptLastName || "Last name:") || "";
-    if (!firstName && !lastName) return;
-    const phone = prompt(init?.txt?.promptPhone || "Phone (optional):") || "";
-    const people = Math.max(1, parseInt(prompt(init?.txt?.promptPartySize || "Party size:", "2") || "2", 10));
-    const notes = prompt(init?.txt?.promptNotes || "Notes (optional):") || "";
-    await slotAction("create", { firstName, lastName, phone, people, notes, status: "booked" });
+    openEditor({});
   }
 
   async function searchInDay(q) {
@@ -1483,6 +1486,99 @@
     if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
+  const tr = (en, he) => lang === 'he' ? he : en;
+  let resources = { layouts: [], duration: 120, canManage: init.canManage !== false };
+  let editor, editing = null;
+  function filterQuery() {
+    return new URLSearchParams({ q: $('#oc-global-search')?.value || '', status: $('#oc-global-status')?.value || 'all', room: $('#oc-global-room')?.value || '', kind: $('#oc-global-kind')?.value || 'all' }).toString();
+  }
+  async function refreshCalendar() {
+    weekCache = null; state.agenda = null;
+    await Promise.all([loadDay(), loadSummary()]);
+  }
+  function refreshFilters() {
+    weekCache = null; state.agenda = null;
+    if (['day','list'].includes(state.ui.view)) void loadAgenda();
+    if (state.ui.view === 'week') void loadWeek();
+    if (state.ui.view === 'month') void loadMonth();
+  }
+  function setupOperations() {
+    const bar = document.createElement('div');
+    bar.className = 'oc-global-tools';
+    bar.innerHTML = `<label>${tr('Search','חיפוש')}<input id="oc-global-search" type="search" placeholder="${tr('Name, phone or event','שם, טלפון או אירוע')}"></label>
+      <label>${tr('Status','סטטוס')}<select id="oc-global-status"><option value="all">${tr('All statuses','כל הסטטוסים')}</option><option value="new">${tr('New','חדש')}</option><option value="confirmed">${tr('Confirmed','מאושר')}</option><option value="arrived">${tr('Arrived','הגיע')}</option><option value="cancelled">${tr('Cancelled','בוטל')}</option><option value="no_show">${tr('No show','לא הגיע')}</option><option value="blocked">${tr('Blocked','חסום')}</option></select></label>
+      <label>${tr('Room','אזור')}<select id="oc-global-room"><option value="">${tr('All rooms','כל האזורים')}</option></select></label>
+      <label>${tr('Type','סוג')}<select id="oc-global-kind"><option value="all">${tr('Bookings and events','הזמנות ואירועים')}</option><option value="reservation">${tr('Reservations','הזמנות')}</option><option value="event">${tr('Events','אירועים')}</option><option value="block">${tr('Blocks','חסימות')}</option></select></label>
+      <button type="button" id="oc-add-reservation">${tr('+ Reservation','+ הזמנה')}</button><button type="button" id="oc-add-event">${tr('+ Event / block','+ אירוע / חסימה')}</button>
+      <a href="/owner/restaurants/${encodeURIComponent(state.rid)}/floor">${tr('Floor plan','מפת המסעדה')} ↗</a>`;
+    $('.oc-viewbar')?.after(bar);
+    $('#oc-global-search').addEventListener('input', debounce(refreshFilters,250));
+    ['status','room','kind'].forEach(id => $('#oc-global-'+id).addEventListener('change',refreshFilters));
+    $('#oc-add-reservation').onclick = () => openEditor({});
+    $('#oc-add-event').onclick = () => openEditor({calendarKind:'event'});
+    editor = document.createElement('dialog'); editor.className = 'oc-editor'; editor.setAttribute('aria-labelledby','oc-editor-title');
+    editor.innerHTML = `<div class="oc-editor-head"><h2 id="oc-editor-title">${tr('Reservation / event','הזמנה / אירוע')}</h2><button type="button" id="oc-editor-close" aria-label="${tr('Close','סגירה')}">×</button></div>
+      <form class="oc-editor-form" id="oc-editor-form">
+      <label>${tr('Type','סוג')}<select name="calendarKind"><option value="reservation">${tr('Reservation','הזמנה')}</option><option value="event">${tr('Event','אירוע')}</option><option value="block">${tr('Capacity block','חסימת קיבולת')}</option></select></label>
+      <label>${tr('Event title','שם האירוע')}<input name="eventTitle" maxlength="100"></label>
+      <label>${tr('First name','שם פרטי')}<input name="firstName" maxlength="100"></label><label>${tr('Last name','שם משפחה')}<input name="lastName" maxlength="100"></label>
+      <label>${tr('Phone','טלפון')}<input name="phone" type="tel" maxlength="40"></label><label>${tr('Guests / seats held','סועדים / מקומות לשמירה')}<input name="people" type="number" min="1" max="10000" required></label>
+      <label>${tr('Date','תאריך')}<input name="date" type="date" required></label><label>${tr('Time','שעה')}<input name="time" type="time" required></label>
+      <label>${tr('Duration (minutes)','משך (דקות)')}<input name="durationMinutes" type="number" min="15" max="1440" required></label>
+      <label>${tr('Status','סטטוס')}<select name="status"><option value="confirmed">${tr('Confirmed','מאושר')}</option><option value="new">${tr('New','חדש')}</option><option value="arrived">${tr('Arrived','הגיע')}</option><option value="completed">${tr('Completed','הסתיים')}</option><option value="no_show">${tr('No show','לא הגיע')}</option><option value="canceled">${tr('Cancelled','בוטל')}</option><option value="blocked">${tr('Blocked','חסום')}</option></select></label>
+      <label>${tr('Room','אזור')}<select name="preferredLayoutId"></select></label><label>${tr('Table','שולחן')}<select name="tableId"></select></label>
+      <label class="oc-editor-wide">${tr('Notes','הערות')}<textarea name="note" maxlength="1000"></textarea></label>
+      <p class="oc-editor-wide" id="oc-editor-error" role="alert"></p><button type="submit">${tr('Save','שמירה')}</button><button type="button" id="oc-editor-cancel">${tr('Close','סגירה')}</button></form>`;
+    document.body.append(editor);
+    $('#oc-editor-close').onclick = $('#oc-editor-cancel').onclick = () => editor.close();
+    const form = $('#oc-editor-form');
+    form.elements.preferredLayoutId.onchange = () => fillTables();
+    form.elements.calendarKind.onchange = () => { if (form.elements.calendarKind.value === 'block') form.elements.status.value = 'blocked'; };
+    form.addEventListener('submit', async e => {
+      e.preventDefault(); const button = form.querySelector('[type=submit]'); if(button.disabled) return;
+      const payload = Object.fromEntries(new FormData(form));
+      if(editing?.id) payload.id = editing.id;
+      if(editing?.updatedAt) payload.updatedAt = editing.updatedAt;
+      if(editing?.waitlistId) payload.waitlistId = editing.waitlistId;
+      button.disabled = true; $('#oc-editor-error').textContent = '';
+      try {
+        await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/save`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        state.date = payload.date; editor.close(); closeDrawer(); await refreshCalendar(); connectSSE();
+      } catch(error) { $('#oc-editor-error').textContent = error.message; }
+      finally { button.disabled = !resources.canManage; }
+    });
+    void fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/resources`).then(data => {
+      resources = data;
+      for(const room of data.layouts || []) { const option = new Option(room.name || room.id,room.id); $('#oc-global-room').append(option); }
+      if(!data.canManage) {
+        $('#oc-add-reservation').hidden = $('#oc-add-event').hidden = true;
+        if(waitlistForm) waitlistForm.hidden = true;
+        if(btnAdd) btnAdd.hidden = true;
+      }
+    }).catch(()=>{ $('#oc-add-reservation').disabled = $('#oc-add-event').disabled = true; });
+  }
+  function fillTables(selected='') {
+    const form = $('#oc-editor-form');
+    const select = form.elements.tableId; select.replaceChildren(new Option(tr('Unassigned','ללא שיוך'),''));
+    const room = resources.layouts.find(r=>r.id===form.elements.preferredLayoutId.value);
+    for(const table of room?.tables || []) select.append(new Option(`${table.name || table.tableNumber || table.id} · ${table.seats || '?'} ${tr('seats','מקומות')}`,table.id));
+    select.value=selected;
+  }
+  function openEditor(item) {
+    if(!editor) return;
+    editing=item.waitlistId ? item : {...item,id:item.id || crypto.randomUUID()};
+    const form=$('#oc-editor-form'); form.reset(); $('#oc-editor-error').textContent='';
+    const values={calendarKind:'reservation',date:state.date,time:state.drawer.time || '19:00',people:2,durationMinutes:resources.duration,status:'confirmed',...item};
+    const roomSelect=form.elements.preferredLayoutId;
+    roomSelect.replaceChildren(new Option(tr('Any room','ללא העדפה'),''));
+    resources.layouts.forEach(r=>roomSelect.append(new Option(r.name || r.id,r.id)));
+    for(const [key,value] of Object.entries(values)) if(form.elements[key]) form.elements[key].value=value ?? '';
+    fillTables(item.tableId || '');
+    for(const field of form.elements) field.disabled=!resources.canManage;
+    $('#oc-editor-cancel').disabled=false;
+    if(!editor.open) editor.showModal();
+  }
+
   function wire() {
     if (waitlistForm) waitlistForm.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -1541,7 +1637,8 @@
     viewButtons.forEach((button) => button.addEventListener("click", () => setCalendarView(button.dataset.calendarView)));
     if (agendaStatus) agendaStatus.addEventListener("change", () => {
       state.ui.statusFilter = agendaStatus.value || "all";
-      renderAgenda();
+      $("#oc-global-status").value=agendaStatus.value;
+      refreshFilters();
     });
     if (btnPrev) btnPrev.addEventListener("click", async () => {
       if (state.ui.view === "month") { await moveCalendarMonth(-1); return; }
@@ -1566,14 +1663,14 @@
     });
 
     if (daySearch) daySearch.addEventListener("input", debounce(() => {
-      if (state.ui.view === "list") renderAgenda();
-      else searchInDay(daySearch.value.trim());
+      if($("#oc-global-search")) $("#oc-global-search").value=daySearch.value;
+      refreshFilters();
     }, 250));
     if (sideSearch) sideSearch.addEventListener("input", debounce(() => {
       const v = sideSearch.value || "";
       if (daySearch) daySearch.value = v;
-      if (state.ui.view === "list") renderAgenda();
-      else searchInDay(v.trim());
+      if($("#oc-global-search")) $("#oc-global-search").value=v;
+      refreshFilters();
     }, 250));
 
     if (filtersRoot) {
@@ -1628,6 +1725,7 @@
   }
 
   async function initApp() {
+    setupOperations();
     setCalendarView(restoreView());
     if (datePicker) datePicker.value = state.date;
     initMonthFromSelected();

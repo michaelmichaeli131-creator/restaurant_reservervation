@@ -41,7 +41,7 @@ function bounded(value: unknown, label: string, max: number, required = false): 
     throw new RangeError("Invalid " + label);
   }
   const text = String(value ?? "").trim();
-  if ((required && !text) || text.length > max || /[\u0000-\u001f\u007f]/.test(text)) {
+  if ((required && !text) || text.length > max || (label === "note" ? /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/ : /[\u0000-\u001f\u007f]/).test(text)) {
     throw new RangeError("Invalid " + label);
   }
   return text;
@@ -82,7 +82,7 @@ export async function createCalendarWaitlist(
       source, createdAt: at, updatedAt: at,
     };
     const inserted = await kv.atomic().check({ key: key(rid, data.date, id), versionstamp: null })
-      .set(key(rid, data.date, id), value).commit();
+      .set(key(rid, data.date, id), value, { expireIn: 90 * 86400000 }).commit();
     if (inserted.ok) return value;
   }
   throw new Error("Could not create waitlist entry");
@@ -117,7 +117,7 @@ export async function updateCalendarWaitlistStatus(
   if (current.value.status === target) return current.value;
   if (!allowed[current.value.status]?.includes(target)) throw new RangeError("Invalid status transition");
   const next = { ...current.value, status: target, updatedAt: Date.now() };
-  const result = await kv.atomic().check(current).set(k, next).commit();
+  const result = await kv.atomic().check(current).set(k, next, { expireIn: Math.max(1, current.value.createdAt + 90 * 86400000 - Date.now()) }).commit();
   if (!result.ok) throw new Error("Waitlist entry changed; reload before editing");
   return next;
 }
