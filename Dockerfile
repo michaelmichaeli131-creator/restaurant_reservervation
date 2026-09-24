@@ -21,10 +21,15 @@ COPY . /app
 # current frontend shell before extraction, then restore it over the backend
 # overlay so the cinematic v4 patch is applied to the template it was built for.
 RUN mkdir -p /tmp/spotbook-ui/templates /tmp/spotbook-ui/public/css /tmp/spotbook-ui/public \
+  && mkdir -p /tmp/spotbook-calendar/routes /tmp/spotbook-calendar/templates /tmp/spotbook-calendar/public/js /tmp/spotbook-calendar/public/css \
   && cp /app/templates/index.eta /tmp/spotbook-ui/templates/index.eta \
   && cp /app/templates/_layout.eta /tmp/spotbook-ui/templates/_layout.eta \
   && cp /app/public/css/spotbook.css /tmp/spotbook-ui/public/css/spotbook.css \
-  && cp /app/public/app.js /tmp/spotbook-ui/public/app.js
+  && cp /app/public/app.js /tmp/spotbook-ui/public/app.js \
+  && cp /app/routes/owner_calendar.ts /tmp/spotbook-calendar/routes/owner_calendar.ts \
+  && cp /app/templates/owner_calendar.eta /tmp/spotbook-calendar/templates/owner_calendar.eta \
+  && cp /app/public/js/owner_calendar.js /tmp/spotbook-calendar/public/js/owner_calendar.js \
+  && cp /app/public/css/owner_calendar_v2.css /tmp/spotbook-calendar/public/css/owner_calendar_v2.css
 
 # Reconstruct and apply the verified modernized SpotBook backend overlay.
 RUN cat .deploy2/part* \
@@ -36,7 +41,11 @@ RUN cat .deploy2/part* \
   && cp /tmp/spotbook-ui/templates/_layout.eta /app/templates/_layout.eta \
   && cp /tmp/spotbook-ui/public/css/spotbook.css /app/public/css/spotbook.css \
   && cp /tmp/spotbook-ui/public/app.js /app/public/app.js \
-  && rm -rf /tmp/spotbook-ui \
+  && cp /tmp/spotbook-calendar/routes/owner_calendar.ts /app/routes/owner_calendar.ts \
+  && cp /tmp/spotbook-calendar/templates/owner_calendar.eta /app/templates/owner_calendar.eta \
+  && cp /tmp/spotbook-calendar/public/js/owner_calendar.js /app/public/js/owner_calendar.js \
+  && cp /tmp/spotbook-calendar/public/css/owner_calendar_v2.css /app/public/css/owner_calendar_v2.css \
+  && rm -rf /tmp/spotbook-ui /tmp/spotbook-calendar \
   && mkdir -p /data \
   && chown -R deno:deno /app /data
 
@@ -62,6 +71,8 @@ RUN deno run --allow-env --allow-read --allow-write /app/railway_approved_design
 # Final screenshot-alignment layer: quarter-hour selectors, fuller imagery, and
 # page-specific workspace layout refinements.
 RUN deno run --allow-env --allow-read --allow-write /app/railway_refinement_patch.ts
+
+RUN deno run --allow-env --allow-read --allow-write /app/calendar_release_patch.ts
 
 # Compile the authoritative editor source and restore it after the old overlay.
 COPY --from=floor-build /floor/public/dist/ /app/public/dist/

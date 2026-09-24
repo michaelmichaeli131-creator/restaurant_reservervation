@@ -9,7 +9,7 @@
   </title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- קובץ הלוגיקה/בסיס קיים שלך -->
-  <link rel="stylesheet" href="/static/css/owner_calendar.css" />
+  <link rel="stylesheet" href="/static/css/owner_calendar.css?v=calendar-v2-1" />
 
   <style>
     /* ===== SpotBook Luxury Dark – Skins only (No feature changes) ===== */
@@ -569,6 +569,7 @@
 
   </style>
   <link rel="stylesheet" href="/public/css/sb-tablet-support.css?v=<%= it.BUILD_TAG || Date.now() %>" />
+  <link rel="stylesheet" href="/static/css/owner_calendar_v2.css?v=1" />
 </head>
 <body>
   <!-- Header -->
@@ -758,6 +759,91 @@
           </div>
         </div>
 
+        <nav class="oc-viewbar" aria-label="<%= it.lang === 'he' ? 'תצוגת יומן' : 'Calendar views' %>">
+          <div class="oc-viewbar__tabs" role="group" aria-label="<%= it.lang === 'he' ? 'בחירת תצוגה' : 'Select view' %>">
+            <button type="button" class="oc-viewbar__tab is-active" data-calendar-view="day" aria-pressed="true"><%= it.lang === 'he' ? 'יום' : 'Day' %></button>
+            <button type="button" class="oc-viewbar__tab" data-calendar-view="list" aria-pressed="false"><%= it.lang === 'he' ? 'רשימה' : 'List' %></button>
+            <button type="button" class="oc-viewbar__tab" data-calendar-view="week" aria-pressed="false"><%= it.lang === 'he' ? 'שבוע' : 'Week' %></button>
+            <button type="button" class="oc-viewbar__tab" data-calendar-view="month" aria-pressed="false"><%= it.lang === 'he' ? 'חודש' : 'Month' %></button>
+          </div>
+          <span class="oc-viewbar__caption"><%= it.lang === 'he' ? 'הזמנות ליום שנבחר' : 'Reservations for the selected day' %></span>
+        </nav>
+        <details class="oc-waitlist" id="oc-waitlist">
+          <summary class="oc-waitlist__toggle">
+            <span class="oc-waitlist__headline">
+              <span class="oc-agenda__eyebrow">SPOTBOOK / WAITLIST</span>
+              <strong><%= it.lang === 'he' ? 'רשימת המתנה' : 'Waitlist' %>
+                <span class="oc-waitlist__count" id="oc-waitlist-count" aria-live="polite">—</span>
+              </strong>
+              <small><%= it.lang === 'he' ? 'בקשות בלבד, ללא הקצאת שולחן אוטומטית' : 'Requests only; no automatic table allocation' %></small>
+            </span>
+            <span class="oc-waitlist__chevron" aria-hidden="true">⌄</span>
+          </summary>
+          <div class="oc-waitlist__content">
+            <p id="oc-waitlist-date" class="oc-waitlist__date"></p>
+            <form id="oc-waitlist-form" class="oc-waitlist__form">
+              <label><%= it.lang === 'he' ? 'שם לקוח' : 'Guest name' %><input name="name" maxlength="100" autocomplete="name" required /></label>
+              <label><%= it.lang === 'he' ? 'טלפון' : 'Phone' %><input name="phone" type="tel" maxlength="40" autocomplete="tel" required /></label>
+              <label><%= it.lang === 'he' ? 'מספר סועדים' : 'Guests' %><input name="people" type="number" min="1" max="30" value="2" required /></label>
+              <label><%= it.lang === 'he' ? 'שעה מבוקשת' : 'Requested time' %><input name="time" type="time" required /></label>
+              <label><%= it.lang === 'he' ? 'אזור מועדף' : 'Preferred area' %><input name="area" maxlength="90" /></label>
+              <label class="oc-waitlist__notes"><%= it.lang === 'he' ? 'הערות' : 'Notes' %><textarea name="note" maxlength="500" rows="2"></textarea></label>
+              <button type="submit" class="oc-waitlist__add"><%= it.lang === 'he' ? '+ הוסף לרשימת המתנה' : '+ Add to waitlist' %></button>
+            </form>
+            <p class="oc-waitlist__feedback" id="oc-waitlist-feedback" role="status" aria-live="polite"></p>
+            <div id="oc-waitlist-rows" class="oc-waitlist__rows" aria-live="polite"></div>
+          </div>
+        </details>
+        <section id="oc-agenda" class="oc-agenda" aria-label="<%= it.lang === 'he' ? 'רשימת הזמנות' : 'Reservation list' %>" hidden>
+          <div class="oc-agenda__header">
+            <div><span class="oc-agenda__eyebrow">SPOTBOOK / SERVICE</span>
+              <h2><%= it.lang === 'he' ? 'הזמנות לפי שעה' : 'Reservations by time' %></h2>
+              <p><%= it.lang === 'he' ? 'לחיצה על הזמנה תפתח את הפרטים והפעולות שלה' : 'Select a reservation to manage its details' %></p>
+            </div>
+            <label class="oc-agenda__filter"><%= it.lang === 'he' ? 'סטטוס' : 'Status' %>
+              <select id="oc-agenda-status">
+                <option value="all"><%= it.lang === 'he' ? 'הכול' : 'All statuses' %></option>
+                <option value="new"><%= it.lang === 'he' ? 'חדש' : 'New' %></option>
+                <option value="confirmed"><%= it.lang === 'he' ? 'מאושר' : 'Confirmed' %></option>
+                <option value="arrived"><%= it.lang === 'he' ? 'הגיע' : 'Arrived' %></option>
+                <option value="blocked"><%= it.lang === 'he' ? 'חסום' : 'Blocked' %></option>
+                <option value="cancelled"><%= it.lang === 'he' ? 'בוטל' : 'Cancelled' %></option>
+                <option value="no_show">No-show</option>
+              </select>
+            </label>
+          </div>
+          <div id="oc-agenda-rows" class="oc-agenda__rows" aria-live="polite"></div>
+        </section>
+        <section id="oc-week" class="oc-week" hidden aria-label="<%= it.lang === 'he' ? 'הזמנות לשבוע' : 'Weekly reservations' %>">
+          <div class="oc-agenda__header"><div><span class="oc-agenda__eyebrow">SPOTBOOK / WEEK</span>
+            <h2><%= it.lang === 'he' ? 'מבט שבועי' : 'Weekly overview' %></h2>
+            <p><%= it.lang === 'he' ? 'בחר יום כדי לעבור ליומן היומי' : 'Select a day to open its calendar' %></p>
+          </div>
+          <div class="oc-week__controls">
+            <div class="oc-week__modes" role="group" aria-label="<%= it.lang === 'he' ? 'סגנון תצוגה שבועי' : 'Weekly layout' %>">
+              <button type="button" class="oc-week__mode is-active" data-week-mode="columns" aria-pressed="true"><%= it.lang === 'he' ? 'עמודות ימים' : 'Day columns' %></button>
+              <button type="button" class="oc-week__mode" data-week-mode="timeline" aria-pressed="false"><%= it.lang === 'he' ? 'גריד שעות' : 'Time grid' %></button>
+            </div>
+            <label class="oc-week__interval"><%= it.lang === 'he' ? 'מרווחי תצוגה' : 'Display intervals' %>
+              <select id="oc-week-interval">
+                <option value="30"><%= it.lang === 'he' ? '30 דקות' : '30 minutes' %></option>
+                <option value="15"><%= it.lang === 'he' ? '15 דקות' : '15 minutes' %></option>
+              </select>
+            </label>
+          </div></div>
+          <div id="oc-week-grid" class="oc-week__grid" aria-live="polite"></div>
+        </section>
+        <section id="oc-month" class="oc-month" hidden aria-label="<%= it.lang === 'he' ? 'לוח חודשי' : 'Monthly calendar' %>">
+          <div class="oc-agenda__header">
+            <div><span class="oc-agenda__eyebrow">SPOTBOOK / MONTH</span>
+              <div class="oc-month__navigation"><button type="button" id="oc-month-prev" aria-label="<%= it.lang === 'he' ? 'חודש קודם' : 'Previous month' %>">‹</button>
+              <h2 id="oc-month-title"><%= it.lang === 'he' ? 'סקירה חודשית' : 'Monthly overview' %></h2>
+              <button type="button" id="oc-month-next" aria-label="<%= it.lang === 'he' ? 'חודש הבא' : 'Next month' %>">›</button></div>
+              <p><%= it.lang === 'he' ? 'בחר יום להצגת ההזמנות שלו' : 'Select a date to open its reservations' %></p>
+            </div>
+          </div>
+          <div id="oc-month-grid" class="oc-month__grid" aria-live="polite"></div>
+        </section>
         <section class="oc-premium-grid">
           <article class="oc-spotlight-card" id="oc-service-spotlight">
             <div class="oc-spotlight-card__eyebrow"><%= tt('owner.calendar.spotlight.eyebrow','Luxury service overview') %></div>
@@ -863,6 +949,8 @@
   <script>
     window.__OC__ = {
       rid: "<%= it.rid %>",
+      canManage: <%= it.canManage ? "true" : "false" %>,
+      userId: "<%= it.userId || 'owner' %>",
       date: "<%= it.date %>",
       lang: "<%= it.lang || 'en' %>",
       locale: "<%= it.lang === 'ka' ? 'ka-GE' : (it.lang === 'he' ? 'he-IL' : 'en-US') %>",
@@ -959,12 +1047,8 @@
       const picker = document.getElementById('datePicker');
       if (btnJump && picker) {
         btnJump.addEventListener('click', () => picker.showPicker ? picker.showPicker() : picker.click());
-        picker.addEventListener('change', () => {
-          const v = picker.value; if (!v) return;
-          const url = new URL(window.location.href);
-          url.searchParams.set('date', v);
-          window.location.href = url.toString();
-        });
+        // Date changes are handled by owner_calendar.js: changing the date
+        // must not reload the page or discard the chosen view and filters.
       }
     })();
 

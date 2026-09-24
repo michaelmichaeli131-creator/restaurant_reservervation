@@ -3,7 +3,9 @@
 
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
-import { requireOwner } from "../lib/auth.ts";
+import { getStaffMembership } from "../services/authz.ts";
+import { saveCalendarReservation, inactive } from "../services/calendar_operations.ts";
+import { kv } from "../database.ts";
 import { debugLog } from "../lib/debug.ts";
 
 import {
@@ -20,9 +22,15 @@ import { readBody } from "./restaurants/_utils/body.ts";
 import { buildDayTimeline, slotRange } from "../services/timeline.ts";
 import { computeOccupancyForDay, summarizeDay } from "../services/occupancy.ts";
 import { listFloorLayouts } from "../services/floor_service.ts";
+import {
+  createCalendarWaitlist, listCalendarWaitlist, updateCalendarWaitlistStatus,
+  validateWaitlistDate,
+} from "../services/calendar_waitlist.ts";
 import { getRestaurantSystemNow, splitIsoParts } from "../services/system_time.ts";
 
+import { calendarGuestRouter } from "./calendar_guest.ts";
 const ownerCalendarRouter = new Router();
+ownerCalendarRouter.use(calendarGuestRouter.routes(), calendarGuestRouter.allowedMethods());
 
 /* ---------------- SSE infra (in-memory) ---------------- */
 type SSEClient = {
@@ -69,12 +77,18 @@ function json(ctx: any, data: unknown, status = Status.OK) {
   ctx.response.body = data;
 }
 async function ensureOwnerAccess(ctx: any, rid: string): Promise<Restaurant> {
-  const user = await requireOwner(ctx);
+  const user = ctx.state.user;
+  if (!user) ctx.throw(Status.Unauthorized, "Sign in required");
   const r = await getRestaurant(rid);
   if (!r) ctx.throw(Status.NotFound, "Restaurant not found");
-  if (r.ownerId !== user.id && (r as any).userId !== user.id) {
-    ctx.throw(Status.Forbidden, "Not your restaurant");
+  const owner = r.ownerId === user.id || (r as any).userId === user.id;
+  const member = owner ? null : await getStaffMembership(rid, user.id);
+  const permission = ["GET", "HEAD"].includes(ctx.request.method) ? "reservations.view" : "reservations.manage";
+  if (!owner && !(member?.approvalStatus === "approved" && member.status === "active" && member.permissions?.includes(permission))) {
+    ctx.throw(Status.Forbidden, "Calendar permission required");
   }
+  ctx.state.calendarIsOwner = owner;
+  ctx.state.calendarCanManage = owner || !!member?.permissions?.includes("reservations.manage");
   return r as Restaurant;
 }
 function deriveCapacities(r: Restaurant) {
@@ -309,145 +323,27 @@ async function handleSlotAction(ctx: any) {
   }
 
   const db = await import("../database.ts");
-  let result: any = null;
-
-  if (normalized === "create") {
-    const fallbackName = (reservation?.fullName ?? reservation?.name ?? reservation?.customerName ?? "").toString().trim();
-    let firstName = (reservation?.firstName ?? "").toString().trim();
-    let lastName  = (reservation?.lastName  ?? "").toString().trim();
-    if ((!firstName || !lastName) && fallbackName) {
-      const s = splitName(fallbackName);
-      if (!firstName) firstName = s.first;
-      if (!lastName)  lastName  = s.last;
-    }
-
-    const noteRaw = (reservation?.notes ?? reservation?.note ?? "").toString().trim();
-    if ((!firstName || !lastName || !reservation?.phone) && noteRaw) {
-      const ext = extractFromNote(noteRaw);
-      if ((!firstName || !lastName) && ext.name) {
-        const s = splitName(ext.name);
-        if (!firstName) firstName = s.first;
-        if (!lastName)  lastName  = s.last;
-      }
-      if (!reservation?.phone && ext.phone) reservation.phone = ext.phone;
-    }
-
-    const { durationMinutes } = deriveCapacities(r);
-    const user = (ctx.state as any)?.user;
-
-    // === PAYLOAD עם אליאסים נפוצים כדי להתאים לשליפות קיימות ===
-    const payload: Record<string, unknown> = {
-      // בסיס
-      firstName,
-      lastName,
-      phone    : (reservation?.phone ?? "").toString().trim(),
-      people   : Math.max(1, Number(reservation?.people ?? 1)),
-      note     : noteRaw,
-      notes    : noteRaw,
-      status   : (reservation?.status ?? "approved").toString(),
-
-      // הקשרים
-      restaurantId: rid,
-      date,
-      time,
-      datetime: `${date}T${time}`,
-      startsAt: `${date}T${time}`,           // אליאס נפוץ
-      durationMinutes,
-      source: "owner-manual",
-      channel: "owner",
-      createdBy: user?.id ?? null,
-
-      // אליאסים לשדות שה-DAL שלך אולי מצפה להם
-      reservation_date: date,
-      res_date: date,
-      time_display: time,
-      timeDisplay: time,
-      reservationTime: time,
-    };
-
-    // ברירת מחדל לשם ריק
-    if (!payload.firstName && !payload.lastName) {
-      payload.firstName = "Walk-in";
-      payload.lastName = "";
-    }
-    if (!payload.people || Number.isNaN(payload.people as number)) {
-      ctx.throw(Status.BadRequest, "Invalid people");
-    }
-
-    debugLog("owner_calendar", "create payload (final)", { payload });
-
-    const createFn = pickCreateFn(db as any);
-    if (!createFn) ctx.throw(Status.NotImplemented, "No createReservation function found in database.ts");
-
-    try {
-      result = await tryCreateWithVariants(createFn, rid, r, date, time, payload);
-    } catch (e) {
-      debugLog("owner_calendar", "create failed (all variants)", { error: String(e) });
-      ctx.throw(Status.InternalServerError, "Create reservation failed");
-    }
-    debugLog("owner_calendar", "create result", { result });
-
-    // שדרוג: שידור SSE ללקוחות הדף
-    broadcast(rid, date, "reservation_create", { time, date, rid, id: result?.id ?? null });
-
-  } else if (normalized === "update") {
-    const id = String(reservation?.id ?? "");
-    debugLog("owner_calendar", "update id & patch", { id, reservation });
-    if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
-    const patch: Partial<Reservation> = {
-      firstName: reservation?.firstName,
-      lastName : reservation?.lastName,
-      phone    : reservation?.phone,
-      people   : reservation?.people ? Number(reservation?.people) : undefined,
-      note     : reservation?.notes ?? reservation?.note,
-      status   : reservation?.status,
-    } as any;
-    if (!(db as any).updateReservationFields) ctx.throw(Status.NotImplemented, "updateReservationFields not implemented yet");
-    result = await (db as any).updateReservationFields(id, patch);
-
-    broadcast(rid, date, "reservation_update", { time, date, rid, id });
-
-  } else if (normalized === "cancel") {
-    const id = String(reservation?.id ?? "");
-    debugLog("owner_calendar", "cancel id", { id });
-    if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
-    if (!(db as any).cancelReservation) ctx.throw(Status.NotImplemented, "cancelReservation not implemented yet");
-    result = await (db as any).cancelReservation(id, String(reservation?.reason ?? ""));
-
-    broadcast(rid, date, "reservation_cancel", { time, date, rid, id });
-
-  } else if (normalized === "arrived") {
-    const id = String(reservation?.id ?? "");
-    debugLog("owner_calendar", "arrived id", { id });
-    if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
-    if (!(db as any).markArrived) ctx.throw(Status.NotImplemented, "markArrived not implemented yet");
-    result = await (db as any).markArrived(id);
-
-    broadcast(rid, date, "reservation_arrived", { time, date, rid, id });
-
-  } else if (normalized === "confirm_deposit") {
-    const id = String(reservation?.id ?? "");
-    debugLog("owner_calendar", "confirm_deposit id", { id });
-    if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
-    const user = (ctx.state as any)?.user;
-    result = await (db as any).updateReservationFields(id, {
-      depositStatus: "received",
-      depositConfirmedAt: Date.now(),
-    });
-
-    broadcast(rid, date, "deposit_confirmed", { time, date, rid, id });
-
-  } else if (normalized === "refund_deposit") {
-    const id = String(reservation?.id ?? "");
-    debugLog("owner_calendar", "refund_deposit id", { id });
-    if (!id) ctx.throw(Status.BadRequest, "Missing reservation.id");
-    result = await (db as any).updateReservationFields(id, {
-      depositStatus: "refunded",
-    });
-
-    broadcast(rid, date, "deposit_refunded", { time, date, rid, id });
+  let result: any;
+  const id = String(reservation?.id ?? "");
+  if (normalized !== "create") {
+    const existing = id ? await db.getReservationById(id) : null;
+    if (!existing || existing.restaurantId !== rid) ctx.throw(Status.NotFound, "Reservation not found");
   }
-
+  try {
+    if (normalized === "confirm_deposit" || normalized === "refund_deposit") {
+      result = await db.updateReservationFields(id, { depositStatus: normalized === "confirm_deposit" ? "received" : "refunded" });
+    } else {
+      const patch: any = { ...reservation, id: normalized === "create" ? undefined : id };
+      if (normalized === "create") Object.assign(patch, { date, time, status: "confirmed" });
+      if (normalized === "cancel") patch.status = "canceled";
+      if (normalized === "arrived") patch.status = "arrived";
+      result = await saveCalendarReservation(rid, patch, ctx.state.user.id);
+    }
+  } catch (error) {
+    json(ctx, { ok: false, error: error instanceof Error ? error.message : "Unable to save" }, error instanceof RangeError ? 400 : 409);
+    return;
+  }
+  broadcast(rid, date, "reservation_update", { time, date, rid, id: result?.id });
   debugLog("owner_calendar", "Slot action result", { result });
   json(ctx, { ok: true, result });
 }
@@ -468,6 +364,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar", async (ctx) => {
     title: "ניהול תפוסה יומי",
     rid,
     date: selected,
+    userId: String(ctx.state?.user?.id ?? "owner"),
+    canManage: ctx.state.calendarCanManage,
     restaurant: { id: r.id, name: (r as any).name ?? "Restaurant" },
     r: { id: r.id, name: (r as any).name ?? "Restaurant" },
     systemNowIso: systemNowParts.iso,
@@ -485,7 +383,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const systemNowParts = splitIsoParts(systemNow);
   const selected = isISODate(date) ? date! : todayISO(systemNow);
 
-  const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
+  const { capacityPeople, capacityTables, slotMinutes: bookingSlotMinutes, durationMinutes } = deriveCapacities(r);
+  const slotMinutes = ctx.request.url.searchParams.get("displayMinutes") === "15" ? 15 : 30;
 
   const openWinsRaw = openingWindowsForDate(r, selected);
   const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
@@ -495,7 +394,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const reservations: Reservation[] =
     (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
 
-  const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow"]);
+  const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow","no_show","rescheduled","completed"]);
   const effective = reservations.filter((rv: any) => !inactive.has(String(rv?.status ?? "").toLowerCase()));
 
   const occupancy = computeOccupancyForDay({
@@ -518,7 +417,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
     if (!/^\d{2}:\d{2}$/.test(start)) return false;
     const toMin = (hhmm: string) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
     const startMin = toMin(start);
-    const endMin = startMin + durationMinutes;
+    const endMin = startMin + Number(rv.durationMinutes || durationMinutes);
     const target = toMin(currentTime);
     return target >= startMin && target < endMin;
   };
@@ -538,6 +437,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
     ok: true,
     date: selected,
     openWindows: openWinsRaw,
+    bookingSlotMinutes,
     slotMinutes,
     capacityPeople,
     capacityTables,
@@ -550,6 +450,173 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
       sourceDate: systemNowParts.date,
     },
   });
+});
+
+// Calendar v2 waitlist: owner-scoped management, independent of reservations.
+// Public signup and reservation conversion have separate auth/capacity requirements.
+ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/waitlist", async (ctx) => {
+  const { rid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+  const date = ctx.request.url.searchParams.get("date") ?? "";
+  try {
+    validateWaitlistDate(date);
+  } catch {
+    ctx.throw(Status.BadRequest, "Invalid waitlist date");
+  }
+  const items = await listCalendarWaitlist(rid, date);
+  json(ctx, {
+    ok: true, date, items,
+    waiting: items.filter((item) => item.status === "waiting").length,
+    offered: items.filter((item) => item.status === "offered").length,
+  });
+});
+
+ownerCalendarRouter.post("/owner/restaurants/:rid/calendar/waitlist", async (ctx) => {
+  const { rid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+  const { payload } = await readBody(ctx);
+  if (!payload || typeof payload !== "object") ctx.throw(Status.BadRequest, "Invalid request");
+  try {
+    // This operation creates a request on the waitlist, NOT a reservation.
+    // In particular, it never consumes a table or changes occupancy.
+    const item = await createCalendarWaitlist(rid, payload, "staff");
+    json(ctx, { ok: true, item }, Status.Created);
+  } catch (error) {
+    if (error instanceof RangeError) ctx.throw(Status.BadRequest, error.message);
+    throw error;
+  }
+});
+
+ownerCalendarRouter.patch("/owner/restaurants/:rid/calendar/waitlist/:wid", async (ctx) => {
+  const { rid, wid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+  const { payload } = await readBody(ctx);
+  const date = String(payload?.date ?? "");
+  const status = String(payload?.status ?? "");
+  try {
+    const item = await updateCalendarWaitlistStatus(
+      rid, date, wid,
+      status as "waiting" | "offered" | "cancelled",
+    );
+    if (!item) ctx.throw(Status.NotFound, "Waitlist entry not found");
+    json(ctx, { ok: true, item });
+  } catch (error) {
+    if (error instanceof RangeError) ctx.throw(Status.BadRequest, error.message);
+    if (error instanceof Error && error.message.startsWith("Waitlist entry changed")) {
+      ctx.throw(Status.Conflict, error.message);
+    }
+    throw error;
+  }
+});
+
+
+function calendarMatches(item: any, params: URLSearchParams) {
+  const status = String(item.status || "new").replace("canceled", "cancelled");
+  const wanted = params.get("status");
+  if (wanted && wanted !== "all" && status !== wanted) return false;
+  const room = params.get("room");
+  if (room && getReservationPreferredLayoutId(item) !== room) return false;
+  const kind = params.get("kind");
+  if (kind && kind !== "all" && (item.calendarKind || "reservation") !== kind) return false;
+  const q = (params.get("q") || "").trim().toLowerCase();
+  return !q || [item.firstName, item.lastName, item.phone, item.eventTitle, item.note, item.roomLabel].some(v => String(v || "").toLowerCase().includes(q));
+}
+
+ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/resources", async (ctx) => {
+  const { rid } = ctx.params;
+  const restaurant = await ensureOwnerAccess(ctx, rid);
+  json(ctx, { ok: true, layouts: await listFloorLayouts(rid), duration: (restaurant as any).serviceDurationMinutes || 120, canManage: ctx.state.calendarCanManage, isOwner: ctx.state.calendarIsOwner });
+});
+ownerCalendarRouter.post("/owner/restaurants/:rid/calendar/save", async (ctx) => {
+  const { rid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+  const { payload } = await readBody(ctx);
+  try {
+    const item = await saveCalendarReservation(rid, payload, ctx.state.user.id, payload.waitlistId);
+    broadcast(rid, item.date, "reservation_update", { date: item.date, time: item.time });
+    json(ctx, { ok: true, item });
+  } catch (error) { json(ctx, { ok: false, error: error instanceof Error ? error.message : "Unable to save" }, error instanceof RangeError ? 400 : 409); }
+});
+ownerCalendarRouter.delete("/owner/restaurants/:rid/calendar/waitlist/:wid", async (ctx) => {
+  const { rid, wid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+  const date = ctx.request.url.searchParams.get("date") || "";
+  try { validateWaitlistDate(date); } catch { ctx.throw(400, "Invalid date"); }
+  await kv.delete(["calendar_waitlist_v2", rid, date, wid]);
+  json(ctx, { ok: true });
+});
+
+// Calendar 2.0: read-only day agenda, based on the existing reservation index.
+// Never treat occupancy estimates as actual guest reservations.
+ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/agenda", async (ctx) => {
+  const { rid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+  const date = ctx.request.url.searchParams.get("date");
+  if (!isISODate(date)) ctx.throw(Status.BadRequest, "Bad date");
+  const db = await import("../database.ts");
+  const reservations: Reservation[] =
+    (await (db as any).listReservationsByRestaurantAndDate?.(rid, date!)) ?? [];
+  const rooms = await buildRoomLabelMap(rid);
+  const items = reservations.map((item: any) => {
+    const layoutId = extractLayoutIdFromReservation(item);
+    return {
+      id: String(item.id ?? ""),
+      time: String(item.time ?? ""),
+      firstName: String(item.firstName ?? ""),
+      lastName: String(item.lastName ?? ""),
+      phone: String(item.phone ?? ""),
+      people: Number(item.people ?? 0),
+      status: String(item.status ?? "new"),
+      roomLabel: layoutId ? (rooms.get(layoutId) ?? "") : "",
+      occasion: String(item.occasion ?? ""),
+      dietary: Array.isArray(item.dietary) ? item.dietary.map((d: unknown) => String(d)) : [],
+      durationMinutes: Number(item.durationMinutes ?? 0),
+      updatedAt: item.updatedAt,
+      date, preferredLayoutId: layoutId, tableId: String(item.tableId || ""),
+      calendarKind: item.calendarKind || "reservation", eventTitle: item.eventTitle || "", note: item.note || "",
+      depositStatus: String(item.depositStatus ?? ""),
+    };
+  }).filter((item) => calendarMatches(item, ctx.request.url.searchParams)).sort((a, b) => a.time.localeCompare(b.time) || a.id.localeCompare(b.id));
+  json(ctx, { ok: true, date, items });
+});
+
+// Calendar 2.0 monthly counts; one authorized request, bounded database concurrency.
+ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/month", async (ctx) => {
+  const { rid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+  const month = ctx.request.url.searchParams.get("month") ?? "";
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) ctx.throw(Status.BadRequest, "Bad month");
+  const [year, monthNumber] = month.split("-").map(Number);
+  const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+  const db = await import("../database.ts");
+  const days: Array<{ date: string; reservations: number; guests: number }> = [];
+  for (let start = 1; start <= daysInMonth; start += 5) {
+    const batch = Array.from({ length: Math.min(5, daysInMonth - start + 1) }, (_, i) => {
+      const date = `${month}-${String(start + i).padStart(2, "0")}`;
+      return { date };
+    });
+    const results = await Promise.all(batch.map(async ({ date }) => {
+      const reservations: Reservation[] =
+        (await (db as any).listReservationsByRestaurantAndDate(rid, date)) ?? [];
+      // Keep monthly booking counts consistent with the active day view.
+      // No-shows, declined requests and blocked operational slots are not
+      // confirmed guest bookings; they will have separate event metrics.
+      const inactive = new Set([
+        "canceled", "cancelled", "rescheduled", "rejected", "declined",
+        "no-show", "noshow", "no_show", "blocked",
+      ]);
+      const filtered = reservations.filter((r) => calendarMatches(r, ctx.request.url.searchParams));
+      const active = filtered.filter((r) => !inactive.has(String(r.status ?? "new").toLowerCase()) && !(r as any).calendarKind?.match(/event|block/));
+      return {
+        date,
+        reservations: active.length,
+        events: filtered.filter((r: any) => ["event", "block"].includes(r.calendarKind) && !["canceled", "cancelled"].includes(r.status)).length,
+        guests: active.reduce((total, r) => total + Math.max(0, Number(r.people) || 0), 0),
+      };
+    }));
+    days.push(...results);
+  }
+  json(ctx, { ok: true, month, days });
 });
 
 // JSON — סלוט (עם range + העשרת פרטי לקוח מה־note)
@@ -588,7 +655,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/slot", async (ctx) => 
       if (!phone && ext.phone) phone = ext.phone;
     }
 
-    const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow"]);
+    const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow","no_show","rescheduled","completed"]);
     const people = inactive.has(String(it.status ?? "").toLowerCase()) ? 0 : Number(it.people ?? 0);
 
     const layoutId = extractLayoutIdFromReservation(it);
@@ -715,7 +782,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
   const reservations: Reservation[] =
     (await (db as any).listReservationsByRestaurantAndDate?.(rid, selected)) ?? [];
 
-  const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow"]);
+  const inactive = new Set(["cancelled","canceled","rejected","declined","no-show","noshow","no_show","rescheduled","completed"]);
   const effective = reservations.filter((rv: any) =>
     !inactive.has(String(rv?.status ?? "").toLowerCase())
   );
@@ -732,6 +799,11 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
   });
 
   const summary = summarizeDay(occupancy, reservations);
+  const bookings = reservations.filter((rv: any) => !inactive.has(String(rv.status || "new")) && rv.status !== "blocked" && !["event","block"].includes(rv.calendarKind));
+  summary.totalReservations = bookings.length;
+  summary.totalGuests = bookings.reduce((n,rv) => n + Number(rv.people || 0),0);
+  summary.cancelled = reservations.filter(rv => ["canceled","cancelled"].includes(String(rv.status))).length;
+  summary.noShow = reservations.filter(rv => ["no_show","no-show","noshow"].includes(String(rv.status))).length;
   json(ctx, { ok: true, date: selected, ...summary });
 });
 

@@ -1,0 +1,16 @@
+<% const he = it.lang === 'he'; const ka = it.lang === 'ka'; const tx = (en,h,k) => he ? h : ka ? k : en; %>
+<!doctype html><html lang="<%= it.lang || 'en' %>" dir="<%= he ? 'rtl' : 'ltr' %>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SpotBook · <%= it.restaurant.name %></title><link rel="stylesheet" href="/static/css/owner_calendar_v2.css?v=2"></head>
+<body class="oc-guest-page"><main class="oc-guest-card"><a href="/restaurants/<%= it.restaurant.id %>">← <%= it.restaurant.name %></a><p class="oc-agenda__eyebrow">SPOTBOOK</p><h1><%= tx('Join the waitlist','הצטרפות לרשימת המתנה','მოლოდინის სიაში ჩაწერა') %></h1>
+<% if (it.done) { %><p role="status"><%= tx('Your request has been received. The restaurant will contact you if a place becomes available. This is not a confirmed reservation.','הבקשה התקבלה. המסעדה תיצור איתך קשר אם יתפנה מקום. זו אינה הזמנה מאושרת.','თქვენი მოთხოვნა მიღებულია. ადგილის გათავისუფლებისას რესტორანი დაგიკავშირდებათ. ეს არ არის დადასტურებული ჯავშანი.') %></p>
+<% } else { %><p><%= tx('Tell us when you would like to visit. Joining does not reserve a table.','ספרו לנו מתי תרצו להגיע. ההצטרפות אינה שומרת שולחן.','გვითხარით, როდის გსურთ სტუმრობა. სიაში ჩაწერა მაგიდას არ ჯავშნის.') %></p>
+<% if (it.error) { %><p role="alert"><%= it.error %></p><% } %>
+<form method="post" class="oc-editor-form"><input type="hidden" name="nonce" value="<%= it.nonce %>"><label class="oc-honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
+<label><%= tx('Name','שם','სახელი') %><input name="name" required maxlength="100" autocomplete="name"></label>
+<label><%= tx('Phone','טלפון','ტელეფონი') %><input name="phone" type="tel" required maxlength="40" autocomplete="tel"></label>
+<label><%= tx('Date','תאריך','თარიღი') %><input name="date" type="date" required min="<%= new Date().toISOString().slice(0,10) %>"></label>
+<label><%= tx('Time','שעה','დრო') %><input name="time" type="time" required></label>
+<label><%= tx('Guests','סועדים','სტუმრები') %><input name="people" type="number" min="1" max="30" value="2" required></label>
+<label><%= tx('Preferred area','אזור מועדף','სასურველი სივრცე') %><input name="area" maxlength="90"></label>
+<label class="oc-editor-wide"><%= tx('Notes','הערות','შენიშვნები') %><textarea name="note" maxlength="500"></textarea></label>
+<label class="oc-editor-wide oc-consent"><input name="consent" type="checkbox" value="yes" required><span><%= tx('I agree to be contacted about this request. Waitlist details are kept for up to 90 days. Contact the restaurant to remove your request.','אני מסכים/ה ליצירת קשר בנוגע לבקשה. הפרטים נשמרים עד 90 יום. להסרת הבקשה ניתן לפנות למסעדה.','ვეთანხმები ამ მოთხოვნის შესახებ დაკავშირებას. მონაცემები ინახება 90 დღემდე. წაშლისთვის დაუკავშირდით რესტორანს.') %></span></label>
+<button type="submit"><%= tx('Join waitlist','הצטרפות לרשימה','სიაში ჩაწერა') %></button></form><% } %></main></body></html>

@@ -1,0 +1,100 @@
+name: Calendar v2 branch validation
+
+on:
+  push:
+    branches:
+      - feature/calendar-v2
+  pull_request:
+    paths:
+      - 'routes/owner_calendar.ts'
+      - 'services/calendar_*.ts'
+      - 'routes/calendar_guest.ts'
+      - 'calendar_release_patch.ts'
+      - 'templates/calendar_waitlist_guest.eta'
+      - 'tests/calendar_*test.ts'
+      - 'templates/owner_calendar.eta'
+      - 'public/js/owner_calendar.js'
+      - 'public/css/owner_calendar_v2.css'
+      - 'Dockerfile'
+      - '.github/workflows/calendar-v2-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-calendar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.5.4'
+
+      - name: Verify browser JavaScript syntax
+        run: node --check public/js/owner_calendar.js
+
+      - name: Reconstruct the same calendar sources the Dockerfile will ship
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/calendar-v2/routes /tmp/calendar-v2/templates /tmp/calendar-v2/public/js /tmp/calendar-v2/public/css
+          for file in routes/owner_calendar.ts templates/owner_calendar.eta public/js/owner_calendar.js public/css/owner_calendar_v2.css; do
+            mkdir -p "/tmp/calendar-v2/$(dirname "$file")"
+            cp "$file" "/tmp/calendar-v2/$file"
+          done
+          cat .deploy2/part* | base64 -d | xz -d | tar -x -C .
+          for file in routes/owner_calendar.ts templates/owner_calendar.eta public/js/owner_calendar.js public/css/owner_calendar_v2.css; do
+            cp "/tmp/calendar-v2/$file" "$file"
+            cmp "$file" "/tmp/calendar-v2/$file"
+          done
+          node --check public/js/owner_calendar.js
+
+      - name: Apply deployment compatibility patches (including owner auth and SSE)
+        shell: bash
+        run: |
+          set -euo pipefail
+          SPOTBOOK_ROOT="$PWD" deno run --allow-env --allow-read --allow-write ./railway_runtime_patch.ts
+          SPOTBOOK_ROOT="$PWD" deno run --allow-env --allow-read --allow-write ./railway_privacy_patch.ts
+          SPOTBOOK_ROOT="$PWD" deno run --allow-env --allow-read --allow-write ./railway_refinement_patch.ts
+          SPOTBOOK_ROOT="$PWD" deno run --allow-env --allow-read --allow-write ./calendar_release_patch.ts
+          grep -Fq 'const user = ctx.state.user;' routes/owner_calendar.ts
+          grep -Fq 'calendar/agenda' routes/owner_calendar.ts
+          grep -Fq 'calendar/month' routes/owner_calendar.ts
+          grep -Fq 'calendar/waitlist' routes/owner_calendar.ts
+          test -f services/calendar_waitlist.ts
+          grep -Fq 'data-calendar-view="week"' templates/owner_calendar.eta
+          grep -Fq 'data-calendar-view="month"' templates/owner_calendar.eta
+
+      - name: Run existing booking regression tests
+        shell: bash
+        run: |
+          deno test --no-check --allow-env --allow-read --allow-write --allow-net --allow-sys --unstable-kv tests/booking_test.ts
+
+      - name: Verify waitlist validation, isolation and state transitions
+        shell: bash
+        run: |
+          set -euo pipefail
+          deno test --no-check --allow-env --allow-read --allow-write --allow-net --allow-sys --unstable-kv tests/calendar_waitlist_test.ts
+
+      - name: Verify atomic calendar writes and HTTP permissions
+        run: |
+          deno test --no-check -A --unstable-kv tests/calendar_operations_test.ts
+          deno test --no-check -A --unstable-kv tests/calendar_http_test.ts
+
+  production-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the actual production Docker image
+        run: docker build -t spotbook-calendar-ci .
+      - name: Boot isolated image and verify health
+        run: |
+          docker run -d --name calendar-ci -p 8000:8000 -e SESSION_SECRET=calendar-ci-only-test-secret-2026 -e TOKEN_SECRET=calendar-ci-only-test-token-2026 -e RESEND_DRY_RUN=true spotbook-calendar-ci
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/__health; then exit 0; fi
+            sleep 2
+          done
+          docker logs calendar-ci
+          exit 1

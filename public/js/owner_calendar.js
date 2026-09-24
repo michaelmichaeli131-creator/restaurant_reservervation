@@ -13,14 +13,69 @@
     rid: init.rid || getRidFromPath(),
     date: init.date || todayISO(),
     day: null,
+    agenda: null,
     summary: null,
     drawer: { open: false, time: null, items: [] },
     sse: { es: null, retryMs: 1500, pollTimer: null },
     cal: { year: 0, month: 0 },
     systemTime: { date: init.systemNowDate || init.date || todayISO(), time: init.systemNowTime || "12:00" },
-    ui: { occupancyFilter: "all", searchMatchTimes: null },
+    ui: { occupancyFilter: "all", searchMatchTimes: null, view: "day", statusFilter: "all" },
   };
 
+  const viewButtons = Array.from(document.querySelectorAll("[data-calendar-view]"));
+  const agendaPanel = $("#oc-agenda");
+  const agendaRows = $("#oc-agenda-rows");
+  const agendaStatus = $("#oc-agenda-status");
+  const waitlistPanel = $("#oc-waitlist");
+  const waitlistForm = $("#oc-waitlist-form");
+  const waitlistRows = $("#oc-waitlist-rows");
+  const waitlistCount = $("#oc-waitlist-count");
+  const waitlistDate = $("#oc-waitlist-date");
+  const waitlistFeedback = $("#oc-waitlist-feedback");
+  let waitlistRequest = 0;
+  const weekPanel = $("#oc-week");
+  const weekGrid = $("#oc-week-grid");
+  const monthPanel = $("#oc-month");
+  const monthGrid = $("#oc-month-grid");
+  const monthTitle = $("#oc-month-title");
+  const monthPrev = $("#oc-month-prev");
+  const monthNext = $("#oc-month-next");
+  let monthRequest = 0;
+  let weekRequest = 0;
+  let weekCache = null;
+  let agendaRequest = 0;
+  const weekModeButtons = Array.from(document.querySelectorAll("[data-week-mode]"));
+  const weekIntervalSelect = $("#oc-week-interval");
+  function restoreWeekOptions() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(viewStoreKey) || "null");
+      return {
+        mode: ["columns", "timeline"].includes(saved?.weekMode) ? saved.weekMode : "columns",
+        minutes: saved?.displayMinutes === 15 ? 15 : 30,
+      };
+    } catch { return { mode: "columns", minutes: 30 }; }
+  }
+  function persistCalendarOptions() {
+    try {
+      localStorage.setItem(viewStoreKey, JSON.stringify({
+        view: state.ui.view, weekMode: state.ui.weekMode,
+        displayMinutes: state.ui.displayMinutes,
+      }));
+    } catch { /* storage may be unavailable */ }
+  }
+  const deviceClass = window.matchMedia && window.matchMedia("(max-width: 760px)").matches ? "mobile" : "desktop";
+  const viewStoreKey = ["spotbook", "calendar-v2", init.userId || "owner", state.rid, deviceClass].join(":");
+
+  function restoreView() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(viewStoreKey) || "null");
+      return saved && ["day", "list", "week", "month"].includes(saved.view) ? saved.view : (deviceClass === "mobile" ? "list" : "day");
+    } catch { return deviceClass === "mobile" ? "list" : "day"; }
+  }
+
+  const weekOptions = restoreWeekOptions();
+  state.ui.weekMode = weekOptions.mode;
+  state.ui.displayMinutes = weekOptions.minutes;
   const datePicker = $("#datePicker");
   const dateLabel = $("#date-label");
   const btnPrev = $("#btn-prev");
@@ -437,6 +492,487 @@
     if (recoveryWatchEl) recoveryWatchEl.textContent = `${fmt(cancellations)} ${init?.txt?.cancelled || "Cancelled"} • ${fmt(noShow)} ${init?.txt?.noShow || "No-Show"}`;
   }
 
+  function waitlistMessage(message) {
+    if (waitlistFeedback) waitlistFeedback.textContent = message;
+  }
+
+  function renderWaitlist(data) {
+    if (!waitlistRows) return;
+    waitlistRows.textContent = "";
+    const items = data.items || [];
+    if (waitlistCount) waitlistCount.textContent = String((data.waiting || 0) + (data.offered || 0));
+    if (!items.length) {
+      const empty = document.createElement("p");
+      empty.className = "oc-waitlist__empty";
+      empty.textContent = lang === "he" ? "אין בקשות המתנה ביום הזה" : "No waitlist requests for this day";
+      waitlistRows.appendChild(empty);
+      return;
+    }
+    for (const item of items) {
+      const row = document.createElement("article");
+      row.className = "oc-waitlist__item";
+      if (["cancelled", "converted"].includes(item.status)) row.classList.add("is-closed");
+      const description = document.createElement("div");
+      description.className = "oc-waitlist__person";
+      const name = document.createElement("strong");
+      name.textContent = item.name;
+      const details = document.createElement("small");
+      details.textContent = [item.time, item.people + (lang === "he" ? " סועדים" : " guests"),
+        item.area, item.status].filter(Boolean).join(" · ");
+      description.append(name, details);
+      if (item.note) {
+        const note = document.createElement("small");
+        note.textContent = item.note;
+        description.appendChild(note);
+      }
+      const actions = document.createElement("div");
+      actions.className = "oc-waitlist__actions";
+      if (item.phone) {
+        const call = document.createElement("a");
+        call.href = "tel:" + item.phone.replace(/[^\d+]/g, "");
+        call.textContent = lang === "he" ? "התקשר" : "Call";
+        actions.appendChild(call);
+      }
+      if (["waiting", "offered"].includes(item.status)) {
+        const action = document.createElement("button");
+        action.type = "button";
+        action.textContent = item.status === "waiting"
+          ? (lang === "he" ? "סמן כטופל" : "Mark contacted")
+          : (lang === "he" ? "החזר להמתנה" : "Back to waiting");
+        action.addEventListener("click", () => {
+          void changeWaitlistStatus(item, item.status === "waiting" ? "offered" : "waiting");
+        });
+        actions.appendChild(action);
+        const cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.className = "oc-waitlist__cancel";
+        cancel.textContent = lang === "he" ? "בטל בקשה" : "Cancel request";
+        cancel.addEventListener("click", () => {
+          if (window.confirm(lang === "he" ? "לבטל את בקשת ההמתנה?" : "Cancel this waitlist request?")) {
+            void changeWaitlistStatus(item, "cancelled");
+          }
+        });
+        actions.appendChild(cancel);
+      }
+      row.append(description, actions);
+      if(resources.canManage && ["waiting","offered"].includes(item.status)) {
+        const convert=document.createElement('button'); convert.type='button'; convert.textContent=tr('Create reservation','יצירת הזמנה');
+        convert.onclick=()=>openEditor({waitlistId:item.id,date:item.date,time:item.time,firstName:item.name,phone:item.phone,people:item.people,note:item.note});
+        actions.append(convert);
+      }
+      if(resources.canManage) {
+        const remove=document.createElement('button'); remove.type='button'; remove.textContent=tr('Delete details','מחיקת פרטים');
+        remove.onclick=async()=>{ if(!confirm(tr('Delete these waitlist details permanently?','למחוק את פרטי ההמתנה לצמיתות?'))) return;
+          try { await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/waitlist/${encodeURIComponent(item.id)}?date=${encodeURIComponent(item.date)}`,{method:'DELETE'}); await loadWaitlist(); }
+          catch(error) {waitlistMessage(error.message);} };
+        actions.append(remove);
+      } else actions.querySelectorAll('button').forEach(b=>b.remove());
+      waitlistRows.appendChild(row);
+    }
+  }
+
+  async function loadWaitlist() {
+    if (!waitlistRows) return;
+    const request = ++waitlistRequest;
+    const date = state.date;
+    if (waitlistDate) waitlistDate.textContent = date;
+    if (waitlistCount) waitlistCount.textContent = "…";
+    waitlistRows.textContent = lang === "he" ? "טוען רשימת המתנה…" : "Loading waitlist…";
+    try {
+      const data = await fetchJSON("/owner/restaurants/" + encodeURIComponent(state.rid) +
+        "/calendar/waitlist?date=" + encodeURIComponent(date));
+      if (request !== waitlistRequest || state.date !== date) return;
+      renderWaitlist(data);
+    } catch {
+      if (request === waitlistRequest && state.date === date) {
+        if (waitlistCount) waitlistCount.textContent = "!";
+        waitlistRows.textContent = lang === "he"
+          ? "לא ניתן לטעון את רשימת ההמתנה כרגע"
+          : "Could not load the waitlist";
+      }
+    }
+  }
+
+  async function changeWaitlistStatus(item, status) {
+    waitlistMessage("");
+    try {
+      await fetchJSON("/owner/restaurants/" + encodeURIComponent(state.rid) +
+        "/calendar/waitlist/" + encodeURIComponent(item.id), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ date: item.date, status }),
+      });
+      if (state.date === item.date) await loadWaitlist();
+    } catch {
+      waitlistMessage(lang === "he" ? "לא ניתן לעדכן. רענן את הרשימה ונסה שוב." :
+        "Could not update this entry. Refresh the list and retry.");
+    }
+  }
+
+  function renderAgenda() {
+    if (!agendaRows) return;
+    if (!state.agenda || state.agenda.date !== state.date) {
+      agendaRows.textContent = lang === "he" ? "טוען הזמנות…" : "Loading reservations…";
+      return;
+    }
+    const query = String(daySearch?.value || "").trim().toLowerCase();
+    const statusFilter = state.ui.statusFilter;
+    const normalized = (s) => {
+      const value = String(s || "").toLowerCase();
+      if (["canceled", "rejected", "declined"].includes(value)) return "cancelled";
+      if (["approved", "booked", "hold", "on-hold", "invited"].includes(value)) return "confirmed";
+      if (["request", "requested", "tentative"].includes(value)) return "pending";
+      if (value === "noshow" || value === "no-show") return "no_show";
+      return value;
+    };
+    const items = state.agenda.items || [];
+    agendaRows.textContent = "";
+    if (!items.length) {
+      const empty = document.createElement("p");
+      empty.className = "oc-agenda__empty";
+      empty.textContent = lang === "he" ? "אין הזמנות התואמות לבחירה" : "No reservations match this selection";
+      agendaRows.appendChild(empty);
+      return;
+    }
+    for (const item of items) {
+      const status = normalized(item.status);
+      const isBlocked = status === "blocked";
+      const statusTone = ["cancelled", "no_show"].includes(status) ? "danger"
+        : status === "arrived" ? "arrived" : status === "confirmed" ? "confirmed"
+        : isBlocked ? "blocked" : "new";
+      const label = item.eventTitle || [item.firstName, item.lastName].filter(Boolean).join(" ") ||
+        (isBlocked ? (lang === "he" ? "שעה חסומה" : "Blocked time") : (lang === "he" ? "אורח" : "Guest"));
+      const meta = [
+        item.people > 0 ? `${Number(item.people)} ${lang === "he" ? "סועדים" : "guests"}` : "",
+        item.roomLabel || "",
+        item.occasion || "",
+      ].filter(Boolean).join(" · ");
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "oc-agenda__item" + (item.calendarKind === "event" ? " is-event" : item.calendarKind === "block" ? " is-blocked" : "");
+      row.innerHTML = `<time class="oc-agenda__time">${escapeHTML(item.time || "—")}</time>
+        <span class="oc-agenda__person"><strong>${escapeHTML(label)}</strong>
+        <small>${escapeHTML(meta)}</small></span>
+        <span class="oc-agenda__status oc-agenda__status--${statusTone}">${escapeHTML(item.status || "new")}</span>
+        <span class="oc-agenda__arrow" aria-hidden="true">↗</span>`;
+      row.addEventListener("click", () => openEditor(item));
+      agendaRows.appendChild(row);
+    }
+  }
+
+  async function loadAgenda() {
+    if (!["day", "list"].includes(state.ui.view)) return;
+    const selected = state.date;
+    const request = ++agendaRequest;
+    state.agenda = null;
+    renderAgenda();
+    try {
+      const data = await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/agenda?date=${encodeURIComponent(selected)}&${filterQuery()}`);
+      if (request !== agendaRequest || state.date !== selected || !["day", "list"].includes(state.ui.view)) return;
+      state.agenda = data;
+      renderAgenda();
+    } catch {
+      if (request === agendaRequest && state.date === selected && ["day", "list"].includes(state.ui.view) && agendaRows) {
+        agendaRows.textContent = lang === "he" ? "טעינת ההזמנות נכשלה. נסה לרענן את העמוד." : "Could not load reservations. Try refreshing.";
+      }
+    }
+  }
+
+  async function openWeekDay(date, time = "") {
+    state.date = date;
+    if (datePicker) datePicker.value = date;
+    setCalendarView("day");
+    await Promise.all([loadDay(), loadSummary()]);
+    connectSSE();
+    if (/^\d{2}:\d{2}$/.test(time)) openDrawer(time);
+  }
+
+  function createWeekHeading(date) {
+    const heading = document.createElement("button");
+    heading.type = "button";
+    heading.className = "oc-week__heading";
+    heading.textContent = fmtDate(isoToDate(date), { weekday: "short", month: "short", day: "numeric" });
+    heading.addEventListener("click", () => { void openWeekDay(date); });
+    return heading;
+  }
+
+  function weekItemButton(date, item) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "oc-week__booking";
+    if(item.calendarKind === "event") button.classList.add("is-event");
+    const name = item.eventTitle || [item.firstName, item.lastName].filter(Boolean).join(" ") ||
+      (String(item.status || "").toLowerCase() === "blocked"
+        ? (lang === "he" ? "שעה חסומה" : "Blocked time")
+        : (lang === "he" ? "הזמנה" : "Reservation"));
+    const time = String(item.time || "");
+    const guests = Number(item.people || 0);
+    button.setAttribute("aria-label", [time, name, guests > 0 ? guests + " guests" : "", item.status].filter(Boolean).join(", "));
+    const timeNode = document.createElement("time");
+    timeNode.textContent = time || "—";
+    const nameNode = document.createElement("strong");
+    nameNode.textContent = name;
+    const metaNode = document.createElement("small");
+    metaNode.textContent = [guests > 0 ? String(guests) : "", item.status || ""].filter(Boolean).join(" · ");
+    button.append(timeNode, nameNode, metaNode);
+    const status = String(item.status || "").toLowerCase();
+    if (["cancelled", "canceled", "no-show", "noshow", "no_show"].includes(status)) {
+      button.classList.add("is-inactive");
+    } else if (status === "blocked") button.classList.add("is-blocked");
+    else if (["arrived", "confirmed", "approved"].includes(status)) button.classList.add("is-confirmed");
+    button.addEventListener("click", () => openEditor({...item,date}));
+    return button;
+  }
+
+  function renderWeekTimeline(dates, results) {
+    if (!weekGrid) return;
+    const dayItems = results.map((result) =>
+      result.status === "fulfilled" ? (result.value.items || []).filter((item) =>
+        /^\d{2}:\d{2}$/.test(String(item.time || ""))) : []);
+    const allItems = dayItems.flat();
+    const firstBooking = allItems.length ? Math.min(...allItems.map((item) => timeToMinutes(item.time))) : 11 * 60;
+    const lastBooking = allItems.length ? Math.max(...allItems.map((item) =>
+      timeToMinutes(item.time) + Math.max(15, Number(item.durationMinutes) || 60))) : 22 * 60;
+    const firstMinute = Math.max(0, Math.min(11 * 60, Math.floor(firstBooking / 60) * 60));
+    const lastMinute = Math.min(24 * 60, Math.max(22 * 60, Math.ceil(lastBooking / 60) * 60));
+    const step = state.ui.displayMinutes;
+    const heightPerStep = step === 15 ? 32 : 46;
+    const ppm = heightPerStep / step;
+    const fullHeight = (lastMinute - firstMinute) * ppm;
+    const tick = (minute) => String(Math.floor(minute / 60)).padStart(2, "0") +
+      ":" + String(minute % 60).padStart(2, "0");
+
+    weekGrid.className = "oc-week__grid oc-week__grid--timeline";
+    const axis = document.createElement("div");
+    axis.className = "oc-week__axis";
+    const axisHeader = document.createElement("div");
+    axisHeader.className = "oc-week__axis-header";
+    axisHeader.textContent = lang === "he" ? "שעה" : "Time";
+    axis.appendChild(axisHeader);
+    const axisBody = document.createElement("div");
+    axisBody.className = "oc-week__axis-body";
+    axisBody.style.height = fullHeight + "px";
+    for (let minute = firstMinute; minute < lastMinute; minute += step) {
+      const label = document.createElement("span");
+      label.className = "oc-week__tick";
+      label.textContent = tick(minute);
+      label.style.top = (minute - firstMinute) * ppm + "px";
+      axisBody.appendChild(label);
+    }
+    axis.appendChild(axisBody);
+    weekGrid.appendChild(axis);
+
+    dates.forEach((date, index) => {
+      const column = document.createElement("section");
+      column.className = "oc-week__track";
+      column.appendChild(createWeekHeading(date));
+      const canvas = document.createElement("div");
+      canvas.className = "oc-week__canvas";
+      canvas.style.height = fullHeight + "px";
+      canvas.style.setProperty("--week-step-height", heightPerStep + "px");
+      if (results[index].status !== "fulfilled") {
+        const error = document.createElement("p");
+        error.className = "oc-week__empty";
+        error.textContent = lang === "he" ? "לא ניתן לטעון" : "Could not load";
+        canvas.appendChild(error);
+      } else {
+        // Overlap lanes keep simultaneous reservations visible. The interval
+        // choice changes only pixel spacing, never restaurant booking rules.
+        const bookings = dayItems[index].map((item) => ({
+          item,
+          start: timeToMinutes(item.time),
+          end: timeToMinutes(item.time) + Math.max(15, Number(item.durationMinutes) || 60),
+        })).sort((a, b) => a.start - b.start || a.end - b.end);
+        const clusters = [];
+        let cluster = [], clusterEnd = -1;
+        for (const item of bookings) {
+          if (cluster.length && item.start >= clusterEnd) {
+            clusters.push(cluster);
+            cluster = [];
+          }
+          cluster.push(item);
+          clusterEnd = Math.max(clusterEnd, item.end);
+        }
+        if (cluster.length) clusters.push(cluster);
+        for (const group of clusters) {
+          const lanes = [];
+          for (const booking of group) {
+            let lane = lanes.findIndex((until) => until <= booking.start);
+            if (lane === -1) lane = lanes.length;
+            lanes[lane] = booking.end;
+            booking.lane = lane;
+          }
+          for (const booking of group) {
+            const button = weekItemButton(date, booking.item);
+            const top = (booking.start - firstMinute) * ppm;
+            const visible = Math.max(15, Math.min(booking.end, lastMinute) - booking.start);
+            button.style.top = Math.max(0, top) + "px";
+            button.style.height = Math.max(26, visible * ppm - 3) + "px";
+            button.style.left = booking.lane * 100 / lanes.length + "%";
+            button.style.width = 100 / lanes.length + "%";
+            canvas.appendChild(button);
+          }
+        }
+      }
+      column.appendChild(canvas);
+      weekGrid.appendChild(column);
+    });
+  }
+
+  function renderWeekResults(dates, results, selected) {
+    if (!weekGrid || state.date !== selected || state.ui.view !== "week") return;
+    weekGrid.textContent = "";
+    if (state.ui.weekMode === "timeline") {
+      renderWeekTimeline(dates, results);
+      return;
+    }
+    weekGrid.className = "oc-week__grid";
+    dates.forEach((date, i) => {
+      const result = results[i];
+      const card = document.createElement("section");
+      card.className = "oc-week__day";
+      card.appendChild(createWeekHeading(date));
+      if (result.status !== "fulfilled") {
+        const error = document.createElement("p");
+        error.className = "oc-week__empty";
+        error.textContent = lang === "he" ? "לא ניתן לטעון" : "Could not load";
+        card.appendChild(error);
+      } else {
+        const items = result.value.items || [];
+        const count = document.createElement("small");
+        count.className = "oc-week__count";
+        count.textContent = items.length + " " + (lang === "he" ? "הזמנות" : "reservations");
+        card.appendChild(count);
+        for (const item of items) card.appendChild(weekItemButton(date, item));
+      }
+      weekGrid.appendChild(card);
+    });
+  }
+
+  async function loadWeek() {
+    if (!weekGrid || state.ui.view !== "week") return;
+    const request = ++weekRequest;
+    const selected = state.date;
+    const anchor = isoToDate(selected);
+    const weekday = (anchor.getDay() + 6) % 7;
+    const start = addDays(selected, -weekday);
+    const dates = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+    if (weekCache?.start === start && weekCache.selected === selected) {
+      renderWeekResults(weekCache.dates, weekCache.results, selected);
+      return;
+    }
+    weekGrid.textContent = lang === "he" ? "טוען שבוע…" : "Loading week…";
+    const results = await Promise.allSettled(dates.map((date) =>
+      fetchJSON("/owner/restaurants/" + encodeURIComponent(state.rid) +
+        "/calendar/agenda?date=" + encodeURIComponent(date) + "&" + filterQuery())
+    ));
+    if (request !== weekRequest || state.date !== selected || state.ui.view !== "week") return;
+    // A partial failure should be retried on next visit instead of cached.
+    weekCache = results.every((result) => result.status === "fulfilled")
+      ? { start, selected, dates, results } : null;
+    renderWeekResults(dates, results, selected);
+  }
+
+  async function loadMonth() {
+    if (!monthGrid || state.ui.view !== "month") return;
+    const request = ++monthRequest;
+    const selected = state.date;
+    const month = selected.slice(0, 7);
+    const [year, monthNumber] = month.split("-").map(Number);
+    const first = new Date(year, monthNumber - 1, 1);
+    const count = new Date(year, monthNumber, 0).getDate();
+    if (monthTitle) monthTitle.textContent = fmtDate(first, { month: "long", year: "numeric" });
+    monthGrid.textContent = lang === "he" ? "טוען חודש…" : "Loading month…";
+    try {
+      const data = await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/month?month=${encodeURIComponent(month)}&${filterQuery()}`);
+      if (request !== monthRequest || state.date !== selected || state.ui.view !== "month") return;
+      monthGrid.textContent = "";
+      const weekdays = lang === "he" ? ["ב", "ג", "ד", "ה", "ו", "ש", "א"] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+      weekdays.forEach((name) => {
+        const cell = document.createElement("span");
+        cell.className = "oc-month__weekday";
+        cell.textContent = name;
+        monthGrid.appendChild(cell);
+      });
+      const offset = (first.getDay() + 6) % 7;
+      for (let i = 0; i < offset; i++) {
+        const spacer = document.createElement("span");
+        spacer.className = "oc-month__spacer";
+        spacer.setAttribute("aria-hidden", "true");
+        monthGrid.appendChild(spacer);
+      }
+      const byDate = new Map((data.days || []).map((day) => [day.date, day]));
+      for (let day = 1; day <= count; day++) {
+        const date = `${month}-${String(day).padStart(2, "0")}`;
+        const item = byDate.get(date) || { reservations: 0, guests: 0 };
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "oc-month__day" + (date === selected ? " is-selected" : "");
+        button.innerHTML = `<strong>${day}</strong><span>${Number(item.reservations || 0)} ${lang === "he" ? "הזמנות" : "bookings"}</span><small>${Number(item.guests || 0)} ${lang === "he" ? "סועדים" : "guests"}</small><small class="oc-event-count">${Number(item.events || 0)} ${lang === "he" ? "אירועים" : "events"}</small>`;
+        button.setAttribute("aria-label", `${date}: ${Number(item.reservations || 0)} ${lang === "he" ? "הזמנות" : "bookings"}`);
+        button.addEventListener("click", async () => {
+          state.date = date;
+          if (datePicker) datePicker.value = date;
+          setCalendarView(deviceClass === "mobile" ? "list" : "day");
+          await Promise.all([loadDay(), loadSummary()]);
+          connectSSE();
+        });
+        monthGrid.appendChild(button);
+      }
+    } catch {
+      if (request === monthRequest && state.ui.view === "month" && state.date === selected) {
+        monthGrid.textContent = lang === "he" ? "טעינת החודש נכשלה. נסה שוב." : "Could not load the month. Please try again.";
+      }
+    }
+  }
+
+  async function moveCalendarMonth(delta) {
+    if (state.ui.view !== "month") return;
+    const [year, month] = state.date.slice(0, 7).split("-").map(Number);
+    const target = new Date(year, month - 1 + delta, 1);
+    const targetYear = target.getFullYear();
+    const targetMonth = String(target.getMonth() + 1).padStart(2, "0");
+    const targetDay = Math.min(Number(state.date.slice(8)), new Date(targetYear, target.getMonth() + 1, 0).getDate());
+    state.date = `${targetYear}-${targetMonth}-${String(targetDay).padStart(2, "0")}`;
+    if (datePicker) datePicker.value = state.date;
+    await Promise.all([loadDay(), loadSummary()]);
+    connectSSE();
+  }
+
+  function setCalendarView(next) {
+    if (!["day", "list", "week", "month"].includes(next)) return;
+    state.ui.view = next;
+    document.body.classList.toggle("oc-calendar-list-mode", next === "list");
+    if (!["day", "list"].includes(next)) ++agendaRequest;
+    if (agendaPanel) agendaPanel.hidden = !["day", "list"].includes(next);
+    if (weekPanel) weekPanel.hidden = next !== "week";
+    if (monthPanel) monthPanel.hidden = next !== "month";
+    document.body.classList.toggle("oc-calendar-week-mode", next === "week");
+    if (next !== "week") ++weekRequest;
+    if (next !== "month") ++monthRequest;
+    document.body.classList.toggle("oc-calendar-month-mode", next === "month");
+    viewButtons.forEach((button) => {
+      const selected = button.dataset.calendarView === next;
+      button.classList.toggle("is-active", selected);
+      button.setAttribute("aria-pressed", String(selected));
+    });
+    persistCalendarOptions();
+    if (["day", "list"].includes(next)) {
+      if (state.agenda?.date === state.date) renderAgenda();
+      else void loadAgenda();
+    }
+    if (next === "week") {
+      weekModeButtons.forEach((button) => {
+        const active = button.dataset.weekMode === state.ui.weekMode;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
+      if (weekIntervalSelect) weekIntervalSelect.value = String(state.ui.displayMinutes);
+      void loadWeek();
+    }
+    if (next === "month") void loadMonth();
+  }
+
   function renderSlots() {
     if (!slotsRoot) return;
     rowHeader();
@@ -604,7 +1140,7 @@
         <td data-label="${escapeHTML(init?.txt?.partySize || "Party size")}">${Number(item.people || 0)}</td>
         <td data-label="${escapeHTML(init?.txt?.room || "Room")}">${roomCell}</td>
         <td data-label="${escapeHTML(init?.txt?.status || "Status")}">${badge(item.status || "")}${depositBadge(item.depositStatus, item.depositAmount, item.depositCurrency)}</td>
-        <td data-label="${escapeHTML(init?.txt?.phone || "Phone")}"><a href="tel:${(item.phone || "").replace(/\s+/g, "")}">${escapeHTML(item.phone || "")}</a></td>
+        <td data-label="${escapeHTML(init?.txt?.phone || "Phone")}"><a href="tel:${escapeHTML((item.phone || "").replace(/[^+0-9]/g, ""))}">${escapeHTML(item.phone || "")}</a></td>
         <td data-label="${escapeHTML(init?.txt?.actions || "Actions")}">
           <button class="btn" data-act="arrived" data-id="${item.id}">${escapeHTML(init?.txt?.btnArrived || "Arrived")}</button>
           <button class="btn warn" data-act="cancel" data-id="${item.id}">${escapeHTML(init?.txt?.btnCancel || "Cancel")}</button>
@@ -614,6 +1150,7 @@
       frag.appendChild(tr);
     }
     drawerTableBody.appendChild(frag);
+    if(!resources.canManage) $$("button[data-act]", drawerTableBody).forEach(b=>b.remove());
 
     $$('button[data-act="arrived"]', drawerTableBody).forEach((b) => b.addEventListener("click", () => slotAction("arrived", { id: b.dataset.id })));
     $$('button[data-act="cancel"]', drawerTableBody).forEach((b) => b.addEventListener("click", () => slotAction("cancel", { id: b.dataset.id })));
@@ -710,8 +1247,12 @@
   }
 
   async function loadDay() {
-    const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day?date=${encodeURIComponent(state.date)}`;
-    state.day = await fetchJSON(url);
+    const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day?date=${encodeURIComponent(state.date)}&displayMinutes=${state.ui.displayMinutes}`;
+    const selectedDate = state.date;
+    const result = await fetchJSON(url);
+    if (selectedDate !== state.date) return;
+    if(state.day && state.day.date !== selectedDate) closeDrawer();
+    state.day = result;
     if (state.day?.currentTime) {
       state.systemTime.date = state.day.currentTime.sourceDate || state.day.currentTime.date || state.systemTime.date;
       state.systemTime.time = state.day.currentTime.time || state.systemTime.time;
@@ -721,9 +1262,13 @@
     }
     renderHeaderLine();
     renderSlots();
+    void loadWaitlist();
+    if (["day", "list"].includes(state.ui.view) && state.agenda?.date !== state.date) await loadAgenda();
     renderRoomOccupancy();
     renderKPIs();
     if (datePicker) datePicker.value = state.date;
+    if (state.ui.view === "week") void loadWeek();
+    if (state.ui.view === "month") void loadMonth();
     const d = isoToDate(state.date);
     if (dateLabel) dateLabel.textContent = fmtDate(d, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
     if (state.cal.year !== d.getFullYear() || state.cal.month !== d.getMonth()) {
@@ -735,14 +1280,19 @@
 
   async function loadSummary() {
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day/summary?date=${encodeURIComponent(state.date)}`;
-    state.summary = await fetchJSON(url);
+    const selectedDate = state.date;
+    const result = await fetchJSON(url);
+    if (selectedDate !== state.date) return;
+    state.summary = result;
     renderSummary();
   }
 
   async function loadSlot() {
     if (!state.drawer.time) return;
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/slot?date=${encodeURIComponent(state.date)}&time=${encodeURIComponent(state.drawer.time)}`;
+    const selectedDate=state.date, selectedTime=state.drawer.time;
     const data = await fetchJSON(url);
+    if(state.date!==selectedDate || state.drawer.time!==selectedTime || !state.drawer.open) return;
     state.drawer.items = data.items || [];
     renderDrawer(state.drawer.items);
   }
@@ -757,23 +1307,15 @@
     });
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/slot?${qs.toString()}`;
     const body = JSON.stringify({ action, date: state.date, time: state.drawer.time, reservation });
-    try {
-      await fetchJSON(url, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body });
-    } catch {
-      await fetchJSON(url, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body });
-    }
+    await fetchJSON(url, { method: "PATCH", headers: { "Content-Type": "application/json", Accept: "application/json" }, body });
+    state.agenda = null;
+    weekCache = null;
     await Promise.all([loadSlot(), loadDay(), loadSummary()]);
   }
 
   async function createManual() {
     if (!state.drawer.time) return;
-    const firstName = prompt(init?.txt?.promptFirstName || "First name:") || "";
-    const lastName = prompt(init?.txt?.promptLastName || "Last name:") || "";
-    if (!firstName && !lastName) return;
-    const phone = prompt(init?.txt?.promptPhone || "Phone (optional):") || "";
-    const people = Math.max(1, parseInt(prompt(init?.txt?.promptPartySize || "Party size:", "2") || "2", 10));
-    const notes = prompt(init?.txt?.promptNotes || "Notes (optional):") || "";
-    await slotAction("create", { firstName, lastName, phone, people, notes, status: "booked" });
+    openEditor({});
   }
 
   async function searchInDay(q) {
@@ -803,6 +1345,9 @@
     state.sse.es = es;
 
     const onRefresh = (e) => {
+      weekCache = null;
+      state.agenda = null;
+      ++agendaRequest;
       try {
         const data = JSON.parse(e.data || "{}");
         Promise.all([loadDay(), loadSummary()]).then(() => {
@@ -838,6 +1383,9 @@
   function schedulePolling() {
     cleanupSSE();
     state.sse.pollTimer = setInterval(() => {
+      weekCache = null;
+      state.agenda = null;
+      ++agendaRequest;
       Promise.all([loadDay(), loadSummary()]).catch(() => {});
     }, 15000);
   }
@@ -938,16 +1486,180 @@
     if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
+  const tr = (en, he) => lang === 'he' ? he : en;
+  let resources = { layouts: [], duration: 120, canManage: init.canManage !== false };
+  let editor, editing = null;
+  function filterQuery() {
+    return new URLSearchParams({ q: $('#oc-global-search')?.value || '', status: $('#oc-global-status')?.value || 'all', room: $('#oc-global-room')?.value || '', kind: $('#oc-global-kind')?.value || 'all' }).toString();
+  }
+  async function refreshCalendar() {
+    weekCache = null; state.agenda = null;
+    await Promise.all([loadDay(), loadSummary()]);
+  }
+  function refreshFilters() {
+    weekCache = null; state.agenda = null;
+    if (['day','list'].includes(state.ui.view)) void loadAgenda();
+    if (state.ui.view === 'week') void loadWeek();
+    if (state.ui.view === 'month') void loadMonth();
+  }
+  function setupOperations() {
+    if(deviceClass === 'mobile') {
+      const sidebar=document.querySelector('.oc-sidebar');
+      if(sidebar) {const details=document.createElement('details');details.className='oc-mobile-details';const summary=document.createElement('summary');summary.textContent=tr('Service details and clock','פרטי השירות ושעון המסעדה');details.append(summary);while(sidebar.firstChild)details.append(sidebar.firstChild);sidebar.append(details);}
+    }
+    const bar = document.createElement('div');
+    bar.className = 'oc-global-tools';
+    bar.innerHTML = `<label>${tr('Search','חיפוש')}<input id="oc-global-search" type="search" placeholder="${tr('Name, phone or event','שם, טלפון או אירוע')}"></label>
+      <label>${tr('Status','סטטוס')}<select id="oc-global-status"><option value="all">${tr('All statuses','כל הסטטוסים')}</option><option value="new">${tr('New','חדש')}</option><option value="confirmed">${tr('Confirmed','מאושר')}</option><option value="arrived">${tr('Arrived','הגיע')}</option><option value="cancelled">${tr('Cancelled','בוטל')}</option><option value="no_show">${tr('No show','לא הגיע')}</option><option value="blocked">${tr('Blocked','חסום')}</option></select></label>
+      <label>${tr('Room','אזור')}<select id="oc-global-room"><option value="">${tr('All rooms','כל האזורים')}</option></select></label>
+      <label>${tr('Type','סוג')}<select id="oc-global-kind"><option value="all">${tr('Bookings and events','הזמנות ואירועים')}</option><option value="reservation">${tr('Reservations','הזמנות')}</option><option value="event">${tr('Events','אירועים')}</option><option value="block">${tr('Blocks','חסימות')}</option></select></label>
+      <label>${tr("Display intervals","מרווחי תצוגה")}<select id="oc-display-minutes"><option value="15">15 ${tr("min","דקות")}</option><option value="30">30 ${tr("min","דקות")}</option></select></label>
+      <button type="button" id="oc-add-reservation">${tr('+ Reservation','+ הזמנה')}</button><button type="button" id="oc-add-event">${tr('+ Event / block','+ אירוע / חסימה')}</button>
+      <a id="oc-floor-link" href="/owner/restaurants/${encodeURIComponent(state.rid)}/floor">${tr('Floor plan','מפת המסעדה')} ↗</a>`;
+    $('.oc-viewbar')?.after(bar);
+    $('#oc-display-minutes').value=String(state.ui.displayMinutes);
+    $('#oc-display-minutes').onchange=()=>{state.ui.displayMinutes=Number($('#oc-display-minutes').value);if(weekIntervalSelect)weekIntervalSelect.value=String(state.ui.displayMinutes);persistCalendarOptions();void loadDay();};
+    $('#oc-global-search').addEventListener('input', debounce(refreshFilters,250));
+    ['status','room','kind'].forEach(id => $('#oc-global-'+id).addEventListener('change',refreshFilters));
+    $('#oc-add-reservation').onclick = () => openEditor({});
+    $('#oc-add-event').onclick = () => openEditor({calendarKind:'event'});
+    editor = document.createElement('dialog'); editor.className = 'oc-editor'; editor.setAttribute('aria-labelledby','oc-editor-title');
+    editor.innerHTML = `<div class="oc-editor-head"><h2 id="oc-editor-title">${tr('Reservation / event','הזמנה / אירוע')}</h2><button type="button" id="oc-editor-close" aria-label="${tr('Close','סגירה')}">×</button></div>
+      <form class="oc-editor-form" id="oc-editor-form">
+      <label>${tr('Type','סוג')}<select name="calendarKind"><option value="reservation">${tr('Reservation','הזמנה')}</option><option value="event">${tr('Event','אירוע')}</option><option value="block">${tr('Capacity block','חסימת קיבולת')}</option></select></label>
+      <label>${tr('Event title','שם האירוע')}<input name="eventTitle" maxlength="100"></label>
+      <label>${tr('First name','שם פרטי')}<input name="firstName" maxlength="100"></label><label>${tr('Last name','שם משפחה')}<input name="lastName" maxlength="100"></label>
+      <label>${tr('Phone','טלפון')}<input name="phone" type="tel" maxlength="40"></label><label>${tr('Guests / seats held','סועדים / מקומות לשמירה')}<input name="people" type="number" min="1" max="10000" required></label>
+      <label>${tr('Date','תאריך')}<input name="date" type="date" required></label><label>${tr('Time','שעה')}<input name="time" type="time" required></label>
+      <label>${tr('Duration (minutes)','משך (דקות)')}<input name="durationMinutes" type="number" min="15" max="1440" required></label>
+      <label>${tr('Status','סטטוס')}<select name="status"><option value="confirmed">${tr('Confirmed','מאושר')}</option><option value="new">${tr('New','חדש')}</option><option value="arrived">${tr('Arrived','הגיע')}</option><option value="completed">${tr('Completed','הסתיים')}</option><option value="no_show">${tr('No show','לא הגיע')}</option><option value="canceled">${tr('Cancelled','בוטל')}</option><option value="blocked">${tr('Blocked','חסום')}</option></select></label>
+      <label>${tr('Room','אזור')}<select name="preferredLayoutId"></select></label><label>${tr('Table','שולחן')}<select name="tableId"></select></label>
+      <label class="oc-editor-wide">${tr('Notes','הערות')}<textarea name="note" maxlength="1000"></textarea></label>
+      <p class="oc-editor-wide" id="oc-editor-error" role="alert"></p><button type="submit">${tr('Save','שמירה')}</button><button type="button" id="oc-editor-cancel">${tr('Close','סגירה')}</button></form>`;
+    document.body.append(editor);
+    $('#oc-editor-close').onclick = $('#oc-editor-cancel').onclick = () => editor.close();
+    const form = $('#oc-editor-form');
+    form.elements.preferredLayoutId.onchange = () => fillTables();
+    form.elements.calendarKind.onchange = () => { if (form.elements.calendarKind.value === 'block') form.elements.status.value = 'blocked'; };
+    form.addEventListener('submit', async e => {
+      e.preventDefault(); const button = form.querySelector('[type=submit]'); if(button.disabled) return;
+      const payload = Object.fromEntries(new FormData(form));
+      if(editing?.id) payload.id = editing.id;
+      if(editing?.updatedAt) payload.updatedAt = editing.updatedAt;
+      if(editing?.waitlistId) payload.waitlistId = editing.waitlistId;
+      button.disabled = true; $('#oc-editor-error').textContent = '';
+      try {
+        await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/save`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        state.date = payload.date; editor.close(); closeDrawer(); await refreshCalendar(); connectSSE();
+      } catch(error) { $('#oc-editor-error').textContent = error.message; }
+      finally { button.disabled = !resources.canManage; }
+    });
+    void fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/resources`).then(data => {
+      resources = data;
+      if(data.isOwner === false) $("#oc-floor-link").href="/host/"+encodeURIComponent(state.rid);
+      for(const room of data.layouts || []) { const option = new Option(room.name || room.id,room.id); $('#oc-global-room').append(option); }
+      if(!data.canManage) {
+        $('#oc-add-reservation').hidden = $('#oc-add-event').hidden = true;
+        if(waitlistForm) waitlistForm.hidden = true;
+        if(btnAdd) btnAdd.hidden = true;
+      }
+    }).catch(()=>{ $('#oc-add-reservation').disabled = $('#oc-add-event').disabled = true; });
+  }
+  function fillTables(selected='') {
+    const form = $('#oc-editor-form');
+    const select = form.elements.tableId; select.replaceChildren(new Option(tr('Unassigned','ללא שיוך'),''));
+    const room = resources.layouts.find(r=>r.id===form.elements.preferredLayoutId.value);
+    for(const table of room?.tables || []) select.append(new Option(`${table.name || table.tableNumber || table.id} · ${table.seats || '?'} ${tr('seats','מקומות')}`,table.id));
+    select.value=selected;
+  }
+  function openEditor(item) {
+    if(!editor) return;
+    editing=item.waitlistId ? item : {...item,id:item.id || crypto.randomUUID()};
+    const form=$('#oc-editor-form'); form.reset(); $('#oc-editor-error').textContent='';
+    const values={calendarKind:'reservation',date:state.date,time:state.drawer.time || '19:00',people:2,durationMinutes:resources.duration,status:'confirmed',...item};
+    const roomSelect=form.elements.preferredLayoutId;
+    roomSelect.replaceChildren(new Option(tr('Any room','ללא העדפה'),''));
+    resources.layouts.forEach(r=>roomSelect.append(new Option(r.name || r.id,r.id)));
+    for(const [key,value] of Object.entries(values)) if(form.elements[key]) form.elements[key].value=value ?? '';
+    fillTables(item.tableId || '');
+    for(const field of form.elements) field.disabled=!resources.canManage;
+    $('#oc-editor-cancel').disabled=false;
+    if(!editor.open) editor.showModal();
+  }
+
   function wire() {
+    if (waitlistForm) waitlistForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = waitlistForm.querySelector('[type="submit"]');
+      if (button?.disabled) return;
+      const date = state.date;
+      const fields = new FormData(waitlistForm);
+      const payload = {
+        date,
+        name: String(fields.get("name") || ""),
+        phone: String(fields.get("phone") || ""),
+        people: Number(fields.get("people")),
+        time: String(fields.get("time") || ""),
+        area: String(fields.get("area") || ""),
+        note: String(fields.get("note") || ""),
+      };
+      if (button) button.disabled = true;
+      waitlistMessage("");
+      try {
+        await fetchJSON("/owner/restaurants/" + encodeURIComponent(state.rid) +
+          "/calendar/waitlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(payload),
+        });
+        waitlistForm.reset();
+        waitlistMessage(lang === "he" ? "הבקשה נוספה לרשימת ההמתנה (לא נוצרה הזמנה)." :
+          "Added to waitlist. No reservation has been created.");
+        if (state.date === date) await loadWaitlist();
+      } catch {
+        waitlistMessage(lang === "he" ? "לא ניתן להוסיף בקשה. בדוק פרטים ונסה שוב." :
+          "Could not add request. Check the details and retry.");
+      } finally {
+        if (button) button.disabled = false;
+      }
+    });
+    weekModeButtons.forEach((button) => button.addEventListener("click", () => {
+      const mode = button.dataset.weekMode;
+      if (!["columns", "timeline"].includes(mode)) return;
+      state.ui.weekMode = mode;
+      weekModeButtons.forEach((item) => {
+        const active = item.dataset.weekMode === mode;
+        item.classList.toggle("is-active", active);
+        item.setAttribute("aria-pressed", String(active));
+      });
+      persistCalendarOptions();
+      void loadWeek();
+    }));
+    if (weekIntervalSelect) weekIntervalSelect.addEventListener("change", () => {
+      state.ui.displayMinutes = Number(weekIntervalSelect.value) === 15 ? 15 : 30;
+      if($("#oc-display-minutes")) $("#oc-display-minutes").value=String(state.ui.displayMinutes);
+      persistCalendarOptions();
+      if (state.ui.view === "week" && state.ui.weekMode === "timeline") void loadWeek();
+    });
+    if (monthPrev) monthPrev.addEventListener("click", () => { void moveCalendarMonth(-1); });
+    if (monthNext) monthNext.addEventListener("click", () => { void moveCalendarMonth(1); });
+    viewButtons.forEach((button) => button.addEventListener("click", () => setCalendarView(button.dataset.calendarView)));
+    if (agendaStatus) agendaStatus.addEventListener("change", () => {
+      state.ui.statusFilter = agendaStatus.value || "all";
+      $("#oc-global-status").value=agendaStatus.value;
+      refreshFilters();
+    });
     if (btnPrev) btnPrev.addEventListener("click", async () => {
-      state.date = addDays(state.date, -1);
+      if (state.ui.view === "month") { await moveCalendarMonth(-1); return; }
+      state.date = addDays(state.date, state.ui.view === "week" ? -7 : -1);
       if (datePicker) datePicker.value = state.date;
       await Promise.all([loadDay(), loadSummary()]);
       connectSSE();
     });
 
     if (btnNext) btnNext.addEventListener("click", async () => {
-      state.date = addDays(state.date, +1);
+      if (state.ui.view === "month") { await moveCalendarMonth(1); return; }
+      state.date = addDays(state.date, state.ui.view === "week" ? 7 : 1);
       if (datePicker) datePicker.value = state.date;
       await Promise.all([loadDay(), loadSummary()]);
       connectSSE();
@@ -959,11 +1671,15 @@
       connectSSE();
     });
 
-    if (daySearch) daySearch.addEventListener("input", debounce(() => searchInDay(daySearch.value.trim()), 250));
+    if (daySearch) daySearch.addEventListener("input", debounce(() => {
+      if($("#oc-global-search")) $("#oc-global-search").value=daySearch.value;
+      refreshFilters();
+    }, 250));
     if (sideSearch) sideSearch.addEventListener("input", debounce(() => {
       const v = sideSearch.value || "";
       if (daySearch) daySearch.value = v;
-      searchInDay(v.trim());
+      if($("#oc-global-search")) $("#oc-global-search").value=v;
+      refreshFilters();
     }, 250));
 
     if (filtersRoot) {
@@ -1018,6 +1734,8 @@
   }
 
   async function initApp() {
+    setupOperations();
+    setCalendarView(restoreView());
     if (datePicker) datePicker.value = state.date;
     initMonthFromSelected();
     wire();

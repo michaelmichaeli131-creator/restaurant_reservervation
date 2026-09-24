@@ -1,0 +1,215 @@
+/* SpotBook Calendar 2.0 — Day/List foundation. The existing slot engine is unchanged. */
+.oc-viewbar {display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  margin:12px 0 22px;padding:10px;border:1px solid #273950;border-radius:16px;
+  background:linear-gradient(135deg,#101d31,#0b1425)}
+.oc-viewbar__tabs {display:flex;gap:6px;padding:4px;background:#07111f;border-radius:12px}
+.oc-viewbar__tab {border:0;border-radius:9px;padding:11px 23px;min-height:42px;color:#b9c9de;
+  background:transparent;font:inherit;font-weight:700;cursor:pointer}
+.oc-viewbar__tab.is-active {background:#2563eb;color:#fff;box-shadow:0 4px 18px #12356b}
+.oc-viewbar__tab:focus-visible,.oc-agenda__item:focus-visible {outline:3px solid #93c5fd;outline-offset:3px}
+.oc-viewbar__caption{color:#a9bad0;font-size:.87rem}
+.oc-agenda[hidden]{display:none!important}
+.oc-agenda{margin:0 0 22px;border:1px solid #273950;border-radius:19px;padding:23px;background:#0d192c}
+.oc-agenda__header{display:flex;justify-content:space-between;align-items:end;flex-wrap:wrap;gap:16px;margin-bottom:20px}
+.oc-agenda__eyebrow{font-size:11px;font-weight:800;letter-spacing:.16em;color:#76abff}
+.oc-agenda__header h2{margin:6px 0;font-size:clamp(1.45rem,2.4vw,2.2rem);color:#f5f8ff}
+.oc-agenda__header p{margin:0;color:#a9bad0;font-size:.88rem;line-height:1.5}
+.oc-agenda__filter{display:grid;gap:6px;color:#d5e4f6;font-size:.86rem}
+.oc-agenda__filter select{color:#eff6ff;background:#101f36;border:1px solid #3b526e;
+  border-radius:10px;padding:10px 13px;min-height:43px;font-size:16px}
+.oc-agenda__rows{display:grid;gap:10px;min-width:0}
+.oc-agenda__item{display:grid;grid-template-columns:86px minmax(0,1fr) auto 18px;align-items:center;gap:14px;
+  text-align:start;width:100%;padding:15px 18px;min-height:76px;border-radius:13px;
+  border:1px solid #283b55;background:#121f33;color:#f0f6ff;cursor:pointer}
+.oc-agenda__item:hover{border-color:#528de7;background:#172940}
+.oc-agenda__time{color:#a9caff;font-size:1.12rem;font-weight:800;font-variant-numeric:tabular-nums}
+.oc-agenda__person{min-width:0;display:grid;gap:6px}
+.oc-agenda__person strong{overflow-wrap:anywhere;font-size:1rem}
+.oc-agenda__person small{color:#afc1d7;line-height:1.4}
+.oc-agenda__status{border-radius:999px;padding:6px 11px;border:1px solid #475569;
+  background:#253248;color:#d9e6f5;font-size:.76rem;white-space:nowrap;text-transform:capitalize}
+.oc-agenda__status--confirmed,.oc-agenda__status--arrived{background:#103b32;border-color:#267562;color:#a7f3d0}
+.oc-agenda__status--new,.oc-agenda__status--blocked{background:#493213;border-color:#795722;color:#fcd34d}
+.oc-agenda__status--danger{background:#46222a;border-color:#7e3544;color:#fecdd3}
+.oc-agenda__arrow{color:#86acdf;font-size:1.3rem}
+.oc-agenda__empty{padding:44px 12px;text-align:center;color:#b9c9de}
+body.oc-calendar-list-mode .oc-premium-grid,
+body.oc-calendar-list-mode .oc-density,
+body.oc-calendar-list-mode .oc-band-grid,
+body.oc-calendar-list-mode .oc-slots-wrap,
+body.oc-calendar-list-mode .oc-hint,
+body.oc-calendar-list-mode .oc-toolbar{display:none!important}
+@media(max-width:700px){
+ .oc-viewbar{padding:8px;margin:8px 0 15px;gap:9px}
+ .oc-viewbar__tabs{width:100%}
+ .oc-viewbar__tab{flex:1}
+ .oc-viewbar__caption{font-size:.79rem;padding:0 6px}
+ .oc-agenda{padding:14px 10px;border-radius:15px}
+ .oc-agenda__header{align-items:stretch}
+ .oc-agenda__filter select{width:100%}
+ .oc-agenda__item{grid-template-columns:65px minmax(0,1fr) auto;gap:8px;padding:14px 10px;min-height:83px}
+ .oc-agenda__time{font-size:.96rem}
+ .oc-agenda__status{padding:5px 7px;font-size:.67rem;max-width:90px;overflow:hidden;text-overflow:ellipsis}
+ .oc-agenda__arrow{display:none}
+}
+/* Real weekly reservation grid, seven date columns on desktop; swipe on mobile. */
+.oc-week[hidden]{display:none!important}
+.oc-week{margin:0 0 22px;border:1px solid #273950;border-radius:19px;padding:20px;background:#0d192c}
+.oc-week__grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:9px;min-width:0}
+.oc-week__day{min-width:0;border:1px solid #273950;border-radius:13px;padding:9px;background:#101e31}
+.oc-week__heading{display:block;width:100%;min-height:43px;border:0;border-radius:9px;
+  background:#1c3454;color:#f0f6ff;font-weight:800;cursor:pointer}
+.oc-week__heading:hover{background:#27517f}
+.oc-week__count{display:block;margin:10px 0;color:#a9bad0}
+.oc-week__booking{display:grid;gap:4px;text-align:start;width:100%;padding:9px 7px;margin:6px 0;
+  border:1px solid #3b526e;border-radius:9px;background:#182b45;color:#eaf2ff;cursor:pointer;overflow-wrap:anywhere}
+.oc-week__booking:hover{border-color:#75aaff}
+.oc-week__booking time{font-weight:800;color:#a9caff;font-variant-numeric:tabular-nums}
+.oc-week__booking strong{font-size:.82rem}
+.oc-week__booking small,.oc-week__empty{font-size:.76rem;color:#b4c7dd}
+body.oc-calendar-week-mode .oc-premium-grid,
+body.oc-calendar-week-mode .oc-density,
+body.oc-calendar-week-mode .oc-band-grid,
+body.oc-calendar-week-mode .oc-slots-wrap,
+body.oc-calendar-week-mode .oc-hint,
+body.oc-calendar-week-mode .oc-toolbar{display:none!important}
+@media(max-width:1100px){.oc-week__grid{grid-template-columns:repeat(7,minmax(140px,1fr));overflow-x:auto;padding-bottom:10px;scroll-snap-type:x proximity}.oc-week__day{scroll-snap-align:start}}
+@media(max-width:700px){.oc-week{padding:13px 8px}.oc-week__grid{grid-template-columns:repeat(7,minmax(175px,1fr))}}
+
+/* Month calendar: booking counts are factual, not an invented occupancy percentage. */
+.oc-month[hidden]{display:none!important}
+.oc-month{margin:0 0 22px;border:1px solid #273950;border-radius:19px;padding:20px;background:#0d192c}
+.oc-month__grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.oc-month__weekday{text-align:center;padding:10px 2px;color:#a9bad0;font-size:.82rem;font-weight:800}
+.oc-month__spacer{min-height:85px}
+.oc-month__day{display:flex;flex-direction:column;align-items:flex-start;gap:7px;min-width:0;min-height:104px;
+  border:1px solid #2b405b;border-radius:12px;padding:11px;background:#12213a;color:#f0f6ff;
+  text-align:start;cursor:pointer;font:inherit}
+.oc-month__day strong{font-size:1.16rem;color:#eaf2ff}
+.oc-month__day span{font-size:.84rem;color:#a9caff}
+.oc-month__day small{font-size:.77rem;color:#aabdd4}
+.oc-month__day:hover{background:#1a3353;border-color:#6295e7}
+.oc-month__day.is-selected{border:2px solid #5a9eff;background:#16345b}
+.oc-month__day:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+body.oc-calendar-month-mode .oc-premium-grid,
+body.oc-calendar-month-mode .oc-density,
+body.oc-calendar-month-mode .oc-band-grid,
+body.oc-calendar-month-mode .oc-slots-wrap,
+body.oc-calendar-month-mode .oc-hint,
+body.oc-calendar-month-mode .oc-toolbar{display:none!important}
+@media(max-width:700px){
+ .oc-month{padding:13px 8px}
+ .oc-month__grid{gap:4px}
+ .oc-month__day{min-height:76px;padding:7px 4px;gap:4px;border-radius:8px}
+ .oc-month__day strong{font-size:.98rem}
+ .oc-month__day span,.oc-month__day small{font-size:.66rem;overflow-wrap:anywhere}
+ .oc-month__spacer{min-height:76px}
+}
+
+/* Calendar v2 week: two layouts with user-selectable 15/30-minute display ruler. */
+.oc-week__controls{display:flex;align-items:end;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+.oc-week__modes{display:flex;align-items:center;gap:4px;padding:4px;border:1px solid #345071;border-radius:11px;background:#091425}
+.oc-week__mode{min-height:42px;border:0;border-radius:8px;padding:9px 13px;background:transparent;color:#b7cae1;font:inherit;font-size:.85rem;cursor:pointer}
+.oc-week__mode.is-active{background:#2563eb;color:#fff;font-weight:700}
+.oc-week__mode:focus-visible,.oc-week__heading:focus-visible,.oc-week__booking:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+.oc-week__interval{display:grid;gap:4px;font-size:.78rem;color:#b7cae1}
+.oc-week__interval select{min-height:42px;border:1px solid #345071;border-radius:9px;background:#111f34;color:#f3f8ff;padding:7px 10px;font:inherit;font-size:.9rem}
+.oc-week__booking.is-inactive{background:#26303d;border-color:#516073;color:#b3becd}
+.oc-week__booking.is-blocked{background:#443018;border-color:#7c5727}
+.oc-week__booking.is-confirmed{background:#133b36;border-color:#237b67}
+.oc-week__grid--timeline{grid-template-columns:64px repeat(7,minmax(164px,1fr));gap:0;overflow-x:auto;padding-bottom:12px}
+.oc-week__grid--timeline .oc-week__heading{border-radius:8px 8px 0 0;min-height:58px;position:sticky;top:0;z-index:2}
+.oc-week__axis,.oc-week__track{min-width:0;border-inline-end:1px solid #2d4058}
+.oc-week__axis-header{height:58px;display:flex;align-items:center;justify-content:center;font-size:.77rem;color:#b7cae1}
+.oc-week__axis-body{position:relative;background:#0b1729}
+.oc-week__tick{position:absolute;inset-inline:0;text-align:center;transform:translateY(-6px);font-size:.72rem;color:#9bb5d0;font-variant-numeric:tabular-nums}
+.oc-week__canvas{position:relative;background-color:#0d1a2c;
+  background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(var(--week-step-height) - 1px),#34475b calc(var(--week-step-height) - 1px),#34475b var(--week-step-height))}
+.oc-week__canvas .oc-week__booking{position:absolute;box-sizing:border-box;margin:0;z-index:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:3px;border-radius:5px;padding:5px 4px;font-size:.76rem}
+.oc-week__canvas .oc-week__booking:hover,.oc-week__canvas .oc-week__booking:focus-visible{z-index:5;filter:brightness(1.13)}
+.oc-week__canvas .oc-week__booking time{font-size:.78rem}
+.oc-week__canvas .oc-week__booking strong{font-size:.73rem;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.oc-week__canvas .oc-week__booking small{font-size:.68rem;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+@media(max-width:700px){
+ .oc-week__controls{width:100%;justify-content:stretch;align-items:stretch}
+ .oc-week__modes{flex:1}
+ .oc-week__mode{flex:1;padding:9px 7px;font-size:.77rem}
+ .oc-week__interval{flex:0 0 auto}
+ .oc-week__grid--timeline{grid-template-columns:52px repeat(7,minmax(164px,1fr))}
+ .oc-week__tick{font-size:.67rem}
+}
+
+/* Owner waitlist is a real operational panel, not a second reservation form. */
+.oc-waitlist{margin:0 0 20px;border:1px solid #2d4969;border-radius:17px;background:#0d192c;overflow:hidden}
+.oc-waitlist__toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:76px;padding:13px 20px;cursor:pointer;list-style:none}
+.oc-waitlist__toggle::-webkit-details-marker{display:none}
+.oc-waitlist__toggle:focus-visible{outline:3px solid #93c5fd;outline-offset:-4px}
+.oc-waitlist[open] .oc-waitlist__toggle{border-bottom:1px solid #29415e;background:#101f34}
+.oc-waitlist__headline{display:grid;gap:5px;min-width:0}
+.oc-waitlist__headline strong{font-size:1.16rem;color:#f0f6ff}
+.oc-waitlist__headline small{font-size:.82rem;color:#abbfd8;line-height:1.4}
+.oc-waitlist__count{display:inline-flex;align-items:center;justify-content:center;margin-inline-start:10px;min-width:27px;height:27px;padding:0 6px;border-radius:10px;background:#2563eb;color:#fff;font-size:.82rem}
+.oc-waitlist__chevron{color:#93c5fd;font-size:1.35rem}
+.oc-waitlist[open] .oc-waitlist__chevron{transform:rotate(180deg)}
+.oc-waitlist__content{padding:18px}
+.oc-waitlist__date{margin:0 0 14px;color:#a9bad0;font-weight:600}
+.oc-waitlist__form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.oc-waitlist__form label{display:grid;gap:6px;min-width:0;color:#dae7f7;font-size:.84rem}
+.oc-waitlist__form input,.oc-waitlist__form textarea{
+  box-sizing:border-box;width:100%;min-width:0;min-height:43px;padding:10px 12px;border:1px solid #3b526e;
+  border-radius:10px;background:#101f36;color:#f3f8ff;font:inherit;font-size:16px}
+.oc-waitlist__form input:focus-visible,.oc-waitlist__form textarea:focus-visible{
+  outline:2px solid #7eb5ff;outline-offset:2px}
+.oc-waitlist__notes{grid-column:span 2}
+.oc-waitlist__add{grid-column:1/-1;justify-self:end;min-height:43px;padding:9px 18px;
+  border:0;border-radius:10px;background:#2563eb;color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.oc-waitlist__add:disabled{opacity:.65;cursor:wait}
+.oc-waitlist__feedback{min-height:16px;color:#bad1ef;font-size:.86rem}
+.oc-waitlist__rows{display:grid;gap:9px}
+.oc-waitlist__item{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:13px 15px;border:1px solid #2d4969;border-radius:11px;background:#111f33;color:#f0f6ff}
+.oc-waitlist__item.is-closed{opacity:.65}
+.oc-waitlist__person{display:grid;gap:6px;min-width:0}
+.oc-waitlist__person strong{overflow-wrap:anywhere}
+.oc-waitlist__person small{color:#afc3dc;line-height:1.4;overflow-wrap:anywhere}
+.oc-waitlist__actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.oc-waitlist__actions a,.oc-waitlist__actions button{display:inline-flex;justify-content:center;align-items:center;
+  min-height:36px;padding:6px 10px;background:#193555;border:1px solid #40618a;border-radius:9px;color:#eff6ff;font:inherit;font-size:.81rem;cursor:pointer}
+.oc-waitlist__actions a{text-decoration:none}
+.oc-waitlist__actions .oc-waitlist__cancel{background:#3b242c;border-color:#784051}
+.oc-waitlist__empty{padding:18px;text-align:center;color:#afc3dc}
+@media(max-width:760px){
+ .oc-waitlist__toggle{padding:13px 12px}
+ .oc-waitlist__content{padding:12px}
+ .oc-waitlist__form{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .oc-waitlist__notes{grid-column:1/-1}
+ .oc-waitlist__add{width:100%}
+ .oc-waitlist__item{align-items:stretch;flex-direction:column}
+ .oc-waitlist__actions{justify-content:flex-start}
+}
+@media(max-width:360px){.oc-waitlist__form{grid-template-columns:minmax(0,1fr)}}
+/* Complete calendar workspace: shared filters and accessible native editor. */
+.oc-global-tools{display:flex;flex-wrap:wrap;align-items:end;gap:12px;margin:0 0 20px;padding:16px;border:1px solid #314965;border-radius:16px;background:#0d1b30}
+.oc-global-tools label{display:grid;gap:6px;flex:1;min-width:130px;font-size:.82rem;color:#bacde4}
+.oc-global-tools input,.oc-global-tools select,.oc-editor input,.oc-editor select,.oc-editor textarea,.oc-guest-card input,.oc-guest-card textarea{box-sizing:border-box;width:100%;min-height:44px;border:1px solid #496486;border-radius:9px;background:#13263e;color:#f1f6ff;font:inherit;padding:10px;font-size:16px}
+.oc-global-tools button,.oc-editor button,.oc-guest-card button{min-height:44px;padding:10px 18px;border:1px solid #4678c5;border-radius:10px;background:#2563eb;color:white;font:inherit;cursor:pointer}
+.oc-global-tools a,.oc-guest-card a{color:#9ac3ff;padding:10px}
+.oc-editor{box-sizing:border-box;width:min(720px,94vw);max-height:90dvh;overflow:auto;background:#0d1b30;color:#eef5ff;border:1px solid #4d6b90;border-radius:20px;padding:24px;box-shadow:0 20px 100px #0009}
+.oc-editor::backdrop{background:#020817c9;backdrop-filter:blur(5px)}
+.oc-editor-head{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:18px}
+.oc-editor-head h2{margin:0}.oc-editor-head button{background:transparent;font-size:26px}
+.oc-editor-form{display:grid;grid-template-columns:1fr 1fr;gap:16px}.oc-editor-form label{display:grid;gap:7px;color:#c9daee;min-width:0}.oc-editor-wide{grid-column:1/-1}
+#oc-editor-error{color:#fecaca;white-space:pre-wrap;margin:0}.oc-editor button:disabled{opacity:.5;cursor:wait}
+.oc-agenda__item.is-event,.oc-week__booking.is-event{border-color:#9670db!important;background:#332453!important}.oc-event-count{color:#c4a2ff!important}
+.oc-agenda__item.is-blocked{border-color:#ad8045;background:#422e18}
+.oc-guest-page{margin:0;min-height:100vh;padding:32px 16px;box-sizing:border-box;background:radial-gradient(ellipse at top,#193c69,#081222 70%);color:#eef5ff;font-family:system-ui,sans-serif}
+.oc-guest-card{max-width:640px;margin:4vh auto;padding:32px;background:#0d1b30;border:1px solid #314965;border-radius:22px;box-shadow:0 20px 80px #0005}
+.oc-guest-card p{line-height:1.7;color:#becfe3}.oc-honeypot{position:absolute;left:-9999px!important}.oc-consent{display:flex!important;align-items:start;font-size:.85rem;line-height:1.6}.oc-consent input{width:20px!important;min-height:20px!important;margin:4px 0 0;flex-shrink:0}
+@media(max-width:600px){.oc-global-tools{padding:12px;gap:10px}.oc-global-tools label{flex-basis:42%}.oc-global-tools button{flex:1}.oc-editor{padding:16px}.oc-editor-form{gap:12px}.oc-guest-card{padding:22px 16px;margin:12px auto}.oc-viewbar__tab{padding:10px 12px}}
+
+.oc-agenda__filter{display:none}.oc-global-tools [hidden]{display:none!important}
+.oc-main{width:100%;box-sizing:border-box}.oc-layout>*{min-width:0}.oc-card,.oc-week,.oc-agenda,.oc-month{min-width:0;box-sizing:border-box}.oc-week__grid{max-width:100%;box-sizing:border-box}.oc-week{overflow:hidden}
+@media(max-width:700px){.oc-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.oc-kpi{min-height:82px;padding:10px}.oc-kpi__value{font-size:24px;margin-top:8px}.oc-kpi__label{font-size:9px}.oc-kpi__sub{font-size:11px;margin-top:7px}.oc-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.oc-summary-card{padding:9px}.oc-mobile-details>summary{cursor:pointer;min-height:44px;font-weight:700;color:#bad5ff;padding:10px;box-sizing:border-box}}
+/* Override legacy fixed 1400px track and panel translation. */
+.oc-main{display:block!important;max-width:1600px;padding:0;margin-inline:auto!important}.oc-layout{grid-template-columns:minmax(250px,300px) minmax(0,1fr)!important;max-width:100%;box-sizing:border-box}.oc-panel{width:100%!important;transform:none!important;margin-inline:0!important}
+@media(max-width:1000px){.oc-layout{grid-template-columns:1fr!important}.oc-panel{grid-column:1/-1!important;grid-row:1!important}.oc-sidebar{grid-column:1/-1!important;grid-row:2!important}}
