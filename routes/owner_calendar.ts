@@ -87,6 +87,7 @@ async function ensureOwnerAccess(ctx: any, rid: string): Promise<Restaurant> {
   if (!owner && !(member?.approvalStatus === "approved" && member.status === "active" && member.permissions?.includes(permission))) {
     ctx.throw(Status.Forbidden, "Calendar permission required");
   }
+  ctx.state.calendarIsOwner = owner;
   ctx.state.calendarCanManage = owner || !!member?.permissions?.includes("reservations.manage");
   return r as Restaurant;
 }
@@ -382,7 +383,8 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
   const systemNowParts = splitIsoParts(systemNow);
   const selected = isISODate(date) ? date! : todayISO(systemNow);
 
-  const { capacityPeople, capacityTables, slotMinutes, durationMinutes } = deriveCapacities(r);
+  const { capacityPeople, capacityTables, slotMinutes: bookingSlotMinutes, durationMinutes } = deriveCapacities(r);
+  const slotMinutes = ctx.request.url.searchParams.get("displayMinutes") === "15" ? 15 : 30;
 
   const openWinsRaw = openingWindowsForDate(r, selected);
   const openWindows = mapOpenWindowsForTimeline(openWinsRaw);
@@ -435,6 +437,7 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day", async (ctx) => {
     ok: true,
     date: selected,
     openWindows: openWinsRaw,
+    bookingSlotMinutes,
     slotMinutes,
     capacityPeople,
     capacityTables,
@@ -522,7 +525,7 @@ function calendarMatches(item: any, params: URLSearchParams) {
 ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/resources", async (ctx) => {
   const { rid } = ctx.params;
   const restaurant = await ensureOwnerAccess(ctx, rid);
-  json(ctx, { ok: true, layouts: await listFloorLayouts(rid), duration: (restaurant as any).serviceDurationMinutes || 120, canManage: ctx.state.calendarCanManage });
+  json(ctx, { ok: true, layouts: await listFloorLayouts(rid), duration: (restaurant as any).serviceDurationMinutes || 120, canManage: ctx.state.calendarCanManage, isOwner: ctx.state.calendarIsOwner });
 });
 ownerCalendarRouter.post("/owner/restaurants/:rid/calendar/save", async (ctx) => {
   const { rid } = ctx.params;
@@ -796,6 +799,11 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/day/summary", async (c
   });
 
   const summary = summarizeDay(occupancy, reservations);
+  const bookings = reservations.filter((rv: any) => !inactive.has(String(rv.status || "new")) && rv.status !== "blocked" && !["event","block"].includes(rv.calendarKind));
+  summary.totalReservations = bookings.length;
+  summary.totalGuests = bookings.reduce((n,rv) => n + Number(rv.people || 0),0);
+  summary.cancelled = reservations.filter(rv => ["canceled","cancelled"].includes(String(rv.status))).length;
+  summary.noShow = reservations.filter(rv => ["no_show","no-show","noshow"].includes(String(rv.status))).length;
   json(ctx, { ok: true, date: selected, ...summary });
 });
 

@@ -80,6 +80,7 @@ export async function createCalendarWaitlist(
     const value: CalendarWaitlistEntry = {
       id, restaurantId: rid, ...data, status: "waiting",
       source, createdAt: at, updatedAt: at,
+      ...(source === "guest" ? { consentAt: at } : {}),
     };
     const inserted = await kv.atomic().check({ key: key(rid, data.date, id), versionstamp: null })
       .set(key(rid, data.date, id), value, { expireIn: 90 * 86400000 }).commit();

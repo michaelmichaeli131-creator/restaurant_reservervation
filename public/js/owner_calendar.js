@@ -1247,7 +1247,7 @@
   }
 
   async function loadDay() {
-    const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day?date=${encodeURIComponent(state.date)}`;
+    const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day?date=${encodeURIComponent(state.date)}&displayMinutes=${state.ui.displayMinutes}`;
     const selectedDate = state.date;
     const result = await fetchJSON(url);
     if (selectedDate !== state.date) return;
@@ -1503,15 +1503,22 @@
     if (state.ui.view === 'month') void loadMonth();
   }
   function setupOperations() {
+    if(deviceClass === 'mobile') {
+      const sidebar=document.querySelector('.oc-sidebar');
+      if(sidebar) {const details=document.createElement('details');details.className='oc-mobile-details';const summary=document.createElement('summary');summary.textContent=tr('Service details and clock','פרטי השירות ושעון המסעדה');details.append(summary);while(sidebar.firstChild)details.append(sidebar.firstChild);sidebar.append(details);}
+    }
     const bar = document.createElement('div');
     bar.className = 'oc-global-tools';
     bar.innerHTML = `<label>${tr('Search','חיפוש')}<input id="oc-global-search" type="search" placeholder="${tr('Name, phone or event','שם, טלפון או אירוע')}"></label>
       <label>${tr('Status','סטטוס')}<select id="oc-global-status"><option value="all">${tr('All statuses','כל הסטטוסים')}</option><option value="new">${tr('New','חדש')}</option><option value="confirmed">${tr('Confirmed','מאושר')}</option><option value="arrived">${tr('Arrived','הגיע')}</option><option value="cancelled">${tr('Cancelled','בוטל')}</option><option value="no_show">${tr('No show','לא הגיע')}</option><option value="blocked">${tr('Blocked','חסום')}</option></select></label>
       <label>${tr('Room','אזור')}<select id="oc-global-room"><option value="">${tr('All rooms','כל האזורים')}</option></select></label>
       <label>${tr('Type','סוג')}<select id="oc-global-kind"><option value="all">${tr('Bookings and events','הזמנות ואירועים')}</option><option value="reservation">${tr('Reservations','הזמנות')}</option><option value="event">${tr('Events','אירועים')}</option><option value="block">${tr('Blocks','חסימות')}</option></select></label>
+      <label>${tr("Display intervals","מרווחי תצוגה")}<select id="oc-display-minutes"><option value="15">15 ${tr("min","דקות")}</option><option value="30">30 ${tr("min","דקות")}</option></select></label>
       <button type="button" id="oc-add-reservation">${tr('+ Reservation','+ הזמנה')}</button><button type="button" id="oc-add-event">${tr('+ Event / block','+ אירוע / חסימה')}</button>
-      <a href="/owner/restaurants/${encodeURIComponent(state.rid)}/floor">${tr('Floor plan','מפת המסעדה')} ↗</a>`;
+      <a id="oc-floor-link" href="/owner/restaurants/${encodeURIComponent(state.rid)}/floor">${tr('Floor plan','מפת המסעדה')} ↗</a>`;
     $('.oc-viewbar')?.after(bar);
+    $('#oc-display-minutes').value=String(state.ui.displayMinutes);
+    $('#oc-display-minutes').onchange=()=>{state.ui.displayMinutes=Number($('#oc-display-minutes').value);if(weekIntervalSelect)weekIntervalSelect.value=String(state.ui.displayMinutes);persistCalendarOptions();void loadDay();};
     $('#oc-global-search').addEventListener('input', debounce(refreshFilters,250));
     ['status','room','kind'].forEach(id => $('#oc-global-'+id).addEventListener('change',refreshFilters));
     $('#oc-add-reservation').onclick = () => openEditor({});
@@ -1549,6 +1556,7 @@
     });
     void fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/resources`).then(data => {
       resources = data;
+      if(data.isOwner === false) $("#oc-floor-link").href="/host/"+encodeURIComponent(state.rid);
       for(const room of data.layouts || []) { const option = new Option(room.name || room.id,room.id); $('#oc-global-room').append(option); }
       if(!data.canManage) {
         $('#oc-add-reservation').hidden = $('#oc-add-event').hidden = true;
@@ -1629,6 +1637,7 @@
     }));
     if (weekIntervalSelect) weekIntervalSelect.addEventListener("change", () => {
       state.ui.displayMinutes = Number(weekIntervalSelect.value) === 15 ? 15 : 30;
+      if($("#oc-display-minutes")) $("#oc-display-minutes").value=String(state.ui.displayMinutes);
       persistCalendarOptions();
       if (state.ui.view === "week" && state.ui.weekMode === "timeline") void loadWeek();
     });
