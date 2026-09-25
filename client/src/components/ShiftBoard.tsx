@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useToast } from './Toast';
+import { getCurrentLang, t } from '../i18n';
 import './ShiftBoard.css';
 
 interface StaffMember {
@@ -67,8 +68,10 @@ const getWeekDates = (date: Date): Date[] => {
 };
 
 const formatDate = (date: Date): string => date.toISOString().split('T')[0];
-const formatDateDisplay = (date: Date): string => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-const formatMonthYear = (date: Date): string => date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+const locale = (): string => getCurrentLang() === 'ka' ? 'ka-GE' : (getCurrentLang() === 'he' ? 'he-IL' : 'en-US');
+const tx = (key: string, fallback: string): string => t(key, fallback);
+const formatDateDisplay = (date: Date): string => date.toLocaleDateString(locale(), { month: 'short', day: 'numeric' });
+const formatMonthYear = (date: Date): string => date.toLocaleDateString(locale(), { month: 'long', year: 'numeric' });
 
 export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
   const { toast } = useToast();
@@ -225,7 +228,7 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
     return (
       <div className="shift-board day-view">
         <div className="day-view-header">
-          <h2>{date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</h2>
+        <h2>{date.toLocaleDateString(locale(), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</h2>
         </div>
         <div className="day-timeline">
           <div className="time-slots">
@@ -238,7 +241,7 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
               <div key={member.id} className="staff-row">
                 <div className="staff-name" style={{ borderLeftColor: ROLE_COLORS[member.role] || '#999' }}>
                   <span>{member.firstName} {member.lastName}</span>
-                  <small>{member.role}</small>
+                  <small>{tx(`shift.role.${member.role}`, member.role)}</small>
                 </div>
                 <div className="timeline-row">
                   {(groupedShifts.get(member.id) || []).map(shift => {
@@ -262,12 +265,12 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
                         <span className="shift-time">{shift.startTime}-{shift.endTime}</span>
                         <div className="shift-actions">
                           {shift.status === 'scheduled' && (
-                            <button onClick={() => handleCheckIn(shift.id)} className="btn-checkin">Check In</button>
+                            <button onClick={() => handleCheckIn(shift.id)} className="btn-checkin">{tx('shift.check_in', 'Check In')}</button>
                           )}
                           {shift.status === 'checked_in' && (
-                            <button onClick={() => handleCheckOut(shift.id)} className="btn-checkout">Check Out</button>
+                            <button onClick={() => handleCheckOut(shift.id)} className="btn-checkout">{tx('shift.check_out', 'Check Out')}</button>
                           )}
-                          <button onClick={() => handleCancelShift(shift.id)} className="btn-cancel">Cancel</button>
+                          <button onClick={() => handleCancelShift(shift.id)} className="btn-cancel">{tx('common.btn_cancel', 'Cancel')}</button>
                         </div>
                       </div>
                     );
@@ -314,10 +317,10 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
         </div>
         <div className="week-table">
           <div className="week-row header-row">
-            <div className="staff-cell">Staff</div>
+            <div className="staff-cell">{tx('shift.staff', 'Staff')}</div>
             {dates.map(d => (
               <div key={formatDate(d)} className="day-cell">
-                <div>{d.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                <div>{d.toLocaleDateString(locale(), { weekday: 'short' })}</div>
                 <div className="date-num">{formatDateDisplay(d)}</div>
               </div>
             ))}
@@ -327,7 +330,7 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
               <div className="staff-cell">
                 <div className="staff-info" style={{ borderLeftColor: ROLE_COLORS[member.role] || '#999' }}>
                   <span className="staff-name">{member.firstName} {member.lastName}</span>
-                  <span className="staff-role">{member.role}</span>
+                  <span className="staff-role">{tx(`shift.role.${member.role}`, member.role)}</span>
                 </div>
               </div>
               {dates.map(d => {
@@ -382,8 +385,8 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
           <h2>{formatMonthYear(date)}</h2>
         </div>
         <div className="month-calendar">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="day-header">{day}</div>
+          {[['Sun','კვი'], ['Mon','ორშ'], ['Tue','სამ'], ['Wed','ოთხ'], ['Thu','ხუთ'], ['Fri','პარ'], ['Sat','შაბ']].map(([day, kaDay]) => (
+            <div key={day} className="day-header">{getCurrentLang() === 'ka' ? kaDay : day}</div>
           ))}
           {days.map((d, i) => {
             const dateStr = d ? formatDate(d) : '';
@@ -396,7 +399,7 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
                 <div className="shift-count">
                   {dayShifts.length > 0 && (
                     <>
-                      <div className="count-badge">{dayShifts.length} shifts</div>
+                      <div className="count-badge">{dayShifts.length} {tx('shift.shifts', 'shifts')}</div>
                       <div className="shift-dots">
                         {staff.map(member => {
                           const hasShift = dayShifts.some(s => s.staffId === member.id);
@@ -423,10 +426,10 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
 
   const currentDate = new Date(selectedDate);
   const displayText = viewType === 'week'
-    ? `Week of ${formatDateDisplay(getWeekDates(currentDate)[0])}`
+    ? `${tx('shift.week_of', 'Week of')} ${formatDateDisplay(getWeekDates(currentDate)[0])}`
     : viewType === 'month'
     ? formatMonthYear(currentDate)
-    : currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    : currentDate.toLocaleDateString(locale(), { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
     <div className="shift-board-container">
@@ -436,26 +439,26 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
             className={`view-btn ${viewType === 'day' ? 'active' : ''}`}
             onClick={() => setViewType('day')}
           >
-            Day
+            {tx('shift.view.day', 'Day')}
           </button>
           <button
             className={`view-btn ${viewType === 'week' ? 'active' : ''}`}
             onClick={() => setViewType('week')}
           >
-            Week
+            {tx('shift.view.week', 'Week')}
           </button>
           <button
             className={`view-btn ${viewType === 'month' ? 'active' : ''}`}
             onClick={() => setViewType('month')}
           >
-            Month
+            {tx('shift.view.month', 'Month')}
           </button>
         </div>
 
         <div className="date-controls">
-          <button onClick={() => changeDate(-1)}>← Prev</button>
+          <button onClick={() => changeDate(-1)}>← {tx('shift.prev', 'Prev')}</button>
           <div className="current-date">{displayText}</div>
-          <button onClick={() => changeDate(1)}>Next →</button>
+          <button onClick={() => changeDate(1)}>{tx('shift.next', 'Next')} →</button>
           <input
             type="date"
             value={selectedDate}
@@ -465,56 +468,56 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
 
         <div className="action-buttons">
           <button className="btn-primary" onClick={() => setShowAddStaffForm(!showAddStaffForm)}>
-            + Add Staff
+            + {tx('shift.add_staff', 'Add Staff')}
           </button>
           <button className="btn-primary" onClick={() => setShowAddShiftForm(!showAddShiftForm)}>
-            + Add Shift
+            + {tx('shift.add_shift', 'Add Shift')}
           </button>
         </div>
       </div>
 
       {showAddStaffForm && (
         <div className="form-panel">
-          <h3>Add Staff Member</h3>
+          <h3>{tx('shift.add_staff_member', 'Add Staff Member')}</h3>
           <input
             type="text"
-            placeholder="First Name"
+            placeholder={tx('shift.first_name', 'First Name')}
             value={newStaff.firstName}
             onChange={e => setNewStaff({ ...newStaff, firstName: e.target.value })}
           />
           <input
             type="text"
-            placeholder="Last Name"
+            placeholder={tx('shift.last_name', 'Last Name')}
             value={newStaff.lastName}
             onChange={e => setNewStaff({ ...newStaff, lastName: e.target.value })}
           />
           <input
             type="email"
-            placeholder="Email"
+            placeholder={tx('shift.email', 'Email')}
             value={newStaff.email}
             onChange={e => setNewStaff({ ...newStaff, email: e.target.value })}
           />
           <select value={newStaff.role} onChange={e => setNewStaff({ ...newStaff, role: e.target.value })}>
-            <option value="waiter">Waiter</option>
-            <option value="chef">Chef</option>
-            <option value="manager">Manager</option>
-            <option value="busser">Busser</option>
-            <option value="host">Host</option>
-            <option value="bartender">Bartender</option>
+            <option value="waiter">{tx('shift.role.waiter', 'Waiter')}</option>
+            <option value="chef">{tx('shift.role.chef', 'Chef')}</option>
+            <option value="manager">{tx('shift.role.manager', 'Manager')}</option>
+            <option value="busser">{tx('shift.role.busser', 'Busser')}</option>
+            <option value="host">{tx('shift.role.host', 'Host')}</option>
+            <option value="bartender">{tx('shift.role.bartender', 'Bartender')}</option>
           </select>
-          <button onClick={handleAddStaff} className="btn-primary">Save Staff</button>
-          <button onClick={() => setShowAddStaffForm(false)} className="btn-secondary">Cancel</button>
+          <button onClick={handleAddStaff} className="btn-primary">{tx('shift.save_staff', 'Save Staff')}</button>
+          <button onClick={() => setShowAddStaffForm(false)} className="btn-secondary">{tx('common.btn_cancel', 'Cancel')}</button>
         </div>
       )}
 
       {showAddShiftForm && (
         <div className="form-panel">
-          <h3>Create Shift</h3>
+          <h3>{tx('shift.create_shift', 'Create Shift')}</h3>
           <select
             value={newShift.staffId}
             onChange={e => setNewShift({ ...newShift, staffId: e.target.value })}
           >
-            <option value="">Select Staff Member</option>
+            <option value="">{tx('shift.select_staff', 'Select Staff Member')}</option>
             {staff.map(member => (
               <option key={member.id} value={member.id}>
                 {member.firstName} {member.lastName}
@@ -531,12 +534,12 @@ export default function ShiftBoard({ restaurantId }: ShiftBoardProps) {
             value={newShift.endTime}
             onChange={e => setNewShift({ ...newShift, endTime: e.target.value })}
           />
-          <button onClick={handleAddShift} className="btn-primary">Create Shift</button>
-          <button onClick={() => setShowAddShiftForm(false)} className="btn-secondary">Cancel</button>
+          <button onClick={handleAddShift} className="btn-primary">{tx('shift.create_shift', 'Create Shift')}</button>
+          <button onClick={() => setShowAddShiftForm(false)} className="btn-secondary">{tx('common.btn_cancel', 'Cancel')}</button>
         </div>
       )}
 
-      {loading ? <p>Loading...</p> : (
+      {loading ? <p>{tx('common.loading', 'Loading...')}</p> : (
         <>
           {viewType === 'day' && <DayView />}
           {viewType === 'week' && <WeekView />}

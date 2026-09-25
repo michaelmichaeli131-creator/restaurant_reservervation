@@ -8,6 +8,78 @@
   const init = window.__OC__ || {};
   const lang = String(init.lang || document.documentElement.lang || document.documentElement.getAttribute("lang") || "en").toLowerCase();
   const locale = String(init.locale || (lang === "ka" ? "ka-GE" : (lang === "he" ? "he-IL" : "en-US")));
+  // Calendar 2.0 has a client-rendered surface. Keep its operational copy in
+  // one place so Georgian does not silently fall back to English.
+  const kaText = {
+    "Status":"სტატუსი", "All statuses":"ყველა სტატუსი", "Phone":"ტელეფონი", "Notes":"შენიშვნები", "Save":"შენახვა", "Display intervals":"დროის ინტერვალები",
+    "Calendar changed. Please reload and try again.":"კალენდარი შეიცვალა. განაახლეთ გვერდი და ხელახლა სცადეთ.",
+    "Choose a valid room":"აირჩიეთ არსებული დარბაზი", "Event title is required":"მიუთითეთ ღონისძიების დასახელება",
+    "Invalid availability request":"თავისუფალი დროის ძიების მონაცემები არასწორია", "Invalid duration":"ხანგრძლივობა არასწორია",
+    "Invalid event type":"ღონისძიების ტიპი არასწორია", "Invalid guest count":"სტუმრების რაოდენობა არასწორია",
+    "Invalid status":"სტატუსი არასწორია", "Invalid status transition":"სტატუსის ასე შეცვლა შეუძლებელია",
+    "Invalid time":"დრო არასწორია", "Invalid date":"თარიღი არასწორია", "Invalid phone":"ტელეფონის ნომერი არასწორია",
+    "Invalid party size":"სტუმრების რაოდენობა არასწორია", "Invalid name":"სახელი არასწორია", "Invalid notes":"შენიშვნები არასწორია",
+    "Invalid area":"დარბაზის დასახელება არასწორია", "Invalid entry":"ჩანაწერი არასწორია", "Invalid conversion":"მოთხოვნის ჯავშნად გადაქცევა შეუძლებელია",
+    "Not enough availability for this time":"ამ დროს საკმარისი თავისუფალი ადგილი არ არის",
+    "Not enough availability in this room":"ამ დარბაზში საკმარისი თავისუფალი ადგილი არ არის",
+    "Outside opening hours":"არჩეული დრო სამუშაო საათებს სცდება",
+    "Reservation not found":"ჯავშანი ვერ მოიძებნა", "Restaurant not found":"რესტორანი ვერ მოიძებნა",
+    "Table is invalid or too small":"მაგიდა არ არსებობს ან სტუმრების რაოდენობისთვის პატარაა",
+    "Text is too long":"ტექსტი ზედმეტად გრძელია",
+    "This reservation has changed. Reload before saving.":"ჯავშანი შეიცვალა. შენახვამდე განაახლეთ გვერდი.",
+    "This table already has a reservation":"ეს მაგიდა უკვე დაჯავშნილია",
+    "Waitlist request is no longer waiting":"ეს მოთხოვნა მოლოდინში აღარ არის",
+    "Could not create waitlist entry":"მოლოდინის სიაში მოთხოვნის დამატება ვერ მოხერხდა",
+    "Reservation does not belong to this restaurant and date":"ჯავშანი არ შეესაბამება ამ რესტორანსა და თარიღს",
+    "Waitlist entry changed; reload before converting":"მოთხოვნა შეიცვალა. ჯავშნად გადაქცევამდე განაახლეთ გვერდი",
+    "Waitlist entry changed; reload before editing":"მოთხოვნა შეიცვალა. რედაქტირებამდე განაახლეთ გვერდი",
+    "No waitlist requests for this day":"ამ დღეს მოლოდინის სიაში მოთხოვნები არ არის",
+    "Call":"დარეკვა", "Mark contacted":"დაკავშირებულად მონიშვნა", "Back to waiting":"მოლოდინის სიაში დაბრუნება",
+    "Cancel request":"მოთხოვნის გაუქმება", "Cancel this waitlist request?":"გსურთ მოლოდინის სიიდან ამ მოთხოვნის გაუქმება?",
+    "Loading waitlist…":"მოლოდინის სია იტვირთება…", "Could not load the waitlist":"მოლოდინის სიის ჩატვირთვა ვერ მოხერხდა",
+    "Could not update this entry. Refresh the list and retry.":"ჩანაწერის განახლება ვერ მოხერხდა. განაახლეთ სია და ხელახლა სცადეთ.",
+    "Loading reservations…":"ჯავშნები იტვირთება…", "No reservations match this selection":"ამ პირობების შესაბამისი ჯავშნები ვერ მოიძებნა",
+    "Blocked time":"დაბლოკილი დრო", "Guest":"სტუმარი", "guests":"სტუმარი", "Could not load reservations. Try refreshing.":"ჯავშნების ჩატვირთვა ვერ მოხერხდა. განაახლეთ გვერდი.",
+    "Reservation":"ჯავშანი", "Time":"დრო", "Could not load":"ჩატვირთვა ვერ მოხერხდა", "reservations":"ჯავშანი",
+    "Loading week…":"კვირის მონაცემები იტვირთება…", "Loading month…":"თვის მონაცემები იტვირთება…", "bookings":"ჯავშანი", "events":"ღონისძიება",
+    "Could not load the month. Please try again.":"თვის მონაცემების ჩატვირთვა ვერ მოხერხდა. ხელახლა სცადეთ.", "Edit":"რედაქტირება",
+    "Added to waitlist. No reservation has been created.":"მოთხოვნა დაემატა მოლოდინის სიას. ჯავშანი არ შექმნილა.",
+    "Could not add request. Check the details and retry.":"მოთხოვნის დამატება ვერ მოხერხდა. გადაამოწმეთ მონაცემები და ხელახლა სცადეთ.",
+    "Discard unsaved changes and leave?":"გსურთ გასვლა ცვლილებების შენახვის გარეშე?",
+    "No valid room in the active floor, or nothing to change.":"აქტიურ გეგმაზე შესაბამისი ადგილი ვერ მოიძებნა, ან შესაცვლელი არაფერია.",
+    "No free room for the copied items on this floor. Expand the active floor or clear some space.":"დაკოპირებული ობიექტებისთვის ადგილი არ არის. გააფართოეთ გეგმა ან გაათავისუფლეთ სივრცე.",
+    "No free space to duplicate the group in the active floor.":"ჯგუფის ასლისთვის აქტიურ გეგმაზე საკმარისი ადგილი არ არის.",
+    "Cannot resize in that direction":"ამ მიმართულებით ზომის შეცვლა შეუძლებელია", "Outside the active floor area":"აქტიური გეგმის საზღვრებს გარეთაა",
+    "Resize would overlap another item":"ამ ზომით ობიექტი სხვა ობიექტს გადაფარავს", "No free room here. Choose another cell.":"აქ თავისუფალი ადგილი არ არის. აირჩიეთ სხვა უჯრედი.",
+    "Save or undo your changes before managing layouts.":"გეგმების მართვამდე შეინახეთ ან გააუქმეთ ცვლილებები.", "No free space for a duplicate":"ასლისთვის თავისუფალი ადგილი არ არის",
+    "Copy":"კოპირება", "Paste":"ჩასმა", "Back to editing":"რედაქტირებაზე დაბრუნება", "Preview map":"გეგმის წინასწარი ნახვა",
+    "Multi-select":"რამდენიმეს მონიშვნა", "Area select":"არეალის მონიშვნა", "Select all":"ყველას მონიშვნა", "Clear selection":"მონიშვნის მოხსნა",
+    "Undo":"მოქმედების გაუქმება", "Redo":"მოქმედების აღდგენა", "Saving…":"ინახება…", "Unsaved changes":"შეუნახავი ცვლილებები",
+    "All changes saved":"ყველა ცვლილება შენახულია", "Save layout":"გეგმის შენახვა",
+    "Orange items have overlapping footprints. Check their spacing.":"ნარინჯისფრად მონიშნული ობიექტები ერთმანეთს ფარავს. შეამოწმეთ მათ შორის მანძილი.",
+    "Selected items":"მონიშნული ობიექტები", "Duplicate":"ასლის შექმნა", "Unlock":"განბლოკვა", "Lock":"დაბლოკვა", "Group":"დაჯგუფება", "Ungroup":"ჯგუფის დაშლა",
+    "Forward":"წინა ფენაზე გადატანა", "Backward":"უკანა ფენაზე გადატანა", "Selected item":"მონიშნული ობიექტი", "Lock proportions":"პროპორციების შენარჩუნება",
+    "Width":"სიგანე", "Height":"სიმაღლე", "Duplicate item":"ობიექტის ასლის შექმნა", "Rotate":"მობრუნება", "Asset library":"ობიექტების ბიბლიოთეკა",
+    "Search tables, chairs, doors…":"მაგიდების, სკამების, კარების ძებნა…", "Search assets":"ობიექტების ძებნა", "Filter assets":"ობიექტების გაფილტვრა",
+    "No matching assets. Try another search.":"შესაბამისი ობიექტები ვერ მოიძებნა. სცადეთ სხვა საძიებო სიტყვა.", "Cancel placement":"განთავსების გაუქმება",
+    "Place":"განთავსება", "Cancel":"გაუქმება", "Drag to resize":"ზომის შესაცვლელად გადაათრიეთ", "Floor map tools":"გეგმის ხელსაწყოები",
+    "Pan map":"გეგმის გადაადგილება", "Assets":"ობიექტები", "Fit":"ეკრანზე მორგება", "Delete":"წაშლა", "Create reservation":"ჯავშნის შექმნა",
+    "Delete details":"მონაცემების წაშლა", "Delete these waitlist details permanently?":"გსურთ ამ მოთხოვნის მონაცემების სამუდამოდ წაშლა?",
+    "Reservation no longer available. Refresh the calendar.":"ჯავშანი აღარ არის ხელმისაწვდომი. განაახლეთ კალენდარი.", "Discard your unsaved changes?":"გსურთ შეუნახავი ცვლილებების გაუქმება?",
+    "+ Reservation":"+ ჯავშანი", "Add reservation":"ჯავშნის დამატება", "Service details and clock":"მომსახურების დეტალები და საათი",
+    "Search":"ძებნა", "Name, phone or event":"სახელი, ტელეფონი ან ღონისძიება", "Seated":"სტუმრები განთავსდნენ", "No show":"არ გამოცხადდნენ",
+    "Room":"დარბაზი", "All rooms":"ყველა დარბაზი", "Type":"ტიპი", "Bookings and events":"ჯავშნები და ღონისძიებები", "Reservations":"ჯავშნები",
+    "Events":"ღონისძიებები", "Blocks":"ბლოკირებები", "min":"წთ", "Clear filters":"ფილტრების გასუფთავება", "+ Event / block":"+ ღონისძიება / ბლოკირება",
+    "Floor plan":"დარბაზის გეგმა", "Reservation / event":"ჯავშანი / ღონისძიება", "Close":"დახურვა", "Event":"ღონისძიება", "Capacity block":"ადგილების ბლოკირება",
+    "Event title":"ღონისძიების დასახელება", "First name":"სახელი", "Last name":"გვარი", "Guests / seats held":"სტუმრები / დასაკავებელი ადგილები",
+    "Date":"თარიღი", "Duration (minutes)":"ხანგრძლივობა (წუთი)", "Completed":"დასრულებულია", "Table":"მაგიდა", "Find alternative times":"სხვა თავისუფალი დროის ძებნა",
+    "Checking availability…":"თავისუფალი ადგილები მოწმდება…", "Same guests, duration and room. Choose a time, then save.":"სტუმრების რაოდენობა, ხანგრძლივობა და დარბაზი უცვლელია. აირჩიეთ დრო და შეინახეთ.",
+    "No alternative times available on this date.":"ამ თარიღზე სხვა თავისუფალი დრო არ არის.", "Updates status immediately; save other edits first.":"სტატუსი დაუყოვნებლივ განახლდება. ჯერ შეინახეთ სხვა ცვლილებები.",
+    "Update status and release this reservation’s capacity?":"გსურთ სტატუსის განახლება და ამ ჯავშნის ადგილების გათავისუფლება?", "Unassigned":"მინიჭებული არ არის", "seats":"ადგილი", "Any room":"ნებისმიერი დარბაზი",
+    "New":"ახალი", "Pending":"დადასტურების მოლოდინში", "Confirmed":"დადასტურებულია", "Arrived":"სტუმრები მოვიდნენ", "Seated":"სტუმრები განთავსდნენ",
+    "Cancelled":"გაუქმებულია", "No show":"არ გამოცხადდნენ", "Blocked":"დაბლოკილია", "Waiting":"მოლოდინში", "Contacted":"დაკავშირებულია", "Booked":"დაჯავშნილია"
+  };
+  const ge = (en, he) => lang === "ka" ? (kaText[en] || en) : (lang === "he" ? he : en);
 
   const state = {
     rid: init.rid || getRidFromPath(),
@@ -213,7 +285,7 @@
     }
     if (!res.ok || data?.ok === false) {
       const msg = data?.error || data?.message || `${res.status} ${res.statusText}`;
-      throw new Error(msg);
+      throw new Error(lang === "ka" ? (kaText[msg] || msg) : msg);
     }
     return data;
   }
@@ -504,7 +576,7 @@
     if (!items.length) {
       const empty = document.createElement("p");
       empty.className = "oc-waitlist__empty";
-      empty.textContent = lang === "he" ? "אין בקשות המתנה ביום הזה" : "No waitlist requests for this day";
+      empty.textContent = lang === "he" ? "אין בקשות המתנה ביום הזה" : ge("No waitlist requests for this day", "אין בקשות המתנה ביום הזה");
       waitlistRows.appendChild(empty);
       return;
     }
@@ -517,7 +589,7 @@
       const name = document.createElement("strong");
       name.textContent = item.name;
       const details = document.createElement("small");
-      details.textContent = [item.time, item.people + (lang === "he" ? " סועדים" : " guests"),
+      details.textContent = [item.time, item.people + (lang === "he" ? " סועדים" : ge("guests", "סועדים")),
         item.area, statusLabel(item.status)].filter(Boolean).join(" · ");
       description.append(name, details);
       if (item.note) {
@@ -530,15 +602,15 @@
       if (item.phone) {
         const call = document.createElement("a");
         call.href = "tel:" + item.phone.replace(/[^\d+]/g, "");
-        call.textContent = lang === "he" ? "התקשר" : "Call";
+        call.textContent = lang === "he" ? "התקשר" : ge("Call", "התקשר");
         actions.appendChild(call);
       }
       if (["waiting", "offered"].includes(item.status)) {
         const action = document.createElement("button");
         action.type = "button";
         action.textContent = item.status === "waiting"
-          ? (lang === "he" ? "סמן כטופל" : "Mark contacted")
-          : (lang === "he" ? "החזר להמתנה" : "Back to waiting");
+          ? (lang === "he" ? "סמן כטופל" : ge("Mark contacted", "סמן כטופל"))
+          : (lang === "he" ? "החזר להמתנה" : ge("Back to waiting", "החזר להמתנה"));
         action.addEventListener("click", () => {
           void changeWaitlistStatus(item, item.status === "waiting" ? "offered" : "waiting");
         });
@@ -546,9 +618,9 @@
         const cancel = document.createElement("button");
         cancel.type = "button";
         cancel.className = "oc-waitlist__cancel";
-        cancel.textContent = lang === "he" ? "בטל בקשה" : "Cancel request";
+        cancel.textContent = lang === "he" ? "בטל בקשה" : ge("Cancel request", "בטל בקשה");
         cancel.addEventListener("click", () => {
-          if (window.confirm(lang === "he" ? "לבטל את בקשת ההמתנה?" : "Cancel this waitlist request?")) {
+          if (window.confirm(lang === "he" ? "לבטל את בקשת ההמתנה?" : ge("Cancel this waitlist request?", "לבטל את בקשת ההמתנה?"))) {
             void changeWaitlistStatus(item, "cancelled");
           }
         });
@@ -577,7 +649,7 @@
     const date = state.date;
     if (waitlistDate) waitlistDate.textContent = date;
     if (waitlistCount) waitlistCount.textContent = "…";
-    waitlistRows.textContent = lang === "he" ? "טוען רשימת המתנה…" : "Loading waitlist…";
+    waitlistRows.textContent = lang === "he" ? "טוען רשימת המתנה…" : ge("Loading waitlist…", "טוען רשימת המתנה…");
     try {
       const data = await fetchJSON("/owner/restaurants/" + encodeURIComponent(state.rid) +
         "/calendar/waitlist?date=" + encodeURIComponent(date));
@@ -588,7 +660,7 @@
         if (waitlistCount) waitlistCount.textContent = "!";
         waitlistRows.textContent = lang === "he"
           ? "לא ניתן לטעון את רשימת ההמתנה כרגע"
-          : "Could not load the waitlist";
+          : ge("Could not load the waitlist", "לא ניתן לטעון את רשימת ההמתנה כרגע");
       }
     }
   }
@@ -605,14 +677,14 @@
       if (state.date === item.date) await loadWaitlist();
     } catch {
       waitlistMessage(lang === "he" ? "לא ניתן לעדכן. רענן את הרשימה ונסה שוב." :
-        "Could not update this entry. Refresh the list and retry.");
+        ge("Could not update this entry. Refresh the list and retry.", "לא ניתן לעדכן. רענן את הרשימה ונסה שוב."));
     }
   }
 
   function renderAgenda() {
     if (!agendaRows) return;
     if (!state.agenda || state.agenda.date !== state.date) {
-      agendaRows.textContent = lang === "he" ? "טוען הזמנות…" : "Loading reservations…";
+      agendaRows.textContent = lang === "he" ? "טוען הזמנות…" : ge("Loading reservations…", "טוען הזמנות…");
       return;
     }
     const query = String(daySearch?.value || "").trim().toLowerCase();
@@ -630,7 +702,7 @@
     if (!items.length) {
       const empty = document.createElement("p");
       empty.className = "oc-agenda__empty";
-      empty.textContent = lang === "he" ? "אין הזמנות התואמות לבחירה" : "No reservations match this selection";
+      empty.textContent = lang === "he" ? "אין הזמנות התואמות לבחירה" : ge("No reservations match this selection", "אין הזמנות התואמות לבחירה");
       agendaRows.appendChild(empty);
       return;
     }
@@ -641,9 +713,9 @@
         : status === "arrived" ? "arrived" : status === "confirmed" ? "confirmed"
         : isBlocked ? "blocked" : "new";
       const label = item.eventTitle || [item.firstName, item.lastName].filter(Boolean).join(" ") ||
-        (isBlocked ? (lang === "he" ? "שעה חסומה" : "Blocked time") : (lang === "he" ? "אורח" : "Guest"));
+        (isBlocked ? (lang === "he" ? "שעה חסומה" : ge("Blocked time", "שעה חסומה")) : (lang === "he" ? "אורח" : ge("Guest", "אורח")));
       const meta = [
-        item.people > 0 ? `${Number(item.people)} ${lang === "he" ? "סועדים" : "guests"}` : "",
+        item.people > 0 ? `${Number(item.people)} ${lang === "he" ? "סועדים" : ge("guests", "סועדים")}` : "",
         item.roomLabel || "",
         item.occasion || "",
       ].filter(Boolean).join(" · ");
@@ -673,7 +745,7 @@
       renderAgenda();
     } catch {
       if (request === agendaRequest && state.date === selected && ["day", "list"].includes(state.ui.view) && agendaRows) {
-        agendaRows.textContent = lang === "he" ? "טעינת ההזמנות נכשלה. נסה לרענן את העמוד." : "Could not load reservations. Try refreshing.";
+        agendaRows.textContent = lang === "he" ? "טעינת ההזמנות נכשלה. נסה לרענן את העמוד." : ge("Could not load reservations. Try refreshing.", "טעינת ההזמנות נכשלה. נסה לרענן את העמוד.");
       }
     }
   }
@@ -703,11 +775,11 @@
     if(item.calendarKind === "event") button.classList.add("is-event");
     const name = item.eventTitle || [item.firstName, item.lastName].filter(Boolean).join(" ") ||
       (String(item.status || "").toLowerCase() === "blocked"
-        ? (lang === "he" ? "שעה חסומה" : "Blocked time")
-        : (lang === "he" ? "הזמנה" : "Reservation"));
+        ? (lang === "he" ? "שעה חסומה" : ge("Blocked time", "שעה חסומה"))
+        : (lang === "he" ? "הזמנה" : ge("Reservation", "הזמנה")));
     const time = String(item.time || "");
     const guests = Number(item.people || 0);
-    button.setAttribute("aria-label", [time, name, guests > 0 ? guests + " guests" : "", item.status].filter(Boolean).join(", "));
+    button.setAttribute("aria-label", [time, name, guests > 0 ? `${guests} ${ge("guests", "סועדים")}` : "", statusLabel(item.status)].filter(Boolean).join(", "));
     const timeNode = document.createElement("time");
     timeNode.textContent = time || "—";
     const nameNode = document.createElement("strong");
@@ -747,7 +819,7 @@
     axis.className = "oc-week__axis";
     const axisHeader = document.createElement("div");
     axisHeader.className = "oc-week__axis-header";
-    axisHeader.textContent = lang === "he" ? "שעה" : "Time";
+    axisHeader.textContent = lang === "he" ? "שעה" : ge("Time", "שעה");
     axis.appendChild(axisHeader);
     const axisSpacer = document.createElement("div"); axisSpacer.className = "oc-week__add-spacer"; axis.appendChild(axisSpacer);
     const axisBody = document.createElement("div");
@@ -783,7 +855,7 @@
       if (results[index].status !== "fulfilled") {
         const error = document.createElement("p");
         error.className = "oc-week__empty";
-        error.textContent = lang === "he" ? "לא ניתן לטעון" : "Could not load";
+        error.textContent = lang === "he" ? "לא ניתן לטעון" : ge("Could not load", "לא ניתן לטעון");
         canvas.appendChild(error);
       } else {
         // Overlap lanes keep simultaneous reservations visible. The interval
@@ -846,13 +918,13 @@
       if (result.status !== "fulfilled") {
         const error = document.createElement("p");
         error.className = "oc-week__empty";
-        error.textContent = lang === "he" ? "לא ניתן לטעון" : "Could not load";
+        error.textContent = lang === "he" ? "לא ניתן לטעון" : ge("Could not load", "לא ניתן לטעון");
         card.appendChild(error);
       } else {
         const items = result.value.items || [];
         const count = document.createElement("small");
         count.className = "oc-week__count";
-        count.textContent = items.length + " " + (lang === "he" ? "הזמנות" : "reservations");
+        count.textContent = items.length + " " + (lang === "he" ? "הזמנות" : ge("reservations", "הזמנות"));
         card.appendChild(count);
         for (const item of items) card.appendChild(weekItemButton(date, item));
       }
@@ -872,7 +944,7 @@
       renderWeekResults(weekCache.dates, weekCache.results, selected);
       return;
     }
-    weekGrid.textContent = lang === "he" ? "טוען שבוע…" : "Loading week…";
+    weekGrid.textContent = lang === "he" ? "טוען שבוע…" : ge("Loading week…", "טוען שבוע…");
     const results = await Promise.allSettled(dates.map((date) =>
       fetchJSON("/owner/restaurants/" + encodeURIComponent(state.rid) +
         "/calendar/agenda?date=" + encodeURIComponent(date) + "&" + filterQuery())
@@ -893,12 +965,12 @@
     const first = new Date(year, monthNumber - 1, 1);
     const count = new Date(year, monthNumber, 0).getDate();
     if (monthTitle) monthTitle.textContent = fmtDate(first, { month: "long", year: "numeric" });
-    monthGrid.textContent = lang === "he" ? "טוען חודש…" : "Loading month…";
+    monthGrid.textContent = lang === "he" ? "טוען חודש…" : ge("Loading month…", "טוען חודש…");
     try {
       const data = await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/month?month=${encodeURIComponent(month)}&${filterQuery()}`);
       if (request !== monthRequest || state.date !== selected || state.ui.view !== "month") return;
       monthGrid.textContent = "";
-      const weekdays = lang === "he" ? ["ב", "ג", "ד", "ה", "ו", "ש", "א"] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+      const weekdays = lang === "he" ? ["ב", "ג", "ד", "ה", "ו", "ש", "א"] : (lang === "ka" ? ["ორშ", "სამ", "ოთხ", "ხუთ", "პარ", "შაბ", "კვი"] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
       weekdays.forEach((name) => {
         const cell = document.createElement("span");
         cell.className = "oc-month__weekday";
@@ -919,8 +991,8 @@
         const button = document.createElement("button");
         button.type = "button";
         button.className = "oc-month__day" + (date === selected ? " is-selected" : "");
-        button.innerHTML = `<strong>${day}</strong><span>${Number(item.reservations || 0)} ${lang === "he" ? "הזמנות" : "bookings"}</span><small>${Number(item.guests || 0)} ${lang === "he" ? "סועדים" : "guests"}</small><small class="oc-event-count">${Number(item.events || 0)} ${lang === "he" ? "אירועים" : "events"}</small>`;
-        button.setAttribute("aria-label", `${date}: ${Number(item.reservations || 0)} ${lang === "he" ? "הזמנות" : "bookings"}`);
+        button.innerHTML = `<strong>${day}</strong><span>${Number(item.reservations || 0)} ${lang === "he" ? "הזמנות" : ge("bookings", "הזמנות")}</span><small>${Number(item.guests || 0)} ${lang === "he" ? "סועדים" : ge("guests", "סועדים")}</small><small class="oc-event-count">${Number(item.events || 0)} ${lang === "he" ? "אירועים" : ge("events", "אירועים")}</small>`;
+        button.setAttribute("aria-label", `${date}: ${Number(item.reservations || 0)} ${lang === "he" ? "הזמנות" : ge("bookings", "הזמנות")}`);
         button.addEventListener("click", async () => {
           state.date = date;
           if (datePicker) datePicker.value = date;
@@ -932,7 +1004,7 @@
       }
     } catch {
       if (request === monthRequest && state.ui.view === "month" && state.date === selected) {
-        monthGrid.textContent = lang === "he" ? "טעינת החודש נכשלה. נסה שוב." : "Could not load the month. Please try again.";
+        monthGrid.textContent = lang === "he" ? "טעינת החודש נכשלה. נסה שוב." : ge("Could not load the month. Please try again.", "טעינת החודש נכשלה. נסה שוב.");
       }
     }
   }
@@ -1153,7 +1225,7 @@
         <td data-label="${escapeHTML(init?.txt?.status || "Status")}">${badge(item.status || "")}${depositBadge(item.depositStatus, item.depositAmount, item.depositCurrency)}</td>
         <td data-label="${escapeHTML(init?.txt?.phone || "Phone")}"><a href="tel:${escapeHTML((item.phone || "").replace(/[^+0-9]/g, ""))}">${escapeHTML(item.phone || "")}</a></td>
         <td data-label="${escapeHTML(init?.txt?.actions || "Actions")}">
-          <button class="btn" data-act="edit" data-id="${escapeHTML(item.id)}">${escapeHTML(init?.txt?.edit || (lang === "he" ? "עריכה" : "Edit"))}</button>
+          <button class="btn" data-act="edit" data-id="${escapeHTML(item.id)}">${escapeHTML(init?.txt?.edit || (lang === "he" ? "עריכה" : ge("Edit", "עריכה")))}</button>
           <button class="btn" data-act="arrived" data-id="${item.id}">${escapeHTML(init?.txt?.btnArrived || "Arrived")}</button>
           <button class="btn warn" data-act="cancel" data-id="${item.id}">${escapeHTML(init?.txt?.btnCancel || "Cancel")}</button>
           ${depositButtons}
@@ -1510,7 +1582,7 @@
     if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
-  const tr = (en, he) => lang === 'he' ? he : en;
+  const tr = (en, he, ka) => lang === 'he' ? he : (lang === 'ka' ? (ka || kaText[en] || en) : en);
   let resources = { layouts: [], duration: 120, canManage: init.canManage !== false };
   let editor, editing = null, editorSnapshot = '', editorSaving = false;
   function statusLabel(value) {
@@ -1725,11 +1797,11 @@
         });
         waitlistForm.reset();
         waitlistMessage(lang === "he" ? "הבקשה נוספה לרשימת ההמתנה (לא נוצרה הזמנה)." :
-          "Added to waitlist. No reservation has been created.");
+          ge("Added to waitlist. No reservation has been created.", "הבקשה נוספה לרשימת ההמתנה (לא נוצרה הזמנה)."));
         if (state.date === date) await loadWaitlist();
       } catch {
         waitlistMessage(lang === "he" ? "לא ניתן להוסיף בקשה. בדוק פרטים ונסה שוב." :
-          "Could not add request. Check the details and retry.");
+          ge("Could not add request. Check the details and retry.", "לא ניתן להוסיף בקשה. בדוק פרטים ונסה שוב."));
       } finally {
         if (button) button.disabled = false;
       }

@@ -58,5 +58,11 @@
     "rating": {
       "reviews_count": "({n} შეფასება)"
     }
+  },
+  "confirm": {
+    "details": {
+      "address": "მისამართი",
+      "customerPhone": "მობილური"
+    }
   }
 }

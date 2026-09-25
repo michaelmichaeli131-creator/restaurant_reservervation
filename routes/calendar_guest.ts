@@ -5,9 +5,33 @@ import { readBody } from "./restaurants/_utils/body.ts";
 import { createCalendarWaitlist, validateWaitlistInput } from "../services/calendar_waitlist.ts";
 
 export const calendarGuestRouter = new Router();
+
+function georgianWaitlistError(lang: string | undefined, message: string): string {
+  if (lang !== "ka") return message;
+  const copy: Record<string, string> = {
+    "Refresh the form and try again": "განაახლეთ ფორმა და ხელახლა სცადეთ",
+    "Please agree to be contacted about this request": "გთხოვთ, დაეთანხმოთ ამ მოთხოვნასთან დაკავშირებით დაკავშირებას",
+    "Choose a date within the next six months": "აირჩიეთ თარიღი მომდევნო ექვსი თვის განმავლობაში",
+    "Please choose a time during opening hours": "აირჩიეთ დრო სამუშაო საათებში",
+    "Too many requests. Please try again later": "მოთხოვნების რაოდენობა ძალიან დიდია. მოგვიანებით სცადეთ",
+    "This form was already submitted": "ეს ფორმა უკვე გაგზავნილია",
+    "Please wait before submitting another request": "სხვა მოთხოვნის გაგზავნამდე ცოტა ხანს დაელოდეთ",
+    "This form was already submitted. Refresh before trying again": "ეს ფორმა უკვე გაგზავნილია. ხელახლა ცდამდე განაახლეთ გვერდი",
+    "Invalid date": "თარიღი არასწორია",
+    "Invalid time": "დრო არასწორია",
+    "Invalid name": "სახელი არასწორია",
+    "Invalid phone": "ტელეფონის ნომერი არასწორია",
+    "Invalid party size": "სტუმრების რაოდენობა არასწორია",
+    "Invalid area": "დარბაზის დასახელება არასწორია",
+    "Invalid notes": "შენიშვნები არასწორია",
+    "Could not create waitlist entry": "მოთხოვნის შექმნა ვერ მოხერხდა",
+  };
+  return copy[message] || message;
+}
+
 calendarGuestRouter.get("/restaurants/:rid/waitlist", async ctx => {
   const r = await getRestaurant(ctx.params.rid);
-  if (!r?.approved) ctx.throw(404, "Restaurant not found");
+  if (!r?.approved) ctx.throw(404, ctx.state.lang === "ka" ? "რესტორანი ვერ მოიძებნა" : "Restaurant not found");
   const nonce = crypto.randomUUID();
   await ctx.state.session.set("calendarWaitlistNonce", nonce);
   await render(ctx, "calendar_waitlist_guest", { title: r.name, restaurant: r, nonce, done: false, error: "" });
@@ -15,10 +39,11 @@ calendarGuestRouter.get("/restaurants/:rid/waitlist", async ctx => {
 calendarGuestRouter.post("/restaurants/:rid/waitlist", async ctx => {
   const rid = ctx.params.rid;
   const r = await getRestaurant(rid);
-  if (!r?.approved) ctx.throw(404, "Restaurant not found");
+  if (!r?.approved) ctx.throw(404, ctx.state.lang === "ka" ? "რესტორანი ვერ მოიძებნა" : "Restaurant not found");
   const { payload: input } = await readBody(ctx);
   const nonce = String(input?.nonce || "");
   let error = "";
+  let responseStatus = 400;
   try {
     if (nonce !== await ctx.state.session.get("calendarWaitlistNonce") || !nonce) ctx.throw(403, "Refresh the form and try again");
     if (input.website || input.consent !== "yes") throw new RangeError("Please agree to be contacted about this request");
@@ -41,8 +66,13 @@ calendarGuestRouter.post("/restaurants/:rid/waitlist", async ctx => {
     await createCalendarWaitlist(rid, data, "guest");
     await render(ctx, "calendar_waitlist_guest", { title: r.name, restaurant: r, nonce: "", done: true, error: "" });
     return;
-  } catch (e) { if (!(e instanceof RangeError)) throw e; error = e.message; }
-  ctx.response.status = 400;
+  } catch (e) {
+    const status = Number((e as { status?: number })?.status || 0);
+    if (!(e instanceof RangeError) && status !== 403) throw e;
+    responseStatus = status || 400;
+    error = georgianWaitlistError(ctx.state.lang, String((e as Error).message || e));
+  }
+  ctx.response.status = responseStatus;
   const fresh = crypto.randomUUID();
   await ctx.state.session.set("calendarWaitlistNonce", fresh);
   await render(ctx, "calendar_waitlist_guest", { title: r.name, restaurant: r, nonce: fresh, done: false, error });

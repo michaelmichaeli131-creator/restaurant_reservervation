@@ -170,7 +170,7 @@
     reviews.forEach(review => {
       const userName = review.user ? `${review.user.firstName} ${review.user.lastName}` : '<%= tt("restaurant.reviews.anonymous", "Anonymous") %>';
       const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating);
-      const date = new Date(review.createdAt).toLocaleDateString('he-IL');
+      const date = new Date(review.createdAt).toLocaleDateString('<%= it.lang === "ka" ? "ka-GE" : (it.lang === "he" ? "he-IL" : "en-US") %>');
 
       html += `
         <div class="review-item">

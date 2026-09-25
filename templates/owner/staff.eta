@@ -827,6 +827,8 @@
     .filter(Boolean);
 
   const locale = (String(it.lang||'en').startsWith('ka') ? 'ka-GE' : (String(it.lang||'en').startsWith('he') ? 'he-IL' : 'en-US'));
+  const kaRoles = {owner:'მფლობელი',manager:'მენეჯერი',waiter:'მიმტანი',host:'ჰოსტი',chef:'შეფ-მზარეული',cook:'მზარეული',kitchen:'სამზარეულო',bar:'ბარი',bartender:'ბარმენი',staff:'თანამშრომელი'};
+  const roleLabel = (role, fallback) => it.lang === 'ka' ? (kaRoles[role] || fallback || role) : (fallback || role);
   const permLabels = {
     "pos.waiter": "POS — waiter service and table handling",
     "pos.kitchen": "POS — kitchen or bar order screen",
@@ -843,6 +845,22 @@
     "menu.manage": "Manage menu items and availability",
     "time.clock": "Clock in and clock out"
   };
+  if (it.lang === 'ka') Object.assign(permLabels, {
+    "pos.waiter": "მიმტანის ეკრანი და მაგიდების მომსახურება",
+    "pos.kitchen": "სამზარეულოს ან ბარის შეკვეთების ეკრანი",
+    "host.seating": "სტუმრების განთავსება და დარბაზის მართვა",
+    "reservations.view": "რესტორნის ჯავშნების ნახვა",
+    "reservations.manage": "ჯავშნების მართვა და განახლება",
+    "floor.view": "დარბაზის გეგმის ნახვა",
+    "floor.edit": "დარბაზის გეგმის რედაქტირება",
+    "shifts.view": "ცვლების ნახვა",
+    "shifts.manage": "ცვლების დაგეგმვა და მართვა",
+    "inventory.view": "მარაგისა და ინგრედიენტების ნახვა",
+    "inventory.manage": "მარაგის, შესყიდვებისა და კორექტირებების მართვა",
+    "reports.view": "ანგარიშებისა და ანალიტიკის ნახვა",
+    "menu.manage": "კერძებისა და მათი ხელმისაწვდომობის მართვა",
+    "time.clock": "ცვლის დაწყებისა და დასრულების აღრიცხვა"
+  });
 
   function escAttr(s){
     return String(s || "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -863,7 +881,7 @@
   const __roleOpts = [];
   for (const rr of (staffRoleOptions || [])) {
     const v = String(rr && rr.value ? rr.value : "");
-    const l = String(rr && rr.label ? rr.label : "");
+    const l = roleLabel(v, String(rr && rr.label ? rr.label : ""));
     if (!v) continue;
     __roleOpts.push(`<option value="${escAttr(v)}">${escText(l)}</option>`);
   }
@@ -909,7 +927,7 @@
           <span class="staff-pill">🏷️ <span><%= tt('owner.staff.owner_label', 'Owner') %>: <b><%= owner?.firstName %> <%= owner?.lastName %></b></span></span>
           <span class="staff-pill">✉️ <span><%= tt('owner.staff.email_label', 'Email') %>: <b><%= owner?.email %></b></span></span>
           <% if (leadRole) { %>
-            <span class="staff-pill">📌 <span><%= tt('owner.staff.hero.top_role', 'Most common role') %>: <b><%= leadRole[0] %></b> · <%= leadRole[1] %></span></span>
+            <span class="staff-pill">📌 <span><%= tt('owner.staff.hero.top_role', 'Most common role') %>: <b><%= roleLabel(leadRole[0]) %></b> · <%= leadRole[1] %></span></span>
           <% } %>
         </div>
       </div>
@@ -1066,7 +1084,7 @@
                     </div>
 
                     <div class="request-pills">
-                      <span class="staff-chip role">🎯 <%= tt('owner.staff.tbl.role', 'Role') %>: <b><%= s.role %></b></span>
+                      <span class="staff-chip role">🎯 <%= tt('owner.staff.tbl.role', 'Role') %>: <b><%= roleLabel(s.role) %></b></span>
                     </div>
 
                     <div class="request-meta">
@@ -1135,7 +1153,7 @@
                         </div>
                       </div>
                       <div class="person-pills" style="margin-top:0; justify-content:flex-end">
-                        <span class="staff-chip role">🎯 <%= tt('owner.staff.tbl.role', 'Role') %>: <b><%= s.role %></b></span>
+                        <span class="staff-chip role">🎯 <%= tt('owner.staff.tbl.role', 'Role') %>: <b><%= roleLabel(s.role) %></b></span>
                         <% if (isInactive) { %>
                           <span class="staff-chip inactive">⏸ <%= tt('owner.staff.status_inactive', 'Inactive') %></span>
                         <% } else { %>
@@ -1553,6 +1571,16 @@
             "staff_exists": "This team member is already linked to the selected restaurant.",
             "invalid_body": "The submitted data is invalid."
           };
+          if (<%~ JSON.stringify(it.lang === 'ka') %>) Object.assign(map, {
+            email_required: "მიუთითეთ ელ-ფოსტა.",
+            password_too_short: "პაროლი უნდა შეიცავდეს სულ მცირე 8 სიმბოლოს.",
+            role_invalid: "არჩეული როლი არასწორია.",
+            restaurant_required: "აირჩიეთ რესტორანი.",
+            not_your_restaurant: "ამ რესტორანზე წვდომა არ გაქვთ.",
+            user_email_in_use: "ეს ელ-ფოსტა უკვე გამოიყენება სხვა ანგარიშში.",
+            staff_exists: "ეს თანამშრომელი უკვე დაკავშირებულია არჩეულ რესტორანთან.",
+            invalid_body: "გაგზავნილი მონაცემები არასწორია."
+          });
           showError(map[err] || ("<%= tt('owner.staff.error_prefix', 'Error') %>: " + err));
           submitBtn.disabled = false;
           submitBtn.textContent = "<%= tt('owner.staff.btn_create', 'Create team member') %>";

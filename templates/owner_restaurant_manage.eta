@@ -38,7 +38,7 @@
   function fmtMoneyCents(cents, currency){
     const value = Number(cents || 0) / 100;
     try {
-      return new Intl.NumberFormat(it?.lang === 'he' ? 'he-IL' : 'en-US', { style: 'currency', currency: currency || 'EUR' }).format(value);
+      return new Intl.NumberFormat(it?.lang === 'ka' ? 'ka-GE' : (it?.lang === 'he' ? 'he-IL' : 'en-US'), { style: 'currency', currency: currency || 'EUR' }).format(value);
     } catch (_) {
       return `${value.toFixed(2)} ${currency || 'EUR'}`;
     }
@@ -46,7 +46,7 @@
   function fmtDate(ts){
     if (!ts) return '—';
     try {
-      return new Date(ts).toLocaleDateString(it?.lang === 'he' ? 'he-IL' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+      return new Date(ts).toLocaleDateString(it?.lang === 'ka' ? 'ka-GE' : (it?.lang === 'he' ? 'he-IL' : 'en-US'), { year: 'numeric', month: 'short', day: 'numeric' });
     } catch (_) {
       return '—';
     }

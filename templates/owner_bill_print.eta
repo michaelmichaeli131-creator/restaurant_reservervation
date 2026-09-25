@@ -21,8 +21,9 @@
     ? new Date(bill.createdAt)
     : new Date();
 
-  const dateStr = createdAt.toLocaleDateString("he-IL");
-  const timeStr = createdAt.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+  const locale = it.lang === 'ka' ? 'ka-GE' : (it.lang === 'he' ? 'he-IL' : 'en-US');
+  const dateStr = createdAt.toLocaleDateString(locale);
+  const timeStr = createdAt.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
 %>
 
 <section class="sb-bill container" aria-label="<%= tt('bill.aria','Bill for restaurant') %>">

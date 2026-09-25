@@ -19,7 +19,7 @@
       <h1 class="title"><%= tt('review.form.title_heading', 'How was your visit?') %></h1>
       <div class="restaurant-info">
         <h2 class="restaurant-name"><%= it.restaurant.name %></h2>
-        <p class="visit-date"><%= tt('review.form.visit_on', 'Visit on') %> <%= new Date(it.reservation.date).toLocaleDateString(it.lang === 'he' ? 'he-IL' : 'en-US') %></p>
+        <p class="visit-date"><%= tt('review.form.visit_on', 'Visit on') %> <%= new Date(it.reservation.date).toLocaleDateString(it.lang === 'ka' ? 'ka-GE' : (it.lang === 'he' ? 'he-IL' : 'en-US')) %></p>
       </div>
     </header>
 
