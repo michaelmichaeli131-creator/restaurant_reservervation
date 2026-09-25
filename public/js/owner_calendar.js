@@ -518,7 +518,7 @@
       name.textContent = item.name;
       const details = document.createElement("small");
       details.textContent = [item.time, item.people + (lang === "he" ? " סועדים" : " guests"),
-        item.area, item.status].filter(Boolean).join(" · ");
+        item.area, statusLabel(item.status)].filter(Boolean).join(" · ");
       description.append(name, details);
       if (item.note) {
         const note = document.createElement("small");
@@ -653,7 +653,7 @@
       row.innerHTML = `<time class="oc-agenda__time">${escapeHTML(item.time || "—")}</time>
         <span class="oc-agenda__person"><strong>${escapeHTML(label)}</strong>
         <small>${escapeHTML(meta)}</small></span>
-        <span class="oc-agenda__status oc-agenda__status--${statusTone}">${escapeHTML(item.status || "new")}</span>
+        <span class="oc-agenda__status oc-agenda__status--${statusTone}">${escapeHTML(statusLabel(item.status))}</span>
         <span class="oc-agenda__arrow" aria-hidden="true">↗</span>`;
       row.addEventListener("click", () => openEditor(item));
       agendaRows.appendChild(row);
@@ -713,7 +713,7 @@
     const nameNode = document.createElement("strong");
     nameNode.textContent = name;
     const metaNode = document.createElement("small");
-    metaNode.textContent = [guests > 0 ? String(guests) : "", item.status || ""].filter(Boolean).join(" · ");
+    metaNode.textContent = [guests > 0 ? String(guests) : "", statusLabel(item.status)].filter(Boolean).join(" · ");
     button.append(timeNode, nameNode, metaNode);
     const status = String(item.status || "").toLowerCase();
     if (["cancelled", "canceled", "no-show", "noshow", "no_show"].includes(status)) {
@@ -749,6 +749,7 @@
     axisHeader.className = "oc-week__axis-header";
     axisHeader.textContent = lang === "he" ? "שעה" : "Time";
     axis.appendChild(axisHeader);
+    const axisSpacer = document.createElement("div"); axisSpacer.className = "oc-week__add-spacer"; axis.appendChild(axisSpacer);
     const axisBody = document.createElement("div");
     axisBody.className = "oc-week__axis-body";
     axisBody.style.height = fullHeight + "px";
@@ -766,10 +767,19 @@
       const column = document.createElement("section");
       column.className = "oc-week__track";
       column.appendChild(createWeekHeading(date));
+      column.appendChild(weekAddButton(date));
       const canvas = document.createElement("div");
       canvas.className = "oc-week__canvas";
       canvas.style.height = fullHeight + "px";
       canvas.style.setProperty("--week-step-height", heightPerStep + "px");
+      if (resources.canManage && results[index].status === 'fulfilled') {
+        for (let minute = firstMinute; minute < lastMinute; minute += step) {
+          const slot = weekAddButton(date, tick(minute));
+          slot.className = 'oc-week__add-slot'; slot.textContent = '+ ' + tick(minute);
+          slot.style.top = (minute-firstMinute)*ppm + 'px'; slot.style.height = heightPerStep+'px';
+          canvas.appendChild(slot);
+        }
+      }
       if (results[index].status !== "fulfilled") {
         const error = document.createElement("p");
         error.className = "oc-week__empty";
@@ -832,6 +842,7 @@
       const card = document.createElement("section");
       card.className = "oc-week__day";
       card.appendChild(createWeekHeading(date));
+      card.appendChild(weekAddButton(date));
       if (result.status !== "fulfilled") {
         const error = document.createElement("p");
         error.className = "oc-week__empty";
@@ -1142,6 +1153,7 @@
         <td data-label="${escapeHTML(init?.txt?.status || "Status")}">${badge(item.status || "")}${depositBadge(item.depositStatus, item.depositAmount, item.depositCurrency)}</td>
         <td data-label="${escapeHTML(init?.txt?.phone || "Phone")}"><a href="tel:${escapeHTML((item.phone || "").replace(/[^+0-9]/g, ""))}">${escapeHTML(item.phone || "")}</a></td>
         <td data-label="${escapeHTML(init?.txt?.actions || "Actions")}">
+          <button class="btn" data-act="edit" data-id="${escapeHTML(item.id)}">${escapeHTML(init?.txt?.edit || (lang === "he" ? "עריכה" : "Edit"))}</button>
           <button class="btn" data-act="arrived" data-id="${item.id}">${escapeHTML(init?.txt?.btnArrived || "Arrived")}</button>
           <button class="btn warn" data-act="cancel" data-id="${item.id}">${escapeHTML(init?.txt?.btnCancel || "Cancel")}</button>
           ${depositButtons}
@@ -1152,6 +1164,18 @@
     drawerTableBody.appendChild(frag);
     if(!resources.canManage) $$("button[data-act]", drawerTableBody).forEach(b=>b.remove());
 
+    $$('button[data-act="edit"]', drawerTableBody).forEach(b => b.addEventListener('click', async () => {
+      const date = state.date; b.disabled = true;
+      try {
+        // Drawer rows contain display summaries. Load the complete reservation
+        // before editing so duration, table, notes and version are preserved.
+        const data = await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/agenda?date=${encodeURIComponent(date)}`);
+        const item = data.items?.find(x => String(x.id) === b.dataset.id);
+        if (!item) throw new Error(tr('Reservation no longer available. Refresh the calendar.', 'ההזמנה אינה זמינה. יש לרענן את היומן.'));
+        if (state.date === date && state.drawer.open) openEditor(item);
+      } catch (error) { alert(error.message); }
+      finally { b.disabled = !resources.canManage; }
+    }));
     $$('button[data-act="arrived"]', drawerTableBody).forEach((b) => b.addEventListener("click", () => slotAction("arrived", { id: b.dataset.id })));
     $$('button[data-act="cancel"]', drawerTableBody).forEach((b) => b.addEventListener("click", () => slotAction("cancel", { id: b.dataset.id })));
     $$('button[data-act="confirm_deposit"]', drawerTableBody).forEach((b) => b.addEventListener("click", () => slotAction("confirm_deposit", { id: b.dataset.id })));
@@ -1488,7 +1512,34 @@
 
   const tr = (en, he) => lang === 'he' ? he : en;
   let resources = { layouts: [], duration: 120, canManage: init.canManage !== false };
-  let editor, editing = null;
+  let editor, editing = null, editorSnapshot = '', editorSaving = false;
+  function statusLabel(value) {
+    const labels = {
+      new:['New','חדש'], pending:['Pending','ממתין לאישור'], confirmed:['Confirmed','מאושר'],
+      approved:['Confirmed','מאושר'], arrived:['Arrived','הגיע'], completed:['Completed','הסתיים'],
+      canceled:['Cancelled','בוטל'], cancelled:['Cancelled','בוטל'], no_show:['No show','לא הגיע'],
+      'no-show':['No show','לא הגיע'], blocked:['Blocked','חסום'], waiting:['Waiting','ממתין'],
+      offered:['Contacted','נוצר קשר'], converted:['Booked','הומר להזמנה']
+    };
+    const label = labels[String(value || 'new').toLowerCase()];
+    return label ? tr(...label) : String(value || '');
+  }
+  function editorValues() { return JSON.stringify(Array.from(new FormData($('#oc-editor-form')).entries())); }
+  function closeEditor() {
+    if (editorSaving) return;
+    if (resources.canManage && editorValues() !== editorSnapshot &&
+        !confirm(tr('Discard your unsaved changes?', 'לסגור ללא שמירת השינויים?'))) return;
+    editor.close();
+  }
+  function weekAddButton(date, time) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'oc-week__add';
+    button.textContent = tr('+ Reservation', '+ הזמנה');
+    button.setAttribute('aria-label', `${tr('Add reservation', 'הוספת הזמנה')} · ${date}${time ? ' · '+time : ''}`);
+    button.hidden = !resources.canManage;
+    button.onclick = () => openEditor({date, ...(time ? {time} : {})});
+    return button;
+  }
   function filterQuery() {
     return new URLSearchParams({ q: $('#oc-global-search')?.value || '', status: $('#oc-global-status')?.value || 'all', room: $('#oc-global-room')?.value || '', kind: $('#oc-global-kind')?.value || 'all' }).toString();
   }
@@ -1514,6 +1565,7 @@
       <label>${tr('Room','אזור')}<select id="oc-global-room"><option value="">${tr('All rooms','כל האזורים')}</option></select></label>
       <label>${tr('Type','סוג')}<select id="oc-global-kind"><option value="all">${tr('Bookings and events','הזמנות ואירועים')}</option><option value="reservation">${tr('Reservations','הזמנות')}</option><option value="event">${tr('Events','אירועים')}</option><option value="block">${tr('Blocks','חסימות')}</option></select></label>
       <label>${tr("Display intervals","מרווחי תצוגה")}<select id="oc-display-minutes"><option value="15">15 ${tr("min","דקות")}</option><option value="30">30 ${tr("min","דקות")}</option></select></label>
+      <button type="button" id="oc-clear-filters">${tr("Clear filters","ניקוי מסננים")}</button>
       <button type="button" id="oc-add-reservation">${tr('+ Reservation','+ הזמנה')}</button><button type="button" id="oc-add-event">${tr('+ Event / block','+ אירוע / חסימה')}</button>
       <a id="oc-floor-link" href="/owner/restaurants/${encodeURIComponent(state.rid)}/floor">${tr('Floor plan','מפת המסעדה')} ↗</a>`;
     $('.oc-viewbar')?.after(bar);
@@ -1521,6 +1573,10 @@
     $('#oc-display-minutes').onchange=()=>{state.ui.displayMinutes=Number($('#oc-display-minutes').value);if(weekIntervalSelect)weekIntervalSelect.value=String(state.ui.displayMinutes);persistCalendarOptions();void loadDay();};
     $('#oc-global-search').addEventListener('input', debounce(refreshFilters,250));
     ['status','room','kind'].forEach(id => $('#oc-global-'+id).addEventListener('change',refreshFilters));
+    $('#oc-clear-filters').onclick = () => {
+      $('#oc-global-search').value = ''; $('#oc-global-status').value = 'all';
+      $('#oc-global-room').value = ''; $('#oc-global-kind').value = 'all'; refreshFilters();
+    };
     $('#oc-add-reservation').onclick = () => openEditor({});
     $('#oc-add-event').onclick = () => openEditor({calendarKind:'event'});
     editor = document.createElement('dialog'); editor.className = 'oc-editor'; editor.setAttribute('aria-labelledby','oc-editor-title');
@@ -1537,22 +1593,23 @@
       <label class="oc-editor-wide">${tr('Notes','הערות')}<textarea name="note" maxlength="1000"></textarea></label>
       <p class="oc-editor-wide" id="oc-editor-error" role="alert"></p><button type="submit">${tr('Save','שמירה')}</button><button type="button" id="oc-editor-cancel">${tr('Close','סגירה')}</button></form>`;
     document.body.append(editor);
-    $('#oc-editor-close').onclick = $('#oc-editor-cancel').onclick = () => editor.close();
+    $('#oc-editor-close').onclick = $('#oc-editor-cancel').onclick = closeEditor;
+    editor.addEventListener('cancel', e => {e.preventDefault(); closeEditor();});
     const form = $('#oc-editor-form');
     form.elements.preferredLayoutId.onchange = () => fillTables();
     form.elements.calendarKind.onchange = () => { if (form.elements.calendarKind.value === 'block') form.elements.status.value = 'blocked'; };
     form.addEventListener('submit', async e => {
-      e.preventDefault(); const button = form.querySelector('[type=submit]'); if(button.disabled) return;
+      e.preventDefault(); const button = form.querySelector('[type=submit]'); if(button.disabled || editorSaving) return;
       const payload = Object.fromEntries(new FormData(form));
       if(editing?.id) payload.id = editing.id;
       if(editing?.updatedAt) payload.updatedAt = editing.updatedAt;
       if(editing?.waitlistId) payload.waitlistId = editing.waitlistId;
-      button.disabled = true; $('#oc-editor-error').textContent = '';
+      editorSaving = true; button.disabled = true; editor.setAttribute('aria-busy','true'); $('#oc-editor-error').textContent = '';
       try {
         await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/save`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
         state.date = payload.date; editor.close(); closeDrawer(); await refreshCalendar(); connectSSE();
       } catch(error) { $('#oc-editor-error').textContent = error.message; }
-      finally { button.disabled = !resources.canManage; }
+      finally { editorSaving = false; editor.removeAttribute('aria-busy'); button.disabled = !resources.canManage; }
     });
     void fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/resources`).then(data => {
       resources = data;
@@ -1573,17 +1630,25 @@
     select.value=selected;
   }
   function openEditor(item) {
-    if(!editor) return;
+    if(!editor || editorSaving) return;
     editing=item.waitlistId ? item : {...item,id:item.id || crypto.randomUUID()};
     const form=$('#oc-editor-form'); form.reset(); $('#oc-editor-error').textContent='';
     const values={calendarKind:'reservation',date:state.date,time:state.drawer.time || '19:00',people:2,durationMinutes:resources.duration,status:'confirmed',...item};
+    if (!(Number(values.durationMinutes) > 0)) values.durationMinutes = resources.duration;
     const roomSelect=form.elements.preferredLayoutId;
     roomSelect.replaceChildren(new Option(tr('Any room','ללא העדפה'),''));
     resources.layouts.forEach(r=>roomSelect.append(new Option(r.name || r.id,r.id)));
     for(const [key,value] of Object.entries(values)) if(form.elements[key]) form.elements[key].value=value ?? '';
+    const aliases = {cancelled:'canceled', 'no-show':'no_show', noshow:'no_show', approved:'confirmed'};
+    form.elements.status.value = aliases[values.status] || values.status;
+    if (!form.elements.status.value) {
+      form.elements.status.append(new Option(statusLabel(values.status),values.status));
+      form.elements.status.value=values.status;
+    }
     fillTables(item.tableId || '');
     for(const field of form.elements) field.disabled=!resources.canManage;
     $('#oc-editor-cancel').disabled=false;
+    editorSnapshot = editorValues();
     if(!editor.open) editor.showModal();
   }
 
