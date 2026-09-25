@@ -213,3 +213,12 @@ body.oc-calendar-month-mode .oc-toolbar{display:none!important}
 /* Override legacy fixed 1400px track and panel translation. */
 .oc-main{display:block!important;max-width:1600px;padding:0;margin-inline:auto!important}.oc-layout{grid-template-columns:minmax(250px,300px) minmax(0,1fr)!important;max-width:100%;box-sizing:border-box}.oc-panel{width:100%!important;transform:none!important;margin-inline:0!important}
 @media(max-width:1000px){.oc-layout{grid-template-columns:1fr!important}.oc-panel{grid-column:1/-1!important;grid-row:1!important}.oc-sidebar{grid-column:1/-1!important;grid-row:2!important}}
+
+/* Direct weekly creation, with a full keyboard target for each displayed slot. */
+.oc-week__add,.oc-week__add-spacer{box-sizing:border-box;height:40px;min-height:40px;width:100%;margin:0}
+.oc-week__add{border:1px dashed #456f9b;background:#102941;color:#b7d9ff;border-radius:8px;cursor:pointer}
+.oc-week__add[hidden]{display:block;visibility:hidden}
+.oc-week__add-slot{position:absolute;inset-inline:0;width:100%;box-sizing:border-box;border:0;background:transparent;color:transparent;text-align:start;padding-inline:8px;cursor:pointer;border-radius:4px}
+.oc-week__add-slot:hover,.oc-week__add-slot:focus-visible{background:#2c5c8b66;color:#d9eeff;outline:2px solid #7bb8ff;outline-offset:-2px;z-index:1}
+.oc-week__canvas .oc-week__booking{z-index:2}
+.oc-editor[aria-busy=true] #oc-editor-close,.oc-editor[aria-busy=true] #oc-editor-cancel{opacity:.45;cursor:wait}
