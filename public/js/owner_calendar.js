@@ -1654,13 +1654,15 @@
       button.onclick = async () => {
         if (editorSaving || editorValues() !== editorSnapshot) return;
         if (['completed','no_show'].includes(status) && !confirm(tr('Update status and release this reservation’s capacity?', 'לעדכן את הסטטוס ולשחרר את המקומות של ההזמנה?'))) return;
-        editorSaving = true; renderQuickActions(); editor.setAttribute('aria-busy','true');
+        const fields = Array.from($('#oc-editor-form').elements).map(field => [field, field.disabled]);
+        editorSaving = true; fields.forEach(([field]) => field.disabled = true);
+        renderQuickActions(); editor.setAttribute('aria-busy','true');
         $('#oc-editor-error').textContent = '';
         try {
           await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/status`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:editing.id,updatedAt:editing.updatedAt,status})});
           editor.close(); closeDrawer(); await refreshCalendar();
         } catch(error) { $('#oc-editor-error').textContent = error.message; }
-        finally { editorSaving = false; editor.removeAttribute('aria-busy'); renderQuickActions(); }
+        finally { editorSaving = false; fields.forEach(([field, disabled]) => field.disabled = disabled); editor.removeAttribute('aria-busy'); renderQuickActions(); }
       };
       root.append(button);
     }
