@@ -4,7 +4,7 @@
 import { Router, Status } from "jsr:@oak/oak";
 import { render } from "../lib/view.ts";
 import { getStaffMembership } from "../services/authz.ts";
-import { saveCalendarReservation, inactive } from "../services/calendar_operations.ts";
+import { saveCalendarReservation, updateCalendarStatus, calendarAlternatives, inactive } from "../services/calendar_operations.ts";
 import { kv } from "../database.ts";
 import { debugLog } from "../lib/debug.ts";
 
@@ -526,6 +526,22 @@ ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/resources", async (ctx
   const { rid } = ctx.params;
   const restaurant = await ensureOwnerAccess(ctx, rid);
   json(ctx, { ok: true, layouts: await listFloorLayouts(rid), duration: (restaurant as any).serviceDurationMinutes || 120, canManage: ctx.state.calendarCanManage, isOwner: ctx.state.calendarIsOwner });
+});
+ownerCalendarRouter.get("/owner/restaurants/:rid/calendar/alternatives", async (ctx) => {
+  const { rid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+  try { json(ctx, {ok: true, items: await calendarAlternatives(rid, Object.fromEntries(ctx.request.url.searchParams))}); }
+  catch (error) { json(ctx, {ok: false, error: error instanceof Error ? error.message : "Unable to check availability"}, 400); }
+});
+ownerCalendarRouter.post("/owner/restaurants/:rid/calendar/status", async (ctx) => {
+  const { rid } = ctx.params;
+  await ensureOwnerAccess(ctx, rid);
+  const { payload } = await readBody(ctx);
+  try {
+    const item = await updateCalendarStatus(rid, payload, ctx.state.user.id);
+    broadcast(rid, item.date, "reservation_update", {date: item.date, time: item.time});
+    json(ctx, {ok: true, item});
+  } catch (error) { json(ctx, {ok: false, error: error instanceof Error ? error.message : "Unable to update status"}, 409); }
 });
 ownerCalendarRouter.post("/owner/restaurants/:rid/calendar/save", async (ctx) => {
   const { rid } = ctx.params;

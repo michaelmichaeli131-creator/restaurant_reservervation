@@ -222,3 +222,5 @@ body.oc-calendar-month-mode .oc-toolbar{display:none!important}
 .oc-week__add-slot:hover,.oc-week__add-slot:focus-visible{background:#2c5c8b66;color:#d9eeff;outline:2px solid #7bb8ff;outline-offset:-2px;z-index:1}
 .oc-week__canvas .oc-week__booking{z-index:2}
 .oc-editor[aria-busy=true] #oc-editor-close,.oc-editor[aria-busy=true] #oc-editor-cancel{opacity:.45;cursor:wait}
+
+.oc-quick-actions{display:flex;flex-wrap:wrap;gap:8px}.oc-quick-actions:empty{display:none}#oc-alternatives button{margin:8px 4px;min-height:44px}#oc-alternatives{padding-block:8px}

@@ -1516,7 +1516,7 @@
   function statusLabel(value) {
     const labels = {
       new:['New','חדש'], pending:['Pending','ממתין לאישור'], confirmed:['Confirmed','מאושר'],
-      approved:['Confirmed','מאושר'], arrived:['Arrived','הגיע'], completed:['Completed','הסתיים'],
+      approved:['Confirmed','מאושר'], arrived:['Arrived','הגיע'], seated:['Seated','הושבו'], completed:['Completed','הסתיים'],
       canceled:['Cancelled','בוטל'], cancelled:['Cancelled','בוטל'], no_show:['No show','לא הגיע'],
       'no-show':['No show','לא הגיע'], blocked:['Blocked','חסום'], waiting:['Waiting','ממתין'],
       offered:['Contacted','נוצר קשר'], converted:['Booked','הומר להזמנה']
@@ -1561,7 +1561,7 @@
     const bar = document.createElement('div');
     bar.className = 'oc-global-tools';
     bar.innerHTML = `<label>${tr('Search','חיפוש')}<input id="oc-global-search" type="search" placeholder="${tr('Name, phone or event','שם, טלפון או אירוע')}"></label>
-      <label>${tr('Status','סטטוס')}<select id="oc-global-status"><option value="all">${tr('All statuses','כל הסטטוסים')}</option><option value="new">${tr('New','חדש')}</option><option value="confirmed">${tr('Confirmed','מאושר')}</option><option value="arrived">${tr('Arrived','הגיע')}</option><option value="cancelled">${tr('Cancelled','בוטל')}</option><option value="no_show">${tr('No show','לא הגיע')}</option><option value="blocked">${tr('Blocked','חסום')}</option></select></label>
+      <label>${tr('Status','סטטוס')}<select id="oc-global-status"><option value="all">${tr('All statuses','כל הסטטוסים')}</option><option value="new">${tr('New','חדש')}</option><option value="confirmed">${tr('Confirmed','מאושר')}</option><option value="arrived">${tr('Arrived','הגיע')}</option><option value="seated">${tr('Seated','הושבו')}</option><option value="cancelled">${tr('Cancelled','בוטל')}</option><option value="no_show">${tr('No show','לא הגיע')}</option><option value="blocked">${tr('Blocked','חסום')}</option></select></label>
       <label>${tr('Room','אזור')}<select id="oc-global-room"><option value="">${tr('All rooms','כל האזורים')}</option></select></label>
       <label>${tr('Type','סוג')}<select id="oc-global-kind"><option value="all">${tr('Bookings and events','הזמנות ואירועים')}</option><option value="reservation">${tr('Reservations','הזמנות')}</option><option value="event">${tr('Events','אירועים')}</option><option value="block">${tr('Blocks','חסימות')}</option></select></label>
       <label>${tr("Display intervals","מרווחי תצוגה")}<select id="oc-display-minutes"><option value="15">15 ${tr("min","דקות")}</option><option value="30">30 ${tr("min","דקות")}</option></select></label>
@@ -1588,14 +1588,35 @@
       <label>${tr('Phone','טלפון')}<input name="phone" type="tel" maxlength="40"></label><label>${tr('Guests / seats held','סועדים / מקומות לשמירה')}<input name="people" type="number" min="1" max="10000" required></label>
       <label>${tr('Date','תאריך')}<input name="date" type="date" required></label><label>${tr('Time','שעה')}<input name="time" type="time" required></label>
       <label>${tr('Duration (minutes)','משך (דקות)')}<input name="durationMinutes" type="number" min="15" max="1440" required></label>
-      <label>${tr('Status','סטטוס')}<select name="status"><option value="confirmed">${tr('Confirmed','מאושר')}</option><option value="new">${tr('New','חדש')}</option><option value="arrived">${tr('Arrived','הגיע')}</option><option value="completed">${tr('Completed','הסתיים')}</option><option value="no_show">${tr('No show','לא הגיע')}</option><option value="canceled">${tr('Cancelled','בוטל')}</option><option value="blocked">${tr('Blocked','חסום')}</option></select></label>
+      <label>${tr('Status','סטטוס')}<select name="status"><option value="confirmed">${tr('Confirmed','מאושר')}</option><option value="new">${tr('New','חדש')}</option><option value="arrived">${tr('Arrived','הגיע')}</option><option value="seated">${tr('Seated','הושבו')}</option><option value="completed">${tr('Completed','הסתיים')}</option><option value="no_show">${tr('No show','לא הגיע')}</option><option value="canceled">${tr('Cancelled','בוטל')}</option><option value="blocked">${tr('Blocked','חסום')}</option></select></label>
       <label>${tr('Room','אזור')}<select name="preferredLayoutId"></select></label><label>${tr('Table','שולחן')}<select name="tableId"></select></label>
       <label class="oc-editor-wide">${tr('Notes','הערות')}<textarea name="note" maxlength="1000"></textarea></label>
+      <div class="oc-editor-wide oc-quick-actions" id="oc-quick-actions"></div>
+      <div class="oc-editor-wide"><button type="button" id="oc-find-alternatives">${tr('Find alternative times','חיפוש שעות חלופיות')}</button><div id="oc-alternatives" aria-live="polite"></div></div>
       <p class="oc-editor-wide" id="oc-editor-error" role="alert"></p><button type="submit">${tr('Save','שמירה')}</button><button type="button" id="oc-editor-cancel">${tr('Close','סגירה')}</button></form>`;
     document.body.append(editor);
     $('#oc-editor-close').onclick = $('#oc-editor-cancel').onclick = closeEditor;
     editor.addEventListener('cancel', e => {e.preventDefault(); closeEditor();});
     const form = $('#oc-editor-form');
+    let alternativesRequest = 0;
+    form.addEventListener('input', () => { alternativesRequest++; $('#oc-alternatives').replaceChildren(); renderQuickActions(); });
+    $('#oc-find-alternatives').onclick = async () => {
+      if (editorSaving || !form.reportValidity()) return;
+      const request = ++alternativesRequest, snapshot = editorValues(), reservationId = editing?.id;
+      const params = new URLSearchParams(Object.fromEntries(new FormData(form)));
+      if (reservationId) params.set('id', reservationId);
+      const root = $('#oc-alternatives'); root.textContent = tr('Checking availability…','בודק זמינות…');
+      try {
+        const data = await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/alternatives?${params}`);
+        if (request !== alternativesRequest || !editor.open || editing?.id !== reservationId || editorValues() !== snapshot) return;
+        root.textContent = data.items.length ? tr('Same guests, duration and room. Choose a time, then save.','אותם סועדים, משך ואזור. בחרו שעה ואז שמרו.') : tr('No alternative times available on this date.','אין שעות חלופיות זמינות בתאריך זה.');
+        for (const item of data.items) {
+          const button = document.createElement('button'); button.type = 'button'; button.textContent = item.time;
+          button.onclick = () => { if(editorSaving) return; form.elements.time.value = item.time; alternativesRequest++; root.replaceChildren(); renderQuickActions(); };
+          root.append(button);
+        }
+      } catch (error) { if (request === alternativesRequest && editor.open && editing?.id === reservationId) root.textContent = error.message; }
+    };
     form.elements.preferredLayoutId.onchange = () => fillTables();
     form.elements.calendarKind.onchange = () => { if (form.elements.calendarKind.value === 'block') form.elements.status.value = 'blocked'; };
     form.addEventListener('submit', async e => {
@@ -1622,6 +1643,28 @@
       }
     }).catch(()=>{ $('#oc-add-reservation').disabled = $('#oc-add-event').disabled = true; });
   }
+  function renderQuickActions() {
+    const root = $('#oc-quick-actions'); root.replaceChildren();
+    if (!resources.canManage || !editing?.id || editing.updatedAt == null || (editing.calendarKind || 'reservation') !== 'reservation') return;
+    const transitions = {new:['arrived','no_show'], pending:['arrived','no_show'], confirmed:['arrived','no_show'], approved:['arrived','no_show'], arrived:['seated','completed'], seated:['completed']};
+    for (const status of transitions[editing.status] || []) {
+      const button = document.createElement('button'); button.type = 'button'; button.textContent = statusLabel(status);
+      button.disabled = editorSaving || editorValues() !== editorSnapshot;
+      button.title = tr('Updates status immediately; save other edits first.','עדכון סטטוס מיידי; יש לשמור שינויים אחרים קודם.');
+      button.onclick = async () => {
+        if (editorSaving || editorValues() !== editorSnapshot) return;
+        if (['completed','no_show'].includes(status) && !confirm(tr('Update status and release this reservation’s capacity?', 'לעדכן את הסטטוס ולשחרר את המקומות של ההזמנה?'))) return;
+        editorSaving = true; renderQuickActions(); editor.setAttribute('aria-busy','true');
+        $('#oc-editor-error').textContent = '';
+        try {
+          await fetchJSON(`/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/status`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:editing.id,updatedAt:editing.updatedAt,status})});
+          editor.close(); closeDrawer(); await refreshCalendar();
+        } catch(error) { $('#oc-editor-error').textContent = error.message; }
+        finally { editorSaving = false; editor.removeAttribute('aria-busy'); renderQuickActions(); }
+      };
+      root.append(button);
+    }
+  }
   function fillTables(selected='') {
     const form = $('#oc-editor-form');
     const select = form.elements.tableId; select.replaceChildren(new Option(tr('Unassigned','ללא שיוך'),''));
@@ -1632,7 +1675,7 @@
   function openEditor(item) {
     if(!editor || editorSaving) return;
     editing=item.waitlistId ? item : {...item,id:item.id || crypto.randomUUID()};
-    const form=$('#oc-editor-form'); form.reset(); $('#oc-editor-error').textContent='';
+    const form=$('#oc-editor-form'); form.reset(); $('#oc-editor-error').textContent=''; $('#oc-alternatives').replaceChildren();
     const values={calendarKind:'reservation',date:state.date,time:state.drawer.time || '19:00',people:2,durationMinutes:resources.duration,status:'confirmed',...item};
     if (!(Number(values.durationMinutes) > 0)) values.durationMinutes = resources.duration;
     const roomSelect=form.elements.preferredLayoutId;
@@ -1649,6 +1692,7 @@
     for(const field of form.elements) field.disabled=!resources.canManage;
     $('#oc-editor-cancel').disabled=false;
     editorSnapshot = editorValues();
+    renderQuickActions();
     if(!editor.open) editor.showModal();
   }
 

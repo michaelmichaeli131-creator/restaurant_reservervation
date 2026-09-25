@@ -4,7 +4,7 @@ async function rejects(fn: () => Promise<unknown>, message: string) { let failed
 Deno.test({name:'Calendar: capacity, event duration, table conflicts, tenant isolation and atomic waitlist conversion',sanitizeResources:false,sanitizeOps:false,fn:async()=>{
  const dir=await Deno.makeTempDir(); Deno.env.set('DENO_KV_PATH',dir+'/calendar.db');
  const db=await import('../database.ts');
- const {saveCalendarReservation:save}=await import('../services/calendar_operations.ts');
+ const {saveCalendarReservation:save, updateCalendarStatus:updateStatus, calendarAlternatives:alternatives}=await import('../services/calendar_operations.ts');
  const {createCalendarWaitlist,listCalendarWaitlist}=await import('../services/calendar_waitlist.ts');
  try {
   const rid='calendar-test', date='2099-01-01';
@@ -29,6 +29,21 @@ Deno.test({name:'Calendar: capacity, event duration, table conflicts, tenant iso
   await db.kv.set(['floor_plan_by_restaurant',rid,'room'],{id:'room'});
   const seated=await save(rid,{...base,people:2,preferredLayoutId:'room',tableId:'table'},'owner');
   await rejects(()=>save(rid,{...base,people:2,preferredLayoutId:'room',tableId:'table'},'owner'),'Double table assignment accepted');
+  const before=JSON.stringify((await db.kv.get(['reservation',seated.id])).value);
+  const choices=await alternatives(rid,{...base,people:2,preferredLayoutId:'room',tableId:'table'});
+  assert(choices.length>0 && choices.every(c=>c.time<='17:10'||c.time>='19:10'),'Suggestions overlap reserved table');
+  assert(choices.every(c=>c.time.endsWith('0')),'Suggestions ignored booking interval');
+  assert(before===JSON.stringify((await db.kv.get(['reservation',seated.id])).value),'Availability check mutated reservation');
+  await rejects(()=>updateStatus('other',{id:seated.id,updatedAt:seated.updatedAt,status:'arrived'},'owner'),'Status endpoint crossed tenant');
+  await rejects(()=>updateStatus(rid,{id:seated.id,updatedAt:seated.updatedAt-1,status:'arrived'},'owner'),'Stale status accepted');
+  const arrived=await updateStatus(rid,{id:seated.id,updatedAt:seated.updatedAt,status:'arrived'},'host');
+  assert(arrived.phone===seated.phone&&arrived.time===seated.time&&arrived.tableId===seated.tableId,'Status changed booking details');
+  const atTable=await updateStatus(rid,{id:arrived.id,updatedAt:arrived.updatedAt,status:'seated'},'host');
+  await rejects(()=>save(rid,{...base,people:2,preferredLayoutId:'room',tableId:'table'},'owner'),'Seated reservation stopped occupying table');
+  const done=await updateStatus(rid,{id:atTable.id,updatedAt:atTable.updatedAt,status:'completed'},'host');
+  await rejects(()=>updateStatus(rid,{id:done.id,updatedAt:done.updatedAt,status:'arrived'},'host'),'Quick action reopened completed booking');
+  const free=await save(rid,{...base,people:2,preferredLayoutId:'room',tableId:'table'},'owner');
+  await save(rid,{id:free.id,status:'canceled'},'owner');
   await save(rid,{id:seated.id,status:'canceled'},'owner');
   const waiting=await createCalendarWaitlist(rid,{date,time:'18:10',name:'Wait Guest',phone:'+972501234567',people:2},'guest');
   const convert={date,time:'18:10',people:2,firstName:waiting.name,phone:waiting.phone};

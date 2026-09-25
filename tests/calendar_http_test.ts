@@ -26,6 +26,16 @@ Deno.test({name:'Calendar HTTP permissions, guest consent, filters and reservati
   const payload={date:'2099-01-01',time:'18:10',people:2,firstName:'Ada'};
   assert((await request(path+'/save','POST',payload,'viewer'))?.status===403,'Read-only staff could write');
   const saved=await request(path+'/save','POST',payload,'host');assert(saved?.status===200,'Host could not save');
+  const item=(await saved.json()).item;
+  const action={id:item.id,updatedAt:item.updatedAt,status:'arrived'};
+  assert((await request(path+'/status','POST',action,'viewer'))?.status===403,'Viewer could change status');
+  assert((await request(path+'/status','POST',action,'other-owner'))?.status===403,'Other owner could change status');
+  assert((await request(path+'/status','POST',action,'host'))?.status===200,'Host could not mark arrival');
+  assert((await request(path+'/status','POST',action,'host'))?.status===409,'Stale action not rejected');
+  const query=new URLSearchParams({...payload,people:'2',durationMinutes:'60'}).toString();
+  assert((await request(path+'/alternatives?'+query,'GET',undefined,''))?.status===401,'Anonymous availability access allowed');
+  const choices=await (await request(path+'/alternatives?'+query,'GET',undefined,'viewer'))?.json();
+  assert(choices.ok&&choices.items.length>0,'Authorized alternatives failed');
   const event=await request(path+'/save','POST',{...payload,time:'20:10',calendarKind:'event',eventTitle:'Birthday'});assert(event?.status===200,'Event creation failed');
   const filtered=await (await request(path+'/agenda?date=2099-01-01&kind=event&q=Birthday'))?.json();assert(filtered.items.length===1&&filtered.items[0].eventTitle==='Birthday','Shared filters failed');
   const month=await (await request(path+'/month?month=2099-01&kind=event'))?.json();assert(month.days[0].events===1&&month.days[0].reservations===0,'Event month counts failed');
