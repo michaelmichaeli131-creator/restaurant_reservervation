@@ -13,3 +13,8 @@ const dbPath = `${root}/database.ts`;
 let db = await Deno.readTextFile(dbPath);
 db = db.replace('!["canceled", "cancelled", "completed"].includes(normalized)', '!["canceled", "cancelled", "completed", "no_show", "no-show", "noshow", "rescheduled", "rejected", "declined"].includes(normalized)');
 await Deno.writeTextFile(dbPath, db);
+
+// A seated party has arrived and must not be counted as an estimated no-show.
+const occupancyPath = `${root}/services/occupancy.ts`;
+const occupancy = await Deno.readTextFile(occupancyPath);
+await Deno.writeTextFile(occupancyPath, occupancy.replace('st !== "arrived"', '![' + '"arrived", "seated"].includes(st)'));
