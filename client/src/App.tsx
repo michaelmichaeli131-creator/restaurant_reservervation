@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { t } from './i18n';
 import FloorEditor from './components/FloorEditor';
 import ShiftBoard from './components/ShiftBoard';
 import RestaurantLiveView from './components/RestaurantLiveView';
@@ -13,6 +14,7 @@ function App() {
 
   const restaurantId = config.restaurantId || params.get('restaurantId') || '';
   const page = config.page || params.get('page') || 'floor'; // 'floor' or 'shifts'
+  const tx = (key: string, fallback: string) => t(key, fallback);
 
   if (page === 'shifts') {
     return (
@@ -26,15 +28,15 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Floor Plan Manager</h1>
-        <nav className="mode-switch" aria-label="View mode">
+        <h1>{tx('floor.app_title', 'Floor Plan Manager')}</h1>
+        <nav className="mode-switch" aria-label={tx('floor.view_mode', 'View mode')}>
           <button
             className={floorMode === 'edit' ? 'active' : ''}
             onClick={() => setFloorMode('edit')}
             aria-pressed={floorMode === 'edit'}
-            aria-label="Switch to edit layout mode"
+            aria-label={tx('floor.edit_mode', 'Switch to edit layout mode')}
           >
-            Edit Layout
+            {tx('floor.edit_layout', 'Edit Layout')}
           </button>
           <button
             className={floorMode === 'live' ? 'active' : ''}
@@ -42,9 +44,9 @@ function App() {
               if (window.dispatchEvent(new Event('floor-before-leave', { cancelable: true }))) setFloorMode('live');
             }}
             aria-pressed={floorMode === 'live'}
-            aria-label="Switch to live view mode"
+            aria-label={tx('floor.live_mode', 'Switch to live view mode')}
           >
-            Live View
+            {tx('floor.live_view', 'Live View')}
           </button>
         </nav>
       </header>

@@ -74,6 +74,13 @@ RUN deno run --allow-env --allow-read --allow-write /app/railway_refinement_patc
 
 RUN deno run --allow-env --allow-read --allow-write /app/calendar_release_patch.ts
 
+# Restore localized sources after the legacy archive and design generators.
+COPY i18n/ka.json /app/i18n/ka.json
+COPY i18n/pages/admin.ka.json i18n/pages/owner_calendar.ka.json i18n/pages/owner_dashboard.ka.json i18n/pages/owner_restaurant_manage.ka.json i18n/pages/restaurant.ka.json /app/i18n/pages/
+COPY routes/calendar_guest.ts /app/routes/calendar_guest.ts
+COPY templates/owner_bill_print.eta templates/owner_bill_view.eta templates/owner_calendar.eta templates/owner_restaurant_manage.eta templates/pos_waiter.eta templates/restaurant_detail.eta templates/review_form.eta /app/templates/
+COPY templates/owner/staff.eta /app/templates/owner/staff.eta
+
 # Compile the authoritative editor source and restore it after the old overlay.
 COPY --from=floor-build /floor/public/dist/ /app/public/dist/
 

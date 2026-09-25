@@ -5,13 +5,13 @@ function tt(k, fb) { var v = it.t ? it.t(k) : k; return (v && v !== k) ? v : fb;
 function formatDate(ts){
   try{
     var d = new Date(ts);
-    return d.toLocaleDateString('he-IL');
+    return d.toLocaleDateString(it.lang === 'ka' ? 'ka-GE' : (it.lang === 'he' ? 'he-IL' : 'en-US'));
   }catch(e){ return ''; }
 }
 function formatTime(ts){
   try{
     var d = new Date(ts);
-    return d.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+    return d.toLocaleTimeString(it.lang === 'ka' ? 'ka-GE' : (it.lang === 'he' ? 'he-IL' : 'en-US'),{hour:'2-digit',minute:'2-digit'});
   }catch(e){ return ''; }
 }
 function lineTotal(item){

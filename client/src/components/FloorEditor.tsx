@@ -84,7 +84,8 @@ interface FloorEditorProps {
 export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const [layouts, setLayouts] = useState<FloorLayout[]>([]);
   const he = getCurrentLang() === 'he';
-  const history = useFloorHistory<FloorLayout>(he ? 'יש שינויים שלא נשמרו. לצאת בלי לשמור?' : 'Discard unsaved changes and leave?');
+  const ka = getCurrentLang() === 'ka';
+  const history = useFloorHistory<FloorLayout>(he ? 'יש שינויים שלא נשמרו. לצאת בלי לשמור?' : ka ? 'გსურთ გასვლა ცვლილებების შენახვის გარეშე?' : 'Discard unsaved changes and leave?');
   const { value: currentLayout, setValue: setCurrentLayout } = history;
   const [saving, setSaving] = useState(false);
   const [ratioLocked, setRatioLocked] = useState(false);
@@ -216,7 +217,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   };
   const applyBatch = (next: GridLayout<FloorTable, FloorObject> | null) => {
     if (!next) {
-      setEditWarning(he ? 'אין מקום באזור הפעיל, או שאין שינוי לבצע.' : 'No valid room in the active floor, or nothing to change.');
+      setEditWarning(he ? 'אין מקום באזור הפעיל, או שאין שינוי לבצע.' : ka ? 'აქტიურ გეგმაზე შესაბამისი ადგილი ვერ მოიძებნა, ან შესაცვლელი არაფერია.' : 'No valid room in the active floor, or nothing to change.');
       return;
     }
     setEditWarning('');
@@ -269,7 +270,8 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     if (!source.length) return;
     const offset = findPastePosition(currentLayout, source);
     if (!offset) {
-      setEditWarning(he ? 'אין מקום פנוי להדבקה במפה זו. נסה להגדיל את האזור הפעיל.' :
+      setEditWarning(he ? 'אין מקום פנוי להדבקה במפה זו. נסה להגדיל את האזור הפעיל.' : ka ?
+        'დაკოპირებული ობიექტებისთვის ამ გეგმაზე ადგილი არ არის. გააფართოეთ გეგმა ან გაათავისუფლეთ სივრცე.' :
         'No free room for the copied items on this floor. Expand the active floor or clear some space.');
       return;
     }
@@ -306,7 +308,7 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
     if (!currentLayout || !selectedKeys.length || selectionHasLocked) return;
     const offset = findCopyOffset(currentLayout, selectedKeys);
     if (!offset) {
-      setEditWarning(he ? 'אין מקום פנוי לשכפול הקבוצה באזור הפעיל.' : 'No free space to duplicate the group in the active floor.');
+      setEditWarning(he ? 'אין מקום פנוי לשכפול הקבוצה באזור הפעיל.' : ka ? 'აქტიურ გეგმაზე ჯგუფის ასლისთვის საკმარისი ადგილი არ არის.' : 'No free space to duplicate the group in the active floor.');
       return;
     }
     const chosen = new Set(selectedKeys);
@@ -1343,7 +1345,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     const next = resizeByKeyboard(item, direction, amount);
     if (next.spanX === item.spanX && next.spanY === item.spanY) return;
     if (!canResize(currentLayout, kind, id, next)) {
-      setEditWarning(he ? 'אין מקום לשינוי הגודל בכיוון הזה' : 'Cannot resize in that direction');
+      setEditWarning(he ? 'אין מקום לשינוי הגודל בכיוון הזה' : ka ? 'ამ მიმართულებით ზომის შეცვლა შეუძლებელია' : 'Cannot resize in that direction');
       return;
     }
     setEditWarning('');
@@ -1404,12 +1406,12 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       const nextX = west ? anchorX + initialX - nextSpanX : anchorX;
       const nextY = north ? anchorY + initialY - nextSpanY : anchorY;
       if (!maskAllows(nextX, nextY, nextSpanX, nextSpanY)) {
-        setEditWarning(he ? 'אין מקום בגבולות האזור הפעיל' : 'Outside the active floor area');
+        setEditWarning(he ? 'אין מקום בגבולות האזור הפעיל' : ka ? 'აქტიური გეგმის საზღვრებს გარეთაა' : 'Outside the active floor area');
         return;
       }
       const nextBox = { gridX: nextX, gridY: nextY, spanX: nextSpanX, spanY: nextSpanY };
       if (!canResize(currentLayout, kind, id, nextBox)) {
-        setEditWarning(he ? 'שינוי הגודל יגרום לחפיפה עם פריט אחר' : 'Resize would overlap another item');
+        setEditWarning(he ? 'שינוי הגודל יגרום לחפיפה עם פריט אחר' : ka ? 'ამ ზომით ობიექტი სხვა ობიექტს გადაფარავს' : 'Resize would overlap another item');
         return;
       }
       setEditWarning('');
@@ -1448,7 +1450,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     if (!currentLayout || !armedAsset || previewMode || mobilePanMode) return;
     const candidate = { gridX: x, gridY: y, spanX: armedAsset.spanX, spanY: armedAsset.spanY };
     if (!canResize(currentLayout, armedAsset.kind, '__new_asset__', candidate)) {
-      setEditWarning(he ? 'אין מקום פנוי לפריט כאן. בחר תא אחר.' : 'No free room here. Choose another cell.');
+      setEditWarning(he ? 'אין מקום פנוי לפריט כאן. בחר תא אחר.' : ka ? 'აქ თავისუფალი ადგილი არ არის. აირჩიეთ სხვა უჯრედი.' : 'No free room here. Choose another cell.');
       return;
     }
     const id = crypto.randomUUID();
@@ -1563,7 +1565,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         ? group.every(p => activeFootprint(currentLayout, { ...p.item, gridX: p.item.gridX + x - primary.gridX, gridY: p.item.gridY + y - primary.gridY }))
         : maskAllows(x, y, pointerDrag.spanX, pointerDrag.spanY);
       if (!valid) {
-        setEditWarning(he ? 'אין מקום בגבולות האזור הפעיל' : 'Outside the active floor area');
+        setEditWarning(he ? 'אין מקום בגבולות האזור הפעיל' : ka ? 'აქტიური გეგმის საზღვრებს გარეთაა' : 'Outside the active floor area');
         setDragPreviewCell(null);
         setSnapGuides({ v: [], h: [] });
         return;
@@ -1888,11 +1890,11 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       width = sized.spanX; height = sized.spanY;
     }
     if (!maskAllows(x, y, width, height)) {
-      setEditWarning(he ? 'אין מקום בגבולות האזור הפעיל' : 'Outside the active floor area');
+      setEditWarning(he ? 'אין מקום בגבולות האזור הפעיל' : ka ? 'აქტიური გეგმის საზღვრებს გარეთაა' : 'Outside the active floor area');
       return false;
     }
     if (!canResize(currentLayout, kind, item.id, { gridX: x, gridY: y, spanX: width, spanY: height })) {
-      setEditWarning(he ? 'שינוי הגודל יגרום לחפיפה עם פריט אחר' : 'Resize would overlap another item');
+      setEditWarning(he ? 'שינוי הגודל יגרום לחפיפה עם פריט אחר' : ka ? 'ამ ზომით ობიექტი სხვა ობიექტს გადაფარავს' : 'Resize would overlap another item');
       return false;
     }
     setEditWarning('');
@@ -1903,7 +1905,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
   function allowLayoutManagement() {
     if (!history.dirty && !saving) return true;
-    alert(he ? 'שמור את השינויים או בטל אותם לפני ניהול מפות.' : 'Save or undo your changes before managing layouts.');
+    alert(he ? 'שמור את השינויים או בטל אותם לפני ניהול מפות.' : ka ? 'გეგმების მართვამდე შეინახეთ ან გააუქმეთ ცვლილებები.' : 'Save or undo your changes before managing layouts.');
     return false;
   }
 
@@ -1986,7 +1988,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
         setEditWarning(''); return;
       }
     }
-    setEditWarning(he ? 'אין מקום פנוי לשכפול האובייקט' : 'No free space for a duplicate');
+    setEditWarning(he ? 'אין מקום פנוי לשכפול האובייקט' : ka ? 'ასლისთვის თავისუფალი ადგილი არ არის' : 'No free space for a duplicate');
   }
 
   if (!currentLayout) {
@@ -2040,25 +2042,25 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     <div className={`floor-editor ${previewMode ? 'fe-preview-mode' : ''} ${mobileLibraryOpen ? 'fe-mobile-library-open' : ''} ${mobilePanMode ? 'fe-mobile-pan-mode' : ''}`} onClick={() => contextMenu && setContextMenu(null)}>
       <div className="fe-session-toolbar">
         <div className="fe-multi-controls">
-          {!previewMode && <button type="button" disabled={!selectedKeys.length} onClick={copySelection}>{he ? 'העתק' : 'Copy'} (Ctrl+C)</button>}
-          {!previewMode && <button type="button" disabled={!copiedItems} onClick={pasteSelection}>{he ? 'הדבק' : 'Paste'} (Ctrl+V)</button>}
-          <button type="button" aria-pressed={previewMode} onClick={() => { clearSelection(); setPreviewMode(v => !v); setMarqueeMode(false); setMultiSelectMode(false); setShapeMode(false); }}>{previewMode ? (he ? 'חזור לעריכה' : 'Back to editing') : (he ? 'תצוגה מקדימה' : 'Preview map')}</button>
-          {!previewMode && <button type="button" aria-pressed={multiSelectMode} onClick={() => { setMultiSelectMode(v => !v); setMarqueeMode(false); }}>{he ? 'בחירה מרובה' : 'Multi-select'} {multiSelectMode ? '✓' : ''}</button>}
-          {!previewMode && <button type="button" aria-pressed={marqueeMode} onClick={() => { setMarqueeMode(v => !v); setMultiSelectMode(false); }}>{he ? 'בחירת אזור' : 'Area select'} {marqueeMode ? '✓' : ''}</button>}
+          {!previewMode && <button type="button" disabled={!selectedKeys.length} onClick={copySelection}>{he ? 'העתק' : ka ? 'კოპირება' : 'Copy'} (Ctrl+C)</button>}
+          {!previewMode && <button type="button" disabled={!copiedItems} onClick={pasteSelection}>{he ? 'הדבק' : ka ? 'ჩასმა' : 'Paste'} (Ctrl+V)</button>}
+          <button type="button" aria-pressed={previewMode} onClick={() => { clearSelection(); setPreviewMode(v => !v); setMarqueeMode(false); setMultiSelectMode(false); setShapeMode(false); }}>{previewMode ? (he ? 'חזור לעריכה' : ka ? 'რედაქტირებაზე დაბრუნება' : 'Back to editing') : (he ? 'תצוגה מקדימה' : ka ? 'გეგმის წინასწარი ნახვა' : 'Preview map')}</button>
+          {!previewMode && <button type="button" aria-pressed={multiSelectMode} onClick={() => { setMultiSelectMode(v => !v); setMarqueeMode(false); }}>{he ? 'בחירה מרובה' : ka ? 'რამდენიმეს მონიშვნა' : 'Multi-select'} {multiSelectMode ? '✓' : ''}</button>}
+          {!previewMode && <button type="button" aria-pressed={marqueeMode} onClick={() => { setMarqueeMode(v => !v); setMultiSelectMode(false); }}>{he ? 'בחירת אזור' : ka ? 'არეალის მონიშვნა' : 'Area select'} {marqueeMode ? '✓' : ''}</button>}
           {!previewMode && <button type="button" onClick={() => { if (!currentLayout) return;
             setSelectedKeys([...currentLayout.tables.map(i => ('table:' + i.id) as SelectionKey), ...(currentLayout.objects ?? []).map(i => ('object:' + i.id) as SelectionKey)]);
             setSelectedTableId(null); setSelectedObjectId(null);
-          }}>{he ? 'בחר הכול' : 'Select all'}</button>}
-          {!previewMode && !!groupItems.length && <button type="button" onClick={clearSelection}>{he ? 'נקה בחירה' : 'Clear selection'} ({groupItems.length})</button>}
+          }}>{he ? 'בחר הכול' : ka ? 'ყველას მონიშვნა' : 'Select all'}</button>}
+          {!previewMode && !!groupItems.length && <button type="button" onClick={clearSelection}>{he ? 'נקה בחירה' : ka ? 'მონიშვნის მოხსნა' : 'Clear selection'} ({groupItems.length})</button>}
         </div>
         <div className="fe-history-actions">
-          <button type="button" disabled={!history.canUndo || !!resizeDraft || !!pointerDrag} onClick={history.undo}>↶ {he ? 'בטל' : 'Undo'}</button>
-          <button type="button" disabled={!history.canRedo || !!resizeDraft || !!pointerDrag} onClick={history.redo}>↷ {he ? 'החזר' : 'Redo'}</button>
+          <button type="button" disabled={!history.canUndo || !!resizeDraft || !!pointerDrag} onClick={history.undo}>↶ {he ? 'בטל' : ka ? 'მოქმედების გაუქმება' : 'Undo'}</button>
+          <button type="button" disabled={!history.canRedo || !!resizeDraft || !!pointerDrag} onClick={history.redo}>↷ {he ? 'החזר' : ka ? 'მოქმედების აღდგენა' : 'Redo'}</button>
         </div>
-        <span role="status" className={history.dirty ? 'fe-save-status dirty' : 'fe-save-status'}>{saving ? (he ? 'שומר…' : 'Saving…') : history.dirty ? (he ? 'שינויים שלא נשמרו' : 'Unsaved changes') : (he ? 'כל השינויים נשמרו' : 'All changes saved')}</span>
-        <button type="button" disabled={saving || !history.dirty || !!resizeDraft || !!pointerDrag} onClick={saveCurrentLayout}>{he ? 'שמור מפה' : 'Save layout'}</button>
+        <span role="status" className={history.dirty ? 'fe-save-status dirty' : 'fe-save-status'}>{saving ? (he ? 'שומר…' : ka ? 'ინახება…' : 'Saving…') : history.dirty ? (he ? 'שינויים שלא נשמרו' : ka ? 'შეუნახავი ცვლილებები' : 'Unsaved changes') : (he ? 'כל השינויים נשמרו' : ka ? 'ყველა ცვლილება შენახულია' : 'All changes saved')}</span>
+        <button type="button" disabled={saving || !history.dirty || !!resizeDraft || !!pointerDrag} onClick={saveCurrentLayout}>{he ? 'שמור מפה' : ka ? 'გეგმის შენახვა' : 'Save layout'}</button>
       </div>
-      {(editWarning || conflicts.size > 0) && <div className="fe-edit-warning" role="status">{editWarning || (he ? 'יש חפיפה בין אובייקטים המסומנים בכתום. בדוק את המרווחים.' : 'Orange items have overlapping footprints. Check their spacing.')}</div>}
+      {(editWarning || conflicts.size > 0) && <div className="fe-edit-warning" role="status">{editWarning || (he ? 'יש חפיפה בין אובייקטים המסומנים בכתום. בדוק את המרווחים.' : ka ? 'ნარინჯისფრად მონიშნული ობიექტები ერთმანეთს ფარავს. შეამოწმეთ მათ შორის დაშორება.' : 'Orange items have overlapping footprints. Check their spacing.')}</div>}
       {/* Horizontal layout tabs at the top */}
       <div className="layout-tabs-bar">
         <div className="layout-tabs">
@@ -2102,71 +2104,71 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       <div className="editor-content">
         {!previewMode && <div className="editor-sidebar">
           {!!groupItems.length && <div className="fe-selection-tools fe-batch-tools">
-            <strong>{he ? 'פריטים נבחרים' : 'Selected items'}: {groupItems.length}</strong>
-            <small>{he ? 'העתק פריטים, עבור למפה אחרת והדבק. הסידור והקבוצות יישמרו.' : 'Copy, switch floors, then paste. Spacing and groups are preserved.'}</small>
+            <strong>{he ? 'פריטים נבחרים' : ka ? 'მონიშნული ობიექტები' : 'Selected items'}: {groupItems.length}</strong>
+            <small>{he ? 'העתק פריטים, עבור למפה אחרת והדבק. הסידור והקבוצות יישמרו.' : ka ? 'დააკოპირეთ, გადადით სხვა გეგმაზე და ჩასვით. დაშორებები და ჯგუფები შენარჩუნდება.' : 'Copy, switch floors, then paste. Spacing and groups are preserved.'}</small>
             <div className="fe-batch-actions">
-              <button type="button" disabled={selectionHasLocked} onClick={duplicateGroup}>{he ? 'שכפל' : 'Duplicate'}</button>
-              <button type="button" onClick={() => updateSelectedMetadata({ locked: !groupItems.every(p => p.item.locked) })}>{groupItems.every(p => p.item.locked) ? (he ? 'בטל נעילה' : 'Unlock') : (he ? 'נעל' : 'Lock')}</button>
-              <button type="button" disabled={selectionHasLocked || groupItems.length < 2} onClick={groupSelection}>{he ? 'קבץ' : 'Group'}</button>
-              <button type="button" onClick={ungroupSelection}>{he ? 'פרק קבוצה' : 'Ungroup'}</button>
-              <button type="button" onClick={() => updateSelectedMetadata({ zDelta: 1 })}>{he ? 'קדימה' : 'Forward'}</button>
-              <button type="button" onClick={() => updateSelectedMetadata({ zDelta: -1 })}>{he ? 'אחורה' : 'Backward'}</button>
+              <button type="button" disabled={selectionHasLocked} onClick={duplicateGroup}>{he ? 'שכפל' : ka ? 'ასლის შექმნა' : 'Duplicate'}</button>
+              <button type="button" onClick={() => updateSelectedMetadata({ locked: !groupItems.every(p => p.item.locked) })}>{groupItems.every(p => p.item.locked) ? (he ? 'בטל נעילה' : ka ? 'განბლოკვა' : 'Unlock') : (he ? 'נעל' : ka ? 'დაბლოკვა' : 'Lock')}</button>
+              <button type="button" disabled={selectionHasLocked || groupItems.length < 2} onClick={groupSelection}>{he ? 'קבץ' : ka ? 'დაჯგუფება' : 'Group'}</button>
+              <button type="button" onClick={ungroupSelection}>{he ? 'פרק קבוצה' : ka ? 'ჯგუფის დაშლა' : 'Ungroup'}</button>
+              <button type="button" onClick={() => updateSelectedMetadata({ zDelta: 1 })}>{he ? 'קדימה' : ka ? 'წინა ფენაზე გადატანა' : 'Forward'}</button>
+              <button type="button" onClick={() => updateSelectedMetadata({ zDelta: -1 })}>{he ? 'אחורה' : ka ? 'უკანა ფენაზე გადატანა' : 'Backward'}</button>
             </div>
-            <small>{he ? 'קבוצה נשמרת גם לאחר שמירת המפה. נעילה מונעת הזזה, מחיקה ושינוי גודל.' : 'Groups persist after saving. Locked items cannot be moved, resized or deleted.'}</small>
-            <small>{he ? 'Ctrl / Shift + לחיצה לבחירה נוספת. בטלפון הפעל בחירה מרובה.' : 'Ctrl / Shift + click to add items. On mobile use Multi-select.'}</small>
+            <small>{he ? 'קבוצה נשמרת גם לאחר שמירת המפה. נעילה מונעת הזזה, מחיקה ושינוי גודל.' : ka ? 'ჯგუფები შენახვის შემდეგაც შენარჩუნდება. დაბლოკილი ობიექტის გადაადგილება, ზომის შეცვლა და წაშლა შეუძლებელია.' : 'Groups persist after saving. Locked items cannot be moved, resized or deleted.'}</small>
+            <small>{he ? 'Ctrl / Shift + לחיצה לבחירה נוספת. בטלפון הפעל בחירה מרובה.' : ka ? 'დამატებითი ობიექტების მოსანიშნად გეჭიროთ Ctrl ან Shift და დააწკაპუნეთ. ტელეფონზე გამოიყენეთ „რამდენიმეს მონიშვნა“.' : 'Ctrl / Shift + click to add items. On mobile use Multi-select.'}</small>
             {groupItems.length === 1 && (() => { const item = groupItems[0].item; return <div className="fe-xy-fields">
-              <label>{he ? 'מיקום X (תאים)' : 'X position (cells)'}
+              <label>{he ? 'מיקום X (תאים)' : ka ? 'X კოორდინატი (უჯრედები)' : 'X position (cells)'}
                 <input type="number" min="0" max={currentLayout.gridCols-item.spanX} value={item.gridX} onChange={e=>{const x=Number(e.target.value);if(Number.isInteger(x))nudgeSelection(x-item.gridX,0)}} />
               </label>
-              <label>{he ? 'מיקום Y (תאים)' : 'Y position (cells)'}
+              <label>{he ? 'מיקום Y (תאים)' : ka ? 'Y კოორდინატი (უჯრედები)' : 'Y position (cells)'}
                 <input type="number" min="0" max={currentLayout.gridRows-item.spanY} value={item.gridY} onChange={e=>{const y=Number(e.target.value);if(Number.isInteger(y))nudgeSelection(0,y-item.gridY)}} />
               </label>
             </div>})()}
             {groupItems.length > 1 && <>
-              <div className="fe-batch-section-label">{he ? 'יישור' : 'Align'}</div>
+              <div className="fe-batch-section-label">{he ? 'יישור' : ka ? 'გასწორება' : 'Align'}</div>
               <div className="fe-batch-actions">
-                <button type="button" onClick={()=>alignBatch('x','start')}>{he?'שמאל':'Left'}</button>
-                <button type="button" onClick={()=>alignBatch('x','center')}>{he?'מרכז X':'Center X'}</button>
-                <button type="button" onClick={()=>alignBatch('x','end')}>{he?'ימין':'Right'}</button>
-                <button type="button" onClick={()=>alignBatch('y','start')}>{he?'למעלה':'Top'}</button>
-                <button type="button" onClick={()=>alignBatch('y','center')}>{he?'מרכז Y':'Center Y'}</button>
-                <button type="button" onClick={()=>alignBatch('y','end')}>{he?'למטה':'Bottom'}</button>
+                <button type="button" onClick={()=>alignBatch('x','start')}>{he?'שמאל':ka?'მარცხნივ':'Left'}</button>
+                <button type="button" onClick={()=>alignBatch('x','center')}>{he?'מרכז X':ka?'ჰორიზონტალურად ცენტრში':'Center X'}</button>
+                <button type="button" onClick={()=>alignBatch('x','end')}>{he?'ימין':ka?'მარჯვნივ':'Right'}</button>
+                <button type="button" onClick={()=>alignBatch('y','start')}>{he?'למעלה':ka?'ზემოთ':'Top'}</button>
+                <button type="button" onClick={()=>alignBatch('y','center')}>{he?'מרכז Y':ka?'ვერტიკალურად ცენტრში':'Center Y'}</button>
+                <button type="button" onClick={()=>alignBatch('y','end')}>{he?'למטה':ka?'ქვემოთ':'Bottom'}</button>
               </div>
-              <div className="fe-batch-section-label">{he ? 'ריווח אחיד' : 'Even spacing'}</div>
+              <div className="fe-batch-section-label">{he ? 'ריווח אחיד' : ka ? 'თანაბარი დაშორება' : 'Even spacing'}</div>
               <div className="fe-batch-actions">
-                <button type="button" disabled={groupItems.length<3} onClick={()=>distributeBatch('x')}>{he?'אופקי':'Horizontal'}</button>
-                <button type="button" disabled={groupItems.length<3} onClick={()=>distributeBatch('y')}>{he?'אנכי':'Vertical'}</button>
+                <button type="button" disabled={groupItems.length<3} onClick={()=>distributeBatch('x')}>{he?'אופקי':ka?'ჰორიზონტალურად':'Horizontal'}</button>
+                <button type="button" disabled={groupItems.length<3} onClick={()=>distributeBatch('y')}>{he?'אנכי':ka?'ვერტიკალურად':'Vertical'}</button>
               </div>
             </>}
-            <div className="fe-batch-section-label">{he ? 'הזזה מדויקת (תא אחד)' : 'Precise move (one cell)'}</div>
+            <div className="fe-batch-section-label">{he ? 'הזזה מדויקת (תא אחד)' : ka ? 'ზუსტი გადაადგილება (ერთი უჯრედით)' : 'Precise move (one cell)'}</div>
             <div className="fe-nudge-controls">
-              <button type="button" aria-label={he?'שמאלה':'Move left'} onClick={()=>nudgeSelection(-1,0)}>←</button>
-              <button type="button" aria-label={he?'למעלה':'Move up'} onClick={()=>nudgeSelection(0,-1)}>↑</button>
-              <button type="button" aria-label={he?'למטה':'Move down'} onClick={()=>nudgeSelection(0,1)}>↓</button>
-              <button type="button" aria-label={he?'ימינה':'Move right'} onClick={()=>nudgeSelection(1,0)}>→</button>
+              <button type="button" aria-label={he ? 'שמאלה' : ka ? 'მარცხნივ გადატანა' : 'Move left'} onClick={()=>nudgeSelection(-1,0)}>←</button>
+              <button type="button" aria-label={he ? 'למעלה' : ka ? 'ზემოთ გადატანა' : 'Move up'} onClick={()=>nudgeSelection(0,-1)}>↑</button>
+              <button type="button" aria-label={he ? 'למטה' : ka ? 'ქვემოთ გადატანა' : 'Move down'} onClick={()=>nudgeSelection(0,1)}>↓</button>
+              <button type="button" aria-label={he ? 'ימינה' : ka ? 'მარჯვნივ გადატანა' : 'Move right'} onClick={()=>nudgeSelection(1,0)}>→</button>
             </div>
-            <button type="button" disabled={selectionHasLocked} onClick={deleteSelection}>{he?'מחק פריטים נבחרים':'Delete selected items'}</button>
+            <button type="button" disabled={selectionHasLocked} onClick={deleteSelection}>{he ? 'מחק פריטים נבחרים' : ka ? 'მონიშნული ობიექტების წაშლა' : 'Delete selected items'}</button>
           </div>}
           {(selectedTable || selectedObject) && groupItems.length <= 1 && <div className="fe-selection-tools">
-            <strong>{he ? 'עריכת האובייקט הנבחר' : 'Selected item'}</strong>
-            <label><input type="checkbox" checked={ratioLocked} onChange={e => setRatioLocked(e.target.checked)} /> {he ? 'נעילת יחס רוחב־גובה' : 'Lock proportions'}</label>
+            <strong>{he ? 'עריכת האובייקט הנבחר' : ka ? 'მონიშნული ობიექტი' : 'Selected item'}</strong>
+            <label><input type="checkbox" checked={ratioLocked} onChange={e => setRatioLocked(e.target.checked)} /> {he ? 'נעילת יחס רוחב־גובה' : ka ? 'პროპორციების შენარჩუნება' : 'Lock proportions'}</label>
             {(['spanX', 'spanY'] as const).map(axis => {
               const item = (selectedTable || selectedObject)!;
-              const label = axis === 'spanX' ? (he ? 'רוחב' : 'Width') : (he ? 'גובה' : 'Height');
+              const label = axis === 'spanX' ? (he ? 'רוחב' : ka ? 'სიგანე' : 'Width') : (he ? 'גובה' : ka ? 'სიმაღლე' : 'Height');
               const change = (delta: number) => (selectedTable ? updateTable : updateObject)(item.id, { [axis]: Math.max(1, item[axis] + delta) });
               return <div className="fe-dimension-stepper" key={axis}>
                 <span>{label}</span><button type="button" aria-label={`${label} −`} onClick={() => change(-1)}>−</button>
                 <output>{item[axis]}</output><button type="button" aria-label={`${label} +`} onClick={() => change(1)}>+</button>
               </div>;
             })}
-            <button type="button" onClick={duplicateSelected}>{he ? 'שכפל אובייקט' : 'Duplicate item'}</button>
+            <button type="button" onClick={duplicateSelected}>{he ? 'שכפל אובייקט' : ka ? 'ობიექტის ასლის შექმნა' : 'Duplicate item'}</button>
             <div className="fe-history-actions">
               {[-15,15].map(delta => <button type="button" key={delta} onClick={() => {
                 const item = (selectedTable || selectedObject)!;
                 (selectedTable ? updateTable : updateObject)(item.id, { rotationDeg: getItemRotation((item.rotationDeg ?? selectedObject?.rotation ?? 0) + delta) });
-              }}>{delta < 0 ? '↶' : '↷'} {he ? 'סובב' : 'Rotate'} {Math.abs(delta)}°</button>)}
+              }}>{delta < 0 ? '↶' : '↷'} {he ? 'סובב' : ka ? 'მობრუნება' : 'Rotate'} {Math.abs(delta)}°</button>)}
             </div>
-            <small>{he ? 'המידות מוצגות בתאי רשת' : 'Dimensions are in grid cells'}</small>
+            <small>{he ? 'המידות מוצגות בתאי רשת' : ka ? 'ზომები მითითებულია ბადის უჯრედებში' : 'Dimensions are in grid cells'}</small>
           </div>}
           {sections.length > 0 && (
             <div className="sections-tabs">
@@ -2193,24 +2195,25 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             </div>
           )}
 
-          <section className="fe-asset-library" aria-label={he ? 'ספריית אובייקטים' : 'Asset library'}>
+          <section className="fe-asset-library" aria-label={he ? 'ספריית אובייקטים' : ka ? 'ობიექტების ბიბლიოთეკა' : 'Asset library'}>
             <div className="fe-library-heading">
-              <h2>🧩 {he ? 'ספריית אובייקטים' : 'Asset library'}</h2>
+              <h2>🧩 {he ? 'ספריית אובייקטים' : ka ? 'ობიექტების ბიბლიოთეკა' : 'Asset library'}</h2>
               <span>{filterFloorAssets(assetSearch, assetCategory).length} / {FLOOR_ASSETS.length}</span>
             </div>
             <input type="search" className="fe-library-search" value={assetSearch}
               onChange={e => setAssetSearch(e.target.value)}
-              placeholder={he ? 'חיפוש שולחן, כיסא, דלת…' : 'Search tables, chairs, doors…'}
-              aria-label={he ? 'חיפוש אובייקטים' : 'Search assets'} />
-            <div className="fe-library-categories" role="group" aria-label={he ? 'סינון לפי סוג' : 'Filter assets'}>
+              placeholder={he ? 'חיפוש שולחן, כיסא, דלת…' : ka ? 'მაგიდების, სკამების, კარების ძებნა…' : 'Search tables, chairs, doors…'}
+              aria-label={he ? 'חיפוש אובייקטים' : ka ? 'ობიექტების ძებნა' : 'Search assets'} />
+            <div className="fe-library-categories" role="group" aria-label={he ? 'סינון לפי סוג' : ka ? 'ობიექტების გაფილტვრა' : 'Filter assets'}>
               {(['all', 'tables', 'chairs', 'architecture', 'decor'] as const).map(category =>
                 <button key={category} type="button" aria-pressed={assetCategory === category}
                   onClick={() => setAssetCategory(category)}>
                   {he ? ({ all: 'הכול', tables: 'שולחנות', chairs: 'כיסאות', architecture: 'קירות ודלתות', decor: 'עיצוב' })[category]
+                    : ka ? ({ all: 'ყველა', tables: 'მაგიდები', chairs: 'სკამები', architecture: 'კედლები და კარები', decor: 'დეკორი' })[category]
                     : ({ all: 'All', tables: 'Tables', chairs: 'Chairs', architecture: 'Walls & doors', decor: 'Decor' })[category]}
                 </button>)}
             </div>
-            <p className="fe-library-hint">{he ? 'לחץ על פריט ואז על תא פנוי במפה, או גרור בעכבר.' : 'Select an asset and tap an empty cell, or drag with a mouse.'}</p>
+            <p className="fe-library-hint">{he ? 'לחץ על פריט ואז על תא פנוי במפה, או גרור בעכבר.' : ka ? 'აირჩიეთ ობიექტი და შეეხეთ ცარიელ უჯრედს, ან მაუსით გადაათრიეთ.' : 'Select an asset and tap an empty cell, or drag with a mouse.'}</p>
             <div className="fe-library-grid">
               {filterFloorAssets(assetSearch, assetCategory).map(asset =>
                 <button type="button" key={asset.id}
@@ -2226,14 +2229,14 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   onClick={() => { setArmedAsset(asset); setMobilePanMode(false); setShapeMode(false); setMarqueeMode(false); }}>
                   <span className="fe-library-preview"><img src={`${ASSET_BASE}${asset.file}`}
                     alt="" loading="lazy" /></span>
-                  <span className="fe-library-name">{he ? asset.nameHe : asset.nameEn}</span>
+                  <span className="fe-library-name">{he ? asset.nameHe : ka ? (asset.nameKa || asset.nameEn) : asset.nameEn}</span>
                   <small>{asset.spanX} × {asset.spanY}</small>
                 </button>)}
             </div>
             {!filterFloorAssets(assetSearch, assetCategory).length &&
-              <p role="status">{he ? 'לא נמצאו פריטים. נסה חיפוש אחר.' : 'No matching assets. Try another search.'}</p>}
+              <p role="status">{he ? 'לא נמצאו פריטים. נסה חיפוש אחר.' : ka ? 'შესაბამისი ობიექტები ვერ მოიძებნა. სცადეთ სხვა საძიებო სიტყვა.' : 'No matching assets. Try another search.'}</p>}
             {armedAsset && <button type="button" className="fe-cancel-placement"
-              onClick={() => setArmedAsset(null)}>{he ? 'בטל הוספה' : 'Cancel placement'} ×</button>}
+              onClick={() => setArmedAsset(null)}>{he ? 'בטל הוספה' : ka ? 'განთავსების გაუქმება' : 'Cancel placement'} ×</button>}
           </section>
 
           <div className="properties-panel">
@@ -2409,7 +2412,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
 
               <div className="row" style={{ display: 'flex', gap: 8 }}>
                 <label style={{ flex: 1 }}>
-                  {he ? 'רוחב' : 'Width'}:
+                  {he ? 'רוחב' : ka ? 'სიგანე' : 'Width'}:
                   <input
                     type="number"
                     min="1"
@@ -2419,7 +2422,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   />
                 </label>
                 <label style={{ flex: 1 }}>
-                  {he ? 'גובה' : 'Height'}:
+                  {he ? 'גובה' : ka ? 'სიმაღლე' : 'Height'}:
                   <input
                     type="number"
                     min="1"
@@ -2494,7 +2497,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
               </label>
               <div className="row" style={{ display: 'flex', gap: 8 }}>
                 <label style={{ flex: 1 }}>
-                  {he ? 'רוחב' : 'Width'}:
+                  {he ? 'רוחב' : ka ? 'სიგანე' : 'Width'}:
                   <input
                     type="number"
                     min="1"
@@ -2504,7 +2507,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                   />
                 </label>
                 <label style={{ flex: 1 }}>
-                  {he ? 'גובה' : 'Height'}:
+                  {he ? 'גובה' : ka ? 'სიმაღლე' : 'Height'}:
                   <input
                     type="number"
                     min="1"
@@ -2577,8 +2580,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
             <div className="fe-hint">{spacePressed ? t('floor.hints.pan_drag', 'Pan: drag') : t('floor.hints.controls', 'Tip: hold Space to pan, Ctrl+wheel to zoom')}</div>
           </div>
           {armedAsset && !previewMode && <div className="fe-placement-banner" role="status">
-            {he ? 'מיקום' : 'Place'}: {he ? armedAsset.nameHe : armedAsset.nameEn}
-            <button type="button" onClick={() => setArmedAsset(null)}>{he ? 'בטל' : 'Cancel'} ×</button>
+            {he ? 'מיקום' : ka ? 'განთავსება' : 'Place'}: {he ? armedAsset.nameHe : ka ? (armedAsset.nameKa || armedAsset.nameEn) : armedAsset.nameEn}
+            <button type="button" onClick={() => setArmedAsset(null)}>{he ? 'בטל' : ka ? 'გაუქმება' : 'Cancel'} ×</button>
           </div>}
           {(() => {
             const ft = FLOOR_THEMES[floorTheme];
@@ -2830,14 +2833,14 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                               role="slider"
                               tabIndex={0}
                               onKeyDown={(e) => resizeWithKeyboard(e, 'object', objectHere.id, direction)}
-                              aria-label={he ? 'שינוי גודל ' + direction + ' עם החצים' : 'Resize ' + direction + ' with arrow keys'}
+                              aria-label={he ? 'שינוי גודל ' + direction + ' עם החצים' : ka ? 'ზომის შეცვლა ' + direction + ' ისრებით' : 'Resize ' + direction + ' with arrow keys'}
                               aria-valuemin={1}
                               aria-valuenow={direction.includes('w') || direction.includes('e') ? objectHere.spanX : objectHere.spanY}
                               className={`fe-resize-handle fe-resize-handle--${direction}`}
                               style={{ transform: `scale(${1 / zoom})` }}
                               onPointerDown={(e) => beginResizeItem(e, 'object', objectHere.id, objectHere.gridX, objectHere.gridY, objectHere.spanX || 1, objectHere.spanY || 1, direction)}
                               onMouseDown={(e) => e.stopPropagation()}
-                              title={he ? 'גרור לשינוי גודל' : 'Drag to resize'}
+                              title={he ? 'גרור לשינוי גודל' : ka ? 'ზომის შესაცვლელად გადაათრიეთ' : 'Drag to resize'}
                             />
                           ))}
                         </>
@@ -2892,14 +2895,14 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
                               role="slider"
                               tabIndex={0}
                               onKeyDown={(e) => resizeWithKeyboard(e, 'table', tableHere.id, direction)}
-                              aria-label={he ? 'שינוי גודל ' + direction + ' עם החצים' : 'Resize ' + direction + ' with arrow keys'}
+                              aria-label={he ? 'שינוי גודל ' + direction + ' עם החצים' : ka ? 'ზომის შეცვლა ' + direction + ' ისრებით' : 'Resize ' + direction + ' with arrow keys'}
                               aria-valuemin={1}
                               aria-valuenow={direction.includes('w') || direction.includes('e') ? tableHere.spanX : tableHere.spanY}
                               className={`fe-resize-handle fe-resize-handle--${direction}`}
                               style={{ transform: `scale(${1 / zoom})` }}
                               onPointerDown={(e) => beginResizeItem(e, 'table', tableHere.id, tableHere.gridX, tableHere.gridY, tableHere.spanX || 1, tableHere.spanY || 1, direction)}
                               onMouseDown={(e) => e.stopPropagation()}
-                              title={he ? 'גרור לשינוי גודל' : 'Drag to resize'}
+                              title={he ? 'גרור לשינוי גודל' : ka ? 'ზომის შესაცვლელად გადაათრიეთ' : 'Drag to resize'}
                             />
                           ))}
                         </>
@@ -2914,29 +2917,29 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
           })()}
         </div>
       </div>
-      <nav className="fe-mobile-toolbar" aria-label={he ? 'כלי מפת המסעדה' : 'Floor map tools'}>
+      <nav className="fe-mobile-toolbar" aria-label={he ? 'כלי מפת המסעדה' : ka ? 'გეგმის ხელსაწყოები' : 'Floor map tools'}>
         <button type="button" aria-pressed={!mobilePanMode} onClick={() => setMobilePanMode(false)}>
-          ✎ {he ? 'עריכה' : 'Edit'}
+          ✎ {he ? 'עריכה' : ka ? 'რედაქტირება' : 'Edit'}
         </button>
         <button type="button" aria-pressed={mobilePanMode} onClick={() => {
           setMobilePanMode(true); setArmedAsset(null); clearSelection();
-        }}>✥ {he ? 'הזז מפה' : 'Pan map'}</button>
+        }}>✥ {he ? 'הזז מפה' : ka ? 'გეგმის გადაადგილება' : 'Pan map'}</button>
         <button type="button" aria-expanded={mobileLibraryOpen} onClick={() => {
           setMobileLibraryOpen(v => !v); setMobilePanMode(false);
-        }}>▦ {he ? 'פריטים' : 'Assets'}</button>
-        <button type="button" onClick={fitToScreen}>⤢ {he ? 'התאם' : 'Fit'}</button>
+        }}>▦ {he ? 'פריטים' : ka ? 'ობიექტები' : 'Assets'}</button>
+        <button type="button" onClick={fitToScreen}>⤢ {he ? 'התאם' : ka ? 'ეკრანზე მორგება' : 'Fit'}</button>
         <button type="button" disabled={saving || !history.dirty || !!resizeDraft || !!pointerDrag}
-          onClick={saveCurrentLayout}>💾 {he ? 'שמור' : 'Save'}</button>
+          onClick={saveCurrentLayout}>💾 {he ? 'שמור' : ka ? 'შენახვა' : 'Save'}</button>
       </nav>
 
       {contextMenu && !previewMode && <div className="fe-context-menu" role="menu"
         style={{ left: contextMenu.x, top: contextMenu.y }}
         onClick={e => e.stopPropagation()}>
-        <button type="button" role="menuitem" disabled={selectionHasLocked} onClick={() => { duplicateGroup(); setContextMenu(null); }}>{he ? 'שכפל בחירה' : 'Duplicate selection'}</button>
-        <button type="button" role="menuitem" onClick={() => { updateSelectedMetadata({ locked: !groupItems.every(p => p.item.locked) }); setContextMenu(null); }}>{groupItems.every(p => p.item.locked) ? (he ? 'בטל נעילה' : 'Unlock') : (he ? 'נעל' : 'Lock')}</button>
-        <button type="button" role="menuitem" disabled={selectionHasLocked || groupItems.length < 2} onClick={() => { groupSelection(); setContextMenu(null); }}>{he ? 'קבץ' : 'Group'}</button>
-        <button type="button" role="menuitem" onClick={() => { ungroupSelection(); setContextMenu(null); }}>{he ? 'פרק קבוצה' : 'Ungroup'}</button>
-        <button type="button" role="menuitem" disabled={selectionHasLocked} onClick={() => { deleteSelection(); setContextMenu(null); }}>{he ? 'מחק' : 'Delete'}</button>
+        <button type="button" role="menuitem" disabled={selectionHasLocked} onClick={() => { duplicateGroup(); setContextMenu(null); }}>{he ? 'שכפל בחירה' : ka ? 'მონიშნულის ასლის შექმნა' : 'Duplicate selection'}</button>
+        <button type="button" role="menuitem" onClick={() => { updateSelectedMetadata({ locked: !groupItems.every(p => p.item.locked) }); setContextMenu(null); }}>{groupItems.every(p => p.item.locked) ? (he ? 'בטל נעילה' : ka ? 'განბლოკვა' : 'Unlock') : (he ? 'נעל' : ka ? 'დაბლოკვა' : 'Lock')}</button>
+        <button type="button" role="menuitem" disabled={selectionHasLocked || groupItems.length < 2} onClick={() => { groupSelection(); setContextMenu(null); }}>{he ? 'קבץ' : ka ? 'დაჯგუფება' : 'Group'}</button>
+        <button type="button" role="menuitem" onClick={() => { ungroupSelection(); setContextMenu(null); }}>{he ? 'פרק קבוצה' : ka ? 'ჯგუფის დაშლა' : 'Ungroup'}</button>
+        <button type="button" role="menuitem" disabled={selectionHasLocked} onClick={() => { deleteSelection(); setContextMenu(null); }}>{he ? 'מחק' : ka ? 'წაშლა' : 'Delete'}</button>
       </div>}
       {isCreateModalOpen && (
         <div className="modal-overlay" onClick={() => setIsCreateModalOpen(false)}>

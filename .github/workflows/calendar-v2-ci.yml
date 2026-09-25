@@ -16,6 +16,8 @@ on:
       - 'public/js/owner_calendar.js'
       - 'public/css/owner_calendar_v2.css'
       - 'Dockerfile'
+      - 'i18n/**'
+      - 'tests/georgian_i18n_test.ts'
       - '.github/workflows/calendar-v2-ci.yml'
 
 permissions:
@@ -33,6 +35,9 @@ jobs:
 
       - name: Verify browser JavaScript syntax
         run: node --check public/js/owner_calendar.js
+
+      - name: Verify Georgian translation coverage
+        run: deno test --no-check --allow-read tests/georgian_i18n_test.ts
 
       - name: Reconstruct the same calendar sources the Dockerfile will ship
         shell: bash

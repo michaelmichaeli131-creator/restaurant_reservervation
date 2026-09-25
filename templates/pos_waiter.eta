@@ -435,7 +435,7 @@
           <% items.forEach(function(row){ 
                const statusLabel = orderStatusLabel(row.status);
                const statusHint = orderStatusHint(row.status);
-               const createdAtText = row.createdAt ? new Date(row.createdAt).toLocaleTimeString(it.lang === 'he' ? 'he-IL' : 'en-US',{hour:'2-digit',minute:'2-digit'}) : '—';
+               const createdAtText = row.createdAt ? new Date(row.createdAt).toLocaleTimeString(it.lang === 'ka' ? 'ka-GE' : (it.lang === 'he' ? 'he-IL' : 'en-US'),{hour:'2-digit',minute:'2-digit'}) : '—';
                const itemTotal = (Number(row.unitPrice || 0) * Number(row.quantity || 0)).toFixed(2);
                const accountLabel = row.accountLabel || (String(row.accountId || currentAccountId) === 'main' ? tt('pos.waiter.main_check', 'Main Check') : String(row.accountId || currentAccountId));
           %>
