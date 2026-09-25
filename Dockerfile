@@ -1,4 +1,4 @@
-# SpotBook Railway source refresh — 2026-09-17
+# SpotBook Calendar 2.0 Railway release — 2026-09-25
 FROM node:22-bookworm-slim AS floor-build
 WORKDIR /floor/client
 COPY client/package.json client/package-lock.json ./
