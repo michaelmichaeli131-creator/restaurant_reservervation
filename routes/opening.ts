@@ -2,6 +2,8 @@
 import { Router, Status } from "jsr:@oak/oak";
 import { getRestaurant } from "../database.ts";
 import { openingWindowsForDate } from "../database.ts";
+import { getRestaurantSystemNow } from "../services/system_time.ts";
+import { validDate } from "../lib/booking_validation.ts";
 import { debugLog } from "../lib/debug.ts";
 
 const openingRouter = new Router();
@@ -22,6 +24,11 @@ openingRouter.get("/restaurants/:id/opening", async (ctx) => {
     return;
   }
 
+  if (!validDate(date)) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { error: "invalid_date" };
+    return;
+  }
   // תמיד פירוש לפי התאריך שהלקוח ביקש:
   const openingWindows = openingWindowsForDate(r, date);
   const slotIntervalMinutes = r.slotIntervalMinutes || 15;
@@ -34,8 +41,28 @@ openingRouter.get("/restaurants/:id/opening", async (ctx) => {
 
   ctx.response.status = Status.OK;
   ctx.response.type = "json";
-  ctx.response.body = { openingWindows, slotIntervalMinutes };
+  const now = await getRestaurantSystemNow(id);
+  const pad = (v: number) => String(v).padStart(2, "0");
+  const today = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const step = Math.max(1, Math.floor(Number(slotIntervalMinutes) || 15));
+  const duration = Math.max(1, Number(r.serviceDurationMinutes) || 120);
+  const minutes = (v: string) => {
+    const m = /^(\d{2}):(\d{2})$/.exec(v);
+    return m && +m[1] <= 24 && +m[2] < 60 ? +m[1]*60 + +m[2] : NaN;
+  };
+  const times = new Set<string>();
+  for (const window of openingWindows) {
+    const start = minutes(window.open), end = minutes(window.close);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+    for (let m = Math.ceil(start / step) * step; m + duration <= end && m < 1440; m += step) {
+      const time = `${pad(Math.floor(m/60))}:${pad(m%60)}`;
+      if (date > today || (date === today && time > currentTime)) times.add(time);
+    }
+  }
+  ctx.response.body = { openingWindows, slotIntervalMinutes, bookableTimes: [...times].sort(), today, currentTime };
 });
 
 export default openingRouter;
 export { openingRouter };
+

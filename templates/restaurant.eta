@@ -221,7 +221,7 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
         <%= tt('restaurant.form.check','See other times nearby') %>
       </button>
-      <button type="submit" class="rsv-btn rsv-btn--primary" id="submit-btn">
+      <button type="submit" class="rsv-btn rsv-btn--primary" id="submit-btn" disabled>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
         <%= tt('restaurant.form.next','Book this time') %>
       </button>
@@ -361,9 +361,19 @@
   const checkBtnEl = document.getElementById("check-btn");
 
   /* ===== Check button is enabled only once date + time are selected ===== */
+  let allowedBookingTimes = new Set();
+  let openingRequest = 0;
+  let loadedBookingDate = "";
+  const bookingWords = {
+    he: {empty:"אין שעות הזמנה זמינות בתאריך הזה. בחרו תאריך אחר.", error:"לא ניתן לטעון את שעות ההזמנה. נסו שוב.", retry:"נסו שוב"},
+    en: {empty:"No booking times are available on this date. Choose another date.", error:"Unable to load booking times. Please try again.", retry:"Try again"},
+    ka: {empty:"ამ თარიღზე დაჯავშნის დროები ხელმისაწვდომი არ არის. აირჩიეთ სხვა თარიღი.", error:"დაჯავშნის დროების ჩატვირთვა ვერ მოხერხდა. სცადეთ ხელახლა.", retry:"ხელახლა ცდა"}
+  }[document.documentElement.lang] || {empty:"No booking times are available on this date. Choose another date.",error:"Unable to load booking times. Please try again.",retry:"Try again"};
   function updateCheckBtnState() {
     if (!checkBtnEl) return;
-    const ready = !!(dateInput?.value || "").trim() && !!(hiddenTime?.value || "").trim();
+    const ready = loadedBookingDate === dateInput.value && allowedBookingTimes.has(hiddenTime.value);
+    const submit = document.getElementById("submit-btn");
+    if (submit) { submit.disabled = !ready; submit.classList.toggle("is-disabled", !ready); }
     checkBtnEl.disabled = !ready;
     checkBtnEl.classList.toggle("is-disabled", !ready);
   }
@@ -571,24 +581,40 @@
     });
   }
 
-  function rebuildTimeFor(dateStr) {
+  async function rebuildTimeFor(dateStr) {
+    const request = ++openingRequest;
+    const previousTime = hiddenTime.value;
+    loadedBookingDate = "";
+    allowedBookingTimes.clear();
+    hiddenTime.value = "";
+    updateCheckBtnState();
+    document.getElementById("quick-today")?.setAttribute("hidden", "");
+    document.getElementById("around-card")?.setAttribute("hidden", "");
     timeGrid.setAttribute("aria-busy", "true");
-    timeGrid.innerHTML =
-      '<span class="sb-skeleton rsv-time-skeleton" aria-hidden="true"></span>'
-      + '<span class="sb-skeleton rsv-time-skeleton" aria-hidden="true"></span>'
-      + '<span class="sb-skeleton rsv-time-skeleton" aria-hidden="true"></span>'
-      + '<span class="sb-skeleton rsv-time-skeleton" aria-hidden="true"></span>'
-      + '<span class="sb-skeleton rsv-time-skeleton" aria-hidden="true"></span>'
-      + '<span class="rsv-time-carousel__loading rsv-visually-hidden" role="status" aria-live="polite"><%= tt("restaurant.form.loading_times","טוען שעות...") %></span>';
-    fetchOpeningForDate(RID, dateStr).then(data => {
-      const windows = Array.isArray(data?.openingWindows) && data.openingWindows.length ? data.openingWindows : [];
-      STEP_MIN = Math.max(1, parseInt(data?.slotIntervalMinutes ?? STEP_MIN, 10) || STEP_MIN);
-      renderTimeGrid(buildTimeChips(windows, STEP_MIN));
-    }).catch(() => {
-      const ranges = fallbackRangesFor(dateStr);
-      const windows = ranges.map(([a,b]) => ({ open: fromMin(a), close: fromMin(b) }));
-      renderTimeGrid(buildTimeChips(windows, STEP_MIN));
-    });
+    timeGrid.textContent = "…";
+    try {
+      const data = await fetchOpeningForDate(RID, dateStr);
+      if (request !== openingRequest || dateInput.value !== dateStr) return;
+      if (!Array.isArray(data.bookableTimes)) throw new Error("missing_booking_times");
+      const times = data.bookableTimes.filter(t => typeof t === "string" && /^\d{2}:\d{2}$/.test(t));
+      loadedBookingDate = dateStr;
+      allowedBookingTimes = new Set(times);
+      hiddenTime.value = allowedBookingTimes.has(previousTime) ? previousTime : "";
+      if (data.today) dateInput.min = data.today;
+      renderTimeGrid(times);
+      if (!times.length) timeGrid.textContent = bookingWords.empty;
+    } catch {
+      if (request !== openingRequest || dateInput.value !== dateStr) return;
+      timeGrid.textContent = bookingWords.error + " ";
+      const retry = document.createElement("button");
+      retry.type = "button"; retry.className = "rsv-btn rsv-btn--ghost";
+      retry.textContent = bookingWords.retry;
+      retry.onclick = () => rebuildTimeFor(dateInput.value);
+      timeGrid.appendChild(retry);
+    }
+    timeGrid.setAttribute("aria-busy", "false");
+    timeGrid.setAttribute("role", "status");
+    updateCheckBtnState();
   }
 
   dateInput.addEventListener("change", () => {
@@ -611,55 +637,7 @@
   /* ===== Quick-pick today times =====
      Opening-hour slots only (NOT verified availability) — shown only when the
      initially selected date is today (client clock), filtered to >= now+30min. */
-  (function initQuickToday(){
-    const strip = document.getElementById("quick-today");
-    const list = document.getElementById("quick-today-list");
-    if (!strip || !list || !dateInput || !timeGrid || !hiddenTime) return;
-
-    const now = new Date();
-    const todayStr = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
-    if ((dateInput.value || "").trim() !== todayStr) return;
-
-    const windows = Array.isArray(FALLBACK_WINDOWS_TODAY) ? FALLBACK_WINDOWS_TODAY : [];
-    if (!windows.length) return;
-
-    const cutoff = now.getHours() * 60 + now.getMinutes() + 30;
-    const times = buildTimeChips(windows, STEP_MIN)
-      .filter(t => { const m = toMin(t); return m != null && m >= cutoff; })
-      .slice(0, 5);
-    if (!times.length) return;
-
-    times.forEach(t => {
-      const pill = document.createElement("button");
-      pill.type = "button";
-      pill.className = "rsv-quick-pill";
-      pill.dataset.value = t;
-      pill.textContent = t;
-      pill.addEventListener("click", () => {
-        // Ensure the date is today; the change handler rebuilds the grid for today.
-        if ((dateInput.value || "").trim() !== todayStr) {
-          dateInput.value = todayStr;
-          dateInput.dispatchEvent(new Event("change"));
-        }
-        const chip = timeGrid.querySelector(`.rsv-time-chip[data-value="${CSS.escape(t)}"]`);
-        if (chip) {
-          // Exact same code path as tapping a grid chip
-          // (is-selected, hidden #time, updateCheckBtnState, occupancy refresh).
-          chip.click();
-        } else {
-          // Grid still loading — renderTimeGrid marks is-selected from hiddenTime once built.
-          hiddenTime.value = t;
-          updateCheckBtnState();
-          updateAllRoomOccupancies();
-        }
-        form?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-      list.appendChild(pill);
-    });
-
-    strip.hidden = false;
-    strip.setAttribute("aria-hidden", "false");
-  })();
+  // Quick picks remain hidden; the server-validated time grid is authoritative.
 
   /* ===== Time carousel arrows (RTL-aware) ===== */
   const isRTL = document.documentElement.dir === "rtl";
@@ -715,7 +693,7 @@
     const timeVal = (hiddenTime.value || "").trim();
     const pplVal  = Math.max(1, parseInt((peopleInput.value || "1"), 10) || 1);
 
-    if (!dateVal || !timeVal) {
+    if (!dateVal || !timeVal || loadedBookingDate !== dateVal || !allowedBookingTimes.has(timeVal)) {
       ev.preventDefault();
       showToast("<%= tt('restaurant.form.missing','נא לבחור תאריך ושעה') %>", "warn");
       timeGrid?.setAttribute("aria-invalid", "true");
@@ -838,7 +816,8 @@
     const card = document.getElementById("around-card");
     const box = document.getElementById("around-slots");
     box.innerHTML = "";
-    if (Array.isArray(slots) && slots.length) {
+    slots = Array.isArray(slots) && loadedBookingDate === dateInput.value ? slots.filter(t => allowedBookingTimes.has(t)) : [];
+    if (slots.length) {
       card.hidden = false;
       card.scrollIntoView({ behavior: "smooth", block: "nearest" });
       slots.slice(0, 8).forEach(t => {
@@ -847,6 +826,7 @@
         b.className = "rsv-suggestion-chip";
         b.textContent = t;
         b.onclick = () => {
+          if (loadedBookingDate !== dateInput.value || !allowedBookingTimes.has(t)) return;
           hiddenTime.value = t;
           updateCheckBtnState();
           // Update time grid selection
@@ -2044,3 +2024,6 @@
   }
 
 </style>
+
+<style>.rsv-btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}.rsv-time-carousel__grid[role="status"]{line-height:1.6}</style>
+
