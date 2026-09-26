@@ -1,3 +1,9 @@
+<%
+function ownerSignupText(key, fallback) {
+  const value = typeof it.t === 'function' ? it.t(key) : '';
+  return !value || value === key || value === '(' + key + ')' ? fallback : value;
+}
+%>
 
 <% layout("_layout", it) %>
 
@@ -353,45 +359,45 @@
 
         <div class="owners-form-grid owners-form-grid--two">
           <label class="owners-field">
-            <span><%= (it.t && it.t('auth.register.form.firstName')) || 'First name' %></span>
-            <input type="text" name="firstName" required placeholder="<%= (it.t && it.t('auth.register.form.firstNamePh')) || 'For example: Daniel' %>" />
+            <span><%= ownerSignupText('auth.register.form.firstName', 'First name') %></span>
+            <input type="text" name="firstName" autocomplete="given-name" required placeholder="<%= ownerSignupText('auth.register.form.firstNamePh', 'For example: Daniel') %>" />
           </label>
           <label class="owners-field">
-            <span><%= (it.t && it.t('auth.register.form.lastName')) || 'Last name' %></span>
-            <input type="text" name="lastName" required placeholder="<%= (it.t && it.t('auth.register.form.lastNamePh')) || 'For example: Cohen' %>" />
+            <span><%= ownerSignupText('auth.register.form.lastName', 'Last name') %></span>
+            <input type="text" name="lastName" autocomplete="family-name" required placeholder="<%= ownerSignupText('auth.register.form.lastNamePh', 'For example: Cohen') %>" />
           </label>
         </div>
 
         <label class="owners-field">
-          <span><%= (it.t && it.t('auth.register.form.email')) || 'Email' %></span>
-          <input type="email" name="email" required placeholder="<%= (it.t && it.t('auth.register.form.emailPh')) || 'you@example.com' %>" />
+          <span><%= ownerSignupText('auth.register.form.email', 'Email') %></span>
+          <input type="email" name="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" dir="ltr" required placeholder="<%= ownerSignupText('auth.register.form.emailPh', 'you@example.com') %>" />
         </label>
 
         <div class="owners-form-grid owners-form-grid--two">
           <label class="owners-field">
-            <span><%= (it.t && it.t('auth.register.form.password')) || 'Password' %></span>
-            <input type="password" name="password" minlength="8" required placeholder="<%= (it.t && it.t('auth.register.form.passwordPh')) || 'At least 8 characters' %>" />
+            <span><%= ownerSignupText('auth.register.form.password', 'Password') %></span>
+            <input type="password" name="password" autocomplete="new-password" minlength="8" required placeholder="<%= ownerSignupText('auth.register.form.passwordPh', 'At least 8 characters') %>" />
           </label>
           <label class="owners-field">
-            <span><%= (it.t && it.t('auth.register.form.confirm')) || 'Confirm password' %></span>
-            <input type="password" name="confirm" minlength="8" required placeholder="<%= (it.t && it.t('auth.register.form.confirmPh')) || 'Type the password again' %>" />
+            <span><%= ownerSignupText('auth.register.form.confirm', 'Confirm password') %></span>
+            <input type="password" name="confirm" autocomplete="new-password" minlength="8" required placeholder="<%= ownerSignupText('auth.register.form.confirmPh', 'Type the password again') %>" />
           </label>
         </div>
 
         <div class="owners-form-grid owners-form-grid--two">
           <label class="owners-field">
-            <span><%= (it.t && it.t('auth.register.form.businessType')) || 'Business type' %></span>
+            <span><%= ownerSignupText('auth.register.form.businessType', 'Business type') %></span>
             <select name="businessType" required>
-              <option value="restaurant"><%= (it.t && it.t('auth.register.form.optRestaurant')) || 'Restaurant' %></option>
-              <option value="cafe"><%= (it.t && it.t('auth.register.form.optCafe')) || 'Cafe' %></option>
-              <option value="bar"><%= (it.t && it.t('auth.register.form.optBar')) || 'Bar' %></option>
-              <option value="hotel"><%= (it.t && it.t('auth.register.form.optHotel')) || 'Hotel / Hospitality' %></option>
-              <option value="other"><%= (it.t && it.t('auth.register.form.optOther')) || 'Other' %></option>
+              <option value="restaurant"><%= ownerSignupText('auth.register.form.optRestaurant', 'Restaurant') %></option>
+              <option value="cafe"><%= ownerSignupText('auth.register.form.optCafe', 'Cafe') %></option>
+              <option value="bar"><%= ownerSignupText('auth.register.form.optBar', 'Bar') %></option>
+              <option value="hotel"><%= ownerSignupText('auth.register.form.optHotel', 'Hotel / Hospitality') %></option>
+              <option value="other"><%= ownerSignupText('auth.register.form.optOther', 'Other') %></option>
             </select>
           </label>
           <label class="owners-field">
-            <span><%= (it.t && it.t('auth.register.form.phone')) || 'Mobile (optional)' %></span>
-            <input type="tel" name="phone" placeholder="<%= (it.t && it.t('auth.register.form.phonePh')) || '050-1234567' %>" />
+            <span><%= ownerSignupText('auth.register.form.phone', 'Mobile (optional)') %></span>
+            <input type="tel" name="phone" autocomplete="tel" inputmode="tel" dir="ltr" placeholder="<%= ownerSignupText('auth.register.form.phonePh', '050-1234567') %>" />
           </label>
         </div>
 
@@ -578,5 +584,21 @@ html[dir="rtl"] .owners-compare-card li::before{left:auto;right:0}
   .olp3-price-card{padding:22px 18px;border-radius:22px}
   .olp3-cta__band{border-radius:22px;padding-inline:18px}
   .olp3-code{padding:10px 14px}
+}
+</style>
+
+<style id="owner-signup-mobile-fix">
+html:has(#owner-signup),body:has(#owner-signup){height:auto;min-height:100%;overflow-x:clip}
+#owner-signup{scroll-margin-top:100px}
+#owner-signup .owners-field,#owner-signup .owners-signup-card,#owner-signup .owners-signup-form,#owner-signup .owners-signup__copy{min-width:0;overflow-wrap:anywhere}
+#owner-signup input,#owner-signup select{box-sizing:border-box;width:100%;min-width:0;font-size:16px;min-height:48px}
+#owner-signup input::placeholder{color:#94a3b8;opacity:1}
+#owner-signup .owners-signup-submit{min-height:50px;white-space:normal}
+@media(max-width:760px){
+#owner-signup .owners-signup__grid{grid-template-columns:minmax(0,1fr)}
+#owner-signup .owners-signup-card{padding:20px 16px;border-radius:20px}
+#owner-signup .owners-form-grid--two{grid-template-columns:minmax(0,1fr)}
+#owner-signup .owners-signup-form,#owner-signup .owners-form-grid{gap:18px}
+#owner-signup .owners-field>span{font-size:14px;line-height:1.5}
 }
 </style>

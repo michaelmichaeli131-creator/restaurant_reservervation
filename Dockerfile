@@ -86,6 +86,8 @@ COPY templates/auth/register.eta /app/templates/auth/register.eta
 COPY i18n/pages/auth.en.json i18n/pages/auth.he.json i18n/pages/auth.ka.json /app/i18n/pages/
 COPY railway_auth_patch.ts /app/railway_auth_patch.ts
 RUN deno run --allow-read --allow-write /app/railway_auth_patch.ts
+COPY railway_owner_signup_patch.ts /app/railway_owner_signup_patch.ts
+RUN deno run --allow-read --allow-write /app/railway_owner_signup_patch.ts
 
 # Mobile styles run last, including standalone calendar and localized pages.
 COPY public/css/spotbook-mobile.css /app/public/css/spotbook-mobile.css

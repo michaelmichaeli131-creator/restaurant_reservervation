@@ -237,7 +237,11 @@ export async function render(
   }
 
   // פונקציית תרגום שנותנת קדימות למילון העמוד
-  const t = makePageAwareT(baseT, pageDict);
+  // The owner landing page embeds the auth form alongside its own page copy.
+  const sharedAuthDict = template === "for_restaurants"
+    ? await tryLoadJson(pageDictFile("auth", lang))
+    : null;
+  const t = makePageAwareT(makePageAwareT(baseT, sharedAuthDict), pageDict);
 
   // payload שמגיע לכל תבנית + layout
   // FIX: context קודם, ואז data בסוף כדי למנוע דריסת data.staff בעמוד ניהול עובד
