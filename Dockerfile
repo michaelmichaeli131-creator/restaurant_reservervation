@@ -83,6 +83,7 @@ COPY templates/owner/staff.eta /app/templates/owner/staff.eta
 
 # Mobile styles run last, including standalone calendar and localized pages.
 COPY public/css/spotbook-mobile.css /app/public/css/spotbook-mobile.css
+COPY public/js/spotbook-mobile.js /app/public/js/spotbook-mobile.js
 RUN deno run --allow-env --allow-read --allow-write /app/railway_mobile_patch.ts
 
 # Compile the authoritative editor source and restore it after the old overlay.
