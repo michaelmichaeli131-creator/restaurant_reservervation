@@ -44,7 +44,7 @@
         "email": "Email",
         "emailHint": "We'll use this email for login and notifications.",
         "password": "Password",
-        "passwordPh": "At least 6 characters",
+        "passwordPh": "At least 8 characters",
         "confirm": "Confirm password",
         "confirmPh": "Re-enter your password",
         "pwToggleAria": "Show/Hide password",

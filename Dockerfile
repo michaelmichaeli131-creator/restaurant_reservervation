@@ -81,6 +81,12 @@ COPY routes/calendar_guest.ts /app/routes/calendar_guest.ts
 COPY templates/owner_bill_print.eta templates/owner_bill_view.eta templates/owner_calendar.eta templates/owner_restaurant_manage.eta templates/pos_waiter.eta templates/restaurant_detail.eta templates/review_form.eta /app/templates/
 COPY templates/owner/staff.eta /app/templates/owner/staff.eta
 
+# Restore auth after archived templates and legacy design generators.
+COPY templates/auth/register.eta /app/templates/auth/register.eta
+COPY i18n/pages/auth.en.json i18n/pages/auth.he.json i18n/pages/auth.ka.json /app/i18n/pages/
+COPY railway_auth_patch.ts /app/railway_auth_patch.ts
+RUN deno run --allow-read --allow-write /app/railway_auth_patch.ts
+
 # Mobile styles run last, including standalone calendar and localized pages.
 COPY public/css/spotbook-mobile.css /app/public/css/spotbook-mobile.css
 COPY public/js/spotbook-mobile.js /app/public/js/spotbook-mobile.js

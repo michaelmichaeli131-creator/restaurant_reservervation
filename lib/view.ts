@@ -227,6 +227,7 @@ export async function render(
 
   // נסה לטעון מילון-עמוד (אם ניתן להסיק page מהדאטה)
   const pageNs =
+    (template.startsWith("auth/") ? "auth" : "") ||
     (typeof data.page === "string" && data.page) ||
     (template === "index" ? "home" : "");
 
