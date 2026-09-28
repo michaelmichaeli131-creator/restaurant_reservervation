@@ -1,6 +1,6 @@
 // src/routes/opening.ts
 import { Router, Status } from "jsr:@oak/oak";
-import { getRestaurant } from "../database.ts";
+import { checkAvailability, checkRoomCapacity, getRestaurant } from "../database.ts";
 import { openingWindowsForDate } from "../database.ts";
 import { getRestaurantSystemNow } from "../services/system_time.ts";
 import { validDate } from "../lib/booking_validation.ts";
@@ -60,9 +60,32 @@ openingRouter.get("/restaurants/:id/opening", async (ctx) => {
       if (date > today || (date === today && time > currentTime)) times.add(time);
     }
   }
-  ctx.response.body = { openingWindows, slotIntervalMinutes, bookableTimes: [...times].sort(), today, currentTime };
+  const peopleRaw = ctx.request.url.searchParams.get("people");
+  const people = Number(peopleRaw || 2);
+  const preferredLayoutId = ctx.request.url.searchParams.get("preferredLayoutId") || "";
+  if (!Number.isInteger(people) || people < 1 || people > 100) {
+    ctx.response.status = Status.BadRequest;
+    ctx.response.body = { error: "invalid_people" };
+    return;
+  }
+  const openingTimes = [...times].sort();
+  const bookableTimes: string[] = [];
+  if (peopleRaw !== null) {
+    // Bound concurrent reads; reuse the same validators as reservation creation.
+    for (let offset = 0; offset < openingTimes.length; offset += 4) {
+      const batch = openingTimes.slice(offset, offset + 4);
+      const available = await Promise.all(batch.map(async time => {
+        const total = await checkAvailability(id, date, time, people);
+        if (!total.ok) return false;
+        return !preferredLayoutId || (await checkRoomCapacity(id, preferredLayoutId, date, time, people)).ok;
+      }));
+      batch.forEach((time, i) => { if (available[i]) bookableTimes.push(time); });
+    }
+  } else bookableTimes.push(...openingTimes);
+  ctx.response.body = { openingWindows, slotIntervalMinutes, bookableTimes, openingTimes, today, currentTime };
 });
 
 export default openingRouter;
 export { openingRouter };
+
 

@@ -98,6 +98,10 @@ COPY routes/opening.ts /app/routes/opening.ts
 COPY railway_booking_times_patch.ts /app/railway_booking_times_patch.ts
 RUN deno run --allow-read --allow-write /app/railway_booking_times_patch.ts
 
+COPY public/js/booking-draft.js /app/public/js/booking-draft.js
+COPY railway_booking_flow_patch.ts /app/railway_booking_flow_patch.ts
+RUN deno run --allow-read --allow-write /app/railway_booking_flow_patch.ts
+
 # Compile the authoritative editor source and restore it after the old overlay.
 COPY --from=floor-build /floor/public/dist/ /app/public/dist/
 
@@ -124,4 +128,5 @@ EXPOSE 8000
 # deletes a tiny temporary PNG before the web server starts.
 USER root
 CMD ["sh", "-c", "chown -R deno:deno /data && if [ \"$R2_SMOKE_ON_BOOT\" = \"1\" ]; then gosu deno deno run --cached-only --allow-net --allow-env --allow-read --allow-sys --unstable-kv scripts/r2_smoke.ts || exit 1; fi && exec gosu deno deno run --cached-only --allow-net --allow-env --allow-read --allow-write=/data --allow-sys --unstable-kv server.ts"]
+
 
