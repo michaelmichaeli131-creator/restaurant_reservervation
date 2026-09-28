@@ -116,6 +116,8 @@
   let weekRequest = 0;
   let weekCache = null;
   let agendaRequest = 0;
+  let dayRequest = 0, summaryRequest = 0, slotRequest = 0;
+  let reconnectTimer = null, manualRefresh = false, slotSaving = false;
   const weekModeButtons = Array.from(document.querySelectorAll("[data-week-mode]"));
   const weekIntervalSelect = $("#oc-week-interval");
   function restoreWeekOptions() {
@@ -657,6 +659,7 @@
       renderWaitlist(data);
     } catch {
       if (request === waitlistRequest && state.date === date) {
+        calendarFeedback(false);
         if (waitlistCount) waitlistCount.textContent = "!";
         waitlistRows.textContent = lang === "he"
           ? "לא ניתן לטעון את רשימת ההמתנה כרגע"
@@ -745,6 +748,7 @@
       renderAgenda();
     } catch {
       if (request === agendaRequest && state.date === selected && ["day", "list"].includes(state.ui.view) && agendaRows) {
+        calendarFeedback(false);
         agendaRows.textContent = lang === "he" ? "טעינת ההזמנות נכשלה. נסה לרענן את העמוד." : ge("Could not load reservations. Try refreshing.", "טעינת ההזמנות נכשלה. נסה לרענן את העמוד.");
       }
     }
@@ -950,6 +954,7 @@
         "/calendar/agenda?date=" + encodeURIComponent(date) + "&" + filterQuery())
     ));
     if (request !== weekRequest || state.date !== selected || state.ui.view !== "week") return;
+    if(results.some(result => result.status === "rejected")) calendarFeedback(false);
     // A partial failure should be retried on next visit instead of cached.
     weekCache = results.every((result) => result.status === "fulfilled")
       ? { start, selected, dates, results } : null;
@@ -1004,6 +1009,7 @@
       }
     } catch {
       if (request === monthRequest && state.ui.view === "month" && state.date === selected) {
+        calendarFeedback(false);
         monthGrid.textContent = lang === "he" ? "טעינת החודש נכשלה. נסה שוב." : ge("Could not load the month. Please try again.", "טעינת החודש נכשלה. נסה שוב.");
       }
     }
@@ -1329,6 +1335,8 @@
   }
 
   function openDrawer(hhmm) {
+    state.drawer.items = [];
+    renderDrawer([]);
     state.drawer.time = hhmm;
     if (drawerTitle) drawerTitle.textContent = `${init?.txt?.customersAt || "Customers"} ${toAMPM(hhmm)}`;
     setOpen(drawer, true);
@@ -1337,6 +1345,7 @@
   }
 
   function closeDrawer() {
+    ++slotRequest;
     setOpen(drawer, false);
     state.drawer.open = false;
     state.drawer.time = null;
@@ -1345,8 +1354,11 @@
   async function loadDay() {
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day?date=${encodeURIComponent(state.date)}&displayMinutes=${state.ui.displayMinutes}`;
     const selectedDate = state.date;
-    const result = await fetchJSON(url);
-    if (selectedDate !== state.date) return;
+    const request = ++dayRequest;
+    let result;
+    try { result = await fetchJSON(url); }
+    catch { if(request === dayRequest && selectedDate === state.date) calendarFeedback(false); return; }
+    if (request !== dayRequest || selectedDate !== state.date) return;
     if(state.day && state.day.date !== selectedDate) closeDrawer();
     state.day = result;
     if (state.day?.currentTime) {
@@ -1358,13 +1370,14 @@
     }
     renderHeaderLine();
     renderSlots();
-    void loadWaitlist();
+    await loadWaitlist();
+    if(request !== dayRequest || selectedDate !== state.date) return;
     if (["day", "list"].includes(state.ui.view) && state.agenda?.date !== state.date) await loadAgenda();
     renderRoomOccupancy();
     renderKPIs();
     if (datePicker) datePicker.value = state.date;
-    if (state.ui.view === "week") void loadWeek();
-    if (state.ui.view === "month") void loadMonth();
+    if (state.ui.view === "week") await loadWeek();
+    if (state.ui.view === "month") await loadMonth();
     const d = isoToDate(state.date);
     if (dateLabel) dateLabel.textContent = fmtDate(d, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
     if (state.cal.year !== d.getFullYear() || state.cal.month !== d.getMonth()) {
@@ -1377,8 +1390,11 @@
   async function loadSummary() {
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/day/summary?date=${encodeURIComponent(state.date)}`;
     const selectedDate = state.date;
-    const result = await fetchJSON(url);
-    if (selectedDate !== state.date) return;
+    const request = ++summaryRequest;
+    let result;
+    try { result = await fetchJSON(url); }
+    catch { if(request === summaryRequest && selectedDate === state.date) calendarFeedback(false); return; }
+    if (request !== summaryRequest || selectedDate !== state.date) return;
     state.summary = result;
     renderSummary();
   }
@@ -1387,14 +1403,22 @@
     if (!state.drawer.time) return;
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/slot?date=${encodeURIComponent(state.date)}&time=${encodeURIComponent(state.drawer.time)}`;
     const selectedDate=state.date, selectedTime=state.drawer.time;
-    const data = await fetchJSON(url);
-    if(state.date!==selectedDate || state.drawer.time!==selectedTime || !state.drawer.open) return;
+    const request = ++slotRequest;
+    let data;
+    try { data = await fetchJSON(url); }
+    catch { if(request === slotRequest && state.drawer.open) calendarFeedback(false); return; }
+    if(request !== slotRequest || state.date!==selectedDate || state.drawer.time!==selectedTime || !state.drawer.open) return;
     state.drawer.items = data.items || [];
     renderDrawer(state.drawer.items);
   }
 
   async function slotAction(action, reservation = {}) {
-    if (!state.drawer.time) return;
+    if (!state.drawer.time || slotSaving || !resources.canManage) return;
+    if (action === 'cancel' && !confirm(tr('Cancel this reservation?', 'לבטל את ההזמנה?', 'გსურთ ჯავშნის გაუქმება?'))) return;
+    slotSaving = true;
+    const buttons = $$('button[data-act]', drawerTableBody);
+    buttons.forEach(button => button.disabled = true);
+    try {
     const qs = new URLSearchParams({
       action,
       date: state.date,
@@ -1407,6 +1431,8 @@
     state.agenda = null;
     weekCache = null;
     await Promise.all([loadSlot(), loadDay(), loadSummary()]);
+    } catch(error) { alert(error.message); }
+    finally { slotSaving = false; buttons.forEach(button => button.disabled = !resources.canManage); }
   }
 
   async function createManual() {
@@ -1429,7 +1455,9 @@
   }
 
   function connectSSE() {
+    clearTimeout(reconnectTimer); reconnectTimer = null;
     cleanupSSE();
+    if (document.hidden || navigator.onLine === false) return;
     const url = `/owner/restaurants/${encodeURIComponent(state.rid)}/calendar/events?date=${encodeURIComponent(state.date)}`;
     let es;
     try {
@@ -1448,13 +1476,18 @@
         const data = JSON.parse(e.data || "{}");
         Promise.all([loadDay(), loadSummary()]).then(() => {
           const t = data.time;
-          if (state.drawer.open && t && state.drawer.time === t) loadSlot();
-        });
+          if (state.drawer.open && t && state.drawer.time === t) void loadSlot();
+        }).catch(() => calendarFeedback(false));
       } catch {
         // ignore malformed events
       }
     };
 
+    es.addEventListener("open", () => {
+      if(state.sse.es !== es) return;
+      if(state.sse.pollTimer) clearInterval(state.sse.pollTimer);
+      state.sse.pollTimer = null;
+    });
     es.addEventListener("hello", () => {});
     es.addEventListener("ping", () => {});
     es.addEventListener("reservation_create", onRefresh);
@@ -1462,7 +1495,8 @@
     es.addEventListener("reservation_cancel", onRefresh);
     es.addEventListener("reservation_arrived", onRefresh);
     es.onerror = () => {
-      cleanupSSE();
+      if(state.sse.es !== es) return;
+      schedulePolling();
       scheduleReconnect();
     };
   }
@@ -1473,12 +1507,19 @@
   }
 
   function scheduleReconnect() {
-    setTimeout(() => { try { connectSSE(); } catch { schedulePolling(); } }, state.sse.retryMs);
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      if(document.hidden || navigator.onLine === false) return;
+      void refreshCalendar();
+      connectSSE();
+    }, 15000);
   }
 
   function schedulePolling() {
     cleanupSSE();
     state.sse.pollTimer = setInterval(() => {
+      if(document.hidden || navigator.onLine === false) return;
       weekCache = null;
       state.agenda = null;
       ++agendaRequest;
@@ -1615,12 +1656,39 @@
   function filterQuery() {
     return new URLSearchParams({ q: $('#oc-global-search')?.value || '', status: $('#oc-global-status')?.value || 'all', room: $('#oc-global-room')?.value || '', kind: $('#oc-global-kind')?.value || 'all' }).toString();
   }
+  function calendarFeedback(ok) {
+    const status = $('#oc-refresh-status');
+    if(!status) return;
+    if(!ok) status.dataset.failed = '1';
+    status.textContent = ok
+      ? tr('Refresh finished', 'הרענון הסתיים', 'განახლება დასრულდა')
+      : tr('Some data could not be refreshed. Check your connection and retry.', 'חלק מהנתונים לא עודכנו. בדקו את החיבור ולחצו על רענון.', 'ზოგი მონაცემი ვერ განახლდა. შეამოწმეთ კავშირი და სცადეთ ხელახლა.');
+  }
+  async function refreshFromUser() {
+    if(manualRefresh) return;
+    manualRefresh = true;
+    const button = $('#oc-refresh'), status = $('#oc-refresh-status');
+    button.disabled = true; button.setAttribute('aria-busy','true');
+    status.dataset.failed = '';
+    status.textContent = tr('Refreshing…','מרענן…','ახლდება…');
+    try {
+      await refreshCalendar();
+      if(state.drawer.open) await loadSlot();
+      if(!status.dataset.failed) calendarFeedback(true);
+    } catch { calendarFeedback(false); }
+    finally {manualRefresh = false;button.disabled = false;button.removeAttribute('aria-busy');}
+  }
   async function refreshCalendar() {
     weekCache = null; state.agenda = null;
     await Promise.all([loadDay(), loadSummary()]);
   }
   function refreshFilters() {
     weekCache = null; state.agenda = null;
+    const query = $('#oc-global-search')?.value || '';
+    if(daySearch) daySearch.value = query;
+    if(sideSearch) sideSearch.value = query;
+    state.ui.statusFilter = $('#oc-global-status')?.value || 'all';
+    if(agendaStatus) agendaStatus.value = state.ui.statusFilter;
     if (['day','list'].includes(state.ui.view)) void loadAgenda();
     if (state.ui.view === 'week') void loadWeek();
     if (state.ui.view === 'month') void loadMonth();
@@ -1633,7 +1701,7 @@
     const bar = document.createElement('div');
     bar.className = 'oc-global-tools';
     bar.innerHTML = `<label>${tr('Search','חיפוש')}<input id="oc-global-search" type="search" placeholder="${tr('Name, phone or event','שם, טלפון או אירוע')}"></label>
-      <label>${tr('Status','סטטוס')}<select id="oc-global-status"><option value="all">${tr('All statuses','כל הסטטוסים')}</option><option value="new">${tr('New','חדש')}</option><option value="confirmed">${tr('Confirmed','מאושר')}</option><option value="arrived">${tr('Arrived','הגיע')}</option><option value="seated">${tr('Seated','הושבו')}</option><option value="cancelled">${tr('Cancelled','בוטל')}</option><option value="no_show">${tr('No show','לא הגיע')}</option><option value="blocked">${tr('Blocked','חסום')}</option></select></label>
+      <label>${tr('Status','סטטוס')}<select id="oc-global-status"><option value="all">${tr('All statuses','כל הסטטוסים')}</option><option value="new">${tr('New','חדש')}</option><option value="pending">${tr('Pending','ממתין לאישור')}</option><option value="completed">${tr('Completed','הסתיים')}</option><option value="confirmed">${tr('Confirmed','מאושר')}</option><option value="arrived">${tr('Arrived','הגיע')}</option><option value="seated">${tr('Seated','הושבו')}</option><option value="cancelled">${tr('Cancelled','בוטל')}</option><option value="no_show">${tr('No show','לא הגיע')}</option><option value="blocked">${tr('Blocked','חסום')}</option></select></label>
       <label>${tr('Room','אזור')}<select id="oc-global-room"><option value="">${tr('All rooms','כל האזורים')}</option></select></label>
       <label>${tr('Type','סוג')}<select id="oc-global-kind"><option value="all">${tr('Bookings and events','הזמנות ואירועים')}</option><option value="reservation">${tr('Reservations','הזמנות')}</option><option value="event">${tr('Events','אירועים')}</option><option value="block">${tr('Blocks','חסימות')}</option></select></label>
       <label>${tr("Display intervals","מרווחי תצוגה")}<select id="oc-display-minutes"><option value="15">15 ${tr("min","דקות")}</option><option value="30">30 ${tr("min","דקות")}</option></select></label>
@@ -1641,8 +1709,20 @@
       <button type="button" id="oc-add-reservation">${tr('+ Reservation','+ הזמנה')}</button><button type="button" id="oc-add-event">${tr('+ Event / block','+ אירוע / חסימה')}</button>
       <a id="oc-floor-link" href="/owner/restaurants/${encodeURIComponent(state.rid)}/floor">${tr('Floor plan','מפת המסעדה')} ↗</a>`;
     $('.oc-viewbar')?.after(bar);
+    const refreshBar = document.createElement('div'); refreshBar.className = 'oc-refresh-bar';
+    const refreshButton = document.createElement('button');refreshButton.type='button';refreshButton.id='oc-refresh';
+    refreshButton.textContent = tr('Refresh','רענון','განახლება'); refreshButton.onclick = refreshFromUser;
+    const feedback = document.createElement('span');feedback.id='oc-refresh-status';feedback.setAttribute('role','status');
+    refreshBar.append(refreshButton,feedback); $('.oc-viewbar')?.after(refreshBar);
+    document.addEventListener('visibilitychange', () => {
+      if(document.hidden){clearTimeout(reconnectTimer);cleanupSSE();return;}
+      void refreshFromUser();connectSSE();
+    });
+    window.addEventListener('online', () => {void refreshFromUser();connectSSE();});
+    window.addEventListener('offline', () => {clearTimeout(reconnectTimer);cleanupSSE();calendarFeedback(false);});
     $('#oc-display-minutes').value=String(state.ui.displayMinutes);
     $('#oc-display-minutes').onchange=()=>{state.ui.displayMinutes=Number($('#oc-display-minutes').value);if(weekIntervalSelect)weekIntervalSelect.value=String(state.ui.displayMinutes);persistCalendarOptions();void loadDay();};
+    if(agendaStatus) agendaStatus.replaceChildren(...Array.from($('#oc-global-status').options).map(option => option.cloneNode(true)));
     $('#oc-global-search').addEventListener('input', debounce(refreshFilters,250));
     ['status','room','kind'].forEach(id => $('#oc-global-'+id).addEventListener('change',refreshFilters));
     $('#oc-clear-filters').onclick = () => {
@@ -1933,3 +2013,4 @@
 
   document.addEventListener("DOMContentLoaded", initApp);
 })();
+

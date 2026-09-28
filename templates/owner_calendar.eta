@@ -8,7 +8,7 @@
     <% const c = (en, he, ka) => it.lang === 'he' ? he : (it.lang === 'ka' ? ka : en); %>
     <%= (it.title && it.title.trim().length) ? it.title : tt('owner.calendar.head','SpotBook · მფლობელის კალენდარი') %>
   </title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <!-- קובץ הלוגיקה/בסיס קיים שלך -->
   <link rel="stylesheet" href="/static/css/owner_calendar.css?v=calendar-v2-1" />
 
@@ -571,6 +571,9 @@
   </style>
   <link rel="stylesheet" href="/public/css/sb-tablet-support.css?v=<%= it.BUILD_TAG || Date.now() %>" />
   <link rel="stylesheet" href="/static/css/owner_calendar_v2.css?v=1" />
+<style>.oc-refresh-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0}.oc-refresh-bar button{min-height:44px;padding:10px 18px;border-radius:12px;border:1px solid #466188;background:#15253c;color:#edf4ff;font:inherit;cursor:pointer}.oc-refresh-bar span{font-size:13px;line-height:1.5;flex:1;min-width:180px}.oc-refresh-bar [data-failed="1"]{color:#fbbf24}.oc-refresh-bar button:disabled{opacity:.6}</style>
+<link rel="stylesheet" href="/public/css/spotbook-mobile.css?v=20260926-2">
+<script src="/public/js/spotbook-mobile.js?v=20260926-2" defer></script>
 </head>
 <body>
   <!-- Header -->
@@ -946,7 +949,7 @@
   </aside>
 
   <!-- קובץ הסקריפט הקיים שלך נשאר ללא שינוי -->
-  <script src="/static/js/owner_calendar.js" defer></script>
+  <script src="/static/js/owner_calendar.js?v=20260929-3" defer></script>
   <script>
     window.__OC__ = {
       rid: "<%= it.rid %>",
@@ -1078,3 +1081,4 @@
   </script>
 </body>
 </html>
+

@@ -102,6 +102,8 @@ COPY public/js/booking-draft.js /app/public/js/booking-draft.js
 COPY railway_booking_flow_patch.ts /app/railway_booking_flow_patch.ts
 RUN deno run --allow-read --allow-write /app/railway_booking_flow_patch.ts
 
+COPY public/js/owner_calendar.js /app/public/js/owner_calendar.js
+
 # Compile the authoritative editor source and restore it after the old overlay.
 COPY public/js/restaurant_gallery.js public/js/menu_embed.js public/js/spotbook-customer-mobile.js /app/public/js/
 COPY public/css/spotbook-customer-mobile.css /app/public/css/spotbook-customer-mobile.css
