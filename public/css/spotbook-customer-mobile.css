@@ -1,0 +1,32 @@
+/* Customer-only refinements; keep the approved page design and staff workspace. */
+#pos-menu .customer-menu-search{box-sizing:border-box;width:100%;min-height:48px;font:inherit;font-size:16px;padding:12px 14px;border:1px solid #40516a;border-radius:14px;background:var(--surface,#101b2d);color:var(--ink,#e6e8ef)}
+#pos-menu .customer-menu-tabs{display:flex;gap:8px;overflow-x:auto;padding:12px 0;max-width:100%}
+#pos-menu .customer-menu-tab{min-height:44px;flex-shrink:0;padding:10px 16px;border:1px solid #40516a;border-radius:24px;background:#152238;color:#e6e8ef;font:inherit;cursor:pointer}
+#pos-menu .customer-menu-tab[aria-pressed=true]{background:#2563eb;border-color:#6097f2;color:#fff}
+#pos-menu .customer-menu-section h4{margin:20px 0 8px;overflow-wrap:anywhere}
+#pos-menu .customer-menu-list{list-style:none;padding:0;margin:0}
+#pos-menu .customer-menu-item{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid #334155}
+#pos-menu .customer-menu-name{min-width:0;overflow-wrap:anywhere}
+#pos-menu .customer-menu-price{white-space:nowrap;flex-shrink:0;font-variant-numeric:tabular-nums}
+#pos-menu [hidden],.rsv-lightbox button[hidden]{display:none!important}
+.rsv-lightbox__img{object-fit:contain;touch-action:pan-y pinch-zoom}
+.rsv-lightbox__btn:focus-visible,#pos-menu :focus-visible{outline:3px solid #93c5fd;outline-offset:3px}
+@media(max-width:760px){
+ .rsv-page{padding-bottom:calc(92px + env(safe-area-inset-bottom))!important}
+ .rsv-page input:not([type=hidden]),.rsv-page select,.rsv-page textarea{font-size:16px!important;max-width:100%;box-sizing:border-box}
+ .rsv-page input[type=tel],.rsv-page input[type=email]{direction:ltr;text-align:start}
+ .rsv-page .rsv-form,.rsv-page .rsv-details-form{scroll-margin-top:110px}
+ .rsv-page .rsv-hero__name,.rsv-page .rsv-card h2,.rsv-page .rsv-menu__name,.rsv-page .rsv-room-card__name{overflow-wrap:anywhere;min-width:0}
+ .rsv-page .rsv-menu__row{align-items:flex-start}
+ .rsv-page .rsv-menu__price{flex-shrink:0;white-space:nowrap}
+ .rsv-page .rsv-btn,.rsv-page .rsv-time-chip{min-height:44px}
+ .rsv-page .rsv-hero-strip{display:flex!important;overflow-x:auto;gap:10px;scroll-snap-type:x proximity}
+ .rsv-page .rsv-hero-strip__item{flex:0 0 75%;scroll-snap-align:start}
+ .rsv-page .rsv-gallery img{object-fit:contain!important;background:#080f1b;height:210px!important}
+ .rsv-lightbox .rsv-lightbox__dialog{padding:70px 12px 85px;box-sizing:border-box}
+ .rsv-lightbox .rsv-lightbox__img{width:auto;max-width:100%;max-height:calc(100dvh - 190px);border-radius:10px}
+ .rsv-lightbox .rsv-lightbox__btn--prev,.rsv-lightbox .rsv-lightbox__btn--next{top:auto;bottom:max(18px,env(safe-area-inset-bottom));transform:none;min-width:48px;min-height:48px}
+ .rsv-lightbox .rsv-lightbox__btn--close{top:max(16px,env(safe-area-inset-top));min-width:48px;min-height:48px}
+ html.customer-editing #rsv-sticky-bar{display:none!important}
+}
+@media(prefers-reduced-motion:reduce){.rsv-page *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}

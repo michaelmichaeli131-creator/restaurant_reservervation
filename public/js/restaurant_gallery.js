@@ -13,12 +13,16 @@ if (root && lightbox && lightboxImg && counterEl) {
 
   let currentIndex = 0;
   let lastActive = null;
+  let previousOverflow = '';
+  const rtl = document.documentElement.dir === 'rtl';
+  counterEl.setAttribute('aria-live', 'polite');
 
   const update = () => {
     if (!photos.length) return;
     const safeIndex = ((currentIndex % photos.length) + photos.length) % photos.length;
     currentIndex = safeIndex;
     lightboxImg.src = photos[safeIndex] || '';
+    lightboxImg.alt = `${root.querySelector('img')?.alt || 'Photo'} (${safeIndex + 1} / ${photos.length})`;
     counterEl.textContent = `${safeIndex + 1} / ${photos.length}`;
   };
 
@@ -29,6 +33,7 @@ if (root && lightbox && lightboxImg && counterEl) {
     update();
     lightbox.hidden = false;
     lightbox.setAttribute('aria-hidden', 'false');
+    previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     lightbox.querySelector('.rsv-lightbox__btn--close')?.focus();
   };
@@ -36,7 +41,7 @@ if (root && lightbox && lightboxImg && counterEl) {
   const close = () => {
     lightbox.hidden = true;
     lightbox.setAttribute('aria-hidden', 'true');
-    document.body.style.overflow = '';
+    document.body.style.overflow = previousOverflow;
     if (lastActive && typeof lastActive.focus === 'function') {
       lastActive.focus();
     }
@@ -72,13 +77,36 @@ if (root && lightbox && lightboxImg && counterEl) {
   document.addEventListener('keydown', (event) => {
     if (lightbox.hidden) return;
     if (event.key === 'Escape') {
+      event.preventDefault();
       close();
     } else if (event.key === 'ArrowLeft') {
-      currentIndex -= 1;
+      event.preventDefault();
+      currentIndex += rtl ? 1 : -1;
       update();
     } else if (event.key === 'ArrowRight') {
-      currentIndex += 1;
+      event.preventDefault();
+      currentIndex += rtl ? -1 : 1;
       update();
+    } else if (event.key === 'Tab') {
+      const buttons = [...lightbox.querySelectorAll('.rsv-lightbox__dialog button')].filter(b => !b.hidden && !b.disabled);
+      const first = buttons[0], last = buttons[buttons.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     }
   });
+  let touch = null;
+  lightboxImg.addEventListener('touchstart', event => {
+    touch = event.touches.length === 1 ? {x:event.touches[0].clientX, y:event.touches[0].clientY} : null;
+  }, {passive:true});
+  lightboxImg.addEventListener('touchcancel', () => { touch = null; });
+  lightboxImg.addEventListener('touchend', event => {
+    if (!touch || !event.changedTouches.length) return;
+    const dx = event.changedTouches[0].clientX - touch.x;
+    const dy = event.changedTouches[0].clientY - touch.y;
+    touch = null;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    currentIndex += (dx < 0 ? 1 : -1) * (rtl ? -1 : 1);
+    update();
+  }, {passive:true});
+  for (const button of lightbox.querySelectorAll('[data-gallery-prev], [data-gallery-next]')) button.hidden = photos.length < 2;
 }

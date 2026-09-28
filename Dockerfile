@@ -103,6 +103,11 @@ COPY railway_booking_flow_patch.ts /app/railway_booking_flow_patch.ts
 RUN deno run --allow-read --allow-write /app/railway_booking_flow_patch.ts
 
 # Compile the authoritative editor source and restore it after the old overlay.
+COPY public/js/restaurant_gallery.js public/js/menu_embed.js public/js/spotbook-customer-mobile.js /app/public/js/
+COPY public/css/spotbook-customer-mobile.css /app/public/css/spotbook-customer-mobile.css
+COPY railway_customer_mobile_patch.ts /app/railway_customer_mobile_patch.ts
+RUN deno run --allow-read --allow-write /app/railway_customer_mobile_patch.ts
+
 COPY --from=floor-build /floor/public/dist/ /app/public/dist/
 
 # The base image keeps DENO_DIR at /deno-dir. Builds run as root up to this
