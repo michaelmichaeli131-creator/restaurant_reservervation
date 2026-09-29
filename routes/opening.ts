@@ -17,7 +17,7 @@ openingRouter.get("/restaurants/:id/opening", async (ctx) => {
   const date = ctx.request.url.searchParams.get("date") || "";
 
   const r = await getRestaurant(id);
-  if (!r) {
+  if (!r || !r.approved) {
     ctx.response.status = Status.NotFound;
     ctx.response.type = "json";
     ctx.response.body = { error: "not_found" };
@@ -49,7 +49,7 @@ openingRouter.get("/restaurants/:id/opening", async (ctx) => {
   const duration = Math.max(1, Number(r.serviceDurationMinutes) || 120);
   const minutes = (v: string) => {
     const m = /^(\d{2}):(\d{2})$/.exec(v);
-    return m && +m[1] <= 24 && +m[2] < 60 ? +m[1]*60 + +m[2] : NaN;
+    return m && (+m[1] < 24 || (+m[1] === 24 && +m[2] === 0)) && +m[2] < 60 ? +m[1]*60 + +m[2] : NaN;
   };
   const times = new Set<string>();
   for (const window of openingWindows) {
@@ -61,7 +61,7 @@ openingRouter.get("/restaurants/:id/opening", async (ctx) => {
     }
   }
   const peopleRaw = ctx.request.url.searchParams.get("people");
-  const people = Number(peopleRaw || 2);
+  const people = Number(peopleRaw ?? 2);
   const preferredLayoutId = ctx.request.url.searchParams.get("preferredLayoutId") || "";
   if (!Number.isInteger(people) || people < 1 || people > 100) {
     ctx.response.status = Status.BadRequest;
@@ -70,22 +70,24 @@ openingRouter.get("/restaurants/:id/opening", async (ctx) => {
   }
   const openingTimes = [...times].sort();
   const bookableTimes: string[] = [];
-  if (peopleRaw !== null) {
+  {
+    const reads = new Map<string, Promise<unknown>>();
     // Bound concurrent reads; reuse the same validators as reservation creation.
     for (let offset = 0; offset < openingTimes.length; offset += 4) {
       const batch = openingTimes.slice(offset, offset + 4);
       const available = await Promise.all(batch.map(async time => {
-        const total = await checkAvailability(id, date, time, people);
+        const total = await checkAvailability(id, date, time, people, reads);
         if (!total.ok) return false;
-        return !preferredLayoutId || (await checkRoomCapacity(id, preferredLayoutId, date, time, people)).ok;
+        return !preferredLayoutId || (await checkRoomCapacity(id, preferredLayoutId, date, time, people, reads)).ok;
       }));
       batch.forEach((time, i) => { if (available[i]) bookableTimes.push(time); });
     }
-  } else bookableTimes.push(...openingTimes);
+  }
   ctx.response.body = { openingWindows, slotIntervalMinutes, bookableTimes, openingTimes, today, currentTime };
 });
 
 export default openingRouter;
 export { openingRouter };
+
 
 
