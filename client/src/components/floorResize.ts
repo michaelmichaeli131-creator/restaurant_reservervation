@@ -3,10 +3,18 @@ import { activeFootprint, type GridItem, type GridLayout } from './floorBatch.ts
 export type ResizeDirection = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 export type ResizeBox = Pick<GridItem, 'gridX' | 'gridY' | 'spanX' | 'spanY'>;
 
-export function resizeByKeyboard(box: ResizeBox, direction: ResizeDirection, amount: number): ResizeBox {
+export function resizeByKeyboard(box: ResizeBox, direction: ResizeDirection, amount: number, ratioLocked = false): ResizeBox {
   const west = direction.includes('w'), north = direction.includes('n');
   const horizontal = west || direction.includes('e');
   const vertical = north || direction.includes('s');
+  if(ratioLocked) {
+    const gcd = (a: number, b: number): number => b ? gcd(b, a % b) : a;
+    const divisor = gcd(box.spanX, box.spanY);
+    const count = Math.max(1, divisor + amount);
+    const spanX = box.spanX / divisor * count, spanY = box.spanY / divisor * count;
+    return {gridX: west ? box.gridX + box.spanX - spanX : box.gridX,
+      gridY: north ? box.gridY + box.spanY - spanY : box.gridY, spanX, spanY};
+  }
   const spanX = horizontal ? Math.max(1, box.spanX + amount) : box.spanX;
   const spanY = vertical ? Math.max(1, box.spanY + amount) : box.spanY;
   return {
@@ -32,3 +40,4 @@ export function canResize(
   return layout.tables.every(item => (kind === 'table' && item.id === id) || !collides(item)) &&
     (layout.objects ?? []).every(item => (kind === 'object' && item.id === id) || !collides(item));
 }
+

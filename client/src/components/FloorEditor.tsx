@@ -88,6 +88,9 @@ export default function FloorEditor({ restaurantId }: FloorEditorProps) {
   const history = useFloorHistory<FloorLayout>(he ? 'יש שינויים שלא נשמרו. לצאת בלי לשמור?' : ka ? 'გსურთ გასვლა ცვლილებების შენახვის გარეშე?' : 'Discard unsaved changes and leave?');
   const { value: currentLayout, setValue: setCurrentLayout } = history;
   const [saving, setSaving] = useState(false);
+  const [loadingLayouts, setLoadingLayouts] = useState(true);
+  const [layoutLoadError, setLayoutLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [ratioLocked, setRatioLocked] = useState(false);
   const [editWarning, setEditWarning] = useState('');
   const [selectedKeys, setSelectedKeys] = useState<SelectionKey[]>([]);
@@ -579,33 +582,31 @@ const assetForTable = (shape: string, seats: number) => {
     return true;
   };
 
-// Load all layouts
+// Keep a failed request distinct from an empty restaurant; retry without creating a map.
   useEffect(() => {
-    if (!restaurantId) return;
-
-    fetch(`/api/floor-layouts/${restaurantId}`)
-      .then(res => res.ok ? res.json() : [])
+    if (!restaurantId) { setLoadingLayouts(false); setLayoutLoadError(true); return; }
+    const controller = new AbortController();
+    let active = true;
+    setLoadingLayouts(true); setLayoutLoadError(false);
+    fetch(`/api/floor-layouts/${restaurantId}`, {signal:controller.signal})
+      .then(res => { if(!res.ok) throw new Error('Unable to load layouts'); return res.json(); })
       .then(data => {
+        if(!active) return;
+        if(!Array.isArray(data)) throw new Error('Invalid layouts response');
         setLayouts(data);
-        const active = data.find((l: FloorLayout) => l.isActive);
-        setCurrentLayout(active ? ensureMask(active) : (data[0] ? ensureMask(data[0]) : null));
-
-        const allTables = data.flatMap((l: FloorLayout) => l.tables);
-        const maxNum = Math.max(...allTables.map((t: FloorTable) => t.tableNumber), 0);
-        setNextTableNumber(maxNum + 1);
+        const selected = data.find((l: FloorLayout) => l.isActive) || data[0];
+        setCurrentLayout(selected ? ensureMask(selected) : null);
+        const allTables = data.flatMap((l: FloorLayout) => l.tables || []);
+        setNextTableNumber(Math.max(...allTables.map((item: FloorTable) => Number(item.tableNumber) || 0), 0) + 1);
       })
-      .catch(err => console.error('Failed to load layouts:', err));
-
-    fetch(`/api/floor-sections/${restaurantId}`)
-      .then(res => res.ok ? res.json() : [])
-      .then(data => {
-        setSections(data);
-        if (data.length > 0) {
-          setActiveSection(data[0]);
-        }
-      })
-      .catch(err => console.error('Failed to load sections:', err));
-  }, [restaurantId]);
+      .catch(() => { if(active) setLayoutLoadError(true); })
+      .finally(() => { if(active) setLoadingLayouts(false); });
+    fetch(`/api/floor-sections/${restaurantId}`, {signal:controller.signal})
+      .then(res => { if(!res.ok) throw new Error('Unable to load sections'); return res.json(); })
+      .then(data => { if(active && Array.isArray(data)){setSections(data);setActiveSection(data[0] || null);} })
+      .catch(() => { /* Sections are optional; layout loading has its own retry. */ });
+    return () => {active=false;controller.abort();};
+  }, [restaurantId, loadAttempt]);
 
   // Canvas keyboard helpers (Space = pan)
   useEffect(() => {
@@ -1342,7 +1343,7 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       (currentLayout.objects ?? []).find(o => o.id === id);
     if (!item || item.locked) return;
     const amount = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
-    const next = resizeByKeyboard(item, direction, amount);
+    const next = resizeByKeyboard(item, direction, amount, ratioLocked);
     if (next.spanX === item.spanX && next.spanY === item.spanY) return;
     if (!canResize(currentLayout, kind, id, next)) {
       setEditWarning(he ? 'אין מקום לשינוי הגודל בכיוון הזה' : ka ? 'ამ მიმართულებით ზომის შეცვლა შეუძლებელია' : 'Cannot resize in that direction');
@@ -1422,12 +1423,14 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onCancel);
+      window.removeEventListener('pointerdown', onOtherTouch);
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('blur', cancel);
       resizeCleanup.current = null;
     };
     const cancel = () => { cleanup(); setResizeDraft(null); };
     const onCancel = (ev: PointerEvent) => { if (ev.pointerId === pointerId) cancel(); };
+    const onOtherTouch = (ev: PointerEvent) => { if(ev.pointerType === 'touch' && ev.pointerId !== pointerId) cancel(); };
     const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') cancel(); };
     const onUp = (ev: PointerEvent) => {
       if (ev.pointerId !== pointerId) return;
@@ -1437,7 +1440,8 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       update(id, { gridX: draft.anchorX, gridY: draft.anchorY, spanX: draft.spanX, spanY: draft.spanY });
       setResizeDraft(null);
     };
-    resizeCleanup.current = cleanup;
+    resizeCleanup.current = cancel;
+    window.addEventListener('pointerdown', onOtherTouch);
     window.addEventListener('pointermove', onMove, { passive: false });
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onCancel);
@@ -1652,22 +1656,20 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
       setSnapGuides({ v: [], h: [] });
     };
 
-    const onKey = (ev: KeyboardEvent) => {
-      if (ev.key === 'Escape') {
-        setPointerDrag(null);
-        setDragPreviewCell(null);
-        setHoverCell(null);
-        setSnapGuides({ v: [], h: [] });
-      }
+    const cancel = () => {
+      setPointerDrag(null); setDragPreviewCell(null); setHoverCell(null);
+      setSnapGuides({ v: [], h: [] });
     };
-
+    const onKey = (ev: KeyboardEvent) => { if(ev.key === 'Escape') cancel(); };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp, { once: true });
     window.addEventListener('keydown', onKey);
+    window.addEventListener('blur', cancel);
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('blur', cancel);
     };
   }, [pointerDrag, currentLayout, cellSize, dragPreviewCell, nextTableNumber, activeSection?.id]);
 
@@ -1991,6 +1993,14 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     setEditWarning(he ? 'אין מקום פנוי לשכפול האובייקט' : ka ? 'ასლისთვის თავისუფალი ადგილი არ არის' : 'No free space for a duplicate');
   }
 
+  if (loadingLayouts || layoutLoadError) {
+    return <div className="floor-editor-empty" aria-busy={loadingLayouts}>
+      <p role="status">{loadingLayouts
+        ? (he ? 'טוען את מפות המסעדה…' : ka ? 'რესტორნის გეგმები იტვირთება…' : 'Loading restaurant layouts…')
+        : (he ? 'לא ניתן לטעון את המפות. בדקו את החיבור ונסו שוב.' : ka ? 'გეგმები ვერ ჩაიტვირთა. შეამოწმეთ კავშირი და სცადეთ ხელახლა.' : 'Unable to load layouts. Check your connection and try again.')}</p>
+      {!loadingLayouts && <button className="btn-primary" onClick={() => setLoadAttempt(n => n + 1)}>{he ? 'נסה שוב' : ka ? 'ხელახლა ცდა' : 'Try again'}</button>}
+    </div>;
+  }
   if (!currentLayout) {
     return (
       <div className="floor-editor-empty">
@@ -2963,3 +2973,4 @@ const snapPlacement = (x: number, y: number, spanX: number, spanY: number, kind:
     </div>
   );
 }
+

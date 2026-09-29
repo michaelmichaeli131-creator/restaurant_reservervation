@@ -22,3 +22,9 @@ const mask = { ...layout, gridMask: Array(64).fill(1) };
 mask.gridMask[2 * 8 + 4] = 0;
 assert.equal(canResize(mask, 'table', 'shared', { gridX: 2, gridY: 2, spanX: 3, spanY: 2 }), false);
 console.log('PASS: keyboard resize directions, collision namespaces, mask and bounds.');
+
+const wide = {gridX:4, gridY:4, spanX:4, spanY:2};
+assert.deepEqual(resizeByKeyboard(wide,'nw',1,true),{gridX:2,gridY:3,spanX:6,spanY:3});
+assert.deepEqual(resizeByKeyboard(wide,'w',-1,true),{gridX:6,gridY:4,spanX:2,spanY:1});
+assert.deepEqual(resizeByKeyboard(wide,'se',-9,true),{gridX:4,gridY:4,spanX:2,spanY:1});
+console.log('PASS: locked keyboard proportions, opposite anchor and minimum dimensions.');
