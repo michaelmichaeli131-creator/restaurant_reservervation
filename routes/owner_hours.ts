@@ -7,60 +7,15 @@ import { render } from "../lib/view.ts";
 import {
   getRestaurant,
   updateRestaurant,
-  type WeeklySchedule,
-  type DayOfWeek,
 } from "../database.ts";
 import { requireOwner } from "../lib/auth.ts";
 import { debugLog } from "../lib/debug.ts";
 
+import { parseHoursSettings } from "../lib/hours_settings.ts";
+
 const ownerHoursRouter = new Router();
 
 const DAY_LABELS = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"] as const;
-
-function toHHMM(v: unknown): string | null {
-  const s = String(v ?? "").trim();
-  if (!s) return null;
-  const t = s.replace(".", ":");
-  const m = t.match(/^(\d{1,2}):(\d{2})$/);
-  if (!m) return null;
-  const h = Math.max(0, Math.min(23, Number(m[1])));
-  const mi = Math.max(0, Math.min(59, Number(m[2])));
-  return `${String(h).padStart(2,"0")}:${String(mi).padStart(2,"0")}`;
-}
-function timeLT(a: string, b: string): boolean {
-  const [h1,m1] = a.split(":").map(Number);
-  const [h2,m2] = b.split(":").map(Number);
-  return h1 < h2 || (h1 === h2 && m1 < m2);
-}
-
-/** בונה weeklySchedule תקין: { open, close } או null */
-function buildWeeklyFromParams(sp: URLSearchParams): WeeklySchedule | undefined {
-  let touched = false;
-  const weekly: WeeklySchedule = {} as any;
-
-  for (let d = 0 as DayOfWeek; d <= 6; d++) {
-    const hasClosed = sp.has(`w${d}_closed`);
-    const hasOpen = sp.has(`w${d}_open`);
-    const hasClose = sp.has(`w${d}_close`);
-    if (!hasClosed && !hasOpen && !hasClose) continue;
-    touched = true;
-
-    const closed = sp.get(`w${d}_closed`) === "on";
-    const open = toHHMM(sp.get(`w${d}_open`));
-    const close = toHHMM(sp.get(`w${d}_close`));
-
-    if (closed) {
-      weekly[d] = null;
-    } else if (open && close && timeLT(open, close)) {
-      // ✅ שמירה בפורמט הנכון — אובייקט יחיד ולא מערך
-      weekly[d] = { open, close };
-    } else {
-      weekly[d] = null;
-    }
-  }
-
-  return touched ? weekly : undefined;
-}
 
 // ---------- GET: דף השעות ----------
 ownerHoursRouter.get("/owner/restaurants/:id/hours", async (ctx) => {
@@ -127,33 +82,20 @@ ownerHoursRouter.get("/owner/restaurants/:id/hours/save", async (ctx) => {
   }
 
   const sp = ctx.request.url.searchParams;
-  const patch: Partial<typeof r> = {};
-
-  // קיבולת
-  if (sp.has("capacity")) {
-    const n = Number(sp.get("capacity"));
-    if (Number.isFinite(n) && n > 0) patch.capacity = Math.floor(n);
+  let patch: Record<string, unknown>;
+  try {
+    patch = parseHoursSettings(sp, r.weeklySchedule as Record<string, unknown> || {});
+  } catch {
+    const lang = String(sp.get('lang') || (ctx.state as any).lang || 'en');
+    const words = lang === 'he'
+      ? ['ההגדרות לא נשמרו', 'בדקו את הקיבולת, מרווחי ההזמנה ומשך הישיבה. בכל יום פתוח נדרשות שעת פתיחה ושעת סגירה מאוחרת ממנה.']
+      : lang === 'ka'
+      ? ['პარამეტრები არ შენახულა', 'შეამოწმეთ ტევადობა, ჯავშნის ინტერვალი და ხანგრძლივობა. სამუშაო დღეებში დახურვის დრო გახსნის დროზე გვიან უნდა იყოს.']
+      : ['Settings were not saved', 'Check capacity, booking interval and dining duration. Every open day needs an opening time and a later closing time.'];
+    ctx.response.status = Status.BadRequest;
+    await render(ctx, 'error', {title:words[0], message:words[1]});
+    return;
   }
-
-  // גריד סלוטים (דקות)
-  if (sp.has("slotIntervalMinutes")) {
-    const s = Number(sp.get("slotIntervalMinutes"));
-    if (Number.isFinite(s) && s >= 5 && s <= 180) {
-      patch.slotIntervalMinutes = Math.floor(s);
-    }
-  }
-
-  // משך ישיבה (דקות)
-  if (sp.has("serviceDurationMinutes")) {
-    const d = Number(sp.get("serviceDurationMinutes"));
-    if (Number.isFinite(d) && d >= 15 && d <= 240) {
-      patch.serviceDurationMinutes = Math.floor(d);
-    }
-  }
-
-  // שעות פתיחה
-  const weekly = buildWeeklyFromParams(sp);
-  if (weekly) patch.weeklySchedule = weekly;
 
   debugLog("[owner_hours][SAVE][GET] patch", patch);
 
@@ -162,7 +104,7 @@ ownerHoursRouter.get("/owner/restaurants/:id/hours/save", async (ctx) => {
   ctx.response.status = Status.SeeOther;
   ctx.response.headers.set(
     "Location",
-    `/owner/restaurants/${encodeURIComponent(id)}/hours?saved=1`,
+    `/owner/restaurants/${encodeURIComponent(id)}/hours?saved=1&lang=${encodeURIComponent(sp.get("lang") || (ctx.state as any).lang || "en")}`,
   );
 });
 
@@ -179,3 +121,4 @@ ownerHoursRouter.post("/owner/restaurants/:id/hours", async (ctx) => {
 
 export default ownerHoursRouter;
 export { ownerHoursRouter };
+

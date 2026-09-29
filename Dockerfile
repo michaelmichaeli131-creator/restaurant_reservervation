@@ -104,6 +104,12 @@ RUN deno run --allow-read --allow-write /app/railway_booking_flow_patch.ts
 
 COPY public/js/owner_calendar.js /app/public/js/owner_calendar.js
 
+COPY lib/hours_settings.ts /app/lib/hours_settings.ts
+COPY routes/owner_hours.ts /app/routes/owner_hours.ts
+COPY public/js/owner-hours-validation.js /app/public/js/owner-hours-validation.js
+COPY railway_hours_settings_patch.ts /app/railway_hours_settings_patch.ts
+RUN deno run --allow-read --allow-write /app/railway_hours_settings_patch.ts
+
 # Compile the authoritative editor source and restore it after the old overlay.
 COPY public/js/restaurant_gallery.js public/js/menu_embed.js public/js/spotbook-customer-mobile.js /app/public/js/
 COPY public/css/spotbook-customer-mobile.css /app/public/css/spotbook-customer-mobile.css
