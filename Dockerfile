@@ -122,6 +122,8 @@ COPY railway_audit_patch.ts /app/railway_audit_patch.ts
 RUN deno run --allow-read --allow-write /app/railway_audit_patch.ts
 COPY railway_reservation_updates_patch.ts /app/railway_reservation_updates_patch.ts
 RUN deno run --allow-read --allow-write /app/railway_reservation_updates_patch.ts
+COPY railway_inventory_operations_patch.ts /app/railway_inventory_operations_patch.ts
+RUN deno run --allow-read --allow-write /app/railway_inventory_operations_patch.ts
 
 COPY --from=floor-build /floor/public/dist/ /app/public/dist/
 
