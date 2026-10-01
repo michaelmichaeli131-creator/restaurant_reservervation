@@ -124,6 +124,9 @@ COPY railway_reservation_updates_patch.ts /app/railway_reservation_updates_patch
 RUN deno run --allow-read --allow-write /app/railway_reservation_updates_patch.ts
 COPY railway_inventory_operations_patch.ts /app/railway_inventory_operations_patch.ts
 RUN deno run --allow-read --allow-write /app/railway_inventory_operations_patch.ts
+COPY lib/owner_access.ts /app/lib/owner_access.ts
+COPY railway_operations_integrity_patch.ts /app/railway_operations_integrity_patch.ts
+RUN deno run --allow-read --allow-write /app/railway_operations_integrity_patch.ts
 
 COPY --from=floor-build /floor/public/dist/ /app/public/dist/
 
